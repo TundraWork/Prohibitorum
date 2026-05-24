@@ -31,5 +31,5 @@ func AvailableMethods(ctx context.Context, q db.Querier, accountID int32) ([]Met
 // TODO(v0.2): tx { DeletePasswordCredential, DeleteTOTPCredential,
 // DeleteAllRecoveryCodesByAccount } + audit event.
 func DisableNonWebAuthnFallbacks(ctx context.Context, q db.Querier, accountID int32) error {
-	return nil
+	return errors.New("authn.DisableNonWebAuthnFallbacks: TODO(v0.2)")
 }

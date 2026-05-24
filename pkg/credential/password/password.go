@@ -28,5 +28,5 @@ func (s *Store) Verify(ctx context.Context, accountID int32, password string) er
 
 // TODO(v0.2): hash via argon2id PHC, q.UpsertPasswordCredential.
 func (s *Store) Set(ctx context.Context, accountID int32, password string) error {
-	return nil
+	return errors.New("password.Set: TODO(v0.2)")
 }

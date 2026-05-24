@@ -30,9 +30,11 @@ const (
 	EventCloneWarning     = "clone_warning"
 	EventLink             = "link"
 	EventUnlink           = "unlink"
-	EventEnrollmentIssued = "enrollment_issued"
-	EventSessionStart     = "session_start"
-	EventSessionEnd       = "session_end"
+	EventEnrollmentIssued   = "enrollment_issued"
+	EventEnrollmentConsumed = "enrollment_consumed"
+	EventSessionStart       = "session_start"
+	EventSessionEnd         = "session_end"
+	EventFactorDisabled     = "factor_disabled"
 )
 
 type Record struct {
@@ -61,7 +63,9 @@ func (w *dbWriter) Record(ctx context.Context, r Record) error {
 	return nil
 }
 
-func MustParseIP(s string) *netip.Addr {
+// ParseIPOrNil returns the parsed address or nil on any parse failure.
+// Convention note: not "MustX" — never panics.
+func ParseIPOrNil(s string) *netip.Addr {
 	if s == "" {
 		return nil
 	}
