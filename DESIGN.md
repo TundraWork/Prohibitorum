@@ -2,218 +2,429 @@
 
 > Index Librorum Prohibitorum. The list of who's allowed and what they can do.
 
-A homegrown identity & authorization service. WebAuthn-only sign-in,
-OpenID Connect for relying-party integration.
-
-## Why
-
-`picotera` grew an in-house user/account/session/passkey layer because
-no commodity IdP fit its constraints (no email channel, admin-driven
-recovery, passkey-only, single-org). The same layer is useful to other
-services in the org. Rather than copy-paste the auth code into each new
-project, extract it into a standalone service and have each RP integrate
-via standard protocols.
+A single-tenant identity provider for a small org. Owns the account
+directory, authenticates users via one of four upstream methods
+(WebAuthn, Password, TOTP, upstream OIDC federation), and issues
+identity assertions to downstream apps via OIDC OP or SAML 2.0 IdP.
 
 ## What this is (and isn't)
 
-**Is:** a single-tenant identity provider for a small org. Owns the
-account directory, runs passkey ceremonies, issues sessions and OIDC
-tokens. Acts as the source of truth for "who is this user, are they
-disabled, what can they do?"
+**Is:**
+- A single-tenant IdP for a small org. Owns the account directory,
+  runs WebAuthn / password+TOTP ceremonies, can federate identity
+  from upstream OIDC providers, and issues sessions plus protocol
+  responses.
+- A first-party service. No email channel; admin-issued enrollment
+  is the only account-recovery path.
+- The source of truth for "who is this user, are they disabled, what
+  attributes do we know about them?"
 
 **Is not:**
-- A multi-tenant SaaS IdP (no per-tenant separation; future scope).
-- A SAML IdP (OIDC + introspection only).
-- A social-login proxy (no upstream IdPs to federate from).
-- An authorization policy engine (no OPA/Rego; only RBAC + permission
-  flags carried in tokens — RP enforces).
+- A multi-tenant SaaS IdP (no per-tenant separation).
+- A SAML SP — Prohibitorum does **not** consume upstream SAML
+  assertions; only OIDC federation goes upstream.
+- A social-login proxy in the consumer sense; "Sign in with Google"
+  works only if an admin has registered Google as an upstream IdP and
+  configured a provisioning mode.
+- An authorization policy engine (no OPA/Rego). Prohibitorum carries
+  a free-form `attributes` map per account into ID-token claims and
+  SAML AttributeStatement; RPs enforce policy from those claims.
 
-## Architecture
+## Architecture — three-layer (Approach A)
+
+Industry-convergent layout drawn from Keycloak, Ory Kratos+Hydra,
+Authelia, Dex, Zitadel. Three layers, acyclic import graph:
+
+1. **Identity store** — directory + credentials + federation links.
+   Facts about users.
+2. **Authentication subsystem** — factors + federation. Produces a
+   `session`.
+3. **Protocol subsystem** — OIDC OP + SAML IdP. Consumes a `session`.
+
+The `session` package is the contract between layers (2) and (3).
+Protocols don't know how the user authenticated; factors don't know
+what RPs will consume the result.
 
 ```
-                ┌─────────────────────────────────────┐
-                │           Prohibitorum              │
-                │                                     │
-   browser ────►│  /login   /enroll/{token}   /me     │
-                │  /accounts            (Vue SPA)     │
-                │                                     │
-                │  /authorize  /token  /userinfo      │
-   RP backend ─►│  /introspect  /.well-known/...      │
-                │  /jwks                              │
-                │                                     │
-                │  ┌────────┐  ┌────────┐  ┌───────┐  │
-                │  │ pgx    │  │ KV     │  │ jose  │  │
-                │  │postgres│  │keydb/  │  │JWT    │  │
-                │  │        │  │memory  │  │signer │  │
-                │  └────────┘  └────────┘  └───────┘  │
-                └─────────────────────────────────────┘
+                      ┌──────────────────────────────────┐
+                      │             Prohibitorum         │
+                      │                                  │
+        browser  ────►│  Identity store                  │
+                      │   pkg/account                    │
+                      │   pkg/credential/{webauthn,      │
+                      │     password, totp, pairing,     │
+                      │     enrollment}                  │
+                      │   pkg/federation/oidc            │
+                      │                                  │
+                      │  Authentication subsystem        │
+                      │   pkg/authn         pkg/session  │
+                      │                                  │
+                      │  Protocol subsystem              │
+       RP ──OIDC────► │   pkg/protocol/oidc              │
+       SP ──SAML────► │   pkg/protocol/saml              │
+                      │                                  │
+                      │  ┌────────┐  ┌────────┐  ┌─────┐ │
+                      │  │ pgx    │  │ KV     │  │jose │ │
+                      │  │postgres│  │keydb/  │  │RS256│ │
+                      │  │        │  │memory  │  │     │ │
+                      │  └────────┘  └────────┘  └─────┘ │
+                      └──────────────────────────────────┘
 ```
 
-**Identity layer** (lift-and-shift from picotera):
-- WebAuthn registration + assertion via go-webauthn
-- KV-backed sessions (sliding refresh, live `account.disabled` check)
-- Enrollment tokens (bootstrap / invite / reset / add-device pairing)
-- Device pairing via short code (no bearer-token transfer)
-- Sudo mode (fresh assertion for sensitive actions)
-- Per-IP / per-account rate limiting
-- 5 v1 permissions; RBAC via `role ∈ {admin, user}`
+### Package layout
 
-**OIDC layer** (new):
-- Authorization Code flow with PKCE — only flow supported (RFC 9700 / OAuth 2.1).
-- Discovery + JWKS endpoints.
-- Tokens signed with RS256 (rotation via DB-stored signing keys; one active key, multiple verifying keys until expiry).
-- ID token claims: `sub`, `iss`, `aud`, `exp`, `iat`, `nonce`, plus
-  `username`, `displayName`, `role`, `permissions` (the 5 booleans).
-- Access token: JWT per RFC 9068 with `scope` claim.
-- Refresh tokens: opaque, server-side stored, rotated on use.
-- Static client config in DB for v1 (no dynamic registration).
-- Introspection endpoint for RP back-ends that prefer opaque-token
-  semantics.
+```
+pkg/
+  account/                # directory: Account, list, disable, role, attributes
+  credential/
+    webauthn/             # WebAuthn registration + assertion
+    password/             # argon2id PHC hash store + verify (v0.2)
+    totp/                 # RFC 6238 + recovery codes; AES-GCM at-rest (v0.2)
+    pairing/              # device-pairing code (no bearer-token in URL)
+    enrollment/           # invite/reset/add-device/bootstrap tokens
+  federation/
+    oidc/                 # upstream OIDC RP (v0.3)
+  session/                # PG + KV-backed session, middleware
+  authn/                  # login orchestrator + sudo + rate limit + middleware
+  protocol/
+    oidc/                 # downstream OIDC OP (v0.4)
+    saml/                 # SAML 2.0 IdP (v0.5), GHES-compatible profile
+  server/                 # HTTP wiring, routes mounted from each subsystem
+  contract/               # types exposed to dashboard / RPs
+  audit/                  # credential_event writer
+  kv/  logx/  errorx/  configx/   # utilities
+```
+
+## Authentication methods
+
+The four upstream methods, in preference order:
+
+### WebAuthn (primary)
+
+ResidentKey=Required (discoverable credentials), UV=Required at
+register / Preferred at login. Sign-count regression detection writes
+`webauthn_credential.clone_warning_at` so the admin UI can surface
+suspected cloned authenticators. COSE algorithm, user handle, and
+`uv_initialized` are persisted per credential per WebAuthn L3 §4.
+
+When a user enrolls WebAuthn via `/me/passkeys/add`, the handler
+offers to delete the account's password + TOTP + recovery codes in
+the same transaction. Default yes. The decision is captured
+server-side; there's no client-side bypass.
+
+### Password + TOTP (fallback, v0.2)
+
+For users without passkey-capable devices. Both factors required;
+neither alone produces a session.
+
+- **Password.** argon2id PHC string at rest, salted per row, params
+  tunable via `configx.PasswordHashParams`. On successful verify, if
+  the stored hash uses parameters below the current configured set,
+  re-hash and update. Persistent failed-attempt counter in
+  `auth_throttle` (per RFC 4226 §7.3, cross-restart).
+- **TOTP.** AES-256-GCM at rest with versioned DEK
+  (`PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>`); AAD =
+  `'totp:'||account_id||':'||key_version` so ciphertext can't be
+  copied between rows. Per RFC 6238: ±1 period drift,
+  `totp_credential.last_step` defeats same-step replay (§5.2). SHA1
+  default for Google Authenticator interop.
+- **Recovery codes.** 10 codes shown once at TOTP enrollment;
+  argon2id PHC at rest; single-use; redemption context (session, IP)
+  captured for audit (`recovery_code.used_session_id`, `used_ip`).
+
+### Upstream OIDC federation (v0.3)
+
+Per-IdP configuration in `upstream_idp` with three provisioning modes:
+
+- **auto_provision** — create a local account on first sign-in if the
+  upstream `email` claim domain is in `allowed_domains` (or
+  `allowed_domains` is empty). Link `(upstream_iss, upstream_sub)` to
+  the new account.
+- **invite_only** — look up a pending enrollment whose
+  `expected_upstream_idp_slug` matches this IdP. No matching invite
+  → 403.
+- **link_only** — never auto-create. User must already have an
+  account and a pre-existing link → 403 otherwise, with a hint to
+  sign in via another method then link from `/me`.
+
+Upstream client secrets are AES-256-GCM encrypted at rest with the
+same versioned DEK scheme and a different AAD prefix
+(`'upstream_idp:'||id||':'||key_version`). `account_identity` is
+keyed on `(upstream_iss, upstream_sub)` per OIDC Core §2 — admin
+re-pointing an IdP's `issuer_url` cannot collide sub spaces.
+
+Federation state stored in KV at request time snapshots
+`expected_iss` and `expected_token_endpoint` from the discovery doc;
+mid-flight admin edits to `upstream_idp` cannot break mix-up
+resistance (RFC 9700 §4.4.2.1).
+
+## Downstream protocols
+
+### OIDC OP (v0.4)
+
+Authorization Code + PKCE only. Implicit / ROPC / Hybrid are not
+registered as accepted `response_type`s. Discovery + JWKS endpoints
+published. RS256 signing (key store unified with SAML; see
+"Cryptography").
+
+- **ID token claims:** `iss`, `sub`, `aud`, `exp`, `iat`, `nonce`,
+  `auth_time`, `amr`, `acr`, `azp` (when `aud` is multi-valued or
+  differs from authorized party), `at_hash`, plus `username`,
+  `displayName`, `role`, and `attributes` carried verbatim from the
+  account.
+- **Access token (RFC 9068):** `typ: at+jwt`. Required claims `iss`,
+  `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`;
+  `auth_time` / `amr` / `acr` carried when available.
+- **Refresh tokens:** opaque, KV-stored, rotated on use; reuse
+  detection revokes the entire family.
+- **Authorization codes:** marked `consumed_at` on first use (not
+  deleted), kept until TTL. Replay attempts revoke the refresh-token
+  family minted from the code and write a `credential_event` with
+  `event=fail, factor=oidc_client, reason=code_reuse` (RFC 9700 §4.5,
+  §4.14.2).
+- **Revocation (RFC 7009):** writes to `revoked_jti` for self-contained
+  access tokens; `/oauth/introspect` returns `active: false`.
+- **RP-Initiated Logout:** `post_logout_redirect_uri` exact-matched
+  against `oidc_client.post_logout_redirect_uris`.
+
+### SAML IdP (v0.5)
+
+SP-initiated SSO only (no IdP-initiated). HTTP-Redirect and HTTP-POST
+bindings for AuthnRequest; HTTP-POST binding for the Response.
+`crewjam/saml` does the protocol heavy lifting.
+
+- **Assertion construction.** Always sign both `<Response>` and
+  `<Assertion>`. `Destination` on `<Response>` = chosen ACS URL.
+  `<SubjectConfirmationData Recipient>` = same ACS URL. `<Audience>`
+  inside `<AudienceRestriction>` = `saml_sp.entity_id` verbatim.
+- **NameID stability** via `saml_subject_id(account_id, sp_id)`: 32-byte
+  random opaque value generated on first SSO, reused forever (Core
+  §8.3.7). Defeats GHES account re-linking on rename / email change.
+- **ACS lookup precedence** (Profiles §4.1.4.1): explicit
+  `AssertionConsumerServiceURL` in AuthnRequest (must match a
+  `saml_sp_acs` row exactly) → `AssertionConsumerServiceIndex` →
+  `is_default=true`. No wildcard or loose match.
+- **Attribute mapping** is an ordered JSONB array of
+  `{local, name, friendly_name, name_format, multi}` (Core §2.7.3).
+  GHES needs URI NameFormat (`public_keys`) and multi-valued
+  attributes (`emails`, `public_keys`, `gpg_keys`); the array shape
+  supports both.
+- **AuthnContextClassRef:** `…PasswordProtectedTransport` for
+  password+TOTP, `…unspecified` for WebAuthn (no standard passkey
+  ref exists yet), `Comparison="exact"`.
+- **Metadata at `/saml/metadata`** publishes every `signing_key` row
+  where `retired_at IS NULL OR retired_at > now() - rotation_grace`
+  (default 7d), so verification continues across rotation.
 
 ## Authentication ceremony
 
-1. RP redirects user to `GET /authorize?client_id=...&response_type=code&scope=openid&code_challenge=...&code_challenge_method=S256&state=...&redirect_uri=...&nonce=...`.
-2. Prohibitorum checks session cookie. If absent, redirect to `/login?return_to=/authorize?...`.
-3. Login page runs WebAuthn assertion ceremony (the existing Passkey SDK). Server verifies, issues session cookie.
-4. Browser returns to `/authorize`, which now sees the session, mints an
-   authorization code, stores `(code → {account_id, client_id, scope,
-   nonce, code_challenge, redirect_uri, expires_at})` in KV with 60s TTL.
-5. Redirects browser to `redirect_uri?code=...&state=...`.
-6. RP back-end POSTs to `/token` with `grant_type=authorization_code`,
-   the code, the original `code_verifier`, and its client credentials.
-7. Prohibitorum verifies the code (single-use; PKCE; client identity;
-   redirect_uri match), mints ID + access tokens, optionally refresh
-   token, returns them.
-8. RP validates ID token signature via JWKS, extracts `sub`, etc.
+`pkg/authn/flow.go` resolves "which methods are available for this
+account?":
+
+1. Account has any `webauthn_credential` rows → WebAuthn ceremony.
+2. Otherwise, `password_credential` + confirmed `totp_credential` →
+   password+TOTP fallback.
+3. Otherwise, at least one `account_identity` row → suggest the
+   matching upstream IdP.
+4. None of the above → "no usable method, contact admin." Admin
+   issues a recovery enrollment token.
+
+OIDC OP flow:
+
+1. RP redirects user to `/oauth/authorize?...` with PKCE.
+2. Prohibitorum checks session cookie. If absent, redirects to
+   `/login?return_to=...` and presents available methods.
+3. User authenticates; session minted and persisted in `session`
+   table with `auth_time`, `amr`, `acr`.
+4. Browser returns to `/authorize`; code minted (PKCE-bound, KV-stored
+   with 60s TTL).
+5. Redirects to `redirect_uri?code=...&state=...&iss=...`.
+6. RP back-end POSTs to `/oauth/token` with code + verifier; receives
+   ID token + access token + (optionally) refresh token.
+7. RP validates ID token via JWKS.
+
+SAML IdP flow:
+
+1. SP sends AuthnRequest to `/saml/sso` (Redirect or POST binding).
+2. If signature required, Prohibitorum verifies against the SP's
+   `saml_sp_key` certs.
+3. If no session, redirect to `/login`, then back to `/saml/sso`.
+4. Build signed Response targeting the ACS URL; render HTTP-POST
+   self-submitting form.
 
 ## Authorization model
 
-- Each account has `role` (`admin` | `user`) and 5 boolean
-  permissions: `view_own_usage`, `manage_own_api_keys`, `view_models`,
-  `view_own_traces`, `manage_own_projects`. Admins implicitly hold
-  every permission.
-- Token claims:
-  - ID token: `role: "admin"|"user"`, `permissions: {…booleans…}`.
-  - Access token: standard claims + `scope`. (Same `permissions` is
-    available; RPs can either rely on it or call `/userinfo` /
-    `/introspect`.)
-- RPs **enforce** authorization themselves using the token claims;
+- **`account.role`** ∈ `{user, admin}`. Admin gates server-side
+  admin-only endpoints. Roles are flat, not hierarchical.
+- **`account.attributes`** is a JSONB map. Opaque to Prohibitorum,
+  carried verbatim into ID-token `attributes` claim and SAML
+  AttributeStatement. RPs decide which keys are meaningful.
+- **RPs enforce authorization** themselves using the claims.
   Prohibitorum doesn't decide whether user X can perform action Y on
-  resource Z. (No OPA/Rego in v1; RBAC + the 5 flags only.)
+  resource Z. (No OPA/Rego; the attribute map is a feature flag bag.)
 
 ## Data layout
 
-**Postgres** — durable identity state:
-- `account` — id, username, display_name, webauthn_user_handle, role,
-  5 permission booleans, `disabled`, timestamps.
-- `webauthn_credential` — id, account_id, credential_id, public_key,
-  sign_count, transports, AAGUID, attestation_type, backup_*,
-  nickname, timestamps.
-- `enrollment` — token, intent (bootstrap/invite/reset/add_device),
-  target_account_id, template_*, created/expires/consumed timestamps.
-- `oidc_client` — client_id, client_secret_hash, redirect_uris[],
-  allowed_scopes[], require_pkce (always true), display_name,
-  timestamps.
-- `oidc_signing_key` — kid, algorithm (RS256), public_jwk, private_pem,
-  active, created_at, retired_at.
+**Postgres** — durable identity state. Detailed schemas live in
+`db/migrations/001..005`; see
+`docs/superpowers/specs/2026-05-24-multi-protocol-rescope-design.md`
+§"Data model" for the full SQL and rationale per column.
+
+- `account` — id, username, display_name, webauthn_user_handle,
+  role, attributes jsonb, disabled, timestamps.
+- `session` — id, account_id, auth_time, amr text[], acr,
+  upstream_idp_id, created_at, revoked_at. Doubles as the source of
+  OIDC `sid` claim.
+- `webauthn_credential` — credential_id, public_key, cose_alg,
+  user_handle, sign_count, transports, AAGUID, attestation_type,
+  backup_eligible / backup_state, uv_initialized, nickname,
+  last_used_at, clone_warning_at.
+- `password_credential` — account_id PK, hash (PHC),
+  password_changed_at.
+- `totp_credential` — account_id PK, secret_enc + secret_nonce +
+  key_version, period, digits, algorithm, last_step, confirmed_at.
+- `recovery_code` — account_id, hash (PHC), used_at,
+  used_session_id, used_ip.
+- `enrollment` — token, intent, target_account_id, template_*,
+  template_attributes jsonb, expected_upstream_idp_slug,
+  expires_at, consumed_at.
+- `credential_event` — append-only audit log: account_id, factor,
+  event, credential_ref, ip, user_agent, detail jsonb, at.
+- `auth_throttle` — `(account_id, factor)` PK, failed_attempts,
+  window_start, locked_until. Persists across restarts.
+- `signing_key` — kid, algorithm, use (sig/enc), public_jwk,
+  x509_cert_pem, private_pem, active, not_before, retired_at. One
+  row services both OIDC (via JWK) and SAML (via x509 cert).
+- `oidc_client` — full RFC 8414 / OIDC Discovery static-registration
+  metadata: redirect_uris, post_logout_redirect_uris, allowed_scopes,
+  require_pkce, allowed_code_challenge_methods,
+  token_endpoint_auth_method, id_token_signed_response_alg,
+  subject_type, application_type, default_max_age,
+  require_auth_time, contacts, logo_uri, tos_uri, policy_uri.
+- `revoked_jti` — jti PK, expires_at, reason. Denylist for
+  self-contained access tokens (RFC 7009 + RFC 9068).
+- `upstream_idp` — slug, display_name, issuer_url, client_id,
+  client_secret_enc + secret_nonce + key_version, scopes, mode,
+  allowed_domains, claim-name overrides.
+- `account_identity` — account_id, upstream_idp_id, upstream_iss
+  (snapshotted), upstream_sub, upstream_email. UNIQUE
+  `(upstream_iss, upstream_sub)`.
+- `saml_sp` + `saml_sp_acs` + `saml_sp_key` + `saml_subject_id` +
+  `saml_session` — SAML SP registry, multi-endpoint ACS list,
+  signing/encryption cert set, stable pairwise NameID, and
+  forward-compat SLO session bookkeeping.
 
 **KV** (KeyDB/Redis or in-process) — ephemeral state:
-- `session:<acct>:<token>` → `SessionData`.
-- `webauthn_ceremony:{login,enroll,add,sudo}:<token>` → `webauthn.SessionData`.
-- `pairing:id:<id>` + `pairing:code:<code>` → device pairing state.
-- `oidc:code:<random>` → `AuthCodeData` (account_id, client_id, scope,
-  nonce, code_challenge, redirect_uri).
+
+- `session:<acct>:<token>` → `SessionData` (sliding-refresh metadata).
+- `webauthn_ceremony:{login,enroll,add,sudo}:<token>` → go-webauthn `SessionData`.
+- `pairing:id:<id>` / `pairing:code:<code>` → device pairing state.
+- `oidc:code:<random>` → `AuthCodeData` (account_id, client_id,
+  scope, nonce, code_challenge, redirect_uri, consumed_at).
 - `oidc:refresh:<random>` → `RefreshTokenData` (account_id, client_id,
   scope, family, rotated_from).
-
-## RP integration patterns
-
-Two supported patterns; pick by RP capability:
-
-**Pattern A — OIDC Authorization Code + PKCE (preferred)**
-Best for any RP with a back-end (web apps, mobile apps with a server,
-CLI tools using a loopback redirect). Uses standard OIDC libraries.
-
-```
-RP                                         Prohibitorum
-─┬─                                        ─┬─
- │  302 → /authorize?client_id=...&PKCE      │
- │ ─────────────────────────────────────────►│
- │                                           │ (login if needed; WebAuthn)
- │  302 → redirect_uri?code=...&state=...    │
- │ ◄─────────────────────────────────────────│
- │  POST /token (code + code_verifier)       │
- │ ─────────────────────────────────────────►│
- │  { id_token, access_token, refresh_token} │
- │ ◄─────────────────────────────────────────│
- │  Trust id_token claims after JWKS verify  │
-```
-
-**Pattern B — Cookie + Introspection (for legacy / co-located RPs)**
-Only viable when the RP shares a parent domain with Prohibitorum (so
-the session cookie is sent). RP back-end posts the cookie to
-`/oidc/introspect` to look up identity + permissions per request. Less
-secure than Pattern A — exposed to cookie theft within the parent
-domain — but simpler when both parties live behind one reverse proxy.
+- `oidc:fed:state:<random>` → upstream-OIDC RP state with snapshotted
+  `expected_iss` + `expected_token_endpoint`, nonce, code_verifier,
+  return_to.
 
 ## Cryptography
 
-- Random tokens: 32 bytes (256 bits) from `crypto/rand`, base64url.
-- Pairing codes: 8 chars from 30-char unambiguous alphabet
+- **Random tokens:** 32 bytes (256 bits) from `crypto/rand`, base64url.
+- **Pairing codes:** 8 chars from 30-char unambiguous alphabet
   (rejection-sampled) ≈ 40 bits.
-- WebAuthn user handle: 64 bytes random.
-- JWT signing: RS256 (2048-bit RSA). Easy ecosystem support, asymmetric
-  so RPs verify with public key only. Keys stored as PEM in
-  `oidc_signing_key`. Rotation: add new key, mark active, keep old
-  verifying for `> max(token lifetime)`.
-- Access token lifetime: 10 min (RFC 9700 recommendation: short).
-- Refresh token lifetime: 30 days, single-use rotation; reuse detection
-  invalidates the family.
-- Session lifetime: 8 h sliding refresh (carried over from picotera).
-- Sudo grant: 5 min, single-use.
+- **WebAuthn user handle:** 64 bytes random per account.
+- **Signing keys:** RS256 (2048-bit RSA) unified across OIDC and SAML
+  via `signing_key`. `kid` distinguishes rotation generations
+  (recommend separate kid ranges per protocol, e.g.
+  `oidc-2026-05` / `saml-2026-05`, so rotation can be decoupled).
+  Keys store as PEM in `private_pem`; JWK form in `public_jwk`;
+  self-signed x509 in `x509_cert_pem` for SAML.
+- **At-rest encryption** for TOTP secrets and upstream OIDC client
+  secrets: AES-256-GCM with versioned DEK
+  (`PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>`, 32 bytes base64), 12-byte
+  nonce per row, AAD bound to row identity:
+  - TOTP: `'totp:'||account_id||':'||key_version`
+  - Upstream IdP: `'upstream_idp:'||id||':'||key_version`
+- **Hash storage** (`password_credential.hash`, `recovery_code.hash`,
+  `oidc_client.client_secret_hash`): argon2id PHC strings
+  (`$argon2id$v=19$m=65536,t=3,p=4$<salt>$<tag>`). Defaults from
+  `configx.PasswordHashParams`; re-hash on verify if stored params
+  are below current configured set.
+- **Token lifetimes:** access 10 min, refresh 30 d (single-use
+  rotation), session 8 h sliding refresh, sudo grant 5 min, OIDC
+  code 60 s, federation state 10 min.
 
-## Threat model (delta from picotera)
+## Threat model
 
-Identity-layer threats — same as picotera, all mitigations carried over:
-- Stolen session cookie → live `account.disabled` check + sudo for
-  sensitive actions
-- Cloned authenticator → go-webauthn sign-count regression detection
-- Bearer-token URL leak → device pairing avoids it; admin-issued
-  recovery is the only bearer-token surface (small, gated)
-- Phishing → origin-bound WebAuthn, server-verified challenges
-- Brute force on enrollment tokens / pairing codes → rate limiting +
-  high-entropy tokens + short TTLs
+New surfaces beyond v0.1's WebAuthn-only model:
 
-New OIDC-layer threats:
-- **Token theft** → short access-token lifetimes, refresh-token
-  rotation with reuse detection, JWT verification mandatory.
-- **Authorization code interception** → PKCE required (no plain code
-  flow accepted; redirect_uri must match exactly).
-- **Mix-up attacks** → RFC 9207 `iss` parameter in authorization
-  response.
-- **Open redirect** → `redirect_uri` must exactly match a value in the
-  client's registered list; no wildcards.
-- **Client secret leak** → public clients use PKCE without secret;
-  confidential clients use secret. Treat `client_secret` like a
-  password (hashed at rest with argon2id).
-- **`alg: none` confusion** → JWT verification configured for `RS256`
-  only.
+- **Password brute-force.** Per-account exponential backoff in
+  `auth_throttle(account_id, factor='password')` — persistent across
+  restarts (RFC 4226 §7.3). argon2id params tuned for ≥250ms/verify
+  on prod hardware. No email-channel reset; admin enrollment token
+  is the only recovery.
+- **TOTP code guessing.** 6-digit space = 10^6. Rate-limit ≤5
+  attempts / 5 min per account in `auth_throttle`. Same-step replay
+  defeated by `totp_credential.last_step` (RFC 6238 §5.2).
+- **Recovery-code theft.** Codes shown exactly once, argon2id-hashed
+  at rest, single-use, redemption context captured.
+- **Cross-account ciphertext swap.** AES-GCM AAD binds ciphertext
+  to its row identity — copying ciphertext between rows fails
+  decryption.
+- **DEK compromise / rotation.** Versioned key set; row
+  `key_version` selects decryptor. Rotation: deploy `_V2`, re-encrypt
+  rows on next touch, retire `_V1` once `MAX(key_version)` reaches 2.
+- **Federated IdP impersonation.** Strict issuer + audience + nonce
+  validation on upstream ID token. Per-IdP client secret AES-GCM
+  encrypted. `expected_iss` + `expected_token_endpoint` snapshotted
+  into KV state at request time (RFC 9700 §4.4.2.1 mix-up
+  resistance). `account_identity` keyed `(iss, sub)` per OIDC Core §2.
+- **JIT account squatting.** `auto_provision` mode gated by
+  `allowed_domains` against the email claim. Username collisions
+  with existing unlinked accounts → reject; admin intervention
+  required.
+- **Authorization-code replay.** Codes kept (marked `consumed_at`)
+  until TTL; replay revokes the refresh-token family and audit-logs
+  the attempt.
+- **Access-token revocation despite stateless JWT.** Every access
+  token mints a `jti`; revocation writes `revoked_jti`. Self-
+  validating resource servers check `jti` against the revocation
+  cache; introspecting RSs get `active: false`.
+- **WebAuthn authenticator cloning.** Sign-count regression stamps
+  `clone_warning_at`; admin UI surfaces.
+- **SAML assertion replay.** crewjam/saml enforces NotBefore /
+  NotOnOrAfter / InResponseTo / one-use Assertion ID.
+- **SAML open-redirect via spoofed ACS URL.** Validated against
+  `saml_sp_acs` rows (exact match → index lookup → is_default
+  fallback) per Profiles §4.1.4.1.
+- **SAML NameID drift.** Stable `saml_subject_id(account_id, sp_id)`
+  pairing — renames and email changes don't re-link GHES accounts
+  (Core §8.3.7).
+- **SAML XML signature wrapping (XSW).** crewjam/saml's
+  post-canonicalization signature verification; reject assertions
+  with multiple `Signature` elements or unexpected structure.
+- **Stolen session cookie.** Live `account.disabled` check on every
+  request + sudo for sensitive actions (carried over).
+- **Bearer-token URL leak.** Device pairing avoids it;
+  admin-issued recovery is the only bearer-token surface, gated by
+  short TTL.
 
-## Out of scope (for v1)
+See `AUDIT.md` for the per-layer compliance matrix and `STATUS.md`
+for the version-by-version delivery plan.
+
+## Out of scope
 
 - Multi-tenancy
-- SAML
-- Dynamic client registration (RFC 7591)
-- Consent screen (assumed first-party)
-- DPoP / sender-constrained tokens
-- Pushed Authorization Requests (PAR), JAR
-- Pairwise sub identifiers (single sub per user across all clients)
-- Social login federation
-- Account linking
-- Email/SMS channels of any kind
-- Self-service account recovery (admin-issued recovery link remains
-  the only path)
-- Hardware security keys provisioning workflow
-- Audit log export / SIEM integration
+- Self-service account recovery (admin-issued enrollment is the only
+  path; no email/SMS channel of any kind)
+- SAML SP (consuming upstream SAML)
+- Social-login UX as a consumer feature (only admin-configured
+  upstream OIDC IdPs)
+- Dynamic OIDC client registration (RFC 7591)
+- Consent screen (first-party deployment assumption)
+- DPoP / PAR / JAR / mTLS / Pairwise sub
+- HSM / KMS-backed signing keys (deferred to v0.7+)
+- Authorization policy engine (RPs enforce; we just supply claims)
+- Audit-log export / SIEM integration (deferred to v0.7+)
 
-Each is a clean future addition without breaking the v1 surface.
+Each is a clean future addition without breaking the v0.x surface.

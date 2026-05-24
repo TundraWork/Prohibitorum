@@ -2,69 +2,88 @@
 
 > Index Librorum Prohibitorum — the list of who's allowed and what they can do.
 
-Homegrown identity & authorization service. WebAuthn-only sign-in,
-OpenID Connect for relying-party integration. Extracted from
-[picotera](https://github.com/oott123/picotera)'s `feat-user-system`
-branch into a standalone single-tenant IdP.
+A homegrown identity provider for small orgs. Single-tenant, first-party,
+no email channel; admin-issued enrollment is the only recovery path.
+
+- **Upstream auth methods:** WebAuthn (preferred, phishing-resistant),
+  Password + TOTP (fallback for users without passkey-capable devices),
+  upstream OIDC federation (Google / Entra / Keycloak / any OIDC IdP).
+- **Downstream protocols:** OIDC OP (for modern apps), SAML IdP (for
+  GitHub Enterprise Server and other legacy SaaS).
+- **Authorization model:** opaque `attributes` map per account that
+  flows verbatim into ID-token claims and SAML AttributeStatement.
+  Relying parties enforce policy; Prohibitorum just answers "who is
+  this and what do you know about them?"
 
 ## Status
 
-WIP. See `DESIGN.md` for the architecture and `AUDIT.md` for the
-OIDC / OAuth 2.1 compliance checklist.
+v0.1 skeleton — rescoped from "WebAuthn-only IdP with OIDC OP" to
+the multi-method scope above. Schema and package layout are in place;
+v0.2+ delivers the actual password / TOTP / federation / SAML / OIDC OP
+business logic. See `STATUS.md` for the roadmap and `AUDIT.md` for the
+spec-compliance checklist.
 
 ## Quickstart
 
-Requires Postgres (any 14+), Redis-compatible KV (or in-process memory).
+Requires Postgres 14+ and a Redis-compatible KV (or in-process memory).
 
 ```bash
 # 1. Toolchain via mise
 mise install
 
-# 2. Apply migrations
-PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum?sslmode=disable" \
-  mise run db:up
+# 2. Generate a data-encryption key (required at boot even in v0.1).
+export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 
-# 3. Bootstrap the first admin
+# 3. Apply migrations
+export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum?sslmode=disable"
+mise run db:up
+
+# 4. Bootstrap the first admin
 go run ./cmd/prohibitorum enroll-admin
 # Copy the enrollment URL it prints; open in browser; register a passkey.
 
-# 4. Run the server
-PROHIBITORUM_PUBLIC_ORIGIN=http://localhost:8080 \
-PROHIBITORUM_DATABASE_URL=... \
-  mise run server
+# 5. Run the server
+PROHIBITORUM_PUBLIC_ORIGIN=http://localhost:8080 mise run server
 
-# 5. Dashboard dev
+# 6. Dashboard dev (v0.6+)
 mise run web
 ```
 
+If `mise run db:up` fails because `goose` isn't installed, see
+`STATUS.md` for the `aqua:pressly/goose` workaround.
+
 ## Architecture in one paragraph
 
-A user signs in at Prohibitorum with a WebAuthn passkey, gets a
-session cookie. Relying parties integrate via OIDC Authorization Code
-+ PKCE: redirect the user to `/authorize`, get back a code, exchange
-it at `/token` for an ID token + access token. RP back-ends validate
-the ID token's signature against the JWKS endpoint, then trust its
-claims (`sub`, `username`, `role`, `permissions`). Prohibitorum owns
-the account directory; RPs enforce authorization using the claims.
+Three layers, acyclic import graph: an **identity store** (accounts,
+credentials, federation links), an **authentication subsystem** that
+turns one of four upstream methods (WebAuthn / Password / TOTP /
+upstream OIDC) into a session, and a **protocol subsystem** that turns
+that session into an OIDC OP response or a signed SAML assertion. The
+`session` package is the contract between authentication and protocol —
+RPs don't see how the user signed in, only the resulting claims.
 
 ## Why not …?
 
-- **Keycloak / Authelia / Authentik** — bigger than needed for a small
-  org; come with operational overhead (admin UIs, themes, plugins) we
-  don't want to staff.
+- **Keycloak / Authelia / Authentik** — bigger than needed; come with
+  operational overhead (admin UIs, themes, plugins) we don't want to
+  staff.
 - **Ory Hydra** — token-issuance only, doesn't own user state. We need
   both.
 - **Zitadel (the service)** — full IdP, but operational complexity
-  similar to Keycloak. We're extracting from existing code, not
-  shopping for a vendor.
+  similar to Keycloak.
 - **Auth0 / Clerk / Stytch (SaaS)** — not self-hosted.
 
 `zitadel/oidc` (the Go library, not the service) **is** used as the
-OIDC OP toolkit because reimplementing OIDC verification by hand is a
-known antipattern.
+OIDC OP toolkit; `crewjam/saml` for the SAML IdP side. Reimplementing
+either by hand is a known antipattern.
 
 ## Docs
 
-- [`DESIGN.md`](./DESIGN.md) — architecture, threat model, scope.
-- [`INTEGRATION.md`](./INTEGRATION.md) — how an RP integrates.
-- [`AUDIT.md`](./AUDIT.md) — OAuth 2.1 / OIDC best-practice checklist.
+- [`DESIGN.md`](./DESIGN.md) — architecture, methods, protocols,
+  threat model, scope.
+- [`STATUS.md`](./STATUS.md) — what's done in v0.1, what's coming in
+  v0.1.1 / v0.2 / v0.3 / v0.4 / v0.5 / v0.6 / v0.7+.
+- [`INTEGRATION.md`](./INTEGRATION.md) — three integration patterns
+  for relying parties (OIDC Code+PKCE, cookie+introspect, SAML SP).
+- [`AUDIT.md`](./AUDIT.md) — per-layer compliance checklist with
+  ✅ / ⚠️ deferred / ❌ gap labels per item.

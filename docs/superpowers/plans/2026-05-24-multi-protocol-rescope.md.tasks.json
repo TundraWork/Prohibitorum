@@ -52,7 +52,7 @@
     {
       "id": 18,
       "subject": "Task 7: Stub packages + configx extensions + audit writer wiring",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [20],
       "description": "**Goal:** Land empty stubs for pkg/credential/password, pkg/credential/totp, pkg/federation/oidc, pkg/protocol/saml, pkg/authn/flow, pkg/audit. Extend configx with OIDCConfig, FederationConfig, TOTPConfig, SAMLConfig, PasswordHashParams, DataEncryptionKeys versioned set. Wire audit.Writer through server.New.\n\n**Files:** pkg/credential/{password,totp}/, pkg/federation/oidc/, pkg/protocol/saml/, pkg/authn/flow.go, pkg/audit/event.go, pkg/configx/configx.go, pkg/server/server.go, cmd/prohibitorum/main.go.\n\n**Verify:** `go build ./... && go vet ./... && go test ./...`\n\n```json:metadata\n{\"files\": [\"pkg/credential/password/password.go\", \"pkg/credential/totp/totp.go\", \"pkg/federation/oidc/federation.go\", \"pkg/protocol/saml/saml.go\", \"pkg/authn/flow.go\", \"pkg/audit/event.go\", \"pkg/configx/configx.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"go build ./... && go vet ./...\", \"acceptanceCriteria\": [\"all stub packages compile\", \"configx substructs added\", \"audit writer wired\", \"build + vet clean\"]}\n```"
     },
