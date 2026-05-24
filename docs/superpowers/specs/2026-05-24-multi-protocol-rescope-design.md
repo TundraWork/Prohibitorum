@@ -13,11 +13,11 @@ rewritten in the same skeleton commit to align with this spec.
 
 ## Scope summary
 
-| Layer | v0.1 (current) | v0.2+ (rescoped) |
+| Layer | Before rescope (v0.1 skeleton @ `3d79583`) | After rescope (this commit + onwards) |
 |---|---|---|
-| Upstream auth methods | WebAuthn | WebAuthn, Password, TOTP, OIDC federation |
-| Downstream protocols | OIDC OP, cookie+introspect | OIDC OP, SAML IdP |
-| Account directory | Local | Local, JIT-seeded from upstream IdPs |
+| Upstream auth methods | WebAuthn | WebAuthn (v0.1), Password+TOTP (v0.2), OIDC federation (v0.3) |
+| Downstream protocols | OIDC OP, cookie+introspect | OIDC OP (v0.4), SAML IdP (v0.5) |
+| Account directory | Local, picotera-flavored permissions | Local, free-form `attributes jsonb`; JIT-seeded from upstream IdPs |
 | Tenancy | Single | Single (unchanged) |
 
 Out of scope (unchanged): multi-tenancy, social-login UX, email/SMS
@@ -78,69 +78,113 @@ pkg/
 Identifier rewrites tracked by `go build`. No backwards-compatibility
 shim package — pkg/auth disappears entirely.
 
+## Picotera decoupling
+
+The v0.1 commit (`3d79583`) lifted code from picotera and renamed the
+identifier prefix but left picotera **vocabulary** in the schema and
+contracts:
+
+- `account.can_view_own_usage`, `can_manage_own_api_keys`,
+  `can_view_models`, `can_view_own_traces`, `can_manage_own_projects`
+- `enrollment.template_can_*` mirrors of the same five booleans + the
+  `enrollment_template_intent_check` CHECK constraint binding them
+- `contract.Permission` enum + `contract.Permissions` struct
+- `auth.HasPermission` switch + `auth.PermissionsView` projection
+- `auth.EnrollmentTemplate.Perms` field + binding params
+- `errorx.PicoTeraError` envelope type
+- `RPDisplayName: "PicoTera"` constant in `pkg/auth/webauthn.go`
+- "lifted from picotera" header in `db/migrations/001_initial.sql`
+- "mirrors picotera's but…" comment in `pkg/server/server.go`
+- Hardcoded admin-bootstrap perm sets in `handle_account.go`
+
+These are picotera domain concepts (API-keys / projects / LLM traces /
+LLM models / usage billing) embedded in a service that's now meant to
+be domain-agnostic. None of them belong in a standalone IdP. They are
+**stripped in this commit**, not deferred:
+
+- The five picotera columns on `account` are replaced by
+  `attributes jsonb NOT NULL DEFAULT '{}'::jsonb`. The five
+  template columns on `enrollment` are replaced by
+  `template_attributes jsonb`. The CHECK constraint becomes
+  `template_attributes IS NULL` for non-invite intents.
+- `contract.Permission` enum and `contract.Permissions` struct are
+  removed entirely. `AccountView` gets `Attributes map[string]any`.
+- `auth.HasPermission` is removed; permission decisions are RP-side
+  (per `DESIGN.md` §authorization model). Server-side gating uses
+  `role = 'admin'` for admin-only endpoints; any finer gate is
+  per-route attribute inspection.
+- `auth.EnrollmentTemplate.Perms` becomes `Attributes map[string]any`.
+- `errorx.PicoTeraError` → `errorx.Error`. All call sites and string
+  literals in `errors.go` follow.
+- `RPDisplayName` becomes `configx.Config.WebAuthn.RPDisplayName`
+  (already implicit; just lift the constant out). Default
+  `"Prohibitorum"`.
+- Doc comments referencing picotera are updated; migration 001 header
+  describes the schema on its own terms.
+- Admin-bootstrap and invite-default code paths set
+  `Attributes: nil` (no special claims; the bootstrap admin has
+  `role = 'admin'` and that's enough).
+
 ## Data model
 
-All migrations are forward-only goose, on top of v0.1's `001_initial.sql`
-and `002_oidc.sql`. The v0.1 schema isn't deployed anywhere so we don't
-need to preserve picotera-flavored column names.
+v0.1's `001_initial.sql` and `002_oidc.sql` are **rewritten in place**.
+The project hasn't been deployed yet (only the skeleton commit
+exists, no Postgres has ever applied these migrations against real
+data), so squashing the decoupling into the initial schema is cleaner
+than chaining cleanup migrations. The v0.1 commit `3d79583` serves as
+the pre-rescope snapshot in git history.
 
-### `db/migrations/003_account_attributes.sql`
+### `db/migrations/001_initial.sql` (rewritten)
 
-Replaces the 5 picotera-flavored permission booleans on `account` with
-a generic `attributes jsonb`. Carries existing row contents into the
-new column verbatim.
+`account` table replaces the 5 picotera permission booleans with
+`attributes jsonb`. `enrollment` table replaces the 5 template booleans
+with `template_attributes jsonb`. The CHECK constraint becomes:
 
 ```sql
--- +goose Up
-ALTER TABLE account
-  ADD COLUMN attributes jsonb NOT NULL DEFAULT '{}'::jsonb;
-
-UPDATE account SET attributes = jsonb_build_object(
-  'view_own_usage',        view_own_usage,
-  'manage_own_api_keys',   manage_own_api_keys,
-  'view_models',           view_models,
-  'view_own_traces',       view_own_traces,
-  'manage_own_projects',   manage_own_projects
-);
-
-ALTER TABLE account
-  DROP COLUMN view_own_usage,
-  DROP COLUMN manage_own_api_keys,
-  DROP COLUMN view_models,
-  DROP COLUMN view_own_traces,
-  DROP COLUMN manage_own_projects;
-
--- +goose Down  (best-effort; the boolean columns are inferred from attributes)
+CONSTRAINT enrollment_template_intent_check CHECK (
+  (intent = 'invite' AND target_account_id IS NULL)
+  OR (intent <> 'invite' AND template_attributes IS NULL)
+)
 ```
 
-`pkg/contract/auth.go` drops the `Permission` enum + per-flag fields;
-replaces with `Attributes map[string]any` on `AccountView`. Handlers
-in `pkg/server/handle_account.go` and `handle_me.go` read/write the
-map directly. Admin-role checks (`role = 'admin'`) are unchanged.
+`webauthn_credential` table unchanged from v0.1.
 
-### `db/migrations/004_signing_keys.sql`
+### `db/migrations/002_oidc.sql` (rewritten)
 
-Unify `oidc_signing_key` into a protocol-agnostic `signing_key`. Same
-RSA private key serves OIDC (JWK form) and SAML (x509 cert form);
-single rotation domain by `kid`.
+Ships `signing_key` (not `oidc_signing_key`) from the start, with
+`x509_cert_pem` column included. Same row services both OIDC (via
+JWK) and SAML (via cert). One rotation domain by `kid`.
 
 ```sql
--- +goose Up
-ALTER TABLE oidc_signing_key RENAME TO signing_key;
-ALTER TABLE signing_key
-  ADD COLUMN x509_cert_pem text;   -- NULL until populated for SAML use
+CREATE TABLE signing_key (
+  kid           text PRIMARY KEY,
+  algorithm     text NOT NULL DEFAULT 'RS256',
+  public_jwk    jsonb NOT NULL,
+  x509_cert_pem text,                 -- populated when used for SAML
+  private_pem   text NOT NULL,
+  active        boolean NOT NULL DEFAULT false,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  retired_at    timestamptz
+);
+CREATE UNIQUE INDEX signing_key_one_active ON signing_key (active) WHERE active;
 
--- +goose Down
-ALTER TABLE signing_key DROP COLUMN x509_cert_pem;
-ALTER TABLE signing_key RENAME TO oidc_signing_key;
+CREATE TABLE oidc_client (
+  client_id           text PRIMARY KEY,
+  client_secret_hash  text,            -- NULL for public clients
+  display_name        text NOT NULL,
+  redirect_uris       text[] NOT NULL,
+  allowed_scopes      text[] NOT NULL DEFAULT ARRAY['openid','profile'],
+  require_pkce        boolean NOT NULL DEFAULT true,
+  created_at          timestamptz NOT NULL DEFAULT now()
+);
 ```
 
 A protocol-agnostic `signing-key generate` subcommand (v0.4, alongside
 the OIDC OP work; reused by v0.5 SAML) creates the RSA key, derives
-the JWK, and self-signs the x509 cert in one shot. Both columns are
-populated on insert; SAML and OIDC consume the same row by `kid`.
+the JWK, and self-signs the x509 cert in one shot. All three columns
+are populated on insert.
 
-### `db/migrations/005_password_totp.sql`
+### `db/migrations/003_password_totp.sql`
 
 ```sql
 -- +goose Up
@@ -186,7 +230,7 @@ DROP TABLE password_credential;
 - **Recovery codes**: 10 codes minted at TOTP enrollment confirmation,
   shown once, then only argon2id hashes retained. Single-use.
 
-### `db/migrations/006_federation.sql`
+### `db/migrations/004_federation.sql`
 
 ```sql
 -- +goose Up
@@ -228,7 +272,7 @@ DROP TABLE upstream_idp;
 - `invite_only` — look up a pending enrollment whose `target_account_id` is configured to await this IdP; consume it; link; sign in. No enrollment → 403.
 - `link_only` — never auto-create. User must already have an account and pre-existing link → 403 with a hint to sign in via another method then link from `/me`.
 
-### `db/migrations/007_saml.sql`
+### `db/migrations/005_saml.sql`
 
 ```sql
 -- +goose Up
@@ -312,52 +356,64 @@ disabled or stuck account (existing v0.1 mechanism, unchanged).
 
 This commit produces:
 
-1. **File moves** per the map above. `go build ./...` succeeds at HEAD.
-2. **Empty stub files** for new functionality, with signatures and
+1. **Picotera strip-out** per the §"Picotera decoupling" section above —
+   schema columns, contract types, auth helpers, error envelope name,
+   RPDisplayName constant, doc comments.
+2. **File moves** per the map above. `go build ./...` succeeds at HEAD.
+3. **Empty stub files** for new functionality, with signatures and
    `// TODO(v0.X)` markers but no behavior:
    - `pkg/credential/password/password.go`
    - `pkg/credential/totp/totp.go`
    - `pkg/federation/oidc/federation.go`
    - `pkg/protocol/saml/saml.go`
    - `pkg/authn/flow.go`
-3. **Migrations** 003–007 as specified above. `mise run db:up` applies
+4. **Migrations 001 and 002 rewritten in place** (picotera vocabulary
+   removed; signing_key unified). New migrations 003 / 004 / 005
+   (password+TOTP / federation / SAML). `mise run db:up` applies
    cleanly against a fresh Postgres.
-4. **`pkg/contract/auth.go`** updated for `Attributes map[string]any`
-   on `AccountView`; server handlers updated to read/write it.
-5. **Doc rewrites** — DESIGN.md, STATUS.md, AUDIT.md, INTEGRATION.md,
-   README.md aligned to this spec.
-6. **`configx`** gains `DataEncryptionKey []byte`, `PasswordHashParams`,
+5. **Queries** in `db/queries/account.sql` and `db/queries/enrollment.sql`
+   updated to read/write `attributes` and `template_attributes`; the
+   five `can_*` column references removed.
+6. **`pkg/contract/auth.go`** drops `Permission` + `Permissions`;
+   `AccountView` and `EnrollmentTemplate` gain `Attributes
+   map[string]any`. Server handlers updated to read/write the map.
+7. **Doc rewrites** — DESIGN.md, STATUS.md, AUDIT.md, INTEGRATION.md,
+   README.md aligned to this spec; all picotera references removed
+   from the user-facing docs (the spec retains them as the explicit
+   audit trail of what was removed).
+8. **`configx`** gains `DataEncryptionKey []byte`, `PasswordHashParams`,
    `TOTP` substruct (period/digits/algorithm defaults), `SAML`
-   substruct (entity ID, base URL, key kid, default NameID format).
+   substruct (entity ID, base URL, key kid, default NameID format),
+   and `WebAuthn.RPDisplayName` (default `"Prohibitorum"`).
 
 Three explicit non-goals for the skeleton commit:
 
 - No real password / TOTP / federation / SAML / OIDC-OP business logic.
 - No frontend changes (`dashboard/` is empty; that's a v0.6 task).
-- The v0.1 cleanup punch list (compile-clean, `go mod tidy`, smoke
-  test) stays a v0.1 finish-line task. STATUS.md keeps the items
-  visible but unchecked.
+- No smoke test against a live Postgres — that's the immediate
+  next-session task once this commit lands.
 
 ## Roadmap
 
 | Version | Theme | Headline deliverables |
 |---|---|---|
-| **v0.1** (current) | Skeleton + cleanup | Compile-clean, go mod tidy, smoke test against real Postgres |
-| **v0.1.1** (this commit) | Rescope | File moves + migrations 003–007 + doc rewrites + stubs |
+| **v0.1** (this commit) | Rescope + picotera decoupling | Picotera strip-out, file moves, migrations 001–005, doc rewrites, stubs. `go build ./...` clean. |
+| **v0.1.1** (next session) | Smoke test | `go mod tidy`, run migrations against real Postgres, exercise WebAuthn ceremony, confirm `/.well-known/openid-configuration` discovery |
 | **v0.2** | Password + TOTP | Credential CRUD, enrollment flow, password+TOTP login endpoints, recovery-code mint/verify |
 | **v0.3** | Upstream OIDC federation | upstream_idp CRUD, per-IdP RP flow via zitadel/oidc/v3, three provisioning modes, link UX in `/me` |
-| **v0.4** | OIDC OP (downstream) | Signing-key enrollment subcommand, `/oauth/authorize`, `/oauth/token`, `/oauth/userinfo`, `/oauth/introspect`, RP-initiated logout |
+| **v0.4** | OIDC OP (downstream) | `signing-key generate` subcommand, `/oauth/authorize`, `/oauth/token`, `/oauth/userinfo`, `/oauth/introspect`, RP-initiated logout |
 | **v0.5** | SAML IdP | crewjam/saml integration, metadata, SP-initiated SSO (HTTP-Redirect + HTTP-POST), signed assertions, attribute mapping, optional SLO |
-| **v0.6** | Frontend | Vue 3 dashboard mirroring picotera layout; passkey ceremony SDK; method-selection login UX |
+| **v0.6** | Frontend | Vue 3 dashboard; passkey ceremony SDK; method-selection login UX |
 | **v0.7+** | Hardening | KMS-backed signing keys, audit-log export, signing-key rotation UX, admin UI for clients/SPs/IdPs |
 
 ## Threat model deltas
 
 New surfaces added on top of v0.1:
 
-- **Password brute-force.** Per-account exponential backoff via existing
-  `auth.RateLimiter`. Argon2id params tuned for ≥250ms/verify on prod
-  hardware. No password reset via email channel (admin enrollment token only).
+- **Password brute-force.** Per-account exponential backoff via the
+  `authn.RateLimiter` (moved from `pkg/auth/ratelimit.go`). Argon2id
+  params tuned for ≥250ms/verify on prod hardware. No password reset
+  via email channel (admin enrollment token only).
 - **TOTP code guessing.** 6 digits = 10^6 space; rate-limit to ≤5
   attempts per 5 minutes per account; lock to 30s window with ±1
   period drift tolerance.
