@@ -120,10 +120,24 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 	// so clone-authenticator detection works across both surfaces.
 	credRowID := matchCredentialRowID(creds, credential.ID)
 	if credRowID != 0 {
+		newCount := int64(credential.Authenticator.SignCount)
+		for _, c := range creds {
+			if c.ID == credRowID && newCount < c.SignCount {
+				_ = s.queries.SetCredentialCloneWarning(r.Context(), credRowID)
+				logx.WithContext(r.Context()).WithFields(logrus.Fields{
+					"event":         "auth.clone_warning",
+					"account_id":    sess.Account.ID,
+					"credential_id": credRowID,
+					"old_count":     c.SignCount,
+					"new_count":     newCount,
+				}).Warn("auth")
+				break
+			}
+		}
 		_ = s.queries.UpdateCredentialUsage(r.Context(), db.UpdateCredentialUsageParams{
 			ID:        credRowID,
 			AccountID: sess.Account.ID,
-			SignCount: int64(credential.Authenticator.SignCount),
+			SignCount: newCount,
 		})
 	}
 

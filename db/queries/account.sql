@@ -9,11 +9,8 @@ SELECT * FROM account WHERE webauthn_user_handle = $1;
 
 -- name: InsertAccount :one
 INSERT INTO account (
-  username, display_name, webauthn_user_handle, role,
-  can_view_own_usage, can_manage_own_api_keys, can_view_models, can_view_own_traces,
-  can_manage_own_projects,
-  disabled
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+  username, display_name, webauthn_user_handle, role, attributes, disabled
+) VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: HasAnyActiveAdmin :one
@@ -28,11 +25,8 @@ ORDER BY a.created_at ASC, a.id ASC;
 
 -- name: UpdateAccount :one
 UPDATE account SET
-  display_name = $2, role = $3,
-  can_view_own_usage = $4, can_manage_own_api_keys = $5,
-  can_view_models = $6, can_view_own_traces = $7,
-  can_manage_own_projects = $8,
-  disabled = $9, updated_at = now()
+  display_name = $2, role = $3, attributes = $4, disabled = $5,
+  updated_at = now()
 WHERE id = $1
 RETURNING *;
 

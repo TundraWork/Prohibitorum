@@ -66,14 +66,23 @@ func (w *WebAuthnAccount) WebAuthnCredentials() []webauthn.Credential {
 		for _, t := range c.Transports {
 			transports = append(transports, protocol.AuthenticatorTransport(t))
 		}
+		// backup_eligible and backup_state are nullable in the new schema;
+		// default to false if not set (legacy rows or unset on older authenticators).
+		backupEligible := c.BackupEligible.Valid && c.BackupEligible.Bool
+		backupState := c.BackupState.Valid && c.BackupState.Bool
+		// attestation_type is nullable; default to empty string if not set.
+		attType := ""
+		if c.AttestationType.Valid {
+			attType = c.AttestationType.String
+		}
 		out = append(out, webauthn.Credential{
 			ID:              c.CredentialID,
 			PublicKey:       c.PublicKey,
-			AttestationType: c.AttestationType,
+			AttestationType: attType,
 			Transport:       transports,
 			Flags: webauthn.CredentialFlags{
-				BackupEligible: c.BackupEligible,
-				BackupState:    c.BackupState,
+				BackupEligible: backupEligible,
+				BackupState:    backupState,
 			},
 			Authenticator: webauthn.Authenticator{
 				AAGUID:    c.Aaguid,

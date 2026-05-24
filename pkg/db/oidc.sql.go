@@ -12,7 +12,7 @@ import (
 )
 
 const deactivateAllSigningKeys = `-- name: DeactivateAllSigningKeys :exec
-UPDATE oidc_signing_key SET active = FALSE WHERE active = TRUE
+UPDATE signing_key SET active = FALSE WHERE active = TRUE
 `
 
 func (q *Queries) DeactivateAllSigningKeys(ctx context.Context) error {
@@ -30,18 +30,23 @@ func (q *Queries) DeleteOIDCClient(ctx context.Context, clientID string) error {
 }
 
 const getActiveSigningKey = `-- name: GetActiveSigningKey :one
-SELECT kid, algorithm, public_jwk, private_pem, active, created_at, retired_at FROM oidc_signing_key WHERE active = TRUE LIMIT 1
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at FROM signing_key
+WHERE active AND use = $1
+LIMIT 1
 `
 
-func (q *Queries) GetActiveSigningKey(ctx context.Context) (OidcSigningKey, error) {
-	row := q.db.QueryRow(ctx, getActiveSigningKey)
-	var i OidcSigningKey
+func (q *Queries) GetActiveSigningKey(ctx context.Context, use string) (SigningKey, error) {
+	row := q.db.QueryRow(ctx, getActiveSigningKey, use)
+	var i SigningKey
 	err := row.Scan(
 		&i.Kid,
 		&i.Algorithm,
+		&i.Use,
 		&i.PublicJwk,
+		&i.X509CertPem,
 		&i.PrivatePem,
 		&i.Active,
+		&i.NotBefore,
 		&i.CreatedAt,
 		&i.RetiredAt,
 	)
@@ -49,7 +54,7 @@ func (q *Queries) GetActiveSigningKey(ctx context.Context) (OidcSigningKey, erro
 }
 
 const getOIDCClient = `-- name: GetOIDCClient :one
-SELECT client_id, client_secret_hash, display_name, redirect_uris, allowed_scopes, created_at FROM oidc_client WHERE client_id = $1
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, created_at FROM oidc_client WHERE client_id = $1 AND NOT disabled
 `
 
 func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error) {
@@ -57,86 +62,168 @@ func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClien
 	var i OidcClient
 	err := row.Scan(
 		&i.ClientID,
-		&i.ClientSecretHash,
 		&i.DisplayName,
+		&i.ClientSecretHash,
 		&i.RedirectUris,
+		&i.PostLogoutRedirectUris,
 		&i.AllowedScopes,
+		&i.RequirePkce,
+		&i.AllowedCodeChallengeMethods,
+		&i.TokenEndpointAuthMethod,
+		&i.IDTokenSignedResponseAlg,
+		&i.SubjectType,
+		&i.ApplicationType,
+		&i.DefaultMaxAge,
+		&i.RequireAuthTime,
+		&i.Contacts,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.Disabled,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const insertOIDCClient = `-- name: InsertOIDCClient :one
-INSERT INTO oidc_client (client_id, client_secret_hash, display_name, redirect_uris, allowed_scopes)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING client_id, client_secret_hash, display_name, redirect_uris, allowed_scopes, created_at
+INSERT INTO oidc_client (
+  client_id, display_name, client_secret_hash, redirect_uris,
+  post_logout_redirect_uris, allowed_scopes, require_pkce,
+  allowed_code_challenge_methods, token_endpoint_auth_method,
+  id_token_signed_response_alg, subject_type, application_type,
+  default_max_age, require_auth_time, contacts, logo_uri, tos_uri,
+  policy_uri, disabled
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, created_at
 `
 
 type InsertOIDCClientParams struct {
-	ClientID         string      `json:"clientId"`
-	ClientSecretHash pgtype.Text `json:"clientSecretHash"`
-	DisplayName      string      `json:"displayName"`
-	RedirectUris     []string    `json:"redirectUris"`
-	AllowedScopes    []string    `json:"allowedScopes"`
+	ClientID                    string      `json:"clientId"`
+	DisplayName                 string      `json:"displayName"`
+	ClientSecretHash            pgtype.Text `json:"clientSecretHash"`
+	RedirectUris                []string    `json:"redirectUris"`
+	PostLogoutRedirectUris      []string    `json:"postLogoutRedirectUris"`
+	AllowedScopes               []string    `json:"allowedScopes"`
+	RequirePkce                 bool        `json:"requirePkce"`
+	AllowedCodeChallengeMethods []string    `json:"allowedCodeChallengeMethods"`
+	TokenEndpointAuthMethod     string      `json:"tokenEndpointAuthMethod"`
+	IDTokenSignedResponseAlg    string      `json:"idTokenSignedResponseAlg"`
+	SubjectType                 string      `json:"subjectType"`
+	ApplicationType             string      `json:"applicationType"`
+	DefaultMaxAge               pgtype.Int4 `json:"defaultMaxAge"`
+	RequireAuthTime             bool        `json:"requireAuthTime"`
+	Contacts                    []string    `json:"contacts"`
+	LogoUri                     pgtype.Text `json:"logoUri"`
+	TosUri                      pgtype.Text `json:"tosUri"`
+	PolicyUri                   pgtype.Text `json:"policyUri"`
+	Disabled                    bool        `json:"disabled"`
 }
 
 func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error) {
 	row := q.db.QueryRow(ctx, insertOIDCClient,
 		arg.ClientID,
-		arg.ClientSecretHash,
 		arg.DisplayName,
+		arg.ClientSecretHash,
 		arg.RedirectUris,
+		arg.PostLogoutRedirectUris,
 		arg.AllowedScopes,
+		arg.RequirePkce,
+		arg.AllowedCodeChallengeMethods,
+		arg.TokenEndpointAuthMethod,
+		arg.IDTokenSignedResponseAlg,
+		arg.SubjectType,
+		arg.ApplicationType,
+		arg.DefaultMaxAge,
+		arg.RequireAuthTime,
+		arg.Contacts,
+		arg.LogoUri,
+		arg.TosUri,
+		arg.PolicyUri,
+		arg.Disabled,
 	)
 	var i OidcClient
 	err := row.Scan(
 		&i.ClientID,
-		&i.ClientSecretHash,
 		&i.DisplayName,
+		&i.ClientSecretHash,
 		&i.RedirectUris,
+		&i.PostLogoutRedirectUris,
 		&i.AllowedScopes,
+		&i.RequirePkce,
+		&i.AllowedCodeChallengeMethods,
+		&i.TokenEndpointAuthMethod,
+		&i.IDTokenSignedResponseAlg,
+		&i.SubjectType,
+		&i.ApplicationType,
+		&i.DefaultMaxAge,
+		&i.RequireAuthTime,
+		&i.Contacts,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.Disabled,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const insertSigningKey = `-- name: InsertSigningKey :one
-INSERT INTO oidc_signing_key (kid, algorithm, public_jwk, private_pem, active)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING kid, algorithm, public_jwk, private_pem, active, created_at, retired_at
+INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at
 `
 
 type InsertSigningKeyParams struct {
-	Kid        string `json:"kid"`
-	Algorithm  string `json:"algorithm"`
-	PublicJwk  []byte `json:"publicJwk"`
-	PrivatePem []byte `json:"privatePem"`
-	Active     bool   `json:"active"`
+	Kid         string             `json:"kid"`
+	Algorithm   string             `json:"algorithm"`
+	Use         string             `json:"use"`
+	PublicJwk   []byte             `json:"publicJwk"`
+	X509CertPem pgtype.Text        `json:"x509CertPem"`
+	PrivatePem  string             `json:"privatePem"`
+	Active      bool               `json:"active"`
+	NotBefore   pgtype.Timestamptz `json:"notBefore"`
 }
 
-func (q *Queries) InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (OidcSigningKey, error) {
+func (q *Queries) InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (SigningKey, error) {
 	row := q.db.QueryRow(ctx, insertSigningKey,
 		arg.Kid,
 		arg.Algorithm,
+		arg.Use,
 		arg.PublicJwk,
+		arg.X509CertPem,
 		arg.PrivatePem,
 		arg.Active,
+		arg.NotBefore,
 	)
-	var i OidcSigningKey
+	var i SigningKey
 	err := row.Scan(
 		&i.Kid,
 		&i.Algorithm,
+		&i.Use,
 		&i.PublicJwk,
+		&i.X509CertPem,
 		&i.PrivatePem,
 		&i.Active,
+		&i.NotBefore,
 		&i.CreatedAt,
 		&i.RetiredAt,
 	)
 	return i, err
 }
 
+const isJTIRevoked = `-- name: IsJTIRevoked :one
+SELECT EXISTS(SELECT 1 FROM revoked_jti WHERE jti = $1) AS revoked
+`
+
+func (q *Queries) IsJTIRevoked(ctx context.Context, jti string) (bool, error) {
+	row := q.db.QueryRow(ctx, isJTIRevoked, jti)
+	var revoked bool
+	err := row.Scan(&revoked)
+	return revoked, err
+}
+
 const listOIDCClients = `-- name: ListOIDCClients :many
-SELECT client_id, client_secret_hash, display_name, redirect_uris, allowed_scopes, created_at FROM oidc_client ORDER BY display_name ASC
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, created_at FROM oidc_client ORDER BY display_name ASC
 `
 
 func (q *Queries) ListOIDCClients(ctx context.Context) ([]OidcClient, error) {
@@ -150,10 +237,24 @@ func (q *Queries) ListOIDCClients(ctx context.Context) ([]OidcClient, error) {
 		var i OidcClient
 		if err := rows.Scan(
 			&i.ClientID,
-			&i.ClientSecretHash,
 			&i.DisplayName,
+			&i.ClientSecretHash,
 			&i.RedirectUris,
+			&i.PostLogoutRedirectUris,
 			&i.AllowedScopes,
+			&i.RequirePkce,
+			&i.AllowedCodeChallengeMethods,
+			&i.TokenEndpointAuthMethod,
+			&i.IDTokenSignedResponseAlg,
+			&i.SubjectType,
+			&i.ApplicationType,
+			&i.DefaultMaxAge,
+			&i.RequireAuthTime,
+			&i.Contacts,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.Disabled,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -167,28 +268,31 @@ func (q *Queries) ListOIDCClients(ctx context.Context) ([]OidcClient, error) {
 }
 
 const listVerifyingSigningKeys = `-- name: ListVerifyingSigningKeys :many
-SELECT kid, algorithm, public_jwk, private_pem, active, created_at, retired_at FROM oidc_signing_key
-WHERE retired_at IS NULL OR retired_at > now()
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at FROM signing_key
+WHERE retired_at IS NULL OR retired_at > $1
 ORDER BY created_at DESC
 `
 
 // Every non-retired key: the active signing key + any keys still inside
 // their rollover window. JWKS endpoint serves the public_jwk of each.
-func (q *Queries) ListVerifyingSigningKeys(ctx context.Context) ([]OidcSigningKey, error) {
-	rows, err := q.db.Query(ctx, listVerifyingSigningKeys)
+func (q *Queries) ListVerifyingSigningKeys(ctx context.Context, retiredAt pgtype.Timestamptz) ([]SigningKey, error) {
+	rows, err := q.db.Query(ctx, listVerifyingSigningKeys, retiredAt)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []OidcSigningKey
+	var items []SigningKey
 	for rows.Next() {
-		var i OidcSigningKey
+		var i SigningKey
 		if err := rows.Scan(
 			&i.Kid,
 			&i.Algorithm,
+			&i.Use,
 			&i.PublicJwk,
+			&i.X509CertPem,
 			&i.PrivatePem,
 			&i.Active,
+			&i.NotBefore,
 			&i.CreatedAt,
 			&i.RetiredAt,
 		); err != nil {
@@ -202,8 +306,17 @@ func (q *Queries) ListVerifyingSigningKeys(ctx context.Context) ([]OidcSigningKe
 	return items, nil
 }
 
+const pruneRevokedJTI = `-- name: PruneRevokedJTI :exec
+DELETE FROM revoked_jti WHERE expires_at < now()
+`
+
+func (q *Queries) PruneRevokedJTI(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, pruneRevokedJTI)
+	return err
+}
+
 const retireSigningKey = `-- name: RetireSigningKey :exec
-UPDATE oidc_signing_key SET retired_at = $2 WHERE kid = $1
+UPDATE signing_key SET retired_at = $2 WHERE kid = $1
 `
 
 type RetireSigningKeyParams struct {
@@ -213,5 +326,21 @@ type RetireSigningKeyParams struct {
 
 func (q *Queries) RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) error {
 	_, err := q.db.Exec(ctx, retireSigningKey, arg.Kid, arg.RetiredAt)
+	return err
+}
+
+const revokeJTI = `-- name: RevokeJTI :exec
+INSERT INTO revoked_jti (jti, expires_at, reason) VALUES ($1, $2, $3)
+ON CONFLICT (jti) DO NOTHING
+`
+
+type RevokeJTIParams struct {
+	Jti       string             `json:"jti"`
+	ExpiresAt pgtype.Timestamptz `json:"expiresAt"`
+	Reason    pgtype.Text        `json:"reason"`
+}
+
+func (q *Queries) RevokeJTI(ctx context.Context, arg RevokeJTIParams) error {
+	_, err := q.db.Exec(ctx, revokeJTI, arg.Jti, arg.ExpiresAt, arg.Reason)
 	return err
 }

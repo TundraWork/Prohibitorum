@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -17,30 +19,52 @@ import (
 	"prohibitorum/pkg/logx"
 )
 
+// decodeAttributes converts a sqlc-generated jsonb []byte into map[string]any.
+// sqlc with pgx-v5 returns jsonb columns as []byte; we unmarshal into a map.
+// Returns nil if the input is empty or unparseable.
+func decodeAttributes(raw []byte) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
+// encodeAttributes marshals a map[string]any into JSONB bytes for storage.
+// Returns the JSON encoding of an empty object if the map is nil.
+func encodeAttributes(attrs map[string]any) []byte {
+	if attrs == nil {
+		return []byte("{}")
+	}
+	b, err := json.Marshal(attrs)
+	if err != nil {
+		return []byte("{}")
+	}
+	return b
+}
+
 // accountViewFromRow projects a ListAccountsRow into AccountView. The row
 // carries the same columns as db.Account plus a pre-computed LastSignInAt.
 func accountViewFromRow(r *db.ListAccountsRow) contract.AccountView {
-	a := db.Account{
-		ID:                   r.ID,
-		Username:             r.Username,
-		DisplayName:          r.DisplayName,
-		WebauthnUserHandle:   r.WebauthnUserHandle,
-		Role:                 r.Role,
-		CanViewOwnUsage:      r.CanViewOwnUsage,
-		CanManageOwnApiKeys:  r.CanManageOwnApiKeys,
-		CanViewModels:        r.CanViewModels,
-		CanViewOwnTraces:     r.CanViewOwnTraces,
-		CanManageOwnProjects: r.CanManageOwnProjects,
-		Disabled:             r.Disabled,
-		CreatedAt:            r.CreatedAt,
-		UpdatedAt:            r.UpdatedAt,
-	}
 	var lsi *time.Time
 	if r.LastSignInAt.Valid {
 		v := r.LastSignInAt.Time
 		lsi = &v
 	}
-	return accountViewFromAccount(&a, lsi)
+	return contract.AccountView{
+		ID:           r.ID,
+		Username:     r.Username,
+		DisplayName:  r.DisplayName,
+		Role:         r.Role,
+		Attributes:   decodeAttributes(r.Attributes),
+		Disabled:     r.Disabled,
+		CreatedAt:    r.CreatedAt.Time,
+		UpdatedAt:    r.UpdatedAt.Time,
+		LastSignInAt: lsi,
+	}
 }
 
 // accountViewFromAccount projects a db.Account into AccountView with an
@@ -52,7 +76,7 @@ func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time) contract.Acc
 		Username:     a.Username,
 		DisplayName:  a.DisplayName,
 		Role:         a.Role,
-		Permissions:  authn.PermissionsView(a),
+		Attributes:   decodeAttributes(a.Attributes),
 		Disabled:     a.Disabled,
 		CreatedAt:    a.CreatedAt.Time,
 		UpdatedAt:    a.UpdatedAt.Time,
@@ -101,11 +125,11 @@ type updateAccountIn struct {
 	ID   int32 `path:"id"`
 	Body struct {
 		// username is immutable; reject if the caller supplies any value.
-		Username    string               `json:"username,omitempty"`
-		DisplayName string               `json:"displayName"`
-		Role        string               `json:"role"`
-		Permissions contract.Permissions `json:"permissions"`
-		Disabled    bool                 `json:"disabled"`
+		Username    string         `json:"username,omitempty"`
+		DisplayName string         `json:"displayName"`
+		Role        string         `json:"role"`
+		Attributes  map[string]any `json:"attributes,omitempty"`
+		Disabled    bool           `json:"disabled"`
 	}
 }
 
@@ -153,29 +177,14 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		}
 	}
 
-	// Admin role implies all permissions are true regardless of input — keeps the
-	// DB in a consistent state and matches Permits() which reads admin as full.
-	perms := in.Body.Permissions
-	if in.Body.Role == "admin" {
-		perms = contract.Permissions{
-			ViewOwnUsage:      true,
-			ManageOwnAPIKeys:  true,
-			ViewModels:        true,
-			ViewOwnTraces:     true,
-			ManageOwnProjects: true,
-		}
-	}
+	attrs := encodeAttributes(in.Body.Attributes)
 
 	updated, err := q.UpdateAccount(ctx, db.UpdateAccountParams{
-		ID:                   in.ID,
-		DisplayName:          in.Body.DisplayName,
-		Role:                 in.Body.Role,
-		CanViewOwnUsage:      perms.ViewOwnUsage,
-		CanManageOwnApiKeys:  perms.ManageOwnAPIKeys,
-		CanViewModels:        perms.ViewModels,
-		CanViewOwnTraces:     perms.ViewOwnTraces,
-		CanManageOwnProjects: perms.ManageOwnProjects,
-		Disabled:             in.Body.Disabled,
+		ID:          in.ID,
+		DisplayName: in.Body.DisplayName,
+		Role:        in.Body.Role,
+		Attributes:  attrs,
+		Disabled:    in.Body.Disabled,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("handleUpdateAccount: update: %w", err)
@@ -193,20 +202,10 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 	if current.Disabled != updated.Disabled {
 		changes["disabled"] = []bool{current.Disabled, updated.Disabled}
 	}
-	if current.CanViewOwnUsage != updated.CanViewOwnUsage {
-		changes["view_own_usage"] = []bool{current.CanViewOwnUsage, updated.CanViewOwnUsage}
-	}
-	if current.CanManageOwnApiKeys != updated.CanManageOwnApiKeys {
-		changes["manage_own_api_keys"] = []bool{current.CanManageOwnApiKeys, updated.CanManageOwnApiKeys}
-	}
-	if current.CanViewModels != updated.CanViewModels {
-		changes["view_models"] = []bool{current.CanViewModels, updated.CanViewModels}
-	}
-	if current.CanViewOwnTraces != updated.CanViewOwnTraces {
-		changes["view_own_traces"] = []bool{current.CanViewOwnTraces, updated.CanViewOwnTraces}
-	}
-	if current.CanManageOwnProjects != updated.CanManageOwnProjects {
-		changes["manage_own_projects"] = []bool{current.CanManageOwnProjects, updated.CanManageOwnProjects}
+	currentAttrs := decodeAttributes(current.Attributes)
+	updatedAttrs := decodeAttributes(updated.Attributes)
+	if !reflect.DeepEqual(currentAttrs, updatedAttrs) {
+		changes["attributes"] = []any{currentAttrs, updatedAttrs}
 	}
 	if len(changes) > 0 {
 		actorID := int32(0)
@@ -456,8 +455,8 @@ func (s *Server) handleReissueEnrollment(ctx context.Context, in *reissueEnrollm
 
 type createInvitationIn struct {
 	Body struct {
-		Role        string               `json:"role"`
-		Permissions contract.Permissions `json:"permissions"`
+		Role       string         `json:"role"`
+		Attributes map[string]any `json:"attributes,omitempty"`
 	}
 }
 
@@ -466,22 +465,9 @@ type invitationOut struct {
 }
 
 func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitationIn) (*invitationOut, error) {
-	// Admin role implies all permissions are true regardless of input — keeps the
-	// DB in a consistent state and matches Permits() which reads admin as full.
-	perms := in.Body.Permissions
-	if in.Body.Role == "admin" {
-		perms = contract.Permissions{
-			ViewOwnUsage:      true,
-			ManageOwnAPIKeys:  true,
-			ViewModels:        true,
-			ViewOwnTraces:     true,
-			ManageOwnProjects: true,
-		}
-	}
-
 	tpl := &enrollment.EnrollmentTemplate{
-		Role:  in.Body.Role,
-		Perms: perms,
+		Role:       in.Body.Role,
+		Attributes: in.Body.Attributes,
 	}
 	token, expiresAt, err := enrollment.IssueEnrollment(ctx, s.queries, enrollment.IntentInvite, nil, 0, tpl)
 	if err != nil {
@@ -521,26 +507,18 @@ func (s *Server) handleListInvitations(ctx context.Context, _ *struct{}) (*listI
 	}
 	views := make([]contract.InvitationView, 0, len(rows))
 	for _, r := range rows {
-		// Permissions snapshot from template_* columns. If template_* are NULL
-		// (legacy rows from before P4.04), treat as all-false.
-		perms := contract.Permissions{
-			ViewOwnUsage:      r.TemplateCanViewOwnUsage.Bool,
-			ManageOwnAPIKeys:  r.TemplateCanManageOwnApiKeys.Bool,
-			ViewModels:        r.TemplateCanViewModels.Bool,
-			ViewOwnTraces:     r.TemplateCanViewOwnTraces.Bool,
-			ManageOwnProjects: r.TemplateCanManageOwnProjects.Bool,
-		}
 		role := "user"
 		if r.TemplateRole.Valid {
 			role = r.TemplateRole.String
 		}
+		attrs := enrollment.DecodeTemplateAttributes(r.TemplateAttributes)
 		views = append(views, contract.InvitationView{
-			Token:       r.Token,
-			URL:         s.config.PublicOrigins[0] + "/enroll/" + r.Token,
-			Role:        role,
-			Permissions: perms,
-			CreatedAt:   r.CreatedAt.Time,
-			ExpiresAt:   r.ExpiresAt.Time,
+			Token:      r.Token,
+			URL:        s.config.PublicOrigins[0] + "/enroll/" + r.Token,
+			Role:       role,
+			Attributes: attrs,
+			CreatedAt:  r.CreatedAt.Time,
+			ExpiresAt:  r.ExpiresAt.Time,
 		})
 	}
 	return &listInvitationsOut{Body: views}, nil

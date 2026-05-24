@@ -65,12 +65,18 @@ func (s *Server) handleListMyCredentials(ctx context.Context, _ *struct{}) (*cre
 // forensic display.
 func credentialView(c *db.WebauthnCredential) contract.CredentialView {
 	suffix := credentialIDSuffix(c.CredentialID)
+	// backup_state and attestation_type are nullable in the new schema.
+	backupState := c.BackupState.Valid && c.BackupState.Bool
+	attType := ""
+	if c.AttestationType.Valid {
+		attType = c.AttestationType.String
+	}
 	out := contract.CredentialView{
 		ID:                 c.ID,
 		CredentialIDSuffix: suffix,
 		Transports:         append([]string(nil), c.Transports...),
-		BackupState:        c.BackupState,
-		AttestationType:    c.AttestationType,
+		BackupState:        backupState,
+		AttestationType:    attType,
 		CreatedAt:          c.CreatedAt.Time,
 	}
 	if c.Nickname.Valid {
@@ -184,16 +190,23 @@ func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.
 	for _, t := range cred.Transport {
 		transports = append(transports, string(t))
 	}
+	var attType pgtype.Text
+	if cred.AttestationType != "" {
+		attType = pgtype.Text{String: cred.AttestationType, Valid: true}
+	}
 	row, err := s.queries.InsertCredential(r.Context(), db.InsertCredentialParams{
 		AccountID:       sess.Account.ID,
 		CredentialID:    cred.ID,
 		PublicKey:       cred.PublicKey,
+		CoseAlg:         int32(cred.Attestation.PublicKeyAlgorithm),
+		UserHandle:      sess.Account.WebauthnUserHandle,
 		SignCount:       int64(cred.Authenticator.SignCount),
 		Transports:      transports,
 		Aaguid:          cred.Authenticator.AAGUID,
-		AttestationType: cred.AttestationType,
-		BackupEligible:  cred.Flags.BackupEligible,
-		BackupState:     cred.Flags.BackupState,
+		AttestationType: attType,
+		BackupEligible:  pgtype.Bool{Bool: cred.Flags.BackupEligible, Valid: true},
+		BackupState:     pgtype.Bool{Bool: cred.Flags.BackupState, Valid: true},
+		UvInitialized:   cred.Flags.UserVerified,
 		Nickname:        nicknameParamPtr(validatedNickname),
 	})
 	if err != nil {

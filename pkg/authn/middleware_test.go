@@ -46,22 +46,6 @@ func TestCheck_Admin(t *testing.T) {
 	}
 }
 
-func TestCheck_Permission(t *testing.T) {
-	req := contract.RequirePermission(contract.PermViewOwnUsage)
-	// admin auto-passes
-	if err := Check(&Session{Account: &db.Account{Role: "admin"}}, req); err != nil {
-		t.Errorf("admin should auto-pass permissions, got %v", err)
-	}
-	// user with the perm passes
-	if err := Check(&Session{Account: &db.Account{Role: "user", CanViewOwnUsage: true}}, req); err != nil {
-		t.Errorf("user with perm should pass, got %v", err)
-	}
-	// user without it fails with permission_denied
-	err := Check(&Session{Account: &db.Account{Role: "user"}}, req)
-	if AsAuthError(err) == nil || AsAuthError(err).Code != "permission_denied" {
-		t.Errorf("want permission_denied, got %v", err)
-	}
-}
 
 func TestCheck_DisabledAccount_Public(t *testing.T) {
 	// A disabled-session sentinel must NOT block public routes — the request
@@ -90,14 +74,6 @@ func TestCheck_DisabledAccount_Admin(t *testing.T) {
 	}
 }
 
-func TestCheck_DisabledAccount_Permission(t *testing.T) {
-	// Permission check on a disabled account: account_disabled, not permission_denied.
-	s := &Session{Account: &db.Account{Role: "user", Disabled: true, CanViewOwnUsage: true}}
-	err := Check(s, contract.RequirePermission(contract.PermViewOwnUsage))
-	if AsAuthError(err) == nil || AsAuthError(err).Code != "account_disabled" {
-		t.Errorf("want account_disabled (not permission_denied), got %v", err)
-	}
-}
 
 func TestSessionContext_Roundtrip(t *testing.T) {
 	want := &Session{Account: &db.Account{ID: 7}}

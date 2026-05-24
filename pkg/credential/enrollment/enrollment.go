@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
 
@@ -21,6 +21,7 @@ const (
 	IntentBootstrap = "bootstrap"
 	IntentInvite    = "invite"
 	IntentReset     = "reset"
+	IntentAddDevice = "add_device"
 )
 
 // DefaultEnrollmentTTL is the lifetime of an issued enrollment URL.
@@ -35,20 +36,20 @@ func newEnrollmentToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// EnrollmentTemplate carries the role + permissions for an invite-intent
+// EnrollmentTemplate carries the role + attributes for an invite-intent
 // enrollment. The account is created at consume time using the invitee's
-// chosen username + displayName plus this template's role + perms.
+// chosen username + displayName plus this template's role + attributes.
 // Only meaningful for IntentInvite; pass nil for bootstrap and reset.
 type EnrollmentTemplate struct {
-	Role  string               // "admin" or "user"
-	Perms contract.Permissions // four booleans projected per-account
+	Role                    string         // "admin" or "user"
+	Attributes              map[string]any // arbitrary claim attributes; stored as JSONB
+	ExpectedUpstreamIDPSlug *string        // optional; pre-binds invite to a specific upstream IdP
 }
 
 // IssueEnrollment inserts a new enrollment row and returns the token + expiry.
 // For intent='bootstrap', targetAccountID must be nil; for 'reset' it must
 // reference an existing account.id; for 'invite' it MUST be nil (per the
-// CHECK constraint added in migration 028). The CHECK constraint enforces
-// this server-side regardless.
+// CHECK constraint). The CHECK constraint enforces this server-side regardless.
 //
 // ttl <= 0 falls back to DefaultEnrollmentTTL.
 //
@@ -83,13 +84,16 @@ func IssueEnrollment(
 	}
 	if tpl != nil {
 		params.TemplateRole = pgtype.Text{String: tpl.Role, Valid: tpl.Role != ""}
-		params.TemplateCanViewOwnUsage = pgtype.Bool{Bool: tpl.Perms.ViewOwnUsage, Valid: true}
-		params.TemplateCanManageOwnApiKeys = pgtype.Bool{Bool: tpl.Perms.ManageOwnAPIKeys, Valid: true}
-		params.TemplateCanViewModels = pgtype.Bool{Bool: tpl.Perms.ViewModels, Valid: true}
-		params.TemplateCanViewOwnTraces = pgtype.Bool{Bool: tpl.Perms.ViewOwnTraces, Valid: true}
-		params.TemplateCanManageOwnProjects = pgtype.Bool{Bool: tpl.Perms.ManageOwnProjects, Valid: true}
-		// template_username and template_display_name remain NULL — dead columns
-		// per P5.03 (kept in schema to avoid a drop migration).
+		if tpl.Attributes != nil {
+			raw, err := json.Marshal(tpl.Attributes)
+			if err != nil {
+				return "", time.Time{}, fmt.Errorf("enrollment: marshal attributes: %w", err)
+			}
+			params.TemplateAttributes = raw
+		}
+		if tpl.ExpectedUpstreamIDPSlug != nil {
+			params.ExpectedUpstreamIdpSlug = pgtype.Text{String: *tpl.ExpectedUpstreamIDPSlug, Valid: true}
+		}
 	}
 	if _, err := q.InsertEnrollment(ctx, params); err != nil {
 		return "", time.Time{}, fmt.Errorf("enrollment: insert: %w", err)
@@ -146,4 +150,17 @@ func ConsumeEnrollment(ctx context.Context, q db.Querier, token string) (*db.Enr
 		return nil, fmt.Errorf("enrollment: consume: %w", err)
 	}
 	return &row, nil
+}
+
+// DecodeTemplateAttributes decodes the jsonb template_attributes column into a
+// map. Returns nil if the bytes are empty or null.
+func DecodeTemplateAttributes(raw []byte) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+	return m
 }

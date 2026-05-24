@@ -15,7 +15,7 @@ const consumeEnrollment = `-- name: ConsumeEnrollment :one
 UPDATE enrollment
 SET consumed_at = now()
 WHERE token = $1 AND consumed_at IS NULL AND expires_at > now()
-RETURNING token, intent, target_account_id, template_role, template_can_view_own_usage, template_can_manage_own_api_keys, template_can_view_models, template_can_view_own_traces, template_can_manage_own_projects, template_username, template_display_name, created_at, expires_at, consumed_at
+RETURNING token, intent, target_account_id, template_username, template_display_name, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at
 `
 
 // Atomic single-use consume. Returns the row only if it was unconsumed and unexpired.
@@ -27,14 +27,11 @@ func (q *Queries) ConsumeEnrollment(ctx context.Context, token string) (Enrollme
 		&i.Token,
 		&i.Intent,
 		&i.TargetAccountID,
-		&i.TemplateRole,
-		&i.TemplateCanViewOwnUsage,
-		&i.TemplateCanManageOwnApiKeys,
-		&i.TemplateCanViewModels,
-		&i.TemplateCanViewOwnTraces,
-		&i.TemplateCanManageOwnProjects,
 		&i.TemplateUsername,
 		&i.TemplateDisplayName,
+		&i.TemplateRole,
+		&i.TemplateAttributes,
+		&i.ExpectedUpstreamIdpSlug,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.ConsumedAt,
@@ -43,7 +40,7 @@ func (q *Queries) ConsumeEnrollment(ctx context.Context, token string) (Enrollme
 }
 
 const getEnrollmentByToken = `-- name: GetEnrollmentByToken :one
-SELECT token, intent, target_account_id, template_role, template_can_view_own_usage, template_can_manage_own_api_keys, template_can_view_models, template_can_view_own_traces, template_can_manage_own_projects, template_username, template_display_name, created_at, expires_at, consumed_at FROM enrollment WHERE token = $1
+SELECT token, intent, target_account_id, template_username, template_display_name, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at FROM enrollment WHERE token = $1
 `
 
 func (q *Queries) GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error) {
@@ -53,14 +50,11 @@ func (q *Queries) GetEnrollmentByToken(ctx context.Context, token string) (Enrol
 		&i.Token,
 		&i.Intent,
 		&i.TargetAccountID,
-		&i.TemplateRole,
-		&i.TemplateCanViewOwnUsage,
-		&i.TemplateCanManageOwnApiKeys,
-		&i.TemplateCanViewModels,
-		&i.TemplateCanViewOwnTraces,
-		&i.TemplateCanManageOwnProjects,
 		&i.TemplateUsername,
 		&i.TemplateDisplayName,
+		&i.TemplateRole,
+		&i.TemplateAttributes,
+		&i.ExpectedUpstreamIdpSlug,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.ConsumedAt,
@@ -71,33 +65,25 @@ func (q *Queries) GetEnrollmentByToken(ctx context.Context, token string) (Enrol
 const insertEnrollment = `-- name: InsertEnrollment :one
 INSERT INTO enrollment (
   token, intent, target_account_id, expires_at,
-  template_role,
-  template_can_view_own_usage, template_can_manage_own_api_keys,
-  template_can_view_models, template_can_view_own_traces,
-  template_can_manage_own_projects,
+  template_role, template_attributes, expected_upstream_idp_slug,
   template_username, template_display_name
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-RETURNING token, intent, target_account_id, template_role, template_can_view_own_usage, template_can_manage_own_api_keys, template_can_view_models, template_can_view_own_traces, template_can_manage_own_projects, template_username, template_display_name, created_at, expires_at, consumed_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING token, intent, target_account_id, template_username, template_display_name, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at
 `
 
 type InsertEnrollmentParams struct {
-	Token                        string             `json:"token"`
-	Intent                       string             `json:"intent"`
-	TargetAccountID              pgtype.Int4        `json:"targetAccountId"`
-	ExpiresAt                    pgtype.Timestamptz `json:"expiresAt"`
-	TemplateRole                 pgtype.Text        `json:"templateRole"`
-	TemplateCanViewOwnUsage      pgtype.Bool        `json:"templateCanViewOwnUsage"`
-	TemplateCanManageOwnApiKeys  pgtype.Bool        `json:"templateCanManageOwnApiKeys"`
-	TemplateCanViewModels        pgtype.Bool        `json:"templateCanViewModels"`
-	TemplateCanViewOwnTraces     pgtype.Bool        `json:"templateCanViewOwnTraces"`
-	TemplateCanManageOwnProjects pgtype.Bool        `json:"templateCanManageOwnProjects"`
-	TemplateUsername             pgtype.Text        `json:"templateUsername"`
-	TemplateDisplayName          pgtype.Text        `json:"templateDisplayName"`
+	Token                   string             `json:"token"`
+	Intent                  string             `json:"intent"`
+	TargetAccountID         pgtype.Int4        `json:"targetAccountId"`
+	ExpiresAt               pgtype.Timestamptz `json:"expiresAt"`
+	TemplateRole            pgtype.Text        `json:"templateRole"`
+	TemplateAttributes      []byte             `json:"templateAttributes"`
+	ExpectedUpstreamIdpSlug pgtype.Text        `json:"expectedUpstreamIdpSlug"`
+	TemplateUsername        pgtype.Text        `json:"templateUsername"`
+	TemplateDisplayName     pgtype.Text        `json:"templateDisplayName"`
 }
 
-// template_username ($11) and template_display_name ($12) are always NULL
-// as of P5.03 — the invite flow no longer pre-populates username/displayName.
 func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error) {
 	row := q.db.QueryRow(ctx, insertEnrollment,
 		arg.Token,
@@ -105,11 +91,8 @@ func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentPara
 		arg.TargetAccountID,
 		arg.ExpiresAt,
 		arg.TemplateRole,
-		arg.TemplateCanViewOwnUsage,
-		arg.TemplateCanManageOwnApiKeys,
-		arg.TemplateCanViewModels,
-		arg.TemplateCanViewOwnTraces,
-		arg.TemplateCanManageOwnProjects,
+		arg.TemplateAttributes,
+		arg.ExpectedUpstreamIdpSlug,
 		arg.TemplateUsername,
 		arg.TemplateDisplayName,
 	)
@@ -118,14 +101,11 @@ func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentPara
 		&i.Token,
 		&i.Intent,
 		&i.TargetAccountID,
-		&i.TemplateRole,
-		&i.TemplateCanViewOwnUsage,
-		&i.TemplateCanManageOwnApiKeys,
-		&i.TemplateCanViewModels,
-		&i.TemplateCanViewOwnTraces,
-		&i.TemplateCanManageOwnProjects,
 		&i.TemplateUsername,
 		&i.TemplateDisplayName,
+		&i.TemplateRole,
+		&i.TemplateAttributes,
+		&i.ExpectedUpstreamIdpSlug,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.ConsumedAt,
@@ -134,7 +114,7 @@ func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentPara
 }
 
 const listPendingInvitations = `-- name: ListPendingInvitations :many
-SELECT token, intent, target_account_id, template_role, template_can_view_own_usage, template_can_manage_own_api_keys, template_can_view_models, template_can_view_own_traces, template_can_manage_own_projects, template_username, template_display_name, created_at, expires_at, consumed_at FROM enrollment
+SELECT token, intent, target_account_id, template_username, template_display_name, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at FROM enrollment
 WHERE intent = 'invite'
   AND consumed_at IS NULL
   AND expires_at > now()
@@ -154,14 +134,11 @@ func (q *Queries) ListPendingInvitations(ctx context.Context) ([]Enrollment, err
 			&i.Token,
 			&i.Intent,
 			&i.TargetAccountID,
-			&i.TemplateRole,
-			&i.TemplateCanViewOwnUsage,
-			&i.TemplateCanManageOwnApiKeys,
-			&i.TemplateCanViewModels,
-			&i.TemplateCanViewOwnTraces,
-			&i.TemplateCanManageOwnProjects,
 			&i.TemplateUsername,
 			&i.TemplateDisplayName,
+			&i.TemplateRole,
+			&i.TemplateAttributes,
+			&i.ExpectedUpstreamIdpSlug,
 			&i.CreatedAt,
 			&i.ExpiresAt,
 			&i.ConsumedAt,
@@ -180,7 +157,7 @@ const revokeInvitation = `-- name: RevokeInvitation :one
 UPDATE enrollment
 SET consumed_at = now()
 WHERE token = $1 AND intent = 'invite' AND consumed_at IS NULL
-RETURNING token, intent, target_account_id, template_role, template_can_view_own_usage, template_can_manage_own_api_keys, template_can_view_models, template_can_view_own_traces, template_can_manage_own_projects, template_username, template_display_name, created_at, expires_at, consumed_at
+RETURNING token, intent, target_account_id, template_username, template_display_name, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at
 `
 
 // Same DB effect as ConsumeEnrollment but intent-restricted to 'invite' so an
@@ -194,14 +171,11 @@ func (q *Queries) RevokeInvitation(ctx context.Context, token string) (Enrollmen
 		&i.Token,
 		&i.Intent,
 		&i.TargetAccountID,
-		&i.TemplateRole,
-		&i.TemplateCanViewOwnUsage,
-		&i.TemplateCanManageOwnApiKeys,
-		&i.TemplateCanViewModels,
-		&i.TemplateCanViewOwnTraces,
-		&i.TemplateCanManageOwnProjects,
 		&i.TemplateUsername,
 		&i.TemplateDisplayName,
+		&i.TemplateRole,
+		&i.TemplateAttributes,
+		&i.ExpectedUpstreamIdpSlug,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.ConsumedAt,

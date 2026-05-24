@@ -36,14 +36,14 @@ func newCeremonyToken() (string, error) {
 }
 
 // sessionView projects a db.Account into the response shape of GET /me and
-// POST /auth/login/complete. Shared with handle_me.go (Task P1.12).
+// POST /auth/login/complete.
 func sessionView(a *db.Account) contract.SessionView {
 	return contract.SessionView{
 		ID:          a.ID,
 		Username:    a.Username,
 		DisplayName: a.DisplayName,
 		Role:        a.Role,
-		Permissions: authn.PermissionsView(a),
+		Attributes:  decodeAttributes(a.Attributes),
 	}
 }
 
@@ -216,12 +216,30 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Update credential usage (sign_count + last_used_at), then issue session.
+	// Check for sign-count regression (potential cloned authenticator) before
+	// updating — stamp clone_warning_at on the credential row if detected.
+	// Do not reject the login; the stamp is for admin forensics.
 	credRowID := matchCredentialRowID(resolvedCreds, credential.ID)
 	if credRowID != 0 {
+		// Find the old sign count from the resolved creds list.
+		newCount := int64(credential.Authenticator.SignCount)
+		for _, c := range resolvedCreds {
+			if c.ID == credRowID && newCount < c.SignCount {
+				_ = s.queries.SetCredentialCloneWarning(r.Context(), credRowID)
+				logx.WithContext(r.Context()).WithFields(logrus.Fields{
+					"event":         "auth.clone_warning",
+					"account_id":    resolvedAccount.ID,
+					"credential_id": credRowID,
+					"old_count":     c.SignCount,
+					"new_count":     newCount,
+				}).Warn("auth")
+				break
+			}
+		}
 		_ = s.queries.UpdateCredentialUsage(r.Context(), db.UpdateCredentialUsageParams{
 			ID:        credRowID,
 			AccountID: resolvedAccount.ID,
-			SignCount:  int64(credential.Authenticator.SignCount),
+			SignCount:  newCount,
 		})
 	}
 	_ = s.kvStore.Del(r.Context(), "webauthn_ceremony:login:"+cer.Value)

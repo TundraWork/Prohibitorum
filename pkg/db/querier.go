@@ -6,6 +6,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -24,37 +26,50 @@ type Querier interface {
 	GetAccountByID(ctx context.Context, id int32) (Account, error)
 	GetAccountByUsername(ctx context.Context, username string) (Account, error)
 	GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error)
-	GetActiveSigningKey(ctx context.Context) (OidcSigningKey, error)
+	GetActiveSigningKey(ctx context.Context, use string) (SigningKey, error)
+	GetAuthThrottle(ctx context.Context, arg GetAuthThrottleParams) (AuthThrottle, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
+	GetSession(ctx context.Context, id string) (Session, error)
 	HasAnyActiveAdmin(ctx context.Context) (bool, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
 	InsertCredential(ctx context.Context, arg InsertCredentialParams) (WebauthnCredential, error)
-	// template_username ($11) and template_display_name ($12) are always NULL
-	// as of P5.03 — the invite flow no longer pre-populates username/displayName.
+	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
-	InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (OidcSigningKey, error)
+	InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error)
+	InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (SigningKey, error)
+	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
+	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
+	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
 	ListOIDCClients(ctx context.Context) ([]OidcClient, error)
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
+	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	// Every non-retired key: the active signing key + any keys still inside
 	// their rollover window. JWKS endpoint serves the public_jwk of each.
-	ListVerifyingSigningKeys(ctx context.Context) ([]OidcSigningKey, error)
+	ListVerifyingSigningKeys(ctx context.Context, retiredAt pgtype.Timestamptz) ([]SigningKey, error)
+	PruneRevokedJTI(ctx context.Context) error
+	ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error
 	RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) error
+	RevokeAllSessionsByAccount(ctx context.Context, accountID int32) error
 	// Same DB effect as ConsumeEnrollment but intent-restricted to 'invite' so an
 	// admin cannot accidentally use this to mark a bootstrap/reset token consumed.
 	// Returns the row only if it was unconsumed AND of intent=invite; otherwise
 	// pgx.ErrNoRows surfaces and the handler maps to invitation_not_found.
 	RevokeInvitation(ctx context.Context, token string) (Enrollment, error)
+	RevokeJTI(ctx context.Context, arg RevokeJTIParams) error
+	RevokeSession(ctx context.Context, id string) error
+	SetCredentialCloneWarning(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
 	// Owner-scoped update: only the account's own credential row is updated.
 	// Zero rows affected means the id doesn't match an owned credential; the
 	// handler then surfaces credential_not_found.
 	UpdateMyCredentialNickname(ctx context.Context, arg UpdateMyCredentialNicknameParams) (int64, error)
+	UpsertAuthThrottle(ctx context.Context, arg UpsertAuthThrottleParams) (AuthThrottle, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -52,7 +52,7 @@ func (q *Queries) DeleteCredentialByID(ctx context.Context, arg DeleteCredential
 }
 
 const getCredentialByCredentialID = `-- name: GetCredentialByCredentialID :one
-SELECT id, account_id, credential_id, public_key, sign_count, transports, aaguid, attestation_type, backup_eligible, backup_state, nickname, created_at, last_used_at FROM webauthn_credential WHERE credential_id = $1
+SELECT id, account_id, credential_id, public_key, cose_alg, user_handle, sign_count, transports, aaguid, attestation_type, backup_eligible, backup_state, uv_initialized, nickname, last_used_at, clone_warning_at, created_at FROM webauthn_credential WHERE credential_id = $1
 `
 
 func (q *Queries) GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error) {
@@ -63,37 +63,45 @@ func (q *Queries) GetCredentialByCredentialID(ctx context.Context, credentialID 
 		&i.AccountID,
 		&i.CredentialID,
 		&i.PublicKey,
+		&i.CoseAlg,
+		&i.UserHandle,
 		&i.SignCount,
 		&i.Transports,
 		&i.Aaguid,
 		&i.AttestationType,
 		&i.BackupEligible,
 		&i.BackupState,
+		&i.UvInitialized,
 		&i.Nickname,
-		&i.CreatedAt,
 		&i.LastUsedAt,
+		&i.CloneWarningAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const insertCredential = `-- name: InsertCredential :one
 INSERT INTO webauthn_credential (
-  account_id, credential_id, public_key, sign_count, transports,
-  aaguid, attestation_type, backup_eligible, backup_state, nickname
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, account_id, credential_id, public_key, sign_count, transports, aaguid, attestation_type, backup_eligible, backup_state, nickname, created_at, last_used_at
+  account_id, credential_id, public_key, cose_alg, user_handle, sign_count,
+  transports, aaguid, attestation_type, backup_eligible, backup_state,
+  uv_initialized, nickname
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, account_id, credential_id, public_key, cose_alg, user_handle, sign_count, transports, aaguid, attestation_type, backup_eligible, backup_state, uv_initialized, nickname, last_used_at, clone_warning_at, created_at
 `
 
 type InsertCredentialParams struct {
 	AccountID       int32       `json:"accountId"`
 	CredentialID    []byte      `json:"credentialId"`
 	PublicKey       []byte      `json:"publicKey"`
+	CoseAlg         int32       `json:"coseAlg"`
+	UserHandle      []byte      `json:"userHandle"`
 	SignCount       int64       `json:"signCount"`
 	Transports      []string    `json:"transports"`
 	Aaguid          []byte      `json:"aaguid"`
-	AttestationType string      `json:"attestationType"`
-	BackupEligible  bool        `json:"backupEligible"`
-	BackupState     bool        `json:"backupState"`
+	AttestationType pgtype.Text `json:"attestationType"`
+	BackupEligible  pgtype.Bool `json:"backupEligible"`
+	BackupState     pgtype.Bool `json:"backupState"`
+	UvInitialized   bool        `json:"uvInitialized"`
 	Nickname        pgtype.Text `json:"nickname"`
 }
 
@@ -102,12 +110,15 @@ func (q *Queries) InsertCredential(ctx context.Context, arg InsertCredentialPara
 		arg.AccountID,
 		arg.CredentialID,
 		arg.PublicKey,
+		arg.CoseAlg,
+		arg.UserHandle,
 		arg.SignCount,
 		arg.Transports,
 		arg.Aaguid,
 		arg.AttestationType,
 		arg.BackupEligible,
 		arg.BackupState,
+		arg.UvInitialized,
 		arg.Nickname,
 	)
 	var i WebauthnCredential
@@ -116,21 +127,25 @@ func (q *Queries) InsertCredential(ctx context.Context, arg InsertCredentialPara
 		&i.AccountID,
 		&i.CredentialID,
 		&i.PublicKey,
+		&i.CoseAlg,
+		&i.UserHandle,
 		&i.SignCount,
 		&i.Transports,
 		&i.Aaguid,
 		&i.AttestationType,
 		&i.BackupEligible,
 		&i.BackupState,
+		&i.UvInitialized,
 		&i.Nickname,
-		&i.CreatedAt,
 		&i.LastUsedAt,
+		&i.CloneWarningAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const listCredentialsByAccount = `-- name: ListCredentialsByAccount :many
-SELECT id, account_id, credential_id, public_key, sign_count, transports, aaguid, attestation_type, backup_eligible, backup_state, nickname, created_at, last_used_at FROM webauthn_credential WHERE account_id = $1 ORDER BY created_at DESC
+SELECT id, account_id, credential_id, public_key, cose_alg, user_handle, sign_count, transports, aaguid, attestation_type, backup_eligible, backup_state, uv_initialized, nickname, last_used_at, clone_warning_at, created_at FROM webauthn_credential WHERE account_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error) {
@@ -147,15 +162,19 @@ func (q *Queries) ListCredentialsByAccount(ctx context.Context, accountID int32)
 			&i.AccountID,
 			&i.CredentialID,
 			&i.PublicKey,
+			&i.CoseAlg,
+			&i.UserHandle,
 			&i.SignCount,
 			&i.Transports,
 			&i.Aaguid,
 			&i.AttestationType,
 			&i.BackupEligible,
 			&i.BackupState,
+			&i.UvInitialized,
 			&i.Nickname,
-			&i.CreatedAt,
 			&i.LastUsedAt,
+			&i.CloneWarningAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -165,6 +184,17 @@ func (q *Queries) ListCredentialsByAccount(ctx context.Context, accountID int32)
 		return nil, err
 	}
 	return items, nil
+}
+
+const setCredentialCloneWarning = `-- name: SetCredentialCloneWarning :exec
+UPDATE webauthn_credential
+SET clone_warning_at = now()
+WHERE id = $1 AND clone_warning_at IS NULL
+`
+
+func (q *Queries) SetCredentialCloneWarning(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, setCredentialCloneWarning, id)
+	return err
 }
 
 const updateCredentialUsage = `-- name: UpdateCredentialUsage :exec

@@ -32,7 +32,7 @@ func (q *Queries) DeleteAccountByID(ctx context.Context, id int32) error {
 }
 
 const getAccountByID = `-- name: GetAccountByID :one
-SELECT id, username, display_name, webauthn_user_handle, role, can_view_own_usage, can_manage_own_api_keys, can_view_models, can_view_own_traces, can_manage_own_projects, disabled, created_at, updated_at FROM account WHERE id = $1
+SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE id = $1
 `
 
 func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error) {
@@ -44,11 +44,7 @@ func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error)
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
 		&i.Role,
-		&i.CanViewOwnUsage,
-		&i.CanManageOwnApiKeys,
-		&i.CanViewModels,
-		&i.CanViewOwnTraces,
-		&i.CanManageOwnProjects,
+		&i.Attributes,
 		&i.Disabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -57,7 +53,7 @@ func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error)
 }
 
 const getAccountByUsername = `-- name: GetAccountByUsername :one
-SELECT id, username, display_name, webauthn_user_handle, role, can_view_own_usage, can_manage_own_api_keys, can_view_models, can_view_own_traces, can_manage_own_projects, disabled, created_at, updated_at FROM account WHERE username = $1
+SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE username = $1
 `
 
 func (q *Queries) GetAccountByUsername(ctx context.Context, username string) (Account, error) {
@@ -69,11 +65,7 @@ func (q *Queries) GetAccountByUsername(ctx context.Context, username string) (Ac
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
 		&i.Role,
-		&i.CanViewOwnUsage,
-		&i.CanManageOwnApiKeys,
-		&i.CanViewModels,
-		&i.CanViewOwnTraces,
-		&i.CanManageOwnProjects,
+		&i.Attributes,
 		&i.Disabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -82,7 +74,7 @@ func (q *Queries) GetAccountByUsername(ctx context.Context, username string) (Ac
 }
 
 const getAccountByWebauthnUserHandle = `-- name: GetAccountByWebauthnUserHandle :one
-SELECT id, username, display_name, webauthn_user_handle, role, can_view_own_usage, can_manage_own_api_keys, can_view_models, can_view_own_traces, can_manage_own_projects, disabled, created_at, updated_at FROM account WHERE webauthn_user_handle = $1
+SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE webauthn_user_handle = $1
 `
 
 func (q *Queries) GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error) {
@@ -94,11 +86,7 @@ func (q *Queries) GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUs
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
 		&i.Role,
-		&i.CanViewOwnUsage,
-		&i.CanManageOwnApiKeys,
-		&i.CanViewModels,
-		&i.CanViewOwnTraces,
-		&i.CanManageOwnProjects,
+		&i.Attributes,
 		&i.Disabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -119,25 +107,18 @@ func (q *Queries) HasAnyActiveAdmin(ctx context.Context) (bool, error) {
 
 const insertAccount = `-- name: InsertAccount :one
 INSERT INTO account (
-  username, display_name, webauthn_user_handle, role,
-  can_view_own_usage, can_manage_own_api_keys, can_view_models, can_view_own_traces,
-  can_manage_own_projects,
-  disabled
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, username, display_name, webauthn_user_handle, role, can_view_own_usage, can_manage_own_api_keys, can_view_models, can_view_own_traces, can_manage_own_projects, disabled, created_at, updated_at
+  username, display_name, webauthn_user_handle, role, attributes, disabled
+) VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at
 `
 
 type InsertAccountParams struct {
-	Username             string `json:"username"`
-	DisplayName          string `json:"displayName"`
-	WebauthnUserHandle   []byte `json:"webauthnUserHandle"`
-	Role                 string `json:"role"`
-	CanViewOwnUsage      bool   `json:"canViewOwnUsage"`
-	CanManageOwnApiKeys  bool   `json:"canManageOwnApiKeys"`
-	CanViewModels        bool   `json:"canViewModels"`
-	CanViewOwnTraces     bool   `json:"canViewOwnTraces"`
-	CanManageOwnProjects bool   `json:"canManageOwnProjects"`
-	Disabled             bool   `json:"disabled"`
+	Username           string `json:"username"`
+	DisplayName        string `json:"displayName"`
+	WebauthnUserHandle []byte `json:"webauthnUserHandle"`
+	Role               string `json:"role"`
+	Attributes         []byte `json:"attributes"`
+	Disabled           bool   `json:"disabled"`
 }
 
 func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error) {
@@ -146,11 +127,7 @@ func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (A
 		arg.DisplayName,
 		arg.WebauthnUserHandle,
 		arg.Role,
-		arg.CanViewOwnUsage,
-		arg.CanManageOwnApiKeys,
-		arg.CanViewModels,
-		arg.CanViewOwnTraces,
-		arg.CanManageOwnProjects,
+		arg.Attributes,
 		arg.Disabled,
 	)
 	var i Account
@@ -160,11 +137,7 @@ func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (A
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
 		&i.Role,
-		&i.CanViewOwnUsage,
-		&i.CanManageOwnApiKeys,
-		&i.CanViewModels,
-		&i.CanViewOwnTraces,
-		&i.CanManageOwnProjects,
+		&i.Attributes,
 		&i.Disabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -174,27 +147,23 @@ func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (A
 
 const listAccounts = `-- name: ListAccounts :many
 SELECT
-  a.id, a.username, a.display_name, a.webauthn_user_handle, a.role, a.can_view_own_usage, a.can_manage_own_api_keys, a.can_view_models, a.can_view_own_traces, a.can_manage_own_projects, a.disabled, a.created_at, a.updated_at,
+  a.id, a.username, a.display_name, a.webauthn_user_handle, a.role, a.attributes, a.disabled, a.created_at, a.updated_at,
   (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at
 FROM account a
 ORDER BY a.created_at ASC, a.id ASC
 `
 
 type ListAccountsRow struct {
-	ID                   int32              `json:"id"`
-	Username             string             `json:"username"`
-	DisplayName          string             `json:"displayName"`
-	WebauthnUserHandle   []byte             `json:"webauthnUserHandle"`
-	Role                 string             `json:"role"`
-	CanViewOwnUsage      bool               `json:"canViewOwnUsage"`
-	CanManageOwnApiKeys  bool               `json:"canManageOwnApiKeys"`
-	CanViewModels        bool               `json:"canViewModels"`
-	CanViewOwnTraces     bool               `json:"canViewOwnTraces"`
-	CanManageOwnProjects bool               `json:"canManageOwnProjects"`
-	Disabled             bool               `json:"disabled"`
-	CreatedAt            pgtype.Timestamptz `json:"createdAt"`
-	UpdatedAt            pgtype.Timestamptz `json:"updatedAt"`
-	LastSignInAt         pgtype.Timestamptz `json:"lastSignInAt"`
+	ID                 int32              `json:"id"`
+	Username           string             `json:"username"`
+	DisplayName        string             `json:"displayName"`
+	WebauthnUserHandle []byte             `json:"webauthnUserHandle"`
+	Role               string             `json:"role"`
+	Attributes         []byte             `json:"attributes"`
+	Disabled           bool               `json:"disabled"`
+	CreatedAt          pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamptz `json:"updatedAt"`
+	LastSignInAt       pgtype.Timestamptz `json:"lastSignInAt"`
 }
 
 func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
@@ -212,11 +181,7 @@ func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
 			&i.DisplayName,
 			&i.WebauthnUserHandle,
 			&i.Role,
-			&i.CanViewOwnUsage,
-			&i.CanManageOwnApiKeys,
-			&i.CanViewModels,
-			&i.CanViewOwnTraces,
-			&i.CanManageOwnProjects,
+			&i.Attributes,
 			&i.Disabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -234,25 +199,18 @@ func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
 
 const updateAccount = `-- name: UpdateAccount :one
 UPDATE account SET
-  display_name = $2, role = $3,
-  can_view_own_usage = $4, can_manage_own_api_keys = $5,
-  can_view_models = $6, can_view_own_traces = $7,
-  can_manage_own_projects = $8,
-  disabled = $9, updated_at = now()
+  display_name = $2, role = $3, attributes = $4, disabled = $5,
+  updated_at = now()
 WHERE id = $1
-RETURNING id, username, display_name, webauthn_user_handle, role, can_view_own_usage, can_manage_own_api_keys, can_view_models, can_view_own_traces, can_manage_own_projects, disabled, created_at, updated_at
+RETURNING id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at
 `
 
 type UpdateAccountParams struct {
-	ID                   int32  `json:"id"`
-	DisplayName          string `json:"displayName"`
-	Role                 string `json:"role"`
-	CanViewOwnUsage      bool   `json:"canViewOwnUsage"`
-	CanManageOwnApiKeys  bool   `json:"canManageOwnApiKeys"`
-	CanViewModels        bool   `json:"canViewModels"`
-	CanViewOwnTraces     bool   `json:"canViewOwnTraces"`
-	CanManageOwnProjects bool   `json:"canManageOwnProjects"`
-	Disabled             bool   `json:"disabled"`
+	ID          int32  `json:"id"`
+	DisplayName string `json:"displayName"`
+	Role        string `json:"role"`
+	Attributes  []byte `json:"attributes"`
+	Disabled    bool   `json:"disabled"`
 }
 
 func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
@@ -260,11 +218,7 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (A
 		arg.ID,
 		arg.DisplayName,
 		arg.Role,
-		arg.CanViewOwnUsage,
-		arg.CanManageOwnApiKeys,
-		arg.CanViewModels,
-		arg.CanViewOwnTraces,
-		arg.CanManageOwnProjects,
+		arg.Attributes,
 		arg.Disabled,
 	)
 	var i Account
@@ -274,11 +228,7 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (A
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
 		&i.Role,
-		&i.CanViewOwnUsage,
-		&i.CanManageOwnApiKeys,
-		&i.CanViewModels,
-		&i.CanViewOwnTraces,
-		&i.CanManageOwnProjects,
+		&i.Attributes,
 		&i.Disabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,

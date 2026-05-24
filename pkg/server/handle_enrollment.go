@@ -63,7 +63,7 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 		// no target — bootstrap creates a brand-new admin
 	case enrollment.IntentInvite:
 		// No target hint — invitee picks their own username/displayName from
-		// scratch. The template only carries role + permissions.
+		// scratch. The template only carries role + attributes.
 	case enrollment.IntentReset:
 		if e.TargetAccountID.Valid {
 			if a, gerr := s.queries.GetAccountByID(ctx, e.TargetAccountID.Int32); gerr == nil {
@@ -335,8 +335,8 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	}
 
 	var (
-		account db.Account
-		credID  int32
+		acct  db.Account
+		credID int32
 	)
 
 	switch consumed.Intent {
@@ -356,16 +356,12 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			return
 		}
 		a, err := qtx.InsertAccount(r.Context(), db.InsertAccountParams{
-			Username:             stash.Bootstrap.Username,
-			DisplayName:          stash.Bootstrap.DisplayName,
-			WebauthnUserHandle:   stash.Bootstrap.WebauthnUserHandle,
-			Role:                 "admin",
-			CanViewOwnUsage:      true,
-			CanManageOwnApiKeys:  true,
-			CanViewModels:        true,
-			CanViewOwnTraces:     true,
-			CanManageOwnProjects: true,
-			Disabled:             false,
+			Username:           stash.Bootstrap.Username,
+			DisplayName:        stash.Bootstrap.DisplayName,
+			WebauthnUserHandle: stash.Bootstrap.WebauthnUserHandle,
+			Role:               "admin",
+			Attributes:         []byte("{}"),
+			Disabled:           false,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -375,8 +371,8 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			writeAuthErr(w, fmt.Errorf("enrollment/complete bootstrap: insert account: %w", err))
 			return
 		}
-		account = a
-		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, cred, acctpkg.NormalizeNickname(&stash.Bootstrap.Nickname))
+		acct = a
+		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, stash.Bootstrap.WebauthnUserHandle, cred, acctpkg.NormalizeNickname(&stash.Bootstrap.Nickname))
 		if err != nil {
 			writeAuthErr(w, fmt.Errorf("enrollment/complete: insert credential: %w", err))
 			return
@@ -404,17 +400,15 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		if consumed.TemplateRole.Valid {
 			role = consumed.TemplateRole.String
 		}
+		// Template attributes from enrollment row.
+		attrs := enrollment.DecodeTemplateAttributes(consumed.TemplateAttributes)
 		a, err := qtx.InsertAccount(r.Context(), db.InsertAccountParams{
-			Username:             stash.Invite.Username,
-			DisplayName:          stash.Invite.DisplayName,
-			WebauthnUserHandle:   stash.Invite.WebauthnUserHandle,
-			Role:                 role,
-			CanViewOwnUsage:      consumed.TemplateCanViewOwnUsage.Bool,
-			CanManageOwnApiKeys:  consumed.TemplateCanManageOwnApiKeys.Bool,
-			CanViewModels:        consumed.TemplateCanViewModels.Bool,
-			CanViewOwnTraces:     consumed.TemplateCanViewOwnTraces.Bool,
-			CanManageOwnProjects: consumed.TemplateCanManageOwnProjects.Bool,
-			Disabled:             false,
+			Username:           stash.Invite.Username,
+			DisplayName:        stash.Invite.DisplayName,
+			WebauthnUserHandle: stash.Invite.WebauthnUserHandle,
+			Role:               role,
+			Attributes:         encodeAttributes(attrs),
+			Disabled:           false,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -424,8 +418,8 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			writeAuthErr(w, fmt.Errorf("enrollment/complete invite: insert account: %w", err))
 			return
 		}
-		account = a
-		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, cred, acctpkg.NormalizeNickname(&stash.Invite.Nickname))
+		acct = a
+		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, stash.Invite.WebauthnUserHandle, cred, acctpkg.NormalizeNickname(&stash.Invite.Nickname))
 		if err != nil {
 			writeAuthErr(w, fmt.Errorf("enrollment/complete: insert credential: %w", err))
 			return
@@ -457,12 +451,12 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 			return
 		}
-		account = a
+		acct = a
 		var resetNickname *string
 		if stash.Reset != nil {
 			resetNickname = acctpkg.NormalizeNickname(&stash.Reset.Nickname)
 		}
-		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, cred, resetNickname)
+		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, a.WebauthnUserHandle, cred, resetNickname)
 		if err != nil {
 			writeAuthErr(w, fmt.Errorf("enrollment/complete: insert credential: %w", err))
 			return
@@ -481,24 +475,24 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":      "auth.enrollment_consumed",
 		"intent":     consumed.Intent,
-		"account_id": account.ID,
+		"account_id": acct.ID,
 		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
 	}).Info("auth")
 
 	// Post-commit cleanup (best-effort).
 	_ = s.kvStore.Del(r.Context(), "webauthn_ceremony:enroll:"+token)
 	if consumed.Intent == enrollment.IntentReset {
-		_, _ = s.sessionStore.RevokeAllForAccount(r.Context(), account.ID)
+		_, _ = s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
 	}
 
 	// Issue session for the (new or existing) account.
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
-	sessionToken, _, err := s.sessionStore.Issue(r.Context(), account.ID, ip, r.UserAgent())
+	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent())
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/complete: session issue: %w", err))
 		return
 	}
-	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, account.ID, sessionToken, s.config.SessionTTL))
+	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, sessionToken, s.config.SessionTTL))
 
 	// Capture the new credential's id so the FE can offer a "name your passkey"
 	// prompt without a separate fetch.
@@ -508,15 +502,16 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(enrollCompleteResp{
-		Session:         sessionView(&account),
+		Session:         sessionView(&acct),
 		NewCredentialID: credID,
 	})
 }
 
 // insertCredentialForTx persists a webauthn.Credential into webauthn_credential
-// inside an existing TX. The optional nickname is stored as-is (callers should
-// pass acctpkg.NormalizeNickname output). Returns the new row's id.
-func insertCredentialForTx(q db.Querier, ctx context.Context, accountID int32, cred *webauthn.Credential, nickname *string) (int32, error) {
+// inside an existing TX. userHandle is the account's WebAuthn user handle.
+// The optional nickname is stored as-is (callers should pass acctpkg.NormalizeNickname output).
+// Returns the new row's id.
+func insertCredentialForTx(q db.Querier, ctx context.Context, accountID int32, userHandle []byte, cred *webauthn.Credential, nickname *string) (int32, error) {
 	transports := make([]string, 0, len(cred.Transport))
 	for _, t := range cred.Transport {
 		transports = append(transports, string(t))
@@ -525,16 +520,23 @@ func insertCredentialForTx(q db.Querier, ctx context.Context, accountID int32, c
 	if nickname != nil {
 		n = pgtype.Text{String: *nickname, Valid: true}
 	}
+	var attType pgtype.Text
+	if cred.AttestationType != "" {
+		attType = pgtype.Text{String: cred.AttestationType, Valid: true}
+	}
 	row, err := q.InsertCredential(ctx, db.InsertCredentialParams{
 		AccountID:       accountID,
 		CredentialID:    cred.ID,
 		PublicKey:       cred.PublicKey,
-		SignCount:       int64(cred.Authenticator.SignCount),
+		CoseAlg:         int32(cred.Attestation.PublicKeyAlgorithm),
+		UserHandle:      userHandle,
+		SignCount:        int64(cred.Authenticator.SignCount),
 		Transports:      transports,
 		Aaguid:          cred.Authenticator.AAGUID,
-		AttestationType: cred.AttestationType,
-		BackupEligible:  cred.Flags.BackupEligible,
-		BackupState:     cred.Flags.BackupState,
+		AttestationType: attType,
+		BackupEligible:  pgtype.Bool{Bool: cred.Flags.BackupEligible, Valid: true},
+		BackupState:     pgtype.Bool{Bool: cred.Flags.BackupState, Valid: true},
+		UvInitialized:   cred.Flags.UserVerified,
 		Nickname:        n,
 	})
 	return row.ID, err

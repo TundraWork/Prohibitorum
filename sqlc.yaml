@@ -18,3 +18,14 @@ sql:
             go_type: "int32"
           - column: "webauthn_credential.account_id"
             go_type: "int32"
+          - column: "webauthn_credential.user_handle"
+            go_type:
+              type: "[]byte"
+          - column: "session.account_id"
+            go_type: "int32"
+          - column: "credential_event.account_id"
+            go_type:
+              type: "int32"
+              pointer: true
+          - column: "auth_throttle.account_id"
+            go_type: "int32"

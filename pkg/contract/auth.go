@@ -7,17 +7,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// Permission is the typed key used by AuthRequirement when Kind == AuthPermissionKind.
-type Permission string
-
-const (
-	PermViewOwnUsage      Permission = "view_own_usage"
-	PermManageOwnAPIKeys  Permission = "manage_own_api_keys"
-	PermViewModels        Permission = "view_models"
-	PermViewOwnTraces     Permission = "view_own_traces"
-	PermManageOwnProjects Permission = "manage_own_projects"
-)
-
 // AuthKind discriminates the AuthRequirement variants.
 type AuthKind uint8
 
@@ -25,7 +14,6 @@ const (
 	AuthPublic AuthKind = iota
 	AuthSession
 	AuthAdmin
-	AuthPermissionKind
 )
 
 // AuthRequirement declares what authentication / authorization a Huma operation
@@ -33,49 +21,31 @@ const (
 // the registerOp helper installs a per-operation middleware that calls
 // auth.Check(session, requirement) before invoking the handler.
 type AuthRequirement struct {
-	Kind       AuthKind
-	Permission Permission
-}
-
-// RequirePermission constructs an AuthRequirement that demands the named permission.
-// Admin callers auto-pass every permission gate.
-func RequirePermission(p Permission) AuthRequirement {
-	return AuthRequirement{Kind: AuthPermissionKind, Permission: p}
+	Kind AuthKind
 }
 
 // View types --------------------------------------------------------------------
 
-// Permissions is the flat map of v1 permission flags. Field names match the
-// db.Account boolean columns so handlers can project one to the other directly.
-// Admins are reflected as all-true by the projection helper in pkg/auth.
-type Permissions struct {
-	ViewOwnUsage       bool `json:"view_own_usage"`
-	ManageOwnAPIKeys   bool `json:"manage_own_api_keys"`
-	ViewModels         bool `json:"view_models"`
-	ViewOwnTraces      bool `json:"view_own_traces"`
-	ManageOwnProjects  bool `json:"manage_own_projects"`
-}
-
 // SessionView is the response body of GET /me — the public face of the current session.
 type SessionView struct {
-	ID          int32       `json:"id"`
-	Username    string      `json:"username"`
-	DisplayName string      `json:"displayName"`
-	Role        string      `json:"role"`
-	Permissions Permissions `json:"permissions"`
+	ID          int32          `json:"id"`
+	Username    string         `json:"username"`
+	DisplayName string         `json:"displayName"`
+	Role        string         `json:"role"`
+	Attributes  map[string]any `json:"attributes,omitempty"`
 }
 
 // AccountView is admin-facing; lastSignInAt is derived from the account's credentials.
 type AccountView struct {
-	ID           int32       `json:"id"`
-	Username     string      `json:"username"`
-	DisplayName  string      `json:"displayName"`
-	Role         string      `json:"role"`
-	Permissions  Permissions `json:"permissions"`
-	Disabled     bool        `json:"disabled"`
-	CreatedAt    time.Time   `json:"createdAt"`
-	UpdatedAt    time.Time   `json:"updatedAt"`
-	LastSignInAt *time.Time  `json:"lastSignInAt,omitempty"`
+	ID           int32          `json:"id"`
+	Username     string         `json:"username"`
+	DisplayName  string         `json:"displayName"`
+	Role         string         `json:"role"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
+	Disabled     bool           `json:"disabled"`
+	CreatedAt    time.Time      `json:"createdAt"`
+	UpdatedAt    time.Time      `json:"updatedAt"`
+	LastSignInAt *time.Time     `json:"lastSignInAt,omitempty"`
 }
 
 // SessionListItem is a single row in /me/sessions. Token is intentionally
@@ -268,14 +238,14 @@ var OperationUpdateAccount = huma.Operation{
 	OperationID: "updateAccount",
 	Method:      http.MethodPut,
 	Path:        "/accounts/{id}",
-	Summary:     "Update display name, role, permissions, or disabled flag on an account.",
+	Summary:     "Update display name, role, attributes, or disabled flag on an account.",
 }
 
 var OperationDeleteAccount = huma.Operation{
 	OperationID: "deleteAccount",
 	Method:      http.MethodPost,
 	Path:        "/accounts/delete",
-	Summary:     "Hard-delete an account; api_key.account_id is set NULL.",
+	Summary:     "Hard-delete an account.",
 }
 
 var OperationDeleteAccountCredential = huma.Operation{
@@ -309,12 +279,12 @@ var OperationCreateInvitation = huma.Operation{
 // InvitationView is the server-side projection of a pending enrollment row,
 // including the URL so admin clients don't have to reconstruct it.
 type InvitationView struct {
-	Token       string      `json:"token"`
-	URL         string      `json:"url"`
-	Role        string      `json:"role"`
-	Permissions Permissions `json:"permissions"`
-	CreatedAt   time.Time   `json:"createdAt"`
-	ExpiresAt   time.Time   `json:"expiresAt"`
+	Token      string         `json:"token"`
+	URL        string         `json:"url"`
+	Role       string         `json:"role"`
+	Attributes map[string]any `json:"attributes,omitempty"`
+	CreatedAt  time.Time      `json:"createdAt"`
+	ExpiresAt  time.Time      `json:"expiresAt"`
 }
 
 var OperationListInvitations = huma.Operation{

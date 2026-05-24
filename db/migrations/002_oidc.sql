@@ -1,36 +1,61 @@
 -- +goose Up
 
--- OIDC tables. v1 surface is intentionally minimal:
---   * No dynamic registration — admin inserts client rows manually.
---   * RS256 only.
---   * Authorization codes + refresh tokens live in KV (ephemeral) not here.
---   * Signing key rotation = insert new row + flip the active flag.
+-- Protocol-agnostic signing key — same row services OIDC (via JWK) and SAML
+-- (via x509_cert_pem). One rotation domain by kid. Unified from day one so
+-- SAML and OIDC key rotation share the same subcommand.
+CREATE TABLE signing_key (
+  kid           text PRIMARY KEY,
+  algorithm     text NOT NULL DEFAULT 'RS256',
+  use           text NOT NULL DEFAULT 'sig' CHECK (use IN ('sig','enc')),
+  public_jwk    jsonb NOT NULL,
+  x509_cert_pem text,                              -- populated when used for SAML
+  private_pem   text NOT NULL,
+  active        boolean NOT NULL DEFAULT false,
+  not_before    timestamptz NOT NULL DEFAULT now(),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  retired_at    timestamptz
+);
+-- One active key per use (sig vs enc) at any time.
+CREATE UNIQUE INDEX signing_key_one_active ON signing_key (use) WHERE active;
 
 CREATE TABLE oidc_client (
-  client_id           TEXT PRIMARY KEY,
-  client_secret_hash  TEXT,         -- argon2id; NULL for public (PKCE-only) clients
-  display_name        TEXT NOT NULL,
-  redirect_uris       TEXT[] NOT NULL,
-  allowed_scopes      TEXT[] NOT NULL DEFAULT ARRAY['openid','profile']::TEXT[],
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT redirect_uris_nonempty CHECK (array_length(redirect_uris, 1) > 0)
+  client_id                       text PRIMARY KEY,
+  display_name                    text NOT NULL,
+  client_secret_hash              text,            -- argon2id PHC; NULL for public clients
+  redirect_uris                   text[] NOT NULL,
+  post_logout_redirect_uris       text[] NOT NULL DEFAULT '{}',
+  allowed_scopes                  text[] NOT NULL DEFAULT ARRAY['openid','profile'],
+  require_pkce                    boolean NOT NULL DEFAULT true,
+  allowed_code_challenge_methods  text[] NOT NULL DEFAULT ARRAY['S256'],  -- reject 'plain'
+  token_endpoint_auth_method      text NOT NULL DEFAULT 'client_secret_basic',
+  id_token_signed_response_alg    text NOT NULL DEFAULT 'RS256',
+  subject_type                    text NOT NULL DEFAULT 'public' CHECK (subject_type IN ('public','pairwise')),
+  application_type                text NOT NULL DEFAULT 'web' CHECK (application_type IN ('web','native')),
+  default_max_age                 int,
+  require_auth_time               boolean NOT NULL DEFAULT false,
+  contacts                        text[],
+  logo_uri                        text,
+  tos_uri                         text,
+  policy_uri                      text,
+  disabled                        boolean NOT NULL DEFAULT false,
+  created_at                      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE oidc_signing_key (
-  kid          TEXT PRIMARY KEY,
-  algorithm    TEXT NOT NULL CHECK (algorithm = 'RS256'),
-  public_jwk   JSONB NOT NULL,
-  private_pem  BYTEA NOT NULL,
-  active       BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  retired_at   TIMESTAMPTZ
+-- Denylist for self-contained access tokens (RFC 9068 + RFC 7009 §3).
+-- Pruning sweep removes rows past expires_at — at that point the JTI would be
+-- rejected by signature/exp validation anyway.
+CREATE TABLE revoked_jti (
+  jti        text PRIMARY KEY,
+  expires_at timestamptz NOT NULL,
+  reason     text,
+  revoked_at timestamptz NOT NULL DEFAULT now()
 );
--- At most one active key at a time; multiple non-active keys remain to
--- verify tokens issued before rotation, until retired_at < now() - max(TTL).
-CREATE UNIQUE INDEX oidc_signing_key_active ON oidc_signing_key (active) WHERE active = TRUE;
+CREATE INDEX revoked_jti_expires_at_idx ON revoked_jti (expires_at);
 
 -- +goose Down
 
-DROP INDEX IF EXISTS oidc_signing_key_active;
-DROP TABLE IF EXISTS oidc_signing_key;
+DROP INDEX IF EXISTS revoked_jti_expires_at_idx;
+DROP TABLE IF EXISTS revoked_jti;
 DROP TABLE IF EXISTS oidc_client;
+DROP INDEX IF EXISTS signing_key_one_active;
+DROP TABLE IF EXISTS signing_key;

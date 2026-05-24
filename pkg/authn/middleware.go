@@ -87,11 +87,6 @@ func Check(s *Session, req contract.AuthRequirement) error {
 			return ErrNotAdmin()
 		}
 		return nil
-	case contract.AuthPermissionKind:
-		if !Permits(s.Account, req.Permission) {
-			return ErrPermissionDenied()
-		}
-		return nil
 	}
 	return ErrNoSession()
 }

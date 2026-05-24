@@ -5,59 +5,108 @@
 package db
 
 import (
+	"net/netip"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Account struct {
-	ID                   int32              `json:"id"`
-	Username             string             `json:"username"`
-	DisplayName          string             `json:"displayName"`
-	WebauthnUserHandle   []byte             `json:"webauthnUserHandle"`
-	Role                 string             `json:"role"`
-	CanViewOwnUsage      bool               `json:"canViewOwnUsage"`
-	CanManageOwnApiKeys  bool               `json:"canManageOwnApiKeys"`
-	CanViewModels        bool               `json:"canViewModels"`
-	CanViewOwnTraces     bool               `json:"canViewOwnTraces"`
-	CanManageOwnProjects bool               `json:"canManageOwnProjects"`
-	Disabled             bool               `json:"disabled"`
-	CreatedAt            pgtype.Timestamptz `json:"createdAt"`
-	UpdatedAt            pgtype.Timestamptz `json:"updatedAt"`
+	ID                 int32              `json:"id"`
+	Username           string             `json:"username"`
+	DisplayName        string             `json:"displayName"`
+	WebauthnUserHandle []byte             `json:"webauthnUserHandle"`
+	Role               string             `json:"role"`
+	Attributes         []byte             `json:"attributes"`
+	Disabled           bool               `json:"disabled"`
+	CreatedAt          pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamptz `json:"updatedAt"`
+}
+
+type AuthThrottle struct {
+	AccountID      int32              `json:"accountId"`
+	Factor         string             `json:"factor"`
+	FailedAttempts int32              `json:"failedAttempts"`
+	WindowStart    pgtype.Timestamptz `json:"windowStart"`
+	LockedUntil    pgtype.Timestamptz `json:"lockedUntil"`
+}
+
+type CredentialEvent struct {
+	ID            int64              `json:"id"`
+	AccountID     *int32             `json:"accountId"`
+	Factor        string             `json:"factor"`
+	Event         string             `json:"event"`
+	CredentialRef pgtype.Int8        `json:"credentialRef"`
+	Ip            *netip.Addr        `json:"ip"`
+	UserAgent     pgtype.Text        `json:"userAgent"`
+	Detail        []byte             `json:"detail"`
+	At            pgtype.Timestamptz `json:"at"`
 }
 
 type Enrollment struct {
-	Token                        string             `json:"token"`
-	Intent                       string             `json:"intent"`
-	TargetAccountID              pgtype.Int4        `json:"targetAccountId"`
-	TemplateRole                 pgtype.Text        `json:"templateRole"`
-	TemplateCanViewOwnUsage      pgtype.Bool        `json:"templateCanViewOwnUsage"`
-	TemplateCanManageOwnApiKeys  pgtype.Bool        `json:"templateCanManageOwnApiKeys"`
-	TemplateCanViewModels        pgtype.Bool        `json:"templateCanViewModels"`
-	TemplateCanViewOwnTraces     pgtype.Bool        `json:"templateCanViewOwnTraces"`
-	TemplateCanManageOwnProjects pgtype.Bool        `json:"templateCanManageOwnProjects"`
-	TemplateUsername             pgtype.Text        `json:"templateUsername"`
-	TemplateDisplayName          pgtype.Text        `json:"templateDisplayName"`
-	CreatedAt                    pgtype.Timestamptz `json:"createdAt"`
-	ExpiresAt                    pgtype.Timestamptz `json:"expiresAt"`
-	ConsumedAt                   pgtype.Timestamptz `json:"consumedAt"`
+	Token                   string             `json:"token"`
+	Intent                  string             `json:"intent"`
+	TargetAccountID         pgtype.Int4        `json:"targetAccountId"`
+	TemplateUsername        pgtype.Text        `json:"templateUsername"`
+	TemplateDisplayName     pgtype.Text        `json:"templateDisplayName"`
+	TemplateRole            pgtype.Text        `json:"templateRole"`
+	TemplateAttributes      []byte             `json:"templateAttributes"`
+	ExpectedUpstreamIdpSlug pgtype.Text        `json:"expectedUpstreamIdpSlug"`
+	CreatedAt               pgtype.Timestamptz `json:"createdAt"`
+	ExpiresAt               pgtype.Timestamptz `json:"expiresAt"`
+	ConsumedAt              pgtype.Timestamptz `json:"consumedAt"`
 }
 
 type OidcClient struct {
-	ClientID         string             `json:"clientId"`
-	ClientSecretHash pgtype.Text        `json:"clientSecretHash"`
-	DisplayName      string             `json:"displayName"`
-	RedirectUris     []string           `json:"redirectUris"`
-	AllowedScopes    []string           `json:"allowedScopes"`
-	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
+	ClientID                    string             `json:"clientId"`
+	DisplayName                 string             `json:"displayName"`
+	ClientSecretHash            pgtype.Text        `json:"clientSecretHash"`
+	RedirectUris                []string           `json:"redirectUris"`
+	PostLogoutRedirectUris      []string           `json:"postLogoutRedirectUris"`
+	AllowedScopes               []string           `json:"allowedScopes"`
+	RequirePkce                 bool               `json:"requirePkce"`
+	AllowedCodeChallengeMethods []string           `json:"allowedCodeChallengeMethods"`
+	TokenEndpointAuthMethod     string             `json:"tokenEndpointAuthMethod"`
+	IDTokenSignedResponseAlg    string             `json:"idTokenSignedResponseAlg"`
+	SubjectType                 string             `json:"subjectType"`
+	ApplicationType             string             `json:"applicationType"`
+	DefaultMaxAge               pgtype.Int4        `json:"defaultMaxAge"`
+	RequireAuthTime             bool               `json:"requireAuthTime"`
+	Contacts                    []string           `json:"contacts"`
+	LogoUri                     pgtype.Text        `json:"logoUri"`
+	TosUri                      pgtype.Text        `json:"tosUri"`
+	PolicyUri                   pgtype.Text        `json:"policyUri"`
+	Disabled                    bool               `json:"disabled"`
+	CreatedAt                   pgtype.Timestamptz `json:"createdAt"`
 }
 
-type OidcSigningKey struct {
-	Kid        string             `json:"kid"`
-	Algorithm  string             `json:"algorithm"`
-	PublicJwk  []byte             `json:"publicJwk"`
-	PrivatePem []byte             `json:"privatePem"`
-	Active     bool               `json:"active"`
-	CreatedAt  pgtype.Timestamptz `json:"createdAt"`
-	RetiredAt  pgtype.Timestamptz `json:"retiredAt"`
+type RevokedJti struct {
+	Jti       string             `json:"jti"`
+	ExpiresAt pgtype.Timestamptz `json:"expiresAt"`
+	Reason    pgtype.Text        `json:"reason"`
+	RevokedAt pgtype.Timestamptz `json:"revokedAt"`
+}
+
+type Session struct {
+	ID        string             `json:"id"`
+	AccountID int32              `json:"accountId"`
+	AuthTime  pgtype.Timestamptz `json:"authTime"`
+	Amr       []string           `json:"amr"`
+	Acr       pgtype.Text        `json:"acr"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+	RevokedAt pgtype.Timestamptz `json:"revokedAt"`
+}
+
+type SigningKey struct {
+	Kid         string             `json:"kid"`
+	Algorithm   string             `json:"algorithm"`
+	Use         string             `json:"use"`
+	PublicJwk   []byte             `json:"publicJwk"`
+	X509CertPem pgtype.Text        `json:"x509CertPem"`
+	PrivatePem  string             `json:"privatePem"`
+	Active      bool               `json:"active"`
+	NotBefore   pgtype.Timestamptz `json:"notBefore"`
+	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+	RetiredAt   pgtype.Timestamptz `json:"retiredAt"`
 }
 
 type WebauthnCredential struct {
@@ -65,13 +114,17 @@ type WebauthnCredential struct {
 	AccountID       int32              `json:"accountId"`
 	CredentialID    []byte             `json:"credentialId"`
 	PublicKey       []byte             `json:"publicKey"`
+	CoseAlg         int32              `json:"coseAlg"`
+	UserHandle      []byte             `json:"userHandle"`
 	SignCount       int64              `json:"signCount"`
 	Transports      []string           `json:"transports"`
 	Aaguid          []byte             `json:"aaguid"`
-	AttestationType string             `json:"attestationType"`
-	BackupEligible  bool               `json:"backupEligible"`
-	BackupState     bool               `json:"backupState"`
+	AttestationType pgtype.Text        `json:"attestationType"`
+	BackupEligible  pgtype.Bool        `json:"backupEligible"`
+	BackupState     pgtype.Bool        `json:"backupState"`
+	UvInitialized   bool               `json:"uvInitialized"`
 	Nickname        pgtype.Text        `json:"nickname"`
-	CreatedAt       pgtype.Timestamptz `json:"createdAt"`
 	LastUsedAt      pgtype.Timestamptz `json:"lastUsedAt"`
+	CloneWarningAt  pgtype.Timestamptz `json:"cloneWarningAt"`
+	CreatedAt       pgtype.Timestamptz `json:"createdAt"`
 }
