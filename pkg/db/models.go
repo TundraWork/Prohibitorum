@@ -113,6 +113,60 @@ type RevokedJti struct {
 	RevokedAt pgtype.Timestamptz `json:"revokedAt"`
 }
 
+type SamlSession struct {
+	ID           int64              `json:"id"`
+	SessionID    string             `json:"sessionId"`
+	SpID         int64              `json:"spId"`
+	NameID       string             `json:"nameId"`
+	SessionIndex string             `json:"sessionIndex"`
+	NotOnOrAfter pgtype.Timestamptz `json:"notOnOrAfter"`
+	CreatedAt    pgtype.Timestamptz `json:"createdAt"`
+}
+
+type SamlSp struct {
+	ID                        int64              `json:"id"`
+	EntityID                  string             `json:"entityId"`
+	DisplayName               string             `json:"displayName"`
+	SpKind                    pgtype.Text        `json:"spKind"`
+	NameIDFormat              string             `json:"nameIdFormat"`
+	NameIDClaim               string             `json:"nameIdClaim"`
+	AttributeMap              []byte             `json:"attributeMap"`
+	WantAssertionsSigned      bool               `json:"wantAssertionsSigned"`
+	AuthnRequestsSigned       bool               `json:"authnRequestsSigned"`
+	RequireSignedAuthnRequest bool               `json:"requireSignedAuthnRequest"`
+	SessionLifetime           pgtype.Interval    `json:"sessionLifetime"`
+	MetadataXml               pgtype.Text        `json:"metadataXml"`
+	MetadataValidUntil        pgtype.Timestamptz `json:"metadataValidUntil"`
+	MetadataCacheDuration     pgtype.Interval    `json:"metadataCacheDuration"`
+	MetadataFetchedAt         pgtype.Timestamptz `json:"metadataFetchedAt"`
+	CreatedAt                 pgtype.Timestamptz `json:"createdAt"`
+}
+
+type SamlSpAc struct {
+	SpID      int64  `json:"spId"`
+	Idx       int32  `json:"idx"`
+	Binding   string `json:"binding"`
+	Location  string `json:"location"`
+	IsDefault bool   `json:"isDefault"`
+}
+
+type SamlSpKey struct {
+	ID       int64              `json:"id"`
+	SpID     int64              `json:"spId"`
+	Use      string             `json:"use"`
+	CertPem  string             `json:"certPem"`
+	NotAfter pgtype.Timestamptz `json:"notAfter"`
+	AddedAt  pgtype.Timestamptz `json:"addedAt"`
+}
+
+type SamlSubjectID struct {
+	AccountID    int32              `json:"accountId"`
+	SpID         int64              `json:"spId"`
+	NameID       string             `json:"nameId"`
+	NameIDFormat string             `json:"nameIdFormat"`
+	CreatedAt    pgtype.Timestamptz `json:"createdAt"`
+}
+
 type Session struct {
 	ID            string             `json:"id"`
 	AccountID     int32              `json:"accountId"`

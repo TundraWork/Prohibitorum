@@ -38,7 +38,7 @@
     {
       "id": 14,
       "subject": "Task 5: Migration 004 — upstream_idp + account_identity",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [16],
       "description": "**Goal:** Add federation tables; ALTER session add upstream_idp_id; queries; sqlc regen.\n\n**Files:** db/migrations/004_federation.sql; db/queries/{upstream_idp,account_identity}.sql; sqlc.yaml; pkg/db/.\n\n**Verify:** `mise run db:up && go build ./...`\n\n```json:metadata\n{\"files\": [\"db/migrations/004_federation.sql\", \"db/queries/upstream_idp.sql\", \"db/queries/account_identity.sql\", \"sqlc.yaml\", \"pkg/db/\"], \"verifyCommand\": \"mise run db:up && go build ./...\", \"acceptanceCriteria\": [\"004 applies clean\", \"session.upstream_idp_id exists\", \"sqlc generates\", \"build green\"]}\n```"
     },

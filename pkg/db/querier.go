@@ -40,6 +40,8 @@ type Querier interface {
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
 	GetPasswordCredential(ctx context.Context, accountID int32) (PasswordCredential, error)
+	GetSAMLSPByEntityID(ctx context.Context, entityID string) (SamlSp, error)
+	GetSAMLSubjectID(ctx context.Context, arg GetSAMLSubjectIDParams) (SamlSubjectID, error)
 	GetSession(ctx context.Context, id string) (Session, error)
 	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error)
@@ -51,6 +53,11 @@ type Querier interface {
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) (RecoveryCode, error)
+	InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (SamlSp, error)
+	InsertSAMLSPACS(ctx context.Context, arg InsertSAMLSPACSParams) error
+	InsertSAMLSPKey(ctx context.Context, arg InsertSAMLSPKeyParams) error
+	InsertSAMLSession(ctx context.Context, arg InsertSAMLSessionParams) (SamlSession, error)
+	InsertSAMLSubjectID(ctx context.Context, arg InsertSAMLSubjectIDParams) (SamlSubjectID, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error)
 	InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (SigningKey, error)
 	InsertTOTPCredential(ctx context.Context, arg InsertTOTPCredentialParams) (TotpCredential, error)
@@ -64,6 +71,11 @@ type Querier interface {
 	ListOIDCClients(ctx context.Context) ([]OidcClient, error)
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
+	ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]SamlSpAc, error)
+	ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) ([]SamlSpKey, error)
+	ListSAMLSPs(ctx context.Context) ([]SamlSp, error)
+	ListSAMLSessionsByNameID(ctx context.Context, arg ListSAMLSessionsByNameIDParams) ([]SamlSession, error)
+	ListSAMLSessionsBySession(ctx context.Context, sessionID string) ([]SamlSession, error)
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
 	// Every non-retired key: the active signing key + any keys still inside
