@@ -11,20 +11,24 @@ import (
 	"prohibitorum/pkg/db"
 )
 
-// NewWebAuthn constructs the project's WebAuthn library handle from config.
-// Fails fast if RP origins or RP ID are misconfigured — better to crash at
-// startup than emit ceremonies the browser rejects.
-func NewWebAuthn(cfg *configx.Config) (*webauthn.WebAuthn, error) {
-	if len(cfg.PublicOrigins) == 0 {
+// NewWebAuthn constructs the project's WebAuthn library handle from a
+// WebAuthnConfig. Fails fast if RP origins or RP ID are misconfigured —
+// better to crash at startup than emit ceremonies the browser rejects.
+func NewWebAuthn(cfg configx.WebAuthnConfig) (*webauthn.WebAuthn, error) {
+	if len(cfg.RPOrigins) == 0 {
 		return nil, fmt.Errorf("webauthn: PROHIBITORUM_PUBLIC_ORIGIN must be set (comma-separated list of origins)")
 	}
-	if cfg.WebAuthnRPID == "" {
+	if cfg.RPID == "" {
 		return nil, fmt.Errorf("webauthn: PROHIBITORUM_WEBAUTHN_RP_ID must be set (or derivable from PUBLIC_ORIGIN)")
 	}
+	displayName := cfg.RPDisplayName
+	if displayName == "" {
+		displayName = "Prohibitorum"
+	}
 	return webauthn.New(&webauthn.Config{
-		RPID:                  cfg.WebAuthnRPID,
-		RPDisplayName:         "PicoTera",
-		RPOrigins:             cfg.PublicOrigins,
+		RPID:                  cfg.RPID,
+		RPDisplayName:         displayName,
+		RPOrigins:             cfg.RPOrigins,
 		AttestationPreference: protocol.PreferNoAttestation,
 		Timeouts: webauthn.TimeoutsConfig{
 			Login: webauthn.TimeoutConfig{

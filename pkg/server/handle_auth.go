@@ -47,8 +47,8 @@ func sessionView(a *db.Account) contract.SessionView {
 	}
 }
 
-// writeAuthErr serializes an *auth.AuthError onto a raw http.ResponseWriter
-// using the project's PicoTeraError envelope.
+// writeAuthErr serializes an *authn.AuthError onto a raw http.ResponseWriter
+// using the project's error envelope.
 func writeAuthErr(w http.ResponseWriter, err error) {
 	ae := authn.AsAuthError(err)
 	if ae == nil {

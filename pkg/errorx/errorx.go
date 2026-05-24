@@ -2,18 +2,18 @@ package errorx
 
 import "github.com/danielgtaylor/huma/v2"
 
-type PicoTeraError struct {
+type Error struct {
 	status  int
 	Message string   `json:"message"`
 	Code    string   `json:"code"`
 	Details []string `json:"details"`
 }
 
-func (e *PicoTeraError) Error() string {
+func (e *Error) Error() string {
 	return e.Message
 }
 
-func (e *PicoTeraError) GetStatus() int {
+func (e *Error) GetStatus() int {
 	return e.status
 }
 
@@ -31,7 +31,7 @@ func ErrorCode(code string) error {
 
 func init() {
 	huma.NewError = func(status int, msg string, errs ...error) huma.StatusError {
-		e := &PicoTeraError{
+		e := &Error{
 			status:  status,
 			Message: msg,
 			Code:    "UNKNOWN",

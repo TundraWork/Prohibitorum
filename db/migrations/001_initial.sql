@@ -1,10 +1,5 @@
 -- +goose Up
 
--- Identity schema lifted from picotera's `feat-user-system` final state
--- (migrations 027 + 028 + 030 squashed). Schema fields preserved verbatim
--- so the copied auth/account code runs without further adaptation. v1.1
--- will refactor `permissions` into a JSONB map for generic IdP use.
-
 CREATE TABLE account (
   id                       SERIAL PRIMARY KEY,
   username                 TEXT NOT NULL UNIQUE,

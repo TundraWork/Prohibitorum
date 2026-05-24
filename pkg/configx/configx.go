@@ -22,8 +22,19 @@ type Config struct {
 	SessionTTL    time.Duration `mapstructure:"session_ttl"`
 	TrustProxy    bool          `mapstructure:"trust_proxy"`
 
-	KV   KVConfig   `mapstructure:"kv"`
-	OIDC OIDCConfig `mapstructure:"oidc"`
+	KV      KVConfig      `mapstructure:"kv"`
+	OIDC    OIDCConfig    `mapstructure:"oidc"`
+	WebAuthn WebAuthnConfig `mapstructure:"webauthn"`
+}
+
+// WebAuthnConfig holds relying-party display metadata for the WebAuthn
+// ceremonies. RPID and RPOrigins are typically derived from PublicOrigins,
+// but can be overridden explicitly when the RP ID differs from the origin
+// hostname (e.g. shared subdomain deployments).
+type WebAuthnConfig struct {
+	RPID          string   `mapstructure:"rp_id"`
+	RPDisplayName string   `mapstructure:"rp_display_name"`
+	RPOrigins     []string `mapstructure:"rp_origins"`
 }
 
 type KVConfig struct {
@@ -73,6 +84,11 @@ func Parse() (*Config, error) {
 	viper.SetDefault("oidc.refresh_token_ttl", 720*time.Hour) // 30d
 	viper.SetDefault("oidc.authorization_code_ttl", 60*time.Second)
 
+	// WebAuthn substruct defaults — RPDisplayName defaults to the product name;
+	// RPID and RPOrigins are derived from PublicOrigins when not set explicitly.
+	viper.SetDefault("webauthn.rp_display_name", "Prohibitorum")
+	viper.SetDefault("webauthn.rp_id", "")
+
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	bindEnvs(Config{})
 	_ = viper.Unmarshal(&config)
@@ -91,6 +107,19 @@ func Parse() (*Config, error) {
 			config.WebAuthnRPID = u.Hostname()
 		}
 	}
+
+	// Populate WebAuthnConfig from top-level fields when not set explicitly,
+	// preserving backward-compat with PROHIBITORUM_WEBAUTHN_RP_ID.
+	if config.WebAuthn.RPID == "" {
+		config.WebAuthn.RPID = config.WebAuthnRPID
+	}
+	if len(config.WebAuthn.RPOrigins) == 0 {
+		config.WebAuthn.RPOrigins = config.PublicOrigins
+	}
+	if config.WebAuthn.RPDisplayName == "" {
+		config.WebAuthn.RPDisplayName = "Prohibitorum"
+	}
+
 	if config.OIDC.Issuer == "" && len(config.PublicOrigins) > 0 {
 		config.OIDC.Issuer = config.PublicOrigins[0]
 	}

@@ -1,7 +1,6 @@
-// Package auth — pairing.go
-//
-// Device-pairing-by-short-code flow. Used to add a new device's passkey to
-// an existing account without transferring a bearer token (URL) between
+// Package pairing implements the device-pairing short-code ceremony for
+// adding a passkey from a second device. Used to add a new device's passkey
+// to an existing account without transferring a bearer token (URL) between
 // devices.
 //
 // Flow:

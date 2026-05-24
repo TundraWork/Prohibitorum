@@ -1,7 +1,6 @@
-// Package server wires the identity HTTP surface together. The structure
-// mirrors picotera's but with every gateway/LLM/provider/project/api_key
-// surface dropped — Prohibitorum exists only to host accounts, run
-// passkey ceremonies, manage sessions, and issue OIDC tokens.
+// Package server wires the identity HTTP surface together. Prohibitorum exists
+// only to host accounts, run passkey ceremonies, manage sessions, and issue
+// OIDC tokens.
 package server
 
 import (
@@ -66,13 +65,13 @@ func NewServer(ctx context.Context) (*Server, error) {
 	}
 	sessionStore := sessstore.NewSessionStore(kvStore, config.SessionTTL)
 
-	wa, err := webauthnauth.NewWebAuthn(config)
+	wa, err := webauthnauth.NewWebAuthn(config.WebAuthn)
 	if err != nil {
 		return nil, fmt.Errorf("webauthn: %w", err)
 	}
 	logx.WithContext(ctx).WithFields(logrus.Fields{
-		"rp_id":   config.WebAuthnRPID,
-		"origins": config.PublicOrigins,
+		"rp_id":   config.WebAuthn.RPID,
+		"origins": config.WebAuthn.RPOrigins,
 	}).Info("auth ready")
 
 	router := chi.NewMux()
