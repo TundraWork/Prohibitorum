@@ -7,7 +7,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"prohibitorum/pkg/auth"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/errorx"
 )
@@ -15,7 +15,7 @@ import (
 // registerOp wraps huma.Register so every operation declares its auth
 // requirement at the call site. The wrapper appends a per-operation
 // middleware that reads *auth.Session from the request context (placed
-// there by auth.LoadSession on the chi router) and calls auth.Check
+// there by auth.LoadSession on the chi router) and calls authn.Check
 // before invoking the handler. On failure, the canonical AuthError is
 // written via huma.WriteErr — clients see {code, message} in the body
 // and the correct HTTP status.
@@ -33,9 +33,9 @@ func registerOp[I, O any](
 		})
 	}
 	op.Middlewares = append(op.Middlewares, func(ctx huma.Context, next func(huma.Context)) {
-		sess := auth.SessionFromContext(ctx.Context())
-		if err := auth.Check(sess, req); err != nil {
-			ae := auth.AsAuthError(err)
+		sess := authn.SessionFromContext(ctx.Context())
+		if err := authn.Check(sess, req); err != nil {
+			ae := authn.AsAuthError(err)
 			_ = huma.WriteErr(api, ctx, ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
 			return
 		}
@@ -44,7 +44,7 @@ func registerOp[I, O any](
 	huma.Register(api, op, handler)
 }
 
-// registerOpHTTP wraps a raw chi handler with the same auth.Check gate.
+// registerOpHTTP wraps a raw chi handler with the same authn.Check gate.
 // Used for endpoints that need to write Set-Cookie headers and read
 // streaming/JSON request bodies — Huma's typed I/O doesn't accommodate
 // cookie writes ergonomically. The trade-off is no OpenAPI doc for these
@@ -63,11 +63,11 @@ func registerOpHTTP(
 	h http.HandlerFunc,
 ) {
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sess := auth.SessionFromContext(r.Context())
-		if err := auth.Check(sess, req); err != nil {
-			ae := auth.AsAuthError(err)
+		sess := authn.SessionFromContext(r.Context())
+		if err := authn.Check(sess, req); err != nil {
+			ae := authn.AsAuthError(err)
 			if ae == nil {
-				// auth.Check should only return AuthErrors, but guard against
+				// authn.Check should only return AuthErrors, but guard against
 				// unexpected error types to avoid a nil-deref on ae.Status.
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return

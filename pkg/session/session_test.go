@@ -1,10 +1,11 @@
-package auth
+package session
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/kv"
 )
 
@@ -46,7 +47,7 @@ func TestSession_LoadMissingReturnsNoSession(t *testing.T) {
 	if err == nil {
 		t.Fatal("missing session should error")
 	}
-	ae := AsAuthError(err)
+	ae := authn.AsAuthError(err)
 	if ae == nil || ae.Code != "no_session" {
 		t.Errorf("want no_session error, got %v", err)
 	}
@@ -60,7 +61,7 @@ func TestSession_LoadWrongAccountReturnsNoSession(t *testing.T) {
 	if err == nil {
 		t.Fatal("loading with wrong account id should fail")
 	}
-	if ae := AsAuthError(err); ae == nil || ae.Code != "no_session" {
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "no_session" {
 		t.Errorf("want no_session, got %v", err)
 	}
 }
@@ -148,7 +149,7 @@ func TestSession_ExpiredEntryReturnsNoSession(t *testing.T) {
 	if err == nil {
 		t.Fatal("expired session should error")
 	}
-	if ae := AsAuthError(err); ae == nil || ae.Code != "no_session" {
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "no_session" {
 		t.Errorf("want no_session, got %v", err)
 	}
 }

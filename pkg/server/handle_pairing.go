@@ -29,9 +29,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"prohibitorum/pkg/auth"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/credential/pairing"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // ----- POST /auth/devices/pair/begin (anonymous) ---------------------------
@@ -44,7 +46,7 @@ type pairBeginResp struct {
 }
 
 func (s *Server) handlePairBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	ip := auth.ClientIP(r, s.config.TrustProxy)
+	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	// Anonymous endpoint; key only on IP. Cap at 10 pairings/min so a flood
 	// can't fill KV with junk entries.
 	if s.rateLimit(w, r, "pair_begin:ip:"+ip, 10, time.Minute) {
@@ -65,7 +67,7 @@ func (s *Server) handlePairBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(pairBeginResp{
 		PairingID:   p.ID,
 		Code:        p.Code,
-		DisplayCode: auth.FormatPairingCode(p.Code),
+		DisplayCode: pairing.FormatPairingCode(p.Code),
 		ExpiresAt:   p.ExpiresAt,
 	})
 }
@@ -88,7 +90,7 @@ func (s *Server) handlePairStatusHTTP(w http.ResponseWriter, r *http.Request) {
 		// Not-found or expired both surface as "expired" — the PC's UI
 		// reacts the same way (offer retry) and we don't leak whether the
 		// id was ever valid.
-		if ae := auth.AsAuthError(err); ae != nil && ae.Code == "pairing_not_found" {
+		if ae := authn.AsAuthError(err); ae != nil && ae.Code == "pairing_not_found" {
 			writeJSON(w, pairStatusResp{Status: "expired"})
 			return
 		}
@@ -118,7 +120,7 @@ type pairCompleteResp struct {
 func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) {
 	var body pairCompleteReq
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PairingID == "" {
-		writeAuthErr(w, auth.ErrPairingNotFound())
+		writeAuthErr(w, authn.ErrPairingNotFound())
 		return
 	}
 	p, err := s.pairingStore.GetByID(r.Context(), body.PairingID)
@@ -126,17 +128,17 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		writeAuthErr(w, err)
 		return
 	}
-	if p.Status != auth.PairingApproved {
-		writeAuthErr(w, auth.ErrPairingNotApproved())
+	if p.Status != pairing.PairingApproved {
+		writeAuthErr(w, authn.ErrPairingNotApproved())
 		return
 	}
 	acct, err := s.queries.GetAccountByID(r.Context(), p.ApprovedFor)
 	if err != nil {
-		writeAuthErr(w, auth.ErrAccountNotFound())
+		writeAuthErr(w, authn.ErrAccountNotFound())
 		return
 	}
 	if acct.Disabled {
-		writeAuthErr(w, auth.ErrAccountDisabled())
+		writeAuthErr(w, authn.ErrAccountDisabled())
 		return
 	}
 	// Consume BEFORE issuing the session so a duplicate /complete cannot
@@ -146,13 +148,13 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		writeAuthErr(w, err)
 		return
 	}
-	ip := auth.ClientIP(r, s.config.TrustProxy)
+	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent())
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, auth.FreshSessionCookie(s.config, r, acct.ID, sessionToken, s.config.SessionTTL))
+	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, sessionToken, s.config.SessionTTL))
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":      "auth.pairing_completed",
@@ -181,9 +183,9 @@ type pairLookupResp struct {
 }
 
 func (s *Server) handlePairLookupHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := auth.SessionFromContext(r.Context())
+	sess := authn.SessionFromContext(r.Context())
 	if sess == nil {
-		writeAuthErr(w, auth.ErrNoSession())
+		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
 	// Per-account cap on lookups — caps the brute-force surface against the
@@ -193,7 +195,7 @@ func (s *Server) handlePairLookupHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		writeAuthErr(w, auth.ErrPairingNotFound())
+		writeAuthErr(w, authn.ErrPairingNotFound())
 		return
 	}
 	p, err := s.pairingStore.LookupByCode(r.Context(), code)
@@ -203,18 +205,18 @@ func (s *Server) handlePairLookupHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// If already approved for a different account, refuse to surface the
 	// pairing — the code is no longer claimable by this caller.
-	if p.Status == auth.PairingApproved && p.ApprovedFor != sess.Account.ID {
-		writeAuthErr(w, auth.ErrPairingNotFound())
+	if p.Status == pairing.PairingApproved && p.ApprovedFor != sess.Account.ID {
+		writeAuthErr(w, authn.ErrPairingNotFound())
 		return
 	}
 	writeJSON(w, pairLookupResp{
 		PairingID:    p.ID,
-		DisplayCode:  auth.FormatPairingCode(p.Code),
+		DisplayCode:  pairing.FormatPairingCode(p.Code),
 		InitiatorUA:  p.InitiatorUA,
 		InitiatorIP:  p.InitiatorIP,
 		CreatedAt:    p.CreatedAt,
 		ExpiresAt:    p.ExpiresAt,
-		AlreadyBound: p.Status == auth.PairingApproved && p.ApprovedFor == sess.Account.ID,
+		AlreadyBound: p.Status == pairing.PairingApproved && p.ApprovedFor == sess.Account.ID,
 	})
 }
 
@@ -225,9 +227,9 @@ type pairApproveReq struct {
 }
 
 func (s *Server) handlePairApproveHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := auth.SessionFromContext(r.Context())
+	sess := authn.SessionFromContext(r.Context())
 	if sess == nil {
-		writeAuthErr(w, auth.ErrNoSession())
+		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
 	// Per-account approve cap, tighter than lookup. A legit user approves
@@ -244,7 +246,7 @@ func (s *Server) handlePairApproveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var body pairApproveReq
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeAuthErr(w, auth.ErrPairingNotFound())
+		writeAuthErr(w, authn.ErrPairingNotFound())
 		return
 	}
 	p, err := s.pairingStore.LookupByCode(r.Context(), body.Code)
@@ -260,7 +262,7 @@ func (s *Server) handlePairApproveHTTP(w http.ResponseWriter, r *http.Request) {
 		"event":      "auth.pairing_approved",
 		"pairing_id": p.ID,
 		"account_id": sess.Account.ID,
-		"client_ip":  auth.ClientIP(r, s.config.TrustProxy),
+		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
 	}).Info("auth")
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -268,14 +270,14 @@ func (s *Server) handlePairApproveHTTP(w http.ResponseWriter, r *http.Request) {
 // ----- POST /me/devices/pair/cancel (authed) -------------------------------
 
 func (s *Server) handlePairCancelHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := auth.SessionFromContext(r.Context())
+	sess := authn.SessionFromContext(r.Context())
 	if sess == nil {
-		writeAuthErr(w, auth.ErrNoSession())
+		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
 	var body pairApproveReq
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeAuthErr(w, auth.ErrPairingNotFound())
+		writeAuthErr(w, authn.ErrPairingNotFound())
 		return
 	}
 	p, err := s.pairingStore.LookupByCode(r.Context(), body.Code)
@@ -284,8 +286,8 @@ func (s *Server) handlePairCancelHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Refuse to cancel a pairing approved by a different account.
-	if p.Status == auth.PairingApproved && p.ApprovedFor != sess.Account.ID {
-		writeAuthErr(w, auth.ErrPairingNotFound())
+	if p.Status == pairing.PairingApproved && p.ApprovedFor != sess.Account.ID {
+		writeAuthErr(w, authn.ErrPairingNotFound())
 		return
 	}
 	if err := s.pairingStore.Cancel(r.Context(), p); err != nil {

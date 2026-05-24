@@ -9,8 +9,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/sirupsen/logrus"
 
-	"prohibitorum/pkg/auth"
+	"prohibitorum/pkg/account"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
 )
@@ -50,7 +52,7 @@ func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time) contract.Acc
 		Username:     a.Username,
 		DisplayName:  a.DisplayName,
 		Role:         a.Role,
-		Permissions:  auth.PermissionsView(a),
+		Permissions:  authn.PermissionsView(a),
 		Disabled:     a.Disabled,
 		CreatedAt:    a.CreatedAt.Time,
 		UpdatedAt:    a.UpdatedAt.Time,
@@ -86,7 +88,7 @@ func (s *Server) handleGetAccount(ctx context.Context, in *getAccountIn) (*accou
 	a, err := s.queries.GetAccountByID(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(auth.ErrAccountNotFound())
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
 		}
 		return nil, fmt.Errorf("handleGetAccount: query: %w", err)
 	}
@@ -109,16 +111,16 @@ type updateAccountIn struct {
 
 func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (*accountOut, error) {
 	if in.Body.Username != "" {
-		return nil, authErrToHuma(auth.ErrUsernameImmutable())
+		return nil, authErrToHuma(authn.ErrUsernameImmutable())
 	}
-	if err := auth.ValidateDisplayName(in.Body.DisplayName); err != nil {
+	if err := account.ValidateDisplayName(in.Body.DisplayName); err != nil {
 		return nil, authErrToHuma(err)
 	}
 
 	// Admin accounts cannot be disabled — demote first. Keeps the active-admin
 	// invariant clean (a "disabled admin" is a confusing state).
 	if in.Body.Role == "admin" && in.Body.Disabled {
-		return nil, authErrToHuma(auth.ErrAdminCannotBeDisabled())
+		return nil, authErrToHuma(authn.ErrAdminCannotBeDisabled())
 	}
 
 	tx, err := s.dbPool.Begin(ctx)
@@ -132,7 +134,7 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 	current, err := q.GetAccountByID(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(auth.ErrAccountNotFound())
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
 		}
 		return nil, fmt.Errorf("handleUpdateAccount: load: %w", err)
 	}
@@ -147,7 +149,7 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 			return nil, fmt.Errorf("handleUpdateAccount: count admins: %w", err)
 		}
 		if n <= 1 {
-			return nil, authErrToHuma(auth.ErrLastAdmin())
+			return nil, authErrToHuma(authn.ErrLastAdmin())
 		}
 	}
 
@@ -183,7 +185,7 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		return nil, fmt.Errorf("handleUpdateAccount: commit: %w", err)
 	}
 
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	changes := logrus.Fields{}
 	if current.Role != updated.Role {
 		changes["role"] = []string{current.Role, updated.Role}
@@ -237,10 +239,10 @@ type deleteAccountIn struct {
 }
 
 func (s *Server) handleDeleteAccount(ctx context.Context, in *deleteAccountIn) (*struct{}, error) {
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	// Admins may not delete their own row — ask another admin to do it.
 	if sess != nil && in.Body.ID == sess.Account.ID {
-		return nil, authErrToHuma(auth.ErrCannotDeleteSelf())
+		return nil, authErrToHuma(authn.ErrCannotDeleteSelf())
 	}
 
 	tx, err := s.dbPool.Begin(ctx)
@@ -254,7 +256,7 @@ func (s *Server) handleDeleteAccount(ctx context.Context, in *deleteAccountIn) (
 	current, err := q.GetAccountByID(ctx, in.Body.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(auth.ErrAccountNotFound())
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
 		}
 		return nil, fmt.Errorf("handleDeleteAccount: load: %w", err)
 	}
@@ -267,7 +269,7 @@ func (s *Server) handleDeleteAccount(ctx context.Context, in *deleteAccountIn) (
 			return nil, fmt.Errorf("handleDeleteAccount: count admins: %w", err)
 		}
 		if n <= 1 {
-			return nil, authErrToHuma(auth.ErrLastAdmin())
+			return nil, authErrToHuma(authn.ErrLastAdmin())
 		}
 	}
 
@@ -310,7 +312,7 @@ func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAc
 	_, err := s.queries.GetAccountByID(ctx, in.Body.AccountID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(auth.ErrAccountNotFound())
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
 		}
 		return nil, fmt.Errorf("handleDeleteAccountCredential: load account: %w", err)
 	}
@@ -330,7 +332,7 @@ func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAc
 		}
 	}
 	if !found {
-		return nil, authErrToHuma(auth.ErrCredentialNotFound())
+		return nil, authErrToHuma(authn.ErrCredentialNotFound())
 	}
 
 	// The precheck above guarantees the row exists; rows-affected == 0 here
@@ -342,7 +344,7 @@ func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAc
 		return nil, fmt.Errorf("handleDeleteAccountCredential: delete: %w", err)
 	}
 
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	actorID := int32(0)
 	if sess != nil {
 		actorID = sess.Account.ID
@@ -376,7 +378,7 @@ func (s *Server) handleRevokeAccountSessions(ctx context.Context, in *revokeAcco
 	_, err := s.queries.GetAccountByID(ctx, in.Body.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(auth.ErrAccountNotFound())
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
 		}
 		return nil, fmt.Errorf("handleRevokeAccountSessions: load: %w", err)
 	}
@@ -386,7 +388,7 @@ func (s *Server) handleRevokeAccountSessions(ctx context.Context, in *revokeAcco
 		return nil, fmt.Errorf("handleRevokeAccountSessions: revoke: %w", err)
 	}
 
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	actorID := int32(0)
 	if sess != nil {
 		actorID = sess.Account.ID
@@ -420,18 +422,18 @@ func (s *Server) handleReissueEnrollment(ctx context.Context, in *reissueEnrollm
 	_, err := s.queries.GetAccountByID(ctx, in.Body.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(auth.ErrAccountNotFound())
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
 		}
 		return nil, fmt.Errorf("handleReissueEnrollment: load: %w", err)
 	}
 
 	id := in.Body.ID
-	token, expiresAt, err := auth.IssueEnrollment(ctx, s.queries, auth.IntentReset, &id, 0, nil)
+	token, expiresAt, err := enrollment.IssueEnrollment(ctx, s.queries, enrollment.IntentReset, &id, 0, nil)
 	if err != nil {
 		return nil, fmt.Errorf("handleReissueEnrollment: issue: %w", err)
 	}
 
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	actorID := int32(0)
 	if sess != nil {
 		actorID = sess.Account.ID
@@ -477,16 +479,16 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		}
 	}
 
-	tpl := &auth.EnrollmentTemplate{
+	tpl := &enrollment.EnrollmentTemplate{
 		Role:  in.Body.Role,
 		Perms: perms,
 	}
-	token, expiresAt, err := auth.IssueEnrollment(ctx, s.queries, auth.IntentInvite, nil, 0, tpl)
+	token, expiresAt, err := enrollment.IssueEnrollment(ctx, s.queries, enrollment.IntentInvite, nil, 0, tpl)
 	if err != nil {
 		return nil, fmt.Errorf("handleCreateInvitation: issue enrollment: %w", err)
 	}
 
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	actorID := int32(0)
 	if sess != nil {
 		actorID = sess.Account.ID
@@ -553,11 +555,11 @@ type revokeInvitationIn struct {
 }
 
 func (s *Server) handleRevokeInvitation(ctx context.Context, in *revokeInvitationIn) (*struct{}, error) {
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	_, err := s.queries.RevokeInvitation(ctx, in.Body.Token)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(auth.ErrInvitationNotFound())
+			return nil, authErrToHuma(authn.ErrInvitationNotFound())
 		}
 		return nil, fmt.Errorf("handleRevokeInvitation: %w", err)
 	}

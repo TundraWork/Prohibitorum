@@ -1,13 +1,12 @@
-package auth
+package session
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"time"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
 
@@ -17,36 +16,11 @@ const (
 	CeremonyCookieName = "prohibitorum_ceremony"
 )
 
-// Session is the per-request authentication record placed on the context by
-// LoadSession. Token + Data are the cookie + KV view; Account is the freshly
-// loaded db row (live — never snapshotted into the session blob).
-type Session struct {
-	Account *db.Account
-	Token   string
-	Data    *SessionData
-}
-
-type ctxKey struct{ name string }
-
-var sessionCtxKey = ctxKey{name: "session"}
-
-// WithSession returns a new context with the session attached.
-func WithSession(ctx context.Context, s *Session) context.Context {
-	return context.WithValue(ctx, sessionCtxKey, s)
-}
-
-// SessionFromContext returns the session attached by LoadSession, or nil if
-// the request is unauthenticated.
-func SessionFromContext(ctx context.Context) *Session {
-	s, _ := ctx.Value(sessionCtxKey).(*Session)
-	return s
-}
-
 // LoadSession returns a chi middleware that:
 //  1. Reads the prohibitorum_session cookie.
 //  2. Validates it against the SessionStore.
 //  3. Fetches the live db.Account.
-//  4. Attaches *Session to the request context.
+//  4. Attaches *authn.Session to the request context.
 //
 // Does NOT reject missing/invalid sessions — that's per-route via registerOp's
 // Check. DOES reject disabled accounts with 403 account_disabled (and revokes
@@ -95,49 +69,17 @@ func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore) func(ht
 				// which Check returns nil for before inspecting the session.
 				_ = store.Revoke(r.Context(), accountID, token)
 				http.SetCookie(w, ClearedSessionCookie(cfg, r))
-				ctx := WithSession(r.Context(), &Session{Account: &account, Token: "", Data: nil})
+				ctx := authn.WithSession(r.Context(), &authn.Session{Account: &account, Token: "", Data: nil})
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 			if refreshed {
 				http.SetCookie(w, FreshSessionCookie(cfg, r, accountID, token, store.TTL()))
 			}
-			ctx := WithSession(r.Context(), &Session{Account: &account, Token: token, Data: data})
+			ctx := authn.WithSession(r.Context(), &authn.Session{Account: &account, Token: token, Data: data})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-// Check enforces the AuthRequirement against the (possibly nil) session.
-// Returns nil on success or the canonical AuthError on failure.
-func Check(s *Session, req contract.AuthRequirement) error {
-	if req.Kind == contract.AuthPublic {
-		return nil
-	}
-	if s == nil {
-		return ErrNoSession()
-	}
-	// Disabled-session sentinel from LoadSession — reject every non-public
-	// route with the JSON-envelope account_disabled code so the dashboard's
-	// ApiRequestError carries a machine-readable code.
-	if s.Account.Disabled {
-		return ErrAccountDisabled()
-	}
-	switch req.Kind {
-	case contract.AuthSession:
-		return nil
-	case contract.AuthAdmin:
-		if s.Account.Role != "admin" {
-			return ErrNotAdmin()
-		}
-		return nil
-	case contract.AuthPermissionKind:
-		if !Permits(s.Account, req.Permission) {
-			return ErrPermissionDenied()
-		}
-		return nil
-	}
-	return ErrNoSession()
 }
 
 // ----- cookie helpers -------------------------------------------------------

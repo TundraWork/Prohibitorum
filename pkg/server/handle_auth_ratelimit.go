@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"time"
 
-	"prohibitorum/pkg/auth"
+	"prohibitorum/pkg/authn"
 )
 
 // rateLimit applies a fixed-window bucket and writes the 429 response when
@@ -35,6 +35,6 @@ func (s *Server) rateLimit(w http.ResponseWriter, r *http.Request, key string, m
 		}
 		w.Header().Set("Retry-After", strconv.Itoa(secs))
 	}
-	writeAuthErr(w, auth.ErrRateLimited())
+	writeAuthErr(w, authn.ErrRateLimited())
 	return true
 }

@@ -17,12 +17,15 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/db/migrations"
-	"prohibitorum/pkg/auth"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
+	webauthnauth "prohibitorum/pkg/credential/webauthn"
+	"prohibitorum/pkg/credential/pairing"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 type Server struct {
@@ -32,9 +35,9 @@ type Server struct {
 	api          huma.API
 	config       *configx.Config
 	kvStore      kv.Store
-	sessionStore *auth.SessionStore
-	pairingStore *auth.PairingStore
-	rateLimiter  *auth.RateLimiter
+	sessionStore *sessstore.SessionStore
+	pairingStore *pairing.PairingStore
+	rateLimiter  *authn.RateLimiter
 	webauthn     *webauthn.WebAuthn
 }
 
@@ -61,9 +64,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("kv: %w", err)
 	}
-	sessionStore := auth.NewSessionStore(kvStore, config.SessionTTL)
+	sessionStore := sessstore.NewSessionStore(kvStore, config.SessionTTL)
 
-	wa, err := auth.NewWebAuthn(config)
+	wa, err := webauthnauth.NewWebAuthn(config)
 	if err != nil {
 		return nil, fmt.Errorf("webauthn: %w", err)
 	}
@@ -73,7 +76,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	}).Info("auth ready")
 
 	router := chi.NewMux()
-	router.Use(auth.LoadSession(config, queries, sessionStore))
+	router.Use(sessstore.LoadSession(config, queries, sessionStore))
 	api := humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0"))
 	registerSecurityScheme(api)
 
@@ -85,8 +88,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		config:       config,
 		kvStore:      kvStore,
 		sessionStore: sessionStore,
-		pairingStore: auth.NewPairingStore(kvStore),
-		rateLimiter:  auth.NewRateLimiter(),
+		pairingStore: pairing.NewPairingStore(kvStore),
+		rateLimiter:  authn.NewRateLimiter(),
 		webauthn:     wa,
 	}
 	s.registerOperations()
@@ -124,7 +127,7 @@ func registerSecurityScheme(api huma.API) {
 	doc.Components.SecuritySchemes["prohibitorumSession"] = &huma.SecurityScheme{
 		Type: "apiKey",
 		In:   "cookie",
-		Name: auth.SessionCookieName,
+		Name: sessstore.SessionCookieName,
 	}
 }
 

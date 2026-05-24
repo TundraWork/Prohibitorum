@@ -1,4 +1,4 @@
-package auth
+package webauthn
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/logx"
 )
 
@@ -13,7 +14,7 @@ import (
 // FinishPasskeyLogin into a friendly typed AuthError. Raw library details are
 // logged at WARN for operators; the returned error has a user-facing message
 // only. Pass ctx so the log carries request-scoped fields.
-func MapLoginCeremonyError(ctx context.Context, err error) *AuthError {
+func MapLoginCeremonyError(ctx context.Context, err error) *authn.AuthError {
 	if err == nil {
 		return nil
 	}
@@ -30,7 +31,7 @@ func MapLoginCeremonyError(ctx context.Context, err error) *AuthError {
 
 // MapRegisterCeremonyError is the same but for go-webauthn's CreateCredential
 // (registration). Pattern-matches different cases.
-func MapRegisterCeremonyError(ctx context.Context, err error) *AuthError {
+func MapRegisterCeremonyError(ctx context.Context, err error) *authn.AuthError {
 	if err == nil {
 		return nil
 	}
@@ -45,38 +46,38 @@ func MapRegisterCeremonyError(ctx context.Context, err error) *AuthError {
 	return mapped
 }
 
-func classifyLogin(msg string) *AuthError {
+func classifyLogin(msg string) *authn.AuthError {
 	lower := strings.ToLower(msg)
 	switch {
 	case strings.Contains(lower, "unknown user handle"),
 		strings.Contains(lower, "failed to lookup"),
 		strings.Contains(lower, "could not find"):
-		return ErrLoginAccountNotFound()
+		return authn.ErrLoginAccountNotFound()
 	case strings.Contains(lower, "signature"),
 		strings.Contains(lower, "verification"),
 		strings.Contains(lower, "verify"):
-		return ErrLoginVerificationFailed()
+		return authn.ErrLoginVerificationFailed()
 	case strings.Contains(lower, "challenge"),
 		strings.Contains(lower, "expired"),
 		strings.Contains(lower, "timeout"):
-		return ErrCeremonyExpired()
+		return authn.ErrCeremonyExpired()
 	default:
-		return ErrLoginFailed()
+		return authn.ErrLoginFailed()
 	}
 }
 
-func classifyRegister(msg string) *AuthError {
+func classifyRegister(msg string) *authn.AuthError {
 	lower := strings.ToLower(msg)
 	switch {
 	case strings.Contains(lower, "exclude"),
 		strings.Contains(lower, "credential already"),
 		strings.Contains(lower, "duplicate"):
-		return ErrRegistrationCredentialExists()
+		return authn.ErrRegistrationCredentialExists()
 	case strings.Contains(lower, "challenge"),
 		strings.Contains(lower, "expired"),
 		strings.Contains(lower, "timeout"):
-		return ErrCeremonyExpired()
+		return authn.ErrCeremonyExpired()
 	default:
-		return ErrRegistrationFailed()
+		return authn.ErrRegistrationFailed()
 	}
 }

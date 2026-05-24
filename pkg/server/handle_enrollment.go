@@ -16,11 +16,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 
-	"prohibitorum/pkg/auth"
+	acctpkg "prohibitorum/pkg/account"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/credential/enrollment"
+	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/errorx"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // authErrToHuma converts an *auth.AuthError into a huma.StatusError so typed
@@ -28,7 +32,7 @@ import (
 // machine-readable code in the response envelope. Without errorx.ErrorCode,
 // huma.NewError defaults the code to "UNKNOWN".
 func authErrToHuma(err error) error {
-	ae := auth.AsAuthError(err)
+	ae := authn.AsAuthError(err)
 	if ae == nil {
 		return err
 	}
@@ -46,7 +50,7 @@ type previewOut struct {
 }
 
 func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*previewOut, error) {
-	e, err := auth.LoadEnrollment(ctx, s.queries, in.Token)
+	e, err := enrollment.LoadEnrollment(ctx, s.queries, in.Token)
 	if err != nil {
 		return nil, authErrToHuma(err)
 	}
@@ -55,12 +59,12 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 		ExpiresAt: e.ExpiresAt.Time,
 	}
 	switch e.Intent {
-	case auth.IntentBootstrap:
+	case enrollment.IntentBootstrap:
 		// no target — bootstrap creates a brand-new admin
-	case auth.IntentInvite:
+	case enrollment.IntentInvite:
 		// No target hint — invitee picks their own username/displayName from
 		// scratch. The template only carries role + permissions.
-	case auth.IntentReset:
+	case enrollment.IntentReset:
 		if e.TargetAccountID.Valid {
 			if a, gerr := s.queries.GetAccountByID(ctx, e.TargetAccountID.Int32); gerr == nil {
 				out.Target = &contract.EnrollmentTarget{
@@ -116,11 +120,11 @@ type resetCeremony struct {
 func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	// Bound per-IP — caps brute-force on token guesses even though tokens
 	// are 256-bit random. Generous for legit consumes (one user, one flow).
-	if s.rateLimit(w, r, "enroll:ip:"+auth.ClientIP(r, s.config.TrustProxy), 20, time.Minute) {
+	if s.rateLimit(w, r, "enroll:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 20, time.Minute) {
 		return
 	}
 	token := chi.URLParam(r, "token")
-	e, err := auth.LoadEnrollment(r.Context(), s.queries, token)
+	e, err := enrollment.LoadEnrollment(r.Context(), s.queries, token)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
@@ -132,38 +136,38 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	var (
-		wu    *auth.WebAuthnAccount
+		wu    *webauthnauth.WebAuthnAccount
 		stash enrollCeremonyStash
 	)
 	switch e.Intent {
-	case auth.IntentBootstrap:
-		if err := auth.ValidateUsername(body.Username); err != nil {
+	case enrollment.IntentBootstrap:
+		if err := acctpkg.ValidateUsername(body.Username); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := auth.ValidateDisplayName(body.DisplayName); err != nil {
+		if err := acctpkg.ValidateDisplayName(body.DisplayName); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := auth.ValidateNickname(&body.Nickname); err != nil {
+		if err := acctpkg.ValidateNickname(&body.Nickname); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
 		// Username must be unique at /begin time.
 		_, gerr := s.queries.GetAccountByUsername(r.Context(), body.Username)
 		if gerr == nil {
-			writeAuthErr(w, auth.ErrUsernameTaken())
+			writeAuthErr(w, authn.ErrUsernameTaken())
 			return
 		} else if !errors.Is(gerr, pgx.ErrNoRows) {
 			writeAuthErr(w, fmt.Errorf("enrollment/begin: check username: %w", gerr))
 			return
 		}
-		handle, err := auth.GenerateUserHandle()
+		handle, err := acctpkg.GenerateUserHandle()
 		if err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		wu = &auth.WebAuthnAccount{
+		wu = &webauthnauth.WebAuthnAccount{
 			Account: &db.Account{
 				ID:                 0,
 				Username:           body.Username,
@@ -179,16 +183,16 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 			Nickname:           body.Nickname,
 		}
 
-	case auth.IntentInvite:
-		if err := auth.ValidateUsername(body.Username); err != nil {
+	case enrollment.IntentInvite:
+		if err := acctpkg.ValidateUsername(body.Username); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := auth.ValidateDisplayName(body.DisplayName); err != nil {
+		if err := acctpkg.ValidateDisplayName(body.DisplayName); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := auth.ValidateNickname(&body.Nickname); err != nil {
+		if err := acctpkg.ValidateNickname(&body.Nickname); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
@@ -196,13 +200,13 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		// the TX serves as the source of truth — two invitees racing on the same
 		// chosen username yield a clean 409 on the loser.
 		if _, gerr := s.queries.GetAccountByUsername(r.Context(), body.Username); gerr == nil {
-			writeAuthErr(w, auth.ErrUsernameTaken())
+			writeAuthErr(w, authn.ErrUsernameTaken())
 			return
 		} else if !errors.Is(gerr, pgx.ErrNoRows) {
 			writeAuthErr(w, fmt.Errorf("enrollment/begin invite: check username: %w", gerr))
 			return
 		}
-		handle, err := auth.GenerateUserHandle()
+		handle, err := acctpkg.GenerateUserHandle()
 		if err != nil {
 			writeAuthErr(w, err)
 			return
@@ -214,7 +218,7 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		if e.TemplateRole.Valid {
 			role = e.TemplateRole.String
 		}
-		wu = &auth.WebAuthnAccount{
+		wu = &webauthnauth.WebAuthnAccount{
 			Account: &db.Account{
 				ID:                 0,
 				Username:           body.Username,
@@ -230,29 +234,29 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 			Nickname:           body.Nickname,
 		}
 
-	case auth.IntentReset:
-		if err := auth.ValidateNickname(&body.Nickname); err != nil {
+	case enrollment.IntentReset:
+		if err := acctpkg.ValidateNickname(&body.Nickname); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
 		if !e.TargetAccountID.Valid {
-			writeAuthErr(w, auth.ErrEnrollmentConsumed())
+			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
 		a, err := s.queries.GetAccountByID(r.Context(), e.TargetAccountID.Int32)
 		if err != nil {
-			writeAuthErr(w, auth.ErrEnrollmentConsumed())
+			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
 		creds, _ := s.queries.ListCredentialsByAccount(r.Context(), a.ID)
 		// On reset, the existing credentials are exclusions for the ceremony (you
 		// can't re-register the same authenticator); they're DELETED at /complete
 		// commit time, not here.
-		wu = &auth.WebAuthnAccount{Account: &a, Credentials: creds}
+		wu = &webauthnauth.WebAuthnAccount{Account: &a, Credentials: creds}
 		stash.Reset = &resetCeremony{Nickname: body.Nickname}
 
 	default:
-		writeAuthErr(w, auth.ErrEnrollmentConsumed())
+		writeAuthErr(w, authn.ErrEnrollmentConsumed())
 		return
 	}
 
@@ -265,9 +269,9 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	creation, sessionData, err := s.webauthn.BeginRegistration(wu, auth.RegistrationOptions(exclude)...)
+	creation, sessionData, err := s.webauthn.BeginRegistration(wu, webauthnauth.RegistrationOptions(exclude)...)
 	if err != nil {
-		writeAuthErr(w, auth.MapRegisterCeremonyError(r.Context(), err))
+		writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 		return
 	}
 	stash.Data = *sessionData
@@ -290,25 +294,25 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	// Pre-flight: surface 404/expired/consumed before any heavy work.
-	if _, err := auth.LoadEnrollment(r.Context(), s.queries, token); err != nil {
+	if _, err := enrollment.LoadEnrollment(r.Context(), s.queries, token); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
 
 	raw, err := s.kvStore.Get(r.Context(), "webauthn_ceremony:enroll:"+token)
 	if err != nil {
-		writeAuthErr(w, auth.ErrCeremonyExpired())
+		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
 	}
 	var stash enrollCeremonyStash
 	if err := json.Unmarshal([]byte(raw), &stash); err != nil {
-		writeAuthErr(w, auth.ErrCeremonyState())
+		writeAuthErr(w, authn.ErrCeremonyState())
 		return
 	}
 
 	parsed, err := protocol.ParseCredentialCreationResponseBody(r.Body)
 	if err != nil {
-		writeAuthErr(w, auth.MapRegisterCeremonyError(r.Context(), err))
+		writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 		return
 	}
 
@@ -324,7 +328,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	// Atomic consume: acquires a row-level lock via the conditional UPDATE,
 	// serializing concurrent /complete requests on the same token. One wins
 	// (gets the row), all others get pgx.ErrNoRows → enrollment_consumed.
-	consumed, err := auth.ConsumeEnrollment(r.Context(), qtx, token)
+	consumed, err := enrollment.ConsumeEnrollment(r.Context(), qtx, token)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
@@ -336,19 +340,19 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	)
 
 	switch consumed.Intent {
-	case auth.IntentBootstrap:
+	case enrollment.IntentBootstrap:
 		if stash.Bootstrap == nil {
-			writeAuthErr(w, auth.ErrCeremonyState())
+			writeAuthErr(w, authn.ErrCeremonyState())
 			return
 		}
-		wu := &auth.WebAuthnAccount{Account: &db.Account{
+		wu := &webauthnauth.WebAuthnAccount{Account: &db.Account{
 			Username:           stash.Bootstrap.Username,
 			DisplayName:        stash.Bootstrap.DisplayName,
 			WebauthnUserHandle: stash.Bootstrap.WebauthnUserHandle,
 		}}
 		cred, err := s.webauthn.CreateCredential(wu, stash.Data, parsed)
 		if err != nil {
-			writeAuthErr(w, auth.MapRegisterCeremonyError(r.Context(), err))
+			writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 			return
 		}
 		a, err := qtx.InsertAccount(r.Context(), db.InsertAccountParams{
@@ -365,34 +369,34 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
-				writeAuthErr(w, auth.ErrUsernameTaken())
+				writeAuthErr(w, authn.ErrUsernameTaken())
 				return
 			}
 			writeAuthErr(w, fmt.Errorf("enrollment/complete bootstrap: insert account: %w", err))
 			return
 		}
 		account = a
-		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, cred, auth.NormalizeNickname(&stash.Bootstrap.Nickname))
+		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, cred, acctpkg.NormalizeNickname(&stash.Bootstrap.Nickname))
 		if err != nil {
 			writeAuthErr(w, fmt.Errorf("enrollment/complete: insert credential: %w", err))
 			return
 		}
 
-	case auth.IntentInvite:
+	case enrollment.IntentInvite:
 		if stash.Invite == nil {
-			writeAuthErr(w, auth.ErrCeremonyState())
+			writeAuthErr(w, authn.ErrCeremonyState())
 			return
 		}
 		// Build the WebAuthn user adapter — same identity the /begin step used,
 		// so the assertion verifies against the same rp.id + user.id.
-		wu := &auth.WebAuthnAccount{Account: &db.Account{
+		wu := &webauthnauth.WebAuthnAccount{Account: &db.Account{
 			Username:           stash.Invite.Username,
 			DisplayName:        stash.Invite.DisplayName,
 			WebauthnUserHandle: stash.Invite.WebauthnUserHandle,
 		}}
 		cred, err := s.webauthn.CreateCredential(wu, stash.Data, parsed)
 		if err != nil {
-			writeAuthErr(w, auth.MapRegisterCeremonyError(r.Context(), err))
+			writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 			return
 		}
 		// Role from template; fall back to "user" if somehow not set (defensive).
@@ -414,28 +418,28 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
-				writeAuthErr(w, auth.ErrUsernameTaken())
+				writeAuthErr(w, authn.ErrUsernameTaken())
 				return
 			}
 			writeAuthErr(w, fmt.Errorf("enrollment/complete invite: insert account: %w", err))
 			return
 		}
 		account = a
-		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, cred, auth.NormalizeNickname(&stash.Invite.Nickname))
+		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, cred, acctpkg.NormalizeNickname(&stash.Invite.Nickname))
 		if err != nil {
 			writeAuthErr(w, fmt.Errorf("enrollment/complete: insert credential: %w", err))
 			return
 		}
 
-	case auth.IntentReset:
+	case enrollment.IntentReset:
 		if !consumed.TargetAccountID.Valid {
-			writeAuthErr(w, auth.ErrEnrollmentConsumed())
+			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
 		a, err := qtx.GetAccountByID(r.Context(), consumed.TargetAccountID.Int32)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				writeAuthErr(w, auth.ErrAccountNotFound())
+				writeAuthErr(w, authn.ErrAccountNotFound())
 				return
 			}
 			writeAuthErr(w, fmt.Errorf("enrollment/complete reset: get account: %w", err))
@@ -447,16 +451,16 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			return
 		}
 		// Build the user adapter with no credentials (we just deleted them).
-		wu := &auth.WebAuthnAccount{Account: &a, Credentials: nil}
+		wu := &webauthnauth.WebAuthnAccount{Account: &a, Credentials: nil}
 		cred, err := s.webauthn.CreateCredential(wu, stash.Data, parsed)
 		if err != nil {
-			writeAuthErr(w, auth.MapRegisterCeremonyError(r.Context(), err))
+			writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 			return
 		}
 		account = a
 		var resetNickname *string
 		if stash.Reset != nil {
-			resetNickname = auth.NormalizeNickname(&stash.Reset.Nickname)
+			resetNickname = acctpkg.NormalizeNickname(&stash.Reset.Nickname)
 		}
 		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, cred, resetNickname)
 		if err != nil {
@@ -465,7 +469,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		}
 
 	default:
-		writeAuthErr(w, auth.ErrEnrollmentConsumed())
+		writeAuthErr(w, authn.ErrEnrollmentConsumed())
 		return
 	}
 
@@ -478,23 +482,23 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		"event":      "auth.enrollment_consumed",
 		"intent":     consumed.Intent,
 		"account_id": account.ID,
-		"client_ip":  auth.ClientIP(r, s.config.TrustProxy),
+		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
 	}).Info("auth")
 
 	// Post-commit cleanup (best-effort).
 	_ = s.kvStore.Del(r.Context(), "webauthn_ceremony:enroll:"+token)
-	if consumed.Intent == auth.IntentReset {
+	if consumed.Intent == enrollment.IntentReset {
 		_, _ = s.sessionStore.RevokeAllForAccount(r.Context(), account.ID)
 	}
 
 	// Issue session for the (new or existing) account.
-	ip := auth.ClientIP(r, s.config.TrustProxy)
+	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	sessionToken, _, err := s.sessionStore.Issue(r.Context(), account.ID, ip, r.UserAgent())
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/complete: session issue: %w", err))
 		return
 	}
-	http.SetCookie(w, auth.FreshSessionCookie(s.config, r, account.ID, sessionToken, s.config.SessionTTL))
+	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, account.ID, sessionToken, s.config.SessionTTL))
 
 	// Capture the new credential's id so the FE can offer a "name your passkey"
 	// prompt without a separate fetch.
@@ -511,7 +515,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 
 // insertCredentialForTx persists a webauthn.Credential into webauthn_credential
 // inside an existing TX. The optional nickname is stored as-is (callers should
-// pass auth.NormalizeNickname output). Returns the new row's id.
+// pass acctpkg.NormalizeNickname output). Returns the new row's id.
 func insertCredentialForTx(q db.Querier, ctx context.Context, accountID int32, cred *webauthn.Credential, nickname *string) (int32, error) {
 	transports := make([]string, 0, len(cred.Transport))
 	for _, t := range cred.Transport {

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"prohibitorum/db/migrations"
-	"prohibitorum/pkg/auth"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
 	"prohibitorum/pkg/server"
@@ -99,13 +99,13 @@ admin or --reset --username NAME to recover a specific existing admin.`,
 					log.Fatalf("user %q has role %q; --reset only handles admin accounts", a.Username, a.Role)
 				}
 				id := a.ID
-				token, exp, err = auth.IssueEnrollment(ctx, q, auth.IntentReset, &id, auth.DefaultEnrollmentTTL, nil)
+				token, exp, err = enrollment.IssueEnrollment(ctx, q, enrollment.IntentReset, &id, enrollment.DefaultEnrollmentTTL, nil)
 				if err != nil {
 					log.Fatalf("issue enrollment: %v", err)
 				}
 				label = fmt.Sprintf("Reset enrollment for %q", a.Username)
 			case enrollNew:
-				token, exp, err = auth.IssueEnrollment(ctx, q, auth.IntentBootstrap, nil, auth.DefaultEnrollmentTTL, nil)
+				token, exp, err = enrollment.IssueEnrollment(ctx, q, enrollment.IntentBootstrap, nil, enrollment.DefaultEnrollmentTTL, nil)
 				if err != nil {
 					log.Fatalf("issue enrollment: %v", err)
 				}
@@ -118,7 +118,7 @@ admin or --reset --username NAME to recover a specific existing admin.`,
 				if has {
 					log.Fatalf("an admin already exists. Pass --new to add another admin, or --reset --username NAME to recover a specific admin.")
 				}
-				token, exp, err = auth.IssueEnrollment(ctx, q, auth.IntentBootstrap, nil, auth.DefaultEnrollmentTTL, nil)
+				token, exp, err = enrollment.IssueEnrollment(ctx, q, enrollment.IntentBootstrap, nil, enrollment.DefaultEnrollmentTTL, nil)
 				if err != nil {
 					log.Fatalf("issue enrollment: %v", err)
 				}

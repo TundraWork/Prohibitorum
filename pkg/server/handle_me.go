@@ -13,10 +13,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 
-	"prohibitorum/pkg/auth"
+	"prohibitorum/pkg/account"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // ----- GET /me ------------------------------------------------------------
@@ -26,11 +29,11 @@ type meOut struct {
 }
 
 func (s *Server) handleGetMe(ctx context.Context, _ *struct{}) (*meOut, error) {
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	if sess == nil {
 		// LoadSession middleware should have attached one; if not, registerOp's
 		// AuthSession requirement would have already rejected. Defensive.
-		return nil, authErrToHuma(auth.ErrNoSession())
+		return nil, authErrToHuma(authn.ErrNoSession())
 	}
 	return &meOut{Body: sessionView(sess.Account)}, nil
 }
@@ -42,9 +45,9 @@ type credentialsOut struct {
 }
 
 func (s *Server) handleListMyCredentials(ctx context.Context, _ *struct{}) (*credentialsOut, error) {
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	if sess == nil {
-		return nil, authErrToHuma(auth.ErrNoSession())
+		return nil, authErrToHuma(authn.ErrNoSession())
 	}
 	rows, err := s.queries.ListCredentialsByAccount(ctx, sess.Account.ID)
 	if err != nil {
@@ -92,9 +95,9 @@ func credentialIDSuffix(credID []byte) string {
 // ----- POST /me/credentials/register/begin (raw chi) ---------------------
 
 func (s *Server) handleAddCredentialBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := auth.SessionFromContext(r.Context())
+	sess := authn.SessionFromContext(r.Context())
 	if sess == nil {
-		writeAuthErr(w, auth.ErrNoSession())
+		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
 
@@ -110,11 +113,11 @@ func (s *Server) handleAddCredentialBeginHTTP(w http.ResponseWriter, r *http.Req
 			CredentialID: c.CredentialID,
 		})
 	}
-	wu := &auth.WebAuthnAccount{Account: sess.Account, Credentials: creds}
+	wu := &webauthnauth.WebAuthnAccount{Account: sess.Account, Credentials: creds}
 
-	creation, sessionData, err := s.webauthn.BeginRegistration(wu, auth.RegistrationOptions(exclude)...)
+	creation, sessionData, err := s.webauthn.BeginRegistration(wu, webauthnauth.RegistrationOptions(exclude)...)
 	if err != nil {
-		writeAuthErr(w, auth.MapRegisterCeremonyError(r.Context(), err))
+		writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 		return
 	}
 	payload, err := json.Marshal(sessionData)
@@ -134,46 +137,46 @@ func (s *Server) handleAddCredentialBeginHTTP(w http.ResponseWriter, r *http.Req
 // ----- POST /me/credentials/register/complete (raw chi) ------------------
 
 func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := auth.SessionFromContext(r.Context())
+	sess := authn.SessionFromContext(r.Context())
 	if sess == nil {
-		writeAuthErr(w, auth.ErrNoSession())
+		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
 
 	rawStash, err := s.kvStore.Get(r.Context(), "webauthn_ceremony:add:"+sess.Token)
 	if err != nil {
-		writeAuthErr(w, auth.ErrCeremonyExpired())
+		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
 	}
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal([]byte(rawStash), &sessionData); err != nil {
-		writeAuthErr(w, auth.ErrCeremonyState())
+		writeAuthErr(w, authn.ErrCeremonyState())
 		return
 	}
 
 	nicknameRaw := r.URL.Query().Get("nickname")
 	var validatedNickname *string
 	if nicknameRaw != "" {
-		if err := auth.ValidateNickname(&nicknameRaw); err != nil {
+		if err := account.ValidateNickname(&nicknameRaw); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		validatedNickname = auth.NormalizeNickname(&nicknameRaw)
+		validatedNickname = account.NormalizeNickname(&nicknameRaw)
 	}
 
 	parsed, err := protocol.ParseCredentialCreationResponseBody(r.Body)
 	if err != nil {
-		writeAuthErr(w, auth.MapRegisterCeremonyError(r.Context(), err))
+		writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 		return
 	}
 
 	// Refresh credentials list for the user adapter — between /begin and
 	// /complete, no new credentials should have appeared, but stay correct.
 	existing, _ := s.queries.ListCredentialsByAccount(r.Context(), sess.Account.ID)
-	wu := &auth.WebAuthnAccount{Account: sess.Account, Credentials: existing}
+	wu := &webauthnauth.WebAuthnAccount{Account: sess.Account, Credentials: existing}
 	cred, err := s.webauthn.CreateCredential(wu, sessionData, parsed)
 	if err != nil {
-		writeAuthErr(w, auth.MapRegisterCeremonyError(r.Context(), err))
+		writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 		return
 	}
 
@@ -205,7 +208,7 @@ func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.
 		"event":         "auth.credential_added",
 		"account_id":    sess.Account.ID,
 		"credential_id": row.ID,
-		"client_ip":     auth.ClientIP(r, s.config.TrustProxy),
+		"client_ip":     sessstore.ClientIP(r, s.config.TrustProxy),
 	}).Info("auth")
 
 	w.Header().Set("Content-Type", "application/json")
@@ -219,9 +222,9 @@ type listMySessionsOut struct {
 }
 
 func (s *Server) handleListMySessions(ctx context.Context, _ *struct{}) (*listMySessionsOut, error) {
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	if sess == nil {
-		return nil, authErrToHuma(auth.ErrNoSession())
+		return nil, authErrToHuma(authn.ErrNoSession())
 	}
 	records, err := s.sessionStore.ListByAccount(ctx, sess.Account.ID)
 	if err != nil {
@@ -250,25 +253,25 @@ type revokeMySessionIn struct {
 }
 
 func (s *Server) handleRevokeMySession(ctx context.Context, in *revokeMySessionIn) (*struct{}, error) {
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	if sess == nil {
-		return nil, authErrToHuma(auth.ErrNoSession())
+		return nil, authErrToHuma(authn.ErrNoSession())
 	}
 	if in.Body.ID == "" {
-		return nil, authErrToHuma(auth.ErrSessionNotFound())
+		return nil, authErrToHuma(authn.ErrSessionNotFound())
 	}
 	// Refuse to revoke the current session via this endpoint — the standard
 	// /auth/logout path handles that cleanly (clears the cookie too). This
 	// also prevents an accidental self-lock.
 	if sess.Data != nil && sess.Data.SessionID == in.Body.ID {
-		return nil, authErrToHuma(auth.ErrCannotRevokeCurrentSession())
+		return nil, authErrToHuma(authn.ErrCannotRevokeCurrentSession())
 	}
 	ok, err := s.sessionStore.RevokeBySessionID(ctx, sess.Account.ID, in.Body.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleRevokeMySession: %w", err)
 	}
 	if !ok {
-		return nil, authErrToHuma(auth.ErrSessionNotFound())
+		return nil, authErrToHuma(authn.ErrSessionNotFound())
 	}
 	logx.WithContext(ctx).WithFields(logrus.Fields{
 		"event":         "auth.session_revoked_self",
@@ -297,11 +300,11 @@ type renameMyCredentialIn struct {
 }
 
 func (s *Server) handleRenameMyCredential(ctx context.Context, in *renameMyCredentialIn) (*struct{}, error) {
-	if err := auth.ValidateNickname(in.Body.Nickname); err != nil {
+	if err := account.ValidateNickname(in.Body.Nickname); err != nil {
 		return nil, authErrToHuma(err)
 	}
-	sess := auth.SessionFromContext(ctx)
-	normalized := auth.NormalizeNickname(in.Body.Nickname)
+	sess := authn.SessionFromContext(ctx)
+	normalized := account.NormalizeNickname(in.Body.Nickname)
 	var nickname pgtype.Text
 	if normalized != nil {
 		nickname = pgtype.Text{String: *normalized, Valid: true}
@@ -315,7 +318,7 @@ func (s *Server) handleRenameMyCredential(ctx context.Context, in *renameMyCrede
 		return nil, fmt.Errorf("handleRenameMyCredential: %w", err)
 	}
 	if n == 0 {
-		return nil, authErrToHuma(auth.ErrCredentialNotFound())
+		return nil, authErrToHuma(authn.ErrCredentialNotFound())
 	}
 	logx.WithContext(ctx).WithFields(logrus.Fields{
 		"event":         "auth.credential_renamed_self",
@@ -336,16 +339,16 @@ type deleteMyCredentialIn struct {
 type emptyOut struct{}
 
 func (s *Server) handleDeleteMyCredential(ctx context.Context, in *deleteMyCredentialIn) (*emptyOut, error) {
-	sess := auth.SessionFromContext(ctx)
+	sess := authn.SessionFromContext(ctx)
 	if sess == nil {
-		return nil, authErrToHuma(auth.ErrNoSession())
+		return nil, authErrToHuma(authn.ErrNoSession())
 	}
 	count, err := s.queries.CountCredentialsByAccount(ctx, sess.Account.ID)
 	if err != nil {
 		return nil, fmt.Errorf("count credentials: %w", err)
 	}
 	if count <= 1 {
-		return nil, authErrToHuma(auth.ErrLastPasskey())
+		return nil, authErrToHuma(authn.ErrLastPasskey())
 	}
 	n, err := s.queries.DeleteCredentialByID(ctx, db.DeleteCredentialByIDParams{
 		ID:        in.Body.ID,
@@ -355,7 +358,7 @@ func (s *Server) handleDeleteMyCredential(ctx context.Context, in *deleteMyCrede
 		return nil, fmt.Errorf("delete credential: %w", err)
 	}
 	if n == 0 {
-		return nil, authErrToHuma(auth.ErrCredentialNotFound())
+		return nil, authErrToHuma(authn.ErrCredentialNotFound())
 	}
 
 	logx.WithContext(ctx).WithFields(logrus.Fields{

@@ -22,7 +22,7 @@
 //   - Short TTL (PairingTTL) bounds the brute-force / interception window.
 //
 // Storage: ephemeral; in-memory KV with TTL is enough. No DB rows.
-package auth
+package pairing
 
 import (
 	"context"

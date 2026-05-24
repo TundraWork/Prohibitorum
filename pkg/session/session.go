@@ -1,4 +1,4 @@
-package auth
+package session
 
 import (
 	"context"
@@ -11,37 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/kv"
 )
-
-// SessionData is the JSON payload stored in KV under each session key. It does
-// NOT snapshot role or permissions — those are re-fetched from db.Account on
-// every authenticated request so admin actions (disable, role change,
-// permission edits) propagate to active sessions immediately.
-//
-// SessionID is an opaque, non-secret handle exposed in /me/sessions so users
-// can identify/revoke their other sessions without the response leaking the
-// underlying cookie token. It's generated at Issue time and stable across
-// refreshes.
-type SessionData struct {
-	SessionID  string    `json:"session_id"`
-	AccountID  int32     `json:"account_id"`
-	IssuedAt   time.Time `json:"issued_at"`
-	ExpiresAt  time.Time `json:"expires_at"`
-	LastSeenIP string    `json:"last_seen_ip"`
-	UserAgent  string    `json:"user_agent,omitempty"`
-	// SudoUntil is the deadline for the elevated "fresh WebAuthn assertion"
-	// state required by sensitive actions (currently /me/devices/pair/approve).
-	// Zero or past means no sudo; future means the gate is satisfied. Set by
-	// POST /me/sudo/complete and consumed inline by the gated handlers.
-	SudoUntil time.Time `json:"sudo_until,omitempty"`
-}
 
 // SessionStore issues, loads, and revokes sessions backed by pkg/kv.
 //
 // Key layout:
 //
-//	session:<account_id>:<random>  → SessionData JSON, TTL = SessionStore.ttl
+//	session:<account_id>:<random>  → authn.SessionData JSON, TTL = SessionStore.ttl
 //
 // The account_id prefix lets RevokeAllForAccount enumerate by glob without
 // maintaining a secondary index.
@@ -64,11 +42,6 @@ func (s *SessionStore) TTL() time.Duration { return s.ttl }
 // current sudo grant. Short by design — sudo expires the moment the user
 // stops using it.
 const SudoTTL = 5 * time.Minute
-
-// HasFreshSudo returns true when the session's SudoUntil is in the future.
-func (d *SessionData) HasFreshSudo() bool {
-	return !d.SudoUntil.IsZero() && time.Now().Before(d.SudoUntil)
-}
 
 // newToken produces 32 random bytes encoded as URL-safe base64 (43 chars, no padding).
 func newToken() (string, error) {
@@ -96,9 +69,9 @@ func sessionKey(accountID int32, token string) string {
 }
 
 // Issue writes a fresh session to KV and returns the random token plus the
-// SessionData that was stored. Caller constructs the cookie via CookieValue().
+// authn.SessionData that was stored. Caller constructs the cookie via CookieValue().
 // ua is captured into SessionData so /me/sessions can label each row.
-func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string) (string, *SessionData, error) {
+func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string) (string, *authn.SessionData, error) {
 	token, err := newToken()
 	if err != nil {
 		return "", nil, err
@@ -108,7 +81,7 @@ func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string
 		return "", nil, err
 	}
 	now := time.Now()
-	data := &SessionData{
+	data := &authn.SessionData{
 		SessionID:  sessionID,
 		AccountID:  accountID,
 		IssuedAt:   now,
@@ -129,25 +102,25 @@ func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string
 // Load returns the session data and a refreshed flag. The refreshed flag is
 // true when the TTL was extended on this Load — callers re-emit Set-Cookie
 // to update the browser's expiry. Returns ErrNoSession() on missing/expired.
-func (s *SessionStore) Load(ctx context.Context, accountID int32, token, ip, ua string) (*SessionData, bool, error) {
+func (s *SessionStore) Load(ctx context.Context, accountID int32, token, ip, ua string) (*authn.SessionData, bool, error) {
 	key := sessionKey(accountID, token)
 	raw, err := s.kv.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, kv.ErrKeyNotFound) {
-			return nil, false, ErrNoSession()
+			return nil, false, authn.ErrNoSession()
 		}
 		return nil, false, fmt.Errorf("session: get: %w", err)
 	}
-	var data SessionData
+	var data authn.SessionData
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
 		// Corrupted entry — clean up and report as missing.
 		_ = s.kv.Del(ctx, key)
-		return nil, false, ErrNoSession()
+		return nil, false, authn.ErrNoSession()
 	}
 	now := time.Now()
 	if now.After(data.ExpiresAt) {
 		_ = s.kv.Del(ctx, key)
-		return nil, false, ErrNoSession()
+		return nil, false, authn.ErrNoSession()
 	}
 	// Backfill schema fields that landed after the session was originally
 	// issued. Pre-existing sessions from before SessionID/UserAgent were
@@ -188,10 +161,10 @@ func (s *SessionStore) Revoke(ctx context.Context, accountID int32, token string
 // Save writes data back to the same KV entry, preserving the session's
 // remaining TTL. Used by the sudo grant handler to stamp SudoUntil onto an
 // already-issued session without disturbing its expiry.
-func (s *SessionStore) Save(ctx context.Context, accountID int32, token string, data *SessionData) error {
+func (s *SessionStore) Save(ctx context.Context, accountID int32, token string, data *authn.SessionData) error {
 	remaining := time.Until(data.ExpiresAt)
 	if remaining <= 0 {
-		return ErrNoSession()
+		return authn.ErrNoSession()
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -203,12 +176,12 @@ func (s *SessionStore) Save(ctx context.Context, accountID int32, token string, 
 	return nil
 }
 
-// ListByAccount returns every live session for accountID. Each entry is the
-// stored SessionData with its KV-suffix token attached (callers need it
+// SessionRecord carries a live session for accountID. Each entry is the
+// stored authn.SessionData with its KV-suffix token attached (callers need it
 // only to compute is-current; the token MUST NOT be echoed to clients).
 type SessionRecord struct {
 	Token string // raw cookie-half; do not echo
-	Data  SessionData
+	Data  authn.SessionData
 }
 
 func (s *SessionStore) ListByAccount(ctx context.Context, accountID int32) ([]SessionRecord, error) {
@@ -224,7 +197,7 @@ func (s *SessionStore) ListByAccount(ctx context.Context, accountID int32) ([]Se
 			return nil, fmt.Errorf("session: scan: %w", err)
 		}
 		for _, entry := range result.Entries {
-			var data SessionData
+			var data authn.SessionData
 			if err := json.Unmarshal([]byte(entry.Value), &data); err != nil {
 				continue
 			}

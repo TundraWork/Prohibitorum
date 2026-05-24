@@ -14,7 +14,7 @@
 //     acceptable for "is this a sustained attack?" gating.
 //   - Buckets self-prune lazily on Allow when the bucket map exceeds a soft
 //     ceiling. Memory bounded by the active key count.
-package auth
+package authn
 
 import (
 	"sync"

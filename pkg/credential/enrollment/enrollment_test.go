@@ -1,4 +1,4 @@
-package auth
+package enrollment
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 )
 
@@ -99,7 +100,7 @@ func TestEnrollment_Consume(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := LoadEnrollment(context.Background(), q, tok)
-	if AsAuthError(err) == nil || AsAuthError(err).Code != "enrollment_consumed" {
+	if authn.AsAuthError(err) == nil || authn.AsAuthError(err).Code != "enrollment_consumed" {
 		t.Errorf("want enrollment_consumed, got %v", err)
 	}
 }
@@ -117,7 +118,7 @@ func TestConsumeEnrollment_OncePerToken(t *testing.T) {
 	if err == nil {
 		t.Fatal("second consume should have failed")
 	}
-	ae := AsAuthError(err)
+	ae := authn.AsAuthError(err)
 	if ae == nil || ae.Code != "enrollment_consumed" {
 		t.Fatalf("second consume: want enrollment_consumed, got %v", err)
 	}
@@ -127,7 +128,7 @@ func TestEnrollment_Expired(t *testing.T) {
 	q := newFakeEnrollQ()
 	tok, _, _ := IssueEnrollment(context.Background(), q, IntentBootstrap, nil, -1*time.Hour, nil)
 	_, err := LoadEnrollment(context.Background(), q, tok)
-	if AsAuthError(err) == nil || AsAuthError(err).Code != "enrollment_expired" {
+	if authn.AsAuthError(err) == nil || authn.AsAuthError(err).Code != "enrollment_expired" {
 		t.Errorf("want enrollment_expired, got %v", err)
 	}
 }
@@ -135,7 +136,7 @@ func TestEnrollment_Expired(t *testing.T) {
 func TestEnrollment_MissingTreatedAsConsumed(t *testing.T) {
 	q := newFakeEnrollQ()
 	_, err := LoadEnrollment(context.Background(), q, "bogus_never_issued")
-	if AsAuthError(err) == nil || AsAuthError(err).Code != "enrollment_consumed" {
+	if authn.AsAuthError(err) == nil || authn.AsAuthError(err).Code != "enrollment_consumed" {
 		t.Errorf("missing should surface as enrollment_consumed (proxy for cascade-deleted), got %v", err)
 	}
 }

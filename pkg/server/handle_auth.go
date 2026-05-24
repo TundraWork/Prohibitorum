@@ -15,10 +15,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/sirupsen/logrus"
 
-	"prohibitorum/pkg/auth"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // ceremonyTTL is how long a /begin's KV stash survives before /complete must claim it.
@@ -41,14 +43,14 @@ func sessionView(a *db.Account) contract.SessionView {
 		Username:    a.Username,
 		DisplayName: a.DisplayName,
 		Role:        a.Role,
-		Permissions: auth.PermissionsView(a),
+		Permissions: authn.PermissionsView(a),
 	}
 }
 
 // writeAuthErr serializes an *auth.AuthError onto a raw http.ResponseWriter
 // using the project's PicoTeraError envelope.
 func writeAuthErr(w http.ResponseWriter, err error) {
-	ae := auth.AsAuthError(err)
+	ae := authn.AsAuthError(err)
 	if ae == nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -94,7 +96,7 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	// 30 login ceremonies per IP per minute. Humans typing on a passkey
 	// authenticator can't realistically exceed this; bots tripping it get
 	// 429s with Retry-After.
-	if s.rateLimit(w, r, "login:ip:"+auth.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
+	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
 		return
 	}
 	bootstrapped, err := s.queries.HasAnyActiveAdmin(r.Context())
@@ -103,13 +105,13 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !bootstrapped {
-		writeAuthErr(w, auth.ErrNotBootstrapped())
+		writeAuthErr(w, authn.ErrNotBootstrapped())
 		return
 	}
 
-	assertion, sessionData, err := s.webauthn.BeginDiscoverableLogin(auth.LoginOptions()...)
+	assertion, sessionData, err := s.webauthn.BeginDiscoverableLogin(webauthnauth.LoginOptions()...)
 	if err != nil {
-		writeAuthErr(w, auth.MapLoginCeremonyError(r.Context(), err))
+		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
 		return
 	}
 
@@ -128,7 +130,7 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, auth.CeremonyCookie(s.config, r, token))
+	http.SetCookie(w, sessstore.CeremonyCookie(s.config, r, token))
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(assertion.Response)
 }
@@ -136,12 +138,12 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 // ----- POST /auth/login/complete (raw chi) ---------------------------------
 
 func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.rateLimit(w, r, "login:ip:"+auth.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
+	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
 		return
 	}
-	cer, err := r.Cookie(auth.CeremonyCookieName)
+	cer, err := r.Cookie(sessstore.CeremonyCookieName)
 	if err != nil || cer.Value == "" {
-		writeAuthErr(w, auth.ErrCeremonyMissing())
+		writeAuthErr(w, authn.ErrCeremonyMissing())
 		return
 	}
 	raw, err := s.kvStore.Get(r.Context(), "webauthn_ceremony:login:"+cer.Value)
@@ -150,9 +152,9 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		logx.WithContext(r.Context()).WithFields(logrus.Fields{
 			"event":     "auth.login_failure",
 			"reason":    "ceremony_state_missing",
-			"client_ip": auth.ClientIP(r, s.config.TrustProxy),
+			"client_ip": sessstore.ClientIP(r, s.config.TrustProxy),
 		}).Warn("auth")
-		writeAuthErr(w, auth.ErrCeremonyExpired())
+		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
 	}
 	var sessionData webauthn.SessionData
@@ -160,9 +162,9 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		logx.WithContext(r.Context()).WithFields(logrus.Fields{
 			"event":     "auth.login_failure",
 			"reason":    "ceremony_state_corrupt",
-			"client_ip": auth.ClientIP(r, s.config.TrustProxy),
+			"client_ip": sessstore.ClientIP(r, s.config.TrustProxy),
 		}).Warn("auth")
-		writeAuthErr(w, auth.ErrCeremonyState())
+		writeAuthErr(w, authn.ErrCeremonyState())
 		return
 	}
 
@@ -185,21 +187,21 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		}
 		resolvedAccount = a
 		resolvedCreds = creds
-		return &auth.WebAuthnAccount{Account: &a, Credentials: creds}, nil
+		return &webauthnauth.WebAuthnAccount{Account: &a, Credentials: creds}, nil
 	}
 
 	_, credential, err := s.webauthn.FinishPasskeyLogin(handler, sessionData, r)
 	if err != nil {
-		writeAuthErr(w, auth.MapLoginCeremonyError(r.Context(), err))
+		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
 		return
 	}
 	if resolvedAccount.ID == 0 {
 		logx.WithContext(r.Context()).WithFields(logrus.Fields{
 			"event":     "auth.login_failure",
 			"reason":    "no_account",
-			"client_ip": auth.ClientIP(r, s.config.TrustProxy),
+			"client_ip": sessstore.ClientIP(r, s.config.TrustProxy),
 		}).Warn("auth")
-		writeAuthErr(w, auth.ErrLoginAccountNotFound())
+		writeAuthErr(w, authn.ErrLoginAccountNotFound())
 		return
 	}
 	if resolvedAccount.Disabled {
@@ -207,9 +209,9 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"event":      "auth.login_failure",
 			"reason":     "account_disabled",
 			"account_id": resolvedAccount.ID,
-			"client_ip":  auth.ClientIP(r, s.config.TrustProxy),
+			"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
 		}).Warn("auth")
-		writeAuthErr(w, auth.ErrAccountDisabled())
+		writeAuthErr(w, authn.ErrAccountDisabled())
 		return
 	}
 
@@ -223,21 +225,21 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		})
 	}
 	_ = s.kvStore.Del(r.Context(), "webauthn_ceremony:login:"+cer.Value)
-	http.SetCookie(w, auth.ClearedCeremonyCookie(s.config, r))
+	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r))
 
-	ip := auth.ClientIP(r, s.config.TrustProxy)
+	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	token, _, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent())
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("session issue: %w", err))
 		return
 	}
-	http.SetCookie(w, auth.FreshSessionCookie(s.config, r, resolvedAccount.ID, token, s.config.SessionTTL))
+	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, resolvedAccount.ID, token, s.config.SessionTTL))
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":      "auth.login_success",
 		"account_id": resolvedAccount.ID,
 		"username":   resolvedAccount.Username,
-		"client_ip":  auth.ClientIP(r, s.config.TrustProxy),
+		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
 	}).Info("auth")
 
 	w.Header().Set("Content-Type", "application/json")
@@ -247,16 +249,16 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 // ----- POST /auth/logout (raw chi) -----------------------------------------
 
 func (s *Server) handleLogoutHTTP(w http.ResponseWriter, r *http.Request) {
-	if c, err := r.Cookie(auth.SessionCookieName); err == nil && c.Value != "" {
-		if id, tok, ok := auth.ParseCookieValue(c.Value); ok {
+	if c, err := r.Cookie(sessstore.SessionCookieName); err == nil && c.Value != "" {
+		if id, tok, ok := sessstore.ParseCookieValue(c.Value); ok {
 			_ = s.sessionStore.Revoke(r.Context(), id, tok)
 			logx.WithContext(r.Context()).WithFields(logrus.Fields{
 				"event":      "auth.logout",
 				"account_id": id,
-				"client_ip":  auth.ClientIP(r, s.config.TrustProxy),
+				"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
 			}).Info("auth")
 		}
 	}
-	http.SetCookie(w, auth.ClearedSessionCookie(s.config, r))
+	http.SetCookie(w, sessstore.ClearedSessionCookie(s.config, r))
 	w.WriteHeader(http.StatusNoContent)
 }
