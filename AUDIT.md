@@ -220,7 +220,6 @@ when it traces to one of those reports.
 | Live `account.disabled` check per request | ✅ | `session.LoadSession` middleware |
 | Sudo mode for sensitive actions | ✅ | `pkg/authn/sudo` |
 | Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ | `pkg/authn/ratelimit` |
-| Rate limit on `/oauth/authorize` and `/oauth/token` | ❌ gap | flagged in oidc audit; v0.4 |
 | OpenAPI spec for management API | ✅ | huma-generated |
 | Admin UI for accounts | ⚠️ deferred (v0.6) | dashboard scaffold empty in v0.1 |
 | Admin UI for OIDC clients / SAML SPs / upstream IdPs | ⚠️ deferred (v0.6) | manage via SQL until then |

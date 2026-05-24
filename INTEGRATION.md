@@ -219,7 +219,10 @@ VALUES (
   '[
     {"local":"username","name":"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name","friendly_name":"username","name_format":"basic","multi":false},
     {"local":"email","name":"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress","friendly_name":"emails","name_format":"basic","multi":true},
-    {"local":"full_name","name":"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/displayname","friendly_name":"full_name","name_format":"basic","multi":false}
+    {"local":"full_name","name":"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/displayname","friendly_name":"full_name","name_format":"basic","multi":false},
+    {"local":"is_admin","name":"administrator","friendly_name":"administrator","name_format":"basic","multi":false},
+    {"local":"public_keys","name":"urn:oid:1.2.840.113549.1.1.1","friendly_name":"public_keys","name_format":"uri","multi":true},
+    {"local":"gpg_keys","name":"gpg_keys","friendly_name":"gpg_keys","name_format":"basic","multi":true}
   ]'::jsonb,
   true
 );
