@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/kv"
 )
 
@@ -129,7 +130,7 @@ func (s *PairingStore) GetByID(ctx context.Context, id string) (*Pairing, error)
 	raw, err := s.kv.Get(ctx, pairingIDKey(id))
 	if err != nil {
 		if err == kv.ErrKeyNotFound {
-			return nil, ErrPairingNotFound()
+			return nil, authn.ErrPairingNotFound()
 		}
 		return nil, fmt.Errorf("pairing: kv get: %w", err)
 	}
@@ -147,12 +148,12 @@ func (s *PairingStore) GetByID(ctx context.Context, id string) (*Pairing, error)
 func (s *PairingStore) LookupByCode(ctx context.Context, code string) (*Pairing, error) {
 	normalized := NormalizePairingCode(code)
 	if len(normalized) != codeLen {
-		return nil, ErrPairingNotFound()
+		return nil, authn.ErrPairingNotFound()
 	}
 	id, err := s.kv.Get(ctx, pairingCodeKey(normalized))
 	if err != nil {
 		if err == kv.ErrKeyNotFound {
-			return nil, ErrPairingNotFound()
+			return nil, authn.ErrPairingNotFound()
 		}
 		return nil, fmt.Errorf("pairing: kv get code: %w", err)
 	}
@@ -167,7 +168,7 @@ func (s *PairingStore) Approve(ctx context.Context, p *Pairing, accountID int32)
 		return nil // idempotent
 	}
 	if p.Status != PairingPending {
-		return ErrPairingState()
+		return authn.ErrPairingState()
 	}
 	p.Status = PairingApproved
 	p.ApprovedFor = accountID
@@ -179,7 +180,7 @@ func (s *PairingStore) Approve(ctx context.Context, p *Pairing, accountID int32)
 // successfully; prevents the same pairing from being used twice.
 func (s *PairingStore) Consume(ctx context.Context, p *Pairing) error {
 	if p.Status != PairingApproved {
-		return ErrPairingState()
+		return authn.ErrPairingState()
 	}
 	_ = s.kv.Del(ctx, pairingIDKey(p.ID))
 	_ = s.kv.Del(ctx, pairingCodeKey(p.Code))
@@ -202,7 +203,7 @@ func (s *PairingStore) put(ctx context.Context, p *Pairing) error {
 	// Use the original TTL window — never extend it on update.
 	remaining := time.Until(p.ExpiresAt)
 	if remaining <= 0 {
-		return ErrPairingExpired()
+		return authn.ErrPairingExpired()
 	}
 	if err := s.kv.SetEx(ctx, pairingIDKey(p.ID), string(raw), remaining); err != nil {
 		return fmt.Errorf("pairing: kv put: %w", err)

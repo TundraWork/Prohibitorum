@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
@@ -110,19 +111,19 @@ func LoadEnrollment(ctx context.Context, q db.Querier, token string) (*db.Enroll
 	row, err := q.GetEnrollmentByToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrEnrollmentConsumed()
+			return nil, authn.ErrEnrollmentConsumed()
 		}
 		return nil, fmt.Errorf("enrollment: get: %w", err)
 	}
 	if row.ConsumedAt.Valid {
-		return nil, ErrEnrollmentConsumed()
+		return nil, authn.ErrEnrollmentConsumed()
 	}
 	if !row.ExpiresAt.Valid {
 		// Shouldn't happen (NOT NULL column), but defensively treat as expired.
-		return nil, ErrEnrollmentExpired()
+		return nil, authn.ErrEnrollmentExpired()
 	}
 	if time.Now().After(row.ExpiresAt.Time) {
-		return nil, ErrEnrollmentExpired()
+		return nil, authn.ErrEnrollmentExpired()
 	}
 	return &row, nil
 }
@@ -140,7 +141,7 @@ func ConsumeEnrollment(ctx context.Context, q db.Querier, token string) (*db.Enr
 	row, err := q.ConsumeEnrollment(ctx, token)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrEnrollmentConsumed()
+			return nil, authn.ErrEnrollmentConsumed()
 		}
 		return nil, fmt.Errorf("enrollment: consume: %w", err)
 	}
