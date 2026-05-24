@@ -20,6 +20,7 @@ type Querier interface {
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
 	DeactivateAllSigningKeys(ctx context.Context) error
 	DeleteAccountByID(ctx context.Context, id int32) error
+	DeleteAccountIdentity(ctx context.Context, arg DeleteAccountIdentityParams) error
 	DeleteAllCredentialsForAccount(ctx context.Context, accountID int32) error
 	DeleteAllRecoveryCodesByAccount(ctx context.Context, accountID int32) error
 	// Owner-scoped delete: zero rows affected means the id doesn't match an owned
@@ -28,9 +29,11 @@ type Querier interface {
 	DeleteOIDCClient(ctx context.Context, clientID string) error
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
+	DeleteUpstreamIDP(ctx context.Context, id int64) error
 	GetAccountByID(ctx context.Context, id int32) (Account, error)
 	GetAccountByUsername(ctx context.Context, username string) (Account, error)
 	GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error)
+	GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAccountIdentityByIssuerSubParams) (AccountIdentity, error)
 	GetActiveSigningKey(ctx context.Context, use string) (SigningKey, error)
 	GetAuthThrottle(ctx context.Context, arg GetAuthThrottleParams) (AuthThrottle, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
@@ -39,8 +42,10 @@ type Querier interface {
 	GetPasswordCredential(ctx context.Context, accountID int32) (PasswordCredential, error)
 	GetSession(ctx context.Context, id string) (Session, error)
 	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
+	GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error)
 	HasAnyActiveAdmin(ctx context.Context) (bool, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
+	InsertAccountIdentity(ctx context.Context, arg InsertAccountIdentityParams) (AccountIdentity, error)
 	InsertCredential(ctx context.Context, arg InsertCredentialParams) (WebauthnCredential, error)
 	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
@@ -49,7 +54,9 @@ type Querier interface {
 	InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error)
 	InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (SigningKey, error)
 	InsertTOTPCredential(ctx context.Context, arg InsertTOTPCredentialParams) (TotpCredential, error)
+	InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPParams) (UpstreamIdp, error)
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
+	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
@@ -58,6 +65,7 @@ type Querier interface {
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
+	ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
 	// Every non-retired key: the active signing key + any keys still inside
 	// their rollover window. JWKS endpoint serves the public_jwk of each.
 	ListVerifyingSigningKeys(ctx context.Context, retiredAt pgtype.Timestamptz) ([]SigningKey, error)
@@ -80,6 +88,7 @@ type Querier interface {
 	// handler then surfaces credential_not_found.
 	UpdateMyCredentialNickname(ctx context.Context, arg UpdateMyCredentialNicknameParams) (int64, error)
 	UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) error
+	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
 	UpsertAuthThrottle(ctx context.Context, arg UpsertAuthThrottleParams) (AuthThrottle, error)
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
 }

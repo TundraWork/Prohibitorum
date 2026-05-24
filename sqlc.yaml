@@ -37,3 +37,13 @@ sql:
             go_type: "int32"
           - column: "recovery_code.account_id"
             go_type: "int32"
+          - column: "upstream_idp.id"
+            go_type: "int64"
+          - column: "account_identity.account_id"
+            go_type: "int32"
+          - column: "account_identity.upstream_idp_id"
+            go_type: "int64"
+          - column: "session.upstream_idp_id"
+            go_type:
+              type: "int64"
+              pointer: true

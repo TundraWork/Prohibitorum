@@ -17,21 +17,21 @@
     {
       "id": 19,
       "subject": "Task 2: Cosmetic decoupling — errorx.Error, RPDisplayName from config",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [17],
       "description": "**Goal:** Rename errorx.PicoTeraError → errorx.Error; lift RPDisplayName \"PicoTera\" to configx.WebAuthn.RPDisplayName (default \"Prohibitorum\"); strip remaining picotera comments.\n\n**Files:** pkg/errorx/, pkg/configx/configx.go, pkg/credential/webauthn/webauthn.go, pkg/server/server.go, db/migrations/001_initial.sql header.\n\n**Verify:** `! grep -rn PicoTera pkg/ cmd/ db/ && go test ./...`\n\n```json:metadata\n{\"files\": [\"pkg/errorx/\", \"pkg/configx/configx.go\", \"pkg/credential/webauthn/webauthn.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"! grep -rn PicoTera pkg/ cmd/ db/ && go test ./...\", \"acceptanceCriteria\": [\"PicoTeraError renamed everywhere\", \"RPDisplayName from config\", \"no picotera comments outside spec/audit\"]}\n```"
     },
     {
       "id": 15,
       "subject": "Task 3: Schema rewrite — migrations 001+002, queries, contract, handlers",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [19],
       "description": "**Goal:** Rewrite migrations 001+002 per spec; add session/credential_event/auth_throttle/revoked_jti; expand oidc_client; regen sqlc; drop Permission types; update contract / pkg/account / pkg/credential/enrollment / pkg/server handlers to attributes jsonb model.\n\n**Files:** db/migrations/001,002; db/queries/{account,enrollment,webauthn_credential,oidc,session,credential_event,auth_throttle}.sql; sqlc.yaml; pkg/db/ (regen); pkg/contract/auth.go; pkg/account/; pkg/credential/{webauthn,enrollment}/; pkg/server/handle_*; pkg/server/server.go.\n\n**Verify:** `mise run db:up && go build ./... && go test ./... && ! grep -rn 'can_view_own\\|PermViewOwnUsage' pkg/ cmd/ db/`\n\n```json:metadata\n{\"files\": [\"db/migrations/001_initial.sql\", \"db/migrations/002_oidc.sql\", \"db/queries/\", \"sqlc.yaml\", \"pkg/db/\", \"pkg/contract/auth.go\", \"pkg/account/\", \"pkg/credential/\", \"pkg/server/\"], \"verifyCommand\": \"mise run db:up && go build ./... && go test ./...\", \"acceptanceCriteria\": [\"migrations apply clean\", \"sqlc regen clean\", \"build green\", \"tests pass\", \"no can_* refs\"]}\n```"
     },
     {
       "id": 16,
       "subject": "Task 4: Migration 003 — password_credential, totp_credential, recovery_code",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [15],
       "description": "**Goal:** Add password+TOTP+recovery_code schema; queries; sqlc regen. No Go usage yet.\n\n**Files:** db/migrations/003_password_totp.sql; db/queries/{password_credential,totp_credential,recovery_code}.sql; sqlc.yaml; pkg/db/.\n\n**Verify:** `mise run db:up && sqlc generate && go build ./...`\n\n```json:metadata\n{\"files\": [\"db/migrations/003_password_totp.sql\", \"db/queries/password_credential.sql\", \"db/queries/totp_credential.sql\", \"db/queries/recovery_code.sql\", \"sqlc.yaml\", \"pkg/db/\"], \"verifyCommand\": \"mise run db:up && go build ./...\", \"acceptanceCriteria\": [\"003 applies clean\", \"sqlc generates\", \"build green\"]}\n```"
     },

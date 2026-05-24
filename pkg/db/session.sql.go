@@ -12,7 +12,7 @@ import (
 )
 
 const getSession = `-- name: GetSession :one
-SELECT id, account_id, auth_time, amr, acr, created_at, revoked_at FROM session WHERE id = $1 AND revoked_at IS NULL
+SELECT id, account_id, auth_time, amr, acr, created_at, revoked_at, upstream_idp_id FROM session WHERE id = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
@@ -26,6 +26,7 @@ func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
 		&i.Acr,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.UpstreamIdpID,
 	)
 	return i, err
 }
@@ -33,7 +34,7 @@ func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
 const insertSession = `-- name: InsertSession :one
 INSERT INTO session (id, account_id, auth_time, amr, acr)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, account_id, auth_time, amr, acr, created_at, revoked_at
+RETURNING id, account_id, auth_time, amr, acr, created_at, revoked_at, upstream_idp_id
 `
 
 type InsertSessionParams struct {
@@ -61,12 +62,13 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) (S
 		&i.Acr,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.UpstreamIdpID,
 	)
 	return i, err
 }
 
 const listSessionsByAccount = `-- name: ListSessionsByAccount :many
-SELECT id, account_id, auth_time, amr, acr, created_at, revoked_at FROM session
+SELECT id, account_id, auth_time, amr, acr, created_at, revoked_at, upstream_idp_id FROM session
 WHERE account_id = $1 AND revoked_at IS NULL
 ORDER BY created_at DESC
 `
@@ -88,6 +90,7 @@ func (q *Queries) ListSessionsByAccount(ctx context.Context, accountID int32) ([
 			&i.Acr,
 			&i.CreatedAt,
 			&i.RevokedAt,
+			&i.UpstreamIdpID,
 		); err != nil {
 			return nil, err
 		}

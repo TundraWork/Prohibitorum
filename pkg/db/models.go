@@ -22,6 +22,16 @@ type Account struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updatedAt"`
 }
 
+type AccountIdentity struct {
+	ID            int64              `json:"id"`
+	AccountID     int32              `json:"accountId"`
+	UpstreamIdpID int64              `json:"upstreamIdpId"`
+	UpstreamIss   string             `json:"upstreamIss"`
+	UpstreamSub   string             `json:"upstreamSub"`
+	UpstreamEmail pgtype.Text        `json:"upstreamEmail"`
+	LinkedAt      pgtype.Timestamptz `json:"linkedAt"`
+}
+
 type AuthThrottle struct {
 	AccountID      int32              `json:"accountId"`
 	Factor         string             `json:"factor"`
@@ -104,13 +114,14 @@ type RevokedJti struct {
 }
 
 type Session struct {
-	ID        string             `json:"id"`
-	AccountID int32              `json:"accountId"`
-	AuthTime  pgtype.Timestamptz `json:"authTime"`
-	Amr       []string           `json:"amr"`
-	Acr       pgtype.Text        `json:"acr"`
-	CreatedAt pgtype.Timestamptz `json:"createdAt"`
-	RevokedAt pgtype.Timestamptz `json:"revokedAt"`
+	ID            string             `json:"id"`
+	AccountID     int32              `json:"accountId"`
+	AuthTime      pgtype.Timestamptz `json:"authTime"`
+	Amr           []string           `json:"amr"`
+	Acr           pgtype.Text        `json:"acr"`
+	CreatedAt     pgtype.Timestamptz `json:"createdAt"`
+	RevokedAt     pgtype.Timestamptz `json:"revokedAt"`
+	UpstreamIdpID *int64             `json:"upstreamIdpId"`
 }
 
 type SigningKey struct {
@@ -137,6 +148,25 @@ type TotpCredential struct {
 	LastStep    int64              `json:"lastStep"`
 	ConfirmedAt pgtype.Timestamptz `json:"confirmedAt"`
 	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+}
+
+type UpstreamIdp struct {
+	ID               int64              `json:"id"`
+	Slug             string             `json:"slug"`
+	DisplayName      string             `json:"displayName"`
+	IssuerUrl        string             `json:"issuerUrl"`
+	ClientID         string             `json:"clientId"`
+	ClientSecretEnc  []byte             `json:"clientSecretEnc"`
+	SecretNonce      []byte             `json:"secretNonce"`
+	KeyVersion       int32              `json:"keyVersion"`
+	Scopes           []string           `json:"scopes"`
+	Mode             string             `json:"mode"`
+	AllowedDomains   []string           `json:"allowedDomains"`
+	UsernameClaim    string             `json:"usernameClaim"`
+	DisplayNameClaim string             `json:"displayNameClaim"`
+	EmailClaim       string             `json:"emailClaim"`
+	Disabled         bool               `json:"disabled"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
 }
 
 type WebauthnCredential struct {
