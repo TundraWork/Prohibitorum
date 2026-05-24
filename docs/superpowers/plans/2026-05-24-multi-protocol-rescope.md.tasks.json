@@ -1,0 +1,68 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-24-multi-protocol-rescope.md",
+  "tasks": [
+    {
+      "id": 13,
+      "subject": "Task 0: Baseline — go mod tidy + green build",
+      "status": "pending",
+      "description": "**Goal:** Establish known-good starting point; lock indirect deps.\n\n**Files:** go.sum (auto-update)\n\n**Verify:** `go build ./... && go test ./...`\n\n```json:metadata\n{\"files\": [\"go.sum\"], \"verifyCommand\": \"go build ./... && go test ./...\", \"acceptanceCriteria\": [\"go mod tidy clean\", \"go build ./... succeeds\", \"go test ./... passes\"]}\n```"
+    },
+    {
+      "id": 17,
+      "subject": "Task 1: Atomic package reorganization (pkg/auth → three-layer)",
+      "status": "pending",
+      "blockedBy": [13],
+      "description": "**Goal:** Move pkg/auth/* and pkg/oidc/ into pkg/{account, credential/*, session, authn, protocol/oidc}. No semantic changes.\n\n**Files:** 11 moves + import-line updates across pkg/server/* and cmd/. pkg/auth and pkg/oidc deleted.\n\n**Verify:** `go build ./... && go test ./... && ! test -d pkg/auth && ! test -d pkg/oidc`\n\n```json:metadata\n{\"files\": [\"pkg/account/\", \"pkg/credential/webauthn/\", \"pkg/credential/enrollment/\", \"pkg/credential/pairing/\", \"pkg/session/\", \"pkg/authn/\", \"pkg/protocol/oidc/\", \"pkg/server/\"], \"verifyCommand\": \"go build ./... && go test ./...\", \"acceptanceCriteria\": [\"pkg/auth deleted\", \"pkg/oidc deleted\", \"build green\", \"tests pass\"]}\n```"
+    },
+    {
+      "id": 19,
+      "subject": "Task 2: Cosmetic decoupling — errorx.Error, RPDisplayName from config",
+      "status": "pending",
+      "blockedBy": [17],
+      "description": "**Goal:** Rename errorx.PicoTeraError → errorx.Error; lift RPDisplayName \"PicoTera\" to configx.WebAuthn.RPDisplayName (default \"Prohibitorum\"); strip remaining picotera comments.\n\n**Files:** pkg/errorx/, pkg/configx/configx.go, pkg/credential/webauthn/webauthn.go, pkg/server/server.go, db/migrations/001_initial.sql header.\n\n**Verify:** `! grep -rn PicoTera pkg/ cmd/ db/ && go test ./...`\n\n```json:metadata\n{\"files\": [\"pkg/errorx/\", \"pkg/configx/configx.go\", \"pkg/credential/webauthn/webauthn.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"! grep -rn PicoTera pkg/ cmd/ db/ && go test ./...\", \"acceptanceCriteria\": [\"PicoTeraError renamed everywhere\", \"RPDisplayName from config\", \"no picotera comments outside spec/audit\"]}\n```"
+    },
+    {
+      "id": 15,
+      "subject": "Task 3: Schema rewrite — migrations 001+002, queries, contract, handlers",
+      "status": "pending",
+      "blockedBy": [19],
+      "description": "**Goal:** Rewrite migrations 001+002 per spec; add session/credential_event/auth_throttle/revoked_jti; expand oidc_client; regen sqlc; drop Permission types; update contract / pkg/account / pkg/credential/enrollment / pkg/server handlers to attributes jsonb model.\n\n**Files:** db/migrations/001,002; db/queries/{account,enrollment,webauthn_credential,oidc,session,credential_event,auth_throttle}.sql; sqlc.yaml; pkg/db/ (regen); pkg/contract/auth.go; pkg/account/; pkg/credential/{webauthn,enrollment}/; pkg/server/handle_*; pkg/server/server.go.\n\n**Verify:** `mise run db:up && go build ./... && go test ./... && ! grep -rn 'can_view_own\\|PermViewOwnUsage' pkg/ cmd/ db/`\n\n```json:metadata\n{\"files\": [\"db/migrations/001_initial.sql\", \"db/migrations/002_oidc.sql\", \"db/queries/\", \"sqlc.yaml\", \"pkg/db/\", \"pkg/contract/auth.go\", \"pkg/account/\", \"pkg/credential/\", \"pkg/server/\"], \"verifyCommand\": \"mise run db:up && go build ./... && go test ./...\", \"acceptanceCriteria\": [\"migrations apply clean\", \"sqlc regen clean\", \"build green\", \"tests pass\", \"no can_* refs\"]}\n```"
+    },
+    {
+      "id": 16,
+      "subject": "Task 4: Migration 003 — password_credential, totp_credential, recovery_code",
+      "status": "pending",
+      "blockedBy": [15],
+      "description": "**Goal:** Add password+TOTP+recovery_code schema; queries; sqlc regen. No Go usage yet.\n\n**Files:** db/migrations/003_password_totp.sql; db/queries/{password_credential,totp_credential,recovery_code}.sql; sqlc.yaml; pkg/db/.\n\n**Verify:** `mise run db:up && sqlc generate && go build ./...`\n\n```json:metadata\n{\"files\": [\"db/migrations/003_password_totp.sql\", \"db/queries/password_credential.sql\", \"db/queries/totp_credential.sql\", \"db/queries/recovery_code.sql\", \"sqlc.yaml\", \"pkg/db/\"], \"verifyCommand\": \"mise run db:up && go build ./...\", \"acceptanceCriteria\": [\"003 applies clean\", \"sqlc generates\", \"build green\"]}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 5: Migration 004 — upstream_idp + account_identity",
+      "status": "pending",
+      "blockedBy": [16],
+      "description": "**Goal:** Add federation tables; ALTER session add upstream_idp_id; queries; sqlc regen.\n\n**Files:** db/migrations/004_federation.sql; db/queries/{upstream_idp,account_identity}.sql; sqlc.yaml; pkg/db/.\n\n**Verify:** `mise run db:up && go build ./...`\n\n```json:metadata\n{\"files\": [\"db/migrations/004_federation.sql\", \"db/queries/upstream_idp.sql\", \"db/queries/account_identity.sql\", \"sqlc.yaml\", \"pkg/db/\"], \"verifyCommand\": \"mise run db:up && go build ./...\", \"acceptanceCriteria\": [\"004 applies clean\", \"session.upstream_idp_id exists\", \"sqlc generates\", \"build green\"]}\n```"
+    },
+    {
+      "id": 20,
+      "subject": "Task 6: Migration 005 — SAML tables",
+      "status": "pending",
+      "blockedBy": [14],
+      "description": "**Goal:** Add saml_sp + saml_sp_acs + saml_sp_key + saml_subject_id + saml_session; queries; sqlc regen.\n\n**Files:** db/migrations/005_saml.sql; db/queries/saml_sp.sql; sqlc.yaml; pkg/db/.\n\n**Verify:** `mise run db:up && go build ./...`\n\n```json:metadata\n{\"files\": [\"db/migrations/005_saml.sql\", \"db/queries/saml_sp.sql\", \"sqlc.yaml\", \"pkg/db/\"], \"verifyCommand\": \"mise run db:up && go build ./...\", \"acceptanceCriteria\": [\"005 applies clean\", \"5 SAML tables exist\", \"sqlc generates\", \"build green\"]}\n```"
+    },
+    {
+      "id": 18,
+      "subject": "Task 7: Stub packages + configx extensions + audit writer wiring",
+      "status": "pending",
+      "blockedBy": [20],
+      "description": "**Goal:** Land empty stubs for pkg/credential/password, pkg/credential/totp, pkg/federation/oidc, pkg/protocol/saml, pkg/authn/flow, pkg/audit. Extend configx with OIDCConfig, FederationConfig, TOTPConfig, SAMLConfig, PasswordHashParams, DataEncryptionKeys versioned set. Wire audit.Writer through server.New.\n\n**Files:** pkg/credential/{password,totp}/, pkg/federation/oidc/, pkg/protocol/saml/, pkg/authn/flow.go, pkg/audit/event.go, pkg/configx/configx.go, pkg/server/server.go, cmd/prohibitorum/main.go.\n\n**Verify:** `go build ./... && go vet ./... && go test ./...`\n\n```json:metadata\n{\"files\": [\"pkg/credential/password/password.go\", \"pkg/credential/totp/totp.go\", \"pkg/federation/oidc/federation.go\", \"pkg/protocol/saml/saml.go\", \"pkg/authn/flow.go\", \"pkg/audit/event.go\", \"pkg/configx/configx.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"go build ./... && go vet ./...\", \"acceptanceCriteria\": [\"all stub packages compile\", \"configx substructs added\", \"audit writer wired\", \"build + vet clean\"]}\n```"
+    },
+    {
+      "id": 21,
+      "subject": "Task 8: User-facing doc rewrites (DESIGN/STATUS/AUDIT/INTEGRATION/README)",
+      "status": "pending",
+      "blockedBy": [18],
+      "description": "**Goal:** Rewrite top-level docs to match the rescoped service. No picotera vocabulary in user-facing docs (spec/audit reports retain it as audit trail).\n\n**Files:** DESIGN.md, STATUS.md, AUDIT.md, INTEGRATION.md, README.md.\n\n**Verify:** `! grep -rni picotera DESIGN.md STATUS.md AUDIT.md INTEGRATION.md README.md`\n\n```json:metadata\n{\"files\": [\"DESIGN.md\", \"STATUS.md\", \"AUDIT.md\", \"INTEGRATION.md\", \"README.md\"], \"verifyCommand\": \"! grep -rni picotera DESIGN.md STATUS.md AUDIT.md INTEGRATION.md README.md\", \"acceptanceCriteria\": [\"no picotera in user docs\", \"DESIGN reflects 3-layer arch\", \"AUDIT has password+TOTP+federation+SAML sections\", \"INTEGRATION adds Pattern C SAML\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-24T00:00:00Z"
+}
