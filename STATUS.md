@@ -88,13 +88,31 @@ Verify the skeleton against a real environment before adding behavior.
 - `go mod tidy` and lock the indirect dep graph; commit if `go.sum` changed.
 - Apply all five migrations to a real Postgres; inspect schemas match the
   spec (`\d account`, `\d session`, `\d webauthn_credential`, etc.).
-- Exercise the WebAuthn ceremony end-to-end: `enroll-admin` → consume
-  enrollment token in browser → register passkey → log in → land on
-  `/me`.
-- Hit `/.well-known/openid-configuration`; confirm it returns a coherent
-  document even though `/oauth/authorize` / `/oauth/token` still return
-  501. (Discovery shape, supported algorithms, supported scopes,
-  endpoint URLs, `authorization_response_iss_parameter_supported=true`.)
+- Drive `POST /api/prohibitorum/enrollments/{token}/register/{begin,complete}`
+  with an HTTP client. The full browser ceremony lands in v0.6 with the
+  dashboard; before then, exercise via the API and a virtual-authenticator
+  Go integration test (recommended) — see "WebAuthn smoke without a
+  frontend" below.
+- Hit `/.well-known/openid-configuration` and `/oauth/jwks`; both are
+  mounted in v0.1. The discovery doc advertises the planned v0.4 OP
+  endpoints; the JWKS endpoint returns an empty `keys` array until v0.4
+  introduces signing keys. `/oauth/authorize`, `/oauth/token`,
+  `/oauth/userinfo`, `/oidc/logout` are NOT mounted in v0.1 — they land
+  in v0.4 with real handler bodies.
+
+### WebAuthn smoke without a frontend
+
+`dashboard/` is empty (v0.6 work). For v0.1.1 smoke testing the WebAuthn
+ceremony, two options:
+
+1. **Go integration tests with a virtual authenticator** (recommended).
+   Use `go-webauthn`'s test helpers (or a small mock authenticator) to
+   drive `register/begin` → `register/complete` server-side. Runs in CI;
+   pins ceremony behavior so future migrations can't break it silently.
+2. **Defer the full ceremony test to v0.6**. Only run the server-side
+   checks above for v0.1.1 (boot, migrations, discovery shape, JWKS
+   shape, enrollment token preview). Carries silent-breakage risk between
+   now and v0.6 if anyone touches `pkg/credential/webauthn`.
 
 ### Operational notes for the smoke test
 
@@ -143,9 +161,9 @@ Deliver the fallback method:
   param upgrade, persistent throttle (`auth_throttle`).
 - `pkg/credential/totp`: enrollment (secret + QR `otpauth://` URI +
   10 recovery codes shown once), AES-GCM at-rest with AAD per spec,
-  ±1 period drift, `last_step` replay protection.
-- `pkg/credential/recovery`: argon2id-hashed single-use codes;
-  redemption captures `used_session_id` + `used_ip`.
+  ±1 period drift, `last_step` replay protection. Recovery code helpers
+  live alongside TOTP in the same package (single-use, argon2id-hashed;
+  redemption captures `used_session_id` + `used_ip`).
 - Login flow endpoints: `POST /api/prohibitorum/auth/password/begin`,
   `POST /api/prohibitorum/auth/totp/verify`,
   `POST /api/prohibitorum/auth/recovery-code/verify`. Partial-session

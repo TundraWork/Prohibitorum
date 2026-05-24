@@ -97,7 +97,9 @@ pkg/
 
 ## Authentication methods
 
-The four upstream methods, in preference order:
+The four upstream methods, in preference order. Subsections tagged
+**(v0.X)** describe the planned behavior for that version; v0.1 ships
+the schema and stub packages only for those methods.
 
 ### WebAuthn (primary)
 
@@ -107,10 +109,12 @@ register / Preferred at login. Sign-count regression detection writes
 suspected cloned authenticators. COSE algorithm, user handle, and
 `uv_initialized` are persisted per credential per WebAuthn L3 §4.
 
-When a user enrolls WebAuthn via `/me/passkeys/add`, the handler
-offers to delete the account's password + TOTP + recovery codes in
-the same transaction. Default yes. The decision is captured
-server-side; there's no client-side bypass.
+When a user adds a passkey via
+`POST /api/prohibitorum/me/credentials/register/{begin,complete}`,
+v0.2 will offer to delete the account's password + TOTP + recovery
+codes in the same transaction (via `authn.DisableNonWebAuthnFallbacks`,
+currently stubbed). Default yes. The decision is captured server-side;
+there's no client-side bypass.
 
 ### Password + TOTP (fallback, v0.2)
 

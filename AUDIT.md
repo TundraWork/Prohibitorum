@@ -1,10 +1,19 @@
 # Audit — OAuth 2.1 / OIDC / WebAuthn / SAML / NIST best-practice checklist
 
 Compliance of the current codebase against authoritative standards.
-Items marked **✅** are implemented in v0.1 (schema reflects them and
-v0.2+ implementations will consume them); **⚠️ deferred** are
-intentional v0.x omissions with a clear target version; **❌ gap** are
-unfinished and need work before v1.0.
+Status labels:
+
+- **✅** — implemented end-to-end (code enforces the item today)
+- **✅ schema** — DB column / table exists; no Go path reads/writes it yet
+- **✅ design** — architectural decision locked in spec; no schema or code yet
+- **✅ stub** — handler exists and is mounted; returns 501 or partial output
+- **✅ planned** — target version named; tracked
+- **⚠️ deferred** — intentional v0.x omission with a clear target version
+- **❌ gap** — unfinished and needs work before v1.0
+- **❌ explicitly forbidden** — the standard forbids this (NIST §3.1.1.2 etc.)
+
+When a bare **✅** appears, read the Notes column: it may still be
+schema-only. Suffix labels above qualify what's actually in v0.1.
 
 The full spec-vs-design audits that drove the v0.1 schema decisions
 live in:
@@ -43,9 +52,9 @@ when it traces to one of those reports.
 
 | Item | Status | Notes / source |
 |---|---|---|
-| argon2id PHC string at rest (self-describing params) | ✅ | credentials/R5; `password_credential.hash` |
-| Per-row salt embedded in PHC | ✅ | argon2id PHC format |
-| `password_changed_at` distinct from `updated_at` | ✅ | credentials/R6 |
+| argon2id PHC string at rest (self-describing params) | ✅ schema | credentials/R5; `password_credential.hash`; no Go writes it yet |
+| Per-row salt embedded in PHC | ✅ design | argon2id PHC format; v0.2 wires it |
+| `password_changed_at` distinct from `updated_at` | ✅ schema | credentials/R6; column present, no code updates it yet |
 | Configurable params (`PasswordHashParams`) with re-hash on verify | ✅ schema | configx; verify lands v0.2 |
 | Persistent failed-attempt counter (cross-restart) | ✅ schema | credentials/R4; `auth_throttle (account_id, factor='password')` |
 | Verify endpoint with throttle enforcement | ⚠️ deferred (v0.2) | `pkg/credential/password.Verify` stubbed |
@@ -114,8 +123,8 @@ when it traces to one of those reports.
 | `post_logout_redirect_uris` exact-match list | ✅ schema | oidc/C1; `oidc_client.post_logout_redirect_uris` |
 | Single-use authorization codes with replay revocation | ✅ design | oidc/C8; spec §"Authorization-code lifecycle" — `consumed_at`, revoke family on replay, audit |
 | `iss` parameter in authorization response (RFC 9207) | ✅ design | spec §"HTTP surface"; discovery advertises support |
-| Discovery doc (RFC 8414 / OIDC Core) | ✅ stub | `/.well-known/openid-configuration` |
-| JWKS endpoint | ✅ stub | `/jwks` |
+| Discovery doc (RFC 8414 / OIDC Core) | ✅ stub | `/.well-known/openid-configuration` mounted; advertises planned v0.4 endpoints |
+| JWKS endpoint | ✅ stub | `/oauth/jwks` mounted; returns empty `keys` array until v0.4 mints signing keys |
 | ID token signed with asymmetric alg | ✅ design | RS256; ES256 / EdDSA possible via `signing_key.algorithm` |
 | `alg: none` rejected | ✅ design | jwt verification configured for RS256 only |
 | ID token claims: signature, `iss`, `aud`, `exp`, `nonce` validated | ✅ design | INTEGRATION.md |
@@ -218,7 +227,7 @@ when it traces to one of those reports.
 | Session manager for end users (`/me/sessions`) | ✅ | carried from v0.1 skeleton |
 | Admin can revoke other-user sessions | ✅ | `/accounts/revoke-sessions` |
 | Live `account.disabled` check per request | ✅ | `session.LoadSession` middleware |
-| Sudo mode for sensitive actions | ✅ | `pkg/authn/sudo` |
+| Sudo mode for sensitive actions | ✅ | `pkg/server/handle_sudo.go` |
 | Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ | `pkg/authn/ratelimit` |
 | OpenAPI spec for management API | ✅ | huma-generated |
 | Admin UI for accounts | ⚠️ deferred (v0.6) | dashboard scaffold empty in v0.1 |

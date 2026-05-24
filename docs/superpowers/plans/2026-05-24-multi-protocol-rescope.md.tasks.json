@@ -59,7 +59,7 @@
     {
       "id": 21,
       "subject": "Task 8: User-facing doc rewrites (DESIGN/STATUS/AUDIT/INTEGRATION/README)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [18],
       "description": "**Goal:** Rewrite top-level docs to match the rescoped service. No picotera vocabulary in user-facing docs (spec/audit reports retain it as audit trail).\n\n**Files:** DESIGN.md, STATUS.md, AUDIT.md, INTEGRATION.md, README.md.\n\n**Verify:** `! grep -rni picotera DESIGN.md STATUS.md AUDIT.md INTEGRATION.md README.md`\n\n```json:metadata\n{\"files\": [\"DESIGN.md\", \"STATUS.md\", \"AUDIT.md\", \"INTEGRATION.md\", \"README.md\"], \"verifyCommand\": \"! grep -rni picotera DESIGN.md STATUS.md AUDIT.md INTEGRATION.md README.md\", \"acceptanceCriteria\": [\"no picotera in user docs\", \"DESIGN reflects 3-layer arch\", \"AUDIT has password+TOTP+federation+SAML sections\", \"INTEGRATION adds Pattern C SAML\"]}\n```"
     }

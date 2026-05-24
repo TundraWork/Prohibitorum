@@ -25,6 +25,7 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
+	oidcop "prohibitorum/pkg/protocol/oidc"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -39,6 +40,7 @@ type Server struct {
 	pairingStore *pairing.PairingStore
 	rateLimiter  *authn.RateLimiter
 	webauthn     *webauthn.WebAuthn
+	oidcOP       *oidcop.Provider
 	// Audit records credential lifecycle events. Wired in v0.1; handlers
 	// begin calling Record() in v0.2.
 	Audit audit.Writer
@@ -94,6 +96,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		pairingStore: pairing.NewPairingStore(kvStore),
 		rateLimiter:  authn.NewRateLimiter(),
 		webauthn:     wa,
+		oidcOP:       oidcop.New(config),
 		Audit:        audit.NewWriter(queries),
 	}
 	s.registerOperations()
@@ -185,4 +188,11 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationCreateInvitation, s.handleCreateInvitation, admin)
 	registerOp(mgmt, contract.OperationListInvitations, s.handleListInvitations, admin)
 	registerOp(mgmt, contract.OperationRevokeInvitation, s.handleRevokeInvitation, admin)
+
+	// OIDC OP — discovery and JWKS are usable from v0.1. The discovery doc
+	// advertises authorize/token/userinfo/logout/jwks URLs; the latter four
+	// land mounted-and-functional in v0.4 (currently unmounted; their
+	// handlers in pkg/protocol/oidc return 501).
+	s.router.Get("/.well-known/openid-configuration", s.oidcOP.HandleDiscovery)
+	s.router.Get("/oauth/jwks", s.oidcOP.HandleJWKS)
 }

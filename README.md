@@ -31,8 +31,9 @@ Requires Postgres 14+ and a Redis-compatible KV (or in-process memory).
 # 1. Toolchain via mise
 mise install
 
-# 2. Generate a data-encryption key (required at boot even in v0.1).
+# 2. Environment — DEK (required at boot) and origin (required by enroll-admin)
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
+export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
 
 # 3. Apply migrations
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum?sslmode=disable"
@@ -40,12 +41,18 @@ mise run db:up
 
 # 4. Bootstrap the first admin
 go run ./cmd/prohibitorum enroll-admin
-# Copy the enrollment URL it prints; open in browser; register a passkey.
+# Prints an enrollment URL. v0.6's dashboard will drive the in-browser
+# passkey ceremony; until then, drive the API directly:
+#   POST /api/prohibitorum/enrollments/{token}/register/begin
+#   POST /api/prohibitorum/enrollments/{token}/register/complete
+# (See STATUS.md "WebAuthn smoke without a frontend" for options.)
 
 # 5. Run the server
-PROHIBITORUM_PUBLIC_ORIGIN=http://localhost:8080 mise run server
+mise run server
+# Mounted in v0.1: /api/prohibitorum/* + /.well-known/openid-configuration
+# + /oauth/jwks (JWKS returns empty `keys` until v0.4).
 
-# 6. Dashboard dev (v0.6+)
+# 6. Dashboard dev (v0.6+; dashboard/ is empty until then)
 mise run web
 ```
 

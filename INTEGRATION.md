@@ -15,13 +15,24 @@ For new integrations, **start with A**. The library ecosystem is huge,
 and you stop having to think about session theft, cookie domains, and
 revocation propagation.
 
-Pattern C is delivered in v0.5 — the schema and route table land in
-v0.1, but `/saml/sso` returns 501 until the implementation arrives.
-Documented here so SP-side configuration can be planned in parallel.
+Pattern C is delivered in v0.5 — the schema (`saml_sp`, `saml_sp_acs`,
+`saml_sp_key`, `saml_subject_id`, `saml_session`) ships in v0.1, but
+the SAML routes (`/saml/sso`, `/saml/metadata`, `/saml/slo`) are not
+mounted in v0.1; handlers exist in `pkg/protocol/saml` and return 501
+once wired. Documented here so SP-side configuration can be planned in
+parallel.
 
 ---
 
 ## Pattern A — OIDC Authorization Code + PKCE
+
+> **Status (v0.1):** the SQL schema for `oidc_client` ships in v0.1 and
+> `/.well-known/openid-configuration` + `/oauth/jwks` are mounted (the
+> JWKS returns an empty `keys` array until v0.4 mints signing keys). The
+> OP token-flow endpoints (`/oauth/authorize`, `/oauth/token`,
+> `/oauth/userinfo`, `/oidc/logout`) are **not** mounted in v0.1;
+> handlers in `pkg/protocol/oidc` will return 501 once wired in v0.4.
+> The flow described below is the v0.4 target.
 
 ### One-time setup
 
@@ -142,7 +153,7 @@ identity matters more than its claims.
 
 ### Library recommendations
 
-- Go RP: `github.com/zitadel/oidc/v3/pkg/client` — same library Prohibitorum uses on the OP side.
+- Go RP: `github.com/zitadel/oidc/v3/pkg/client` — the library Prohibitorum will use on the OP side (planned for v0.4).
 - Node RP: `openid-client`.
 - Python RP: `authlib`.
 - Browser-only SPA: don't. Always have a thin back-end that holds the refresh token.
@@ -160,6 +171,10 @@ library reads this once at startup and caches it.
 ---
 
 ## Pattern B — Cookie + Introspection
+
+> **Status (v0.1):** `/oauth/introspect` is not present in v0.1;
+> handler stubs land in v0.4 alongside Pattern A. Documented here so
+> co-located first-party RPs can plan their integration shape.
 
 For first-party RPs co-located with Prohibitorum (same parent domain),
 the simpler integration is to share the session cookie and let RP
