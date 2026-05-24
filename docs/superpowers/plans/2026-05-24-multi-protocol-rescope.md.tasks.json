@@ -4,13 +4,13 @@
     {
       "id": 13,
       "subject": "Task 0: Baseline — go mod tidy + green build",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Establish known-good starting point; lock indirect deps.\n\n**Files:** go.sum (auto-update)\n\n**Verify:** `go build ./... && go test ./...`\n\n```json:metadata\n{\"files\": [\"go.sum\"], \"verifyCommand\": \"go build ./... && go test ./...\", \"acceptanceCriteria\": [\"go mod tidy clean\", \"go build ./... succeeds\", \"go test ./... passes\"]}\n```"
     },
     {
       "id": 17,
       "subject": "Task 1: Atomic package reorganization (pkg/auth → three-layer)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [13],
       "description": "**Goal:** Move pkg/auth/* and pkg/oidc/ into pkg/{account, credential/*, session, authn, protocol/oidc}. No semantic changes.\n\n**Files:** 11 moves + import-line updates across pkg/server/* and cmd/. pkg/auth and pkg/oidc deleted.\n\n**Verify:** `go build ./... && go test ./... && ! test -d pkg/auth && ! test -d pkg/oidc`\n\n```json:metadata\n{\"files\": [\"pkg/account/\", \"pkg/credential/webauthn/\", \"pkg/credential/enrollment/\", \"pkg/credential/pairing/\", \"pkg/session/\", \"pkg/authn/\", \"pkg/protocol/oidc/\", \"pkg/server/\"], \"verifyCommand\": \"go build ./... && go test ./...\", \"acceptanceCriteria\": [\"pkg/auth deleted\", \"pkg/oidc deleted\", \"build green\", \"tests pass\"]}\n```"
     },
@@ -64,5 +64,5 @@
       "description": "**Goal:** Rewrite top-level docs to match the rescoped service. No picotera vocabulary in user-facing docs (spec/audit reports retain it as audit trail).\n\n**Files:** DESIGN.md, STATUS.md, AUDIT.md, INTEGRATION.md, README.md.\n\n**Verify:** `! grep -rni picotera DESIGN.md STATUS.md AUDIT.md INTEGRATION.md README.md`\n\n```json:metadata\n{\"files\": [\"DESIGN.md\", \"STATUS.md\", \"AUDIT.md\", \"INTEGRATION.md\", \"README.md\"], \"verifyCommand\": \"! grep -rni picotera DESIGN.md STATUS.md AUDIT.md INTEGRATION.md README.md\", \"acceptanceCriteria\": [\"no picotera in user docs\", \"DESIGN reflects 3-layer arch\", \"AUDIT has password+TOTP+federation+SAML sections\", \"INTEGRATION adds Pattern C SAML\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-24T00:00:00Z"
+  "lastUpdated": "2026-05-25T00:00:00Z"
 }

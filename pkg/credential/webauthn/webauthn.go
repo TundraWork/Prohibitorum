@@ -21,13 +21,9 @@ func NewWebAuthn(cfg configx.WebAuthnConfig) (*webauthn.WebAuthn, error) {
 	if cfg.RPID == "" {
 		return nil, fmt.Errorf("webauthn: PROHIBITORUM_WEBAUTHN_RP_ID must be set (or derivable from PUBLIC_ORIGIN)")
 	}
-	displayName := cfg.RPDisplayName
-	if displayName == "" {
-		displayName = "Prohibitorum"
-	}
 	return webauthn.New(&webauthn.Config{
 		RPID:                  cfg.RPID,
-		RPDisplayName:         displayName,
+		RPDisplayName:         cfg.RPDisplayName,
 		RPOrigins:             cfg.RPOrigins,
 		AttestationPreference: protocol.PreferNoAttestation,
 		Timeouts: webauthn.TimeoutsConfig{
