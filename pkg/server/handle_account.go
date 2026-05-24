@@ -134,6 +134,9 @@ type updateAccountIn struct {
 }
 
 func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (*accountOut, error) {
+	if in.Body.Role != "user" && in.Body.Role != "admin" {
+		return nil, authErrToHuma(authn.ErrInvalidRole())
+	}
 	if in.Body.Username != "" {
 		return nil, authErrToHuma(authn.ErrUsernameImmutable())
 	}
@@ -465,6 +468,9 @@ type invitationOut struct {
 }
 
 func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitationIn) (*invitationOut, error) {
+	if in.Body.Role != "user" && in.Body.Role != "admin" {
+		return nil, authErrToHuma(authn.ErrInvalidRole())
+	}
 	tpl := &enrollment.EnrollmentTemplate{
 		Role:       in.Body.Role,
 		Attributes: in.Body.Attributes,

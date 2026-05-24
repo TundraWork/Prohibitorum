@@ -72,6 +72,10 @@ func ErrEnrollmentConsumed() *AuthError {
 	return newErr(http.StatusGone, "enrollment_consumed", "邀请链接已使用")
 }
 
+func ErrInvalidRole() *AuthError {
+	return newErr(http.StatusBadRequest, "invalid_role", "角色无效")
+}
+
 func ErrInvalidUsername() *AuthError {
 	return newErr(http.StatusBadRequest, "invalid_username", "用户名必须为 2-32 个小写字母、数字、下划线或连字符")
 }
