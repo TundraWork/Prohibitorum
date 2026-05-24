@@ -79,6 +79,23 @@ type OidcClient struct {
 	CreatedAt                   pgtype.Timestamptz `json:"createdAt"`
 }
 
+type PasswordCredential struct {
+	AccountID         int32              `json:"accountId"`
+	Hash              string             `json:"hash"`
+	PasswordChangedAt pgtype.Timestamptz `json:"passwordChangedAt"`
+	UpdatedAt         pgtype.Timestamptz `json:"updatedAt"`
+}
+
+type RecoveryCode struct {
+	ID            int32              `json:"id"`
+	AccountID     int32              `json:"accountId"`
+	Hash          string             `json:"hash"`
+	UsedAt        pgtype.Timestamptz `json:"usedAt"`
+	UsedSessionID pgtype.Text        `json:"usedSessionId"`
+	UsedIp        *netip.Addr        `json:"usedIp"`
+	CreatedAt     pgtype.Timestamptz `json:"createdAt"`
+}
+
 type RevokedJti struct {
 	Jti       string             `json:"jti"`
 	ExpiresAt pgtype.Timestamptz `json:"expiresAt"`
@@ -107,6 +124,19 @@ type SigningKey struct {
 	NotBefore   pgtype.Timestamptz `json:"notBefore"`
 	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
 	RetiredAt   pgtype.Timestamptz `json:"retiredAt"`
+}
+
+type TotpCredential struct {
+	AccountID   int32              `json:"accountId"`
+	SecretEnc   []byte             `json:"secretEnc"`
+	SecretNonce []byte             `json:"secretNonce"`
+	KeyVersion  int32              `json:"keyVersion"`
+	Period      int32              `json:"period"`
+	Digits      int32              `json:"digits"`
+	Algorithm   string             `json:"algorithm"`
+	LastStep    int64              `json:"lastStep"`
+	ConfirmedAt pgtype.Timestamptz `json:"confirmedAt"`
+	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
 }
 
 type WebauthnCredential struct {

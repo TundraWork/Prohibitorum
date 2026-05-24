@@ -29,3 +29,11 @@ sql:
               pointer: true
           - column: "auth_throttle.account_id"
             go_type: "int32"
+          - column: "password_credential.account_id"
+            go_type: "int32"
+          - column: "totp_credential.account_id"
+            go_type: "int32"
+          - column: "recovery_code.id"
+            go_type: "int32"
+          - column: "recovery_code.account_id"
+            go_type: "int32"

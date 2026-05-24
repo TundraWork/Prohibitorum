@@ -11,18 +11,23 @@ import (
 )
 
 type Querier interface {
+	ConfirmTOTPCredential(ctx context.Context, accountID int32) error
 	// Atomic single-use consume. Returns the row only if it was unconsumed and unexpired.
 	// Callers detect any "not consumable" branch via pgx.ErrNoRows.
 	ConsumeEnrollment(ctx context.Context, token string) (Enrollment, error)
+	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (RecoveryCode, error)
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
 	DeactivateAllSigningKeys(ctx context.Context) error
 	DeleteAccountByID(ctx context.Context, id int32) error
 	DeleteAllCredentialsForAccount(ctx context.Context, accountID int32) error
+	DeleteAllRecoveryCodesByAccount(ctx context.Context, accountID int32) error
 	// Owner-scoped delete: zero rows affected means the id doesn't match an owned
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) error
+	DeletePasswordCredential(ctx context.Context, accountID int32) error
+	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	GetAccountByID(ctx context.Context, id int32) (Account, error)
 	GetAccountByUsername(ctx context.Context, username string) (Account, error)
 	GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error)
@@ -31,15 +36,19 @@ type Querier interface {
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
+	GetPasswordCredential(ctx context.Context, accountID int32) (PasswordCredential, error)
 	GetSession(ctx context.Context, id string) (Session, error)
+	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
 	HasAnyActiveAdmin(ctx context.Context) (bool, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
 	InsertCredential(ctx context.Context, arg InsertCredentialParams) (WebauthnCredential, error)
 	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
+	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) (RecoveryCode, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error)
 	InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (SigningKey, error)
+	InsertTOTPCredential(ctx context.Context, arg InsertTOTPCredentialParams) (TotpCredential, error)
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
@@ -47,6 +56,7 @@ type Querier interface {
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
 	ListOIDCClients(ctx context.Context) ([]OidcClient, error)
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
+	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	// Every non-retired key: the active signing key + any keys still inside
 	// their rollover window. JWKS endpoint serves the public_jwk of each.
@@ -69,7 +79,9 @@ type Querier interface {
 	// Zero rows affected means the id doesn't match an owned credential; the
 	// handler then surfaces credential_not_found.
 	UpdateMyCredentialNickname(ctx context.Context, arg UpdateMyCredentialNicknameParams) (int64, error)
+	UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) error
 	UpsertAuthThrottle(ctx context.Context, arg UpsertAuthThrottleParams) (AuthThrottle, error)
+	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
 }
 
 var _ Querier = (*Queries)(nil)
