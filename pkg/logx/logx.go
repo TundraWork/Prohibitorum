@@ -17,6 +17,10 @@ func WithContext(ctx context.Context) *logrus.Entry {
 	return logrus.WithContext(ctx)
 }
 
+func WithFields(fields logrus.Fields) *logrus.Entry {
+	return logrus.WithFields(fields)
+}
+
 func New() *logrus.Entry {
 	return logrus.WithFields(logrus.Fields{})
 }
