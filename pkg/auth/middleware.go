@@ -1,0 +1,232 @@
+package auth
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+
+	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/db"
+)
+
+// Cookie names — referenced by handlers + tests.
+const (
+	SessionCookieName  = "prohibitorum_session"
+	CeremonyCookieName = "prohibitorum_ceremony"
+)
+
+// Session is the per-request authentication record placed on the context by
+// LoadSession. Token + Data are the cookie + KV view; Account is the freshly
+// loaded db row (live — never snapshotted into the session blob).
+type Session struct {
+	Account *db.Account
+	Token   string
+	Data    *SessionData
+}
+
+type ctxKey struct{ name string }
+
+var sessionCtxKey = ctxKey{name: "session"}
+
+// WithSession returns a new context with the session attached.
+func WithSession(ctx context.Context, s *Session) context.Context {
+	return context.WithValue(ctx, sessionCtxKey, s)
+}
+
+// SessionFromContext returns the session attached by LoadSession, or nil if
+// the request is unauthenticated.
+func SessionFromContext(ctx context.Context) *Session {
+	s, _ := ctx.Value(sessionCtxKey).(*Session)
+	return s
+}
+
+// LoadSession returns a chi middleware that:
+//  1. Reads the prohibitorum_session cookie.
+//  2. Validates it against the SessionStore.
+//  3. Fetches the live db.Account.
+//  4. Attaches *Session to the request context.
+//
+// Does NOT reject missing/invalid sessions — that's per-route via registerOp's
+// Check. DOES reject disabled accounts with 403 account_disabled (and revokes
+// the session) because a disabled account never has authority regardless of
+// what route is being hit. Failures in cookie parsing or session lookup are
+// silently swallowed — the request continues unauthenticated, and downstream
+// auth checks will produce the appropriate 401.
+func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c, err := r.Cookie(SessionCookieName)
+			if err != nil || c.Value == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			accountID, token, ok := ParseCookieValue(c.Value)
+			if !ok {
+				http.SetCookie(w, ClearedSessionCookie(cfg, r))
+				next.ServeHTTP(w, r)
+				return
+			}
+			ip := ClientIP(r, cfg.TrustProxy)
+			data, refreshed, err := store.Load(r.Context(), accountID, token, ip, r.UserAgent())
+			if err != nil {
+				// Invalid/expired session: clear the cookie, continue unauthenticated.
+				http.SetCookie(w, ClearedSessionCookie(cfg, r))
+				next.ServeHTTP(w, r)
+				return
+			}
+			account, err := q.GetAccountByID(r.Context(), accountID)
+			if err != nil {
+				// Account vanished (e.g. deleted while session was live).
+				http.SetCookie(w, ClearedSessionCookie(cfg, r))
+				_ = store.Revoke(r.Context(), accountID, token)
+				next.ServeHTTP(w, r)
+				return
+			}
+			if account.Disabled {
+				// Disabled mid-session — kill the persistent session in KV and clear the
+				// cookie so the user is forcibly logged out. We still attach a "disabled
+				// sentinel" session to the context so per-route Check can return
+				// account_disabled (machine-readable JSON) instead of no_session.
+				//
+				// Public routes (auth/logout, enrollment consume, etc.) read the sentinel
+				// via SessionFromContext but ignore it — their AuthRequirement is AuthPublic,
+				// which Check returns nil for before inspecting the session.
+				_ = store.Revoke(r.Context(), accountID, token)
+				http.SetCookie(w, ClearedSessionCookie(cfg, r))
+				ctx := WithSession(r.Context(), &Session{Account: &account, Token: "", Data: nil})
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+			if refreshed {
+				http.SetCookie(w, FreshSessionCookie(cfg, r, accountID, token, store.TTL()))
+			}
+			ctx := WithSession(r.Context(), &Session{Account: &account, Token: token, Data: data})
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// Check enforces the AuthRequirement against the (possibly nil) session.
+// Returns nil on success or the canonical AuthError on failure.
+func Check(s *Session, req contract.AuthRequirement) error {
+	if req.Kind == contract.AuthPublic {
+		return nil
+	}
+	if s == nil {
+		return ErrNoSession()
+	}
+	// Disabled-session sentinel from LoadSession — reject every non-public
+	// route with the JSON-envelope account_disabled code so the dashboard's
+	// ApiRequestError carries a machine-readable code.
+	if s.Account.Disabled {
+		return ErrAccountDisabled()
+	}
+	switch req.Kind {
+	case contract.AuthSession:
+		return nil
+	case contract.AuthAdmin:
+		if s.Account.Role != "admin" {
+			return ErrNotAdmin()
+		}
+		return nil
+	case contract.AuthPermissionKind:
+		if !Permits(s.Account, req.Permission) {
+			return ErrPermissionDenied()
+		}
+		return nil
+	}
+	return ErrNoSession()
+}
+
+// ----- cookie helpers -------------------------------------------------------
+
+// FreshSessionCookie constructs the Set-Cookie value for issuing or refreshing
+// a session. Path=/api/prohibitorum so the cookie is sent to API calls but not
+// to static asset requests at /. Secure derived from request scheme.
+func FreshSessionCookie(cfg *configx.Config, r *http.Request, accountID int32, token string, ttl time.Duration) *http.Cookie {
+	return &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    CookieValue(accountID, token),
+		Path:     "/api/prohibitorum",
+		HttpOnly: true,
+		Secure:   isSecure(r, cfg.TrustProxy),
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(ttl.Seconds()),
+	}
+}
+
+// ClearedSessionCookie expires the session cookie. Path MUST match the
+// original FreshSessionCookie path or browsers will create a new empty
+// cookie rather than clearing the existing one.
+func ClearedSessionCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
+	return &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    "",
+		Path:     "/api/prohibitorum",
+		HttpOnly: true,
+		Secure:   isSecure(r, cfg.TrustProxy),
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	}
+}
+
+// CeremonyCookie carries the random key that links /auth/login/begin and
+// /auth/login/complete. Path is scoped to /api/prohibitorum/auth so the cookie
+// isn't sent on unrelated API requests. SameSite=Strict because the
+// ceremony is always same-origin and we want maximum tightness during the
+// ~5 minute window. Max-Age 300 mirrors the KV TTL.
+func CeremonyCookie(cfg *configx.Config, r *http.Request, value string) *http.Cookie {
+	return &http.Cookie{
+		Name:     CeremonyCookieName,
+		Value:    value,
+		Path:     "/api/prohibitorum/auth",
+		HttpOnly: true,
+		Secure:   isSecure(r, cfg.TrustProxy),
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   300,
+	}
+}
+
+// ClearedCeremonyCookie expires the ceremony cookie. Path matches the issue path.
+func ClearedCeremonyCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
+	c := CeremonyCookie(cfg, r, "")
+	c.MaxAge = -1
+	return c
+}
+
+// isSecure derives the Secure flag from the request: TLS connection OR
+// honored X-Forwarded-Proto when TrustProxy is enabled.
+func isSecure(r *http.Request, trustProxy bool) bool {
+	if r.TLS != nil {
+		return true
+	}
+	if trustProxy && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		return true
+	}
+	return false
+}
+
+// ClientIP returns the client's IP, honoring X-Forwarded-For / X-Real-IP only
+// when TrustProxy is on. Otherwise falls back to RemoteAddr's host portion.
+func ClientIP(r *http.Request, trustProxy bool) string {
+	if trustProxy {
+		if v := r.Header.Get("X-Forwarded-For"); v != "" {
+			if i := strings.IndexByte(v, ','); i > 0 {
+				return strings.TrimSpace(v[:i])
+			}
+			return strings.TrimSpace(v)
+		}
+		if v := r.Header.Get("X-Real-IP"); v != "" {
+			return v
+		}
+	}
+	host := r.RemoteAddr
+	if i := strings.LastIndexByte(host, ':'); i > 0 {
+		// strip port; handles IPv4 "1.2.3.4:5678" and IPv6 "[::1]:5678" reasonably.
+		host = host[:i]
+		host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
+	}
+	return host
+}

@@ -1,0 +1,586 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/sirupsen/logrus"
+
+	"prohibitorum/pkg/auth"
+	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/logx"
+)
+
+// accountViewFromRow projects a ListAccountsRow into AccountView. The row
+// carries the same columns as db.Account plus a pre-computed LastSignInAt.
+func accountViewFromRow(r *db.ListAccountsRow) contract.AccountView {
+	a := db.Account{
+		ID:                   r.ID,
+		Username:             r.Username,
+		DisplayName:          r.DisplayName,
+		WebauthnUserHandle:   r.WebauthnUserHandle,
+		Role:                 r.Role,
+		CanViewOwnUsage:      r.CanViewOwnUsage,
+		CanManageOwnApiKeys:  r.CanManageOwnApiKeys,
+		CanViewModels:        r.CanViewModels,
+		CanViewOwnTraces:     r.CanViewOwnTraces,
+		CanManageOwnProjects: r.CanManageOwnProjects,
+		Disabled:             r.Disabled,
+		CreatedAt:            r.CreatedAt,
+		UpdatedAt:            r.UpdatedAt,
+	}
+	var lsi *time.Time
+	if r.LastSignInAt.Valid {
+		v := r.LastSignInAt.Time
+		lsi = &v
+	}
+	return accountViewFromAccount(&a, lsi)
+}
+
+// accountViewFromAccount projects a db.Account into AccountView with an
+// optional lastSignInAt (nil on single-row fetches that don't carry the
+// credential subquery).
+func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time) contract.AccountView {
+	return contract.AccountView{
+		ID:           a.ID,
+		Username:     a.Username,
+		DisplayName:  a.DisplayName,
+		Role:         a.Role,
+		Permissions:  auth.PermissionsView(a),
+		Disabled:     a.Disabled,
+		CreatedAt:    a.CreatedAt.Time,
+		UpdatedAt:    a.UpdatedAt.Time,
+		LastSignInAt: lastSignInAt,
+	}
+}
+
+// ----- GET /accounts ---------------------------------------------------------
+
+type listAccountsOut struct {
+	Body []contract.AccountView
+}
+
+func (s *Server) handleListAccounts(ctx context.Context, _ *struct{}) (*listAccountsOut, error) {
+	rows, err := s.queries.ListAccounts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("handleListAccounts: query: %w", err)
+	}
+	views := make([]contract.AccountView, 0, len(rows))
+	for i := range rows {
+		views = append(views, accountViewFromRow(&rows[i]))
+	}
+	return &listAccountsOut{Body: views}, nil
+}
+
+// ----- GET /accounts/{id} ----------------------------------------------------
+
+type getAccountIn struct {
+	ID int32 `path:"id"`
+}
+
+func (s *Server) handleGetAccount(ctx context.Context, in *getAccountIn) (*accountOut, error) {
+	a, err := s.queries.GetAccountByID(ctx, in.ID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(auth.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleGetAccount: query: %w", err)
+	}
+	return &accountOut{Body: accountViewFromAccount(&a, nil)}, nil
+}
+
+// ----- PUT /accounts/{id} ----------------------------------------------------
+
+type updateAccountIn struct {
+	ID   int32 `path:"id"`
+	Body struct {
+		// username is immutable; reject if the caller supplies any value.
+		Username    string               `json:"username,omitempty"`
+		DisplayName string               `json:"displayName"`
+		Role        string               `json:"role"`
+		Permissions contract.Permissions `json:"permissions"`
+		Disabled    bool                 `json:"disabled"`
+	}
+}
+
+func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (*accountOut, error) {
+	if in.Body.Username != "" {
+		return nil, authErrToHuma(auth.ErrUsernameImmutable())
+	}
+	if err := auth.ValidateDisplayName(in.Body.DisplayName); err != nil {
+		return nil, authErrToHuma(err)
+	}
+
+	// Admin accounts cannot be disabled — demote first. Keeps the active-admin
+	// invariant clean (a "disabled admin" is a confusing state).
+	if in.Body.Role == "admin" && in.Body.Disabled {
+		return nil, authErrToHuma(auth.ErrAdminCannotBeDisabled())
+	}
+
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("handleUpdateAccount: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	q := s.queries.WithTx(tx)
+
+	current, err := q.GetAccountByID(ctx, in.ID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(auth.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleUpdateAccount: load: %w", err)
+	}
+
+	// If this account currently contributes to the active-admin count and the
+	// update would remove that contribution, enforce the last-admin invariant.
+	demoting := current.Role == "admin" && in.Body.Role != "admin"
+	disabling := !current.Disabled && in.Body.Disabled
+	if (demoting || disabling) && current.Role == "admin" && !current.Disabled {
+		n, err := q.CountActiveAdminsForUpdate(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("handleUpdateAccount: count admins: %w", err)
+		}
+		if n <= 1 {
+			return nil, authErrToHuma(auth.ErrLastAdmin())
+		}
+	}
+
+	// Admin role implies all permissions are true regardless of input — keeps the
+	// DB in a consistent state and matches Permits() which reads admin as full.
+	perms := in.Body.Permissions
+	if in.Body.Role == "admin" {
+		perms = contract.Permissions{
+			ViewOwnUsage:      true,
+			ManageOwnAPIKeys:  true,
+			ViewModels:        true,
+			ViewOwnTraces:     true,
+			ManageOwnProjects: true,
+		}
+	}
+
+	updated, err := q.UpdateAccount(ctx, db.UpdateAccountParams{
+		ID:                   in.ID,
+		DisplayName:          in.Body.DisplayName,
+		Role:                 in.Body.Role,
+		CanViewOwnUsage:      perms.ViewOwnUsage,
+		CanManageOwnApiKeys:  perms.ManageOwnAPIKeys,
+		CanViewModels:        perms.ViewModels,
+		CanViewOwnTraces:     perms.ViewOwnTraces,
+		CanManageOwnProjects: perms.ManageOwnProjects,
+		Disabled:             in.Body.Disabled,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("handleUpdateAccount: update: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("handleUpdateAccount: commit: %w", err)
+	}
+
+	sess := auth.SessionFromContext(ctx)
+	changes := logrus.Fields{}
+	if current.Role != updated.Role {
+		changes["role"] = []string{current.Role, updated.Role}
+	}
+	if current.Disabled != updated.Disabled {
+		changes["disabled"] = []bool{current.Disabled, updated.Disabled}
+	}
+	if current.CanViewOwnUsage != updated.CanViewOwnUsage {
+		changes["view_own_usage"] = []bool{current.CanViewOwnUsage, updated.CanViewOwnUsage}
+	}
+	if current.CanManageOwnApiKeys != updated.CanManageOwnApiKeys {
+		changes["manage_own_api_keys"] = []bool{current.CanManageOwnApiKeys, updated.CanManageOwnApiKeys}
+	}
+	if current.CanViewModels != updated.CanViewModels {
+		changes["view_models"] = []bool{current.CanViewModels, updated.CanViewModels}
+	}
+	if current.CanViewOwnTraces != updated.CanViewOwnTraces {
+		changes["view_own_traces"] = []bool{current.CanViewOwnTraces, updated.CanViewOwnTraces}
+	}
+	if current.CanManageOwnProjects != updated.CanManageOwnProjects {
+		changes["manage_own_projects"] = []bool{current.CanManageOwnProjects, updated.CanManageOwnProjects}
+	}
+	if len(changes) > 0 {
+		actorID := int32(0)
+		if sess != nil {
+			actorID = sess.Account.ID
+		}
+		logx.WithContext(ctx).WithFields(logrus.Fields{
+			"event":     "auth.account_updated",
+			"actor_id":  actorID,
+			"target_id": updated.ID,
+			"changes":   changes,
+		}).Info("auth")
+	}
+
+	// Best-effort: kick sessions when an account is freshly disabled so active
+	// browsers are signed out before their next session refresh window.
+	if disabling {
+		_, _ = s.sessionStore.RevokeAllForAccount(ctx, in.ID)
+	}
+
+	return &accountOut{Body: accountViewFromAccount(&updated, nil)}, nil
+}
+
+// ----- POST /accounts/delete -------------------------------------------------
+
+type deleteAccountIn struct {
+	Body struct {
+		ID int32 `json:"id"`
+	}
+}
+
+func (s *Server) handleDeleteAccount(ctx context.Context, in *deleteAccountIn) (*struct{}, error) {
+	sess := auth.SessionFromContext(ctx)
+	// Admins may not delete their own row — ask another admin to do it.
+	if sess != nil && in.Body.ID == sess.Account.ID {
+		return nil, authErrToHuma(auth.ErrCannotDeleteSelf())
+	}
+
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("handleDeleteAccount: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	q := s.queries.WithTx(tx)
+
+	current, err := q.GetAccountByID(ctx, in.Body.ID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(auth.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleDeleteAccount: load: %w", err)
+	}
+
+	// Deleting the only active admin would leave the system in an
+	// unrecoverable state.
+	if current.Role == "admin" && !current.Disabled {
+		n, err := q.CountActiveAdminsForUpdate(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("handleDeleteAccount: count admins: %w", err)
+		}
+		if n <= 1 {
+			return nil, authErrToHuma(auth.ErrLastAdmin())
+		}
+	}
+
+	if err := q.DeleteAccountByID(ctx, in.Body.ID); err != nil {
+		return nil, fmt.Errorf("handleDeleteAccount: delete: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("handleDeleteAccount: commit: %w", err)
+	}
+
+	actorID := int32(0)
+	if sess != nil {
+		actorID = sess.Account.ID
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":     "auth.account_deleted",
+		"actor_id":  actorID,
+		"target_id": in.Body.ID,
+	}).Info("auth")
+
+	// Best-effort: active sessions for this account are now dangling; revoke
+	// them so browsers are signed out immediately.
+	_, _ = s.sessionStore.RevokeAllForAccount(ctx, in.Body.ID)
+
+	return &struct{}{}, nil
+}
+
+// ----- POST /accounts/credentials/delete -------------------------------------
+
+type deleteAccountCredentialIn struct {
+	Body struct {
+		AccountID    int32 `json:"accountId"`
+		CredentialID int32 `json:"credentialId"`
+	}
+}
+
+func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAccountCredentialIn) (*struct{}, error) {
+	// Verify the account exists.
+	_, err := s.queries.GetAccountByID(ctx, in.Body.AccountID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(auth.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleDeleteAccountCredential: load account: %w", err)
+	}
+
+	// Verify ownership: the credential must belong to the given account. The
+	// delete query is already owner-scoped (WHERE id=$1 AND account_id=$2), but
+	// it's :exec so a no-match is silent. Scan the list to surface 404 cleanly.
+	creds, err := s.queries.ListCredentialsByAccount(ctx, in.Body.AccountID)
+	if err != nil {
+		return nil, fmt.Errorf("handleDeleteAccountCredential: list creds: %w", err)
+	}
+	found := false
+	for _, c := range creds {
+		if c.ID == in.Body.CredentialID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, authErrToHuma(auth.ErrCredentialNotFound())
+	}
+
+	// The precheck above guarantees the row exists; rows-affected == 0 here
+	// means a concurrent delete — treat as success (idempotent admin op).
+	if _, err := s.queries.DeleteCredentialByID(ctx, db.DeleteCredentialByIDParams{
+		ID:        in.Body.CredentialID,
+		AccountID: in.Body.AccountID,
+	}); err != nil {
+		return nil, fmt.Errorf("handleDeleteAccountCredential: delete: %w", err)
+	}
+
+	sess := auth.SessionFromContext(ctx)
+	actorID := int32(0)
+	if sess != nil {
+		actorID = sess.Account.ID
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":         "auth.credential_revoked_admin",
+		"actor_id":      actorID,
+		"target_id":     in.Body.AccountID,
+		"credential_id": in.Body.CredentialID,
+	}).Info("auth")
+
+	return &struct{}{}, nil
+}
+
+// ----- POST /accounts/revoke-sessions ----------------------------------------
+
+type revokeAccountSessionsIn struct {
+	Body struct {
+		ID int32 `json:"id"`
+	}
+}
+
+type revokeAccountSessionsOut struct {
+	Body struct {
+		Revoked int `json:"revoked"`
+	}
+}
+
+func (s *Server) handleRevokeAccountSessions(ctx context.Context, in *revokeAccountSessionsIn) (*revokeAccountSessionsOut, error) {
+	// Ensure the account exists before attempting any revocation.
+	_, err := s.queries.GetAccountByID(ctx, in.Body.ID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(auth.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleRevokeAccountSessions: load: %w", err)
+	}
+
+	revoked, err := s.sessionStore.RevokeAllForAccount(ctx, in.Body.ID)
+	if err != nil {
+		return nil, fmt.Errorf("handleRevokeAccountSessions: revoke: %w", err)
+	}
+
+	sess := auth.SessionFromContext(ctx)
+	actorID := int32(0)
+	if sess != nil {
+		actorID = sess.Account.ID
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":     "auth.sessions_revoked",
+		"actor_id":  actorID,
+		"target_id": in.Body.ID,
+		"revoked":   revoked,
+	}).Info("auth")
+
+	out := &revokeAccountSessionsOut{}
+	out.Body.Revoked = revoked
+	return out, nil
+}
+
+// ----- POST /accounts/reissue-enrollment -------------------------------------
+
+type reissueEnrollmentIn struct {
+	Body struct {
+		ID int32 `json:"id"`
+	}
+}
+
+type enrollmentURLOut struct {
+	Body contract.EnrollmentURLResponse
+}
+
+func (s *Server) handleReissueEnrollment(ctx context.Context, in *reissueEnrollmentIn) (*enrollmentURLOut, error) {
+	// Ensure the account exists.
+	_, err := s.queries.GetAccountByID(ctx, in.Body.ID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(auth.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleReissueEnrollment: load: %w", err)
+	}
+
+	id := in.Body.ID
+	token, expiresAt, err := auth.IssueEnrollment(ctx, s.queries, auth.IntentReset, &id, 0, nil)
+	if err != nil {
+		return nil, fmt.Errorf("handleReissueEnrollment: issue: %w", err)
+	}
+
+	sess := auth.SessionFromContext(ctx)
+	actorID := int32(0)
+	if sess != nil {
+		actorID = sess.Account.ID
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":     "auth.enrollment_issued",
+		"actor_id":  actorID,
+		"target_id": in.Body.ID,
+		"intent":    "reset",
+	}).Info("auth")
+
+	url := s.config.PublicOrigins[0] + "/enroll/" + token
+	return &enrollmentURLOut{Body: contract.EnrollmentURLResponse{
+		URL:       url,
+		ExpiresAt: expiresAt,
+	}}, nil
+}
+
+// ----- POST /invitations -----------------------------------------------------
+
+type createInvitationIn struct {
+	Body struct {
+		Role        string               `json:"role"`
+		Permissions contract.Permissions `json:"permissions"`
+	}
+}
+
+type invitationOut struct {
+	Body contract.InvitationResponse
+}
+
+func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitationIn) (*invitationOut, error) {
+	// Admin role implies all permissions are true regardless of input — keeps the
+	// DB in a consistent state and matches Permits() which reads admin as full.
+	perms := in.Body.Permissions
+	if in.Body.Role == "admin" {
+		perms = contract.Permissions{
+			ViewOwnUsage:      true,
+			ManageOwnAPIKeys:  true,
+			ViewModels:        true,
+			ViewOwnTraces:     true,
+			ManageOwnProjects: true,
+		}
+	}
+
+	tpl := &auth.EnrollmentTemplate{
+		Role:  in.Body.Role,
+		Perms: perms,
+	}
+	token, expiresAt, err := auth.IssueEnrollment(ctx, s.queries, auth.IntentInvite, nil, 0, tpl)
+	if err != nil {
+		return nil, fmt.Errorf("handleCreateInvitation: issue enrollment: %w", err)
+	}
+
+	sess := auth.SessionFromContext(ctx)
+	actorID := int32(0)
+	if sess != nil {
+		actorID = sess.Account.ID
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":         "auth.account_invited",
+		"actor_id":      actorID,
+		"template_role": in.Body.Role,
+	}).Info("auth")
+
+	url := s.config.PublicOrigins[0] + "/enroll/" + token
+	return &invitationOut{
+		Body: contract.InvitationResponse{
+			URL:       url,
+			ExpiresAt: expiresAt,
+		},
+	}, nil
+}
+
+// ----- GET /invitations ------------------------------------------------------
+
+type listInvitationsOut struct {
+	Body []contract.InvitationView
+}
+
+func (s *Server) handleListInvitations(ctx context.Context, _ *struct{}) (*listInvitationsOut, error) {
+	rows, err := s.queries.ListPendingInvitations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("handleListInvitations: %w", err)
+	}
+	views := make([]contract.InvitationView, 0, len(rows))
+	for _, r := range rows {
+		// Permissions snapshot from template_* columns. If template_* are NULL
+		// (legacy rows from before P4.04), treat as all-false.
+		perms := contract.Permissions{
+			ViewOwnUsage:      r.TemplateCanViewOwnUsage.Bool,
+			ManageOwnAPIKeys:  r.TemplateCanManageOwnApiKeys.Bool,
+			ViewModels:        r.TemplateCanViewModels.Bool,
+			ViewOwnTraces:     r.TemplateCanViewOwnTraces.Bool,
+			ManageOwnProjects: r.TemplateCanManageOwnProjects.Bool,
+		}
+		role := "user"
+		if r.TemplateRole.Valid {
+			role = r.TemplateRole.String
+		}
+		views = append(views, contract.InvitationView{
+			Token:       r.Token,
+			URL:         s.config.PublicOrigins[0] + "/enroll/" + r.Token,
+			Role:        role,
+			Permissions: perms,
+			CreatedAt:   r.CreatedAt.Time,
+			ExpiresAt:   r.ExpiresAt.Time,
+		})
+	}
+	return &listInvitationsOut{Body: views}, nil
+}
+
+// ----- POST /invitations/revoke ----------------------------------------------
+
+type revokeInvitationIn struct {
+	Body struct {
+		Token string `json:"token"`
+	}
+}
+
+func (s *Server) handleRevokeInvitation(ctx context.Context, in *revokeInvitationIn) (*struct{}, error) {
+	sess := auth.SessionFromContext(ctx)
+	_, err := s.queries.RevokeInvitation(ctx, in.Body.Token)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(auth.ErrInvitationNotFound())
+		}
+		return nil, fmt.Errorf("handleRevokeInvitation: %w", err)
+	}
+	// Safe to log a 4-char prefix — uniquely identifies the row for audit
+	// without exposing the full bearer token. (See P4.08 logging conventions.)
+	tokenPrefix := in.Body.Token
+	if len(tokenPrefix) > 4 {
+		tokenPrefix = tokenPrefix[:4]
+	}
+	actorID := int32(0)
+	if sess != nil {
+		actorID = sess.Account.ID
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":    "auth.invitation_revoked",
+		"actor_id": actorID,
+		"token4":   tokenPrefix,
+	}).Info("auth")
+	return &struct{}{}, nil
+}
+
+// ----- shared output types ---------------------------------------------------
+
+type accountOut struct {
+	Body contract.AccountView
+}

@@ -1,0 +1,26 @@
+[tools]
+go = "1.26"
+node = "24"
+pnpm = "10"
+sqlc = "1.30.0"
+goose = "3.27.0"
+
+[tasks.server]
+description = "Run the Go server"
+run = "go run ./cmd/prohibitorum/main.go"
+
+[tasks.web]
+description = "Run the dashboard dev server"
+run = "pnpm --dir dashboard dev"
+
+[tasks.openapi]
+description = "Regenerate openapi.yaml from the running humacli"
+run = "go run ./cmd/prohibitorum/main.go openapi > openapi.yaml"
+
+[tasks."db:up"]
+description = "Apply DB migrations"
+run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" up"
+
+[tasks."db:status"]
+description = "Show migration status"
+run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" status"

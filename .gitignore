@@ -1,0 +1,9 @@
+/prohibitorum
+/dashboard/node_modules
+/dashboard/dist
+/dashboard/.vite
+/node_modules
+/.data
+/.env
+*.swp
+.DS_Store
