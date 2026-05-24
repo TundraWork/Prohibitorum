@@ -18,7 +18,6 @@ type Config struct {
 	Port        int    `mapstructure:"port"`
 
 	PublicOrigins []string      `mapstructure:"public_origin"`
-	WebAuthnRPID  string        `mapstructure:"webauthn_rp_id"`
 	SessionTTL    time.Duration `mapstructure:"session_ttl"`
 	TrustProxy    bool          `mapstructure:"trust_proxy"`
 
@@ -72,7 +71,6 @@ func Parse() (*Config, error) {
 	viper.SetDefault("kv.driver", "memory")
 	viper.SetDefault("kv.redis_url", "localhost:6379")
 	viper.SetDefault("public_origin", "http://localhost:8080")
-	viper.SetDefault("webauthn_rp_id", "")
 	viper.SetDefault("session_ttl", 8*time.Hour)
 	viper.SetDefault("trust_proxy", false)
 
@@ -102,22 +100,13 @@ func Parse() (*Config, error) {
 			}
 		}
 	}
-	if config.WebAuthnRPID == "" && len(config.PublicOrigins) > 0 {
+	if config.WebAuthn.RPID == "" && len(config.PublicOrigins) > 0 {
 		if u, err := url.Parse(config.PublicOrigins[0]); err == nil && u.Hostname() != "" {
-			config.WebAuthnRPID = u.Hostname()
+			config.WebAuthn.RPID = u.Hostname()
 		}
-	}
-
-	// Populate WebAuthnConfig from top-level fields when not set explicitly,
-	// preserving backward-compat with PROHIBITORUM_WEBAUTHN_RP_ID.
-	if config.WebAuthn.RPID == "" {
-		config.WebAuthn.RPID = config.WebAuthnRPID
 	}
 	if len(config.WebAuthn.RPOrigins) == 0 {
 		config.WebAuthn.RPOrigins = config.PublicOrigins
-	}
-	if config.WebAuthn.RPDisplayName == "" {
-		config.WebAuthn.RPDisplayName = "Prohibitorum"
 	}
 
 	if config.OIDC.Issuer == "" && len(config.PublicOrigins) > 0 {
