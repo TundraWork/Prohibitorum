@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/db/migrations"
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
@@ -38,6 +39,9 @@ type Server struct {
 	pairingStore *pairing.PairingStore
 	rateLimiter  *authn.RateLimiter
 	webauthn     *webauthn.WebAuthn
+	// Audit records credential lifecycle events. Wired in v0.1; handlers
+	// begin calling Record() in v0.2.
+	Audit audit.Writer
 }
 
 func NewServer(ctx context.Context) (*Server, error) {
@@ -90,6 +94,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		pairingStore: pairing.NewPairingStore(kvStore),
 		rateLimiter:  authn.NewRateLimiter(),
 		webauthn:     wa,
+		Audit:        audit.NewWriter(queries),
 	}
 	s.registerOperations()
 	logx.WithContext(ctx).Info("registered operations")

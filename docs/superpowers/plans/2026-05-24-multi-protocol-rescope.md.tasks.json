@@ -45,7 +45,7 @@
     {
       "id": 20,
       "subject": "Task 6: Migration 005 — SAML tables",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [14],
       "description": "**Goal:** Add saml_sp + saml_sp_acs + saml_sp_key + saml_subject_id + saml_session; queries; sqlc regen.\n\n**Files:** db/migrations/005_saml.sql; db/queries/saml_sp.sql; sqlc.yaml; pkg/db/.\n\n**Verify:** `mise run db:up && go build ./...`\n\n```json:metadata\n{\"files\": [\"db/migrations/005_saml.sql\", \"db/queries/saml_sp.sql\", \"sqlc.yaml\", \"pkg/db/\"], \"verifyCommand\": \"mise run db:up && go build ./...\", \"acceptanceCriteria\": [\"005 applies clean\", \"5 SAML tables exist\", \"sqlc generates\", \"build green\"]}\n```"
     },
