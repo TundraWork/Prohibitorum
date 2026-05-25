@@ -42,7 +42,7 @@ when it traces to one of those reports.
 | `excludeCredentials` on add-passkey | ✅ | `handle_me.go` |
 | Sign-count clone detection → `clone_warning_at` | ✅ | credentials/R8; `webauthn_credential.clone_warning_at` |
 | `user_handle` persisted (L3 §4) | ✅ | credentials/R2; `webauthn_credential.user_handle` indexed |
-| `cose_alg` persisted | ✅ | credentials/R1; `webauthn_credential.cose_alg` |
+| `cose_alg` persisted | ✅ | credentials/R1; `webauthn_credential.cose_alg`; extracted from the COSE_Key CBOR by `pkg/credential/webauthn.COSEAlg` (go-webauthn's `Attestation.PublicKeyAlgorithm` is declared but never assigned by the library — see `cose.go`) |
 | `uv_initialized` persisted (L3 §4) | ✅ | credentials/C5; `webauthn_credential.uv_initialized` |
 | `backup_eligible` / `backup_state` persisted | ✅ | `webauthn_credential.backup_eligible/state` |
 | Full attestation-object retention for MDS3 validation | ⚠️ deferred (v0.7+) | credentials/Optional |
@@ -123,16 +123,16 @@ when it traces to one of those reports.
 | `post_logout_redirect_uris` exact-match list | ✅ schema | oidc/C1; `oidc_client.post_logout_redirect_uris` |
 | Single-use authorization codes with replay revocation | ✅ design | oidc/C8; spec §"Authorization-code lifecycle" — `consumed_at`, revoke family on replay, audit |
 | `iss` parameter in authorization response (RFC 9207) | ✅ design | spec §"HTTP surface"; discovery advertises support |
-| Discovery doc (RFC 8414 / OIDC Core) | ✅ stub | `/.well-known/openid-configuration` mounted; advertises planned v0.4 endpoints |
+| Discovery doc (RFC 8414 / OIDC Core) | ✅ stub | `/.well-known/openid-configuration` mounted; advertises planned v0.4 endpoints; `claims_supported` lists `sub/iss/aud/exp/iat/nonce/auth_time/amr/acr/username/displayName/role/attributes` |
 | JWKS endpoint | ✅ stub | `/oauth/jwks` mounted; returns empty `keys` array until v0.4 mints signing keys |
 | ID token signed with asymmetric alg | ✅ design | RS256; ES256 / EdDSA possible via `signing_key.algorithm` |
 | `alg: none` rejected | ✅ design | jwt verification configured for RS256 only |
 | ID token claims: signature, `iss`, `aud`, `exp`, `nonce` validated | ✅ design | INTEGRATION.md |
-| ID token `auth_time` claim (OIDC Core §2) | ✅ schema | oidc/C2; `session.auth_time` |
-| ID token `amr` / `acr` claims | ✅ schema | oidc/C2; `session.amr text[]`, `session.acr` |
+| ID token `auth_time` claim (OIDC Core §2) | ✅ schema | oidc/C2; `session.auth_time` populated on every `sessionStore.Issue` (writer wired); ID-token mint that emits the claim lands in v0.4 |
+| ID token `amr` / `acr` claims | ✅ schema | oidc/C2; `session.amr` populated (WebAuthn → `["hwk"]`); `session.acr` reserved for v0.2+; ID-token mint v0.4 |
 | ID token `azp` when `aud` is multi-valued | ✅ design | oidc/C5; spec §"Access-token issuance" |
 | ID token `at_hash` (defense in depth) | ✅ design | oidc/C5; spec |
-| `sid` claim sourced from `session.id` | ✅ schema | `session.id` PK |
+| `sid` claim sourced from `session.id` | ✅ schema | `session.id` PK; rows inserted on `Issue` (and revoked on `Revoke` / `RevokeBySessionID` / `RevokeAllForAccount`); claim emission v0.4 |
 | RFC 9068 access token `typ: at+jwt` | ✅ design | oidc/C4 |
 | RFC 9068 required claims (`iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`) | ✅ design | oidc/C3 |
 | `jti` revocation via denylist | ✅ schema | oidc/C3; `revoked_jti` |

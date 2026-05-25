@@ -81,9 +81,55 @@ build on without further migrations.
 - Frontend changes (`dashboard/` is empty; v0.6).
 - Live smoke test — see v0.1.1 below.
 
-## v0.1.1 (next session) — smoke test
+## v0.1.1 — smoke test (done)
 
-Verify the skeleton against a real environment before adding behavior.
+Verified the skeleton against a real environment via `cmd/smoke`, an
+in-process virtual-authenticator client that drives the full WebAuthn
+ceremony without a browser. 10/10 steps passed end-to-end against the
+live dev server: enrollment → /me → logout → login → /me.
+
+Three runtime bugs the smoke test surfaced (all fixed in the same
+session — see commit history):
+
+- `webauthn_credential.cose_alg` was always stored as 0 because the
+  server read `cred.Attestation.PublicKeyAlgorithm`, a go-webauthn
+  field declared but never assigned by the library. Replaced with
+  `pkg/credential/webauthn.COSEAlg(cred.PublicKey)`, which decodes
+  the COSE_Key CBOR and extracts integer key 3 per RFC 8152 §7.1.
+  New registrations now persist ES256 = -7 correctly.
+- The PG `session` table was never written to — sessions stayed
+  KV-only. Wired `SessionStore.Issue` to `db.InsertSession` (and
+  Revoke variants to `db.RevokeSession` /
+  `db.RevokeAllSessionsByAccount`) so v0.4 OIDC can carry
+  `sid`/`auth_time`/`amr`/`acr` claims without a follow-up
+  migration. WebAuthn issues `amr=["hwk"]`; v0.2 will add `pwd`/
+  `otp`/`mfa` for password+TOTP, v0.3 will add `federated`.
+- `/.well-known/openid-configuration`'s `claims_supported` advertised
+  the picotera-vocabulary `"permissions"` claim. Replaced with the
+  spec-correct set: `auth_time`, `amr`, `acr`, `attributes` (plus
+  the standard `sub/iss/aud/exp/iat/nonce/username/displayName/role`).
+
+`cmd/smoke` is committed as permanent v0.1.x tooling; v0.2+ will
+extend it with password/TOTP and federation flows.
+
+### How to re-run the smoke
+
+```bash
+# Start the dev server (background terminal):
+export PROHIBITORUM_DATABASE_URL="postgres://..."
+export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
+export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
+mise exec -- go run ./cmd/prohibitorum
+
+# In a second terminal (same env vars; smoke shells out to enroll-admin):
+mise exec -- go run ./cmd/smoke
+```
+
+## Original v0.1.1 plan (kept for reference)
+
+The pre-smoke version of this section listed manual verification
+steps. Most are now automated by `cmd/smoke`; the remaining manual
+checks are below.
 
 - `go mod tidy` and lock the indirect dep graph; commit if `go.sum` changed.
 - Apply all five migrations to a real Postgres; inspect schemas match the
