@@ -52,12 +52,14 @@ when it traces to one of those reports.
 
 | Item | Status | Notes / source |
 |---|---|---|
-| argon2id PHC string at rest (self-describing params) | ✅ schema | credentials/R5; `password_credential.hash`; no Go writes it yet |
-| Per-row salt embedded in PHC | ✅ design | argon2id PHC format; v0.2 wires it |
-| `password_changed_at` distinct from `updated_at` | ✅ schema | credentials/R6; column present, no code updates it yet |
-| Configurable params (`PasswordHashParams`) with re-hash on verify | ✅ schema | configx; verify lands v0.2 |
-| Persistent failed-attempt counter (cross-restart) | ✅ schema | credentials/R4; `auth_throttle (account_id, factor='password')` |
-| Verify endpoint with throttle enforcement | ⚠️ deferred (v0.2) | `pkg/credential/password.Verify` stubbed |
+| argon2id PHC string at rest (self-describing params) | ✅ smoke-verified | credentials/R5; `password_credential.hash` carries `$argon2id$v=19$…` (smoke step 19 set + step 20 DB assert) |
+| Per-row salt embedded in PHC | ✅ smoke-verified | argon2id PHC format; salt visible in the stored hash from step 20 |
+| `password_changed_at` distinct from `updated_at` | ✅ smoke-verified | credentials/R6; written by `handle_me_password.go` on every set (steps 19, indirectly via revoke at 42) |
+| Configurable params (`PasswordHashParams`) with re-hash on verify | ✅ implemented; smoke-untested | configx defaults `m=65536KiB, t=3, p=1` (OWASP current); re-hash branch in `pkg/credential/password.Verify` is unit-tested; smoke runs one param set |
+| Persistent failed-attempt counter (cross-restart) | ✅ smoke-verified | credentials/R4; `auth_throttle (account_id, factor='totp')` populated by wrong-code drive in step 34, asserted at step 35 |
+| Verify endpoint with throttle enforcement | ✅ smoke-verified | `/auth/password/begin` + `/auth/totp/verify` (steps 25–26) and lockout observed via sudo path (steps 34–35); 429 + Retry-After confirmed |
+| Username-enumeration defense (dummy argon2id verify on missing account) | ✅ implemented; smoke-untested | spec D3; `dummyArgon2idHash` initialised at package init in `pkg/credential/password`; unit-tested in `handle_auth_password_test.go` |
+| Disabled-account rejected at `/auth/password/begin` after dummy verify | ✅ implemented; smoke-untested | `handle_auth_password.go:70`; unit-tested; smoke account never disabled |
 | Breach-corpus check (k-anonymity-style) on set | ⚠️ deferred (v0.2+) | NIST SP 800-63B-4 §3.1.1.2 |
 | Periodic rotation forced | ❌ explicitly forbidden | NIST §3.1.1.2 — do not add |
 | Password history | ❌ explicitly forbidden | NIST §3.1.1.2 — do not add |
@@ -68,31 +70,34 @@ when it traces to one of those reports.
 
 | Item | Status | Notes / source |
 |---|---|---|
-| Secret entropy ≥ 160 bits | ✅ schema | `secret_enc bytea`; generator lands v0.2 |
-| AES-256-GCM at rest | ✅ schema | credentials/C3+C4; `secret_enc` + `secret_nonce` |
-| Versioned DEK (`key_version` per row) | ✅ schema | credentials/C3; `totp_credential.key_version` |
-| AAD bound to row identity (`'totp:'||account_id||':'||key_version`) | ✅ design | credentials/C4; spec §"AES-GCM at-rest" |
-| Per-row nonce (12 bytes from `crypto/rand`) | ✅ schema | `totp_credential.secret_nonce` |
-| 30-second period, 6 digits | ✅ schema | `period`, `digits` columns; defaults match RFC 6238 §1.2 |
-| SHA1 default (Google Authenticator interop) | ✅ schema | credentials/R3; `algorithm` column |
-| ±1 period drift tolerance | ✅ planned | `configx.TOTP.DriftSteps=1`; verify lands v0.2 |
-| `last_step` defeats same-step replay (RFC 6238 §5.2) | ✅ schema | credentials/C1; `totp_credential.last_step` |
-| `confirmed_at` gates the credential until first verify | ✅ schema | `totp_credential.confirmed_at` |
-| Persistent throttle (RFC 4226 §7.3) | ✅ schema | credentials/R4; `auth_throttle (account_id, factor='totp')` |
-| TOTP issuer / label format in QR codes | ⚠️ deferred (v0.2) | spec §"Open questions" |
-| Single TOTP credential per account | ✅ design | industry norm; PRIMARY KEY (account_id) |
+| Secret entropy ≥ 160 bits | ✅ smoke-verified | `pkg/credential/totp` generates 160-bit secret; smoke decodes the base32 secret returned by `/me/totp/begin` and computes a valid code (steps 21–22) |
+| AES-256-GCM at rest | ✅ smoke-verified | credentials/C3+C4; `secret_enc` + `secret_nonce` populated on enrollment (step 21); decrypts on verify (step 22) |
+| Versioned DEK (`key_version` per row) | ✅ smoke-verified | credentials/C3; `totp_credential.key_version` written to 1 by `/me/totp/begin`; ciphertext readable on subsequent verifies (steps 22, 26, 37) |
+| AAD bound to row identity (`'totp:'||account_id||':'||key_version`) | ✅ smoke-verified | credentials/C4; the verify path at step 22 would fail GCM auth if the AAD weren't constructed identically on encrypt and decrypt |
+| Per-row nonce (12 bytes from `crypto/rand`) | ✅ smoke-verified | `totp_credential.secret_nonce`; written on enrollment, consumed on verify |
+| 30-second period, 6 digits | ✅ smoke-verified | `waitForNextTOTPStep` and the working RFC 6238 verify at steps 22, 26, 37 confirm period and digit count |
+| SHA1 default (Google Authenticator interop) | ✅ smoke-verified | credentials/R3; smoke's HMAC-SHA1-based `ComputeCodeForTesting` produces codes the server accepts |
+| ±1 period drift tolerance | ✅ implemented; smoke-untested | `configx.TOTP.DriftSteps=1`; `pkg/credential/totp.Verify` checks T-1, T, T+1; unit-tested. Smoke computes the current step's code |
+| `last_step` defeats same-step replay (RFC 6238 §5.2) | ✅ smoke-verified | credentials/C1; the smoke's `waitForNextTOTPStep` exists precisely because the server rejected a replay; absence of that wait causes step 26 or 37 to fail |
+| `confirmed_at` gates the credential until first verify | ✅ smoke-verified | step 23 DB assert: `confirmed_at IS NOT NULL` after `/me/totp/verify` |
+| Persistent throttle (RFC 4226 §7.3) | ✅ smoke-verified | credentials/R4; step 34 drives wrong codes until 429; step 35 asserts `auth_throttle (account_id, 'totp').failed_attempts>=3, locked_until>now` |
+| Exponential backoff schedule `[0,0,1s,2s,...,15m]` | ✅ implemented; smoke-untested timings | `pkg/authn/throttle` per spec D2; the schedule is unit-tested. Smoke confirms lockout fires and Retry-After is non-empty but doesn't sleep through the curve |
+| TOTP issuer / label format in QR codes | ✅ implemented; smoke captures URI | `pkg/credential/totp` emits `otpauth://totp/{Issuer}:{username}?secret=…&issuer=…`; smoke at step 21 receives `otpauth_uri` and logs the first 40 chars |
+| Single TOTP credential per account | ✅ smoke-verified | step 23 DB assert: exactly 1 row in `totp_credential` for the account |
 
 ## Recovery codes
 
 | Item | Status | Notes / source |
 |---|---|---|
-| argon2id PHC at rest, per-row salt | ✅ schema | credentials/C2; `recovery_code.hash` |
-| Single-use (`used_at` enforced) | ✅ schema | `ConsumeRecoveryCode` query |
-| Shown exactly once at enrollment | ✅ design | spec §"Threat model" |
-| Redemption context captured (session id, IP) | ✅ schema | credentials/R7; `used_session_id` + `used_ip` |
-| Mint count: 10 per account | ✅ planned | `configx.TOTP.RecoveryCodeCount=10` |
-| Codes redeemable independently of TOTP | ✅ planned | dedicated endpoint `/auth/recovery-code/verify` (v0.2) |
-| Code redemption logic | ⚠️ deferred (v0.2) | `pkg/credential/totp.VerifyRecoveryCode` stubbed |
+| argon2id PHC at rest, per-row salt | ✅ smoke-verified | credentials/C2; `recovery_code.hash` populated by `/me/totp/verify` at step 22 and `/me/recovery-codes/regenerate` at step 38 |
+| Single-use (`used_at` enforced) | ✅ smoke-verified | step 31 DB assert after `/auth/recovery-code/verify` (step 30); step 40 DB assert after sudo via recovery_code (step 39) |
+| Shown exactly once at enrollment | ✅ implemented | `/me/totp/verify` returns codes in the response body (step 22); `/me/recovery-codes/regenerate` (step 38) — server never persists the cleartext |
+| Redemption context captured (session id, IP) | ✅ implemented | credentials/R7; `used_session_id` + `used_ip` written by the consume query; not asserted by smoke beyond `used_at IS NOT NULL` |
+| Mint count: 10 per account | ✅ smoke-verified | step 22 + step 23 DB assert (initial 10) + step 38 (regenerate returns 10) |
+| Codes redeemable independently of TOTP | ✅ smoke-verified | `/auth/recovery-code/verify` consumed after `/auth/password/begin` at steps 29–30 (no TOTP involvement); also redeemable as a sudo factor at step 39 |
+| Code redemption logic | ✅ smoke-verified | `pkg/credential/totp.VerifyRecoveryCode` and `Consume…` queries exercised by steps 30, 39 |
+| 80-bit entropy, formatted `XXXX-XXXX-XXXX-XXXX` | ✅ implemented | `pkg/credential/totp.GenerateRecoveryCodes` per spec D4; format observed in response bodies at steps 22, 38 |
+| Regeneration invalidates the prior set | ✅ smoke-verified | step 38 returns 10 fresh codes; the smoke reassigns `recoveryCodes = regen.RecoveryCodes` and uses the new set at step 39, confirming the prior set is no longer the source of truth |
 
 ## Upstream OIDC federation (OIDC Core / RFC 9700)
 
@@ -222,13 +227,15 @@ when it traces to one of those reports.
 | Item | Status | Notes |
 |---|---|---|
 | Forward-only migrations via goose | ✅ | embedded `.sql` files; goose installation quirk documented in STATUS.md |
-| Structured audit logs via `credential_event` | ✅ schema | credentials/New tables; `pkg/audit.Writer` wired into `server.New`; handler usage lands v0.2 |
-| Audit-log fields: who, what, when, IP, UA, detail | ✅ schema | `credential_event.{account_id, factor, event, credential_ref, ip, user_agent, detail jsonb, at}` |
+| Structured audit logs via `credential_event` | ✅ smoke-verified | credentials/New tables; `pkg/audit.Writer` writes `register`/`use`/`fail`/`revoke` rows for password / totp / recovery_code + `session:sudo_granted`; step 45 DB assert checks the union of (factor, event) counts |
+| Audit-log fields: who, what, when, IP, UA, detail | ✅ smoke-verified | `credential_event.{account_id, factor, event, credential_ref, ip, user_agent, detail jsonb, at}`; populated by every v0.2 handler that touches a credential |
 | Session manager for end users (`/me/sessions`) | ✅ | carried from v0.1 skeleton |
 | Admin can revoke other-user sessions | ✅ | `/accounts/revoke-sessions` |
 | Live `account.disabled` check per request | ✅ | `session.LoadSession` middleware |
-| Sudo mode for sensitive actions | ✅ | `pkg/server/handle_sudo.go` |
-| Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ | `pkg/authn/ratelimit` |
+| Sudo mode for sensitive actions | ✅ smoke-verified | `pkg/server/handle_sudo.go`; v0.2 extends to 3 methods (`webauthn` / `password_totp` / `recovery_code`); steps 18, 37, 39, 41 exercise each method end-to-end |
+| Sudo discovery endpoint (`GET /me/sudo/methods`) | ✅ implemented; smoke-untested | priority order `webauthn` → `password_totp` → `recovery_code` from `pkg/authn/flow.AvailableMethods`; unit-tested in `handle_sudo_test.go` |
+| WebAuthn-preferred factor policy (revoke-password-totp) | ✅ smoke-verified | `/me/auth/revoke-password-totp` deletes password + TOTP + recovery rows transactionally (step 42); DB assert at step 43; post-revoke `/auth/password/begin` returns 401 at step 44 |
+| Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ smoke-verified | `pkg/authn/ratelimit` + per-account `auth_throttle` (steps 34–35) |
 | OpenAPI spec for management API | ✅ | huma-generated |
 | Admin UI for accounts | ⚠️ deferred (v0.6) | dashboard scaffold empty in v0.1 |
 | Admin UI for OIDC clients / SAML SPs / upstream IdPs | ⚠️ deferred (v0.6) | manage via SQL until then |

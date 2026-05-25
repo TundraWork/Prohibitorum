@@ -17,11 +17,15 @@ no email channel; admin-issued enrollment is the only recovery path.
 
 ## Status
 
-v0.1 skeleton — rescoped from "WebAuthn-only IdP with OIDC OP" to
-the multi-method scope above. Schema and package layout are in place;
-v0.2+ delivers the actual password / TOTP / federation / SAML / OIDC OP
-business logic. See `STATUS.md` for the roadmap and `AUDIT.md` for the
-spec-compliance checklist.
+v0.2 shipped — **WebAuthn (v0.1) + Password+TOTP+recovery codes (v0.2)**
+are smoke-verified end-to-end against a live dev server (45/45 steps +
+DB-state assertions). Sudo step-up accepts all three methods;
+`POST /me/auth/revoke-password-totp` lets users drop the fallback once
+their passkey is confirmed working.
+
+Still ahead: v0.3 upstream OIDC federation, v0.4 OIDC OP, v0.5 SAML IdP,
+v0.6 frontend, v0.7+ hardening. See `STATUS.md` for the roadmap and
+`AUDIT.md` for the spec-compliance checklist.
 
 ## Quickstart
 
@@ -49,8 +53,11 @@ go run ./cmd/prohibitorum enroll-admin
 
 # 5. Run the server
 mise run server
-# Mounted in v0.1: /api/prohibitorum/* + /.well-known/openid-configuration
+# Mounted in v0.1: WebAuthn enrollment/login + /me + /.well-known/openid-configuration
 # + /oauth/jwks (JWKS returns empty `keys` until v0.4).
+# Mounted in v0.2: /auth/{password/begin,totp/verify,recovery-code/verify}
+# + /me/{password/set,totp/{begin,verify},recovery-codes/regenerate,auth/revoke-password-totp,sudo/methods}
+# + extended /me/sudo/{begin,complete} dispatching on `method`.
 
 # 6. Dashboard dev (v0.6+; dashboard/ is empty until then)
 mise run web
@@ -88,8 +95,8 @@ either by hand is a known antipattern.
 
 - [`DESIGN.md`](./DESIGN.md) — architecture, methods, protocols,
   threat model, scope.
-- [`STATUS.md`](./STATUS.md) — what's done in v0.1, what's coming in
-  v0.1.1 / v0.2 / v0.3 / v0.4 / v0.5 / v0.6 / v0.7+.
+- [`STATUS.md`](./STATUS.md) — what's done in v0.1 / v0.1.1 / v0.2, what's
+  coming in v0.3 / v0.4 / v0.5 / v0.6 / v0.7+.
 - [`INTEGRATION.md`](./INTEGRATION.md) — three integration patterns
   for relying parties (OIDC Code+PKCE, cookie+introspect, SAML SP).
 - [`AUDIT.md`](./AUDIT.md) — per-layer compliance checklist with

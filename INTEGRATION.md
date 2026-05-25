@@ -302,6 +302,221 @@ default 7d).
 
 ---
 
+## Password + TOTP (v0.2)
+
+Prohibitorum's fallback auth method for users whose devices don't support
+passkeys, or as the legacy method for end users still in transition. Every
+account that has both a `password_credential` row and a confirmed
+`totp_credential` row can log in via this two-step flow; recovery codes
+substitute for TOTP when the user's authenticator app is lost.
+
+WebAuthn is the **preferred** method. Accounts that have a passkey should
+remove their password + TOTP via `POST /me/auth/revoke-password-totp` as
+soon as the passkey is confirmed working — Prohibitorum doesn't enforce
+this automatically (the user might still want the fallback during the
+trial period), but the endpoint exists so the dashboard can offer it.
+
+All examples below assume `http://localhost:8080` and the public API
+prefix `/api/prohibitorum`.
+
+### Two-step login: password → TOTP
+
+```bash
+# Step 1 — verify password, receive partial-session token.
+curl -X POST http://localhost:8080/api/prohibitorum/auth/password/begin \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"alice","password":"correct horse battery staple"}'
+# 200 OK
+# { "partial_session_token": "<43-char base64url>" }
+# (KV-backed, single-use, 5-minute TTL, no IP/UA binding.)
+
+# Step 2a — verify TOTP, get session cookie.
+curl -X POST http://localhost:8080/api/prohibitorum/auth/totp/verify \
+  -H 'Content-Type: application/json' \
+  -c cookies.txt \
+  -d '{"partial_session_token":"<token>","code":"123456"}'
+# 204 No Content
+# Set-Cookie: prohibitorum_session=...; HttpOnly; SameSite=Lax
+```
+
+The session issued by step 2a carries `amr=["pwd","otp","mfa"]` (v0.4
+ID tokens will project this).
+
+### Two-step login: password → recovery code
+
+When the user's authenticator app is unavailable, the same step-1
+partial-session token can be redeemed against `/auth/recovery-code/verify`
+with one of the 10 codes issued at TOTP enrollment.
+
+```bash
+curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery-code/verify \
+  -H 'Content-Type: application/json' \
+  -c cookies.txt \
+  -d '{"partial_session_token":"<token>","code":"ABCD-1234-EFGH-5678"}'
+# 204 No Content; session cookie set
+# amr=["pwd","mfa"]
+```
+
+Each recovery code is single-use — the server stamps `used_at`,
+`used_session_id`, and `used_ip` on the row. When all 10 are consumed,
+the user (or an admin) calls `/me/recovery-codes/regenerate` to mint a
+fresh set (sudo-gated; see below).
+
+Authentication failures at either step increment the per-`(account,
+factor)` row in `auth_throttle` with the exponential-backoff schedule
+`[0,0,1s,2s,4s,8s,16s,32s,1m,2m,4m,8m,15m]`. A locked row returns
+`429 Too Many Requests` with `Retry-After: <seconds>` and the
+expensive crypto check is skipped — no oracle for "is this account
+currently locked?"
+
+### Setting a password
+
+```bash
+# Sudo step-up first (see "Sudo step-up" below). Then:
+curl -X POST http://localhost:8080/api/prohibitorum/me/password/set \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt \
+  -d '{"password":"correct horse battery staple"}'
+# 204 No Content
+```
+
+The handler argon2id-hashes the new password with current
+`PasswordHashParams` and stamps `password_changed_at`. The endpoint
+is idempotent — calling it again replaces the hash.
+
+### Enrolling TOTP
+
+```bash
+# Step 1 — server mints secret + otpauth URI.
+# (No sudo when no confirmed totp_credential exists. Sudo required if
+# the caller is replacing an existing confirmed credential.)
+curl -X POST http://localhost:8080/api/prohibitorum/me/totp/begin \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -d '{}'
+# 200 OK
+# {
+#   "secret_base32": "JBSWY3DPEHPK3PXP",
+#   "otpauth_uri": "otpauth://totp/Prohibitorum:alice?secret=JBSWY3DPEHPK3PXP&issuer=Prohibitorum&algorithm=SHA1&digits=6&period=30"
+# }
+# Frontend renders the otpauth URI as a QR code; user scans with
+# Google Authenticator / 1Password / etc. and produces a 6-digit code.
+
+# Step 2 — confirm the credential, receive recovery codes.
+curl -X POST http://localhost:8080/api/prohibitorum/me/totp/verify \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt \
+  -d '{"code":"123456"}'
+# 200 OK
+# {
+#   "recovery_codes": [
+#     "ABCD-1234-EFGH-5678", ... // 10 codes, shown ONCE
+#   ]
+# }
+```
+
+The server stamps `totp_credential.confirmed_at` and mints 10 recovery
+codes in the same transaction. The plaintext codes are returned in this
+response body and never again — the user must save them before
+dismissing the dialog.
+
+If `/me/totp/verify` returns 401 (wrong code), the unconfirmed row
+remains and a fresh `/me/totp/begin` UPSERTs a new secret.
+
+### Regenerating recovery codes
+
+```bash
+# Sudo step-up first. Then:
+curl -X POST http://localhost:8080/api/prohibitorum/me/recovery-codes/regenerate \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -d '{}'
+# 200 OK
+# { "recovery_codes": [ ... 10 fresh codes ... ] }
+# The prior set is invalidated.
+```
+
+### Revoking the password + TOTP fallback
+
+Users who have a working passkey should call this once they're confident
+in their WebAuthn setup. The handler transactionally deletes
+`password_credential`, `totp_credential`, and all `recovery_code` rows
+for the account.
+
+```bash
+# Sudo step-up first. Then:
+curl -X POST http://localhost:8080/api/prohibitorum/me/auth/revoke-password-totp \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -d '{}'
+# 204 No Content
+# Subsequent /auth/password/begin for this account returns 401.
+```
+
+## Sudo step-up
+
+Sensitive `/me/*` actions (set password, regenerate recovery codes,
+revoke fallback factors) require a recent credential proof. v0.2 extends
+sudo to accept **three** methods — pick whichever the account has.
+
+```bash
+# Discover available methods (priority order):
+curl http://localhost:8080/api/prohibitorum/me/sudo/methods -b cookies.txt
+# 200 OK
+# { "methods": ["webauthn", "password_totp", "recovery_code"] }
+```
+
+### Sudo via WebAuthn
+
+```bash
+curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -d '{"method":"webauthn"}'
+# 200 OK — returns publicKey assertion options
+# (Frontend runs navigator.credentials.get and POSTs the result back.)
+
+curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/complete \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt \
+  -d '<the AuthenticatorAssertionResponse as JSON>'
+# 204 No Content; session.sudo_until extended
+```
+
+### Sudo via password + TOTP
+
+```bash
+curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -d '{"method":"password_totp"}'
+# 200 OK — no body; the server has stashed the intent
+
+curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/complete \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt \
+  -d '{"current_password":"...","totp_code":"123456"}'
+# 204 No Content; session.sudo_until extended
+```
+
+### Sudo via recovery code
+
+```bash
+curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -d '{"method":"recovery_code"}'
+
+curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/complete \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt \
+  -d '{"recovery_code":"ABCD-1234-EFGH-5678"}'
+# 204 No Content; session.sudo_until extended.
+# Note: recovery codes are single-use; this consumes one.
+```
+
+`/me/sudo/begin` is rate-limited to 10 requests per minute per session;
+`/me/sudo/complete` runs through the relevant credential's
+`auth_throttle` row, so wrong codes burn the exponential-backoff curve
+the same way `/auth/totp/verify` does.
+
+Every successful sudo emits a `credential_event` row with
+`factor='session'` and `event='sudo_granted'`.
+
 ## Logout
 
 Two coordinated paths:

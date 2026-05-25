@@ -241,26 +241,167 @@ Two things to know before running v0.1 against any environment:
      smoke test should use; revisit the `mise.toml` edit in a small
      maintenance task once v0.1.1 confirms migrations apply.
 
-## v0.2 — password + TOTP
+## v0.2 — password + TOTP (done)
 
-Deliver the fallback method:
+Shipped the password + TOTP + recovery-code fallback method and the
+sudo-step-up extension that gates sensitive `/me` operations behind a
+fresh credential proof. Smoke test extended from 17 to **45 steps +
+DB-state assertions**, all passing against a live dev server (see
+commit `5ccf3fe`).
 
-- `pkg/credential/password`: argon2id PHC verify + set, re-hash on
-  param upgrade, persistent throttle (`auth_throttle`).
-- `pkg/credential/totp`: enrollment (secret + QR `otpauth://` URI +
-  10 recovery codes shown once), AES-GCM at-rest with AAD per spec,
-  ±1 period drift, `last_step` replay protection. Recovery code helpers
-  live alongside TOTP in the same package (single-use, argon2id-hashed;
-  redemption captures `used_session_id` + `used_ip`).
-- Login flow endpoints: `POST /api/prohibitorum/auth/password/begin`,
-  `POST /api/prohibitorum/auth/totp/verify`,
-  `POST /api/prohibitorum/auth/recovery-code/verify`. Partial-session
-  token in KV (5 min TTL) bridges the two-step flow.
-- Factor-policy enforcement on WebAuthn enrollment: transactional
-  delete of password + TOTP + recovery rows when the user opts into
-  "disable backup" (default yes).
-- `credential_event` rows written for every register / use / fail /
-  revoke.
+### What shipped
+
+- **`pkg/credential/password`** — argon2id PHC string at rest, current
+  OWASP defaults (`m=64 MiB`, `t=3`, `p=1`), automatic re-hash on
+  verify when `configx.PasswordHashParams` advances. Package-init
+  `dummyArgon2idHash` defeats step-1 username enumeration (spec D3).
+- **`pkg/credential/totp`** — RFC 6238 SHA-1 / 6-digit / 30-second TOTP
+  with ±1-step drift, `last_step` defeats same-step replay (RFC 6238
+  §5.2). Secrets stored AES-256-GCM with versioned DEK
+  (`PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>`); AAD bound to
+  `'totp:'||account_id||':'||key_version`. Recovery codes
+  (10/account, 80-bit entropy, `XXXX-XXXX-XXXX-XXXX` formatted,
+  argon2id-hashed at rest) minted at confirmation and regenerable via
+  the new `/me/recovery-codes/regenerate` endpoint.
+- **`pkg/authn/throttle`** — exponential backoff
+  `[0,0,1s,2s,4s,8s,16s,32s,1m,2m,4m,8m,15m]` per `(account_id,
+  factor)` (spec D2). Verify entry rejects with `429 Too Many Requests`
+  + `Retry-After` when `locked_until > now`, never running the
+  expensive crypto check on a locked row. Reset on success.
+- **`pkg/audit/event`** — writer body wired up; emits
+  `credential_event` rows for `register` / `use` / `fail` / `revoke`
+  across `password` / `totp` / `recovery_code` factors, plus
+  `session:sudo_granted` on every sudo completion.
+- **Two-step login** — `POST /auth/password/begin` returns a
+  single-use, 5-minute, KV-backed `partial_session_token`;
+  `POST /auth/totp/verify` or `POST /auth/recovery-code/verify`
+  consumes it and issues a session cookie with `amr=["pwd","otp","mfa"]`
+  (or `["pwd","mfa"]` for recovery). Disabled accounts are rejected at
+  `/auth/password/begin` after a dummy verify (no timing oracle).
+- **Sudo extension** — `pkg/authn/flow.AvailableMethods` enumerates
+  per-account sudo factors in priority order
+  (`webauthn` → `password_totp` → `recovery_code`). New
+  `GET /me/sudo/methods` returns the list; `/me/sudo/begin` and
+  `/me/sudo/complete` accept a `method` discriminator (was
+  WebAuthn-only in v0.1).
+- **WebAuthn-preferred factor policy** —
+  `POST /me/auth/revoke-password-totp` transactionally deletes the
+  caller's `password_credential`, `totp_credential`, and
+  `recovery_code` rows. Sudo-gated.
+
+### Endpoints introduced in v0.2
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/prohibitorum/auth/password/begin` | step 1 of two-step login |
+| POST | `/api/prohibitorum/auth/totp/verify` | step 2: TOTP |
+| POST | `/api/prohibitorum/auth/recovery-code/verify` | step 2: recovery code |
+| POST | `/api/prohibitorum/me/password/set` | sudo-gated |
+| POST | `/api/prohibitorum/me/totp/begin` | sudo-gated iff confirmed TOTP exists |
+| POST | `/api/prohibitorum/me/totp/verify` | confirms enrollment, returns recovery codes |
+| POST | `/api/prohibitorum/me/recovery-codes/regenerate` | sudo-gated |
+| POST | `/api/prohibitorum/me/auth/revoke-password-totp` | sudo-gated, destructive |
+| GET  | `/api/prohibitorum/me/sudo/methods` | NEW in v0.2 |
+| POST | `/api/prohibitorum/me/sudo/begin` | extended to accept `method` param |
+| POST | `/api/prohibitorum/me/sudo/complete` | extended to dispatch on `method` |
+
+### Smoke-covered runtime paths
+
+`cmd/smoke` exercises every v0.2 endpoint end-to-end against a real
+Postgres + dev server. Each entry below references the smoke step
+counter in `cmd/smoke/main.go`:
+
+- `/me/sudo/begin` + `/me/sudo/complete` via WebAuthn — steps 18, 41
+  (and prerequisite for password/set and revoke-password-totp).
+- `/me/password/set` — step 19; DB assert `password_credential.hash`
+  prefix `$argon2id$v=19$` at step 20.
+- `/me/totp/begin` — step 21 (no sudo, first enrollment); decodes
+  `secret_base32`, captures `otpauth_uri`.
+- `/me/totp/verify` — step 22 (confirmation); DB assert
+  `totp_credential.confirmed_at IS NOT NULL` + 10 `recovery_code` rows
+  at step 23.
+- `/auth/password/begin` + `/auth/totp/verify` (two-step login) —
+  steps 25–26, RFC 6238 §5.2 replay window respected
+  (`waitForNextTOTPStep`). `/me` round-trips post-login at step 27.
+- `/auth/password/begin` + `/auth/recovery-code/verify` — steps 29–30;
+  DB assert `recovery_code.used_at` set at step 31.
+- `/me/sudo/begin` + `/me/sudo/complete` via `password_totp` — step
+  37.
+- `/me/recovery-codes/regenerate` — step 38 (consumes a sudo grant;
+  asserts 10 fresh codes returned and old set invalidated).
+- `/me/sudo/begin` + `/me/sudo/complete` via `recovery_code` — step
+  39; DB assert at step 40.
+- `/me/auth/revoke-password-totp` — step 42; DB assert that
+  `password_credential` / `totp_credential` / `recovery_code` are all
+  empty for the account at step 43; step 44 confirms
+  `/auth/password/begin` returns 401 post-revoke.
+- **Throttle observation** — step 34 drives wrong TOTP codes through
+  `/me/sudo/begin` + `/me/sudo/complete` until the throttle responds
+  `429`; step 35 asserts the `auth_throttle` row has
+  `failed_attempts >= 3` and `locked_until > now`. Step 36 is a
+  HARNESS-ONLY `DELETE FROM auth_throttle` so the rest of the smoke
+  can proceed.
+- **Audit emission** — step 45 asserts `credential_event` covers the
+  union of (factor, event) pairs the v0.2 surface emits this run:
+  `password:{register,use,revoke}`, `totp:{register,use,revoke}`,
+  `recovery_code:{register≥10,use≥2,revoke}`,
+  `session:sudo_granted≥3`.
+
+### Smoke-untested runtime paths (acknowledged)
+
+The following v0.2-touched paths are wired and unit-tested but not
+exercised end-to-end by `cmd/smoke`:
+
+- **Disabled-account rejection at `/auth/password/begin`.** The
+  handler at `handle_auth_password.go:70` runs the dummy argon2id
+  verify and returns `bad_credentials` when `account.Disabled = true`,
+  matching spec D3 (no timing oracle for disabled-vs-enabled). The
+  smoke account is never disabled mid-run.
+- **`/me/sudo/methods`.** The endpoint is mounted and unit-tested
+  (handler computes priority order via `AvailableMethods`), but the
+  smoke calls `/me/sudo/begin` directly with each method rather than
+  reading from the discovery endpoint first.
+- **TOTP enrollment overwrite after a failed verify.** Spec D4 says
+  a second `/me/totp/begin` UPSERTs the row with a fresh secret when
+  `confirmed_at` is still NULL. Unit-tested in `handle_me_totp_test.go`
+  but the smoke confirms a fresh TOTP on the first try, so the
+  overwrite path doesn't fire.
+- **`/me/totp/begin` sudo-gated re-enrollment.** When a confirmed TOTP
+  already exists, a fresh `/me/totp/begin` requires sudo. Unit-tested;
+  the smoke enrolls once, never replaces.
+- **`PasswordHashParams` upgrade-on-verify re-hash.** Verify path in
+  `pkg/credential/password` re-encodes the PHC string when the
+  configured params advance. Unit-tested; the smoke runs against a
+  single param set, so the re-hash branch isn't taken.
+- **Throttle clearing on subsequent success.** The DELETE-on-success
+  branch in `pkg/authn/throttle` is unit-tested. The smoke deliberately
+  clears the throttle row via `psql DELETE` (`resetThrottle`) so it
+  can continue past the lockout, rather than waiting it out and
+  observing the natural reset.
+- **Partial-session-token replay.** Single-use, expire-after-5-min
+  semantics in `pkg/authn/flow`. Unit-tested. The smoke consumes each
+  token exactly once; no replay attempt.
+
+`pkg/credential/password`, `pkg/credential/totp`, `pkg/authn/throttle`,
+`pkg/authn/flow`, and `pkg/server/handle_*_test.go` carry the unit
+coverage for the cases above.
+
+### Notes
+
+- `pkg/credential/totp.ComputeCodeForTesting` is exported intentionally
+  so `cmd/smoke` can compute the current RFC 6238 code with the same
+  primitive the server uses on verify. It is the only path that exposes
+  the secret post-encryption; never call from production code.
+- Smoke step count is **45**, not the 46 the plan originally drafted.
+  The 46th step (sudo before `/me/totp/begin` for first-time
+  enrollment) was redundant per spec — first TOTP enrollment is not
+  sudo-gated when no confirmed credential exists. 45 is correct.
+
+## v0.2.1 — open follow-ups
+
+None currently identified. The reality audit at the close of v0.2
+(this section) is the canonical follow-up list; reopen when concrete
+deferred items materialise.
 
 ## v0.3 — upstream OIDC federation
 
