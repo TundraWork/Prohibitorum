@@ -59,6 +59,20 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Reject disabled accounts before argon2id verify, but burn equivalent
+	// CPU against a dummy hash so the wall-clock cost matches the active-
+	// account path (timing side-channel: leaking which usernames map to
+	// disabled-but-existing accounts would defeat spec D3 enumeration
+	// defense). We return ErrBadCredentials rather than ErrAccountDisabled
+	// because at /begin we haven't proved possession of anything — the
+	// WebAuthn path in handle_auth.go discloses disabled-state only AFTER
+	// the assertion verifies. Exercised by cmd/smoke (Task 8).
+	if acct.Disabled {
+		s.passwordStore.VerifyAgainstDummy(r.Context(), body.Password)
+		writeAuthErr(w, authn.ErrBadCredentials())
+		return
+	}
+
 	if err := s.passwordStore.Verify(r.Context(), acct.ID, body.Password); err != nil {
 		if errors.Is(err, password.ErrPasswordNotSet) {
 			s.passwordStore.VerifyAgainstDummy(r.Context(), body.Password)
