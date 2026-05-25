@@ -198,7 +198,7 @@ func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.
 		AccountID:       sess.Account.ID,
 		CredentialID:    cred.ID,
 		PublicKey:       cred.PublicKey,
-		CoseAlg:         int32(cred.Attestation.PublicKeyAlgorithm),
+		CoseAlg:         webauthnauth.COSEAlg(cred.PublicKey),
 		UserHandle:      sess.Account.WebauthnUserHandle,
 		SignCount:       int64(cred.Authenticator.SignCount),
 		Transports:      transports,

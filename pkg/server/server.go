@@ -69,7 +69,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("kv: %w", err)
 	}
-	sessionStore := sessstore.NewSessionStore(kvStore, config.SessionTTL)
+	sessionStore := sessstore.NewSessionStore(kvStore, queries, config.SessionTTL)
 
 	wa, err := webauthnauth.NewWebAuthn(config.WebAuthn)
 	if err != nil {

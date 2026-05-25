@@ -66,7 +66,8 @@ func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 
 		"claims_supported": []string{
 			"sub", "iss", "aud", "exp", "iat", "nonce",
-			"username", "displayName", "role", "permissions",
+			"auth_time", "amr", "acr",
+			"username", "displayName", "role", "attributes",
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")

@@ -11,8 +11,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
+	"prohibitorum/pkg/logx"
 )
 
 // SessionStore issues, loads, and revokes sessions backed by pkg/kv.
@@ -23,16 +27,30 @@ import (
 //
 // The account_id prefix lets RevokeAllForAccount enumerate by glob without
 // maintaining a secondary index.
+// SessionQueries is the subset of pkg/db.Querier that the session store needs.
+// Declared locally so tests can supply a no-op stub without re-implementing the
+// full sqlc-generated Querier surface.
+type SessionQueries interface {
+	InsertSession(ctx context.Context, arg db.InsertSessionParams) (db.Session, error)
+	RevokeSession(ctx context.Context, id string) error
+	RevokeAllSessionsByAccount(ctx context.Context, accountID int32) error
+}
+
 type SessionStore struct {
 	kv      kv.Store
+	q       SessionQueries // PG-persisted session metadata (auth_time, amr, acr, sid)
 	ttl     time.Duration
 	refresh time.Duration // sliding-refresh threshold; default ttl/4
 }
 
 // NewSessionStore constructs a store with the given session TTL.
 // Sessions refresh themselves on Load when remaining time < ttl/4.
-func NewSessionStore(store kv.Store, ttl time.Duration) *SessionStore {
-	return &SessionStore{kv: store, ttl: ttl, refresh: ttl / 4}
+//
+// q persists the immutable authentication facts (auth_time, amr, acr) per
+// session ID so v0.4+ OIDC ID tokens can carry sid/amr/acr claims and v0.5+
+// SAML SLO can enumerate active SP sessions.
+func NewSessionStore(store kv.Store, q SessionQueries, ttl time.Duration) *SessionStore {
+	return &SessionStore{kv: store, q: q, ttl: ttl, refresh: ttl / 4}
 }
 
 // TTL returns the configured session lifetime (handler/middleware use it for cookie MaxAge).
@@ -68,10 +86,21 @@ func sessionKey(accountID int32, token string) string {
 	return fmt.Sprintf("session:%d:%s", accountID, token)
 }
 
-// Issue writes a fresh session to KV and returns the random token plus the
-// authn.SessionData that was stored. Caller constructs the cookie via CookieValue().
-// ua is captured into SessionData so /me/sessions can label each row.
-func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string) (string, *authn.SessionData, error) {
+// Issue writes a fresh session to KV plus a row in the PG session table
+// capturing the immutable authentication facts (auth_time, amr, acr). Returns
+// the random KV token and the authn.SessionData that was stored.
+//
+// amr must list the RFC 8176 method values that produced this session:
+//   - WebAuthn login or registration → ["hwk"]
+//   - Password + TOTP (v0.2) → ["pwd","otp","mfa"]
+//   - Upstream OIDC federation (v0.3) → ["federated"]
+//
+// If the PG insert fails, the KV entry is rolled back so the two stores stay
+// consistent.
+func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string, amr []string) (string, *authn.SessionData, error) {
+	if len(amr) == 0 {
+		return "", nil, errors.New("session: Issue requires non-empty amr")
+	}
 	token, err := newToken()
 	if err != nil {
 		return "", nil, err
@@ -95,6 +124,15 @@ func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string
 	}
 	if err := s.kv.SetEx(ctx, sessionKey(accountID, token), string(payload), s.ttl); err != nil {
 		return "", nil, fmt.Errorf("session: setex: %w", err)
+	}
+	if _, err := s.q.InsertSession(ctx, db.InsertSessionParams{
+		ID:        sessionID,
+		AccountID: accountID,
+		AuthTime:  pgtype.Timestamptz{Time: now, Valid: true},
+		Amr:       amr,
+	}); err != nil {
+		_ = s.kv.Del(ctx, sessionKey(accountID, token))
+		return "", nil, fmt.Errorf("session: insert pg: %w", err)
 	}
 	return token, data, nil
 }
@@ -153,9 +191,28 @@ func (s *SessionStore) Load(ctx context.Context, accountID int32, token, ip, ua 
 	return &data, refreshed, nil
 }
 
-// Revoke deletes a specific session.
+// Revoke deletes a specific session. The PG session row is soft-deleted
+// (revoked_at stamped) so audit trails and OIDC sid-claim resolution still
+// work after revocation. Best-effort on the PG side — a stale KV entry is
+// already gone; a lingering active=false PG row gets pruned by sweep.
 func (s *SessionStore) Revoke(ctx context.Context, accountID int32, token string) error {
-	return s.kv.Del(ctx, sessionKey(accountID, token))
+	key := sessionKey(accountID, token)
+	var sessionID string
+	if raw, err := s.kv.Get(ctx, key); err == nil {
+		var data authn.SessionData
+		if jerr := json.Unmarshal([]byte(raw), &data); jerr == nil {
+			sessionID = data.SessionID
+		}
+	}
+	if err := s.kv.Del(ctx, key); err != nil {
+		return err
+	}
+	if sessionID != "" {
+		if err := s.q.RevokeSession(ctx, sessionID); err != nil {
+			logx.WithContext(ctx).WithError(err).Warn("session: revoke pg failed (KV already deleted)")
+		}
+	}
+	return nil
 }
 
 // Save writes data back to the same KV entry, preserving the session's
@@ -240,6 +297,9 @@ func (s *SessionStore) RevokeBySessionID(ctx context.Context, accountID int32, s
 			if err := s.kv.Del(ctx, sessionKey(accountID, sr.Token)); err != nil {
 				return false, fmt.Errorf("session: del: %w", err)
 			}
+			if err := s.q.RevokeSession(ctx, sessionID); err != nil {
+				logx.WithContext(ctx).WithError(err).Warn("session: revoke pg failed (KV already deleted)")
+			}
 			return true, nil
 		}
 	}
@@ -275,6 +335,9 @@ func (s *SessionStore) RevokeAllForAccount(ctx context.Context, accountID int32)
 		if cursor == 0 {
 			break
 		}
+	}
+	if err := s.q.RevokeAllSessionsByAccount(ctx, accountID); err != nil {
+		logx.WithContext(ctx).WithError(err).Warn("session: revoke-all pg failed (KV already cleared)")
 	}
 	return deleted, firstErr
 }

@@ -487,7 +487,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 
 	// Issue session for the (new or existing) account.
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
-	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent())
+	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"})
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/complete: session issue: %w", err))
 		return
@@ -528,7 +528,7 @@ func insertCredentialForTx(q db.Querier, ctx context.Context, accountID int32, u
 		AccountID:       accountID,
 		CredentialID:    cred.ID,
 		PublicKey:       cred.PublicKey,
-		CoseAlg:         int32(cred.Attestation.PublicKeyAlgorithm),
+		CoseAlg:         webauthnauth.COSEAlg(cred.PublicKey),
 		UserHandle:      userHandle,
 		SignCount:        int64(cred.Authenticator.SignCount),
 		Transports:      transports,

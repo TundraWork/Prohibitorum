@@ -149,7 +149,7 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
-	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent())
+	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"})
 	if err != nil {
 		writeAuthErr(w, err)
 		return
