@@ -121,7 +121,15 @@ func (s *Server) handleMeRegenerateRecoveryCodesHTTP(w http.ResponseWriter, r *h
 	// only meaningful as a backup for the second factor — minting them when
 	// no second factor is enrolled would be a footgun.
 	row, err := s.meTOTPFlowQ().GetTOTPCredential(r.Context(), sess.Account.ID)
-	if err != nil || !row.ConfirmedAt.Valid {
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, err)
+			return
+		}
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if !row.ConfirmedAt.Valid {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}

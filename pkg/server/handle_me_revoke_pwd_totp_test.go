@@ -6,10 +6,9 @@
 // pkg/authn/flow_test.go — these tests focus on the HTTP-level wiring (sudo
 // gate, status codes, that the queries surface is reached).
 //
-// Production note: the handler calls authn.DisableNonWebAuthnFallbacks with
-// s.queries (concrete *db.Queries). Tests must therefore wire the fake onto
-// s.queries since the call site doesn't go through an override. The package
-// elsewhere keeps s.queries nil in unit tests, so we set it here only.
+// Tests inject a fake authn.FlowQueries via s.revokeFlowOverride. The
+// handler reads through revokeFlowQ() (defined in
+// handle_me_revoke_pwd_totp.go).
 
 package server
 
@@ -22,25 +21,6 @@ import (
 
 	"prohibitorum/pkg/authn"
 )
-
-// installFakeAsQueries makes the existing fakeSudoQueries also serve as
-// s.queries for the duration of the test. authn.DisableNonWebAuthnFallbacks
-// takes a FlowQueries interface (not the concrete *db.Queries), so passing
-// the fake via the same field works — but s.queries is typed as
-// *db.Queries in production. To avoid changing the field type for tests,
-// we shim through a small wrapper at the call site below.
-//
-// Implementation: the revoke handler's call is
-//   authn.DisableNonWebAuthnFallbacks(ctx, s.queries, s.Audit, accountID)
-// In tests we exercise the handler against a Server whose s.queries is
-// nil, which would NPE. Workaround: bypass the field by constructing a
-// shim server method... but that's intrusive. Cleaner: pass the fake by
-// making s.queries hold the fake. Go can't assign fakeSudoQueries to
-// *db.Queries directly, so this requires either an indirection or a
-// design change. We pick indirection.
-//
-// See revokeFlowQ() below: the handler now goes through it instead of
-// touching s.queries directly. This mirrors sudoFlowQ() / meTOTPFlowQ().
 
 func TestMeRevokePwdTOTP_RequiresSudo(t *testing.T) {
 	s, _, _ := newSudoTestServer(t)
