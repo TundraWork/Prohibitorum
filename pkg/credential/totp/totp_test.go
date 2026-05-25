@@ -208,7 +208,7 @@ func codeAt(t *testing.T, dek []byte, row db.TotpCredential, accountID int32, at
 		t.Fatalf("decrypt: %v", err)
 	}
 	step := stepFor(at.Unix(), int64(row.Period))
-	return computeCode(secret, step+delta, int(row.Digits), row.Algorithm)
+	return computeCode(secret, step+delta, int(row.Digits))
 }
 
 // --- Store tests ---

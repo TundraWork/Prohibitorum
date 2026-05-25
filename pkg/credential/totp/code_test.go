@@ -25,7 +25,7 @@ func TestRFC6238_AppendixB(t *testing.T) {
 	}
 	for _, c := range cases {
 		step := c.time / 30
-		got := computeCode(key, step, 8, "SHA1")
+		got := computeCode(key, step, 8)
 		if got != c.code {
 			t.Errorf("T=%d step=%d: got %s want %s", c.time, step, got, c.code)
 		}

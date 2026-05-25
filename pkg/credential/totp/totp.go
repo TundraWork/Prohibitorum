@@ -32,11 +32,10 @@ import (
 )
 
 var (
-	ErrTOTPNotSet           = errors.New("totp: not set")
-	ErrTOTPUnconfirmed      = errors.New("totp: enrollment not confirmed")
-	ErrTOTPInvalidCode      = errors.New("totp: invalid code")
-	ErrTOTPReplay           = errors.New("totp: code already used")
-	ErrRecoveryCodeInvalid  = errors.New("totp: invalid recovery code")
+	ErrTOTPNotSet          = errors.New("totp: not set")
+	ErrTOTPInvalidCode     = errors.New("totp: invalid code")
+	ErrTOTPReplay          = errors.New("totp: code already used")
+	ErrRecoveryCodeInvalid = errors.New("totp: invalid recovery code")
 )
 
 type Enrollment struct {
@@ -163,7 +162,7 @@ func (s *Store) Verify(ctx context.Context, accountID int32, code string) ([]str
 	drift := int64(s.cfg.DriftSteps)
 	matchedStep := int64(-1)
 	for delta := -drift; delta <= drift; delta++ {
-		candidate := computeCode(secret, nowStep+delta, int(row.Digits), row.Algorithm)
+		candidate := computeCode(secret, nowStep+delta, int(row.Digits))
 		if candidate == code {
 			matchedStep = nowStep + delta
 			break
@@ -257,6 +256,11 @@ func (s *Store) RegenerateRecoveryCodes(ctx context.Context, accountID int32) ([
 	return s.mintRecoveryCodes(ctx, accountID)
 }
 
+// Delete removes the totp_credential row only. Recovery codes are not
+// touched — they cascade from account, not from totp_credential. Callers
+// performing a full factor revocation should also call
+// DeleteAllRecoveryCodesByAccount (or use authn.DisableNonWebAuthnFallbacks
+// which handles all three rowsets transactionally).
 func (s *Store) Delete(ctx context.Context, accountID int32) error {
 	if err := s.q.DeleteTOTPCredential(ctx, accountID); err != nil {
 		return fmt.Errorf("totp.Delete: %w", err)
