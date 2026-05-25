@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,8 +20,17 @@ type noopSessionQueries struct{}
 func (noopSessionQueries) InsertSession(context.Context, db.InsertSessionParams) (db.Session, error) {
 	return db.Session{}, nil
 }
-func (noopSessionQueries) RevokeSession(context.Context, string) error               { return nil }
-func (noopSessionQueries) RevokeAllSessionsByAccount(context.Context, int32) error   { return nil }
+func (noopSessionQueries) RevokeSession(context.Context, string) error             { return nil }
+func (noopSessionQueries) RevokeAllSessionsByAccount(context.Context, int32) error { return nil }
+
+// failingSessionQueries simulates a PG-side failure on InsertSession so the
+// SessionStore.Issue rollback path (delete KV row, return error) can be
+// exercised by a unit test.
+type failingSessionQueries struct{ noopSessionQueries }
+
+func (failingSessionQueries) InsertSession(context.Context, db.InsertSessionParams) (db.Session, error) {
+	return db.Session{}, errors.New("simulated PG failure")
+}
 
 func newTestStore(t *testing.T, ttl time.Duration) *SessionStore {
 	t.Helper()
@@ -180,6 +191,38 @@ func TestCookieValue_Roundtrip(t *testing.T) {
 		if !ok || id != c.id || tok != c.token {
 			t.Errorf("roundtrip %+v: ParseCookieValue(%q) = (%d, %q, %v)", c, v, id, tok, ok)
 		}
+	}
+}
+
+func TestSession_IssueRollsBackKVWhenPGInsertFails(t *testing.T) {
+	mem := kv.NewMemoryStore()
+	s := NewSessionStore(mem, failingSessionQueries{}, time.Hour)
+	ctx := context.Background()
+
+	_, _, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"})
+	if err == nil {
+		t.Fatal("Issue should return error when InsertSession fails")
+	}
+
+	// Inspect KV directly: no session:42:* entry should remain.
+	result, scanErr := mem.ScanEntries(ctx, fmt.Sprintf("session:%d:*", 42), 0, 100)
+	if scanErr != nil {
+		t.Fatalf("scan: %v", scanErr)
+	}
+	if len(result.Entries) != 0 {
+		t.Errorf("expected zero KV entries after rollback, got %d: %+v",
+			len(result.Entries), result.Entries)
+	}
+}
+
+func TestSession_IssueRejectsEmptyAMR(t *testing.T) {
+	s := newTestStore(t, time.Hour)
+	_, _, err := s.Issue(context.Background(), 42, "", "", nil)
+	if err == nil {
+		t.Fatal("Issue should reject empty amr")
+	}
+	if err == nil || err.Error() == "" {
+		t.Fatalf("expected non-empty error, got %v", err)
 	}
 }
 

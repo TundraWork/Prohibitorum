@@ -38,6 +38,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -130,7 +131,7 @@ func main() {
 	}
 	log.Printf("  session cookie restored")
 
-	step("step 10/10 — GET /me (post-login)")
+	step("step 10/17 — GET /me (post-login)")
 	me2, err := c.getMe()
 	if err != nil {
 		log.Fatalf("get me (post-login): %v", err)
@@ -143,8 +144,103 @@ func main() {
 	}
 	log.Printf("  username=%s id=%d (matches enrollment)", me2.Username, me2.ID)
 
+	// --- Phase 2: RevokeBySessionID + add-second-credential coverage ---
+
+	step("step 11/17 — second client B begins login with the same authenticator")
+	cB, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("client B: %v", err)
+	}
+	assertionB, err := cB.beginLogin()
+	if err != nil {
+		log.Fatalf("B login/begin: %v", err)
+	}
+	signedB, err := auth.signAssertion(assertionB.Challenge, *baseURL)
+	if err != nil {
+		log.Fatalf("B sign: %v", err)
+	}
+
+	step("step 12/17 — B completes login; both A and B now hold sessions")
+	if err := cB.completeLogin(auth, signedB); err != nil {
+		log.Fatalf("B login/complete: %v", err)
+	}
+	meB, err := cB.getMe()
+	if err != nil {
+		log.Fatalf("B /me: %v", err)
+	}
+	if meB.ID != me2.ID {
+		log.Fatalf("B /me id mismatch: got %d want %d", meB.ID, me2.ID)
+	}
+	log.Printf("  B logged in as id=%d (same account as A)", meB.ID)
+
+	step("step 13/17 — A lists /me/sessions; expect 2 (current + B's)")
+	sessions, err := c.listMySessions()
+	if err != nil {
+		log.Fatalf("list sessions: %v", err)
+	}
+	if len(sessions) != 2 {
+		log.Fatalf("expected 2 sessions, got %d: %+v", len(sessions), sessions)
+	}
+	var otherID string
+	for _, s := range sessions {
+		if !s.IsCurrent {
+			otherID = s.ID
+		}
+	}
+	if otherID == "" {
+		log.Fatalf("could not identify B's session in %+v", sessions)
+	}
+	log.Printf("  found B's session id=%s", otherID)
+
+	step("step 14/17 — A revokes B's session via /me/sessions/revoke")
+	if err := c.revokeSession(otherID); err != nil {
+		log.Fatalf("revoke session: %v", err)
+	}
+	log.Printf("  revoke succeeded")
+
+	step("step 15/17 — B's /me should now return 401")
+	if _, err := cB.getMe(); err == nil {
+		log.Fatalf("B /me succeeded after revocation; expected 401")
+	}
+	log.Printf("  B is denied, RevokeBySessionID confirmed")
+
+	step("step 16/17 — A adds a second passkey via /me/credentials/register/{begin,complete}")
+	addBegin, err := c.beginAddCredential()
+	if err != nil {
+		log.Fatalf("add cred/begin: %v", err)
+	}
+	auth2, err := newAuthenticator(addBegin.RP.ID)
+	if err != nil {
+		log.Fatalf("new authenticator 2: %v", err)
+	}
+	att2, err := auth2.attestCredential(addBegin.Challenge, addBegin.User.ID, *baseURL)
+	if err != nil {
+		log.Fatalf("attest 2: %v", err)
+	}
+	if err := c.completeAddCredential(auth2, att2, "smoke-second"); err != nil {
+		log.Fatalf("add cred/complete: %v", err)
+	}
+	log.Printf("  second credential registered (advertises ES256 -7)")
+
+	step("step 17/17 — A lists /me/credentials; expect 2")
+	creds, err := c.listMyCredentials()
+	if err != nil {
+		log.Fatalf("list credentials: %v", err)
+	}
+	if len(creds) != 2 {
+		log.Fatalf("expected 2 credentials, got %d: %+v", len(creds), creds)
+	}
+	log.Printf("  credentials count = %d", len(creds))
+
+	// --- DB-level verification: cose_alg and session table ---
+
+	step("DB verification — cose_alg + session-table writer wiring")
+	if err := verifyDB(me2.ID); err != nil {
+		log.Fatalf("DB verification: %v", err)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — enrollment, /me, logout, login all round-tripped against",
+	fmt.Println("✓ smoke OK — 17/17 + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -582,4 +678,148 @@ func (c *client) getMe() (*meResponse, error) {
 		return nil, err
 	}
 	return &me, nil
+}
+
+// ---------- /me/sessions and /me/credentials shapes ----------
+
+type sessionListItem struct {
+	ID         string `json:"id"`
+	IsCurrent  bool   `json:"isCurrent"`
+	IssuedAt   string `json:"issuedAt"`
+	ExpiresAt  string `json:"expiresAt"`
+	LastSeenIP string `json:"lastSeenIp"`
+	UserAgent  string `json:"userAgent"`
+}
+
+type credentialListItem struct {
+	ID                 int32  `json:"id"`
+	CredentialIDSuffix string `json:"credentialIdSuffix"`
+	Nickname           string `json:"nickname,omitempty"`
+}
+
+func (c *client) listMySessions() ([]sessionListItem, error) {
+	var out []sessionListItem
+	if err := c.get("/api/prohibitorum/me/sessions", &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *client) revokeSession(sessionID string) error {
+	return c.postJSON("/api/prohibitorum/me/sessions/revoke",
+		map[string]string{"id": sessionID}, nil)
+}
+
+func (c *client) listMyCredentials() ([]credentialListItem, error) {
+	var out []credentialListItem
+	if err := c.get("/api/prohibitorum/me/credentials", &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *client) beginAddCredential() (*creationOptions, error) {
+	var opts creationOptions
+	if err := c.postJSON("/api/prohibitorum/me/credentials/register/begin",
+		map[string]any{}, &opts); err != nil {
+		return nil, err
+	}
+	return &opts, nil
+}
+
+func (c *client) completeAddCredential(a *authenticator, att *attestationResult, nickname string) error {
+	credIDB64 := base64.RawURLEncoding.EncodeToString(att.credentialID)
+	payload := map[string]any{
+		"id":    credIDB64,
+		"rawId": credIDB64,
+		"type":  "public-key",
+		"response": map[string]any{
+			"clientDataJSON":    base64.RawURLEncoding.EncodeToString(att.clientDataJSON),
+			"attestationObject": base64.RawURLEncoding.EncodeToString(att.attestationObject),
+			"transports":        []string{"internal"},
+		},
+		"clientExtensionResults":  map[string]any{},
+		"authenticatorAttachment": "platform",
+	}
+	path := "/api/prohibitorum/me/credentials/register/complete"
+	if nickname != "" {
+		path += "?nickname=" + url.QueryEscape(nickname)
+	}
+	return c.postJSON(path, payload, nil)
+}
+
+// ---------- DB-state verification (psql shell-out) ----------
+
+// verifyDB asserts the runtime effects that pure-HTTP smoke can't see:
+//   - both webauthn_credential rows for accountID have cose_alg = -7 (ES256)
+//     (proves the COSEAlg helper at handle_enrollment.go AND handle_me.go)
+//   - the session table has at least 3 rows for accountID, with at least
+//     one revoked (proves InsertSession at Issue + RevokeSession at logout
+//     + RevokeSession at /me/sessions/revoke)
+//   - every session row has amr = '{hwk}' for WebAuthn
+func verifyDB(accountID int32) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set; cannot verify DB state")
+	}
+	algs, err := psqlScalar(dburl,
+		fmt.Sprintf("SELECT cose_alg FROM webauthn_credential WHERE account_id=%d ORDER BY id", accountID))
+	if err != nil {
+		return fmt.Errorf("query cose_alg: %w", err)
+	}
+	if len(algs) < 2 {
+		return fmt.Errorf("expected >=2 webauthn_credential rows for account %d, got %d (%v)",
+			accountID, len(algs), algs)
+	}
+	for i, a := range algs {
+		v, err := strconv.Atoi(a)
+		if err != nil {
+			return fmt.Errorf("cose_alg row %d: not an int: %q", i, a)
+		}
+		if v != -7 {
+			return fmt.Errorf("cose_alg row %d: got %d, want -7 (ES256)", i, v)
+		}
+	}
+	log.Printf("  webauthn_credential.cose_alg = -7 for all %d rows ✓", len(algs))
+
+	sessRows, err := psqlScalar(dburl,
+		fmt.Sprintf("SELECT amr[1] || ':' || (revoked_at IS NOT NULL)::text FROM session WHERE account_id=%d ORDER BY auth_time", accountID))
+	if err != nil {
+		return fmt.Errorf("query session: %w", err)
+	}
+	if len(sessRows) < 3 {
+		return fmt.Errorf("expected >=3 session rows for account %d (enroll-issue, post-logout, post-login, B's session...), got %d (%v)",
+			accountID, len(sessRows), sessRows)
+	}
+	revokedCount := 0
+	for _, row := range sessRows {
+		parts := strings.SplitN(row, ":", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("malformed session row: %q", row)
+		}
+		if parts[0] != "hwk" {
+			return fmt.Errorf("session amr[1] = %q, want %q", parts[0], "hwk")
+		}
+		if parts[1] == "true" {
+			revokedCount++
+		}
+	}
+	if revokedCount < 2 {
+		return fmt.Errorf("expected >=2 revoked session rows (logout + revoke-by-id), got %d", revokedCount)
+	}
+	log.Printf("  session table: %d rows, amr={hwk} on all, %d revoked ✓", len(sessRows), revokedCount)
+
+	return nil
+}
+
+func psqlScalar(dburl, query string) ([]string, error) {
+	out, err := exec.Command("psql", dburl, "-At", "-c", query).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("psql: %v: %s", err, string(out))
+	}
+	s := strings.TrimSpace(string(out))
+	if s == "" {
+		return nil, nil
+	}
+	return strings.Split(s, "\n"), nil
 }
