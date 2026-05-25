@@ -354,7 +354,7 @@ curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery-code/verify \
   -c cookies.txt \
   -d '{"partial_session_token":"<token>","code":"ABCD-1234-EFGH-5678"}'
 # 204 No Content; session cookie set
-# amr=["pwd","mfa"]
+# amr=["pwd","recovery_code","mfa"]
 ```
 
 Each recovery code is single-use — the server stamps `used_at`,
@@ -485,7 +485,7 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/complete \
 curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
   -H 'Content-Type: application/json' \
   -b cookies.txt -d '{"method":"password_totp"}'
-# 200 OK — no body; the server has stashed the intent
+# 204 No Content; the server has stashed the intent
 
 curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/complete \
   -H 'Content-Type: application/json' \

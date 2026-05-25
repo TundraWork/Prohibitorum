@@ -276,7 +276,7 @@ commit `5ccf3fe`).
   single-use, 5-minute, KV-backed `partial_session_token`;
   `POST /auth/totp/verify` or `POST /auth/recovery-code/verify`
   consumes it and issues a session cookie with `amr=["pwd","otp","mfa"]`
-  (or `["pwd","mfa"]` for recovery). Disabled accounts are rejected at
+  (or `["pwd","recovery_code","mfa"]` for recovery). Disabled accounts are rejected at
   `/auth/password/begin` after a dummy verify (no timing oracle).
 - **Sudo extension** — `pkg/authn/flow.AvailableMethods` enumerates
   per-account sudo factors in priority order
