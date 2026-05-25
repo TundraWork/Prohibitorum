@@ -254,3 +254,72 @@ func TestDisableNonWebAuthnFallbacks_NilAuditOK(t *testing.T) {
 			f.deletePasswordCalls, f.deleteTOTPCalls, f.deleteRecoveryCalls)
 	}
 }
+
+func TestDisableNonWebAuthnFallbacks_PasswordDeleteErrorStops(t *testing.T) {
+	errSim := errors.New("sim")
+	f := &flowFake{deletePasswordErr: errSim}
+	w := &captureWriter{}
+
+	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
+	if !errors.Is(err, errSim) {
+		t.Fatalf("err = %v, want wraps errSim", err)
+	}
+	if f.deletePasswordCalls != 1 {
+		t.Errorf("deletePasswordCalls = %d, want 1", f.deletePasswordCalls)
+	}
+	if f.deleteTOTPCalls != 0 {
+		t.Errorf("deleteTOTPCalls = %d, want 0 (early return on first failure)", f.deleteTOTPCalls)
+	}
+	if f.deleteRecoveryCalls != 0 {
+		t.Errorf("deleteRecoveryCalls = %d, want 0 (early return on first failure)", f.deleteRecoveryCalls)
+	}
+	if len(w.records) != 0 {
+		t.Errorf("len(records) = %d, want 0 (no audit on partial failure)", len(w.records))
+	}
+}
+
+func TestDisableNonWebAuthnFallbacks_TOTPDeleteErrorStops(t *testing.T) {
+	errSim := errors.New("sim")
+	f := &flowFake{deleteTOTPErr: errSim}
+	w := &captureWriter{}
+
+	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
+	if !errors.Is(err, errSim) {
+		t.Fatalf("err = %v, want wraps errSim", err)
+	}
+	if f.deletePasswordCalls != 1 {
+		t.Errorf("deletePasswordCalls = %d, want 1", f.deletePasswordCalls)
+	}
+	if f.deleteTOTPCalls != 1 {
+		t.Errorf("deleteTOTPCalls = %d, want 1", f.deleteTOTPCalls)
+	}
+	if f.deleteRecoveryCalls != 0 {
+		t.Errorf("deleteRecoveryCalls = %d, want 0 (early return on TOTP failure)", f.deleteRecoveryCalls)
+	}
+	if len(w.records) != 0 {
+		t.Errorf("len(records) = %d, want 0 (no audit on partial failure)", len(w.records))
+	}
+}
+
+func TestDisableNonWebAuthnFallbacks_RecoveryDeleteErrorStops(t *testing.T) {
+	errSim := errors.New("sim")
+	f := &flowFake{deleteRecoveryErr: errSim}
+	w := &captureWriter{}
+
+	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
+	if !errors.Is(err, errSim) {
+		t.Fatalf("err = %v, want wraps errSim", err)
+	}
+	if f.deletePasswordCalls != 1 {
+		t.Errorf("deletePasswordCalls = %d, want 1", f.deletePasswordCalls)
+	}
+	if f.deleteTOTPCalls != 1 {
+		t.Errorf("deleteTOTPCalls = %d, want 1", f.deleteTOTPCalls)
+	}
+	if f.deleteRecoveryCalls != 1 {
+		t.Errorf("deleteRecoveryCalls = %d, want 1", f.deleteRecoveryCalls)
+	}
+	if len(w.records) != 0 {
+		t.Errorf("len(records) = %d, want 0 (no audit on partial failure)", len(w.records))
+	}
+}
