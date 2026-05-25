@@ -2,8 +2,12 @@ package audit
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net"
 	"net/netip"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/db"
 )
@@ -57,9 +61,37 @@ func NewWriter(q db.Querier) Writer {
 
 type dbWriter struct{ q db.Querier }
 
-// TODO(v0.2): marshal Detail to JSONB, translate *netip.Addr to pgtype.Inet,
-// call q.InsertCredentialEvent.
 func (w *dbWriter) Record(ctx context.Context, r Record) error {
+	var detail []byte
+	if r.Detail != nil {
+		b, err := json.Marshal(r.Detail)
+		if err != nil {
+			return fmt.Errorf("audit: marshal detail: %w", err)
+		}
+		detail = b
+	}
+
+	var credRef pgtype.Int8
+	if r.CredentialRef != nil {
+		credRef = pgtype.Int8{Int64: *r.CredentialRef, Valid: true}
+	}
+
+	var ua pgtype.Text
+	if r.UserAgent != "" {
+		ua = pgtype.Text{String: r.UserAgent, Valid: true}
+	}
+
+	if err := w.q.InsertCredentialEvent(ctx, db.InsertCredentialEventParams{
+		AccountID:     r.AccountID,
+		Factor:        string(r.Factor),
+		Event:         r.Event,
+		CredentialRef: credRef,
+		Ip:            r.IP,
+		UserAgent:     ua,
+		Detail:        detail,
+	}); err != nil {
+		return fmt.Errorf("audit: insert credential_event: %w", err)
+	}
 	return nil
 }
 
