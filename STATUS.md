@@ -84,9 +84,11 @@ build on without further migrations.
 ## v0.1.1 — smoke test (done)
 
 Verified the skeleton against a real environment via `cmd/smoke`, an
-in-process virtual-authenticator client that drives the full WebAuthn
-ceremony without a browser. 10/10 steps passed end-to-end against the
-live dev server: enrollment → /me → logout → login → /me.
+in-process virtual-authenticator client that drives WebAuthn
+ceremonies without a browser. **17/17 steps + DB-state assertions
+pass end-to-end** against the live dev server, covering enrollment →
+/me → logout → login → second-client login → revoke-by-session-id →
+add-second-passkey.
 
 Three runtime bugs the smoke test surfaced (all fixed in the same
 session — see commit history):
@@ -111,6 +113,46 @@ session — see commit history):
 
 `cmd/smoke` is committed as permanent v0.1.x tooling; v0.2+ will
 extend it with password/TOTP and federation flows.
+
+### Smoke-covered runtime paths
+
+The following touched-by-v0.1.x code paths are verified by `cmd/smoke`
+against a real Postgres + dev server (see commit `a1ff8a6`):
+
+- `pkg/server/handle_enrollment.go` `insertCredentialForTx` writes
+  `cose_alg=-7` (step 4 + DB assertion).
+- `pkg/server/handle_me.go:201` `InsertCredential` for the
+  add-second-passkey path (steps 16–17 + DB assertion).
+- `pkg/session.SessionStore.Issue` writes a row to the PG `session`
+  table with `amr={hwk}` on enrollment-complete (step 4) and
+  login-complete (step 9) (DB assertion: 3+ rows for the test
+  account).
+- `pkg/session.SessionStore.Revoke` (called by `/auth/logout`) stamps
+  `revoked_at` (step 6 + DB assertion: ≥2 revoked rows).
+- `pkg/session.SessionStore.RevokeBySessionID` (called by
+  `/me/sessions/revoke`) revokes a non-current session of the same
+  account (steps 11–15: client B's session terminated by client A).
+- `/.well-known/openid-configuration` `claims_supported` lists
+  `attributes` (no `permissions` leak); manual curl confirmed.
+
+### Smoke-untested runtime paths (acknowledged)
+
+The following v0.1.x-touched paths are wired but not currently
+exercised by `cmd/smoke`:
+
+- `pkg/session.SessionStore.RevokeAllForAccount` (called by the admin
+  endpoint `/accounts/{id}/revoke-sessions`). Code path is
+  structurally identical to `RevokeBySessionID` + the
+  `RevokeAllSessionsByAccount` SQL UPDATE; would need a second
+  account + an admin-impersonation step to drive end-to-end. Deferred.
+- `pkg/server/handle_pairing.go:152` (device pairing's session
+  issuer with `amr=["hwk"]`). Multi-actor ceremony; the `amr` value
+  is the same constant the smoke already verifies in
+  enrollment/login. Deferred.
+
+`pkg/session/session_test.go` covers the
+`Issue → InsertSession fails → KV rolled back` consistency claim
+with a `failingSessionQueries` stub.
 
 ### How to re-run the smoke
 
