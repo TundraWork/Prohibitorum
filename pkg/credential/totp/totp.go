@@ -200,6 +200,15 @@ func (s *Store) Verify(ctx context.Context, accountID int32, code string) ([]str
 		if err := s.q.ConfirmTOTPCredential(ctx, accountID); err != nil {
 			return nil, fmt.Errorf("totp.Verify: confirm: %w", err)
 		}
+		// First successful verify is the registration milestone — the row
+		// existed since Begin() but is unusable until confirmed. Emit the
+		// audit event here (rather than at Begin) so credential_event reflects
+		// the factor's actual go-live moment. cmd/smoke step 45 asserts this.
+		_ = s.audit.Record(ctx, audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.FactorTOTP,
+			Event:     audit.EventRegister,
+		})
 		codes, err := s.mintRecoveryCodes(ctx, accountID)
 		if err != nil {
 			return nil, fmt.Errorf("totp.Verify: mint recovery: %w", err)

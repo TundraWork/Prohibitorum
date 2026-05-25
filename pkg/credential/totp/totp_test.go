@@ -391,15 +391,17 @@ func TestStore_VerifyEmitsAuditEvents(t *testing.T) {
 		t.Fatalf("Verify: %v", err)
 	}
 
-	var sawUse, sawFail, sawRegister bool
+	var sawUse, sawFail, sawTOTPRegister, sawRecoveryRegister bool
 	for _, e := range f.events {
 		switch {
 		case e.Factor == "totp" && e.Event == "use":
 			sawUse = true
 		case e.Factor == "totp" && e.Event == "fail":
 			sawFail = true
+		case e.Factor == "totp" && e.Event == "register":
+			sawTOTPRegister = true
 		case e.Factor == "recovery_code" && e.Event == "register":
-			sawRegister = true
+			sawRecoveryRegister = true
 		}
 	}
 	if !sawUse {
@@ -408,7 +410,10 @@ func TestStore_VerifyEmitsAuditEvents(t *testing.T) {
 	if !sawFail {
 		t.Error("expected totp/fail event")
 	}
-	if !sawRegister {
+	if !sawTOTPRegister {
+		t.Error("expected totp/register event (emitted on first-confirm verify)")
+	}
+	if !sawRecoveryRegister {
 		t.Error("expected recovery_code/register events (10x)")
 	}
 }
