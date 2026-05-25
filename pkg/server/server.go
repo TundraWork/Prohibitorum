@@ -20,8 +20,10 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
-	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/credential/pairing"
+	"prohibitorum/pkg/credential/password"
+	"prohibitorum/pkg/credential/totp"
+	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
@@ -30,17 +32,20 @@ import (
 )
 
 type Server struct {
-	queries      *db.Queries
-	dbPool       *pgxpool.Pool
-	router       *chi.Mux
-	api          huma.API
-	config       *configx.Config
-	kvStore      kv.Store
-	sessionStore *sessstore.SessionStore
-	pairingStore *pairing.PairingStore
-	rateLimiter  *authn.RateLimiter
-	webauthn     *webauthn.WebAuthn
-	oidcOP       *oidcop.Provider
+	queries       *db.Queries
+	dbPool        *pgxpool.Pool
+	router        *chi.Mux
+	api           huma.API
+	config        *configx.Config
+	kvStore       kv.Store
+	sessionStore  *sessstore.SessionStore
+	pairingStore  *pairing.PairingStore
+	rateLimiter   *authn.RateLimiter
+	webauthn      *webauthn.WebAuthn
+	oidcOP        *oidcop.Provider
+	passwordStore *password.Store
+	totpStore     *totp.Store
+	throttle      *authn.Throttle
 	// Audit records credential lifecycle events. Wired in v0.1; handlers
 	// begin calling Record() in v0.2.
 	Audit audit.Writer
@@ -85,19 +90,27 @@ func NewServer(ctx context.Context) (*Server, error) {
 	api := humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0"))
 	registerSecurityScheme(api)
 
+	auditWriter := audit.NewWriter(queries)
+	throttle := authn.NewThrottle(queries, config.Auth.ThrottleSchedule)
+	passwordStore := password.NewStore(queries, config.PasswordHashParams, throttle, auditWriter)
+	totpStore := totp.NewStore(queries, config.DataEncryptionKeys, config.TOTP, throttle, auditWriter)
+
 	s := &Server{
-		queries:      queries,
-		dbPool:       conn,
-		router:       router,
-		api:          api,
-		config:       config,
-		kvStore:      kvStore,
-		sessionStore: sessionStore,
-		pairingStore: pairing.NewPairingStore(kvStore),
-		rateLimiter:  authn.NewRateLimiter(),
-		webauthn:     wa,
-		oidcOP:       oidcop.New(config),
-		Audit:        audit.NewWriter(queries),
+		queries:       queries,
+		dbPool:        conn,
+		router:        router,
+		api:           api,
+		config:        config,
+		kvStore:       kvStore,
+		sessionStore:  sessionStore,
+		pairingStore:  pairing.NewPairingStore(kvStore),
+		rateLimiter:   authn.NewRateLimiter(),
+		webauthn:      wa,
+		oidcOP:        oidcop.New(config),
+		passwordStore: passwordStore,
+		totpStore:     totpStore,
+		throttle:      throttle,
+		Audit:         auditWriter,
 	}
 	s.registerOperations()
 	logx.WithContext(ctx).Info("registered operations")
@@ -149,6 +162,9 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/login/begin", publicReq, s.handleLoginBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/login/complete", publicReq, s.handleLoginCompleteHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/logout", publicReq, s.handleLogoutHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/password/begin", publicReq, s.handlePasswordBeginHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/totp/verify", publicReq, s.handleTOTPVerifyHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery-code/verify", publicReq, s.handleRecoveryCodeVerifyHTTP)
 
 	// Enrollment
 	registerOp(mgmt, contract.OperationPreviewEnrollment, s.handlePreviewEnrollment, publicReq)

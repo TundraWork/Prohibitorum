@@ -153,6 +153,21 @@ func ErrLoginFailed() *AuthError {
 	return newErr(http.StatusUnauthorized, "login_failed", "登录失败，请重试")
 }
 
+// ErrBadCredentials is the username-enumeration-safe response for step-1 of
+// the Password+TOTP login: same code/message whether the username doesn't
+// exist, the account has no password, or the password is wrong.
+func ErrBadCredentials() *AuthError {
+	return newErr(http.StatusUnauthorized, "bad_credentials", "用户名或密码错误")
+}
+
+// ErrPartialSessionInvalid is returned when a step-2 verify (TOTP or recovery
+// code) presents a partial-session token that's missing, expired, or already
+// consumed. Collapses all three into one code — no useful signal for an
+// attacker probing token validity.
+func ErrPartialSessionInvalid() *AuthError {
+	return newErr(http.StatusUnauthorized, "partial_session_invalid", "登录会话已过期，请重新登录")
+}
+
 func ErrAccountNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "account_not_found", "账户不存在")
 }
