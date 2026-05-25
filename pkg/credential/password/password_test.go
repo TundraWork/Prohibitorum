@@ -3,6 +3,8 @@ package password
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,7 +25,6 @@ type fakeQueries struct {
 	getCalled  int
 	throttle   map[string]db.AuthThrottle
 	events     []db.InsertCredentialEventParams
-	argon2Hits int
 }
 
 func newFakeQueries() *fakeQueries {
@@ -54,7 +55,7 @@ func (f *fakeQueries) DeletePasswordCredential(_ context.Context, accountID int3
 }
 
 func (f *fakeQueries) throttleKey(accountID int32, factor string) string {
-	return string(rune(accountID)) + ":" + factor
+	return fmt.Sprintf("%d:%s", accountID, factor)
 }
 
 func (f *fakeQueries) GetAuthThrottle(_ context.Context, arg db.GetAuthThrottleParams) (db.AuthThrottle, error) {
@@ -332,4 +333,51 @@ func TestStore_VerifyAgainstDummyDoesNotPanic(t *testing.T) {
 	f := newFakeQueries()
 	s := newTestStore(f, testParams())
 	s.VerifyAgainstDummy(context.Background(), "anything")
+}
+
+// TestStore_VerifyRejectsTamperedTag verifies the constant-time-compare path:
+// a structurally valid PHC string with one byte flipped in the encoded tag
+// must cause Verify(originalPassword) to return ErrPasswordIncorrect — proving
+// the tag is actually being compared, not just the structural fields.
+func TestStore_VerifyRejectsTamperedTag(t *testing.T) {
+	f := newFakeQueries()
+	s := newTestStore(f, testParams())
+	ctx := context.Background()
+
+	const pw = "alicepass"
+	if err := s.Set(ctx, 1, pw); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	// PHC layout: $argon2id$v=19$m=...,t=...,p=...$<b64 salt>$<b64 tag>
+	parts := strings.Split(f.pwRow.Hash, "$")
+	if len(parts) != 6 {
+		t.Fatalf("unexpected PHC structure: %d parts, want 6: %q", len(parts), f.pwRow.Hash)
+	}
+	tagBytes := []byte(parts[5])
+	if len(tagBytes) == 0 {
+		t.Fatalf("empty tag segment in PHC: %q", f.pwRow.Hash)
+	}
+	// Set the first tag char to a different base64-safe character. This keeps
+	// the PHC structurally valid (PHCDecode succeeds) but changes the decoded
+	// tag bytes, so the constant-time compare against the freshly-derived key
+	// must fail.
+	if tagBytes[0] != 'A' {
+		tagBytes[0] = 'A'
+	} else {
+		tagBytes[0] = 'B'
+	}
+	parts[5] = string(tagBytes)
+	f.pwRow.Hash = strings.Join(parts, "$")
+
+	// Sanity check: the tampered string must still decode as a valid PHC,
+	// otherwise we'd be testing the decode-error path instead of the
+	// compare-mismatch path.
+	if _, err := PHCDecode(f.pwRow.Hash); err != nil {
+		t.Fatalf("tampered PHC should still decode structurally: %v", err)
+	}
+
+	if err := s.Verify(ctx, 1, pw); !errors.Is(err, ErrPasswordIncorrect) {
+		t.Errorf("tampered tag: want ErrPasswordIncorrect, got %v", err)
+	}
 }
