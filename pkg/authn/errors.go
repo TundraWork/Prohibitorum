@@ -78,6 +78,16 @@ func ErrEnrollmentConsumed() *AuthError {
 	return newErr(http.StatusGone, "enrollment_consumed", "邀请链接已使用")
 }
 
+// ErrBadRequest is the generic 400 for malformed request bodies / out-of-range
+// inputs where a finer-grained code would leak implementation detail or
+// doesn't add operational value (e.g., password length bounds — exposing
+// "too long" vs "too short" lets an attacker probe the boundary). Handlers
+// should prefer a specific code when the failure mode is genuinely
+// user-actionable; ErrBadRequest is the catch-all.
+func ErrBadRequest() *AuthError {
+	return newErr(http.StatusBadRequest, "bad_request", "请求参数无效")
+}
+
 func ErrInvalidRole() *AuthError {
 	return newErr(http.StatusBadRequest, "invalid_role", "角色无效")
 }

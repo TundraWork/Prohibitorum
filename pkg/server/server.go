@@ -53,6 +53,16 @@ type Server struct {
 	// /me/sudo/methods computation without standing up *db.Queries. Nil in
 	// production — handlers fall back to s.queries.
 	sudoFlowOverride sudoFlowQueries
+	// meTOTPFlowOverride lets tests inject a fake meTOTPFlowQueries for the
+	// /me/totp/* conditional-sudo branch (which reads totp_credential.
+	// ConfirmedAt directly). Nil in production — handlers fall back to
+	// s.queries. Kept narrow so the unit-test surface doesn't drift from
+	// production. See handle_me_totp.go for the seam.
+	meTOTPFlowOverride meTOTPFlowQueries
+	// revokeFlowOverride lets tests inject a fake authn.FlowQueries for the
+	// /me/auth/revoke-password-totp handler. Nil in production — falls back
+	// to s.queries.
+	revokeFlowOverride authn.FlowQueries
 }
 
 func NewServer(ctx context.Context) (*Server, error) {
@@ -189,6 +199,13 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/methods", sessionReq, s.handleSudoMethodsHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/begin", sessionReq, s.handleSudoBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/complete", sessionReq, s.handleSudoCompleteHTTP)
+
+	// /me sensitive endpoints (sudo-gated, conditional for TOTP enrollment).
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/password/set", sessionReq, s.handleMePasswordSetHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/totp/begin", sessionReq, s.handleMeTOTPBeginHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/totp/verify", sessionReq, s.handleMeTOTPVerifyHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/recovery-codes/regenerate", sessionReq, s.handleMeRegenerateRecoveryCodesHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/auth/revoke-password-totp", sessionReq, s.handleMeRevokePwdTOTPHTTP)
 
 	// Device pairing
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/devices/pair/begin", publicReq, s.handlePairBeginHTTP)
