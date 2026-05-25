@@ -33,6 +33,7 @@ type Config struct {
 	TOTP               TOTPConfig         `mapstructure:"totp"`
 	SAML               SAMLConfig         `mapstructure:"saml"`
 	PasswordHashParams PasswordHashParams `mapstructure:"password_hash"`
+	Auth               AuthConfig         `mapstructure:"auth"`
 
 	// DataEncryptionKeys is the versioned AES-256 key set used to encrypt
 	// sensitive credential material (TOTP secrets in v0.2, additional fields
@@ -78,13 +79,32 @@ type FederationConfig struct {
 }
 
 // TOTPConfig holds RFC 6238 enrollment defaults + the drift window used
-// during verification.
+// during verification. Issuer is the label embedded in the otpauth:// URI
+// the authenticator displays alongside the account; when blank, it falls
+// back to webauthn.rp_display_name so a single brand string suffices.
 type TOTPConfig struct {
 	DefaultPeriod     int    `mapstructure:"default_period"`
 	DefaultDigits     int    `mapstructure:"default_digits"`
 	DefaultAlgorithm  string `mapstructure:"default_algorithm"`
 	DriftSteps        int    `mapstructure:"drift_steps"`
 	RecoveryCodeCount int    `mapstructure:"recovery_code_count"`
+	Issuer            string `mapstructure:"issuer"`
+}
+
+// AuthConfig holds cross-factor authentication tuning: the per-failure
+// throttle schedule, the sudo grant window, and the partial-session token
+// TTL used by the multi-step (password → TOTP) login flow.
+type AuthConfig struct {
+	// ThrottleSchedule is indexed by (failed_attempts - 1) and clamped to the
+	// last entry once the attempt count exceeds the schedule length. A zero
+	// duration means "no lockout for this attempt".
+	ThrottleSchedule []time.Duration `mapstructure:"throttle_schedule"`
+	// SudoTTL is the window during which sensitive endpoints accept a
+	// previously-elevated session without re-verifying a factor.
+	SudoTTL time.Duration `mapstructure:"sudo_ttl"`
+	// PartialSessionTTL bounds how long a password-only session may sit
+	// before it must complete the TOTP step.
+	PartialSessionTTL time.Duration `mapstructure:"partial_session_ttl"`
 }
 
 // SAMLConfig holds IdP identity + the per-deployment defaults that apply
@@ -141,12 +161,30 @@ func Parse() (*Config, error) {
 	viper.SetDefault("federation.default_scopes", []string{"openid", "profile", "email"})
 
 	// TOTP defaults — RFC 6238 §5.2 baseline, ±1 step drift window,
-	// 10 recovery codes per account.
+	// 10 recovery codes per account. Issuer defaults to empty so the
+	// post-unmarshal step can fall back to webauthn.rp_display_name.
 	viper.SetDefault("totp.default_period", 30)
 	viper.SetDefault("totp.default_digits", 6)
 	viper.SetDefault("totp.default_algorithm", "SHA1")
 	viper.SetDefault("totp.drift_steps", 1)
 	viper.SetDefault("totp.recovery_code_count", 10)
+	viper.SetDefault("totp.issuer", "")
+
+	// Cross-factor auth defaults. Schedule is the canonical OWASP-style
+	// exponential ladder: two free attempts, then 1s, 2s, 4s, 8s, 16s, 32s,
+	// 1m, 2m, 4m, 8m, 15m — the last entry clamps for all further failures.
+	// SudoTTL/PartialSessionTTL are both five minutes: short enough to bound
+	// post-compromise blast radius, long enough that the user can complete
+	// a follow-up step without re-authenticating.
+	viper.SetDefault("auth.throttle_schedule", []time.Duration{
+		0, 0,
+		time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second,
+		16 * time.Second, 32 * time.Second,
+		time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute,
+		15 * time.Minute,
+	})
+	viper.SetDefault("auth.sudo_ttl", 5*time.Minute)
+	viper.SetDefault("auth.partial_session_ttl", 5*time.Minute)
 
 	// SAML defaults — persistent NameID per OASIS SAML 2.0 Core §8.3.7,
 	// 7d metadata rotation grace.
@@ -156,11 +194,15 @@ func Parse() (*Config, error) {
 	viper.SetDefault("saml.session_lifetime", 8*time.Hour)
 	viper.SetDefault("saml.metadata_rotation_grace", 7*24*time.Hour)
 
-	// Password hashing defaults — 64 MiB / 3 iterations / 4 lanes is the
-	// OWASP-recommended argon2id baseline for interactive auth.
+	// Password hashing defaults — 64 MiB / 3 iterations / 1 lane. The
+	// memory and time costs follow OWASP's 2024 argon2id guidance for
+	// interactive auth; parallelism dropped to 1 per the 2026 update, which
+	// notes that single-lane runs simplify reasoning about wall-clock cost
+	// on small VPS deployments without losing meaningful brute-force
+	// resistance at these memory/iteration counts.
 	viper.SetDefault("password_hash.memory_kib", 65536)
 	viper.SetDefault("password_hash.iterations", 3)
-	viper.SetDefault("password_hash.parallelism", 4)
+	viper.SetDefault("password_hash.parallelism", 1)
 
 	// WebAuthn substruct defaults — RPDisplayName defaults to the product name;
 	// RPID and RPOrigins are derived from PublicOrigins when not set explicitly.
@@ -191,6 +233,13 @@ func Parse() (*Config, error) {
 
 	if config.OIDC.Issuer == "" && len(config.PublicOrigins) > 0 {
 		config.OIDC.Issuer = config.PublicOrigins[0]
+	}
+
+	// TOTP issuer falls back to the WebAuthn RP display name so deployers
+	// only have to set the product name once. Resolved after Unmarshal so
+	// an explicit totp.issuer override still wins over the fallback.
+	if config.TOTP.Issuer == "" {
+		config.TOTP.Issuer = config.WebAuthn.RPDisplayName
 	}
 
 	keys, err := loadDataEncryptionKeys(os.Environ())

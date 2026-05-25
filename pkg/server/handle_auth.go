@@ -48,12 +48,22 @@ func sessionView(a *db.Account) contract.SessionView {
 }
 
 // writeAuthErr serializes an *authn.AuthError onto a raw http.ResponseWriter
-// using the project's error envelope.
+// using the project's error envelope. When the AuthError carries a
+// RetryAfter duration (rate-limit, factor lockout), the header is emitted
+// as integer seconds, rounded up so a sub-second remainder still nudges the
+// client past the lockout boundary.
 func writeAuthErr(w http.ResponseWriter, err error) {
 	ae := authn.AsAuthError(err)
 	if ae == nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if ae.RetryAfter > 0 {
+		secs := int((ae.RetryAfter + time.Second - 1) / time.Second)
+		if secs < 1 {
+			secs = 1
+		}
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", secs))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(ae.Status)

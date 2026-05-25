@@ -4,15 +4,21 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // AuthError is the canonical error type returned from auth checks and handlers.
 // HTTP status, machine-readable code, and human message are all surfaced together;
 // the registerOp helper and HTTP error writers project these into wire responses.
+//
+// RetryAfter is optional; when non-zero, HTTP error writers emit a Retry-After
+// header with the duration rounded up to whole seconds. Used by 429 responses
+// (rate-limit and factor-lockout) to give clients a back-off hint.
 type AuthError struct {
-	Status  int
-	Code    string
-	Message string
+	Status     int
+	Code       string
+	Message    string
+	RetryAfter time.Duration
 }
 
 func (e *AuthError) Error() string { return fmt.Sprintf("%s: %s", e.Code, e.Message) }
@@ -193,6 +199,18 @@ func ErrPairingNotApproved() *AuthError {
 // handler should also populate Retry-After when possible.
 func ErrRateLimited() *AuthError {
 	return newErr(http.StatusTooManyRequests, "rate_limited", "请求过于频繁，请稍后再试")
+}
+
+// ErrFactorLocked is returned when an auth_throttle lockout window is active
+// for a (account, factor) pair. RetryAfter carries the remaining lockout
+// duration so the HTTP handler can set a Retry-After header.
+func ErrFactorLocked(retryAfter time.Duration) *AuthError {
+	return &AuthError{
+		Status:     http.StatusTooManyRequests,
+		Code:       "factor_locked",
+		Message:    "尝试次数过多，请稍后再试",
+		RetryAfter: retryAfter,
+	}
 }
 
 // ErrSudoRequired is returned when a sensitive action needs a fresh
