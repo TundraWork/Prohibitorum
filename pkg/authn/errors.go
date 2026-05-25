@@ -235,6 +235,14 @@ func ErrSudoRequired() *AuthError {
 	return newErr(http.StatusUnauthorized, "sudo_required", "敏感操作需要重新验证 Passkey")
 }
 
+// ErrSudoMethodUnavailable is returned by /me/sudo/begin when the caller
+// requests an elevation method (webauthn, password_totp, recovery_code) the
+// account isn't enrolled in. The dashboard should consult
+// /me/sudo/methods first; this error is a safety net.
+func ErrSudoMethodUnavailable() *AuthError {
+	return newErr(http.StatusBadRequest, "sudo_method_unavailable", "当前账户未启用所请求的二次验证方式")
+}
+
 func ErrSessionNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "session_not_found", "会话不存在或已过期")
 }

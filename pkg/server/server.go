@@ -49,6 +49,10 @@ type Server struct {
 	// Audit records credential lifecycle events. Wired in v0.1; handlers
 	// begin calling Record() in v0.2.
 	Audit audit.Writer
+	// sudoFlowOverride lets tests inject a fake sudoFlowQueries for the
+	// /me/sudo/methods computation without standing up *db.Queries. Nil in
+	// production — handlers fall back to s.queries.
+	sudoFlowOverride sudoFlowQueries
 }
 
 func NewServer(ctx context.Context) (*Server, error) {
@@ -182,6 +186,7 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationRevokeMySession, s.handleRevokeMySession, sessionReq)
 
 	// Sudo
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/methods", sessionReq, s.handleSudoMethodsHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/begin", sessionReq, s.handleSudoBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/complete", sessionReq, s.handleSudoCompleteHTTP)
 
