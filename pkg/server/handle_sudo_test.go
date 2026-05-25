@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -372,16 +373,10 @@ func methodsFromBody(t *testing.T, body []byte) []string {
 }
 
 // --- /me/sudo/methods tests ------------------------------------------------
-
-func TestSudoMethods_RequiresSession(t *testing.T) {
-	s, _, _ := newSudoTestServer(t)
-	r := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/me/sudo/methods", nil)
-	w := httptest.NewRecorder()
-	s.handleSudoMethodsHTTP(w, r)
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("status: want 401, got %d", w.Code)
-	}
-}
+//
+// Note: there is no direct nil-session test here — the handlers trust the
+// sessionReq middleware (matching the convention used by handleGetMe et al.)
+// to guarantee a non-nil session before dispatch.
 
 func TestSudoMethods_OnlyWebauthn(t *testing.T) {
 	s, f, _ := newSudoTestServer(t)
@@ -436,7 +431,7 @@ func TestSudoMethods_WithRecoveryCodes(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.handleSudoMethodsHTTP(w, r)
 	got := methodsFromBody(t, w.Body.Bytes())
-	if !containsString(got, "recovery_code") {
+	if !slices.Contains(got, "recovery_code") {
 		t.Errorf("methods should include recovery_code, got %v", got)
 	}
 }

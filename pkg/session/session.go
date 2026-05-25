@@ -56,11 +56,6 @@ func NewSessionStore(store kv.Store, q SessionQueries, ttl time.Duration) *Sessi
 // TTL returns the configured session lifetime (handler/middleware use it for cookie MaxAge).
 func (s *SessionStore) TTL() time.Duration { return s.ttl }
 
-// SudoTTL is the window during which sensitive actions accept the session's
-// current sudo grant. Short by design — sudo expires the moment the user
-// stops using it.
-const SudoTTL = 5 * time.Minute
-
 // newToken produces 32 random bytes encoded as URL-safe base64 (43 chars, no padding).
 func newToken() (string, error) {
 	b := make([]byte, 32)

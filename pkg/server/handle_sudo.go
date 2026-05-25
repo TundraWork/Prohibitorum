@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -59,10 +60,6 @@ type sudoFlowQueries interface {
 
 func (s *Server) handleSudoMethodsHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
-	if sess == nil {
-		writeAuthErr(w, authn.ErrNoSession())
-		return
-	}
 	methods := s.availableSudoMethods(r.Context(), sess.Account.ID)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"methods": methods})
@@ -105,10 +102,6 @@ func (s *Server) sudoFlowQ() sudoFlowQueries {
 
 func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
-	if sess == nil {
-		writeAuthErr(w, authn.ErrNoSession())
-		return
-	}
 	if s.rateLimit(w, r, "sudo:acct:"+sess.Data.SessionID, 10, time.Minute) {
 		return
 	}
@@ -122,7 +115,7 @@ func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	available := s.availableSudoMethods(r.Context(), sess.Account.ID)
-	if !containsString(available, body.Method) {
+	if !slices.Contains(available, body.Method) {
 		writeAuthErr(w, authn.ErrSudoMethodUnavailable())
 		return
 	}
@@ -196,10 +189,6 @@ func (s *Server) beginSudoWebAuthn(w http.ResponseWriter, r *http.Request, sess 
 
 func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
-	if sess == nil {
-		writeAuthErr(w, authn.ErrNoSession())
-		return
-	}
 	if s.rateLimit(w, r, "sudo:acct:"+sess.Data.SessionID, 10, time.Minute) {
 		return
 	}
@@ -387,15 +376,6 @@ func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *au
 
 func sudoStashKey(sessionID string) string {
 	return "webauthn_ceremony:sudo:" + sessionID
-}
-
-func containsString(xs []string, needle string) bool {
-	for _, x := range xs {
-		if x == needle {
-			return true
-		}
-	}
-	return false
 }
 
 // requireFreshSudo writes an ErrSudoRequired (401) when the session is
