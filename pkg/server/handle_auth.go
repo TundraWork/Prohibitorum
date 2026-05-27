@@ -156,7 +156,16 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		writeAuthErr(w, authn.ErrCeremonyMissing())
 		return
 	}
-	raw, err := s.kvStore.Get(r.Context(), "webauthn_ceremony:login:"+cer.Value)
+	// Pop the ceremony stash atomically: single-use prevents an attacker
+	// who has captured a WebAuthn assertion (e.g. via a proxy / replay)
+	// from completing the login twice against the same challenge state.
+	// The pre-bundle Get-then-Del race let two concurrent calls both
+	// observe the value; one would issue a session and the other would
+	// retry FinishPasskeyLogin with the same SessionData (which would
+	// likely fail authenticator-side checks but constituted a wider
+	// attack surface than necessary). On a race the loser sees
+	// ErrKeyNotFound → ceremony_expired, same UX as a TTL miss.
+	raw, err := s.kvStore.Pop(r.Context(), "webauthn_ceremony:login:"+cer.Value)
 	if err != nil {
 		// kv.ErrKeyNotFound or wrapped — both surface as expired ceremony.
 		logx.WithContext(r.Context()).WithFields(logrus.Fields{
@@ -252,7 +261,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			SignCount:  newCount,
 		})
 	}
-	_ = s.kvStore.Del(r.Context(), "webauthn_ceremony:login:"+cer.Value)
+	// Ceremony stash was Popped atomically above; no Del needed here.
 	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r))
 
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)

@@ -193,7 +193,13 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	intentRaw, err := s.kvStore.Get(r.Context(), sudoIntentKey(sess.Data.SessionID))
+	// Pop the intent atomically — single-use prevents a race where two
+	// /complete calls in flight could both dispatch the same intent and
+	// each issue a sudo grant. The webauthn-stash consume below uses Pop
+	// for the same reason. On a race the loser sees ErrKeyNotFound (mapped
+	// to ErrCeremonyExpired), which is the same UX as a slow user whose
+	// intent already TTL-expired.
+	intentRaw, err := s.kvStore.Pop(r.Context(), sudoIntentKey(sess.Data.SessionID))
 	if err != nil {
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
@@ -219,7 +225,10 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 // completeSudoWebAuthn is the v0.1 sudo-finish path: FinishLogin against the
 // stashed assertion state, refresh sign-count, stamp SudoUntil, audit.
 func (s *Server) completeSudoWebAuthn(w http.ResponseWriter, r *http.Request, sess *authn.Session) {
-	raw, err := s.kvStore.Get(r.Context(), sudoStashKey(sess.Data.SessionID))
+	// Pop atomically: single-use webauthn assertion. Two parallel /complete
+	// calls cannot both replay the same assertion-challenge — the loser
+	// sees ErrKeyNotFound (→ ceremony_expired).
+	raw, err := s.kvStore.Pop(r.Context(), sudoStashKey(sess.Data.SessionID))
 	if err != nil {
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
@@ -348,7 +357,12 @@ func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *au
 		return
 	}
 
-	_ = s.kvStore.Del(r.Context(), sudoIntentKey(sess.Data.SessionID))
+	// Intent and webauthn stash were already Popped atomically by the
+	// dispatcher / completeSudoWebAuthn. Best-effort Del of the stash
+	// covers the orphan case where /begin used webauthn (writing a stash)
+	// but /complete dispatched a different method (e.g. user changed
+	// their mind, second /begin overrode the intent but left the stash).
+	// Del on an absent key is a no-op.
 	_ = s.kvStore.Del(r.Context(), sudoStashKey(sess.Data.SessionID))
 
 	if s.Audit != nil {

@@ -66,16 +66,30 @@ func (f *fakeQueries) GetAuthThrottle(_ context.Context, arg db.GetAuthThrottleP
 	return row, nil
 }
 
-func (f *fakeQueries) UpsertAuthThrottle(_ context.Context, arg db.UpsertAuthThrottleParams) (db.AuthThrottle, error) {
-	row := db.AuthThrottle{
-		AccountID:      arg.AccountID,
-		Factor:         arg.Factor,
-		FailedAttempts: arg.FailedAttempts,
-		WindowStart:    arg.WindowStart,
-		LockedUntil:    arg.LockedUntil,
+func (f *fakeQueries) BumpAuthThrottle(_ context.Context, arg db.BumpAuthThrottleParams) (db.BumpAuthThrottleRow, error) {
+	key := f.throttleKey(arg.AccountID, arg.Factor)
+	now := time.Now()
+	cur, ok := f.throttle[key]
+	if !ok {
+		cur = db.AuthThrottle{
+			AccountID:   arg.AccountID,
+			Factor:      arg.Factor,
+			WindowStart: pgtype.Timestamptz{Time: now, Valid: true},
+		}
 	}
-	f.throttle[f.throttleKey(arg.AccountID, arg.Factor)] = row
-	return row, nil
+	cur.FailedAttempts++
+	idx := int(cur.FailedAttempts) - 1
+	if idx >= len(arg.ScheduleMicros) {
+		idx = len(arg.ScheduleMicros) - 1
+	}
+	if idx < 0 || arg.ScheduleMicros[idx] <= 0 {
+		cur.LockedUntil = pgtype.Timestamptz{Valid: false}
+	} else {
+		d := time.Duration(arg.ScheduleMicros[idx]) * time.Microsecond
+		cur.LockedUntil = pgtype.Timestamptz{Time: now.Add(d), Valid: true}
+	}
+	f.throttle[key] = cur
+	return db.BumpAuthThrottleRow{FailedAttempts: cur.FailedAttempts, LockedUntil: cur.LockedUntil}, nil
 }
 
 func (f *fakeQueries) ResetAuthThrottle(_ context.Context, arg db.ResetAuthThrottleParams) error {

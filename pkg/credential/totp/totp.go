@@ -54,7 +54,7 @@ type TOTPQueries interface {
 	InsertTOTPCredential(ctx context.Context, arg db.InsertTOTPCredentialParams) (db.TotpCredential, error)
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	ConfirmTOTPCredential(ctx context.Context, accountID int32) error
-	UpdateTOTPLastStep(ctx context.Context, arg db.UpdateTOTPLastStepParams) error
+	UpdateTOTPLastStep(ctx context.Context, arg db.UpdateTOTPLastStepParams) (int64, error)
 
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]db.RecoveryCode, error)
 	InsertRecoveryCode(ctx context.Context, arg db.InsertRecoveryCodeParams) (db.RecoveryCode, error)
@@ -187,10 +187,25 @@ func (s *Store) Verify(ctx context.Context, accountID int32, code string) ([]str
 		return nil, ErrTOTPReplay
 	}
 
-	if err := s.q.UpdateTOTPLastStep(ctx, db.UpdateTOTPLastStepParams{
+	// The SQL UPDATE is the atomic gate: WHERE $2 > last_step. Under K-way
+	// concurrency only one caller's row matches; the rest see pgx.ErrNoRows
+	// (because the query is :one RETURNING last_step) and we treat that as a
+	// replay-race loss. The Go-side check above short-circuits the common
+	// serial replay before the DB round-trip; this catches the race.
+	if _, err := s.q.UpdateTOTPLastStep(ctx, db.UpdateTOTPLastStepParams{
 		AccountID: accountID,
 		LastStep:  matchedStep,
 	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			_, _ = s.throttle.RegisterFailure(ctx, accountID, "totp")
+			_ = s.audit.Record(ctx, audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorTOTP,
+				Event:     audit.EventFail,
+				Detail:    map[string]any{"reason": "replay"},
+			})
+			return nil, ErrTOTPReplay
+		}
 		return nil, fmt.Errorf("totp.Verify: update last_step: %w", err)
 	}
 	_ = s.throttle.Reset(ctx, accountID, "totp")

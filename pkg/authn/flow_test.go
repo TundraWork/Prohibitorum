@@ -221,13 +221,18 @@ func TestDisableNonWebAuthnFallbacks_EmitsAuditEvents(t *testing.T) {
 		t.Fatalf("len(records) = %d, want 3", len(w.records))
 	}
 
+	// Revoke order is recovery → TOTP → password (Bundle 1 / Fix 5):
+	// safer under partial failure than the pre-bundle password-first order,
+	// because an orphan after a partial failure keeps the *stronger*
+	// factor (TOTP+authenticator) intact rather than leaving the weaker
+	// single-use recovery codes alive.
 	want := []struct {
 		factor audit.Factor
 		event  string
 	}{
-		{audit.FactorPassword, audit.EventRevoke},
-		{audit.FactorTOTP, audit.EventRevoke},
 		{audit.FactorRecoveryCode, audit.EventRevoke},
+		{audit.FactorTOTP, audit.EventRevoke},
+		{audit.FactorPassword, audit.EventRevoke},
 	}
 	for i, exp := range want {
 		got := w.records[i]
@@ -255,23 +260,28 @@ func TestDisableNonWebAuthnFallbacks_NilAuditOK(t *testing.T) {
 	}
 }
 
-func TestDisableNonWebAuthnFallbacks_PasswordDeleteErrorStops(t *testing.T) {
+// Bundle 1 / Fix 5: delete order is recovery → TOTP → password. The early
+// returns below reflect that order so partial failures stop at the safer
+// state (e.g. recovery delete fails → TOTP and password untouched, so the
+// strong factor stays whole rather than being half-destroyed).
+
+func TestDisableNonWebAuthnFallbacks_RecoveryDeleteErrorStops(t *testing.T) {
 	errSim := errors.New("sim")
-	f := &flowFake{deletePasswordErr: errSim}
+	f := &flowFake{deleteRecoveryErr: errSim}
 	w := &captureWriter{}
 
 	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
 	if !errors.Is(err, errSim) {
 		t.Fatalf("err = %v, want wraps errSim", err)
 	}
-	if f.deletePasswordCalls != 1 {
-		t.Errorf("deletePasswordCalls = %d, want 1", f.deletePasswordCalls)
+	if f.deleteRecoveryCalls != 1 {
+		t.Errorf("deleteRecoveryCalls = %d, want 1", f.deleteRecoveryCalls)
 	}
 	if f.deleteTOTPCalls != 0 {
 		t.Errorf("deleteTOTPCalls = %d, want 0 (early return on first failure)", f.deleteTOTPCalls)
 	}
-	if f.deleteRecoveryCalls != 0 {
-		t.Errorf("deleteRecoveryCalls = %d, want 0 (early return on first failure)", f.deleteRecoveryCalls)
+	if f.deletePasswordCalls != 0 {
+		t.Errorf("deletePasswordCalls = %d, want 0 (early return on first failure)", f.deletePasswordCalls)
 	}
 	if len(w.records) != 0 {
 		t.Errorf("len(records) = %d, want 0 (no audit on partial failure)", len(w.records))
@@ -287,37 +297,37 @@ func TestDisableNonWebAuthnFallbacks_TOTPDeleteErrorStops(t *testing.T) {
 	if !errors.Is(err, errSim) {
 		t.Fatalf("err = %v, want wraps errSim", err)
 	}
-	if f.deletePasswordCalls != 1 {
-		t.Errorf("deletePasswordCalls = %d, want 1", f.deletePasswordCalls)
+	if f.deleteRecoveryCalls != 1 {
+		t.Errorf("deleteRecoveryCalls = %d, want 1", f.deleteRecoveryCalls)
 	}
 	if f.deleteTOTPCalls != 1 {
 		t.Errorf("deleteTOTPCalls = %d, want 1", f.deleteTOTPCalls)
 	}
-	if f.deleteRecoveryCalls != 0 {
-		t.Errorf("deleteRecoveryCalls = %d, want 0 (early return on TOTP failure)", f.deleteRecoveryCalls)
+	if f.deletePasswordCalls != 0 {
+		t.Errorf("deletePasswordCalls = %d, want 0 (early return on TOTP failure)", f.deletePasswordCalls)
 	}
 	if len(w.records) != 0 {
 		t.Errorf("len(records) = %d, want 0 (no audit on partial failure)", len(w.records))
 	}
 }
 
-func TestDisableNonWebAuthnFallbacks_RecoveryDeleteErrorStops(t *testing.T) {
+func TestDisableNonWebAuthnFallbacks_PasswordDeleteErrorStops(t *testing.T) {
 	errSim := errors.New("sim")
-	f := &flowFake{deleteRecoveryErr: errSim}
+	f := &flowFake{deletePasswordErr: errSim}
 	w := &captureWriter{}
 
 	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
 	if !errors.Is(err, errSim) {
 		t.Fatalf("err = %v, want wraps errSim", err)
 	}
-	if f.deletePasswordCalls != 1 {
-		t.Errorf("deletePasswordCalls = %d, want 1", f.deletePasswordCalls)
+	if f.deleteRecoveryCalls != 1 {
+		t.Errorf("deleteRecoveryCalls = %d, want 1", f.deleteRecoveryCalls)
 	}
 	if f.deleteTOTPCalls != 1 {
 		t.Errorf("deleteTOTPCalls = %d, want 1", f.deleteTOTPCalls)
 	}
-	if f.deleteRecoveryCalls != 1 {
-		t.Errorf("deleteRecoveryCalls = %d, want 1", f.deleteRecoveryCalls)
+	if f.deletePasswordCalls != 1 {
+		t.Errorf("deletePasswordCalls = %d, want 1", f.deletePasswordCalls)
 	}
 	if len(w.records) != 0 {
 		t.Errorf("len(records) = %d, want 0 (no audit on partial failure)", len(w.records))

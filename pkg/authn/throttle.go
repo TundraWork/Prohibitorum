@@ -10,10 +10,14 @@
 //   - CheckLocked is read-only; it returns the remaining lockout duration
 //     paired with ErrFactorLocked, or (0, nil) when the (account, factor)
 //     pair has no row or has an expired lockout.
-//   - RegisterFailure increments failed_attempts (creating the row on first
-//     failure) and indexes the schedule by failed_attempts-1, clamping to
-//     the last entry. window_start is set on first failure and otherwise
-//     preserved across upserts so audit can reason about windows.
+//   - RegisterFailure delegates the increment AND the lockout-deadline
+//     computation to a single Postgres round-trip (BumpAuthThrottle). The
+//     pre-bundle code did read-then-UPSERT, which under K-way concurrency
+//     both lost increments (K racers all read the same prior count) and
+//     picked the lockout from the racing snapshot rather than the
+//     post-increment value. The schedule travels as a bigint[] of
+//     microsecond durations; SQL indexes into it via the just-incremented
+//     failed_attempts so the lockout always matches the persisted counter.
 //   - Reset deletes the row on a successful verify. Idempotent — the
 //     underlying DELETE is a no-op against a missing row.
 package authn
@@ -24,7 +28,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/db"
 )
@@ -34,15 +37,16 @@ import (
 // sqlc-generated surface (mirrors the SessionQueries pattern in pkg/session).
 type ThrottleQueries interface {
 	GetAuthThrottle(ctx context.Context, arg db.GetAuthThrottleParams) (db.AuthThrottle, error)
-	UpsertAuthThrottle(ctx context.Context, arg db.UpsertAuthThrottleParams) (db.AuthThrottle, error)
+	BumpAuthThrottle(ctx context.Context, arg db.BumpAuthThrottleParams) (db.BumpAuthThrottleRow, error)
 	ResetAuthThrottle(ctx context.Context, arg db.ResetAuthThrottleParams) error
 }
 
 // Throttle drives the per-(account, factor) lockout state machine.
 type Throttle struct {
-	q        ThrottleQueries
-	schedule []time.Duration
-	now      func() time.Time
+	q             ThrottleQueries
+	schedule      []time.Duration
+	scheduleMicro []int64
+	now           func() time.Time
 }
 
 // NewThrottle constructs a Throttle with the supplied schedule. The schedule
@@ -53,7 +57,14 @@ func NewThrottle(q ThrottleQueries, schedule []time.Duration) *Throttle {
 	if len(schedule) == 0 {
 		schedule = []time.Duration{0, 0, time.Second, 5 * time.Second, 15 * time.Minute}
 	}
-	return &Throttle{q: q, schedule: schedule, now: time.Now}
+	micros := make([]int64, len(schedule))
+	for i, d := range schedule {
+		if d < 0 {
+			d = 0
+		}
+		micros[i] = int64(d / time.Microsecond)
+	}
+	return &Throttle{q: q, schedule: schedule, scheduleMicro: micros, now: time.Now}
 }
 
 // CheckLocked reports whether the (account, factor) pair is currently in a
@@ -80,46 +91,23 @@ func (t *Throttle) CheckLocked(ctx context.Context, accountID int32, factor stri
 }
 
 // RegisterFailure bumps the consecutive-failure counter for (account, factor)
-// and writes the new lockout deadline. Returns the lockout duration applied
+// in a single atomic SQL round-trip and returns the lockout duration applied
 // (zero when the current attempt is still within the schedule's free-attempt
-// prefix). window_start is set to t.now() on first failure and otherwise
-// preserved from the existing row.
+// prefix). The schedule is passed by value with the call, so a config reload
+// changes the next failure's behaviour without any cache invalidation.
 func (t *Throttle) RegisterFailure(ctx context.Context, accountID int32, factor string) (time.Duration, error) {
-	now := t.now()
-	row, err := t.q.GetAuthThrottle(ctx, db.GetAuthThrottleParams{AccountID: accountID, Factor: factor})
-	var failed int32
-	var windowStart pgtype.Timestamptz
-	switch {
-	case err == nil:
-		failed = row.FailedAttempts + 1
-		windowStart = row.WindowStart
-	case errors.Is(err, pgx.ErrNoRows):
-		failed = 1
-		windowStart = pgtype.Timestamptz{Time: now, Valid: true}
-	default:
-		return 0, err
-	}
-
-	idx := int(failed) - 1
-	if idx >= len(t.schedule) {
-		idx = len(t.schedule) - 1
-	}
-	lockout := t.schedule[idx]
-	lockedUntil := pgtype.Timestamptz{Valid: false}
-	if lockout > 0 {
-		lockedUntil = pgtype.Timestamptz{Time: now.Add(lockout), Valid: true}
-	}
-
-	if _, err := t.q.UpsertAuthThrottle(ctx, db.UpsertAuthThrottleParams{
+	row, err := t.q.BumpAuthThrottle(ctx, db.BumpAuthThrottleParams{
 		AccountID:      accountID,
 		Factor:         factor,
-		FailedAttempts: failed,
-		WindowStart:    windowStart,
-		LockedUntil:    lockedUntil,
-	}); err != nil {
+		ScheduleMicros: t.scheduleMicro,
+	})
+	if err != nil {
 		return 0, err
 	}
-	return lockout, nil
+	if !row.LockedUntil.Valid {
+		return 0, nil
+	}
+	return row.LockedUntil.Time.Sub(t.now()), nil
 }
 
 // Reset deletes the throttle row on a successful verify. No-op when the row

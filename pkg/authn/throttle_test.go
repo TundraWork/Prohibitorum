@@ -3,6 +3,7 @@ package authn
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,12 +17,20 @@ import (
 // Keys are "<accountID>:<factor>". Mirrors the sqlc UPSERT semantics: a
 // missing row reports pgx.ErrNoRows from GetAuthThrottle and replaces a row
 // on UpsertAuthThrottle, regardless of prior state.
+// fakeThrottleQueries models the production SQL atomically: BumpAuthThrottle
+// reads, increments, computes the lockout from the just-incremented count,
+// and writes back under a single mutex. The mutex is the in-memory analogue
+// of Postgres's row-level lock on the UPSERT; without it the K-way race test
+// would be undefined behaviour rather than a regression check.
 type fakeThrottleQueries struct {
-	rows map[string]db.AuthThrottle
+	mu        sync.Mutex
+	rows      map[string]db.AuthThrottle
+	clock     func() time.Time
+	bumpCalls int
 }
 
 func newFakeThrottleQueries() *fakeThrottleQueries {
-	return &fakeThrottleQueries{rows: map[string]db.AuthThrottle{}}
+	return &fakeThrottleQueries{rows: map[string]db.AuthThrottle{}, clock: time.Now}
 }
 
 func (f *fakeThrottleQueries) key(accountID int32, factor string) string {
@@ -29,6 +38,8 @@ func (f *fakeThrottleQueries) key(accountID int32, factor string) string {
 }
 
 func (f *fakeThrottleQueries) GetAuthThrottle(_ context.Context, arg db.GetAuthThrottleParams) (db.AuthThrottle, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	row, ok := f.rows[f.key(arg.AccountID, arg.Factor)]
 	if !ok {
 		return db.AuthThrottle{}, pgx.ErrNoRows
@@ -36,27 +47,52 @@ func (f *fakeThrottleQueries) GetAuthThrottle(_ context.Context, arg db.GetAuthT
 	return row, nil
 }
 
-func (f *fakeThrottleQueries) UpsertAuthThrottle(_ context.Context, arg db.UpsertAuthThrottleParams) (db.AuthThrottle, error) {
-	row := db.AuthThrottle{
-		AccountID:      arg.AccountID,
-		Factor:         arg.Factor,
-		FailedAttempts: arg.FailedAttempts,
-		WindowStart:    arg.WindowStart,
-		LockedUntil:    arg.LockedUntil,
+func (f *fakeThrottleQueries) BumpAuthThrottle(_ context.Context, arg db.BumpAuthThrottleParams) (db.BumpAuthThrottleRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.bumpCalls++
+	now := f.clock()
+	key := f.key(arg.AccountID, arg.Factor)
+	cur, ok := f.rows[key]
+	if !ok {
+		cur = db.AuthThrottle{
+			AccountID:   arg.AccountID,
+			Factor:      arg.Factor,
+			WindowStart: pgtype.Timestamptz{Time: now, Valid: true},
+		}
 	}
-	f.rows[f.key(arg.AccountID, arg.Factor)] = row
-	return row, nil
+	cur.FailedAttempts++
+	idx := int(cur.FailedAttempts) - 1
+	if idx >= len(arg.ScheduleMicros) {
+		idx = len(arg.ScheduleMicros) - 1
+	}
+	if idx < 0 || arg.ScheduleMicros[idx] <= 0 {
+		cur.LockedUntil = pgtype.Timestamptz{Valid: false}
+	} else {
+		d := time.Duration(arg.ScheduleMicros[idx]) * time.Microsecond
+		cur.LockedUntil = pgtype.Timestamptz{Time: now.Add(d), Valid: true}
+	}
+	f.rows[key] = cur
+	return db.BumpAuthThrottleRow{FailedAttempts: cur.FailedAttempts, LockedUntil: cur.LockedUntil}, nil
 }
 
 func (f *fakeThrottleQueries) ResetAuthThrottle(_ context.Context, arg db.ResetAuthThrottleParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	delete(f.rows, f.key(arg.AccountID, arg.Factor))
 	return nil
 }
 
-// newThrottleAt builds a Throttle whose clock is pinned to t.
+// newThrottleAt builds a Throttle whose clock is pinned to t. The same
+// clock is shared with the fake's BumpAuthThrottle so the lockout deadline
+// is computed against the pinned now, matching the production semantics
+// where Postgres now() runs server-side under the same transaction.
 func newThrottleAt(q ThrottleQueries, schedule []time.Duration, t time.Time) *Throttle {
 	th := NewThrottle(q, schedule)
 	th.now = func() time.Time { return t }
+	if f, ok := q.(*fakeThrottleQueries); ok {
+		f.clock = func() time.Time { return t }
+	}
 	return th
 }
 
@@ -201,12 +237,52 @@ func (e *errorThrottleQueries) GetAuthThrottle(context.Context, db.GetAuthThrott
 	return db.AuthThrottle{}, e.getErr
 }
 
-func (e *errorThrottleQueries) UpsertAuthThrottle(context.Context, db.UpsertAuthThrottleParams) (db.AuthThrottle, error) {
-	return db.AuthThrottle{}, nil
+func (e *errorThrottleQueries) BumpAuthThrottle(context.Context, db.BumpAuthThrottleParams) (db.BumpAuthThrottleRow, error) {
+	return db.BumpAuthThrottleRow{}, nil
 }
 
 func (e *errorThrottleQueries) ResetAuthThrottle(context.Context, db.ResetAuthThrottleParams) error {
 	return nil
+}
+
+// TestThrottle_RegisterFailureKWayRace exercises the regression that the
+// audit's Race Critical-3 finding called out: K parallel RegisterFailure
+// calls for the same (account, factor) MUST increment by K rather than 1.
+// The pre-bundle read-then-UPSERT lost increments because each racer
+// read the same prior count and last-write-wins clobbered to that count+1.
+// The fake now models the production SQL by holding a mutex across
+// read+increment+write, mirroring Postgres's row-level UPSERT lock.
+func TestThrottle_RegisterFailureKWayRace(t *testing.T) {
+	const K = 10
+	schedule := []time.Duration{0, 0, time.Second, 2 * time.Second, 4 * time.Second}
+	q := newFakeThrottleQueries()
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	th := newThrottleAt(q, schedule, now)
+
+	var wg sync.WaitGroup
+	wg.Add(K)
+	errs := make(chan error, K)
+	for i := 0; i < K; i++ {
+		go func() {
+			defer wg.Done()
+			if _, err := th.RegisterFailure(context.Background(), 42, "password"); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("RegisterFailure error: %v", err)
+	}
+
+	row, err := q.GetAuthThrottle(context.Background(), db.GetAuthThrottleParams{AccountID: 42, Factor: "password"})
+	if err != nil {
+		t.Fatalf("GetAuthThrottle: %v", err)
+	}
+	if row.FailedAttempts != int32(K) {
+		t.Fatalf("FailedAttempts after %d racing failures: want %d, got %d", K, K, row.FailedAttempts)
+	}
 }
 
 // Sanity: pgtype.Timestamptz zero value is correctly invalid.

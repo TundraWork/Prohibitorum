@@ -43,6 +43,14 @@ type Store interface {
 	// Del deletes a key. No error if the key does not exist.
 	Del(ctx context.Context, key string) error
 
+	// Pop atomically retrieves and removes the value at key. Returns
+	// ErrKeyNotFound if absent. Implementations MUST guarantee that
+	// concurrent Pop calls with the same key return the value to exactly
+	// one caller — the others see ErrKeyNotFound. Used by single-use
+	// flows (partial-session token consume, sudo intent consume, WebAuthn
+	// ceremony stash consume) where a Get-then-Del would race.
+	Pop(ctx context.Context, key string) (string, error)
+
 	// ScanEntries returns entries (key + value + TTL) matching a Redis-style
 	// glob pattern. cursor=0 starts a new scan. count is a hint for batch
 	// size. Returns entries and the next cursor (0 = complete).

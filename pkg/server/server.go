@@ -63,6 +63,19 @@ type Server struct {
 	// /me/auth/revoke-password-totp handler. Nil in production — falls back
 	// to s.queries.
 	revokeFlowOverride authn.FlowQueries
+	// accountLookup lets tests inject a fake for the post-partial-session
+	// disabled re-check in /auth/{totp,recovery-code}/verify (Bundle 1 /
+	// Fix 4). Nil in production — falls back to s.queries.
+	accountLookup accountLookupQueries
+}
+
+// accountLookupQueries is the narrow query surface the step-2 handlers
+// (handleTOTPVerifyHTTP, handleRecoveryCodeVerifyHTTP) need for the
+// disabled-mid-flow re-check. Declared here so tests can stub it without
+// constructing a *db.Queries. Production wiring (NewServer) leaves
+// accountLookup nil and handlers fall back to s.queries.
+type accountLookupQueries interface {
+	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
 }
 
 func NewServer(ctx context.Context) (*Server, error) {

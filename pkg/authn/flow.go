@@ -77,27 +77,40 @@ func AvailableMethods(ctx context.Context, q FlowQueries, accountID int32) ([]Me
 	return methods, nil
 }
 
-// DisableNonWebAuthnFallbacks deletes password + TOTP + recovery rows for the
-// account. Each delete is independent — a missing row is a no-op at the SQL
-// level. Returns the first error encountered, wrapped with context.
+// DisableNonWebAuthnFallbacks deletes recovery codes + TOTP + password rows
+// for the account, in that order. Each delete is independent — a missing
+// row is a no-op at the SQL level. Returns the first error encountered,
+// wrapped with context.
+//
+// Order matters: recovery → TOTP → password is the safe sequencing under
+// partial failure. The pre-bundle order (password → TOTP → recovery) left
+// an orphan window where, on a failure between TOTP delete and recovery
+// delete, the recovery codes remained sudo-usable even though the
+// password+TOTP factor was already partially destroyed (TOTP gone, but
+// the recovery codes that backed it still alive). Reordering to recovery
+// first means the worst orphan state is "no recovery codes but TOTP still
+// alive and consumable" — strictly safer because TOTP still requires the
+// authenticator and the password.
 //
 // v0.2 does NOT wrap these in a Postgres transaction; partial failure is
 // recoverable by retrying the endpoint. Hardening is deferred to v0.3+.
 func DisableNonWebAuthnFallbacks(ctx context.Context, q FlowQueries, w audit.Writer, accountID int32) error {
-	if err := q.DeletePasswordCredential(ctx, accountID); err != nil {
-		return fmt.Errorf("DisableNonWebAuthnFallbacks: delete password: %w", err)
+	if err := q.DeleteAllRecoveryCodesByAccount(ctx, accountID); err != nil {
+		return fmt.Errorf("DisableNonWebAuthnFallbacks: delete recovery: %w", err)
 	}
 	if err := q.DeleteTOTPCredential(ctx, accountID); err != nil {
 		return fmt.Errorf("DisableNonWebAuthnFallbacks: delete totp: %w", err)
 	}
-	if err := q.DeleteAllRecoveryCodesByAccount(ctx, accountID); err != nil {
-		return fmt.Errorf("DisableNonWebAuthnFallbacks: delete recovery: %w", err)
+	if err := q.DeletePasswordCredential(ctx, accountID); err != nil {
+		return fmt.Errorf("DisableNonWebAuthnFallbacks: delete password: %w", err)
 	}
 	if w != nil {
+		// Audit emission mirrors the delete order so the credential_event
+		// log narrates the revocation in the same sequence the rows fell.
 		for _, factor := range []audit.Factor{
-			audit.FactorPassword,
-			audit.FactorTOTP,
 			audit.FactorRecoveryCode,
+			audit.FactorTOTP,
+			audit.FactorPassword,
 		} {
 			_ = w.Record(ctx, audit.Record{
 				AccountID: &accountID,

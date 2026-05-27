@@ -60,6 +60,17 @@ func (m *MemoryStore) Del(_ context.Context, key string) error {
 	return nil
 }
 
+// Pop atomically retrieves and removes the value at key. ttlcache v3's
+// GetAndDelete primitive holds an internal lock across the lookup-then-remove
+// so two concurrent callers on the same key can never both observe the value.
+func (m *MemoryStore) Pop(_ context.Context, key string) (string, error) {
+	item, ok := m.cache.GetAndDelete(key)
+	if !ok || item == nil {
+		return "", ErrKeyNotFound
+	}
+	return item.Value(), nil
+}
+
 // ScanEntries implements Store.ScanEntries by iterating in-memory items
 // with glob matching. Returns all matching entries in one shot (NextCursor=0).
 func (m *MemoryStore) ScanEntries(_ context.Context, pattern string, _ uint64, _ int64) (ScanEntriesResult, error) {

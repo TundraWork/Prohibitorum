@@ -10,9 +10,16 @@ RETURNING *;
 UPDATE totp_credential SET confirmed_at = now()
 WHERE account_id = $1 AND confirmed_at IS NULL;
 
--- name: UpdateTOTPLastStep :exec
+-- name: UpdateTOTPLastStep :one
+-- RFC 6238 §5.2: this UPDATE is the atomic gate that prevents a parallel
+-- replay of the same code from issuing two sessions. The Go-side
+-- `matchedStep <= row.LastStep` check short-circuits the common (serial)
+-- replay; this WHERE guarantees that under K-way concurrency only one
+-- caller's RETURNING row populates. The remaining racers see pgx.ErrNoRows
+-- and the Verify path translates that to ErrTOTPReplay.
 UPDATE totp_credential SET last_step = $2
-WHERE account_id = $1 AND $2 > last_step;
+WHERE account_id = $1 AND $2 > last_step
+RETURNING last_step;
 
 -- name: DeleteTOTPCredential :exec
 DELETE FROM totp_credential WHERE account_id = $1;

@@ -11,6 +11,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bumpAuthThrottle = `-- name: BumpAuthThrottle :one
+INSERT INTO auth_throttle (account_id, factor, failed_attempts, window_start, locked_until)
+VALUES (
+    $1, $2, 1, now(),
+    CASE
+        WHEN array_length($3::bigint[], 1) IS NULL THEN NULL
+        WHEN ($3::bigint[])[1] > 0 THEN now() + (($3::bigint[])[1] || ' microseconds')::interval
+        ELSE NULL
+    END
+)
+ON CONFLICT (account_id, factor) DO UPDATE
+SET failed_attempts = auth_throttle.failed_attempts + 1,
+    locked_until = (
+        SELECT CASE WHEN micros > 0 THEN now() + (micros || ' microseconds')::interval ELSE NULL END
+        FROM (
+            SELECT ($3::bigint[])[LEAST(auth_throttle.failed_attempts + 1, array_length($3::bigint[], 1))] AS micros
+        ) sub
+    )
+RETURNING failed_attempts, locked_until
+`
+
+type BumpAuthThrottleParams struct {
+	AccountID      int32   `json:"accountId"`
+	Factor         string  `json:"factor"`
+	ScheduleMicros []int64 `json:"scheduleMicros"`
+}
+
+type BumpAuthThrottleRow struct {
+	FailedAttempts int32              `json:"failedAttempts"`
+	LockedUntil    pgtype.Timestamptz `json:"lockedUntil"`
+}
+
+// Atomic increment + lockout-from-just-incremented-count. The previous
+// read-then-UPSERT path lost increments under K-way concurrency (K callers
+// all read the same prior count, then last-write-wins clobbered to count+1)
+// and worse, picked the lockout duration off the racing snapshot rather than
+// the post-increment value. This single round-trip carries the full
+// exponential-backoff schedule as a bigint[] of microsecond durations; the
+// CASE clauses index into it using auth_throttle.failed_attempts + 1, which
+// Postgres evaluates against the just-incremented row.
+//
+// $3 layout: schedule[i] is the lockout duration (in microseconds) applied
+// on the i-th failure (1-indexed). 0 means "no lockout yet — still in the
+// free-attempt prefix". Indexing past the array clamps to the last entry,
+// matching the Go-side schedule-walk semantics.
+func (q *Queries) BumpAuthThrottle(ctx context.Context, arg BumpAuthThrottleParams) (BumpAuthThrottleRow, error) {
+	row := q.db.QueryRow(ctx, bumpAuthThrottle, arg.AccountID, arg.Factor, arg.ScheduleMicros)
+	var i BumpAuthThrottleRow
+	err := row.Scan(&i.FailedAttempts, &i.LockedUntil)
+	return i, err
+}
+
 const getAuthThrottle = `-- name: GetAuthThrottle :one
 SELECT account_id, factor, failed_attempts, window_start, locked_until FROM auth_throttle WHERE account_id = $1 AND factor = $2
 `
@@ -45,41 +97,4 @@ type ResetAuthThrottleParams struct {
 func (q *Queries) ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error {
 	_, err := q.db.Exec(ctx, resetAuthThrottle, arg.AccountID, arg.Factor)
 	return err
-}
-
-const upsertAuthThrottle = `-- name: UpsertAuthThrottle :one
-INSERT INTO auth_throttle (account_id, factor, failed_attempts, window_start, locked_until)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (account_id, factor) DO UPDATE
-SET failed_attempts = EXCLUDED.failed_attempts,
-    window_start = EXCLUDED.window_start,
-    locked_until = EXCLUDED.locked_until
-RETURNING account_id, factor, failed_attempts, window_start, locked_until
-`
-
-type UpsertAuthThrottleParams struct {
-	AccountID      int32              `json:"accountId"`
-	Factor         string             `json:"factor"`
-	FailedAttempts int32              `json:"failedAttempts"`
-	WindowStart    pgtype.Timestamptz `json:"windowStart"`
-	LockedUntil    pgtype.Timestamptz `json:"lockedUntil"`
-}
-
-func (q *Queries) UpsertAuthThrottle(ctx context.Context, arg UpsertAuthThrottleParams) (AuthThrottle, error) {
-	row := q.db.QueryRow(ctx, upsertAuthThrottle,
-		arg.AccountID,
-		arg.Factor,
-		arg.FailedAttempts,
-		arg.WindowStart,
-		arg.LockedUntil,
-	)
-	var i AuthThrottle
-	err := row.Scan(
-		&i.AccountID,
-		&i.Factor,
-		&i.FailedAttempts,
-		&i.WindowStart,
-		&i.LockedUntil,
-	)
-	return i, err
 }

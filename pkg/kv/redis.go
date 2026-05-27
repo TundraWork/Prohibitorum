@@ -126,6 +126,20 @@ func (r *RedisStore) Del(ctx context.Context, key string) error {
 	return r.client.Del(ctx, key).Err()
 }
 
+// Pop atomically retrieves and removes the value at key. Uses Redis's
+// GETDEL (≥6.2) which performs the read-and-remove in a single command,
+// guaranteeing exactly one concurrent caller observes the value.
+func (r *RedisStore) Pop(ctx context.Context, key string) (string, error) {
+	val, err := r.client.GetDel(ctx, key).Result()
+	if err == redis.Nil {
+		return "", ErrKeyNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return val, nil
+}
+
 func (r *RedisStore) Close() error {
 	return r.client.Close()
 }

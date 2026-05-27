@@ -11,6 +11,21 @@ import (
 )
 
 type Querier interface {
+	//
+	// Atomic increment + lockout-from-just-incremented-count. The previous
+	// read-then-UPSERT path lost increments under K-way concurrency (K callers
+	// all read the same prior count, then last-write-wins clobbered to count+1)
+	// and worse, picked the lockout duration off the racing snapshot rather than
+	// the post-increment value. This single round-trip carries the full
+	// exponential-backoff schedule as a bigint[] of microsecond durations; the
+	// CASE clauses index into it using auth_throttle.failed_attempts + 1, which
+	// Postgres evaluates against the just-incremented row.
+	//
+	// $3 layout: schedule[i] is the lockout duration (in microseconds) applied
+	// on the i-th failure (1-indexed). 0 means "no lockout yet — still in the
+	// free-attempt prefix". Indexing past the array clamps to the last entry,
+	// matching the Go-side schedule-walk semantics.
+	BumpAuthThrottle(ctx context.Context, arg BumpAuthThrottleParams) (BumpAuthThrottleRow, error)
 	ConfirmTOTPCredential(ctx context.Context, accountID int32) error
 	// Atomic single-use consume. Returns the row only if it was unconsumed and unexpired.
 	// Callers detect any "not consumable" branch via pgx.ErrNoRows.
@@ -99,9 +114,14 @@ type Querier interface {
 	// Zero rows affected means the id doesn't match an owned credential; the
 	// handler then surfaces credential_not_found.
 	UpdateMyCredentialNickname(ctx context.Context, arg UpdateMyCredentialNicknameParams) (int64, error)
-	UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) error
+	// RFC 6238 §5.2: this UPDATE is the atomic gate that prevents a parallel
+	// replay of the same code from issuing two sessions. The Go-side
+	// `matchedStep <= row.LastStep` check short-circuits the common (serial)
+	// replay; this WHERE guarantees that under K-way concurrency only one
+	// caller's RETURNING row populates. The remaining racers see pgx.ErrNoRows
+	// and the Verify path translates that to ErrTOTPReplay.
+	UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) (int64, error)
 	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
-	UpsertAuthThrottle(ctx context.Context, arg UpsertAuthThrottleParams) (AuthThrottle, error)
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
 }
 

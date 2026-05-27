@@ -92,9 +92,10 @@ func (q *Queries) InsertTOTPCredential(ctx context.Context, arg InsertTOTPCreden
 	return i, err
 }
 
-const updateTOTPLastStep = `-- name: UpdateTOTPLastStep :exec
+const updateTOTPLastStep = `-- name: UpdateTOTPLastStep :one
 UPDATE totp_credential SET last_step = $2
 WHERE account_id = $1 AND $2 > last_step
+RETURNING last_step
 `
 
 type UpdateTOTPLastStepParams struct {
@@ -102,7 +103,15 @@ type UpdateTOTPLastStepParams struct {
 	LastStep  int64 `json:"lastStep"`
 }
 
-func (q *Queries) UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) error {
-	_, err := q.db.Exec(ctx, updateTOTPLastStep, arg.AccountID, arg.LastStep)
-	return err
+// RFC 6238 §5.2: this UPDATE is the atomic gate that prevents a parallel
+// replay of the same code from issuing two sessions. The Go-side
+// `matchedStep <= row.LastStep` check short-circuits the common (serial)
+// replay; this WHERE guarantees that under K-way concurrency only one
+// caller's RETURNING row populates. The remaining racers see pgx.ErrNoRows
+// and the Verify path translates that to ErrTOTPReplay.
+func (q *Queries) UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) (int64, error) {
+	row := q.db.QueryRow(ctx, updateTOTPLastStep, arg.AccountID, arg.LastStep)
+	var last_step int64
+	err := row.Scan(&last_step)
+	return last_step, err
 }

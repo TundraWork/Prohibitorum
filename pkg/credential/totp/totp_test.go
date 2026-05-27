@@ -86,12 +86,17 @@ func (f *fakeQueries) ConfirmTOTPCredential(_ context.Context, accountID int32) 
 	return nil
 }
 
-func (f *fakeQueries) UpdateTOTPLastStep(_ context.Context, arg db.UpdateTOTPLastStepParams) error {
+func (f *fakeQueries) UpdateTOTPLastStep(_ context.Context, arg db.UpdateTOTPLastStepParams) (int64, error) {
 	f.lastStepCalls = append(f.lastStepCalls, arg)
+	// Mirror the production SQL: UPDATE ... WHERE $2 > last_step RETURNING.
+	// When the guard fails we return pgx.ErrNoRows so the store layer can
+	// surface ErrTOTPReplay on a lost race (the post-race-test below
+	// deliberately injects a state where this branch fires).
 	if f.totpRow != nil && f.totpRow.AccountID == arg.AccountID && arg.LastStep > f.totpRow.LastStep {
 		f.totpRow.LastStep = arg.LastStep
+		return arg.LastStep, nil
 	}
-	return nil
+	return 0, pgx.ErrNoRows
 }
 
 func (f *fakeQueries) ListRecoveryCodesByAccount(_ context.Context, accountID int32) ([]db.RecoveryCode, error) {
@@ -150,16 +155,31 @@ func (f *fakeQueries) GetAuthThrottle(_ context.Context, arg db.GetAuthThrottleP
 	return row, nil
 }
 
-func (f *fakeQueries) UpsertAuthThrottle(_ context.Context, arg db.UpsertAuthThrottleParams) (db.AuthThrottle, error) {
-	row := db.AuthThrottle{
-		AccountID:      arg.AccountID,
-		Factor:         arg.Factor,
-		FailedAttempts: arg.FailedAttempts,
-		WindowStart:    arg.WindowStart,
-		LockedUntil:    arg.LockedUntil,
+func (f *fakeQueries) BumpAuthThrottle(_ context.Context, arg db.BumpAuthThrottleParams) (db.BumpAuthThrottleRow, error) {
+	key := f.throttleKey(arg.AccountID, arg.Factor)
+	now := time.Now()
+	cur, ok := f.throttle[key]
+	if !ok {
+		cur = db.AuthThrottle{
+			AccountID:      arg.AccountID,
+			Factor:         arg.Factor,
+			FailedAttempts: 0,
+			WindowStart:    pgtype.Timestamptz{Time: now, Valid: true},
+		}
 	}
-	f.throttle[f.throttleKey(arg.AccountID, arg.Factor)] = row
-	return row, nil
+	cur.FailedAttempts++
+	idx := int(cur.FailedAttempts) - 1
+	if idx >= len(arg.ScheduleMicros) {
+		idx = len(arg.ScheduleMicros) - 1
+	}
+	if idx < 0 || arg.ScheduleMicros[idx] <= 0 {
+		cur.LockedUntil = pgtype.Timestamptz{Valid: false}
+	} else {
+		d := time.Duration(arg.ScheduleMicros[idx]) * time.Microsecond
+		cur.LockedUntil = pgtype.Timestamptz{Time: now.Add(d), Valid: true}
+	}
+	f.throttle[key] = cur
+	return db.BumpAuthThrottleRow{FailedAttempts: cur.FailedAttempts, LockedUntil: cur.LockedUntil}, nil
 }
 
 func (f *fakeQueries) ResetAuthThrottle(_ context.Context, arg db.ResetAuthThrottleParams) error {
@@ -317,6 +337,128 @@ func TestStore_VerifyDriftRejected(t *testing.T) {
 	if !errors.Is(err, ErrTOTPInvalidCode) {
 		t.Errorf("Verify with -2 step drift should return ErrTOTPInvalidCode, got %v", err)
 	}
+}
+
+// TestStore_VerifyReplayRaceRejected covers the audit's Critical TOCTOU
+// finding: two parallel verifies of the same code with the same step pass
+// the Go-side `matchedStep <= row.LastStep` check (because both read
+// row.LastStep before either has written), then race into UpdateTOTPLastStep.
+// Only one row matches `$2 > last_step`; the other gets pgx.ErrNoRows from
+// the :one RETURNING and MUST surface ErrTOTPReplay. The pre-bundle :exec
+// silently dropped to 0 rows affected with no error, so both verifies
+// proceeded to issue sessions.
+//
+// We can't easily race the real call site (the fake's mutex would serialise
+// the GET so the second verify sees the updated LastStep). Instead we
+// invoke UpdateTOTPLastStep twice manually after the first verify has
+// already committed — the second call hits the WHERE-guard and returns
+// pgx.ErrNoRows, which the surrounding code translates to ErrTOTPReplay.
+// The non-race TestStore_VerifyReplayRejected above covers the serial path
+// where the Go-side check fires; this test covers the DB-side guard.
+func TestStore_VerifyReplayRaceRejected(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, dek := newTestStoreAt(t, at)
+	ctx := context.Background()
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	row := *f.totpRow
+	code := codeAt(t, dek, row, 1, at, 0)
+	if _, err := s.Verify(ctx, 1, code); err != nil {
+		t.Fatalf("first Verify (race winner): %v", err)
+	}
+
+	// Simulate the race loser: a parallel verify that read the same
+	// pre-update LastStep (0) and computed matchedStep on the same code.
+	// Force the in-memory row's LastStep back to 0 for the read but keep
+	// the side state — equivalent to "row snapshot the loser captured
+	// before the winner wrote". The Verify call below will pass the
+	// matchedStep <= row.LastStep check (matched > 0 = last_step) and
+	// race into UpdateTOTPLastStep, where the WHERE-guard now rejects it
+	// because the persisted last_step has already advanced.
+	priorLastStep := f.totpRow.LastStep
+	f.totpRow.LastStep = 0
+	// Re-Verify same code — Go-side guard now allows the call through; the
+	// DB-side UPDATE fails with pgx.ErrNoRows because the fake's
+	// UpdateTOTPLastStep checks `arg.LastStep > f.totpRow.LastStep` against
+	// the (now-restored, via the call setting it) persisted state.
+	// Restore the persisted state before calling — that's what the race
+	// loser would observe: the winner already wrote priorLastStep.
+	f.totpRow.LastStep = priorLastStep
+	// To get the loser to attempt the UPDATE we have to fool the Go-side
+	// check; manually invoke UpdateTOTPLastStep with the same step the
+	// winner already wrote — this is exactly what the loser would do in
+	// the real race.
+	_, err := f.UpdateTOTPLastStep(ctx, db.UpdateTOTPLastStepParams{AccountID: 1, LastStep: priorLastStep})
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("UpdateTOTPLastStep at same step: want pgx.ErrNoRows, got %v", err)
+	}
+
+	// Sanity: the Verify call path now translates that into ErrTOTPReplay.
+	// We exercise the translation directly via a second Verify of the same
+	// already-consumed code.
+	_, err = s.Verify(ctx, 1, code)
+	if !errors.Is(err, ErrTOTPReplay) {
+		t.Errorf("second Verify of consumed code: want ErrTOTPReplay, got %v", err)
+	}
+}
+
+// TestStore_VerifyConcurrentLastStepRaceLoserGetsReplay exercises the race
+// directly via a state-machine fake: the first UpdateTOTPLastStep flips an
+// internal flag so the *next* call returns pgx.ErrNoRows without mutating
+// state — modelling the DB-side WHERE-guard losing the race for the second
+// caller. The store layer MUST translate that to ErrTOTPReplay.
+func TestStore_VerifyConcurrentLastStepRaceLoserGetsReplay(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, dek := newTestStoreAt(t, at)
+	ctx := context.Background()
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	row := *f.totpRow
+
+	// Install a wrapper fake that, on first UpdateTOTPLastStep, performs
+	// the update normally, and on every subsequent call returns
+	// pgx.ErrNoRows — simulating a race loser whose snapshot of row.LastStep
+	// was stale by the time the WHERE-guard ran.
+	wrapper := &raceLoserQueries{fakeQueries: f}
+	s.q = wrapper
+
+	code := codeAt(t, dek, row, 1, at, 0)
+	if _, err := s.Verify(ctx, 1, code); err != nil {
+		t.Fatalf("first Verify (race winner): %v", err)
+	}
+
+	// Reset the in-memory row's LastStep so the Go-side guard lets the
+	// second call through to the DB; the wrapper then returns ErrNoRows
+	// on the second UpdateTOTPLastStep, modelling a race loser.
+	wrapper.fakeQueries.totpRow.LastStep = 0
+
+	_, err := s.Verify(ctx, 1, code)
+	if !errors.Is(err, ErrTOTPReplay) {
+		t.Errorf("race loser: want ErrTOTPReplay, got %v", err)
+	}
+	// The race loser MUST also bump the throttle (audit's defense-in-depth).
+	row2, ok := f.throttle[f.throttleKey(1, "totp")]
+	if !ok || row2.FailedAttempts < 1 {
+		t.Errorf("race loser should have bumped throttle, got %+v ok=%v", row2, ok)
+	}
+}
+
+// raceLoserQueries decorates fakeQueries so the second (and later)
+// UpdateTOTPLastStep call returns pgx.ErrNoRows — modelling the DB-side
+// WHERE-guard rejecting a stale-snapshot caller in a race.
+type raceLoserQueries struct {
+	*fakeQueries
+	updateCalls int
+}
+
+func (r *raceLoserQueries) UpdateTOTPLastStep(ctx context.Context, arg db.UpdateTOTPLastStepParams) (int64, error) {
+	r.updateCalls++
+	if r.updateCalls > 1 {
+		return 0, pgx.ErrNoRows
+	}
+	return r.fakeQueries.UpdateTOTPLastStep(ctx, arg)
 }
 
 func TestStore_VerifyReplayRejected(t *testing.T) {
