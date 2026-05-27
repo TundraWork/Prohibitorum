@@ -65,13 +65,23 @@ POST /auth/recovery/totp/verify {recovery_session_token, code}
 | Credential | When deleted |
 |---|---|
 | Redeemed recovery code | `/auth/recovery-code/verify` (existing behavior — `used_at` stamped) |
-| Old `totp_credential` row | `/auth/recovery/totp/begin` (existing `Store.Begin` wipe behavior) |
-| Remaining unused recovery codes | `/auth/recovery/totp/begin` (existing `DeleteAllRecoveryCodesByAccount` in `Store.Begin`) |
-| New 10 recovery codes | minted at `/auth/recovery/totp/verify` first-confirm |
+| Old `totp_credential` row | `/auth/recovery/totp/begin` — need the row slot for the new unconfirmed enrollment |
+| Remaining unused recovery codes | `/auth/recovery/totp/verify` first-confirm — survives abandoned `/begin` so the user can retry recovery |
+| New 10 recovery codes | minted at `/auth/recovery/totp/verify` first-confirm (in the same tx as the recovery-code wipe) |
 
-The deletion of the remaining unused recovery codes is the key hygiene
-improvement: copies of those codes in old screenshots, password-manager
-backups, or emails are dead post-recovery.
+The remaining recovery codes are deleted only on successful new-TOTP
+confirmation, not at `/begin`. This preserves the user's recovery
+options if they abandon mid-ceremony (e.g., they walk away after
+`/begin` but before `/verify` — the recovery_session expires, they
+can retry with another recovery code). The recovery codes from
+before recovery are still wiped on the final commit, so copies in
+old screenshots etc. are dead post-recovery.
+
+The "old TOTP row wiped at begin, recovery codes wiped at verify"
+split means `Store.Begin` needs a `preserveRecoveryCodes bool` flag
+(or a variant `BeginPreservingRecovery`) so the recovery flow can
+skip the recovery-code part of the wipe. The `/me/totp/begin`
+re-enrollment path keeps the existing wipe-both behavior.
 
 ## Edge cases
 
