@@ -22,7 +22,10 @@
 //	  amr=["pwd","otp","mfa"].
 //
 // recovery_session_token semantics:
-//   - 32-byte URL-safe random, separate KV namespace (recovery_session:<tok>).
+//   - 128-bit URL-safe random (shares newCeremonyToken with partial-session
+//     and webauthn ceremony tokens), separate KV namespace
+//     (recovery_session:<tok>). Single-use + 10-min TTL puts 128 bits
+//     comfortably above the OWASP session-token floor.
 //   - 10-minute TTL (longer than partial-session — user is mid-ceremony).
 //   - Atomic single-use via kv.Store.Pop at /verify.
 //   - /begin uses Get (non-destructive) so the user can retry /begin if they
