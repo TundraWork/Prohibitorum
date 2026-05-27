@@ -3,6 +3,7 @@ package totp
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -1190,5 +1191,206 @@ func TestStore_BeginAuditsNoTOTPRevokeForUnconfirmedRow(t *testing.T) {
 		if e.Factor == "totp" && e.Event == "revoke" {
 			t.Errorf("Begin overwriting UNconfirmed row should not emit totp/revoke, got %+v", e)
 		}
+	}
+}
+
+// --- Recovery ceremony tests -----------------------------------------------
+
+// TestStore_BeginPreservingRecovery_KeepsRecoveryCodes is the core invariant:
+// BeginPreservingRecovery wipes the old confirmed TOTP row but leaves the
+// recovery codes intact (they survive until VerifyAndCommitRecovery succeeds).
+func TestStore_BeginPreservingRecovery_KeepsRecoveryCodes(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, dek := newTestStoreAt(t, at)
+	ctx := context.Background()
+	// Bootstrap: a confirmed TOTP + 10 recovery codes.
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.recoveryRows) != 10 {
+		t.Fatalf("setup: want 10 recovery codes, got %d", len(f.recoveryRows))
+	}
+
+	// Snapshot the audit events so we can isolate the BeginPreservingRecovery
+	// emissions from the bootstrap noise.
+	preBeginEventCount := len(f.events)
+
+	// Drive the recovery-ceremony enrollment.
+	if _, err := s.BeginPreservingRecovery(ctx, 1, "alice"); err != nil {
+		t.Fatalf("BeginPreservingRecovery: %v", err)
+	}
+
+	// Recovery codes still present.
+	if len(f.recoveryRows) != 10 {
+		t.Errorf("BeginPreservingRecovery wiped recovery codes: want 10 remaining, got %d", len(f.recoveryRows))
+	}
+	// TOTP row exists but is unconfirmed (fresh enrollment).
+	if f.totpRow == nil {
+		t.Fatal("totpRow nil after BeginPreservingRecovery")
+	}
+	if f.totpRow.ConfirmedAt.Valid {
+		t.Error("totpRow should be unconfirmed after BeginPreservingRecovery")
+	}
+
+	// Audit: one totp/revoke (old confirmed row); ZERO recovery_code/revoke.
+	var totpRevokes, recoveryRevokes int
+	var totpRevokeReason string
+	for i := preBeginEventCount; i < len(f.events); i++ {
+		e := f.events[i]
+		if e.Event != "revoke" {
+			continue
+		}
+		switch e.Factor {
+		case "totp":
+			totpRevokes++
+			var d map[string]any
+			_ = json.Unmarshal(e.Detail, &d)
+			if v, ok := d["reason"].(string); ok {
+				totpRevokeReason = v
+			}
+		case "recovery_code":
+			recoveryRevokes++
+		}
+	}
+	if totpRevokes != 1 {
+		t.Errorf("want 1 totp/revoke from BeginPreservingRecovery, got %d", totpRevokes)
+	}
+	if totpRevokeReason != "recovery" {
+		t.Errorf("totp/revoke reason: want recovery, got %q", totpRevokeReason)
+	}
+	if recoveryRevokes != 0 {
+		t.Errorf("BeginPreservingRecovery must NOT emit recovery_code/revoke; got %d", recoveryRevokes)
+	}
+}
+
+// TestStore_VerifyAndCommitRecovery_HappyPath drives the full recovery
+// ceremony at the Store level: bootstrap → BeginPreservingRecovery →
+// VerifyAndCommitRecovery. Asserts that the old recovery codes are wiped
+// in the same tx that mints the fresh batch, and that the audit trail
+// matches the design invariants.
+func TestStore_VerifyAndCommitRecovery_HappyPath(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, dek := newTestStoreAt(t, at)
+	ctx := context.Background()
+	// Bootstrap.
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.recoveryRows) != 10 {
+		t.Fatalf("setup: want 10 recovery codes, got %d", len(f.recoveryRows))
+	}
+	// Simulate /auth/recovery-code/verify burning one code so 9 remain.
+	f.recoveryRows = f.recoveryRows[:9]
+
+	// Step forward (after a TOTP code was consumed by Verify above) and re-enroll.
+	laterStep1 := at.Add(31 * time.Second)
+	s.now = func() time.Time { return laterStep1 }
+	if _, err := s.BeginPreservingRecovery(ctx, 1, "alice"); err != nil {
+		t.Fatalf("BeginPreservingRecovery: %v", err)
+	}
+	if len(f.recoveryRows) != 9 {
+		t.Fatalf("post-begin: want 9 recovery codes preserved, got %d", len(f.recoveryRows))
+	}
+
+	preVerifyEventCount := len(f.events)
+
+	// Compute a code against the new secret, step further forward to
+	// avoid colliding with whatever last_step the freshly-inserted row
+	// has (Begin resets last_step to 0; we're well past it).
+	laterStep2 := at.Add(120 * time.Second)
+	s.now = func() time.Time { return laterStep2 }
+	code := codeAt(t, dek, *f.totpRow, 1, laterStep2, 0)
+
+	codes, err := s.VerifyAndCommitRecovery(ctx, 1, code)
+	if err != nil {
+		t.Fatalf("VerifyAndCommitRecovery: %v", err)
+	}
+	if len(codes) != 10 {
+		t.Errorf("want 10 fresh recovery codes, got %d", len(codes))
+	}
+	// Old 9 wiped, new 10 inserted.
+	if len(f.recoveryRows) != 10 {
+		t.Errorf("post-verify: want exactly 10 recovery rows (old wiped, new minted), got %d", len(f.recoveryRows))
+	}
+	if !f.totpRow.ConfirmedAt.Valid {
+		t.Error("totpRow should be confirmed after VerifyAndCommitRecovery")
+	}
+
+	// Audit: 9 recovery_code/revoke (reason=recovery_complete), 1 totp/register,
+	// 10 recovery_code/register.
+	var revokes, totpRegisters, recoveryRegisters int
+	revokeReasons := map[string]int{}
+	for i := preVerifyEventCount; i < len(f.events); i++ {
+		e := f.events[i]
+		switch {
+		case e.Factor == "recovery_code" && e.Event == "revoke":
+			revokes++
+			var d map[string]any
+			_ = json.Unmarshal(e.Detail, &d)
+			if v, ok := d["reason"].(string); ok {
+				revokeReasons[v]++
+			}
+		case e.Factor == "totp" && e.Event == "register":
+			totpRegisters++
+		case e.Factor == "recovery_code" && e.Event == "register":
+			recoveryRegisters++
+		}
+	}
+	if revokes != 9 {
+		t.Errorf("want 9 recovery_code/revoke, got %d", revokes)
+	}
+	if revokeReasons["recovery_complete"] != 9 {
+		t.Errorf("want 9 revokes with reason=recovery_complete, got %d (reasons=%v)", revokeReasons["recovery_complete"], revokeReasons)
+	}
+	if totpRegisters != 1 {
+		t.Errorf("want 1 totp/register, got %d", totpRegisters)
+	}
+	if recoveryRegisters != 10 {
+		t.Errorf("want 10 recovery_code/register, got %d", recoveryRegisters)
+	}
+}
+
+// TestStore_VerifyAndCommitRecovery_BadCodeNoWipe verifies that a failed
+// TOTP code does NOT wipe the preserved recovery codes — the user can
+// restart the ceremony from /auth/recovery-code/verify with another code.
+func TestStore_VerifyAndCommitRecovery_BadCodeNoWipe(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, dek := newTestStoreAt(t, at)
+	ctx := context.Background()
+
+	// Bootstrap a confirmed TOTP + 10 recovery codes, then burn one (simulate
+	// /auth/recovery-code/verify) → 9 left.
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
+		t.Fatal(err)
+	}
+	f.recoveryRows = f.recoveryRows[:9]
+
+	later := at.Add(31 * time.Second)
+	s.now = func() time.Time { return later }
+	if _, err := s.BeginPreservingRecovery(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.recoveryRows) != 9 {
+		t.Fatalf("setup: 9 recovery codes, got %d", len(f.recoveryRows))
+	}
+
+	if _, err := s.VerifyAndCommitRecovery(ctx, 1, "000000"); err == nil {
+		t.Fatal("expected error for wrong code")
+	}
+	// Recovery codes still 9 (not wiped).
+	if len(f.recoveryRows) != 9 {
+		t.Errorf("want 9 recovery codes preserved after bad-code attempt, got %d", len(f.recoveryRows))
+	}
+	if f.totpRow.ConfirmedAt.Valid {
+		t.Error("totpRow should still be unconfirmed after bad code")
 	}
 }

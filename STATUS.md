@@ -274,13 +274,27 @@ commit `5ccf3fe`).
   `session:sudo_granted` on every sudo completion.
 - **Two-step login** — `POST /auth/password/begin` returns a
   single-use, 5-minute, KV-backed `partial_session_token`;
-  `POST /auth/totp/verify` or `POST /auth/recovery-code/verify`
-  consumes it and issues a session cookie with `amr=["pwd","otp","mfa"]`
-  (or `["pwd","recovery_code","mfa"]` for recovery). Disabled accounts are rejected at
+  `POST /auth/totp/verify` consumes it and issues a session cookie with
+  `amr=["pwd","otp","mfa"]`. Disabled accounts are rejected at
   `/auth/password/begin` after a dummy verify (no timing oracle).
+- **Recovery ceremony (2026-05-28 hardening; BREAKING change to the v0.2
+  surface).** `/auth/recovery-code/verify` no longer issues a session.
+  It consumes the recovery code + partial-session token and returns a
+  narrow-scope `recovery_session_token` (10-min TTL, separate KV
+  namespace) which the user redeems at the new
+  `/auth/recovery/totp/{begin,verify}` endpoints. `/begin` wipes the old
+  TOTP credential row and starts a fresh enrollment (recovery codes are
+  preserved so the user can retry with another code if they abandon
+  mid-ceremony). `/verify` atomically consumes the recovery_session_token,
+  confirms the new TOTP, wipes the remaining old recovery codes, mints
+  10 fresh ones, and issues a session with `amr=["pwd","otp","mfa"]`.
+  Rationale: NIST SP 800-63B-4 §5.2 cautions against knowledge factors
+  for reauthentication — the previous design let a stolen session +
+  leaked recovery code escalate to full takeover via sudo.
 - **Sudo extension** — `pkg/authn/flow.AvailableMethods` enumerates
   per-account sudo factors in priority order
-  (`webauthn` → `password_totp` → `recovery_code`). New
+  (`webauthn` → `password_totp`). `recovery_code` is **NOT** a sudo
+  method (recovery routes through the ceremony, not the gate). New
   `GET /me/sudo/methods` returns the list; `/me/sudo/begin` and
   `/me/sudo/complete` accept a `method` discriminator (was
   WebAuthn-only in v0.1).
@@ -295,7 +309,9 @@ commit `5ccf3fe`).
 |---|---|---|
 | POST | `/api/prohibitorum/auth/password/begin` | step 1 of two-step login |
 | POST | `/api/prohibitorum/auth/totp/verify` | step 2: TOTP |
-| POST | `/api/prohibitorum/auth/recovery-code/verify` | step 2: recovery code |
+| POST | `/api/prohibitorum/auth/recovery-code/verify` | step 2 of recovery: returns `recovery_session_token` (no session) |
+| POST | `/api/prohibitorum/auth/recovery/totp/begin` | recovery ceremony: re-enroll TOTP (recovery codes preserved) |
+| POST | `/api/prohibitorum/auth/recovery/totp/verify` | recovery ceremony: confirm + mint 10 fresh codes + issue session |
 | POST | `/api/prohibitorum/me/password/set` | sudo-gated |
 | POST | `/api/prohibitorum/me/totp/begin` | sudo-gated iff confirmed TOTP exists |
 | POST | `/api/prohibitorum/me/totp/verify` | confirms enrollment, returns recovery codes |
@@ -323,14 +339,23 @@ counter in `cmd/smoke/main.go`:
 - `/auth/password/begin` + `/auth/totp/verify` (two-step login) —
   steps 25–26, RFC 6238 §5.2 replay window respected
   (`waitForNextTOTPStep`). `/me` round-trips post-login at step 27.
-- `/auth/password/begin` + `/auth/recovery-code/verify` — steps 29–30;
-  DB assert `recovery_code.used_at` set at step 31.
+- **Recovery ceremony** — `/auth/password/begin` (step 29) →
+  `/auth/recovery-code/verify` returning `recovery_session_token`
+  (step 30; no session cookie) → DB assert `recovery_code[0].used_at`
+  (step 31) → `/auth/recovery/totp/begin` (step 32a) → DB assert TOTP
+  unconfirmed + 9 recovery codes preserved (32b) →
+  `/auth/recovery/totp/verify` (32c) → DB assert TOTP confirmed +
+  exactly 10 recovery codes (32d) → `/me` round-trip post-recovery
+  (32e). Catches the most common regression (premature recovery-code
+  wipe at `/begin`).
 - `/me/sudo/begin` + `/me/sudo/complete` via `password_totp` — step
   37.
 - `/me/recovery-codes/regenerate` — step 38 (consumes a sudo grant;
   asserts 10 fresh codes returned and old set invalidated).
-- `/me/sudo/begin` + `/me/sudo/complete` via `recovery_code` — step
-  39; DB assert at step 40.
+- **Recovery-code sudo rejection** — `/me/sudo/methods` must NOT list
+  `recovery_code` (step 39); `/me/sudo/begin {method:"recovery_code"}`
+  must return 400 `sudo_method_unavailable` (step 40). Guards the
+  hardening invariant.
 - `/me/auth/revoke-password-totp` — step 42; DB assert that
   `password_credential` / `totp_credential` / `recovery_code` are all
   empty for the account at step 43; step 44 confirms
@@ -344,8 +369,12 @@ counter in `cmd/smoke/main.go`:
 - **Audit emission** — step 45 asserts `credential_event` covers the
   union of (factor, event) pairs the v0.2 surface emits this run:
   `password:{register,use,revoke}`, `totp:{register,use,revoke}`,
-  `recovery_code:{register≥10,use≥2,revoke}`,
-  `session:sudo_granted≥3`.
+  `recovery_code:{register≥10,use≥1,revoke≥9}`,
+  `session:sudo_granted≥3`. The `recovery_code:use` count dropped from
+  ≥2 to ≥1 post 2026-05-28 hardening (sudo-via-recovery-code path
+  removed); `recovery_code:revoke` raised to ≥9 to cover the
+  `recovery_complete` revoke chain emitted by the ceremony.
+  `totp:{register,revoke}` are ≥2 (initial + recovery-ceremony commit).
 
 ### Smoke-untested runtime paths (acknowledged)
 

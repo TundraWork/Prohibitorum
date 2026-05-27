@@ -125,14 +125,29 @@ tiers are documented as known caveats in
 | Item | Status | Notes / source |
 |---|---|---|
 | argon2id PHC at rest, per-row salt | ✅ smoke-verified | credentials/C2; `recovery_code.hash` populated by `/me/totp/verify` at step 22 and `/me/recovery-codes/regenerate` at step 38 |
-| Single-use (`used_at` enforced) | ✅ smoke-verified | step 31 DB assert after `/auth/recovery-code/verify` (step 30); step 40 DB assert after sudo via recovery_code (step 39) |
-| Shown exactly once at enrollment | ✅ implemented | `/me/totp/verify` returns codes in the response body (step 22); `/me/recovery-codes/regenerate` (step 38) — server never persists the cleartext |
+| Single-use (`used_at` enforced) | ✅ smoke-verified | step 31 DB assert after `/auth/recovery-code/verify` (step 30); recovery_code is no longer a sudo method, so the post-2026-05-28 smoke asserts the redeem at step 31 and the ceremony's atomic wipe at step 32d |
+| Shown exactly once at enrollment | ✅ implemented | `/me/totp/verify` returns codes in the response body (step 22); `/me/recovery-codes/regenerate` (step 38) and the recovery ceremony's `/auth/recovery/totp/verify` (step 32c) all return cleartext exactly once — server never persists |
 | Redemption context captured (session id, IP) | ✅ implemented | credentials/R7; `used_session_id` + `used_ip` written by the consume query; not asserted by smoke beyond `used_at IS NOT NULL` |
-| Mint count: 10 per account | ✅ smoke-verified | step 22 + step 23 DB assert (initial 10) + step 38 (regenerate returns 10) |
-| Codes redeemable independently of TOTP | ✅ smoke-verified | `/auth/recovery-code/verify` consumed after `/auth/password/begin` at steps 29–30 (no TOTP involvement); also redeemable as a sudo factor at step 39 |
-| Code redemption logic | ✅ smoke-verified | `pkg/credential/totp.VerifyRecoveryCode` and `Consume…` queries exercised by steps 30, 39 |
-| 80-bit entropy, formatted `XXXX-XXXX-XXXX-XXXX` | ✅ implemented | `pkg/credential/totp.GenerateRecoveryCodes` per spec D4; format observed in response bodies at steps 22, 38 |
-| Regeneration invalidates the prior set | ✅ smoke-verified | step 38 returns 10 fresh codes; the smoke reassigns `recoveryCodes = regen.RecoveryCodes` and uses the new set at step 39, confirming the prior set is no longer the source of truth |
+| Mint count: 10 per account | ✅ smoke-verified | step 22 + step 23 DB assert (initial 10) + step 32d (10 fresh after recovery ceremony) + step 38 (regenerate returns 10) |
+| Recovery code as one-shot recovery bootstrap (not continuous sudo factor) | ✅ smoke-verified (2026-05-28 hardening) | post 2026-05-28 the only redeem path is `/auth/recovery-code/verify` → `recovery_session_token` → forced TOTP re-enrollment at `/auth/recovery/totp/{begin,verify}`; sudo-via-recovery-code is dropped. NIST SP 800-63B-4 §5.2 rationale (no knowledge-factor reauthentication). Steps 30–32f exercise the full ceremony; steps 39–40 assert recovery_code is NOT surfaced or accepted at `/me/sudo/*`. |
+| Recovery codes redeemable independently of TOTP | ✅ smoke-verified | `/auth/recovery-code/verify` consumed after `/auth/password/begin` at steps 29–30 (no TOTP involvement). The user then re-enrolls TOTP via the ceremony at steps 32a–32c — `/begin` preserves the unredeemed recovery codes so a mid-ceremony abandon doesn't brick the account. |
+| Code redemption logic | ✅ smoke-verified | `pkg/credential/totp.VerifyRecoveryCode` exercised at step 30 |
+| 80-bit entropy, formatted `XXXX-XXXX-XXXX-XXXX` | ✅ implemented | `pkg/credential/totp.GenerateRecoveryCodes` per spec D4; format observed in response bodies at steps 22, 32c, 38 |
+| Regeneration invalidates the prior set | ✅ smoke-verified | step 38 returns 10 fresh codes; the ceremony at step 32c likewise wipes the surviving 9 atomically before minting 10 new (audit: 9× `recovery_code:revoke` reason=`recovery_complete`) |
+
+## Recovery ceremony (2026-05-28 hardening)
+
+| Item | Status | Notes / source |
+|---|---|---|
+| `/auth/recovery-code/verify` returns `recovery_session_token`, NOT a session | ✅ smoke-verified | breaking change vs the pre-2026-05-28 surface; `pkg/server/handle_auth_password.go:172`; step 30 asserts no session cookie + a non-empty token |
+| `recovery_session_token` is a narrow bearer scoped to two endpoints | ✅ smoke-verified | KV namespace `recovery_session:<tok>`, 10-min TTL, not accepted by `/me/*` or `/auth/totp/verify`; `pkg/server/handle_auth_recovery.go` |
+| `/auth/recovery/totp/begin` wipes old TOTP but preserves recovery codes | ✅ smoke-verified | step 32a + step 32b DB assert (unconfirmed TOTP + 9 codes intact). Rationale: a user who abandons mid-ceremony must still be able to retry with another recovery code. `pkg/credential/totp.Store.BeginPreservingRecovery` |
+| `/auth/recovery/totp/verify` atomically consumes the token (kv.Pop) | ✅ unit-test | `TestRecoveryTOTPVerify_ParallelAtomic` (8-way race; at most one consumer); `pkg/server/handle_auth_recovery.go:popRecoverySession` |
+| `/auth/recovery/totp/verify` first-confirm wipes prior recovery codes + mints fresh batch in one tx | ✅ smoke-verified | step 32c verify → step 32d DB assert (exactly 10 codes); `pkg/credential/totp.Store.VerifyAndCommitRecovery` shares its body with `Verify` via a private `verify(…, purgePriorRecoveryOnFirstConfirm)` helper (no wrapper layer per `feedback_picotera_decoupling.md`) |
+| Disabled-account re-check on both ceremony endpoints | ✅ unit-test | `TestRecoveryTOTPBegin_AccountDisabledMidFlow` / `TestRecoveryTOTPVerify_AccountDisabledMidFlow`; an admin disable mid-ceremony collapses to `recovery_session_invalid` |
+| Failed `/verify` consumes the token (single-use, restart-on-failure) | ✅ unit-test | `TestRecoveryTOTPVerify_WrongCodeConsumesToken`; deliberate UX caveat documented in the design and in `handle_auth_recovery.go` to avoid the re-stash race |
+| Audit trail (begin: `totp:revoke reason=recovery`; verify: 9× `recovery_code:revoke reason=recovery_complete`, `totp:register`, 10× `recovery_code:register`) | ✅ smoke-verified | step 45 (`credential_event` counts: `totp:revoke>=2`, `recovery_code:revoke>=9`, `recovery_code:register>=10`) |
+| recovery_code NOT a sudo factor | ✅ smoke-verified | steps 39–40 assert both surfaces (methods list + dispatch rejection); `pkg/server/handle_sudo.go` package doc captures the NIST SP 800-63B-4 §5.2 rationale |
 
 ## Upstream OIDC federation (OIDC Core / RFC 9700)
 
@@ -267,8 +282,8 @@ tiers are documented as known caveats in
 | Session manager for end users (`/me/sessions`) | ✅ | carried from v0.1 skeleton |
 | Admin can revoke other-user sessions | ✅ | `/accounts/revoke-sessions` |
 | Live `account.disabled` check per request | ✅ | `session.LoadSession` middleware |
-| Sudo mode for sensitive actions | ✅ smoke-verified | `pkg/server/handle_sudo.go`; v0.2 extends to 3 methods (`webauthn` / `password_totp` / `recovery_code`); steps 18, 37, 39, 41 exercise each method end-to-end |
-| Sudo discovery endpoint (`GET /me/sudo/methods`) | ✅ implemented; smoke-untested | priority order `webauthn` → `password_totp` → `recovery_code` from `pkg/authn/flow.AvailableMethods`; unit-tested in `handle_sudo_test.go` |
+| Sudo mode for sensitive actions | ✅ smoke-verified | `pkg/server/handle_sudo.go`; post 2026-05-28 hardening sudo accepts 2 methods (`webauthn` / `password_totp`). Steps 18, 37, 41 exercise each method end-to-end. Steps 39–40 assert that `recovery_code` is REJECTED as a sudo method (rationale: NIST SP 800-63B-4 §5.2 — knowledge factor MUST NOT be used for reauthentication). |
+| Sudo discovery endpoint (`GET /me/sudo/methods`) | ✅ smoke-verified | priority order `webauthn` → `password_totp` from `pkg/authn/flow.AvailableMethods` (recovery_code is intentionally excluded); step 39 of the smoke asserts recovery_code is not surfaced |
 | WebAuthn-preferred factor policy (revoke-password-totp) | ✅ smoke-verified | `/me/auth/revoke-password-totp` deletes password + TOTP + recovery rows transactionally (step 42); DB assert at step 43; post-revoke `/auth/password/begin` returns 401 at step 44 |
 | Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ smoke-verified | `pkg/authn/ratelimit` + per-account `auth_throttle` (steps 34–35). Multi-replica caveat (in-process limiter) documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md` §1; cross-surface coupling (login↔sudo share `auth_throttle`) documented §5 |
 | OpenAPI spec for management API | ✅ | huma-generated |

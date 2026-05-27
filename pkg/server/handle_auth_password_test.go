@@ -478,6 +478,10 @@ func TestTOTPVerify_ConsumesTokenOnFailure(t *testing.T) {
 	}
 }
 
+// TestRecoveryCodeVerify_Success exercises the repurposed
+// /auth/recovery-code/verify (2026-05-28 recovery-ceremony hardening).
+// Success no longer issues a session; it returns a recovery_session_token
+// that the client must redeem at /auth/recovery/totp/{begin,verify}.
 func TestRecoveryCodeVerify_Success(t *testing.T) {
 	s, f, dek := newTestServer(t)
 	const accountID int32 = 42
@@ -494,16 +498,29 @@ func TestRecoveryCodeVerify_Success(t *testing.T) {
 
 	s.handleRecoveryCodeVerifyHTTP(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("status: want 204, got %d (body=%s)", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
 	}
-
-	if len(f.sessions) != 1 {
-		t.Fatalf("sessions: want 1, got %d", len(f.sessions))
+	// No session cookie set — the recovery ceremony hasn't completed yet.
+	if len(f.sessions) != 0 {
+		t.Errorf("sessions: want 0 (no cookie until ceremony completes), got %d", len(f.sessions))
 	}
-	wantAmr := []string{"pwd", "recovery_code", "mfa"}
-	if !equalAmr(f.sessions[0].Amr, wantAmr) {
-		t.Errorf("amr: want %v, got %v", wantAmr, f.sessions[0].Amr)
+	for _, c := range w.Result().Cookies() {
+		if c.Name == sessstore.SessionCookieName {
+			t.Errorf("unexpected session cookie set: %+v", c)
+		}
+	}
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v (body=%s)", err, w.Body.String())
+	}
+	rst := resp["recovery_session_token"]
+	if rst == "" {
+		t.Fatalf("missing recovery_session_token in response: %s", w.Body.String())
+	}
+	// Token must exist in KV under the recovery_session: namespace.
+	if _, err := s.kvStore.Get(context.Background(), recoverySessionKey(rst)); err != nil {
+		t.Errorf("recovery_session not stashed in KV: %v", err)
 	}
 }
 

@@ -178,6 +178,16 @@ func ErrPartialSessionInvalid() *AuthError {
 	return newErr(http.StatusUnauthorized, "partial_session_invalid", "登录会话已过期，请重新登录")
 }
 
+// ErrRecoverySessionInvalid is returned by the recovery-ceremony endpoints
+// (/auth/recovery/totp/begin and /auth/recovery/totp/verify) when the
+// recovery_session_token is missing, expired, or already consumed. Same
+// collapse pattern as ErrPartialSessionInvalid: the three failure modes
+// share a single code so attackers can't probe token state. The user must
+// restart from /auth/password/begin → /auth/recovery-code/verify.
+func ErrRecoverySessionInvalid() *AuthError {
+	return newErr(http.StatusUnauthorized, "recovery_session_invalid", "恢复流程已失效，请重新使用恢复码")
+}
+
 func ErrAccountNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "account_not_found", "账户不存在")
 }

@@ -342,25 +342,78 @@ curl -X POST http://localhost:8080/api/prohibitorum/auth/totp/verify \
 The session issued by step 2a carries `amr=["pwd","otp","mfa"]` (v0.4
 ID tokens will project this).
 
-### Two-step login: password → recovery code
+### Recovery ceremony: password → recovery code → forced TOTP re-enrollment
 
-When the user's authenticator app is unavailable, the same step-1
-partial-session token can be redeemed against `/auth/recovery-code/verify`
-with one of the 10 codes issued at TOTP enrollment.
+When the user's authenticator app is unavailable, the recovery flow is a
+**three-step ceremony**, not a one-shot login. The recovery code never
+issues a session directly; it grants a narrow-scope token (10-min TTL)
+that the user must redeem by re-enrolling TOTP. NIST SP 800-63B-4 §5.2
+forbids using a knowledge factor for reauthentication, so the
+pre-2026-05-28 behaviour (recovery code → session + sudo) is replaced
+with this ceremony.
+
+**Step 1.** `/auth/password/begin` exactly as the normal login (see
+above) — returns a `partial_session_token`.
+
+**Step 2.** Redeem one of the 10 codes from TOTP enrollment:
 
 ```bash
 curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery-code/verify \
   -H 'Content-Type: application/json' \
-  -c cookies.txt \
   -d '{"partial_session_token":"<token>","code":"ABCD-1234-EFGH-5678"}'
-# 204 No Content; session cookie set
-# amr=["pwd","recovery_code","mfa"]
+# 200 OK
+# { "recovery_session_token": "<token>" }
+# NO session cookie set yet.
 ```
 
-Each recovery code is single-use — the server stamps `used_at`,
-`used_session_id`, and `used_ip` on the row. When all 10 are consumed,
-the user (or an admin) calls `/me/recovery-codes/regenerate` to mint a
-fresh set (sudo-gated; see below).
+The server marks the recovery code consumed (`used_at`,
+`used_session_id`, `used_ip`) and stashes a `recovery_session:<tok>`
+entry in KV with a 10-minute TTL. The remaining 9 recovery codes are
+NOT yet wiped — if the user abandons the ceremony, they can retry with
+another code.
+
+**Step 3a.** Start a fresh TOTP enrollment:
+
+```bash
+curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery/totp/begin \
+  -H 'Content-Type: application/json' \
+  -d '{"recovery_session_token":"<recovery_session_token>"}'
+# 200 OK
+# { "secret_base32": "…", "otpauth_uri": "otpauth://totp/…" }
+```
+
+The old TOTP credential row is wiped (audit: `totp:revoke
+reason=recovery`) and a fresh unconfirmed row is inserted. The
+recovery_session_token remains valid for the 10-minute window — call
+`/begin` again if the user fails to scan the QR.
+
+**Step 3b.** Confirm the new TOTP and complete the ceremony:
+
+```bash
+curl -X POST http://localhost:8080/api/prohibitorum/auth/recovery/totp/verify \
+  -H 'Content-Type: application/json' \
+  -c cookies.txt \
+  -d '{"recovery_session_token":"<recovery_session_token>","code":"123456"}'
+# 200 OK
+# { "recovery_codes": [ ... 10 fresh codes ... ] }
+# Session cookie set; amr=["pwd","otp","mfa"]
+```
+
+This call is **atomically single-use** (the recovery_session_token is
+Pop'd at entry). On success: the new TOTP is confirmed, the 9 surviving
+old recovery codes are wiped (audit: `recovery_code:revoke
+reason=recovery_complete`), 10 fresh codes are minted in the same
+transaction, and the user is logged in with the same `amr` as a normal
+Password+TOTP login.
+
+**On TOTP failure:** the recovery_session_token has already been
+consumed, so the user must restart from `/auth/password/begin`. This
+harsher UX is deliberate — keeping a one-shot token live across a failed
+verify would require an atomicity-hazardous re-stash.
+
+When all 10 codes are eventually consumed via this flow, the user (or
+an admin) calls `/me/recovery-codes/regenerate` to mint a fresh batch
+(sudo-gated; see below).
 
 Authentication failures at either step increment the per-`(account,
 factor)` row in `auth_throttle` with the exponential-backoff schedule
@@ -453,14 +506,20 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/auth/revoke-password-totp
 ## Sudo step-up
 
 Sensitive `/me/*` actions (set password, regenerate recovery codes,
-revoke fallback factors) require a recent credential proof. v0.2 extends
-sudo to accept **three** methods — pick whichever the account has.
+revoke fallback factors) require a recent credential proof. v0.2 sudo
+accepts **two** methods — pick whichever the account has.
+
+> **Note (2026-05-28 hardening).** `recovery_code` is intentionally
+> NOT a sudo method. Recovery codes route exclusively through the
+> ceremony at `/auth/recovery/totp/{begin,verify}` (see "Recovery
+> ceremony" above). NIST SP 800-63B-4 §5.2 forbids knowledge factors
+> for reauthentication.
 
 ```bash
 # Discover available methods (priority order):
 curl http://localhost:8080/api/prohibitorum/me/sudo/methods -b cookies.txt
 # 200 OK
-# { "methods": ["webauthn", "password_totp", "recovery_code"] }
+# { "methods": ["webauthn", "password_totp"] }
 ```
 
 ### Sudo via WebAuthn
@@ -492,21 +551,6 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/complete \
   -b cookies.txt \
   -d '{"current_password":"...","totp_code":"123456"}'
 # 204 No Content; session.sudo_until extended
-```
-
-### Sudo via recovery code
-
-```bash
-curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
-  -H 'Content-Type: application/json' \
-  -b cookies.txt -d '{"method":"recovery_code"}'
-
-curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/complete \
-  -H 'Content-Type: application/json' \
-  -b cookies.txt \
-  -d '{"recovery_code":"ABCD-1234-EFGH-5678"}'
-# 204 No Content; session.sudo_until extended.
-# Note: recovery codes are single-use; this consumes one.
 ```
 
 `/me/sudo/begin` is rate-limited to 10 requests per minute per session;

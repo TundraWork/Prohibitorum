@@ -435,7 +435,11 @@ func TestSudoMethods_OnlyPasswordTOTP(t *testing.T) {
 	}
 }
 
-func TestSudoMethods_WithRecoveryCodes(t *testing.T) {
+// TestSudoMethods_RecoveryCodesNotSurfaced: post 2026-05-28 hardening,
+// recovery codes must NOT appear in the sudo methods list even when the
+// account has them — the recovery code path runs through the ceremony
+// endpoints, not sudo. See pkg/server/handle_sudo.go package doc.
+func TestSudoMethods_RecoveryCodesNotSurfaced(t *testing.T) {
 	s, f, dek := newSudoTestServer(t)
 	const accountID int32 = 42
 	seedPassword(t, s, accountID, "correct-horse")
@@ -446,12 +450,12 @@ func TestSudoMethods_WithRecoveryCodes(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.handleSudoMethodsHTTP(w, r)
 	got := methodsFromBody(t, w.Body.Bytes())
-	if !slices.Contains(got, "recovery_code") {
-		t.Errorf("methods should include recovery_code, got %v", got)
+	if slices.Contains(got, "recovery_code") {
+		t.Errorf("recovery_code must not be a sudo method, got %v", got)
 	}
 }
 
-func TestSudoMethods_AllThree(t *testing.T) {
+func TestSudoMethods_WebAuthnAndPasswordTOTP(t *testing.T) {
 	s, f, dek := newSudoTestServer(t)
 	const accountID int32 = 42
 	f.webauthnRows = []db.WebauthnCredential{{ID: 1, AccountID: accountID, Nickname: pgtype.Text{String: "yk1", Valid: true}}}
@@ -463,7 +467,7 @@ func TestSudoMethods_AllThree(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.handleSudoMethodsHTTP(w, r)
 	got := methodsFromBody(t, w.Body.Bytes())
-	want := []string{"webauthn", "password_totp", "recovery_code"}
+	want := []string{"webauthn", "password_totp"}
 	if !equalStrings(got, want) {
 		t.Errorf("methods order: want %v, got %v", want, got)
 	}
@@ -532,7 +536,10 @@ func TestSudoBegin_PasswordTOTPReturns204AndStashesIntent(t *testing.T) {
 	}
 }
 
-func TestSudoBegin_RecoveryCodeReturns204(t *testing.T) {
+// TestSudoBegin_RecoveryCodeRejected: post 2026-05-28 hardening, requesting
+// the recovery_code method at /me/sudo/begin must be rejected even when the
+// account has recovery codes.
+func TestSudoBegin_RecoveryCodeRejected(t *testing.T) {
 	s, f, dek := newSudoTestServer(t)
 	const accountID int32 = 42
 	seedPassword(t, s, accountID, "correct-horse")
@@ -542,15 +549,12 @@ func TestSudoBegin_RecoveryCodeReturns204(t *testing.T) {
 	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/sudo/begin", `{"method":"recovery_code"}`)
 	w := httptest.NewRecorder()
 	s.handleSudoBeginHTTP(w, r)
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("status: want 204, got %d (body=%s)", w.Code, w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400 (sudo_method_unavailable), got %d (body=%s)", w.Code, w.Body.String())
 	}
-	raw, err := s.kvStore.Get(context.Background(), sudoIntentKey(sess.Data.SessionID))
-	if err != nil {
-		t.Fatalf("intent not stashed: %v", err)
-	}
-	if !strings.Contains(raw, `"method":"recovery_code"`) {
-		t.Errorf("intent payload: %s", raw)
+	body := decodeJSON(t, w.Body.Bytes())
+	if body["code"] != "sudo_method_unavailable" {
+		t.Errorf("code: want sudo_method_unavailable, got %v", body["code"])
 	}
 }
 
@@ -674,7 +678,12 @@ func TestSudoComplete_PasswordTOTPWrongCode(t *testing.T) {
 	}
 }
 
-func TestSudoComplete_RecoveryCodeSuccess(t *testing.T) {
+// TestSudoComplete_RecoveryCodeRejected guards against any future drift
+// that re-adds recovery_code as a complete-time dispatch case. Even if the
+// intent KV is hand-stashed with method=recovery_code, /complete must
+// reject the dispatch (the switch falls through to sudo_method_unavailable
+// since the case was removed).
+func TestSudoComplete_RecoveryCodeRejected(t *testing.T) {
 	s, f, dek := newSudoTestServer(t)
 	const accountID int32 = 42
 	codes := seedConfirmedTOTPSudo(t, s, f, dek, accountID)
@@ -685,45 +694,17 @@ func TestSudoComplete_RecoveryCodeSuccess(t *testing.T) {
 	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/sudo/complete", body)
 	w := httptest.NewRecorder()
 	s.handleSudoCompleteHTTP(w, r)
-
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("status: want 204, got %d (body=%s)", w.Code, w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400 (sudo_method_unavailable), got %d (body=%s)", w.Code, w.Body.String())
 	}
-	// Code should be consumed.
+	bj := decodeJSON(t, w.Body.Bytes())
+	if bj["code"] != "sudo_method_unavailable" {
+		t.Errorf("code: want sudo_method_unavailable, got %v", bj["code"])
+	}
+	// Recovery code MUST NOT have been consumed.
 	remaining, _ := f.ListRecoveryCodesByAccount(context.Background(), accountID)
-	if len(remaining) != 9 {
-		t.Errorf("remaining recovery codes: want 9, got %d", len(remaining))
-	}
-
-	// Audit
-	found := false
-	for _, ev := range f.events {
-		if ev.Factor == "session" && ev.Event == "sudo_granted" {
-			var detail map[string]any
-			_ = json.Unmarshal(ev.Detail, &detail)
-			if detail["method"] == "recovery_code" {
-				found = true
-				break
-			}
-		}
-	}
-	if !found {
-		t.Errorf("audit: missing sudo_granted event with method=recovery_code")
-	}
-}
-
-func TestSudoComplete_RecoveryCodeWrongCode(t *testing.T) {
-	s, f, dek := newSudoTestServer(t)
-	const accountID int32 = 42
-	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
-	_, sess := issueSudoTestSession(t, s, accountID)
-	stashIntent(t, s, sess.Data.SessionID, "recovery_code")
-
-	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/sudo/complete", `{"recovery_code":"NOT-A-REAL-CODE"}`)
-	w := httptest.NewRecorder()
-	s.handleSudoCompleteHTTP(w, r)
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("status: want 401, got %d (body=%s)", w.Code, w.Body.String())
+	if len(remaining) != 10 {
+		t.Errorf("recovery codes must not be consumed by rejected sudo dispatch: have %d (want 10)", len(remaining))
 	}
 }
 

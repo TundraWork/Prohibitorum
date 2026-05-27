@@ -170,6 +170,23 @@ func (s *Server) handleTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/prohibitorum/auth/recovery-code/verify
+//
+// Repurposed (2026-05-28 recovery-ceremony hardening): this endpoint no
+// longer issues a session. It consumes a recovery code AND the partial
+// session token, then mints a narrow-scope recovery_session_token that
+// the client must present to the recovery ceremony endpoints
+// (/auth/recovery/totp/{begin,verify}) to actually regain account access.
+//
+// Why: NIST SP 800-63B-4 §5.2 cautions against using a knowledge factor
+// for reauthentication, and continuing to accept the recovery code as a
+// one-shot login lets a stolen session + leaked recovery code escalate
+// to a full takeover via sudo. The recovery code stays single-use; what
+// changes is that completing it forces a fresh TOTP enrollment before
+// any session lands. See pkg/server/handle_auth_recovery.go for the
+// next two ceremony steps.
+//
+// Response shape (200): {"recovery_session_token": "<base64url>"}.
+// No session cookie is set.
 func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
 		return
@@ -189,7 +206,7 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 	}
 	// Re-check account state after consuming the partial-session token —
 	// see comment in handleTOTPVerifyHTTP. Disabled-mid-flow must NOT
-	// receive a session.
+	// receive a recovery session either.
 	if acct, err := s.accountLookupQ().GetAccountByID(r.Context(), partial.AccountID); err != nil || acct.Disabled {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
 		return
@@ -203,7 +220,26 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
-	s.issueSessionAndSetCookie(w, r, partial.AccountID, []string{"pwd", "recovery_code", "mfa"})
+
+	// Mint the recovery-session bearer that the ceremony endpoints accept.
+	// Separate KV namespace + a fresh random token so it can never be
+	// confused with (or substituted for) a real session cookie or a
+	// partial-session login token.
+	token, err := newCeremonyToken()
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	payload, _ := json.Marshal(recoverySession{
+		AccountID: partial.AccountID,
+		IssuedAt:  time.Now().UTC(),
+	})
+	if err := s.kvStore.SetEx(r.Context(), recoverySessionKey(token), string(payload), recoverySessionTTL); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"recovery_session_token": token})
 }
 
 // consumePartialSession atomically retrieves and removes the KV entry via

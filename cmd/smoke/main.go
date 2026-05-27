@@ -339,30 +339,99 @@ func main() {
 
 	step("step 28/45 — POST /auth/logout (drop pwd+totp session)")
 	if err := c.logout(); err != nil {
-		log.Fatalf("logout pre-recovery-login: %v", err)
+		log.Fatalf("logout pre-recovery-ceremony: %v", err)
 	}
 
-	step("step 29/45 — POST /auth/password/begin (fresh partial token for recovery-code login)")
+	// --- Recovery ceremony (2026-05-28 hardening) -----------------------------
+	// /auth/recovery-code/verify no longer issues a session. It hands back a
+	// recovery_session_token that the user must redeem at
+	// /auth/recovery/totp/{begin,verify} to enroll a fresh TOTP and regain
+	// account access. recovery_code is no longer a sudo method (former
+	// step 39/40 dropped); the user re-proves possession of TOTP every time.
+
+	step("step 29/45 — POST /auth/password/begin (fresh partial token for recovery ceremony)")
 	partialToken2, err := c.passwordBegin(*username, password)
 	if err != nil {
 		log.Fatalf("password/begin 2: %v", err)
 	}
 	log.Printf("  partial_session_token len=%d", len(partialToken2))
 
-	step("step 30/45 — POST /auth/recovery-code/verify {recovery_codes[0]}")
-	if err := c.recoveryCodeVerify(partialToken2, recoveryCodes[0]); err != nil {
+	step("step 30/45 — POST /auth/recovery-code/verify {recovery_codes[0]} → recovery_session_token")
+	recoveryToken, err := c.recoveryCodeVerify(partialToken2, recoveryCodes[0])
+	if err != nil {
 		log.Fatalf("auth/recovery-code/verify: %v", err)
 	}
-	log.Printf("  session cookie issued via password+recovery_code")
+	if recoveryToken == "" {
+		log.Fatalf("auth/recovery-code/verify returned empty recovery_session_token")
+	}
+	log.Printf("  recovery_session_token len=%d (no session cookie yet)", len(recoveryToken))
 
-	step("step 31/45 — DB assert: recovery_codes[0].used_at IS NOT NULL")
+	step("step 31/45 — DB assert: recovery_codes[0].used_at IS NOT NULL (consumed by redeem)")
 	if err := verifyRecoveryCodeUsed(me2.ID, 1, 0); err != nil {
 		log.Fatalf("recovery code used_at DB assert: %v", err)
 	}
 
-	step("step 32/45 — POST /auth/logout (drop recovery-login session)")
+	step("step 32a/45 — POST /auth/recovery/totp/begin {recovery_session_token}")
+	var recoveryBegin struct {
+		SecretBase32 string `json:"secret_base32"`
+		OtpauthURI   string `json:"otpauth_uri"`
+	}
+	if err := c.postJSON("/api/prohibitorum/auth/recovery/totp/begin",
+		map[string]string{"recovery_session_token": recoveryToken}, &recoveryBegin); err != nil {
+		log.Fatalf("auth/recovery/totp/begin: %v", err)
+	}
+	newSecret, err := base32.StdEncoding.WithPadding(base32.NoPadding).
+		DecodeString(strings.TrimRight(recoveryBegin.SecretBase32, "="))
+	if err != nil {
+		log.Fatalf("decode new totp secret_base32 %q: %v", recoveryBegin.SecretBase32, err)
+	}
+	log.Printf("  new TOTP secret minted (len=%d); old TOTP wiped, recovery codes preserved", len(newSecret))
+
+	step("step 32b/45 — DB assert: TOTP unconfirmed; 9 recovery codes still present")
+	if err := verifyTOTPUnconfirmedAndRecoveryCount(me2.ID, 9); err != nil {
+		log.Fatalf("post-recovery-begin DB assert: %v", err)
+	}
+
+	step("step 32c/45 — wait next TOTP step + POST /auth/recovery/totp/verify {token, code}")
+	totpStep = waitForNextTOTPStep(totpStep)
+	newCode := totppkg.ComputeCodeForTesting(newSecret, time.Now().Unix(), 6)
+	var recoveryVerify struct {
+		RecoveryCodes []string `json:"recovery_codes"`
+	}
+	if err := c.postJSON("/api/prohibitorum/auth/recovery/totp/verify",
+		map[string]string{
+			"recovery_session_token": recoveryToken,
+			"code":                   newCode,
+		}, &recoveryVerify); err != nil {
+		log.Fatalf("auth/recovery/totp/verify: %v", err)
+	}
+	if len(recoveryVerify.RecoveryCodes) != 10 {
+		log.Fatalf("recovery ceremony: want 10 new recovery codes, got %d", len(recoveryVerify.RecoveryCodes))
+	}
+	// Swap in the post-recovery secret + recovery codes for the remaining
+	// steps (sudo password_totp later will use the new secret).
+	secret = newSecret
+	recoveryCodes = recoveryVerify.RecoveryCodes
+	log.Printf("  session cookie issued; 10 fresh recovery codes minted (old 9 wiped)")
+
+	step("step 32d/45 — DB assert: new TOTP confirmed; exactly 10 recovery codes")
+	if err := verifyTOTPConfirmed(me2.ID); err != nil {
+		log.Fatalf("post-recovery-verify DB assert: %v", err)
+	}
+
+	step("step 32e/45 — GET /me round-trips post-recovery-ceremony")
+	mePT2, err := c.getMe()
+	if err != nil {
+		log.Fatalf("GET /me post-recovery: %v", err)
+	}
+	if mePT2.ID != me2.ID {
+		log.Fatalf("/me id drift after recovery: got %d want %d", mePT2.ID, me2.ID)
+	}
+	log.Printf("  /me id=%d (account intact post-recovery)", mePT2.ID)
+
+	step("step 32f/45 — POST /auth/logout (drop recovery-ceremony session)")
 	if err := c.logout(); err != nil {
-		log.Fatalf("logout pre-webauthn-relogin: %v", err)
+		log.Fatalf("logout post-recovery: %v", err)
 	}
 
 	step("step 33/45 — re-login via webauthn for the throttle observation phase")
@@ -438,16 +507,17 @@ func main() {
 	recoveryCodes = regen.RecoveryCodes
 	log.Printf("  regenerated %d recovery codes (old set invalidated)", len(recoveryCodes))
 
-	step("step 39/45 — sudo via recovery_code (/me/sudo/begin + /me/sudo/complete)")
-	if err := sudoRecoveryCode(c, recoveryCodes[0]); err != nil {
-		log.Fatalf("sudo recovery_code: %v", err)
+	step("step 39/45 — POST /me/sudo/methods (recovery_code must NOT appear post-hardening)")
+	if err := verifySudoMethodsNoRecoveryCode(c); err != nil {
+		log.Fatalf("sudo methods invariant: %v", err)
 	}
-	log.Printf("  sudo grant acquired (recovery_code)")
+	log.Printf("  /me/sudo/methods correctly omits recovery_code")
 
-	step("step 40/45 — DB assert: at least one used recovery code (consumed by sudo)")
-	if err := verifyRecoveryCodeUsed(me2.ID, 1, -1); err != nil {
-		log.Fatalf("post-sudo recovery DB assert: %v", err)
+	step("step 40/45 — POST /me/sudo/begin {method:recovery_code} must 400 sudo_method_unavailable")
+	if err := verifySudoBeginRejectsRecoveryCode(c); err != nil {
+		log.Fatalf("sudo begin recovery_code rejection: %v", err)
 	}
+	log.Printf("  /me/sudo/begin rejects recovery_code with sudo_method_unavailable")
 
 	step("step 41/45 — sudo via webauthn (priming the destructive revoke)")
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
@@ -1109,9 +1179,18 @@ func (c *client) totpStepTwoVerify(partialToken, code string) error {
 		map[string]string{"partial_session_token": partialToken, "code": code}, nil)
 }
 
-func (c *client) recoveryCodeVerify(partialToken, code string) error {
-	return c.postJSON("/api/prohibitorum/auth/recovery-code/verify",
-		map[string]string{"partial_session_token": partialToken, "code": code}, nil)
+// recoveryCodeVerify drives /auth/recovery-code/verify. Post 2026-05-28
+// hardening this returns a recovery_session_token (no session cookie). The
+// caller must redeem the token at /auth/recovery/totp/{begin,verify}.
+func (c *client) recoveryCodeVerify(partialToken, code string) (string, error) {
+	var out struct {
+		RecoverySessionToken string `json:"recovery_session_token"`
+	}
+	if err := c.postJSON("/api/prohibitorum/auth/recovery-code/verify",
+		map[string]string{"partial_session_token": partialToken, "code": code}, &out); err != nil {
+		return "", err
+	}
+	return out.RecoverySessionToken, nil
 }
 
 // sudoWebAuthn runs /me/sudo/begin {method:webauthn} → assertion → /me/sudo/complete.
@@ -1188,13 +1267,46 @@ func waitForNextTOTPStep(lastStep int64) int64 {
 	}
 }
 
-func sudoRecoveryCode(c *client, code string) error {
-	if err := c.postJSON("/api/prohibitorum/me/sudo/begin",
-		map[string]string{"method": "recovery_code"}, nil); err != nil {
-		return fmt.Errorf("sudo/begin recovery_code: %w", err)
+// verifySudoMethodsNoRecoveryCode hits /me/sudo/methods and asserts the
+// returned slice does NOT contain "recovery_code". Post 2026-05-28
+// hardening, recovery codes are not a sudo factor.
+func verifySudoMethodsNoRecoveryCode(c *client) error {
+	var out struct {
+		Methods []string `json:"methods"`
 	}
-	return c.postJSON("/api/prohibitorum/me/sudo/complete",
-		map[string]string{"recovery_code": code}, nil)
+	if err := c.get("/api/prohibitorum/me/sudo/methods", &out); err != nil {
+		return fmt.Errorf("GET /me/sudo/methods: %w", err)
+	}
+	for _, m := range out.Methods {
+		if m == "recovery_code" {
+			return fmt.Errorf("recovery_code must NOT appear in /me/sudo/methods, got %v", out.Methods)
+		}
+	}
+	return nil
+}
+
+// verifySudoBeginRejectsRecoveryCode posts /me/sudo/begin {method:recovery_code}
+// and asserts a 400 with code=sudo_method_unavailable. Catches any future
+// regression that re-adds recovery_code to the sudo dispatch.
+func verifySudoBeginRejectsRecoveryCode(c *client) error {
+	resp, err := c.postJSONRaw("/api/prohibitorum/me/sudo/begin",
+		map[string]string{"method": "recovery_code"})
+	if err != nil {
+		return fmt.Errorf("post /me/sudo/begin: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusBadRequest {
+		return fmt.Errorf("status: want 400, got %d (body=%s)", resp.StatusCode, bodyBytes)
+	}
+	var perr struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(bodyBytes, &perr)
+	if perr.Code != "sudo_method_unavailable" {
+		return fmt.Errorf("error code: want sudo_method_unavailable, got %q (body=%s)", perr.Code, bodyBytes)
+	}
+	return nil
 }
 
 // driveTOTPLockout sends wrong TOTP codes via sudo password_totp until the
@@ -1294,6 +1406,37 @@ func verifyTOTPConfirmed(accountID int32) error {
 		return fmt.Errorf("expected 10 recovery_code rows, got %v", codes)
 	}
 	log.Printf("  totp_credential.confirmed_at IS NOT NULL ✓, recovery_code count=10 ✓")
+	return nil
+}
+
+// verifyTOTPUnconfirmedAndRecoveryCount asserts the post /auth/recovery/totp/begin
+// invariant: an unconfirmed totp_credential row exists, and exactly
+// wantRecovery rows remain in recovery_code (the wipe is deferred until
+// /verify success). Catches the most common regression — wiping recovery
+// codes too eagerly at /begin and bricking the user's retry path.
+func verifyTOTPUnconfirmedAndRecoveryCount(accountID int32, wantRecovery int) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	confirmed, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT (confirmed_at IS NOT NULL)::text FROM totp_credential WHERE account_id=%d",
+		accountID))
+	if err != nil {
+		return err
+	}
+	if len(confirmed) != 1 {
+		return fmt.Errorf("expected 1 totp_credential row, got %d", len(confirmed))
+	}
+	if confirmed[0] == "t" || confirmed[0] == "true" {
+		return fmt.Errorf("totp_credential.confirmed_at should be NULL after /recovery/totp/begin; got %q", confirmed[0])
+	}
+	codes, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT count(*)::text FROM recovery_code WHERE account_id=%d AND used_at IS NULL", accountID))
+	if err != nil {
+		return err
+	}
+	if len(codes) != 1 || codes[0] != fmt.Sprintf("%d", wantRecovery) {
+		return fmt.Errorf("expected %d unused recovery_code rows, got %v", wantRecovery, codes)
+	}
+	log.Printf("  totp_credential.confirmed_at IS NULL ✓, unused recovery_code count=%d ✓", wantRecovery)
 	return nil
 }
 
@@ -1407,13 +1550,26 @@ func verifyV02AuditEvents(accountID int32) error {
 		{"password:register", 1},
 		{"password:use", 1},
 		{"password:revoke", 1},
-		{"totp:register", 1},
+		// totp:register fires on first-confirm twice — initial enrollment +
+		// recovery-ceremony commit. totp:revoke fires at recovery-begin
+		// (reason=recovery) AND at the destructive revoke-password-totp.
+		{"totp:register", 2},
 		{"totp:use", 1},
-		{"totp:revoke", 1},
-		{"recovery_code:register", 10}, // initial 10 + 10 regenerated = 20, but lower bound 10
-		{"recovery_code:use", 2},       // login + sudo
-		{"recovery_code:revoke", 1},
-		{"session:sudo_granted", 3}, // pre-pwd-set, pwd_totp, recovery, webauthn-pre-revoke — >=3
+		{"totp:revoke", 2},
+		// recovery_code:register: initial 10 + post-recovery 10 + regen 10 = 30
+		// in this smoke run; lower bound 10 is safe.
+		{"recovery_code:register", 10},
+		// recovery_code:use: just the one redeem at /auth/recovery-code/verify
+		// (sudo via recovery_code is gone post-2026-05-28 hardening).
+		{"recovery_code:use", 1},
+		// recovery_code:revoke: the recovery ceremony's
+		// recovery_complete-revoke (9 events) + regenerate revoke (10 events)
+		// + final destructive revoke. Lower bound 9 keeps us safe against
+		// minor reordering.
+		{"recovery_code:revoke", 9},
+		// session:sudo_granted: pre-pwd-set (webauthn), pwd_totp, pre-revoke
+		// (webauthn). Recovery_code is no longer a sudo method.
+		{"session:sudo_granted", 3},
 	}
 	for _, w := range want {
 		if counts[w.key] < w.min {

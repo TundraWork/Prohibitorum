@@ -1,20 +1,28 @@
 // Package server — handle_sudo.go
 //
-// Sudo mode: re-prove possession of an enrolled factor (webauthn,
-// password+TOTP, or a recovery code) to elevate the current session for a
-// short window. Sensitive /me actions require the gate.
+// Sudo mode: re-prove possession of an enrolled factor (webauthn or
+// password+TOTP) to elevate the current session for a short window.
+// Sensitive /me actions require the gate.
 //
 // Threat model: a session cookie stolen via XSS or a malicious browser
 // extension grants attacker-controlled access to /me. Without sudo the
 // attacker could approve their own pairing, add a backup credential, or
-// rotate factors. Sudo forces a fresh proof — biometric-bound passkey,
-// password+TOTP, or single-use recovery code — for each elevation window.
-// Cookie theft alone no longer suffices for the gated actions.
+// rotate factors. Sudo forces a fresh proof — biometric-bound passkey or
+// password+TOTP — for each elevation window. Cookie theft alone no longer
+// suffices for the gated actions.
 //
-// v0.2 extends the v0.1 webauthn-only flow to three methods so password+TOTP
+// v0.2 extends the v0.1 webauthn-only flow to two methods so password+TOTP
 // accounts (which the v0.1 flow excluded entirely) can also elevate. The
 // chosen method is stashed at /begin in `sudo_intent:<session_id>` (5-min
 // TTL) and read at /complete to dispatch the verification.
+//
+// recovery_code is INTENTIONALLY EXCLUDED from sudo (recovery ceremony
+// hardening, 2026-05-28). NIST SP 800-63B-4 §5.2 cautions against using a
+// knowledge factor for reauthentication, and a stolen session + a single
+// leaked recovery code would otherwise let an attacker escalate to password
+// change / revoke-password-totp. The recovery-code login path now mints a
+// narrow-scope recovery_session_token and routes the user through a forced
+// TOTP re-enrollment ceremony at /auth/recovery/totp/{begin,verify}.
 package server
 
 import (
@@ -48,9 +56,11 @@ type sudoIntent struct {
 func sudoIntentKey(sessionID string) string { return "sudo_intent:" + sessionID }
 
 // sudoFlowQueries is the narrow query surface /me/sudo/methods needs:
-// AvailableMethods (via authn.FlowQueries) + recovery code listing.
-// Declared here so tests can stub it without standing up the full
-// sqlc-generated *db.Queries. NewServer wires it to s.queries.
+// AvailableMethods (via authn.FlowQueries). Recovery codes are no longer a
+// sudo factor (see package-doc rationale), so ListRecoveryCodesByAccount is
+// not part of this interface — but we keep recovery-code listing in the
+// embedded surface as an unused method via authn.FlowQueries so existing
+// fakes can satisfy this contract without churn.
 type sudoFlowQueries interface {
 	authn.FlowQueries
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]db.RecoveryCode, error)
@@ -66,8 +76,12 @@ func (s *Server) handleSudoMethodsHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // availableSudoMethods returns the elevation methods enrolled for the
-// account, in priority order: webauthn, password_totp, recovery_code.
-// Always returns a non-nil slice (empty means admin-recovery-only).
+// account, in priority order: webauthn, password_totp. Always returns a
+// non-nil slice (empty means admin-recovery-only).
+//
+// recovery_code is intentionally excluded — see package-doc. Recovery
+// codes redeem at /auth/recovery-code/verify and route through the
+// dedicated re-enrollment ceremony, not the sudo gate.
 func (s *Server) availableSudoMethods(ctx context.Context, accountID int32) []string {
 	out := []string{}
 	q := s.sudoFlowQ()
@@ -82,9 +96,6 @@ func (s *Server) availableSudoMethods(ctx context.Context, accountID int32) []st
 		if m == authn.MethodWebAuthn || m == authn.MethodPasswordTOTP {
 			out = append(out, string(m))
 		}
-	}
-	if rows, err := q.ListRecoveryCodesByAccount(ctx, accountID); err == nil && len(rows) > 0 {
-		out = append(out, "recovery_code")
 	}
 	return out
 }
@@ -134,7 +145,7 @@ func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	switch body.Method {
 	case string(authn.MethodWebAuthn):
 		s.beginSudoWebAuthn(w, r, sess)
-	case string(authn.MethodPasswordTOTP), "recovery_code":
+	case string(authn.MethodPasswordTOTP):
 		// No challenge — client submits credentials directly at /complete.
 		w.WriteHeader(http.StatusNoContent)
 	default:
@@ -215,8 +226,6 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		s.completeSudoWebAuthn(w, r, sess)
 	case string(authn.MethodPasswordTOTP):
 		s.completeSudoPasswordTOTP(w, r, sess)
-	case "recovery_code":
-		s.completeSudoRecoveryCode(w, r, sess)
 	default:
 		writeAuthErr(w, authn.ErrSudoMethodUnavailable())
 	}
@@ -317,29 +326,6 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 	}
 
 	s.stampSudoUntil(w, r, sess, string(authn.MethodPasswordTOTP))
-}
-
-// completeSudoRecoveryCode consumes a single recovery code. Same single-use
-// semantics as /auth/recovery-code/verify: the code is marked used_at
-// regardless of subsequent failures in this request.
-func (s *Server) completeSudoRecoveryCode(w http.ResponseWriter, r *http.Request, sess *authn.Session) {
-	var body struct {
-		RecoveryCode string `json:"recovery_code"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.RecoveryCode == "" {
-		writeAuthErr(w, authn.ErrBadCredentials())
-		return
-	}
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
-	if err := s.totpStore.VerifyRecoveryCode(r.Context(), sess.Account.ID, body.RecoveryCode, sess.Data.SessionID, ip); err != nil {
-		if ae := authn.AsAuthError(err); ae != nil {
-			writeAuthErr(w, ae)
-			return
-		}
-		writeAuthErr(w, authn.ErrBadCredentials())
-		return
-	}
-	s.stampSudoUntil(w, r, sess, "recovery_code")
 }
 
 // stampSudoUntil writes SudoUntil = now + Auth.SudoTTL onto the live session,
