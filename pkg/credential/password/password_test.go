@@ -109,8 +109,8 @@ func testParams() configx.PasswordHashParams {
 
 func newTestStore(f *fakeQueries, params configx.PasswordHashParams) *Store {
 	schedule := []time.Duration{0, 0, time.Second, 2 * time.Second, 4 * time.Second}
-	throttle := authn.NewThrottle(f, schedule)
 	w := audit.NewWriter(f)
+	throttle := authn.NewThrottle(f, schedule, w)
 	return NewStore(f, params, throttle, w)
 }
 

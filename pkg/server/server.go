@@ -118,7 +118,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	registerSecurityScheme(api)
 
 	auditWriter := audit.NewWriter(queries)
-	throttle := authn.NewThrottle(queries, config.Auth.ThrottleSchedule)
+	throttle := authn.NewThrottle(queries, config.Auth.ThrottleSchedule, auditWriter)
 	passwordStore := password.NewStore(queries, config.PasswordHashParams, throttle, auditWriter)
 	totpTxRunner := &totp.PoolTxRunner{Pool: conn, Queries: queries}
 	totpStore := totp.NewStore(queries, totpTxRunner, config.DataEncryptionKeys, config.TOTP, throttle, auditWriter)

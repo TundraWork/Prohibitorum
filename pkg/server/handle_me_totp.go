@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/credential/totp"
 	"prohibitorum/pkg/db"
 )
 
@@ -93,9 +94,16 @@ func (s *Server) handleMeTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) 
 	codes, err := s.totpStore.Verify(r.Context(), sess.Account.ID, body.Code)
 	if err != nil {
 		// factor_locked (and any other *AuthError) passes through with its
-		// own status + Retry-After. Sentinels (invalid/replay/not-set)
-		// collapse to bad_credentials so the response doesn't distinguish
-		// "no row yet" from "wrong code".
+		// own status + Retry-After. Sentinels (invalid/replay/not-set/
+		// corrupt-ciphertext) collapse to bad_credentials so the response
+		// doesn't distinguish "no row yet" from "wrong code" — and in
+		// particular does not leak AES-GCM authentication-failure detail
+		// for tampered ciphertexts (Bundle-3 Crypto-6). The audit row
+		// emitted inside totp.Store.Verify retains the reason.
+		if errors.Is(err, totp.ErrTOTPCorrupt) {
+			writeAuthErr(w, authn.ErrBadCredentials())
+			return
+		}
 		if ae := authn.AsAuthError(err); ae != nil {
 			writeAuthErr(w, ae)
 			return

@@ -37,6 +37,14 @@ var (
 	ErrTOTPInvalidCode     = errors.New("totp: invalid code")
 	ErrTOTPReplay          = errors.New("totp: code already used")
 	ErrRecoveryCodeInvalid = errors.New("totp: invalid recovery code")
+	// ErrTOTPCorrupt is returned by Verify when the stored ciphertext fails
+	// AES-GCM authentication. The HTTP layer collapses this to a generic
+	// bad-credentials response so a tampered/rotated-DEK-with-stale-row
+	// state doesn't leak crypto-failure detail to clients (Bundle-3 Crypto-6).
+	// The underlying decrypt failure is recorded server-side via audit
+	// EventFail with detail.reason="decrypt_failed" before this sentinel
+	// is returned.
+	ErrTOTPCorrupt = errors.New("totp: stored secret is corrupt or DEK rotated improperly")
 )
 
 type Enrollment struct {
@@ -217,7 +225,18 @@ func (s *Store) Verify(ctx context.Context, accountID int32, code string) ([]str
 	}
 	secret, err := decryptSecret(dek, row.SecretEnc, row.SecretNonce, aadFor(accountID, row.KeyVersion))
 	if err != nil {
-		return nil, fmt.Errorf("totp.Verify: decrypt: %w", err)
+		// Record the underlying failure mode for forensics — this is the
+		// only place we have the original error string. Then collapse to
+		// ErrTOTPCorrupt so the HTTP layer can return a generic
+		// bad-credentials response without leaking "cipher: message
+		// authentication failed" or similar AES-GCM diagnostics.
+		_ = s.audit.Record(ctx, audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.FactorTOTP,
+			Event:     audit.EventFail,
+			Detail:    map[string]any{"reason": "decrypt_failed"},
+		})
+		return nil, ErrTOTPCorrupt
 	}
 
 	nowStep := stepFor(s.now().Unix(), int64(row.Period))

@@ -29,6 +29,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/db"
 )
 
@@ -46,6 +47,7 @@ type Throttle struct {
 	q             ThrottleQueries
 	schedule      []time.Duration
 	scheduleMicro []int64
+	audit         audit.Writer
 	now           func() time.Time
 }
 
@@ -53,7 +55,12 @@ type Throttle struct {
 // is indexed by (failed_attempts - 1) and clamps to its last entry; an empty
 // schedule falls back to a tiny conservative ladder so a misconfigured
 // deployment still gets some back-off.
-func NewThrottle(q ThrottleQueries, schedule []time.Duration) *Throttle {
+//
+// The audit.Writer is used to emit a single EventFactorLocked event on the
+// transition from "unlocked (or expired lockout)" → "now locked". A nil
+// writer is tolerated for tests and pure-helper use; production wiring in
+// pkg/server always supplies one.
+func NewThrottle(q ThrottleQueries, schedule []time.Duration, w audit.Writer) *Throttle {
 	if len(schedule) == 0 {
 		schedule = []time.Duration{0, 0, time.Second, 5 * time.Second, 15 * time.Minute}
 	}
@@ -64,7 +71,7 @@ func NewThrottle(q ThrottleQueries, schedule []time.Duration) *Throttle {
 		}
 		micros[i] = int64(d / time.Microsecond)
 	}
-	return &Throttle{q: q, schedule: schedule, scheduleMicro: micros, now: time.Now}
+	return &Throttle{q: q, schedule: schedule, scheduleMicro: micros, audit: w, now: time.Now}
 }
 
 // CheckLocked reports whether the (account, factor) pair is currently in a
@@ -95,7 +102,24 @@ func (t *Throttle) CheckLocked(ctx context.Context, accountID int32, factor stri
 // (zero when the current attempt is still within the schedule's free-attempt
 // prefix). The schedule is passed by value with the call, so a config reload
 // changes the next failure's behaviour without any cache invalidation.
+//
+// On the transition from "unlocked (or expired lockout)" → "now locked",
+// emits an EventFactorLocked audit event so SOC pipelines can detect
+// lockouts without pattern-matching fail-row counts (Bundle-3 Low-1).
+// The pre-bump read is racy under K-way concurrency — a missed/duplicate
+// emission is acceptable for a defense-in-depth signal; the lockout
+// computation itself remains atomic in BumpAuthThrottle.
 func (t *Throttle) RegisterFailure(ctx context.Context, accountID int32, factor string) (time.Duration, error) {
+	// Snapshot the pre-bump lockout state. A racy read is fine: this only
+	// gates audit emission, not the lockout decision. Worst case is a
+	// missed/duplicate factor_locked event under heavy concurrency.
+	wasLocked := false
+	if prior, perr := t.q.GetAuthThrottle(ctx, db.GetAuthThrottleParams{AccountID: accountID, Factor: factor}); perr == nil {
+		if prior.LockedUntil.Valid && prior.LockedUntil.Time.After(t.now()) {
+			wasLocked = true
+		}
+	}
+
 	row, err := t.q.BumpAuthThrottle(ctx, db.BumpAuthThrottleParams{
 		AccountID:      accountID,
 		Factor:         factor,
@@ -107,7 +131,19 @@ func (t *Throttle) RegisterFailure(ctx context.Context, accountID int32, factor 
 	if !row.LockedUntil.Valid {
 		return 0, nil
 	}
-	return row.LockedUntil.Time.Sub(t.now()), nil
+	retry := row.LockedUntil.Time.Sub(t.now())
+	if !wasLocked && t.audit != nil {
+		_ = t.audit.Record(ctx, audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.Factor(factor),
+			Event:     audit.EventFactorLocked,
+			Detail: map[string]any{
+				"failed_attempts": row.FailedAttempts,
+				"until":           row.LockedUntil.Time,
+			},
+		})
+	}
+	return retry, nil
 }
 
 // Reset deletes the throttle row on a successful verify. No-op when the row

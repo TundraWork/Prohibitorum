@@ -272,8 +272,8 @@ func newTestStoreAt(t *testing.T, at time.Time) (*Store, *fakeQueries, []byte) {
 		Issuer:            "Prohibitorum",
 	}
 	schedule := []time.Duration{0, 0, time.Second, 2 * time.Second, 4 * time.Second}
-	throttle := authn.NewThrottle(f, schedule)
 	w := audit.NewWriter(f)
+	throttle := authn.NewThrottle(f, schedule, w)
 	tx := &fakeTxRunner{q: f}
 	s := NewStore(f, tx, deks, cfg, throttle, w)
 	s.now = func() time.Time { return at }
@@ -299,8 +299,8 @@ func newTestStoreAtWithTx(t *testing.T, at time.Time) (*Store, *fakeQueries, *fa
 		Issuer:            "Prohibitorum",
 	}
 	schedule := []time.Duration{0, 0, time.Second, 2 * time.Second, 4 * time.Second}
-	throttle := authn.NewThrottle(f, schedule)
 	w := audit.NewWriter(f)
+	throttle := authn.NewThrottle(f, schedule, w)
 	tx := &fakeTxRunner{q: f}
 	s := NewStore(f, tx, deks, cfg, throttle, w)
 	s.now = func() time.Time { return at }
@@ -646,6 +646,58 @@ func TestStore_VerifyEmitsAuditEvents(t *testing.T) {
 	}
 	if !sawRecoveryRegister {
 		t.Error("expected recovery_code/register events (10x)")
+	}
+}
+
+// TestStore_VerifyCorruptCiphertextReturnsSentinel verifies the Bundle-3
+// Crypto-6 fix: AES-GCM authentication failures must surface as
+// ErrTOTPCorrupt so the HTTP layer can collapse to a generic
+// bad-credentials response without leaking cipher-failure detail. An
+// audit fail event with reason="decrypt_failed" must also be emitted
+// so server-side forensics can still distinguish this case.
+func TestStore_VerifyCorruptCiphertextReturnsSentinel(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, dek := newTestStoreAt(t, at)
+	ctx := context.Background()
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	// Confirm so the row is normal-state.
+	code := codeAt(t, dek, *f.totpRow, 1, at, 0)
+	if _, err := s.Verify(ctx, 1, code); err != nil {
+		t.Fatalf("Verify (confirm): %v", err)
+	}
+
+	// Tamper the stored ciphertext: flip a bit so AES-GCM authentication
+	// fails on the next Verify.
+	if len(f.totpRow.SecretEnc) == 0 {
+		t.Fatal("expected SecretEnc populated")
+	}
+	f.totpRow.SecretEnc[0] ^= 0x01
+
+	// Advance the clock so we're outside any replay window.
+	at2 := at.Add(60 * time.Second)
+	s.now = func() time.Time { return at2 }
+
+	_, err := s.Verify(ctx, 1, "123456")
+	if !errors.Is(err, ErrTOTPCorrupt) {
+		t.Fatalf("Verify on tampered ciphertext: want ErrTOTPCorrupt, got %v", err)
+	}
+	// Error string must not leak the AES-GCM diagnostic.
+	if err != nil && strings.Contains(err.Error(), "authentication failed") {
+		t.Errorf("ErrTOTPCorrupt must not leak AES-GCM diagnostic, got %q", err.Error())
+	}
+
+	// Audit must contain a fail event with reason=decrypt_failed.
+	sawDecryptFail := false
+	for _, e := range f.events {
+		if e.Factor == "totp" && e.Event == "fail" && strings.Contains(string(e.Detail), `"decrypt_failed"`) {
+			sawDecryptFail = true
+			break
+		}
+	}
+	if !sawDecryptFail {
+		t.Error("expected totp/fail audit event with detail.reason=decrypt_failed")
 	}
 }
 

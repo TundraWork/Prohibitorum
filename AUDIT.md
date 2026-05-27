@@ -32,6 +32,41 @@ when it traces to one of those reports.
 
 ---
 
+## Post-implementation audit (2026-05-28)
+
+After v0.2 shipped, a three-bundle security-audit fix sequence closed
+the Critical, High, and Medium findings flagged by the standards/spec
+audit pass:
+
+- **Bundle 1 (Critical / High):** atomic recovery-code mint + audit-revoke
+  on wipe (commit `bc1fb97`); atomic single-use tokens, TOTP race fix,
+  throttle race fix, step-2 disabled-account check, revoke ordering, and
+  enum-oracle close (commit `8f6b4fd`).
+- **Bundle 2 (Medium):** spec/code mismatches and audit-doc anchoring
+  (folded into the bundle-1 commits per the picotera-decoupling pattern).
+- **Bundle 3 (Low + deployment notes — this commit):** `factor_locked`
+  audit-event on throttle transitions; `ErrTOTPCorrupt` sentinel collapse
+  on `/me/totp/verify`; PHC params lower-bound validation;
+  `VerifyAgainstDummy` params-upgrade timing-variance doc; deployment
+  notes covering the 5 known posture caveats.
+
+The remaining items at the audit's Open-Question and Informational
+tiers are documented as known caveats in
+`docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md`:
+
+- In-process rate limiter (multi-replica multiplier — operator
+  mitigation via LB affinity or external WAF).
+- AES-GCM DEK rotation budget (comfortably out of reach for any
+  realistic deployment; sweep tooling is v0.7+).
+- OIDC `auth_time` vs sudo semantics (decision needed before the v0.4
+  token endpoint goes live; default-safe option named in the notes).
+- Password breach-list check (NIST SHALL gap, deferred; viable
+  approaches named).
+- `auth_throttle` shared across login + sudo surfaces (intentional
+  defense-in-depth; documented for operator visibility).
+
+---
+
 ## WebAuthn (W3C Level 3)
 
 | Item | Status | Notes / source |
@@ -58,9 +93,9 @@ when it traces to one of those reports.
 | Configurable params (`PasswordHashParams`) with re-hash on verify | ✅ implemented; smoke-untested | configx defaults `m=65536KiB, t=3, p=1` (OWASP current); re-hash branch in `pkg/credential/password.Verify` is unit-tested; smoke runs one param set |
 | Persistent failed-attempt counter (cross-restart) | ✅ smoke-verified | credentials/R4; `auth_throttle (account_id, factor='totp')` populated by wrong-code drive in step 34, asserted at step 35 |
 | Verify endpoint with throttle enforcement | ✅ smoke-verified | `/auth/password/begin` + `/auth/totp/verify` (steps 25–26) and lockout observed via sudo path (steps 34–35); 429 + Retry-After confirmed |
-| Username-enumeration defense (dummy argon2id verify on missing account) | ✅ implemented; smoke-untested | spec D3; `dummyArgon2idHash` initialised at package init in `pkg/credential/password`; unit-tested in `handle_auth_password_test.go` |
+| Username-enumeration defense (dummy argon2id verify on missing account) | ✅ implemented; smoke-untested; ✅ doc-anchored (Bundle 3) | spec D3; `pkg/credential/password.VerifyAgainstDummy` runs argon2id at the store's current params; unit-tested in `handle_auth_password_test.go`. Params-upgrade timing-variance caveat (Bundle-3 Low-2) is documented on the function itself — old rows take longer until next rehash; deployment notes §2 / §4 background |
 | Disabled-account rejected at `/auth/password/begin` after dummy verify | ✅ implemented; smoke-untested | `handle_auth_password.go:70`; unit-tested; smoke account never disabled |
-| Breach-corpus check (k-anonymity-style) on set | ⚠️ deferred (v0.2+) | NIST SP 800-63B-4 §3.1.1.2 |
+| Breach-corpus check (k-anonymity-style) on set | ⚠️ deferred (v0.2+) | NIST SP 800-63B-4 §5.1.1.2 SHALL gap; viable approaches (HIBP k-anonymity + static blocklist) documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md` §4 |
 | Periodic rotation forced | ❌ explicitly forbidden | NIST §3.1.1.2 — do not add |
 | Password history | ❌ explicitly forbidden | NIST §3.1.1.2 — do not add |
 | Composition rules (uppercase / digit / symbol) | ❌ explicitly forbidden | NIST §3.1.1.2 — do not add |
@@ -71,7 +106,7 @@ when it traces to one of those reports.
 | Item | Status | Notes / source |
 |---|---|---|
 | Secret entropy ≥ 160 bits | ✅ smoke-verified | `pkg/credential/totp` generates 160-bit secret; smoke decodes the base32 secret returned by `/me/totp/begin` and computes a valid code (steps 21–22) |
-| AES-256-GCM at rest | ✅ smoke-verified | credentials/C3+C4; `secret_enc` + `secret_nonce` populated on enrollment (step 21); decrypts on verify (step 22) |
+| AES-256-GCM at rest | ✅ smoke-verified; ✅ audit-hardened (Bundle 3) | credentials/C3+C4; `secret_enc` + `secret_nonce` populated on enrollment (step 21); decrypts on verify (step 22). Decrypt failure collapses to `ErrTOTPCorrupt` (Bundle-3 Crypto-6) so `/me/totp/verify` does not leak AES-GCM authentication-failure detail to clients; server-side `credential_event` keeps `event=fail, detail.reason=decrypt_failed` for forensics |
 | Versioned DEK (`key_version` per row) | ✅ smoke-verified | credentials/C3; `totp_credential.key_version` written to 1 by `/me/totp/begin`; ciphertext readable on subsequent verifies (steps 22, 26, 37) |
 | AAD bound to row identity (`'totp:'||account_id||':'||key_version`) | ✅ smoke-verified | credentials/C4; the verify path at step 22 would fail GCM auth if the AAD weren't constructed identically on encrypt and decrypt |
 | Per-row nonce (12 bytes from `crypto/rand`) | ✅ smoke-verified | `totp_credential.secret_nonce`; written on enrollment, consumed on verify |
@@ -214,10 +249,10 @@ when it traces to one of those reports.
 | Unified `signing_key` for OIDC + SAML (use sig|enc, kid rotation) | ✅ schema | spec §"db/migrations/002_oidc.sql"; oidc/R4 |
 | Key rotation: insert new, flip active, retire old after grace | ✅ design | `signing_key.not_before` + `retired_at` |
 | `not_before` on signing keys (oidc/R4) | ✅ schema | `signing_key.not_before` |
-| AES-256-GCM at rest with versioned DEK | ✅ design | credentials/C3; `PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>` |
+| AES-256-GCM at rest with versioned DEK | ✅ design | credentials/C3; `PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>`. DEK rotation budget (~2^32 ciphertexts per key, NIST SP 800-38D §8.3) and re-encrypt-sweep plan documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md` §2 |
 | AAD binds ciphertext to row identity | ✅ design | credentials/C4 |
 | 12-byte per-row nonce, unique per row | ✅ design | NIST SP 800-38D §5 |
-| argon2id PHC for password / recovery / client_secret hashes | ✅ design | credentials/R5 + credentials/C2 |
+| argon2id PHC for password / recovery / client_secret hashes | ✅ design; ✅ audit-hardened (Bundle 3) | credentials/R5 + credentials/C2. `pkg/credential/password.PHCDecode` enforces a lower-bound floor on `m`/`t`/`p` (Bundle-3 Crypto Open-Q-5) as defense-in-depth against tampered/injected stored hashes; floor is intentionally well below OWASP minimum (m≥8 MiB) — it's a sanity check, not a config gate |
 | HSM / KMS integration | ⚠️ deferred (v0.7+) | private keys in DB column |
 | TLS termination | external | reverse-proxy responsibility; Prohibitorum sets `Secure` cookie when TLS detected |
 | Time skew tolerance on JWT verification | ✅ design | 30s leeway on `exp` / `iat` / `nbf` |
@@ -227,7 +262,7 @@ when it traces to one of those reports.
 | Item | Status | Notes |
 |---|---|---|
 | Forward-only migrations via goose | ✅ | embedded `.sql` files; goose installation quirk documented in STATUS.md |
-| Structured audit logs via `credential_event` | ✅ smoke-verified | credentials/New tables; `pkg/audit.Writer` writes `register`/`use`/`fail`/`revoke` rows for password / totp / recovery_code + `session:sudo_granted`; step 45 DB assert checks the union of (factor, event) counts |
+| Structured audit logs via `credential_event` | ✅ smoke-verified; ✅ audit-hardened (Bundle 3) | credentials/New tables; `pkg/audit.Writer` writes `register`/`use`/`fail`/`revoke` rows for password / totp / recovery_code + `session:sudo_granted` + `factor_locked` (Bundle 3 Low-1: emitted by `pkg/authn/throttle.RegisterFailure` on the unlocked→locked transition); step 45 DB assert checks the union of (factor, event) counts |
 | Audit-log fields: who, what, when, IP, UA, detail | ✅ smoke-verified | `credential_event.{account_id, factor, event, credential_ref, ip, user_agent, detail jsonb, at}`; populated by every v0.2 handler that touches a credential |
 | Session manager for end users (`/me/sessions`) | ✅ | carried from v0.1 skeleton |
 | Admin can revoke other-user sessions | ✅ | `/accounts/revoke-sessions` |
@@ -235,7 +270,7 @@ when it traces to one of those reports.
 | Sudo mode for sensitive actions | ✅ smoke-verified | `pkg/server/handle_sudo.go`; v0.2 extends to 3 methods (`webauthn` / `password_totp` / `recovery_code`); steps 18, 37, 39, 41 exercise each method end-to-end |
 | Sudo discovery endpoint (`GET /me/sudo/methods`) | ✅ implemented; smoke-untested | priority order `webauthn` → `password_totp` → `recovery_code` from `pkg/authn/flow.AvailableMethods`; unit-tested in `handle_sudo_test.go` |
 | WebAuthn-preferred factor policy (revoke-password-totp) | ✅ smoke-verified | `/me/auth/revoke-password-totp` deletes password + TOTP + recovery rows transactionally (step 42); DB assert at step 43; post-revoke `/auth/password/begin` returns 401 at step 44 |
-| Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ smoke-verified | `pkg/authn/ratelimit` + per-account `auth_throttle` (steps 34–35) |
+| Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ smoke-verified | `pkg/authn/ratelimit` + per-account `auth_throttle` (steps 34–35). Multi-replica caveat (in-process limiter) documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md` §1; cross-surface coupling (login↔sudo share `auth_throttle`) documented §5 |
 | OpenAPI spec for management API | ✅ | huma-generated |
 | Admin UI for accounts | ⚠️ deferred (v0.6) | dashboard scaffold empty in v0.1 |
 | Admin UI for OIDC clients / SAML SPs / upstream IdPs | ⚠️ deferred (v0.6) | manage via SQL until then |

@@ -275,7 +275,7 @@ func newTestServer(t *testing.T) (*Server, *fakeAuthQueries, []byte) {
 	}
 
 	auditWriter := audit.NewWriter(f)
-	throttle := authn.NewThrottle(f, throttleSchedule)
+	throttle := authn.NewThrottle(f, throttleSchedule, auditWriter)
 	totpStore := totp.NewStore(f, &totpTestTxRunner{q: f}, deks, totpCfg, throttle, auditWriter)
 
 	kvStore := kv.NewMemoryStore()

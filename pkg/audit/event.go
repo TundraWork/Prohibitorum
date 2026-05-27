@@ -39,6 +39,12 @@ const (
 	EventSessionStart       = "session_start"
 	EventSessionEnd         = "session_end"
 	EventFactorDisabled     = "factor_disabled"
+	// EventFactorLocked is emitted by the auth throttle on the transition
+	// from "unlocked or expired lockout" → "now locked" so SOC pipelines
+	// can detect lockouts without counting/aggregating fail rows.
+	// OWASP MFA Cheat Sheet: log and alert on anomalies. The throttle
+	// owns the transition signal, so it owns the audit emission.
+	EventFactorLocked = "factor_locked"
 )
 
 type Record struct {

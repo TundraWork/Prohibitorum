@@ -18,6 +18,20 @@ import (
 
 var ErrPHCMalformed = errors.New("phc: malformed string")
 
+// PHC params floor — defense-in-depth (Bundle-3 Crypto Open-Q-5).
+// password_credential.hash is server-written via HashRaw, so under normal
+// operation these floors are never near. The floor exists to reject
+// obviously-crafted weak strings if a stored PHC ever leaks in via DB
+// injection, supply-chain in a backup/restore tool, or operator typo on a
+// hand-edited row. 8 MiB is intentionally well below the 19 MiB OWASP
+// minimum — this is a sanity check, NOT a config-validation gate.
+// Production params are 64 MiB (configx.DefaultParams).
+const (
+	minPHCMemoryKiB    uint32 = 8192 // 8 MiB
+	minPHCIterations   uint32 = 1    // RFC 9106 minimum
+	minPHCParallelism  uint8  = 1
+)
+
 type PHC struct {
 	Params configx.PasswordHashParams
 	Salt   []byte
@@ -67,6 +81,16 @@ func PHCDecode(s string) (PHC, error) {
 			return PHC{}, fmt.Errorf("phc: unknown param %q", key)
 		}
 	}
+	if p.MemoryKiB < minPHCMemoryKiB {
+		return PHC{}, fmt.Errorf("phc: memory %d KiB below floor %d KiB", p.MemoryKiB, minPHCMemoryKiB)
+	}
+	if p.Iterations < minPHCIterations {
+		return PHC{}, fmt.Errorf("phc: iterations %d below floor %d", p.Iterations, minPHCIterations)
+	}
+	if p.Parallelism < minPHCParallelism {
+		return PHC{}, fmt.Errorf("phc: parallelism %d below floor %d", p.Parallelism, minPHCParallelism)
+	}
+
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return PHC{}, fmt.Errorf("phc: salt: %w", err)

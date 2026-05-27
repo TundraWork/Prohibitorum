@@ -135,8 +135,22 @@ func (s *Store) Delete(ctx context.Context, accountID int32) error {
 }
 
 // VerifyAgainstDummy runs an argon2id verify against a fixed all-zero salt
-// dummy so step-1 timing on missing accounts matches the row-present case.
-// Used by the HTTP layer when no password_credential row exists.
+// dummy with the store's CURRENT params so step-1 timing on missing
+// accounts matches the row-present case. Used by the HTTP layer when no
+// password_credential row exists (missing/disabled/wrong-password).
+//
+// Timing-equalization caveat (Bundle-3 Low-2): this dummy is hashed at the
+// Store's current params. When the deployment upgrades params (e.g.,
+// m=64MiB → 128MiB), users whose stored hashes still carry the old params
+// take longer than the dummy on Verify — argon2id at the OLD params plus
+// a transparent re-hash at the NEW params. Until every active user has
+// hit the rehash branch, the timing-equalization is imperfect and a
+// careful attacker could probe which accounts have been rehashed.
+//
+// Eventually all active users succeed once, triggering the rehash, and
+// the variance disappears. Deployments that need strict equalization
+// across a params-upgrade window should run a one-shot rehash sweep over
+// password_credential rows; v0.2 does not ship that tool.
 func (s *Store) VerifyAgainstDummy(_ context.Context, pw string) {
 	dummySalt := make([]byte, saltLength)
 	_ = argon2.IDKey(
