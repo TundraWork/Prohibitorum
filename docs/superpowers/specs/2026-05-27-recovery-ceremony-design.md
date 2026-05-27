@@ -37,16 +37,22 @@ Two new endpoints, scoped to the recovery session token:
 ```
 POST /auth/recovery/totp/begin {recovery_session_token}
   → 200 {secret_base32, otpauth_uri}
-  Wipes the old totp_credential row + all remaining recovery_code rows.
-  Inserts a fresh unconfirmed totp_credential row.
+  Wipes the old totp_credential row. Remaining recovery_code rows are
+  preserved — they survive an abandoned /begin so the user can retry
+  recovery with another code. Inserts a fresh unconfirmed
+  totp_credential row. The recovery_session_token survives /begin
+  (idempotent retry within the TTL).
 
 POST /auth/recovery/totp/verify {recovery_session_token, code}
   → 200 {recovery_codes: [...]} + session cookie
-  Confirms the new TOTP, mints 10 fresh recovery codes, deletes the
-  recovery_session token (single-use), issues a real session with
+  Atomic Pop of the recovery_session_token. In a single tx: deletes
+  remaining recovery_code rows (with revoke audits), confirms the new
+  TOTP, mints 10 fresh recovery codes. Issues a real session with
   amr=["pwd","otp","mfa"].
-  → 401 on bad code (recovery session token remains valid for retry
-  within its TTL)
+  → 401 on bad code. The recovery_session_token is ALREADY consumed by
+  this point — bad code burns the token and forces the user to restart
+  from /auth/password/begin. Single-use semantics chosen for atomicity
+  (re-stashing on failure would re-introduce a race).
 ```
 
 ### Recovery session token
