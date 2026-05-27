@@ -292,7 +292,7 @@ func newSudoTestServer(t *testing.T) (*Server, *fakeSudoQueries, []byte) {
 	auditWriter := audit.NewWriter(f)
 	throttle := authn.NewThrottle(f, throttleSchedule)
 	pwStore := password.NewStore(f, pwParams, throttle, auditWriter)
-	totpStore := totp.NewStore(f, deks, totpCfg, throttle, auditWriter)
+	totpStore := totp.NewStore(f, &totpTestTxRunner{q: f}, deks, totpCfg, throttle, auditWriter)
 
 	kvStore := kv.NewMemoryStore()
 	sessionStore := sessstore.NewSessionStore(kvStore, f, cfg.SessionTTL)

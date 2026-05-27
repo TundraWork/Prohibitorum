@@ -19,6 +19,56 @@ import (
 	"prohibitorum/pkg/db"
 )
 
+// fakeTxRunner runs fn against the supplied TOTPQueries (typically the same
+// *fakeQueries the store was constructed with). It supports two failure
+// modes used by the rollback tests:
+//
+//   - failInsertAtIdx: when ≥ 0, InsertRecoveryCode calls fn directly and the
+//     wrapped fake's nth insert returns the injected error. fakeQueries
+//     mutates state on each insert, so a snapshot/restore is required to
+//     emulate Postgres's tx rollback semantics.
+//   - failOnCommit: when true, fn runs and mutates state, then we treat the
+//     "commit" as failing and roll back.
+//
+// Snapshot semantics: we shallow-copy the maps/slices the store's tx-scoped
+// operations touch (totpRow pointer, recoveryRows slice, nextRecID, events).
+// Audit events written inside fn are NOT rolled back — production audit
+// emission happens after commit, so a fake that rolled back fn-internal
+// audit writes would diverge from real behaviour.
+type fakeTxRunner struct {
+	q             *fakeQueries
+	failOnCommit  bool
+	inTxCallCount int
+}
+
+func (r *fakeTxRunner) InTx(ctx context.Context, fn func(q TOTPQueries) error) error {
+	r.inTxCallCount++
+	// Snapshot the fields a TOTP tx might mutate. confirmCalls/insertCalls
+	// counters are kept; tests assert on their post-rollback values to verify
+	// that fn DID run (we just then rolled back the state mutations).
+	var rowSnap *db.TotpCredential
+	if r.q.totpRow != nil {
+		copyRow := *r.q.totpRow
+		rowSnap = &copyRow
+	}
+	recSnap := append([]db.RecoveryCode(nil), r.q.recoveryRows...)
+	nextIDSnap := r.q.nextRecID
+	if err := fn(r.q); err != nil {
+		// Rollback: restore snapshot.
+		r.q.totpRow = rowSnap
+		r.q.recoveryRows = recSnap
+		r.q.nextRecID = nextIDSnap
+		return err
+	}
+	if r.failOnCommit {
+		r.q.totpRow = rowSnap
+		r.q.recoveryRows = recSnap
+		r.q.nextRecID = nextIDSnap
+		return errors.New("tx: commit failed (injected)")
+	}
+	return nil
+}
+
 // fakeQueries satisfies TOTPQueries + authn.ThrottleQueries + the
 // InsertCredentialEvent surface that audit.NewWriter expects. Mirror of the
 // pattern used in pkg/credential/password/password_test.go.
@@ -37,6 +87,13 @@ type fakeQueries struct {
 	deleteCalls   int
 	confirmCalls  int
 	lastStepCalls []db.UpdateTOTPLastStepParams
+
+	// recInsertCalls counts calls to InsertRecoveryCode for the rollback test.
+	// When failInsertRecAt > 0 the (1-indexed) Nth call returns the injected
+	// error — modelling "insert #5 fails halfway through the mint loop".
+	recInsertCalls   int
+	failInsertRecAt  int
+	failInsertRecErr error
 }
 
 func newFakeQueries() *fakeQueries {
@@ -110,6 +167,10 @@ func (f *fakeQueries) ListRecoveryCodesByAccount(_ context.Context, accountID in
 }
 
 func (f *fakeQueries) InsertRecoveryCode(_ context.Context, arg db.InsertRecoveryCodeParams) (db.RecoveryCode, error) {
+	f.recInsertCalls++
+	if f.failInsertRecAt > 0 && f.recInsertCalls == f.failInsertRecAt {
+		return db.RecoveryCode{}, f.failInsertRecErr
+	}
 	row := db.RecoveryCode{
 		ID:        f.nextRecID,
 		AccountID: arg.AccountID,
@@ -213,9 +274,37 @@ func newTestStoreAt(t *testing.T, at time.Time) (*Store, *fakeQueries, []byte) {
 	schedule := []time.Duration{0, 0, time.Second, 2 * time.Second, 4 * time.Second}
 	throttle := authn.NewThrottle(f, schedule)
 	w := audit.NewWriter(f)
-	s := NewStore(f, deks, cfg, throttle, w)
+	tx := &fakeTxRunner{q: f}
+	s := NewStore(f, tx, deks, cfg, throttle, w)
 	s.now = func() time.Time { return at }
 	return s, f, dek
+}
+
+// newTestStoreAtWithTx is the same as newTestStoreAt but also returns the
+// underlying tx runner so tests can inject commit-failure / rollback paths.
+func newTestStoreAtWithTx(t *testing.T, at time.Time) (*Store, *fakeQueries, *fakeTxRunner, []byte) {
+	t.Helper()
+	f := newFakeQueries()
+	dek := make([]byte, 32)
+	if _, err := rand.Read(dek); err != nil {
+		t.Fatal(err)
+	}
+	deks := map[int][]byte{1: dek}
+	cfg := configx.TOTPConfig{
+		DefaultPeriod:     30,
+		DefaultDigits:     6,
+		DefaultAlgorithm:  "SHA1",
+		DriftSteps:        1,
+		RecoveryCodeCount: 10,
+		Issuer:            "Prohibitorum",
+	}
+	schedule := []time.Duration{0, 0, time.Second, 2 * time.Second, 4 * time.Second}
+	throttle := authn.NewThrottle(f, schedule)
+	w := audit.NewWriter(f)
+	tx := &fakeTxRunner{q: f}
+	s := NewStore(f, tx, deks, cfg, throttle, w)
+	s.now = func() time.Time { return at }
+	return s, f, tx, dek
 }
 
 // codeAt computes the current TOTP code for the stored secret. Used by the
@@ -785,5 +874,269 @@ func TestStore_VerifySuccessResetsThrottle(t *testing.T) {
 	}
 	if _, ok := f.throttle[f.throttleKey(1, "totp")]; ok {
 		t.Error("throttle row should have been reset after success")
+	}
+}
+
+// TestStore_VerifyFirstConfirmRollsBackOnMintFailure exercises the audit v0.2
+// Medium #2 fix: ConfirmTOTPCredential + 10x InsertRecoveryCode must run in
+// a single transaction. A mid-loop insert failure must roll back the confirm,
+// leaving the row unconfirmed and zero recovery rows persisted. The next
+// successful Verify at the next step must re-enter the first-confirm branch
+// and mint successfully.
+func TestStore_VerifyFirstConfirmRollsBackOnMintFailure(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, _, dek := newTestStoreAtWithTx(t, at)
+	ctx := context.Background()
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	row := *f.totpRow
+
+	// Inject: the 5th recovery-code insert returns an error.
+	f.failInsertRecAt = 5
+	f.failInsertRecErr = errors.New("simulated DB failure on insert #5")
+
+	code := codeAt(t, dek, row, 1, at, 0)
+	codes, err := s.Verify(ctx, 1, code)
+	if err == nil {
+		t.Fatal("Verify: expected error from mint failure, got nil")
+	}
+	if codes != nil {
+		t.Errorf("Verify: expected nil codes on rollback, got %d", len(codes))
+	}
+
+	// Rollback assertions: row must remain unconfirmed and no recovery rows.
+	if f.totpRow == nil {
+		t.Fatal("totpRow should still exist after rollback")
+	}
+	if f.totpRow.ConfirmedAt.Valid {
+		t.Error("totpRow.ConfirmedAt should NOT be set after tx rollback")
+	}
+	if len(f.recoveryRows) != 0 {
+		t.Errorf("expected 0 recovery rows after rollback, got %d", len(f.recoveryRows))
+	}
+
+	// No recovery_code:register audit events should have been emitted (audit
+	// is emitted AFTER commit). The totp:register event also must NOT have
+	// been emitted because the tx failed.
+	for _, e := range f.events {
+		if e.Factor == "recovery_code" && e.Event == "register" {
+			t.Errorf("unexpected recovery_code/register audit after rollback")
+		}
+		if e.Factor == "totp" && e.Event == "register" {
+			t.Errorf("unexpected totp/register audit after rollback")
+		}
+	}
+
+	// Retry path: clear the failure injection, advance the clock to the next
+	// step, and verify with a fresh code. The first-confirm branch must
+	// re-trigger because ConfirmedAt is still null.
+	f.failInsertRecAt = 0
+	f.failInsertRecErr = nil
+	f.recInsertCalls = 0
+	atLater := at.Add(31 * time.Second)
+	s.now = func() time.Time { return atLater }
+	code2 := codeAt(t, dek, *f.totpRow, 1, atLater, 0)
+	codes2, err := s.Verify(ctx, 1, code2)
+	if err != nil {
+		t.Fatalf("retry Verify: %v", err)
+	}
+	if len(codes2) != 10 {
+		t.Errorf("retry: expected 10 recovery codes, got %d", len(codes2))
+	}
+	if !f.totpRow.ConfirmedAt.Valid {
+		t.Error("totpRow.ConfirmedAt should be set after successful retry")
+	}
+	if len(f.recoveryRows) != 10 {
+		t.Errorf("expected 10 recovery rows after retry, got %d", len(f.recoveryRows))
+	}
+}
+
+// TestStore_RegenerateRecoveryCodesRollsBackOnMintFailure exercises the same
+// audit v0.2 Medium #2 fix for the regenerate path. A mid-loop insert
+// failure must roll back the delete, leaving the old codes intact.
+func TestStore_RegenerateRecoveryCodesRollsBackOnMintFailure(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, _, dek := newTestStoreAtWithTx(t, at)
+	ctx := context.Background()
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	codes1, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(codes1) != 10 {
+		t.Fatalf("initial mint: want 10, got %d", len(codes1))
+	}
+	preRegenRows := append([]db.RecoveryCode(nil), f.recoveryRows...)
+
+	// Inject: the 3rd insert in the regen mint loop fails.
+	f.recInsertCalls = 0
+	f.failInsertRecAt = 3
+	f.failInsertRecErr = errors.New("simulated DB failure on regen insert #3")
+
+	codes2, err := s.RegenerateRecoveryCodes(ctx, 1)
+	if err == nil {
+		t.Fatal("RegenerateRecoveryCodes: expected error, got nil")
+	}
+	if codes2 != nil {
+		t.Errorf("expected nil codes on rollback, got %d", len(codes2))
+	}
+
+	// The original 10 rows must still be present (delete was rolled back).
+	if len(f.recoveryRows) != len(preRegenRows) {
+		t.Errorf("rollback: expected %d rows preserved, got %d",
+			len(preRegenRows), len(f.recoveryRows))
+	}
+	// Old plaintext codes must still verify.
+	if err := s.VerifyRecoveryCode(ctx, 1, codes1[0], "", ""); err != nil {
+		t.Errorf("old code after failed regen: want success, got %v", err)
+	}
+}
+
+// TestStore_RegenerateRecoveryCodesAuditsRevoke exercises the audit v0.2
+// Medium #3 fix: the regenerate path must emit one recovery_code/revoke event
+// per deleted code AND one recovery_code/register event per new code, in
+// that order, so the audit trail is symmetric.
+func TestStore_RegenerateRecoveryCodesAuditsRevoke(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, _, dek := newTestStoreAtWithTx(t, at)
+	ctx := context.Background()
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Snapshot the audit-event tail before regen so we count only the new
+	// events emitted by the regenerate call.
+	preRegenEventCount := len(f.events)
+
+	if _, err := s.RegenerateRecoveryCodes(ctx, 1); err != nil {
+		t.Fatalf("RegenerateRecoveryCodes: %v", err)
+	}
+
+	var revokes, registers int
+	var firstRevokeIdx, firstRegisterIdx = -1, -1
+	for i := preRegenEventCount; i < len(f.events); i++ {
+		e := f.events[i]
+		if e.Factor != "recovery_code" {
+			continue
+		}
+		switch e.Event {
+		case "revoke":
+			if firstRevokeIdx < 0 {
+				firstRevokeIdx = i
+			}
+			revokes++
+		case "register":
+			if firstRegisterIdx < 0 {
+				firstRegisterIdx = i
+			}
+			registers++
+		}
+	}
+	if revokes != 10 {
+		t.Errorf("expected 10 recovery_code/revoke audit events, got %d", revokes)
+	}
+	if registers != 10 {
+		t.Errorf("expected 10 recovery_code/register audit events, got %d", registers)
+	}
+	if firstRevokeIdx < 0 || firstRegisterIdx < 0 {
+		t.Fatal("expected both revoke and register audit events emitted")
+	}
+	if firstRevokeIdx > firstRegisterIdx {
+		t.Errorf("revoke audit events must precede register events: revoke@%d register@%d",
+			firstRevokeIdx, firstRegisterIdx)
+	}
+}
+
+// TestStore_BeginAuditsRevokeOfPriorMaterial exercises the audit v0.2 Medium
+// #3 fix for the Begin re-enrollment path. When Begin wipes a confirmed TOTP
+// row and its recovery codes, it must emit one totp/revoke audit event for
+// the confirmed row plus one recovery_code/revoke per existing code.
+func TestStore_BeginAuditsRevokeOfPriorMaterial(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, dek := newTestStoreAt(t, at)
+	ctx := context.Background()
+	// First enrollment: Begin + Verify mints the row + 10 codes.
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Verify(ctx, 1, codeAt(t, dek, *f.totpRow, 1, at, 0)); err != nil {
+		t.Fatal(err)
+	}
+
+	preBeginEventCount := len(f.events)
+
+	// Re-enrollment: Begin should audit-revoke the confirmed TOTP row and the
+	// 10 recovery codes.
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+
+	var totpRevokes, recoveryRevokes int
+	for i := preBeginEventCount; i < len(f.events); i++ {
+		e := f.events[i]
+		if e.Event != "revoke" {
+			continue
+		}
+		switch e.Factor {
+		case "totp":
+			totpRevokes++
+		case "recovery_code":
+			recoveryRevokes++
+		}
+	}
+	if totpRevokes != 1 {
+		t.Errorf("expected 1 totp/revoke audit event from Begin re-enrollment, got %d", totpRevokes)
+	}
+	if recoveryRevokes != 10 {
+		t.Errorf("expected 10 recovery_code/revoke audit events from Begin re-enrollment, got %d", recoveryRevokes)
+	}
+}
+
+// TestStore_BeginNoAuditWhenNoPriorMaterial verifies the inverse: a clean
+// first-time Begin must NOT emit revoke audit events (nothing to revoke).
+func TestStore_BeginNoAuditWhenNoPriorMaterial(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, _ := newTestStoreAt(t, at)
+	ctx := context.Background()
+
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range f.events {
+		if e.Event == "revoke" {
+			t.Errorf("first-time Begin should not emit revoke audit, got %+v", e)
+		}
+	}
+}
+
+// TestStore_BeginAuditsNoTOTPRevokeForUnconfirmedRow exercises the partial
+// case: an unconfirmed prior row is wiped without a totp/revoke event (only
+// confirmed enrollments are "live" credentials worth revoking).
+func TestStore_BeginAuditsNoTOTPRevokeForUnconfirmedRow(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, _ := newTestStoreAt(t, at)
+	ctx := context.Background()
+
+	// First Begin: row created but never confirmed (no Verify call).
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	preBeginEventCount := len(f.events)
+
+	// Second Begin should wipe the unconfirmed row without emitting totp/revoke.
+	if _, err := s.Begin(ctx, 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	for i := preBeginEventCount; i < len(f.events); i++ {
+		e := f.events[i]
+		if e.Factor == "totp" && e.Event == "revoke" {
+			t.Errorf("Begin overwriting UNconfirmed row should not emit totp/revoke, got %+v", e)
+		}
 	}
 }

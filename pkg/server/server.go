@@ -120,7 +120,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 	auditWriter := audit.NewWriter(queries)
 	throttle := authn.NewThrottle(queries, config.Auth.ThrottleSchedule)
 	passwordStore := password.NewStore(queries, config.PasswordHashParams, throttle, auditWriter)
-	totpStore := totp.NewStore(queries, config.DataEncryptionKeys, config.TOTP, throttle, auditWriter)
+	totpTxRunner := &totp.PoolTxRunner{Pool: conn, Queries: queries}
+	totpStore := totp.NewStore(queries, totpTxRunner, config.DataEncryptionKeys, config.TOTP, throttle, auditWriter)
 
 	s := &Server{
 		queries:       queries,

@@ -24,6 +24,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -62,8 +63,45 @@ type TOTPQueries interface {
 	DeleteAllRecoveryCodesByAccount(ctx context.Context, accountID int32) error
 }
 
+// TxRunner executes fn inside a single database transaction, supplying a
+// TOTPQueries handle bound to that transaction. If fn returns a non-nil error
+// the transaction is rolled back; otherwise it is committed. The Store uses
+// this to make recovery-code mints atomic with the credential row write that
+// gates them (audit v0.2 Medium #2 / #3).
+//
+// Production wires this to a *pgxpool.Pool — see NewPoolTxRunner. Tests inject
+// an in-memory implementation that snapshots/restores the fake's state on
+// rollback so the rollback path can be exercised end-to-end.
+type TxRunner interface {
+	InTx(ctx context.Context, fn func(q TOTPQueries) error) error
+}
+
+// PoolTxRunner is the production TxRunner: BEGIN on a *pgxpool.Pool, run fn
+// against db.Queries.WithTx(tx), COMMIT or ROLLBACK. The base *db.Queries
+// is captured so we don't need a second handle just to call WithTx.
+type PoolTxRunner struct {
+	Pool    *pgxpool.Pool
+	Queries *db.Queries
+}
+
+func (p *PoolTxRunner) InTx(ctx context.Context, fn func(q TOTPQueries) error) error {
+	tx, err := p.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("totp.tx: begin: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
+	if err := fn(p.Queries.WithTx(tx)); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("totp.tx: commit: %w", err)
+	}
+	return nil
+}
+
 type Store struct {
 	q             TOTPQueries
+	tx            TxRunner
 	deks          map[int][]byte
 	currentKeyVer int32
 	cfg           configx.TOTPConfig
@@ -72,7 +110,7 @@ type Store struct {
 	now           func() time.Time
 }
 
-func NewStore(q TOTPQueries, deks map[int][]byte, cfg configx.TOTPConfig, throttle *authn.Throttle, w audit.Writer) *Store {
+func NewStore(q TOTPQueries, tx TxRunner, deks map[int][]byte, cfg configx.TOTPConfig, throttle *authn.Throttle, w audit.Writer) *Store {
 	var current int32 = 1
 	for v := range deks {
 		if int32(v) > current {
@@ -81,6 +119,7 @@ func NewStore(q TOTPQueries, deks map[int][]byte, cfg configx.TOTPConfig, thrott
 	}
 	return &Store{
 		q:             q,
+		tx:            tx,
 		deks:          deks,
 		currentKeyVer: current,
 		cfg:           cfg,
@@ -110,6 +149,29 @@ func (s *Store) Begin(ctx context.Context, accountID int32, username string) (*E
 	// before inserting the new enrollment. Caller (the /me handler in
 	// Task 7) is responsible for sudo gating; this Store reset is
 	// unconditional once Begin is reached.
+	//
+	// Audit-revoke pre-existing material BEFORE delete (audit v0.2 Medium #3).
+	// Without this, the credential_event log shows registers without matching
+	// revokes — investigators can't see when a batch was wiped. Best-effort
+	// emit: a record failure does not block re-enrollment.
+	if oldRow, gerr := s.q.GetTOTPCredential(ctx, accountID); gerr == nil && oldRow.ConfirmedAt.Valid {
+		_ = s.audit.Record(ctx, audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.FactorTOTP,
+			Event:     audit.EventRevoke,
+			Detail:    map[string]any{"reason": "reenroll"},
+		})
+	}
+	if existing, lerr := s.q.ListRecoveryCodesByAccount(ctx, accountID); lerr == nil {
+		for range existing {
+			_ = s.audit.Record(ctx, audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorRecoveryCode,
+				Event:     audit.EventRevoke,
+				Detail:    map[string]any{"reason": "reenroll"},
+			})
+		}
+	}
 	_ = s.q.DeleteTOTPCredential(ctx, accountID)
 	_ = s.q.DeleteAllRecoveryCodesByAccount(ctx, accountID)
 
@@ -212,21 +274,48 @@ func (s *Store) Verify(ctx context.Context, accountID int32, code string) ([]str
 	_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorTOTP, Event: audit.EventUse})
 
 	if !row.ConfirmedAt.Valid {
-		if err := s.q.ConfirmTOTPCredential(ctx, accountID); err != nil {
-			return nil, fmt.Errorf("totp.Verify: confirm: %w", err)
+		// Atomic confirm + recovery-code mint (audit v0.2 Medium #2). Prior
+		// implementation called ConfirmTOTPCredential then looped 10x over
+		// InsertRecoveryCode with no transaction. A failure on insert #5 left
+		// the row confirmed but the caller saw an error and never received the
+		// codes — subsequent verifies skipped this branch (row already
+		// confirmed), stranding the user with 4 invisible codes and zero
+		// plaintext for the other 6.
+		//
+		// Ordering note: UpdateTOTPLastStep + throttle Reset + audit EventUse
+		// have already happened OUTSIDE the tx above. If the tx fails, the
+		// step bump is retained — re-using the same code on retry is still
+		// rejected — and the next code at the next step boundary will see
+		// row.ConfirmedAt.Valid == false and re-enter this branch.
+		var codes []string
+		txErr := s.tx.InTx(ctx, func(q TOTPQueries) error {
+			if err := q.ConfirmTOTPCredential(ctx, accountID); err != nil {
+				return fmt.Errorf("confirm: %w", err)
+			}
+			minted, err := s.mintRecoveryCodesNoAudit(ctx, q, accountID)
+			if err != nil {
+				return fmt.Errorf("mint recovery: %w", err)
+			}
+			codes = minted
+			return nil
+		})
+		if txErr != nil {
+			return nil, fmt.Errorf("totp.Verify: %w", txErr)
 		}
-		// First successful verify is the registration milestone — the row
-		// existed since Begin() but is unusable until confirmed. Emit the
-		// audit event here (rather than at Begin) so credential_event reflects
-		// the factor's actual go-live moment. cmd/smoke step 45 asserts this.
+		// Emit audit events AFTER commit so the trail reflects what actually
+		// persisted (a commit failure that leaves audit registers behind is
+		// worse for forensics than the symmetric pre-commit alternative).
 		_ = s.audit.Record(ctx, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorTOTP,
 			Event:     audit.EventRegister,
 		})
-		codes, err := s.mintRecoveryCodes(ctx, accountID)
-		if err != nil {
-			return nil, fmt.Errorf("totp.Verify: mint recovery: %w", err)
+		for range codes {
+			_ = s.audit.Record(ctx, audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorRecoveryCode,
+				Event:     audit.EventRegister,
+			})
 		}
 		return codes, nil
 	}
@@ -274,10 +363,52 @@ func (s *Store) VerifyRecoveryCode(ctx context.Context, accountID int32, code, s
 }
 
 func (s *Store) RegenerateRecoveryCodes(ctx context.Context, accountID int32) ([]string, error) {
-	if err := s.q.DeleteAllRecoveryCodesByAccount(ctx, accountID); err != nil {
-		return nil, fmt.Errorf("totp.RegenerateRecoveryCodes: delete: %w", err)
+	// Snapshot the pre-existing batch so we can emit one revoke audit event
+	// per deleted code — symmetric with mintRecoveryCodes emitting one
+	// register per code (audit v0.2 Medium #3). List BEFORE the tx so a
+	// list error is reported but does not block the delete: audit is
+	// best-effort.
+	existing, _ := s.q.ListRecoveryCodesByAccount(ctx, accountID)
+
+	// Atomic delete + mint (audit v0.2 Medium #2). The prior implementation
+	// deleted then minted with no transaction — an error mid-mint left the
+	// caller with zero codes and an error, after their old codes had already
+	// been wiped.
+	var codes []string
+	txErr := s.tx.InTx(ctx, func(q TOTPQueries) error {
+		if err := q.DeleteAllRecoveryCodesByAccount(ctx, accountID); err != nil {
+			return fmt.Errorf("delete: %w", err)
+		}
+		minted, err := s.mintRecoveryCodesNoAudit(ctx, q, accountID)
+		if err != nil {
+			return fmt.Errorf("mint: %w", err)
+		}
+		codes = minted
+		return nil
+	})
+	if txErr != nil {
+		return nil, fmt.Errorf("totp.RegenerateRecoveryCodes: %w", txErr)
 	}
-	return s.mintRecoveryCodes(ctx, accountID)
+	// Audit revoke for each deleted code, then register for each new one —
+	// per-row matches mintRecoveryCodes's emission pattern and gives
+	// investigators a clean before/after trail. Emit after commit so the
+	// audit reflects what actually persisted.
+	for range existing {
+		_ = s.audit.Record(ctx, audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.FactorRecoveryCode,
+			Event:     audit.EventRevoke,
+			Detail:    map[string]any{"reason": "regenerate"},
+		})
+	}
+	for range codes {
+		_ = s.audit.Record(ctx, audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.FactorRecoveryCode,
+			Event:     audit.EventRegister,
+		})
+	}
+	return codes, nil
 }
 
 // Delete removes the totp_credential row only. Recovery codes are not
@@ -293,7 +424,13 @@ func (s *Store) Delete(ctx context.Context, accountID int32) error {
 	return nil
 }
 
-func (s *Store) mintRecoveryCodes(ctx context.Context, accountID int32) ([]string, error) {
+// mintRecoveryCodesNoAudit generates and persists a fresh batch of recovery
+// codes using the supplied TOTPQueries handle (which the caller binds to a
+// pgx.Tx). Audit emission is the caller's responsibility — done AFTER the
+// surrounding transaction commits so the credential_event log only reflects
+// state that actually persisted. If any insert fails, the partial codes are
+// discarded and the surrounding tx is rolled back by the caller.
+func (s *Store) mintRecoveryCodesNoAudit(ctx context.Context, q TOTPQueries, accountID int32) ([]string, error) {
 	count := s.cfg.RecoveryCodeCount
 	if count <= 0 {
 		count = 10
@@ -309,14 +446,13 @@ func (s *Store) mintRecoveryCodes(ctx context.Context, accountID int32) ([]strin
 		if err != nil {
 			return nil, err
 		}
-		if _, err := s.q.InsertRecoveryCode(ctx, db.InsertRecoveryCodeParams{
+		if _, err := q.InsertRecoveryCode(ctx, db.InsertRecoveryCodeParams{
 			AccountID: accountID,
 			Hash:      phc,
 		}); err != nil {
 			return nil, err
 		}
 		codes = append(codes, code)
-		_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventRegister})
 	}
 	return codes, nil
 }
