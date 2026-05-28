@@ -25,6 +25,7 @@ import (
 	"prohibitorum/pkg/credential/totp"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
+	fedoidc "prohibitorum/pkg/federation/oidc"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
 	oidcop "prohibitorum/pkg/protocol/oidc"
@@ -46,6 +47,11 @@ type Server struct {
 	passwordStore *password.Store
 	totpStore     *totp.Store
 	throttle      *authn.Throttle
+	// federator orchestrates upstream OIDC federation. The Federation HTTP
+	// handlers (handle_federation.go, Task 7) and /me/identities handlers
+	// (Task 8) reach through it. Construction lives in NewServer wiring —
+	// Task 9 owns that; this field is nil until Task 9 lands.
+	federator *fedoidc.Federator
 	// Audit records credential lifecycle events. Wired in v0.1; handlers
 	// begin calling Record() in v0.2.
 	Audit audit.Writer
