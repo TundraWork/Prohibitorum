@@ -311,7 +311,7 @@ func ErrLinkRequired() *AuthError {
 // the federation pipeline. The audit log carries the structured reason for
 // operators; the wire response does not.
 func ErrFederationStateInvalid() *AuthError {
-	return newErr(http.StatusBadRequest, "federation_state_invalid", "联合登录流程已失效，请重新发起")
+	return newErr(http.StatusUnauthorized, "federation_state_invalid", "联合登录流程已失效，请重新发起")
 }
 
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,

@@ -36,7 +36,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -101,12 +100,6 @@ type Federator struct {
 	cfg          configx.FederationConfig
 	deks         map[int][]byte
 	publicOrigin string
-
-	// clockNow defaults to time.Now; tests override it to make state
-	// expiry deterministic. (Currently unused by federation.go directly —
-	// state TTL is enforced by the KV store — but exposed so future
-	// time-sensitive checks have a single seam.)
-	clockNow func() time.Time
 }
 
 // NewFederator constructs a Federator from its collaborators. publicOrigin is
@@ -128,7 +121,6 @@ func NewFederator(
 		cfg:          cfg,
 		deks:         deks,
 		publicOrigin: publicOrigin,
-		clockNow:     time.Now,
 	}
 }
 
