@@ -39,6 +39,8 @@ import (
 // handleFederationLoginHTTP serves
 // GET /api/prohibitorum/auth/federation/{slug}/login.
 func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Request) {
+	// /login and /callback share one rate-limit bucket per IP: same user,
+	// same attack surface, no benefit to splitting.
 	if s.rateLimit(w, r, "federation:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
 		return
 	}
@@ -119,7 +121,14 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	ua := r.UserAgent()
-	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, ua, result.AMR)
+	// RFC 8176 §2: "federated" indicates a federated authentication assertion.
+	// Real upstream OPs commonly omit the amr claim — we backfill with this
+	// generic value so the local session always has a meaningful amr.
+	amr := result.AMR
+	if len(amr) == 0 {
+		amr = []string{"federated"}
+	}
+	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, ua, amr)
 	if err != nil {
 		writeAuthErr(w, err)
 		return

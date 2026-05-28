@@ -505,6 +505,52 @@ func TestFederationCallback_HappyPath(t *testing.T) {
 	}
 }
 
+func TestFederationCallback_BackfillsAMRWhenUpstreamOmits(t *testing.T) {
+	h := newFederationTestServer(t)
+	// Upstream omits the amr claim entirely. The handler must backfill
+	// ["federated"] (RFC 8176) so the session row's amr is non-empty —
+	// otherwise pkg/session.Issue would reject and surface a 500.
+	h.op.SetAMR(nil)
+
+	loc, resp := h.driveLogin(t, "mockop", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("login: want 302, got %d", resp.StatusCode)
+	}
+	code, state, iss := driveAuthorize(t, loc)
+
+	q := url.Values{}
+	q.Set("code", code)
+	q.Set("state", state)
+	q.Set("iss", iss)
+	resp = h.hitCallback(t, "mockop", q)
+
+	if resp.StatusCode != http.StatusFound {
+		body, _ := readAll(resp.Body)
+		t.Fatalf("callback: want 302 (no 500), got %d (body=%s)", resp.StatusCode, body)
+	}
+
+	// Session cookie must be set.
+	var sessCookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == sessstore.SessionCookieName {
+			sessCookie = c
+			break
+		}
+	}
+	if sessCookie == nil || sessCookie.Value == "" {
+		t.Fatal("session cookie not set")
+	}
+
+	// Session row's amr must be exactly ["federated"].
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("sessions inserted: want 1, got %d", len(h.q.sessions))
+	}
+	amr := h.q.sessions[0].Amr
+	if len(amr) != 1 || amr[0] != "federated" {
+		t.Errorf("session amr: want [federated], got %v", amr)
+	}
+}
+
 func TestFederationCallback_UpstreamError(t *testing.T) {
 	h := newFederationTestServer(t)
 
