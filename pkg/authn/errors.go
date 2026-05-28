@@ -271,6 +271,38 @@ func ErrCannotRevokeCurrentSession() *AuthError {
 	return newErr(http.StatusConflict, "cannot_revoke_current_session", "无法从此处撤销当前会话，请使用「退出登录」")
 }
 
+// ErrEmailNotVerified is returned by federation/oidc auto_provision when the
+// upstream IdP did not assert email_verified=true on the ID token and the
+// per-IdP require_verified_email flag is set. Defense against an upstream
+// that lets a user register with someone else's address.
+func ErrEmailNotVerified() *AuthError {
+	return newErr(http.StatusForbidden, "email_not_verified", "上游 IdP 未确认电子邮件，禁止自动开户")
+}
+
+// ErrUsernameCollision is returned by federation/oidc auto_provision when the
+// upstream's preferred_username matches an existing local account. Admin
+// intervention required — automatic merging is unsafe because the existing
+// account may belong to a different person.
+func ErrUsernameCollision() *AuthError {
+	return newErr(http.StatusForbidden, "username_collision", "用户名已存在于本地，需管理员介入")
+}
+
+// ErrInviteRequired is returned by federation/oidc when an upstream identity
+// has no prior account_identity row and the IdP mode is invite_only (or
+// equivalent — e.g., domain not in allowed_domains under auto_provision).
+// Collapses the two cases under one code so callers don't probe for which.
+func ErrInviteRequired() *AuthError {
+	return newErr(http.StatusForbidden, "invite_required", "此身份源仅限受邀注册，请联系管理员获取邀请")
+}
+
+// ErrLinkRequired is returned by federation/oidc when an upstream identity
+// has no prior account_identity row and the IdP mode is link_only. The user
+// must first sign in via another method and then link this upstream from
+// the "我的身份" page.
+func ErrLinkRequired() *AuthError {
+	return newErr(http.StatusForbidden, "link_required", "此身份源仅限已绑定账户使用，请先以其他方式登录后在「我的身份」中绑定")
+}
+
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,
 // or nil otherwise. Useful for handler error mapping.
 func AsAuthError(err error) *AuthError {

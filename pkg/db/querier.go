@@ -109,6 +109,8 @@ type Querier interface {
 	RevokeSession(ctx context.Context, id string) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
+	UpdateAccountDisplayName(ctx context.Context, arg UpdateAccountDisplayNameParams) error
+	UpdateAccountIdentityEmail(ctx context.Context, arg UpdateAccountIdentityEmailParams) error
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
 	// Owner-scoped update: only the account's own credential row is updated.
 	// Zero rows affected means the id doesn't match an owned credential; the

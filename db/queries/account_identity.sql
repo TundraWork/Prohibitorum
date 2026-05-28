@@ -14,3 +14,6 @@ RETURNING *;
 
 -- name: DeleteAccountIdentity :exec
 DELETE FROM account_identity WHERE id = $1 AND account_id = $2;
+
+-- name: UpdateAccountIdentityEmail :exec
+UPDATE account_identity SET upstream_email = $2 WHERE id = $1;

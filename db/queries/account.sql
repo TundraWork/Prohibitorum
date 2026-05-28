@@ -35,3 +35,6 @@ DELETE FROM account WHERE id = $1;
 
 -- name: CountActiveAdminsForUpdate :one
 SELECT COUNT(*) FROM account WHERE role = 'admin' AND NOT disabled FOR UPDATE;
+
+-- name: UpdateAccountDisplayName :exec
+UPDATE account SET display_name = $2, updated_at = now() WHERE id = $1;

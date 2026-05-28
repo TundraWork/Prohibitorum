@@ -132,3 +132,17 @@ func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID 
 	}
 	return items, nil
 }
+
+const updateAccountIdentityEmail = `-- name: UpdateAccountIdentityEmail :exec
+UPDATE account_identity SET upstream_email = $2 WHERE id = $1
+`
+
+type UpdateAccountIdentityEmailParams struct {
+	ID            int64       `json:"id"`
+	UpstreamEmail pgtype.Text `json:"upstreamEmail"`
+}
+
+func (q *Queries) UpdateAccountIdentityEmail(ctx context.Context, arg UpdateAccountIdentityEmailParams) error {
+	_, err := q.db.Exec(ctx, updateAccountIdentityEmail, arg.ID, arg.UpstreamEmail)
+	return err
+}
