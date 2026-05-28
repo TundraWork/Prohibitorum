@@ -340,6 +340,24 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 		return nil, authn.ErrFederationStateInvalid()
 	}
 
+	// Self-service link is neither invite_only nor link_only — it's an
+	// authenticated user binding a fresh upstream identity. Apply the same
+	// gates auto_provision enforces so admin policy (require_verified_email,
+	// allowed_domains) can't be bypassed through this surface.
+	if idp.RequireVerifiedEmail && !tokens.EmailVerified {
+		f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "email_not_verified", map[string]any{
+			"upstream_iss": tokens.Issuer,
+		})
+		return nil, authn.ErrEmailNotVerified()
+	}
+
+	if len(idp.AllowedDomains) > 0 && !domainAllowed(tokens.Email, idp.AllowedDomains) {
+		// Collapse onto invite_required to match applyAutoProvision's
+		// anti-enumeration behavior; the real reason lives in the audit row.
+		f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "domain_not_allowed", nil)
+		return nil, authn.ErrInviteRequired()
+	}
+
 	_, err = f.q.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
 		AccountID:     currentAccountID,
 		UpstreamIdpID: idp.ID,

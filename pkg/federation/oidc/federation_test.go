@@ -597,6 +597,89 @@ func TestFederator_LinkCallback_RejectsLinkConflict(t *testing.T) {
 	}
 }
 
+func TestFederator_LinkCallback_RejectsEmailNotVerified(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	const acctID int32 = 99
+
+	// Mock OP ships email_verified=false; idp.RequireVerifiedEmail defaults
+	// to true in newFixture, so this MUST be rejected.
+	fx.op.SetClaims("sub-1", "alice@example.com", false, "alice", "Alice Example")
+
+	req, err := fx.f.LinkBegin(context.Background(), acctID, "mockop", "/me/identities")
+	if err != nil {
+		t.Fatalf("LinkBegin: %v", err)
+	}
+	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+
+	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, acctID)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
+		t.Fatalf("want email_not_verified, got %v", err)
+	}
+
+	recs := fx.au.snapshot()
+	fail := findEvent(recs, audit.EventFail)
+	if fail == nil {
+		t.Fatal("missing audit EventFail")
+	}
+	if r, _ := fail.Detail["reason"].(string); r != "email_not_verified" {
+		t.Errorf("audit reason = %q, want email_not_verified", r)
+	}
+	if s, _ := fail.Detail["idp_slug"].(string); s != "mockop" {
+		t.Errorf("audit idp_slug = %q, want mockop", s)
+	}
+	if fail.AccountID == nil || *fail.AccountID != acctID {
+		t.Errorf("audit AccountID = %v, want %d", fail.AccountID, acctID)
+	}
+
+	// MUST NOT have inserted an identity row.
+	if fx.q.insertedIdentity.AccountID != 0 {
+		t.Errorf("identity row should not be inserted; got %+v", fx.q.insertedIdentity)
+	}
+}
+
+func TestFederator_LinkCallback_RejectsDomainNotAllowed(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	const acctID int32 = 99
+
+	// Restrict to example.com; mock OP returns badcorp.com.
+	idp := fx.idp
+	idp.AllowedDomains = []string{"example.com"}
+	fx.q.idpBySlug["mockop"] = idp
+
+	fx.op.SetClaims("sub-1", "evil@badcorp.com", true, "evil", "Evil")
+
+	req, err := fx.f.LinkBegin(context.Background(), acctID, "mockop", "/me/identities")
+	if err != nil {
+		t.Fatalf("LinkBegin: %v", err)
+	}
+	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+
+	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, acctID)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required, got %v", err)
+	}
+
+	recs := fx.au.snapshot()
+	fail := findEvent(recs, audit.EventFail)
+	if fail == nil {
+		t.Fatal("missing audit EventFail")
+	}
+	if r, _ := fail.Detail["reason"].(string); r != "domain_not_allowed" {
+		t.Errorf("audit reason = %q, want domain_not_allowed", r)
+	}
+	if s, _ := fail.Detail["idp_slug"].(string); s != "mockop" {
+		t.Errorf("audit idp_slug = %q, want mockop", s)
+	}
+	if fail.AccountID == nil || *fail.AccountID != acctID {
+		t.Errorf("audit AccountID = %v, want %d", fail.AccountID, acctID)
+	}
+
+	// MUST NOT have inserted an identity row.
+	if fx.q.insertedIdentity.AccountID != 0 {
+		t.Errorf("identity row should not be inserted; got %+v", fx.q.insertedIdentity)
+	}
+}
+
 func TestFederator_LinkCallback_RejectsLoginStateToken(t *testing.T) {
 	// Cross-namespace defense: a token minted by BeginLogin lives under
 	// LoginKey; calling LinkCallback with it must fail because LinkCallback
