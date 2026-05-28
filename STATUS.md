@@ -432,18 +432,237 @@ None currently identified. The reality audit at the close of v0.2
 (this section) is the canonical follow-up list; reopen when concrete
 deferred items materialise.
 
-## v0.3 — upstream OIDC federation
+## v0.3 — upstream OIDC federation (done; `invite_only` stubbed)
 
-- `upstream_idp` admin CRUD (SQL for now; admin UI in v0.6).
-- `pkg/federation/oidc` via `zitadel/oidc/v3`: discovery doc fetch +
-  cache, per-IdP RP flow with PKCE, state KV with snapshotted
-  `expected_iss` / `expected_token_endpoint`.
-- Three provisioning modes (`auto_provision`, `invite_only`,
-  `link_only`) with the policy semantics from the spec.
-- `account_identity` linkage on `(upstream_iss, upstream_sub)`.
-- `/me/identities` UX: list / unlink linked IdPs.
-- New endpoints: `GET /api/prohibitorum/auth/federation/{slug}/login`,
-  `GET /api/prohibitorum/auth/federation/{slug}/callback`.
+Shipped the upstream OIDC RP surface: `auto_provision` and `link_only`
+modes end-to-end, `/me/identities` list / unlink / link, AES-256-GCM
+at-rest for upstream client secrets, JWT alg allowlist, RFC 9207 iss
+callback validation, federation-state KV with cross-namespace defense,
+session-swap defense on the link flow, and AMR pass-through (with
+`["federated"]` backfill). Smoke extended from 45 to **65 steps**
+against a real Postgres + dev server + in-process mock OP (see
+`cmd/smoke/internal/mockop`).
+
+`invite_only` is **STUBBED** — the handler returns `ErrInviteRequired`
+with `reason: "invite_only_not_implemented"`. Design discussion in
+`docs/superpowers/notes/2026-05-29-followups-invite-only-federation.md`.
+
+### What shipped
+
+- **`pkg/federation/oidc/secret.go`** — AES-256-GCM for
+  `upstream_idp.client_secret_enc` with the versioned-DEK family
+  (`PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>`). AAD bound to
+  `'upstream_idp:'||id||':'||key_version` so a ciphertext lifted
+  between rows fails to decrypt. 12-byte per-row nonce. 5/5 unit tests
+  in `secret_test.go`.
+- **`pkg/federation/oidc/client.go`** — wraps `zitadel/oidc/v3 v3.47.5`.
+  Discovery fired once at `NewClient`; the library caches JWKS
+  internally. ID-token alg allowlist
+  (`DefaultAllowedAlgs() = {RS256, ES256, EdDSA}`) enforced at the
+  library layer AND re-checked post-decode (defense-in-depth against
+  a library bug that admits `HS256` / `none`). Nonce threaded via
+  context-key.
+- **`pkg/federation/oidc/federation.go`** — `Federator` orchestrates
+  `BeginLogin` / `HandleCallback` / `LinkBegin` / `LinkCallback`.
+  Federation-state KV is keyed under `LoginKey(token)` vs
+  `LinkKey(token)` — a state token minted for a link flow cannot be
+  consumed by the public login callback, and vice versa
+  (cross-namespace defense, unit-tested). State is single-use via
+  `kvStore.Pop`. State payload snapshots `ExpectedIss` +
+  `ExpectedTokenEndpoint` + `Nonce` + `CodeVerifier` so a discovery
+  change mid-flow can't silently re-target the user to a different OP.
+  RFC 9207 `iss` callback parameter validated against
+  `state.ExpectedIss`. Post-`Resolve` disabled-account check returns
+  `authn.ErrBadCredentials()` — same enumeration-safe path as the
+  password login (federation.go:269).
+- **`pkg/federation/oidc/modes.go`** — three provisioning modes:
+  - `auto_provision` gated by `RequireVerifiedEmail` +
+    `AllowedDomains` + `preferred_username` presence + local
+    username-collision check. Mints a fresh `webauthn_user_handle` on
+    JIT so a federated user can enroll a passkey later. Emits
+    `register` + `use` audit rows on success
+    (`modes.go:177–198`).
+  - `invite_only` — **STUBBED**. Emits `fail` audit with
+    `reason: "invite_only_not_implemented"` and returns
+    `authn.ErrInviteRequired` (`modes.go:209–217`).
+  - `link_only` — rejects unknown `(iss, sub)` with `link_required`.
+  - Re-login claim sync (spec D2): updates `account.display_name`
+    when upstream `name` drifts; updates `account_identity.upstream_email`
+    when upstream email drifts; both conditional on a diff so the
+    `updated_at` trigger doesn't fire on no-op logins
+    (`modes.go:240–267`).
+- **HTTP surface** — `pkg/server/handle_federation.go` (public login
+  + callback) and `pkg/server/handle_me_identities.go` (sudo-gated
+  link + unlink). Public endpoints share one IP rate-limit bucket
+  (`federation:ip:<ip>` @ 30/min). Return-to validation rejects
+  anything that isn't a relative path beginning with `/` and not `//`
+  (`handle_federation.go:145`). AMR backfilled to `["federated"]`
+  when upstream omits the claim (`handle_federation.go:127–130`,
+  citing RFC 8176 §2).
+- **`/me/identities` flow** — link begin is sudo-gated; link callback
+  is NOT sudo-gated (the user just elevated at `/begin` and a fresh
+  sudo prompt after the upstream round-trip would be hostile UX).
+  `LinkCallback` validates that the current session matches the
+  `LinkingAccountID` stashed in state — defeats a session-swap
+  mid-flow where the attacker lures the victim's browser to complete
+  the attacker's link (`federation.go:307–312`, unit-tested).
+- **Unlink last-method check** — `handleMeIdentitiesUnlinkHTTP`
+  computes the post-unlink method set and rejects with
+  `last_sign_in_method` when the only remaining method on the account
+  is the very identity row being unlinked
+  (`handle_me_identities.go:121–145`).
+- **`pkg/authn` errors** — 8 new structured errors:
+  403 `email_not_verified` / `username_collision` /
+  `invite_required` / `link_required`;
+  401 `federation_state_invalid`;
+  400 `last_sign_in_method` / `invalid_return_to` /
+  `upstream_error{code, description}` (`errors.go:274–339`).
+- **`pkg/authn.AvailableMethods`** — now appends
+  `MethodFederationOIDC` when the account has ≥1 `account_identity`
+  row (`flow.go:75–81`). Drives the `/me/sudo/methods` discovery
+  surface and the unlink last-method computation.
+- **Migration 006** — `006_federation_v03.sql` added
+  `upstream_idp.require_verified_email BOOLEAN NOT NULL DEFAULT true`.
+  The `account_identity` table and the rest of the `upstream_idp`
+  schema were already in migration 004 (v0.1 skeleton).
+
+### Endpoints introduced in v0.3
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/prohibitorum/auth/federation/{slug}/login` | public; 30/min per IP; 302 to upstream `/authorize` |
+| GET | `/api/prohibitorum/auth/federation/{slug}/callback` | public; 30/min per IP (shared bucket); handles `?error=`; issues session |
+| GET | `/api/prohibitorum/me/identities` | session-required; JSON array `[{id, idpSlug, idpDisplayName, upstreamEmail, linkedAt}]` |
+| POST | `/api/prohibitorum/me/identities/{id}/unlink` | session + sudo; 204 on success; refuses when this is the last sign-in method |
+| GET | `/api/prohibitorum/me/identities/link/{slug}/begin` | session + sudo; 30/min per IP; 302 to upstream `/authorize` (LinkKey-namespaced state) |
+| GET | `/api/prohibitorum/me/identities/link/{slug}/callback` | session-required (not sudo); validates session matches state.LinkingAccountID; does NOT issue a new session |
+
+### Smoke-covered runtime paths
+
+`cmd/smoke` extends from 45 to **65 steps**. The v0.3 block is steps
+46–65; the in-process mock OP under `cmd/smoke/internal/mockop`
+signs ES256 ID tokens against a JWKS served from the test process.
+Each entry below references the smoke step counter in
+`cmd/smoke/main.go`:
+
+- **Seed upstream_idp** — step 46/65 inserts `mockop` (auto_provision,
+  AES-GCM-encrypted client secret, allowed_domains `["example.com"]`,
+  `require_verified_email = true`).
+- **Happy-path login** — steps 47/65–49/65 walk
+  `/auth/federation/mockop/login` → upstream `/authorize` →
+  RP `/callback` → 302 to `/me` with a session cookie.
+  Step 50/65 round-trips `/me` as the federated user.
+- **JIT row inserted** — step 51/65 DB-asserts an `account_identity`
+  row exists for `ext-user-1` with `(upstream_iss, upstream_sub)`
+  matching the mock OP's claims.
+- **Re-login claim sync (D2)** — step 52/65 changes the upstream
+  display name, re-logs in, DB-asserts `account.display_name` updated.
+- **email_not_verified** — step 53/65 sets the mock OP's
+  `email_verified=false`, drives a fresh login, asserts 403 +
+  `email_not_verified` error code.
+- **username_collision** — step 54/65 changes the mock OP's
+  `preferred_username` to a value that already exists locally,
+  asserts 403 + `username_collision`.
+- **invalid_return_to** — step 55/65 passes `return_to=//evil.example`
+  to `/login`, asserts 400 + `invalid_return_to`. Caught at the
+  HTTP layer before the federator runs (no audit emission expected).
+- **upstream_error** — step 56/65 simulates the OP returning
+  `?error=access_denied`, asserts 400 + `upstream_error` and a
+  `fail` audit row with `reason: "upstream_error"`.
+- **`GET /me/identities`** — step 57/65 lists 1 row for the
+  federated user; asserts `idpSlug`, `idpDisplayName`,
+  `upstreamEmail`, and an ISO-8601 `linkedAt`.
+- **Seed second IdP** — step 58/65 inserts `mockop-link`
+  (link_only mode).
+- **link_only refuses unknown** — step 59/65 drives a login for a
+  fresh upstream sub against the `link_only` IdP; asserts 403 +
+  `link_required` + a `fail` audit row.
+- **Self-service link** — step 60/65 re-logs in as `smoke-admin`
+  via WebAuthn. Step 61/65 sudos via WebAuthn, hits
+  `/me/identities/link/mockop/begin`, follows through the mock OP,
+  asserts the original session cookie survives the round-trip
+  (no new session minted by the link callback).
+- **Link DB-asserted** — step 62/65 confirms an `account_identity`
+  row exists for `admin-link-1` owned by the `smoke-admin` account.
+- **List as admin** — step 63/65 confirms `/me/identities` returns
+  exactly 1 row for `smoke-admin` post-link.
+- **Unlink** — step 64/65 sudos via WebAuthn and POSTs
+  `/me/identities/{id}/unlink`, asserts 204 and DB row gone.
+  The smoke-admin survives the unlink because they still have
+  WebAuthn — the last-sign-in-method guard is satisfied.
+- **Audit emission** — step 65/65 asserts `credential_event`
+  lower bounds for the v0.3 lifecycle:
+  `federation_oidc:register ≥ 1`, `federation_oidc:use ≥ 3`,
+  `federation_oidc:fail ≥ 4`, `federation_oidc:link ≥ 1`,
+  `federation_oidc:unlink ≥ 1`.
+
+### Smoke-untested runtime paths (acknowledged)
+
+The following v0.3-touched paths are wired but not exercised
+end-to-end by `cmd/smoke`. Most carry unit-test coverage in
+`pkg/federation/oidc/*_test.go` or `pkg/server/handle_me_identities_test.go`.
+
+- **`invite_only` mode — STUBBED, not implemented.** Returns
+  `authn.ErrInviteRequired` + emits a `fail` audit row with
+  `reason: "invite_only_not_implemented"`
+  (`pkg/federation/oidc/modes.go:209–217`). See
+  `docs/superpowers/notes/2026-05-29-followups-invite-only-federation.md`
+  for the design discussion that needs to land before this can ship.
+- **`iss_mismatch_callback` (RFC 9207 reject).** Federator rejects a
+  callback whose `?iss=` doesn't match `state.ExpectedIss`. Unit-test
+  in `federation_test.go` only — the smoke uses a single mock OP, so
+  a mismatch can't be staged without a second OP.
+- **Cross-namespace state reuse.** A `LoginKey`-namespaced token
+  cannot be redeemed via the link callback (and vice versa).
+  Unit-tested in `federation_test.go`. The smoke never attempts the
+  swap.
+- **Session-swap defense on LinkCallback.** `state.LinkingAccountID`
+  must match the current session's `Account.ID`. Unit-tested
+  (`federation_test.go`). The smoke flows the link callback under
+  the same session that issued `/begin`.
+- **`code_exchange_failed` from upstream.** The mock OP always
+  honors the code. Unit-tested via a stubbed exchange in
+  `federation_test.go`.
+- **Disabled-account check post-Resolve.** Federator returns
+  `authn.ErrBadCredentials()` if an admin disables the account
+  between provisioning and session-mint
+  (`federation.go:269–278`). Unit-tested; the smoke account is
+  never disabled mid-flow.
+- **Unlink-last for a federated-only user.** The
+  `last_sign_in_method` reject is unit-tested in
+  `handle_me_identities_test.go`. The smoke can't drive it
+  end-to-end: the unlink endpoint is sudo-gated, and a
+  federated-only user has no sudo method available
+  (`recovery_code` was de-listed in v0.2 post-2026-05-28 hardening,
+  and federation is not a sudo method).
+- **Upstream refresh tokens.** Not implemented. Federated accounts
+  re-authenticate via `/login` each time — Prohibitorum does not
+  store or refresh upstream OIDC tokens. Tracked as ❌ in AUDIT.md.
+- **HS256 / `none` rejection by the alg allowlist.** The mock OP
+  only signs ES256, so the post-decode alg recheck branch is
+  `t.Skip`ed in `client_test.go`. The library-level allowlist
+  still rejects via configuration.
+- **Per-IdP claim-name overrides.** `upstream_idp.username_claim` /
+  `display_name_claim` / `email_claim` columns exist in the schema
+  but are NOT consumed by `modes.go` — auto_provision reads
+  `tokens.PreferredUsername` / `tokens.Name` / `tokens.Email`
+  directly. Tracked as a ⚠️ gap in AUDIT.md. Most OPs use the
+  defaults (`preferred_username` / `name` / `email`) so this is
+  benign for common deployments; closing the gap requires either
+  plumbing the per-IdP overrides through `client.Exchange` or
+  applying them in `modes.go` after claim extraction.
+
+### Notes
+
+- The mock OP under `cmd/smoke/internal/mockop` is a deliberately
+  minimal in-process OP — discovery, JWKS, `/authorize`, `/token`
+  with PKCE, ES256 signing. It exists so the smoke can drive an
+  upstream round-trip without booting Keycloak. Not safe for
+  production; never reuse outside the smoke harness.
+- Federation rate limiting reuses the existing in-process
+  `pkg/authn/ratelimit` bucket. The multi-replica caveat
+  documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md`
+  §1 applies here too.
 
 ## v0.4 — OIDC OP (downstream)
 

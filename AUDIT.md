@@ -153,19 +153,28 @@ tiers are documented as known caveats in
 
 | Item | Status | Notes / source |
 |---|---|---|
-| Per-IdP `upstream_idp` row with issuer + client + scopes | ✅ schema | `upstream_idp` |
-| Client secret AES-GCM encrypted with versioned DEK | ✅ schema | `client_secret_enc` + `secret_nonce` + `key_version` |
-| AAD bound to row identity (`'upstream_idp:'||id||':'||key_version`) | ✅ design | spec §"AES-GCM at-rest" |
-| Three provisioning modes (`auto_provision` / `invite_only` / `link_only`) | ✅ schema | CHECK constraint on `upstream_idp.mode` |
-| `auto_provision` gated by `allowed_domains` | ✅ schema | `upstream_idp.allowed_domains` |
-| `invite_only` binds enrollment to specific IdP | ✅ schema | `enrollment.expected_upstream_idp_slug` |
-| `account_identity` keyed on `(upstream_iss, upstream_sub)` (OIDC Core §2) | ✅ schema | oidc/C7; UNIQUE constraint |
-| Federation state snapshots `expected_iss` + `expected_token_endpoint` | ✅ design | oidc/C6; spec §"Federation state KV" |
-| Strict issuer + audience + nonce validation on upstream ID token | ✅ planned | v0.3 implementation |
-| Per-IdP claim-name overrides (`username_claim` etc.) | ✅ schema | `upstream_idp.username_claim/display_name_claim/email_claim` |
-| RP flow implementation | ⚠️ deferred (v0.3) | `pkg/federation/oidc` stubbed |
-| Local-username collision policy on JIT auto-provision | ⚠️ deferred (v0.3) | spec §"Open questions" |
-| Refresh-token storage for upstream tokens | ❌ gap | not yet needed; revisit when /me wants to refresh upstream profile |
+| Per-IdP `upstream_idp` row with issuer + client + scopes | ✅ schema | `upstream_idp` (migration 004); model in `pkg/db/models.go` |
+| Client secret AES-GCM encrypted with versioned DEK | ✅ smoke-verified | `pkg/federation/oidc/secret.go`; smoke step 46/65 seeds via `oidc.SealClientSecret` |
+| AAD bound to row identity (`'upstream_idp:'||id||':'||key_version`) | ✅ implemented | `pkg/federation/oidc/secret.go` AAD format; 5/5 unit tests in `secret_test.go` including a cross-row-paste rejection case |
+| JWT alg allowlist (RS256/ES256/EdDSA only; `HS256` / `none` rejected) | ✅ implemented | `pkg/federation/oidc/client.go` `DefaultAllowedAlgs()`; library-level enforcement + post-decode re-check |
+| Three provisioning modes (`auto_provision` / `invite_only` / `link_only`) | ⚠️ partial | `auto_provision` + `link_only` smoke-verified (steps 47–50, 59/65); `invite_only` **stubbed** — see followup row |
+| `auto_provision` gated by `require_verified_email` + `allowed_domains` + username collision | ✅ smoke-verified | `pkg/federation/oidc/modes.go:103–142`; steps 53/65 (email_not_verified), 54/65 (username_collision) |
+| `invite_only` mode end-to-end | ⚠️ stubbed (followup) | `pkg/federation/oidc/modes.go:209–217` returns `ErrInviteRequired` with `reason:"invite_only_not_implemented"`; design discussion in `docs/superpowers/notes/2026-05-29-followups-invite-only-federation.md` |
+| `account_identity` keyed on `(upstream_iss, upstream_sub)` (OIDC Core §2) | ✅ smoke-verified | UNIQUE constraint in migration 004; step 51/65 DB-asserts row insertion; step 62/65 asserts ownership |
+| Federation state snapshots `expected_iss` + `expected_token_endpoint` | ✅ implemented | `pkg/federation/oidc/federation.go:190` populates `ExpectedIss`; library uses it on `client.Exchange` (mix-up resistance) |
+| Single-use federation state via atomic Pop | ✅ implemented | `pkg/federation/oidc/federation.go:220` `kvStore.Pop(LoginKey(stateToken))`; unit-tested |
+| Cross-namespace defense (LoginKey != LinkKey) | ✅ implemented | `pkg/federation/oidc/federation.go:202–204`; unit-tested — a `LoginKey`-stashed state cannot be redeemed via the link callback |
+| RFC 9207 `iss` callback param validated against `state.ExpectedIss` | ✅ implemented | `pkg/federation/oidc/federation.go:231` (HandleCallback) + 317 (LinkCallback); unit-tested |
+| Strict issuer + audience + nonce validation on upstream ID token | ✅ implemented | `pkg/federation/oidc/client.go` via `zitadel/oidc/v3 v3.47.5`; nonce threaded via context-key |
+| Disabled-account re-check after Resolve | ✅ implemented | `pkg/federation/oidc/federation.go:269–278` — returns `authn.ErrBadCredentials()` (enumeration-safe, same path as password login) |
+| `email_verified` gating per IdP (`require_verified_email` column) | ✅ smoke-verified | migration `006_federation_v03.sql`; `modes.go:110`; step 53/65 |
+| AMR pass-through from upstream + backfill to `["federated"]` when omitted | ✅ implemented | `pkg/server/handle_federation.go:127–130` (RFC 8176 §2 rationale) |
+| Per-IdP claim-name overrides (`username_claim` / `display_name_claim` / `email_claim`) | ⚠️ schema only | columns exist in `upstream_idp` (migration 004) but `pkg/federation/oidc/modes.go` reads `tokens.PreferredUsername` / `tokens.Name` / `tokens.Email` directly and never consults the per-IdP override. Benign for OPs that use the default claim names; closing the gap requires plumbing overrides through `client.Exchange` or `modes.go` |
+| RP flow implementation (BeginLogin / HandleCallback / LinkBegin / LinkCallback) | ✅ smoke-verified | `pkg/federation/oidc/federation.go`; steps 47–49, 61, 64/65 |
+| Local-username collision policy on JIT auto-provision | ✅ smoke-verified | `modes.go:135–142`; step 54/65 |
+| Link-flow session-swap defense | ✅ implemented | `pkg/federation/oidc/federation.go:307–312` — `state.LinkingAccountID` must equal current session's account; unit-tested |
+| Last-sign-in-method check on unlink | ✅ implemented | `pkg/server/handle_me_identities.go:121–145`; computes post-unlink method set via `authn.AvailableMethods`; unit-tested (smoke-untested because the federated-only sudo path is unreachable) |
+| Refresh-token storage for upstream tokens | ❌ gap | not implemented; federated users re-authenticate via `/login` each time. Revisit if `/me` ever needs to refresh upstream profile claims out-of-band |
 
 ## OIDC OP downstream (RFC 6749 / OIDC Core / RFC 9068 / RFC 9700 / RFC 9207 / RFC 8414 / RFC 7636 / RFC 7009 / RFC 7662 / RP-Initiated Logout 1.0)
 

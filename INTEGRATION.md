@@ -561,6 +561,192 @@ the same way `/auth/totp/verify` does.
 Every successful sudo emits a `credential_event` row with
 `factor='session'` and `event='sudo_granted'`.
 
+## Upstream OIDC Federation (v0.3)
+
+Federate sign-in to an upstream OIDC provider (Google Workspace, Okta,
+Keycloak, another Prohibitorum). Prohibitorum is the RP; the upstream
+is the OP.
+
+> **Status (v0.3).** `auto_provision` and `link_only` modes ship
+> end-to-end and are smoke-verified. `invite_only` is **stubbed** —
+> the handler returns `403 invite_required` with
+> `reason:"invite_only_not_implemented"`. Design discussion in
+> `docs/superpowers/notes/2026-05-29-followups-invite-only-federation.md`.
+
+### One-time setup (admin)
+
+Register an upstream IdP via SQL (admin UI lands in v0.6). The client
+secret must be sealed with the helper in `pkg/federation/oidc/secret.go`
+— do not paste plaintext into the DB.
+
+```sql
+-- Pseudocode: the sealed (enc, nonce, key_version) triple comes from
+-- oidc.SealClientSecret(plaintext, idpID, dekVersion). In practice this
+-- is done from a short Go program or admin CLI, not raw SQL.
+INSERT INTO upstream_idp
+  (slug, display_name, issuer,
+   client_id, client_secret_enc, secret_nonce, key_version,
+   scopes, mode, require_verified_email, allowed_domains)
+VALUES (
+  'google',
+  'Google Workspace',
+  'https://accounts.google.com',
+  '1234567890.apps.googleusercontent.com',
+  '\xCIPHERTEXT'::bytea,
+  '\xNONCE12'::bytea,
+  1,
+  ARRAY['openid','email','profile'],
+  'auto_provision',
+  true,
+  ARRAY['example.com']
+);
+```
+
+Modes:
+
+| `mode`            | Behavior on first-seen `(iss, sub)`                              |
+|---|---|
+| `auto_provision`  | Create a local account from upstream claims, gated by `require_verified_email`, `allowed_domains`, and a username-collision check |
+| `link_only`       | Reject with `403 link_required` — the user must link from a session they already hold |
+| `invite_only`     | **Stubbed in v0.3.** Returns `403 invite_required`                |
+
+### Login flow
+
+```bash
+# 1. User clicks "Sign in with Google" → redirect to:
+curl -i 'http://localhost:8080/api/prohibitorum/auth/federation/google/login?return_to=/dashboard'
+# 302 Found
+# Location: https://accounts.google.com/o/oauth2/v2/auth?client_id=...&code_challenge=...&state=...&nonce=...
+
+# 2. User authenticates with Google. Google bounces back to:
+#    http://localhost:8080/api/prohibitorum/auth/federation/google/callback
+#      ?code=...&state=...&iss=https://accounts.google.com
+# Prohibitorum exchanges the code, validates the ID token, resolves the
+# local account, issues a session cookie, and 302s to /dashboard.
+
+# 3. The session cookie carries amr=["federated"] (or the upstream's
+# amr claim if present). The session looks identical to any other
+# Prohibitorum session from this point forward.
+curl http://localhost:8080/api/prohibitorum/me -b cookies.txt
+# {
+#   "id": 42,
+#   "username": "alice",
+#   "displayName": "Alice Example",
+#   ...
+# }
+```
+
+`return_to` MUST be a relative path starting with `/` (and not `//`).
+Anything else returns `400 invalid_return_to`.
+
+Both `/login` and `/callback` share one rate-limit bucket per IP at
+30 requests / minute.
+
+### Negative cases
+
+```bash
+# Unverified upstream email (and require_verified_email=true):
+# → 403 { "code": "email_not_verified" }
+
+# Local-username collision:
+# → 403 { "code": "username_collision" }
+
+# Upstream rejected the user (e.g. ?error=access_denied):
+# → 400 { "code": "upstream_error", "upstreamCode": "access_denied", "upstreamDescription": "..." }
+
+# Invalid return_to:
+curl -i 'http://localhost:8080/api/prohibitorum/auth/federation/google/login?return_to=//evil.example/'
+# 400 { "code": "invalid_return_to" }
+
+# State token replayed, missing, or cross-namespace (LoginKey/LinkKey):
+# → 401 { "code": "federation_state_invalid" }
+```
+
+### Listing linked identities
+
+```bash
+curl http://localhost:8080/api/prohibitorum/me/identities -b cookies.txt
+# 200 OK
+# [
+#   {
+#     "id": 17,
+#     "idpSlug": "google",
+#     "idpDisplayName": "Google Workspace",
+#     "upstreamEmail": "alice@example.com",
+#     "linkedAt": "2026-05-29T14:22:08Z"
+#   }
+# ]
+```
+
+`upstreamEmail` is `null` when the upstream OP did not return an email
+claim.
+
+### Linking an additional IdP to an existing account
+
+```bash
+# 1. Sudo step-up first (link/begin is sudo-gated):
+curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -d '{"method":"webauthn"}'
+# ... (run the WebAuthn ceremony, POST /me/sudo/complete) ...
+
+# 2. Kick off the link flow:
+curl -i 'http://localhost:8080/api/prohibitorum/me/identities/link/okta/begin?return_to=/settings/identities' \
+  -b cookies.txt
+# 302 Found
+# Location: https://example.okta.com/oauth2/.../authorize?...
+
+# 3. User authenticates upstream. Okta bounces to:
+#    /api/prohibitorum/me/identities/link/okta/callback?code=...&state=...&iss=...
+# Prohibitorum validates the state matches the *current session*'s
+# account_id (session-swap defense), inserts the account_identity row,
+# emits a 'link' audit event, and 302s to /settings/identities.
+# IMPORTANT: NO new session is issued — the user remains signed in
+# under their original session cookie.
+```
+
+The link callback is NOT sudo-gated (a second sudo prompt after the
+upstream round-trip would force re-elevation in the same flow).
+The original sudo grant at `/begin` is the load-bearing check.
+
+### Unlinking an identity
+
+```bash
+# Sudo step-up first. Then:
+curl -X POST http://localhost:8080/api/prohibitorum/me/identities/17/unlink \
+  -b cookies.txt
+# 204 No Content
+```
+
+The handler refuses (`400 last_sign_in_method`) when the identity row
+being removed is the account's *only remaining* sign-in method —
+the user would be locked out. To finish the unlink, enroll a passkey
+or password+TOTP first.
+
+### What goes into the audit log
+
+| Event | Emitted by | Notes |
+|---|---|---|
+| `federation_oidc:register` | first-time auto_provision | per fresh `(iss, sub)` |
+| `federation_oidc:use`      | every successful federated login | re-login claim sync is a `use` event |
+| `federation_oidc:fail`     | every structured rejection | `email_not_verified` / `username_collision` / `link_required` / `invite_only_not_implemented` / `upstream_error` / `session_swap` / `iss_mismatch_callback` / `code_exchange_failed` / `link_conflict` |
+| `federation_oidc:link`     | self-service link callback success | written by the federator, not the HTTP handler — do not double-audit |
+| `federation_oidc:unlink`   | `POST /me/identities/{id}/unlink` 204 | written by the HTTP handler |
+
+### What Prohibitorum does NOT do for upstream identities
+
+- **Refresh upstream tokens.** Prohibitorum does not store the upstream
+  refresh token. Federated users re-authenticate by hitting `/login`
+  again. There is no `/me/identities/{id}/refresh-profile` endpoint.
+- **Upstream sign-out propagation.** Logging out of Prohibitorum does
+  not log the user out of the upstream OP. Back-channel logout is a
+  v0.7+ item.
+- **Per-claim attribute mapping.** Custom `username_claim` /
+  `display_name_claim` / `email_claim` columns exist in the schema
+  but the v0.3 code path reads the OIDC defaults
+  (`preferred_username` / `name` / `email`) directly. Tracked as a
+  ⚠️ gap in AUDIT.md.
+
 ## Logout
 
 Two coordinated paths:
