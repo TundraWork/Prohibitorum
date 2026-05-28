@@ -4,13 +4,13 @@
     {
       "id": 0,
       "subject": "Task 0: Schema + dependency + configx",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Land migration for require_verified_email, add zitadel/oidc/v3 dep, regenerate sqlc.\n\n**Files:** db/migrations/006_federation_v03.sql (new) OR amend 004; db/queries/upstream_idp.sql (modify); go.mod/go.sum.\n\n**Verify:** `mise exec -- go build ./... && mise exec -- go test ./pkg/db/... ./pkg/configx/... -v`\n\n```json:metadata\n{\"files\": [\"db/migrations/006_federation_v03.sql\", \"db/queries/upstream_idp.sql\", \"go.mod\"], \"verifyCommand\": \"mise exec -- go build ./...\", \"acceptanceCriteria\": [\"migration applies cleanly\", \"require_verified_email defaults to true\", \"zitadel/oidc/v3 in go.mod\", \"sqlc regenerated\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 1: AES-GCM helper for client secrets",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** EncryptClientSecret/DecryptClientSecret with AAD `'upstream_idp:'+id+':'+keyVersion`. Mirrors totp/aead.go.\n\n**Files:** pkg/federation/oidc/secret.go (new) + secret_test.go.\n\n**Verify:** `mise exec -- go test ./pkg/federation/oidc/... -run TestSecret -v`\n\n```json:metadata\n{\"files\": [\"pkg/federation/oidc/secret.go\", \"pkg/federation/oidc/secret_test.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/federation/oidc/... -run TestSecret -v\", \"acceptanceCriteria\": [\"AES-256-GCM round-trip\", \"AAD bound to id+key_version\", \"Wrong AAD rejected\", \"Wrong key rejected\", \"Non-32-byte DEK rejected\"]}\n```"
     },
@@ -85,5 +85,5 @@
       "description": "**Goal:** STATUS.md, AUDIT.md, INTEGRATION.md updated to reflect v0.3 reality. Anchored to smoke steps.\n\n**Files:** STATUS.md, AUDIT.md, INTEGRATION.md (modify).\n\n**Verify:** Manual read-through.\n\n```json:metadata\n{\"files\": [\"STATUS.md\", \"AUDIT.md\", \"INTEGRATION.md\"], \"verifyCommand\": \"git diff --stat\", \"acceptanceCriteria\": [\"STATUS.md v0.3 section with smoke-covered/untested lists\", \"AUDIT.md federation rows flipped to smoke-verified\", \"INTEGRATION.md has 4 federation curl examples\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-28T00:00:00Z"
+  "lastUpdated": "2026-05-28T18:00:00Z"
 }
