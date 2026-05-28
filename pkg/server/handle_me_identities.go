@@ -100,9 +100,7 @@ func projectIdentityRow(row db.ListAccountIdentitiesByAccountRow) identityView {
 		s := row.UpstreamEmail.String
 		v.UpstreamEmail = &s
 	}
-	if row.LinkedAt.Valid {
-		v.LinkedAt = row.LinkedAt.Time.UTC().Format(time.RFC3339)
-	}
+	v.LinkedAt = row.LinkedAt.Time.UTC().Format(time.RFC3339)
 	return v
 }
 
@@ -154,15 +152,13 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if s.Audit != nil {
-		acct := sess.Account.ID
-		_ = s.Audit.Record(r.Context(), audit.Record{
-			AccountID: &acct,
-			Factor:    audit.FactorFederationOIDC,
-			Event:     audit.EventUnlink,
-			Detail:    map[string]any{"identity_id": id64},
-		})
-	}
+	acct := sess.Account.ID
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &acct,
+		Factor:    audit.FactorFederationOIDC,
+		Event:     audit.EventUnlink,
+		Detail:    map[string]any{"identity_id": id64},
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 }
