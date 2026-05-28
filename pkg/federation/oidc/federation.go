@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 
+	// Imported here so go.mod retains zitadel/oidc/v3 as a direct
+	// dependency for downstream v0.3 tasks. Task 5 will replace this
+	// blank import with the real RP client wrapper in client.go.
+	_ "github.com/zitadel/oidc/v3/pkg/client/rp"
+
 	"prohibitorum/pkg/db"
 )
 

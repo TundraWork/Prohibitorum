@@ -19,7 +19,7 @@ func (q *Queries) DeleteUpstreamIDP(ctx context.Context, id int64) error {
 }
 
 const getUpstreamIDPBySlug = `-- name: GetUpstreamIDPBySlug :one
-SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at FROM upstream_idp WHERE slug = $1 AND NOT disabled
+SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email FROM upstream_idp WHERE slug = $1 AND NOT disabled
 `
 
 func (q *Queries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error) {
@@ -42,6 +42,7 @@ func (q *Queries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (Upstre
 		&i.EmailClaim,
 		&i.Disabled,
 		&i.CreatedAt,
+		&i.RequireVerifiedEmail,
 	)
 	return i, err
 }
@@ -49,25 +50,27 @@ func (q *Queries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (Upstre
 const insertUpstreamIDP = `-- name: InsertUpstreamIDP :one
 INSERT INTO upstream_idp (slug, display_name, issuer_url, client_id,
   client_secret_enc, secret_nonce, key_version, scopes, mode,
-  allowed_domains, username_claim, display_name_claim, email_claim)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at
+  allowed_domains, username_claim, display_name_claim, email_claim,
+  require_verified_email)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email
 `
 
 type InsertUpstreamIDPParams struct {
-	Slug             string   `json:"slug"`
-	DisplayName      string   `json:"displayName"`
-	IssuerUrl        string   `json:"issuerUrl"`
-	ClientID         string   `json:"clientId"`
-	ClientSecretEnc  []byte   `json:"clientSecretEnc"`
-	SecretNonce      []byte   `json:"secretNonce"`
-	KeyVersion       int32    `json:"keyVersion"`
-	Scopes           []string `json:"scopes"`
-	Mode             string   `json:"mode"`
-	AllowedDomains   []string `json:"allowedDomains"`
-	UsernameClaim    string   `json:"usernameClaim"`
-	DisplayNameClaim string   `json:"displayNameClaim"`
-	EmailClaim       string   `json:"emailClaim"`
+	Slug                 string   `json:"slug"`
+	DisplayName          string   `json:"displayName"`
+	IssuerUrl            string   `json:"issuerUrl"`
+	ClientID             string   `json:"clientId"`
+	ClientSecretEnc      []byte   `json:"clientSecretEnc"`
+	SecretNonce          []byte   `json:"secretNonce"`
+	KeyVersion           int32    `json:"keyVersion"`
+	Scopes               []string `json:"scopes"`
+	Mode                 string   `json:"mode"`
+	AllowedDomains       []string `json:"allowedDomains"`
+	UsernameClaim        string   `json:"usernameClaim"`
+	DisplayNameClaim     string   `json:"displayNameClaim"`
+	EmailClaim           string   `json:"emailClaim"`
+	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
 }
 
 func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPParams) (UpstreamIdp, error) {
@@ -85,6 +88,7 @@ func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPPa
 		arg.UsernameClaim,
 		arg.DisplayNameClaim,
 		arg.EmailClaim,
+		arg.RequireVerifiedEmail,
 	)
 	var i UpstreamIdp
 	err := row.Scan(
@@ -104,12 +108,13 @@ func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPPa
 		&i.EmailClaim,
 		&i.Disabled,
 		&i.CreatedAt,
+		&i.RequireVerifiedEmail,
 	)
 	return i, err
 }
 
 const listUpstreamIDPs = `-- name: ListUpstreamIDPs :many
-SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at FROM upstream_idp WHERE NOT disabled ORDER BY display_name
+SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email FROM upstream_idp WHERE NOT disabled ORDER BY display_name
 `
 
 func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
@@ -138,6 +143,7 @@ func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
 			&i.EmailClaim,
 			&i.Disabled,
 			&i.CreatedAt,
+			&i.RequireVerifiedEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -155,25 +161,26 @@ SET display_name = $2, issuer_url = $3, client_id = $4,
     client_secret_enc = $5, secret_nonce = $6, key_version = $7,
     scopes = $8, mode = $9, allowed_domains = $10,
     username_claim = $11, display_name_claim = $12, email_claim = $13,
-    disabled = $14
+    disabled = $14, require_verified_email = $15
 WHERE id = $1
 `
 
 type UpdateUpstreamIDPParams struct {
-	ID               int64    `json:"id"`
-	DisplayName      string   `json:"displayName"`
-	IssuerUrl        string   `json:"issuerUrl"`
-	ClientID         string   `json:"clientId"`
-	ClientSecretEnc  []byte   `json:"clientSecretEnc"`
-	SecretNonce      []byte   `json:"secretNonce"`
-	KeyVersion       int32    `json:"keyVersion"`
-	Scopes           []string `json:"scopes"`
-	Mode             string   `json:"mode"`
-	AllowedDomains   []string `json:"allowedDomains"`
-	UsernameClaim    string   `json:"usernameClaim"`
-	DisplayNameClaim string   `json:"displayNameClaim"`
-	EmailClaim       string   `json:"emailClaim"`
-	Disabled         bool     `json:"disabled"`
+	ID                   int64    `json:"id"`
+	DisplayName          string   `json:"displayName"`
+	IssuerUrl            string   `json:"issuerUrl"`
+	ClientID             string   `json:"clientId"`
+	ClientSecretEnc      []byte   `json:"clientSecretEnc"`
+	SecretNonce          []byte   `json:"secretNonce"`
+	KeyVersion           int32    `json:"keyVersion"`
+	Scopes               []string `json:"scopes"`
+	Mode                 string   `json:"mode"`
+	AllowedDomains       []string `json:"allowedDomains"`
+	UsernameClaim        string   `json:"usernameClaim"`
+	DisplayNameClaim     string   `json:"displayNameClaim"`
+	EmailClaim           string   `json:"emailClaim"`
+	Disabled             bool     `json:"disabled"`
+	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
 }
 
 func (q *Queries) UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error {
@@ -192,6 +199,7 @@ func (q *Queries) UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPPa
 		arg.DisplayNameClaim,
 		arg.EmailClaim,
 		arg.Disabled,
+		arg.RequireVerifiedEmail,
 	)
 	return err
 }

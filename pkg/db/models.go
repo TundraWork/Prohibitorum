@@ -205,22 +205,23 @@ type TotpCredential struct {
 }
 
 type UpstreamIdp struct {
-	ID               int64              `json:"id"`
-	Slug             string             `json:"slug"`
-	DisplayName      string             `json:"displayName"`
-	IssuerUrl        string             `json:"issuerUrl"`
-	ClientID         string             `json:"clientId"`
-	ClientSecretEnc  []byte             `json:"clientSecretEnc"`
-	SecretNonce      []byte             `json:"secretNonce"`
-	KeyVersion       int32              `json:"keyVersion"`
-	Scopes           []string           `json:"scopes"`
-	Mode             string             `json:"mode"`
-	AllowedDomains   []string           `json:"allowedDomains"`
-	UsernameClaim    string             `json:"usernameClaim"`
-	DisplayNameClaim string             `json:"displayNameClaim"`
-	EmailClaim       string             `json:"emailClaim"`
-	Disabled         bool               `json:"disabled"`
-	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
+	ID                   int64              `json:"id"`
+	Slug                 string             `json:"slug"`
+	DisplayName          string             `json:"displayName"`
+	IssuerUrl            string             `json:"issuerUrl"`
+	ClientID             string             `json:"clientId"`
+	ClientSecretEnc      []byte             `json:"clientSecretEnc"`
+	SecretNonce          []byte             `json:"secretNonce"`
+	KeyVersion           int32              `json:"keyVersion"`
+	Scopes               []string           `json:"scopes"`
+	Mode                 string             `json:"mode"`
+	AllowedDomains       []string           `json:"allowedDomains"`
+	UsernameClaim        string             `json:"usernameClaim"`
+	DisplayNameClaim     string             `json:"displayNameClaim"`
+	EmailClaim           string             `json:"emailClaim"`
+	Disabled             bool               `json:"disabled"`
+	CreatedAt            pgtype.Timestamptz `json:"createdAt"`
+	RequireVerifiedEmail bool               `json:"requireVerifiedEmail"`
 }
 
 type WebauthnCredential struct {
