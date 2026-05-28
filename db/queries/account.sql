@@ -1,6 +1,9 @@
 -- name: GetAccountByID :one
 SELECT * FROM account WHERE id = $1;
 
+-- name: GetAccountByIDForUpdate :one
+SELECT * FROM account WHERE id = $1 FOR UPDATE;
+
 -- name: GetAccountByUsername :one
 SELECT * FROM account WHERE username = $1;
 

@@ -52,6 +52,27 @@ func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error)
 	return i, err
 }
 
+const getAccountByIDForUpdate = `-- name: GetAccountByIDForUpdate :one
+SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetAccountByIDForUpdate(ctx context.Context, id int32) (Account, error) {
+	row := q.db.QueryRow(ctx, getAccountByIDForUpdate, id)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.DisplayName,
+		&i.WebauthnUserHandle,
+		&i.Role,
+		&i.Attributes,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAccountByUsername = `-- name: GetAccountByUsername :one
 SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE username = $1
 `

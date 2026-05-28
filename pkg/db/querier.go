@@ -46,6 +46,7 @@ type Querier interface {
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	DeleteUpstreamIDP(ctx context.Context, id int64) error
 	GetAccountByID(ctx context.Context, id int32) (Account, error)
+	GetAccountByIDForUpdate(ctx context.Context, id int32) (Account, error)
 	GetAccountByUsername(ctx context.Context, username string) (Account, error)
 	GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error)
 	GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAccountIdentityByIssuerSubParams) (AccountIdentity, error)

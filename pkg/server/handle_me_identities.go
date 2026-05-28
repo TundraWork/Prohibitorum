@@ -43,9 +43,15 @@ import (
 // uses *db.Queries; tests inject a fake by widening s.revokeFlowOverride
 // (which is the closest existing seam — Task 6 already typed it as
 // authn.FlowQueries) to also satisfy this interface.
+//
+// GetAccountByIDForUpdate is the row-level lock used by the unlink handler
+// to serialize concurrent /unlink requests against the same account. The
+// FOR UPDATE clause is enforced by Postgres; in-memory test fakes simply
+// record the call (no actual lock).
 type meIdentitiesQueries interface {
 	authn.FlowQueries
 	DeleteAccountIdentity(ctx context.Context, arg db.DeleteAccountIdentityParams) error
+	GetAccountByIDForUpdate(ctx context.Context, id int32) (db.Account, error)
 }
 
 // meIdentitiesQ resolves the meIdentitiesQueries surface. Reuses
@@ -118,10 +124,34 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Refuse to remove the account's last sign-in method. Compute the
-	// post-unlink method set: federation_oidc remains iff >1 identity row
-	// existed before; webauthn + password_totp survive unconditionally.
-	q := s.meIdentitiesQ()
+	// Race-free check+delete: wrap the last-sign-in-method gate and the
+	// DeleteAccountIdentity in a single transaction, with a row-level
+	// SELECT … FOR UPDATE on the account row up front. Two concurrent
+	// unlink requests against the same account_id serialize on this lock,
+	// so the second one sees the post-delete state and (correctly) rejects
+	// the now-last-method removal. Audited race: M3 in v0.3 audit.
+	//
+	// In tests, s.dbPool is nil and s.meIdentitiesQ() resolves to a fake
+	// that satisfies the surface without a real Postgres lock (we exercise
+	// the lock-acquisition ordering via the fake; the actual concurrency
+	// guarantee is asserted at the cmd/smoke layer against real PG).
+	q, commit, rollback, err := s.beginMeIdentitiesTx(r.Context())
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	defer rollback()
+
+	// Acquire row-level lock on the account before any read. Concurrent
+	// unlinks block here until the first one commits or rolls back.
+	if _, err := q.GetAccountByIDForUpdate(r.Context(), sess.Account.ID); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+
+	// Re-do the last-sign-in-method check INSIDE the locked transaction.
+	// federation_oidc remains iff >1 identity row existed before; webauthn
+	// + password_totp survive unconditionally.
 	methods, err := authn.AvailableMethods(r.Context(), q, sess.Account.ID)
 	if err != nil && !errors.Is(err, authn.ErrNoUsableMethod) {
 		writeAuthErr(w, err)
@@ -152,6 +182,15 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if err := commit(); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+
+	// Audit AFTER commit: we don't want to audit a delete that may have
+	// been rolled back. The audit row lives in its own (separate) write,
+	// so a missed audit here costs us nothing structural — the unlink is
+	// already persisted.
 	acct := sess.Account.ID
 	_ = s.Audit.Record(r.Context(), audit.Record{
 		AccountID: &acct,
@@ -161,6 +200,31 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 	})
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// beginMeIdentitiesTx returns the meIdentitiesQueries surface bound to a
+// fresh transaction, plus commit/rollback closures. In production, this
+// opens a real pgxpool transaction and wraps s.queries.WithTx(tx). In
+// tests (when s.dbPool is nil), it returns the existing fake querier with
+// no-op commit/rollback — the fake's job is to record the lock-acquisition
+// ordering; the real concurrency guarantee is asserted at the smoke layer.
+func (s *Server) beginMeIdentitiesTx(ctx context.Context) (meIdentitiesQueries, func() error, func(), error) {
+	if s.dbPool == nil {
+		// Test path: no real DB. The fake querier carries through, and the
+		// commit/rollback closures are no-ops. The handler still calls
+		// GetAccountByIDForUpdate first, which the fake records, so the
+		// "lock is acquired in the right place" assertion works.
+		q := s.meIdentitiesQ()
+		return q, func() error { return nil }, func() {}, nil
+	}
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	qtx := s.queries.WithTx(tx)
+	commit := func() error { return tx.Commit(ctx) }
+	rollback := func() { _ = tx.Rollback(ctx) } // safe to call after commit; pgx returns ErrTxClosed which we ignore.
+	return qtx, commit, rollback, nil
 }
 
 // GET /api/prohibitorum/me/identities/link/{slug}/begin

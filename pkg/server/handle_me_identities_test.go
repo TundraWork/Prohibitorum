@@ -50,13 +50,32 @@ type fakeIdentitiesQueries struct {
 	deletedIdentities []db.DeleteAccountIdentityParams
 	events            []db.InsertCredentialEventParams
 	sessions          []db.Session
+
+	// lockAcquisitions records every account_id passed to
+	// GetAccountByIDForUpdate. callOrder records the dispatch order of
+	// querier methods relevant to the unlink-race test. Both are read by
+	// TestMeIdentities_Unlink_AcquiresLockBeforeCheck to verify the
+	// FOR UPDATE call happens BEFORE any read in the count check.
+	lockAcquisitions []int32
+	callOrder        []string
 }
 
 func newFakeIdentitiesQueries() *fakeIdentitiesQueries {
 	return &fakeIdentitiesQueries{}
 }
 
+func (f *fakeIdentitiesQueries) GetAccountByIDForUpdate(_ context.Context, id int32) (db.Account, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lockAcquisitions = append(f.lockAcquisitions, id)
+	f.callOrder = append(f.callOrder, "GetAccountByIDForUpdate")
+	return db.Account{ID: id}, nil
+}
+
 func (f *fakeIdentitiesQueries) ListCredentialsByAccount(_ context.Context, accountID int32) ([]db.WebauthnCredential, error) {
+	f.mu.Lock()
+	f.callOrder = append(f.callOrder, "ListCredentialsByAccount")
+	f.mu.Unlock()
 	var out []db.WebauthnCredential
 	for _, c := range f.webauthnRows {
 		if c.AccountID == accountID {
@@ -67,6 +86,9 @@ func (f *fakeIdentitiesQueries) ListCredentialsByAccount(_ context.Context, acco
 }
 
 func (f *fakeIdentitiesQueries) GetPasswordCredential(_ context.Context, accountID int32) (db.PasswordCredential, error) {
+	f.mu.Lock()
+	f.callOrder = append(f.callOrder, "GetPasswordCredential")
+	f.mu.Unlock()
 	if f.passwordRow == nil || f.passwordRow.AccountID != accountID {
 		return db.PasswordCredential{}, pgx.ErrNoRows
 	}
@@ -74,6 +96,9 @@ func (f *fakeIdentitiesQueries) GetPasswordCredential(_ context.Context, account
 }
 
 func (f *fakeIdentitiesQueries) GetTOTPCredential(_ context.Context, accountID int32) (db.TotpCredential, error) {
+	f.mu.Lock()
+	f.callOrder = append(f.callOrder, "GetTOTPCredential")
+	f.mu.Unlock()
 	if f.totpRow == nil || f.totpRow.AccountID != accountID {
 		return db.TotpCredential{}, pgx.ErrNoRows
 	}
@@ -89,6 +114,7 @@ func (f *fakeIdentitiesQueries) DeleteAllRecoveryCodesByAccount(_ context.Contex
 func (f *fakeIdentitiesQueries) ListAccountIdentitiesByAccount(_ context.Context, accountID int32) ([]db.ListAccountIdentitiesByAccountRow, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.callOrder = append(f.callOrder, "ListAccountIdentitiesByAccount")
 	var out []db.ListAccountIdentitiesByAccountRow
 	for _, r := range f.identityRows {
 		if r.AccountID == accountID {
@@ -101,6 +127,7 @@ func (f *fakeIdentitiesQueries) ListAccountIdentitiesByAccount(_ context.Context
 func (f *fakeIdentitiesQueries) DeleteAccountIdentity(_ context.Context, arg db.DeleteAccountIdentityParams) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.callOrder = append(f.callOrder, "DeleteAccountIdentity")
 	f.deletedIdentities = append(f.deletedIdentities, arg)
 	keep := f.identityRows[:0]
 	for _, r := range f.identityRows {
@@ -400,6 +427,71 @@ func TestMeIdentities_Unlink_BadID(t *testing.T) {
 	s.handleMeIdentitiesUnlinkHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+// TestMeIdentities_Unlink_AcquiresLockBeforeCheck verifies the race-fix from
+// the M3 audit finding: handleMeIdentitiesUnlinkHTTP must acquire a row-level
+// lock on the account (via GetAccountByIDForUpdate) BEFORE running the
+// last-sign-in-method count check and BEFORE the DeleteAccountIdentity write.
+//
+// The in-memory fake doesn't truly serialize concurrent requests; the actual
+// race-prevention is DB-enforced (Postgres holds the FOR UPDATE row lock for
+// the duration of the transaction, blocking concurrent unlinks on the same
+// account). What we CAN assert here is dispatch order — the lock-acquire
+// query must run first. The smoke-level test exercises real PG concurrency.
+func TestMeIdentities_Unlink_AcquiresLockBeforeCheck(t *testing.T) {
+	s, q := newIdentitiesTestServer(t)
+	const accountID int32 = 42
+	seedIdentity(q, 1, 100, accountID, "google", "Google", "alice@example.com")
+	// Backup factor so the count check passes and the delete actually fires —
+	// otherwise we'd only see the lock acquisition, no delete.
+	q.webauthnRows = []db.WebauthnCredential{{ID: 1, AccountID: accountID}}
+	token, sess := issueIdentitiesTestSession(t, s, accountID)
+	grantFreshSudo(t, s, accountID, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+
+	r := identitiesReq(t, sess, http.MethodPost, "/api/prohibitorum/me/identities/1/unlink", "")
+	r = withRouteParam(r, "id", "1")
+	w := httptest.NewRecorder()
+	s.handleMeIdentitiesUnlinkHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status: want 204, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	// Lock acquired exactly once, on the right account.
+	if len(q.lockAcquisitions) != 1 {
+		t.Fatalf("lockAcquisitions: want 1 call, got %d (%v)", len(q.lockAcquisitions), q.lockAcquisitions)
+	}
+	if q.lockAcquisitions[0] != accountID {
+		t.Errorf("lockAcquisitions[0]: want %d, got %d", accountID, q.lockAcquisitions[0])
+	}
+
+	// GetAccountByIDForUpdate is the FIRST querier call in the unlink path
+	// (i.e., it precedes the count-check reads and the delete write).
+	if len(q.callOrder) == 0 || q.callOrder[0] != "GetAccountByIDForUpdate" {
+		t.Fatalf("first querier call: want GetAccountByIDForUpdate, got %v", q.callOrder)
+	}
+
+	// DeleteAccountIdentity must come AFTER the lock acquisition.
+	lockIdx, deleteIdx := -1, -1
+	for i, c := range q.callOrder {
+		if c == "GetAccountByIDForUpdate" && lockIdx == -1 {
+			lockIdx = i
+		}
+		if c == "DeleteAccountIdentity" && deleteIdx == -1 {
+			deleteIdx = i
+		}
+	}
+	if lockIdx < 0 {
+		t.Fatalf("GetAccountByIDForUpdate not in callOrder: %v", q.callOrder)
+	}
+	if deleteIdx < 0 {
+		t.Fatalf("DeleteAccountIdentity not in callOrder: %v", q.callOrder)
+	}
+	if lockIdx >= deleteIdx {
+		t.Errorf("lock must be acquired before delete: lockIdx=%d deleteIdx=%d order=%v",
+			lockIdx, deleteIdx, q.callOrder)
 	}
 }
 
