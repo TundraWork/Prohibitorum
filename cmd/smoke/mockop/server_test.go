@@ -454,6 +454,85 @@ func TestMockOP_OverrideIssuerEndsUpInIDToken(t *testing.T) {
 	}
 }
 
+func TestMockOP_UserinfoStubReturns501(t *testing.T) {
+	h := newHarness(t)
+
+	resp, err := http.Get(h.ts.URL + "/userinfo")
+	if err != nil {
+		t.Fatalf("GET /userinfo: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("userinfo status = %d, want 501", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "userinfo_not_implemented") {
+		t.Errorf("body = %q, want it to contain userinfo_not_implemented", string(body))
+	}
+}
+
+func TestMockOP_TokenExchange_RejectsCodeReplay(t *testing.T) {
+	h := newHarness(t)
+	h.s.SetClaims("sub-replay", "replay@example.com", true, "replay", "Replay User")
+
+	const (
+		clientID    = "client-1"
+		redirectURI = "https://rp.example/cb"
+		state       = "state-replay"
+		nonce       = "nonce-replay"
+	)
+
+	loc, verifier := driveAuthorize(t, h, clientID, redirectURI, state, nonce)
+	code := loc.Query().Get("code")
+	if code == "" {
+		t.Fatal("no code in authorize redirect")
+	}
+
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {redirectURI},
+		"client_id":     {clientID},
+		"code_verifier": {verifier},
+	}
+
+	// First exchange: must succeed and return an id_token.
+	resp1, err := http.PostForm(h.ts.URL+"/token", form)
+	if err != nil {
+		t.Fatalf("first POST /token: %v", err)
+	}
+	defer resp1.Body.Close()
+	if resp1.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp1.Body)
+		t.Fatalf("first token status = %d, want 200; body=%s", resp1.StatusCode, body)
+	}
+	var tok struct {
+		IDToken string `json:"id_token"`
+	}
+	if err := json.NewDecoder(resp1.Body).Decode(&tok); err != nil {
+		t.Fatalf("first token json: %v", err)
+	}
+	if tok.IDToken == "" {
+		t.Fatal("first exchange returned empty id_token")
+	}
+
+	// Second exchange with the same code: must be rejected as invalid_grant
+	// (code is single-use; this is what RP-client tests will rely on).
+	resp2, err := http.PostForm(h.ts.URL+"/token", form)
+	if err != nil {
+		t.Fatalf("second POST /token: %v", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusBadRequest {
+		body, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("second token status = %d, want 400; body=%s", resp2.StatusCode, body)
+	}
+	body, _ := io.ReadAll(resp2.Body)
+	if !strings.Contains(string(body), "invalid_grant") {
+		t.Errorf("second token body = %q, want it to contain invalid_grant", string(body))
+	}
+}
+
 // --- Small helpers ------------------------------------------------------
 
 // containsString reports whether v (expected to be a []any of strings, as

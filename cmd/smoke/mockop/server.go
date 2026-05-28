@@ -111,6 +111,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/authorize", s.handleAuthorize)
 	mux.HandleFunc("/token", s.handleToken)
 	mux.HandleFunc("/jwks", s.handleJWKS)
+	mux.HandleFunc("/userinfo", s.handleUserinfo)
 	return mux
 }
 
@@ -146,7 +147,7 @@ func (s *Server) SetClaims(sub, email string, emailVerified bool, preferredUsern
 func (s *Server) SetAMR(amr []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.nextAMR = amr
+	s.nextAMR = append([]string(nil), amr...)
 }
 
 // FailWithError installs a single-shot error redirect: the next /authorize
@@ -180,6 +181,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		"authorization_endpoint":                base + "/authorize",
 		"token_endpoint":                        base + "/token",
 		"jwks_uri":                              base + "/jwks",
+		"userinfo_endpoint":                     base + "/userinfo",
 		"response_types_supported":              []string{"code"},
 		"subject_types_supported":               []string{"public"},
 		"id_token_signing_alg_values_supported": []string{"ES256"},
@@ -205,6 +207,17 @@ func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(jwks)
+}
+
+// handleUserinfo is a stub: this fixture mints all needed claims into the
+// id_token, so the RP under test should never need to call /userinfo. We
+// advertise the endpoint in discovery (zitadel/oidc/v3 may derive its URL
+// from there) but return 501 if anyone actually hits it, which surfaces an
+// unexpected call loudly instead of silently failing later.
+func (s *Server) handleUserinfo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotImplemented)
+	_, _ = w.Write([]byte(`{"error":"userinfo_not_implemented"}`))
 }
 
 func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
