@@ -205,6 +205,11 @@ type fedTestHarness struct {
 	s      *Server
 	srvTS  *httptest.Server
 	origin string
+
+	// linkAccountID / linkToken are populated by newLinkTestHarness (Task 8
+	// tests). The plain federation tests in this file leave them zero.
+	linkAccountID int32
+	linkToken     string
 }
 
 // fedTestDEK is a deterministic 32-byte AES-256 key for the test ciphertexts.
