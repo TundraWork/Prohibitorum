@@ -24,6 +24,7 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -33,6 +34,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"os/exec"
@@ -42,7 +44,9 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
+	"prohibitorum/cmd/smoke/mockop"
 	totppkg "prohibitorum/pkg/credential/totp"
+	fedoidc "prohibitorum/pkg/federation/oidc"
 )
 
 func main() {
@@ -55,6 +59,18 @@ func main() {
 	flag.Parse()
 
 	log.SetFlags(0)
+
+	// v0.3 federation: bring up an in-process mock OIDC OP for use by the
+	// federation steps appended after the v0.2 surface. Started early so a
+	// failed bind surfaces before any DB writes.
+	opSrv, err := mockop.New("")
+	if err != nil {
+		log.Fatalf("mockop: %v", err)
+	}
+	opTS := httptest.NewServer(opSrv.Routes())
+	defer opTS.Close()
+	opSrv.SetBase(opTS.URL)
+	log.Printf("  mock OP listening on %s", opTS.URL)
 
 	c, err := newClient(*baseURL)
 	if err != nil {
@@ -551,8 +567,308 @@ func main() {
 		log.Fatalf("audit DB assert: %v", err)
 	}
 
+	// =========================================================================
+	// v0.3 surface: upstream OIDC federation — login + callback drive against an
+	// in-process mock OP, then negative paths (email_not_verified,
+	// username_collision, invalid_return_to, upstream_error), link_only mode,
+	// self-service link from the smoke-admin session, and unlink. Per Task 10
+	// of the v0.3 plan. The mock OP is the one started at main() entry.
+	// =========================================================================
+
+	// v0.3 numbering: 20 federation steps appended after the v0.2 block
+	// (steps 1–45). Existing v0.2 step labels keep their "/45" denominator
+	// to avoid a diff on every existing line.
+	const totalV03 = 65
+
+	step(fmt.Sprintf("step 46/%d — seed upstream_idp 'mockop' (auto_provision)", totalV03))
+	dek := loadDEK()
+	mockopIDPID, err := seedUpstreamIDP(dek, "mockop", "Mock OP", opTS.URL,
+		"test-client", "test-client-secret", "auto_provision",
+		[]string{"example.com"}, true)
+	if err != nil {
+		log.Fatalf("seed upstream_idp 'mockop': %v", err)
+	}
+	log.Printf("  upstream_idp id=%d slug=mockop issuer=%s", mockopIDPID, opTS.URL)
+
+	step(fmt.Sprintf("step 47/%d — happy-path /login → upstream /authorize", totalV03))
+	opSrv.SetClaims("ext-user-1", "ext@example.com", true, "extuser", "Ext User")
+	extClient, err := newFederationClient(*baseURL)
+	if err != nil {
+		log.Fatalf("federation client: %v", err)
+	}
+	authorizeURL, err := extClient.getRedirect("/api/prohibitorum/auth/federation/mockop/login?return_to=/me")
+	if err != nil {
+		log.Fatalf("federation/login: %v", err)
+	}
+	if !strings.HasPrefix(authorizeURL, opTS.URL+"/authorize") {
+		log.Fatalf("federation/login: expected redirect to mock OP /authorize, got %q", authorizeURL)
+	}
+	log.Printf("  302 to upstream /authorize (len=%d)", len(authorizeURL))
+
+	step(fmt.Sprintf("step 48/%d — follow /authorize → /callback (code+state+iss)", totalV03))
+	callbackURL, err := followMockOPAuthorize(authorizeURL)
+	if err != nil {
+		log.Fatalf("mock OP /authorize: %v", err)
+	}
+	if !strings.Contains(callbackURL, "/api/prohibitorum/auth/federation/mockop/callback") {
+		log.Fatalf("mock OP did not redirect to /callback: %q", callbackURL)
+	}
+	log.Printf("  302 to RP /callback (with code, state, iss)")
+
+	step(fmt.Sprintf("step 49/%d — RP /callback → 302 /me + session cookie", totalV03))
+	if loc, err := extClient.getRedirectAbs(callbackURL); err != nil {
+		log.Fatalf("federation/callback: %v", err)
+	} else if loc != "/me" {
+		log.Fatalf("federation/callback: want redirect to /me, got %q", loc)
+	}
+	// Session cookies are Path=/api/prohibitorum, so c.cookies() (which
+	// queries with URL path "/") returns 0. Verify session presence by
+	// hitting an API endpoint — if the cookie weren't set, /me would 401.
+	if _, err := extClient.getMe(); err != nil {
+		log.Fatalf("federation/callback: no session cookie (post-callback /me failed: %v)", err)
+	}
+	log.Printf("  session cookie issued (verified via /me)")
+
+	step(fmt.Sprintf("step 50/%d — GET /me as federated user", totalV03))
+	extMe, err := extClient.getMe()
+	if err != nil {
+		log.Fatalf("federated /me: %v", err)
+	}
+	if extMe.Username != "extuser" {
+		log.Fatalf("federated /me username: got %q want %q", extMe.Username, "extuser")
+	}
+	if extMe.DisplayName != "Ext User" {
+		log.Fatalf("federated /me displayName: got %q want %q", extMe.DisplayName, "Ext User")
+	}
+	log.Printf("  /me id=%d username=%s displayName=%s", extMe.ID, extMe.Username, extMe.DisplayName)
+
+	step(fmt.Sprintf("step 51/%d — DB assert: account_identity + credential_event for ext-user-1", totalV03))
+	if err := verifyFederatedIdentityCreated(extMe.ID, "ext-user-1", mockopIDPID); err != nil {
+		log.Fatalf("identity DB assert: %v", err)
+	}
+
+	step(fmt.Sprintf("step 52/%d — claim sync on re-login (display_name drift)", totalV03))
+	if err := extClient.logout(); err != nil {
+		log.Fatalf("ext logout pre-resync: %v", err)
+	}
+	opSrv.SetClaims("ext-user-1", "ext@example.com", true, "extuser", "Ext User v2")
+	if err := driveFederationLogin(extClient, *baseURL, "mockop", "/me"); err != nil {
+		log.Fatalf("re-login federation: %v", err)
+	}
+	extMe2, err := extClient.getMe()
+	if err != nil {
+		log.Fatalf("federated /me post-resync: %v", err)
+	}
+	if extMe2.DisplayName != "Ext User v2" {
+		log.Fatalf("claim sync: displayName not updated, got %q want %q",
+			extMe2.DisplayName, "Ext User v2")
+	}
+	log.Printf("  /me.displayName = %q (synced from upstream)", extMe2.DisplayName)
+
+	step(fmt.Sprintf("step 53/%d — negative: email_not_verified", totalV03))
+	if err := extClient.logout(); err != nil {
+		log.Fatalf("ext logout pre-neg: %v", err)
+	}
+	negClient1, _ := newFederationClient(*baseURL)
+	opSrv.SetClaims("ext-user-99", "ext99@example.com", false, "extuser99", "Ext 99")
+	if err := expectFederationCallbackError(negClient1, *baseURL, "mockop",
+		http.StatusForbidden, "email_not_verified"); err != nil {
+		log.Fatalf("negative email_not_verified: %v", err)
+	}
+	log.Printf("  /callback → 403 email_not_verified ✓")
+
+	step(fmt.Sprintf("step 54/%d — negative: username_collision", totalV03))
+	negClient2, _ := newFederationClient(*baseURL)
+	// Collide on smoke-admin's username (auto_provision tries to create
+	// a new account with that name; existing local account wins).
+	opSrv.SetClaims("ext-collide-1", "collide@example.com", true, *username, "Collider")
+	if err := expectFederationCallbackError(negClient2, *baseURL, "mockop",
+		http.StatusForbidden, "username_collision"); err != nil {
+		log.Fatalf("negative username_collision: %v", err)
+	}
+	log.Printf("  /callback → 403 username_collision ✓")
+
+	step(fmt.Sprintf("step 55/%d — negative: invalid_return_to", totalV03))
+	negClient3, _ := newFederationClient(*baseURL)
+	resp, err := negClient3.getRaw("/api/prohibitorum/auth/federation/mockop/login?return_to=https://evil.example.com")
+	if err != nil {
+		log.Fatalf("negative invalid_return_to: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		log.Fatalf("negative invalid_return_to: want 400, got %d", resp.StatusCode)
+	}
+	log.Printf("  /login?return_to=https://evil… → 400 ✓")
+
+	step(fmt.Sprintf("step 56/%d — negative: upstream_error (access_denied)", totalV03))
+	negClient4, _ := newFederationClient(*baseURL)
+	opSrv.FailWithError("access_denied", "user denied")
+	if err := expectFederationCallbackError(negClient4, *baseURL, "mockop",
+		http.StatusBadRequest, "upstream_error"); err != nil {
+		log.Fatalf("negative upstream_error: %v", err)
+	}
+	log.Printf("  /callback → 400 upstream_error ✓")
+
+	step(fmt.Sprintf("step 57/%d — GET /me/identities (as federated user)", totalV03))
+	// Restore valid claims and re-login as ext-user-1.
+	opSrv.SetClaims("ext-user-1", "ext@example.com", true, "extuser", "Ext User v2")
+	if err := driveFederationLogin(extClient, *baseURL, "mockop", "/me"); err != nil {
+		log.Fatalf("ext re-login for /me/identities: %v", err)
+	}
+	identities, err := extClient.listMyIdentities()
+	if err != nil {
+		log.Fatalf("listMyIdentities: %v", err)
+	}
+	if len(identities) != 1 || identities[0].IdpSlug != "mockop" {
+		log.Fatalf("expected 1 identity with idpSlug=mockop, got %+v", identities)
+	}
+	log.Printf("  /me/identities = [%s (%s)]", identities[0].IdpSlug, identities[0].IdpDisplayName)
+
+	step(fmt.Sprintf("step 58/%d — seed upstream_idp 'mockop-link' (link_only mode)", totalV03))
+	linkIDPID, err := seedUpstreamIDP(dek, "mockop-link", "Mock OP (link-only)", opTS.URL,
+		"test-client", "test-client-secret", "link_only",
+		[]string{"example.com"}, true)
+	if err != nil {
+		log.Fatalf("seed mockop-link: %v", err)
+	}
+	log.Printf("  upstream_idp id=%d slug=mockop-link mode=link_only", linkIDPID)
+
+	step(fmt.Sprintf("step 59/%d — link_only refuses unknown sub (403 link_required)", totalV03))
+	negClient5, _ := newFederationClient(*baseURL)
+	opSrv.SetClaims("ext-unknown-9", "unknown@example.com", true, "extuser-unknown", "Unknown")
+	if err := expectFederationCallbackError(negClient5, *baseURL, "mockop-link",
+		http.StatusForbidden, "link_required"); err != nil {
+		log.Fatalf("negative link_required: %v", err)
+	}
+	log.Printf("  link_only /callback → 403 link_required ✓")
+
+	// --- Self-service link from smoke-admin (with sudo) ---------------------
+
+	step(fmt.Sprintf("step 60/%d — re-login as smoke-admin via webauthn for link/unlink", totalV03))
+	if err := extClient.logout(); err != nil {
+		log.Printf("  (ext logout error ignored: %v)", err)
+	}
+	// /me/sudo/begin is rate-limited per session (10/min); each negative
+	// federation test above touched a *different* fresh client, so the
+	// smoke-admin session's bucket is clean. Just re-login.
+	adminLogin, err := c.beginLogin()
+	if err != nil {
+		log.Fatalf("admin relogin/begin: %v", err)
+	}
+	adminSigned, err := auth.signAssertion(adminLogin.Challenge, *baseURL)
+	if err != nil {
+		log.Fatalf("admin relogin sign: %v", err)
+	}
+	if err := c.completeLogin(auth, adminSigned); err != nil {
+		log.Fatalf("admin relogin/complete: %v", err)
+	}
+	adminMe, err := c.getMe()
+	if err != nil {
+		log.Fatalf("admin /me post-relogin: %v", err)
+	}
+	log.Printf("  smoke-admin id=%d back in session", adminMe.ID)
+
+	step(fmt.Sprintf("step 61/%d — sudo (webauthn) + /me/identities/link/mockop/begin → /callback", totalV03))
+	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+		log.Fatalf("admin sudo webauthn pre-link: %v", err)
+	}
+	opSrv.SetClaims("admin-link-1", "admin@example.com", true, *username, *display)
+	// Disable auto-redirect on the admin client so we can drive
+	// /link/begin → upstream /authorize → /link/callback by hand. The
+	// remaining steps after the link round-trip (listMySessions,
+	// /me/identities, unlink) all hit non-redirecting endpoints so they
+	// are unaffected by leaving CheckRedirect in place.
+	c.hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	authorizeLink, err := c.getRedirect("/api/prohibitorum/me/identities/link/mockop/begin?return_to=/me")
+	if err != nil {
+		log.Fatalf("link/begin: %v", err)
+	}
+	if !strings.HasPrefix(authorizeLink, opTS.URL+"/authorize") {
+		log.Fatalf("link/begin: expected upstream /authorize, got %q", authorizeLink)
+	}
+	linkCallbackURL, err := followMockOPAuthorize(authorizeLink)
+	if err != nil {
+		log.Fatalf("link mock OP /authorize: %v", err)
+	}
+	if !strings.Contains(linkCallbackURL, "/api/prohibitorum/me/identities/link/mockop/callback") {
+		log.Fatalf("link callback URL: %q", linkCallbackURL)
+	}
+	// The link callback must NOT issue a new session cookie (the admin
+	// session in c is preserved). Snapshot the current session id via
+	// /me/sessions and verify it survives the callback unchanged.
+	preSessions, err := c.listMySessions()
+	if err != nil {
+		log.Fatalf("pre-link /me/sessions: %v", err)
+	}
+	var preSessID string
+	for _, s := range preSessions {
+		if s.IsCurrent {
+			preSessID = s.ID
+			break
+		}
+	}
+	if preSessID == "" {
+		log.Fatalf("could not identify current session id pre-link: %+v", preSessions)
+	}
+	if loc, err := c.getRedirectAbs(linkCallbackURL); err != nil {
+		log.Fatalf("link/callback: %v", err)
+	} else if loc != "/me" {
+		log.Fatalf("link/callback: want /me, got %q", loc)
+	}
+	postSessions, err := c.listMySessions()
+	if err != nil {
+		log.Fatalf("post-link /me/sessions: %v", err)
+	}
+	var postSessID string
+	for _, s := range postSessions {
+		if s.IsCurrent {
+			postSessID = s.ID
+			break
+		}
+	}
+	if postSessID != preSessID {
+		log.Fatalf("link/callback: session id changed (%s → %s) — link must not Issue a new session",
+			preSessID, postSessID)
+	}
+	log.Printf("  link/callback → 302 /me; session id unchanged (%s) ✓", preSessID)
+
+	step(fmt.Sprintf("step 62/%d — DB assert: account_identity for admin-link-1 owned by smoke-admin", totalV03))
+	if err := verifyFederatedIdentityCreated(adminMe.ID, "admin-link-1", mockopIDPID); err != nil {
+		log.Fatalf("link DB assert: %v", err)
+	}
+
+	step(fmt.Sprintf("step 63/%d — GET /me/identities (as smoke-admin)", totalV03))
+	adminIdentities, err := c.listMyIdentities()
+	if err != nil {
+		log.Fatalf("listMyIdentities admin: %v", err)
+	}
+	if len(adminIdentities) != 1 || adminIdentities[0].IdpSlug != "mockop" {
+		log.Fatalf("expected 1 identity for smoke-admin, got %+v", adminIdentities)
+	}
+	log.Printf("  smoke-admin has 1 federated identity (id=%d)", adminIdentities[0].ID)
+
+	step(fmt.Sprintf("step 64/%d — sudo (webauthn) + POST /me/identities/{id}/unlink", totalV03))
+	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+		log.Fatalf("admin sudo pre-unlink: %v", err)
+	}
+	unlinkPath := fmt.Sprintf("/api/prohibitorum/me/identities/%d/unlink", adminIdentities[0].ID)
+	if err := c.postJSON(unlinkPath, map[string]any{}, nil); err != nil {
+		log.Fatalf("unlink: %v", err)
+	}
+	if err := verifyFederatedIdentityGone(adminMe.ID, "admin-link-1"); err != nil {
+		log.Fatalf("post-unlink DB assert: %v", err)
+	}
+	log.Printf("  /me/identities/%d/unlink → 204, row deleted ✓", adminIdentities[0].ID)
+
+	step(fmt.Sprintf("step 65/%d — DB assert: credential_event covers v0.3 federation lifecycle", totalV03))
+	if err := verifyV03FederationAuditEvents(); err != nil {
+		log.Fatalf("v0.3 federation audit DB assert: %v", err)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–65/65 (v0.3 federation) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -1586,4 +1902,380 @@ func firstN(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// =========================================================================
+// v0.3 federation helpers
+// =========================================================================
+
+// federationIdentity mirrors handle_me_identities.go's identityView JSON
+// shape. UpstreamEmail is *string so absent values decode as nil rather
+// than the empty string.
+type federationIdentity struct {
+	ID             int64   `json:"id"`
+	IdpSlug        string  `json:"idpSlug"`
+	IdpDisplayName string  `json:"idpDisplayName"`
+	UpstreamEmail  *string `json:"upstreamEmail"`
+	LinkedAt       string  `json:"linkedAt"`
+}
+
+// newFederationClient is newClient + a CheckRedirect that returns
+// http.ErrUseLastResponse so the test can inspect 302 Location headers
+// instead of having the stdlib follow them. The federation login flow
+// hops across origins (RP → upstream OP → RP) and we want each leg
+// observable.
+func newFederationClient(base string) (*client, error) {
+	c, err := newClient(base)
+	if err != nil {
+		return nil, err
+	}
+	c.hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return c, nil
+}
+
+// getRaw is a get-with-status escape hatch for tests that need to inspect
+// non-2xx responses without c.do's error wrap.
+func (c *client) getRaw(path string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.hc.Do(req)
+}
+
+// getRedirect issues GET path and expects a 302 with a Location header,
+// returning the Location value. Fails the test if the response is not 302.
+func (c *client) getRedirect(path string) (string, error) {
+	resp, err := c.getRaw(path)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusFound {
+		return "", fmt.Errorf("GET %s: want 302, got %d (%s)", path, resp.StatusCode, string(body))
+	}
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		return "", fmt.Errorf("GET %s: 302 with empty Location", path)
+	}
+	return loc, nil
+}
+
+// getRedirectAbs issues GET on an absolute URL (not c.base + path) and
+// expects a 302, returning the Location value. Used to drive cross-origin
+// hops in the federation flow.
+func (c *client) getRedirectAbs(absURL string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, absURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusFound {
+		return "", fmt.Errorf("GET %s: want 302, got %d (%s)", absURL, resp.StatusCode, string(body))
+	}
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		return "", fmt.Errorf("GET %s: 302 with empty Location", absURL)
+	}
+	return loc, nil
+}
+
+// followMockOPAuthorize GETs the upstream OP /authorize URL with a no-cookie
+// throwaway client (the OP does not need session cookies; it just records
+// per-code state and 302s back to the RP /callback). Returns the absolute
+// callback URL the OP redirected to.
+func followMockOPAuthorize(authorizeURL string) (string, error) {
+	hc := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, authorizeURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusFound {
+		return "", fmt.Errorf("mock OP /authorize: want 302, got %d (%s)", resp.StatusCode, string(body))
+	}
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		return "", errors.New("mock OP /authorize: empty Location")
+	}
+	return loc, nil
+}
+
+// driveFederationLogin runs /federation/{slug}/login → upstream /authorize
+// → RP /callback end-to-end. Asserts each hop is a 302 and the final
+// destination is the configured return_to. The mockop *server* claims must
+// already be set by the caller.
+func driveFederationLogin(c *client, baseURL, slug, returnTo string) error {
+	loginPath := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=%s",
+		slug, url.QueryEscape(returnTo))
+	authorizeURL, err := c.getRedirect(loginPath)
+	if err != nil {
+		return fmt.Errorf("login: %w", err)
+	}
+	callbackURL, err := followMockOPAuthorize(authorizeURL)
+	if err != nil {
+		return fmt.Errorf("authorize: %w", err)
+	}
+	loc, err := c.getRedirectAbs(callbackURL)
+	if err != nil {
+		return fmt.Errorf("callback: %w", err)
+	}
+	if loc != returnTo {
+		return fmt.Errorf("callback: want %s, got %s", returnTo, loc)
+	}
+	return nil
+}
+
+// expectFederationCallbackError drives /login → /authorize → /callback and
+// asserts the RP /callback response is the given status + JSON error code.
+// On success returns nil; on any divergence, returns a descriptive error.
+func expectFederationCallbackError(c *client, baseURL, slug string, wantStatus int, wantCode string) error {
+	loginPath := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", slug)
+	authorizeURL, err := c.getRedirect(loginPath)
+	if err != nil {
+		return fmt.Errorf("login: %w", err)
+	}
+	callbackURL, err := followMockOPAuthorize(authorizeURL)
+	if err != nil {
+		return fmt.Errorf("authorize: %w", err)
+	}
+	// Issue the callback request against the RP. We don't use
+	// c.getRedirectAbs because we expect an error body, not a 302.
+	req, err := http.NewRequest(http.MethodGet, callbackURL, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != wantStatus {
+		return fmt.Errorf("/callback status: want %d, got %d (body=%s)", wantStatus, resp.StatusCode, string(body))
+	}
+	var ae struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(body, &ae)
+	if ae.Code != wantCode {
+		return fmt.Errorf("/callback error code: want %q, got %q (body=%s)", wantCode, ae.Code, string(body))
+	}
+	return nil
+}
+
+// (*client).listMyIdentities calls GET /api/prohibitorum/me/identities and
+// decodes the JSON array of federation identities.
+func (c *client) listMyIdentities() ([]federationIdentity, error) {
+	var out []federationIdentity
+	if err := c.get("/api/prohibitorum/me/identities", &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// loadDEK reads PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 from env (the same
+// var the dev server uses) and base64-decodes it. Fatal on missing or
+// wrong-length DEK because the federation steps cannot proceed without it.
+func loadDEK() []byte {
+	b64 := os.Getenv("PROHIBITORUM_DATA_ENCRYPTION_KEY_V1")
+	if b64 == "" {
+		log.Fatalf("PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 not set; cannot seed upstream_idp")
+	}
+	dek, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		log.Fatalf("DEK base64-decode: %v", err)
+	}
+	if len(dek) != 32 {
+		log.Fatalf("DEK length: want 32, got %d", len(dek))
+	}
+	return dek
+}
+
+// seedUpstreamIDP INSERTs an upstream_idp row with the supplied policy
+// fields, then re-encrypts the client_secret using the returned row id
+// (the AAD binds the ciphertext to the id) and UPDATEs the row. Returns
+// the row id.
+func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecret, mode string, allowedDomains []string, requireVerifiedEmail bool) (int64, error) {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return 0, errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+	// First DELETE any prior row with this slug so re-running the smoke is
+	// idempotent. Cascades to account_identity rows.
+	if _, err := exec.Command("psql", dburl, "-c",
+		fmt.Sprintf("DELETE FROM upstream_idp WHERE slug='%s'", slug)).CombinedOutput(); err != nil {
+		return 0, fmt.Errorf("psql delete prior: %w", err)
+	}
+	// Cast text[] literals explicitly so the smoke doesn't depend on
+	// libpq's array-input heuristics. Use $tag$…$tag$ dollar-quoting on
+	// values that might contain quotes; here the values are tightly
+	// controlled so single-quote wrap is fine.
+	allowedSQL := "ARRAY[" + sqlStringArray(allowedDomains) + "]::text[]"
+	insertSQL := fmt.Sprintf(`INSERT INTO upstream_idp
+		(slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce,
+		 key_version, scopes, mode, allowed_domains, username_claim, display_name_claim,
+		 email_claim, require_verified_email)
+		VALUES ('%s', '%s', '%s', '%s', E'\\x00', E'\\x00', 1,
+		  ARRAY['openid','profile','email']::text[],
+		  '%s', %s,
+		  'preferred_username', 'name', 'email', %t)
+		RETURNING id`,
+		slug, displayName, issuer, clientID, mode, allowedSQL, requireVerifiedEmail)
+	// -q suppresses the trailing "INSERT 0 1" status line so -At -c with
+	// RETURNING gives us just the id (without -q, psql 18 emits both the
+	// returned row and the command tag, separated by a newline).
+	out, err := exec.Command("psql", dburl, "-At", "-q", "-c", insertSQL).CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("psql insert: %v: %s", err, string(out))
+	}
+	// Defensive: even with -q some psql versions still print the command
+	// tag. Take just the first non-empty line.
+	idStr := ""
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "INSERT") {
+			idStr = line
+			break
+		}
+	}
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse RETURNING id %q (raw=%q): %w", idStr, string(out), err)
+	}
+	ct, nonce, err := fedoidc.EncryptClientSecret(dek, []byte(clientSecret), id, 1)
+	if err != nil {
+		return 0, fmt.Errorf("EncryptClientSecret: %w", err)
+	}
+	// bytea hex literal: '\xDEADBEEF'. Need single quotes around the
+	// '\\xHEX' form so psql -c parses it as a bytea value.
+	updateSQL := fmt.Sprintf(`UPDATE upstream_idp
+		SET client_secret_enc = E'\\x%s'::bytea,
+		    secret_nonce       = E'\\x%s'::bytea
+		WHERE id = %d`, hex.EncodeToString(ct), hex.EncodeToString(nonce), id)
+	if outU, err := exec.Command("psql", dburl, "-c", updateSQL).CombinedOutput(); err != nil {
+		return 0, fmt.Errorf("psql update secret: %v: %s", err, string(outU))
+	}
+	return id, nil
+}
+
+// sqlStringArray produces the inside of a SQL ARRAY[…] literal: each
+// element single-quoted, comma-separated. Empty input → empty string.
+// No quote-escaping because the smoke controls every value here.
+func sqlStringArray(xs []string) string {
+	if len(xs) == 0 {
+		return ""
+	}
+	out := make([]string, 0, len(xs))
+	for _, x := range xs {
+		out = append(out, "'"+x+"'")
+	}
+	return strings.Join(out, ",")
+}
+
+// verifyFederatedIdentityCreated asserts an account_identity row exists for
+// (accountID, upstreamSub) and is owned by the given upstream_idp_id. Also
+// confirms credential_event has a federation_oidc/register row.
+func verifyFederatedIdentityCreated(accountID int32, upstreamSub string, idpID int64) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	rows, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT account_id::text || ':' || upstream_idp_id::text "+
+			"FROM account_identity WHERE upstream_sub='%s'", upstreamSub))
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return fmt.Errorf("expected 1 account_identity row for sub=%s, got %d (%v)",
+			upstreamSub, len(rows), rows)
+	}
+	want := fmt.Sprintf("%d:%d", accountID, idpID)
+	if rows[0] != want {
+		return fmt.Errorf("account_identity ownership: want %q, got %q", want, rows[0])
+	}
+	log.Printf("  account_identity[%s] account_id=%d upstream_idp_id=%d ✓",
+		upstreamSub, accountID, idpID)
+	return nil
+}
+
+// verifyFederatedIdentityGone asserts no account_identity row exists for
+// (accountID, upstreamSub). Used after unlink.
+func verifyFederatedIdentityGone(accountID int32, upstreamSub string) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	rows, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT count(*)::text FROM account_identity "+
+			"WHERE account_id=%d AND upstream_sub='%s'", accountID, upstreamSub))
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 || rows[0] != "0" {
+		return fmt.Errorf("expected 0 account_identity rows post-unlink, got %v", rows)
+	}
+	log.Printf("  account_identity[%s] for account %d is gone ✓", upstreamSub, accountID)
+	return nil
+}
+
+// verifyV03FederationAuditEvents asserts credential_event has lower-bound
+// counts for the federation_oidc surface this smoke exercises. Lower bounds
+// only — server-side handlers may emit additional events under variants we
+// don't differentiate at the wire layer.
+func verifyV03FederationAuditEvents() error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	rows, err := psqlScalar(dburl,
+		"SELECT factor || ':' || event || ':' || count(*)::text "+
+			"FROM credential_event WHERE factor='federation_oidc' GROUP BY factor, event ORDER BY 1")
+	if err != nil {
+		return err
+	}
+	counts := map[string]int{}
+	for _, row := range rows {
+		parts := strings.SplitN(row, ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		n, _ := strconv.Atoi(parts[2])
+		counts[parts[0]+":"+parts[1]] = n
+	}
+	want := []struct {
+		key string
+		min int
+	}{
+		// happy-path auto_provision: register (1) + use (1) initial + use (1) re-login
+		// + use (1) re-login pre-/me/identities = ≥3 uses.
+		{"federation_oidc:register", 1},
+		{"federation_oidc:use", 3},
+		// negative tests: 4 separate failure modes:
+		// email_not_verified, username_collision, upstream_error, link_required.
+		// invalid_return_to does NOT emit a fail row — it's caught at the
+		// HTTP layer before the federator runs.
+		{"federation_oidc:fail", 4},
+		// self-link round-trip: 1 link + 1 unlink.
+		{"federation_oidc:link", 1},
+		{"federation_oidc:unlink", 1},
+	}
+	for _, w := range want {
+		if counts[w.key] < w.min {
+			return fmt.Errorf("credential_event %s: want >=%d, got %d (full counts=%v)",
+				w.key, w.min, counts[w.key], counts)
+		}
+	}
+	log.Printf("  credential_event covers v0.3 federation lifecycle (counts=%v)", counts)
+	return nil
 }
