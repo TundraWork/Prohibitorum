@@ -173,6 +173,13 @@ func (f *fakeSudoQueries) ConsumeRecoveryCode(_ context.Context, arg db.ConsumeR
 	return db.RecoveryCode{}, pgx.ErrNoRows
 }
 
+// ListAccountIdentitiesByAccount returns no rows in the sudo tests — none of
+// these scenarios seed federation identities, so the sudo handler sees the
+// account as webauthn/password+TOTP only. Required by authn.FlowQueries (v0.3).
+func (f *fakeSudoQueries) ListAccountIdentitiesByAccount(_ context.Context, _ int32) ([]db.ListAccountIdentitiesByAccountRow, error) {
+	return nil, nil
+}
+
 func (f *fakeSudoQueries) DeleteAllRecoveryCodesByAccount(_ context.Context, accountID int32) error {
 	keep := f.recoveryRows[:0]
 	for _, r := range f.recoveryRows {

@@ -18,6 +18,7 @@ type flowFake struct {
 	webauthnRows  []db.WebauthnCredential
 	passwordRow   *db.PasswordCredential
 	totpRow       *db.TotpCredential
+	identityRows  []db.ListAccountIdentitiesByAccountRow
 
 	deletePasswordCalls int
 	deleteTOTPCalls     int
@@ -59,6 +60,10 @@ func (f *flowFake) DeleteTOTPCredential(_ context.Context, _ int32) error {
 func (f *flowFake) DeleteAllRecoveryCodesByAccount(_ context.Context, _ int32) error {
 	f.deleteRecoveryCalls++
 	return f.deleteRecoveryErr
+}
+
+func (f *flowFake) ListAccountIdentitiesByAccount(_ context.Context, _ int32) ([]db.ListAccountIdentitiesByAccountRow, error) {
+	return f.identityRows, nil
 }
 
 func confirmed() *db.TotpCredential {
@@ -112,6 +117,48 @@ func TestAvailableMethods_Both(t *testing.T) {
 	}
 	if len(methods) != 2 || methods[0] != MethodWebAuthn || methods[1] != MethodPasswordTOTP {
 		t.Errorf("methods = %v, want [%v, %v]", methods, MethodWebAuthn, MethodPasswordTOTP)
+	}
+}
+
+func TestAvailableMethods_FederationOnly(t *testing.T) {
+	f := &flowFake{
+		identityRows: []db.ListAccountIdentitiesByAccountRow{{ID: 1}},
+	}
+	methods, err := AvailableMethods(context.Background(), f, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(methods) != 1 || methods[0] != MethodFederationOIDC {
+		t.Errorf("methods = %v, want [%v]", methods, MethodFederationOIDC)
+	}
+}
+
+func TestAvailableMethods_WebAuthnAndFederation(t *testing.T) {
+	f := &flowFake{
+		webauthnRows: []db.WebauthnCredential{{ID: 1}},
+		identityRows: []db.ListAccountIdentitiesByAccountRow{{ID: 1}},
+	}
+	methods, err := AvailableMethods(context.Background(), f, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(methods) != 2 || methods[0] != MethodWebAuthn || methods[1] != MethodFederationOIDC {
+		t.Errorf("methods = %v, want [%v, %v]", methods, MethodWebAuthn, MethodFederationOIDC)
+	}
+}
+
+func TestAvailableMethods_PasswordTOTPAndFederation(t *testing.T) {
+	f := &flowFake{
+		passwordRow:  &db.PasswordCredential{},
+		totpRow:      confirmed(),
+		identityRows: []db.ListAccountIdentitiesByAccountRow{{ID: 1}},
+	}
+	methods, err := AvailableMethods(context.Background(), f, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(methods) != 2 || methods[0] != MethodPasswordTOTP || methods[1] != MethodFederationOIDC {
+		t.Errorf("methods = %v, want [%v, %v]", methods, MethodPasswordTOTP, MethodFederationOIDC)
 	}
 }
 

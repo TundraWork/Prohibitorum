@@ -314,6 +314,38 @@ func ErrFederationStateInvalid() *AuthError {
 	return newErr(http.StatusUnauthorized, "federation_state_invalid", "联合登录流程已失效，请重新发起")
 }
 
+// ErrLastSignInMethod is returned by /me/identities/{id}/unlink (Task 8) when
+// removing the identity would leave the account with zero sign-in methods.
+// Callers must add another method (passkey, password+TOTP, or another
+// federated identity) before unlinking the last one.
+func ErrLastSignInMethod() *AuthError {
+	return newErr(http.StatusBadRequest, "last_sign_in_method", "无法移除最后一种登录方式，请先添加其他方式")
+}
+
+// ErrInvalidReturnTo is returned by federation HTTP handlers (Task 7) when the
+// return_to query param fails origin-allowlist validation. Defense against
+// open-redirect via a federation round-trip.
+func ErrInvalidReturnTo() *AuthError {
+	return newErr(http.StatusBadRequest, "invalid_return_to", "return_to 不在允许的来源内")
+}
+
+// ErrUpstreamError is returned by /federation/oidc/{slug}/callback (Task 7)
+// when the upstream OP responds with an error= query param. Embeds the
+// upstream code + description in the user-facing message; the raw values are
+// also emitted to the audit log by the handler.
+func ErrUpstreamError(upstreamCode, description string) *AuthError {
+	msg := "上游 IdP 拒绝授权"
+	switch {
+	case upstreamCode != "" && description != "":
+		msg = fmt.Sprintf("上游 IdP 拒绝授权 (%s)：%s", upstreamCode, description)
+	case upstreamCode != "":
+		msg = fmt.Sprintf("上游 IdP 拒绝授权：%s", upstreamCode)
+	case description != "":
+		msg = fmt.Sprintf("上游 IdP 拒绝授权：%s", description)
+	}
+	return newErr(http.StatusBadRequest, "upstream_error", msg)
+}
+
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,
 // or nil otherwise. Useful for handler error mapping.
 func AsAuthError(err error) *AuthError {

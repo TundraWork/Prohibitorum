@@ -38,6 +38,7 @@ type FlowQueries interface {
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	DeleteAllRecoveryCodesByAccount(ctx context.Context, accountID int32) error
+	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]db.ListAccountIdentitiesByAccountRow, error)
 }
 
 func AvailableMethods(ctx context.Context, q FlowQueries, accountID int32) ([]Method, error) {
@@ -69,6 +70,14 @@ func AvailableMethods(ctx context.Context, q FlowQueries, accountID int32) ([]Me
 
 	if hasPassword && hasConfirmedTOTP {
 		methods = append(methods, MethodPasswordTOTP)
+	}
+
+	identities, err := q.ListAccountIdentitiesByAccount(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("AvailableMethods: list identities: %w", err)
+	}
+	if len(identities) > 0 {
+		methods = append(methods, MethodFederationOIDC)
 	}
 
 	if len(methods) == 0 {
