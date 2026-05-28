@@ -303,6 +303,17 @@ func ErrLinkRequired() *AuthError {
 	return newErr(http.StatusForbidden, "link_required", "此身份源仅限已绑定账户使用，请先以其他方式登录后在「我的身份」中绑定")
 }
 
+// ErrFederationStateInvalid is returned by federation/oidc callback handlers
+// when the per-flow KV state is missing, expired, single-use already
+// consumed, iss-mismatched, session-swapped, or code-exchange-failed. The
+// failure modes are deliberately collapsed under one code: an attacker who
+// can probe state validity from outside the flow gains a side channel into
+// the federation pipeline. The audit log carries the structured reason for
+// operators; the wire response does not.
+func ErrFederationStateInvalid() *AuthError {
+	return newErr(http.StatusBadRequest, "federation_state_invalid", "联合登录流程已失效，请重新发起")
+}
+
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,
 // or nil otherwise. Useful for handler error mapping.
 func AsAuthError(err error) *AuthError {

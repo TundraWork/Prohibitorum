@@ -103,6 +103,9 @@ func (f *fakeModesQueries) InsertAccount(_ context.Context, arg db.InsertAccount
 		Disabled:    arg.Disabled,
 	}
 	f.insertedAccounts = append(f.insertedAccounts, acct)
+	// Index by ID so post-insert GetAccountByID (e.g. federation's
+	// post-resolve disabled-account check) finds the row.
+	f.accountByIDResults[id] = acct
 	return acct, nil
 }
 
