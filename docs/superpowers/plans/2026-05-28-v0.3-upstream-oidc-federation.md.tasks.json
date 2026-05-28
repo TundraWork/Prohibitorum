@@ -17,73 +17,73 @@
     {
       "id": 2,
       "subject": "Task 2: In-process mock OIDC OP",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Minimal in-process OP with Discovery + Authorize + Token + JWKS endpoints. ES256 signing. Test hooks for claims/error/issuer-override.\n\n**Files:** cmd/smoke/mockop/server.go (new) + server_test.go.\n\n**Verify:** `mise exec -- go test ./cmd/smoke/mockop/... -v`\n\n```json:metadata\n{\"files\": [\"cmd/smoke/mockop/server.go\", \"cmd/smoke/mockop/server_test.go\"], \"verifyCommand\": \"mise exec -- go test ./cmd/smoke/mockop/... -v\", \"acceptanceCriteria\": [\"discovery doc serves\", \"authorize redirects with code+iss\", \"token endpoint validates PKCE S256\", \"ES256-signed id_token\", \"test hooks for claims/error/iss-override\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: OIDC RP client wrapper",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** Wrap zitadel/oidc/v3 RP client into pkg/federation/oidc/client.go. Discovery cache, JWKS, code exchange, ID-token verify with alg allowlist (RS256/ES256/EdDSA only).\n\n**Files:** pkg/federation/oidc/client.go (new) + client_test.go.\n\n**Verify:** `mise exec -- go test ./pkg/federation/oidc/... -run TestClient -v`\n\n```json:metadata\n{\"files\": [\"pkg/federation/oidc/client.go\", \"pkg/federation/oidc/client_test.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/federation/oidc/... -run TestClient -v\", \"acceptanceCriteria\": [\"NewClient discovers + caches\", \"AuthURL has PKCE S256 + nonce\", \"Exchange verifies iss against expected_iss\", \"Exchange verifies nonce\", \"alg allowlist enforced\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: State KV + Mode policies",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 3],
       "description": "**Goal:** FedState (login + link prefixes), applyAutoProvision/applyInviteOnly/applyLinkOnly + Resolve dispatcher. Username collision, email_verified, allowed_domains, claim sync on re-login.\n\n**Files:** pkg/federation/oidc/{state.go, state_test.go, modes.go, modes_test.go} (new).\n\n**Verify:** `mise exec -- go test ./pkg/federation/oidc/... -v`\n\n```json:metadata\n{\"files\": [\"pkg/federation/oidc/state.go\", \"pkg/federation/oidc/modes.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/federation/oidc/... -v\", \"acceptanceCriteria\": [\"FedState encode/decode\", \"LoginKey != LinkKey\", \"AutoProvision happy path\", \"email_verified=false rejected\", \"username collision rejected\", \"link_only no-link rejected\", \"existing identity syncs claims\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Federator orchestration",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4],
       "description": "**Goal:** Replace stubs in pkg/federation/oidc/federation.go. BeginLogin / HandleCallback / LinkBegin / LinkCallback composing client + state + modes.\n\n**Files:** pkg/federation/oidc/federation.go (modify) + federation_test.go + db/queries/upstream_idp.sql (add GetUpstreamIDPByID).\n\n**Verify:** `mise exec -- go test ./pkg/federation/oidc/... -v`\n\n```json:metadata\n{\"files\": [\"pkg/federation/oidc/federation.go\", \"pkg/federation/oidc/federation_test.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/federation/oidc/... -v\", \"acceptanceCriteria\": [\"BeginLogin stashes state via LoginKey\", \"HandleCallback Pops state\", \"RFC 9207 iss validated when present\", \"disabled account rejected post-Resolve\", \"LinkBegin uses LinkKey + LinkingAccountID\", \"LinkCallback validates session matches LinkingAccountID\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Authn flow extension + error constructors",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** AvailableMethods includes MethodFederationOIDC when identities present. 8 new error constructors.\n\n**Files:** pkg/authn/{flow.go, errors.go, flow_test.go} (modify).\n\n**Verify:** `mise exec -- go test ./pkg/authn/... -v`\n\n```json:metadata\n{\"files\": [\"pkg/authn/flow.go\", \"pkg/authn/errors.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/authn/... -v\", \"acceptanceCriteria\": [\"AvailableMethods returns federation when identities exist\", \"federation only returns [MethodFederationOIDC]\", \"webauthn+federation returns [webauthn, federation]\", \"8 new error constructors with correct status/code\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: Federation HTTP endpoints",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** /auth/federation/{slug}/login + /callback. return_to validation, upstream error handling, session issuance with amr passthrough.\n\n**Files:** pkg/server/handle_federation.go (new) + handle_federation_test.go.\n\n**Verify:** `mise exec -- go test ./pkg/server/... -run TestFederation -v`\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_federation.go\", \"pkg/server/handle_federation_test.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/server/... -run TestFederation -v\", \"acceptanceCriteria\": [\"login redirects to upstream\", \"callback auto-provisions and issues session\", \"upstream error returns 4xx upstream_error\", \"email_verified=false → 403\", \"invalid return_to → 400\", \"rate limit applied\"]}\n```"
     },
     {
       "id": 8,
       "subject": "Task 8: /me/identities HTTP endpoints",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** List, unlink (last-method check), link-begin (sudo), link-callback. Session-required throughout.\n\n**Files:** pkg/server/handle_me_identities.go (new) + handle_me_identities_test.go.\n\n**Verify:** `mise exec -- go test ./pkg/server/... -run TestMeIdentities -v`\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_me_identities.go\", \"pkg/server/handle_me_identities_test.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/server/... -run TestMeIdentities -v\", \"acceptanceCriteria\": [\"list returns array shape\", \"unlink-last rejected with last_sign_in_method\", \"unlink-with-backup 204\", \"link-begin sudo-gated\", \"link-callback validates session matches state.LinkingAccountID\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 9: Server wiring + route mounts",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7, 8],
       "description": "**Goal:** Server struct gains federator field; 6 routes mounted.\n\n**Files:** pkg/server/server.go (modify).\n\n**Verify:** `mise exec -- go build ./... && mise exec -- go test ./...`\n\n```json:metadata\n{\"files\": [\"pkg/server/server.go\"], \"verifyCommand\": \"mise exec -- go build ./...\", \"acceptanceCriteria\": [\"Federator constructed in NewServer\", \"6 routes mounted\", \"go build clean\", \"existing tests still pass\"]}\n```"
     },
     {
       "id": 10,
       "subject": "Task 10: cmd/smoke v0.3 extension",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9],
       "description": "**Goal:** ~15 new smoke steps against mock OP + live PG. Covers all v0.3 surface end-to-end.\n\n**Files:** cmd/smoke/main.go (modify).\n\n**Verify:** `mise exec -- go run ./cmd/smoke -username smoke-v03-admin` → all steps green\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\"], \"verifyCommand\": \"mise exec -- go run ./cmd/smoke -username smoke-v03-admin\", \"acceptanceCriteria\": [\"all v0.2 steps still green\", \"federation login → callback works\", \"DB asserts account_identity and credential_event rows\", \"re-login claim sync verified\", \"email_verified=false rejected\", \"username collision rejected\", \"invalid return_to rejected\", \"upstream error mapped\", \"link_only rejection works\", \"self-service link works\", \"unlink-last rejected\"]}\n```"
     },
     {
       "id": 11,
       "subject": "Task 11: Documentation",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "**Goal:** STATUS.md, AUDIT.md, INTEGRATION.md updated to reflect v0.3 reality. Anchored to smoke steps.\n\n**Files:** STATUS.md, AUDIT.md, INTEGRATION.md (modify).\n\n**Verify:** Manual read-through.\n\n```json:metadata\n{\"files\": [\"STATUS.md\", \"AUDIT.md\", \"INTEGRATION.md\"], \"verifyCommand\": \"git diff --stat\", \"acceptanceCriteria\": [\"STATUS.md v0.3 section with smoke-covered/untested lists\", \"AUDIT.md federation rows flipped to smoke-verified\", \"INTEGRATION.md has 4 federation curl examples\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-28T18:00:00Z"
+  "lastUpdated": "2026-05-29T04:30:00Z"
 }
