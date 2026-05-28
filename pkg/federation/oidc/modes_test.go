@@ -221,6 +221,11 @@ func TestApplyAutoProvision_HappyPath(t *testing.T) {
 	if string(q.insertedAccount.Attributes) != "{}" {
 		t.Fatalf("Attributes want '{}', got %q", string(q.insertedAccount.Attributes))
 	}
+	// webauthn_user_handle is NOT NULL UNIQUE in the schema; auto-provision
+	// MUST mint a handle (via acctpkg.GenerateUserHandle) before insert.
+	if len(q.insertedAccount.WebauthnUserHandle) == 0 {
+		t.Fatalf("WebauthnUserHandle must be non-empty (NOT NULL in schema); got %v", q.insertedAccount.WebauthnUserHandle)
+	}
 
 	if q.insertedIdentity.AccountID != 100 ||
 		q.insertedIdentity.UpstreamIdpID != idp.ID ||

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	acctpkg "prohibitorum/pkg/account"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
@@ -145,10 +146,15 @@ func applyAutoProvision(
 		displayName = tokens.PreferredUsername
 	}
 
+	handle, err := acctpkg.GenerateUserHandle()
+	if err != nil {
+		return 0, false, fmt.Errorf("federation/oidc: generate webauthn user handle: %w", err)
+	}
+
 	acct, err := q.InsertAccount(ctx, db.InsertAccountParams{
 		Username:           tokens.PreferredUsername,
 		DisplayName:        displayName,
-		WebauthnUserHandle: nil,
+		WebauthnUserHandle: handle,
 		Role:               "user",
 		Attributes:         []byte("{}"),
 		Disabled:           false,
