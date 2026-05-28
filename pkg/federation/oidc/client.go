@@ -28,11 +28,15 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// DefaultAllowedAlgs is the conservative JWT signing-algorithm allowlist
-// applied when NewClient is called with allowedAlgs == nil. RS256, ES256,
-// and EdDSA are the asymmetric algorithms permitted by current best
-// practice; HS256 and "none" are explicitly excluded.
-var DefaultAllowedAlgs = []string{"RS256", "ES256", "EdDSA"}
+// DefaultAllowedAlgs returns the JWT signing-alg allowlist used when NewClient
+// is called with nil allowedAlgs. RS256, ES256, EdDSA only. HS256 and "none"
+// are explicitly excluded.
+//
+// A function (not a var) so the allowlist cannot be mutated process-wide by
+// a buggy or malicious caller.
+func DefaultAllowedAlgs() []string {
+	return []string{"RS256", "ES256", "EdDSA"}
+}
 
 // Tokens is the project-facing result of a successful code exchange.
 // It deliberately does not expose zitadel/oidc's internal claim types;
@@ -64,7 +68,6 @@ type Client struct {
 	rp            rp.RelyingParty
 	issuer        string // snapshot at NewClient time
 	tokenEndpoint string // snapshot at NewClient time
-	clientID      string
 }
 
 // NewClient constructs a Client by running OIDC discovery against
@@ -85,7 +88,7 @@ func NewClient(
 	allowedAlgs []string,
 ) (*Client, error) {
 	if allowedAlgs == nil {
-		allowedAlgs = DefaultAllowedAlgs
+		allowedAlgs = DefaultAllowedAlgs()
 	}
 	if len(allowedAlgs) == 0 {
 		return nil, errors.New("federation/oidc: allowedAlgs is empty; pass nil for defaults")
@@ -114,7 +117,6 @@ func NewClient(
 		rp:            rpInst,
 		issuer:        rpInst.Issuer(),
 		tokenEndpoint: rpInst.OAuthConfig().Endpoint.TokenURL,
-		clientID:      clientID,
 	}, nil
 }
 
@@ -146,17 +148,17 @@ func (c *Client) AuthURL(state, nonce, codeChallenge string) string {
 		state,
 		c.rp,
 		rp.WithCodeChallenge(codeChallenge),
-		AuthURLOpt(oauth2.SetAuthURLParam("nonce", nonce)),
+		authURLOpt(oauth2.SetAuthURLParam("nonce", nonce)),
 	)
 }
 
-// AuthURLOpt is a convenience adapter so we can drop a single
+// authURLOpt is a convenience adapter so we can drop a single
 // oauth2.AuthCodeOption (e.g. SetAuthURLParam("nonce", n)) into the
 // variadic rp.AuthURL call without writing a one-off rp.AuthURLOpt
 // factory. zitadel/oidc has rp.WithURLParam but it builds a URLParamOpt
 // that's compatible at the func-type level; this small adapter
 // short-circuits that ceremony.
-func AuthURLOpt(o oauth2.AuthCodeOption) rp.AuthURLOpt {
+func authURLOpt(o oauth2.AuthCodeOption) rp.AuthURLOpt {
 	return func() []oauth2.AuthCodeOption {
 		return []oauth2.AuthCodeOption{o}
 	}
