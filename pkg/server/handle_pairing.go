@@ -47,11 +47,6 @@ type pairBeginResp struct {
 
 func (s *Server) handlePairBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
-	// Anonymous endpoint; key only on IP. Cap at 10 pairings/min so a flood
-	// can't fill KV with junk entries.
-	if s.rateLimit(w, r, "pair_begin:ip:"+ip, 10, time.Minute) {
-		return
-	}
 	ua := r.UserAgent()
 	p, err := s.pairingStore.New(r.Context(), ua, ip)
 	if err != nil {

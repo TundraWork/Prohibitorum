@@ -118,11 +118,6 @@ type resetCeremony struct {
 }
 
 func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	// Bound per-IP — caps brute-force on token guesses even though tokens
-	// are 256-bit random. Generous for legit consumes (one user, one flow).
-	if s.rateLimit(w, r, "enroll:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 20, time.Minute) {
-		return
-	}
 	token := chi.URLParam(r, "token")
 	e, err := enrollment.LoadEnrollment(r.Context(), s.queries, token)
 	if err != nil {

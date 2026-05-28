@@ -111,9 +111,6 @@ func (s *Server) popRecoverySession(ctx context.Context, token string) (*recover
 // the previous TOTP credential is wiped (audit: totp/revoke reason=recovery),
 // recovery codes preserved.
 func (s *Server) handleAuthRecoveryTOTPBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
 	var body struct {
 		RecoverySessionToken string `json:"recovery_session_token"`
 	}
@@ -166,9 +163,6 @@ func (s *Server) handleAuthRecoveryTOTPBeginHTTP(w http.ResponseWriter, r *http.
 // "single-use, restart on failure" for simplicity. The harsher UX is
 // documented; see docs/superpowers/specs/2026-05-27-recovery-ceremony-design.md.
 func (s *Server) handleAuthRecoveryTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
 	var body struct {
 		RecoverySessionToken string `json:"recovery_session_token"`
 		Code                 string `json:"code"`

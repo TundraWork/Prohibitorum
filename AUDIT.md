@@ -294,13 +294,40 @@ tiers are documented as known caveats in
 | Sudo mode for sensitive actions | ✅ smoke-verified | `pkg/server/handle_sudo.go`; post 2026-05-28 hardening sudo accepts 2 methods (`webauthn` / `password_totp`). Steps 18, 37, 41 exercise each method end-to-end. Steps 39–40 assert that `recovery_code` is REJECTED as a sudo method (rationale: NIST SP 800-63B-4 §5.2 — knowledge factor MUST NOT be used for reauthentication). |
 | Sudo discovery endpoint (`GET /me/sudo/methods`) | ✅ smoke-verified | priority order `webauthn` → `password_totp` from `pkg/authn/flow.AvailableMethods` (recovery_code is intentionally excluded); step 39 of the smoke asserts recovery_code is not surfaced |
 | WebAuthn-preferred factor policy (revoke-password-totp) | ✅ smoke-verified | `/me/auth/revoke-password-totp` deletes password + TOTP + recovery rows transactionally (step 42); DB assert at step 43; post-revoke `/auth/password/begin` returns 401 at step 44 |
-| Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ smoke-verified | `pkg/authn/ratelimit` + per-account `auth_throttle` (steps 34–35). Multi-replica caveat (in-process limiter) documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md` §1; cross-surface coupling (login↔sudo share `auth_throttle`) documented §5 |
+| Rate limit on auth-sensitive endpoints (`/auth/*`) | ✅ smoke-verified; ✅ audit-revised (v0.3) | `pkg/authn/ratelimit` + per-account `auth_throttle` (steps 34–35). v0.3 audit M5: IP-keyed buckets removed project-wide — see "Rate limiting policy (v0.3 audit)" below. Multi-replica caveat (in-process limiter) documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md` §1; cross-surface coupling (login↔sudo share `auth_throttle`) documented §5 |
 | OpenAPI spec for management API | ✅ | huma-generated |
 | Admin UI for accounts | ⚠️ deferred (v0.6) | dashboard scaffold empty in v0.1 |
 | Admin UI for OIDC clients / SAML SPs / upstream IdPs | ⚠️ deferred (v0.6) | manage via SQL until then |
 | Consent screen | ⚠️ deferred | first-party-only deployments don't need it |
 | Audit-log export / SIEM | ⚠️ deferred (v0.7+) | append-only PG table for now |
 | Versioned DEK rotation procedure documented | ✅ | spec §"DEK compromise / rotation" |
+
+## Rate limiting policy (v0.3 audit)
+
+IP-keyed rate limits were removed from all auth/federation/enrollment/pairing
+HTTP handlers in v0.3 (audit finding M5). Rationale:
+`sessstore.ClientIP(r, TrustProxy)` cannot reliably identify a client behind
+NAT, CDN, or corporate egress — the resulting per-IP buckets created both
+false positives (legitimate users sharing an IP locked out) and false
+negatives (an attacker rotating IPs trivially bypasses the cap). What
+remains:
+
+- **Account/session-keyed rate limits** — preserved: `pair_lookup:acct:`,
+  `pair_approve:acct:` (handle_pairing.go), and `sudo:acct:` (handle_sudo.go,
+  2 spots). Keyed on `sess.Account.ID` or `sess.Data.SessionID`; immune to IP
+  rotation.
+- **`auth_throttle` table** — preserved: per-(account, factor) DB-backed
+  lockout state machine for password / TOTP / recovery-code attempts.
+  Protects against password-spray once the attacker has a target username.
+
+Public surfaces without account context (`/auth/password/begin`,
+`/auth/login/{begin,complete}`, `/auth/federation/<slug>/login`,
+`/auth/federation/<slug>/callback`, `/auth/enrollment/<token>/begin`,
+`/auth/devices/pair/begin`, `/auth/recovery/totp/{begin,verify}`) now rely
+on PKCE + state-token single-use + KV TTL for replay protection, and on
+`auth_throttle` once a credential failure occurs against a known account.
+No DoS protection at the HTTP edge — that belongs to the deployment's
+reverse proxy or WAF.
 
 ## Web (frontend, v0.6)
 

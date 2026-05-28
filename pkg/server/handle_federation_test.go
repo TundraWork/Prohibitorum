@@ -686,49 +686,6 @@ func TestFederationCallback_UsernameCollision(t *testing.T) {
 	}
 }
 
-func TestFederationLogin_RateLimited(t *testing.T) {
-	h := newFederationTestServer(t)
-
-	// Use a directly-invoked handler with a stable RemoteAddr so all hits
-	// share the rate-limit bucket. The bucket is 30/min per IP; the 31st
-	// must 429.
-	for i := 0; i < 30; i++ {
-		req := httptest.NewRequest(http.MethodGet,
-			"/api/prohibitorum/auth/federation/mockop/login", nil)
-		req.RemoteAddr = "10.1.2.3:5555"
-		// chi.URLParam needs a route context; populate it directly.
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("slug", "mockop")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.s.handleFederationLoginHTTP(w, req)
-		if w.Code == http.StatusTooManyRequests {
-			t.Fatalf("hit %d returned 429 prematurely (want >= 30 allowed)", i+1)
-		}
-	}
-
-	// 31st request: should be rate-limited.
-	req := httptest.NewRequest(http.MethodGet,
-		"/api/prohibitorum/auth/federation/mockop/login", nil)
-	req.RemoteAddr = "10.1.2.3:5555"
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("slug", "mockop")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-	w := httptest.NewRecorder()
-	h.s.handleFederationLoginHTTP(w, req)
-
-	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("status: want 429, got %d (body=%s)", w.Code, w.Body.String())
-	}
-	var body errBody
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body.Code != "rate_limited" {
-		t.Errorf("code: want rate_limited, got %q", body.Code)
-	}
-}
-
 func TestValidateFederationReturnTo(t *testing.T) {
 	s := &Server{}
 	cases := []struct {

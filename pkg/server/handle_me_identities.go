@@ -34,7 +34,6 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation/oidc"
-	sessstore "prohibitorum/pkg/session"
 )
 
 // meIdentitiesQueries is the narrow query surface the /me/identities
@@ -233,11 +232,6 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 	if s.requireFreshSudo(r.Context(), w, sess) {
 		return
 	}
-	// Share the same IP bucket as the public /auth/federation/* handlers —
-	// same upstream-call surface, same attack shape.
-	if s.rateLimit(w, r, "federation:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
 
 	slug := chi.URLParam(r, "slug")
 	returnTo, err := s.validateFederationReturnTo(r.URL.Query().Get("return_to"))
@@ -268,9 +262,6 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	// No sudo here — the link callback completes a ceremony the user
 	// initiated under sudo at /begin. Forcing sudo again after the upstream
 	// round-trip would force a re-elevation in the same browser flow.
-	if s.rateLimit(w, r, "federation:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
 
 	q := r.URL.Query()
 	upstreamErr := q.Get("error")

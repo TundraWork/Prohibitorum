@@ -48,9 +48,6 @@ func partialSessionKey(token string) string { return "partial_session:" + token 
 
 // POST /api/prohibitorum/auth/password/begin
 func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -128,9 +125,6 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 
 // POST /api/prohibitorum/auth/totp/verify
 func (s *Server) handleTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
 	var body struct {
 		PartialSessionToken string `json:"partial_session_token"`
 		Code                string `json:"code"`
@@ -188,9 +182,6 @@ func (s *Server) handleTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 // Response shape (200): {"recovery_session_token": "<base64url>"}.
 // No session cookie is set.
 func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
 	var body struct {
 		PartialSessionToken string `json:"partial_session_token"`
 		Code                string `json:"code"`

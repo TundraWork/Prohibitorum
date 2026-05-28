@@ -26,7 +26,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -39,12 +38,6 @@ import (
 // handleFederationLoginHTTP serves
 // GET /api/prohibitorum/auth/federation/{slug}/login.
 func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Request) {
-	// /login and /callback share one rate-limit bucket per IP: same user,
-	// same attack surface, no benefit to splitting.
-	if s.rateLimit(w, r, "federation:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
-
 	slug := chi.URLParam(r, "slug")
 
 	returnTo, err := s.validateFederationReturnTo(r.URL.Query().Get("return_to"))
@@ -71,10 +64,6 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 // handleFederationCallbackHTTP serves
 // GET /api/prohibitorum/auth/federation/{slug}/callback.
 func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.rateLimit(w, r, "federation:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), 30, time.Minute) {
-		return
-	}
-
 	q := r.URL.Query()
 	upstreamErr := q.Get("error")
 	upstreamDesc := q.Get("error_description")
