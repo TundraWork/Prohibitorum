@@ -129,6 +129,19 @@ func NewServer(ctx context.Context) (*Server, error) {
 	totpTxRunner := &totp.PoolTxRunner{Pool: conn, Queries: queries}
 	totpStore := totp.NewStore(queries, totpTxRunner, config.DataEncryptionKeys, config.TOTP, throttle, auditWriter)
 
+	publicOrigin := ""
+	if len(config.PublicOrigins) > 0 {
+		publicOrigin = config.PublicOrigins[0]
+	}
+	federator := fedoidc.NewFederator(
+		queries,
+		kvStore,
+		auditWriter,
+		config.Federation,
+		config.DataEncryptionKeys,
+		publicOrigin,
+	)
+
 	s := &Server{
 		queries:       queries,
 		dbPool:        conn,
@@ -144,6 +157,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		passwordStore: passwordStore,
 		totpStore:     totpStore,
 		throttle:      throttle,
+		federator:     federator,
 		Audit:         auditWriter,
 	}
 	s.registerOperations()
@@ -202,6 +216,10 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery/totp/begin", publicReq, s.handleAuthRecoveryTOTPBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery/totp/verify", publicReq, s.handleAuthRecoveryTOTPVerifyHTTP)
 
+	// v0.3 federation: upstream OIDC login + /me/identities management
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/login", publicReq, s.handleFederationLoginHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/callback", publicReq, s.handleFederationCallbackHTTP)
+
 	// Enrollment
 	registerOp(mgmt, contract.OperationPreviewEnrollment, s.handlePreviewEnrollment, publicReq)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/register/begin", publicReq, s.handleEnrollmentBeginHTTP)
@@ -228,6 +246,13 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/totp/verify", sessionReq, s.handleMeTOTPVerifyHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/recovery-codes/regenerate", sessionReq, s.handleMeRegenerateRecoveryCodesHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/auth/revoke-password-totp", sessionReq, s.handleMeRevokePwdTOTPHTTP)
+
+	// /me/identities — upstream OIDC identity linkage (v0.3). Sudo gating
+	// lives inside the handlers, not at the route layer.
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities", sessionReq, s.handleMeIdentitiesListHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/identities/{id}/unlink", sessionReq, s.handleMeIdentitiesUnlinkHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/begin", sessionReq, s.handleMeIdentitiesLinkBeginHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/callback", sessionReq, s.handleMeIdentitiesLinkCallbackHTTP)
 
 	// Device pairing
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/devices/pair/begin", publicReq, s.handlePairBeginHTTP)
