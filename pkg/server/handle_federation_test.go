@@ -253,6 +253,12 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		Scopes:               []string{"openid", "profile", "email"},
 		Mode:                 fedoidc.ModeAutoProvision,
 		RequireVerifiedEmail: true,
+		// Schema defaults from migration 004 — DB-side DEFAULTs don't apply
+		// to in-memory fakes, so seed them explicitly so modes.go can
+		// resolve the per-IdP claim names via ClaimString(...).
+		UsernameClaim:    "preferred_username",
+		DisplayNameClaim: "name",
+		EmailClaim:       "email",
 	}
 	q := newFakeFedQueries()
 	q.idpBySlug[idp.Slug] = idp

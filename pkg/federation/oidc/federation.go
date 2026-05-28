@@ -351,7 +351,15 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 		return nil, authn.ErrEmailNotVerified()
 	}
 
-	if len(idp.AllowedDomains) > 0 && !domainAllowed(tokens.Email, idp.AllowedDomains) {
+	// Honor the per-IdP email_claim override (schema default "email"). The
+	// same extraction is exercised on the auto_provision path via the shared
+	// ClaimString helper — see modes_test.go for the override-key coverage.
+	// Reading once at the top keeps the allowlist check and the stored
+	// UpstreamEmail in lockstep: an admin who sets email_claim="mail" wants
+	// BOTH gates to use the "mail" value.
+	email := ClaimString(tokens.Raw, idp.EmailClaim)
+
+	if len(idp.AllowedDomains) > 0 && !domainAllowed(email, idp.AllowedDomains) {
 		// Collapse onto invite_required to match applyAutoProvision's
 		// anti-enumeration behavior; the real reason lives in the audit row.
 		f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "domain_not_allowed", nil)
@@ -363,7 +371,7 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 		UpstreamIdpID: idp.ID,
 		UpstreamIss:   tokens.Issuer,
 		UpstreamSub:   tokens.Subject,
-		UpstreamEmail: pgtype.Text{String: tokens.Email, Valid: tokens.Email != ""},
+		UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
 	})
 	if err != nil {
 		// Most-likely cause: (upstream_iss, upstream_sub) is already

@@ -43,6 +43,16 @@ func DefaultAllowedAlgs() []string {
 // the wrapper extracts the fields the rest of the codebase needs and
 // drops the rest. AMR is the RFC 8176 list of authentication method
 // references the upstream OP reported (e.g., ["pwd","mfa","hwk"]).
+//
+// Raw is a unified view of all id_token claims (extras merged with the
+// OIDC-typed standard claims hoisted under their JSON-tag keys). It is
+// the source of truth for the per-IdP claim-name overrides — admins can
+// point upstream_idp.{username,display_name,email}_claim at non-default
+// keys like Entra ID's "upn", and modes.go / federation.go read those
+// via ClaimString(tokens.Raw, idp.UsernameClaim). The typed fields
+// above are kept for backwards-compat and convenience — they remain the
+// right place to read fields with no override knob (Subject, Issuer,
+// EmailVerified, AMR, Nonce).
 type Tokens struct {
 	IDToken           string
 	AccessToken       string
@@ -54,6 +64,24 @@ type Tokens struct {
 	PreferredUsername string
 	Name              string
 	AMR               []string
+	Raw               map[string]any
+}
+
+// ClaimString returns the string value of the named claim, or "" if the
+// claim is absent or not a string. Used by mode policies and LinkCallback
+// to honor the per-upstream_idp claim-name overrides (username_claim,
+// display_name_claim, email_claim) — admins can point at non-OIDC-default
+// names like Entra ID's "upn".
+func ClaimString(raw map[string]any, name string) string {
+	if name == "" {
+		return ""
+	}
+	v, ok := raw[name]
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
 }
 
 // Client wraps a single configured upstream OIDC IdP.
@@ -228,6 +256,42 @@ func (c *Client) Exchange(
 		return nil, fmt.Errorf("federation/oidc: id_token signed with disallowed alg %q", alg)
 	}
 
+	// Build a unified Raw view of the id_token claims so per-IdP claim-name
+	// overrides (username_claim, display_name_claim, email_claim) can read
+	// either an "extra" claim shipped by the OP (e.g. Entra ID's "upn",
+	// available in claims.Claims) OR the typed OIDC standard claim shipped
+	// under its JSON-tag key (e.g. "preferred_username", which the library
+	// parses into the typed field and DROPS from claims.Claims).
+	//
+	// Both code paths converge on a single map[string]any so ClaimString can
+	// uniformly serve either an "Entra-style" OP (sets "upn") or an
+	// "OIDC-default" OP (sets "preferred_username") without duplicating
+	// extraction logic in the caller.
+	raw := make(map[string]any, len(claims.Claims)+8)
+	for k, v := range claims.Claims {
+		raw[k] = v
+	}
+	// Hoist typed standard claims under their JSON-tag keys. Empty strings
+	// are skipped so ClaimString(...) of an unconfigured field stays "" —
+	// otherwise an override pointing at "name" would resolve to "" but
+	// override pointing at "missing" would also resolve to "", and we'd
+	// lose the "claim genuinely absent" signal.
+	if claims.PreferredUsername != "" {
+		raw["preferred_username"] = claims.PreferredUsername
+	}
+	if claims.Name != "" {
+		raw["name"] = claims.Name
+	}
+	if claims.Email != "" {
+		raw["email"] = claims.Email
+	}
+	if claims.Subject != "" {
+		raw["sub"] = claims.Subject
+	}
+	if claims.Issuer != "" {
+		raw["iss"] = claims.Issuer
+	}
+
 	return &Tokens{
 		IDToken:           tokens.IDToken,
 		AccessToken:       tokens.AccessToken,
@@ -239,6 +303,7 @@ func (c *Client) Exchange(
 		PreferredUsername: claims.PreferredUsername,
 		Name:              claims.Name,
 		AMR:               []string(claims.AuthenticationMethodsReferences),
+		Raw:               raw,
 	}, nil
 }
 

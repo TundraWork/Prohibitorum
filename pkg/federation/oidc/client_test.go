@@ -198,6 +198,60 @@ func TestClient_ExchangeHappyPath(t *testing.T) {
 	if len(toks.AMR) != 2 || toks.AMR[0] != "pwd" || toks.AMR[1] != "mfa" {
 		t.Errorf("AMR = %v, want [pwd mfa]", toks.AMR)
 	}
+
+	// Raw claims map MUST hoist the OIDC-typed standard claims under their
+	// JSON-tag keys so admins who set username_claim="preferred_username"
+	// (the schema default) get the same value the old typed-field path
+	// returned. This is what makes the per-IdP override mechanism
+	// backwards-compatible for OPs that ship the OIDC defaults.
+	if toks.Raw == nil {
+		t.Fatal("Raw is nil; want populated claims map")
+	}
+	if toks.Raw["preferred_username"] != "alice" {
+		t.Errorf("raw[preferred_username] = %v, want alice", toks.Raw["preferred_username"])
+	}
+	if toks.Raw["name"] != "Alice Example" {
+		t.Errorf("raw[name] = %v, want Alice Example", toks.Raw["name"])
+	}
+	if toks.Raw["email"] != "alice@example.test" {
+		t.Errorf("raw[email] = %v, want alice@example.test", toks.Raw["email"])
+	}
+	if toks.Raw["sub"] != "sub-123" {
+		t.Errorf("raw[sub] = %v, want sub-123", toks.Raw["sub"])
+	}
+}
+
+func TestClaimString_PrefersExplicitKey(t *testing.T) {
+	raw := map[string]any{"upn": "alice@corp", "preferred_username": "alice"}
+	if got := federationoidc.ClaimString(raw, "upn"); got != "alice@corp" {
+		t.Errorf("override-key not honored: %q", got)
+	}
+	if got := federationoidc.ClaimString(raw, "preferred_username"); got != "alice" {
+		t.Errorf("default-key path broken: %q", got)
+	}
+}
+
+func TestClaimString_FallbackToEmpty(t *testing.T) {
+	raw := map[string]any{}
+	if got := federationoidc.ClaimString(raw, "preferred_username"); got != "" {
+		t.Errorf("missing key should yield empty: %q", got)
+	}
+}
+
+func TestClaimString_NonStringValueYieldsEmpty(t *testing.T) {
+	raw := map[string]any{"upn": 42}
+	if got := federationoidc.ClaimString(raw, "upn"); got != "" {
+		t.Errorf("non-string value should yield empty: %q", got)
+	}
+}
+
+func TestClaimString_EmptyKeyYieldsEmpty(t *testing.T) {
+	if got := federationoidc.ClaimString(nil, ""); got != "" {
+		t.Errorf("empty key should yield empty: %q", got)
+	}
+	if got := federationoidc.ClaimString(map[string]any{"foo": "bar"}, ""); got != "" {
+		t.Errorf("empty key with non-nil map should yield empty: %q", got)
+	}
 }
 
 func TestClient_ExchangeRejectsIssuerMismatch(t *testing.T) {

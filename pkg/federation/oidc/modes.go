@@ -67,7 +67,7 @@ func Resolve(
 	switch {
 	case err == nil:
 		// Re-login path. Sync claim drift, audit Use, return existing account.
-		syncClaims(ctx, q, &existing, tokens)
+		syncClaims(ctx, q, idp, &existing, tokens)
 		_ = w.Record(ctx, audit.Record{
 			AccountID: int32Ptr(existing.AccountID),
 			Factor:    audit.FactorFederationOIDC,
@@ -107,13 +107,23 @@ func applyAutoProvision(
 	idp *db.UpstreamIdp,
 	tokens *Tokens,
 ) (int32, bool, error) {
+	// Per-IdP claim-name overrides (schema defaults: preferred_username/name/email).
+	// Admins can point these at non-OIDC-default keys (e.g. Entra ID's "upn")
+	// without code changes. Read once at the top so the same values are used
+	// for collision check, allowlist check, and the inserts below.
+	username := ClaimString(tokens.Raw, idp.UsernameClaim)
+	displayName := ClaimString(tokens.Raw, idp.DisplayNameClaim)
+	email := ClaimString(tokens.Raw, idp.EmailClaim)
+
 	if idp.RequireVerifiedEmail && !tokens.EmailVerified {
+		// EmailVerified is the typed bool; no override (it's a JWT
+		// standard claim with a fixed boolean shape).
 		emitFail(ctx, w, idp, tokens, "email_not_verified", nil)
 		return 0, false, authn.ErrEmailNotVerified()
 	}
 
 	if len(idp.AllowedDomains) > 0 {
-		if !domainAllowed(tokens.Email, idp.AllowedDomains) {
+		if !domainAllowed(email, idp.AllowedDomains) {
 			emitFail(ctx, w, idp, tokens, "domain_not_allowed", nil)
 			// Reuse invite_required: from the caller's perspective both
 			// "no invite" and "wrong domain" mean "auto-provisioning
@@ -123,27 +133,26 @@ func applyAutoProvision(
 		}
 	}
 
-	if tokens.PreferredUsername == "" {
+	if username == "" {
 		// Config bug, not a user error: the IdP's username_claim mapping
 		// is wrong or the OP doesn't ship the expected claim. Surface
 		// as a 500 so operators see it in logs.
-		return 0, false, fmt.Errorf("federation/oidc: upstream provided no preferred_username (idp=%q, sub=%q)", idp.Slug, tokens.Subject)
+		return 0, false, fmt.Errorf("federation/oidc: upstream provided no %q claim (idp=%q, sub=%q)", idp.UsernameClaim, idp.Slug, tokens.Subject)
 	}
 
 	// Username collision check. We don't try to merge — admin must
 	// resolve manually (rename, link, or reject).
-	if _, err := q.GetAccountByUsername(ctx, tokens.PreferredUsername); err == nil {
+	if _, err := q.GetAccountByUsername(ctx, username); err == nil {
 		emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
-			"username": tokens.PreferredUsername,
+			"username": username,
 		})
 		return 0, false, authn.ErrUsernameCollision()
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return 0, false, fmt.Errorf("federation/oidc: check username collision: %w", err)
 	}
 
-	displayName := tokens.Name
 	if displayName == "" {
-		displayName = tokens.PreferredUsername
+		displayName = username
 	}
 
 	handle, err := acctpkg.GenerateUserHandle()
@@ -152,7 +161,7 @@ func applyAutoProvision(
 	}
 
 	acct, err := q.InsertAccount(ctx, db.InsertAccountParams{
-		Username:           tokens.PreferredUsername,
+		Username:           username,
 		DisplayName:        displayName,
 		WebauthnUserHandle: handle,
 		Role:               "user",
@@ -168,7 +177,7 @@ func applyAutoProvision(
 		UpstreamIdpID: idp.ID,
 		UpstreamIss:   tokens.Issuer,
 		UpstreamSub:   tokens.Subject,
-		UpstreamEmail: pgtype.Text{String: tokens.Email, Valid: tokens.Email != ""},
+		UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
 	})
 	if err != nil {
 		return 0, false, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
@@ -240,24 +249,32 @@ func applyLinkOnly(
 func syncClaims(
 	ctx context.Context,
 	q ModesQueries,
+	idp *db.UpstreamIdp,
 	identity *db.AccountIdentity,
 	tokens *Tokens,
 ) {
-	if tokens.Name != "" {
+	// Honor per-IdP claim-name overrides on the drift-sync path too,
+	// otherwise an Entra-style OP's existing user would re-login and see
+	// their display_name reset to "" (because tokens.Name is the typed
+	// OIDC "name" claim, which Entra doesn't ship).
+	displayName := ClaimString(tokens.Raw, idp.DisplayNameClaim)
+	email := ClaimString(tokens.Raw, idp.EmailClaim)
+
+	if displayName != "" {
 		// Compare against current display_name. Lookup is cheap (1 row by PK)
 		// and cheaper than a redundant UPDATE that fires the updated_at
 		// trigger every login.
 		if acct, err := q.GetAccountByID(ctx, identity.AccountID); err == nil {
-			if acct.DisplayName != tokens.Name {
+			if acct.DisplayName != displayName {
 				_ = q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
 					ID:          identity.AccountID,
-					DisplayName: tokens.Name,
+					DisplayName: displayName,
 				})
 			}
 		}
 	}
 
-	newEmail := pgtype.Text{String: tokens.Email, Valid: tokens.Email != ""}
+	newEmail := pgtype.Text{String: email, Valid: email != ""}
 	if newEmail.String != identity.UpstreamEmail.String || newEmail.Valid != identity.UpstreamEmail.Valid {
 		_ = q.UpdateAccountIdentityEmail(ctx, db.UpdateAccountIdentityEmailParams{
 			ID:            identity.ID,

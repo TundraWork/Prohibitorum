@@ -173,6 +173,11 @@ func newIDP(mode string) *db.UpstreamIdp {
 		IssuerUrl:            "https://issuer.example/",
 		Mode:                 mode,
 		RequireVerifiedEmail: true,
+		// Schema defaults (migration 004): pass them explicitly because the
+		// fake row construction here doesn't run the DB-side defaults.
+		UsernameClaim:    "preferred_username",
+		DisplayNameClaim: "name",
+		EmailClaim:       "email",
 	}
 }
 
@@ -184,6 +189,15 @@ func goodTokens() *federationoidc.Tokens {
 		EmailVerified:     true,
 		PreferredUsername: "alice",
 		Name:              "Alice Example",
+		// Raw mirrors what client.Exchange would build for an OIDC-default
+		// OP: typed standard claims hoisted under their JSON-tag keys.
+		Raw: map[string]any{
+			"sub":                "sub-1",
+			"iss":                "https://issuer.example/",
+			"preferred_username": "alice",
+			"name":               "Alice Example",
+			"email":              "alice@example.com",
+		},
 	}
 }
 
@@ -346,6 +360,9 @@ func TestApplyAutoProvision_MissingPreferredUsername(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens()
 	tok.PreferredUsername = ""
+	// modes.go reads via ClaimString(tokens.Raw, idp.UsernameClaim) now;
+	// clear the Raw entry too so the "claim genuinely absent" branch fires.
+	delete(tok.Raw, "preferred_username")
 
 	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
 	if err == nil {
@@ -491,6 +508,132 @@ func TestResolve_NilArgs(t *testing.T) {
 // satisfy the narrow ModesQueries interface. If sqlc regenerates a
 // signature out of sync with the interface, this fails the build.
 var _ federationoidc.ModesQueries = (*db.Queries)(nil)
+
+// TestApplyAutoProvision_HonorsUsernameClaimOverride exercises an
+// Entra-style upstream: no preferred_username, the admin configured
+// username_claim="upn" instead. The new code must read raw["upn"] and
+// insert that as the local Username.
+func TestApplyAutoProvision_HonorsUsernameClaimOverride(t *testing.T) {
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+	idp.UsernameClaim = "upn"
+
+	tok := goodTokens()
+	// Simulate Entra: no preferred_username in raw, but upn is shipped.
+	delete(tok.Raw, "preferred_username")
+	tok.PreferredUsername = ""
+	tok.Raw["upn"] = "alice-upn"
+
+	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if !isNew || id != 100 {
+		t.Fatalf("want new id=100, got id=%d isNew=%v", id, isNew)
+	}
+	if q.insertedAccount.Username != "alice-upn" {
+		t.Errorf("InsertAccount.Username = %q, want alice-upn (from raw[upn])", q.insertedAccount.Username)
+	}
+}
+
+// TestApplyAutoProvision_HonorsEmailClaimOverride exercises an upstream
+// that ships "mail" instead of "email" (Entra v1 token shape). The
+// allowed_domains check AND the stored UpstreamEmail must both come
+// from raw["mail"] — anything else means the gates fall out of sync
+// with the persisted value.
+func TestApplyAutoProvision_HonorsEmailClaimOverride(t *testing.T) {
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+	idp.EmailClaim = "mail"
+	idp.AllowedDomains = []string{"corp.example"}
+
+	tok := goodTokens()
+	delete(tok.Raw, "email")
+	tok.Email = ""
+	tok.Raw["mail"] = "alice@corp.example"
+
+	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	if err != nil {
+		t.Fatalf("Resolve: %v (domainAllowed must read raw[mail])", err)
+	}
+	if !isNew || id != 100 {
+		t.Fatalf("want new id=100, got id=%d isNew=%v", id, isNew)
+	}
+	if !q.insertedIdentity.UpstreamEmail.Valid ||
+		q.insertedIdentity.UpstreamEmail.String != "alice@corp.example" {
+		t.Errorf("InsertAccountIdentity.UpstreamEmail = %+v, want alice@corp.example", q.insertedIdentity.UpstreamEmail)
+	}
+}
+
+// TestApplyAutoProvision_HonorsDisplayNameClaimOverride exercises an
+// upstream that ships a different display-name key. The display_name
+// stored on the local account must come from the override.
+func TestApplyAutoProvision_HonorsDisplayNameClaimOverride(t *testing.T) {
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+	idp.DisplayNameClaim = "given_name"
+
+	tok := goodTokens()
+	delete(tok.Raw, "name")
+	tok.Name = ""
+	tok.Raw["given_name"] = "Alice From Override"
+
+	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok); err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if q.insertedAccount.DisplayName != "Alice From Override" {
+		t.Errorf("DisplayName = %q, want %q", q.insertedAccount.DisplayName, "Alice From Override")
+	}
+}
+
+// TestResolve_SyncClaims_HonorsOverrides exercises the re-login drift-sync
+// path with non-default claim names. Without the override wiring, syncClaims
+// would (a) try to set display_name to "" and (b) zero out upstream_email
+// every re-login — both observable user-data regressions for Entra-style
+// upstreams.
+func TestResolve_SyncClaims_HonorsOverrides(t *testing.T) {
+	q := newFakeModesQueries()
+	// Existing identity bound to account 50 with stale display + email.
+	q.identityErr = nil
+	q.identityResult = db.AccountIdentity{
+		ID:            300,
+		AccountID:     50,
+		UpstreamIdpID: 42,
+		UpstreamIss:   "https://issuer.example/",
+		UpstreamSub:   "sub-1",
+		UpstreamEmail: pgtype.Text{String: "alice-old@corp.example", Valid: true},
+	}
+	q.accountByIDResults[50] = db.Account{ID: 50, Username: "alice", DisplayName: "Alice Old"}
+
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+	idp.DisplayNameClaim = "given_name"
+	idp.EmailClaim = "mail"
+
+	tok := goodTokens()
+	delete(tok.Raw, "name")
+	delete(tok.Raw, "email")
+	tok.Name = ""
+	tok.Email = ""
+	tok.Raw["given_name"] = "Alice Override"
+	tok.Raw["mail"] = "alice-new@corp.example"
+
+	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok); err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	if len(q.displayNameCalls) != 1 || q.displayNameCalls[0].DisplayName != "Alice Override" {
+		t.Errorf("display-name update should have used override claim, got %+v", q.displayNameCalls)
+	}
+	if len(q.emailCalls) != 1 ||
+		!q.emailCalls[0].UpstreamEmail.Valid ||
+		q.emailCalls[0].UpstreamEmail.String != "alice-new@corp.example" {
+		t.Errorf("email update should have used override claim, got %+v", q.emailCalls)
+	}
+}
 
 // Sanity check the error wrapping convention used by Resolve for the
 // pgx.ErrNoRows fall-through: pgx.ErrNoRows is consumed (treated as the

@@ -125,6 +125,12 @@ func newFixture(t *testing.T, mode string) *fixtureFederator {
 		Scopes:               []string{"openid", "profile", "email"},
 		Mode:                 mode,
 		RequireVerifiedEmail: true,
+		// Schema defaults from migration 004 — the fixture builds the row
+		// in-memory so the DB-side DEFAULT clauses don't apply; pass them
+		// explicitly so modes.go / LinkCallback can extract via ClaimString.
+		UsernameClaim:    "preferred_username",
+		DisplayNameClaim: "name",
+		EmailClaim:       "email",
 	}
 
 	q := newFakeFederatorQueries()
