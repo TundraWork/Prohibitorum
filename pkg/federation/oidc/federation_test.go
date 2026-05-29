@@ -405,6 +405,48 @@ func TestFederator_HandleCallback_RejectsIssMismatch(t *testing.T) {
 	}
 }
 
+// TestFederator_HandleCallback_RejectsTokenEndpointDrift verifies the
+// RFC 9700 §4.4.2.1 mix-up defense: ExpectedTokenEndpoint snapshotted at
+// BeginLogin must still match the discovered token_endpoint at callback.
+// A mismatch implies the upstream's discovery doc changed mid-flow
+// (admin edit or attacker swap) and the code exchange would otherwise
+// be sent to the wrong OP. Audit finding H3-sch.
+func TestFederator_HandleCallback_RejectsTokenEndpointDrift(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	req, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if err != nil {
+		t.Fatalf("BeginLogin: %v", err)
+	}
+	code, stateToken, _ := driveAuthorizeFed(t, req.AuthorizeURL)
+
+	// Corrupt the snapshotted token_endpoint to simulate discovery drift.
+	key := federationoidc.LoginKey(stateToken)
+	blob, err := fx.kvm.Get(context.Background(), key)
+	if err != nil {
+		t.Fatalf("Get FedState: %v", err)
+	}
+	fs, err := federationoidc.DecodeFedState(blob)
+	if err != nil {
+		t.Fatalf("DecodeFedState: %v", err)
+	}
+	fs.ExpectedTokenEndpoint = "https://attacker.example/token"
+	corrupted, err := fs.Encode()
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if err := fx.kvm.SetEx(context.Background(), key, corrupted, time.Minute); err != nil {
+		t.Fatalf("SetEx: %v", err)
+	}
+
+	_, err = fx.f.HandleCallback(context.Background(), stateToken, code, "")
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+		t.Fatalf("want federation_state_invalid, got %v", err)
+	}
+	if r := auditReason(fx.au.snapshot(), audit.EventFail); r != "token_endpoint_drift" {
+		t.Fatalf("audit reason = %q, want token_endpoint_drift", r)
+	}
+}
+
 func TestFederator_HandleCallback_RejectsMissingState(t *testing.T) {
 	fx := newFixture(t, federationoidc.ModeAutoProvision)
 

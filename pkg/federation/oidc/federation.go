@@ -301,6 +301,20 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 		return nil, err
 	}
 
+	// RFC 9700 §4.4.2.1 mix-up defense: the discovery doc may have been
+	// edited (or swapped, in an attack scenario) between BeginLogin and
+	// here. ExpectedIss is already snapshotted and re-checked in
+	// client.Exchange; the token_endpoint must match the same snapshot
+	// or we risk sending the code to a different OP than the user
+	// authenticated to. Audit finding H3-sch.
+	if client.TokenEndpoint() != state.ExpectedTokenEndpoint {
+		f.failNoAccount(ctx, state.IDPSlug, "token_endpoint_drift", map[string]any{
+			"expected": state.ExpectedTokenEndpoint,
+			"got":      client.TokenEndpoint(),
+		})
+		return nil, authn.ErrFederationStateInvalid()
+	}
+
 	tokens, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
 	if err != nil {
 		f.failNoAccount(ctx, state.IDPSlug, "code_exchange_failed", map[string]any{
@@ -399,6 +413,16 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 	client, err := f.buildClient(ctx, &idp, true)
 	if err != nil {
 		return nil, err
+	}
+
+	// RFC 9700 §4.4.2.1 mix-up defense: same check as HandleCallback —
+	// the snapshotted token_endpoint must still match. Audit finding H3-sch.
+	if client.TokenEndpoint() != state.ExpectedTokenEndpoint {
+		f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "token_endpoint_drift", map[string]any{
+			"expected": state.ExpectedTokenEndpoint,
+			"got":      client.TokenEndpoint(),
+		})
+		return nil, authn.ErrFederationStateInvalid()
 	}
 
 	tokens, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
