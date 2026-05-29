@@ -173,7 +173,12 @@ func applyAutoProvision(
 		// this check and our InsertAccount below; the 23505 mapping
 		// after InsertAccount catches that race.
 		if _, err := qtx.GetAccountByUsername(ctx, username); err == nil {
-			emitFailTx(ctx, txAudit, idp, tokens, "username_collision", map[string]any{
+			// Failure audits MUST use the OUTER writer (w), not txAudit:
+			// returning an error here rolls back the tx, and a tx-scoped
+			// audit row would roll back with it — losing the forensic
+			// record of the rejected sign-in. The outer writer commits on
+			// its own pooled connection, independent of this rollback.
+			emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
 				"username": username,
 			})
 			return 0, false, authn.ErrUsernameCollision()
@@ -199,9 +204,9 @@ func applyAutoProvision(
 				// Lost the race against a concurrent same-username insert
 				// (auto_provision callback, invite redemption, or a local
 				// register). Emit a clean username_collision audit + AuthError
-				// instead of a wrapped 500. Tx rollback un-does any partial
-				// state (none, since this IS the first write here).
-				emitFailTx(ctx, txAudit, idp, tokens, "username_collision", map[string]any{
+				// instead of a wrapped 500. Outer writer (w) so the audit
+				// survives the tx rollback triggered by the error return.
+				emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
 					"username": username,
 				})
 				return 0, false, authn.ErrUsernameCollision()
@@ -223,8 +228,9 @@ func applyAutoProvision(
 				// it to a different account between Resolve's lookup and
 				// this insert. Collapse onto invite_required (same anti-
 				// enumeration treatment as LinkCallback's link_conflict).
-				// Tx rollback drops the just-inserted account row above.
-				emitFailTx(ctx, txAudit, idp, tokens, "identity_conflict", nil)
+				// Tx rollback drops the just-inserted account row above; the
+				// fail audit uses the outer writer (w) so it survives.
+				emitFail(ctx, w, idp, tokens, "identity_conflict", nil)
 				return 0, false, authn.ErrInviteRequired()
 			}
 			return 0, false, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
@@ -329,10 +335,12 @@ func applyInviteOnly(
 		// invite-create time (handle_invitations.go) but races are possible
 		// (two invites for the same name; or a local password account took
 		// the slot between mint and redemption). Detect and audit here.
-		// Use the tx-scoped audit writer so the fail row rolls back with
-		// the rest of the tx (matches the pattern below for InsertAccount).
+		// Failure audits use the OUTER writer (w): the error return rolls
+		// back the tx (un-doing ConsumeEnrollment so the invite stays
+		// redeemable), and a tx-scoped audit row would roll back with it —
+		// losing the forensic record. The outer writer commits independently.
 		if _, err := qtx.GetAccountByUsername(ctx, enr.TemplateUsername.String); err == nil {
-			emitFailTx(ctx, txAudit, idp, tokens, "username_collision", map[string]any{
+			emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
 				"username": enr.TemplateUsername.String,
 			})
 			return 0, false, authn.ErrUsernameCollision()
@@ -371,7 +379,8 @@ func applyInviteOnly(
 				// ErrUsernameCollision + audit instead of a wrapped 500.
 				// Tx rollback un-does ConsumeEnrollment, so the invite is
 				// re-redeemable — matches the previous-step collision branch.
-				emitFailTx(ctx, txAudit, idp, tokens, "username_collision", map[string]any{
+				// Outer writer (w) so the audit survives the rollback.
+				emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
 					"username": enr.TemplateUsername.String,
 				})
 				return 0, false, authn.ErrUsernameCollision()
@@ -395,8 +404,8 @@ func applyInviteOnly(
 				// LinkCallback's link_conflict and applyAutoProvision's
 				// identity_conflict. Tx rollback drops the just-inserted
 				// account row and the ConsumeEnrollment, so the invite is
-				// re-redeemable.
-				emitFailTx(ctx, txAudit, idp, tokens, "identity_conflict", nil)
+				// re-redeemable. Outer writer (w) so the audit survives.
+				emitFail(ctx, w, idp, tokens, "identity_conflict", nil)
 				return 0, false, authn.ErrInviteRequired()
 			}
 			return 0, false, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
@@ -586,21 +595,5 @@ func emitFail(
 	})
 }
 
-// emitFailTx is the tx-scoped flavor of emitFail. Same payload shape,
-// but the caller passes in the tx-scoped writer so the audit row rolls
-// back with the surrounding transaction. Required inside runProvisionTx
-// callbacks where the fail row would otherwise live on a different
-// connection than the (about-to-roll-back) account row — see the
-// audit-write rationale in applyInviteOnly.
-func emitFailTx(
-	ctx context.Context,
-	txAudit audit.Writer,
-	idp *db.UpstreamIdp,
-	tokens *Tokens,
-	reason string,
-	extra map[string]any,
-) {
-	emitFail(ctx, txAudit, idp, tokens, reason, extra)
-}
 
 func int32Ptr(v int32) *int32 { return &v }
