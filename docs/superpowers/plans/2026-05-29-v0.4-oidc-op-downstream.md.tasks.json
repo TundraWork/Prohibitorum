@@ -17,7 +17,7 @@
     {
       "id": 2,
       "subject": "Task 2: signing-key generate CLI",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** GenerateSigningKey (RSA-2048, thumbprint kid, JWK, x509, PKCS8 PEM) + signing-key generate CLI (--activate/--retire), one-active-per-use tx.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/keygen.go\",\"cmd/prohibitorum/main.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestKeygen -v -count=1\",\"acceptanceCriteria\":[\"RSA-2048 + thumbprint kid + JWK + x509 + PKCS8\",\"first/--activate active deactivating prior\",\"--retire stamps retired_at\"]}\n```"
     },
@@ -120,5 +120,5 @@
       "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-29T22:00:00Z"
+  "lastUpdated": "2026-05-29T23:30:00Z"
 }
