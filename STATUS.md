@@ -432,20 +432,30 @@ None currently identified. The reality audit at the close of v0.2
 (this section) is the canonical follow-up list; reopen when concrete
 deferred items materialise.
 
-## v0.3 — upstream OIDC federation (done; `invite_only` stubbed)
+## v0.3 — upstream OIDC federation (done)
 
-Shipped the upstream OIDC RP surface: `auto_provision` and `link_only`
-modes end-to-end, `/me/identities` list / unlink / link, AES-256-GCM
-at-rest for upstream client secrets, JWT alg allowlist, RFC 9207 iss
-callback validation, federation-state KV with cross-namespace defense,
+Shipped the upstream OIDC RP surface: all three provisioning modes
+(`auto_provision`, `link_only`, **`invite_only`**) end-to-end,
+`/me/identities` list / unlink / link, AES-256-GCM at-rest for
+upstream client secrets, JWT alg allowlist, RFC 9207 iss callback
+validation, federation-state KV with cross-namespace defense,
 session-swap defense on the link flow, and AMR pass-through (with
-`["federated"]` backfill). Smoke extended from 45 to **65 steps**
+`["federated"]` backfill). Smoke extended from 45 to **69 steps**
 against a real Postgres + dev server + in-process mock OP (see
 `cmd/smoke/internal/mockop`).
 
-`invite_only` is **STUBBED** — the handler returns `ErrInviteRequired`
-with `reason: "invite_only_not_implemented"`. Design discussion in
-`docs/superpowers/notes/2026-05-29-followups-invite-only-federation.md`.
+`invite_only` ships as token-bearing redemption: an admin mints an
+invite via the existing `/admin/enrollments/*` surface with
+`intent='invite'` and `expected_upstream_idp_slug='<slug>'`. The user
+clicks `GET /api/prohibitorum/enrollments/{token}/start-federation`,
+which redirects to the upstream `/authorize`; the callback dispatches
+into `applyInviteOnly` instead of the IdP-mode default and atomically
+consumes the enrollment + mints the account + inserts the identity
+inside one pgx transaction (`pkg/federation/oidc/modes.go`
+`runInviteTx`). Audit (`credential_event` register + use) is emitted
+via a tx-scoped Writer so the `account_id` FK to `account.id` resolves
+against the just-inserted-but-not-yet-committed row — see the
+"Bugs found and fixed" note below.
 
 ### What shipped
 
@@ -480,11 +490,28 @@ with `reason: "invite_only_not_implemented"`. Design discussion in
     `AllowedDomains` + `preferred_username` presence + local
     username-collision check. Mints a fresh `webauthn_user_handle` on
     JIT so a federated user can enroll a passkey later. Emits
-    `register` + `use` audit rows on success
-    (`modes.go:177–198`).
-  - `invite_only` — **STUBBED**. Emits `fail` audit with
-    `reason: "invite_only_not_implemented"` and returns
-    `authn.ErrInviteRequired` (`modes.go:209–217`).
+    `register` + `use` audit rows on success.
+  - `invite_only` — token-bearing redemption via
+    `GET /enrollments/{token}/start-federation`. The HTTP shim
+    (`pkg/server/handle_invite_federation.go`) validates the invite
+    upfront via `Federator.BeginInviteRedemption`, stashes the
+    enrollment token in `FedState.EnrollmentToken`, and 302s to the
+    upstream `/authorize`. The callback notices the token on FedState
+    and dispatches `applyInviteOnly` instead of `Resolve`-by-mode.
+    Inside `runInviteTx`, a single pgx transaction wraps
+    `ConsumeEnrollment` + `InsertAccount` + `InsertAccountIdentity` +
+    the `register`/`use` audit emission via a tx-scoped Writer.
+    Skips `RequireVerifiedEmail` + `AllowedDomains` by design (D11):
+    the admin minted the invite specifically for this user, which IS
+    the authorization. Username collision is re-checked at redemption
+    time (race-bound to invite-create). Audit emits
+    `reason: "invite_only_redemption"` on success;
+    `invite_consumed_or_expired` / `invite_slug_mismatch` /
+    `username_collision` on the in-tx fail branches; and
+    `invite_lookup_failed` / `invite_wrong_intent` /
+    `invite_already_consumed` / `invite_expired` /
+    `invite_not_federated` at the `BeginInviteRedemption` pre-flight
+    (each emits `failNoAccount` via the outer audit writer).
   - `link_only` — rejects unknown `(iss, sub)` with `link_required`.
   - Re-login claim sync (spec D2): updates `account.display_name`
     when upstream `name` drifts; updates `account_identity.upstream_email`
@@ -530,71 +557,97 @@ with `reason: "invite_only_not_implemented"`. Design discussion in
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/prohibitorum/auth/federation/{slug}/login` | public; 30/min per IP; 302 to upstream `/authorize` |
-| GET | `/api/prohibitorum/auth/federation/{slug}/callback` | public; 30/min per IP (shared bucket); handles `?error=`; issues session |
+| GET | `/api/prohibitorum/auth/federation/{slug}/login` | public; 302 to upstream `/authorize` |
+| GET | `/api/prohibitorum/auth/federation/{slug}/callback` | public; handles `?error=`; issues session |
+| GET | `/api/prohibitorum/enrollments/{token}/start-federation` | public (token-bearing); 302 to upstream `/authorize` after validating the invite; emits `Referrer-Policy: no-referrer` so the token doesn't leak to the upstream |
 | GET | `/api/prohibitorum/me/identities` | session-required; JSON array `[{id, idpSlug, idpDisplayName, upstreamEmail, linkedAt}]` |
 | POST | `/api/prohibitorum/me/identities/{id}/unlink` | session + sudo; 204 on success; refuses when this is the last sign-in method |
-| GET | `/api/prohibitorum/me/identities/link/{slug}/begin` | session + sudo; 30/min per IP; 302 to upstream `/authorize` (LinkKey-namespaced state) |
+| GET | `/api/prohibitorum/me/identities/link/{slug}/begin` | session + sudo; 302 to upstream `/authorize` (LinkKey-namespaced state) |
 | GET | `/api/prohibitorum/me/identities/link/{slug}/callback` | session-required (not sudo); validates session matches state.LinkingAccountID; does NOT issue a new session |
 
 ### Smoke-covered runtime paths
 
-`cmd/smoke` extends from 45 to **65 steps**. The v0.3 block is steps
-46–65; the in-process mock OP under `cmd/smoke/internal/mockop`
+`cmd/smoke` extends from 45 to **69 steps**. The v0.3 block is steps
+46–69; the in-process mock OP under `cmd/smoke/internal/mockop`
 signs ES256 ID tokens against a JWKS served from the test process.
 Each entry below references the smoke step counter in
 `cmd/smoke/main.go`:
 
-- **Seed upstream_idp** — step 46/65 inserts `mockop` (auto_provision,
+- **Seed upstream_idp** — step 46/69 inserts `mockop` (auto_provision,
   AES-GCM-encrypted client secret, allowed_domains `["example.com"]`,
   `require_verified_email = true`).
-- **Happy-path login** — steps 47/65–49/65 walk
+- **Happy-path login** — steps 47/69–49/69 walk
   `/auth/federation/mockop/login` → upstream `/authorize` →
   RP `/callback` → 302 to `/me` with a session cookie.
-  Step 50/65 round-trips `/me` as the federated user.
-- **JIT row inserted** — step 51/65 DB-asserts an `account_identity`
+  Step 50/69 round-trips `/me` as the federated user.
+- **JIT row inserted** — step 51/69 DB-asserts an `account_identity`
   row exists for `ext-user-1` with `(upstream_iss, upstream_sub)`
   matching the mock OP's claims.
-- **Re-login claim sync (D2)** — step 52/65 changes the upstream
+- **Re-login claim sync (D2)** — step 52/69 changes the upstream
   display name, re-logs in, DB-asserts `account.display_name` updated.
-- **email_not_verified** — step 53/65 sets the mock OP's
+- **email_not_verified** — step 53/69 sets the mock OP's
   `email_verified=false`, drives a fresh login, asserts 403 +
   `email_not_verified` error code.
-- **username_collision** — step 54/65 changes the mock OP's
+- **username_collision** — step 54/69 changes the mock OP's
   `preferred_username` to a value that already exists locally,
   asserts 403 + `username_collision`.
-- **invalid_return_to** — step 55/65 passes `return_to=//evil.example`
+- **invalid_return_to** — step 55/69 passes `return_to=//evil.example`
   to `/login`, asserts 400 + `invalid_return_to`. Caught at the
   HTTP layer before the federator runs (no audit emission expected).
-- **upstream_error** — step 56/65 simulates the OP returning
+- **upstream_error** — step 56/69 simulates the OP returning
   `?error=access_denied`, asserts 400 + `upstream_error` and a
   `fail` audit row with `reason: "upstream_error"`.
-- **`GET /me/identities`** — step 57/65 lists 1 row for the
+- **`GET /me/identities`** — step 57/69 lists 1 row for the
   federated user; asserts `idpSlug`, `idpDisplayName`,
   `upstreamEmail`, and an ISO-8601 `linkedAt`.
-- **Seed second IdP** — step 58/65 inserts `mockop-link`
+- **Seed second IdP** — step 58/69 inserts `mockop-link`
   (link_only mode).
-- **link_only refuses unknown** — step 59/65 drives a login for a
+- **link_only refuses unknown** — step 59/69 drives a login for a
   fresh upstream sub against the `link_only` IdP; asserts 403 +
   `link_required` + a `fail` audit row.
-- **Self-service link** — step 60/65 re-logs in as `smoke-admin`
-  via WebAuthn. Step 61/65 sudos via WebAuthn, hits
+- **Self-service link** — step 60/69 re-logs in as `smoke-admin`
+  via WebAuthn. Step 61/69 sudos via WebAuthn, hits
   `/me/identities/link/mockop/begin`, follows through the mock OP,
   asserts the original session cookie survives the round-trip
   (no new session minted by the link callback).
-- **Link DB-asserted** — step 62/65 confirms an `account_identity`
+- **Link DB-asserted** — step 62/69 confirms an `account_identity`
   row exists for `admin-link-1` owned by the `smoke-admin` account.
-- **List as admin** — step 63/65 confirms `/me/identities` returns
+- **List as admin** — step 63/69 confirms `/me/identities` returns
   exactly 1 row for `smoke-admin` post-link.
-- **Unlink** — step 64/65 sudos via WebAuthn and POSTs
+- **Unlink** — step 64/69 sudos via WebAuthn and POSTs
   `/me/identities/{id}/unlink`, asserts 204 and DB row gone.
   The smoke-admin survives the unlink because they still have
   WebAuthn — the last-sign-in-method guard is satisfied.
-- **Audit emission** — step 65/65 asserts `credential_event`
+- **invite_only end-to-end** — step 65/69 seeds an
+  `intent='invite'` enrollment with
+  `expected_upstream_idp_slug='mockop'`, then drives
+  `GET /enrollments/{token}/start-federation?return_to=/me` →
+  upstream `/authorize` → RP `/callback` → 302 to `/me` + session
+  cookie. Confirms `/me` returns the template `username` and
+  `displayName` (NOT the upstream `preferred_username`/`name`,
+  proving the invite template overrides the OP claims).
+- **invite_only DB asserts** — step 66/69 confirms
+  `enrollment.consumed_at IS NOT NULL`, the account row exists
+  with the template username, the `account_identity` row links to
+  the upstream sub under the IdP, and a `credential_event` row
+  exists with `factor='federation_oidc' event='register'
+  detail->>'reason' = 'invite_only_redemption'`.
+- **invite_only consumed-token rejection** — step 67/69 reuses
+  the already-redeemed token; the federator's
+  `BeginInviteRedemption` rejects pre-flight with
+  403 `invite_required` (no upstream hop made).
+- **invite_only expired-token rejection** — step 68/69 seeds a
+  fresh enrollment with `expires_at = now() - interval '1 second'`
+  and confirms 403 `invite_required`.
+- **Audit emission** — step 69/69 asserts `credential_event`
   lower bounds for the v0.3 lifecycle:
-  `federation_oidc:register ≥ 1`, `federation_oidc:use ≥ 3`,
-  `federation_oidc:fail ≥ 4`, `federation_oidc:link ≥ 1`,
-  `federation_oidc:unlink ≥ 1`.
+  `federation_oidc:register ≥ 2` (auto_provision +
+  invite_only_redemption),
+  `federation_oidc:use ≥ 4` (3× existing + invite session-start),
+  `federation_oidc:fail ≥ 6` (4× existing + invite consumed +
+  invite expired),
+  `federation_oidc:link ≥ 1`, `federation_oidc:unlink ≥ 1`.
+  Observed run: `register:2, use:4, fail:6, link:1, unlink:1`.
 
 ### Smoke-untested runtime paths (acknowledged)
 
@@ -602,12 +655,26 @@ The following v0.3-touched paths are wired but not exercised
 end-to-end by `cmd/smoke`. Most carry unit-test coverage in
 `pkg/federation/oidc/*_test.go` or `pkg/server/handle_me_identities_test.go`.
 
-- **`invite_only` mode — STUBBED, not implemented.** Returns
-  `authn.ErrInviteRequired` + emits a `fail` audit row with
-  `reason: "invite_only_not_implemented"`
-  (`pkg/federation/oidc/modes.go:209–217`). See
-  `docs/superpowers/notes/2026-05-29-followups-invite-only-federation.md`
-  for the design discussion that needs to land before this can ship.
+- **invite_only username_collision at redemption.**
+  `applyInviteOnly` re-checks username availability at redemption
+  time (race against a concurrent invite mint or password sign-up
+  taking the slot between invite-create and redemption);
+  `pkg/federation/oidc/modes.go` `username_collision` branch is
+  unit-tested in `modes_test.go` but the smoke can't easily stage
+  the race so it's not exercised end-to-end.
+- **invite_only transactional rollback.** `runInviteTx` rolls back
+  the consume + insert + audit when any in-tx step fails. Unit-tested
+  via fake querier in `modes_test.go`. The smoke can't reliably stage
+  a mid-tx failure (the upstream OP doesn't lie about the code
+  exchange).
+- **invite_only `expected_upstream_idp_slug` mismatch.** If the
+  invite is bound to slug A but the user somehow drives it through
+  slug B's callback, `applyInviteOnly` rejects with
+  `invite_slug_mismatch`. Unit-tested only — the smoke's
+  `start-federation` handler binds the IdP by reading
+  `enrollment.expected_upstream_idp_slug`, so reaching the
+  mid-flight slug edit branch requires DB-level tampering that
+  isn't worth automating.
 - **`iss_mismatch_callback` (RFC 9207 reject).** Federator rejects a
   callback whose `?iss=` doesn't match `state.ExpectedIss`. Unit-test
   in `federation_test.go` only — the smoke uses a single mock OP, so
@@ -663,6 +730,28 @@ end-to-end by `cmd/smoke`. Most carry unit-test coverage in
   `pkg/authn/ratelimit` bucket. The multi-replica caveat
   documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md`
   §1 applies here too.
+
+### Bugs found in stage 3 (invite_only smoke) and fixed
+
+- **`applyInviteOnly` audit FK race against uncommitted account row.**
+  The first invite-redemption smoke run surfaced missing
+  `credential_event` rows for `factor='federation_oidc'
+  event='register' detail->>'reason'='invite_only_redemption'`.
+  Root cause: the audit `Writer` was the federator's outer
+  pool-bound writer (`f.audit`), so `InsertCredentialEvent` ran on
+  a different connection from the in-tx `InsertAccount`. The
+  `credential_event.account_id` FK to `account.id` was checked
+  against the MVCC snapshot of the other connection — which
+  didn't yet see the uncommitted account row — so the insert
+  silently failed (the Writer swallows errors by convention) and
+  no audit row landed. Fix: `runInviteTx` now constructs a
+  tx-scoped `audit.Writer` (`audit.NewWriter(qtx)`) and passes it
+  to the closure; the audit insert runs inside the same tx as
+  the account insert, so the FK resolves and rollback semantics
+  are correct (no orphan audit rows). See
+  `pkg/federation/oidc/modes.go` `runInviteTx` + the
+  `applyInviteOnly` audit block. The smoke step 66/69 assertion
+  is the regression gate.
 
 ## v0.4 — OIDC OP (downstream)
 

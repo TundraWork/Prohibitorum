@@ -244,7 +244,7 @@ func applyInviteOnly(
 		return 0, false, authn.ErrInviteRequired()
 	}
 
-	return runInviteTx(ctx, pool, q, func(qtx ModesQueries) (int32, bool, error) {
+	return runInviteTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (int32, bool, error) {
 		// Atomic consume — the UPDATE ... WHERE consumed_at IS NULL AND
 		// expires_at > now() guarantees the row is in a redeemable state at
 		// the instant we claim it. Any "already consumed", "expired", or
@@ -331,11 +331,18 @@ func applyInviteOnly(
 			return 0, false, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
 		}
 
-		// Audit is best-effort (the Writer swallows errors); if the tx commit
-		// later fails the audit row will land without a matching account row,
-		// which is acceptable: the audit log records the attempted operation,
-		// not just successful outcomes.
-		_ = w.Record(ctx, audit.Record{
+		// Audit MUST be emitted via the tx-scoped Writer (txAudit) so the
+		// credential_event.account_id FK to account.id resolves: the
+		// outer-pool Writer would race the FK check against the
+		// uncommitted account row (different connection, MVCC snapshot
+		// doesn't yet see the InsertAccount above) and fail silently.
+		// The original `_ = w.Record(...)` swallowed that FK error, which
+		// surfaced as missing audit rows in the v0.3 smoke (step 66
+		// register-with-invite_only_redemption assertion). runInviteTx
+		// hands us txAudit bound to the same tx as InsertAccount; on
+		// rollback the audit rows revert too, which is the correct
+		// semantic — no orphan audit pointing at non-existent accounts.
+		_ = txAudit.Record(ctx, audit.Record{
 			AccountID: int32Ptr(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventRegister,
@@ -348,7 +355,7 @@ func applyInviteOnly(
 				"username":     enr.TemplateUsername.String,
 			},
 		})
-		_ = w.Record(ctx, audit.Record{
+		_ = txAudit.Record(ctx, audit.Record{
 			AccountID: int32Ptr(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventUse,
@@ -364,18 +371,25 @@ func applyInviteOnly(
 }
 
 // runInviteTx is the transactional wrapper for applyInviteOnly. When
-// pool is nil (tests), it just calls fn against the passed querier — no
-// transactional semantics, but the call order is preserved for assertion.
-// When pool is non-nil (production), it opens a real pgxpool transaction,
-// wraps it as a *db.Queries, and commits only if fn returns nil.
+// pool is nil (tests), it just calls fn against the passed querier + the
+// outer Writer — no transactional semantics, but the call order is
+// preserved for assertion. When pool is non-nil (production), it opens a
+// real pgxpool transaction, wraps it as a *db.Queries, constructs a
+// tx-scoped audit.Writer that emits via the same tx, and commits only if
+// fn returns nil. The tx-scoped audit writer is the load-bearing
+// invariant — without it the credential_event FK to account.id races
+// the uncommitted InsertAccount on a separate connection and silently
+// fails (the audit Writer swallows errors by convention). See
+// applyInviteOnly's audit-write site for the rationale.
 func runInviteTx(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	q ModesQueries,
-	fn func(qtx ModesQueries) (int32, bool, error),
+	w audit.Writer,
+	fn func(qtx ModesQueries, txAudit audit.Writer) (int32, bool, error),
 ) (int32, bool, error) {
 	if pool == nil {
-		return fn(q)
+		return fn(q, w)
 	}
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -384,7 +398,8 @@ func runInviteTx(
 	defer func() { _ = tx.Rollback(ctx) }() // safe after Commit — pgx returns ErrTxClosed which we ignore.
 
 	qtx := db.New(tx)
-	accountID, isNew, err := fn(qtx)
+	txAudit := audit.NewWriter(qtx)
+	accountID, isNew, err := fn(qtx, txAudit)
 	if err != nil {
 		return 0, false, err
 	}

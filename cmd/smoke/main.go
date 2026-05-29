@@ -575,10 +575,13 @@ func main() {
 	// of the v0.3 plan. The mock OP is the one started at main() entry.
 	// =========================================================================
 
-	// v0.3 numbering: 20 federation steps appended after the v0.2 block
+	// v0.3 numbering: 24 federation steps appended after the v0.2 block
 	// (steps 1–45). Existing v0.2 step labels keep their "/45" denominator
-	// to avoid a diff on every existing line.
-	const totalV03 = 65
+	// to avoid a diff on every existing line. Steps 46–64 cover
+	// auto_provision + link_only + self-service link/unlink; steps 65–68
+	// cover invite_only (token-bearing redemption + consumed + expired
+	// negatives); step 69 is the final audit-table lower-bound assert.
+	const totalV03 = 69
 
 	step(fmt.Sprintf("step 46/%d — seed upstream_idp 'mockop' (auto_provision)", totalV03))
 	dek := loadDEK()
@@ -862,13 +865,98 @@ func main() {
 	}
 	log.Printf("  /me/identities/%d/unlink → 204, row deleted ✓", adminIdentities[0].ID)
 
-	step(fmt.Sprintf("step 65/%d — DB assert: credential_event covers v0.3 federation lifecycle", totalV03))
+	// --- invite_only — token-bearing redemption -----------------------------
+	//
+	// Stage 3 of the invite_only chunk: now that stages 1 (federator) and 2
+	// (HTTP handler) have shipped, exercise the public entrypoint
+	// GET /enrollments/{token}/start-federation end-to-end. Drives the same
+	// upstream OP that the auto_provision steps used (mockop), but binds the
+	// invite to it via enrollment.expected_upstream_idp_slug — applyInviteOnly
+	// dispatches on the FedState.EnrollmentToken regardless of the IdP's
+	// configured mode.
+
+	step(fmt.Sprintf("step 65/%d — seed invite enrollment + drive /enrollments/{token}/start-federation", totalV03))
+	const inviteToken = "invite-token-smoke-001"
+	const inviteSub = "invite-redeemer-sub-001"
+	const inviteUsername = "invite-redeemer"
+	const inviteDisplay = "Invite Redeemer"
+	if err := seedInviteEnrollment(inviteToken, inviteUsername, inviteDisplay, "user", "mockop", "1 hour"); err != nil {
+		log.Fatalf("seed invite enrollment: %v", err)
+	}
+	opSrv.SetClaims(inviteSub, "invite-redeemer@example.com", true, "ignored-by-template", "Ignored By Template")
+	inviteClient, err := newFederationClient(*baseURL)
+	if err != nil {
+		log.Fatalf("invite client: %v", err)
+	}
+	// GET /enrollments/{token}/start-federation?return_to=/me → 302 to upstream /authorize
+	inviteAuthorizeURL, err := inviteClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", inviteToken))
+	if err != nil {
+		log.Fatalf("/start-federation: %v", err)
+	}
+	if !strings.HasPrefix(inviteAuthorizeURL, opTS.URL+"/authorize") {
+		log.Fatalf("/start-federation: expected redirect to mock OP /authorize, got %q", inviteAuthorizeURL)
+	}
+	inviteCallbackURL, err := followMockOPAuthorize(inviteAuthorizeURL)
+	if err != nil {
+		log.Fatalf("invite mock OP /authorize: %v", err)
+	}
+	if !strings.Contains(inviteCallbackURL, "/api/prohibitorum/auth/federation/mockop/callback") {
+		log.Fatalf("invite callback URL: %q", inviteCallbackURL)
+	}
+	if loc, err := inviteClient.getRedirectAbs(inviteCallbackURL); err != nil {
+		log.Fatalf("invite federation/callback: %v", err)
+	} else if loc != "/me" {
+		log.Fatalf("invite federation/callback: want /me, got %q", loc)
+	}
+	inviteMe, err := inviteClient.getMe()
+	if err != nil {
+		log.Fatalf("invite /me: %v", err)
+	}
+	if inviteMe.Username != inviteUsername {
+		log.Fatalf("invite /me username: got %q want %q (template wins over upstream preferred_username)",
+			inviteMe.Username, inviteUsername)
+	}
+	if inviteMe.DisplayName != inviteDisplay {
+		log.Fatalf("invite /me displayName: got %q want %q", inviteMe.DisplayName, inviteDisplay)
+	}
+	log.Printf("  invite redeemed; /me id=%d username=%s displayName=%s", inviteMe.ID, inviteMe.Username, inviteMe.DisplayName)
+
+	step(fmt.Sprintf("step 66/%d — DB assert: invite consumed + account + account_identity + register audit", totalV03))
+	if err := verifyInviteOnlyRedemption(inviteToken, inviteUsername, inviteSub, mockopIDPID); err != nil {
+		log.Fatalf("invite redemption DB assert: %v", err)
+	}
+
+	step(fmt.Sprintf("step 67/%d — negative: consumed token rejected with 403 invite_required", totalV03))
+	// Reuse the now-consumed token; the federator's BeginInviteRedemption
+	// must reject before any upstream hop. Fresh client (no cookies).
+	negInvite1, _ := newFederationClient(*baseURL)
+	if err := expectInviteStartFederationError(negInvite1, *baseURL, inviteToken,
+		http.StatusForbidden, "invite_required"); err != nil {
+		log.Fatalf("negative consumed-token: %v", err)
+	}
+	log.Printf("  /start-federation consumed → 403 invite_required ✓")
+
+	step(fmt.Sprintf("step 68/%d — negative: expired token rejected with 403 invite_required", totalV03))
+	const expiredToken = "invite-token-smoke-expired-001"
+	// Seed a NEW enrollment that's already past expires_at (1 second in the
+	// past). BeginInviteRedemption checks enr.ExpiresAt.After(time.Now()).
+	if err := seedInviteEnrollment(expiredToken, "invite-redeemer-expired", "Expired Redeemer", "user", "mockop", "-1 second"); err != nil {
+		log.Fatalf("seed expired invite: %v", err)
+	}
+	negInvite2, _ := newFederationClient(*baseURL)
+	if err := expectInviteStartFederationError(negInvite2, *baseURL, expiredToken,
+		http.StatusForbidden, "invite_required"); err != nil {
+		log.Fatalf("negative expired-token: %v", err)
+	}
+	log.Printf("  /start-federation expired → 403 invite_required ✓")
+
+	step(fmt.Sprintf("step 69/%d — DB assert: credential_event covers v0.3 federation lifecycle", totalV03))
 	if err := verifyV03FederationAuditEvents(); err != nil {
 		log.Fatalf("v0.3 federation audit DB assert: %v", err)
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–65/65 (v0.3 federation) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -2257,15 +2345,17 @@ func verifyV03FederationAuditEvents() error {
 		key string
 		min int
 	}{
-		// happy-path auto_provision: register (1) + use (1) initial + use (1) re-login
-		// + use (1) re-login pre-/me/identities = ≥3 uses.
-		{"federation_oidc:register", 1},
-		{"federation_oidc:use", 3},
-		// negative tests: 4 separate failure modes:
-		// email_not_verified, username_collision, upstream_error, link_required.
-		// invalid_return_to does NOT emit a fail row — it's caught at the
-		// HTTP layer before the federator runs.
-		{"federation_oidc:fail", 4},
+		// register: auto_provision (1) + invite_only_redemption (1) = ≥2.
+		{"federation_oidc:register", 2},
+		// use: auto_provision initial (1) + re-login (1) + re-login pre-/me/identities (1)
+		// + invite_only session-start (1) = ≥4.
+		{"federation_oidc:use", 4},
+		// fail: pre-existing 4 (email_not_verified, username_collision,
+		// upstream_error, link_required) + invite_only consumed-token (1) +
+		// invite_only expired-token (1) = ≥6. invalid_return_to does NOT
+		// emit a fail row — it's caught at the HTTP layer before the
+		// federator runs.
+		{"federation_oidc:fail", 6},
 		// self-link round-trip: 1 link + 1 unlink.
 		{"federation_oidc:link", 1},
 		{"federation_oidc:unlink", 1},
@@ -2277,5 +2367,132 @@ func verifyV03FederationAuditEvents() error {
 		}
 	}
 	log.Printf("  credential_event covers v0.3 federation lifecycle (counts=%v)", counts)
+	return nil
+}
+
+// seedInviteEnrollment inserts a row into the enrollment table with
+// intent='invite' bound to a specific upstream IdP slug. expiresOffset is a
+// Postgres interval literal (e.g. "1 hour", "-1 second") added to now() —
+// negative offsets are used to seed pre-expired rows for the expired-token
+// negative test. Idempotent: deletes any prior row with the same token first.
+func seedInviteEnrollment(token, templateUsername, templateDisplayName, templateRole, expectedSlug, expiresOffset string) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+	// Best-effort cleanup so re-runs are idempotent. CASCADE not needed —
+	// account_identity references account (not enrollment), and the prior
+	// invite — if successfully redeemed — has its consumed_at set; deleting
+	// it has no effect on the minted account.
+	if _, err := exec.Command("psql", dburl, "-c",
+		fmt.Sprintf("DELETE FROM enrollment WHERE token='%s'", token)).CombinedOutput(); err != nil {
+		return fmt.Errorf("psql delete prior invite: %w", err)
+	}
+	insertSQL := fmt.Sprintf(`INSERT INTO enrollment (
+		token, intent, expires_at,
+		template_username, template_display_name, template_role,
+		expected_upstream_idp_slug
+	) VALUES (
+		'%s', 'invite', now() + interval '%s',
+		'%s', '%s', '%s',
+		'%s'
+	)`, token, expiresOffset, templateUsername, templateDisplayName, templateRole, expectedSlug)
+	if out, err := exec.Command("psql", dburl, "-c", insertSQL).CombinedOutput(); err != nil {
+		return fmt.Errorf("psql insert invite enrollment: %v: %s", err, string(out))
+	}
+	return nil
+}
+
+// verifyInviteOnlyRedemption DB-asserts the post-redemption state of an
+// invite_only flow:
+//   - enrollment.consumed_at is NOT NULL for the redeemed token,
+//   - exactly one account exists with the template username,
+//   - exactly one account_identity row links that account to the upstream sub
+//     under the given IdP,
+//   - credential_event has at least one federation_oidc/register row with
+//     detail->>'reason' = 'invite_only_redemption'.
+func verifyInviteOnlyRedemption(token, username, upstreamSub string, idpID int64) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+
+	// 1) consumed_at NOT NULL on the enrollment row. Cast to bool::text
+	//    yields psql's "true"/"false" representation (not the "t"/"f"
+	//    short form used by ::char output).
+	consumed, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT (consumed_at IS NOT NULL)::text FROM enrollment WHERE token='%s'", token))
+	if err != nil {
+		return err
+	}
+	if len(consumed) != 1 || consumed[0] != "true" {
+		return fmt.Errorf("enrollment.consumed_at NOT NULL: want 1 row 'true', got %v", consumed)
+	}
+	log.Printf("  enrollment[%s].consumed_at IS NOT NULL ✓", token)
+
+	// 2) account row exists with the template username.
+	accIDs, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT id::text FROM account WHERE username='%s'", username))
+	if err != nil {
+		return err
+	}
+	if len(accIDs) != 1 {
+		return fmt.Errorf("account[username=%s]: want 1 row, got %v", username, accIDs)
+	}
+	accID, err := strconv.ParseInt(accIDs[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse account id %q: %w", accIDs[0], err)
+	}
+	log.Printf("  account[username=%s] id=%d ✓", username, accID)
+
+	// 3) account_identity row links that account to the upstream sub + idp.
+	idents, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT account_id::text || ':' || upstream_idp_id::text "+
+			"FROM account_identity WHERE upstream_sub='%s'", upstreamSub))
+	if err != nil {
+		return err
+	}
+	want := fmt.Sprintf("%d:%d", accID, idpID)
+	if len(idents) != 1 || idents[0] != want {
+		return fmt.Errorf("account_identity[sub=%s]: want exactly %q, got %v", upstreamSub, want, idents)
+	}
+	log.Printf("  account_identity[%s] account_id=%d upstream_idp_id=%d ✓", upstreamSub, accID, idpID)
+
+	// 4) credential_event has a federation_oidc/register row with
+	//    detail->>'reason' = 'invite_only_redemption' for this account.
+	regs, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT count(*)::text FROM credential_event "+
+			"WHERE factor='federation_oidc' AND event='register' "+
+			"AND account_id=%d AND detail->>'reason'='invite_only_redemption'", accID))
+	if err != nil {
+		return err
+	}
+	if len(regs) != 1 || regs[0] == "" || regs[0] == "0" {
+		return fmt.Errorf("credential_event register with reason=invite_only_redemption: want >=1, got %v", regs)
+	}
+	log.Printf("  credential_event register{reason=invite_only_redemption} for account %d: %s ✓", accID, regs[0])
+	return nil
+}
+
+// expectInviteStartFederationError drives
+// GET /api/prohibitorum/enrollments/{token}/start-federation and asserts the
+// response is the given HTTP status + JSON error code. Used for the two
+// invite_only negative cases (consumed token + expired token), where the
+// federator's BeginInviteRedemption rejects before any upstream hop.
+func expectInviteStartFederationError(c *client, baseURL, token string, wantStatus int, wantCode string) error {
+	path := fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", token)
+	resp, err := c.getRaw(path)
+	if err != nil {
+		return fmt.Errorf("start-federation: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != wantStatus {
+		return fmt.Errorf("/start-federation status: want %d, got %d (body=%s)", wantStatus, resp.StatusCode, string(body))
+	}
+	var ae struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(body, &ae)
+	if ae.Code != wantCode {
+		return fmt.Errorf("/start-federation error code: want %q, got %q (body=%s)", wantCode, ae.Code, string(body))
+	}
 	return nil
 }

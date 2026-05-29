@@ -567,11 +567,11 @@ Federate sign-in to an upstream OIDC provider (Google Workspace, Okta,
 Keycloak, another Prohibitorum). Prohibitorum is the RP; the upstream
 is the OP.
 
-> **Status (v0.3).** `auto_provision` and `link_only` modes ship
-> end-to-end and are smoke-verified. `invite_only` is **stubbed** —
-> the handler returns `403 invite_required` with
-> `reason:"invite_only_not_implemented"`. Design discussion in
-> `docs/superpowers/notes/2026-05-29-followups-invite-only-federation.md`.
+> **Status (v0.3).** All three provisioning modes ship end-to-end:
+> `auto_provision`, `link_only`, and `invite_only` (token-bearing
+> redemption via `GET /enrollments/{token}/start-federation`). Each
+> mode is smoke-verified against an in-process mock OP in
+> `cmd/smoke`.
 
 ### One-time setup (admin)
 
@@ -608,7 +608,7 @@ Modes:
 |---|---|
 | `auto_provision`  | Create a local account from upstream claims, gated by `require_verified_email`, `allowed_domains`, and a username-collision check |
 | `link_only`       | Reject with `403 link_required` — the user must link from a session they already hold |
-| `invite_only`     | **Stubbed in v0.3.** Returns `403 invite_required`                |
+| `invite_only`     | Reject `/auth/federation/{slug}/login` directly. Accept the user only when they arrive bearing an admin-minted invite token via `/enrollments/{token}/start-federation`. See "Invite redemption" below. |
 
 ### Login flow
 
@@ -661,6 +661,85 @@ curl -i 'http://localhost:8080/api/prohibitorum/auth/federation/google/login?ret
 # State token replayed, missing, or cross-namespace (LoginKey/LinkKey):
 # → 401 { "code": "federation_state_invalid" }
 ```
+
+### Invite redemption (`invite_only` mode)
+
+`invite_only` IdPs reject the public `/auth/federation/{slug}/login`
+entrypoint. Instead, an admin mints a per-user invite bound to a
+specific IdP, and the user redeems it via a dedicated public endpoint
+that stashes the invite token in federation state so the callback
+provisions the account atomically.
+
+```bash
+# 1. Admin creates an invite-intent enrollment for the user. The admin
+#    UI lands in v0.6; today this is the existing /admin/enrollments/*
+#    surface (see "Bootstrapping & invites"). Required fields:
+#      intent='invite'
+#      template_username='alice'
+#      template_display_name='Alice Example'
+#      template_role='user'
+#      expected_upstream_idp_slug='google'    -- binds to a specific IdP
+#      expires_at = now() + interval '7 days' -- short-lived bearer
+#
+# 2. Admin shares the invite URL with the prospective user. The URL is
+#    a bearer capability — anyone who holds it can redeem it, exactly
+#    once, before it expires.
+https://idp.example.com/api/prohibitorum/enrollments/<token>/start-federation
+
+# 3. User clicks the URL:
+curl -i "https://idp.example.com/api/prohibitorum/enrollments/<token>/start-federation?return_to=/me"
+# 302 Found
+# Referrer-Policy: no-referrer
+# Location: https://accounts.google.com/o/oauth2/v2/auth?...
+#
+# The Referrer-Policy header keeps the invite token out of the
+# upstream's referrer log (defense in depth — the token is also
+# short-TTL and single-use by atomic ConsumeEnrollment).
+
+# 4. After Google sign-in completes, callback to:
+#    /api/prohibitorum/auth/federation/google/callback?code=...&state=...&iss=...
+#    The callback notices the EnrollmentToken on FedState and dispatches
+#    applyInviteOnly inside a single pgx transaction:
+#      ConsumeEnrollment(token)            -- atomic UPDATE ... WHERE consumed_at IS NULL
+#      InsertAccount(template username/role/etc.)
+#      InsertAccountIdentity(account_id, upstream_iss, upstream_sub)
+#      audit Register/Use (tx-scoped Writer)
+#    → 302 to /me + session cookie set.
+#
+#    After commit: enrollment.consumed_at IS NOT NULL; account 'alice'
+#    with role 'user' exists; account_identity links it to the upstream
+#    (iss, sub).
+```
+
+Failure modes (each returns `403 invite_required` with no upstream
+hop — the federator collapses every "invite not redeemable" branch
+onto a single opaque code so an attacker can't enumerate state):
+
+```bash
+# Token is unknown / consumed / expired / wrong-intent / non-federated
+# (intent=invite but no expected_upstream_idp_slug):
+curl -i "https://idp.example.com/api/prohibitorum/enrollments/already-redeemed-token/start-federation?return_to=/me"
+# 403 { "code": "invite_required" }
+```
+
+Mid-flight rejections (after the upstream round-trip) collapse onto
+the same code; they audit with distinct `reason:` fields
+(`invite_consumed_or_expired`, `invite_slug_mismatch`,
+`username_collision`) for operators to query.
+
+Notes:
+
+- `applyInviteOnly` skips `RequireVerifiedEmail` + `AllowedDomains`
+  by design — the admin minted the invite specifically for this user,
+  which IS the authorization decision.
+- The invite template overrides the upstream claims for the local
+  `account.username`, `display_name`, and `role`. Upstream
+  `preferred_username` is ignored on this path; upstream `email` is
+  still recorded on the `account_identity` row for the audit trail.
+- `expected_upstream_idp_slug` is required for federated invites.
+  An `intent='invite'` enrollment without this column belongs to the
+  WebAuthn enrollment flow, not the federation flow, and
+  `/start-federation` rejects it as `invite_not_federated`.
 
 ### Listing linked identities
 
@@ -727,9 +806,9 @@ or password+TOTP first.
 
 | Event | Emitted by | Notes |
 |---|---|---|
-| `federation_oidc:register` | first-time auto_provision | per fresh `(iss, sub)` |
+| `federation_oidc:register` | first-time provisioning | per fresh `(iss, sub)`. `detail->>'reason'` distinguishes `auto_provision` (implicit; no reason field) from `invite_only_redemption` |
 | `federation_oidc:use`      | every successful federated login | re-login claim sync is a `use` event |
-| `federation_oidc:fail`     | every structured rejection | `email_not_verified` / `username_collision` / `link_required` / `invite_only_not_implemented` / `upstream_error` / `session_swap` / `iss_mismatch_callback` / `code_exchange_failed` / `link_conflict` |
+| `federation_oidc:fail`     | every structured rejection | `email_not_verified` / `username_collision` / `link_required` / `invite_lookup_failed` / `invite_wrong_intent` / `invite_already_consumed` / `invite_expired` / `invite_not_federated` / `invite_required_no_token` / `invite_consumed_or_expired` / `invite_slug_mismatch` / `upstream_error` / `session_swap` / `iss_mismatch_callback` / `code_exchange_failed` / `link_conflict` |
 | `federation_oidc:link`     | self-service link callback success | written by the federator, not the HTTP handler — do not double-audit |
 | `federation_oidc:unlink`   | `POST /me/identities/{id}/unlink` 204 | written by the HTTP handler |
 
