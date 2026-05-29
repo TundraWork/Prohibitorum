@@ -1,0 +1,124 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-29-v0.4-oidc-op-downstream.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Schema + deps + queries + sqlc",
+      "status": "pending",
+      "description": "**Goal:** account.oidc_subject uuid + oidc_client.require_consent (amend migrations 001/002), promote go-jose/v4 to direct, add OP sqlc queries, regenerate.\n\n```json:metadata\n{\"files\":[\"db/migrations/001_initial.sql\",\"db/migrations/002_oidc.sql\",\"db/queries/oidc.sql\",\"go.mod\"],\"verifyCommand\":\"mise exec -- go build ./... && mise exec -- go test ./... -count=1\",\"acceptanceCriteria\":[\"oidc_subject uuid NOT NULL UNIQUE DEFAULT gen_random_uuid()\",\"require_consent boolean default false\",\"go-jose/v4 direct\",\"OP queries generate\",\"build+tests green\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: JWT signer/verifier + signing-key cache",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** keys.go (cache, publicJWK/jwkThumbprint, jwks) + jwt.go (RS256 sign/verify by kid via go-jose/v4, RS256-only).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/keys.go\",\"pkg/protocol/oidc/jwt.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run 'TestKeys|TestJWT' -v -count=1\",\"acceptanceCriteria\":[\"publicJWK RFC7517\",\"jwkThumbprint RFC7638 kid\",\"5min refresh cache + active selection + jwks\",\"signJWT RS256 kid+typ\",\"verifyJWT by kid\",\"alg:none+HS256 rejected\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: signing-key generate CLI",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** GenerateSigningKey (RSA-2048, thumbprint kid, JWK, x509, PKCS8 PEM) + signing-key generate CLI (--activate/--retire), one-active-per-use tx.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/keygen.go\",\"cmd/prohibitorum/main.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestKeygen -v -count=1\",\"acceptanceCriteria\":[\"RSA-2048 + thumbprint kid + JWK + x509 + PKCS8\",\"first/--activate active deactivating prior\",\"--retire stamps retired_at\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Client load + authentication",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** client.go — loadClient, authenticateClient (basic/post/none), verifyClientSecret (PHCDecode+argon2id+constant-time).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/client.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestClient -v -count=1\",\"acceptanceCriteria\":[\"loadClient excludes disabled\",\"basic/post/none auth\",\"argon2id constant-time verify\",\"bad/unknown/disabled->invalid_client\",\"secret-to-public rejected\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Claims projection",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** claims.go — subjectOf (uuid->string), idTokenClaims (profile-gated), userinfoClaims, hasScope, atHash.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/claims.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestClaims -v -count=1\",\"acceptanceCriteria\":[\"sub=oidc_subject string\",\"profile claims gated\",\"at_hash left-half SHA256 base64url\",\"azp only when aud multi\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Authorization-code KV store",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** codes.go — authCode, mintCode, consumeCode (Pop), markCodeUsed/usedFamily replay marker.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/codes.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestCodes -v -count=1\",\"acceptanceCriteria\":[\"mint/consume round-trip\",\"single-use\",\"markCodeUsed+usedFamily\",\"usedFamily absent->false\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Refresh-token family store",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** refresh.go store — refreshFamily, issueRefresh, rotateRefresh (reuse->delete family), revokeFamily.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/refresh.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestRefresh -v -count=1\",\"acceptanceCriteria\":[\"issueRefresh family+token map\",\"rotate current->new; superseded->errRefreshReuse+family deleted\",\"lookupRefresh read-only for introspect/revoke\",\"revokeFamily->errRefreshInvalid\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Errors + discovery + Provider widening",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** errors.go (writeOIDCError/redirectError + error consts); widen Provider+New; real HandleJWKS; expanded HandleDiscovery.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/errors.go\",\"pkg/protocol/oidc/oidc.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run 'TestErrors|TestDiscovery' -v -count=1\",\"acceptanceCriteria\":[\"Provider deps+keyCache\",\"error JSON+redirect shapes\",\"HandleJWKS real keys\",\"discovery v0.4 surface + iss-param-supported\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: /oauth/authorize",
+      "status": "pending",
+      "blockedBy": [1, 3, 4, 5, 7],
+      "description": "**Goal:** authorize.go — validate client/redirect_uri (direct error), param validation (redirect errors), session gate, require_consent, mint code, 302 w/ iss, per-account rate limit, audit.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/authorize.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestOIDCAuthorize -v -count=1\",\"acceptanceCriteria\":[\"invalid client/redirect_uri->direct error\",\"response_type/scope/PKCE validated\",\"no session->login redirect; prompt=none->login_required\",\"require_consent->consent_required\",\"valid->code+302 iss+audit\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: /oauth/token authorization_code grant",
+      "status": "pending",
+      "blockedBy": [1, 3, 4, 5, 6, 7],
+      "description": "**Goal:** token.go — HandleToken dispatch + grantAuthorizationCode: client auth, rate limit, consume code (+replay->family revoke), PKCE verify, mint access(RFC9068)+id(at_hash)+refresh(if offline_access), markCodeUsed, audit.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/token.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestToken -v -count=1\",\"acceptanceCriteria\":[\"client auth+rate limit\",\"PKCE S256 verify\",\"replay->family revoke+code_replay audit\",\"wrong client/redirect_uri->invalid_grant\",\"access typ:at+jwt+jti; refresh iff offline_access\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: /oauth/token refresh_token grant",
+      "status": "pending",
+      "blockedBy": [6, 9],
+      "description": "**Goal:** refresh.go handler — grantRefreshToken: rotateRefresh (reuse->audit+invalid_grant), client match, re-fetch account reject disabled, mint fresh tokens, audit refresh_rotated; wire into dispatch.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/refresh.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestRefresh -v -count=1\",\"acceptanceCriteria\":[\"rotate re-issues\",\"reuse->refresh_reuse audit+invalid_grant+family gone\",\"wrong client->invalid_grant\",\"disabled->invalid_grant\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: /userinfo + /introspect + /revoke",
+      "status": "pending",
+      "blockedBy": [1, 3, 4, 6],
+      "description": "**Goal:** userinfo.go (verify+revoked+account+scope-gate), introspect.go (RFC7662), revoke.go (RFC7009 always-200).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/userinfo.go\",\"pkg/protocol/oidc/introspect.go\",\"pkg/protocol/oidc/revoke.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run 'TestUserinfo|TestIntrospect|TestRevoke' -v -count=1\",\"acceptanceCriteria\":[\"userinfo verify+revoked+disabled+scope-gate\",\"introspect active/inactive no-leak\",\"revoke jti/family delete always 200\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: /oidc/logout",
+      "status": "pending",
+      "blockedBy": [1, 3],
+      "description": "**Goal:** logout.go — id_token_hint sig+iss (expiry tolerated), RevokeBySessionID, post_logout_redirect_uri exact-match, 302 w/ state, audit.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/logout.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestLogout -v -count=1\",\"acceptanceCriteria\":[\"hint sig+iss validated\",\"RevokeBySessionID\",\"post_logout exact-match; mismatch->error\",\"302 w/ state+audit\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: oidc-client CLI",
+      "status": "pending",
+      "blockedBy": [0, 3],
+      "description": "**Goal:** BuildClientParams + oidc-client create (confidential prints secret once / --public none+PKCE) + list.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/clientgen.go\",\"cmd/prohibitorum/main.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestClientGen -v -count=1\",\"acceptanceCriteria\":[\"confidential PHC verifiable+printed once\",\"public none+PKCE\",\"default scopes openid profile\",\"list prints clients\"]}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: Server wiring + route mounts",
+      "status": "pending",
+      "blockedBy": [8, 9, 10, 11, 12],
+      "description": "**Goal:** server.go — widen oidcop.New(...deps); mount /oauth/{authorize,token,userinfo,introspect,revoke} + /oidc/logout; /authorize behind LoadSession.\n\n```json:metadata\n{\"files\":[\"pkg/server/server.go\"],\"verifyCommand\":\"mise exec -- go build ./... && mise exec -- go test ./... -count=1\",\"acceptanceCriteria\":[\"Provider deps\",\"6 routes mounted\",\"/authorize behind LoadSession\",\"build+vet+tests green\"]}\n```"
+    },
+    {
+      "id": 15,
+      "subject": "Task 15: cmd/smoke v0.4 mock RP",
+      "status": "pending",
+      "blockedBy": [2, 13, 14],
+      "description": "**Goal:** ~16 smoke steps full code flow + rotation/reuse/revoke/logout + negatives + DB asserts, live PG + dev server + in-process RP.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\"],\"verifyCommand\":\"mise exec -- go run ./cmd/smoke -username smoke-v04-admin\",\"acceptanceCriteria\":[\"full flow green\",\"id_token verifies vs JWKS\",\"refresh rotate+reuse->invalid_grant\",\"revoke+logout (401)\",\"negatives\",\"DB asserts revoked_jti+credential_event\"]}\n```"
+    },
+    {
+      "id": 16,
+      "subject": "Task 16: Docs (STATUS/AUDIT/INTEGRATION)",
+      "status": "pending",
+      "blockedBy": [15],
+      "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-29T21:30:00Z"
+}
