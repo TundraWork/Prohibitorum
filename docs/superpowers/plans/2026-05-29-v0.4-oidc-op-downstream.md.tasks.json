@@ -4,13 +4,13 @@
     {
       "id": 0,
       "subject": "Task 0: Schema + deps + queries + sqlc",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** account.oidc_subject uuid + oidc_client.require_consent (amend migrations 001/002), promote go-jose/v4 to direct, add OP sqlc queries, regenerate.\n\n```json:metadata\n{\"files\":[\"db/migrations/001_initial.sql\",\"db/migrations/002_oidc.sql\",\"db/queries/oidc.sql\",\"go.mod\"],\"verifyCommand\":\"mise exec -- go build ./... && mise exec -- go test ./... -count=1\",\"acceptanceCriteria\":[\"oidc_subject uuid NOT NULL UNIQUE DEFAULT gen_random_uuid()\",\"require_consent boolean default false\",\"go-jose/v4 direct\",\"OP queries generate\",\"build+tests green\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 1: JWT signer/verifier + signing-key cache",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** keys.go (cache, publicJWK/jwkThumbprint, jwks) + jwt.go (RS256 sign/verify by kid via go-jose/v4, RS256-only).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/keys.go\",\"pkg/protocol/oidc/jwt.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run 'TestKeys|TestJWT' -v -count=1\",\"acceptanceCriteria\":[\"publicJWK RFC7517\",\"jwkThumbprint RFC7638 kid\",\"5min refresh cache + active selection + jwks\",\"signJWT RS256 kid+typ\",\"verifyJWT by kid\",\"alg:none+HS256 rejected\"]}\n```"
     },
@@ -120,5 +120,5 @@
       "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-29T21:30:00Z"
+  "lastUpdated": "2026-05-29T22:00:00Z"
 }
