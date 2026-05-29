@@ -21,18 +21,14 @@ import (
 	"encoding/json"
 	"net/http"
 
-	// Anchors go-jose/v4 as a direct dependency for the v0.4 OIDC OP work
-	// (JWT signing/verification lands in the signer task). Replace with a
-	// real import once the signer package consumes it.
-	_ "github.com/go-jose/go-jose/v4"
-
 	"prohibitorum/pkg/configx"
 )
 
 // Provider is the per-server OIDC handler. Constructed once by the
 // server bootstrap and wired into the chi router.
 type Provider struct {
-	cfg *configx.Config
+	cfg  *configx.Config
+	keys *keyCache // wired in Task 7; nil until then
 }
 
 func New(cfg *configx.Config) *Provider {
