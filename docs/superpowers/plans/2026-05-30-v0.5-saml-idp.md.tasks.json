@@ -17,7 +17,7 @@
     {
       "id": 2,
       "subject": "Task 2: IdP widening + signing-key reuse (saml.go)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Widen IdP struct (cfg,queries,kv,sessions,audit,rl,keys) + NewIdP(...); samlKeyCache over ListActiveSigningKeys exposing active RSA key + x509 cert + all non-retired certs; entityID/ssoURL/sloURL/metadataURL helpers.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/saml.go\",\"pkg/protocol/saml/keys_saml.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestIdP -v -count=1\",\"acceptanceCriteria\":[\"IdP deps + NewIdP\",\"signing-key cache active key+cert + all certs\",\"entityID/ssoURL/sloURL helpers from PublicOrigins\"]}\n```"
     },
@@ -99,5 +99,5 @@
       "description": "**Goal:** STATUS v0.5 section (shipped/endpoints/smoke-covered+untested/notes D1-D9); AUDIT SAML rows smoke-verified + XSW/XXE/replay defenses recorded + deferred list; INTEGRATION SAML IdP section (saml-sp CLI, /saml/metadata, SP-side config).\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.5 smoke lists\",\"AUDIT SAML rows smoke-verified + defenses\",\"INTEGRATION SAML operator config\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T08:00:00Z"
+  "lastUpdated": "2026-05-30T12:00:00Z"
 }
