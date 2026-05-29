@@ -108,7 +108,7 @@
     {
       "id": 15,
       "subject": "Task 15: cmd/smoke v0.4 mock RP",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 13, 14],
       "description": "**Goal:** ~16 smoke steps full code flow + rotation/reuse/revoke/logout + negatives + DB asserts, live PG + dev server + in-process RP.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\"],\"verifyCommand\":\"mise exec -- go run ./cmd/smoke -username smoke-v04-admin\",\"acceptanceCriteria\":[\"full flow green\",\"id_token verifies vs JWKS\",\"refresh rotate+reuse->invalid_grant\",\"revoke+logout (401)\",\"negatives\",\"DB asserts revoked_jti+credential_event\"]}\n```"
     },
@@ -120,5 +120,5 @@
       "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T04:45:00Z"
+  "lastUpdated": "2026-05-30T05:30:00Z"
 }
