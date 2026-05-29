@@ -584,7 +584,7 @@ secret must be sealed with the helper in `pkg/federation/oidc/secret.go`
 -- oidc.SealClientSecret(plaintext, idpID, dekVersion). In practice this
 -- is done from a short Go program or admin CLI, not raw SQL.
 INSERT INTO upstream_idp
-  (slug, display_name, issuer,
+  (slug, display_name, issuer_url,
    client_id, client_secret_enc, secret_nonce, key_version,
    scopes, mode, require_verified_email, allowed_domains)
 VALUES (
@@ -639,8 +639,14 @@ curl http://localhost:8080/api/prohibitorum/me -b cookies.txt
 `return_to` MUST be a relative path starting with `/` (and not `//`).
 Anything else returns `400 invalid_return_to`.
 
-Both `/login` and `/callback` share one rate-limit bucket per IP at
-30 requests / minute.
+The federation handlers do NOT carry IP-keyed rate limits (v0.3 audit
+fix M5 removed all 13 IP buckets project-wide because
+`sessstore.ClientIP` is not trustworthy behind NAT / CDN). Replay /
+brute-force defense lives in PKCE + single-use KV state tokens
+(`/callback`) and per-account `auth_throttle` rows once a credential
+failure occurs against a known account. Edge DoS is the reverse
+proxy / WAF's responsibility — see AUDIT.md "Rate limiting policy
+(v0.3 audit)".
 
 ### Negative cases
 
@@ -740,6 +746,12 @@ Notes:
   An `intent='invite'` enrollment without this column belongs to the
   WebAuthn enrollment flow, not the federation flow, and
   `/start-federation` rejects it as `invite_not_federated`.
+- Conversely, a federation-bound invite (i.e. `expected_upstream_idp_slug`
+  set) CANNOT be redeemed via the WebAuthn enrollment path. Both
+  `/enrollments/{token}/register/begin` and `/register/complete`
+  reject with `403 enrollment_federation_required` so the invitee
+  is forced through `/start-federation`. Audit fix M1-int
+  (commit `9ed0b1b`).
 
 ### Listing linked identities
 
@@ -808,7 +820,7 @@ or password+TOTP first.
 |---|---|---|
 | `federation_oidc:register` | first-time provisioning | per fresh `(iss, sub)`. `detail->>'reason'` distinguishes `auto_provision` (implicit; no reason field) from `invite_only_redemption` |
 | `federation_oidc:use`      | every successful federated login | re-login claim sync is a `use` event |
-| `federation_oidc:fail`     | every structured rejection | `email_not_verified` / `username_collision` / `link_required` / `invite_lookup_failed` / `invite_wrong_intent` / `invite_already_consumed` / `invite_expired` / `invite_not_federated` / `invite_required_no_token` / `invite_consumed_or_expired` / `invite_slug_mismatch` / `upstream_error` / `session_swap` / `iss_mismatch_callback` / `code_exchange_failed` / `link_conflict` |
+| `federation_oidc:fail`     | every structured rejection | `email_not_verified` / `username_collision` / `domain_not_allowed` / `identity_conflict` / `link_required` / `invite_lookup_failed` / `invite_wrong_intent` / `invite_already_consumed` / `invite_expired` / `invite_not_federated` / `invite_required_no_token` / `invite_consumed_or_expired` / `invite_slug_mismatch` / `upstream_error` / `session_swap` / `iss_mismatch_callback` / `token_endpoint_drift` / `code_exchange_failed` / `link_conflict` / `account_disabled` |
 | `federation_oidc:link`     | self-service link callback success | written by the federator, not the HTTP handler — do not double-audit |
 | `federation_oidc:unlink`   | `POST /me/identities/{id}/unlink` 204 | written by the HTTP handler |
 
@@ -820,11 +832,13 @@ or password+TOTP first.
 - **Upstream sign-out propagation.** Logging out of Prohibitorum does
   not log the user out of the upstream OP. Back-channel logout is a
   v0.7+ item.
-- **Per-claim attribute mapping.** Custom `username_claim` /
-  `display_name_claim` / `email_claim` columns exist in the schema
-  but the v0.3 code path reads the OIDC defaults
-  (`preferred_username` / `name` / `email`) directly. Tracked as a
-  ⚠️ gap in AUDIT.md.
+
+Custom claim-name overrides (`username_claim` / `display_name_claim`
+/ `email_claim` on `upstream_idp`) ARE honored end-to-end as of v0.3
+audit fix M4 (commit `45083bc`). Defaults are the OIDC standard
+names (`preferred_username` / `name` / `email`); override only when
+the upstream OP ships claims under non-standard keys (e.g. Microsoft
+Entra ID's `upn`).
 
 ## Logout
 

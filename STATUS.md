@@ -442,7 +442,7 @@ validation, federation-state KV with cross-namespace defense,
 session-swap defense on the link flow, and AMR pass-through (with
 `["federated"]` backfill). Smoke extended from 45 to **69 steps**
 against a real Postgres + dev server + in-process mock OP (see
-`cmd/smoke/internal/mockop`).
+`cmd/smoke/mockop`).
 
 `invite_only` ships as token-bearing redemption: an admin mints an
 invite via the existing `/admin/enrollments/*` surface with
@@ -520,12 +520,19 @@ against the just-inserted-but-not-yet-committed row — see the
     (`modes.go:240–267`).
 - **HTTP surface** — `pkg/server/handle_federation.go` (public login
   + callback) and `pkg/server/handle_me_identities.go` (sudo-gated
-  link + unlink). Public endpoints share one IP rate-limit bucket
-  (`federation:ip:<ip>` @ 30/min). Return-to validation rejects
-  anything that isn't a relative path beginning with `/` and not `//`
-  (`handle_federation.go:145`). AMR backfilled to `["federated"]`
-  when upstream omits the claim (`handle_federation.go:127–130`,
-  citing RFC 8176 §2).
+  link + unlink). No IP-keyed rate limit at the HTTP edge — audit
+  fix M5 (commit `4c4412c`) removed all 13 IP-keyed buckets project-wide
+  because `sessstore.ClientIP` is not trustworthy behind NAT / CDN
+  (false positives shared-IP lockout; false negatives IP-rotating
+  attacker). Per-account `auth_throttle` and PKCE + single-use KV state
+  carry the replay/brute-force defense; reverse-proxy / WAF owns
+  edge DoS. See AUDIT.md "Rate limiting policy (v0.3 audit)".
+  Return-to validation rejects anything that isn't a relative path
+  beginning with `/` and not `//` (`validateFederationReturnTo` in
+  `handle_federation.go`). AMR backfilled to `["federated"]` when
+  upstream omits the claim (`handle_federation.go:113–119`, citing
+  RFC 8176 §2 which explicitly defines `federated` as a valid AMR
+  value).
 - **`/me/identities` flow** — link begin is sudo-gated; link callback
   is NOT sudo-gated (the user just elevated at `/begin` and a fresh
   sudo prompt after the upstream round-trip would be hostile UX).
@@ -568,7 +575,7 @@ against the just-inserted-but-not-yet-committed row — see the
 ### Smoke-covered runtime paths
 
 `cmd/smoke` extends from 45 to **69 steps**. The v0.3 block is steps
-46–69; the in-process mock OP under `cmd/smoke/internal/mockop`
+46–69; the in-process mock OP under `cmd/smoke/mockop`
 signs ES256 ID tokens against a JWKS served from the test process.
 Each entry below references the smoke step counter in
 `cmd/smoke/main.go`:
@@ -591,9 +598,11 @@ Each entry below references the smoke step counter in
 - **username_collision** — step 54/69 changes the mock OP's
   `preferred_username` to a value that already exists locally,
   asserts 403 + `username_collision`.
-- **invalid_return_to** — step 55/69 passes `return_to=//evil.example`
-  to `/login`, asserts 400 + `invalid_return_to`. Caught at the
-  HTTP layer before the federator runs (no audit emission expected).
+- **invalid_return_to** — step 55/69 passes
+  `return_to=https://evil.example.com` to `/login`, asserts 400 +
+  `invalid_return_to`. Caught at the HTTP layer before the federator
+  runs (no audit emission expected). The `//`-prefix branch of the
+  validator is unit-tested but not driven by the smoke.
 - **upstream_error** — step 56/69 simulates the OP returning
   `?error=access_denied`, asserts 400 + `upstream_error` and a
   `fail` audit row with `reason: "upstream_error"`.
@@ -709,27 +718,90 @@ end-to-end by `cmd/smoke`. Most carry unit-test coverage in
   only signs ES256, so the post-decode alg recheck branch is
   `t.Skip`ed in `client_test.go`. The library-level allowlist
   still rejects via configuration.
-- **Per-IdP claim-name overrides.** `upstream_idp.username_claim` /
-  `display_name_claim` / `email_claim` columns exist in the schema
-  but are NOT consumed by `modes.go` — auto_provision reads
-  `tokens.PreferredUsername` / `tokens.Name` / `tokens.Email`
-  directly. Tracked as a ⚠️ gap in AUDIT.md. Most OPs use the
-  defaults (`preferred_username` / `name` / `email`) so this is
-  benign for common deployments; closing the gap requires either
-  plumbing the per-IdP overrides through `client.Exchange` or
-  applying them in `modes.go` after claim extraction.
+- **Per-IdP claim-name overrides (smoke-untested, ✅ implemented).**
+  `upstream_idp.username_claim` / `display_name_claim` / `email_claim`
+  are honored end-to-end (commit `45083bc`, audit fix M4). The
+  auto-provision path reads via `ClaimString(tokens.Raw, idp.Username
+  Claim/DisplayNameClaim/EmailClaim)` in
+  `pkg/federation/oidc/modes.go:133–135`; the re-login drift sync
+  honors the same overrides at `modes.go:518–519`; the link-flow
+  email override fires at `pkg/federation/oidc/federation.go:453`;
+  invite redemption uses the email override at `modes.go:383`.
+  Unit-tested in `modes_test.go` (override-key coverage). Smoke does
+  not stage an Entra-style OP (the mock OP only ships
+  `preferred_username` / `name` / `email`), so the override branch
+  is unit-tested only — schema defaults match the OIDC standard
+  claim names, so the typical deployment path is exercised by every
+  smoke run.
 
 ### Notes
 
-- The mock OP under `cmd/smoke/internal/mockop` is a deliberately
+- The mock OP under `cmd/smoke/mockop` is a deliberately
   minimal in-process OP — discovery, JWKS, `/authorize`, `/token`
   with PKCE, ES256 signing. It exists so the smoke can drive an
   upstream round-trip without booting Keycloak. Not safe for
   production; never reuse outside the smoke harness.
-- Federation rate limiting reuses the existing in-process
-  `pkg/authn/ratelimit` bucket. The multi-replica caveat
-  documented in `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md`
-  §1 applies here too.
+- Federation handlers no longer carry IP-keyed rate limits — audit
+  fix M5 (commit `4c4412c`) removed all 13 IP buckets project-wide.
+  What remains: per-account `auth_throttle` (DB-backed lockout),
+  account/session-keyed buckets for pairing + sudo, and the PKCE +
+  single-use KV state token. Edge DoS protection is the reverse
+  proxy / WAF's job. The multi-replica caveat documented in
+  `docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md` §1
+  still applies to the remaining account/session-keyed buckets.
+
+### Hardening fixes since initial v0.3 ship
+
+Five audit-driven defenses landed on top of the initial v0.3 smoke
+pass, each backed by a smoke step (where smoke-driveable) or unit
+test coverage:
+
+- **M4 — per-IdP claim-name overrides honored** (commit `45083bc`).
+  `pkg/federation/oidc/modes.go:133–135,518–519,383` +
+  `federation.go:453` route through the shared `ClaimString` helper,
+  closing the schema-vs-code gap previously tracked here as a ⚠️
+  ("schema only"). Smoke continues to exercise the default OIDC
+  claim names; override-key behavior covered in `modes_test.go`.
+- **M5 — IP-keyed rate limits removed project-wide**
+  (commit `4c4412c`). `sessstore.ClientIP` cannot reliably identify
+  a client behind NAT / CDN / corporate egress; both false positives
+  (legitimate-user lockout) and false negatives (IP-rotating attacker
+  bypass) demonstrated. Federation, enrollment, pairing, sudo, and
+  auth handlers now rely on per-account / per-session keys plus
+  PKCE + KV single-use tokens.
+- **C1 + H3-di + H4-di — `applyAutoProvision` wrapped in a
+  transaction with clean 23505 mapping** (commit `9ee15a4`).
+  `runProvisionTx` is now shared by both `applyInviteOnly` and
+  `applyAutoProvision`. Concurrent same-username inserts and
+  duplicate `(iss, sub)` callbacks surface as
+  `ErrUsernameCollision` / `ErrInviteRequired` (the latter
+  collapsed onto the link_conflict anti-enumeration treatment)
+  rather than wrapped 500s; tx rollback drops the partial account
+  row. See `pkg/federation/oidc/modes.go:198–230` for the
+  auto-provision branch and `:367–402` for the invite branch.
+- **M1-int — federation-bound invites reject the WebAuthn enrollment
+  path** (commit `9ed0b1b`).
+  `/enrollments/{token}/register/{begin,complete}` reject any invite
+  whose `expected_upstream_idp_slug` is set, returning
+  `ErrEnrollmentFederationRequired()` so the invitee is forced
+  through `/enrollments/{token}/start-federation`. Belt-and-suspenders
+  rejection at both `/begin` (`handle_enrollment.go:181–189`) and
+  `/complete` (`handle_enrollment.go:383–392`).
+- **H3-sch — `ExpectedTokenEndpoint` snapshot validated at callback**
+  (commit `4576a05`). FedState already snapshotted the upstream
+  `token_endpoint` at BeginLogin; `HandleCallback`
+  (`federation.go:310–316`) and `LinkCallback`
+  (`federation.go:420–426`) now reject when the live discovery's
+  token_endpoint drifts from the snapshot, audited with
+  `reason=token_endpoint_drift`. Mix-up resistance per RFC 9700
+  §4.4.2.1.
+- **M1-di — `DeleteAccountIdentity` returns rows-affected and the
+  handler 404s on no match** (commit `5cd1f07`).
+  `db/queries/account_identity.sql:15–19` converted the DELETE to
+  `:one` with `RETURNING id`; the handler at
+  `handle_me_identities.go:177–192` maps `pgx.ErrNoRows` to
+  `ErrCredentialNotFound` (404, no audit), preventing audit-log
+  pollution from no-op unlinks of foreign / already-deleted rows.
 
 ### Bugs found in stage 3 (invite_only smoke) and fixed
 
