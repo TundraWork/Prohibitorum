@@ -38,14 +38,14 @@
     {
       "id": 5,
       "subject": "Task 5: Authorization-code KV store",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** codes.go — authCode, mintCode, consumeCode (Pop), markCodeUsed/usedFamily replay marker.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/codes.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestCodes -v -count=1\",\"acceptanceCriteria\":[\"mint/consume round-trip\",\"single-use\",\"markCodeUsed+usedFamily\",\"usedFamily absent->false\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Refresh-token family store",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** refresh.go store — refreshFamily, issueRefresh, rotateRefresh (reuse->delete family), revokeFamily.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/refresh.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestRefresh -v -count=1\",\"acceptanceCriteria\":[\"issueRefresh family+token map\",\"rotate current->new; superseded->errRefreshReuse+family deleted\",\"lookupRefresh read-only for introspect/revoke\",\"revokeFamily->errRefreshInvalid\"]}\n```"
     },
@@ -120,5 +120,5 @@
       "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T00:15:00Z"
+  "lastUpdated": "2026-05-30T01:00:00Z"
 }
