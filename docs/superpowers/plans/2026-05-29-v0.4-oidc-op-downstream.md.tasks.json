@@ -52,7 +52,7 @@
     {
       "id": 7,
       "subject": "Task 7: Errors + discovery + Provider widening",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** errors.go (writeOIDCError/redirectError + error consts); widen Provider+New; real HandleJWKS; expanded HandleDiscovery.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/errors.go\",\"pkg/protocol/oidc/oidc.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run 'TestErrors|TestDiscovery' -v -count=1\",\"acceptanceCriteria\":[\"Provider deps+keyCache\",\"error JSON+redirect shapes\",\"HandleJWKS real keys\",\"discovery v0.4 surface + iss-param-supported\"]}\n```"
     },
@@ -120,5 +120,5 @@
       "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T01:00:00Z"
+  "lastUpdated": "2026-05-30T01:30:00Z"
 }
