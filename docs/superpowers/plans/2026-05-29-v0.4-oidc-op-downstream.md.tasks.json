@@ -66,14 +66,14 @@
     {
       "id": 9,
       "subject": "Task 9: /oauth/token authorization_code grant",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 3, 4, 5, 6, 7],
       "description": "**Goal:** token.go — HandleToken dispatch + grantAuthorizationCode: client auth, rate limit, consume code (+replay->family revoke), PKCE verify, mint access(RFC9068)+id(at_hash)+refresh(if offline_access), markCodeUsed, audit.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/token.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestToken -v -count=1\",\"acceptanceCriteria\":[\"client auth+rate limit\",\"PKCE S256 verify\",\"replay->family revoke+code_replay audit\",\"wrong client/redirect_uri->invalid_grant\",\"access typ:at+jwt+jti; refresh iff offline_access\"]}\n```"
     },
     {
       "id": 10,
       "subject": "Task 10: /oauth/token refresh_token grant",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6, 9],
       "description": "**Goal:** refresh.go handler — grantRefreshToken: rotateRefresh (reuse->audit+invalid_grant), client match, re-fetch account reject disabled, mint fresh tokens, audit refresh_rotated; wire into dispatch.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/refresh.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestRefresh -v -count=1\",\"acceptanceCriteria\":[\"rotate re-issues\",\"reuse->refresh_reuse audit+invalid_grant+family gone\",\"wrong client->invalid_grant\",\"disabled->invalid_grant\"]}\n```"
     },
@@ -120,5 +120,5 @@
       "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T02:00:00Z"
+  "lastUpdated": "2026-05-30T03:10:00Z"
 }
