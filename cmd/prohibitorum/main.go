@@ -12,6 +12,7 @@ import (
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
+	"prohibitorum/pkg/protocol/oidc"
 	"prohibitorum/pkg/server"
 
 	"github.com/danielgtaylor/huma/v2/humacli"
@@ -138,6 +139,100 @@ admin or --reset --username NAME to recover a specific existing admin.`,
 	enrollCmd.Flags().BoolVar(&enrollReset, "reset", false, "Issue a reset enrollment (with --username).")
 	enrollCmd.Flags().StringVar(&enrollUsername, "username", "", "Target username for --reset.")
 	cli.Root().AddCommand(enrollCmd)
+
+	signingKeyCmd := &cobra.Command{
+		Use:   "signing-key",
+		Short: "Manage OIDC signing keys",
+	}
+
+	var (
+		signingActivate bool
+		signingRetire   string
+	)
+	generateCmd := &cobra.Command{
+		Use:   "generate",
+		Short: "Mint a new RSA-2048 OIDC signing key",
+		Long: `Mint a new RSA-2048 OIDC signing key (JWK + self-signed x509 + PKCS#8 PEM)
+and store it in the signing_key table.
+
+The first ever signing key, or any key generated with --activate, becomes the
+active key and deactivates any previously active key in the same transaction.
+
+Pass --retire KID to retire an existing key (stamps retired_at) without
+generating a new one.`,
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			config, err := configx.Parse()
+			if err != nil {
+				log.Fatalf("parse config: %v", err)
+			}
+			if _, err := migrations.UpWithResult(config.DatabaseURL); err != nil {
+				log.Fatalf("apply migrations: %v", err)
+			}
+			conn, err := pgxpool.New(ctx, config.DatabaseURL)
+			if err != nil {
+				log.Fatalf("connect db: %v", err)
+			}
+			defer conn.Close()
+			q := db.New(conn)
+
+			// Retire mode: retire the named kid and exit, no new key.
+			if signingRetire != "" {
+				if err := q.RetireSigningKey(ctx, signingRetire); err != nil {
+					log.Fatalf("retire signing key: %v", err)
+				}
+				fmt.Printf("Retired signing key %s\n", signingRetire)
+				return
+			}
+
+			params, err := oidc.GenerateSigningKey()
+			if err != nil {
+				log.Fatalf("generate signing key: %v", err)
+			}
+
+			// Decide activation: explicit --activate, or no active key exists yet.
+			activate := signingActivate
+			if !activate {
+				_, err := q.GetActiveSigningKey(ctx)
+				switch {
+				case errors.Is(err, pgx.ErrNoRows):
+					activate = true
+				case err != nil:
+					log.Fatalf("check active signing key: %v", err)
+				}
+			}
+
+			tx, err := conn.Begin(ctx)
+			if err != nil {
+				log.Fatalf("begin tx: %v", err)
+			}
+			defer tx.Rollback(ctx) //nolint:errcheck
+			qtx := q.WithTx(tx)
+
+			if activate {
+				if err := qtx.DeactivateSigningKeys(ctx); err != nil {
+					log.Fatalf("deactivate signing keys: %v", err)
+				}
+				params.Active = true
+			}
+			if _, err := qtx.InsertSigningKey(ctx, params); err != nil {
+				log.Fatalf("insert signing key: %v", err)
+			}
+			if err := tx.Commit(ctx); err != nil {
+				log.Fatalf("commit tx: %v", err)
+			}
+
+			state := "inactive"
+			if activate {
+				state = "active"
+			}
+			fmt.Printf("Generated signing key %s (%s)\n", params.Kid, state)
+		},
+	}
+	generateCmd.Flags().BoolVar(&signingActivate, "activate", false, "Make the new key active, deactivating any prior active key.")
+	generateCmd.Flags().StringVar(&signingRetire, "retire", "", "Retire the signing key with this kid (no new key is generated).")
+	signingKeyCmd.AddCommand(generateCmd)
+	cli.Root().AddCommand(signingKeyCmd)
 
 	cli.Run()
 }
