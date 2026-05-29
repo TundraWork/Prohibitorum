@@ -28,7 +28,7 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 	client, err := authenticateClient(ctx, p.queries, r)
 	if err != nil {
 		// Introspection requires client authentication (RFC 7662 §2.1).
-		writeOIDCError(w, http.StatusUnauthorized, errCodeInvalidClient, "client authentication failed")
+		writeInvalidClient(w, r, "client authentication failed")
 		return
 	}
 

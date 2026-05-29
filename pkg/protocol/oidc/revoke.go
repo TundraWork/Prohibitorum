@@ -25,7 +25,7 @@ func (p *Provider) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 	client, err := authenticateClient(ctx, p.queries, r)
 	if err != nil {
 		// Revocation requires client authentication (RFC 7009 §2.1).
-		writeOIDCError(w, http.StatusUnauthorized, errCodeInvalidClient, "client authentication failed")
+		writeInvalidClient(w, r, "client authentication failed")
 		return
 	}
 

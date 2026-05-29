@@ -20,6 +20,7 @@ const (
 	errCodeInvalidScope            = "invalid_scope"
 	errCodeAccessDenied            = "access_denied"
 	errCodeServerError             = "server_error"
+	errCodeTemporarilyUnavailable  = "temporarily_unavailable"
 	errCodeLoginRequired           = "login_required"
 	errCodeConsentRequired         = "consent_required"
 	// errCodeInvalidToken is the RFC 6750 §3.1 bearer-token error code used by
@@ -39,6 +40,15 @@ func writeOIDCError(w http.ResponseWriter, status int, code, desc string) {
 		"error":             code,
 		"error_description": desc,
 	})
+}
+
+// writeInvalidClient renders a 401 invalid_client per RFC 6749 §5.2, including
+// the WWW-Authenticate challenge when the caller used HTTP Basic auth.
+func writeInvalidClient(w http.ResponseWriter, r *http.Request, desc string) {
+	if _, _, ok := r.BasicAuth(); ok {
+		w.Header().Set("WWW-Authenticate", `Basic realm="oidc"`)
+	}
+	writeOIDCError(w, http.StatusUnauthorized, errCodeInvalidClient, desc)
 }
 
 // redirectError 302-redirects to the client's redirect_uri with the OAuth

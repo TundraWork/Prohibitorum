@@ -42,9 +42,15 @@ func (p *Provider) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	if hint != "" {
 		// Signature + RS256 + kid only — NOT exp. Expiry tolerance is required:
 		// logout commonly happens after the ID token has expired.
-		claims, _, err := p.verifyJWT(ctx, hint)
+		claims, typ, err := p.verifyJWT(ctx, hint)
 		if err != nil {
 			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "invalid id_token_hint")
+			return
+		}
+		if typ == "at+jwt" {
+			// An access token is not a valid logout hint; an ID token carries
+			// JOSE typ "JWT" (or empty for some signers).
+			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "id_token_hint must be an ID token")
 			return
 		}
 		if iss, _ := claims["iss"].(string); iss != p.cfg.OIDC.Issuer {

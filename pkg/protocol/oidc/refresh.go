@@ -155,10 +155,14 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily) (token
 func rotateRefresh(ctx context.Context, store kv.Store, presented string) (*refreshFamily, string, error) {
 	// NOTE: The Get→compare→SetEx sequence below is NOT atomic across KV ops.
 	// Two concurrent rotations presenting the same current token could both pass
-	// the presented == CurrentToken check. This race is accepted: a legitimate
-	// client never rotates concurrently, and an attacker holding the current
-	// token gains nothing — a fully atomic compare-and-swap would require a
-	// Redis WATCH/Lua primitive that the kv.Store interface does not expose.
+	// the presented == CurrentToken check. The race is non-immortalizing — it
+	// self-heals, since whichever superseded branch loses the last write trips
+	// reuse detection (and revokes the family) on its next use. But it is not
+	// harmless: a concurrent stolen-token rotation can let the attacker win the
+	// last write and transiently hold the live branch, so the LEGITIMATE
+	// client's next refresh trips the reuse alarm and revokes the family —
+	// victim lockout. A fully atomic compare-and-swap would require a Redis
+	// WATCH/Lua primitive that the kv.Store interface does not expose.
 	fam, err := loadFamily(ctx, store, presented)
 	if err != nil {
 		return nil, "", err
@@ -260,6 +264,11 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	now := time.Now()
 	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, fam.AuthTime, now)
 	if err != nil {
+		// rotateRefresh already advanced the family (new CurrentToken set, old
+		// token superseded) but we return no token here — leaving a live but
+		// unusable family the client is locked out of. Fail closed: revoke the
+		// family so the client cleanly re-authenticates rather than wedging.
+		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
 		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
 		return
 	}

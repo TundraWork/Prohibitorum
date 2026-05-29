@@ -93,7 +93,7 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Every client load/auth failure collapses to invalid_client (401) per
 		// RFC 6749 §5.2; do not distinguish unknown client from bad secret.
-		writeOIDCError(w, http.StatusUnauthorized, errCodeInvalidClient, "client authentication failed")
+		writeInvalidClient(w, r, "client authentication failed")
 		return
 	}
 
@@ -102,7 +102,7 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 		if ra := p.rl.RetryAfter(rlKey); ra > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 		}
-		writeOIDCError(w, http.StatusTooManyRequests, errCodeServerError, "rate limit exceeded")
+		writeOIDCError(w, http.StatusTooManyRequests, errCodeTemporarilyUnavailable, "rate limit exceeded")
 		return
 	}
 

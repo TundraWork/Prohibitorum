@@ -24,6 +24,7 @@ const (
 //   - signature verifies against a cached signing key (verifyJWT),
 //   - the JOSE typ header is at+jwt (RFC 9068) — an ID token (typ JWT) is rejected,
 //   - iss matches the configured issuer,
+//   - aud matches the configured issuer (the OP is its own resource server),
 //   - exp is in the future (JSON numbers decode as float64),
 //   - the jti is not on the revocation denylist.
 //
@@ -40,6 +41,9 @@ func (p *Provider) validateAccessToken(ctx context.Context, token string) (map[s
 	}
 	if iss, _ := claims["iss"].(string); iss != p.cfg.OIDC.Issuer {
 		return nil, errors.New("oidc: issuer mismatch")
+	}
+	if aud, _ := claims["aud"].(string); aud != p.cfg.OIDC.Issuer {
+		return nil, errors.New("oidc: audience mismatch")
 	}
 	expf, ok := claims["exp"].(float64)
 	if !ok || time.Now().Unix() >= int64(expf) {
@@ -119,7 +123,7 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		if ra := p.rl.RetryAfter(rlKey); ra > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 		}
-		writeOIDCError(w, http.StatusTooManyRequests, errCodeServerError, "rate limit exceeded")
+		writeOIDCError(w, http.StatusTooManyRequests, errCodeTemporarilyUnavailable, "rate limit exceeded")
 		return
 	}
 
