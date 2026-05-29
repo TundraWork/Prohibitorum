@@ -7,8 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
+	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 )
 
@@ -199,4 +203,79 @@ func lookupRefresh(ctx context.Context, store kv.Store, presented string) (*refr
 // a no-op.
 func revokeFamily(ctx context.Context, store kv.Store, familyID string) error {
 	return store.Del(ctx, refreshFamilyKey(familyID))
+}
+
+// grantRefreshToken implements the RFC 6749 §6 refresh_token grant. It rotates
+// the presented token (single-use; reuse trips family revocation), re-checks
+// the bound client and account, and re-issues a fresh access + ID token plus
+// the rotated refresh token. The re-issued ID token carries the family's
+// snapshotted auth_time/amr/acr/sid and omits nonce (none is snapshotted).
+func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, client db.OidcClient) {
+	ctx := r.Context()
+	presented := r.PostForm.Get("refresh_token")
+
+	fam, newToken, err := rotateRefresh(ctx, p.kv, presented)
+	if errors.Is(err, errRefreshReuse) {
+		// A superseded token was replayed: rotateRefresh has already revoked the
+		// whole family. We have no account context here (rotateRefresh returns no
+		// family on reuse), so the security audit records only the client.
+		p.auditTokenEvent(ctx, r, audit.EventFail, nil, map[string]any{
+			"reason":    "refresh_reuse",
+			"client_id": client.ClientID,
+		})
+		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "refresh token reuse detected")
+		return
+	}
+	if err != nil {
+		// errRefreshInvalid (unknown/expired/revoked) or any storage error: the
+		// token is unusable either way and the response must not leak which.
+		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "invalid refresh token")
+		return
+	}
+
+	// Client binding (RFC 6749 §6): a refresh token presented by a client other
+	// than the one it was issued to is anomalous. rotateRefresh has already
+	// rotated, so the new token is live — revoke the whole family (treat the
+	// mismatch as an attack) before refusing.
+	if fam.ClientID != client.ClientID {
+		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "client mismatch")
+		return
+	}
+
+	// Re-check the account on every refresh: a disabled account's family must
+	// die so the long-lived grant cannot outlive the account's standing.
+	acct, err := p.queries.GetAccountByID(ctx, fam.AccountID)
+	if err != nil {
+		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account not found")
+		return
+	}
+	if acct.Disabled {
+		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
+		return
+	}
+
+	now := time.Now()
+	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, fam.AuthTime, now)
+	if err != nil {
+		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
+		return
+	}
+
+	acctID := acct.ID
+	p.auditTokenEvent(ctx, r, audit.EventUse, &acctID, map[string]any{
+		"reason":    "refresh_rotated",
+		"client_id": client.ClientID,
+	})
+
+	writeTokenResponse(w, tokenResponse{
+		AccessToken:  accessToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int(AccessTokenTTL.Seconds()),
+		IDToken:      idToken,
+		RefreshToken: newToken,
+		Scope:        strings.Join(fam.Scope, " "),
+	})
 }

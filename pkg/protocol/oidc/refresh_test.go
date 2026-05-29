@@ -2,11 +2,17 @@ package oidc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
 
+	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 )
 
@@ -261,5 +267,259 @@ func TestRefreshDistinctTokens(t *testing.T) {
 	}
 	if a == b {
 		t.Fatalf("issueRefresh produced identical tokens: %q", a)
+	}
+}
+
+// ── refresh_token grant (Task 10) ────────────────────────────────────────────
+
+// grantFamily is a refreshFamily bound to the token harness's client (testClientID)
+// and account (id 42), with offline_access granted, ready to be issued.
+func grantFamily() refreshFamily {
+	return refreshFamily{
+		ClientID:  testClientID,
+		AccountID: 42,
+		SessionID: "sid-refresh",
+		Scope:     []string{"openid", "profile", "offline_access"},
+		AuthTime:  time.Unix(1700000000, 0).UTC(),
+		AMR:       []string{"webauthn"},
+		ACR:       "urn:acr:1",
+	}
+}
+
+// refreshForm builds the refresh_token grant form for a presented token.
+func refreshForm(token string) url.Values {
+	v := url.Values{}
+	v.Set("grant_type", "refresh_token")
+	v.Set("refresh_token", token)
+	return v
+}
+
+func TestTokenRefreshRotateHappy(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+
+	fam := grantFamily()
+	presented, _, err := issueRefresh(ctx, h.p.kv, fam)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if cc := rec.Result().Header.Get("Cache-Control"); cc != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", cc)
+	}
+
+	var resp tokenResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.TokenType != "Bearer" {
+		t.Fatalf("token_type = %q", resp.TokenType)
+	}
+	if resp.ExpiresIn != int(AccessTokenTTL.Seconds()) {
+		t.Fatalf("expires_in = %d", resp.ExpiresIn)
+	}
+	if resp.Scope != "openid profile offline_access" {
+		t.Fatalf("scope = %q", resp.Scope)
+	}
+	// A NEW refresh token, distinct from the presented one.
+	if resp.RefreshToken == "" || resp.RefreshToken == presented {
+		t.Fatalf("expected a rotated refresh token != presented; got %q", resp.RefreshToken)
+	}
+
+	// Access + ID tokens verify.
+	if _, err := h.p.verifyJWT(ctx, resp.AccessToken); err != nil {
+		t.Fatalf("verify access token: %v", err)
+	}
+	idClaims, err := h.p.verifyJWT(ctx, resp.IDToken)
+	if err != nil {
+		t.Fatalf("verify id token: %v", err)
+	}
+	if idClaims["sid"] != fam.SessionID {
+		t.Fatalf("id token sid = %v, want %v", idClaims["sid"], fam.SessionID)
+	}
+	if at, ok := idClaims["auth_time"].(float64); !ok || int64(at) != fam.AuthTime.Unix() {
+		t.Fatalf("id token auth_time = %v, want %d", idClaims["auth_time"], fam.AuthTime.Unix())
+	}
+	amr, ok := idClaims["amr"].([]any)
+	if !ok || len(amr) != 1 || amr[0] != "webauthn" {
+		t.Fatalf("id token amr = %v, want [webauthn]", idClaims["amr"])
+	}
+	// Refresh grant snapshots no nonce → claim must be absent.
+	if _, present := idClaims["nonce"]; present {
+		t.Fatalf("id token must omit nonce on refresh grant, got %v", idClaims["nonce"])
+	}
+
+	// A refresh_rotated audit record (account 42) must be emitted.
+	var sawRotated bool
+	for _, r := range h.audit.records {
+		if r.Factor == audit.FactorOIDCClient && r.Detail["reason"] == "refresh_rotated" {
+			sawRotated = true
+			if r.AccountID == nil || *r.AccountID != 42 {
+				t.Fatalf("refresh_rotated AccountID = %v, want 42", r.AccountID)
+			}
+		}
+	}
+	if !sawRotated {
+		t.Fatal("expected a refresh_rotated audit record")
+	}
+}
+
+func TestTokenRefreshReuseRevokesFamily(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+
+	presented, _, err := issueRefresh(ctx, h.p.kv, grantFamily())
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	// First rotation succeeds and yields a new (now-current) token.
+	rec1 := httptest.NewRecorder()
+	h.p.HandleToken(rec1, tokenReq(refreshForm(presented)))
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first rotate want 200, got %d (%s)", rec1.Code, rec1.Body.String())
+	}
+	var resp1 tokenResponse
+	if err := json.Unmarshal(rec1.Body.Bytes(), &resp1); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	newToken := resp1.RefreshToken
+
+	// Replaying the OLD (superseded) token trips reuse detection.
+	rec2 := httptest.NewRecorder()
+	h.p.HandleToken(rec2, tokenReq(refreshForm(presented)))
+	if rec2.Code != http.StatusBadRequest {
+		t.Fatalf("reuse want 400, got %d", rec2.Code)
+	}
+	if got := decodeError(t, rec2); got != errCodeInvalidGrant {
+		t.Fatalf("reuse want %s, got %s", errCodeInvalidGrant, got)
+	}
+
+	// A refresh_reuse audit record must be emitted (no account context on reuse).
+	var sawReuse bool
+	for _, r := range h.audit.records {
+		if r.Detail["reason"] == "refresh_reuse" {
+			sawReuse = true
+		}
+	}
+	if !sawReuse {
+		t.Fatal("expected a refresh_reuse audit record")
+	}
+
+	// The family is dead: rotating the previously-current token now fails.
+	rec3 := httptest.NewRecorder()
+	h.p.HandleToken(rec3, tokenReq(refreshForm(newToken)))
+	if rec3.Code != http.StatusBadRequest {
+		t.Fatalf("post-reuse rotate of new token want 400, got %d", rec3.Code)
+	}
+	if got := decodeError(t, rec3); got != errCodeInvalidGrant {
+		t.Fatalf("post-reuse want %s, got %s", errCodeInvalidGrant, got)
+	}
+}
+
+func TestTokenRefreshWrongClient(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+
+	// Family bound to a DIFFERENT client than the one that will authenticate.
+	fam := grantFamily()
+	fam.ClientID = "other-client"
+	presented, _, err := issueRefresh(ctx, h.p.kv, fam)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	// Authenticate as testClientID (the harness client) — a mismatch.
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
+	}
+
+	// The mismatch revokes the family: the rotated token no longer resolves.
+	// (rotateRefresh ran first, so the presented token is superseded; the live
+	// token is the family's CurrentToken, which lookupRefresh would resolve had
+	// the family survived. Asserting via a fresh rotate of the presented token
+	// would only trip reuse, so check the family record directly.)
+	famNow, ok := lookupRefresh(ctx, h.p.kv, presented)
+	if ok {
+		t.Fatalf("family should be revoked after client mismatch; resolved to %+v", famNow)
+	}
+}
+
+func TestTokenRefreshDisabledAccount(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+
+	// Disable the account the family is bound to.
+	h.p.queries.(*fakeTokenQueries).accounts[42] = db.Account{ID: 42, Disabled: true}
+
+	presented, _, err := issueRefresh(ctx, h.p.kv, grantFamily())
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
+	}
+
+	// A disabled account's family must be revoked.
+	if _, ok := lookupRefresh(ctx, h.p.kv, presented); ok {
+		t.Fatal("disabled account's family should be revoked")
+	}
+}
+
+func TestTokenRefreshUnknownToken(t *testing.T) {
+	h := newTokenHarness(t)
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm("never-issued-garbage-token")))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
+	}
+}
+
+func TestTokenRefreshAccountNotFound(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+
+	// Issue a family bound to account 999, which is absent from fakeTokenQueries
+	// (GetAccountByID returns pgx.ErrNoRows for unknown IDs).
+	fam := grantFamily()
+	fam.AccountID = 999
+	presented, _, err := issueRefresh(ctx, h.p.kv, fam)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
+	}
+
+	// The family must be revoked: the presented token (now superseded after
+	// rotation inside grantRefreshToken) no longer resolves.
+	if _, ok := lookupRefresh(ctx, h.p.kv, presented); ok {
+		t.Fatal("deleted account's family should be revoked")
 	}
 }

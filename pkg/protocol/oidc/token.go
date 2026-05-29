@@ -110,8 +110,7 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 	case "authorization_code":
 		p.grantAuthorizationCode(w, r, client)
 	case "refresh_token":
-		// PLACEHOLDER — Task 10 replaces this with p.grantRefreshToken(w, r, client).
-		writeOIDCError(w, http.StatusBadRequest, errCodeUnsupportedGrantType, "refresh_token grant not yet implemented")
+		p.grantRefreshToken(w, r, client)
 	default:
 		writeOIDCError(w, http.StatusBadRequest, errCodeUnsupportedGrantType, "unsupported grant_type")
 	}
@@ -180,51 +179,11 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	issuer := p.cfg.OIDC.Issuer
 	now := time.Now()
 
-	// Access token — RFC 9068 JWT profile. aud is the issuer itself: the
-	// access token grants entry to this server's own protected resources
-	// (notably /userinfo), so the OP is its own resource server.
-	jti, err := randJTI()
+	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, ac.Scope, ac.AuthTime, now)
 	if err != nil {
-		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not issue access token")
-		return
-	}
-	atClaims := map[string]any{
-		"iss":       issuer,
-		"sub":       subjectOf(acct),
-		"aud":       issuer,
-		"client_id": client.ClientID,
-		"exp":       now.Add(AccessTokenTTL).Unix(),
-		"iat":       now.Unix(),
-		"jti":       jti,
-		"scope":     strings.Join(ac.Scope, " "),
-	}
-	accessToken, err := p.signJWT(ctx, atClaims, "at+jwt")
-	if err != nil {
-		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not sign access token")
-		return
-	}
-
-	// ID token — reuses the Task 4 claim projection (at_hash bound to the
-	// access token just minted).
-	idClaims := idTokenClaims(acct, idTokenInput{
-		Issuer:      issuer,
-		Audience:    client.ClientID,
-		Nonce:       ac.Nonce,
-		ACR:         ac.ACR,
-		SID:         ac.SessionID,
-		AMR:         ac.AMR,
-		AccessToken: accessToken,
-		Scope:       ac.Scope,
-		IssuedAt:    now,
-		Expiry:      now.Add(IDTokenTTL),
-		AuthTime:    ac.AuthTime,
-	})
-	idToken, err := p.signJWT(ctx, idClaims, "JWT")
-	if err != nil {
-		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not sign id token")
+		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
 		return
 	}
 
@@ -266,6 +225,56 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		RefreshToken: refreshToken,
 		Scope:        strings.Join(ac.Scope, " "),
 	})
+}
+
+// mintAccessAndIDTokens builds and signs the RFC 9068 access token and the
+// OIDC ID token (with at_hash bound to the access token) for an authenticated
+// grant. It is shared by the authorization_code and refresh_token grants.
+//
+// nonce is "" for the refresh grant (the refresh family snapshots no nonce, so
+// the re-issued ID token correctly omits the nonce claim). The access token's
+// aud is the issuer itself: the OP is its own resource server (notably for
+// /userinfo). Returns (accessToken, idToken, err).
+func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, clientID, nonce, sid, acr string, amr, scope []string, authTime, now time.Time) (string, string, error) {
+	issuer := p.cfg.OIDC.Issuer
+
+	jti, err := randJTI()
+	if err != nil {
+		return "", "", err
+	}
+	atClaims := map[string]any{
+		"iss":       issuer,
+		"sub":       subjectOf(acct),
+		"aud":       issuer,
+		"client_id": clientID,
+		"exp":       now.Add(AccessTokenTTL).Unix(),
+		"iat":       now.Unix(),
+		"jti":       jti,
+		"scope":     strings.Join(scope, " "),
+	}
+	accessToken, err := p.signJWT(ctx, atClaims, "at+jwt")
+	if err != nil {
+		return "", "", err
+	}
+
+	idClaims := idTokenClaims(acct, idTokenInput{
+		Issuer:      issuer,
+		Audience:    clientID,
+		Nonce:       nonce,
+		ACR:         acr,
+		SID:         sid,
+		AMR:         amr,
+		AccessToken: accessToken,
+		Scope:       scope,
+		IssuedAt:    now,
+		Expiry:      now.Add(IDTokenTTL),
+		AuthTime:    authTime,
+	})
+	idToken, err := p.signJWT(ctx, idClaims, "JWT")
+	if err != nil {
+		return "", "", err
+	}
+	return accessToken, idToken, nil
 }
 
 // auditTokenEvent records a token-endpoint audit event (best-effort) under the

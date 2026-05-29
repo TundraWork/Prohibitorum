@@ -410,22 +410,6 @@ func TestTokenUnsupportedGrantType(t *testing.T) {
 	}
 }
 
-func TestTokenRefreshGrantPlaceholder(t *testing.T) {
-	h := newTokenHarness(t)
-	v := url.Values{}
-	v.Set("grant_type", "refresh_token")
-	v.Set("refresh_token", "anything")
-	rec := httptest.NewRecorder()
-	h.p.HandleToken(rec, tokenReq(v))
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
-	if got := decodeError(t, rec); got != errCodeUnsupportedGrantType {
-		t.Fatalf("want %s, got %s", errCodeUnsupportedGrantType, got)
-	}
-}
-
 func TestTokenBadClientSecret(t *testing.T) {
 	h := newTokenHarness(t)
 	code := h.mintTestCode(t, baseAuthCode())
