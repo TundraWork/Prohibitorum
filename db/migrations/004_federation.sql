@@ -22,7 +22,11 @@ CREATE TABLE upstream_idp (
 CREATE TABLE account_identity (
   id              bigserial PRIMARY KEY,
   account_id      int NOT NULL REFERENCES account(id) ON DELETE CASCADE,
-  upstream_idp_id bigint NOT NULL REFERENCES upstream_idp(id) ON DELETE CASCADE,
+  -- ON DELETE RESTRICT: deleting an upstream_idp with bound identities
+  -- must fail loudly. CASCADE would silently strip a user's only sign-in
+  -- method if their account had no other factor — admin must unlink
+  -- (or migrate) every user before removing the IdP. Audit finding H2-di.
+  upstream_idp_id bigint NOT NULL REFERENCES upstream_idp(id) ON DELETE RESTRICT,
   upstream_iss    text NOT NULL,
   upstream_sub    text NOT NULL,
   upstream_email  text,
