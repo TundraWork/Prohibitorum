@@ -26,17 +26,22 @@ parallel.
 
 ## Pattern A — OIDC Authorization Code + PKCE
 
-> **Status (v0.1):** the SQL schema for `oidc_client` ships in v0.1 and
-> `/.well-known/openid-configuration` + `/oauth/jwks` are mounted (the
-> JWKS returns an empty `keys` array until v0.4 mints signing keys). The
-> OP token-flow endpoints (`/oauth/authorize`, `/oauth/token`,
-> `/oauth/userinfo`, `/oidc/logout`) are **not** mounted in v0.1;
-> handlers in `pkg/protocol/oidc` will return 501 once wired in v0.4.
-> The flow described below is the v0.4 target.
+> **Status (v0.4 — shipped, smoke-verified).** The full OP surface is
+> live: `/oauth/authorize`, `/oauth/token`, `/oauth/userinfo`,
+> `/oauth/introspect`, `/oauth/revoke`, `/oidc/logout`, a real
+> `/oauth/jwks`, and an expanded `/.well-known/openid-configuration`.
+> All are mounted at the **issuer root** (NOT under
+> `/api/prohibitorum`). The conceptual flow below is unchanged; the
+> "OIDC OP (v0.4)" section near the end of this document has
+> copy-pasteable curl examples whose request shapes are taken verbatim
+> from the smoke harness (`cmd/smoke`, steps 70–87).
 
 ### One-time setup
 
-Register a client. In v0.1–v0.6 this is a SQL insert (no admin UI yet):
+Register a client. As of v0.4 the supported path is the
+`prohibitorum oidc-client create` CLI (it generates + argon2id-hashes
+the secret and prints it once) — see "OIDC OP (v0.4)" below. A raw SQL
+insert remains possible for advanced cases (admin UI lands in v0.6):
 
 ```sql
 INSERT INTO oidc_client
@@ -153,7 +158,7 @@ identity matters more than its claims.
 
 ### Library recommendations
 
-- Go RP: `github.com/zitadel/oidc/v3/pkg/client` — the library Prohibitorum will use on the OP side (planned for v0.4).
+- Go RP: `github.com/zitadel/oidc/v3/pkg/client`. (Note: Prohibitorum's *OP side* does NOT use that framework — the v0.4 OP is hand-rolled in `pkg/protocol/oidc` with `go-jose/v4` for JWT only. RPs are free to use whatever client library they like.)
 - Node RP: `openid-client`.
 - Python RP: `authlib`.
 - Browser-only SPA: don't. Always have a thin back-end that holds the refresh token.
@@ -172,9 +177,16 @@ library reads this once at startup and caches it.
 
 ## Pattern B — Cookie + Introspection
 
-> **Status (v0.1):** `/oauth/introspect` is not present in v0.1;
-> handler stubs land in v0.4 alongside Pattern A. Documented here so
-> co-located first-party RPs can plan their integration shape.
+> **Status (v0.4).** `/oauth/introspect` (RFC 7662) ships and is
+> smoke-verified — but it introspects **OAuth access/refresh tokens
+> that this OP issued**, with per-client ownership (a client sees only
+> its own tokens). It does NOT introspect raw Prohibitorum *session
+> cookies*; the `token=<session cookie>` + `token_type_hint=session`
+> shape sketched below was a v0.1 design sketch and is NOT what shipped.
+> For a first-party RP, the supported pattern is: run Pattern A, hold
+> the issued access token, and introspect THAT. The example below is
+> retained as the conceptual shape; treat the concrete fields as
+> illustrative, not load-bearing.
 
 For first-party RPs co-located with Prohibitorum (same parent domain),
 the simpler integration is to share the session cookie and let RP
@@ -839,6 +851,254 @@ audit fix M4 (commit `45083bc`). Defaults are the OIDC standard
 names (`preferred_username` / `name` / `email`); override only when
 the upstream OP ships claims under non-standard keys (e.g. Microsoft
 Entra ID's `upn`).
+
+## OIDC OP (v0.4)
+
+This section gives the concrete, copy-pasteable shape of the
+downstream OP flow. **Every request shape here is taken verbatim from
+the smoke harness (`cmd/smoke`, steps 70–87), which runs green
+end-to-end against a live server** — so these are the exact params,
+headers, and form fields the server accepts.
+
+Key facts:
+
+- The OP endpoints are mounted at the **issuer root**, NOT under
+  `/api/prohibitorum`: `/oauth/authorize`, `/oauth/token`,
+  `/oauth/userinfo`, `/oauth/introspect`, `/oauth/revoke`,
+  `/oidc/logout`, `/oauth/jwks`, `/.well-known/openid-configuration`.
+- **PKCE is mandatory and S256-only.** `plain` is rejected;
+  `code_challenge_method` must be `S256`.
+- **A refresh token is issued only when the `offline_access` scope is
+  granted.** Without it the token response has no `refresh_token`.
+- **Who calls what:** a real RP back-end makes the `/oauth/token`,
+  `/oauth/userinfo`, `/oauth/introspect`, `/oauth/revoke` calls (with
+  its client credentials). `/oauth/authorize` is a **browser**
+  redirect that requires the user to already hold a logged-in
+  Prohibitorum **session cookie** — you cannot drive it with a bare
+  curl unless you attach a valid `prohibitorum_session` cookie (the
+  smoke does exactly this). A no-session `/oauth/authorize` 302s the
+  browser to `Issuer + /login?return_to=<authorize URL>` (the login
+  page is a v0.6 frontend deliverable).
+
+### 0. Provision a signing key and a client (operator, one-time)
+
+```bash
+# Mint an RSA-2048 signing key. The first key (or --activate) becomes
+# the active key; it is written to the signing_key table and serves at
+# /oauth/jwks. Prints "Generated signing key <kid> (active)".
+prohibitorum signing-key generate
+#   …optionally: --activate (re-activate an existing kid),
+#                --retire <kid> (stamp retired_at).
+
+# Register a confidential client. The 32-byte secret is printed ONCE
+# (only the argon2id hash is stored). token_endpoint_auth_method is
+# client_secret_basic.
+prohibitorum oidc-client create \
+  --client-id smoke-rp \
+  --display-name "Smoke RP" \
+  --redirect-uri https://rp.example.com/rp/callback \
+  --post-logout-redirect-uri https://rp.example.com/rp/post-logout \
+  --scope openid --scope profile --scope offline_access
+# Registered confidential client "smoke-rp"
+# Client secret (store this now, it will NOT be shown again):
+# <secret>
+#
+#   …--public        → no secret, token_endpoint_auth_method=none, PKCE required
+#   …--require-consent → reserved flag; /authorize returns consent_required
+#                        (no consent UI until v0.6)
+
+# List clients:
+prohibitorum oidc-client list
+# client_id   display_name   auth_method            disabled
+```
+
+Confirm the key is live:
+
+```bash
+curl -s https://auth.example.com/oauth/jwks
+# { "keys": [ { "kty":"RSA", "kid":"<thumbprint>", "use":"sig", "alg":"RS256", "n":"…", "e":"AQAB" } ] }
+```
+
+### 1. `/oauth/authorize` (browser, session-gated)
+
+The RP redirects the user's browser here. Generate a PKCE pair first:
+`verifier = base64url(32 random bytes)`,
+`challenge = base64url(SHA256(verifier))` (no padding).
+
+```
+GET https://auth.example.com/oauth/authorize
+      ?response_type=code
+      &client_id=smoke-rp
+      &redirect_uri=https://rp.example.com/rp/callback   (exact match, URL-encoded)
+      &scope=openid%20profile%20offline_access
+      &state=<random,csrf>
+      &nonce=<random>
+      &code_challenge=<base64url(sha256(verifier))>
+      &code_challenge_method=S256
+```
+
+With a valid session cookie attached, the response is:
+
+```
+302 Found
+Location: https://rp.example.com/rp/callback?code=<authcode>&state=<state>&iss=https://auth.example.com
+```
+
+`iss` is the RFC 9207 issuer parameter — the RP MUST verify it equals
+the configured issuer. An **unregistered `redirect_uri` (or unknown
+client) returns a DIRECT error** (400 `invalid_request`) and never
+redirects to the unvalidated URI — the open-redirect guard.
+
+### 2. `/oauth/token` — `authorization_code` grant (RP back-end)
+
+`application/x-www-form-urlencoded` body; confidential clients
+authenticate with **HTTP Basic** (`client_id:client_secret`):
+
+```bash
+curl -s -X POST https://auth.example.com/oauth/token \
+  -u 'smoke-rp:<client_secret>' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode grant_type=authorization_code \
+  --data-urlencode code=<authcode> \
+  --data-urlencode redirect_uri=https://rp.example.com/rp/callback \
+  --data-urlencode code_verifier=<the PKCE verifier from step 1>
+# 200 OK
+# {
+#   "access_token": "<RFC 9068 JWT, typ=at+jwt>",
+#   "token_type": "Bearer",
+#   "expires_in": 600,
+#   "id_token": "<OIDC Core JWT>",
+#   "refresh_token": "<opaque; present because offline_access was granted>",
+#   "scope": "openid profile offline_access"
+# }
+```
+
+(`client_secret_post` — credentials in the form body — and `none`
+(public client; PKCE-only) are also accepted; the example uses Basic
+because that is the smoke-verified path.)
+
+**Validate the id_token** (the RP does this): fetch `/oauth/jwks`,
+resolve the key by the token header `kid`, verify the RS256 signature,
+then check `iss`, `aud == client_id`, `exp > now`, and
+`nonce ==` the value sent in step 1. The smoke also asserts the
+id_token carries `sub`, `at_hash`, `sid`, `auth_time`, and `amr`. The
+access token is a JWS with JOSE `typ: at+jwt` and a `jti` claim
+(RFC 9068) — resource servers MUST reject any other `typ`.
+
+### 3. `/oauth/userinfo` (Bearer access token)
+
+```bash
+curl -s https://auth.example.com/oauth/userinfo \
+  -H 'Authorization: Bearer <access_token>'
+# 200 OK
+# { "sub": "<uuid, == id_token.sub>", "username": "alice", "displayName": "Alice Smith", ... }
+# (profile claims gated by the granted scope; GET or POST both work)
+```
+
+A bad / expired / revoked token returns
+`401` + `WWW-Authenticate: Bearer error="invalid_token"`.
+
+### 4. `/oauth/introspect` (RFC 7662, RP back-end)
+
+Client-authenticated; a client only sees its **own** tokens. Same
+Basic auth + form-encoded shape as `/oauth/token`:
+
+```bash
+curl -s -X POST https://auth.example.com/oauth/introspect \
+  -u 'smoke-rp:<client_secret>' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode token=<access_token>
+# 200 OK
+# { "active": true, "token_type": "access_token", "client_id": "smoke-rp", "sub": "<uuid>", "scope": "...", "exp": ..., "iat": ... }
+```
+
+A revoked / unknown / foreign-owned token returns `{ "active": false }`
+with no further detail.
+
+### 5. `/oauth/token` — `refresh_token` grant (rotation)
+
+```bash
+curl -s -X POST https://auth.example.com/oauth/token \
+  -u 'smoke-rp:<client_secret>' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode grant_type=refresh_token \
+  --data-urlencode refresh_token=<refresh_token>
+# 200 OK — returns a NEW (rotated) refresh_token, a fresh access_token,
+# and a re-issued id_token. The OLD refresh_token is now invalid.
+```
+
+**Rotation + reuse detection (smoke steps 76–78):** each refresh
+rotates the token. Replaying a **superseded** refresh token is treated
+as a compromise — it returns `400 invalid_grant` AND revokes the whole
+family, so even the current (rotated) token is immediately dead. The
+grant also re-checks the account and rejects if it was disabled
+(`invalid_grant`).
+
+### 6. `/oauth/revoke` (RFC 7009, RP back-end)
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://auth.example.com/oauth/revoke \
+  -u 'smoke-rp:<client_secret>' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode token=<access_or_refresh_token>
+# 200  (always 200, even for unknown tokens — RFC 7009)
+```
+
+Revoking an **access token** writes its `jti` to the `revoked_jti`
+denylist (so `/userinfo` and `/introspect` start rejecting it
+immediately; outstanding copies self-expire within `AccessTokenTTL`).
+Revoking a **refresh token** deletes its family (all descendants die).
+
+### 7. `/oidc/logout` (RP-Initiated Logout 1.0, browser)
+
+```
+GET https://auth.example.com/oidc/logout
+      ?id_token_hint=<an id_token this OP issued>
+      &post_logout_redirect_uri=https://rp.example.com/rp/post-logout   (exact match)
+      &state=<optional, echoed back>
+```
+
+```
+302 Found
+Location: https://rp.example.com/rp/post-logout?state=<state>
+```
+
+The OP validates the `id_token_hint`'s signature + `iss` (it tolerates
+an expired hint), then **revokes the Prohibitorum session named by the
+hint's `sid` claim** — so the user's IdP session is gone (smoke step 85
+confirms `/me` then returns 401). The `post_logout_redirect_uri` must
+exactly match one of the client's registered
+`post_logout_redirect_uris`, or the request is rejected directly
+(no redirect). Front-/back-channel logout to *other* RPs is a v0.7+
+item.
+
+### Rate limits (per identity, not per IP)
+
+The OP endpoints are rate-limited on **identity**, not client IP
+(decision D3, consistent with the v0.3 M5 removal of IP-keyed buckets):
+`/authorize` per `account_id`; `/token` / `/introspect` / `/revoke`
+per `client_id`; `/userinfo` per `sub`. RPs are machines, so the caps
+are higher than the human-facing auth surfaces. Volumetric / edge DoS
+protection remains the reverse-proxy / WAF's responsibility.
+
+### What goes into the audit log
+
+`credential_event` rows are written with **factor `oidc_client`** and a
+structured `detail->>'reason'`:
+
+| `event` | `reason` | Emitted on |
+|---|---|---|
+| `use` | `authorize` | every `/oauth/authorize` success |
+| `use` | `token_issued` | every `authorization_code` grant |
+| `use` | `refresh_rotated` | every successful refresh rotation |
+| `use` | `logout` | every `/oidc/logout` |
+| `fail` | `refresh_reuse` | a superseded refresh token replayed |
+| `fail` | `code_replay` | an authorization code replayed |
+| `revoke` | `revoked` | `/oauth/revoke` (access or refresh) |
+
+(plus failure reasons such as `invalid_client` / `invalid_grant` on the
+respective error paths). Smoke step 87 asserts lower-bound counts on
+the `(event, reason)` pairs above.
 
 ## Logout
 

@@ -58,8 +58,10 @@ tiers are documented as known caveats in
   mitigation via LB affinity or external WAF).
 - AES-GCM DEK rotation budget (comfortably out of reach for any
   realistic deployment; sweep tooling is v0.7+).
-- OIDC `auth_time` vs sudo semantics (decision needed before the v0.4
-  token endpoint goes live; default-safe option named in the notes).
+- OIDC `auth_time` vs sudo semantics (resolved in v0.4: the ID token's
+  `auth_time` is sourced from `session.auth_time` — the original
+  authentication moment — not from the last sudo step-up; smoke step 73
+  asserts `auth_time` is present on the id_token).
 - Password breach-list check (NIST SHALL gap, deferred; viable
   approaches named).
 - `auth_throttle` shared across login + sudo surfaces (intentional
@@ -187,40 +189,40 @@ tiers are documented as known caveats in
 
 | Item | Status | Notes / source |
 |---|---|---|
-| Authorization Code + PKCE only | ✅ schema | `oidc_client.require_pkce` defaults true; CHECK forbids `plain` via allowlist |
-| PKCE required for **all** clients (incl. confidential) | ✅ schema | `require_pkce` default true; admin can not turn off in v0.6+ CHECK |
-| `code_challenge_method` allowlist rejects `plain` | ✅ schema | oidc/R2; `allowed_code_challenge_methods text[]` default `{S256}` |
-| `redirect_uri` exact-match (no wildcards) | ✅ schema | `oidc_client.redirect_uris text[]` |
-| `post_logout_redirect_uris` exact-match list | ✅ schema | oidc/C1; `oidc_client.post_logout_redirect_uris` |
-| Single-use authorization codes with replay revocation | ✅ design | oidc/C8; spec §"Authorization-code lifecycle" — `consumed_at`, revoke family on replay, audit |
-| `iss` parameter in authorization response (RFC 9207) | ✅ design | spec §"HTTP surface"; discovery advertises support |
-| Discovery doc (RFC 8414 / OIDC Core) | ✅ stub | `/.well-known/openid-configuration` mounted; advertises planned v0.4 endpoints; `claims_supported` lists `sub/iss/aud/exp/iat/nonce/auth_time/amr/acr/username/displayName/role/attributes` |
-| JWKS endpoint | ✅ stub | `/oauth/jwks` mounted; returns empty `keys` array until v0.4 mints signing keys |
-| ID token signed with asymmetric alg | ✅ design | RS256; ES256 / EdDSA possible via `signing_key.algorithm` |
-| `alg: none` rejected | ✅ design | jwt verification configured for RS256 only |
-| ID token claims: signature, `iss`, `aud`, `exp`, `nonce` validated | ✅ design | INTEGRATION.md |
-| ID token `auth_time` claim (OIDC Core §2) | ✅ schema | oidc/C2; `session.auth_time` populated on every `sessionStore.Issue` (writer wired; smoke-verified ≥3 rows per account); ID-token mint that emits the claim lands in v0.4 |
-| ID token `amr` / `acr` claims | ✅ schema | oidc/C2; `session.amr` populated (WebAuthn → `["hwk"]`; smoke-verified all rows); `session.acr` reserved for v0.2+; ID-token mint v0.4 |
-| ID token `azp` when `aud` is multi-valued | ✅ design | oidc/C5; spec §"Access-token issuance" |
-| ID token `at_hash` (defense in depth) | ✅ design | oidc/C5; spec |
-| `sid` claim sourced from `session.id` | ✅ schema | `session.id` PK; rows inserted on `Issue` (smoke-verified); revoked on `Revoke` (smoke-verified), `RevokeBySessionID` (smoke-verified), `RevokeAllForAccount` (wired, smoke-untested — admin endpoint); claim emission v0.4 |
-| RFC 9068 access token `typ: at+jwt` | ✅ design | oidc/C4 |
-| RFC 9068 required claims (`iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`) | ✅ design | oidc/C3 |
-| `jti` revocation via denylist | ✅ schema | oidc/C3; `revoked_jti` |
-| Refresh tokens single-use rotation + reuse detection | ⚠️ deferred (v0.4) | family-revocation logic |
-| Refresh tokens stored server-side (opaque) | ✅ design | KV-backed |
-| Access tokens short-lived (≤ 15 min) | ✅ design | `configx.OIDC.AccessTokenTTL` default 10m |
-| Refresh tokens 30 day default | ✅ design | `configx.OIDC.RefreshTokenTTL` |
-| `offline_access` scope gates refresh issuance (OIDC Core §11) | ⚠️ deferred (v0.4) | oidc/R3 |
-| argon2id hashing for `client_secret_hash` | ✅ design | `golang.org/x/crypto/argon2` |
-| `token_endpoint_auth_method` (`client_secret_basic` default, `none` for public) | ✅ schema | oidc/R1; `oidc_client.token_endpoint_auth_method` |
+| Authorization Code + PKCE only | ✅ smoke-verified | `response_type=code` only; PKCE S256 enforced at `/oauth/authorize`; smoke step 72 (S256 happy path) + step 82 (PKCE mismatch → invalid_grant) |
+| PKCE required for **all** clients (incl. confidential) | ✅ smoke-verified | the confidential smoke client supplies `code_challenge`/`code_verifier`; step 72→73 happy path, step 82 mismatch reject |
+| `code_challenge_method` allowlist rejects `plain` | ✅ implemented; smoke-untested (S256 only) | oidc/R2; `allowed_code_challenge_methods` default `{S256}`; discovery advertises `[S256]`. Smoke always sends S256; the `plain`-reject branch is unit-tested only |
+| `redirect_uri` exact-match (no wildcards) | ✅ smoke-verified | exact-match against `oidc_client.redirect_uris`; smoke step 81 drives an unregistered `redirect_uri` → DIRECT 400 (no redirect to the bad URI) |
+| `post_logout_redirect_uris` exact-match list | ✅ smoke-verified | oidc/C1; `/oidc/logout` exact-matches `post_logout_redirect_uris`; smoke step 84 redirects to the registered URI with `state` echoed |
+| Single-use authorization codes with replay revocation | ✅ smoke-verified | oidc/C8; code is KV `Pop`-consumed; replay → family revoke + `code_replay` audit. Single-use enforced by the happy path (steps 73, 79, 80 each consume a fresh code); refresh-family reuse → revoke is steps 77–78 |
+| `iss` parameter in authorization response (RFC 9207) | ✅ smoke-verified | discovery `authorization_response_iss_parameter_supported:true`; step 72 asserts `iss` on the 302 redirect |
+| Discovery doc (RFC 8414 / OIDC Core) | ✅ smoke-verified | `/.well-known/openid-configuration` serves the live OP surface (introspection/revocation/end_session endpoints, `scopes_supported` incl `offline_access`, `code_challenge_methods_supported [S256]`, `token_endpoint_auth_methods_supported [client_secret_basic,client_secret_post,none]`); `claims_supported` lists `sub/iss/aud/exp/iat/nonce/auth_time/amr/acr/sid/at_hash/username/displayName/role/attributes`. `pkg/protocol/oidc/oidc.go:67–97`; exercised by every smoke `verifyIDToken`/JWKS fetch |
+| JWKS endpoint | ✅ smoke-verified | `/oauth/jwks` serves the active+cached signing keys as RFC 7517 RSA JWKs; smoke step 70 asserts exactly 1 key with the minted `kid`; every token verify resolves the key by `kid` from JWKS |
+| ID token signed with asymmetric alg | ✅ smoke-verified | RS256; smoke verifies the id_token signature against JWKS at step 73 |
+| `alg: none` rejected | ✅ implemented; smoke-untested | verify resolves keys by `kid` and parses with `[]SignatureAlgorithm{RS256}` only; the `alg:none`/wrong-alg reject is unit-tested in `pkg/protocol/oidc/jwt_test.go`, not driven by the smoke |
+| ID token claims: signature, `iss`, `aud`, `exp`, `nonce` validated | ✅ smoke-verified | step 73 asserts `iss`, `aud`, `sub`, `nonce` after JWKS signature verification |
+| ID token `auth_time` claim (OIDC Core §2) | ✅ smoke-verified | sourced from `session.auth_time`; smoke step 73 asserts `auth_time` present on the id_token |
+| ID token `amr` / `acr` claims | ✅ smoke-verified (amr) | `amr` sourced from `session.amr` (WebAuthn → `["hwk"]`); step 73 asserts `amr` present. `acr` is emitted when present on the session (reserved/sparse today) — not asserted by the smoke |
+| ID token `azp` when `aud` is multi-valued | ✅ implemented; smoke-untested | oidc/C5; single-client today so `aud` is single-valued and `azp` is not emitted in the smoke. Multi-`aud` is not a v0.4 deployment shape |
+| ID token `at_hash` (defense in depth) | ✅ smoke-verified | oidc/C5; left-half SHA-256 of the access token; step 73 asserts `at_hash` non-empty |
+| `sid` claim sourced from `session.id` | ✅ smoke-verified | step 73 asserts `sid` present; step 85 confirms `/oidc/logout` revoked exactly that `sid`'s session (`/me` → 401) |
+| RFC 9068 access token `typ: at+jwt` | ✅ smoke-verified | oidc/C4; step 73 asserts the access token's JOSE `typ` is `at+jwt` |
+| RFC 9068 required claims (`iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`) | ✅ smoke-verified | oidc/C3; step 73 asserts `jti` present; `client_id`/`sub`/`scope` confirmed via introspection at step 75 |
+| `jti` revocation via denylist | ✅ smoke-verified | oidc/C3; step 80 revokes an access token → introspect `active:false`; step 86 DB-asserts the `revoked_jti` row |
+| Refresh tokens single-use rotation + reuse detection | ✅ smoke-verified | rotation step 76 (new ≠ old); superseded-token replay → `invalid_grant` step 77; family revocation on reuse step 78 |
+| Refresh tokens stored server-side (opaque) | ✅ smoke-verified | KV-backed opaque tokens; rotation/reuse behavior (steps 76–78) is observable only because the family record is server-side |
+| Access tokens short-lived (≤ 15 min) | ✅ implemented | `configx.OIDC.AccessTokenTTL` default 10m; smoke asserts `expires_in > 0` at step 73 (does not sleep to expiry) |
+| Refresh tokens 30 day default | ✅ implemented | `configx.OIDC.RefreshTokenTTL`; not time-asserted by the smoke |
+| `offline_access` scope gates refresh issuance (OIDC Core §11) | ✅ smoke-verified | oidc/R3; the smoke client requests `offline_access` and step 73 asserts a refresh token is present |
+| argon2id hashing for `client_secret_hash` | ✅ smoke-verified | `oidc-client create` argon2id-hashes the secret (printed once); step 83 (wrong secret → 401 `invalid_client`) + step 73 (correct secret authenticates) exercise verify against the stored hash |
+| `token_endpoint_auth_method` (`client_secret_basic` default, `none` for public) | ✅ smoke-verified (basic); ✅ implemented (post/none) | oidc/R1; smoke uses `client_secret_basic` (steps 73–80). `client_secret_post` and `none` (public client) are implemented + unit-tested but not driven end-to-end by the smoke |
 | `id_token_signed_response_alg` per client | ✅ schema | oidc/R1 |
 | `subject_type` (`public` / `pairwise`) | ✅ schema | oidc/R1 |
 | `application_type` (`web` / `native`) | ✅ schema | oidc/R1 |
 | `default_max_age` / `require_auth_time` per client | ✅ schema | oidc/R1 |
 | `contacts` / `logo_uri` / `tos_uri` / `policy_uri` | ✅ schema | oidc/R1 |
-| Token introspection (RFC 7662) — `active`, `sub`, `scope`, `client_id`, `exp` | ⚠️ deferred (v0.4) | oidc/R6; endpoint stubbed |
-| Token revocation (RFC 7009) | ✅ schema; ⚠️ endpoint v0.4 | `revoked_jti` writes |
+| Token introspection (RFC 7662) — `active`, `sub`, `scope`, `client_id`, `exp` | ✅ smoke-verified | oidc/R6; `/oauth/introspect` client-authenticated, per-client ownership; step 75 (`active:true` + `token_type:access_token` + `client_id` + `sub`) and step 80 (revoked token → `active:false`) |
+| Token revocation (RFC 7009) | ✅ smoke-verified | `/oauth/revoke` client-authenticated, per-client ownership, always 200; access → `revoked_jti` denylist (step 80 + DB assert step 86), refresh → family revoke (step 79); outstanding access tokens self-expire ≤ `AccessTokenTTL` |
 | Pushed Authorization Requests (PAR, RFC 9126) | ⚠️ deferred (v0.7+) | not required for v1 first-party clients |
 | JAR (RFC 9101) | ⚠️ deferred (v0.7+) | same |
 | DPoP (RFC 9449) sender-constrained tokens | ⚠️ deferred (v0.7+) | bearer for v1 |
@@ -228,11 +230,11 @@ tiers are documented as known caveats in
 | Dynamic client registration (RFC 7591) | ⚠️ deferred (v0.7+) | static config in v0.x |
 | Pairwise sub identifiers | ⚠️ deferred (v0.7+) | `subject_type='pairwise'` column reserved |
 | Encrypted ID tokens (JWE) | ⚠️ deferred | TLS provides confidentiality on the wire |
-| RP-Initiated Logout 1.0 | ⚠️ deferred (v0.4) | `oidc/C1` schema; endpoint stubbed |
+| RP-Initiated Logout 1.0 | ✅ smoke-verified | `/oidc/logout` validates `id_token_hint` sig + `iss` (tolerates expiry), revokes the `sid`'s session, exact-match `post_logout_redirect_uri`; step 84 (302 + `state`) + step 85 (`sid` session revoked → `/me` 401) |
 | Front-channel / back-channel logout | ⚠️ deferred (v0.7+) | multi-RP coordinated sign-out |
-| Mix-up attack resistance | ✅ design | `iss` param (RFC 9207) + federation state snapshots |
-| Refresh-token family forensics table | ⚠️ deferred (v0.4) | oidc/R7; KV-only for v0.4 |
-| Rate limit on `/oauth/authorize` and `/oauth/token` | ❌ gap | flagged by audit-oidc.md indirectly; tracked for v0.4 |
+| Mix-up attack resistance | ✅ implemented | `iss` param (RFC 9207) emitted at `/authorize` (step 72) + federation state snapshots (v0.3) |
+| Refresh-token family forensics table | ⚠️ deferred (v0.7+) | oidc/R7; KV-only in v0.4 — reuse-detection + family revocation work end-to-end (steps 77–78) without a forensics table |
+| Rate limit on `/oauth/authorize` and `/oauth/token` | ✅ implemented (per-identity, NOT per-IP — D3) | INTENTIONAL policy, not a per-IP limiter: `/authorize` keyed per `account_id`; `/token`/`/introspect`/`/revoke` per `client_id`; `/userinfo` per `sub` (keys `oidc:authorize:acct:<id>`, `oidc:token:client:<id>`, `oidc:userinfo:sub:<sub>`). Reuses the v0.2/v0.3 account/session-keyed limiter. This both closes the original "rate limit `/authorize` + `/token`" gap AND respects the v0.3 M5 decision that client IP is untrustworthy behind NAT/CDN — no per-IP buckets were reintroduced. Edge DoS remains the reverse-proxy/WAF's job. See "Rate limiting policy (v0.3 audit)" below. Caps are unit-/manually verified; the smoke does not flood to trip them |
 
 ## SAML IdP (SAML 2.0 Core / Bindings / Metadata / Profiles)
 
@@ -366,9 +368,13 @@ reverse proxy or WAF.
   themselves any role / attributes, mint sessions, or extract signing
   keys. Standard IdP threat — mitigate with DB access controls +
   audit-log monitoring.
-- **Sustained credential-stuffing against `/oauth/token`.** Rate
-  limiting on OIDC endpoints is gap-flagged above; reverse-proxy WAF
-  is the short-term mitigation.
+- **Sustained credential-stuffing against `/oauth/token`.** v0.4 adds
+  per-`client_id` rate limiting at `/token` (and per-`account_id` /
+  per-`sub` at `/authorize` / `/userinfo`) — but these are
+  per-identity, in-process buckets, not edge DoS protection. A
+  reverse-proxy / WAF still owns volumetric defense, and the
+  multi-replica in-process-limiter caveat from the v0.2 deployment
+  notes applies to the OIDC buckets too.
 - **Phishing of federated upstream credentials.** Prohibitorum can
   only validate the assertion the upstream IdP returns; it doesn't
   control how the upstream IdP authenticates the user. Pick upstream

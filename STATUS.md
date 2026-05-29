@@ -182,11 +182,15 @@ checks are below.
   Go integration test (recommended) — see "WebAuthn smoke without a
   frontend" below.
 - Hit `/.well-known/openid-configuration` and `/oauth/jwks`; both are
-  mounted in v0.1. The discovery doc advertises the planned v0.4 OP
-  endpoints; the JWKS endpoint returns an empty `keys` array until v0.4
-  introduces signing keys. `/oauth/authorize`, `/oauth/token`,
-  `/oauth/userinfo`, `/oidc/logout` are NOT mounted in v0.1 — they land
-  in v0.4 with real handler bodies.
+  mounted in v0.1. **(Updated for v0.4 — see the v0.4 section below.)**
+  In the v0.1 skeleton the discovery doc advertised the planned OP
+  endpoints and `/oauth/jwks` returned an empty `keys` array. As of
+  v0.4 all of `/oauth/authorize`, `/oauth/token`, `/oauth/userinfo`,
+  `/oauth/introspect`, `/oauth/revoke`, and `/oidc/logout` are mounted
+  with real handler bodies, `/oauth/jwks` serves the active signing
+  key(s), and the discovery doc reflects the live surface. Do not rely
+  on this v0.1.1 manual-check text for the OP shape — the v0.4 section
+  is authoritative.
 
 ### WebAuthn smoke without a frontend
 
@@ -825,24 +829,215 @@ test coverage:
   `applyInviteOnly` audit block. The smoke step 66/69 assertion
   is the regression gate.
 
-## v0.4 — OIDC OP (downstream)
+## v0.4 — downstream OIDC OP (done)
 
-- `signing-key generate` subcommand: RSA-2048, JWK + self-signed x509
-  + PEM in one shot, written to `signing_key`.
-- `/oauth/authorize`: query-param validation, session check, code
-  mint, redirect with `iss`.
-- `/oauth/token`: `authorization_code` + `refresh_token` grants;
-  refresh rotation with reuse detection; family revocation on code
-  replay.
-- `/oauth/userinfo`: access-token verification, claim projection.
-- `/oauth/introspect`: Pattern B for first-party RPs.
-- `/oidc/logout`: RP-Initiated Logout 1.0 with
-  `post_logout_redirect_uri` exact-match.
-- ID-token claims include `auth_time`, `amr`, `acr`, `azp`, `at_hash`
-  per OIDC Core §2.
-- Access tokens emit RFC 9068 `typ: at+jwt` + `jti`; `revoked_jti`
-  consulted on introspection.
-- Rate limit on `/authorize` and `/token` (audit-flagged ❌ gap from v0.1).
+Shipped Prohibitorum's first-party OpenID Connect Provider surface: the
+full Authorization Code + PKCE flow, RFC 9068 access tokens, OIDC Core
+ID tokens, refresh rotation with reuse-detection + family revocation,
+RFC 7662 introspection, RFC 7009 revocation, and RP-Initiated Logout
+1.0 — plus the `signing-key` and `oidc-client` CLIs that provision keys
+and clients. All handlers are `Provider` methods in `pkg/protocol/oidc`,
+routes mounted root-level (NOT under `/api/prohibitorum`) in
+`pkg/server/server.go:286–294`. Smoke extended from 69 to **87 steps**
+(v0.4 block is steps 70–87), all green end-to-end against live Postgres
++ a fresh dev server + an in-process mock RP in `cmd/smoke`.
+
+### What shipped
+
+- **`pkg/protocol/oidc` Provider surface** — hand-rolled chi-mounted
+  handlers (design D5); `go-jose/v4` for JWT sign/verify only.
+  - **Discovery** (`oidc.go` `HandleDiscovery`): expanded
+    `/.well-known/openid-configuration` — `scopes_supported`
+    `[openid, profile, offline_access]`; `introspection_endpoint`,
+    `revocation_endpoint`, `end_session_endpoint`;
+    `code_challenge_methods_supported [S256]`;
+    `authorization_response_iss_parameter_supported: true`;
+    `token_endpoint_auth_methods_supported`
+    `[client_secret_basic, client_secret_post, none]`;
+    `claims_supported` `[sub, iss, aud, exp, iat, nonce, auth_time,
+    amr, acr, sid, at_hash, username, displayName, role, attributes]`;
+    `id_token_signing_alg_values_supported [RS256]`;
+    `Cache-Control: public, max-age=300`.
+  - **JWKS** (`keys.go` + `HandleJWKS`): real key set from the active +
+    cached `signing_key` rows (RFC 7517 RSA JWK, RS256), replacing the
+    v0.1 empty-array stub.
+  - **`/oauth/authorize`** (`authorize.go`): Authorization Code + PKCE
+    (S256-only); `redirect_uri` exact-match with an open-redirect guard
+    (invalid client / unregistered `redirect_uri` → direct error page,
+    never a redirect to the unvalidated URI); session-gated via the
+    existing middleware; 302 back to `redirect_uri?code=…&state=…&iss=…`
+    (RFC 9207).
+  - **`/oauth/token`** (`token.go` + `refresh.go`):
+    `authorization_code` grant (client auth basic/post/none, PKCE
+    verify, single-use code via KV `Pop`; replay → family revoke) and
+    `refresh_token` grant (rotation + reuse-detection → family revoke +
+    disabled-account re-check). Access token = RFC 9068 JWT
+    (`typ:at+jwt`, `jti`, `iss/aud/sub/client_id/exp/iat/scope`);
+    ID token = OIDC Core JWT with `at_hash`, `sid`, `auth_time`, `amr`;
+    refresh token issued only when `offline_access` is granted.
+  - **`/oauth/userinfo`** (`userinfo.go`, GET + POST): Bearer
+    access-token verify (signature by `kid` + `iss` + `exp` +
+    `typ:at+jwt` + `revoked_jti` denylist), scope-gated claim
+    projection; 401 + `WWW-Authenticate: Bearer error="invalid_token"`
+    on failure.
+  - **`/oauth/introspect`** (`introspect.go`, RFC 7662):
+    client-authenticated, per-client ownership (a client sees only its
+    own tokens); `{active:false}` with no detail leak otherwise.
+  - **`/oauth/revoke`** (`revoke.go`, RFC 7009): client-authenticated,
+    per-client ownership; access token → `revoked_jti` PG denylist
+    (self-pruning, TTL = token exp), refresh token → family revoke;
+    always 200.
+  - **`/oidc/logout`** (`logout.go`, RP-Initiated Logout 1.0):
+    validates `id_token_hint` signature + `iss` (tolerates expiry),
+    revokes the session named by the hint's `sid` (SSO sign-out),
+    exact-match `post_logout_redirect_uri` (mismatch → direct error),
+    302 with `state`.
+- **CLIs (`cmd/prohibitorum`):**
+  - `signing-key generate [--activate] [--retire <kid>]` — mints an
+    RSA-2048 signing key (RFC 7638 thumbprint `kid`, JWK, self-signed
+    x509, PKCS#8 PEM) into one `signing_key` row; first key / `--activate`
+    becomes the active key (deactivating the prior active in one tx);
+    `--retire <kid>` stamps `retired_at`.
+  - `oidc-client create --client-id --display-name --redirect-uri(repeatable)
+    [--post-logout-redirect-uri] [--scope] [--public] [--require-consent]`
+    — registers a client; confidential (default) generates a 32-byte
+    secret printed ONCE (only the argon2id hash is stored;
+    `client_secret_basic`); `--public` → no secret, `none` auth, PKCE
+    required. `oidc-client list` — lists client_id / display_name /
+    auth_method / disabled.
+- **Storage model (D8):** authorization codes + refresh tokens live in
+  KV (codes single-use via `Pop` + a replay used-marker; refresh tokens
+  opaque, rotated, with a per-family record for reuse detection and
+  family revocation); access tokens are stateless RFC 9068 JWTs revoked
+  via the `revoked_jti` PG denylist; ID tokens are stateless JWTs.
+  `sub` = `account.oidc_subject` (uuid; D6). No new tables — the
+  refresh-family forensics table stays deferred.
+
+### Endpoints introduced in v0.4
+
+All routes are root-mounted (not under the `/api/prohibitorum` prefix
+the v0.2/v0.3 surfaces use), because OIDC clients expect them at the
+issuer root.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/.well-known/openid-configuration` | expanded discovery doc (was a v0.1 stub) |
+| GET | `/oauth/jwks` | real RSA JWK set from active+cached signing keys (was empty in v0.1) |
+| GET | `/oauth/authorize` | Authorization Code + PKCE (S256); session-gated; 302 with `code`+`state`+`iss` |
+| POST | `/oauth/token` | `authorization_code` + `refresh_token` grants; client auth basic/post/none |
+| GET / POST | `/oauth/userinfo` | Bearer access-token verify; scope-gated claims |
+| POST | `/oauth/introspect` | RFC 7662; client-authenticated; per-client ownership |
+| POST | `/oauth/revoke` | RFC 7009; client-authenticated; per-client ownership; always 200 |
+| GET | `/oidc/logout` | RP-Initiated Logout 1.0; `id_token_hint` + exact-match `post_logout_redirect_uri` |
+
+### Smoke-covered runtime paths
+
+`cmd/smoke` extends to **87 steps**; the v0.4 block is steps 70–87
+against a real Postgres + dev server + an in-process mock RP. Each
+entry references the smoke step counter in `cmd/smoke/main.go`:
+
+- **70** — `signing-key generate` then `GET /oauth/jwks` returns
+  **exactly 1 key** whose `kid` matches the minted key.
+- **71** — `oidc-client create` (confidential; scopes
+  `openid+profile+offline_access`) returns a non-empty one-time secret.
+- **72** — `GET /oauth/authorize` with PKCE S256 + a live WebAuthn
+  session → 302 to `redirect_uri` carrying `code`+`state`+`iss`.
+- **73** — `POST /oauth/token` `authorization_code` (HTTP Basic client
+  auth + PKCE `code_verifier`) → `token_type:Bearer`, `expires_in>0`,
+  access + id + refresh tokens. The id_token is verified against JWKS
+  (`iss`, `aud`, `sub`, `nonce`, `at_hash`, `sid`, `auth_time`, `amr`);
+  the access token verifies with JOSE `typ:at+jwt` and a `jti`; the
+  refresh token is present (because `offline_access` was granted).
+- **74** — `GET /oauth/userinfo` (Bearer): `sub` matches the id_token,
+  `username` matches the smoke account, `displayName` present (profile
+  scope).
+- **75** — `POST /oauth/introspect` (Basic) on the access token →
+  `active:true`, `token_type:access_token`, `client_id`, `sub` match.
+- **76** — `POST /oauth/token` `refresh_token` → rotated refresh token
+  (new ≠ old) + a re-issued id_token that re-verifies against JWKS.
+- **77** — replay the OLD (superseded) refresh token → 400
+  `invalid_grant` (reuse detection).
+- **78** — the reuse at step 77 revoked the whole family: the current
+  (rotated) refresh token is now ALSO dead → 400 `invalid_grant`.
+- **79** — fresh authorize+token → `POST /oauth/revoke` the refresh
+  token (200) → a subsequent refresh → 400 `invalid_grant`.
+- **80** — fresh authorize+token → `POST /oauth/revoke` the access
+  token → introspect now shows `active:false`; a `revoked_jti` row is
+  written.
+- **81** — negative: unregistered `redirect_uri` at `/oauth/authorize`
+  → direct 400 `invalid_request`, with NO `Location` to the bad URI
+  (open-redirect guard).
+- **82** — negative: wrong PKCE `code_verifier` at `/oauth/token` →
+  400 `invalid_grant`.
+- **83** — negative: wrong client secret at `/oauth/token` → 401
+  `invalid_client`.
+- **84** — `GET /oidc/logout` with `id_token_hint` +
+  `post_logout_redirect_uri` + `state` → 302 to the post-logout URI
+  with `state` echoed.
+- **85** — the logout revoked the session named by the id_token's
+  `sid`: the client's `/me` now returns 401.
+- **86** — DB assert: a `revoked_jti` row exists for the access token
+  revoked at step 80.
+- **87** — DB assert: `credential_event` (factor `oidc_client`) covers
+  the lifecycle — `use:authorize ≥5`, `use:token_issued ≥3`,
+  `use:refresh_rotated ≥1`, `use:logout ≥1`, `fail:refresh_reuse ≥1`,
+  `revoke:revoked ≥2`.
+
+### Smoke-untested runtime paths (acknowledged)
+
+The following v0.4-touched paths are wired and unit-tested (per-file
+`*_test.go` in `pkg/protocol/oidc`) but not exercised end-to-end by
+`cmd/smoke`. The smoke always authenticates the test account first and
+drives a single confidential client over HTTP Basic, so these branches
+do not fire:
+
+- **No-session `/oauth/authorize` → 302 to `Issuer+/login?return_to=…`**
+  (D7). The smoke holds a live WebAuthn session before hitting
+  `/authorize`, so the redirect-to-login branch is unit-tested only.
+- **`prompt=none` + no session → `login_required`** (no redirect).
+  Unit-tested only.
+- **`require_consent=true` → `consent_required`** (D2). The
+  `oidc_client.require_consent` column ships and is honored at
+  `/authorize`, but auto-approve is the default policy and there is no
+  consent UI until a later version. The smoke's client leaves
+  `require_consent` at its default `false`.
+- **JWKS with multiple keys / signing-key rotation + `--retire`**, and
+  the `signing-key generate --activate` re-activation path. The smoke
+  mints exactly one key and never rotates.
+- **Public client (`none` auth method) full code flow**, and
+  `client_secret_post` auth at the token endpoint. The smoke uses a
+  confidential client with HTTP Basic (`client_secret_basic`) — that is
+  the only auth method exercised end-to-end.
+- **`oidc-client list`.** The CLI exists and is unit-/manually testable
+  but the smoke only calls `create`.
+
+### Notes
+
+- **D2 — Consent.** Auto-approve once a valid session exists;
+  `require_consent` is a reserved flag honored at `/authorize`
+  (returns `consent_required`) with no consent UI until the v0.6
+  frontend.
+- **D3 — Rate limits keyed on identity, NOT IP.** `/authorize` per
+  `account_id`; `/token`, `/introspect`, `/revoke` per `client_id`;
+  `/userinfo` per `sub` (keys like `oidc:token:client:<id>`,
+  `oidc:authorize:acct:<id>`, `oidc:userinfo:sub:<sub>`). This both
+  satisfies the long-standing "rate limit `/authorize` + `/token`"
+  goal AND respects the v0.3 M5 decision that client IP is
+  untrustworthy behind NAT/CDN — no per-IP buckets were reintroduced.
+- **D5 — Hand-rolled handlers** in `pkg/protocol/oidc`; `go-jose/v4`
+  used for JWT only. The `zitadel/oidc/v3 pkg/op` framework is NOT
+  adopted (it would invert control over the bespoke session/sudo/audit
+  model).
+- **D6 — `sub` = `account.oidc_subject`** (uuid, DB-side
+  `gen_random_uuid()` default; no account-creation path changed).
+  Pairwise `sub` salting stays deferred to v0.7+.
+- **D8 — Storage split.** Codes + refresh tokens in KV; access + ID
+  tokens stateless JWTs; access-token revocation via the `revoked_jti`
+  PG denylist. The refresh-family forensics table is deferred (KV-only
+  for v0.4).
+- **Audit factor is `oidc_client`** (not `oidc`): the v0.4 spec drafted
+  `oidc`, but the shipped handlers and the smoke step-87 assertion use
+  `oidc_client` — that is the value to query in `credential_event`.
 
 ## v0.5 — SAML IdP
 
