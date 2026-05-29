@@ -22,6 +22,11 @@ const (
 	errCodeServerError             = "server_error"
 	errCodeLoginRequired           = "login_required"
 	errCodeConsentRequired         = "consent_required"
+	// errCodeInvalidToken is the RFC 6750 §3.1 bearer-token error code used by
+	// the /userinfo endpoint when the presented access token is missing,
+	// malformed, expired, or otherwise unverifiable. It is distinct from the
+	// RFC 6749 token-endpoint set above.
+	errCodeInvalidToken = "invalid_token"
 )
 
 // writeOIDCError renders an RFC 6749 §5.2 error response as JSON. Used for

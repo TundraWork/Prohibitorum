@@ -188,7 +188,7 @@ func TestTokenHappyPath(t *testing.T) {
 	}
 
 	// ID token verifies and carries the expected claims.
-	idClaims, err := h.p.verifyJWT(ctx, resp.IDToken)
+	idClaims, _, err := h.p.verifyJWT(ctx, resp.IDToken)
 	if err != nil {
 		t.Fatalf("verify id token: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestTokenHappyPath(t *testing.T) {
 	}
 
 	// Access token verifies and carries jti + client_id.
-	atClaims, err := h.p.verifyJWT(ctx, resp.AccessToken)
+	atClaims, _, err := h.p.verifyJWT(ctx, resp.AccessToken)
 	if err != nil {
 		t.Fatalf("verify access token: %v", err)
 	}

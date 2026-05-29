@@ -332,10 +332,10 @@ func TestTokenRefreshRotateHappy(t *testing.T) {
 	}
 
 	// Access + ID tokens verify.
-	if _, err := h.p.verifyJWT(ctx, resp.AccessToken); err != nil {
+	if _, _, err := h.p.verifyJWT(ctx, resp.AccessToken); err != nil {
 		t.Fatalf("verify access token: %v", err)
 	}
-	idClaims, err := h.p.verifyJWT(ctx, resp.IDToken)
+	idClaims, _, err := h.p.verifyJWT(ctx, resp.IDToken)
 	if err != nil {
 		t.Fatalf("verify id token: %v", err)
 	}

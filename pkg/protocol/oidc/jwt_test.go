@@ -21,9 +21,12 @@ func TestJWTRoundTrip(t *testing.T) {
 		t.Fatalf("signJWT: %v", err)
 	}
 
-	claims, err := p.verifyJWT(ctx, token)
+	claims, typ, err := p.verifyJWT(ctx, token)
 	if err != nil {
 		t.Fatalf("verifyJWT: %v", err)
+	}
+	if typ != "JWT" {
+		t.Fatalf("typ = %q, want JWT", typ)
 	}
 	if claims["sub"] != "x" {
 		t.Fatalf("sub = %v, want x", claims["sub"])
@@ -65,7 +68,7 @@ func TestJWTRejectsHS256(t *testing.T) {
 		t.Fatalf("sign HS256: %v", err)
 	}
 
-	if _, err := p.verifyJWT(context.Background(), hsToken); err == nil {
+	if _, _, err := p.verifyJWT(context.Background(), hsToken); err == nil {
 		t.Fatal("verifyJWT: expected rejection of HS256 token")
 	}
 }
@@ -84,7 +87,7 @@ func TestJWTRejectsUnknownKID(t *testing.T) {
 		t.Fatalf("signJWT: %v", err)
 	}
 
-	_, err = p.verifyJWT(ctx, token)
+	_, _, err = p.verifyJWT(ctx, token)
 	if err == nil {
 		t.Fatal("verifyJWT: expected unknown-kid rejection")
 	}
