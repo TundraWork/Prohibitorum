@@ -21,6 +21,11 @@ import (
 	"encoding/json"
 	"net/http"
 
+	// Anchors go-jose/v4 as a direct dependency for the v0.4 OIDC OP work
+	// (JWT signing/verification lands in the signer task). Replace with a
+	// real import once the signer package consumes it.
+	_ "github.com/go-jose/go-jose/v4"
+
 	"prohibitorum/pkg/configx"
 )
 

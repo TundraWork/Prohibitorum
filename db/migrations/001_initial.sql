@@ -5,6 +5,7 @@ CREATE TABLE account (
   username             text NOT NULL UNIQUE,
   display_name         text NOT NULL,
   webauthn_user_handle bytea NOT NULL UNIQUE,
+  oidc_subject         uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
   role                 text NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin')),
   attributes           jsonb NOT NULL DEFAULT '{}'::jsonb,
   disabled             boolean NOT NULL DEFAULT false,

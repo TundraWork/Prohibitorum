@@ -15,6 +15,7 @@ type Account struct {
 	Username           string             `json:"username"`
 	DisplayName        string             `json:"displayName"`
 	WebauthnUserHandle []byte             `json:"webauthnUserHandle"`
+	OidcSubject        pgtype.UUID        `json:"oidcSubject"`
 	Role               string             `json:"role"`
 	Attributes         []byte             `json:"attributes"`
 	Disabled           bool               `json:"disabled"`
@@ -86,6 +87,7 @@ type OidcClient struct {
 	TosUri                      pgtype.Text        `json:"tosUri"`
 	PolicyUri                   pgtype.Text        `json:"policyUri"`
 	Disabled                    bool               `json:"disabled"`
+	RequireConsent              bool               `json:"requireConsent"`
 	CreatedAt                   pgtype.Timestamptz `json:"createdAt"`
 }
 

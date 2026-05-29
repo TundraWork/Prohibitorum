@@ -33,7 +33,7 @@ type Querier interface {
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (RecoveryCode, error)
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
-	DeactivateAllSigningKeys(ctx context.Context) error
+	DeactivateSigningKeys(ctx context.Context) error
 	DeleteAccountByID(ctx context.Context, id int32) error
 	// Returns the deleted row's id when one matched; pgx.ErrNoRows when the
 	// (id, account_id) pair matches nothing (foreign identity, already-
@@ -44,16 +44,16 @@ type Querier interface {
 	// Owner-scoped delete: zero rows affected means the id doesn't match an owned
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
-	DeleteOIDCClient(ctx context.Context, clientID string) error
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	DeleteUpstreamIDP(ctx context.Context, id int64) error
 	GetAccountByID(ctx context.Context, id int32) (Account, error)
 	GetAccountByIDForUpdate(ctx context.Context, id int32) (Account, error)
+	GetAccountByOIDCSubject(ctx context.Context, oidcSubject pgtype.UUID) (Account, error)
 	GetAccountByUsername(ctx context.Context, username string) (Account, error)
 	GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error)
 	GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAccountIdentityByIssuerSubParams) (AccountIdentity, error)
-	GetActiveSigningKey(ctx context.Context, use string) (SigningKey, error)
+	GetActiveSigningKey(ctx context.Context) (SigningKey, error)
 	GetAuthThrottle(ctx context.Context, arg GetAuthThrottleParams) (AuthThrottle, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
@@ -72,6 +72,7 @@ type Querier interface {
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) (RecoveryCode, error)
+	InsertRevokedJTI(ctx context.Context, arg InsertRevokedJTIParams) error
 	InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (SamlSp, error)
 	InsertSAMLSPACS(ctx context.Context, arg InsertSAMLSPACSParams) error
 	InsertSAMLSPKey(ctx context.Context, arg InsertSAMLSPKeyParams) error
@@ -84,10 +85,11 @@ type Querier interface {
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
+	ListActiveSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
-	ListOIDCClients(ctx context.Context) ([]OidcClient, error)
+	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
 	ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]SamlSpAc, error)
@@ -97,19 +99,15 @@ type Querier interface {
 	ListSAMLSessionsBySession(ctx context.Context, sessionID string) ([]SamlSession, error)
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
-	// Every non-retired key: the active signing key + any keys still inside
-	// their rollover window. JWKS endpoint serves the public_jwk of each.
-	ListVerifyingSigningKeys(ctx context.Context, retiredAt pgtype.Timestamptz) ([]SigningKey, error)
-	PruneRevokedJTI(ctx context.Context) error
+	PruneExpiredRevokedJTI(ctx context.Context) error
 	ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error
-	RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) error
+	RetireSigningKey(ctx context.Context, kid string) error
 	RevokeAllSessionsByAccount(ctx context.Context, accountID int32) error
 	// Same DB effect as ConsumeEnrollment but intent-restricted to 'invite' so an
 	// admin cannot accidentally use this to mark a bootstrap/reset token consumed.
 	// Returns the row only if it was unconsumed AND of intent=invite; otherwise
 	// pgx.ErrNoRows surfaces and the handler maps to invitation_not_found.
 	RevokeInvitation(ctx context.Context, token string) (Enrollment, error)
-	RevokeJTI(ctx context.Context, arg RevokeJTIParams) error
 	RevokeSession(ctx context.Context, id string) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)

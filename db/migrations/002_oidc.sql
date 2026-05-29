@@ -38,6 +38,7 @@ CREATE TABLE oidc_client (
   tos_uri                         text,
   policy_uri                      text,
   disabled                        boolean NOT NULL DEFAULT false,
+  require_consent                 boolean NOT NULL DEFAULT false,
   created_at                      timestamptz NOT NULL DEFAULT now()
 );
 

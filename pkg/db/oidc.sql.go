@@ -11,32 +11,43 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const deactivateAllSigningKeys = `-- name: DeactivateAllSigningKeys :exec
-UPDATE signing_key SET active = FALSE WHERE active = TRUE
+const deactivateSigningKeys = `-- name: DeactivateSigningKeys :exec
+UPDATE signing_key SET active = false WHERE use = 'sig' AND active = true
 `
 
-func (q *Queries) DeactivateAllSigningKeys(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, deactivateAllSigningKeys)
+func (q *Queries) DeactivateSigningKeys(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deactivateSigningKeys)
 	return err
 }
 
-const deleteOIDCClient = `-- name: DeleteOIDCClient :exec
-DELETE FROM oidc_client WHERE client_id = $1
+const getAccountByOIDCSubject = `-- name: GetAccountByOIDCSubject :one
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at FROM account WHERE oidc_subject = $1
 `
 
-func (q *Queries) DeleteOIDCClient(ctx context.Context, clientID string) error {
-	_, err := q.db.Exec(ctx, deleteOIDCClient, clientID)
-	return err
+func (q *Queries) GetAccountByOIDCSubject(ctx context.Context, oidcSubject pgtype.UUID) (Account, error) {
+	row := q.db.QueryRow(ctx, getAccountByOIDCSubject, oidcSubject)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.DisplayName,
+		&i.WebauthnUserHandle,
+		&i.OidcSubject,
+		&i.Role,
+		&i.Attributes,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getActiveSigningKey = `-- name: GetActiveSigningKey :one
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at FROM signing_key
-WHERE active AND use = $1
-LIMIT 1
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at FROM signing_key WHERE use = 'sig' AND active = true
 `
 
-func (q *Queries) GetActiveSigningKey(ctx context.Context, use string) (SigningKey, error) {
-	row := q.db.QueryRow(ctx, getActiveSigningKey, use)
+func (q *Queries) GetActiveSigningKey(ctx context.Context) (SigningKey, error) {
+	row := q.db.QueryRow(ctx, getActiveSigningKey)
 	var i SigningKey
 	err := row.Scan(
 		&i.Kid,
@@ -54,7 +65,7 @@ func (q *Queries) GetActiveSigningKey(ctx context.Context, use string) (SigningK
 }
 
 const getOIDCClient = `-- name: GetOIDCClient :one
-SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, created_at FROM oidc_client WHERE client_id = $1 AND NOT disabled
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at FROM oidc_client WHERE client_id = $1 AND disabled = false
 `
 
 func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error) {
@@ -80,6 +91,7 @@ func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClien
 		&i.TosUri,
 		&i.PolicyUri,
 		&i.Disabled,
+		&i.RequireConsent,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -90,11 +102,9 @@ INSERT INTO oidc_client (
   client_id, display_name, client_secret_hash, redirect_uris,
   post_logout_redirect_uris, allowed_scopes, require_pkce,
   allowed_code_challenge_methods, token_endpoint_auth_method,
-  id_token_signed_response_alg, subject_type, application_type,
-  default_max_age, require_auth_time, contacts, logo_uri, tos_uri,
-  policy_uri, disabled
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, created_at
+  subject_type, application_type, require_consent
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
 `
 
 type InsertOIDCClientParams struct {
@@ -107,16 +117,9 @@ type InsertOIDCClientParams struct {
 	RequirePkce                 bool        `json:"requirePkce"`
 	AllowedCodeChallengeMethods []string    `json:"allowedCodeChallengeMethods"`
 	TokenEndpointAuthMethod     string      `json:"tokenEndpointAuthMethod"`
-	IDTokenSignedResponseAlg    string      `json:"idTokenSignedResponseAlg"`
 	SubjectType                 string      `json:"subjectType"`
 	ApplicationType             string      `json:"applicationType"`
-	DefaultMaxAge               pgtype.Int4 `json:"defaultMaxAge"`
-	RequireAuthTime             bool        `json:"requireAuthTime"`
-	Contacts                    []string    `json:"contacts"`
-	LogoUri                     pgtype.Text `json:"logoUri"`
-	TosUri                      pgtype.Text `json:"tosUri"`
-	PolicyUri                   pgtype.Text `json:"policyUri"`
-	Disabled                    bool        `json:"disabled"`
+	RequireConsent              bool        `json:"requireConsent"`
 }
 
 func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error) {
@@ -130,16 +133,9 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 		arg.RequirePkce,
 		arg.AllowedCodeChallengeMethods,
 		arg.TokenEndpointAuthMethod,
-		arg.IDTokenSignedResponseAlg,
 		arg.SubjectType,
 		arg.ApplicationType,
-		arg.DefaultMaxAge,
-		arg.RequireAuthTime,
-		arg.Contacts,
-		arg.LogoUri,
-		arg.TosUri,
-		arg.PolicyUri,
-		arg.Disabled,
+		arg.RequireConsent,
 	)
 	var i OidcClient
 	err := row.Scan(
@@ -162,38 +158,51 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 		&i.TosUri,
 		&i.PolicyUri,
 		&i.Disabled,
+		&i.RequireConsent,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
+const insertRevokedJTI = `-- name: InsertRevokedJTI :exec
+INSERT INTO revoked_jti (jti, expires_at, reason) VALUES ($1,$2,$3)
+ON CONFLICT (jti) DO NOTHING
+`
+
+type InsertRevokedJTIParams struct {
+	Jti       string             `json:"jti"`
+	ExpiresAt pgtype.Timestamptz `json:"expiresAt"`
+	Reason    pgtype.Text        `json:"reason"`
+}
+
+func (q *Queries) InsertRevokedJTI(ctx context.Context, arg InsertRevokedJTIParams) error {
+	_, err := q.db.Exec(ctx, insertRevokedJTI, arg.Jti, arg.ExpiresAt, arg.Reason)
+	return err
+}
+
 const insertSigningKey = `-- name: InsertSigningKey :one
 INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES ($1,$2,'sig',$3,$4,$5,$6, now())
 RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at
 `
 
 type InsertSigningKeyParams struct {
-	Kid         string             `json:"kid"`
-	Algorithm   string             `json:"algorithm"`
-	Use         string             `json:"use"`
-	PublicJwk   []byte             `json:"publicJwk"`
-	X509CertPem pgtype.Text        `json:"x509CertPem"`
-	PrivatePem  string             `json:"privatePem"`
-	Active      bool               `json:"active"`
-	NotBefore   pgtype.Timestamptz `json:"notBefore"`
+	Kid         string      `json:"kid"`
+	Algorithm   string      `json:"algorithm"`
+	PublicJwk   []byte      `json:"publicJwk"`
+	X509CertPem pgtype.Text `json:"x509CertPem"`
+	PrivatePem  string      `json:"privatePem"`
+	Active      bool        `json:"active"`
 }
 
 func (q *Queries) InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (SigningKey, error) {
 	row := q.db.QueryRow(ctx, insertSigningKey,
 		arg.Kid,
 		arg.Algorithm,
-		arg.Use,
 		arg.PublicJwk,
 		arg.X509CertPem,
 		arg.PrivatePem,
 		arg.Active,
-		arg.NotBefore,
 	)
 	var i SigningKey
 	err := row.Scan(
@@ -212,71 +221,22 @@ func (q *Queries) InsertSigningKey(ctx context.Context, arg InsertSigningKeyPara
 }
 
 const isJTIRevoked = `-- name: IsJTIRevoked :one
-SELECT EXISTS(SELECT 1 FROM revoked_jti WHERE jti = $1) AS revoked
+SELECT EXISTS (SELECT 1 FROM revoked_jti WHERE jti = $1)
 `
 
 func (q *Queries) IsJTIRevoked(ctx context.Context, jti string) (bool, error) {
 	row := q.db.QueryRow(ctx, isJTIRevoked, jti)
-	var revoked bool
-	err := row.Scan(&revoked)
-	return revoked, err
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
-const listOIDCClients = `-- name: ListOIDCClients :many
-SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, created_at FROM oidc_client ORDER BY display_name ASC
+const listActiveSigningKeys = `-- name: ListActiveSigningKeys :many
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at FROM signing_key WHERE use = 'sig' AND retired_at IS NULL ORDER BY created_at DESC
 `
 
-func (q *Queries) ListOIDCClients(ctx context.Context) ([]OidcClient, error) {
-	rows, err := q.db.Query(ctx, listOIDCClients)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []OidcClient
-	for rows.Next() {
-		var i OidcClient
-		if err := rows.Scan(
-			&i.ClientID,
-			&i.DisplayName,
-			&i.ClientSecretHash,
-			&i.RedirectUris,
-			&i.PostLogoutRedirectUris,
-			&i.AllowedScopes,
-			&i.RequirePkce,
-			&i.AllowedCodeChallengeMethods,
-			&i.TokenEndpointAuthMethod,
-			&i.IDTokenSignedResponseAlg,
-			&i.SubjectType,
-			&i.ApplicationType,
-			&i.DefaultMaxAge,
-			&i.RequireAuthTime,
-			&i.Contacts,
-			&i.LogoUri,
-			&i.TosUri,
-			&i.PolicyUri,
-			&i.Disabled,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listVerifyingSigningKeys = `-- name: ListVerifyingSigningKeys :many
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at FROM signing_key
-WHERE retired_at IS NULL OR retired_at > $1
-ORDER BY created_at DESC
-`
-
-// Every non-retired key: the active signing key + any keys still inside
-// their rollover window. JWKS endpoint serves the public_jwk of each.
-func (q *Queries) ListVerifyingSigningKeys(ctx context.Context, retiredAt pgtype.Timestamptz) ([]SigningKey, error) {
-	rows, err := q.db.Query(ctx, listVerifyingSigningKeys, retiredAt)
+func (q *Queries) ListActiveSigningKeys(ctx context.Context) ([]SigningKey, error) {
+	rows, err := q.db.Query(ctx, listActiveSigningKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -306,41 +266,64 @@ func (q *Queries) ListVerifyingSigningKeys(ctx context.Context, retiredAt pgtype
 	return items, nil
 }
 
-const pruneRevokedJTI = `-- name: PruneRevokedJTI :exec
+const listOIDCClients = `-- name: ListOIDCClients :many
+SELECT client_id, display_name, redirect_uris, allowed_scopes,
+       token_endpoint_auth_method, disabled, created_at
+FROM oidc_client ORDER BY created_at DESC
+`
+
+type ListOIDCClientsRow struct {
+	ClientID                string             `json:"clientId"`
+	DisplayName             string             `json:"displayName"`
+	RedirectUris            []string           `json:"redirectUris"`
+	AllowedScopes           []string           `json:"allowedScopes"`
+	TokenEndpointAuthMethod string             `json:"tokenEndpointAuthMethod"`
+	Disabled                bool               `json:"disabled"`
+	CreatedAt               pgtype.Timestamptz `json:"createdAt"`
+}
+
+func (q *Queries) ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error) {
+	rows, err := q.db.Query(ctx, listOIDCClients)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOIDCClientsRow
+	for rows.Next() {
+		var i ListOIDCClientsRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.RedirectUris,
+			&i.AllowedScopes,
+			&i.TokenEndpointAuthMethod,
+			&i.Disabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pruneExpiredRevokedJTI = `-- name: PruneExpiredRevokedJTI :exec
 DELETE FROM revoked_jti WHERE expires_at < now()
 `
 
-func (q *Queries) PruneRevokedJTI(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, pruneRevokedJTI)
+func (q *Queries) PruneExpiredRevokedJTI(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, pruneExpiredRevokedJTI)
 	return err
 }
 
 const retireSigningKey = `-- name: RetireSigningKey :exec
-UPDATE signing_key SET retired_at = $2 WHERE kid = $1
+UPDATE signing_key SET active = false, retired_at = now() WHERE kid = $1
 `
 
-type RetireSigningKeyParams struct {
-	Kid       string             `json:"kid"`
-	RetiredAt pgtype.Timestamptz `json:"retiredAt"`
-}
-
-func (q *Queries) RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) error {
-	_, err := q.db.Exec(ctx, retireSigningKey, arg.Kid, arg.RetiredAt)
-	return err
-}
-
-const revokeJTI = `-- name: RevokeJTI :exec
-INSERT INTO revoked_jti (jti, expires_at, reason) VALUES ($1, $2, $3)
-ON CONFLICT (jti) DO NOTHING
-`
-
-type RevokeJTIParams struct {
-	Jti       string             `json:"jti"`
-	ExpiresAt pgtype.Timestamptz `json:"expiresAt"`
-	Reason    pgtype.Text        `json:"reason"`
-}
-
-func (q *Queries) RevokeJTI(ctx context.Context, arg RevokeJTIParams) error {
-	_, err := q.db.Exec(ctx, revokeJTI, arg.Jti, arg.ExpiresAt, arg.Reason)
+func (q *Queries) RetireSigningKey(ctx context.Context, kid string) error {
+	_, err := q.db.Exec(ctx, retireSigningKey, kid)
 	return err
 }

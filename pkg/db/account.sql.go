@@ -32,7 +32,7 @@ func (q *Queries) DeleteAccountByID(ctx context.Context, id int32) error {
 }
 
 const getAccountByID = `-- name: GetAccountByID :one
-SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE id = $1
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at FROM account WHERE id = $1
 `
 
 func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error) {
@@ -43,6 +43,7 @@ func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error)
 		&i.Username,
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
+		&i.OidcSubject,
 		&i.Role,
 		&i.Attributes,
 		&i.Disabled,
@@ -53,7 +54,7 @@ func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error)
 }
 
 const getAccountByIDForUpdate = `-- name: GetAccountByIDForUpdate :one
-SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE id = $1 FOR UPDATE
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at FROM account WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetAccountByIDForUpdate(ctx context.Context, id int32) (Account, error) {
@@ -64,6 +65,7 @@ func (q *Queries) GetAccountByIDForUpdate(ctx context.Context, id int32) (Accoun
 		&i.Username,
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
+		&i.OidcSubject,
 		&i.Role,
 		&i.Attributes,
 		&i.Disabled,
@@ -74,7 +76,7 @@ func (q *Queries) GetAccountByIDForUpdate(ctx context.Context, id int32) (Accoun
 }
 
 const getAccountByUsername = `-- name: GetAccountByUsername :one
-SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE username = $1
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at FROM account WHERE username = $1
 `
 
 func (q *Queries) GetAccountByUsername(ctx context.Context, username string) (Account, error) {
@@ -85,6 +87,7 @@ func (q *Queries) GetAccountByUsername(ctx context.Context, username string) (Ac
 		&i.Username,
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
+		&i.OidcSubject,
 		&i.Role,
 		&i.Attributes,
 		&i.Disabled,
@@ -95,7 +98,7 @@ func (q *Queries) GetAccountByUsername(ctx context.Context, username string) (Ac
 }
 
 const getAccountByWebauthnUserHandle = `-- name: GetAccountByWebauthnUserHandle :one
-SELECT id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at FROM account WHERE webauthn_user_handle = $1
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at FROM account WHERE webauthn_user_handle = $1
 `
 
 func (q *Queries) GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error) {
@@ -106,6 +109,7 @@ func (q *Queries) GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUs
 		&i.Username,
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
+		&i.OidcSubject,
 		&i.Role,
 		&i.Attributes,
 		&i.Disabled,
@@ -130,7 +134,7 @@ const insertAccount = `-- name: InsertAccount :one
 INSERT INTO account (
   username, display_name, webauthn_user_handle, role, attributes, disabled
 ) VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at
+RETURNING id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at
 `
 
 type InsertAccountParams struct {
@@ -157,6 +161,7 @@ func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (A
 		&i.Username,
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
+		&i.OidcSubject,
 		&i.Role,
 		&i.Attributes,
 		&i.Disabled,
@@ -168,7 +173,7 @@ func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (A
 
 const listAccounts = `-- name: ListAccounts :many
 SELECT
-  a.id, a.username, a.display_name, a.webauthn_user_handle, a.role, a.attributes, a.disabled, a.created_at, a.updated_at,
+  a.id, a.username, a.display_name, a.webauthn_user_handle, a.oidc_subject, a.role, a.attributes, a.disabled, a.created_at, a.updated_at,
   (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at
 FROM account a
 ORDER BY a.created_at ASC, a.id ASC
@@ -179,6 +184,7 @@ type ListAccountsRow struct {
 	Username           string             `json:"username"`
 	DisplayName        string             `json:"displayName"`
 	WebauthnUserHandle []byte             `json:"webauthnUserHandle"`
+	OidcSubject        pgtype.UUID        `json:"oidcSubject"`
 	Role               string             `json:"role"`
 	Attributes         []byte             `json:"attributes"`
 	Disabled           bool               `json:"disabled"`
@@ -201,6 +207,7 @@ func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
 			&i.Username,
 			&i.DisplayName,
 			&i.WebauthnUserHandle,
+			&i.OidcSubject,
 			&i.Role,
 			&i.Attributes,
 			&i.Disabled,
@@ -223,7 +230,7 @@ UPDATE account SET
   display_name = $2, role = $3, attributes = $4, disabled = $5,
   updated_at = now()
 WHERE id = $1
-RETURNING id, username, display_name, webauthn_user_handle, role, attributes, disabled, created_at, updated_at
+RETURNING id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at
 `
 
 type UpdateAccountParams struct {
@@ -248,6 +255,7 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (A
 		&i.Username,
 		&i.DisplayName,
 		&i.WebauthnUserHandle,
+		&i.OidcSubject,
 		&i.Role,
 		&i.Attributes,
 		&i.Disabled,
