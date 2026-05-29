@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -881,6 +882,197 @@ func TestFederator_BeginInviteRedemption_UnknownToken(t *testing.T) {
 	_, err := fx.f.BeginInviteRedemption(context.Background(), "nope-not-a-token", "/me")
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required, got %v", err)
+	}
+}
+
+// --- discovery-cache tests (audit finding H2-sch) -------------------------
+
+// newCachingFixture is a variant of newFixture that wraps the mock OP behind
+// a counter-bearing handler so tests can assert how many times the upstream
+// /.well-known/openid-configuration endpoint was actually fetched. We don't
+// modify mockop itself — a thin http.Handler wrapper around op.Routes()
+// keeps the instrumentation local to the test file.
+func newCachingFixture(t *testing.T) (fx *fixtureFederator, discoveryHits *int32) {
+	t.Helper()
+
+	op, err := mockop.New("")
+	if err != nil {
+		t.Fatalf("mockop.New: %v", err)
+	}
+	var hits int32
+	inner := op.Routes()
+	counting := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			atomic.AddInt32(&hits, 1)
+		}
+		inner.ServeHTTP(w, r)
+	})
+	ts := httptest.NewServer(counting)
+	op.SetBase(ts.URL)
+	t.Cleanup(ts.Close)
+
+	const idpID int64 = 42
+	const keyVersion int32 = 1
+	ct, nonce, err := federationoidc.EncryptClientSecret(testDEK, []byte("test-secret"), idpID, keyVersion)
+	if err != nil {
+		t.Fatalf("EncryptClientSecret: %v", err)
+	}
+
+	idp := db.UpstreamIdp{
+		ID:                   idpID,
+		Slug:                 "mockop",
+		DisplayName:          "Mock OP",
+		IssuerUrl:            ts.URL,
+		ClientID:             "test-client",
+		ClientSecretEnc:      ct,
+		SecretNonce:          nonce,
+		KeyVersion:           keyVersion,
+		Scopes:               []string{"openid", "profile", "email"},
+		Mode:                 federationoidc.ModeAutoProvision,
+		RequireVerifiedEmail: true,
+		UsernameClaim:        "preferred_username",
+		DisplayNameClaim:     "name",
+		EmailClaim:           "email",
+	}
+
+	q := newFakeFederatorQueries()
+	q.idpBySlug[idp.Slug] = idp
+
+	kvm := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = kvm.Close() })
+
+	au := &recordingAudit{}
+	cfg := configx.FederationConfig{
+		StateTTL:      5 * time.Minute,
+		DefaultScopes: []string{"openid", "profile", "email"},
+	}
+	deks := map[int][]byte{1: testDEK}
+	origin := "https://idp.example.test"
+	fd := federationoidc.NewFederator(q, kvm, au, cfg, deks, nil, origin)
+
+	op.SetClaims("sub-1", "alice@example.com", true, "alice", "Alice Example")
+	op.SetAMR([]string{"pwd", "mfa"})
+
+	return &fixtureFederator{
+		t: t, op: op, ts: ts, idp: idp, q: q, kvm: kvm, au: au,
+		f: fd, cfg: cfg, origin: origin,
+	}, &hits
+}
+
+// TestFederator_BuildClient_CachesAcrossBeginLogin verifies that two
+// successive BeginLogin calls against the same IdP reuse one *Client and
+// therefore hit upstream OIDC discovery exactly once. Without the cache,
+// every federation request runs full discovery — see audit finding H2-sch.
+func TestFederator_BuildClient_CachesAcrossBeginLogin(t *testing.T) {
+	fx, hits := newCachingFixture(t)
+
+	if _, err := fx.f.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("first BeginLogin: %v", err)
+	}
+	if _, err := fx.f.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("second BeginLogin: %v", err)
+	}
+
+	if got := atomic.LoadInt32(hits); got != 1 {
+		t.Fatalf("discovery hits = %d, want 1 (cache miss + cache hit)", got)
+	}
+	if n := federationoidc.ClientCacheLenForTest(fx.f); n != 1 {
+		t.Errorf("cache len = %d, want 1", n)
+	}
+}
+
+// TestFederator_BuildClient_RebuildsOnKeyVersionChange verifies that bumping
+// upstream_idp.key_version (the natural cache-invalidation lever for DEK
+// rotation) produces a fresh cache key and therefore a fresh discovery
+// fetch. We construct a federator whose DEK map carries the same key under
+// versions 1 and 2 so we can re-encrypt the row under v2 without touching
+// production crypto paths.
+func TestFederator_BuildClient_RebuildsOnKeyVersionChange(t *testing.T) {
+	fx, hits := newCachingFixture(t)
+
+	// Build a second federator with both v1 and v2 DEKs available, sharing
+	// every other collaborator (queries, kv, audit) and — crucially — the
+	// same upstream OP so the discovery counter still ticks. The fixture's
+	// own fx.f only knows v1; this fresh federator knows both.
+	deks := map[int][]byte{1: testDEK, 2: testDEK}
+	fd := federationoidc.NewFederator(fx.q, fx.kvm, fx.au, fx.cfg, deks, nil, fx.origin)
+
+	// First call — v1, cache miss → 1 discovery hit.
+	if _, err := fd.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("first BeginLogin (key v1): %v", err)
+	}
+	if got := atomic.LoadInt32(hits); got != 1 {
+		t.Fatalf("discovery hits after v1 call = %d, want 1", got)
+	}
+
+	// Bump key_version to 2 on the IdP row (re-encrypt under v2).
+	ct2, nonce2, err := federationoidc.EncryptClientSecret(testDEK, []byte("test-secret"), fx.idp.ID, 2)
+	if err != nil {
+		t.Fatalf("EncryptClientSecret v2: %v", err)
+	}
+	idp2 := fx.idp
+	idp2.KeyVersion = 2
+	idp2.ClientSecretEnc = ct2
+	idp2.SecretNonce = nonce2
+	fx.q.idpBySlug["mockop"] = idp2
+
+	// Second call — v2 → cache key differs → fresh discovery hit.
+	if _, err := fd.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("second BeginLogin (key v2): %v", err)
+	}
+	if got := atomic.LoadInt32(hits); got != 2 {
+		t.Fatalf("discovery hits after v2 call = %d, want 2 (key_version bump invalidates cache)", got)
+	}
+
+	// Sanity: a repeat v2 call hits the cache (no new discovery).
+	if _, err := fd.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("third BeginLogin (key v2 repeat): %v", err)
+	}
+	if got := atomic.LoadInt32(hits); got != 2 {
+		t.Fatalf("discovery hits after v2 repeat = %d, want 2 (cache should hit)", got)
+	}
+
+	// Cache should hold separate entries for v1 and v2.
+	if n := federationoidc.ClientCacheLenForTest(fd); n != 2 {
+		t.Errorf("cache len = %d, want 2 (v1 + v2 entries)", n)
+	}
+}
+
+// TestFederator_BuildClient_RebuildsOnTTLExpiry verifies that once the TTL
+// window elapses, the next buildClient call re-runs discovery instead of
+// returning the stale cached *Client. We force the condition by shrinking
+// the TTL to a negative duration before any call: every Store writes an
+// already-expired expiresAt, so every Load sees expiry and rebuilds.
+func TestFederator_BuildClient_RebuildsOnTTLExpiry(t *testing.T) {
+	fx, hits := newCachingFixture(t)
+
+	// Negative TTL: each cached entry is stored already expired.
+	federationoidc.SetClientCacheTTLForTest(fx.f, -time.Second)
+
+	// Three back-to-back BeginLogin calls — each must re-run discovery
+	// because the previous cache entry's expiresAt is already in the past.
+	for i := 1; i <= 3; i++ {
+		if _, err := fx.f.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+			t.Fatalf("BeginLogin #%d: %v", i, err)
+		}
+	}
+	if got := atomic.LoadInt32(hits); got != 3 {
+		t.Fatalf("discovery hits = %d, want 3 (each call sees expired entry)", got)
+	}
+
+	// Sanity: restore the normal TTL and verify the cache settles into
+	// "hit" mode again.
+	federationoidc.ClearClientCacheForTest(fx.f)
+	federationoidc.SetClientCacheTTLForTest(fx.f, 15*time.Minute)
+
+	if _, err := fx.f.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("post-reset BeginLogin: %v", err)
+	}
+	if _, err := fx.f.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("post-reset BeginLogin (cached): %v", err)
+	}
+	if got := atomic.LoadInt32(hits); got != 4 {
+		t.Fatalf("discovery hits after TTL reset = %d, want 4 (one new miss + one hit)", got)
 	}
 }
 

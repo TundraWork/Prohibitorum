@@ -35,7 +35,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -48,6 +50,25 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 )
+
+// clientCacheTTL bounds how long a constructed *Client (and its discovered
+// endpoint snapshot) may be reused before we re-run OIDC discovery. Without
+// this cache, every BeginLogin / HandleCallback / LinkBegin / LinkCallback /
+// BeginInviteRedemption would issue an upstream GET to
+// <issuer>/.well-known/openid-configuration — one request to us amplifies
+// into one request upstream, and steady-state federation latency carries an
+// extra round-trip. Spec D8 (v0.3 upstream OIDC federation design) accepts
+// a fixed 15-minute window; if an admin edits client_id/scopes/issuer_url
+// without bumping key_version, the cache serves stale config until expiry.
+// Audit finding H2-sch.
+const clientCacheTTL = 15 * time.Minute
+
+// cachedClient pairs a built *Client with the wall-clock expiry beyond which
+// it must be rebuilt. Stored as a value in Federator.clientCache.
+type cachedClient struct {
+	client    *Client
+	expiresAt time.Time
+}
 
 // ErrUnknownIDP is returned by BeginLogin / LinkBegin when the slug doesn't
 // resolve to a (non-disabled) upstream_idp row. Exported so the HTTP layer
@@ -109,6 +130,18 @@ type Federator struct {
 	// nil pool degrades gracefully — runInviteTx just passes the existing
 	// querier through and the call order is what tests assert.
 	dbPool *pgxpool.Pool
+
+	// clientCache memoizes *Client instances keyed by
+	// slug + ":" + key_version + ":link=" + isLink. sync.Map fits the
+	// read-heavy access pattern (one entry per (idp, flow) pair, populated
+	// once per TTL window, hit on every subsequent request). Values are
+	// *cachedClient. Eviction happens lazily on access — admins configure
+	// few upstream_idp rows, so the map stays bounded without a sweeper.
+	clientCache sync.Map
+
+	// clientCacheTTL defaults to the package-level clientCacheTTL constant;
+	// tests override via export_test.go to exercise expiry behavior.
+	clientCacheTTL time.Duration
 }
 
 // NewFederator constructs a Federator from its collaborators. publicOrigin is
@@ -127,13 +160,14 @@ func NewFederator(
 	publicOrigin string,
 ) *Federator {
 	return &Federator{
-		q:            q,
-		kvStore:      kvStore,
-		audit:        aud,
-		cfg:          cfg,
-		deks:         deks,
-		publicOrigin: publicOrigin,
-		dbPool:       dbPool,
+		q:              q,
+		kvStore:        kvStore,
+		audit:          aud,
+		cfg:            cfg,
+		deks:           deks,
+		publicOrigin:   publicOrigin,
+		dbPool:         dbPool,
+		clientCacheTTL: clientCacheTTL,
 	}
 }
 
@@ -204,24 +238,9 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		return nil, ErrUnknownIDP
 	}
 
-	secret, err := f.decryptSecret(&idp)
+	client, err := f.buildClient(ctx, &idp, linkingAccountID != nil)
 	if err != nil {
 		return nil, err
-	}
-
-	redirectURI := f.redirectURI(idpSlug, linkingAccountID != nil)
-
-	client, err := NewClient(
-		ctx,
-		idp.ClientID,
-		string(secret),
-		redirectURI,
-		idp.Scopes,
-		idp.IssuerUrl,
-		DefaultAllowedAlgs(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: build RP client: %w", err)
 	}
 
 	stateToken, err := randB64URL(32)
@@ -519,10 +538,27 @@ func (f *Federator) decryptSecret(idp *db.UpstreamIdp) ([]byte, error) {
 	return plain, nil
 }
 
-// buildClient does the decrypt+NewClient dance shared by HandleCallback and
-// LinkCallback. isLink picks the link- vs login-flavored redirect URI so the
+// buildClient does the decrypt+NewClient dance shared by begin, HandleCallback,
+// and LinkCallback. isLink picks the link- vs login-flavored redirect URI so the
 // token endpoint sees the exact value the OP recorded at /authorize.
+//
+// Results are memoized in f.clientCache for clientCacheTTL. A DEK rotation that
+// bumps key_version is reflected in the cache key and naturally invalidates
+// the entry; admin edits to other fields (client_id, scopes, issuer_url) are
+// NOT reflected — D8 accepts that staleness window. Errors are never cached:
+// a transient network blip during discovery should not poison subsequent
+// requests.
 func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, isLink bool) (*Client, error) {
+	key := clientCacheKey(idp.Slug, idp.KeyVersion, isLink)
+	if v, ok := f.clientCache.Load(key); ok {
+		entry := v.(*cachedClient)
+		if time.Now().Before(entry.expiresAt) {
+			return entry.client, nil
+		}
+		// Expired — evict this one key (no full-map sweep).
+		f.clientCache.Delete(key)
+	}
+
 	secret, err := f.decryptSecret(idp)
 	if err != nil {
 		return nil, err
@@ -540,7 +576,20 @@ func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, isLink
 	if err != nil {
 		return nil, fmt.Errorf("federation/oidc: build RP client: %w", err)
 	}
+
+	f.clientCache.Store(key, &cachedClient{
+		client:    client,
+		expiresAt: time.Now().Add(f.clientCacheTTL),
+	})
 	return client, nil
+}
+
+// clientCacheKey builds the composite key for clientCache. KeyVersion is
+// included so a DEK rotation forces a fresh client (the decrypted secret may
+// change); isLink is included because login and link flows use different
+// redirect_uri values, which are baked into the *Client.
+func clientCacheKey(slug string, keyVersion int32, isLink bool) string {
+	return slug + ":" + strconv.Itoa(int(keyVersion)) + ":link=" + strconv.FormatBool(isLink)
 }
 
 // redirectURI builds the upstream-facing redirect_uri for {slug}, picking
