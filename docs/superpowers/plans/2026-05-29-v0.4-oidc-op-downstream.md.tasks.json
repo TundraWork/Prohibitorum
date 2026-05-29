@@ -94,14 +94,14 @@
     {
       "id": 13,
       "subject": "Task 13: oidc-client CLI",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 3],
       "description": "**Goal:** BuildClientParams + oidc-client create (confidential prints secret once / --public none+PKCE) + list.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/clientgen.go\",\"cmd/prohibitorum/main.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestClientGen -v -count=1\",\"acceptanceCriteria\":[\"confidential PHC verifiable+printed once\",\"public none+PKCE\",\"default scopes openid profile\",\"list prints clients\"]}\n```"
     },
     {
       "id": 14,
       "subject": "Task 14: Server wiring + route mounts",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 9, 10, 11, 12],
       "description": "**Goal:** server.go — widen oidcop.New(...deps); mount /oauth/{authorize,token,userinfo,introspect,revoke} + /oidc/logout; /authorize behind LoadSession.\n\n```json:metadata\n{\"files\":[\"pkg/server/server.go\"],\"verifyCommand\":\"mise exec -- go build ./... && mise exec -- go test ./... -count=1\",\"acceptanceCriteria\":[\"Provider deps\",\"6 routes mounted\",\"/authorize behind LoadSession\",\"build+vet+tests green\"]}\n```"
     },
@@ -120,5 +120,5 @@
       "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T04:15:00Z"
+  "lastUpdated": "2026-05-30T04:45:00Z"
 }
