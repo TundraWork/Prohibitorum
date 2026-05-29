@@ -35,7 +35,10 @@ type Querier interface {
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
 	DeactivateAllSigningKeys(ctx context.Context) error
 	DeleteAccountByID(ctx context.Context, id int32) error
-	DeleteAccountIdentity(ctx context.Context, arg DeleteAccountIdentityParams) error
+	// Returns the deleted row's id when one matched; pgx.ErrNoRows when the
+	// (id, account_id) pair matches nothing (foreign identity, already-
+	// deleted, or unknown id). Callers map ErrNoRows to a 404 + skip audit.
+	DeleteAccountIdentity(ctx context.Context, arg DeleteAccountIdentityParams) (int64, error)
 	DeleteAllCredentialsForAccount(ctx context.Context, accountID int32) error
 	DeleteAllRecoveryCodesByAccount(ctx context.Context, accountID int32) error
 	// Owner-scoped delete: zero rows affected means the id doesn't match an owned

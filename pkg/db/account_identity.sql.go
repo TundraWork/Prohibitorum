@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const deleteAccountIdentity = `-- name: DeleteAccountIdentity :exec
-DELETE FROM account_identity WHERE id = $1 AND account_id = $2
+const deleteAccountIdentity = `-- name: DeleteAccountIdentity :one
+DELETE FROM account_identity WHERE id = $1 AND account_id = $2 RETURNING id
 `
 
 type DeleteAccountIdentityParams struct {
@@ -20,9 +20,14 @@ type DeleteAccountIdentityParams struct {
 	AccountID int32 `json:"accountId"`
 }
 
-func (q *Queries) DeleteAccountIdentity(ctx context.Context, arg DeleteAccountIdentityParams) error {
-	_, err := q.db.Exec(ctx, deleteAccountIdentity, arg.ID, arg.AccountID)
-	return err
+// Returns the deleted row's id when one matched; pgx.ErrNoRows when the
+// (id, account_id) pair matches nothing (foreign identity, already-
+// deleted, or unknown id). Callers map ErrNoRows to a 404 + skip audit.
+func (q *Queries) DeleteAccountIdentity(ctx context.Context, arg DeleteAccountIdentityParams) (int64, error) {
+	row := q.db.QueryRow(ctx, deleteAccountIdentity, arg.ID, arg.AccountID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getAccountIdentityByIssuerSub = `-- name: GetAccountIdentityByIssuerSub :one

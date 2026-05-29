@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -49,7 +50,7 @@ import (
 // record the call (no actual lock).
 type meIdentitiesQueries interface {
 	authn.FlowQueries
-	DeleteAccountIdentity(ctx context.Context, arg db.DeleteAccountIdentityParams) error
+	DeleteAccountIdentity(ctx context.Context, arg db.DeleteAccountIdentityParams) (int64, error)
 	GetAccountByIDForUpdate(ctx context.Context, id int32) (db.Account, error)
 }
 
@@ -173,10 +174,19 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if err := q.DeleteAccountIdentity(r.Context(), db.DeleteAccountIdentityParams{
+	deletedID, err := q.DeleteAccountIdentity(r.Context(), db.DeleteAccountIdentityParams{
 		ID:        id64,
 		AccountID: sess.Account.ID,
-	}); err != nil {
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// The (id, account_id) pair didn't match a row — caller asked to
+			// delete an identity that either doesn't exist or belongs to a
+			// different account. 404 + no audit (avoid polluting the log
+			// with no-op unlinks; audit M1-di finding).
+			writeAuthErr(w, authn.ErrCredentialNotFound())
+			return
+		}
 		writeAuthErr(w, err)
 		return
 	}
@@ -195,7 +205,7 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 		AccountID: &acct,
 		Factor:    audit.FactorFederationOIDC,
 		Event:     audit.EventUnlink,
-		Detail:    map[string]any{"identity_id": id64},
+		Detail:    map[string]any{"identity_id": deletedID},
 	})
 
 	w.WriteHeader(http.StatusNoContent)

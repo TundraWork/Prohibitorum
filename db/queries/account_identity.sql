@@ -12,8 +12,11 @@ INSERT INTO account_identity (account_id, upstream_idp_id, upstream_iss, upstrea
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
--- name: DeleteAccountIdentity :exec
-DELETE FROM account_identity WHERE id = $1 AND account_id = $2;
+-- name: DeleteAccountIdentity :one
+-- Returns the deleted row's id when one matched; pgx.ErrNoRows when the
+-- (id, account_id) pair matches nothing (foreign identity, already-
+-- deleted, or unknown id). Callers map ErrNoRows to a 404 + skip audit.
+DELETE FROM account_identity WHERE id = $1 AND account_id = $2 RETURNING id;
 
 -- name: UpdateAccountIdentityEmail :exec
 UPDATE account_identity SET upstream_email = $2 WHERE id = $1;

@@ -124,20 +124,27 @@ func (f *fakeIdentitiesQueries) ListAccountIdentitiesByAccount(_ context.Context
 	return out, nil
 }
 
-func (f *fakeIdentitiesQueries) DeleteAccountIdentity(_ context.Context, arg db.DeleteAccountIdentityParams) error {
+func (f *fakeIdentitiesQueries) DeleteAccountIdentity(_ context.Context, arg db.DeleteAccountIdentityParams) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.callOrder = append(f.callOrder, "DeleteAccountIdentity")
 	f.deletedIdentities = append(f.deletedIdentities, arg)
 	keep := f.identityRows[:0]
+	matched := false
 	for _, r := range f.identityRows {
 		if r.ID == arg.ID && r.AccountID == arg.AccountID {
+			matched = true
 			continue
 		}
 		keep = append(keep, r)
 	}
 	f.identityRows = keep
-	return nil
+	if !matched {
+		// Mirror sqlc :one with RETURNING semantics: no row matched →
+		// pgx.ErrNoRows, so the handler's not-found branch fires.
+		return 0, pgx.ErrNoRows
+	}
+	return arg.ID, nil
 }
 
 func (f *fakeIdentitiesQueries) InsertCredentialEvent(_ context.Context, arg db.InsertCredentialEventParams) error {
@@ -386,6 +393,38 @@ func TestMeIdentities_Unlink_WithBackup_204(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("audit: missing unlink row with identity_id=1; events=%+v", q.events)
+	}
+}
+
+// TestMeIdentities_Unlink_ForeignID_404 closes audit finding M1-di: the
+// previous DeleteAccountIdentity was :exec and silently no-op'd on a
+// stranger's identity id; the handler still returned 204 and emitted a
+// misleading EventUnlink. Now :one with RETURNING — pgx.ErrNoRows →
+// 404 credential_not_found, NO audit row.
+func TestMeIdentities_Unlink_ForeignID_404(t *testing.T) {
+	s, q := newIdentitiesTestServer(t)
+	const accountID int32 = 42
+	// Seed an identity owned by a DIFFERENT account; the unlink request
+	// targets identity id=1 but its account_id is the foreign one.
+	seedIdentity(q, 1, 100, accountID+1 /* foreign */, "google", "Google", "alice@example.com")
+	// Give the requesting account a webauthn credential so the last-method
+	// gate doesn't fire (we want the no-row branch, not the gate).
+	q.webauthnRows = []db.WebauthnCredential{{ID: 1, AccountID: accountID}}
+	token, sess := issueIdentitiesTestSession(t, s, accountID)
+	grantFreshSudo(t, s, accountID, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+
+	r := identitiesReq(t, sess, http.MethodPost, "/api/prohibitorum/me/identities/1/unlink", "")
+	r = withRouteParam(r, "id", "1")
+	w := httptest.NewRecorder()
+	s.handleMeIdentitiesUnlinkHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status: want 404, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	for _, ev := range q.events {
+		if ev.Event == audit.EventUnlink {
+			t.Errorf("no audit unlink expected on foreign-id, got %+v", ev)
+		}
 	}
 }
 
