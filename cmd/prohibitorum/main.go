@@ -234,5 +234,114 @@ generating a new one.`,
 	signingKeyCmd.AddCommand(generateCmd)
 	cli.Root().AddCommand(signingKeyCmd)
 
+	oidcClientCmd := &cobra.Command{
+		Use:   "oidc-client",
+		Short: "Manage OIDC clients (relying parties)",
+	}
+
+	var (
+		clientID             string
+		clientDisplayName    string
+		clientRedirectURIs   []string
+		clientPostLogoutURIs []string
+		clientScopes         []string
+		clientPublic         bool
+		clientRequireConsent bool
+	)
+	createClientCmd := &cobra.Command{
+		Use:   "create",
+		Short: "Register a new OIDC client",
+		Long: `Register a new OIDC client (relying party).
+
+Confidential clients (the default) get a freshly generated secret that is
+printed exactly once; only its argon2id hash is stored. Pass --public for a
+client with no secret (token_endpoint_auth_method = "none"). PKCE is required
+for every client.`,
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			config, err := configx.Parse()
+			if err != nil {
+				log.Fatalf("parse config: %v", err)
+			}
+			if _, err := migrations.UpWithResult(config.DatabaseURL); err != nil {
+				log.Fatalf("apply migrations: %v", err)
+			}
+			conn, err := pgxpool.New(ctx, config.DatabaseURL)
+			if err != nil {
+				log.Fatalf("connect db: %v", err)
+			}
+			defer conn.Close()
+			q := db.New(conn)
+
+			params, secret, err := oidc.BuildClientParams(oidc.ClientOptions{
+				ClientID:               clientID,
+				DisplayName:            clientDisplayName,
+				RedirectURIs:           clientRedirectURIs,
+				PostLogoutRedirectURIs: clientPostLogoutURIs,
+				Scopes:                 clientScopes,
+				Public:                 clientPublic,
+				RequireConsent:         clientRequireConsent,
+			})
+			if err != nil {
+				log.Fatalf("build client params: %v", err)
+			}
+
+			if _, err := q.InsertOIDCClient(ctx, params); err != nil {
+				log.Fatalf("insert oidc client: %v", err)
+			}
+
+			if clientPublic {
+				fmt.Printf("Registered public client %q (no secret; token_endpoint_auth_method=none)\n", params.ClientID)
+				return
+			}
+			fmt.Printf("Registered confidential client %q\n", params.ClientID)
+			fmt.Printf("Client secret (store this now, it will NOT be shown again):\n%s\n", secret)
+		},
+	}
+	createClientCmd.Flags().StringVar(&clientID, "client-id", "", "Stable client identifier (required).")
+	createClientCmd.Flags().StringVar(&clientDisplayName, "display-name", "", "Human-readable client name.")
+	createClientCmd.Flags().StringArrayVar(&clientRedirectURIs, "redirect-uri", nil, "Allowed redirect URI (repeatable, at least one required).")
+	createClientCmd.Flags().StringArrayVar(&clientPostLogoutURIs, "post-logout-redirect-uri", nil, "Allowed post-logout redirect URI (repeatable).")
+	createClientCmd.Flags().StringArrayVar(&clientScopes, "scope", nil, "Allowed scope (repeatable; defaults to openid,profile).")
+	createClientCmd.Flags().BoolVar(&clientPublic, "public", false, "Register a public client with no secret (auth method none).")
+	createClientCmd.Flags().BoolVar(&clientRequireConsent, "require-consent", false, "Require a consent screen for this client.")
+	oidcClientCmd.AddCommand(createClientCmd)
+
+	listClientCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List registered OIDC clients",
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			config, err := configx.Parse()
+			if err != nil {
+				log.Fatalf("parse config: %v", err)
+			}
+			if _, err := migrations.UpWithResult(config.DatabaseURL); err != nil {
+				log.Fatalf("apply migrations: %v", err)
+			}
+			conn, err := pgxpool.New(ctx, config.DatabaseURL)
+			if err != nil {
+				log.Fatalf("connect db: %v", err)
+			}
+			defer conn.Close()
+			q := db.New(conn)
+
+			clients, err := q.ListOIDCClients(ctx)
+			if err != nil {
+				log.Fatalf("list oidc clients: %v", err)
+			}
+			if len(clients) == 0 {
+				fmt.Println("No OIDC clients registered.")
+				return
+			}
+			fmt.Printf("%-32s %-32s %-24s %s\n", "CLIENT_ID", "DISPLAY_NAME", "AUTH_METHOD", "DISABLED")
+			for _, c := range clients {
+				fmt.Printf("%-32s %-32s %-24s %t\n", c.ClientID, c.DisplayName, c.TokenEndpointAuthMethod, c.Disabled)
+			}
+		},
+	}
+	oidcClientCmd.AddCommand(listClientCmd)
+	cli.Root().AddCommand(oidcClientCmd)
+
 	cli.Run()
 }
