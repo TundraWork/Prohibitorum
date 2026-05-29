@@ -43,6 +43,8 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 
 	"prohibitorum/cmd/smoke/mockop"
 	totppkg "prohibitorum/pkg/credential/totp"
@@ -955,8 +957,374 @@ func main() {
 		log.Fatalf("v0.3 federation audit DB assert: %v", err)
 	}
 
+	// =========================================================================
+	// v0.4 surface: downstream OIDC OP — a mock relying party drives the full
+	// authorization-code + PKCE flow against the Prohibitorum OP, then exercises
+	// /userinfo, /introspect, refresh-token rotation + reuse detection, /revoke,
+	// and RP-initiated logout. Per Task 15 of the v0.4 plan.
+	//
+	// IMPORTANT — session-cookie scope: the OIDC OP routes are mounted at the
+	// server ROOT (/oauth/authorize, /oauth/token, …), NOT under
+	// /api/prohibitorum. The session cookie is Path=/api/prohibitorum, so the
+	// cookie jar will NOT attach it to a root-path /oauth/authorize request. We
+	// therefore extract the session cookie from c's jar (querying the jar at the
+	// /api/prohibitorum path) and attach it by hand to /authorize requests. See
+	// authorizeWithSession below.
+	//
+	// Ordering: every authenticated /authorize+/token step (incl. the authorize
+	// negatives that need a live session) runs FIRST while c holds a session;
+	// the RP-initiated logout runs LAST because it revokes c's session via the
+	// id_token's sid. Each /authorize mints a fresh single-use code.
+	//
+	// Pre-condition: c holds a live webauthn session (re-established at step 60
+	// and never logged out since — steps 61–64 only touched non-session-killing
+	// endpoints). The OP issuer == *baseURL (configx defaults OIDC.Issuer to the
+	// first public origin, which the dev server sets to *baseURL).
+	const totalV04 = 90
+
+	// Refresh c's /me to make sure the session is live and to capture the
+	// account id (the OP projects oidc_subject for this account into id_token.sub).
+	v04Me, err := c.getMe()
+	if err != nil {
+		log.Fatalf("v0.4: c has no live session at start of OIDC OP steps: %v", err)
+	}
+	issuer := *baseURL
+	const rpClientID = "smoke-rp"
+	rpRedirectURI := *baseURL + "/rp/callback"
+	rpPostLogout := *baseURL + "/rp/post-logout"
+
+	step(fmt.Sprintf("step 70/%d — v0.4: signing-key generate + GET /oauth/jwks (exactly 1 key)", totalV04))
+	signingKID, err := mintSigningKey(*baseURL)
+	if err != nil {
+		log.Fatalf("signing-key generate: %v", err)
+	}
+	jwks, err := fetchJWKS(*baseURL)
+	if err != nil {
+		log.Fatalf("fetch jwks: %v", err)
+	}
+	if len(jwks.Keys) != 1 {
+		log.Fatalf("jwks: want exactly 1 key, got %d", len(jwks.Keys))
+	}
+	if jwks.Keys[0].KeyID != signingKID {
+		log.Fatalf("jwks: key kid=%q, want minted kid=%q", jwks.Keys[0].KeyID, signingKID)
+	}
+	log.Printf("  signing key kid=%s; /oauth/jwks has 1 key ✓", signingKID)
+
+	step(fmt.Sprintf("step 71/%d — v0.4: oidc-client create (confidential, openid+profile+offline_access)", totalV04))
+	rpSecret, err := createOIDCClient(*baseURL, rpClientID, rpRedirectURI, rpPostLogout,
+		[]string{"openid", "profile", "offline_access"})
+	if err != nil {
+		log.Fatalf("oidc-client create: %v", err)
+	}
+	if rpSecret == "" {
+		log.Fatalf("oidc-client create: empty client secret parsed from CLI output")
+	}
+	log.Printf("  client %q registered; secret len=%d", rpClientID, len(rpSecret))
+
+	step(fmt.Sprintf("step 72/%d — v0.4: GET /oauth/authorize (PKCE S256) → 302 with code+state+iss", totalV04))
+	verifier, challenge := genPKCE()
+	authState := randState()
+	authNonce := randState()
+	authzURL := fmt.Sprintf(
+		"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+		url.QueryEscape(rpClientID),
+		url.QueryEscape(rpRedirectURI),
+		url.QueryEscape("openid profile offline_access"),
+		url.QueryEscape(authState),
+		url.QueryEscape(authNonce),
+		url.QueryEscape(challenge),
+	)
+	loc, err := authorizeWithSession(c, authzURL)
+	if err != nil {
+		log.Fatalf("/oauth/authorize: %v", err)
+	}
+	authCode, err := parseAuthorizeRedirect(loc, rpRedirectURI, authState, issuer)
+	if err != nil {
+		log.Fatalf("/oauth/authorize redirect: %v", err)
+	}
+	log.Printf("  302 to redirect_uri with code (len=%d), state, iss ✓", len(authCode))
+
+	step(fmt.Sprintf("step 73/%d — v0.4: POST /oauth/token (authorization_code, Basic auth)", totalV04))
+	tok, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {authCode},
+		"redirect_uri":  {rpRedirectURI},
+		"code_verifier": {verifier},
+	})
+	if err != nil {
+		log.Fatalf("/oauth/token authorization_code: %v", err)
+	}
+	if tok.TokenType != "Bearer" {
+		log.Fatalf("token_type: want Bearer, got %q", tok.TokenType)
+	}
+	if tok.ExpiresIn <= 0 {
+		log.Fatalf("expires_in: want > 0, got %d", tok.ExpiresIn)
+	}
+	if tok.AccessToken == "" || tok.IDToken == "" {
+		log.Fatalf("token response missing access_token or id_token")
+	}
+	if tok.RefreshToken == "" {
+		log.Fatalf("token response missing refresh_token (offline_access was granted)")
+	}
+	accessToken := tok.AccessToken
+	idToken := tok.IDToken
+	refreshToken := tok.RefreshToken
+
+	// Verify the id_token: signature against JWKS + the OIDC claim set.
+	idClaims, err := verifyIDToken(*baseURL, idToken)
+	if err != nil {
+		log.Fatalf("verify id_token: %v", err)
+	}
+	if got := str(idClaims["iss"]); got != issuer {
+		log.Fatalf("id_token iss: want %q, got %q", issuer, got)
+	}
+	if got := str(idClaims["aud"]); got != rpClientID {
+		log.Fatalf("id_token aud: want %q, got %q", rpClientID, got)
+	}
+	idSub := str(idClaims["sub"])
+	if idSub == "" {
+		log.Fatalf("id_token sub is empty")
+	}
+	if got := str(idClaims["nonce"]); got != authNonce {
+		log.Fatalf("id_token nonce: want %q, got %q", authNonce, got)
+	}
+	if str(idClaims["at_hash"]) == "" {
+		log.Fatalf("id_token missing at_hash")
+	}
+	if str(idClaims["sid"]) == "" {
+		log.Fatalf("id_token missing sid")
+	}
+	if _, ok := idClaims["auth_time"]; !ok {
+		log.Fatalf("id_token missing auth_time")
+	}
+	if _, ok := idClaims["amr"]; !ok {
+		log.Fatalf("id_token missing amr")
+	}
+	// Verify the access token: it too is a JWS signed by the OP, with JOSE
+	// typ=at+jwt and a jti claim (RFC 9068).
+	atClaims, atTyp, err := verifyAccessToken(*baseURL, accessToken)
+	if err != nil {
+		log.Fatalf("verify access_token: %v", err)
+	}
+	if atTyp != "at+jwt" {
+		log.Fatalf("access_token JOSE typ: want at+jwt, got %q", atTyp)
+	}
+	if str(atClaims["jti"]) == "" {
+		log.Fatalf("access_token missing jti")
+	}
+	log.Printf("  id_token sub=%s aud=%s nonce✓ at_hash✓ sid✓ auth_time✓ amr✓; access_token typ=at+jwt jti✓; refresh_token len=%d",
+		idSub, rpClientID, len(refreshToken))
+
+	step(fmt.Sprintf("step 74/%d — v0.4: GET /oauth/userinfo (Bearer access token)", totalV04))
+	userinfo, err := fetchUserinfo(*baseURL, accessToken)
+	if err != nil {
+		log.Fatalf("/oauth/userinfo: %v", err)
+	}
+	if got := str(userinfo["sub"]); got != idSub {
+		log.Fatalf("userinfo sub: want %q (matching id_token), got %q", idSub, got)
+	}
+	if str(userinfo["username"]) != v04Me.Username {
+		log.Fatalf("userinfo username: want %q, got %q", v04Me.Username, str(userinfo["username"]))
+	}
+	if str(userinfo["displayName"]) == "" {
+		log.Fatalf("userinfo missing displayName (profile scope granted)")
+	}
+	log.Printf("  userinfo sub matches id_token; username=%s displayName=%s ✓",
+		str(userinfo["username"]), str(userinfo["displayName"]))
+
+	step(fmt.Sprintf("step 75/%d — v0.4: POST /oauth/introspect (access token, Basic auth) → active", totalV04))
+	intro, err := introspect(*baseURL, rpClientID, rpSecret, accessToken)
+	if err != nil {
+		log.Fatalf("/oauth/introspect: %v", err)
+	}
+	if active, _ := intro["active"].(bool); !active {
+		log.Fatalf("introspect: want active=true, got %v", intro["active"])
+	}
+	if got := str(intro["token_type"]); got != "access_token" {
+		log.Fatalf("introspect token_type: want access_token, got %q", got)
+	}
+	if got := str(intro["client_id"]); got != rpClientID {
+		log.Fatalf("introspect client_id: want %q, got %q", rpClientID, got)
+	}
+	if got := str(intro["sub"]); got != idSub {
+		log.Fatalf("introspect sub: want %q, got %q", idSub, got)
+	}
+	log.Printf("  introspect active=true token_type=access_token client_id=%s sub✓", rpClientID)
+
+	step(fmt.Sprintf("step 76/%d — v0.4: POST /oauth/token (refresh_token rotation, Basic auth)", totalV04))
+	refreshed, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+	})
+	if err != nil {
+		log.Fatalf("/oauth/token refresh_token: %v", err)
+	}
+	if refreshed.RefreshToken == "" {
+		log.Fatalf("refresh response missing rotated refresh_token")
+	}
+	if refreshed.RefreshToken == refreshToken {
+		log.Fatalf("refresh_token was NOT rotated (new == old)")
+	}
+	if refreshed.IDToken == "" {
+		log.Fatalf("refresh response missing id_token")
+	}
+	if _, err := verifyIDToken(*baseURL, refreshed.IDToken); err != nil {
+		log.Fatalf("verify refreshed id_token: %v", err)
+	}
+	oldRefreshToken := refreshToken
+	refreshToken = refreshed.RefreshToken
+	log.Printf("  refresh rotated (new != old); refreshed id_token verifies ✓")
+
+	step(fmt.Sprintf("step 77/%d — v0.4: replay OLD refresh_token → invalid_grant (reuse detection)", totalV04))
+	if err := tokenExpectError(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {oldRefreshToken},
+	}, http.StatusBadRequest, "invalid_grant"); err != nil {
+		log.Fatalf("refresh reuse: %v", err)
+	}
+	log.Printf("  replayed superseded refresh_token → 400 invalid_grant ✓")
+
+	step(fmt.Sprintf("step 78/%d — v0.4: reuse detection revoked the whole family (current token now dead)", totalV04))
+	// rotateRefresh revokes the family on reuse, so the current (rotated) token
+	// must now also fail with invalid_grant.
+	if err := tokenExpectError(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+	}, http.StatusBadRequest, "invalid_grant"); err != nil {
+		log.Fatalf("post-reuse family revocation: %v", err)
+	}
+	log.Printf("  current refresh_token also dead post-reuse (family revoked) ✓")
+
+	step(fmt.Sprintf("step 79/%d — v0.4: fresh authorize+token, then /oauth/revoke the refresh token", totalV04))
+	// The family was revoked at step 78; mint a fresh code → token to get a
+	// live refresh token to revoke via RFC 7009.
+	v2, code2 := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+	tok2, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code2},
+		"redirect_uri":  {rpRedirectURI},
+		"code_verifier": {v2},
+	})
+	if err != nil {
+		log.Fatalf("/oauth/token (pre-revoke): %v", err)
+	}
+	if tok2.RefreshToken == "" {
+		log.Fatalf("pre-revoke token response missing refresh_token")
+	}
+	if err := revokeToken(*baseURL, rpClientID, rpSecret, tok2.RefreshToken); err != nil {
+		log.Fatalf("/oauth/revoke: %v", err)
+	}
+	// A refresh with the revoked token must now fail.
+	if err := tokenExpectError(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {tok2.RefreshToken},
+	}, http.StatusBadRequest, "invalid_grant"); err != nil {
+		log.Fatalf("post-revoke refresh: %v", err)
+	}
+	log.Printf("  /oauth/revoke → 200; revoked refresh_token → invalid_grant ✓")
+
+	step(fmt.Sprintf("step 80/%d — v0.4: /oauth/revoke an access token → revoked_jti row", totalV04))
+	// Mint another fresh access token, revoke it, and confirm a revoked_jti row.
+	v3, code3 := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+	tok3, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code3},
+		"redirect_uri":  {rpRedirectURI},
+		"code_verifier": {v3},
+	})
+	if err != nil {
+		log.Fatalf("/oauth/token (pre-access-revoke): %v", err)
+	}
+	atClaims3, _, err := verifyAccessToken(*baseURL, tok3.AccessToken)
+	if err != nil {
+		log.Fatalf("verify access token (pre-access-revoke): %v", err)
+	}
+	revokedJTI := str(atClaims3["jti"])
+	if revokedJTI == "" {
+		log.Fatalf("pre-access-revoke: access token has no jti")
+	}
+	if err := revokeToken(*baseURL, rpClientID, rpSecret, tok3.AccessToken); err != nil {
+		log.Fatalf("/oauth/revoke access token: %v", err)
+	}
+	log.Printf("  access token jti=%.16s… revoked ✓", revokedJTI)
+	introRevoked, err := introspect(*baseURL, rpClientID, rpSecret, tok3.AccessToken)
+	if err != nil {
+		log.Fatalf("introspect revoked access token: %v", err)
+	}
+	if introRevoked["active"] != false {
+		log.Fatalf("introspect revoked access token: want active=false, got %v", introRevoked["active"])
+	}
+	log.Printf("  introspect revoked access token → active=false ✓")
+
+	step(fmt.Sprintf("step 81/%d — v0.4: negative — unregistered redirect_uri is a DIRECT error (no redirect)", totalV04))
+	if err := authorizeExpectDirectError(c, *baseURL, rpClientID,
+		*baseURL+"/rp/UNREGISTERED-callback", issuer); err != nil {
+		log.Fatalf("negative unregistered redirect_uri: %v", err)
+	}
+	log.Printf("  /authorize with bad redirect_uri → direct 400 invalid_request (no Location to the bad URI) ✓")
+
+	step(fmt.Sprintf("step 82/%d — v0.4: negative — PKCE mismatch at /token → invalid_grant", totalV04))
+	vGood, codeBad := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+	_ = vGood // intentionally NOT used: send a wrong verifier.
+	wrongVerifier, _ := genPKCE()
+	if err := tokenExpectError(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {codeBad},
+		"redirect_uri":  {rpRedirectURI},
+		"code_verifier": {wrongVerifier},
+	}, http.StatusBadRequest, "invalid_grant"); err != nil {
+		log.Fatalf("negative PKCE mismatch: %v", err)
+	}
+	log.Printf("  /token with wrong code_verifier → 400 invalid_grant ✓")
+
+	step(fmt.Sprintf("step 83/%d — v0.4: negative — bad client secret at /token → invalid_client (401)", totalV04))
+	vc, codec := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+	if err := tokenExpectError(*baseURL, rpClientID, "WRONG-SECRET", url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {codec},
+		"redirect_uri":  {rpRedirectURI},
+		"code_verifier": {vc},
+	}, http.StatusUnauthorized, "invalid_client"); err != nil {
+		log.Fatalf("negative bad client secret: %v", err)
+	}
+	log.Printf("  /token with wrong client secret → 401 invalid_client ✓")
+
+	step(fmt.Sprintf("step 84/%d — v0.4: GET /oidc/logout (id_token_hint + post_logout_redirect_uri)", totalV04))
+	// Capture the current session id so we can confirm logout revoked exactly it.
+	logoutState := randState()
+	logoutLoc, err := c.getRedirect(fmt.Sprintf("/oidc/logout?id_token_hint=%s&post_logout_redirect_uri=%s&state=%s",
+		url.QueryEscape(idToken), url.QueryEscape(rpPostLogout), url.QueryEscape(logoutState)))
+	if err != nil {
+		log.Fatalf("/oidc/logout: %v", err)
+	}
+	if !strings.HasPrefix(logoutLoc, rpPostLogout) {
+		log.Fatalf("/oidc/logout: want redirect to %q, got %q", rpPostLogout, logoutLoc)
+	}
+	if lu, perr := url.Parse(logoutLoc); perr != nil {
+		log.Fatalf("/oidc/logout: parse Location %q: %v", logoutLoc, perr)
+	} else if lu.Query().Get("state") != logoutState {
+		log.Fatalf("/oidc/logout: state not echoed: want %q, got %q", logoutState, lu.Query().Get("state"))
+	}
+	log.Printf("  302 to post_logout_redirect_uri with state echoed ✓")
+
+	step(fmt.Sprintf("step 85/%d — v0.4: logout revoked c's IdP session (the id_token's sid) → /me 401", totalV04))
+	if _, err := c.getMe(); err == nil {
+		log.Fatalf("/me succeeded after /oidc/logout; expected 401 (session sid should be revoked)")
+	}
+	log.Printf("  c's /me now 401 — logout revoked the id_token's sid session ✓")
+
+	step(fmt.Sprintf("step 86/%d — v0.4: DB assert — revoked_jti row for the revoked access token", totalV04))
+	if err := verifyRevokedJTI(revokedJTI); err != nil {
+		log.Fatalf("revoked_jti DB assert: %v", err)
+	}
+
+	step(fmt.Sprintf("step 87/%d — v0.4: DB assert — credential_event (factor=oidc_client) lifecycle", totalV04))
+	if err := verifyV04OIDCAuditEvents(); err != nil {
+		log.Fatalf("v0.4 OIDC audit DB assert: %v", err)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -2494,5 +2862,524 @@ func expectInviteStartFederationError(c *client, baseURL, token string, wantStat
 	if ae.Code != wantCode {
 		return fmt.Errorf("/start-federation error code: want %q, got %q (body=%s)", wantCode, ae.Code, string(body))
 	}
+	return nil
+}
+
+// =========================================================================
+// v0.4 OIDC OP helpers — mock relying party
+// =========================================================================
+
+// oidcTokenResponse mirrors pkg/protocol/oidc.tokenResponse (the RFC 6749 §5.1
+// token-endpoint body). Fields are pointers/strings so absent members decode
+// cleanly.
+type oidcTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	IDToken      string `json:"id_token"`
+	RefreshToken string `json:"refresh_token"`
+	Scope        string `json:"scope"`
+}
+
+// str coerces a JSON-decoded claim/response value to a string ("" if absent or
+// not a string). Used pervasively against map[string]any claim sets.
+func str(v any) string {
+	s, _ := v.(string)
+	return s
+}
+
+// mintSigningKey shells out to `prohibitorum signing-key generate` and parses
+// the printed kid. The CLI prints exactly:
+//
+//	Generated signing key <kid> (active)
+//
+// (or "(inactive)" when a key already exists and --activate was not passed).
+// We parse the 4th whitespace-separated field as the kid. DATABASE_URL and the
+// DEK are inherited from os.Environ(); PROHIBITORUM_PUBLIC_ORIGIN is set so the
+// CLI's config parse succeeds (issuer derivation).
+func mintSigningKey(baseURL string) (string, error) {
+	cmd := exec.Command("mise", "exec", "--", "go", "run", "./cmd/prohibitorum", "signing-key", "generate")
+	cmd.Env = append(os.Environ(), "PROHIBITORUM_PUBLIC_ORIGIN="+baseURL)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("signing-key generate: %v\n%s", err, out)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "Generated signing key ") {
+			continue
+		}
+		fields := strings.Fields(line)
+		// "Generated" "signing" "key" "<kid>" "(active)"
+		if len(fields) >= 4 {
+			return fields[3], nil
+		}
+	}
+	return "", fmt.Errorf("no 'Generated signing key' line in output:\n%s", out)
+}
+
+// createOIDCClient shells out to `prohibitorum oidc-client create` for a
+// confidential client and parses the one-time plaintext secret. The CLI prints:
+//
+//	Registered confidential client "smoke-rp"
+//	Client secret (store this now, it will NOT be shown again):
+//	<secret>
+//
+// We locate the "Client secret" prefix line and return the next non-empty line.
+func createOIDCClient(baseURL, clientID, redirectURI, postLogoutURI string, scopes []string) (string, error) {
+	args := []string{"exec", "--", "go", "run", "./cmd/prohibitorum", "oidc-client", "create",
+		"--client-id", clientID,
+		"--display-name", "Smoke RP",
+		"--redirect-uri", redirectURI,
+		"--post-logout-redirect-uri", postLogoutURI,
+	}
+	for _, s := range scopes {
+		args = append(args, "--scope", s)
+	}
+	cmd := exec.Command("mise", args...)
+	cmd.Env = append(os.Environ(), "PROHIBITORUM_PUBLIC_ORIGIN="+baseURL)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("oidc-client create: %v\n%s", err, out)
+	}
+	lines := strings.Split(string(out), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "Client secret") {
+			// Secret is the next non-empty line.
+			for j := i + 1; j < len(lines); j++ {
+				s := strings.TrimSpace(lines[j])
+				if s != "" {
+					return s, nil
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("no client secret in oidc-client create output:\n%s", out)
+}
+
+// genPKCE generates an RFC 7636 PKCE pair: verifier = base64url(32 random
+// bytes); challenge = base64url(SHA256(verifier)). Both base64url-no-padding.
+func genPKCE() (verifier, challenge string) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		log.Fatalf("genPKCE: rand: %v", err)
+	}
+	verifier = base64.RawURLEncoding.EncodeToString(raw[:])
+	sum := sha256.Sum256([]byte(verifier))
+	challenge = base64.RawURLEncoding.EncodeToString(sum[:])
+	return verifier, challenge
+}
+
+// randState returns 16 random bytes base64url-encoded, for `state`/`nonce`.
+func randState() string {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		log.Fatalf("randState: rand: %v", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw[:])
+}
+
+// fetchJWKS GETs /oauth/jwks and unmarshals it into a jose.JSONWebKeySet.
+func fetchJWKS(baseURL string) (*jose.JSONWebKeySet, error) {
+	resp, err := http.Get(baseURL + "/oauth/jwks")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GET /oauth/jwks: %d %s", resp.StatusCode, body)
+	}
+	var jwks jose.JSONWebKeySet
+	if err := json.Unmarshal(body, &jwks); err != nil {
+		return nil, fmt.Errorf("unmarshal jwks: %w (body=%s)", err, body)
+	}
+	return &jwks, nil
+}
+
+// verifyJWSAgainstJWKS parses an RS256 JWS, resolves the matching key in the
+// OP's JWKS by the token header kid, verifies the signature, and returns the
+// claims plus the JOSE `typ` header. Used for both id_token and access_token.
+func verifyJWSAgainstJWKS(baseURL, token string) (map[string]any, string, error) {
+	jwks, err := fetchJWKS(baseURL)
+	if err != nil {
+		return nil, "", err
+	}
+	parsed, err := jwt.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256})
+	if err != nil {
+		return nil, "", fmt.Errorf("parse jws: %w", err)
+	}
+	if len(parsed.Headers) != 1 {
+		return nil, "", fmt.Errorf("unexpected JOSE header count: %d", len(parsed.Headers))
+	}
+	kid := parsed.Headers[0].KeyID
+	keys := jwks.Key(kid)
+	if len(keys) == 0 {
+		return nil, "", fmt.Errorf("no JWKS key matches token kid %q", kid)
+	}
+	var claims map[string]any
+	if err := parsed.Claims(keys[0].Key, &claims); err != nil {
+		return nil, "", fmt.Errorf("verify jws signature: %w", err)
+	}
+	typ, _ := parsed.Headers[0].ExtraHeaders[jose.HeaderType].(string)
+	return claims, typ, nil
+}
+
+// verifyIDToken verifies an id_token's signature against the OP JWKS and
+// returns its claims. The caller checks the individual OIDC claims.
+func verifyIDToken(baseURL, idToken string) (map[string]any, error) {
+	claims, _, err := verifyJWSAgainstJWKS(baseURL, idToken)
+	return claims, err
+}
+
+// verifyAccessToken verifies an access token's signature and returns its
+// claims plus the JOSE typ header (expected "at+jwt" per RFC 9068).
+func verifyAccessToken(baseURL, accessToken string) (map[string]any, string, error) {
+	return verifyJWSAgainstJWKS(baseURL, accessToken)
+}
+
+// sessionCookieForOIDC extracts the prohibitorum_session cookie from c's jar.
+// The cookie is Path=/api/prohibitorum, so we query the jar with that path —
+// querying "/" (as c.cookies() does) returns nothing. Returns nil if absent.
+func sessionCookieForOIDC(c *client) *http.Cookie {
+	u, _ := url.Parse(c.base + "/api/prohibitorum")
+	for _, ck := range c.jar.Cookies(u) {
+		if ck.Name == "prohibitorum_session" {
+			return ck
+		}
+	}
+	return nil
+}
+
+// authorizeWithSession issues GET <c.base>+path against the root-mounted
+// /oauth/authorize, MANUALLY attaching c's session cookie (which the jar would
+// not send to a root-path request because it is scoped to /api/prohibitorum).
+// It expects a 302 and returns the Location. Redirects are NOT followed.
+func authorizeWithSession(c *client, path string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return "", err
+	}
+	ck := sessionCookieForOIDC(c)
+	if ck == nil {
+		return "", errors.New("authorizeWithSession: no session cookie in jar (is c logged in?)")
+	}
+	req.AddCookie(ck)
+	// Do not follow the redirect — we want to observe the Location (the 302
+	// back to the RP redirect_uri, an unmounted path that would 404 if followed).
+	hc := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusFound {
+		return "", fmt.Errorf("GET /oauth/authorize: want 302, got %d (%s)", resp.StatusCode, body)
+	}
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		return "", errors.New("GET /oauth/authorize: 302 with empty Location")
+	}
+	return loc, nil
+}
+
+// parseAuthorizeRedirect validates an /authorize success redirect: it must
+// start with redirectURI, carry a non-empty code, echo the sent state, and
+// carry iss == issuer (RFC 9207). Returns the authorization code.
+func parseAuthorizeRedirect(loc, redirectURI, wantState, issuer string) (string, error) {
+	if !strings.HasPrefix(loc, redirectURI) {
+		return "", fmt.Errorf("redirect Location %q does not start with redirect_uri %q", loc, redirectURI)
+	}
+	u, err := url.Parse(loc)
+	if err != nil {
+		return "", fmt.Errorf("parse Location %q: %w", loc, err)
+	}
+	q := u.Query()
+	code := q.Get("code")
+	if code == "" {
+		return "", fmt.Errorf("redirect missing code: %q", loc)
+	}
+	if q.Get("state") != wantState {
+		return "", fmt.Errorf("redirect state: want %q, got %q", wantState, q.Get("state"))
+	}
+	if q.Get("iss") != issuer {
+		return "", fmt.Errorf("redirect iss: want %q, got %q", issuer, q.Get("iss"))
+	}
+	return code, nil
+}
+
+// freshAuthorizeCode runs a single PKCE S256 /authorize against the OP with c's
+// session and returns (verifier, code). Each call mints a fresh single-use
+// code. Fatal on any error since callers always need a usable code.
+func freshAuthorizeCode(c *client, baseURL, clientID, redirectURI, issuer string) (verifier, code string) {
+	v, challenge := genPKCE()
+	state := randState()
+	nonce := randState()
+	authzURL := fmt.Sprintf(
+		"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+		url.QueryEscape(clientID),
+		url.QueryEscape(redirectURI),
+		url.QueryEscape("openid profile offline_access"),
+		url.QueryEscape(state),
+		url.QueryEscape(nonce),
+		url.QueryEscape(challenge),
+	)
+	loc, err := authorizeWithSession(c, authzURL)
+	if err != nil {
+		log.Fatalf("freshAuthorizeCode: /authorize: %v", err)
+	}
+	code, err = parseAuthorizeRedirect(loc, redirectURI, state, issuer)
+	if err != nil {
+		log.Fatalf("freshAuthorizeCode: %v", err)
+	}
+	return v, code
+}
+
+// authorizeExpectDirectError issues /authorize with an UNREGISTERED
+// redirect_uri and asserts the OP returns a DIRECT JSON error (per the
+// open-redirect guard) rather than a 302 to the bad URI. Expects a non-302
+// status (400) with a JSON `error` body, and no Location header pointing at the
+// bad URI.
+func authorizeExpectDirectError(c *client, baseURL, clientID, badRedirectURI, issuer string) error {
+	v, challenge := genPKCE()
+	_ = v
+	state := randState()
+	authzURL := fmt.Sprintf(
+		"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+		url.QueryEscape(clientID),
+		url.QueryEscape(badRedirectURI),
+		url.QueryEscape("openid profile offline_access"),
+		url.QueryEscape(state),
+		url.QueryEscape(randState()),
+		url.QueryEscape(challenge),
+	)
+	req, err := http.NewRequest(http.MethodGet, c.base+authzURL, nil)
+	if err != nil {
+		return err
+	}
+	if ck := sessionCookieForOIDC(c); ck != nil {
+		req.AddCookie(ck)
+	}
+	hc := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusFound {
+		return fmt.Errorf("bad redirect_uri produced a 302 (open redirect!): Location=%q", resp.Header.Get("Location"))
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		return fmt.Errorf("status: want 400, got %d (body=%s)", resp.StatusCode, body)
+	}
+	if loc := resp.Header.Get("Location"); strings.Contains(loc, badRedirectURI) {
+		return fmt.Errorf("response Location leaks the bad redirect_uri: %q", loc)
+	}
+	var ae struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(body, &ae)
+	if ae.Error != "invalid_request" {
+		return fmt.Errorf("error code: want invalid_request, got %q (body=%s)", ae.Error, body)
+	}
+	return nil
+}
+
+// tokenExchange POSTs form-encoded params to /oauth/token with HTTP Basic
+// client auth and decodes a success token response. Errors on any non-200.
+func tokenExchange(baseURL, clientID, clientSecret string, form url.Values) (*oidcTokenResponse, error) {
+	resp, err := postTokenForm(baseURL, "/oauth/token", clientID, clientSecret, form)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("POST /oauth/token: %d %s — %s", resp.StatusCode, resp.Status, body)
+	}
+	var out oidcTokenResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode token response: %w (body=%s)", err, body)
+	}
+	return &out, nil
+}
+
+// tokenExpectError POSTs to /oauth/token and asserts the response is the given
+// HTTP status with the given OAuth `error` code (RFC 6749 §5.2 body).
+func tokenExpectError(baseURL, clientID, clientSecret string, form url.Values, wantStatus int, wantError string) error {
+	resp, err := postTokenForm(baseURL, "/oauth/token", clientID, clientSecret, form)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != wantStatus {
+		return fmt.Errorf("status: want %d, got %d (body=%s)", wantStatus, resp.StatusCode, body)
+	}
+	var ae struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(body, &ae)
+	if ae.Error != wantError {
+		return fmt.Errorf("error: want %q, got %q (body=%s)", wantError, ae.Error, body)
+	}
+	return nil
+}
+
+// postTokenForm is the shared low-level POST for the token/introspect/revoke
+// endpoints: application/x-www-form-urlencoded body + HTTP Basic client auth.
+func postTokenForm(baseURL, path, clientID, clientSecret string, form url.Values) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, baseURL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(clientID, clientSecret)
+	hc := &http.Client{Timeout: 10 * time.Second}
+	return hc.Do(req)
+}
+
+// fetchUserinfo GETs /oauth/userinfo with a Bearer access token and decodes the
+// claim set. Errors on any non-200.
+func fetchUserinfo(baseURL, accessToken string) (map[string]any, error) {
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/oauth/userinfo", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	hc := &http.Client{Timeout: 10 * time.Second}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GET /oauth/userinfo: %d %s — %s", resp.StatusCode, resp.Status, body)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode userinfo: %w (body=%s)", err, body)
+	}
+	return out, nil
+}
+
+// introspect POSTs /oauth/introspect (Basic client auth) for a token and
+// decodes the RFC 7662 response.
+func introspect(baseURL, clientID, clientSecret, token string) (map[string]any, error) {
+	resp, err := postTokenForm(baseURL, "/oauth/introspect", clientID, clientSecret, url.Values{"token": {token}})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("POST /oauth/introspect: %d %s — %s", resp.StatusCode, resp.Status, body)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode introspect: %w (body=%s)", err, body)
+	}
+	return out, nil
+}
+
+// revokeToken POSTs /oauth/revoke (Basic client auth) for a token. RFC 7009:
+// the endpoint always responds 200, so any non-200 is a failure.
+func revokeToken(baseURL, clientID, clientSecret, token string) error {
+	resp, err := postTokenForm(baseURL, "/oauth/revoke", clientID, clientSecret, url.Values{"token": {token}})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("POST /oauth/revoke: want 200, got %d (%s)", resp.StatusCode, body)
+	}
+	return nil
+}
+
+// verifyRevokedJTI asserts a revoked_jti row exists for the given jti.
+func verifyRevokedJTI(jti string) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+	rows, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT count(*)::text FROM revoked_jti WHERE jti='%s'", jti))
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 || rows[0] != "1" {
+		return fmt.Errorf("expected exactly 1 revoked_jti row for jti, got %v", rows)
+	}
+	log.Printf("  revoked_jti row present for revoked access token ✓")
+	return nil
+}
+
+// verifyV04OIDCAuditEvents asserts credential_event has lower-bound counts for
+// the oidc_client factor across this smoke run. The audit `event` column holds
+// the abstract verb (use/fail/revoke); the concrete reason lives in
+// detail->>'reason'. We assert on (event, reason) pairs so a regression that
+// drops a specific audit (e.g. refresh_reuse) is caught.
+//
+// Expected reasons emitted by the handlers:
+//   - use/authorize        — every /oauth/authorize success (≥5: steps 72,79,80,82,83 + reruns)
+//   - use/token_issued     — every authorization_code grant (≥4: steps 73,79,80 + the negatives consume a code but the bad-secret/PKCE-mismatch ones FAIL before token_issued)
+//   - use/refresh_rotated  — the successful refresh (step 76) ≥1
+//   - use/logout           — RP-initiated logout (step 84) ≥1
+//   - fail/refresh_reuse   — the reuse replay (step 77) ≥1
+//   - revoke/revoked       — /oauth/revoke (steps 79 refresh + 80 access) ≥2
+func verifyV04OIDCAuditEvents() error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+	rows, err := psqlScalar(dburl,
+		"SELECT event || ':' || COALESCE(detail->>'reason','') || ':' || count(*)::text "+
+			"FROM credential_event WHERE factor='oidc_client' "+
+			"GROUP BY event, COALESCE(detail->>'reason','') "+
+			"ORDER BY event, COALESCE(detail->>'reason','')")
+	if err != nil {
+		return err
+	}
+	counts := map[string]int{}
+	for _, row := range rows {
+		parts := strings.SplitN(row, ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		n, _ := strconv.Atoi(parts[2])
+		counts[parts[0]+":"+parts[1]] = n
+	}
+	want := []struct {
+		key string
+		min int
+	}{
+		{"use:authorize", 5},
+		{"use:token_issued", 3},
+		{"use:refresh_rotated", 1},
+		{"use:logout", 1},
+		{"fail:refresh_reuse", 1},
+		{"revoke:revoked", 2},
+	}
+	for _, w := range want {
+		if counts[w.key] < w.min {
+			return fmt.Errorf("credential_event oidc_client %s: want >=%d, got %d (full counts=%v)",
+				w.key, w.min, counts[w.key], counts)
+		}
+	}
+	log.Printf("  credential_event covers v0.4 OIDC OP lifecycle (counts=%v)", counts)
 	return nil
 }
