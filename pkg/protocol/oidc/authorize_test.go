@@ -270,6 +270,58 @@ func TestAuthorize_NoSessionPromptNone_LoginRequired(t *testing.T) {
 	}
 }
 
+// disabledSentinelReq builds a GET /oauth/authorize request carrying the
+// disabled-mid-session sentinel that LoadSession attaches when an account is
+// disabled mid-session: a non-nil Session whose Data is nil. The bare
+// /oauth/authorize route skips authn.Check, so the handler must treat this as
+// "not authenticated" rather than dereferencing the nil Data.
+func disabledSentinelReq(v url.Values) *http.Request {
+	req := httptest.NewRequest("GET", "/oauth/authorize?"+v.Encode(), nil)
+	return req.WithContext(authn.WithSession(req.Context(), &authn.Session{
+		Account: &db.Account{ID: 42, Disabled: true},
+		Data:    nil,
+	}))
+}
+
+func TestAuthorize_DisabledSentinelSession_RedirectsToLogin(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient()}
+	p := newProvider(q, &recordingAudit{})
+
+	rec := httptest.NewRecorder()
+	// Must not panic on the nil sess.Data; must take the no-session bounce.
+	p.HandleAuthorize(rec, disabledSentinelReq(baseParams()))
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("want 302 login bounce, got %d", rec.Code)
+	}
+	loc := rec.Result().Header.Get("Location")
+	wantPrefix := testIssuer + "/login?return_to="
+	if !strings.HasPrefix(loc, wantPrefix) {
+		t.Fatalf("want Location prefix %q, got %q", wantPrefix, loc)
+	}
+}
+
+func TestAuthorize_DisabledSentinelSessionPromptNone_LoginRequired(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient()}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Set("prompt", "none")
+	rec := httptest.NewRecorder()
+	// Must not panic; with prompt=none the disabled sentinel takes the
+	// login_required RP redirect rather than the interactive login bounce.
+	p.HandleAuthorize(rec, disabledSentinelReq(v))
+
+	gotQ := redirectQuery(t, rec)
+	if got := gotQ.Get("error"); got != errCodeLoginRequired {
+		t.Fatalf("want error=%s, got %q", errCodeLoginRequired, got)
+	}
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "https://rp.example.com/callback") {
+		t.Fatalf("login_required must go to the RP redirect_uri, got %q", loc)
+	}
+}
+
 func TestAuthorize_RequireConsent_Redirect(t *testing.T) {
 	c := validClient()
 	c.RequireConsent = true

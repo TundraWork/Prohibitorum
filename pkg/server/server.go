@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -182,9 +183,30 @@ func NewHuma() huma.API {
 }
 
 func (s *Server) Serve() error {
+	// Periodically reap expired revoked_jti rows. PruneExpiredRevokedJTI has no
+	// other caller, so without this the denylist (queried on every /userinfo and
+	// /introspect) grows unbounded. Launched only from Serve() so tests and the
+	// openapi subcommand never start it.
+	go s.pruneRevokedJTILoop()
+
 	addr := fmt.Sprintf(":%d", s.config.Port)
 	logx.WithFields(logrus.Fields{"addr": addr}).Info("serving API")
 	return http.ListenAndServe(addr, s.router)
+}
+
+// pruneRevokedJTILoop deletes expired entries from the revoked_jti denylist once
+// at startup and then hourly. A prune error is logged and retried on the next
+// tick — it must never crash the server.
+func (s *Server) pruneRevokedJTILoop() {
+	ctx := context.Background()
+	t := time.NewTicker(1 * time.Hour)
+	defer t.Stop()
+	for {
+		if err := s.queries.PruneExpiredRevokedJTI(ctx); err != nil {
+			logx.WithContext(ctx).WithError(err).Warn("prune revoked_jti")
+		}
+		<-t.C
+	}
 }
 
 func registerSecurityScheme(api huma.API) {

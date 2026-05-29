@@ -93,9 +93,14 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// (4) Session gate.
+	// (4) Session gate. A nil session, the disabled-mid-session sentinel
+	// (non-nil Session with Data == nil, attached by LoadSession when an
+	// account is disabled), or an explicitly-disabled account all count as
+	// "not authenticated" — bounce to login (or login_required for
+	// prompt=none). Widening this guard also keeps the sess.Data deref below
+	// safe, matching the pattern in handle_sudo.go.
 	sess := authn.SessionFromContext(r.Context())
-	if sess == nil {
+	if sess == nil || sess.Data == nil || (sess.Account != nil && sess.Account.Disabled) {
 		if prompt == "none" {
 			// The RP forbade an interactive login bounce.
 			redirectError(w, r, redirectURI, errCodeLoginRequired, "authentication required", state, p.cfg.OIDC.Issuer)
