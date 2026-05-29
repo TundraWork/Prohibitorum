@@ -24,14 +24,14 @@
     {
       "id": 3,
       "subject": "Task 3: Client load + authentication",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** client.go — loadClient, authenticateClient (basic/post/none), verifyClientSecret (PHCDecode+argon2id+constant-time).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/client.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestClient -v -count=1\",\"acceptanceCriteria\":[\"loadClient excludes disabled\",\"basic/post/none auth\",\"argon2id constant-time verify\",\"bad/unknown/disabled->invalid_client\",\"secret-to-public rejected\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Claims projection",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** claims.go — subjectOf (uuid->string), idTokenClaims (profile-gated), userinfoClaims, hasScope, atHash.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/claims.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestClaims -v -count=1\",\"acceptanceCriteria\":[\"sub=oidc_subject string\",\"profile claims gated\",\"at_hash left-half SHA256 base64url\",\"azp only when aud multi\"]}\n```"
     },
@@ -120,5 +120,5 @@
       "description": "**Goal:** STATUS v0.4 section, AUDIT OIDC rows->smoke-verified + rate-limit reframed to D3, INTEGRATION OIDC OP curl examples + CLIs.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.4 smoke lists\",\"AUDIT rows smoke-verified+rate-limit reframed\",\"INTEGRATION curl+CLIs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-29T23:30:00Z"
+  "lastUpdated": "2026-05-30T00:15:00Z"
 }
