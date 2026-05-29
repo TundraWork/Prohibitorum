@@ -38,9 +38,12 @@ func writeOIDCError(w http.ResponseWriter, status int, code, desc string) {
 
 // redirectError 302-redirects to the client's redirect_uri with the OAuth
 // error encoded as query params (RFC 6749 §4.1.2.1). state is echoed only
-// when non-empty. If redirectURI fails to parse, falls back to a direct
-// invalid_request JSON error rather than redirecting to an invalid target.
-func redirectError(w http.ResponseWriter, r *http.Request, redirectURI, code, desc, state string) {
+// when non-empty. iss is included when non-empty (RFC 9207 — the discovery
+// doc advertises authorization_response_iss_parameter_supported, so error
+// redirects must also carry the issuer). If redirectURI fails to parse, falls
+// back to a direct invalid_request JSON error rather than redirecting to an
+// invalid target.
+func redirectError(w http.ResponseWriter, r *http.Request, redirectURI, code, desc, state, iss string) {
 	u, err := url.Parse(redirectURI)
 	if err != nil {
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "invalid redirect_uri")
@@ -53,6 +56,9 @@ func redirectError(w http.ResponseWriter, r *http.Request, redirectURI, code, de
 	}
 	if state != "" {
 		q.Set("state", state)
+	}
+	if iss != "" {
+		q.Set("iss", iss)
 	}
 	u.RawQuery = q.Encode()
 	http.Redirect(w, r, u.String(), http.StatusFound)

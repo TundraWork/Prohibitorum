@@ -39,7 +39,7 @@ func TestErrorsWriteOIDCError(t *testing.T) {
 func TestErrorsRedirectError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize", nil)
-	redirectError(rec, req, "https://rp.example/cb", errCodeAccessDenied, "user said no", "xyz123")
+	redirectError(rec, req, "https://rp.example/cb", errCodeAccessDenied, "user said no", "xyz123", "https://idp.example")
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusFound)
@@ -62,12 +62,15 @@ func TestErrorsRedirectError(t *testing.T) {
 	if q.Get("state") != "xyz123" {
 		t.Fatalf("state param = %q, want %q", q.Get("state"), "xyz123")
 	}
+	if q.Get("iss") != "https://idp.example" {
+		t.Fatalf("iss param = %q, want %q (RFC 9207)", q.Get("iss"), "https://idp.example")
+	}
 }
 
 func TestErrorsRedirectErrorOmitsEmptyState(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize", nil)
-	redirectError(rec, req, "https://rp.example/cb", errCodeInvalidRequest, "", "")
+	redirectError(rec, req, "https://rp.example/cb", errCodeInvalidRequest, "", "", "")
 
 	loc := rec.Header().Get("Location")
 	u, err := url.Parse(loc)
@@ -90,7 +93,7 @@ func TestErrorsRedirectErrorBadURI(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize", nil)
 	// A control character makes url.Parse fail, exercising the fallback path.
-	redirectError(rec, req, "http://\x7f", errCodeInvalidRequest, "bad", "s")
+	redirectError(rec, req, "http://\x7f", errCodeInvalidRequest, "bad", "s", "https://idp.example")
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d (JSON fallback)", rec.Code, http.StatusBadRequest)
