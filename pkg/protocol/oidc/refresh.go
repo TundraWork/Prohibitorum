@@ -113,26 +113,25 @@ func loadFamily(ctx context.Context, store kv.Store, presented string) (*refresh
 // generates a random FamilyID and an opaque CurrentToken, stamps IssuedAt, and
 // writes both the family record (oidc:refresh:family:<fid>) and the
 // token→family mapping (oidc:refresh:<token>) with TTL RefreshTokenTTL. It
-// returns the freshly minted token. The caller need not pre-populate
-// FamilyID/CurrentToken/IssuedAt; they are set here. To recover the generated
-// FamilyID, callers can lookupRefresh the returned token.
-func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily) (string, error) {
+// returns the freshly minted token and the generated family id. The caller need
+// not pre-populate FamilyID/CurrentToken/IssuedAt; they are set here.
+func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily) (token string, familyID string, err error) {
 	fid, err := randToken()
 	if err != nil {
-		return "", fmt.Errorf("oidc: generate refresh family id: %w", err)
+		return "", "", fmt.Errorf("oidc: generate refresh family id: %w", err)
 	}
-	token, err := randToken()
+	token, err = randToken()
 	if err != nil {
-		return "", fmt.Errorf("oidc: generate refresh token: %w", err)
+		return "", "", fmt.Errorf("oidc: generate refresh token: %w", err)
 	}
 	fam.FamilyID = fid
 	fam.CurrentToken = token
 	fam.IssuedAt = time.Now().UTC()
 
 	if err := putFamily(ctx, store, &fam); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return token, nil
+	return token, fid, nil
 }
 
 // rotateRefresh performs a single-use exchange of a refresh token.

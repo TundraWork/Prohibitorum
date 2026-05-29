@@ -230,11 +230,11 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 
 	// Refresh token only when offline_access was granted. We then record, on
 	// the consumed code, which family it minted: a later replay of this code
-	// revokes that family. issueRefresh returns only the token, so we recover
-	// the generated FamilyID via lookupRefresh.
+	// revokes that family. issueRefresh returns the family id directly, so the
+	// replay marker is recorded without a second lookup.
 	var refreshToken string
 	if hasScope(ac.Scope, "offline_access") {
-		rt, err := issueRefresh(ctx, p.kv, refreshFamily{
+		rt, fid, err := issueRefresh(ctx, p.kv, refreshFamily{
 			ClientID:  client.ClientID,
 			AccountID: acct.ID,
 			SessionID: ac.SessionID,
@@ -247,9 +247,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not issue refresh token")
 			return
 		}
-		if fam, ok := lookupRefresh(ctx, p.kv, rt); ok {
-			_ = markCodeUsed(ctx, p.kv, code, fam.FamilyID)
-		}
+		_ = markCodeUsed(ctx, p.kv, code, fid)
 		refreshToken = rt
 	}
 

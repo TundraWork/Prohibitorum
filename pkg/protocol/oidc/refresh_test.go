@@ -32,7 +32,7 @@ func TestRefreshIssueAndRotateHappy(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	orig := sampleFamily()
-	t0, err := issueRefresh(ctx, store, orig)
+	t0, _, err := issueRefresh(ctx, store, orig)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestRefreshReuseRevokesFamily(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, err := issueRefresh(ctx, store, sampleFamily())
+	t0, _, err := issueRefresh(ctx, store, sampleFamily())
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -133,17 +133,12 @@ func TestRefreshRevokeFamily(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, err := issueRefresh(ctx, store, sampleFamily())
+	t0, fid, err := issueRefresh(ctx, store, sampleFamily())
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
-	fam, ok := lookupRefresh(ctx, store, t0)
-	if !ok {
-		t.Fatal("lookupRefresh after issue: ok=false, want true")
-	}
-
-	if err := revokeFamily(ctx, store, fam.FamilyID); err != nil {
+	if err := revokeFamily(ctx, store, fid); err != nil {
 		t.Fatalf("revokeFamily: %v", err)
 	}
 
@@ -157,7 +152,7 @@ func TestRefreshLookup(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, err := issueRefresh(ctx, store, sampleFamily())
+	t0, _, err := issueRefresh(ctx, store, sampleFamily())
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -191,7 +186,7 @@ func TestRefreshLookupAfterRevoke(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, err := issueRefresh(ctx, store, sampleFamily())
+	t0, _, err := issueRefresh(ctx, store, sampleFamily())
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -231,7 +226,7 @@ func TestRefreshLookupSupersededToken(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, err := issueRefresh(ctx, store, sampleFamily())
+	t0, _, err := issueRefresh(ctx, store, sampleFamily())
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -256,11 +251,11 @@ func TestRefreshDistinctTokens(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	a, err := issueRefresh(ctx, store, sampleFamily())
+	a, _, err := issueRefresh(ctx, store, sampleFamily())
 	if err != nil {
 		t.Fatalf("issueRefresh #1: %v", err)
 	}
-	b, err := issueRefresh(ctx, store, sampleFamily())
+	b, _, err := issueRefresh(ctx, store, sampleFamily())
 	if err != nil {
 		t.Fatalf("issueRefresh #2: %v", err)
 	}

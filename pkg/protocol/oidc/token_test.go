@@ -204,8 +204,8 @@ func TestTokenHappyPath(t *testing.T) {
 	if idClaims["sid"] != "sid-1" {
 		t.Fatalf("id token sid = %v", idClaims["sid"])
 	}
-	if ath, _ := idClaims["at_hash"].(string); ath == "" {
-		t.Fatal("id token missing at_hash")
+	if got := idClaims["at_hash"]; got != atHash(resp.AccessToken) {
+		t.Fatalf("at_hash = %v, want %v", got, atHash(resp.AccessToken))
 	}
 
 	// Access token verifies and carries jti + client_id.
