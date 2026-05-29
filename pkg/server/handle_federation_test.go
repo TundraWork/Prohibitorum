@@ -80,6 +80,10 @@ type fakeFedQueries struct {
 
 	// audit
 	events []db.InsertCredentialEventParams
+
+	// enrollment (populated by handle_invite_federation_test.go via seedEnrollment;
+	// declared here so the field lives on the shared fake type).
+	enrollmentByToken map[string]db.Enrollment
 }
 
 func newFakeFedQueries() *fakeFedQueries {
