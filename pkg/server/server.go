@@ -278,10 +278,18 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListInvitations, s.handleListInvitations, admin)
 	registerOp(mgmt, contract.OperationRevokeInvitation, s.handleRevokeInvitation, admin)
 
-	// OIDC OP — discovery and JWKS are usable from v0.1. The discovery doc
-	// advertises authorize/token/userinfo/logout/jwks URLs; the latter four
-	// land mounted-and-functional in v0.4 (currently unmounted; their
-	// handlers in pkg/protocol/oidc return 501).
+	// OIDC OP — v0.4 full surface. Discovery and JWKS are public. Authorize
+	// benefits from the global LoadSession middleware (already installed on
+	// the router) so that authn.SessionFromContext works inside the handler.
+	// Token, userinfo (GET+POST per OIDC spec), introspect, revoke, and
+	// logout are public endpoints that perform their own bearer/client auth.
 	s.router.Get("/.well-known/openid-configuration", s.oidcOP.HandleDiscovery)
 	s.router.Get("/oauth/jwks", s.oidcOP.HandleJWKS)
+	s.router.Get("/oauth/authorize", s.oidcOP.HandleAuthorize)
+	s.router.Post("/oauth/token", s.oidcOP.HandleToken)
+	s.router.Get("/oauth/userinfo", s.oidcOP.HandleUserinfo)
+	s.router.Post("/oauth/userinfo", s.oidcOP.HandleUserinfo)
+	s.router.Post("/oauth/introspect", s.oidcOP.HandleIntrospect)
+	s.router.Post("/oauth/revoke", s.oidcOP.HandleRevoke)
+	s.router.Get("/oidc/logout", s.oidcOP.HandleLogout)
 }
