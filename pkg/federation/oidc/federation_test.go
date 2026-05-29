@@ -38,6 +38,9 @@ type fakeFederatorQueries struct {
 
 	identitiesByAccount    map[int32][]db.ListAccountIdentitiesByAccountRow
 	identitiesByAccountErr error
+
+	enrollmentByToken    map[string]db.Enrollment
+	enrollmentByTokenErr error
 }
 
 func newFakeFederatorQueries() *fakeFederatorQueries {
@@ -45,6 +48,7 @@ func newFakeFederatorQueries() *fakeFederatorQueries {
 		fakeModesQueries:    newFakeModesQueries(),
 		idpBySlug:           map[string]db.UpstreamIdp{},
 		identitiesByAccount: map[int32][]db.ListAccountIdentitiesByAccountRow{},
+		enrollmentByToken:   map[string]db.Enrollment{},
 	}
 }
 
@@ -67,6 +71,18 @@ func (f *fakeFederatorQueries) ListAccountIdentitiesByAccount(_ context.Context,
 		return nil, f.identitiesByAccountErr
 	}
 	return f.identitiesByAccount[id], nil
+}
+
+func (f *fakeFederatorQueries) GetEnrollmentByToken(_ context.Context, token string) (db.Enrollment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.enrollmentByTokenErr != nil {
+		return db.Enrollment{}, f.enrollmentByTokenErr
+	}
+	if e, ok := f.enrollmentByToken[token]; ok {
+		return e, nil
+	}
+	return db.Enrollment{}, pgx.ErrNoRows
 }
 
 // Compile-time guard: the fake must satisfy the interface the Federator wants.
@@ -148,7 +164,7 @@ func newFixture(t *testing.T, mode string) *fixtureFederator {
 	deks := map[int][]byte{1: testDEK}
 	origin := "https://idp.example.test"
 
-	fd := federationoidc.NewFederator(q, kvm, au, cfg, deks, origin)
+	fd := federationoidc.NewFederator(q, kvm, au, cfg, deks, nil, origin)
 
 	// Default claims the mock OP will mint into the next id_token.
 	op.SetClaims("sub-1", "alice@example.com", true, "alice", "Alice Example")
@@ -713,5 +729,135 @@ func TestFederator_BeginLogin_MissingDEKVersion(t *testing.T) {
 	_, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
 	if err == nil || !strings.Contains(err.Error(), "missing DEK version 99") {
 		t.Fatalf("want error mentioning missing DEK version 99, got %v", err)
+	}
+}
+
+// seedInviteEnrollment seeds a valid pending invite enrollment row bound
+// to the fixture's IdP slug. Tokens for ConsumeEnrollment AND
+// GetEnrollmentByToken share the same map, so BeginInviteRedemption and
+// HandleCallback both find the row.
+func (fx *fixtureFederator) seedInviteEnrollment(token, username string) {
+	enr := db.Enrollment{
+		Token:                   token,
+		Intent:                  "invite",
+		ExpectedUpstreamIdpSlug: pgtype.Text{String: fx.idp.Slug, Valid: true},
+		TemplateUsername:        pgtype.Text{String: username, Valid: true},
+		TemplateDisplayName:     pgtype.Text{String: "Invited " + username, Valid: true},
+		TemplateRole:            pgtype.Text{String: "user", Valid: true},
+		TemplateAttributes:      []byte("{}"),
+		// GetEnrollmentByToken checks ExpiresAt > now() via .After(time.Now());
+		// ConsumeEnrollment in the fake doesn't check, so seed a future ts here
+		// for the begin-side validation.
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
+	}
+	fx.q.enrollmentByToken[token] = enr
+	fx.q.consumeEnrollmentResult = enr
+}
+
+func TestFederator_HandleCallback_InviteRedemption_HappyPath(t *testing.T) {
+	// The IdP's mode is invite_only here, but the mode-decoupling means we
+	// could just as well use auto_provision; the EnrollmentToken on the
+	// FedState is what routes us through applyInviteOnly.
+	fx := newFixture(t, federationoidc.ModeInviteOnly)
+	fx.seedInviteEnrollment("the-invite-token", "newuser")
+
+	req, err := fx.f.BeginInviteRedemption(context.Background(), "the-invite-token", "/me")
+	if err != nil {
+		t.Fatalf("BeginInviteRedemption: %v", err)
+	}
+	if req.StateKey == "" {
+		t.Fatal("StateKey empty")
+	}
+
+	// The state must live under LoginKey (same namespace as BeginLogin,
+	// not LinkKey) and carry the EnrollmentToken so HandleCallback can
+	// dispatch.
+	blob, err := fx.kvm.Get(context.Background(), federationoidc.LoginKey(req.StateKey))
+	if err != nil {
+		t.Fatalf("state missing from LoginKey: %v", err)
+	}
+	state, err := federationoidc.DecodeFedState(blob)
+	if err != nil {
+		t.Fatalf("DecodeFedState: %v", err)
+	}
+	if state.EnrollmentToken != "the-invite-token" {
+		t.Errorf("FedState.EnrollmentToken = %q, want the-invite-token", state.EnrollmentToken)
+	}
+	if state.LinkingAccountID != nil {
+		t.Errorf("LinkingAccountID should be nil for invite flow, got %v", *state.LinkingAccountID)
+	}
+
+	code, stateTok, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+
+	result, err := fx.f.HandleCallback(context.Background(), stateTok, code, iss)
+	if err != nil {
+		t.Fatalf("HandleCallback: %v", err)
+	}
+	if !result.IsNew {
+		t.Error("IsNew = false, want true (invite-minted fresh account)")
+	}
+	if result.ReturnTo != "/me" {
+		t.Errorf("ReturnTo = %q", result.ReturnTo)
+	}
+
+	// Account row created with template's username (NOT the upstream's
+	// "alice" preferred_username — the invite is the authoritative source).
+	if len(fx.q.insertedAccounts) != 1 {
+		t.Fatalf("want 1 inserted account, got %d", len(fx.q.insertedAccounts))
+	}
+	if fx.q.insertedAccount.Username != "newuser" {
+		t.Errorf("username = %q, want newuser (from template)", fx.q.insertedAccount.Username)
+	}
+	if fx.q.insertedAccount.DisplayName != "Invited newuser" {
+		t.Errorf("display_name = %q, want %q", fx.q.insertedAccount.DisplayName, "Invited newuser")
+	}
+	if fx.q.insertedIdentity.AccountID != result.AccountID {
+		t.Errorf("identity account_id = %d, want %d", fx.q.insertedIdentity.AccountID, result.AccountID)
+	}
+
+	// ConsumeEnrollment must have fired exactly once with our token.
+	if len(fx.q.consumedTokens) != 1 || fx.q.consumedTokens[0] != "the-invite-token" {
+		t.Errorf("consumedTokens = %v, want [the-invite-token]", fx.q.consumedTokens)
+	}
+
+	// Audit Register with invite_only_redemption reason + Use.
+	recs := fx.au.snapshot()
+	reg := findEvent(recs, audit.EventRegister)
+	if reg == nil {
+		t.Fatal("missing audit Register")
+	}
+	if reg.Detail["reason"] != "invite_only_redemption" {
+		t.Errorf("Register reason = %v, want invite_only_redemption", reg.Detail["reason"])
+	}
+	if findEvent(recs, audit.EventUse) == nil {
+		t.Fatal("missing audit Use")
+	}
+}
+
+func TestFederator_BeginInviteRedemption_UnknownToken(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeInviteOnly)
+	_, err := fx.f.BeginInviteRedemption(context.Background(), "nope-not-a-token", "/me")
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required, got %v", err)
+	}
+}
+
+func TestFederator_BeginInviteRedemption_ExpiredToken(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeInviteOnly)
+	// Seed an enrollment that has already expired.
+	fx.q.enrollmentByToken["expired"] = db.Enrollment{
+		Token:                   "expired",
+		Intent:                  "invite",
+		ExpectedUpstreamIdpSlug: pgtype.Text{String: fx.idp.Slug, Valid: true},
+		TemplateUsername:        pgtype.Text{String: "x", Valid: true},
+		TemplateRole:            pgtype.Text{String: "user", Valid: true},
+		ExpiresAt:               pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true},
+	}
+	_, err := fx.f.BeginInviteRedemption(context.Background(), "expired", "/me")
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required, got %v", err)
+	}
+	if r := auditReason(fx.au.snapshot(), audit.EventFail); r != "invite_expired" {
+		t.Errorf("audit reason = %q, want invite_expired", r)
 	}
 }

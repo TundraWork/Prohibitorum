@@ -36,9 +36,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -89,6 +91,7 @@ type FederatorQueries interface {
 
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (db.UpstreamIdp, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]db.ListAccountIdentitiesByAccountRow, error)
+	GetEnrollmentByToken(ctx context.Context, token string) (db.Enrollment, error)
 }
 
 // Federator orchestrates upstream OIDC federation. Constructed once at
@@ -100,18 +103,27 @@ type Federator struct {
 	cfg          configx.FederationConfig
 	deks         map[int][]byte
 	publicOrigin string
+	// dbPool is nil-safe for tests; production wires the connection pool so
+	// invite redemption (applyInviteOnly) can run ConsumeEnrollment +
+	// InsertAccount + InsertAccountIdentity inside a single transaction. A
+	// nil pool degrades gracefully — runInviteTx just passes the existing
+	// querier through and the call order is what tests assert.
+	dbPool *pgxpool.Pool
 }
 
 // NewFederator constructs a Federator from its collaborators. publicOrigin is
 // the scheme+host the federator uses to build redirect_uris (e.g.
 // "https://idp.example.com"); callers should pass cfg.PublicOrigins[0] when
-// PublicOrigins is the multi-origin slice from configx.Config.
+// PublicOrigins is the multi-origin slice from configx.Config. dbPool is
+// nil-safe in tests; production wires the pool for transactional invite
+// redemption.
 func NewFederator(
 	q FederatorQueries,
 	kvStore kv.Store,
 	aud audit.Writer,
 	cfg configx.FederationConfig,
 	deks map[int][]byte,
+	dbPool *pgxpool.Pool,
 	publicOrigin string,
 ) *Federator {
 	return &Federator{
@@ -121,13 +133,14 @@ func NewFederator(
 		cfg:          cfg,
 		deks:         deks,
 		publicOrigin: publicOrigin,
+		dbPool:       dbPool,
 	}
 }
 
 // BeginLogin starts a federated login flow. Caller is the unauthenticated
 // /api/prohibitorum/auth/federation/{slug}/start handler (Task 7).
 func (f *Federator) BeginLogin(ctx context.Context, idpSlug, returnTo string) (*LoginRequest, error) {
-	return f.begin(ctx, idpSlug, returnTo, nil)
+	return f.begin(ctx, idpSlug, returnTo, nil, "")
 }
 
 // LinkBegin starts a link flow for an already-authenticated account. The
@@ -135,13 +148,54 @@ func (f *Federator) BeginLogin(ctx context.Context, idpSlug, returnTo string) (*
 // identity to a different account if the session changes mid-flow.
 func (f *Federator) LinkBegin(ctx context.Context, accountID int32, idpSlug, returnTo string) (*LoginRequest, error) {
 	id := accountID
-	return f.begin(ctx, idpSlug, returnTo, &id)
+	return f.begin(ctx, idpSlug, returnTo, &id, "")
 }
 
-// begin is the shared BeginLogin / LinkBegin body. linkingAccountID==nil
-// signals login flow (state stashed under LoginKey); non-nil signals link
-// flow (LinkKey + redirect URI built from the link-callback template).
-func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linkingAccountID *int32) (*LoginRequest, error) {
+// BeginInviteRedemption starts an invite-bound federated login flow. The
+// invite token is validated (intent=invite, unconsumed, unexpired, slug
+// bound), then the upstream IdP referenced by enrollment.expected_upstream_idp_slug
+// is loaded and an authorize URL minted. The token rides in FedState so
+// the callback can dispatch to applyInviteOnly atomically.
+//
+// Returns ErrInviteRequired (NOT ErrUnknownIDP) for every "invite isn't
+// redeemable" branch — don't leak whether the token was malformed,
+// expired, or already used.
+func (f *Federator) BeginInviteRedemption(ctx context.Context, token, returnTo string) (*LoginRequest, error) {
+	enr, err := f.q.GetEnrollmentByToken(ctx, token)
+	if err != nil {
+		// pgx.ErrNoRows or DB error — both collapse onto invite_required
+		// from the caller's perspective.
+		f.failNoAccount(ctx, "", "invite_lookup_failed", nil)
+		return nil, authn.ErrInviteRequired()
+	}
+	if enr.Intent != "invite" {
+		f.failNoAccount(ctx, "", "invite_wrong_intent", map[string]any{"intent": enr.Intent})
+		return nil, authn.ErrInviteRequired()
+	}
+	if enr.ConsumedAt.Valid {
+		f.failNoAccount(ctx, "", "invite_already_consumed", nil)
+		return nil, authn.ErrInviteRequired()
+	}
+	if !enr.ExpiresAt.Valid || !enr.ExpiresAt.Time.After(time.Now()) {
+		f.failNoAccount(ctx, "", "invite_expired", nil)
+		return nil, authn.ErrInviteRequired()
+	}
+	if !enr.ExpectedUpstreamIdpSlug.Valid || enr.ExpectedUpstreamIdpSlug.String == "" {
+		// Non-federated invite (intent=invite but no upstream IdP bound)
+		// belongs to the WebAuthn enrollment flow, not the federation flow.
+		f.failNoAccount(ctx, "", "invite_not_federated", nil)
+		return nil, authn.ErrInviteRequired()
+	}
+
+	return f.begin(ctx, enr.ExpectedUpstreamIdpSlug.String, returnTo, nil, token)
+}
+
+// begin is the shared BeginLogin / LinkBegin / BeginInviteRedemption body.
+// linkingAccountID!=nil signals link flow (LinkKey + link-callback template);
+// enrollmentToken!="" signals invite flow (LoginKey, EnrollmentToken stashed
+// in FedState for HandleCallback to dispatch on). The two are mutually
+// exclusive — invite flow never has a current account.
+func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linkingAccountID *int32, enrollmentToken string) (*LoginRequest, error) {
 	idp, err := f.q.GetUpstreamIDPBySlug(ctx, idpSlug)
 	if err != nil {
 		// Collapse "no row", "disabled", and "DB error" into one code.
@@ -193,6 +247,7 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		CodeVerifier:          verifier,
 		ReturnTo:              returnTo,
 		LinkingAccountID:      linkingAccountID,
+		EnrollmentToken:       enrollmentToken,
 	}
 	blob, err := state.Encode()
 	if err != nil {
@@ -254,11 +309,25 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 		return nil, authn.ErrFederationStateInvalid()
 	}
 
-	accountID, isNew, err := Resolve(ctx, f.q, f.audit, &idp, tokens)
+	// Mode-decoupled dispatch: an EnrollmentToken on the FedState means the
+	// user clicked an invite link, regardless of the IdP's configured mode.
+	// An auto_provision IdP can still accept invite-bound users; the
+	// invite IS the authorization, so D11 gates are skipped inside
+	// applyInviteOnly. When there's no token, fall through to mode-based
+	// Resolve dispatch.
+	var (
+		accountID int32
+		isNew     bool
+	)
+	if state.EnrollmentToken != "" {
+		accountID, isNew, err = applyInviteOnly(ctx, f.q, f.audit, &idp, tokens, state.EnrollmentToken, f.dbPool)
+	} else {
+		accountID, isNew, err = Resolve(ctx, f.q, f.audit, &idp, tokens)
+	}
 	if err != nil {
-		// Resolve already audited its own failure with structured reason
-		// (see modes.go). Propagate as-is so the HTTP layer can map the
-		// *authn.AuthError to the right status code.
+		// Resolve / applyInviteOnly already audited its own failure with
+		// structured reason (see modes.go). Propagate as-is so the HTTP
+		// layer can map the *authn.AuthError to the right status code.
 		return nil, err
 	}
 

@@ -514,7 +514,7 @@ func mountLinkRoutes(h *fedTestHarness) *httptest.Server {
 	h.t.Cleanup(srv.Close)
 	// Rewire the federator's publicOrigin to the new server URL so the
 	// link-callback redirect_uri targets this httptest origin.
-	h.s.federator = fedoidc.NewFederator(h.q, h.s.kvStore, h.s.Audit, fedTestFedCfg(), map[int][]byte{1: fedTestDEK}, srv.URL)
+	h.s.federator = fedoidc.NewFederator(h.q, h.s.kvStore, h.s.Audit, fedTestFedCfg(), map[int][]byte{1: fedTestDEK}, nil, srv.URL)
 	return srv
 }
 

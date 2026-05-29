@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	acctpkg "prohibitorum/pkg/account"
 	"prohibitorum/pkg/audit"
@@ -27,6 +28,7 @@ type ModesQueries interface {
 	InsertAccountIdentity(ctx context.Context, arg db.InsertAccountIdentityParams) (db.AccountIdentity, error)
 	UpdateAccountDisplayName(ctx context.Context, arg db.UpdateAccountDisplayNameParams) error
 	UpdateAccountIdentityEmail(ctx context.Context, arg db.UpdateAccountIdentityEmailParams) error
+	ConsumeEnrollment(ctx context.Context, token string) (db.Enrollment, error)
 }
 
 // Mode constants — must match upstream_idp.mode enum in the schema.
@@ -89,7 +91,12 @@ func Resolve(
 	case ModeAutoProvision:
 		return applyAutoProvision(ctx, q, w, idp, tokens)
 	case ModeInviteOnly:
-		return applyInviteOnly(ctx, w, idp, tokens)
+		// Reaching invite_only via Resolve means HandleCallback did NOT see an
+		// EnrollmentToken on the FedState — i.e. someone hit /federation/{slug}/login
+		// directly on an invite_only IdP. Dispatch into applyInviteOnly with an
+		// empty token; the top of that function audits invite_required_no_token
+		// and rejects. Pool is nil — no DB writes happen on the rejection path.
+		return applyInviteOnly(ctx, q, w, idp, tokens, "", nil)
 	case ModeLinkOnly:
 		return applyLinkOnly(ctx, w, idp, tokens)
 	default:
@@ -207,22 +214,184 @@ func applyAutoProvision(
 	return acct.ID, true, nil
 }
 
-// applyInviteOnly is a STUB until the v0.3-followup invite_only design
-// lands. The actual flow has open questions about how an admin issues
-// invites for an upstream IdP, how the invite is consumed mid-callback,
-// and how (iss, sub) is pre-bound to the enrollment row.
+// applyInviteOnly implements the token-bearing invite redemption flow:
+// the upstream OIDC dance proves the user controls the IdP identity, then
+// the enrollment row is atomically consumed and a fresh local account is
+// minted from the admin-supplied template — all inside a single
+// transaction so a partial failure can never burn an invite without
+// producing the corresponding account.
 //
-// TODO(invite-only-followup): replace this stub with the real flow.
-// See docs/superpowers/notes/2026-05-29-followups-invite-only-federation.md
-// for the open design questions and the proposed shape of the solution.
+// pool is nil-safe: in tests the fake querier carries through with no
+// transactional semantics (the call order is what's asserted); in
+// production the pgxpool transaction provides the real atomicity guarantee.
+//
+// Skips require_verified_email + allowed_domains by design: the admin
+// minted this invite specifically for this user, which IS the
+// authorization decision. See the v0.3 design spec D11 for rationale.
 func applyInviteOnly(
 	ctx context.Context,
+	q ModesQueries,
 	w audit.Writer,
 	idp *db.UpstreamIdp,
 	tokens *Tokens,
+	enrollmentToken string,
+	pool *pgxpool.Pool,
 ) (int32, bool, error) {
-	emitFail(ctx, w, idp, tokens, "invite_only_not_implemented", nil)
-	return 0, false, authn.ErrInviteRequired()
+	if enrollmentToken == "" {
+		// Reached this branch via Resolve's mode-dispatch — i.e. an
+		// invite_only IdP was hit without an invite. Reject and audit.
+		emitFail(ctx, w, idp, tokens, "invite_required_no_token", nil)
+		return 0, false, authn.ErrInviteRequired()
+	}
+
+	return runInviteTx(ctx, pool, q, func(qtx ModesQueries) (int32, bool, error) {
+		// Atomic consume — the UPDATE ... WHERE consumed_at IS NULL AND
+		// expires_at > now() guarantees the row is in a redeemable state at
+		// the instant we claim it. Any "already consumed", "expired", or
+		// "token unknown" branch collapses onto pgx.ErrNoRows.
+		enr, err := qtx.ConsumeEnrollment(ctx, enrollmentToken)
+		if errors.Is(err, pgx.ErrNoRows) {
+			emitFail(ctx, w, idp, tokens, "invite_consumed_or_expired", nil)
+			return 0, false, authn.ErrInviteRequired()
+		}
+		if err != nil {
+			return 0, false, fmt.Errorf("federation/oidc: ConsumeEnrollment: %w", err)
+		}
+
+		// Defense in depth: the invite must have been minted for THIS IdP.
+		// Catches admin slug edits mid-flight, malformed FedState, etc.
+		if !enr.ExpectedUpstreamIdpSlug.Valid || enr.ExpectedUpstreamIdpSlug.String != idp.Slug {
+			emitFail(ctx, w, idp, tokens, "invite_slug_mismatch", map[string]any{
+				"enrollment_expected_slug": enr.ExpectedUpstreamIdpSlug.String,
+			})
+			return 0, false, authn.ErrInviteRequired()
+		}
+
+		// Belt-and-suspenders: the schema CHECK constraint at
+		// db/migrations/001_initial.sql guarantees template_username NOT NULL
+		// when intent='invite', but a missing template here means the schema
+		// invariant was violated upstream — surface as a 500 so it gets seen.
+		if !enr.TemplateUsername.Valid || enr.TemplateUsername.String == "" {
+			return 0, false, fmt.Errorf("federation/oidc: invite missing template_username for token %q", enrollmentToken)
+		}
+		if !enr.TemplateRole.Valid || enr.TemplateRole.String == "" {
+			return 0, false, fmt.Errorf("federation/oidc: invite missing template_role")
+		}
+
+		// Username collision is a technical constraint that's checked at
+		// invite-create time (handle_invitations.go) but races are possible
+		// (two invites for the same name; or a local password account took
+		// the slot between mint and redemption). Detect and audit here.
+		if _, err := qtx.GetAccountByUsername(ctx, enr.TemplateUsername.String); err == nil {
+			emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
+				"username": enr.TemplateUsername.String,
+			})
+			return 0, false, authn.ErrUsernameCollision()
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return 0, false, fmt.Errorf("federation/oidc: check username collision: %w", err)
+		}
+
+		handle, err := acctpkg.GenerateUserHandle()
+		if err != nil {
+			return 0, false, fmt.Errorf("federation/oidc: generate webauthn user handle: %w", err)
+		}
+
+		attrs := []byte("{}")
+		if len(enr.TemplateAttributes) > 0 {
+			attrs = enr.TemplateAttributes
+		}
+
+		displayName := enr.TemplateDisplayName.String
+		if displayName == "" {
+			displayName = enr.TemplateUsername.String
+		}
+
+		acct, err := qtx.InsertAccount(ctx, db.InsertAccountParams{
+			Username:           enr.TemplateUsername.String,
+			DisplayName:        displayName,
+			WebauthnUserHandle: handle,
+			Role:               enr.TemplateRole.String,
+			Attributes:         attrs,
+			Disabled:           false,
+		})
+		if err != nil {
+			return 0, false, fmt.Errorf("federation/oidc: insert account: %w", err)
+		}
+
+		// Honor the per-IdP email_claim override (matches applyAutoProvision).
+		email := ClaimString(tokens.Raw, idp.EmailClaim)
+		_, err = qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
+			AccountID:     acct.ID,
+			UpstreamIdpID: idp.ID,
+			UpstreamIss:   tokens.Issuer,
+			UpstreamSub:   tokens.Subject,
+			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
+		})
+		if err != nil {
+			return 0, false, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
+		}
+
+		// Audit is best-effort (the Writer swallows errors); if the tx commit
+		// later fails the audit row will land without a matching account row,
+		// which is acceptable: the audit log records the attempted operation,
+		// not just successful outcomes.
+		_ = w.Record(ctx, audit.Record{
+			AccountID: int32Ptr(acct.ID),
+			Factor:    audit.FactorFederationOIDC,
+			Event:     audit.EventRegister,
+			Detail: map[string]any{
+				"idp_slug":     idp.Slug,
+				"iss":          tokens.Issuer,
+				"sub":          tokens.Subject,
+				"mode":         ModeInviteOnly,
+				"reason":       "invite_only_redemption",
+				"username":     enr.TemplateUsername.String,
+			},
+		})
+		_ = w.Record(ctx, audit.Record{
+			AccountID: int32Ptr(acct.ID),
+			Factor:    audit.FactorFederationOIDC,
+			Event:     audit.EventUse,
+			Detail: map[string]any{
+				"idp_slug": idp.Slug,
+				"iss":      tokens.Issuer,
+				"sub":      tokens.Subject,
+			},
+		})
+
+		return acct.ID, true, nil
+	})
+}
+
+// runInviteTx is the transactional wrapper for applyInviteOnly. When
+// pool is nil (tests), it just calls fn against the passed querier — no
+// transactional semantics, but the call order is preserved for assertion.
+// When pool is non-nil (production), it opens a real pgxpool transaction,
+// wraps it as a *db.Queries, and commits only if fn returns nil.
+func runInviteTx(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	q ModesQueries,
+	fn func(qtx ModesQueries) (int32, bool, error),
+) (int32, bool, error) {
+	if pool == nil {
+		return fn(q)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return 0, false, fmt.Errorf("federation/oidc: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // safe after Commit — pgx returns ErrTxClosed which we ignore.
+
+	qtx := db.New(tx)
+	accountID, isNew, err := fn(qtx)
+	if err != nil {
+		return 0, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, false, fmt.Errorf("federation/oidc: commit tx: %w", err)
+	}
+	return accountID, isNew, nil
 }
 
 // applyLinkOnly rejects unknown identities under link_only mode. The

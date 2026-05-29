@@ -139,6 +139,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		auditWriter,
 		config.Federation,
 		config.DataEncryptionKeys,
+		conn,
 		publicOrigin,
 	)
 

@@ -37,6 +37,32 @@ func TestState_EncodeDecodeRoundTrip(t *testing.T) {
 				LinkingAccountID:      int32Ptr(99),
 			},
 		},
+		{
+			name: "invite flow (enrollment token set, no linking account)",
+			in: federationoidc.FedState{
+				IDPID:                 11,
+				IDPSlug:               "mockop",
+				ExpectedIss:           "https://issuer.example/",
+				ExpectedTokenEndpoint: "https://issuer.example/token",
+				Nonce:                 "n-invite",
+				CodeVerifier:          "v-invite",
+				ReturnTo:              "/me",
+				EnrollmentToken:       "abc123-invite-token",
+			},
+		},
+		{
+			name: "login flow with explicit empty enrollment token",
+			in: federationoidc.FedState{
+				IDPID:                 42,
+				IDPSlug:               "google",
+				ExpectedIss:           "https://accounts.google.com",
+				ExpectedTokenEndpoint: "https://oauth2.googleapis.com/token",
+				Nonce:                 "n-empty",
+				CodeVerifier:          "v-empty",
+				ReturnTo:              "/dashboard",
+				EnrollmentToken:       "",
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -55,7 +81,8 @@ func TestState_EncodeDecodeRoundTrip(t *testing.T) {
 				got.ExpectedTokenEndpoint != tc.in.ExpectedTokenEndpoint ||
 				got.Nonce != tc.in.Nonce ||
 				got.CodeVerifier != tc.in.CodeVerifier ||
-				got.ReturnTo != tc.in.ReturnTo {
+				got.ReturnTo != tc.in.ReturnTo ||
+				got.EnrollmentToken != tc.in.EnrollmentToken {
 				t.Fatalf("scalar fields: got %+v, want %+v", got, tc.in)
 			}
 			switch {

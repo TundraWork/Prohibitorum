@@ -43,6 +43,14 @@ type fakeModesQueries struct {
 
 	displayNameCalls []db.UpdateAccountDisplayNameParams
 	emailCalls       []db.UpdateAccountIdentityEmailParams
+
+	// Enrollment state for invite_only tests. consumeEnrollmentResult is
+	// returned on every ConsumeEnrollment call when consumeEnrollmentErr
+	// is nil; consumedTokens records the tokens actually consumed so
+	// happy-path tests can assert the right one was hit.
+	consumeEnrollmentResult db.Enrollment
+	consumeEnrollmentErr    error
+	consumedTokens          []string
 }
 
 func newFakeModesQueries() *fakeModesQueries {
@@ -140,6 +148,16 @@ func (f *fakeModesQueries) UpdateAccountIdentityEmail(_ context.Context, arg db.
 	defer f.mu.Unlock()
 	f.emailCalls = append(f.emailCalls, arg)
 	return nil
+}
+
+func (f *fakeModesQueries) ConsumeEnrollment(_ context.Context, token string) (db.Enrollment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.consumedTokens = append(f.consumedTokens, token)
+	if f.consumeEnrollmentErr != nil {
+		return db.Enrollment{}, f.consumeEnrollmentErr
+	}
+	return f.consumeEnrollmentResult, nil
 }
 
 // recordingAudit captures every audit.Record so tests can assert on
@@ -373,7 +391,25 @@ func TestApplyAutoProvision_MissingPreferredUsername(t *testing.T) {
 	}
 }
 
-func TestApplyInviteOnly_AlwaysRejects(t *testing.T) {
+// makeInviteEnrollment builds a valid db.Enrollment row for happy-path
+// tests. slug should match the IdP being passed into applyInviteOnly.
+func makeInviteEnrollment(slug, username, displayName, role string, attrs []byte) db.Enrollment {
+	return db.Enrollment{
+		Token:                   "invite-token-xyz",
+		Intent:                  "invite",
+		ExpectedUpstreamIdpSlug: pgtype.Text{String: slug, Valid: true},
+		TemplateUsername:        pgtype.Text{String: username, Valid: true},
+		TemplateDisplayName:     pgtype.Text{String: displayName, Valid: displayName != ""},
+		TemplateRole:            pgtype.Text{String: role, Valid: true},
+		TemplateAttributes:      attrs,
+	}
+}
+
+func TestApplyInviteOnly_NoTokenRejects(t *testing.T) {
+	// Driving via Resolve with mode=invite_only and no FedState invite token:
+	// this is what happens when someone hits /federation/{slug}/login directly
+	// on an invite_only IdP. The empty-token branch at the top of
+	// applyInviteOnly emits invite_required_no_token and rejects.
 	q := newFakeModesQueries()
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
@@ -383,13 +419,162 @@ func TestApplyInviteOnly_AlwaysRejects(t *testing.T) {
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required, got %v", err)
 	}
-
 	recs := a.snapshot()
 	if len(recs) != 1 || recs[0].Event != audit.EventFail {
 		t.Fatalf("want 1 fail row, got %+v", recs)
 	}
-	if recs[0].Detail["reason"] != "invite_only_not_implemented" {
-		t.Fatalf("reason: want invite_only_not_implemented, got %v", recs[0].Detail["reason"])
+	if recs[0].Detail["reason"] != "invite_required_no_token" {
+		t.Fatalf("reason: want invite_required_no_token, got %v", recs[0].Detail["reason"])
+	}
+	if len(q.consumedTokens) != 0 {
+		t.Fatalf("ConsumeEnrollment must not be called when token is empty; got %v", q.consumedTokens)
+	}
+}
+
+func TestApplyInviteOnly_HappyPath(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment(
+		"test-idp", "alice", "Alice Inv", "user", []byte(`{"key":"val"}`),
+	)
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+
+	id, isNew, err := federationoidc.ApplyInviteOnlyForTest(
+		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
+	)
+	if err != nil {
+		t.Fatalf("applyInviteOnly: %v", err)
+	}
+	if !isNew {
+		t.Fatalf("want isNew=true, got false")
+	}
+	if id != 100 {
+		t.Fatalf("want accountID=100, got %d", id)
+	}
+
+	if len(q.consumedTokens) != 1 || q.consumedTokens[0] != "invite-token-xyz" {
+		t.Fatalf("ConsumeEnrollment tokens = %v, want [invite-token-xyz]", q.consumedTokens)
+	}
+	if q.insertedAccount.Username != "alice" ||
+		q.insertedAccount.DisplayName != "Alice Inv" ||
+		q.insertedAccount.Role != "user" {
+		t.Fatalf("InsertAccount args wrong: %+v", q.insertedAccount)
+	}
+	if string(q.insertedAccount.Attributes) != `{"key":"val"}` {
+		t.Errorf("Attributes = %q, want template JSON", string(q.insertedAccount.Attributes))
+	}
+	if len(q.insertedAccount.WebauthnUserHandle) == 0 {
+		t.Errorf("WebauthnUserHandle must be non-empty")
+	}
+	if q.insertedIdentity.AccountID != 100 ||
+		q.insertedIdentity.UpstreamIss != tok.Issuer ||
+		q.insertedIdentity.UpstreamSub != tok.Subject {
+		t.Fatalf("InsertAccountIdentity args wrong: %+v", q.insertedIdentity)
+	}
+
+	recs := a.snapshot()
+	reg := findEvent(recs, audit.EventRegister)
+	if reg == nil {
+		t.Fatal("missing audit Register")
+	}
+	if reg.Detail["reason"] != "invite_only_redemption" {
+		t.Errorf("Register reason = %v, want invite_only_redemption", reg.Detail["reason"])
+	}
+	if findEvent(recs, audit.EventUse) == nil {
+		t.Fatal("missing audit Use")
+	}
+}
+
+func TestApplyInviteOnly_ConsumedOrExpired(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentErr = pgx.ErrNoRows
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+
+	_, _, err := federationoidc.ApplyInviteOnlyForTest(
+		context.Background(), q, a, idp, tok, "stale-token", nil,
+	)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required, got %v", err)
+	}
+	recs := a.snapshot()
+	if r := recs[0].Detail["reason"]; r != "invite_consumed_or_expired" {
+		t.Errorf("reason = %v, want invite_consumed_or_expired", r)
+	}
+	if len(q.insertedAccounts) != 0 {
+		t.Errorf("no account should have been inserted, got %d", len(q.insertedAccounts))
+	}
+}
+
+func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
+	q := newFakeModesQueries()
+	// Enrollment was minted for "other-idp"; we're driving against idp.Slug="test-idp".
+	q.consumeEnrollmentResult = makeInviteEnrollment(
+		"other-idp", "alice", "Alice", "user", nil,
+	)
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+
+	_, _, err := federationoidc.ApplyInviteOnlyForTest(
+		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
+	)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required, got %v", err)
+	}
+	recs := a.snapshot()
+	if r := recs[0].Detail["reason"]; r != "invite_slug_mismatch" {
+		t.Errorf("reason = %v, want invite_slug_mismatch", r)
+	}
+	if len(q.insertedAccounts) != 0 {
+		t.Errorf("no account should have been inserted, got %d", len(q.insertedAccounts))
+	}
+}
+
+func TestApplyInviteOnly_UsernameCollision(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment(
+		"test-idp", "alice", "Alice", "user", nil,
+	)
+	// Existing local account already owns "alice".
+	q.accountByUsername["alice"] = db.Account{ID: 7, Username: "alice"}
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+
+	_, _, err := federationoidc.ApplyInviteOnlyForTest(
+		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
+	)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
+		t.Fatalf("want username_collision, got %v", err)
+	}
+	recs := a.snapshot()
+	if r := recs[0].Detail["reason"]; r != "username_collision" {
+		t.Errorf("reason = %v, want username_collision", r)
+	}
+	if len(q.insertedAccounts) != 0 {
+		t.Errorf("no account should have been inserted (collision fired first); got %d", len(q.insertedAccounts))
+	}
+}
+
+func TestApplyInviteOnly_DisplayNameFallsBackToUsername(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment(
+		"test-idp", "bob", "" /* empty display_name */, "user", nil,
+	)
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+
+	if _, _, err := federationoidc.ApplyInviteOnlyForTest(
+		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
+	); err != nil {
+		t.Fatalf("applyInviteOnly: %v", err)
+	}
+	if q.insertedAccount.DisplayName != "bob" {
+		t.Errorf("DisplayName = %q, want bob (fallback to username)", q.insertedAccount.DisplayName)
 	}
 }
 

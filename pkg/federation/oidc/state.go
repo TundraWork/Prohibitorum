@@ -53,6 +53,14 @@ type FedState struct {
 	// policies. Stored in addition to the key-prefix separation so a
 	// future Pop bug can't quietly cross-thread the two flows.
 	LinkingAccountID *int32 `json:"linking_account_id,omitempty"`
+
+	// EnrollmentToken, when non-empty, signals that the flow was started
+	// from an invite URL. The callback dispatches to applyInviteOnly
+	// regardless of idp.Mode, atomically consuming the enrollment row and
+	// minting the local account inside a single transaction. The token
+	// itself is the secret that grants account creation — protected by
+	// living in server-side KV only.
+	EnrollmentToken string `json:"enrollment_token,omitempty"`
 }
 
 // Encode serializes the state to a JSON string for KV storage.

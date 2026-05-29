@@ -297,7 +297,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 
 	// Now we know our own origin — federator can build redirect_uri's that
 	// the test http.Client can dial back into.
-	s.federator = fedoidc.NewFederator(q, kvStore, auditWriter, fedCfg, deks, srvTS.URL)
+	s.federator = fedoidc.NewFederator(q, kvStore, auditWriter, fedCfg, deks, nil, srvTS.URL)
 	cfg.PublicOrigins = []string{srvTS.URL}
 
 	return &fedTestHarness{
