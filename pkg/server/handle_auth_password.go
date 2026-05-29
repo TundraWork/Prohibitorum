@@ -265,7 +265,7 @@ func (s *Server) accountLookupQ() accountLookupQueries {
 func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request, accountID int32, amr []string) {
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	ua := r.UserAgent()
-	token, _, err := s.sessionStore.Issue(r.Context(), accountID, ip, ua, amr)
+	token, _, err := s.sessionStore.Issue(r.Context(), accountID, ip, ua, amr, nil)
 	if err != nil {
 		writeAuthErr(w, err)
 		return

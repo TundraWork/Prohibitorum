@@ -32,17 +32,18 @@ func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
 }
 
 const insertSession = `-- name: InsertSession :one
-INSERT INTO session (id, account_id, auth_time, amr, acr)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO session (id, account_id, auth_time, amr, acr, upstream_idp_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, account_id, auth_time, amr, acr, created_at, revoked_at, upstream_idp_id
 `
 
 type InsertSessionParams struct {
-	ID        string             `json:"id"`
-	AccountID int32              `json:"accountId"`
-	AuthTime  pgtype.Timestamptz `json:"authTime"`
-	Amr       []string           `json:"amr"`
-	Acr       pgtype.Text        `json:"acr"`
+	ID            string             `json:"id"`
+	AccountID     int32              `json:"accountId"`
+	AuthTime      pgtype.Timestamptz `json:"authTime"`
+	Amr           []string           `json:"amr"`
+	Acr           pgtype.Text        `json:"acr"`
+	UpstreamIdpID *int64             `json:"upstreamIdpId"`
 }
 
 func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error) {
@@ -52,6 +53,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) (S
 		arg.AuthTime,
 		arg.Amr,
 		arg.Acr,
+		arg.UpstreamIdpID,
 	)
 	var i Session
 	err := row.Scan(

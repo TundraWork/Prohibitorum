@@ -82,17 +82,23 @@ func sessionKey(accountID int32, token string) string {
 }
 
 // Issue writes a fresh session to KV plus a row in the PG session table
-// capturing the immutable authentication facts (auth_time, amr, acr). Returns
-// the random KV token and the authn.SessionData that was stored.
+// capturing the immutable authentication facts (auth_time, amr, acr,
+// upstream_idp_id). Returns the random KV token and the authn.SessionData that
+// was stored.
 //
 // amr must list the RFC 8176 method values that produced this session:
 //   - WebAuthn login or registration → ["hwk"]
 //   - Password + TOTP (v0.2) → ["pwd","otp","mfa"]
 //   - Upstream OIDC federation (v0.3) → ["federated"]
 //
+// upstreamIDPID is non-nil only for sessions established by upstream OIDC
+// federation; it identifies the upstream_idp row whose IdP authenticated the
+// account. v0.4 OIDC OP work surfaces this as a "federated" discriminator in
+// downstream id_token claims. Local-auth callers pass nil.
+//
 // If the PG insert fails, the KV entry is rolled back so the two stores stay
 // consistent.
-func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string, amr []string) (string, *authn.SessionData, error) {
+func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string, amr []string, upstreamIDPID *int64) (string, *authn.SessionData, error) {
 	if len(amr) == 0 {
 		return "", nil, errors.New("session: Issue requires non-empty amr")
 	}
@@ -121,10 +127,11 @@ func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string
 		return "", nil, fmt.Errorf("session: setex: %w", err)
 	}
 	if _, err := s.q.InsertSession(ctx, db.InsertSessionParams{
-		ID:        sessionID,
-		AccountID: accountID,
-		AuthTime:  pgtype.Timestamptz{Time: now, Valid: true},
-		Amr:       amr,
+		ID:            sessionID,
+		AccountID:     accountID,
+		AuthTime:      pgtype.Timestamptz{Time: now, Valid: true},
+		Amr:           amr,
+		UpstreamIdpID: upstreamIDPID,
 	}); err != nil {
 		_ = s.kv.Del(ctx, sessionKey(accountID, token))
 		return "", nil, fmt.Errorf("session: insert pg: %w", err)

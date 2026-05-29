@@ -180,7 +180,13 @@ func (f *fakeFedQueries) UpdateAccountIdentityEmail(_ context.Context, _ db.Upda
 func (f *fakeFedQueries) InsertSession(_ context.Context, arg db.InsertSessionParams) (db.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	row := db.Session{ID: arg.ID, AccountID: arg.AccountID, AuthTime: arg.AuthTime, Amr: arg.Amr}
+	row := db.Session{
+		ID:            arg.ID,
+		AccountID:     arg.AccountID,
+		AuthTime:      arg.AuthTime,
+		Amr:           arg.Amr,
+		UpstreamIdpID: arg.UpstreamIdpID,
+	}
 	f.sessions = append(f.sessions, row)
 	return row, nil
 }
@@ -517,6 +523,39 @@ func TestFederationCallback_HappyPath(t *testing.T) {
 		if len(amr) != 2 || amr[0] != "pwd" || amr[1] != "mfa" {
 			t.Errorf("session amr: want [pwd mfa], got %v", amr)
 		}
+	}
+}
+
+// TestFederationCallback_PersistsUpstreamIdpID guards H1-sch: the federation
+// callback must stamp the upstream IdP's id onto the session row so v0.4 OIDC
+// OP can later surface a "federated" discriminator in id_token claims.
+func TestFederationCallback_PersistsUpstreamIdpID(t *testing.T) {
+	h := newFederationTestServer(t)
+
+	loc, resp := h.driveLogin(t, "mockop", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("login: want 302, got %d", resp.StatusCode)
+	}
+	code, state, iss := driveAuthorize(t, loc)
+	q := url.Values{}
+	q.Set("code", code)
+	q.Set("state", state)
+	q.Set("iss", iss)
+	resp = h.hitCallback(t, "mockop", q)
+
+	if resp.StatusCode != http.StatusFound {
+		body, _ := readAll(resp.Body)
+		t.Fatalf("callback: want 302, got %d (body=%s)", resp.StatusCode, body)
+	}
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("sessions inserted: want 1, got %d", len(h.q.sessions))
+	}
+	got := h.q.sessions[0].UpstreamIdpID
+	if got == nil {
+		t.Fatalf("session.UpstreamIdpID: want non-nil, got nil")
+	}
+	if *got != h.idp.ID {
+		t.Errorf("session.UpstreamIdpID: want %d, got %d", h.idp.ID, *got)
 	}
 }
 

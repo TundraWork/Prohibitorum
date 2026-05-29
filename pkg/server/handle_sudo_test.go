@@ -323,7 +323,7 @@ func newSudoTestServer(t *testing.T) (*Server, *fakeSudoQueries, []byte) {
 // stampSudoUntil can Load+Save it back.
 func issueSudoTestSession(t *testing.T, s *Server, accountID int32) (token string, sess *authn.Session) {
 	t.Helper()
-	token, data, err := s.sessionStore.Issue(context.Background(), accountID, "127.0.0.1", "ua/test", []string{"hwk"})
+	token, data, err := s.sessionStore.Issue(context.Background(), accountID, "127.0.0.1", "ua/test", []string{"hwk"}, nil)
 	if err != nil {
 		t.Fatalf("sessionStore.Issue: %v", err)
 	}

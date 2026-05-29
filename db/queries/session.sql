@@ -1,6 +1,6 @@
 -- name: InsertSession :one
-INSERT INTO session (id, account_id, auth_time, amr, acr)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO session (id, account_id, auth_time, amr, acr, upstream_idp_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetSession :one

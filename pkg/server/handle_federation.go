@@ -117,7 +117,10 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	if len(amr) == 0 {
 		amr = []string{"federated"}
 	}
-	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, ua, amr)
+	// H1-sch: stamp the upstream IdP onto the session row so v0.4 OIDC OP can
+	// surface a "federated" discriminator in downstream id_token claims.
+	idpID := result.IDPID
+	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, ua, amr, &idpID)
 	if err != nil {
 		writeAuthErr(w, err)
 		return

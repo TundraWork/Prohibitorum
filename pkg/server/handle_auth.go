@@ -256,7 +256,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r))
 
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
-	token, _, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"})
+	token, _, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("session issue: %w", err))
 		return

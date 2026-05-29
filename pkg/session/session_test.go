@@ -41,7 +41,7 @@ func TestSession_IssueAndLoad(t *testing.T) {
 	s := newTestStore(t, time.Hour)
 	ctx := context.Background()
 
-	token, data, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"})
+	token, data, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestSession_LoadMissingReturnsNoSession(t *testing.T) {
 func TestSession_LoadWrongAccountReturnsNoSession(t *testing.T) {
 	s := newTestStore(t, time.Hour)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"})
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
 	_, _, err := s.Load(ctx, 99, token, "", "") // wrong account id
 	if err == nil {
 		t.Fatal("loading with wrong account id should fail")
@@ -92,7 +92,7 @@ func TestSession_LoadWrongAccountReturnsNoSession(t *testing.T) {
 func TestSession_Revoke(t *testing.T) {
 	s := newTestStore(t, time.Hour)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"})
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
 	if err := s.Revoke(ctx, 42, token); err != nil {
 		t.Fatal(err)
 	}
@@ -107,11 +107,11 @@ func TestSession_RevokeAllForAccount(t *testing.T) {
 	ctx := context.Background()
 	// 3 sessions for account 42, 1 for account 99
 	for i := 0; i < 3; i++ {
-		if _, _, err := s.Issue(ctx, 42, "", "", []string{"hwk"}); err != nil {
+		if _, _, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, _, err := s.Issue(ctx, 99, "", "", []string{"hwk"}); err != nil {
+	if _, _, err := s.Issue(ctx, 99, "", "", []string{"hwk"}, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,7 +137,7 @@ func TestSession_RefreshTriggersInLastQuarter(t *testing.T) {
 	// 100ms TTL means refresh threshold = 25ms. Sleep 80ms => 20ms remaining => refresh fires.
 	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 100*time.Millisecond)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"})
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
 	time.Sleep(80 * time.Millisecond)
 	_, refreshed, err := s.Load(ctx, 42, token, "192.168.1.1", "")
 	if err != nil {
@@ -151,7 +151,7 @@ func TestSession_RefreshTriggersInLastQuarter(t *testing.T) {
 func TestSession_NoRefreshEarlyInLifetime(t *testing.T) {
 	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 1*time.Second)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"})
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
 	// Load immediately — far from expiry, should not refresh.
 	_, refreshed, err := s.Load(ctx, 42, token, "", "")
 	if err != nil {
@@ -166,7 +166,7 @@ func TestSession_ExpiredEntryReturnsNoSession(t *testing.T) {
 	// Very short TTL — write, sleep past expiry, expect ErrNoSession.
 	s := NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, 20*time.Millisecond)
 	ctx := context.Background()
-	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"})
+	token, _, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
 	time.Sleep(40 * time.Millisecond)
 	_, _, err := s.Load(ctx, 42, token, "", "")
 	if err == nil {
@@ -199,7 +199,7 @@ func TestSession_IssueRollsBackKVWhenPGInsertFails(t *testing.T) {
 	s := NewSessionStore(mem, failingSessionQueries{}, time.Hour)
 	ctx := context.Background()
 
-	_, _, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"})
+	_, _, err := s.Issue(ctx, 42, "127.0.0.1", "", []string{"hwk"}, nil)
 	if err == nil {
 		t.Fatal("Issue should return error when InsertSession fails")
 	}
@@ -215,9 +215,49 @@ func TestSession_IssueRollsBackKVWhenPGInsertFails(t *testing.T) {
 	}
 }
 
+// recordingSessionQueries captures the params passed to InsertSession so tests
+// can assert which fields (notably UpstreamIdpID) were set.
+type recordingSessionQueries struct {
+	noopSessionQueries
+	last db.InsertSessionParams
+}
+
+func (r *recordingSessionQueries) InsertSession(_ context.Context, arg db.InsertSessionParams) (db.Session, error) {
+	r.last = arg
+	return db.Session{}, nil
+}
+
+// TestSession_IssueStampsUpstreamIDPID guards H1-sch: federation callers must
+// be able to attach the upstream_idp_id to the session row, while local
+// (non-federation) callers leave the column NULL by passing nil.
+func TestSession_IssueStampsUpstreamIDPID(t *testing.T) {
+	t.Run("federated", func(t *testing.T) {
+		rec := &recordingSessionQueries{}
+		s := NewSessionStore(kv.NewMemoryStore(), rec, time.Hour)
+		var idpID int64 = 42
+		if _, _, err := s.Issue(context.Background(), 1, "", "", []string{"federated"}, &idpID); err != nil {
+			t.Fatalf("Issue: %v", err)
+		}
+		if rec.last.UpstreamIdpID == nil || *rec.last.UpstreamIdpID != 42 {
+			t.Errorf("UpstreamIdpID: want *42, got %v", rec.last.UpstreamIdpID)
+		}
+	})
+
+	t.Run("local-pwd-totp", func(t *testing.T) {
+		rec := &recordingSessionQueries{}
+		s := NewSessionStore(kv.NewMemoryStore(), rec, time.Hour)
+		if _, _, err := s.Issue(context.Background(), 1, "", "", []string{"pwd", "otp", "mfa"}, nil); err != nil {
+			t.Fatalf("Issue: %v", err)
+		}
+		if rec.last.UpstreamIdpID != nil {
+			t.Errorf("UpstreamIdpID: want nil for local login, got *%d", *rec.last.UpstreamIdpID)
+		}
+	})
+}
+
 func TestSession_IssueRejectsEmptyAMR(t *testing.T) {
 	s := newTestStore(t, time.Hour)
-	_, _, err := s.Issue(context.Background(), 42, "", "", nil)
+	_, _, err := s.Issue(context.Background(), 42, "", "", nil, nil)
 	if err == nil {
 		t.Fatal("Issue should reject empty amr")
 	}
