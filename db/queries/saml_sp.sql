@@ -45,3 +45,9 @@ SELECT * FROM saml_session WHERE session_id = $1;
 
 -- name: ListSAMLSessionsByNameID :many
 SELECT * FROM saml_session WHERE sp_id = $1 AND name_id = $2;
+
+-- name: GetSAMLSPByID :one
+SELECT * FROM saml_sp WHERE id = $1;
+
+-- name: DeleteSAMLSessionsBySession :exec
+DELETE FROM saml_session WHERE session_id = $1;

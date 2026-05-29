@@ -11,12 +11,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteSAMLSessionsBySession = `-- name: DeleteSAMLSessionsBySession :exec
+DELETE FROM saml_session WHERE session_id = $1
+`
+
+func (q *Queries) DeleteSAMLSessionsBySession(ctx context.Context, sessionID string) error {
+	_, err := q.db.Exec(ctx, deleteSAMLSessionsBySession, sessionID)
+	return err
+}
+
 const getSAMLSPByEntityID = `-- name: GetSAMLSPByEntityID :one
 SELECT id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp WHERE entity_id = $1
 `
 
 func (q *Queries) GetSAMLSPByEntityID(ctx context.Context, entityID string) (SamlSp, error) {
 	row := q.db.QueryRow(ctx, getSAMLSPByEntityID, entityID)
+	var i SamlSp
+	err := row.Scan(
+		&i.ID,
+		&i.EntityID,
+		&i.DisplayName,
+		&i.SpKind,
+		&i.NameIDFormat,
+		&i.NameIDClaim,
+		&i.AttributeMap,
+		&i.WantAssertionsSigned,
+		&i.AuthnRequestsSigned,
+		&i.RequireSignedAuthnRequest,
+		&i.SessionLifetime,
+		&i.MetadataXml,
+		&i.MetadataValidUntil,
+		&i.MetadataCacheDuration,
+		&i.MetadataFetchedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getSAMLSPByID = `-- name: GetSAMLSPByID :one
+SELECT id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp WHERE id = $1
+`
+
+func (q *Queries) GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error) {
+	row := q.db.QueryRow(ctx, getSAMLSPByID, id)
 	var i SamlSp
 	err := row.Scan(
 		&i.ID,

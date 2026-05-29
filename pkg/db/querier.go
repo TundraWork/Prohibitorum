@@ -45,6 +45,7 @@ type Querier interface {
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
+	DeleteSAMLSessionsBySession(ctx context.Context, sessionID string) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	DeleteUpstreamIDP(ctx context.Context, id int64) error
 	GetAccountByID(ctx context.Context, id int32) (Account, error)
@@ -60,6 +61,7 @@ type Querier interface {
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
 	GetPasswordCredential(ctx context.Context, accountID int32) (PasswordCredential, error)
 	GetSAMLSPByEntityID(ctx context.Context, entityID string) (SamlSp, error)
+	GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error)
 	GetSAMLSubjectID(ctx context.Context, arg GetSAMLSubjectIDParams) (SamlSubjectID, error)
 	GetSession(ctx context.Context, id string) (Session, error)
 	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
