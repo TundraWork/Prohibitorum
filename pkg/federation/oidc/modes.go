@@ -57,6 +57,7 @@ func Resolve(
 	w audit.Writer,
 	idp *db.UpstreamIdp,
 	tokens *Tokens,
+	pool *pgxpool.Pool,
 ) (accountID int32, isNew bool, err error) {
 	if idp == nil || tokens == nil {
 		return 0, false, errors.New("federation/oidc: Resolve: nil idp or tokens")
@@ -89,7 +90,7 @@ func Resolve(
 
 	switch idp.Mode {
 	case ModeAutoProvision:
-		return applyAutoProvision(ctx, q, w, idp, tokens)
+		return applyAutoProvision(ctx, q, w, idp, tokens, pool)
 	case ModeInviteOnly:
 		// Reaching invite_only via Resolve means HandleCallback did NOT see an
 		// EnrollmentToken on the FedState — i.e. someone hit /federation/{slug}/login
@@ -107,12 +108,23 @@ func Resolve(
 // applyAutoProvision creates a fresh local account from the upstream
 // claims, gated by email_verified, allowed_domains, preferred_username
 // presence, and a local username-collision check.
+//
+// The collision-check + InsertAccount + InsertAccountIdentity sequence
+// runs inside a single transaction via runProvisionTx, so a 23505
+// surfacing from a concurrent same-username or same-(iss,sub) callback
+// rolls back cleanly — no orphan account row, no burned username slot.
+// The 23505 paths surface as ErrUsernameCollision / ErrInviteRequired
+// (not raw wrapped 500s) so the HTTP layer can map them correctly.
+//
+// pool is nil-safe: in tests, runProvisionTx passes the existing querier
+// through with no transactional semantics (call order is what's asserted).
 func applyAutoProvision(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
 	idp *db.UpstreamIdp,
 	tokens *Tokens,
+	pool *pgxpool.Pool,
 ) (int32, bool, error) {
 	// Per-IdP claim-name overrides (schema defaults: preferred_username/name/email).
 	// Admins can point these at non-OIDC-default keys (e.g. Entra ID's "upn")
@@ -122,6 +134,9 @@ func applyAutoProvision(
 	displayName := ClaimString(tokens.Raw, idp.DisplayNameClaim)
 	email := ClaimString(tokens.Raw, idp.EmailClaim)
 
+	// GATES — pure read-only / claim-only checks. Run outside the tx
+	// because they don't touch the DB and would otherwise widen the
+	// transaction window for no benefit.
 	if idp.RequireVerifiedEmail && !tokens.EmailVerified {
 		// EmailVerified is the typed bool; no override (it's a JWT
 		// standard claim with a fixed boolean shape).
@@ -147,71 +162,103 @@ func applyAutoProvision(
 		return 0, false, fmt.Errorf("federation/oidc: upstream provided no %q claim (idp=%q, sub=%q)", idp.UsernameClaim, idp.Slug, tokens.Subject)
 	}
 
-	// Username collision check. We don't try to merge — admin must
-	// resolve manually (rename, link, or reject).
-	if _, err := q.GetAccountByUsername(ctx, username); err == nil {
-		emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
-			"username": username,
-		})
-		return 0, false, authn.ErrUsernameCollision()
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return 0, false, fmt.Errorf("federation/oidc: check username collision: %w", err)
-	}
-
 	if displayName == "" {
 		displayName = username
 	}
 
-	handle, err := acctpkg.GenerateUserHandle()
-	if err != nil {
-		return 0, false, fmt.Errorf("federation/oidc: generate webauthn user handle: %w", err)
-	}
+	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (int32, bool, error) {
+		// Username collision check. We don't try to merge — admin must
+		// resolve manually (rename, link, or reject). READ COMMITTED
+		// means another tx can still claim the same username between
+		// this check and our InsertAccount below; the 23505 mapping
+		// after InsertAccount catches that race.
+		if _, err := qtx.GetAccountByUsername(ctx, username); err == nil {
+			emitFailTx(ctx, txAudit, idp, tokens, "username_collision", map[string]any{
+				"username": username,
+			})
+			return 0, false, authn.ErrUsernameCollision()
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return 0, false, fmt.Errorf("federation/oidc: check username collision: %w", err)
+		}
 
-	acct, err := q.InsertAccount(ctx, db.InsertAccountParams{
-		Username:           username,
-		DisplayName:        displayName,
-		WebauthnUserHandle: handle,
-		Role:               "user",
-		Attributes:         []byte("{}"),
-		Disabled:           false,
-	})
-	if err != nil {
-		return 0, false, fmt.Errorf("federation/oidc: insert account: %w", err)
-	}
+		handle, err := acctpkg.GenerateUserHandle()
+		if err != nil {
+			return 0, false, fmt.Errorf("federation/oidc: generate webauthn user handle: %w", err)
+		}
 
-	_, err = q.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
-		AccountID:     acct.ID,
-		UpstreamIdpID: idp.ID,
-		UpstreamIss:   tokens.Issuer,
-		UpstreamSub:   tokens.Subject,
-		UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
-	})
-	if err != nil {
-		return 0, false, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
-	}
+		acct, err := qtx.InsertAccount(ctx, db.InsertAccountParams{
+			Username:           username,
+			DisplayName:        displayName,
+			WebauthnUserHandle: handle,
+			Role:               "user",
+			Attributes:         []byte("{}"),
+			Disabled:           false,
+		})
+		if err != nil {
+			if isUniqueViolation(err) {
+				// Lost the race against a concurrent same-username insert
+				// (auto_provision callback, invite redemption, or a local
+				// register). Emit a clean username_collision audit + AuthError
+				// instead of a wrapped 500. Tx rollback un-does any partial
+				// state (none, since this IS the first write here).
+				emitFailTx(ctx, txAudit, idp, tokens, "username_collision", map[string]any{
+					"username": username,
+				})
+				return 0, false, authn.ErrUsernameCollision()
+			}
+			return 0, false, fmt.Errorf("federation/oidc: insert account: %w", err)
+		}
 
-	_ = w.Record(ctx, audit.Record{
-		AccountID: int32Ptr(acct.ID),
-		Factor:    audit.FactorFederationOIDC,
-		Event:     audit.EventRegister,
-		Detail: map[string]any{
-			"idp_slug": idp.Slug,
-			"iss":      tokens.Issuer,
-			"sub":      tokens.Subject,
-			"mode":     ModeAutoProvision,
-		},
+		_, err = qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
+			AccountID:     acct.ID,
+			UpstreamIdpID: idp.ID,
+			UpstreamIss:   tokens.Issuer,
+			UpstreamSub:   tokens.Subject,
+			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
+		})
+		if err != nil {
+			if isUniqueViolation(err) {
+				// Lost the race on (upstream_iss, upstream_sub) — another
+				// concurrent callback for the same upstream identity bound
+				// it to a different account between Resolve's lookup and
+				// this insert. Collapse onto invite_required (same anti-
+				// enumeration treatment as LinkCallback's link_conflict).
+				// Tx rollback drops the just-inserted account row above.
+				emitFailTx(ctx, txAudit, idp, tokens, "identity_conflict", nil)
+				return 0, false, authn.ErrInviteRequired()
+			}
+			return 0, false, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
+		}
+
+		// Audit MUST be emitted via the tx-scoped Writer (txAudit) so the
+		// credential_event.account_id FK to account.id resolves: the
+		// outer-pool Writer would race the FK check against the
+		// uncommitted account row (different connection, MVCC snapshot
+		// doesn't yet see InsertAccount above) and fail silently. Same
+		// invariant as applyInviteOnly.
+		_ = txAudit.Record(ctx, audit.Record{
+			AccountID: int32Ptr(acct.ID),
+			Factor:    audit.FactorFederationOIDC,
+			Event:     audit.EventRegister,
+			Detail: map[string]any{
+				"idp_slug": idp.Slug,
+				"iss":      tokens.Issuer,
+				"sub":      tokens.Subject,
+				"mode":     ModeAutoProvision,
+			},
+		})
+		_ = txAudit.Record(ctx, audit.Record{
+			AccountID: int32Ptr(acct.ID),
+			Factor:    audit.FactorFederationOIDC,
+			Event:     audit.EventUse,
+			Detail: map[string]any{
+				"idp_slug": idp.Slug,
+				"iss":      tokens.Issuer,
+				"sub":      tokens.Subject,
+			},
+		})
+		return acct.ID, true, nil
 	})
-	_ = w.Record(ctx, audit.Record{
-		AccountID: int32Ptr(acct.ID),
-		Factor:    audit.FactorFederationOIDC,
-		Event:     audit.EventUse,
-		Detail: map[string]any{
-			"idp_slug": idp.Slug,
-			"iss":      tokens.Issuer,
-			"sub":      tokens.Subject,
-		},
-	})
-	return acct.ID, true, nil
 }
 
 // applyInviteOnly implements the token-bearing invite redemption flow:
@@ -244,7 +291,7 @@ func applyInviteOnly(
 		return 0, false, authn.ErrInviteRequired()
 	}
 
-	return runInviteTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (int32, bool, error) {
+	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (int32, bool, error) {
 		// Atomic consume — the UPDATE ... WHERE consumed_at IS NULL AND
 		// expires_at > now() guarantees the row is in a redeemable state at
 		// the instant we claim it. Any "already consumed", "expired", or
@@ -282,8 +329,10 @@ func applyInviteOnly(
 		// invite-create time (handle_invitations.go) but races are possible
 		// (two invites for the same name; or a local password account took
 		// the slot between mint and redemption). Detect and audit here.
+		// Use the tx-scoped audit writer so the fail row rolls back with
+		// the rest of the tx (matches the pattern below for InsertAccount).
 		if _, err := qtx.GetAccountByUsername(ctx, enr.TemplateUsername.String); err == nil {
-			emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
+			emitFailTx(ctx, txAudit, idp, tokens, "username_collision", map[string]any{
 				"username": enr.TemplateUsername.String,
 			})
 			return 0, false, authn.ErrUsernameCollision()
@@ -315,6 +364,18 @@ func applyInviteOnly(
 			Disabled:           false,
 		})
 		if err != nil {
+			if isUniqueViolation(err) {
+				// Lost the race against a concurrent insert for the same
+				// username (another invite redemption, or a federated
+				// auto_provision callback in flight). Map to a clean
+				// ErrUsernameCollision + audit instead of a wrapped 500.
+				// Tx rollback un-does ConsumeEnrollment, so the invite is
+				// re-redeemable — matches the previous-step collision branch.
+				emitFailTx(ctx, txAudit, idp, tokens, "username_collision", map[string]any{
+					"username": enr.TemplateUsername.String,
+				})
+				return 0, false, authn.ErrUsernameCollision()
+			}
 			return 0, false, fmt.Errorf("federation/oidc: insert account: %w", err)
 		}
 
@@ -328,6 +389,16 @@ func applyInviteOnly(
 			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
 		})
 		if err != nil {
+			if isUniqueViolation(err) {
+				// (upstream_iss, upstream_sub) already bound to another
+				// local account — same anti-enumeration treatment as
+				// LinkCallback's link_conflict and applyAutoProvision's
+				// identity_conflict. Tx rollback drops the just-inserted
+				// account row and the ConsumeEnrollment, so the invite is
+				// re-redeemable.
+				emitFailTx(ctx, txAudit, idp, tokens, "identity_conflict", nil)
+				return 0, false, authn.ErrInviteRequired()
+			}
 			return 0, false, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
 		}
 
@@ -370,18 +441,21 @@ func applyInviteOnly(
 	})
 }
 
-// runInviteTx is the transactional wrapper for applyInviteOnly. When
-// pool is nil (tests), it just calls fn against the passed querier + the
-// outer Writer — no transactional semantics, but the call order is
-// preserved for assertion. When pool is non-nil (production), it opens a
-// real pgxpool transaction, wraps it as a *db.Queries, constructs a
-// tx-scoped audit.Writer that emits via the same tx, and commits only if
-// fn returns nil. The tx-scoped audit writer is the load-bearing
-// invariant — without it the credential_event FK to account.id races
-// the uncommitted InsertAccount on a separate connection and silently
-// fails (the audit Writer swallows errors by convention). See
-// applyInviteOnly's audit-write site for the rationale.
-func runInviteTx(
+// runProvisionTx is the transactional wrapper shared by applyInviteOnly
+// and applyAutoProvision (originally runInviteTx — both apply paths now
+// reuse the same wrapper because the shape is identical: collision
+// check + InsertAccount + InsertAccountIdentity + audit, all atomic).
+// When pool is nil (tests), it just calls fn against the passed querier
+// + the outer Writer — no transactional semantics, but the call order
+// is preserved for assertion. When pool is non-nil (production), it
+// opens a real pgxpool transaction, wraps it as a *db.Queries,
+// constructs a tx-scoped audit.Writer that emits via the same tx, and
+// commits only if fn returns nil. The tx-scoped audit writer is the
+// load-bearing invariant — without it the credential_event FK to
+// account.id races the uncommitted InsertAccount on a separate
+// connection and silently fails (the audit Writer swallows errors by
+// convention). See applyInviteOnly's audit-write site for the rationale.
+func runProvisionTx(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	q ModesQueries,
@@ -510,6 +584,23 @@ func emitFail(
 		Event:  audit.EventFail,
 		Detail: detail,
 	})
+}
+
+// emitFailTx is the tx-scoped flavor of emitFail. Same payload shape,
+// but the caller passes in the tx-scoped writer so the audit row rolls
+// back with the surrounding transaction. Required inside runProvisionTx
+// callbacks where the fail row would otherwise live on a different
+// connection than the (about-to-roll-back) account row — see the
+// audit-write rationale in applyInviteOnly.
+func emitFailTx(
+	ctx context.Context,
+	txAudit audit.Writer,
+	idp *db.UpstreamIdp,
+	tokens *Tokens,
+	reason string,
+	extra map[string]any,
+) {
+	emitFail(ctx, txAudit, idp, tokens, reason, extra)
 }
 
 func int32Ptr(v int32) *int32 { return &v }

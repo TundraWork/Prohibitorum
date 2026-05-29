@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
@@ -182,6 +183,23 @@ func (r *recordingAudit) snapshot() []audit.Record {
 	return out
 }
 
+// hasFail reports whether the recording contains an EventFail row whose
+// Detail["reason"] equals reason. Used by the 23505-race-mapping tests
+// to assert structured audit emission.
+func (r *recordingAudit) hasFail(reason string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, rec := range r.records {
+		if rec.Event != audit.EventFail {
+			continue
+		}
+		if s, ok := rec.Detail["reason"].(string); ok && s == reason {
+			return true
+		}
+	}
+	return false
+}
+
 // helpers --------------------------------------------------------------
 
 func newIDP(mode string) *db.UpstreamIdp {
@@ -236,7 +254,7 @@ func TestApplyAutoProvision_HappyPath(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens()
 
-	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -298,7 +316,7 @@ func TestApplyAutoProvision_EmailNotVerifiedRejected(t *testing.T) {
 	tok := goodTokens()
 	tok.EmailVerified = false
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
 		t.Fatalf("want email_not_verified, got %v", err)
 	}
@@ -322,7 +340,7 @@ func TestApplyAutoProvision_DomainNotAllowedRejected(t *testing.T) {
 	idp.AllowedDomains = []string{"corp.example", "other.example"}
 	tok := goodTokens() // alice@example.com
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required, got %v", err)
 	}
@@ -343,7 +361,7 @@ func TestApplyAutoProvision_DomainAllowedCaseInsensitive(t *testing.T) {
 	idp.AllowedDomains = []string{"EXAMPLE.com"}
 	tok := goodTokens() // alice@example.com
 
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok); err != nil {
+	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("expected provision to succeed (case-insensitive domain match), got %v", err)
 	}
 }
@@ -355,7 +373,7 @@ func TestApplyAutoProvision_UsernameCollisionRejected(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
 		t.Fatalf("want username_collision, got %v", err)
 	}
@@ -382,12 +400,99 @@ func TestApplyAutoProvision_MissingPreferredUsername(t *testing.T) {
 	// clear the Raw entry too so the "claim genuinely absent" branch fires.
 	delete(tok.Raw, "preferred_username")
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err == nil {
 		t.Fatal("want error for missing preferred_username")
 	}
 	if ae := authn.AsAuthError(err); ae != nil {
 		t.Fatalf("missing preferred_username should not be an AuthError (it's a config bug -> 500), got %v", ae)
+	}
+}
+
+// pgUniqueViolation returns a *pgconn.PgError carrying SQLSTATE 23505 so
+// tests can simulate a lost race against a concurrent insert. Used by the
+// race-mapping tests below — exercises the isUniqueViolation branches in
+// applyAutoProvision / applyInviteOnly.
+func pgUniqueViolation(constraint string) error {
+	return &pgconn.PgError{Code: "23505", ConstraintName: constraint}
+}
+
+// TestApplyAutoProvision_UsernameRaceMapsToCollisionError covers the
+// READ COMMITTED race window: the collision check passes (no row with
+// this username yet), but InsertAccount returns 23505 because another
+// concurrent tx claimed the username between our check and our insert.
+// Must surface as ErrUsernameCollision (clean 4xx + audit) instead of a
+// wrapped 500.
+func TestApplyAutoProvision_UsernameRaceMapsToCollisionError(t *testing.T) {
+	q := newFakeModesQueries()
+	q.insertAccountErr = pgUniqueViolation("account_username_key")
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+
+	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
+		t.Fatalf("want username_collision AuthError, got %v", err)
+	}
+	if !a.hasFail("username_collision") {
+		t.Errorf("want audit fail reason=username_collision; got %+v", a.records)
+	}
+}
+
+// TestApplyAutoProvision_IdentityConflictRaceMapsToInviteRequired covers
+// the (upstream_iss, upstream_sub) UNIQUE race: InsertAccount succeeds,
+// but InsertAccountIdentity loses to a concurrent callback that already
+// bound the same upstream sub to a different account. Collapse onto
+// ErrInviteRequired (matches LinkCallback link_conflict pattern) so we
+// don't enumerate "which other account owns this identity".
+func TestApplyAutoProvision_IdentityConflictRaceMapsToInviteRequired(t *testing.T) {
+	q := newFakeModesQueries()
+	q.insertIdentityErr = pgUniqueViolation("account_identity_upstream_iss_sub_key")
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+
+	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required AuthError, got %v", err)
+	}
+	if !a.hasFail("identity_conflict") {
+		t.Errorf("want audit fail reason=identity_conflict; got %+v", a.records)
+	}
+}
+
+// TestApplyInviteOnly_UsernameRaceMapsToCollisionError mirrors the
+// auto_provision race test but for the invite path. Same READ COMMITTED
+// window; same expected mapping.
+func TestApplyInviteOnly_UsernameRaceMapsToCollisionError(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice", "user", nil)
+	q.insertAccountErr = pgUniqueViolation("account_username_key")
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+
+	_, _, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
+		t.Fatalf("want username_collision AuthError, got %v", err)
+	}
+	if !a.hasFail("username_collision") {
+		t.Errorf("want audit fail reason=username_collision; got %+v", a.records)
+	}
+}
+
+// TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired mirrors
+// the auto_provision identity-conflict race for the invite path.
+func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice", "user", nil)
+	q.insertIdentityErr = pgUniqueViolation("account_identity_upstream_iss_sub_key")
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+
+	_, _, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required AuthError, got %v", err)
+	}
+	if !a.hasFail("identity_conflict") {
+		t.Errorf("want audit fail reason=identity_conflict; got %+v", a.records)
 	}
 }
 
@@ -415,7 +520,7 @@ func TestApplyInviteOnly_NoTokenRejects(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required, got %v", err)
 	}
@@ -584,7 +689,7 @@ func TestApplyLinkOnly_NoExistingIdentity_Rejects(t *testing.T) {
 	idp := newIDP(federationoidc.ModeLinkOnly)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "link_required" {
 		t.Fatalf("want link_required, got %v", err)
 	}
@@ -616,7 +721,7 @@ func TestResolve_ExistingIdentitySyncsClaims(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens() // Name: "Alice Example", Email: "alice@example.com"
 
-	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -668,7 +773,7 @@ func TestResolve_ExistingIdentityNoChangesSkipsSync(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens()
 
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok); err != nil {
+	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 
@@ -681,10 +786,10 @@ func TestResolve_ExistingIdentityNoChangesSkipsSync(t *testing.T) {
 }
 
 func TestResolve_NilArgs(t *testing.T) {
-	if _, _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, nil, goodTokens()); err == nil {
+	if _, _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, nil, goodTokens(), nil); err == nil {
 		t.Fatal("want error for nil idp")
 	}
-	if _, _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, newIDP(federationoidc.ModeAutoProvision), nil); err == nil {
+	if _, _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, newIDP(federationoidc.ModeAutoProvision), nil, nil); err == nil {
 		t.Fatal("want error for nil tokens")
 	}
 }
@@ -710,7 +815,7 @@ func TestApplyAutoProvision_HonorsUsernameClaimOverride(t *testing.T) {
 	tok.PreferredUsername = ""
 	tok.Raw["upn"] = "alice-upn"
 
-	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -739,7 +844,7 @@ func TestApplyAutoProvision_HonorsEmailClaimOverride(t *testing.T) {
 	tok.Email = ""
 	tok.Raw["mail"] = "alice@corp.example"
 
-	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok)
+	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v (domainAllowed must read raw[mail])", err)
 	}
@@ -766,7 +871,7 @@ func TestApplyAutoProvision_HonorsDisplayNameClaimOverride(t *testing.T) {
 	tok.Name = ""
 	tok.Raw["given_name"] = "Alice From Override"
 
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok); err != nil {
+	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if q.insertedAccount.DisplayName != "Alice From Override" {
@@ -806,7 +911,7 @@ func TestResolve_SyncClaims_HonorsOverrides(t *testing.T) {
 	tok.Raw["given_name"] = "Alice Override"
 	tok.Raw["mail"] = "alice-new@corp.example"
 
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok); err != nil {
+	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 
@@ -827,7 +932,7 @@ func TestResolve_PropagatesUnknownLookupError(t *testing.T) {
 	q := newFakeModesQueries()
 	q.identityErr = errors.New("db down")
 	a := &recordingAudit{}
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, newIDP(federationoidc.ModeAutoProvision), goodTokens()); err == nil {
+	if _, _, err := federationoidc.Resolve(context.Background(), q, a, newIDP(federationoidc.ModeAutoProvision), goodTokens(), nil); err == nil {
 		t.Fatal("want error to propagate")
 	}
 }

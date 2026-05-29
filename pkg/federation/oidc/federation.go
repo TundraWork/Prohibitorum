@@ -322,7 +322,7 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 	if state.EnrollmentToken != "" {
 		accountID, isNew, err = applyInviteOnly(ctx, f.q, f.audit, &idp, tokens, state.EnrollmentToken, f.dbPool)
 	} else {
-		accountID, isNew, err = Resolve(ctx, f.q, f.audit, &idp, tokens)
+		accountID, isNew, err = Resolve(ctx, f.q, f.audit, &idp, tokens, f.dbPool)
 	}
 	if err != nil {
 		// Resolve / applyInviteOnly already audited its own failure with
