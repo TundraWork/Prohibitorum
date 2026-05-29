@@ -143,6 +143,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		publicOrigin,
 	)
 
+	rateLimiter := authn.NewRateLimiter()
+
 	s := &Server{
 		queries:       queries,
 		dbPool:        conn,
@@ -152,9 +154,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 		kvStore:       kvStore,
 		sessionStore:  sessionStore,
 		pairingStore:  pairing.NewPairingStore(kvStore),
-		rateLimiter:   authn.NewRateLimiter(),
+		rateLimiter:   rateLimiter,
 		webauthn:      wa,
-		oidcOP:        oidcop.New(config),
+		oidcOP:        oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter),
 		passwordStore: passwordStore,
 		totpStore:     totpStore,
 		throttle:      throttle,
