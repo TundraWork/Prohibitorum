@@ -111,3 +111,23 @@ v0.4 is a clean stopping point. The multi-protocol rescope spec
 master roadmap; v0.5+ (e.g. SAML SP/IdP per the AUDIT Pattern C references, or
 the deferred OIDC items above) would be the next chunk — brainstorm + spec it
 fresh rather than extending the v0.4 plan.
+
+---
+
+## v0.5 SAML IdP — IN PROGRESS (Tasks 0–1 of 14 done)
+
+After v0.4 closed out, v0.5 (downstream SAML 2.0 IdP, GHES-compatible) was
+brainstormed (with web research on XSW/XXE + crewjam/goxmldsig + GHES specifics),
+spec'd, and planned. Executing via subagent-driven-development, same rhythm.
+
+- **Spec:** `docs/superpowers/specs/2026-05-30-v0.5-saml-idp-design.md` (D1–D9).
+- **Plan:** `docs/superpowers/plans/2026-05-30-v0.5-saml-idp.md` + `.tasks.json` (14 tasks 0–13).
+- **Done:** Task 0 (deps: crewjam/saml v0.5.1 + goxmldsig v1.6.0 + beevik/etree v1.6.0; `GetSAMLSPByID` + `DeleteSAMLSessionsBySession` queries) `b306b53`; Task 1 (`pkg/protocol/saml/xmlsec.go` — hardened XML/DSig: `parseXMLSecure` DTD/XXE+dup-ID, `signElement` RSA-SHA256 exclusive-C14N, `verifyElementSignature` cert-pinned + anti-XSW ref-tie + SHA-1 reject; reviewed APPROVED) `38f0a19`.
+- **Resume at Task 2** (IdP widening + signing-key reuse). Then 3 (subjectid), 4 (attributes), 5 (metadata), 6 (authnreq), 7 (assertion), 8 (sso), 9 (slo), 10 (saml-sp CLI), 11 (server wiring), 12 (cmd/smoke mock-SP), 13 (docs). Then the post-implementation audit (focus: XSW/XXE, sig verify, NameID stability, replay).
+
+### Carried-forward v0.5 findings (cost real time — honor these)
+- **goxmldsig v1.6.0 API confirmed:** `dsig.NewSigningContext(key crypto.Signer, certs [][]byte)`; `ctx.Canonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList("")`; `ctx.SetSignatureMethod(dsig.RSASHA256SignatureMethod)`; **`ctx.IdAttribute = "ID"`** (a plain field; SAML uses `ID`, goxmldsig defaults to `Id` — set it on BOTH signing+validation contexts). Verify: `&dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{cert}}` → `dsig.NewDefaultValidationContext(store)` → `ctx.Validate(el)`.
+- **Serialize→reparse before verify:** an element straight out of `signElement` does NOT verify in-memory (goxmldsig C14N is sensitive to etree in-memory namespace bookkeeping). Tasks 7/8 MUST serialize the Response/Assertion to bytes and reparse via `parseXMLSecure` before `verifyElementSignature`. Documented on `signElement`.
+- **`crewjam/saml` drops out of go.mod** when nothing imports it (go mod tidy removed it after Task 1); it RE-ENTERS as a direct require the moment Task 5/6/7 import crewjam types — run `go mod tidy` after importing.
+- **The recurring `<new-diagnostics>` "missing go.sum entry for testify"** is STALE/false (testify is a test-only dep of goxmldsig's transitive `mattermost/xml-roundtrip-validator`). `go build ./...` + `go test` + `go mod tidy` are all green — trust those.
+- **xmlsec.go sentinels** (`errWeakSigAlg` etc.) are package-private — fine; the SAML handlers are in `package saml` and use them directly.
