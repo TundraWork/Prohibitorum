@@ -31,7 +31,7 @@
     {
       "id": 4,
       "subject": "Task 4: Attribute projection (attributes.go)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** projectAttributes(account, attribute_map JSONB ordered array) -> []samlAttr (multi-valued, NameFormat basic/uri, administrator rule); ghesDefaultAttributeMap (USERNAME/administrator/emails/public_keys uri/gpg_keys).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/attributes.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestAttributes -v -count=1\",\"acceptanceCriteria\":[\"ordered array decode + source resolve (username/attributes.<k>)\",\"multi-valued emit\",\"administrator true on admin\",\"NameFormat URIs exact; absent source omitted\"]}\n```"
     },
@@ -99,5 +99,5 @@
       "description": "**Goal:** STATUS v0.5 section (shipped/endpoints/smoke-covered+untested/notes D1-D9); AUDIT SAML rows smoke-verified + XSW/XXE/replay defenses recorded + deferred list; INTEGRATION SAML IdP section (saml-sp CLI, /saml/metadata, SP-side config).\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.5 smoke lists\",\"AUDIT SAML rows smoke-verified + defenses\",\"INTEGRATION SAML operator config\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T12:30:00Z"
+  "lastUpdated": "2026-05-30T13:00:00Z"
 }
