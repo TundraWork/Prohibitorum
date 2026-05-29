@@ -386,3 +386,60 @@ reverse proxy or WAF.
   rather than "log in as a user."
 
 Each gap is tracked in `STATUS.md` with a target version.
+
+## v0.4 post-implementation audit (done)
+
+After all 17 v0.4 tasks landed and the smoke went green end-to-end, the
+v0.4 OIDC OP surface (`pkg/protocol/oidc/*`, the two CLIs, server wiring)
+was put through a parallel **3-lens audit** (crypto / protocol-standards /
+race-logic) plus a **deep second pass** (integration / data-integrity /
+schema-drift). **No Critical issues.** The core machinery was independently
+confirmed sound: RS256 alg-allowlist (rejects `alg:none`/HS256/confusion),
+RFC 7638 thumbprint-bound `kid` resolution, constant-time PKCE S256 verify,
+constant-time argon2id client-secret verify, 256-bit `crypto/rand` for all
+tokens/codes/jti/secrets, correct `at_hash`, leak-free JWKS, race-free key
+cache, atomic single-use codes (`Pop`), refresh rotation + reuse→family-revoke
+(self-healing, no resurrection path), account-bound logout, correct
+schema↔sqlc↔code types, shared db/kv instances, collision-free `oidc:*` KV
+namespacing, and consistent `factor=oidc_client` auditing.
+
+**Fixed during the audit** (commits `63fe605`, `fef913b`):
+- **[High]** `/oauth/authorize` nil-pointer panic for a disabled-mid-session
+  account — the bare route mount skipped `authn.Check`, so the disabled
+  sentinel session (`Data==nil`) passed the `sess==nil` guard and the
+  `sess.Data` deref panicked. Guard widened to `sess==nil || sess.Data==nil ||
+  (sess.Account!=nil && sess.Account.Disabled)` → login bounce. (unit-tested)
+- **[High]** RFC 6749 §5.2 — `invalid_client` 401 now carries
+  `WWW-Authenticate` when Basic auth was used.
+- **[High]** rate-limit 429s no longer use the misleading `server_error`
+  OAuth code → `temporarily_unavailable`.
+- **[Medium]** `validateAccessToken` now asserts `aud == issuer` (was a latent
+  confused-deputy hole, masked by the single-audience design).
+- **[Medium]** `revoked_jti` denylist is now pruned hourly by a background
+  goroutine in `Serve()` (`PruneExpiredRevokedJTI` previously had no caller →
+  unbounded growth).
+- **[Low]** `/oidc/logout` rejects an access token (`typ:at+jwt`) presented as
+  an `id_token_hint`.
+- **[Low/availability]** refresh grant fails closed (revokes the family) if
+  token minting fails after a rotation, instead of locking the client out.
+
+**Accepted / deferred (tracked, not blocking v0.4):**
+- `prompt=login` / `max_age` are not honored (silently ignored) — no step-up /
+  forced-reauth yet. Consent UI also deferred (`require_consent` fails closed
+  with `consent_required`). Targets a later version.
+- `oidc_client.require_pkce` and `allowed_code_challenge_methods` columns are
+  stored but not consulted — `/authorize` hardcodes PKCE-required + S256-only
+  (fail-closed/stricter), so this is reserved config, not a gap.
+- `none` is advertised for the introspection/revocation auth methods; public
+  clients can introspect/revoke **their own** tokens (bounded by the per-client
+  ownership check). Revisit whether public-client introspection should be
+  disallowed.
+- Client-id **timing oracle**: the unknown-client path returns before the
+  argon2id verify, leaking client-id existence via latency (client-ids are
+  semi-public; secrets are safe). Equalize with a dummy verify when hardened.
+- The code-replay→family-revoke marker is written after minting and is
+  best-effort, so a *concurrent* replay during the mint window (PKCE still
+  protects passive interceptors) escapes family revocation — single-use itself
+  still holds. The refresh concurrent-rotation race is non-immortalizing
+  (self-heals via reuse detection); a fully atomic fix needs a KV
+  compare-and-swap the `Store` interface doesn't expose.
