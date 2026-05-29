@@ -1,7 +1,6 @@
 package saml
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -99,10 +98,4 @@ func (i *IdP) SSO(w http.ResponseWriter, r *http.Request) {
 // revoke our session.
 func (i *IdP) SLO(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "saml.SLO: TODO(v0.5)", http.StatusNotImplemented)
-}
-
-// TODO(v0.5): GetSAMLSubjectID; if absent, generate 32-byte random base64url,
-// InsertSAMLSubjectID, return.
-func (i *IdP) SubjectID(ctx context.Context, accountID int32, spID int64, format string) (string, error) {
-	return "", ErrUnknownSP
 }

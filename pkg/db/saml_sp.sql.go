@@ -247,6 +247,7 @@ func (q *Queries) InsertSAMLSession(ctx context.Context, arg InsertSAMLSessionPa
 const insertSAMLSubjectID = `-- name: InsertSAMLSubjectID :one
 INSERT INTO saml_subject_id (account_id, sp_id, name_id, name_id_format)
 VALUES ($1, $2, $3, $4)
+ON CONFLICT (account_id, sp_id) DO UPDATE SET name_id = saml_subject_id.name_id
 RETURNING account_id, sp_id, name_id, name_id_format, created_at
 `
 

@@ -33,6 +33,7 @@ SELECT * FROM saml_subject_id WHERE account_id = $1 AND sp_id = $2;
 -- name: InsertSAMLSubjectID :one
 INSERT INTO saml_subject_id (account_id, sp_id, name_id, name_id_format)
 VALUES ($1, $2, $3, $4)
+ON CONFLICT (account_id, sp_id) DO UPDATE SET name_id = saml_subject_id.name_id
 RETURNING *;
 
 -- name: InsertSAMLSession :one
