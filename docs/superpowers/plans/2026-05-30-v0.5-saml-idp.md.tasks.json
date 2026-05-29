@@ -1,0 +1,103 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-30-v0.5-saml-idp.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Dependencies + SAML queries + sqlc",
+      "status": "pending",
+      "description": "**Goal:** Promote crewjam/saml + goxmldsig to direct deps; add GetSAMLSPByID + DeleteSAMLSessionsBySession queries; regenerate sqlc; build+tests green.\n\n```json:metadata\n{\"files\":[\"go.mod\",\"db/queries/saml.sql\",\"pkg/db/saml_sp.sql.go\"],\"verifyCommand\":\"mise exec -- go build ./... && mise exec -- go test ./pkg/db/... -count=1\",\"acceptanceCriteria\":[\"crewjam/saml + goxmldsig direct\",\"GetSAMLSPByID + DeleteSAMLSessionsBySession generate\",\"build+db tests green\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Hardened XML/DSig layer (xmlsec.go)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** parseXMLSecure (DTD/XXE-off + dup-ID reject), signElement (RSA-SHA256 enveloped, exclusive C14N), verifyElementSignature (against supplied cert, reject SHA-1, reference-ties-to-element anti-XSW).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/xmlsec.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestXMLSec -v -count=1\",\"acceptanceCriteria\":[\"parseXMLSecure rejects DTD/XXE + duplicate IDs\",\"signElement RSA-SHA256 exclusive-C14N enveloped\",\"verifyElementSignature rejects SHA-1 + wrapped sig + wrong cert\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: IdP widening + signing-key reuse (saml.go)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Widen IdP struct (cfg,queries,kv,sessions,audit,rl,keys) + NewIdP(...); samlKeyCache over ListActiveSigningKeys exposing active RSA key + x509 cert + all non-retired certs; entityID/ssoURL/sloURL/metadataURL helpers.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/saml.go\",\"pkg/protocol/saml/keys_saml.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestIdP -v -count=1\",\"acceptanceCriteria\":[\"IdP deps + NewIdP\",\"signing-key cache active key+cert + all certs\",\"entityID/ssoURL/sloURL helpers from PublicOrigins\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Stable NameID (subjectid.go)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** (i *IdP) subjectID(ctx, accountID, spID, format) get-or-create stable 32-byte base64url NameID via GetSAMLSubjectID/InsertSAMLSubjectID; replaces skeleton stub.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/subjectid.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSubjectID -v -count=1\",\"acceptanceCriteria\":[\"get-or-create on ErrNoRows\",\"stable across calls\",\"distinct per SP, 43-char base64url\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Attribute projection (attributes.go)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** projectAttributes(account, attribute_map JSONB ordered array) -> []samlAttr (multi-valued, NameFormat basic/uri, administrator rule); ghesDefaultAttributeMap (USERNAME/administrator/emails/public_keys uri/gpg_keys).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/attributes.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestAttributes -v -count=1\",\"acceptanceCriteria\":[\"ordered array decode + source resolve (username/attributes.<k>)\",\"multi-valued emit\",\"administrator true on admin\",\"NameFormat URIs exact; absent source omitted\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: IdP metadata + SP-metadata parse (metadata.go)",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** idpMetadata/HandleMetadata (EntityDescriptor: signing certs, SSO/SLO endpoints both bindings, NameIDFormat persistent-1.1, WantAuthnRequestsSigned); parseSPMetadata (entity_id + ACS + signing certs) for the CLI.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/metadata.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestMetadata -v -count=1\",\"acceptanceCriteria\":[\"IdP metadata: certs + SSO/SLO + NameIDFormat\",\"HandleMetadata content-type\",\"parseSPMetadata extracts entity_id/ACS/certs\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: AuthnRequest parse + validate (authnreq.go)",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** parseAuthnRequest: redirect-binding decode, GetSAMLSPByEntityID, verify SP signature (detached redirect sig over query string OR enveloped POST) against saml_sp_key cert, reject SHA-1, replay (KV single-use ID), Destination + ACS exact-match (open-redirect guard).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/authnreq.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestAuthnReq -v -count=1\",\"acceptanceCriteria\":[\"redirect decode + SP lookup\",\"require-signed enforced (ErrMissingSignature)\",\"bad ACS->ErrInvalidACS\",\"replay reject; Destination mismatch reject; unknown SP\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Assertion + Response build/sign (assertion.go)",
+      "status": "pending",
+      "blockedBy": [1, 2, 3, 4],
+      "description": "**Goal:** buildResponse: Assertion (Subject NameID + SubjectConfirmationData Recipient=ACS/NotOnOrAfter/InResponseTo; Conditions Audience=entity_id +/-180s; AuthnStatement PasswordProtectedTransport/SessionIndex/SessionNotOnOrAfter; AttributeStatement) signed, wrapped in signed Response. Sign BOTH (RSA-SHA256).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/assertion.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestAssertion -v -count=1\",\"acceptanceCriteria\":[\"sign both Assertion + Response\",\"round-trip: crewjam SP-side ParseResponse accepts it vs our metadata\",\"Recipient/Audience/NameID correct; tamper rejected\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: /saml/sso handler (sso.go)",
+      "status": "pending",
+      "blockedBy": [5, 6, 7],
+      "description": "**Goal:** HandleSSO: parse+validate -> session gate (no session->login 302; IsPassive->NoPassive; disabled sentinel->no-session) -> rate-limit -> subjectID -> projectAttributes -> buildResponse -> InsertSAMLSession -> audit -> auto-POST form to ACS.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/sso.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSSO -v -count=1\",\"acceptanceCriteria\":[\"no session->login 302; IsPassive->NoPassive; disabled-sentinel no-panic\",\"happy: auto-POST SAMLResponse verifies + NameID stable\",\"saml_session inserted + audit\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: /saml/slo handler (slo.go)",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** HandleSLO: decode+verify LogoutRequest (required sig), validate Destination/NotOnOrAfter + NameID->saml_session, RevokeBySessionID + DeleteSAMLSessionsBySession, signed LogoutResponse, audit logout.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/slo.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSLO -v -count=1\",\"acceptanceCriteria\":[\"valid LogoutRequest -> session revoked + signed LogoutResponse + audit\",\"bad signature -> reject, session untouched\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: saml-sp CLI (metadata ingestion)",
+      "status": "pending",
+      "blockedBy": [0, 5],
+      "description": "**Goal:** BuildSPParams (metadata-XML ingest + overrides; --kind ghes applies GHES default attribute_map + require_signed_authn_request); saml-sp create (insert sp+acs+keys in tx, print summary) + list.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/clientgen_saml.go\",\"cmd/prohibitorum/main.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSPGen -v -count=1\",\"acceptanceCriteria\":[\"metadata ingest populates entity_id/ACS/certs\",\"--kind ghes default attribute_map + signed-authn\",\"manual flags; missing entity_id/ACS -> error; list prints SPs\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Server wiring + routes (server.go)",
+      "status": "pending",
+      "blockedBy": [8, 9, 5],
+      "description": "**Goal:** Add samlIdP *saml.IdP to Server; construct saml.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter); mount /saml/{metadata,sso(GET+POST),slo(GET+POST)}.\n\n```json:metadata\n{\"files\":[\"pkg/server/server.go\"],\"verifyCommand\":\"mise exec -- go build ./... && mise exec -- go test ./... -count=1\",\"acceptanceCriteria\":[\"NewIdP constructed with deps\",\"5 route mounts behind LoadSession\",\"build+vet+tests green\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: cmd/smoke mock-SP",
+      "status": "pending",
+      "blockedBy": [10, 11],
+      "description": "**Goal:** Full SAML flow end-to-end: keygen + /saml/metadata; saml-sp create (ingest mock SP metadata); signed AuthnRequest -> /saml/sso (authed) -> verify POSTed SAMLResponse (sig/Destination/Recipient/Audience/NameID/attrs); 2nd SSO NameID stable; /saml/slo (session revoked); negatives (unsigned/bad-ACS/replay); DB asserts (saml_subject_id stable, saml_session, credential_event factor=saml_sp).\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\"],\"verifyCommand\":\"mise exec -- go run ./cmd/smoke -username smoke-v05-admin -display \\\"Smoke v0.5 Admin\\\"\",\"acceptanceCriteria\":[\"full SSO flow + SAMLResponse verified vs metadata\",\"NameID stable across 2 SSOs\",\"SLO revokes session (/me 401)\",\"negatives reject; DB asserts\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: Docs (STATUS/AUDIT/INTEGRATION)",
+      "status": "pending",
+      "blockedBy": [12],
+      "description": "**Goal:** STATUS v0.5 section (shipped/endpoints/smoke-covered+untested/notes D1-D9); AUDIT SAML rows smoke-verified + XSW/XXE/replay defenses recorded + deferred list; INTEGRATION SAML IdP section (saml-sp CLI, /saml/metadata, SP-side config).\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.5 smoke lists\",\"AUDIT SAML rows smoke-verified + defenses\",\"INTEGRATION SAML operator config\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-30T07:00:00Z"
+}
