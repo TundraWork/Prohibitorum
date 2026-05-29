@@ -179,6 +179,13 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		}
 
 	case enrollment.IntentInvite:
+		// Federation-bound invites MUST be redeemed via /enrollments/{token}/start-federation.
+		// Allowing the WebAuthn enrollment path here would silently override the
+		// admin's "must federate via this IdP" policy. Audit finding M1-int.
+		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
+			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
+			return
+		}
 		if err := acctpkg.ValidateUsername(body.Username); err != nil {
 			writeAuthErr(w, err)
 			return
@@ -374,6 +381,15 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		}
 
 	case enrollment.IntentInvite:
+		// Belt-and-suspenders for the M1-int audit gate at /begin: even if
+		// the /begin guard was bypassed (e.g., a stale stash on a freshly
+		// federation-bound invite), reject here too. The tx rolls back the
+		// already-consumed enrollment so the invitee can retry via the
+		// correct /enrollments/{token}/start-federation entrypoint.
+		if consumed.ExpectedUpstreamIdpSlug.Valid && consumed.ExpectedUpstreamIdpSlug.String != "" {
+			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
+			return
+		}
 		if stash.Invite == nil {
 			writeAuthErr(w, authn.ErrCeremonyState())
 			return

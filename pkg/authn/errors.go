@@ -78,6 +78,17 @@ func ErrEnrollmentConsumed() *AuthError {
 	return newErr(http.StatusGone, "enrollment_consumed", "邀请链接已使用")
 }
 
+// ErrEnrollmentFederationRequired is returned by the WebAuthn-based
+// enrollment endpoints when the invite has been bound to a specific
+// upstream IdP (expected_upstream_idp_slug set). The invitee MUST redeem
+// via /api/prohibitorum/enrollments/{token}/start-federation; using the
+// password+passkey enrollment path would silently override the admin's
+// "must federate via this IdP" policy. Closes audit finding M1-int.
+func ErrEnrollmentFederationRequired() *AuthError {
+	return newErr(http.StatusBadRequest, "enrollment_federation_required",
+		"此邀请须通过身份联合注册，请使用联合身份注册链接")
+}
+
 // ErrBadRequest is the generic 400 for malformed request bodies / out-of-range
 // inputs where a finer-grained code would leak implementation detail or
 // doesn't add operational value (e.g., password length bounds — exposing
