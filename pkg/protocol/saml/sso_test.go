@@ -717,3 +717,115 @@ func TestSSOUnknownSPDirectError(t *testing.T) {
 		t.Errorf("unknown-SP error must NOT redirect; got Location=%q", loc)
 	}
 }
+
+func TestSSONameIDPolicyUnproducibleFormatInvalidNameIDPolicy(t *testing.T) {
+	// An SP requesting a concrete NameIDPolicy/@Format this IdP does NOT produce
+	// for it (the SP is configured persistent-1.1, but it asks for emailAddress)
+	// → a terminal Requester/InvalidNameIDPolicy Response with NO Assertion (D8).
+	h := newSSOHarness(t, ssoSP())
+	sess := liveSession(testAccount())
+	req := h.request(t, "_sso-nameidpolicy-bad", sess, func(o *authnReqOpts) {
+		o.nameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+	})
+	rec := httptest.NewRecorder()
+
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 InvalidNameIDPolicy POST; body=%s", rec.Code, rec.Body.String())
+	}
+	action, respXML := decodeAutoPost(t, rec.Body.String())
+	if action != testACSURL {
+		t.Errorf("form action = %q, want ACS %q", action, testACSURL)
+	}
+
+	// The InvalidNameIDPolicy Response goes through the same
+	// buildStatusResponse→signElement path as NoPassive, so it MUST be signed.
+	doc, err := parseXMLSecure(respXML)
+	if err != nil {
+		t.Fatalf("parseXMLSecure(respXML): %v", err)
+	}
+	responseEl := doc.Root()
+	if responseEl == nil || responseEl.Tag != "Response" {
+		t.Fatalf("root element is not Response: %+v", responseEl)
+	}
+	if err := verifyElementSignature(responseEl, h.idpCert); err != nil {
+		t.Errorf("InvalidNameIDPolicy Response signature did not verify: %v", err)
+	}
+
+	var resp crewjam.Response
+	if err := xml.Unmarshal(respXML, &resp); err != nil {
+		t.Fatalf("unmarshal Response: %v", err)
+	}
+	if resp.Assertion != nil {
+		t.Error("InvalidNameIDPolicy Response must NOT carry an Assertion")
+	}
+	if resp.Status.StatusCode.Value != statusRequester {
+		t.Errorf("top StatusCode = %q, want %q", resp.Status.StatusCode.Value, statusRequester)
+	}
+	if resp.Status.StatusCode.StatusCode == nil || resp.Status.StatusCode.StatusCode.Value != statusInvalidNameIDPolicy {
+		t.Errorf("sub StatusCode = %+v, want %q", resp.Status.StatusCode.StatusCode, statusInvalidNameIDPolicy)
+	}
+	if resp.InResponseTo != "_sso-nameidpolicy-bad" {
+		t.Errorf("InResponseTo = %q, want _sso-nameidpolicy-bad", resp.InResponseTo)
+	}
+	// No assertion issued → no saml_session row.
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (InvalidNameIDPolicy issues no assertion)", len(rows))
+	}
+}
+
+func TestSSONameIDPolicyMatchingFormatIssues(t *testing.T) {
+	// NameIDPolicy/@Format equal to the SP's configured format → normal assertion.
+	h := newSSOHarness(t, ssoSP())
+	sess := liveSession(testAccount())
+	req := h.request(t, "_sso-nameidpolicy-match", sess, func(o *authnReqOpts) {
+		o.nameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent" // == ssoSP().NameIDFormat
+	})
+	rec := httptest.NewRecorder()
+
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (assertion issued); body=%s", rec.Code, rec.Body.String())
+	}
+	_, respXML := decodeAutoPost(t, rec.Body.String())
+	var resp crewjam.Response
+	if err := xml.Unmarshal(respXML, &resp); err != nil {
+		t.Fatalf("unmarshal Response: %v", err)
+	}
+	if resp.Assertion == nil {
+		t.Error("matching NameIDPolicy/@Format must issue an Assertion")
+	}
+	if rows := h.q.sessions(); len(rows) != 1 {
+		t.Errorf("saml_session rows = %d, want 1 (assertion issued)", len(rows))
+	}
+}
+
+func TestSSONameIDPolicyUnspecifiedIssues(t *testing.T) {
+	// Format=unspecified is the SP's escape hatch ("IdP, you pick") → normal
+	// assertion using the SP's configured format.
+	h := newSSOHarness(t, ssoSP())
+	sess := liveSession(testAccount())
+	req := h.request(t, "_sso-nameidpolicy-unspec", sess, func(o *authnReqOpts) {
+		o.nameIDFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified"
+	})
+	rec := httptest.NewRecorder()
+
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (assertion issued); body=%s", rec.Code, rec.Body.String())
+	}
+	_, respXML := decodeAutoPost(t, rec.Body.String())
+	var resp crewjam.Response
+	if err := xml.Unmarshal(respXML, &resp); err != nil {
+		t.Fatalf("unmarshal Response: %v", err)
+	}
+	if resp.Assertion == nil {
+		t.Error("Format=unspecified must issue an Assertion")
+	}
+	if rows := h.q.sessions(); len(rows) != 1 {
+		t.Errorf("saml_session rows = %d, want 1 (assertion issued)", len(rows))
+	}
+}

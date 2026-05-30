@@ -77,6 +77,11 @@ type authnReq struct {
 	RelayState string
 	IsPassive  bool
 	ForceAuthn bool
+	// NameIDFormat is the requested NameIDPolicy/@Format (empty if the request
+	// carried no NameIDPolicy or an empty Format). HandleSSO honors a concrete
+	// requested format only if it matches what this SP is configured to produce;
+	// see the D8 NameIDPolicy check there.
+	NameIDFormat string
 }
 
 // parseAuthnRequest decodes and fully validates an inbound SP-initiated
@@ -188,13 +193,23 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 		return nil, err
 	}
 
+	// NameIDPolicy/@Format is optional; crewjam models Format as *string. Capture
+	// the requested format (empty when NameIDPolicy is absent or carries no
+	// Format) so HandleSSO can enforce the D8 producible-format rule without
+	// re-touching the crewjam request.
+	var nameIDFormat string
+	if req.NameIDPolicy != nil && req.NameIDPolicy.Format != nil {
+		nameIDFormat = *req.NameIDPolicy.Format
+	}
+
 	return &authnReq{
-		SP:         sp,
-		RequestID:  req.ID,
-		ACSURL:     acsURL,
-		RelayState: r.URL.Query().Get("RelayState"),
-		IsPassive:  derefBool(req.IsPassive),
-		ForceAuthn: derefBool(req.ForceAuthn),
+		SP:           sp,
+		RequestID:    req.ID,
+		ACSURL:       acsURL,
+		RelayState:   r.URL.Query().Get("RelayState"),
+		IsPassive:    derefBool(req.IsPassive),
+		ForceAuthn:   derefBool(req.ForceAuthn),
+		NameIDFormat: nameIDFormat,
 	}, nil
 }
 

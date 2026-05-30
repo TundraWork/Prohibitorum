@@ -98,15 +98,16 @@ func newAuthnTestIdP(q db.Querier) *IdP {
 
 // authnReqOpts parameterizes the test request builder.
 type authnReqOpts struct {
-	id          string
-	destination string
-	acsURL      string
-	acsIndex    string // AssertionConsumerServiceIndex (empty = unset)
-	version     string // override AuthnRequest @Version (empty = "2.0")
-	relayState  string
-	hasRelay    bool
-	forceAuthn  bool
-	isPassive   bool
+	id           string
+	destination  string
+	acsURL       string
+	acsIndex     string // AssertionConsumerServiceIndex (empty = unset)
+	version      string // override AuthnRequest @Version (empty = "2.0")
+	relayState   string
+	hasRelay     bool
+	forceAuthn   bool
+	isPassive    bool
+	nameIDFormat string // NameIDPolicy/@Format (empty = no NameIDPolicy element)
 
 	// signing controls
 	sign     bool
@@ -146,6 +147,10 @@ func buildAuthnRedirect(t *testing.T, o authnReqOpts) *http.Request {
 	if o.isPassive {
 		v := true
 		ar.IsPassive = &v
+	}
+	if o.nameIDFormat != "" {
+		f := o.nameIDFormat
+		ar.NameIDPolicy = &crewjam.NameIDPolicy{Format: &f}
 	}
 
 	xmlBytes, err := xml.Marshal(ar)

@@ -34,6 +34,10 @@ const (
 const (
 	statusRequester = "urn:oasis:names:tc:SAML:2.0:status:Requester"
 	statusNoPassive = "urn:oasis:names:tc:SAML:2.0:status:NoPassive"
+	// statusInvalidNameIDPolicy is the second-level status returned when an SP
+	// requests a concrete NameIDPolicy/@Format this IdP cannot produce for it
+	// (D8). Paired under statusRequester, matching Shibboleth/ADFS/Entra.
+	statusInvalidNameIDPolicy = "urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy"
 )
 
 // autoPostFormTmpl renders a self-submitting HTML form that POSTs a SAMLResponse
@@ -229,6 +233,27 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 		}
+		return
+	}
+
+	// NameIDPolicy/@Format (D8): honor a requested concrete format only if we
+	// can produce it; unspecified/absent → our configured format; otherwise
+	// InvalidNameIDPolicy (Shibboleth/ADFS/Entra behavior). The escape hatch is
+	// 'unspecified', which real SPs use to let the IdP pick. This is a terminal
+	// answer to the SP; the AuthnRequest ID was already consumed above, so an
+	// InvalidNameIDPolicy answer is single-use just like the NoPassive path.
+	// Evaluated HERE — right after the replay consume and BEFORE the subjectID
+	// DB read/write and projectAttributes — so a format mismatch short-circuits
+	// without that wasted work (both req.NameIDFormat and sp.NameIDFormat are
+	// known immediately after parse + SP load).
+	const nameIDUnspecified = "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified"
+	if f := req.NameIDFormat; f != "" && f != nameIDUnspecified && f != sp.NameIDFormat {
+		respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusRequester, statusInvalidNameIDPolicy)
+		if berr != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
 		return
 	}
 
