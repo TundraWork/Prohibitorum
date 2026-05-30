@@ -66,7 +66,7 @@
     {
       "id": 9,
       "subject": "Task 9: /saml/slo handler (slo.go)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** HandleSLO: decode+verify LogoutRequest (required sig), validate Destination/NotOnOrAfter + NameID->saml_session, RevokeBySessionID + DeleteSAMLSessionsBySession, signed LogoutResponse, audit logout.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/slo.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSLO -v -count=1\",\"acceptanceCriteria\":[\"valid LogoutRequest -> session revoked + signed LogoutResponse + audit\",\"bad signature -> reject, session untouched\"]}\n```"
     },
@@ -99,5 +99,5 @@
       "description": "**Goal:** STATUS v0.5 section (shipped/endpoints/smoke-covered+untested/notes D1-D9); AUDIT SAML rows smoke-verified + XSW/XXE/replay defenses recorded + deferred list; INTEGRATION SAML IdP section (saml-sp CLI, /saml/metadata, SP-side config).\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.5 smoke lists\",\"AUDIT SAML rows smoke-verified + defenses\",\"INTEGRATION SAML operator config\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T15:00:00Z"
+  "lastUpdated": "2026-05-30T15:30:00Z"
 }
