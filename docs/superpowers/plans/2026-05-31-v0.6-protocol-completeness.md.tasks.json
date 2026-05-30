@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 0: Schema + sqlc + configx",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Add saml_sp.allow_idp_initiated column + SAMLConfig.MetadataValidity; regen sqlc; confirm PKCE columns + plain-exclusion.\n\n```json:metadata\n{\"files\":[\"db/migrations/005_saml.sql\",\"db/migrations/002_oidc.sql\",\"db/queries/saml_sp.sql\",\"pkg/db/saml_sp.sql.go\",\"pkg/configx/configx.go\"],\"verifyCommand\":\"mise exec -- go build ./... && mise exec -- go test ./pkg/db/... -count=1\",\"acceptanceCriteria\":[\"allow_idp_initiated column + AllowIdpInitiated field generate\",\"SAMLConfig.MetadataValidity with viper default\",\"PKCE columns exist + plain excluded by default/CHECK\",\"build+db tests green\"]}\n```"
     },
     {
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T02:00:00Z"
+  "lastUpdated": "2026-05-31T02:30:00Z"
 }
