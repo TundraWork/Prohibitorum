@@ -55,7 +55,7 @@
     {
       "id": 8,
       "subject": "Task 8: SAML IdP-initiated SSO",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** GET /saml/sso/init?sp=&RelayState= emits unsolicited Response (empty inResponseTo) to default ACS, gated by per-SP allow_idp_initiated (default false). saml-sp create --allow-idp-initiated; route mounted.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/sso_init.go\",\"pkg/protocol/saml/sso_init_test.go\",\"pkg/protocol/saml/clientgen_saml.go\",\"cmd/prohibitorum/main.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run 'TestSSOInit|TestSPGen' -v -count=1\",\"acceptanceCriteria\":[\"opt-in true->unsolicited Response (no InResponseTo) to default ACS, RelayState echoed\",\"opt-in false->403; no session->login 302; unknown sp->400\",\"--allow-idp-initiated flag sets param\"]}\n```"
     },
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T06:00:00Z"
+  "lastUpdated": "2026-05-31T06:30:00Z"
 }
