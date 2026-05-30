@@ -154,8 +154,14 @@ func (i *IdP) buildResponse(ctx context.Context, sp db.SamlSp, acsURL, inRespons
 		Issuer:       crewjam.Issuer{Value: entityID},
 		Subject: &crewjam.Subject{
 			NameID: &crewjam.NameID{
-				Format: sp.NameIDFormat,
-				Value:  nameID,
+				// Core §8.3.7: a persistent NameID SHOULD be scoped by the
+				// IdP (NameQualifier) and the SP (SPNameQualifier) that the
+				// opaque value is meaningful for. Strict SPs key their link
+				// table on the full qualified triple.
+				NameQualifier:   entityID,
+				SPNameQualifier: sp.EntityID,
+				Format:          sp.NameIDFormat,
+				Value:           nameID,
 			},
 			SubjectConfirmations: []crewjam.SubjectConfirmation{
 				{

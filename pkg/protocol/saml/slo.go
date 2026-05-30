@@ -291,6 +291,10 @@ func parseLogoutRequestXML(raw []byte, out *crewjam.LogoutRequest) (*etree.Eleme
 	if out.ID == "" {
 		return nil, ErrMalformedRequest
 	}
+	// SAML Core §3.2.1: every request MUST carry Version="2.0".
+	if out.Version != "2.0" {
+		return nil, ErrMalformedRequest
+	}
 	return doc.Root(), nil
 }
 

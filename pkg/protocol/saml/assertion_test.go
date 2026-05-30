@@ -204,6 +204,16 @@ func TestAssertionCrewjamInterop(t *testing.T) {
 		t.Errorf("NameID = %q, want %q", got, f.nameID)
 	}
 
+	// Fix B2 (Core §8.3.7): the persistent NameID is scoped by NameQualifier
+	// (IdP entityID) and SPNameQualifier (SP entityID), and crewjam's SP-side
+	// parser round-trips both.
+	if got, want := assertion.Subject.NameID.NameQualifier, f.idp.entityID(); got != want {
+		t.Errorf("NameID.NameQualifier = %q, want %q", got, want)
+	}
+	if got, want := assertion.Subject.NameID.SPNameQualifier, f.sp.EntityID; got != want {
+		t.Errorf("NameID.SPNameQualifier = %q, want %q", got, want)
+	}
+
 	// Recipient matches the ACS URL.
 	foundRecipient := false
 	for _, sc := range assertion.Subject.SubjectConfirmations {

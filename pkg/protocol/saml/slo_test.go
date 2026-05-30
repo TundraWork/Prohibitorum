@@ -229,6 +229,7 @@ type sloReqOpts struct {
 	nameID       string
 	sessionIndex string
 	notOnOrAfter *time.Time
+	version      string // override LogoutRequest @Version (empty = "2.0")
 
 	relayState string
 	hasRelay   bool
@@ -242,9 +243,13 @@ type sloReqOpts struct {
 // detached signature octet string mirrors verifyRedirectSignature byte-for-byte.
 func buildLogoutRedirect(t *testing.T, o sloReqOpts) *http.Request {
 	t.Helper()
+	version := o.version
+	if version == "" {
+		version = "2.0"
+	}
 	lr := crewjam.LogoutRequest{
 		ID:           o.id,
-		Version:      "2.0",
+		Version:      version,
 		IssueInstant: time.Now().UTC(),
 		Destination:  o.destination,
 		Issuer:       &crewjam.Issuer{Value: testSPEntityID},
@@ -603,6 +608,32 @@ func TestSLODestinationMismatchRejected(t *testing.T) {
 	}
 	if !h.sessionAlive(t, 42, sid) {
 		t.Error("session revoked despite bad Destination; MUST remain untouched")
+	}
+}
+
+// TestSLOBadVersionRejected proves Fix B3: a LogoutRequest with Version != "2.0"
+// is rejected as malformed (Core §3.2.1) with the session left untouched.
+func TestSLOBadVersionRejected(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-ver"
+	sid := h.seedSession(t, 42, nameID, "")
+
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:          "_slo-badver",
+		destination: testSLOURL,
+		nameID:      nameID,
+		version:     "1.1",
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+	if !h.sessionAlive(t, 42, sid) {
+		t.Error("session revoked despite bad Version; MUST remain untouched")
 	}
 }
 

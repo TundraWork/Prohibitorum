@@ -101,6 +101,8 @@ type authnReqOpts struct {
 	id          string
 	destination string
 	acsURL      string
+	acsIndex    string // AssertionConsumerServiceIndex (empty = unset)
+	version     string // override AuthnRequest @Version (empty = "2.0")
 	relayState  string
 	hasRelay    bool
 	forceAuthn  bool
@@ -120,15 +122,22 @@ type authnReqOpts struct {
 func buildAuthnRedirect(t *testing.T, o authnReqOpts) *http.Request {
 	t.Helper()
 
+	version := o.version
+	if version == "" {
+		version = "2.0"
+	}
 	ar := crewjam.AuthnRequest{
 		ID:           o.id,
-		Version:      "2.0",
+		Version:      version,
 		IssueInstant: time.Now().UTC(),
 		Destination:  o.destination,
 		Issuer:       &crewjam.Issuer{Value: testSPEntityID},
 	}
 	if o.acsURL != "" {
 		ar.AssertionConsumerServiceURL = o.acsURL
+	}
+	if o.acsIndex != "" {
+		ar.AssertionConsumerServiceIndex = o.acsIndex
 	}
 	if o.forceAuthn {
 		v := true
@@ -465,11 +474,17 @@ func TestAuthnReqNoACSResolvesDefault(t *testing.T) {
 	}
 }
 
-func TestAuthnReqNoACSNoDefault(t *testing.T) {
+// TestAuthnReqNoACSNoDefaultLowestIndex proves Fix B1: when neither an ACS URL
+// nor index is supplied AND no endpoint is marked isDefault, the implicit
+// default per Metadata IndexedEndpointType §2.2.3 is the LOWEST-index endpoint
+// (NOT an error). The list is intentionally given out of index order to prove
+// we pick by Idx and not by slice position.
+func TestAuthnReqNoACSNoDefaultLowestIndex(t *testing.T) {
 	priv, certPEM := testSPKey(t)
-	// ACS list with NO default entry.
 	noDefault := []db.SamlSpAc{
+		{SpID: 7, Idx: 2, Binding: crewjam.HTTPPostBinding, Location: "https://sp.example/acs/2", IsDefault: false},
 		{SpID: 7, Idx: 0, Binding: crewjam.HTTPPostBinding, Location: testACSURL, IsDefault: false},
+		{SpID: 7, Idx: 1, Binding: crewjam.HTTPPostBinding, Location: "https://sp.example/acs/1", IsDefault: false},
 	}
 	q := newAuthnQueries(defaultSP(true), noDefault, signingKeyRows(certPEM))
 	idp := newAuthnTestIdP(q)
@@ -481,9 +496,106 @@ func TestAuthnReqNoACSNoDefault(t *testing.T) {
 		signKey:     priv,
 	})
 
+	got, err := idp.parseAuthnRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("parseAuthnRequest: %v", err)
+	}
+	if got.ACSURL != testACSURL {
+		t.Errorf("ACSURL = %q, want lowest-index %q", got.ACSURL, testACSURL)
+	}
+}
+
+// TestAuthnReqNoACSNoEndpoints confirms that with ZERO registered ACS rows and
+// neither a URL nor an index supplied, resolution fails with ErrInvalidACS.
+func TestAuthnReqNoACSNoEndpoints(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), []db.SamlSpAc{}, signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-noacsrows",
+		destination: testSSOURL,
+		sign:        true,
+		signKey:     priv,
+	})
+
 	_, err := idp.parseAuthnRequest(context.Background(), req)
 	if !errors.Is(err, ErrInvalidACS) {
 		t.Fatalf("err = %v, want ErrInvalidACS", err)
+	}
+}
+
+// TestAuthnReqACSByIndex proves Fix B1: an SP may identify its ACS by
+// AssertionConsumerServiceIndex (Web SSO Profile §4.1.4.1). The indexed
+// endpoint's Location is resolved.
+func TestAuthnReqACSByIndex(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	acs := []db.SamlSpAc{
+		{SpID: 7, Idx: 0, Binding: crewjam.HTTPPostBinding, Location: testACSURL, IsDefault: true},
+		{SpID: 7, Idx: 5, Binding: crewjam.HTTPPostBinding, Location: "https://sp.example/acs/five", IsDefault: false},
+	}
+	q := newAuthnQueries(defaultSP(true), acs, signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-acsidx",
+		destination: testSSOURL,
+		acsIndex:    "5",
+		sign:        true,
+		signKey:     priv,
+	})
+
+	got, err := idp.parseAuthnRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("parseAuthnRequest: %v", err)
+	}
+	if got.ACSURL != "https://sp.example/acs/five" {
+		t.Errorf("ACSURL = %q, want indexed endpoint", got.ACSURL)
+	}
+}
+
+// TestAuthnReqACSByBadIndex confirms an AssertionConsumerServiceIndex that
+// matches no registered endpoint (and a non-integer index) is rejected with
+// ErrInvalidACS rather than silently falling back to a default.
+func TestAuthnReqACSByBadIndex(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	for _, idx := range []string{"99", "notanint"} {
+		req := buildAuthnRedirect(t, authnReqOpts{
+			id:          "_req-acsbadidx-" + idx,
+			destination: testSSOURL,
+			acsIndex:    idx,
+			sign:        true,
+			signKey:     priv,
+		})
+		_, err := idp.parseAuthnRequest(context.Background(), req)
+		if !errors.Is(err, ErrInvalidACS) {
+			t.Fatalf("index %q: err = %v, want ErrInvalidACS", idx, err)
+		}
+	}
+}
+
+// TestAuthnReqBadVersion proves Fix B3: an AuthnRequest with Version != "2.0"
+// is rejected as malformed (Core §3.2.1).
+func TestAuthnReqBadVersion(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-badver",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		version:     "1.1",
+		sign:        true,
+		signKey:     priv,
+	})
+
+	_, err := idp.parseAuthnRequest(context.Background(), req)
+	if !errors.Is(err, ErrMalformedRequest) {
+		t.Fatalf("err = %v, want ErrMalformedRequest", err)
 	}
 }
 

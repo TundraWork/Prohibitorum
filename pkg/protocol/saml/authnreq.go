@@ -14,6 +14,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -165,6 +166,12 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 		return nil, ErrMalformedRequest
 	}
 
+	// SAML Core §3.2.1: every request MUST carry Version="2.0". Reject any
+	// other version as malformed before acting on the message.
+	if req.Version != "2.0" {
+		return nil, ErrMalformedRequest
+	}
+
 	// --- 4. Destination check ---------------------------------------------
 	// Destination is optional on the wire, but if present it MUST name this
 	// IdP's SSO endpoint (anti-misrouting / anti-replay-against-other-IdP).
@@ -173,7 +180,10 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 	}
 
 	// --- 5. ACS resolution (open-redirect guard) --------------------------
-	acsURL, err := i.resolveACS(ctx, sp.ID, req.AssertionConsumerServiceURL)
+	// An SP may identify its ACS by URL OR by AssertionConsumerServiceIndex
+	// (Web Browser SSO Profile §4.1.4.1). resolveACS resolves both and applies
+	// the lowest-index implicit default when neither is supplied.
+	acsURL, err := i.resolveACS(ctx, sp.ID, req.AssertionConsumerServiceURL, req.AssertionConsumerServiceIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -219,32 +229,76 @@ func (i *IdP) consumeAuthnRequestID(ctx context.Context, id string) error {
 	return i.kv.SetEx(ctx, replayKey, "1", AuthnRequestTTL)
 }
 
-// resolveACS maps the SP-requested AssertionConsumerService URL to a registered
-// endpoint, or selects the SP's default. It is the open-redirect guard: it
-// NEVER returns a URL that is not a registered ACS Location for this SP, so the
-// IdP cannot be tricked into delivering a signed assertion to an attacker URL.
+// resolveACS maps the SP's requested AssertionConsumerService — identified by
+// URL or by AssertionConsumerServiceIndex — to a registered endpoint, or
+// selects the SP's default. It is the open-redirect guard: it NEVER returns a
+// URL that is not a registered ACS Location for this SP, so the IdP cannot be
+// tricked into delivering a signed assertion to an attacker URL.
 //
-//   - requested != "": MUST exact-string-match one registered ACS Location.
-//   - requested == "": use the SP's IsDefault ACS Location.
+// Resolution precedence (Web Browser SSO Profile §4.1.4.1, Core §3.4.1,
+// Metadata §2.4.4.1 / IndexedEndpointType §2.2.3):
 //
-// Any failure to satisfy the above yields ErrInvalidACS.
-func (i *IdP) resolveACS(ctx context.Context, spID int64, requested string) (string, error) {
+//  1. requestedURL != "": MUST exact-string-match one registered ACS Location;
+//     no match → ErrInvalidACS. (open-redirect guard — never echo an
+//     unregistered URL.)
+//  2. requestedIndex non-empty: MUST match a registered ACS whose Idx equals
+//     it → return that endpoint's Location; no such index → ErrInvalidACS.
+//  3. neither: return the IsDefault ACS; if NONE is marked default, return the
+//     ACS with the LOWEST Idx (the spec's implicit default). Zero ACS rows →
+//     ErrInvalidACS.
+//
+// requestedIndex is the raw AssertionConsumerServiceIndex string from the
+// AuthnRequest (empty = unset); a non-empty value that does not parse to an int
+// is treated as a non-matching index → ErrInvalidACS.
+func (i *IdP) resolveACS(ctx context.Context, spID int64, requestedURL, requestedIndex string) (string, error) {
 	endpoints, err := i.queries.ListSAMLSPACSEndpoints(ctx, spID)
 	if err != nil {
 		return "", err
 	}
-	if requested != "" {
+
+	// 1. ACS-by-URL: exact match against a registered Location.
+	if requestedURL != "" {
 		for _, e := range endpoints {
-			if e.Location == requested {
+			if e.Location == requestedURL {
 				return e.Location, nil
 			}
 		}
 		return "", ErrInvalidACS
 	}
-	for _, e := range endpoints {
+
+	// 2. ACS-by-index: match the registered endpoint whose Idx equals the
+	// requested index. A malformed (non-integer) index never matches.
+	if requestedIndex != "" {
+		idx, perr := strconv.Atoi(requestedIndex)
+		if perr != nil {
+			return "", ErrInvalidACS
+		}
+		for _, e := range endpoints {
+			if int(e.Idx) == idx {
+				return e.Location, nil
+			}
+		}
+		return "", ErrInvalidACS
+	}
+
+	// 3. Neither supplied: the explicit IsDefault endpoint wins; otherwise the
+	// spec's implicit default is the endpoint with the LOWEST Idx.
+	var (
+		lowest  *db.SamlSpAc
+		haveAny bool
+	)
+	for idx := range endpoints {
+		e := &endpoints[idx]
 		if e.IsDefault {
 			return e.Location, nil
 		}
+		if !haveAny || e.Idx < lowest.Idx {
+			lowest = e
+			haveAny = true
+		}
+	}
+	if haveAny {
+		return lowest.Location, nil
 	}
 	return "", ErrInvalidACS
 }
