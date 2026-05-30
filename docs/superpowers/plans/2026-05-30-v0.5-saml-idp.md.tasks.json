@@ -52,7 +52,7 @@
     {
       "id": 7,
       "subject": "Task 7: Assertion + Response build/sign (assertion.go)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2, 3, 4],
       "description": "**Goal:** buildResponse: Assertion (Subject NameID + SubjectConfirmationData Recipient=ACS/NotOnOrAfter/InResponseTo; Conditions Audience=entity_id +/-180s; AuthnStatement PasswordProtectedTransport/SessionIndex/SessionNotOnOrAfter; AttributeStatement) signed, wrapped in signed Response. Sign BOTH (RSA-SHA256).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/assertion.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestAssertion -v -count=1\",\"acceptanceCriteria\":[\"sign both Assertion + Response\",\"round-trip: crewjam SP-side ParseResponse accepts it vs our metadata\",\"Recipient/Audience/NameID correct; tamper rejected\"]}\n```"
     },
@@ -99,5 +99,5 @@
       "description": "**Goal:** STATUS v0.5 section (shipped/endpoints/smoke-covered+untested/notes D1-D9); AUDIT SAML rows smoke-verified + XSW/XXE/replay defenses recorded + deferred list; INTEGRATION SAML IdP section (saml-sp CLI, /saml/metadata, SP-side config).\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.5 smoke lists\",\"AUDIT SAML rows smoke-verified + defenses\",\"INTEGRATION SAML operator config\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T14:00:00Z"
+  "lastUpdated": "2026-05-30T14:30:00Z"
 }
