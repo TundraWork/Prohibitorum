@@ -62,7 +62,7 @@
     {
       "id": 9,
       "subject": "Task 9: cmd/smoke v0.6 steps",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 3, 4, 5, 6, 7, 8],
       "description": "**Goal:** End-to-end smoke (steps 100+) for all v0.6 behaviors against live PG + dev server + mock SP; all v0.2-v0.6 green, SMOKE_EXIT=0.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"cmd/smoke/saml_mock.go\"],\"verifyCommand\":\"setsid bash /tmp/run_v06.sh; cat /tmp/v06.result\",\"acceptanceCriteria\":[\"prompt=login bounce-then-reauth; max_age; prompt=none->login_required\",\"PKCE plain rejected; public introspect->invalid_client\",\"ForceAuthn bounce; ForceAuthn+IsPassive->NoPassive; NameIDPolicy mismatch\",\"POST AuthnRequest SSO; signed metadata verify; IdP-initiated opt-in accepted + non-opt-in 403\",\"SMOKE_EXIT=0 all prior steps green\"]}\n```"
     },
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T06:30:00Z"
+  "lastUpdated": "2026-05-31T07:00:00Z"
 }
