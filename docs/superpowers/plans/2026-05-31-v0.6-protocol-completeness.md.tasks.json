@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 1: Re-auth gate helper (pkg/authn/reauth.go)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Cross-protocol single-use re-auth gate: DemandReauth (mint nonce + stamp demand instant in KV, 10m TTL); ConsumeReauth (verify auth_time post-dates demand, single-use Del).\n\n```json:metadata\n{\"files\":[\"pkg/authn/reauth.go\",\"pkg/authn/reauth_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/authn/... -run TestReauth -v -count=1\",\"acceptanceCriteria\":[\"DemandReauth mints nonce + SetEx marker\",\"ConsumeReauth: stale auth_time->false, fresh->true, single-use, unknown nonce->false\"]}\n```"
     },
     {
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T02:30:00Z"
+  "lastUpdated": "2026-05-31T03:00:00Z"
 }
