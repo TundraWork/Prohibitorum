@@ -69,10 +69,10 @@
     {
       "id": 10,
       "subject": "Task 10: Docs (STATUS/AUDIT/INTEGRATION)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9],
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T07:00:00Z"
+  "lastUpdated": "2026-05-31T07:30:00Z"
 }
