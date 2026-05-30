@@ -30,6 +30,7 @@ import (
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
 	oidcop "prohibitorum/pkg/protocol/oidc"
+	samlidp "prohibitorum/pkg/protocol/saml"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -45,6 +46,7 @@ type Server struct {
 	rateLimiter   *authn.RateLimiter
 	webauthn      *webauthn.WebAuthn
 	oidcOP        *oidcop.Provider
+	samlIdP       *samlidp.IdP
 	passwordStore *password.Store
 	totpStore     *totp.Store
 	throttle      *authn.Throttle
@@ -158,6 +160,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		rateLimiter:   rateLimiter,
 		webauthn:      wa,
 		oidcOP:        oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter),
+		samlIdP:       samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter),
 		passwordStore: passwordStore,
 		totpStore:     totpStore,
 		throttle:      throttle,
@@ -314,4 +317,9 @@ func (s *Server) registerOperations() {
 	s.router.Post("/oauth/introspect", s.oidcOP.HandleIntrospect)
 	s.router.Post("/oauth/revoke", s.oidcOP.HandleRevoke)
 	s.router.Get("/oidc/logout", s.oidcOP.HandleLogout)
+	s.router.Get("/saml/metadata", s.samlIdP.HandleMetadata)
+	s.router.Get("/saml/sso", s.samlIdP.HandleSSO)
+	s.router.Post("/saml/sso", s.samlIdP.HandleSSO)
+	s.router.Get("/saml/slo", s.samlIdP.HandleSLO)
+	s.router.Post("/saml/slo", s.samlIdP.HandleSLO)
 }
