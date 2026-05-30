@@ -1665,8 +1665,536 @@ func main() {
 		log.Fatalf("v0.5 SAML audit DB assert: %v", err)
 	}
 
+	// =========================================================================
+	// v0.6 surface: protocol-completeness gate. Forced re-authentication
+	// (OIDC prompt=login / max_age, SAML ForceAuthn), prompt=none + stale,
+	// PKCE method rejection, public-client introspection refusal, SAML
+	// NameIDPolicy mismatch, ForceAuthn+IsPassive NoPassive, POST-binding
+	// AuthnRequest intake, signed IdP metadata, and IdP-initiated SSO. Per
+	// Task 9 of the v0.6 plan. Steps 100..N continue the v0.5 counter.
+	//
+	// Pre-condition: c holds a live webauthn session (re-login at step 88;
+	// steps 91–99 only drove SSO/SLO against OTHER clients or touched c's
+	// session non-destructively — confirmed alive at step 95). The v0.5 mock
+	// SP `sp` + its verifier `spProvider`, ssoURL, mockSPACSURL, and the
+	// signing key (step 70) are all still in scope and reused here.
+	const totalV06 = 111
+
+	// freshLogin re-runs the WebAuthn login ceremony on c, minting a NEW
+	// session (fresh auth_time) on the cookie jar — the move that satisfies a
+	// prompt=login / ForceAuthn re-auth demand whose nonce predates it.
+	freshLogin := func() {
+		lo, err := c.beginLogin()
+		if err != nil {
+			log.Fatalf("v0.6 fresh login/begin: %v", err)
+		}
+		signed, err := auth.signAssertion(lo.Challenge, *baseURL)
+		if err != nil {
+			log.Fatalf("v0.6 fresh login sign: %v", err)
+		}
+		if err := c.completeLogin(auth, signed); err != nil {
+			log.Fatalf("v0.6 fresh login/complete: %v", err)
+		}
+	}
+
+	v06Me, err := c.getMe()
+	if err != nil {
+		log.Fatalf("v0.6: c has no live session at start of v0.6 steps: %v", err)
+	}
+	_ = v06Me
+
+	// ---- OIDC forced re-auth + policy steps (reuse the step-71 confidential
+	// client `smoke-rp` + `rpRedirectURI`/`issuer`). ----
+
+	step(fmt.Sprintf("step 100/%d — v0.6: OIDC prompt=login bounces (stale session), then a fresh login + reauth nonce issues a code", totalV06))
+	{
+		_, challenge := genPKCE()
+		state := randState()
+		nonce := randState()
+		baseAuthz := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256&prompt=login",
+			url.QueryEscape(rpClientID),
+			url.QueryEscape(rpRedirectURI),
+			url.QueryEscape("openid profile offline_access"),
+			url.QueryEscape(state),
+			url.QueryEscape(nonce),
+			url.QueryEscape(challenge),
+		)
+		// (a) prompt=login with the existing session → bounce to /login with a
+		// reauth nonce; must NOT be a code redirect to the RP.
+		loc, err := authorizeRaw(c, baseAuthz)
+		if err != nil {
+			log.Fatalf("prompt=login authorize: %v", err)
+		}
+		if strings.HasPrefix(loc, rpRedirectURI) {
+			log.Fatalf("prompt=login returned a code redirect to the RP (stale session must not satisfy re-auth): %q", loc)
+		}
+		if !strings.HasPrefix(loc, issuer+"/login") {
+			log.Fatalf("prompt=login: want a bounce to %s/login, got %q", issuer, loc)
+		}
+		returnTo, reauthNonce, err := extractReauthFromLoginBounce(loc)
+		if err != nil {
+			log.Fatalf("prompt=login bounce: %v", err)
+		}
+		if reauthNonce == "" {
+			log.Fatalf("prompt=login bounce carried no reauth nonce: return_to=%q", returnTo)
+		}
+		log.Printf("  prompt=login (stale) → 302 %s/login, return_to carries reauth=%.10s… (no code) ✓", issuer, reauthNonce)
+
+		// (b) Fresh login → new session with a newer auth_time.
+		freshLogin()
+
+		// (c) Retry the authorize URL WITH the reauth nonce → now a code.
+		retryPath, err := pathQueryOf(returnTo)
+		if err != nil {
+			log.Fatalf("prompt=login retry parse: %v", err)
+		}
+		loc2, err := authorizeWithSession(c, retryPath)
+		if err != nil {
+			log.Fatalf("prompt=login retry authorize: %v", err)
+		}
+		code, err := parseAuthorizeRedirect(loc2, rpRedirectURI, state, issuer)
+		if err != nil {
+			log.Fatalf("prompt=login retry redirect: %v", err)
+		}
+		log.Printf("  fresh login + &reauth=<nonce> → code (len=%d) ✓", len(code))
+	}
+
+	step(fmt.Sprintf("step 101/%d — v0.6: OIDC max_age=0 bounces; max_age=3600 issues a code", totalV06))
+	{
+		// max_age=0 demands re-auth regardless of how recent the session is →
+		// a bounce to /login (the session just minted at step 100 still cannot
+		// satisfy a zero max_age without a reauth nonce).
+		v, challenge := genPKCE()
+		_ = v
+		mkAuthz := func(maxAge string) string {
+			return fmt.Sprintf(
+				"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256&max_age=%s",
+				url.QueryEscape(rpClientID),
+				url.QueryEscape(rpRedirectURI),
+				url.QueryEscape("openid profile offline_access"),
+				url.QueryEscape(randState()),
+				url.QueryEscape(randState()),
+				url.QueryEscape(challenge),
+				maxAge,
+			)
+		}
+		loc, err := authorizeRaw(c, mkAuthz("0"))
+		if err != nil {
+			log.Fatalf("max_age=0 authorize: %v", err)
+		}
+		if !strings.HasPrefix(loc, issuer+"/login") {
+			log.Fatalf("max_age=0: want a bounce to %s/login, got %q", issuer, loc)
+		}
+		log.Printf("  max_age=0 → 302 %s/login (re-auth demanded) ✓", issuer)
+
+		// max_age=3600 is easily satisfied by the recent session → a code.
+		state := randState()
+		challengeURL := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256&max_age=3600",
+			url.QueryEscape(rpClientID),
+			url.QueryEscape(rpRedirectURI),
+			url.QueryEscape("openid profile offline_access"),
+			url.QueryEscape(state),
+			url.QueryEscape(randState()),
+			url.QueryEscape(challenge),
+		)
+		loc2, err := authorizeWithSession(c, challengeURL)
+		if err != nil {
+			log.Fatalf("max_age=3600 authorize: %v", err)
+		}
+		if _, err := parseAuthorizeRedirect(loc2, rpRedirectURI, state, issuer); err != nil {
+			log.Fatalf("max_age=3600 redirect: %v", err)
+		}
+		log.Printf("  max_age=3600 → code (no bounce) ✓")
+	}
+
+	step(fmt.Sprintf("step 102/%d — v0.6: OIDC prompt=none + stale → redirect with error=login_required (no /login bounce)", totalV06))
+	{
+		_, challenge := genPKCE()
+		state := randState()
+		authz := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256&prompt=none&max_age=0",
+			url.QueryEscape(rpClientID),
+			url.QueryEscape(rpRedirectURI),
+			url.QueryEscape("openid profile offline_access"),
+			url.QueryEscape(state),
+			url.QueryEscape(randState()),
+			url.QueryEscape(challenge),
+		)
+		loc, err := authorizeRaw(c, authz)
+		if err != nil {
+			log.Fatalf("prompt=none authorize: %v", err)
+		}
+		if !strings.HasPrefix(loc, rpRedirectURI) {
+			log.Fatalf("prompt=none must redirect to the RP redirect_uri (not bounce to /login), got %q", loc)
+		}
+		u, perr := url.Parse(loc)
+		if perr != nil {
+			log.Fatalf("prompt=none parse Location: %v", perr)
+		}
+		if got := u.Query().Get("error"); got != "login_required" {
+			log.Fatalf("prompt=none: want error=login_required, got %q (loc=%q)", got, loc)
+		}
+		if u.Query().Get("state") != state {
+			log.Fatalf("prompt=none: state not echoed on the error redirect")
+		}
+		log.Printf("  prompt=none + stale → 302 to RP with error=login_required (state echoed) ✓")
+	}
+
+	step(fmt.Sprintf("step 103/%d — v0.6: OIDC code_challenge_method=plain → redirect error=invalid_request", totalV06))
+	{
+		_, challenge := genPKCE()
+		state := randState()
+		authz := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=plain",
+			url.QueryEscape(rpClientID),
+			url.QueryEscape(rpRedirectURI),
+			url.QueryEscape("openid profile offline_access"),
+			url.QueryEscape(state),
+			url.QueryEscape(randState()),
+			url.QueryEscape(challenge),
+		)
+		loc, err := authorizeRaw(c, authz)
+		if err != nil {
+			log.Fatalf("plain PKCE authorize: %v", err)
+		}
+		if !strings.HasPrefix(loc, rpRedirectURI) {
+			log.Fatalf("plain PKCE: want a redirect to the RP redirect_uri with an error, got %q", loc)
+		}
+		u, perr := url.Parse(loc)
+		if perr != nil {
+			log.Fatalf("plain PKCE parse Location: %v", perr)
+		}
+		if got := u.Query().Get("error"); got != "invalid_request" {
+			log.Fatalf("plain PKCE: want error=invalid_request, got %q (loc=%q)", got, loc)
+		}
+		if u.Query().Get("code") != "" {
+			log.Fatalf("plain PKCE: a code was issued despite the disallowed method")
+		}
+		log.Printf("  code_challenge_method=plain → 302 to RP with error=invalid_request (no code) ✓")
+	}
+
+	step(fmt.Sprintf("step 104/%d — v0.6: public OIDC client — introspect → invalid_client (401); confidential still works; public revoke OK", totalV06))
+	{
+		const pubClientID = "smoke-rp-public"
+		pubRedirectURI := *baseURL + "/rp-public/callback"
+		if err := createPublicOIDCClient(*baseURL, pubClientID, pubRedirectURI,
+			[]string{"openid", "profile", "offline_access"}); err != nil {
+			log.Fatalf("oidc-client create --public: %v", err)
+		}
+		// Acquire a token for the public client via the PKCE code flow (no secret).
+		pv, pchallenge := genPKCE()
+		pstate := randState()
+		pAuthz := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+			url.QueryEscape(pubClientID),
+			url.QueryEscape(pubRedirectURI),
+			url.QueryEscape("openid profile offline_access"),
+			url.QueryEscape(pstate),
+			url.QueryEscape(randState()),
+			url.QueryEscape(pchallenge),
+		)
+		pLoc, err := authorizeWithSession(c, pAuthz)
+		if err != nil {
+			log.Fatalf("public-client authorize: %v", err)
+		}
+		pCode, err := parseAuthorizeRedirect(pLoc, pubRedirectURI, pstate, issuer)
+		if err != nil {
+			log.Fatalf("public-client authorize redirect: %v", err)
+		}
+		pTok, err := tokenExchangePublic(*baseURL, pubClientID, url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {pCode},
+			"redirect_uri":  {pubRedirectURI},
+			"code_verifier": {pv},
+		})
+		if err != nil {
+			log.Fatalf("public-client token exchange: %v", err)
+		}
+		if pTok.AccessToken == "" {
+			log.Fatalf("public-client token response missing access_token")
+		}
+		log.Printf("  public client %q minted an access token (no secret, PKCE) ✓", pubClientID)
+
+		// (a) Public client introspect → invalid_client (401).
+		if err := introspectExpectInvalidClientPublic(*baseURL, pubClientID, pTok.AccessToken); err != nil {
+			log.Fatalf("public-client introspect: %v", err)
+		}
+		log.Printf("  public client /oauth/introspect → 401 invalid_client ✓")
+
+		// (b) Confidential client introspect of its OWN fresh token still works.
+		cv, ccode := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+		cTok, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {ccode},
+			"redirect_uri":  {rpRedirectURI},
+			"code_verifier": {cv},
+		})
+		if err != nil {
+			log.Fatalf("confidential token exchange (introspect contrast): %v", err)
+		}
+		intro, err := introspect(*baseURL, rpClientID, rpSecret, cTok.AccessToken)
+		if err != nil {
+			log.Fatalf("confidential introspect (contrast): %v", err)
+		}
+		if active, _ := intro["active"].(bool); !active {
+			log.Fatalf("confidential introspect: want active=true, got %v", intro["active"])
+		}
+		log.Printf("  confidential client /oauth/introspect → active=true ✓")
+
+		// (c) The public client may still revoke its own token (RFC 7009).
+		if err := revokeTokenPublic(*baseURL, pubClientID, pTok.AccessToken); err != nil {
+			log.Fatalf("public-client revoke: %v", err)
+		}
+		log.Printf("  public client /oauth/revoke (own token) → 200 ✓")
+	}
+
+	// ---- SAML forced re-auth + policy + binding + metadata + IdP-initiated. ----
+	// Reuses the v0.5 mock SP `sp`, verifier `spProvider`, ssoURL, mockSPACSURL.
+	// c is freshly logged-in (step 100/104 minted recent sessions).
+
+	step(fmt.Sprintf("step 105/%d — v0.6: SAML ForceAuthn bounces (stale session), then a fresh login + reauth nonce issues an assertion", totalV06))
+	{
+		query, reqID, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true, authnOpts{forceAuthn: true})
+		if err != nil {
+			log.Fatalf("build ForceAuthn AuthnRequest: %v", err)
+		}
+		// (a) ForceAuthn with the existing session → bounce to <entityID>/login
+		// with a reauth nonce; status must be 302, not a 200 auto-POST.
+		status, body, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("ForceAuthn /saml/sso: %v", err)
+		}
+		if status != http.StatusFound {
+			log.Fatalf("ForceAuthn: want 302 bounce, got %d (body=%s)", status, firstN(body, 300))
+		}
+		_ = body
+		// ssoWithSession does not return the Location; re-issue to capture it.
+		loc, err := ssoLocation(c, query)
+		if err != nil {
+			log.Fatalf("ForceAuthn capture Location: %v", err)
+		}
+		if !strings.HasPrefix(loc, *baseURL+"/login") {
+			log.Fatalf("ForceAuthn: want bounce to %s/login, got %q", *baseURL, loc)
+		}
+		returnTo, reauthNonce, err := extractReauthFromLoginBounce(loc)
+		if err != nil {
+			log.Fatalf("ForceAuthn bounce: %v", err)
+		}
+		if reauthNonce == "" {
+			log.Fatalf("ForceAuthn bounce carried no reauth nonce: return_to=%q", returnTo)
+		}
+		log.Printf("  ForceAuthn (stale) → 302 %s/login, return_to carries reauth=%.10s… ✓", *baseURL, reauthNonce)
+
+		// (b) Fresh login → newer auth_time.
+		freshLogin()
+
+		// (c) Retry the SSO URL WITH the reauth nonce → assertion issued.
+		// The bounce preserved the EXACT signed raw query and appended
+		// &reauth=<nonce>; replay that raw query verbatim.
+		retryQuery, err := rawQueryOf(returnTo)
+		if err != nil {
+			log.Fatalf("ForceAuthn retry parse: %v", err)
+		}
+		status2, body2, err := ssoWithSession(c, retryQuery)
+		if err != nil {
+			log.Fatalf("ForceAuthn retry /saml/sso: %v", err)
+		}
+		if status2 != http.StatusOK {
+			log.Fatalf("ForceAuthn retry: want 200 auto-POST, got %d (body=%s)", status2, firstN(body2, 300))
+		}
+		respXML, err := extractSAMLResponse(body2)
+		if err != nil {
+			log.Fatalf("ForceAuthn retry extract SAMLResponse: %v", err)
+		}
+		if _, err := spProvider.parse(respXML, reqID); err != nil {
+			log.Fatalf("ForceAuthn retry ParseXMLResponse: %v", err)
+		}
+		log.Printf("  fresh login + &reauth=<nonce> → assertion issued ✓")
+	}
+
+	step(fmt.Sprintf("step 106/%d — v0.6: SAML ForceAuthn + IsPassive → NoPassive status Response (no assertion)", totalV06))
+	{
+		query, _, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true,
+			authnOpts{forceAuthn: true, isPassive: true})
+		if err != nil {
+			log.Fatalf("build ForceAuthn+IsPassive AuthnRequest: %v", err)
+		}
+		status, body, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("ForceAuthn+IsPassive /saml/sso: %v", err)
+		}
+		if status != http.StatusOK {
+			log.Fatalf("ForceAuthn+IsPassive: want 200 auto-POST (NoPassive Response), got %d (body=%s)", status, firstN(body, 300))
+		}
+		respXML, err := extractSAMLResponse(body)
+		if err != nil {
+			log.Fatalf("ForceAuthn+IsPassive extract SAMLResponse: %v", err)
+		}
+		top, sub, hasAssertion, err := decodeStatusResponse(respXML)
+		if err != nil {
+			log.Fatalf("decode NoPassive Response: %v", err)
+		}
+		if hasAssertion {
+			log.Fatalf("ForceAuthn+IsPassive: NoPassive Response must carry NO assertion")
+		}
+		if sub != "urn:oasis:names:tc:SAML:2.0:status:NoPassive" {
+			log.Fatalf("ForceAuthn+IsPassive: want sub-status NoPassive, got top=%q sub=%q", top, sub)
+		}
+		log.Printf("  ForceAuthn+IsPassive → Response StatusCode=NoPassive, no assertion ✓")
+	}
+
+	step(fmt.Sprintf("step 107/%d — v0.6: SAML NameIDPolicy Format=emailAddress (≠ persistent) → InvalidNameIDPolicy", totalV06))
+	{
+		const emailFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+		query, _, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true,
+			authnOpts{nameIDFormat: emailFormat})
+		if err != nil {
+			log.Fatalf("build NameIDPolicy-mismatch AuthnRequest: %v", err)
+		}
+		status, body, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("NameIDPolicy-mismatch /saml/sso: %v", err)
+		}
+		if status != http.StatusOK {
+			log.Fatalf("NameIDPolicy-mismatch: want 200 auto-POST (InvalidNameIDPolicy Response), got %d (body=%s)", status, firstN(body, 300))
+		}
+		respXML, err := extractSAMLResponse(body)
+		if err != nil {
+			log.Fatalf("NameIDPolicy-mismatch extract SAMLResponse: %v", err)
+		}
+		_, sub, hasAssertion, err := decodeStatusResponse(respXML)
+		if err != nil {
+			log.Fatalf("decode InvalidNameIDPolicy Response: %v", err)
+		}
+		if hasAssertion {
+			log.Fatalf("NameIDPolicy-mismatch: Response must carry NO assertion")
+		}
+		if sub != "urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy" {
+			log.Fatalf("NameIDPolicy-mismatch: want sub-status InvalidNameIDPolicy, got sub=%q", sub)
+		}
+		log.Printf("  NameIDPolicy Format=emailAddress → Response StatusCode=InvalidNameIDPolicy, no assertion ✓")
+	}
+
+	step(fmt.Sprintf("step 108/%d — v0.6: SAML POST-binding (enveloped-signed) AuthnRequest → assertion", totalV06))
+	{
+		samlReq, reqID, err := sp.authnRequestPostForm(ssoURL, mockSPACSURL, authnOpts{})
+		if err != nil {
+			log.Fatalf("build POST-binding AuthnRequest: %v", err)
+		}
+		status, body, err := ssoPostForm(c, samlReq, "")
+		if err != nil {
+			log.Fatalf("POST-binding /saml/sso: %v", err)
+		}
+		if status != http.StatusOK {
+			log.Fatalf("POST-binding: want 200 auto-POST, got %d (body=%s)", status, firstN(body, 400))
+		}
+		respXML, err := extractSAMLResponse(body)
+		if err != nil {
+			log.Fatalf("POST-binding extract SAMLResponse: %v", err)
+		}
+		assertion, err := spProvider.parse(respXML, reqID)
+		if err != nil {
+			log.Fatalf("POST-binding ParseXMLResponse: %v", err)
+		}
+		if assertion.Subject == nil || assertion.Subject.NameID == nil || assertion.Subject.NameID.Value == "" {
+			log.Fatalf("POST-binding assertion has no NameID")
+		}
+		log.Printf("  POST-binding enveloped-signed AuthnRequest → assertion (NameID=%.16s…) ✓", assertion.Subject.NameID.Value)
+	}
+
+	step(fmt.Sprintf("step 109/%d — v0.6: SAML /saml/metadata is SIGNED, verifies against its own cert, validUntil is future", totalV06))
+	{
+		metaXML, err := fetchSAMLMetadata(*baseURL)
+		if err != nil {
+			log.Fatalf("fetch /saml/metadata: %v", err)
+		}
+		ed, err := verifyMetadataSignature(metaXML)
+		if err != nil {
+			log.Fatalf("metadata signature: %v", err)
+		}
+		if ed.ValidUntil.IsZero() {
+			log.Fatalf("metadata has no validUntil")
+		}
+		if !ed.ValidUntil.After(time.Now()) {
+			log.Fatalf("metadata validUntil is not in the future: %s", ed.ValidUntil)
+		}
+		log.Printf("  metadata <ds:Signature> verifies against embedded cert; validUntil=%s (future) ✓", ed.ValidUntil.Format(time.RFC3339))
+	}
+
+	step(fmt.Sprintf("step 110/%d — v0.6: SAML IdP-initiated SSO — opted-in SP gets an unsolicited Response (RelayState echoed); v0.5 SP without the flag → 403", totalV06))
+	{
+		// Register a SECOND SP that opts into IdP-initiated SSO. Its mock SP
+		// carries a distinct entityID + ACS but reuses the mock signing key
+		// shape (a fresh mock SP with its own cert).
+		const initEntityID = "https://mock-sp-init.smoke.test"
+		const initACSURL = "https://mock-sp-init.smoke.test/saml/consume"
+		spInit, err := newMockSP(initEntityID, initACSURL)
+		if err != nil {
+			log.Fatalf("new IdP-initiated mock SP: %v", err)
+		}
+		initMeta, err := spInit.metadataXML()
+		if err != nil {
+			log.Fatalf("IdP-initiated mock SP metadata: %v", err)
+		}
+		if err := createSAMLSPIdPInitiated(*baseURL, "ghes", initMeta); err != nil {
+			log.Fatalf("saml-sp create --allow-idp-initiated: %v", err)
+		}
+		idpMetaXML, err := fetchSAMLMetadata(*baseURL)
+		if err != nil {
+			log.Fatalf("fetch IdP metadata for init verifier: %v", err)
+		}
+		initVerifier, err := spInit.serviceProviderOpts(idpMetaXML, true)
+		if err != nil {
+			log.Fatalf("build IdP-initiated verifier: %v", err)
+		}
+
+		status, body, err := ssoInit(c, initEntityID, "deep")
+		if err != nil {
+			log.Fatalf("/saml/sso/init: %v", err)
+		}
+		if status != http.StatusOK {
+			log.Fatalf("/saml/sso/init: want 200 auto-POST, got %d (body=%s)", status, firstN(body, 400))
+		}
+		if got := extractRelayState(body); got != "deep" {
+			log.Fatalf("/saml/sso/init: RelayState not echoed: want %q, got %q", "deep", got)
+		}
+		respXML, err := extractSAMLResponse(body)
+		if err != nil {
+			log.Fatalf("/saml/sso/init extract SAMLResponse: %v", err)
+		}
+		// Assert NO InResponseTo (unsolicited) at the wire level before crewjam parse.
+		if strings.Contains(string(respXML), "InResponseTo") {
+			log.Fatalf("/saml/sso/init: unsolicited Response unexpectedly carries InResponseTo")
+		}
+		assertion, err := initVerifier.parseUnsolicited(respXML)
+		if err != nil {
+			log.Fatalf("/saml/sso/init ParseXMLResponse (unsolicited): %v", err)
+		}
+		if assertion.Subject == nil || assertion.Subject.NameID == nil || assertion.Subject.NameID.Value == "" {
+			log.Fatalf("/saml/sso/init assertion has no NameID")
+		}
+		log.Printf("  /saml/sso/init (opted-in SP) → unsolicited Response (no InResponseTo), RelayState=deep echoed, assertion accepted ✓")
+
+		// The v0.5 SP did NOT opt in → 403.
+		status403, body403, err := ssoInit(c, mockSPEntityID, "")
+		if err != nil {
+			log.Fatalf("/saml/sso/init (no opt-in): %v", err)
+		}
+		if status403 != http.StatusForbidden {
+			log.Fatalf("/saml/sso/init for an SP without --allow-idp-initiated: want 403, got %d (body=%s)", status403, firstN(body403, 200))
+		}
+		log.Printf("  /saml/sso/init for the v0.5 SP (no opt-in) → 403 ✓")
+	}
+
+	step(fmt.Sprintf("step 111/%d — v0.6: DB assert — credential_event covers the v0.6 SAML re-auth/idp-initiated lifecycle", totalV06))
+	if err := verifyV06SAMLAuditEvents(); err != nil {
+		log.Fatalf("v0.6 SAML audit DB assert: %v", err)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -3429,6 +3957,251 @@ func authorizeWithSession(c *client, path string) (string, error) {
 		return "", errors.New("GET /oauth/authorize: 302 with empty Location")
 	}
 	return loc, nil
+}
+
+// =========================================================================
+// v0.6 helpers — forced re-auth, public-client token/introspect/revoke,
+// SAML status-Response decode, and the v0.6 audit assert.
+// =========================================================================
+
+// authorizeRaw is authorizeWithSession under a name that signals the caller
+// expects a 302 whose Location may be EITHER a /login bounce OR an error
+// redirect back to the RP (both are 302s) — not necessarily a code redirect.
+func authorizeRaw(c *client, path string) (string, error) {
+	return authorizeWithSession(c, path)
+}
+
+// extractReauthFromLoginBounce parses a <Issuer>/login?return_to=<encoded>
+// bounce Location, url-decodes the return_to (which is the full re-presented
+// authorize/SSO URL carrying &reauth=<nonce>), and returns (returnTo, nonce).
+func extractReauthFromLoginBounce(loc string) (returnTo, nonce string, err error) {
+	u, err := url.Parse(loc)
+	if err != nil {
+		return "", "", fmt.Errorf("parse login bounce Location %q: %w", loc, err)
+	}
+	returnTo = u.Query().Get("return_to")
+	if returnTo == "" {
+		return "", "", fmt.Errorf("login bounce has no return_to: %q", loc)
+	}
+	ru, err := url.Parse(returnTo)
+	if err != nil {
+		return "", "", fmt.Errorf("parse return_to %q: %w", returnTo, err)
+	}
+	return returnTo, ru.Query().Get("reauth"), nil
+}
+
+// pathQueryOf returns the path+query ("/oauth/authorize?…") of an absolute URL,
+// suitable for authorizeWithSession (which prepends c.base).
+func pathQueryOf(absURL string) (string, error) {
+	u, err := url.Parse(absURL)
+	if err != nil {
+		return "", err
+	}
+	if u.RawQuery == "" {
+		return u.Path, nil
+	}
+	return u.Path + "?" + u.RawQuery, nil
+}
+
+// rawQueryOf returns the RAW query string (everything after "?") of an absolute
+// URL, preserving the exact on-the-wire percent-encoding — required for the SAML
+// redirect-binding signature, whose signed octet string is reconstructed from
+// the raw query by the IdP.
+func rawQueryOf(absURL string) (string, error) {
+	u, err := url.Parse(absURL)
+	if err != nil {
+		return "", err
+	}
+	return u.RawQuery, nil
+}
+
+// ssoLocation issues GET /saml/sso?<query> with c's session attached by hand and
+// returns the Location header (used to capture the ForceAuthn /login bounce
+// target — ssoWithSession returns status+body but not Location).
+func ssoLocation(c *client, query string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, c.base+"/saml/sso?"+query, nil)
+	if err != nil {
+		return "", err
+	}
+	ck := sessionCookieForOIDC(c)
+	if ck == nil {
+		return "", errors.New("ssoLocation: no session cookie in jar")
+	}
+	req.AddCookie(ck)
+	hc := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.Header.Get("Location"), nil
+}
+
+// decodeStatusResponse unmarshals a SAML Response and returns its top-level and
+// second-level StatusCode URIs plus whether it carries an Assertion. Used for the
+// NoPassive / InvalidNameIDPolicy status-Response asserts.
+func decodeStatusResponse(respXML []byte) (topStatus, subStatus string, hasAssertion bool, err error) {
+	var resp crewjam.Response
+	if uerr := xml.Unmarshal(respXML, &resp); uerr != nil {
+		return "", "", false, fmt.Errorf("unmarshal Response: %w", uerr)
+	}
+	topStatus = resp.Status.StatusCode.Value
+	if resp.Status.StatusCode.StatusCode != nil {
+		subStatus = resp.Status.StatusCode.StatusCode.Value
+	}
+	hasAssertion = resp.Assertion != nil
+	return topStatus, subStatus, hasAssertion, nil
+}
+
+// createPublicOIDCClient shells out to `prohibitorum oidc-client create --public`.
+// Public clients carry no secret (token_endpoint_auth_method=none) and use PKCE.
+func createPublicOIDCClient(baseURL, clientID, redirectURI string, scopes []string) error {
+	args := []string{"exec", "--", "go", "run", "./cmd/prohibitorum", "oidc-client", "create",
+		"--public",
+		"--client-id", clientID,
+		"--display-name", "Smoke Public RP",
+		"--redirect-uri", redirectURI,
+		// post_logout_redirect_uris is NOT NULL in oidc_client; supply one (the
+		// CLI passes nil otherwise → a NULL-constraint violation on insert).
+		"--post-logout-redirect-uri", redirectURI,
+	}
+	for _, s := range scopes {
+		args = append(args, "--scope", s)
+	}
+	cmd := exec.Command("mise", args...)
+	cmd.Env = append(os.Environ(), "PROHIBITORUM_PUBLIC_ORIGIN="+baseURL)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("oidc-client create --public: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Registered public client") {
+		return fmt.Errorf("oidc-client create --public: unexpected output:\n%s", out)
+	}
+	return nil
+}
+
+// tokenExchangePublic POSTs to /oauth/token as a PUBLIC client: client_id in the
+// form body, NO Basic auth, NO secret (RFC 6749 §2.3 public client + PKCE).
+func tokenExchangePublic(baseURL, clientID string, form url.Values) (*oidcTokenResponse, error) {
+	form.Set("client_id", clientID)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/oauth/token", strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	hc := &http.Client{Timeout: 10 * time.Second}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("POST /oauth/token (public): %d %s — %s", resp.StatusCode, resp.Status, body)
+	}
+	var out oidcTokenResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode public token response: %w (body=%s)", err, body)
+	}
+	return &out, nil
+}
+
+// introspectExpectInvalidClientPublic POSTs /oauth/introspect as a PUBLIC client
+// (client_id in the form, no Basic auth) and asserts the OP refuses it with
+// 401 invalid_client (RFC 7662 §2.1 — public clients may not introspect).
+func introspectExpectInvalidClientPublic(baseURL, clientID, token string) error {
+	form := url.Values{"client_id": {clientID}, "token": {token}}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/oauth/introspect", strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	hc := &http.Client{Timeout: 10 * time.Second}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusUnauthorized {
+		return fmt.Errorf("status: want 401, got %d (body=%s)", resp.StatusCode, body)
+	}
+	var ae struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(body, &ae)
+	if ae.Error != "invalid_client" {
+		return fmt.Errorf("error: want invalid_client, got %q (body=%s)", ae.Error, body)
+	}
+	return nil
+}
+
+// revokeTokenPublic POSTs /oauth/revoke as a PUBLIC client (client_id in the
+// form, no Basic auth). RFC 7009: the endpoint always responds 200.
+func revokeTokenPublic(baseURL, clientID, token string) error {
+	form := url.Values{"client_id": {clientID}, "token": {token}}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/oauth/revoke", strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	hc := &http.Client{Timeout: 10 * time.Second}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("POST /oauth/revoke (public): want 200, got %d (%s)", resp.StatusCode, body)
+	}
+	return nil
+}
+
+// verifyV06SAMLAuditEvents asserts credential_event picked up the v0.6 SAML
+// surface: the ForceAuthn re-auth assertion + POST-binding assertion add to the
+// use/sso count, and the IdP-initiated SSO emits use with reason=idp_initiated.
+func verifyV06SAMLAuditEvents() error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+	rows, err := psqlScalar(dburl,
+		"SELECT event || ':' || COALESCE(detail->>'reason','') || ':' || count(*)::text "+
+			"FROM credential_event WHERE factor='saml_sp' "+
+			"GROUP BY event, COALESCE(detail->>'reason','') "+
+			"ORDER BY event, COALESCE(detail->>'reason','')")
+	if err != nil {
+		return err
+	}
+	counts := map[string]int{}
+	for _, row := range rows {
+		parts := strings.SplitN(row, ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		n, _ := strconv.Atoi(parts[2])
+		counts[parts[0]+":"+parts[1]] = n
+	}
+	// idp_initiated reason must be present (step 110). sso reason count grew vs
+	// the v0.5 baseline (ForceAuthn retry @105 + POST-binding @108) — lower
+	// bound 5 keeps us safe (v0.5 alone already asserts >=3).
+	if counts["use:idp_initiated"] < 1 {
+		return fmt.Errorf("credential_event saml_sp use:idp_initiated: want >=1, got %d (full counts=%v)",
+			counts["use:idp_initiated"], counts)
+	}
+	if counts["use:sso"] < 5 {
+		return fmt.Errorf("credential_event saml_sp use:sso: want >=5 post-v0.6, got %d (full counts=%v)",
+			counts["use:sso"], counts)
+	}
+	log.Printf("  credential_event covers v0.6 SAML lifecycle (counts=%v)", counts)
+	return nil
 }
 
 // parseAuthorizeRedirect validates an /authorize success redirect: it must

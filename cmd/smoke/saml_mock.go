@@ -42,6 +42,7 @@ import (
 
 	"github.com/beevik/etree"
 	crewjam "github.com/crewjam/saml"
+	dsig "github.com/russellhaering/goxmldsig"
 )
 
 // rsaSHA256SigAlgURI is the only redirect-binding signature algorithm the IdP
@@ -150,11 +151,17 @@ func (m *mockSP) metadataXML() ([]byte, error) {
 // destination is the IdP /saml/sso URL (pinned by the IdP's Destination check);
 // pass "" to omit Destination. Returns the request ID for replay/InResponseTo
 // assertions.
-func (m *mockSP) authnRequestRedirect(destination, acsURL string, sign bool) (query, requestID string, err error) {
-	requestID, err = newMockSAMLID()
-	if err != nil {
-		return "", "", err
-	}
+// authnOpts carries the optional v0.6 AuthnRequest knobs (ForceAuthn, IsPassive,
+// NameIDPolicy/@Format). The zero value reproduces the v0.5 default request.
+type authnOpts struct {
+	forceAuthn   bool
+	isPassive    bool
+	nameIDFormat string // when non-empty, sets NameIDPolicy/@Format
+}
+
+// buildAuthnRequest constructs the crewjam AuthnRequest with the v0.6 options
+// applied. Shared by the redirect- and POST-binding builders.
+func (m *mockSP) buildAuthnRequest(requestID, destination, acsURL string, opts authnOpts) crewjam.AuthnRequest {
 	ar := crewjam.AuthnRequest{
 		ID:           requestID,
 		Version:      "2.0",
@@ -165,6 +172,32 @@ func (m *mockSP) authnRequestRedirect(destination, acsURL string, sign bool) (qu
 	if acsURL != "" {
 		ar.AssertionConsumerServiceURL = acsURL
 	}
+	if opts.forceAuthn {
+		v := true
+		ar.ForceAuthn = &v
+	}
+	if opts.isPassive {
+		v := true
+		ar.IsPassive = &v
+	}
+	if opts.nameIDFormat != "" {
+		f := opts.nameIDFormat
+		ar.NameIDPolicy = &crewjam.NameIDPolicy{Format: &f}
+	}
+	return ar
+}
+
+func (m *mockSP) authnRequestRedirect(destination, acsURL string, sign bool) (query, requestID string, err error) {
+	return m.authnRequestRedirectOpts(destination, acsURL, sign, authnOpts{})
+}
+
+// authnRequestRedirectOpts is authnRequestRedirect with the v0.6 option knobs.
+func (m *mockSP) authnRequestRedirectOpts(destination, acsURL string, sign bool, opts authnOpts) (query, requestID string, err error) {
+	requestID, err = newMockSAMLID()
+	if err != nil {
+		return "", "", err
+	}
+	ar := m.buildAuthnRequest(requestID, destination, acsURL, opts)
 	xmlBytes, err := xml.Marshal(ar)
 	if err != nil {
 		return "", "", fmt.Errorf("marshal authnrequest: %w", err)
@@ -234,6 +267,84 @@ func (m *mockSP) logoutRequestRedirect(destination, nameID, sessionIndex string)
 	return rawQuery, requestID, nil
 }
 
+// authnRequestPostForm builds a POST-binding (enveloped-signed) AuthnRequest and
+// returns the base64.StdEncoding SAMLRequest form value to POST to /saml/sso,
+// plus the request ID. The enveloped signature is produced with goxmldsig (the
+// same library the IdP's verifyPostAuthnSignature validates against), then the
+// <ds:Signature> is relocated to immediately follow <Issuer> so the IdP's
+// XSD-strict parse + reference-by-ID verification accept it.
+func (m *mockSP) authnRequestPostForm(destination, acsURL string, opts authnOpts) (samlRequest, requestID string, err error) {
+	requestID, err = newMockSAMLID()
+	if err != nil {
+		return "", "", err
+	}
+	ar := m.buildAuthnRequest(requestID, destination, acsURL, opts)
+	el := ar.Element()
+
+	ctx, err := dsig.NewSigningContext(m.key, [][]byte{m.certDER})
+	if err != nil {
+		return "", "", fmt.Errorf("new signing context: %w", err)
+	}
+	ctx.Canonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList("")
+	if err := ctx.SetSignatureMethod(dsig.RSASHA256SignatureMethod); err != nil {
+		return "", "", fmt.Errorf("set signature method: %w", err)
+	}
+	signed, err := ctx.SignEnveloped(el)
+	if err != nil {
+		return "", "", fmt.Errorf("sign enveloped: %w", err)
+	}
+	relocateSignatureAfterIssuer(signed)
+
+	doc := etree.NewDocument()
+	doc.SetRoot(signed)
+	xmlBytes, err := doc.WriteToBytes()
+	if err != nil {
+		return "", "", fmt.Errorf("serialize signed authnrequest: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(xmlBytes), requestID, nil
+}
+
+// relocateSignatureAfterIssuer mirrors saml.relocateSignatureAfterIssuer: moves
+// the direct-child <ds:Signature> goxmldsig appended last to immediately follow
+// <Issuer>, matching the SAML 2.0 schema ordering strict SPs (and the IdP's
+// XSD-aware parse) require. No-op if there is no direct-child Signature.
+func relocateSignatureAfterIssuer(signed *etree.Element) {
+	var sig *etree.Element
+	for _, ch := range signed.ChildElements() {
+		if ch.Tag == "Signature" {
+			sig = ch
+			break
+		}
+	}
+	if sig == nil {
+		return
+	}
+	sigSlot := -1
+	for i, tok := range signed.Child {
+		if e, ok := tok.(*etree.Element); ok && e == sig {
+			sigSlot = i
+			break
+		}
+	}
+	if sigSlot < 0 {
+		return
+	}
+	signed.RemoveChildAt(sigSlot)
+	insertIdx := 0
+	for _, ch := range signed.ChildElements() {
+		if ch.Tag == "Issuer" {
+			for i, tok := range signed.Child {
+				if e, ok := tok.(*etree.Element); ok && e == ch {
+					insertIdx = i + 1
+					break
+				}
+			}
+			break
+		}
+	}
+	signed.InsertChildAt(insertIdx, sig)
+}
+
 // spVerifier wraps a crewjam ServiceProvider plus the parsed ACS URL so the
 // smoke can call ParseXMLResponse without re-parsing the URL each time.
 type spVerifier struct {
@@ -251,6 +362,13 @@ func (v *spVerifier) parse(respXML []byte, requestID string) (*crewjam.Assertion
 // serviceProvider builds a crewjam ServiceProvider configured to verify a
 // SAMLResponse from the given IdP metadata. Mirrors the Task 7 interop test.
 func (m *mockSP) serviceProvider(idpMetaXML []byte) (*spVerifier, error) {
+	return m.serviceProviderOpts(idpMetaXML, false)
+}
+
+// serviceProviderOpts is serviceProvider with an AllowIDPInitiated toggle. When
+// true the crewjam ServiceProvider accepts an UNSOLICITED Response (no
+// InResponseTo) — required to verify the IdP-initiated SSO Response.
+func (m *mockSP) serviceProviderOpts(idpMetaXML []byte, allowIdPInitiated bool) (*spVerifier, error) {
 	var idpED crewjam.EntityDescriptor
 	if err := xml.Unmarshal(idpMetaXML, &idpED); err != nil {
 		return nil, fmt.Errorf("unmarshal IdP metadata: %w", err)
@@ -261,12 +379,181 @@ func (m *mockSP) serviceProvider(idpMetaXML []byte) (*spVerifier, error) {
 	}
 	return &spVerifier{
 		provider: &crewjam.ServiceProvider{
-			EntityID:    m.entityID,
-			AcsURL:      *acsParsed,
-			IDPMetadata: &idpED,
+			EntityID:          m.entityID,
+			AcsURL:            *acsParsed,
+			IDPMetadata:       &idpED,
+			AllowIDPInitiated: allowIdPInitiated,
 		},
 		acsURL: *acsParsed,
 	}, nil
+}
+
+// parseUnsolicited verifies + parses an UNSOLICITED SAMLResponse (no
+// InResponseTo). possibleRequestIDs is nil, which crewjam requires for an
+// IdP-initiated assertion (and which only succeeds when AllowIDPInitiated=true).
+func (v *spVerifier) parseUnsolicited(respXML []byte) (*crewjam.Assertion, error) {
+	return v.provider.ParseXMLResponse(respXML, nil, v.acsURL)
+}
+
+// verifyMetadataSignature asserts the IdP EntityDescriptor carries an enveloped
+// <ds:Signature> that verifies against the cert embedded in its own first
+// KeyDescriptor (self-consistency), and returns the parsed EntityDescriptor for
+// validUntil inspection. Uses goxmldsig directly since cmd/smoke cannot reach
+// the saml package's unexported verifyElementSignature.
+func verifyMetadataSignature(idpMetaXML []byte) (*crewjam.EntityDescriptor, error) {
+	doc := etree.NewDocument()
+	if err := doc.ReadFromBytes(idpMetaXML); err != nil {
+		return nil, fmt.Errorf("parse metadata XML: %w", err)
+	}
+	root := doc.Root()
+	if root == nil {
+		return nil, errors.New("metadata has no root element")
+	}
+	// Find the direct-child <ds:Signature>.
+	var sig *etree.Element
+	for _, ch := range root.ChildElements() {
+		if ch.Tag == "Signature" {
+			sig = ch
+			break
+		}
+	}
+	if sig == nil {
+		return nil, errors.New("metadata EntityDescriptor has no <ds:Signature> child")
+	}
+
+	var ed crewjam.EntityDescriptor
+	if err := xml.Unmarshal(idpMetaXML, &ed); err != nil {
+		return nil, fmt.Errorf("unmarshal EntityDescriptor: %w", err)
+	}
+	if len(ed.IDPSSODescriptors) == 0 || len(ed.IDPSSODescriptors[0].KeyDescriptors) == 0 {
+		return nil, errors.New("metadata has no IDPSSODescriptor KeyDescriptor to verify against")
+	}
+	certB64 := ed.IDPSSODescriptors[0].KeyDescriptors[0].KeyInfo.X509Data.X509Certificates[0].Data
+	certDER, err := base64.StdEncoding.DecodeString(strings.TrimSpace(certB64))
+	if err != nil {
+		return nil, fmt.Errorf("decode embedded cert: %w", err)
+	}
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, fmt.Errorf("parse embedded cert: %w", err)
+	}
+
+	// goxmldsig uses "Id" by default; SAML uses "ID". Override so the enveloped
+	// transform excludes the Signature keyed on the EntityDescriptor's ID attr.
+	store := dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{cert}}
+	vctx := dsig.NewDefaultValidationContext(&store)
+	vctx.IdAttribute = "ID"
+	if _, err := vctx.Validate(root); err != nil {
+		return nil, fmt.Errorf("metadata signature does not verify against embedded cert: %w", err)
+	}
+	return &ed, nil
+}
+
+// ssoPostForm POSTs a base64 SAMLRequest (HTTP-POST binding) to /saml/sso with
+// c's authenticated IdP session attached by hand (the session cookie is
+// Path=/api/prohibitorum so the jar would not send it to the root-mounted
+// endpoint). Redirects are NOT followed. Returns status + body; a 200 carries
+// the auto-POST HTML with the SAMLResponse.
+func ssoPostForm(c *client, samlRequest, relayState string) (status int, body string, err error) {
+	form := url.Values{"SAMLRequest": {samlRequest}}
+	if relayState != "" {
+		form.Set("RelayState", relayState)
+	}
+	req, err := http.NewRequest(http.MethodPost, c.base+"/saml/sso", strings.NewReader(form.Encode()))
+	if err != nil {
+		return 0, "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ck := sessionCookieForOIDC(c)
+	if ck == nil {
+		return 0, "", errors.New("ssoPostForm: no session cookie in jar (is c logged in?)")
+	}
+	req.AddCookie(ck)
+	hc := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b), nil
+}
+
+// ssoInit drives GET /saml/sso/init?sp=<entityID>[&RelayState=…] with c's
+// session attached by hand. Redirects are NOT followed. Returns status + body;
+// a 200 carries the auto-POST HTML with the unsolicited SAMLResponse.
+func ssoInit(c *client, spEntityID, relayState string) (status int, body string, err error) {
+	q := url.Values{"sp": {spEntityID}}
+	if relayState != "" {
+		q.Set("RelayState", relayState)
+	}
+	req, err := http.NewRequest(http.MethodGet, c.base+"/saml/sso/init?"+q.Encode(), nil)
+	if err != nil {
+		return 0, "", err
+	}
+	ck := sessionCookieForOIDC(c)
+	if ck == nil {
+		return 0, "", errors.New("ssoInit: no session cookie in jar (is c logged in?)")
+	}
+	req.AddCookie(ck)
+	hc := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b), nil
+}
+
+// extractRelayState pulls the RelayState hidden-input value out of an auto-POST
+// HTML page body (HTML-unescaped), or "" if absent.
+func extractRelayState(htmlBody string) string {
+	m := relayStateInputRe.FindStringSubmatch(htmlBody)
+	if m == nil {
+		return ""
+	}
+	return html.UnescapeString(m[1])
+}
+
+var relayStateInputRe = regexp.MustCompile(`name="RelayState" value="([^"]*)"`)
+
+// createSAMLSPIdPInitiated registers a SAML SP with --allow-idp-initiated set,
+// mirroring createSAMLSP's exec pattern.
+func createSAMLSPIdPInitiated(baseURL, kind string, metadataXML []byte) error {
+	tmp, err := os.CreateTemp("", "smoke-sp-idpinit-metadata-*.xml")
+	if err != nil {
+		return fmt.Errorf("create temp metadata file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(metadataXML); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write metadata file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close metadata file: %w", err)
+	}
+	cmd := exec.Command("mise", "exec", "--", "go", "run", "./cmd/prohibitorum",
+		"saml-sp", "create", "--kind", kind, "--allow-idp-initiated", "--metadata-file", tmp.Name())
+	cmd.Env = append(os.Environ(), "PROHIBITORUM_PUBLIC_ORIGIN="+baseURL)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("saml-sp create (idp-initiated): %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Registered SAML SP") {
+		return fmt.Errorf("saml-sp create (idp-initiated): unexpected output:\n%s", out)
+	}
+	return nil
 }
 
 // deflateBase64 raw-DEFLATEs (RFC 1951) then base64.StdEncoding-encodes b, the
