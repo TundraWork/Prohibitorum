@@ -80,11 +80,20 @@ type authnReq struct {
 
 // parseAuthnRequest decodes and fully validates an inbound SP-initiated
 // AuthnRequest carried over the HTTP-Redirect binding. It is security-critical:
-// it verifies the SP's detached signature (when the SP requires it), enforces
-// single-use replay protection, pins the Destination to this IdP, and — most
-// importantly — resolves the AssertionConsumerService URL ONLY to a registered
-// endpoint so the IdP can never be coerced into POSTing a signed assertion to
-// an attacker-chosen URL (open-redirect / assertion-exfiltration guard).
+// it verifies the SP's detached signature (when the SP requires it), pins the
+// Destination to this IdP, and — most importantly — resolves the
+// AssertionConsumerService URL ONLY to a registered endpoint so the IdP can
+// never be coerced into POSTing a signed assertion to an attacker-chosen URL
+// (open-redirect / assertion-exfiltration guard).
+//
+// It is PURE parse+validate: it never writes to KV. Single-use replay
+// protection is DEFERRED to consumeAuthnRequestID, called only on the terminal
+// issue path. This is deliberate: the spec's SP-initiated bounce 302s an
+// unauthenticated user to /login?return_to=<full SSO URL>, and the browser
+// returns to /saml/sso with the SAME SAMLRequest — re-running parseAuthnRequest.
+// If parsing consumed the replay key, that legitimate return trip would trip
+// replay. Consuming only at issue time keeps the bounce working while still
+// guaranteeing a given AuthnRequest ID yields at most one Response.
 func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq, error) {
 	// --- 0. Reject duplicate redirect-binding params ----------------------
 	// url.Query().Get returns the FIRST occurrence while splitRedirectQuery
@@ -156,31 +165,14 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 		return nil, ErrMalformedRequest
 	}
 
-	// --- 4. Single-use replay guard via KV --------------------------------
-	// NOTE: the Get→SetEx sequence is NOT atomic across KV ops (mirrors the
-	// OIDC refresh-token pattern). Two concurrent presentations of the same
-	// fresh AuthnRequest ID could both miss the Get and proceed. This is an
-	// accepted limitation: a fully atomic check-and-set would need a KV
-	// primitive the Store interface does not expose, and an AuthnRequest's
-	// blast radius is one login that still requires a live IdP session.
-	replayKey := "saml:authnreq:" + req.ID
-	if _, gerr := i.kv.Get(ctx, replayKey); gerr == nil {
-		return nil, ErrReplayedRequest
-	} else if !errors.Is(gerr, kv.ErrKeyNotFound) {
-		return nil, gerr
-	}
-	if serr := i.kv.SetEx(ctx, replayKey, "1", AuthnRequestTTL); serr != nil {
-		return nil, serr
-	}
-
-	// --- 5. Destination check ---------------------------------------------
+	// --- 4. Destination check ---------------------------------------------
 	// Destination is optional on the wire, but if present it MUST name this
 	// IdP's SSO endpoint (anti-misrouting / anti-replay-against-other-IdP).
 	if req.Destination != "" && req.Destination != i.ssoURL() {
 		return nil, ErrBadDestination
 	}
 
-	// --- 6. ACS resolution (open-redirect guard) --------------------------
+	// --- 5. ACS resolution (open-redirect guard) --------------------------
 	acsURL, err := i.resolveACS(ctx, sp.ID, req.AssertionConsumerServiceURL)
 	if err != nil {
 		return nil, err
@@ -194,6 +186,37 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 		IsPassive:  derefBool(req.IsPassive),
 		ForceAuthn: derefBool(req.ForceAuthn),
 	}, nil
+}
+
+// consumeAuthnRequestID enforces single-use replay protection for an
+// AuthnRequest ID. It is called from the terminal/issue path (HandleSSO), NOT
+// from parseAuthnRequest, so a login bounce that re-parses the same SAMLRequest
+// does not trip replay (see parseAuthnRequest's doc comment).
+//
+// PLACEMENT: this deliberately lives here in authnreq.go — next to the replay
+// sentinel (ErrReplayedRequest) and TTL (AuthnRequestTTL) it depends on — even
+// though its sole caller is HandleSSO in sso.go. It is intentionally NOT folded
+// into parseAuthnRequest: keeping the KV write out of parseAuthnRequest is what
+// lets parseAuthnRequest stay a pure (side-effect-free) reader that the login
+// bounce can safely re-run. Do not move or inline it.
+//
+// The first call for an id stores a marker (TTL AuthnRequestTTL) and returns
+// nil; any subsequent call within the TTL returns ErrReplayedRequest.
+//
+// NOTE: the Get→SetEx sequence is NOT atomic across KV ops (mirrors the OIDC
+// refresh-token pattern). Two concurrent presentations of the same fresh
+// AuthnRequest ID could both miss the Get and proceed. This is an accepted
+// limitation: a fully atomic check-and-set would need a KV primitive the Store
+// interface does not expose, and an AuthnRequest's blast radius is one login
+// that still requires a live IdP session.
+func (i *IdP) consumeAuthnRequestID(ctx context.Context, id string) error {
+	replayKey := "saml:authnreq:" + id
+	if _, gerr := i.kv.Get(ctx, replayKey); gerr == nil {
+		return ErrReplayedRequest
+	} else if !errors.Is(gerr, kv.ErrKeyNotFound) {
+		return gerr
+	}
+	return i.kv.SetEx(ctx, replayKey, "1", AuthnRequestTTL)
 }
 
 // resolveACS maps the SP-requested AssertionConsumerService URL to a registered

@@ -83,12 +83,6 @@ func (i *IdP) metadataURL() string {
 	return base + "/saml/metadata"
 }
 
-// TODO(v0.5): parse AuthnRequest, validate against saml_sp config, require
-// session (redirect to /login if absent), build signed Response.
-func (i *IdP) SSO(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "saml.SSO: TODO(v0.5)", http.StatusNotImplemented)
-}
-
 // TODO(v0.5): parse LogoutRequest, propagate to other SPs via saml_session,
 // revoke our session.
 func (i *IdP) SLO(w http.ResponseWriter, r *http.Request) {

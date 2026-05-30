@@ -412,7 +412,32 @@ func TestAuthnReqNoACSNoDefault(t *testing.T) {
 	}
 }
 
+// TestAuthnReqReplay confirms single-use replay protection now lives in
+// consumeAuthnRequestID (the terminal/issue path), NOT in parseAuthnRequest.
+// parseAuthnRequest is pure parse+validate and writes no KV, so the login
+// bounce (which re-parses the same SAMLRequest) does not trip replay; only
+// consumeAuthnRequestID does, and only on the second call for a given ID.
 func TestAuthnReqReplay(t *testing.T) {
+	q := newAuthnQueries(defaultSP(true), acsList(), nil)
+	idp := newAuthnTestIdP(q)
+	ctx := context.Background()
+
+	const id = "_req-replay-same"
+
+	// parseAuthnRequest must NOT consume the replay key: parsing the same
+	// request twice both succeed at the consume step below.
+	if err := idp.consumeAuthnRequestID(ctx, id); err != nil {
+		t.Fatalf("first consume: %v", err)
+	}
+	if err := idp.consumeAuthnRequestID(ctx, id); !errors.Is(err, ErrReplayedRequest) {
+		t.Fatalf("second consume err = %v, want ErrReplayedRequest", err)
+	}
+}
+
+// TestAuthnReqParseDoesNotConsumeReplay confirms parseAuthnRequest can be run
+// twice on the same SAMLRequest without tripping replay — the property the
+// login-bounce return trip depends on.
+func TestAuthnReqParseDoesNotConsumeReplay(t *testing.T) {
 	priv, certPEM := testSPKey(t)
 	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
 	idp := newAuthnTestIdP(q)
@@ -420,7 +445,7 @@ func TestAuthnReqReplay(t *testing.T) {
 
 	mk := func() *http.Request {
 		return buildAuthnRedirect(t, authnReqOpts{
-			id:          "_req-replay-same",
+			id:          "_req-parse-twice",
 			destination: testSSOURL,
 			acsURL:      testACSURL,
 			sign:        true,
@@ -431,9 +456,8 @@ func TestAuthnReqReplay(t *testing.T) {
 	if _, err := idp.parseAuthnRequest(ctx, mk()); err != nil {
 		t.Fatalf("first parse: %v", err)
 	}
-	_, err := idp.parseAuthnRequest(ctx, mk())
-	if !errors.Is(err, ErrReplayedRequest) {
-		t.Fatalf("second parse err = %v, want ErrReplayedRequest", err)
+	if _, err := idp.parseAuthnRequest(ctx, mk()); err != nil {
+		t.Fatalf("second parse must also succeed (no replay on parse): %v", err)
 	}
 }
 
