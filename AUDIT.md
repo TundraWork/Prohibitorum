@@ -564,9 +564,71 @@ namespacing, and consistent `factor=oidc_client` auditing.
 
 ## v0.6 post-implementation audit
 
-**v0.6 post-implementation audit: pending** (the parallel crypto/XML-DSig +
-protocol-standards + race/logic + deep integration audit runs after this
-docs task; this section will be filled in with its findings).
+### Post-implementation audit (2026-05-31) — done
+
+A parallel 4-lens audit ran after all 11 v0.6 tasks shipped — crypto/XML-DSig +
+protocol-standards + race/logic + deep integration/data/schema-drift, focus on
+the re-auth freshness gate, introspection auth, NameIDPolicy, and IdP-initiated
+guardrails. **No Critical, no real High in v0.6's own code.** The crypto lens
+confirmed every new signature path reuses the hardened `xmlsec.go` primitives
+(cert-pinned, RSA-SHA256-allowlisted, XSW-defended) rather than rolling its own;
+the protocol lens confirmed the two most interop-sensitive choices —
+`Requester`/`InvalidNameIDPolicy` and the unsolicited-Response shape — are
+correct against real IdP/SP behavior. Findings fixed across two batches:
+
+- **Batch A `c1523a0` — re-auth gate hardening (race + deep lenses converged):**
+  the KV marker now binds to the **account** (`<accountID>|<instant>`, not just
+  the instant) and `ConsumeReauth` rejects an account mismatch + uses an atomic
+  `Pop` (was a non-atomic Get→Del). Removes the footgun where a leaked nonce +
+  any fresh session could satisfy a demand, and matches the codebase's existing
+  single-use `Pop` pattern.
+- **Batch B `5643e35` — five independent fixes:** (1) **deep-H1** — `oidc-client
+  create` without `--post-logout-redirect-uri` crashed on the
+  `post_logout_redirect_uris` NOT NULL (affected ALL clients, not just
+  `--public`; `BuildClientParams` now defaults to `[]string{}`); (2) **proto-M1**
+  — SAML `NoPassive` top-level status changed `Requester`→`Responder` (Google/
+  SAML-community norm; SPs key on the 2nd-level `NoPassive`); (3) `sloParseError`
+  now maps `errBadSigAlg`→400 (was 500; matches `ssoParseError`); (4)
+  `SAMLConfig.MetadataValidity<=0` falls back to 24h (no born-stale metadata);
+  (5) the token endpoint gates `verifyPKCE` on a stored challenge so a
+  `require_pkce=false` no-PKCE code can exchange (a `require_pkce=true` client
+  always has a challenge — no PKCE weakening). Full suite + the end-to-end smoke
+  re-ran green after both batches.
+
+**Accepted / deferred (tracked, not blocking v0.6):**
+- `max_age` freshness is evaluated WITHOUT clock-skew leniency (fails *stricter*,
+  never looser; the id_token `auth_time` the RP validates is the real value) —
+  documentation-vs-D3 drift, no defect.
+- `prompt=consent` / `prompt=select_account` are parsed but ignored (consent UI
+  is out of scope); `prompt=none` is only rejected when combined with `login`,
+  not with the other (unimplemented) interaction prompts. Cosmetic.
+- Signed-metadata uses two unsynchronized signing-key cache reads; a key rotation
+  landing exactly between them could (transiently, operator-controlled) advertise
+  a cert set excluding the signer. Extremely narrow; next fetch is consistent.
+- `ForceAuthn` + POST-binding AuthnRequest: the re-auth bounce rebuilds
+  `return_to` from the query string, but a POST AuthnRequest body isn't in the
+  query → the post-login return has no `SAMLRequest` → fails SAFE (400, no
+  wrong-issue, no panic). Degenerate combination; documented limitation.
+- Front-channel SLO propagation + assertion/NameID encryption remain out of scope
+  (carried from v0.5).
+
+### ⚠️ Architectural finding to resolve before claiming interactive browser flows work (pre-existing; surfaced by the v0.6 deep audit)
+
+The session cookie is scoped `Path=/api/prohibitorum` (`pkg/session/middleware.go`),
+but the OIDC/SAML protocol routes are root-level (`/oauth/authorize`, `/saml/sso`,
+`/saml/sso/init`, `/saml/slo`). A real browser will NOT attach the session cookie
+to those root paths, so the session gate in `HandleAuthorize` / `HandleSSO` /
+`HandleIdPInitiated` sees no session and bounces to `/login` — and the
+post-login return to the root path again carries no cookie. **`cmd/smoke`
+masks this** by extracting the cookie from its jar and manually re-attaching it
+to root-path requests (`authorizeWithSession`) — a maneuver a browser won't
+perform. This predates v0.6 (v0.4/v0.5 OIDC/SAML routes have always been
+root-level), but v0.6's new `prompt=login`/`max_age`/`ForceAuthn` re-auth bounces
+ride the same return-to-login loop, so in a real browser those interactive flows
+would loop or never satisfy. This is an architectural decision (cookie path vs
+route mounting, and how `/login` is served in production) — NOT auto-fixed here,
+since it touches session/cookie security project-wide. **Resolve + verify in a
+real browser before relying on the interactive OIDC/SAML flows.**
 
 All 12 v0.6 smoke steps (100–111) are green end-to-end (`SMOKE_EXIT=0`).
 The behaviors closed by v0.6 are flipped to ✅ in the OIDC OP and SAML IdP
