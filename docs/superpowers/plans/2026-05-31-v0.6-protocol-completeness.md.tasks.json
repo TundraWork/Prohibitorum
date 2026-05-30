@@ -48,7 +48,7 @@
     {
       "id": 7,
       "subject": "Task 7: Signed IdP metadata + validity",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** idpMetadata gives the EntityDescriptor an ID + validUntil/cacheDuration (from configx) + signs it (signElement, active key; fall back to unsigned if no active key so /saml/metadata never 500s).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/metadata.go\",\"pkg/protocol/saml/metadata_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestMetadata -v -count=1\",\"acceptanceCriteria\":[\"signed metadata verifies against active cert\",\"validUntil in future + cacheDuration set; existing assertions still pass\"]}\n```"
     },
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T05:30:00Z"
+  "lastUpdated": "2026-05-31T06:00:00Z"
 }
