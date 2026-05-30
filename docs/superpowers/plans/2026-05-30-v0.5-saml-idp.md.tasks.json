@@ -87,7 +87,7 @@
     {
       "id": 12,
       "subject": "Task 12: cmd/smoke mock-SP",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10, 11],
       "description": "**Goal:** Full SAML flow end-to-end: keygen + /saml/metadata; saml-sp create (ingest mock SP metadata); signed AuthnRequest -> /saml/sso (authed) -> verify POSTed SAMLResponse (sig/Destination/Recipient/Audience/NameID/attrs); 2nd SSO NameID stable; /saml/slo (session revoked); negatives (unsigned/bad-ACS/replay); DB asserts (saml_subject_id stable, saml_session, credential_event factor=saml_sp).\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\"],\"verifyCommand\":\"mise exec -- go run ./cmd/smoke -username smoke-v05-admin -display \\\"Smoke v0.5 Admin\\\"\",\"acceptanceCriteria\":[\"full SSO flow + SAMLResponse verified vs metadata\",\"NameID stable across 2 SSOs\",\"SLO revokes session (/me 401)\",\"negatives reject; DB asserts\"]}\n```"
     },
@@ -99,5 +99,5 @@
       "description": "**Goal:** STATUS v0.5 section (shipped/endpoints/smoke-covered+untested/notes D1-D9); AUDIT SAML rows smoke-verified + XSW/XXE/replay defenses recorded + deferred list; INTEGRATION SAML IdP section (saml-sp CLI, /saml/metadata, SP-side config).\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.5 smoke lists\",\"AUDIT SAML rows smoke-verified + defenses\",\"INTEGRATION SAML operator config\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T16:30:00Z"
+  "lastUpdated": "2026-05-30T17:00:00Z"
 }
