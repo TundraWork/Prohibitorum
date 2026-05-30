@@ -36,7 +36,7 @@
     {
       "id": 5,
       "subject": "Task 5: SAML NameIDPolicy/@Format honoring (sso.go)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Honor requested non-unspecified NameIDPolicy/@Format if producible; unspecified/absent->configured format; genuine mismatch->Responder/InvalidNameIDPolicy (no assertion). Thread NameIDFormat through authnReq.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/authnreq.go\",\"pkg/protocol/saml/sso_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run 'TestSSO|TestAuthnReq' -v -count=1\",\"acceptanceCriteria\":[\"mismatched Format->InvalidNameIDPolicy no assertion\",\"persistent/unspecified/absent->normal assertion\"]}\n```"
     },
     {
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T04:30:00Z"
+  "lastUpdated": "2026-05-31T05:00:00Z"
 }
