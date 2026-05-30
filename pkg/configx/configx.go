@@ -115,6 +115,7 @@ type SAMLConfig struct {
 	DefaultNameIDFormat   string        `mapstructure:"default_nameid_format"`
 	SessionLifetime       time.Duration `mapstructure:"session_lifetime"`
 	MetadataRotationGrace time.Duration `mapstructure:"metadata_rotation_grace"`
+	MetadataValidity      time.Duration `mapstructure:"metadata_validity"`
 }
 
 // PasswordHashParams parameterises argon2id. The cryptographic invariants
@@ -193,6 +194,7 @@ func Parse() (*Config, error) {
 	viper.SetDefault("saml.default_nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent")
 	viper.SetDefault("saml.session_lifetime", 8*time.Hour)
 	viper.SetDefault("saml.metadata_rotation_grace", 7*24*time.Hour)
+	viper.SetDefault("saml.metadata_validity", 24*time.Hour)
 
 	// Password hashing defaults — 64 MiB / 3 iterations / 1 lane. The
 	// memory and time costs follow OWASP's 2024 argon2id guidance for

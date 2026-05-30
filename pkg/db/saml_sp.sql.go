@@ -33,7 +33,7 @@ func (q *Queries) DeleteSAMLSessionsBySession(ctx context.Context, sessionID str
 }
 
 const getSAMLSPByEntityID = `-- name: GetSAMLSPByEntityID :one
-SELECT id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp WHERE entity_id = $1
+SELECT id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp WHERE entity_id = $1
 `
 
 func (q *Queries) GetSAMLSPByEntityID(ctx context.Context, entityID string) (SamlSp, error) {
@@ -50,6 +50,7 @@ func (q *Queries) GetSAMLSPByEntityID(ctx context.Context, entityID string) (Sam
 		&i.WantAssertionsSigned,
 		&i.AuthnRequestsSigned,
 		&i.RequireSignedAuthnRequest,
+		&i.AllowIdpInitiated,
 		&i.SessionLifetime,
 		&i.MetadataXml,
 		&i.MetadataValidUntil,
@@ -61,7 +62,7 @@ func (q *Queries) GetSAMLSPByEntityID(ctx context.Context, entityID string) (Sam
 }
 
 const getSAMLSPByID = `-- name: GetSAMLSPByID :one
-SELECT id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp WHERE id = $1
+SELECT id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp WHERE id = $1
 `
 
 func (q *Queries) GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error) {
@@ -78,6 +79,7 @@ func (q *Queries) GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error) {
 		&i.WantAssertionsSigned,
 		&i.AuthnRequestsSigned,
 		&i.RequireSignedAuthnRequest,
+		&i.AllowIdpInitiated,
 		&i.SessionLifetime,
 		&i.MetadataXml,
 		&i.MetadataValidUntil,
@@ -113,10 +115,10 @@ func (q *Queries) GetSAMLSubjectID(ctx context.Context, arg GetSAMLSubjectIDPara
 const insertSAMLSP = `-- name: InsertSAMLSP :one
 INSERT INTO saml_sp (entity_id, display_name, sp_kind, name_id_format, name_id_claim,
   attribute_map, want_assertions_signed, authn_requests_signed,
-  require_signed_authn_request, session_lifetime, metadata_xml,
+  require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml,
   metadata_valid_until, metadata_cache_duration, metadata_fetched_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-RETURNING id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at
 `
 
 type InsertSAMLSPParams struct {
@@ -129,6 +131,7 @@ type InsertSAMLSPParams struct {
 	WantAssertionsSigned      bool               `json:"wantAssertionsSigned"`
 	AuthnRequestsSigned       bool               `json:"authnRequestsSigned"`
 	RequireSignedAuthnRequest bool               `json:"requireSignedAuthnRequest"`
+	AllowIdpInitiated         bool               `json:"allowIdpInitiated"`
 	SessionLifetime           pgtype.Interval    `json:"sessionLifetime"`
 	MetadataXml               pgtype.Text        `json:"metadataXml"`
 	MetadataValidUntil        pgtype.Timestamptz `json:"metadataValidUntil"`
@@ -147,6 +150,7 @@ func (q *Queries) InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (Sam
 		arg.WantAssertionsSigned,
 		arg.AuthnRequestsSigned,
 		arg.RequireSignedAuthnRequest,
+		arg.AllowIdpInitiated,
 		arg.SessionLifetime,
 		arg.MetadataXml,
 		arg.MetadataValidUntil,
@@ -165,6 +169,7 @@ func (q *Queries) InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (Sam
 		&i.WantAssertionsSigned,
 		&i.AuthnRequestsSigned,
 		&i.RequireSignedAuthnRequest,
+		&i.AllowIdpInitiated,
 		&i.SessionLifetime,
 		&i.MetadataXml,
 		&i.MetadataValidUntil,
@@ -358,7 +363,7 @@ func (q *Queries) ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) 
 }
 
 const listSAMLSPs = `-- name: ListSAMLSPs :many
-SELECT id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp ORDER BY display_name
+SELECT id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp ORDER BY display_name
 `
 
 func (q *Queries) ListSAMLSPs(ctx context.Context) ([]SamlSp, error) {
@@ -381,6 +386,7 @@ func (q *Queries) ListSAMLSPs(ctx context.Context) ([]SamlSp, error) {
 			&i.WantAssertionsSigned,
 			&i.AuthnRequestsSigned,
 			&i.RequireSignedAuthnRequest,
+			&i.AllowIdpInitiated,
 			&i.SessionLifetime,
 			&i.MetadataXml,
 			&i.MetadataValidUntil,

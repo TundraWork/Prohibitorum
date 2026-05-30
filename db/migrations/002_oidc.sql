@@ -26,7 +26,8 @@ CREATE TABLE oidc_client (
   post_logout_redirect_uris       text[] NOT NULL DEFAULT '{}',
   allowed_scopes                  text[] NOT NULL DEFAULT ARRAY['openid','profile'],
   require_pkce                    boolean NOT NULL DEFAULT true,
-  allowed_code_challenge_methods  text[] NOT NULL DEFAULT ARRAY['S256'],  -- reject 'plain'
+  allowed_code_challenge_methods  text[] NOT NULL DEFAULT ARRAY['S256']    -- reject 'plain'
+    CHECK (NOT ('plain' = ANY(allowed_code_challenge_methods))),
   token_endpoint_auth_method      text NOT NULL DEFAULT 'client_secret_basic',
   id_token_signed_response_alg    text NOT NULL DEFAULT 'RS256',
   subject_type                    text NOT NULL DEFAULT 'public' CHECK (subject_type IN ('public','pairwise')),

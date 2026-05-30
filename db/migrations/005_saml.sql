@@ -11,6 +11,7 @@ CREATE TABLE saml_sp (
   want_assertions_signed        boolean NOT NULL DEFAULT true,
   authn_requests_signed         boolean NOT NULL DEFAULT false,
   require_signed_authn_request  boolean NOT NULL DEFAULT false,
+  allow_idp_initiated           boolean NOT NULL DEFAULT false,
   session_lifetime              interval,
   metadata_xml                  text,
   metadata_valid_until          timestamptz,

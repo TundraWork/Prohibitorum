@@ -136,6 +136,7 @@ type SamlSp struct {
 	WantAssertionsSigned      bool               `json:"wantAssertionsSigned"`
 	AuthnRequestsSigned       bool               `json:"authnRequestsSigned"`
 	RequireSignedAuthnRequest bool               `json:"requireSignedAuthnRequest"`
+	AllowIdpInitiated         bool               `json:"allowIdpInitiated"`
 	SessionLifetime           pgtype.Interval    `json:"sessionLifetime"`
 	MetadataXml               pgtype.Text        `json:"metadataXml"`
 	MetadataValidUntil        pgtype.Timestamptz `json:"metadataValidUntil"`
