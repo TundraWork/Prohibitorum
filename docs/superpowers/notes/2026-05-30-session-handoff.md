@@ -114,18 +114,62 @@ fresh rather than extending the v0.4 plan.
 
 ---
 
-## v0.5 SAML IdP — IN PROGRESS (Tasks 0–1 of 14 done)
+## v0.5 SAML IdP — DONE (all 14 tasks + post-implementation audit)
 
-After v0.4 closed out, v0.5 (downstream SAML 2.0 IdP, GHES-compatible) was
-brainstormed (with web research on XSW/XXE + crewjam/goxmldsig + GHES specifics),
-spec'd, and planned. Executing via subagent-driven-development, same rhythm.
+**Downstream SAML 2.0 IdP (GHES-compatible) — fully implemented, reviewed,
+audited, smoke-verified end-to-end.** SP-initiated SSO (HTTP-Redirect
+AuthnRequest in, HTTP-POST auto-form Response out), IdP-local SLO (redirect+POST
+LogoutRequest in, signed LogoutResponse out), IdP metadata, stable opaque
+persistent NameID, the GHES attribute profile, and a first-class XML-security
+hardening layer. The same `signing_key` RSA key + x509 cert that signs OIDC
+also signs SAML.
 
-- **Spec:** `docs/superpowers/specs/2026-05-30-v0.5-saml-idp-design.md` (D1–D9).
-- **Plan:** `docs/superpowers/plans/2026-05-30-v0.5-saml-idp.md` + `.tasks.json` (14 tasks 0–13).
-- **Done:** Task 0 (deps: crewjam/saml v0.5.1 + goxmldsig v1.6.0 + beevik/etree v1.6.0; `GetSAMLSPByID` + `DeleteSAMLSessionsBySession` queries) `b306b53`; Task 1 (`pkg/protocol/saml/xmlsec.go` — hardened XML/DSig: `parseXMLSecure` DTD/XXE+dup-ID, `signElement` RSA-SHA256 exclusive-C14N, `verifyElementSignature` cert-pinned + anti-XSW ref-tie + SHA-1 reject; reviewed APPROVED) `38f0a19`.
-- **Resume at Task 2** (IdP widening + signing-key reuse). Then 3 (subjectid), 4 (attributes), 5 (metadata), 6 (authnreq), 7 (assertion), 8 (sso), 9 (slo), 10 (saml-sp CLI), 11 (server wiring), 12 (cmd/smoke mock-SP), 13 (docs). Then the post-implementation audit (focus: XSW/XXE, sig verify, NameID stability, replay).
+- **All 14 plan tasks (0–13)** executed via subagent-driven development (opus
+  implementers → sonnet/opus reviewers → two-stage spec+quality review → fix
+  loops → `.tasks.json` synced). Each task: build+vet+test green, then review,
+  fixes applied.
+- **Smoke GREEN end-to-end:** `cmd/smoke` steps 88–99 drive the full SAML
+  surface against live PG + a real dev server + an in-process mock SP
+  (`cmd/smoke/saml_mock.go`). Final: `45/45 (v0.2) + 46–69 (v0.3) + 70–87 (v0.4)
+  + 88–99 (v0.5)` all pass, `SMOKE_EXIT=0`. Re-run: `setsid bash /tmp/run_v05.sh`
+  then `cat /tmp/v05.result` (smoke username `smoke-v05-admin`).
+- **Post-implementation audit (done):** parallel 4-lens (crypto/XML-DSig +
+  protocol-standards + race-logic + deep integration/data/schema). **No
+  Critical.** The deep+race passes again earned their keep — found two High-class
+  issues the schema-resetting smoke can't catch (SLO orphaning saml_session rows
+  when the bound session is already revoked; unbounded saml_session growth +
+  duplicate rows because the FK cascade is dead code under soft-revoke). Plus an
+  interop-breaking High the lenient crewjam parser hid: `<ds:Signature>` was
+  emitted last, violating SAML XSD order (strict SPs reject it). All fixed across
+  4 batches (`3305ac9` A-crypto, `e5432cf` B-conformance, `87bc8c8` C-lifecycle,
+  `5f26c45` D-drop-POST-SSO + audit record). Full record in AUDIT.md → SAML
+  section → "Post-implementation audit (2026-05-30) — done" + "Accepted /
+  deferred".
 
-### Carried-forward v0.5 findings (cost real time — honor these)
+```
+HEAD: 5f26c45   branch: master   working tree: clean
+go build ./... ✓   go vet ./... ✓   go test ./... ✓   smoke ✓
+```
+
+**Endpoints (pkg/server/server.go):** `GET /saml/metadata`, `GET /saml/sso`
+(redirect binding only — POST-binding AuthnRequest intake is unimplemented and
+deliberately NOT advertised), `GET|POST /saml/slo`. **CLI:** `saml-sp
+{create,list}` (metadata ingestion via `--metadata-file`/`--metadata-url`,
+`--kind ghes`).
+
+### Accepted / deferred (see AUDIT.md for the full list)
+IdP-initiated SSO; front-channel SLO propagation; assertion/NameID encryption;
+`ForceAuthn` (ignored, D3); POST-binding AuthnRequest intake; `NameIDPolicy/@Format`
+honoring (`InvalidNameIDPolicy`); unsigned IdP metadata + `validUntil`/`cacheDuration`;
+the non-atomic AuthnRequest-replay Get→SetEx (low impact); the SLO↔SSO resurrection race.
+
+### What's next
+v0.5 is a clean stopping point. Per the multi-protocol rescope roadmap
+(`docs/superpowers/specs/2026-05-24-multi-protocol-rescope-design.md`), the next
+chunk (v0.6 — e.g. the admin UI / consent screen, or the deferred SAML/OIDC items
+above) should be brainstormed + spec'd fresh, not extended from the v0.5 plan.
+
+### Carried-forward findings from the v0.5 build (kept for reference)
 - **goxmldsig v1.6.0 API confirmed:** `dsig.NewSigningContext(key crypto.Signer, certs [][]byte)`; `ctx.Canonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList("")`; `ctx.SetSignatureMethod(dsig.RSASHA256SignatureMethod)`; **`ctx.IdAttribute = "ID"`** (a plain field; SAML uses `ID`, goxmldsig defaults to `Id` — set it on BOTH signing+validation contexts). Verify: `&dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{cert}}` → `dsig.NewDefaultValidationContext(store)` → `ctx.Validate(el)`.
 - **Serialize→reparse before verify:** an element straight out of `signElement` does NOT verify in-memory (goxmldsig C14N is sensitive to etree in-memory namespace bookkeeping). Tasks 7/8 MUST serialize the Response/Assertion to bytes and reparse via `parseXMLSecure` before `verifyElementSignature`. Documented on `signElement`.
 - **`crewjam/saml` drops out of go.mod** when nothing imports it (go mod tidy removed it after Task 1); it RE-ENTERS as a direct require the moment Task 5/6/7 import crewjam types — run `go mod tidy` after importing.
