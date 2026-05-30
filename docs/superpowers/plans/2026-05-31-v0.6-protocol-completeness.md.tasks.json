@@ -16,7 +16,7 @@
     {
       "id": 2,
       "subject": "Task 2: OIDC prompt=login / max_age (authorize.go)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Honor prompt=login/prompt=none/max_age via the re-auth gate; prompt=login+none->invalid_request; demand+none->login_required; stale session cannot satisfy prompt=login.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/authorize.go\",\"pkg/protocol/oidc/authorize_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestAuthorize -v -count=1\",\"acceptanceCriteria\":[\"prompt set parsed; login+none->invalid_request\",\"demand bounces with &reauth nonce; stale session re-bounces; fresh issues\",\"max_age=0 always; large max_age no bounce; prompt=none+demand->login_required\"]}\n```"
     },
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T03:00:00Z"
+  "lastUpdated": "2026-05-31T03:30:00Z"
 }
