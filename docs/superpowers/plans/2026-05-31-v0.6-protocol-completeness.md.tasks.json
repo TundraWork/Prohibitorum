@@ -1,0 +1,78 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-31-v0.6-protocol-completeness.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Schema + sqlc + configx",
+      "status": "pending",
+      "description": "**Goal:** Add saml_sp.allow_idp_initiated column + SAMLConfig.MetadataValidity; regen sqlc; confirm PKCE columns + plain-exclusion.\n\n```json:metadata\n{\"files\":[\"db/migrations/005_saml.sql\",\"db/migrations/002_oidc.sql\",\"db/queries/saml_sp.sql\",\"pkg/db/saml_sp.sql.go\",\"pkg/configx/configx.go\"],\"verifyCommand\":\"mise exec -- go build ./... && mise exec -- go test ./pkg/db/... -count=1\",\"acceptanceCriteria\":[\"allow_idp_initiated column + AllowIdpInitiated field generate\",\"SAMLConfig.MetadataValidity with viper default\",\"PKCE columns exist + plain excluded by default/CHECK\",\"build+db tests green\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Re-auth gate helper (pkg/authn/reauth.go)",
+      "status": "pending",
+      "description": "**Goal:** Cross-protocol single-use re-auth gate: DemandReauth (mint nonce + stamp demand instant in KV, 10m TTL); ConsumeReauth (verify auth_time post-dates demand, single-use Del).\n\n```json:metadata\n{\"files\":[\"pkg/authn/reauth.go\",\"pkg/authn/reauth_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/authn/... -run TestReauth -v -count=1\",\"acceptanceCriteria\":[\"DemandReauth mints nonce + SetEx marker\",\"ConsumeReauth: stale auth_time->false, fresh->true, single-use, unknown nonce->false\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: OIDC prompt=login / max_age (authorize.go)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Honor prompt=login/prompt=none/max_age via the re-auth gate; prompt=login+none->invalid_request; demand+none->login_required; stale session cannot satisfy prompt=login.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/authorize.go\",\"pkg/protocol/oidc/authorize_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run TestAuthorize -v -count=1\",\"acceptanceCriteria\":[\"prompt set parsed; login+none->invalid_request\",\"demand bounces with &reauth nonce; stale session re-bounces; fresh issues\",\"max_age=0 always; large max_age no bounce; prompt=none+demand->login_required\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: OIDC PKCE policy + public-client introspection",
+      "status": "pending",
+      "description": "**Goal:** authorize consults require_pkce + allowed_code_challenge_methods (reject plain unless allowed); introspect rejects none-auth (public) clients with invalid_client (RFC 7662). Revocation unchanged.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/authorize.go\",\"pkg/protocol/oidc/introspect.go\",\"pkg/protocol/oidc/token.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run 'TestAuthorize|TestIntrospect' -v -count=1\",\"acceptanceCriteria\":[\"non-allowed code_challenge_method->invalid_request; require_pkce enforced\",\"public client introspect->invalid_client; confidential works; revoke still allows public own-token\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: SAML ForceAuthn re-auth (sso.go)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** HandleSSO honors ForceAuthn via the re-auth gate; ForceAuthn+IsPassive->NoPassive (IsPassive wins); stale session cannot satisfy ForceAuthn.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/sso_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSSO -v -count=1\",\"acceptanceCriteria\":[\"ForceAuthn+session->login bounce w/ reauth; stale->re-bounce; fresh->issues\",\"ForceAuthn+IsPassive->NoPassive Response\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: SAML NameIDPolicy/@Format honoring (sso.go)",
+      "status": "pending",
+      "description": "**Goal:** Honor requested non-unspecified NameIDPolicy/@Format if producible; unspecified/absent->configured format; genuine mismatch->Responder/InvalidNameIDPolicy (no assertion). Thread NameIDFormat through authnReq.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/authnreq.go\",\"pkg/protocol/saml/sso_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run 'TestSSO|TestAuthnReq' -v -count=1\",\"acceptanceCriteria\":[\"mismatched Format->InvalidNameIDPolicy no assertion\",\"persistent/unspecified/absent->normal assertion\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: SAML POST-binding AuthnRequest intake",
+      "status": "pending",
+      "description": "**Goal:** parseAuthnRequest dispatches on method; POST = base64 (no inflate) + enveloped sig via verifyElementSignature; re-add POST /saml/sso route + re-advertise POST SSO binding in metadata.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/authnreq.go\",\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/metadata.go\",\"pkg/server/server.go\",\"pkg/protocol/saml/authnreq_test.go\",\"pkg/protocol/saml/metadata_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run 'TestAuthnReq|TestMetadata' -v -count=1\",\"acceptanceCriteria\":[\"POST signed AuthnRequest parses+verifies; unsigned to required-SP->ErrMissingSignature\",\"metadata advertises both SSO bindings; POST route mounted\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Signed IdP metadata + validity",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** idpMetadata gives the EntityDescriptor an ID + validUntil/cacheDuration (from configx) + signs it (signElement, active key; fall back to unsigned if no active key so /saml/metadata never 500s).\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/metadata.go\",\"pkg/protocol/saml/metadata_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestMetadata -v -count=1\",\"acceptanceCriteria\":[\"signed metadata verifies against active cert\",\"validUntil in future + cacheDuration set; existing assertions still pass\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: SAML IdP-initiated SSO",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** GET /saml/sso/init?sp=&RelayState= emits unsolicited Response (empty inResponseTo) to default ACS, gated by per-SP allow_idp_initiated (default false). saml-sp create --allow-idp-initiated; route mounted.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/sso_init.go\",\"pkg/protocol/saml/sso_init_test.go\",\"pkg/protocol/saml/clientgen_saml.go\",\"cmd/prohibitorum/main.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run 'TestSSOInit|TestSPGen' -v -count=1\",\"acceptanceCriteria\":[\"opt-in true->unsolicited Response (no InResponseTo) to default ACS, RelayState echoed\",\"opt-in false->403; no session->login 302; unknown sp->400\",\"--allow-idp-initiated flag sets param\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: cmd/smoke v0.6 steps",
+      "status": "pending",
+      "blockedBy": [2, 3, 4, 5, 6, 7, 8],
+      "description": "**Goal:** End-to-end smoke (steps 100+) for all v0.6 behaviors against live PG + dev server + mock SP; all v0.2-v0.6 green, SMOKE_EXIT=0.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"cmd/smoke/saml_mock.go\"],\"verifyCommand\":\"setsid bash /tmp/run_v06.sh; cat /tmp/v06.result\",\"acceptanceCriteria\":[\"prompt=login bounce-then-reauth; max_age; prompt=none->login_required\",\"PKCE plain rejected; public introspect->invalid_client\",\"ForceAuthn bounce; ForceAuthn+IsPassive->NoPassive; NameIDPolicy mismatch\",\"POST AuthnRequest SSO; signed metadata verify; IdP-initiated opt-in accepted + non-opt-in 403\",\"SMOKE_EXIT=0 all prior steps green\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Docs (STATUS/AUDIT/INTEGRATION)",
+      "status": "pending",
+      "blockedBy": [9],
+      "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-31T02:00:00Z"
+}
