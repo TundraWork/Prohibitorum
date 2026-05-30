@@ -192,7 +192,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		reauthNonce := r.URL.Query().Get("reauth")
 		satisfied := false
 		if reauthNonce != "" {
-			ok, cerr := authn.ConsumeReauth(ctx, i.kv, "saml:reauth:", reauthNonce, authTime)
+			ok, cerr := authn.ConsumeReauth(ctx, i.kv, "saml:reauth:", reauthNonce, sess.Data.AccountID, authTime)
 			if cerr != nil {
 				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
@@ -200,7 +200,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			satisfied = ok
 		}
 		if !satisfied {
-			nonce, derr := authn.DemandReauth(ctx, i.kv, "saml:reauth:")
+			nonce, derr := authn.DemandReauth(ctx, i.kv, "saml:reauth:", sess.Data.AccountID)
 			if derr != nil {
 				http.Error(w, "internal error", http.StatusInternalServerError)
 				return

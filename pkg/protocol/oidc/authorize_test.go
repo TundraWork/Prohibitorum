@@ -519,7 +519,7 @@ func TestAuthorize_PromptLogin_StaleSessionRebounces(t *testing.T) {
 	p := newProvider(&fakeAuthzQueries{client: validClient()}, &recordingAudit{})
 
 	// Demand a marker NOW; the session's auth_time predates it → stale.
-	nonce, err := authn.DemandReauth(context.Background(), p.kv, "oidc:reauth:")
+	nonce, err := authn.DemandReauth(context.Background(), p.kv, "oidc:reauth:", 42)
 	if err != nil {
 		t.Fatalf("DemandReauth: %v", err)
 	}
@@ -550,7 +550,7 @@ func TestAuthorize_PromptLogin_StaleSessionRebounces(t *testing.T) {
 func TestAuthorize_PromptLogin_FreshSessionIssuesCode(t *testing.T) {
 	p := newProvider(&fakeAuthzQueries{client: validClient()}, &recordingAudit{})
 
-	nonce, err := authn.DemandReauth(context.Background(), p.kv, "oidc:reauth:")
+	nonce, err := authn.DemandReauth(context.Background(), p.kv, "oidc:reauth:", 42)
 	if err != nil {
 		t.Fatalf("DemandReauth: %v", err)
 	}

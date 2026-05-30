@@ -549,7 +549,7 @@ func TestSSOForceAuthnStaleSessionRebounces(t *testing.T) {
 	ctx := context.Background()
 
 	// Demand a re-auth NOW (the marker timestamp is "now").
-	nonce, err := authn.DemandReauth(ctx, h.idp.kv, "saml:reauth:")
+	nonce, err := authn.DemandReauth(ctx, h.idp.kv, "saml:reauth:", testAccount().ID)
 	if err != nil {
 		t.Fatalf("DemandReauth: %v", err)
 	}
@@ -586,7 +586,7 @@ func TestSSOForceAuthnFreshSessionIssues(t *testing.T) {
 	h := newSSOHarness(t, ssoSP())
 	ctx := context.Background()
 
-	nonce, err := authn.DemandReauth(ctx, h.idp.kv, "saml:reauth:")
+	nonce, err := authn.DemandReauth(ctx, h.idp.kv, "saml:reauth:", testAccount().ID)
 	if err != nil {
 		t.Fatalf("DemandReauth: %v", err)
 	}

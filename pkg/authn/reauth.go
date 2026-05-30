@@ -5,6 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"prohibitorum/pkg/kv"
@@ -15,42 +18,55 @@ import (
 const ReauthMarkerTTL = 10 * time.Minute
 
 // DemandReauth records a forced-re-authentication demand: it mints a single-use
-// nonce and stamps the demand instant in KV under keyPrefix+nonce. The caller
-// embeds the returned nonce in the login return_to; ConsumeReauth verifies it on
-// return. keyPrefix namespaces the two protocols (e.g. "oidc:reauth:" /
-// "saml:reauth:").
-func DemandReauth(ctx context.Context, store kv.Store, keyPrefix string) (string, error) {
+// nonce and stamps the demanding accountID + demand instant in KV under
+// keyPrefix+nonce. The caller embeds the returned nonce in the login return_to;
+// ConsumeReauth verifies it on return. Binding the marker to accountID prevents a
+// leaked nonce from being satisfied by any fresh session — only the demanding
+// account's session can consume it. keyPrefix namespaces the two protocols (e.g.
+// "oidc:reauth:" / "saml:reauth:"). The stored value is "<accountID>|<instant>".
+func DemandReauth(ctx context.Context, store kv.Store, keyPrefix string, accountID int32) (string, error) {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
 	nonce := base64.RawURLEncoding.EncodeToString(buf)
-	if err := store.SetEx(ctx, keyPrefix+nonce, time.Now().UTC().Format(time.RFC3339Nano), ReauthMarkerTTL); err != nil {
+	val := fmt.Sprintf("%d|%s", accountID, time.Now().UTC().Format(time.RFC3339Nano))
+	if err := store.SetEx(ctx, keyPrefix+nonce, val, ReauthMarkerTTL); err != nil {
 		return "", err
 	}
 	return nonce, nil
 }
 
-// ConsumeReauth verifies (single-use) that the session's authTime post-dates the
-// demand recorded under keyPrefix+nonce. It deletes the marker regardless of the
-// outcome (single-use). Returns false (not an error) when the marker is missing
-// or expired, or when authTime predates the demand — the caller then re-demands.
-func ConsumeReauth(ctx context.Context, store kv.Store, keyPrefix, nonce string, authTime time.Time) (bool, error) {
+// ConsumeReauth verifies (single-use) that the marker recorded under
+// keyPrefix+nonce belongs to accountID and that the session's authTime post-dates
+// the demand instant. It atomically pops the marker (get-and-delete) so a
+// concurrent return trip cannot satisfy the same demand twice. Returns false (not
+// an error) when the marker is missing/expired, belongs to a different account, is
+// malformed, or when authTime predates the demand — the caller then re-demands.
+func ConsumeReauth(ctx context.Context, store kv.Store, keyPrefix, nonce string, accountID int32, authTime time.Time) (bool, error) {
 	if nonce == "" {
 		return false, nil
 	}
 	key := keyPrefix + nonce
-	val, err := store.Get(ctx, key)
+	val, err := store.Pop(ctx, key) // atomic single-use consume
 	if errors.Is(err, kv.ErrKeyNotFound) {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
-	if derr := store.Del(ctx, key); derr != nil { // single-use: consume before evaluating
-		return false, derr
+	sep := strings.IndexByte(val, '|')
+	if sep < 0 {
+		return false, nil // malformed marker → unsatisfied; caller re-demands
 	}
-	demandedAt, perr := time.Parse(time.RFC3339Nano, val)
+	storedAcct, perr := strconv.ParseInt(val[:sep], 10, 32)
+	if perr != nil {
+		return false, nil // malformed marker → unsatisfied
+	}
+	if int32(storedAcct) != accountID {
+		return false, nil // bound to a different account → unsatisfied (already consumed)
+	}
+	demandedAt, perr := time.Parse(time.RFC3339Nano, val[sep+1:])
 	if perr != nil {
 		return false, nil // corrupt marker → unsatisfied; caller re-demands
 	}

@@ -158,7 +158,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		reauthNonce := q.Get("reauth")
 		satisfied := false
 		if reauthNonce != "" {
-			ok, cerr := authn.ConsumeReauth(r.Context(), p.kv, "oidc:reauth:", reauthNonce, row.AuthTime.Time)
+			ok, cerr := authn.ConsumeReauth(r.Context(), p.kv, "oidc:reauth:", reauthNonce, sess.Data.AccountID, row.AuthTime.Time)
 			if cerr != nil {
 				redirectError(w, r, redirectURI, errCodeServerError, "reauth check failed", state, p.cfg.OIDC.Issuer)
 				return
@@ -170,7 +170,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 				redirectError(w, r, redirectURI, errCodeLoginRequired, "re-authentication required", state, p.cfg.OIDC.Issuer)
 				return
 			}
-			renonce, derr := authn.DemandReauth(r.Context(), p.kv, "oidc:reauth:")
+			renonce, derr := authn.DemandReauth(r.Context(), p.kv, "oidc:reauth:", sess.Data.AccountID)
 			if derr != nil {
 				redirectError(w, r, redirectURI, errCodeServerError, "could not start re-auth", state, p.cfg.OIDC.Issuer)
 				return
