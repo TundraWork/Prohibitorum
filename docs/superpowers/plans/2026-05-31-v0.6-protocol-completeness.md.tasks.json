@@ -23,7 +23,7 @@
     {
       "id": 3,
       "subject": "Task 3: OIDC PKCE policy + public-client introspection",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** authorize consults require_pkce + allowed_code_challenge_methods (reject plain unless allowed); introspect rejects none-auth (public) clients with invalid_client (RFC 7662). Revocation unchanged.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/authorize.go\",\"pkg/protocol/oidc/introspect.go\",\"pkg/protocol/oidc/token.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/oidc/... -run 'TestAuthorize|TestIntrospect' -v -count=1\",\"acceptanceCriteria\":[\"non-allowed code_challenge_method->invalid_request; require_pkce enforced\",\"public client introspect->invalid_client; confidential works; revoke still allows public own-token\"]}\n```"
     },
     {
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T03:30:00Z"
+  "lastUpdated": "2026-05-31T04:00:00Z"
 }
