@@ -22,10 +22,13 @@ import (
 
 const persistentNameID11 = "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent"
 
+const metadataTestValidity = 24 * time.Hour
+
 func metadataTestIdP(t *testing.T) *IdP {
 	t.Helper()
 	cfg := &configx.Config{PublicOrigins: []string{"https://idp.example.test"}}
 	cfg.SAML.DefaultNameIDFormat = persistentNameID11
+	cfg.SAML.MetadataValidity = metadataTestValidity
 	row, _, _ := testSAMLSigningKeyRow(t)
 	return newTestIdP(t, cfg, []db.SigningKey{row})
 }
@@ -92,6 +95,86 @@ func TestMetadataIdPDocument(t *testing.T) {
 	}
 	if !foundFormat {
 		t.Fatalf("NameIDFormats = %v, want to contain %q", idp.NameIDFormats, persistentNameID11)
+	}
+}
+
+// TestMetadataSigned asserts the EntityDescriptor is signed with the active key
+// (verifies after the reparse round-trip) and carries validUntil + cacheDuration.
+func TestMetadataSigned(t *testing.T) {
+	cfg := &configx.Config{PublicOrigins: []string{"https://idp.example.test"}}
+	cfg.SAML.DefaultNameIDFormat = persistentNameID11
+	cfg.SAML.MetadataValidity = metadataTestValidity
+	row, _, cert := testSAMLSigningKeyRow(t)
+	i := newTestIdP(t, cfg, []db.SigningKey{row})
+
+	raw, err := i.idpMetadata(context.Background())
+	if err != nil {
+		t.Fatalf("idpMetadata: %v", err)
+	}
+
+	doc, err := parseXMLSecure(raw)
+	if err != nil {
+		t.Fatalf("parseXMLSecure signed metadata: %v\n%s", err, raw)
+	}
+	if findSignatureChild(doc.Root()) == nil {
+		t.Fatalf("signed metadata has no <ds:Signature> child:\n%s", raw)
+	}
+	if err := verifyElementSignature(doc.Root(), cert); err != nil {
+		t.Fatalf("verifyElementSignature on signed metadata: %v\n%s", err, raw)
+	}
+
+	var ed crewjam.EntityDescriptor
+	if err := xml.Unmarshal(raw, &ed); err != nil {
+		t.Fatalf("unmarshal signed metadata: %v\n%s", err, raw)
+	}
+	if ed.ID == "" {
+		t.Fatal("EntityDescriptor.ID is empty, want a generated NCName ID")
+	}
+	if !ed.ValidUntil.After(time.Now()) {
+		t.Fatalf("ValidUntil = %v, want in the future", ed.ValidUntil)
+	}
+	if ed.CacheDuration != metadataTestValidity {
+		t.Fatalf("CacheDuration = %v, want %v", ed.CacheDuration, metadataTestValidity)
+	}
+}
+
+// TestMetadataNoActiveKeyUnsigned asserts the fail-OPEN path: with no active
+// signing key, idpMetadata returns the UNSIGNED document without erroring, so a
+// fresh deploy's GET /saml/metadata never 500s.
+func TestMetadataNoActiveKeyUnsigned(t *testing.T) {
+	cfg := &configx.Config{PublicOrigins: []string{"https://idp.example.test"}}
+	cfg.SAML.DefaultNameIDFormat = persistentNameID11
+	cfg.SAML.MetadataValidity = metadataTestValidity
+	// No rows => the key cache has no active signing key.
+	i := newTestIdP(t, cfg, nil)
+
+	if _, _, _, ok := i.keys.signingKey(context.Background()); ok {
+		t.Fatal("precondition: expected no active signing key")
+	}
+
+	raw, err := i.idpMetadata(context.Background())
+	if err != nil {
+		t.Fatalf("idpMetadata with no active key must not error: %v", err)
+	}
+
+	doc, err := parseXMLSecure(raw)
+	if err != nil {
+		t.Fatalf("parseXMLSecure unsigned metadata: %v\n%s", err, raw)
+	}
+	if findSignatureChild(doc.Root()) != nil {
+		t.Fatalf("unsigned metadata unexpectedly carries a <ds:Signature>:\n%s", raw)
+	}
+
+	// Still a well-formed descriptor carrying the validity hints.
+	var ed crewjam.EntityDescriptor
+	if err := xml.Unmarshal(raw, &ed); err != nil {
+		t.Fatalf("unmarshal unsigned metadata: %v\n%s", err, raw)
+	}
+	if ed.EntityID != "https://idp.example.test" {
+		t.Fatalf("EntityID = %q", ed.EntityID)
+	}
+	if ed.CacheDuration != metadataTestValidity {
+		t.Fatalf("CacheDuration = %v, want %v", ed.CacheDuration, metadataTestValidity)
 	}
 }
 

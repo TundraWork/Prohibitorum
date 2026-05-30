@@ -7,7 +7,9 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/beevik/etree"
 	crewjam "github.com/crewjam/saml"
 )
 
@@ -24,6 +26,13 @@ type acsEntry struct {
 // every non-retired signing cert (audit R6: so a key rotation does not break a
 // verifier that has only cached an older cert), both HTTP-Redirect and HTTP-POST
 // SSO/SLO endpoints, and the configured persistent NameID format.
+//
+// The document carries validUntil + cacheDuration (spec D10) so verifiers can
+// cache-bound it, and — when an active signing key is loaded — an enveloped
+// RSA-SHA256 <ds:Signature> over the EntityDescriptor so SPs can integrity-check
+// it. The signature is FAIL-OPEN: on a fresh deploy with no active signing key
+// (or no usable cert), idpMetadata returns the UNSIGNED document rather than
+// erroring, so GET /saml/metadata never 500s before the first key is minted.
 func (i *IdP) idpMetadata(ctx context.Context) ([]byte, error) {
 	wantSigned := true
 
@@ -44,8 +53,16 @@ func (i *IdP) idpMetadata(ctx context.Context) ([]byte, error) {
 		})
 	}
 
+	id, err := newSAMLID()
+	if err != nil {
+		return nil, err
+	}
+
 	ed := crewjam.EntityDescriptor{
-		EntityID: i.entityID(),
+		EntityID:      i.entityID(),
+		ID:            id,
+		ValidUntil:    time.Now().Add(i.cfg.SAML.MetadataValidity),
+		CacheDuration: i.cfg.SAML.MetadataValidity,
 		IDPSSODescriptors: []crewjam.IDPSSODescriptor{
 			{
 				SSODescriptor: crewjam.SSODescriptor{
@@ -79,7 +96,36 @@ func (i *IdP) idpMetadata(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte(xml.Header), body...), nil
+
+	// Fail-OPEN: with no active signing key (or no usable cert) the cache
+	// returns ok=false. Serve the unsigned document rather than 500ing — a
+	// fresh deploy has no key yet, and unsigned metadata is still a valid
+	// (if un-integrity-checked) descriptor.
+	priv, certDER, _, ok := i.keys.signingKey(ctx)
+	if !ok {
+		return append([]byte(xml.Header), body...), nil
+	}
+
+	// Sign the SAME EntityDescriptor we just marshaled. signElement requires
+	// the element to round-trip through the wire form before it will verify,
+	// so we reparse the marshaled bytes (also gating XXE/DTD/dup-ID), sign the
+	// root, then re-serialize. The Reference is keyed on ed.ID; the enveloped
+	// transform excludes the <ds:Signature> by that ID regardless of position.
+	doc, err := parseXMLSecure(body)
+	if err != nil {
+		return nil, err
+	}
+	signed, err := signElement(doc.Root(), priv, certDER)
+	if err != nil {
+		return nil, err
+	}
+	out := etree.NewDocument()
+	out.SetRoot(signed)
+	signedBytes, err := out.WriteToBytes()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(xml.Header), signedBytes...), nil
 }
 
 // HandleMetadata serves the IdP metadata document over HTTP.
