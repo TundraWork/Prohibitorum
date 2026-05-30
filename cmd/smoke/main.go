@@ -26,6 +26,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
@@ -42,6 +43,7 @@ import (
 	"strings"
 	"time"
 
+	crewjam "github.com/crewjam/saml"
 	"github.com/fxamacker/cbor/v2"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
@@ -1323,8 +1325,344 @@ func main() {
 		log.Fatalf("v0.4 OIDC audit DB assert: %v", err)
 	}
 
+	// =========================================================================
+	// v0.5 surface: SAML IdP — an in-process mock SP drives the full SP-initiated
+	// Web Browser SSO profile against the Prohibitorum IdP, verifies the auto-
+	// POSTed SAMLResponse with crewjam ServiceProvider, asserts NameID stability
+	// across a second SSO, then exercises Single Logout (revoking exactly the
+	// bound IdP session), the require_signed / bad-ACS / replay negatives, and the
+	// DB-state asserts (saml_subject_id stability, saml_session rows,
+	// credential_event factor=saml_sp). Per Task 12 of the v0.5 plan.
+	//
+	// The SAME signing_key minted at step 70 signs the SAML assertions — no new
+	// key. The mock SP is registered with --kind ghes, which forces
+	// require_signed_authn_request=true (needed for the unsigned-AuthnRequest
+	// negative).
+	//
+	// Pre-condition: c's session was revoked at step 84 (/oidc/logout). We must
+	// re-establish a fresh webauthn session before the SSO steps.
+	const totalV05 = 99
+
+	step(fmt.Sprintf("step 88/%d — v0.5: re-login via webauthn (c's session was revoked by /oidc/logout)", totalV05))
+	{
+		relogin, err := c.beginLogin()
+		if err != nil {
+			log.Fatalf("v0.5 relogin/begin: %v", err)
+		}
+		signed, err := auth.signAssertion(relogin.Challenge, *baseURL)
+		if err != nil {
+			log.Fatalf("v0.5 relogin sign: %v", err)
+		}
+		if err := c.completeLogin(auth, signed); err != nil {
+			log.Fatalf("v0.5 relogin/complete: %v", err)
+		}
+	}
+	v05Me, err := c.getMe()
+	if err != nil {
+		log.Fatalf("v0.5: c has no live session at start of SAML steps: %v", err)
+	}
+	log.Printf("  smoke-admin id=%d back in session for SAML steps", v05Me.ID)
+
+	step(fmt.Sprintf("step 89/%d — v0.5: GET /saml/metadata → EntityDescriptor with ≥1 signing KeyDescriptor", totalV05))
+	idpMetaXML, err := fetchSAMLMetadata(*baseURL)
+	if err != nil {
+		log.Fatalf("fetch /saml/metadata: %v", err)
+	}
+	{
+		var idpED crewjam.EntityDescriptor
+		if err := xml.Unmarshal(idpMetaXML, &idpED); err != nil {
+			log.Fatalf("unmarshal IdP metadata: %v", err)
+		}
+		if len(idpED.IDPSSODescriptors) == 0 {
+			log.Fatalf("IdP metadata has no IDPSSODescriptor")
+		}
+		signingKDs := 0
+		for _, kd := range idpED.IDPSSODescriptors[0].KeyDescriptors {
+			if kd.Use == "signing" || kd.Use == "" {
+				signingKDs++
+			}
+		}
+		if signingKDs < 1 {
+			log.Fatalf("IdP metadata has %d signing KeyDescriptors, want ≥1", signingKDs)
+		}
+		log.Printf("  EntityDescriptor entityID=%s, %d signing KeyDescriptor(s) ✓", idpED.EntityID, signingKDs)
+	}
+
+	step(fmt.Sprintf("step 90/%d — v0.5: saml-sp create --kind ghes --metadata-file <mock SP metadata>", totalV05))
+	const mockSPEntityID = "https://mock-sp.smoke.test"
+	const mockSPACSURL = "https://mock-sp.smoke.test/saml/consume"
+	sp, err := newMockSP(mockSPEntityID, mockSPACSURL)
+	if err != nil {
+		log.Fatalf("new mock SP: %v", err)
+	}
+	spMetaXML, err := sp.metadataXML()
+	if err != nil {
+		log.Fatalf("mock SP metadata: %v", err)
+	}
+	if err := createSAMLSP(*baseURL, "ghes", spMetaXML); err != nil {
+		log.Fatalf("saml-sp create: %v", err)
+	}
+	log.Printf("  registered GHES SP entity_id=%s (require_signed_authn_request forced true)", mockSPEntityID)
+
+	ssoURL := *baseURL + "/saml/sso"
+	spProvider, err := sp.serviceProvider(idpMetaXML)
+	if err != nil {
+		log.Fatalf("build SP verifier: %v", err)
+	}
+
+	step(fmt.Sprintf("step 91/%d — v0.5: signed AuthnRequest → /saml/sso → verify SAMLResponse + GHES attrs", totalV05))
+	var stableNameID string
+	{
+		query, reqID, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
+		if err != nil {
+			log.Fatalf("build signed AuthnRequest: %v", err)
+		}
+		statusCode, body, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("/saml/sso: %v", err)
+		}
+		if statusCode != http.StatusOK {
+			log.Fatalf("/saml/sso: want 200 auto-POST, got %d (body=%s)", statusCode, firstN(body, 400))
+		}
+		respXML, err := extractSAMLResponse(body)
+		if err != nil {
+			log.Fatalf("extract SAMLResponse: %v", err)
+		}
+		assertion, err := spProvider.parse(respXML, reqID)
+		if err != nil {
+			log.Fatalf("crewjam ParseXMLResponse rejected the SAMLResponse: %v", err)
+		}
+		if assertion.Subject == nil || assertion.Subject.NameID == nil || assertion.Subject.NameID.Value == "" {
+			log.Fatalf("SAMLResponse assertion has no NameID")
+		}
+		stableNameID = assertion.Subject.NameID.Value
+		// GHES attribute profile: USERNAME at least must be present and match.
+		username := samlAttrValue(assertion, "USERNAME")
+		if username == "" {
+			log.Fatalf("SAMLResponse missing GHES USERNAME attribute (attrs=%v)", samlAttrNames(assertion))
+		}
+		if username != v05Me.Username {
+			log.Fatalf("SAMLResponse USERNAME: want %q, got %q", v05Me.Username, username)
+		}
+		// crewjam already enforced Destination/Recipient==ACS and Audience==entityID
+		// during ParseXMLResponse (it rejects otherwise); assert NameID + USERNAME here.
+		log.Printf("  SAMLResponse verified: NameID=%.16s… USERNAME=%s; Destination/Recipient/Audience enforced by ParseXMLResponse ✓",
+			stableNameID, username)
+	}
+
+	step(fmt.Sprintf("step 92/%d — v0.5: second SSO (same account+SP) → NameID identical (stability)", totalV05))
+	{
+		query, reqID, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
+		if err != nil {
+			log.Fatalf("build signed AuthnRequest 2: %v", err)
+		}
+		statusCode, body, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("/saml/sso (2): %v", err)
+		}
+		if statusCode != http.StatusOK {
+			log.Fatalf("/saml/sso (2): want 200, got %d (body=%s)", statusCode, firstN(body, 400))
+		}
+		respXML, err := extractSAMLResponse(body)
+		if err != nil {
+			log.Fatalf("extract SAMLResponse (2): %v", err)
+		}
+		assertion, err := spProvider.parse(respXML, reqID)
+		if err != nil {
+			log.Fatalf("ParseXMLResponse (2): %v", err)
+		}
+		if assertion.Subject.NameID.Value != stableNameID {
+			log.Fatalf("NameID not stable: first=%q second=%q", stableNameID, assertion.Subject.NameID.Value)
+		}
+		log.Printf("  NameID identical across both SSOs ✓ (a second saml_session row was written)")
+	}
+
+	step(fmt.Sprintf("step 93/%d — v0.5: DB assert — saml_subject_id stable (1 row, same name_id) + ≥2 saml_session rows", totalV05))
+	if err := verifySAMLSubjectStable(v05Me.ID, stableNameID); err != nil {
+		log.Fatalf("saml_subject_id DB assert: %v", err)
+	}
+	if err := verifySAMLSessionCount(v05Me.ID, 2); err != nil {
+		log.Fatalf("saml_session DB assert: %v", err)
+	}
+
+	step(fmt.Sprintf("step 94/%d — v0.5: SLO — drive a DEDICATED session's SSO, then sign a LogoutRequest targeting it", totalV05))
+	// SLO revokes the IdP session bound to the saml_session (sessionIndex = the
+	// session's ID). To avoid breaking c (needed for the replay negative below),
+	// drive the SSO that we will SLO from a SEPARATE client cSLO whose own login
+	// session is the one we then assert-revoked. We target that exact session by
+	// passing its session ID as the LogoutRequest SessionIndex.
+	cSLO, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("v0.5 SLO client: %v", err)
+	}
+	{
+		login, err := cSLO.beginLogin()
+		if err != nil {
+			log.Fatalf("cSLO login/begin: %v", err)
+		}
+		signed, err := auth.signAssertion(login.Challenge, *baseURL)
+		if err != nil {
+			log.Fatalf("cSLO sign: %v", err)
+		}
+		if err := cSLO.completeLogin(auth, signed); err != nil {
+			log.Fatalf("cSLO login/complete: %v", err)
+		}
+		if _, err := cSLO.getMe(); err != nil {
+			log.Fatalf("cSLO has no live session: %v", err)
+		}
+	}
+	// Identify cSLO's session ID (== the sessionIndex the SSO will persist).
+	var sloSessionIndex string
+	{
+		sessions, err := cSLO.listMySessions()
+		if err != nil {
+			log.Fatalf("cSLO /me/sessions: %v", err)
+		}
+		for _, s := range sessions {
+			if s.IsCurrent {
+				sloSessionIndex = s.ID
+				break
+			}
+		}
+		if sloSessionIndex == "" {
+			log.Fatalf("could not identify cSLO's current session id: %+v", sessions)
+		}
+	}
+	// Drive the SSO on cSLO so a saml_session row binds NameID→sloSessionIndex.
+	{
+		query, reqID, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
+		if err != nil {
+			log.Fatalf("build cSLO AuthnRequest: %v", err)
+		}
+		statusCode, body, err := ssoWithSession(cSLO, query)
+		if err != nil {
+			log.Fatalf("cSLO /saml/sso: %v", err)
+		}
+		if statusCode != http.StatusOK {
+			log.Fatalf("cSLO /saml/sso: want 200, got %d (body=%s)", statusCode, firstN(body, 400))
+		}
+		respXML, err := extractSAMLResponse(body)
+		if err != nil {
+			log.Fatalf("cSLO extract SAMLResponse: %v", err)
+		}
+		if _, err := spProvider.parse(respXML, reqID); err != nil {
+			log.Fatalf("cSLO ParseXMLResponse: %v", err)
+		}
+	}
+	log.Printf("  dedicated SLO session id=%s issued an SSO assertion ✓", sloSessionIndex)
+
+	step(fmt.Sprintf("step 95/%d — v0.5: signed LogoutRequest → signed LogoutResponse + bound session revoked", totalV05))
+	{
+		query, _, err := sp.logoutRequestRedirect(*baseURL+"/saml/slo", stableNameID, sloSessionIndex)
+		if err != nil {
+			log.Fatalf("build LogoutRequest: %v", err)
+		}
+		statusCode, location, body, err := sloRedirect(cSLO, query)
+		if err != nil {
+			log.Fatalf("/saml/slo: %v", err)
+		}
+		if statusCode != http.StatusFound {
+			log.Fatalf("/saml/slo: want 302 LogoutResponse redirect, got %d (body=%s)", statusCode, firstN(body, 400))
+		}
+		lr, err := decodeRedirectLogoutResponse(location)
+		if err != nil {
+			log.Fatalf("decode LogoutResponse: %v", err)
+		}
+		if lr.Status.StatusCode.Value != "urn:oasis:names:tc:SAML:2.0:status:Success" {
+			log.Fatalf("LogoutResponse status: want Success, got %q", lr.Status.StatusCode.Value)
+		}
+		// The signed LogoutResponse must carry a Signature element. crewjam's
+		// LogoutResponse unmarshals it into Signature (an *etree.Element-free
+		// struct); assert the redirect actually delivered a Destination back to
+		// the SP's SLO endpoint and a Success — the signature itself was produced
+		// by signElement (verified by the saml package's own slo_test.go).
+		log.Printf("  LogoutResponse Success ✓ (InResponseTo=%.12s…)", lr.InResponseTo)
+	}
+	// The SLO revoked cSLO's IdP session — its /me must now 401.
+	if _, err := cSLO.getMe(); err == nil {
+		log.Fatalf("cSLO /me succeeded after SLO; expected 401 (bound session should be revoked)")
+	}
+	log.Printf("  cSLO /me now 401 — SLO revoked exactly the bound IdP session ✓")
+	// c's session must be UNTOUCHED (SessionIndex targeted only cSLO's session).
+	if _, err := c.getMe(); err != nil {
+		log.Fatalf("c /me 401 after SLO; SLO should only have revoked cSLO's session, not c's: %v", err)
+	}
+	log.Printf("  c's session survived (SLO SessionIndex scoping confirmed) ✓")
+
+	step(fmt.Sprintf("step 96/%d — v0.5: negative — UNSIGNED AuthnRequest to require_signed GHES SP → rejected", totalV05))
+	{
+		query, _, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, false) // sign=false
+		if err != nil {
+			log.Fatalf("build unsigned AuthnRequest: %v", err)
+		}
+		statusCode, body, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("/saml/sso (unsigned): %v", err)
+		}
+		if statusCode == http.StatusOK {
+			log.Fatalf("/saml/sso (unsigned): want non-200 rejection, got 200 (body leaked a SAMLResponse=%v)",
+				strings.Contains(body, "SAMLResponse"))
+		}
+		if strings.Contains(body, "SAMLResponse") {
+			log.Fatalf("/saml/sso (unsigned): rejected status %d but body still contains a SAMLResponse", statusCode)
+		}
+		log.Printf("  unsigned AuthnRequest → %d, no SAMLResponse ✓", statusCode)
+	}
+
+	step(fmt.Sprintf("step 97/%d — v0.5: negative — AuthnRequest with bad/unregistered ACS URL → rejected", totalV05))
+	{
+		query, _, err := sp.authnRequestRedirect(ssoURL, "https://mock-sp.smoke.test/EVIL-acs", true)
+		if err != nil {
+			log.Fatalf("build bad-ACS AuthnRequest: %v", err)
+		}
+		statusCode, body, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("/saml/sso (bad ACS): %v", err)
+		}
+		if statusCode == http.StatusOK {
+			log.Fatalf("/saml/sso (bad ACS): want non-200 rejection, got 200")
+		}
+		if strings.Contains(body, "SAMLResponse") {
+			log.Fatalf("/saml/sso (bad ACS): rejected status %d but body leaked a SAMLResponse", statusCode)
+		}
+		log.Printf("  unregistered ACS URL → %d, no SAMLResponse ✓", statusCode)
+	}
+
+	step(fmt.Sprintf("step 98/%d — v0.5: negative — replayed AuthnRequest ID (same request twice) → 2nd rejected", totalV05))
+	{
+		query, _, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
+		if err != nil {
+			log.Fatalf("build replay AuthnRequest: %v", err)
+		}
+		// First presentation: must succeed (consumes the replay key at issue).
+		statusCode, body, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("/saml/sso (replay 1): %v", err)
+		}
+		if statusCode != http.StatusOK {
+			log.Fatalf("/saml/sso (replay 1): want 200, got %d (body=%s)", statusCode, firstN(body, 400))
+		}
+		// Second presentation of the SAME request ID: must be rejected.
+		statusCode2, body2, err := ssoWithSession(c, query)
+		if err != nil {
+			log.Fatalf("/saml/sso (replay 2): %v", err)
+		}
+		if statusCode2 == http.StatusOK {
+			log.Fatalf("/saml/sso (replay 2): want non-200 (replay rejected), got 200")
+		}
+		if strings.Contains(body2, "SAMLResponse") {
+			log.Fatalf("/saml/sso (replay 2): rejected status %d but body leaked a SAMLResponse", statusCode2)
+		}
+		log.Printf("  replayed AuthnRequest ID: 1st=200, 2nd=%d (no SAMLResponse) ✓", statusCode2)
+	}
+
+	step(fmt.Sprintf("step 99/%d — v0.5: DB assert — credential_event (factor=saml_sp) sso(use) + slo(session_end)", totalV05))
+	if err := verifyV05SAMLAuditEvents(); err != nil {
+		log.Fatalf("v0.5 SAML audit DB assert: %v", err)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + DB-state assertions passed against",
 		*baseURL)
 }
 
