@@ -175,9 +175,19 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "unsupported PKCE method")
 		return
 	}
-	if !verifyPKCE(r.PostForm.Get("code_verifier"), ac.CodeChallenge) {
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "PKCE verification failed")
-		return
+	// Only run PKCE verification when a challenge was actually captured at
+	// /authorize. verifyPKCE("", "") is false, so calling it unconditionally
+	// would reject a legitimate no-PKCE code (require_pkce=false client that sent
+	// no challenge) with "PKCE verification failed". This does NOT weaken PKCE: a
+	// require_pkce=true client always has a stored challenge (HandleAuthorize
+	// rejects an empty code_challenge at mint time), so a missing challenge is
+	// only ever reachable for a require_pkce=false client that legitimately opted
+	// out — exactly the case that must exchange without a verifier.
+	if ac.CodeChallenge != "" {
+		if !verifyPKCE(r.PostForm.Get("code_verifier"), ac.CodeChallenge) {
+			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "PKCE verification failed")
+			return
+		}
 	}
 
 	acct, err := p.queries.GetAccountByID(ctx, ac.AccountID)

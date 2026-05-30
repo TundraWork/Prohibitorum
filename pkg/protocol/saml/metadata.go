@@ -58,11 +58,19 @@ func (i *IdP) idpMetadata(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
+	// Guard against a misconfigured (zero/negative) validity: a value <= 0 would
+	// set ValidUntil == now → metadata born stale. Fall back to a sane default
+	// (mirrors the sessionNotOnOrAfter d <= 0 fallback in assertion.go).
+	validity := i.cfg.SAML.MetadataValidity
+	if validity <= 0 {
+		validity = 24 * time.Hour
+	}
+
 	ed := crewjam.EntityDescriptor{
 		EntityID:      i.entityID(),
 		ID:            id,
-		ValidUntil:    time.Now().Add(i.cfg.SAML.MetadataValidity),
-		CacheDuration: i.cfg.SAML.MetadataValidity,
+		ValidUntil:    time.Now().Add(validity),
+		CacheDuration: validity,
 		IDPSSODescriptors: []crewjam.IDPSSODescriptor{
 			{
 				SSODescriptor: crewjam.SSODescriptor{

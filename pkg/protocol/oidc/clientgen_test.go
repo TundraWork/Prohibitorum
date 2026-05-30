@@ -90,6 +90,27 @@ func TestClientGenCustomScopesAndConsent(t *testing.T) {
 	}
 }
 
+// TestClientGenPostLogoutDefaultsEmpty verifies that when no post-logout
+// redirect URIs are supplied, PostLogoutRedirectUris is a non-nil empty slice
+// rather than nil. A nil slice marshals to SQL NULL via pgx and violates the
+// post_logout_redirect_uris NOT NULL constraint, crashing `oidc-client create`
+// for any client created without --post-logout-redirect-uri.
+func TestClientGenPostLogoutDefaultsEmpty(t *testing.T) {
+	params, _, err := BuildClientParams(ClientOptions{
+		ClientID:     "c",
+		RedirectURIs: []string{"https://rp/cb"},
+	})
+	if err != nil {
+		t.Fatalf("BuildClientParams: %v", err)
+	}
+	if params.PostLogoutRedirectUris == nil {
+		t.Fatal("PostLogoutRedirectUris is nil; want non-nil empty slice (NOT NULL constraint)")
+	}
+	if len(params.PostLogoutRedirectUris) != 0 {
+		t.Fatalf("PostLogoutRedirectUris = %v, want empty", params.PostLogoutRedirectUris)
+	}
+}
+
 func TestClientGenValidation(t *testing.T) {
 	if _, _, err := BuildClientParams(ClientOptions{RedirectURIs: []string{"https://rp/cb"}}); err == nil {
 		t.Fatal("expected error when ClientID is missing")

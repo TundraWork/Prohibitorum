@@ -308,12 +308,15 @@ func TestTokenOmittedMethodPKCERejected(t *testing.T) {
 	}
 }
 
-// TestTokenNoPKCEGuardNotTriggered verifies the plain/omitted-method guard is
-// gated on a PRESENT challenge: a no-PKCE code (no challenge, empty method) does
-// NOT trip the guard's "unsupported PKCE method" branch. It still flows to the
-// S256 verifyPKCE, which rejects an empty challenge with "PKCE verification
-// failed" — so the guard introduces no behavior change for the no-PKCE path.
-func TestTokenNoPKCEGuardNotTriggered(t *testing.T) {
+// TestTokenNoPKCEExchangeSucceeds verifies that a no-PKCE code (no stored
+// challenge, empty method — a require_pkce=false client that legitimately sent
+// no PKCE) exchanges SUCCESSFULLY. The verifyPKCE call is gated on a present
+// challenge, so a missing challenge skips PKCE verification entirely rather than
+// failing with "PKCE verification failed". This only affects require_pkce=false
+// clients: a require_pkce=true client always has a stored challenge (authorize
+// rejects an empty code_challenge at mint time), so PKCE is never bypassed for
+// clients that require it.
+func TestTokenNoPKCEExchangeSucceeds(t *testing.T) {
 	h := newTokenHarness(t)
 	ac := baseAuthCode()
 	ac.CodeChallenge = ""
@@ -325,21 +328,36 @@ func TestTokenNoPKCEGuardNotTriggered(t *testing.T) {
 	form.Del("code_verifier")
 	h.p.HandleToken(rec, tokenReq(form))
 
+	if rec.Code != http.StatusOK {
+		t.Fatalf("no-PKCE code must exchange successfully; got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var resp tokenResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode token response: %v", err)
+	}
+	if resp.AccessToken == "" || resp.IDToken == "" {
+		t.Fatal("no-PKCE exchange returned empty access/id token")
+	}
+}
+
+// TestTokenWithChallengeStillRequiresVerifier verifies the converse: a code that
+// DOES carry a stored challenge still requires a matching verifier. Omitting the
+// verifier (or sending a wrong one) must fail with invalid_grant — the gating
+// change must not let a challenge-bearing code through without proof.
+func TestTokenWithChallengeStillRequiresVerifier(t *testing.T) {
+	h := newTokenHarness(t)
+	code := h.mintTestCode(t, baseAuthCode()) // baseAuthCode carries an S256 challenge
+
+	rec := httptest.NewRecorder()
+	form := codeExchangeForm(code, "", testRedirect)
+	form.Del("code_verifier") // no verifier supplied
+	h.p.HandleToken(rec, tokenReq(form))
+
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d (%s)", rec.Code, rec.Body.String())
+		t.Fatalf("challenge-bearing code with no verifier must be rejected; got %d (%s)", rec.Code, rec.Body.String())
 	}
-	// The guard must NOT be what rejected it (that message is "unsupported PKCE
-	// method"); the verifyPKCE empty-challenge check is, proving the guard was
-	// gated past for the no-challenge case.
-	var body map[string]string
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decode error body %q: %v", rec.Body.String(), err)
-	}
-	if body["error"] != errCodeInvalidGrant {
-		t.Fatalf("want %s, got %s", errCodeInvalidGrant, body["error"])
-	}
-	if body["error_description"] == "unsupported PKCE method" {
-		t.Fatalf("no-PKCE code must not trip the plain/omitted guard; got %q", body["error_description"])
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
 	}
 }
 

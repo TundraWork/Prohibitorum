@@ -359,8 +359,8 @@ func TestSSOIsPassiveNoSessionNoPassiveResponse(t *testing.T) {
 	if resp.Assertion != nil {
 		t.Error("NoPassive Response must NOT carry an Assertion")
 	}
-	if resp.Status.StatusCode.Value != statusRequester {
-		t.Errorf("top StatusCode = %q, want %q", resp.Status.StatusCode.Value, statusRequester)
+	if resp.Status.StatusCode.Value != statusResponder {
+		t.Errorf("top StatusCode = %q, want %q", resp.Status.StatusCode.Value, statusResponder)
 	}
 	if resp.Status.StatusCode.StatusCode == nil || resp.Status.StatusCode.StatusCode.Value != statusNoPassive {
 		t.Errorf("sub StatusCode = %+v, want %q", resp.Status.StatusCode.StatusCode, statusNoPassive)
@@ -664,8 +664,8 @@ func TestSSOForceAuthnPassiveNoPassive(t *testing.T) {
 	if resp.Assertion != nil {
 		t.Error("ForceAuthn+IsPassive NoPassive Response must NOT carry an Assertion")
 	}
-	if resp.Status.StatusCode.Value != statusRequester {
-		t.Errorf("top StatusCode = %q, want %q", resp.Status.StatusCode.Value, statusRequester)
+	if resp.Status.StatusCode.Value != statusResponder {
+		t.Errorf("top StatusCode = %q, want %q", resp.Status.StatusCode.Value, statusResponder)
 	}
 	if resp.Status.StatusCode.StatusCode == nil || resp.Status.StatusCode.StatusCode.Value != statusNoPassive {
 		t.Errorf("sub StatusCode = %+v, want %q", resp.Status.StatusCode.StatusCode, statusNoPassive)

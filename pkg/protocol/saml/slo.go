@@ -498,6 +498,7 @@ func (i *IdP) sloParseError(w http.ResponseWriter, err error) {
 		errors.Is(err, ErrBadSignature),
 		errors.Is(err, errNoSignature),
 		errors.Is(err, errWeakSigAlg),
+		errors.Is(err, errBadSigAlg),
 		errors.Is(err, errSigRefMismatch),
 		errors.Is(err, errXMLDTD),
 		errors.Is(err, errDuplicateID),

@@ -42,11 +42,22 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 		scopes = []string{"openid", "profile"}
 	}
 
+	// Default post_logout_redirect_uris to an empty slice. A nil slice marshals
+	// to SQL NULL via pgx, which violates the post_logout_redirect_uris NOT NULL
+	// constraint (column DEFAULT '{}'); an explicit empty slice matches the
+	// default and lets `oidc-client create` succeed when the CLI flag is omitted.
+	// RedirectURIs is validated non-empty above and Scopes is defaulted, so only
+	// the post-logout list has the nil-on-omit hazard.
+	postLogout := opts.PostLogoutRedirectURIs
+	if postLogout == nil {
+		postLogout = []string{}
+	}
+
 	params := db.InsertOIDCClientParams{
 		ClientID:                    opts.ClientID,
 		DisplayName:                 opts.DisplayName,
 		RedirectUris:                opts.RedirectURIs,
-		PostLogoutRedirectUris:      opts.PostLogoutRedirectURIs,
+		PostLogoutRedirectUris:      postLogout,
 		AllowedScopes:               scopes,
 		RequirePkce:                 true,
 		AllowedCodeChallengeMethods: []string{"S256"},

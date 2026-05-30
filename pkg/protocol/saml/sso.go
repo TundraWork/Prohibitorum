@@ -33,6 +33,7 @@ const (
 // namespace drift.
 const (
 	statusRequester = "urn:oasis:names:tc:SAML:2.0:status:Requester"
+	statusResponder = "urn:oasis:names:tc:SAML:2.0:status:Responder"
 	statusNoPassive = "urn:oasis:names:tc:SAML:2.0:status:NoPassive"
 	// statusInvalidNameIDPolicy is the second-level status returned when an SP
 	// requests a concrete NameIDPolicy/@Format this IdP cannot produce for it
@@ -114,7 +115,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
-			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusRequester, statusNoPassive)
+			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusNoPassive)
 			if berr != nil {
 				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
@@ -181,7 +182,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
-			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusRequester, statusNoPassive)
+			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusNoPassive)
 			if berr != nil {
 				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
