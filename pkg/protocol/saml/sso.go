@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/beevik/etree"
@@ -140,6 +141,86 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// (6/7-prep) Recover the authentication-context snapshot for AuthnInstant.
+	// Pulled AHEAD of consumeAuthnRequestID (a deliberate ordering change,
+	// mirroring the OIDC authorize handler): authTime is needed to evaluate the
+	// ForceAuthn re-auth gate below, and that gate may 302-bounce the request to
+	// /login — which returns to this exact SSO URL and re-runs the handler. If we
+	// consumed the single-use replay key before the bounce, the legitimate return
+	// trip would trip replay. So consume only AFTER the gate is satisfied.
+	row, err := i.queries.GetSession(ctx, sess.Data.SessionID)
+	if err != nil {
+		// Uniform body (mirrors the OIDC authorize handler) so the HTTP response
+		// never leaks which backend step failed; the specific cause stays in err.
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	authTime := row.AuthTime.Time
+
+	// Forced re-auth (SAML ForceAuthn, spec D5). IsPassive wins when both set
+	// (OASIS Core): a ForceAuthn+IsPassive request cannot be satisfied
+	// interactively → NoPassive. Otherwise a pre-existing session may not
+	// satisfy ForceAuthn; bounce to login (single-use nonce in &reauth=). A stale
+	// session (authTime predating the demand) never satisfies it — ConsumeReauth
+	// compares authTime against the demand instant.
+	if req.ForceAuthn {
+		if req.IsPassive {
+			// Cannot re-authenticate interactively in passive mode. Issue a
+			// terminal NoPassive Response (no assertion). This consumes the
+			// AuthnRequest ID below only on the success path; a terminal answer
+			// here is also a single use, so consume it now.
+			if cerr := i.consumeAuthnRequestID(ctx, req.RequestID); cerr != nil {
+				if errors.Is(cerr, ErrReplayedRequest) {
+					http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
+				} else {
+					http.Error(w, "internal error", http.StatusInternalServerError)
+				}
+				return
+			}
+			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusRequester, statusNoPassive)
+			if berr != nil {
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
+			return
+		}
+		reauthNonce := r.URL.Query().Get("reauth")
+		satisfied := false
+		if reauthNonce != "" {
+			ok, cerr := authn.ConsumeReauth(ctx, i.kv, "saml:reauth:", reauthNonce, authTime)
+			if cerr != nil {
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			satisfied = ok
+		}
+		if !satisfied {
+			nonce, derr := authn.DemandReauth(ctx, i.kv, "saml:reauth:")
+			if derr != nil {
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			// Preserve the SP-signed raw query EXACTLY (the redirect-binding
+			// signature covers the raw SAMLRequest/RelayState/SigAlg octets;
+			// parseAuthnRequest reconstructs the signed octet string from
+			// r.URL.RawQuery on the return trip, so re-encoding here — e.g.
+			// normalizing %2f→%2F — would break verification). Only add/replace
+			// the reauth nonce (base64url, URL-safe → needs no escaping); drop any
+			// stale reauth so a re-bounce can't carry a spent one.
+			kept := make([]string, 0)
+			for _, p := range strings.Split(r.URL.RawQuery, "&") {
+				if p != "" && !strings.HasPrefix(p, "reauth=") {
+					kept = append(kept, p)
+				}
+			}
+			kept = append(kept, "reauth="+nonce)
+			ret := i.entityID() + r.URL.Path + "?" + strings.Join(kept, "&")
+			http.Redirect(w, r, i.entityID()+"/login?return_to="+url.QueryEscape(ret), http.StatusFound)
+			return
+		}
+	}
+
 	// (4-replay) Single-use replay enforcement on the terminal/issue path. A
 	// replayed ID is a client error → 400; any other KV error → 500.
 	if cerr := i.consumeAuthnRequestID(ctx, req.RequestID); cerr != nil {
@@ -150,16 +231,6 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
-	// (6/7-prep) Recover the authentication-context snapshot for AuthnInstant.
-	row, err := i.queries.GetSession(ctx, sess.Data.SessionID)
-	if err != nil {
-		// Uniform body (mirrors the OIDC authorize handler) so the HTTP response
-		// never leaks which backend step failed; the specific cause stays in err.
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	authTime := row.AuthTime.Time
 
 	// The session carries the live db.Account row.
 	account := *sess.Account

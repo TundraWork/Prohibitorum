@@ -484,6 +484,198 @@ func TestSSOHappyPath(t *testing.T) {
 	}
 }
 
+func TestSSOForceAuthnBouncesToLogin(t *testing.T) {
+	// ForceAuthn=true + a valid session but NO &reauth= nonce → 302 to /login
+	// with a freshly-minted reauth nonce, and NO assertion issued.
+	h := newSSOHarness(t, ssoSP())
+	sess := liveSession(testAccount())
+	req := h.request(t, "_sso-force", sess, func(o *authnReqOpts) {
+		o.forceAuthn = true
+		// Carry a RelayState so the inbound query has >1 SP-signed param; the
+		// bounce must preserve them byte-for-byte (redirect-binding signature).
+		o.hasRelay = true
+		o.relayState = "rs-force-123"
+	})
+	// Capture the EXACT raw SP-signed query the SP put on the wire (the redirect
+	// binding signs these raw octets); the bounce must echo them verbatim.
+	inboundRaw := req.URL.RawQuery
+	rec := httptest.NewRecorder()
+
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 login bounce; body=%s", rec.Code, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	wantPrefix := testIdPOrigin + "/login?return_to="
+	if !strings.HasPrefix(loc, wantPrefix) {
+		t.Fatalf("Location = %q, want prefix %q", loc, wantPrefix)
+	}
+	rt, err := url.QueryUnescape(strings.TrimPrefix(loc, wantPrefix))
+	if err != nil {
+		t.Fatalf("unescape return_to: %v", err)
+	}
+	if !strings.HasPrefix(rt, testSSOURL) {
+		t.Errorf("return_to = %q, want it to start with %q", rt, testSSOURL)
+	}
+	// The SP-signed params (SAMLRequest, RelayState) must survive the bounce
+	// BYTE-IDENTICAL — re-encoding them would break the SP's redirect-binding
+	// signature on the return trip. The return_to's raw query is the inbound raw
+	// query with the reauth nonce appended, so the inbound raw octets must appear
+	// verbatim as a prefix of the return_to query.
+	_, rtQuery, _ := strings.Cut(rt, "?")
+	if !strings.HasPrefix(rtQuery, inboundRaw+"&reauth=") {
+		t.Errorf("return_to query = %q, want it to start with the verbatim SP-signed query %q followed by &reauth=", rtQuery, inboundRaw)
+	}
+	// The return_to must carry a single-use reauth nonce so the return trip can
+	// satisfy the demand.
+	rtu, err := url.Parse(rt)
+	if err != nil {
+		t.Fatalf("parse return_to: %v", err)
+	}
+	if rtu.Query().Get("reauth") == "" {
+		t.Errorf("return_to %q missing &reauth= nonce", rt)
+	}
+	// No assertion was issued (no saml_session row, no auto-POST body).
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (no assertion issued on bounce)", len(rows))
+	}
+}
+
+func TestSSOForceAuthnStaleSessionRebounces(t *testing.T) {
+	// A session whose authTime PREDATES the demand must NOT satisfy ForceAuthn,
+	// even when a (matching) reauth nonce is presented. Expect a re-bounce.
+	h := newSSOHarness(t, ssoSP())
+	ctx := context.Background()
+
+	// Demand a re-auth NOW (the marker timestamp is "now").
+	nonce, err := authn.DemandReauth(ctx, h.idp.kv, "saml:reauth:")
+	if err != nil {
+		t.Fatalf("DemandReauth: %v", err)
+	}
+	// The session's authTime is BEFORE the demand → stale.
+	h.q.authTime = time.Now().Add(-time.Hour)
+
+	sess := liveSession(testAccount())
+	req := h.request(t, "_sso-force-stale", sess, func(o *authnReqOpts) {
+		o.forceAuthn = true
+	})
+	// Present the demanded nonce on the URL.
+	q := req.URL.Query()
+	q.Set("reauth", nonce)
+	req.URL.RawQuery = q.Encode()
+
+	rec := httptest.NewRecorder()
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 re-bounce (stale session); body=%s", rec.Code, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, testIdPOrigin+"/login?return_to=") {
+		t.Fatalf("Location = %q, want login re-bounce", loc)
+	}
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (stale session must not issue)", len(rows))
+	}
+}
+
+func TestSSOForceAuthnFreshSessionIssues(t *testing.T) {
+	// ForceAuthn=true + a fresh authTime (AFTER the demand) + a valid nonce →
+	// the demand is satisfied and the assertion is issued (auto-POST).
+	h := newSSOHarness(t, ssoSP())
+	ctx := context.Background()
+
+	nonce, err := authn.DemandReauth(ctx, h.idp.kv, "saml:reauth:")
+	if err != nil {
+		t.Fatalf("DemandReauth: %v", err)
+	}
+	// authTime post-dates the demand → fresh.
+	h.q.authTime = time.Now().Add(time.Second)
+
+	sess := liveSession(testAccount())
+	req := h.request(t, "_sso-force-fresh", sess, func(o *authnReqOpts) {
+		o.forceAuthn = true
+	})
+	q := req.URL.Query()
+	q.Set("reauth", nonce)
+	req.URL.RawQuery = q.Encode()
+
+	rec := httptest.NewRecorder()
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (assertion issued); body=%s", rec.Code, rec.Body.String())
+	}
+	action, respXML := decodeAutoPost(t, rec.Body.String())
+	if action != testACSURL {
+		t.Errorf("form action = %q, want ACS %q", action, testACSURL)
+	}
+	var resp crewjam.Response
+	if err := xml.Unmarshal(respXML, &resp); err != nil {
+		t.Fatalf("unmarshal Response: %v", err)
+	}
+	if resp.Assertion == nil {
+		t.Error("fresh-session ForceAuthn must issue an Assertion")
+	}
+	if rows := h.q.sessions(); len(rows) != 1 {
+		t.Errorf("saml_session rows = %d, want 1 (assertion issued)", len(rows))
+	}
+}
+
+func TestSSOForceAuthnPassiveNoPassive(t *testing.T) {
+	// ForceAuthn=true + IsPassive=true → IsPassive wins (OASIS): a terminal
+	// NoPassive Response, no assertion. Even with a valid session.
+	h := newSSOHarness(t, ssoSP())
+	sess := liveSession(testAccount())
+	req := h.request(t, "_sso-force-passive", sess, func(o *authnReqOpts) {
+		o.forceAuthn = true
+		o.isPassive = true
+	})
+	rec := httptest.NewRecorder()
+
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 NoPassive POST; body=%s", rec.Code, rec.Body.String())
+	}
+	action, respXML := decodeAutoPost(t, rec.Body.String())
+	if action != testACSURL {
+		t.Errorf("form action = %q, want ACS %q", action, testACSURL)
+	}
+
+	// Verify the NoPassive Response is signed and carries the right status.
+	doc, err := parseXMLSecure(respXML)
+	if err != nil {
+		t.Fatalf("parseXMLSecure(respXML): %v", err)
+	}
+	responseEl := doc.Root()
+	if responseEl == nil || responseEl.Tag != "Response" {
+		t.Fatalf("root element is not Response: %+v", responseEl)
+	}
+	if err := verifyElementSignature(responseEl, h.idpCert); err != nil {
+		t.Errorf("NoPassive Response signature did not verify: %v", err)
+	}
+
+	var resp crewjam.Response
+	if err := xml.Unmarshal(respXML, &resp); err != nil {
+		t.Fatalf("unmarshal NoPassive Response: %v", err)
+	}
+	if resp.Assertion != nil {
+		t.Error("ForceAuthn+IsPassive NoPassive Response must NOT carry an Assertion")
+	}
+	if resp.Status.StatusCode.Value != statusRequester {
+		t.Errorf("top StatusCode = %q, want %q", resp.Status.StatusCode.Value, statusRequester)
+	}
+	if resp.Status.StatusCode.StatusCode == nil || resp.Status.StatusCode.StatusCode.Value != statusNoPassive {
+		t.Errorf("sub StatusCode = %+v, want %q", resp.Status.StatusCode.StatusCode, statusNoPassive)
+	}
+	// No assertion was issued.
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (NoPassive issues no assertion)", len(rows))
+	}
+}
+
 func TestSSOReplayRejected(t *testing.T) {
 	h := newSSOHarness(t, ssoSP())
 	acct := testAccount()
