@@ -73,7 +73,7 @@
     {
       "id": 10,
       "subject": "Task 10: saml-sp CLI (metadata ingestion)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 5],
       "description": "**Goal:** BuildSPParams (metadata-XML ingest + overrides; --kind ghes applies GHES default attribute_map + require_signed_authn_request); saml-sp create (insert sp+acs+keys in tx, print summary) + list.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/clientgen_saml.go\",\"cmd/prohibitorum/main.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSPGen -v -count=1\",\"acceptanceCriteria\":[\"metadata ingest populates entity_id/ACS/certs\",\"--kind ghes default attribute_map + signed-authn\",\"manual flags; missing entity_id/ACS -> error; list prints SPs\"]}\n```"
     },
@@ -99,5 +99,5 @@
       "description": "**Goal:** STATUS v0.5 section (shipped/endpoints/smoke-covered+untested/notes D1-D9); AUDIT SAML rows smoke-verified + XSW/XXE/replay defenses recorded + deferred list; INTEGRATION SAML IdP section (saml-sp CLI, /saml/metadata, SP-side config).\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.5 smoke lists\",\"AUDIT SAML rows smoke-verified + defenses\",\"INTEGRATION SAML operator config\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T15:30:00Z"
+  "lastUpdated": "2026-05-30T16:00:00Z"
 }
