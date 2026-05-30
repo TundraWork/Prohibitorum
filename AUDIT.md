@@ -238,39 +238,82 @@ tiers are documented as known caveats in
 
 ## SAML IdP (SAML 2.0 Core / Bindings / Metadata / Profiles)
 
+**v0.5 shipped — SP-initiated SSO + IdP-local SLO + metadata + CLI,
+smoke-verified end-to-end (steps 88–99) against a live PG + dev server +
+in-process mock SP.** Handlers are `IdP` methods in `pkg/protocol/saml`;
+routes mounted at `pkg/server/server.go:320–324`.
+
 | Item | Status | Notes / source |
 |---|---|---|
-| SP registry with entity ID, NameID format, attribute map | ✅ schema | `saml_sp` |
-| Multi-endpoint ACS (Metadata §2.4.4) | ✅ schema | saml/C1; `saml_sp_acs` child table |
-| ACS URL validated by exact match → index lookup → is_default | ✅ design | saml/C1; spec §"SAML assertion construction" |
+| Implementation | ✅ smoke-verified | `pkg/protocol/saml` (`idp.go`/`metadata.go`/`authnreq.go`/`assertion.go`/`attributes.go`/`subjectid.go`/`sso.go`/`slo.go`/`xmlsec.go`); 3 routes mounted; smoke steps 88–99 |
+| IdP metadata endpoint (`/saml/metadata`) — `EntityDescriptor` with ≥1 signing `KeyDescriptor` | ✅ smoke-verified (step 89) | step 89 asserts the `EntityDescriptor` carries an `IDPSSODescriptor` with ≥1 signing `KeyDescriptor` |
+| `/saml/metadata` SSO/SLO bindings + `NameIDFormat` + `WantAuthnRequestsSigned` | ✅ unit (`metadata_test.go`) | emitted by `metadata.go`; covered by `metadata_test.go`; not asserted by the smoke |
+| SP-initiated SSO (`/saml/sso`) | ✅ smoke-verified (step 91) | HTTP-Redirect AuthnRequest in → signed Response auto-POSTed to ACS; SP-side `ParseXMLResponse` verifies it |
+| SP registry with entity ID, NameID format, attribute map | ✅ schema; ✅ smoke (step 90) | `saml_sp`; `saml-sp create --kind ghes` registers + ingests metadata |
+| Multi-endpoint ACS (Metadata §2.4.4) | ✅ schema | saml/C1; `saml_sp_acs` child table; CLI ingests all ACS from metadata |
+| ACS URL validated by exact match → index lookup → is_default | ✅ smoke-verified (step 97) | saml/C1; bad/unregistered ACS rejected (open-redirect guard) |
 | Multiple SP signing/encryption certs per SP (rotation-friendly) | ✅ schema | saml/C3; `saml_sp_key (sp_id, use)` |
-| `require_signed_authn_request` per SP | ✅ schema | saml/C3; `saml_sp.require_signed_authn_request` |
-| `want_assertions_signed` / `authn_requests_signed` mirror SP metadata | ✅ schema | saml/R4 |
-| Both `<Response>` and `<Assertion>` signed | ✅ design | saml/GHES-1; spec §"SAML assertion construction" |
-| `Destination` on `<Response>` = chosen ACS URL | ✅ design | saml/GHES-2 |
-| `<SubjectConfirmationData Recipient>` = chosen ACS URL | ✅ design | Profiles §4.1.4.2 |
-| `<Audience>` = `saml_sp.entity_id` verbatim | ✅ design | saml/C2 |
-| Stable pairwise NameID (Core §8.3.7) | ✅ schema | saml/C5; `saml_subject_id (account_id, sp_id)` |
-| Persistent 1.1-namespace NameID default | ✅ schema | saml/C4; `saml_sp.name_id_format` default `urn:oasis:names:tc:SAML:1.1:nameid-format:persistent` |
-| Attribute map as ordered JSONB array (multi + URI NameFormat) | ✅ schema | saml/R1; `saml_sp.attribute_map jsonb` |
-| Per-SP `session_lifetime` for `SessionNotOnOrAfter` | ✅ schema | saml/GHES-8 |
+| `require_signed_authn_request` per SP | ✅ smoke-verified (step 96) | saml/C3; unsigned AuthnRequest to a `require_signed` GHES SP → rejected |
+| `want_assertions_signed` / `authn_requests_signed` mirror SP metadata | ✅ schema | saml/R4; CLI honors `--want-assertions-signed` + metadata `AuthnRequestsSigned` |
+| Both `<Response>` and `<Assertion>` signed (RSA-SHA256, exclusive C14N) | ✅ smoke-verified (step 91); ✅ unit | saml/GHES-1, D4; smoke verifies the Response signature SP-side; sign-both + alg are unit-tested in `assertion_test.go` |
+| `Destination` on `<Response>` = chosen ACS URL | ✅ smoke-verified (step 91) | saml/GHES-2; asserted by SP-side parse |
+| `<SubjectConfirmationData Recipient>` = chosen ACS URL | ✅ smoke-verified (step 91) | Profiles §4.1.4.2; asserted by SP-side parse |
+| `<Audience>` = `saml_sp.entity_id` verbatim | ✅ smoke-verified (step 91) | saml/C2; asserted by SP-side parse |
+| `InResponseTo` echoed on Response + SubjectConfirmationData | ✅ smoke-verified (step 91) | the mock SP calls crewjam `ParseXMLResponse(respXML, []string{requestID}, …)` which validates `InResponseTo` against that request-ID list (steps 91/92); also asserted in `assertion_test.go` |
+| Stable pairwise NameID (Core §8.3.7) | ✅ smoke-verified (steps 92–93) | saml/C5, D6; identical NameID across 2 SSOs; DB assert 1 `saml_subject_id` row, stable `name_id` |
+| Persistent 1.1-namespace NameID default (Format URI) | ✅ schema; ✅ unit (`assertion_test.go`) | saml/C4; `saml_sp.name_id_format` default `urn:oasis:names:tc:SAML:1.1:nameid-format:persistent`; steps 91/92 verify the NameID *value* (presence + stability), not the Format URI — the format default is unit-tested |
+| Attribute map as ordered JSONB array (multi + URI NameFormat) | ✅ smoke-verified (step 91, USERNAME) | saml/R1; `attributes.go` projects the GHES map; smoke asserts the `USERNAME` attribute, full map unit-tested |
+| Per-SP `session_lifetime` for `SessionNotOnOrAfter` | ✅ schema; ✅ unit | saml/GHES-8; `SessionNotOnOrAfter` set from `session_lifetime` in `assertion.go` (unit-tested) |
 | Metadata freshness fields (`metadata_*`) | ✅ schema | saml/R3 |
-| `AuthnContextClassRef` per spec (`PasswordProtectedTransport` / `unspecified`) | ✅ design | saml/R5 |
-| IdP metadata publishes all live + grace-period signing keys | ✅ design | saml/R6; `configx.SAML.MetadataRotationGrace` |
-| GHES `sp_kind='ghes'` auto-sets `require_signed_authn_request=true` | ✅ design | saml/GHES-10 |
-| GHES `emails` / `public_keys` / `gpg_keys` multi-valued | ✅ schema | saml/GHES-6; `attribute_map.multi=true` |
-| GHES `public_keys` URI NameFormat support | ✅ schema | saml/GHES-7; `attribute_map.name_format='uri'` |
-| GHES `administrator` attribute literal | ✅ design | saml/GHES-5; documented in INTEGRATION.md |
-| XML signature wrapping (XSW) defense | ✅ planned | crewjam/saml post-canonicalization verification; v0.5 |
-| Assertion replay (NotBefore / NotOnOrAfter / InResponseTo / one-use Assertion ID) | ✅ planned | crewjam/saml enforces; v0.5 |
-| `saml_session` populated from day one for SLO forward-compat | ✅ schema | spec §"db/migrations/005_saml.sql" |
-| Single Logout (SLO) endpoint | ⚠️ deferred (v0.5) | `/saml/slo` stubbed |
-| SLO endpoint binding child table (`saml_sp_slo`) | ⚠️ deferred (v0.5) | saml/R2 |
-| IdP-initiated SSO | ⚠️ out of scope | saml/Optional |
+| `AuthnContextClassRef` (`PasswordProtectedTransport`) | ✅ unit | saml/R5; emitted in `assertion.go`, unit-tested; not separately asserted by the smoke |
+| IdP metadata publishes all non-retired (live + grace) signing keys | ✅ smoke-verified (step 89); ✅ unit | saml/R6, D7; smoke asserts ≥1 KeyDescriptor; the multi-key / grace-window selection is unit-tested in `keys_saml_test.go` |
+| Signing-key reuse: same `signing_key` signs OIDC + SAML | ✅ smoke-verified (step 91) | D7; step-70 OIDC key reused to sign the step-91 SAML Response |
+| Issuer/EntityID = `PublicOrigins[0]` | ✅ unit | D8; `saml.go` `entityID()`/`ssoURL()`/`sloURL()` derive from `PublicOrigins[0]` (unit-tested). Step 89 logs the EntityID but does not assert it equals `PublicOrigins[0]`; step 91's `Audience` check round-trips but is circular (the mock SP is built from the same metadata) |
+| GHES `sp_kind='ghes'` auto-sets `require_signed_authn_request=true` | ✅ smoke-verified (step 90→96) | saml/GHES-10; CLI forces it for `--kind ghes`; step 96 proves enforcement |
+| GHES `emails` / `public_keys` / `gpg_keys` multi-valued | ✅ schema; ✅ unit | saml/GHES-6; `attribute_map.multi=true`; multi projection unit-tested in `attributes_test.go` |
+| GHES `public_keys` URI NameFormat (`Name=urn:oid:1.2.840.113549.1.1.1`) | ✅ unit | saml/GHES-7; emitted with URI NameFormat + OID Name; unit-tested |
+| GHES `administrator` attribute literal | ✅ unit | saml/GHES-5; emitted only as `"true"` when `role=='admin'`/`attributes.administrator` truthy; unit-tested |
+| Single Logout (SLO) endpoint (`/saml/slo`) — IdP-local | ✅ smoke-verified (steps 94–95) | D2; signed LogoutRequest → signed LogoutResponse; bound session revoked, a different session survives |
+| SLO LogoutRequest signature verify + LogoutResponse sign | ✅ smoke-verified (step 95); ✅ unit | smoke drives the redirect-binding round trip; the LogoutResponse signature is verified in `slo_test.go` (unit), not re-verified by the smoke |
+| `saml_session` populated + consumed by SLO | ✅ smoke-verified (steps 93–95) | DB assert ≥2 `saml_session` rows (step 93); SLO revokes exactly the bound one (step 95) |
+| `credential_event` (factor `saml_sp`) for SSO + SLO | ✅ smoke-verified (step 99) | DB assert: `use` for SSO + `session_end` for SLO |
+| **XSW defense** (signature Reference ties to the processed element's own ID) | ✅ unit | saml/XSW; `xmlsec.go` `parseXMLSecure` + reference-tie check; XSW/duplicate-assertion negatives in `xmlsec_test.go` |
+| **XXE / DTD-off parsing + duplicate-ID rejection** | ✅ unit | `xmlsec.go` `parseXMLSecure`; DTD-bearing + duplicate-ID payloads rejected (unit) |
+| **SHA-1 rejected** (signature alg + digest) | ✅ unit | RSA-SHA256 only; SHA-1 sig/digest rejected on verify (unit) |
+| **SP-signature cert-pinning** (verify against `saml_sp_key`, never message-embedded cert) | ✅ design; ✅ unit | D5; verification cert-pinned to the registered `saml_sp_key`; unit-tested (sidesteps crewjam/saml#384) |
+| **AuthnRequest replay single-use** (KV) | ✅ smoke-verified (step 98) | replayed AuthnRequest ID → 2nd rejected; marker written on the issue path (so the login bounce can re-drive once) |
+| **DEFLATE decompression-bomb bound (10 MB)** | ✅ unit | `xmlsec.go` caps redirect-binding inflation at 10 MB |
+| **ACS open-redirect guard** (only DB-registered ACS locations) | ✅ smoke-verified (step 97) | bad/unregistered ACS → reject; unknown SP → direct error, never a redirect |
+| **AuthnRequest `ID` required (NCName)** | ✅ unit | missing/invalid request `ID` rejected (unit) |
+| `IsPassive` honored → `NoPassive` Response | ✅ unit | D3; no-session + `IsPassive` → `NoPassive` status Response; `sso_test.go`; smoke does not drive this path |
+| POST-binding AuthnRequest + POST-binding LogoutRequest | ✅ unit | parse/verify implemented + unit-tested; the smoke exercises the REDIRECT binding for both |
+| No-stored-SLO-endpoint fallback → 200 `text/xml` LogoutResponse | ✅ unit | `slo.go` fallback; unit-tested only |
+| No-session SSO → 302 to `Issuer+/login?return_to=<SSO URL>` | ✅ unit | the smoke holds a live session, so the login-bounce branch is unit-tested only |
+| SLO response location resolution | ✅ smoke (round-trip, step 95); ✅ unit (location resolution, `slo_test.go`) | saml/R2; the SP's `SingleLogoutService` location is parsed from the stored SP metadata at request time (`parseSPSLOEndpoint` — `ResponseLocation` else `Location`), NOT a `saml_sp_slo` child table (that table does not exist); request-supplied locations are never trusted. Step 95 asserts the SLO round-trip (302 + decodable Success `LogoutResponse` + session revoked) but does NOT assert the response `Location` host matches the SP's registered SLO location — the location-resolution logic is unit-tested in `slo_test.go` |
+| `ForceAuthn` (forced re-auth) | ⚠️ deferred (D3) | ignored — a valid session satisfies the request (parity with v0.4 OIDC `prompt=login`) |
+| IdP-initiated SSO | ⚠️ out of scope (D2) | saml/Optional; only SP-initiated implemented |
+| Front-channel multi-SP SLO propagation | ⚠️ out of scope (D2) | SLO is IdP-LOCAL only — revokes the bound Prohibitorum session, no propagation to the user's other SPs |
 | AttributeQuery / NameIDMapping / Artifact binding | ⚠️ out of scope | saml/Optional |
 | `default_relay_state` per SP (only if IdP-initiated lands) | ⚠️ out of scope | saml/Optional |
-| Encrypted assertions (`saml_sp_key.use='encryption'`) | ⚠️ deferred (v0.7+) | schema room ready |
-| Implementation | ⚠️ deferred (v0.5) | `pkg/protocol/saml` stubbed |
+| Encrypted assertions / NameID (`saml_sp_key.use='encryption'`) | ⚠️ deferred (v0.7+) | column exists but unused; GHES does not require it |
+
+**Accepted / deferred (tracked, not blocking v0.5):**
+- IdP-initiated SSO — out of scope; only SP-initiated SSO ships (D2).
+- Front-channel multi-SP SLO — out of scope; SLO is IdP-local
+  (revokes the bound session only, no propagation) (D2).
+- Assertion / NameID encryption — deferred (v0.7+); the
+  `saml_sp_key.use='encryption'` column is reserved but unused (GHES
+  doesn't require it) (D2).
+- `ForceAuthn` — ignored; a valid session satisfies the AuthnRequest
+  (D3, parity with v0.4 OIDC `prompt=login`).
+- No-stored-SLO-endpoint fallback returns a 200 `text/xml`
+  LogoutResponse (unit-tested only).
+
+**Post-implementation audit: pending** — the parallel 3-lens audit
+(crypto / XML-DSig + protocol-standards + race-logic) plus the deep
+second pass (integration / data-integrity / schema-drift) run AFTER this
+docs task per the plan's Verification gates, with special focus on
+XSW/XXE, signature verification, NameID stability, and replay.
 
 ## Cryptography
 

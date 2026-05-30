@@ -1039,22 +1039,201 @@ do not fire:
   `oidc`, but the shipped handlers and the smoke step-87 assertion use
   `oidc_client` — that is the value to query in `credential_event`.
 
-## v0.5 — SAML IdP
+## v0.5 — downstream SAML IdP (done)
 
-- `crewjam/saml` integration; `/saml/metadata` publishes the IdP
-  `<EntityDescriptor>` with all live + grace-period signing keys.
-- `/saml/sso` SP-initiated SSO (HTTP-Redirect + HTTP-POST AuthnRequest).
-- Signed `<Response>` + `<Assertion>`; `Destination` = ACS URL;
-  `<Audience>` = `entity_id`; `AuthnContextClassRef` per spec.
-- Stable pairwise NameID via `saml_subject_id` (32-byte random base64url
-  generated on first SSO).
-- Attribute mapping (ordered JSONB array): URI / basic / unspecified
-  NameFormat; multi-valued attributes (`emails`, `public_keys`,
-  `gpg_keys`).
-- `saml_session` populated from day one; `/saml/slo` (Single Logout)
-  consumes it.
-- GHES preset: `sp_kind='ghes'` auto-sets
-  `require_signed_authn_request=true` and uses persistent 1.1 NameID.
+Shipped Prohibitorum's downstream **SAML 2.0 Identity Provider** with a
+**GitHub Enterprise Server (GHES)-compatible profile**: SP-initiated SSO
+(HTTP-Redirect AuthnRequest in, HTTP-POST signed Response out), IdP-local
+Single Logout, IdP `EntityDescriptor` metadata, a metadata-ingesting
+`saml-sp` CLI, stable opaque persistent NameID, the GHES attribute
+profile, and a first-class XML-security hardening pass. Handlers are
+`IdP` methods in `pkg/protocol/saml`; the 3 routes are mounted root-level
+(NOT under `/api/prohibitorum`) in `pkg/server/server.go:320–324`. Smoke
+extended from 87 to **99 steps** (v0.5 block is steps 88–99), all green
+end-to-end against live Postgres + a fresh dev server + an in-process
+mock SP in `cmd/smoke`. The final smoke tally is `45/45 (v0.2) + 46–69
+(v0.3) + 70–87 (v0.4) + 88–99 (v0.5 SAML IdP)` with `SMOKE_EXIT=0`.
+
+> This section is the authoritative current state of the SAML surface.
+> The v0.1 skeleton text (and INTEGRATION's old "routes not mounted /
+> return 501" note) describes the pre-implementation state and is
+> superseded here.
+
+### What shipped
+
+- **`pkg/protocol/saml` IdP surface** — a hand-rolled, DB-backed IdP
+  (design D1: `crewjam/saml` + `goxmldsig` as crypto/marshaling
+  primitives only; we own the handlers and drive everything from the
+  `saml_sp*` schema + the existing session store, mirroring the v0.4
+  OIDC philosophy).
+  - **IdP metadata** (`metadata.go` `HandleMetadata`): renders the IdP
+    `EntityDescriptor` — every non-retired signing cert as a
+    `KeyDescriptor` (D7), both the SSO and SLO endpoints under
+    HTTP-Redirect + HTTP-POST bindings, the persistent-1.1 NameIDFormat,
+    and `WantAuthnRequestsSigned=true`.
+  - **SP-initiated SSO** (`sso.go` `HandleSSO`, `authnreq.go`,
+    `assertion.go`): parse + validate the inbound AuthnRequest
+    (HTTP-Redirect binding), session-gate via the existing
+    `LoadSession` middleware, then auto-POST a signed Response +
+    Assertion to the SP's ACS. Both `<Response>` and `<Assertion>` are
+    signed RSA-SHA256 / exclusive C14N (D4). `Destination` = chosen
+    ACS, `SubjectConfirmationData Recipient` = ACS, `AudienceRestriction`
+    = `saml_sp.entity_id` verbatim, `InResponseTo` echoed.
+  - **IdP-local SLO** (`slo.go` `HandleSLO`): validate a signed
+    LogoutRequest (HTTP-Redirect + POST parsing both supported), revoke
+    the Prohibitorum session bound to the `saml_session`, delete the
+    `saml_session` rows, return a signed LogoutResponse. This is
+    **IdP-LOCAL** logout (D2) — it revokes the bound Prohibitorum
+    session only; there is NO front-channel propagation to the user's
+    other SPs.
+  - **Stable opaque NameID** (`subjectid.go` `SubjectID`, D6): a 32-byte
+    `crypto/rand` base64url value per `(account, sp)`, generated on
+    first SSO into `saml_subject_id` and reused forever; default format
+    `urn:oasis:names:tc:SAML:1.1:nameid-format:persistent` (the 1.1
+    URI, for GHES re-link safety).
+  - **GHES attribute profile** (`attributes.go`): the ordered JSONB
+    `attribute_map` projects an `account` to `USERNAME` (basic),
+    `administrator` (basic; literal name, emitted only as `"true"` when
+    `role=='admin'` or `attributes.administrator` is truthy), `emails`
+    (basic, multi), `public_keys` (`Name="urn:oid:1.2.840.113549.1.1.1"`,
+    URI NameFormat, multi), and `gpg_keys` (basic, multi). Non-GHES SPs
+    default to a minimal map.
+  - **Hardened XML/DSig layer** (`xmlsec.go`): DTD/XXE-off parsing with
+    duplicate-ID rejection, SHA-256-only verify (SHA-1 rejected on both
+    signature and digest), XSW defense (the signature `Reference` must
+    resolve to the processed element's own ID), exclusive-C14N config,
+    and a 10 MB DEFLATE decompression bound.
+- **Signing-key reuse (D7):** the SAME active `signing_key` RSA key +
+  `x509_cert_pem` that signs OIDC ID/access tokens also signs SAML — no
+  new key infra; the smoke's step-70 key is reused at step 91.
+- **Issuer/EntityID (D8):** the IdP `entityID` = `configx`
+  `PublicOrigins[0]` (same source as the OIDC issuer); endpoint URLs are
+  `…/saml/metadata`, `…/saml/sso`, `…/saml/slo`.
+- **CLI (`cmd/prohibitorum`):**
+  - `saml-sp create` — registers an SP. `--metadata-file <path>` /
+    `--metadata-url <url>` ingests the SP's SAML metadata
+    (auto-populating `entity_id`, ACS endpoints, signing certs), or set
+    `--entity-id` + `--acs-url` manually. `--kind ghes` installs the
+    GHES attribute profile and FORCES `require_signed_authn_request=true`.
+    Explicit flags override metadata-parsed values.
+  - `saml-sp list` — lists registered SPs.
+
+### Endpoints introduced in v0.5
+
+All routes are root-mounted (not under the `/api/prohibitorum` prefix),
+because SAML SPs expect the IdP at the issuer root.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/saml/metadata` | IdP `EntityDescriptor` (all non-retired signing certs, SSO/SLO bindings, persistent-1.1 NameIDFormat, `WantAuthnRequestsSigned=true`) |
+| GET / POST | `/saml/sso` | SP-initiated SSO; parse+validate AuthnRequest, session-gate, signed Response+Assertion auto-POSTed to the SP ACS |
+| GET / POST | `/saml/slo` | IdP-local SLO; validate signed LogoutRequest, revoke the bound session, signed LogoutResponse |
+
+### Smoke-covered runtime paths
+
+`cmd/smoke` extends to **99 steps**; the v0.5 block is steps 88–99
+against a real Postgres + dev server + an in-process mock SP. Each entry
+references the smoke step counter in `cmd/smoke/main.go`:
+
+- **88** — re-login via WebAuthn (the smoke account's session was
+  revoked by `/oidc/logout` at v0.4 step 84; SAML needs a live session).
+- **89** — `GET /saml/metadata` → `EntityDescriptor` with ≥1 signing
+  `KeyDescriptor` (the reused `signing_key` cert).
+- **90** — `saml-sp create --kind ghes --metadata-file <mock SP
+  metadata>` registers the mock SP (ingests entity_id + ACS + cert;
+  forces `require_signed_authn_request`).
+- **91** — a signed (HTTP-Redirect-binding) AuthnRequest → `GET
+  /saml/sso` with a live session → the auto-POSTed `SAMLResponse` is
+  parsed back with **crewjam/saml's SP-side `ParseXMLResponse`** against
+  our `/saml/metadata`: signature, `Destination`, `Recipient`,
+  `Audience`, and the GHES `USERNAME` attribute all verify.
+- **92** — a SECOND SSO (same account + SP) yields an **identical
+  NameID** (stability).
+- **93** — DB assert: exactly 1 `saml_subject_id` row with a stable
+  `name_id`, and ≥2 `saml_session` rows (one per SSO).
+- **94** — drive a DEDICATED second session's SSO, then sign a
+  LogoutRequest targeting THAT session's `saml_session`.
+- **95** — the signed (HTTP-Redirect-binding) LogoutRequest → `/saml/slo`
+  → a signed LogoutResponse comes back via redirect, and the bound
+  session is revoked while the OTHER session survives.
+- **96** — negative: an UNSIGNED AuthnRequest to the
+  `require_signed_authn_request` GHES SP → rejected.
+- **97** — negative: an AuthnRequest with a bad / unregistered ACS URL →
+  rejected (open-redirect guard).
+- **98** — negative: a replayed AuthnRequest ID (same request twice) →
+  the 2nd is rejected (single-use replay cache).
+- **99** — DB assert: `credential_event` (factor `saml_sp`) covers
+  `use` for SSO and `session_end` for SLO.
+
+### Smoke-untested runtime paths (acknowledged)
+
+The following v0.5-touched paths are wired and unit-tested (per-file
+`*_test.go` in `pkg/protocol/saml`) but not exercised end-to-end by
+`cmd/smoke`. The smoke drives the HTTP-Redirect binding with a single
+GHES SP and an authenticated session, so these branches do not fire:
+
+- **IdP-initiated SSO** — NOT implemented (only SP-initiated; D2).
+- **Front-channel SLO propagation to OTHER SPs** — NOT implemented; SLO
+  is IdP-LOCAL only (revokes the one Prohibitorum session bound to the
+  `saml_session`; D2).
+- **Assertion / NameID encryption** — NOT implemented. The
+  `saml_sp_key.use='encryption'` column exists but is unused (GHES does
+  not require it; D2).
+- **`ForceAuthn`** — ignored (D3): an existing valid session satisfies
+  the AuthnRequest (parity with v0.4's OIDC `prompt=login` deferral).
+- **`IsPassive`** — IS honored: no-session + `IsPassive` → a SAML
+  `NoPassive` status Response. Unit-tested in `sso_test.go`; the smoke
+  does not drive the `IsPassive` path.
+- **POST-binding AuthnRequest + POST-binding LogoutRequest** —
+  parsing/verify implemented and unit-tested; the smoke exercises the
+  HTTP-Redirect binding for both SSO and SLO (the SLO LogoutResponse
+  returns via redirect). The no-stored-SLO-endpoint case falls back to a
+  200 `text/xml` LogoutResponse (unit-tested only).
+- **SLO LogoutResponse signature** — verified by `slo_test.go` (unit),
+  not re-verified by the smoke (the smoke asserts the redirect + the
+  session-revocation side effect).
+- **No-session SSO → 302 to `Issuer+/login?return_to=<SSO URL>`** — the
+  smoke holds a live session before hitting `/saml/sso`, so the
+  login-bounce branch is unit-tested only.
+
+### Notes
+
+- **Spec decisions D1–D9** (`docs/superpowers/specs/2026-05-30-v0.5-saml-idp-design.md`):
+  - **D1 — Hybrid library.** `crewjam/saml` + `goxmldsig` as primitives
+    only; hand-rolled, DB-backed handlers; `samlidp.Server` NOT adopted.
+  - **D2 — Scope.** SP-initiated SSO + IdP-local SLO + metadata + CLI.
+    Out (deferred): IdP-initiated SSO, front-channel multi-SP SLO,
+    assertion encryption, AttributeQuery / NameIDMapping / Artifact.
+  - **D3 — `ForceAuthn` deferred, `IsPassive` honored minimally.** A
+    valid session satisfies the request; `IsPassive` + no session → a
+    `NoPassive` error Response (not a login-UI bounce).
+  - **D4 — Sign BOTH `<Response>` and `<Assertion>`** (RSA-SHA256 +
+    exclusive C14N) — the safe superset of GHES's requirement.
+  - **D5 — Verify SP signatures against the registered cert only**
+    (`saml_sp_key`), never a cert embedded in the incoming message
+    (correct trust-anchoring + sidesteps crewjam/saml#384).
+  - **D6 — Stable opaque NameID** per `(account, sp)`: 32-byte
+    `crypto/rand` base64url generated on first SSO, reused forever;
+    default `…SAML:1.1:nameid-format:persistent`.
+  - **D7 — Reuse the OIDC signing-key infra.** The same active
+    `signing_key` RSA key + `x509_cert_pem` signs SAML; metadata
+    publishes every non-retired signing cert (incl. grace-period).
+  - **D8 — Issuer/EntityID = `PublicOrigins[0]`** (same source as the
+    OIDC issuer): metadata `…/saml/metadata`, SSO `…/saml/sso`, SLO
+    `…/saml/slo`.
+  - **D9 — Per-identity rate limiting** (NOT per-IP; consistent with
+    v0.3/v0.4): reuses `s.rateLimiter` with keys like
+    `saml:sso:sp:<entity_id>` / `saml:sso:acct:<id>`.
+- **Signing-key reuse.** The single active `signing_key` that signs OIDC
+  ID/access tokens ALSO signs SAML Responses + Assertions — there is no
+  separate SAML key. The smoke proves this by reusing the step-70 key at
+  step 91.
+- **AuthnRequest-replay deferral (implementation note).** The
+  single-use replay marker for the AuthnRequest `ID` is written on the
+  ISSUE path (after the session gate / before the Response is built),
+  not at first parse — so the no-session login bounce can re-drive the
+  same request after the user authenticates. Replayed IDs that reach the
+  issue path twice are rejected (smoke step 98).
 
 ## v0.6 — Frontend
 

@@ -15,12 +15,14 @@ For new integrations, **start with A**. The library ecosystem is huge,
 and you stop having to think about session theft, cookie domains, and
 revocation propagation.
 
-Pattern C is delivered in v0.5 — the schema (`saml_sp`, `saml_sp_acs`,
-`saml_sp_key`, `saml_subject_id`, `saml_session`) ships in v0.1, but
-the SAML routes (`/saml/sso`, `/saml/metadata`, `/saml/slo`) are not
-mounted in v0.1; handlers exist in `pkg/protocol/saml` and return 501
-once wired. Documented here so SP-side configuration can be planned in
-parallel.
+Pattern C is **shipped in v0.5** — the SAML IdP is live. The three
+routes (`GET /saml/metadata`, `GET|POST /saml/sso`, `GET|POST /saml/slo`)
+are mounted at the issuer root and the GHES-compatible profile is
+smoke-verified end-to-end (`cmd/smoke`, steps 88–99). The schema
+(`saml_sp`, `saml_sp_acs`, `saml_sp_key`, `saml_subject_id`,
+`saml_session`) landed in v0.1; the handlers in `pkg/protocol/saml` now
+implement SP-initiated SSO + IdP-local SLO + IdP metadata. (The v0.1
+"routes not mounted / return 501" note no longer applies.)
 
 ---
 
@@ -217,23 +219,94 @@ The RP's back-end caches the introspection response for a short interval
 
 ## Pattern C — SAML 2.0 SP
 
+> **Status (v0.5 — shipped, smoke-verified).** Prohibitorum is a live
+> SAML 2.0 IdP with a GHES-compatible profile. The flow below is
+> exercised end-to-end by `cmd/smoke` steps 88–99 against an in-process
+> mock SP. **Scope:** SP-initiated SSO + IdP-local SLO + metadata + the
+> `saml-sp` CLI. **Not in v0.5:** IdP-initiated SSO, front-channel
+> (multi-SP) SLO, and assertion encryption.
+
 For SPs that only speak SAML — GHES is the canonical case. Prohibitorum
 acts as the SAML IdP; the SP redirects the user to `/saml/sso`,
-Prohibitorum authenticates the user, then POSTs a signed SAML Response
-to the SP's ACS URL.
+Prohibitorum authenticates the user (reusing the existing session if one
+exists), then auto-POSTs a signed SAML Response to the SP's ACS URL.
 
-### One-time setup
+### IdP coordinates the SP needs
 
-Register the SP via SQL inserts. The shape covers:
+All URLs derive from `configx` `PublicOrigins[0]` (call it
+`$ISSUER` — the same origin as the OIDC issuer):
 
-- `saml_sp` — the SP's metadata: entity ID, NameID format, attribute
-  map, signing requirements.
-- `saml_sp_acs` — one or more AssertionConsumerService endpoints (a
-  child table because SAML Metadata §2.4.4 permits >1).
-- `saml_sp_key` — the SP's signing certificate(s), used to verify
-  signed AuthnRequests.
+| Field | Value |
+|---|---|
+| IdP `entityID` | `$ISSUER` (= `PublicOrigins[0]`) |
+| IdP metadata | `$ISSUER/saml/metadata` |
+| SSO URL (SingleSignOnService) | `$ISSUER/saml/sso` (HTTP-Redirect + HTTP-POST) |
+| SLO URL (SingleLogoutService) | `$ISSUER/saml/slo` (HTTP-Redirect + HTTP-POST) |
+| NameID format | `urn:oasis:names:tc:SAML:1.1:nameid-format:persistent` (stable, opaque, per `(account, sp)`) |
+| Signing | `<Response>` AND `<Assertion>` both signed, RSA-SHA256; the IdP's signing cert is published in `/saml/metadata` |
+| `WantAuthnRequestsSigned` | `true` |
 
-### GHES example
+Point the SP at `$ISSUER/saml/metadata` to import all of the above in
+one shot.
+
+### One-time setup — `saml-sp create` CLI (recommended)
+
+Register the SP with the `prohibitorum saml-sp` CLI. The preferred path
+ingests the SP's own SAML metadata, which auto-populates the
+`entity_id`, the AssertionConsumerService endpoint(s), and the signing
+certificate(s) used to verify the SP's signed AuthnRequests:
+
+```bash
+# Ingest the SP's metadata from a file …
+prohibitorum saml-sp create \
+  --kind ghes \
+  --display-name 'GitHub Enterprise (prod)' \
+  --metadata-file ./ghes-sp-metadata.xml
+
+# … or fetch it from the SP's metadata URL:
+prohibitorum saml-sp create \
+  --kind ghes \
+  --display-name 'GitHub Enterprise (prod)' \
+  --metadata-url https://ghes.example.com/saml/metadata
+```
+
+`--kind ghes` installs the GHES attribute profile (USERNAME,
+administrator, emails, public_keys, gpg_keys — see below) and **forces
+`require_signed_authn_request=true`**. Use `--kind generic` (the
+default) for a minimal NameID-only map.
+
+If the SP has no metadata document, register it manually with
+`--entity-id` and at least one `--acs-url`:
+
+```bash
+prohibitorum saml-sp create \
+  --kind ghes \
+  --entity-id 'https://ghes.example.com' \
+  --acs-url 'https://ghes.example.com/saml/consume' \
+  --acs-binding 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
+```
+
+Other flags: `--name-id-format` (default SAML 1.1 persistent),
+`--want-assertions-signed` (default true),
+`--require-signed-authn-request` (auto-true for `--kind ghes`). Explicit
+flags override values parsed from metadata. List registered SPs with
+`prohibitorum saml-sp list`.
+
+> **Verifying the SP's signed AuthnRequests.** Prohibitorum verifies SP
+> signatures **only** against the cert(s) in `saml_sp_key` (ingested
+> from the SP's metadata or loaded manually) — never a cert embedded in
+> the incoming message. Load the SP's signing cert (via `--metadata-*`
+> or the raw-SQL `saml_sp_key` insert below) or signed AuthnRequests
+> will be rejected.
+
+### One-time setup — raw SQL (low-level reference)
+
+The CLI above is the real path. The raw inserts are equivalent and
+useful for advanced cases or when scripting against the DB directly. The
+shape covers `saml_sp` (entity ID, NameID format, attribute map, signing
+requirements), `saml_sp_acs` (one or more AssertionConsumerService
+endpoints — a child table because SAML Metadata §2.4.4 permits >1), and
+`saml_sp_key` (the SP's signing certificate(s)).
 
 ```sql
 INSERT INTO saml_sp (entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, require_signed_authn_request)
@@ -242,14 +315,20 @@ VALUES (
   'GitHub Enterprise (prod)',
   'ghes',
   'urn:oasis:names:tc:SAML:1.1:nameid-format:persistent',
-  'sub',
+  'sub',  -- NOTE: `name_id_claim` is stored but the v0.5 IdP does NOT read it to compute the NameID.
+          -- The NameID is a stable opaque *persistent* identifier generated per (account, sp) and
+          -- kept in `saml_subject_id` — it is not derived from this column.
+  -- This is exactly the ordered JSONB array that `saml-sp create --kind ghes`
+  -- installs (see pkg/protocol/saml/attributes.go). Field shape:
+  -- {name, name_format, source, multi}; source names an `account` column or an
+  -- `account.attributes` JSONB key. NameFormat URIs: basic =
+  -- urn:oasis:names:tc:SAML:2.0:attrname-format:basic, uri = …attrname-format:uri.
   '[
-    {"local":"username","name":"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name","friendly_name":"username","name_format":"basic","multi":false},
-    {"local":"email","name":"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress","friendly_name":"emails","name_format":"basic","multi":true},
-    {"local":"full_name","name":"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/displayname","friendly_name":"full_name","name_format":"basic","multi":false},
-    {"local":"is_admin","name":"administrator","friendly_name":"administrator","name_format":"basic","multi":false},
-    {"local":"public_keys","name":"urn:oid:1.2.840.113549.1.1.1","friendly_name":"public_keys","name_format":"uri","multi":true},
-    {"local":"gpg_keys","name":"gpg_keys","friendly_name":"gpg_keys","name_format":"basic","multi":true}
+    {"name":"USERNAME","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:basic","source":"username","multi":false},
+    {"name":"administrator","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:basic","source":"attributes.administrator","multi":false},
+    {"name":"emails","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:basic","source":"attributes.emails","multi":true},
+    {"name":"urn:oid:1.2.840.113549.1.1.1","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:uri","source":"attributes.public_keys","multi":true},
+    {"name":"gpg_keys","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:basic","source":"attributes.gpg_keys","multi":true}
   ]'::jsonb,
   true
 );
@@ -283,13 +362,19 @@ the SAML response inspector:
 4. **Sign both `<Response>` and `<Assertion>`.** GHES only validates
    the `Destination` attribute when the `<Response>` is signed.
    Prohibitorum always signs both.
-5. **Attribute names in URI / basic NameFormat per GHES docs.** The
-   example above uses the `schemas.xmlsoap.org/...` `name` values
-   that GHES expects. `emails`, `public_keys`, and `gpg_keys` are
-   multi-valued — set `multi: true`. `public_keys` uses URI
-   NameFormat with `Name="urn:oid:1.2.840.113549.1.1.1"`.
-6. **`administrator` attribute name is fixed.** GHES does not allow
-   renaming it; emit literally as `administrator` (basic NameFormat).
+5. **GHES attribute profile.** `--kind ghes` installs the ordered map
+   shown in the SQL above: `USERNAME` (basic), `administrator` (basic),
+   `emails` (basic, multi), `public_keys`
+   (`Name="urn:oid:1.2.840.113549.1.1.1"`, URI NameFormat, multi), and
+   `gpg_keys` (basic, multi). `emails`/`public_keys`/`gpg_keys` are
+   multi-valued (`multi:true` → one `<AttributeValue>` per array
+   element). Sources are `account` columns (`username`) or
+   `account.attributes` JSONB keys.
+6. **`administrator` attribute is fixed.** GHES does not allow renaming
+   it; it is emitted literally as `administrator` (basic NameFormat),
+   and only as the single value `"true"` when the account's
+   `role=='admin'` or `attributes.administrator` is truthy (omitted
+   entirely otherwise).
 7. **SessionNotOnOrAfter is honored** by GHES. Set
    `saml_sp.session_lifetime` for a per-SP override; NULL = IdP
    default from `configx.SAML.SessionLifetime`.
@@ -306,11 +391,37 @@ call-outs" for the full audit-traced list.
 GET /saml/metadata
 ```
 
-returns the IdP `<EntityDescriptor>` XML with one
-`<IDPSSODescriptor>` element per active+grace-period signing key. SPs
-import it once; Prohibitorum republishes during key rotation to
-include both old and new keys (see `configx.SAML.MetadataRotationGrace`,
-default 7d).
+returns the IdP `<EntityDescriptor>` XML: an `<IDPSSODescriptor>` with a
+`<KeyDescriptor use="signing">` for every non-retired signing cert, the
+`SingleSignOnService` and `SingleLogoutService` endpoints (HTTP-Redirect
++ HTTP-POST bindings), the persistent-1.1 `NameIDFormat`, and
+`WantAuthnRequestsSigned="true"`. SPs import it once; during key rotation
+Prohibitorum keeps publishing the old cert until its grace window
+elapses, so SPs that re-fetch see both keys (see
+`configx.SAML.MetadataRotationGrace`, default 7d).
+
+> Smoke step 89 asserts the metadata carries ≥1 signing
+> `KeyDescriptor`; the multi-key / grace-window selection is
+> unit-tested (`keys_saml_test.go`).
+
+### Single Logout (SLO)
+
+The SP sends a signed `LogoutRequest` to `$ISSUER/saml/slo`
+(HTTP-Redirect or HTTP-POST). Prohibitorum verifies the signature
+against the SP's `saml_sp_key` cert, resolves the `NameID` to the
+`saml_session` bound at SSO time, revokes **that** Prohibitorum session,
+and returns a signed `LogoutResponse` to the SP's
+`SingleLogoutService` response location (parsed from the SP's stored
+metadata; request-supplied locations are never trusted). If the SP was
+registered without metadata (so no SLO endpoint is known), the IdP
+returns a 200 `text/xml` `LogoutResponse` directly.
+
+This is **IdP-local** logout: it terminates the one Prohibitorum session
+tied to that `saml_session`. It does NOT propagate a front-channel
+logout to the user's other SPs — coordinated multi-SP sign-out is a
+later version. Smoke steps 94–95 verify the round trip (signed
+LogoutRequest → signed LogoutResponse, the bound session is revoked
+while a different session survives).
 
 ---
 
