@@ -29,7 +29,7 @@
     {
       "id": 4,
       "subject": "Task 4: SAML ForceAuthn re-auth (sso.go)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** HandleSSO honors ForceAuthn via the re-auth gate; ForceAuthn+IsPassive->NoPassive (IsPassive wins); stale session cannot satisfy ForceAuthn.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/sso_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSSO -v -count=1\",\"acceptanceCriteria\":[\"ForceAuthn+session->login bounce w/ reauth; stale->re-bounce; fresh->issues\",\"ForceAuthn+IsPassive->NoPassive Response\"]}\n```"
     },
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T04:00:00Z"
+  "lastUpdated": "2026-05-31T04:30:00Z"
 }
