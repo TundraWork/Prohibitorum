@@ -114,6 +114,71 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// (5a) Forced re-authentication (prompt=login / max_age). OIDC Core
+	// §3.1.2.1. A pre-existing session may NOT satisfy a re-auth demand — the
+	// user must authenticate again, producing an auth_time that post-dates the
+	// demand (tracked via a single-use KV marker carried in &reauth=<nonce>).
+	prompts := strings.Fields(prompt)
+	wantLogin := slices.Contains(prompts, "login")
+	wantNone := slices.Contains(prompts, "none")
+	if wantLogin && wantNone {
+		redirectError(w, r, redirectURI, errCodeInvalidRequest, "prompt cannot combine login and none", state, p.cfg.OIDC.Issuer)
+		return
+	}
+
+	// (5a) Snapshot the session NOW — moved ahead of the consent check and the
+	// rate limit (steps 5/6) so auth_time is available for the re-auth demand
+	// evaluation below. A deliberate ordering change.
+	row, err := p.queries.GetSession(r.Context(), sess.Data.SessionID)
+	if err != nil {
+		redirectError(w, r, redirectURI, errCodeServerError, "could not load session", state, p.cfg.OIDC.Issuer)
+		return
+	}
+
+	demand := wantLogin
+	if maxAgeStr := q.Get("max_age"); maxAgeStr != "" {
+		maxAge, perr := strconv.Atoi(maxAgeStr)
+		if perr != nil || maxAge < 0 {
+			redirectError(w, r, redirectURI, errCodeInvalidRequest, "invalid max_age", state, p.cfg.OIDC.Issuer)
+			return
+		}
+		if time.Since(row.AuthTime.Time) > time.Duration(maxAge)*time.Second {
+			demand = true
+		}
+	}
+	if demand {
+		reauthNonce := q.Get("reauth")
+		satisfied := false
+		if reauthNonce != "" {
+			ok, cerr := authn.ConsumeReauth(r.Context(), p.kv, "oidc:reauth:", reauthNonce, row.AuthTime.Time)
+			if cerr != nil {
+				redirectError(w, r, redirectURI, errCodeServerError, "reauth check failed", state, p.cfg.OIDC.Issuer)
+				return
+			}
+			satisfied = ok
+		}
+		if !satisfied {
+			if wantNone {
+				redirectError(w, r, redirectURI, errCodeLoginRequired, "re-authentication required", state, p.cfg.OIDC.Issuer)
+				return
+			}
+			renonce, derr := authn.DemandReauth(r.Context(), p.kv, "oidc:reauth:")
+			if derr != nil {
+				redirectError(w, r, redirectURI, errCodeServerError, "could not start re-auth", state, p.cfg.OIDC.Issuer)
+				return
+			}
+			// Rebuild from Path+Query (not RequestURI) so rq.Set replaces any
+			// existing reauth nonce — a re-bounce must not preserve a stale one.
+			ret := p.cfg.OIDC.Issuer + r.URL.Path
+			rq := r.URL.Query()
+			rq.Set("reauth", renonce)
+			ret += "?" + rq.Encode()
+			loginURL := p.cfg.OIDC.Issuer + "/login?return_to=" + url.QueryEscape(ret)
+			http.Redirect(w, r, loginURL, http.StatusFound)
+			return
+		}
+	}
+
 	// (5) Consent is not yet implemented (v0.6). A client that requires it
 	// cannot complete the flow yet.
 	if client.RequireConsent {
@@ -132,14 +197,8 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// (7) Recover the authentication context snapshot for this session.
-	row, err := p.queries.GetSession(r.Context(), sess.Data.SessionID)
-	if err != nil {
-		redirectError(w, r, redirectURI, errCodeServerError, "could not load session", state, p.cfg.OIDC.Issuer)
-		return
-	}
-
-	// (8) Build the authorization-code state.
+	// (8) Build the authorization-code state. row (the GetSession snapshot) was
+	// fetched in step (5a) and carries the authentication context.
 	ac := authCode{
 		ClientID:            clientID,
 		AccountID:           sess.Data.AccountID,

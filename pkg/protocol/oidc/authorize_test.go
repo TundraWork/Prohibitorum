@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -442,6 +443,215 @@ func TestAuthorize_RateLimited_429(t *testing.T) {
 	}
 	if !saw429 {
 		t.Fatalf("expected a 429 within %d requests, never saw one", authorizeRateMax+1)
+	}
+}
+
+// sessionWithAuthTime returns the baseline session with a specific auth_time.
+func sessionWithAuthTime(at time.Time) db.Session {
+	s := validSession()
+	s.AuthTime = pgtype.Timestamptz{Time: at, Valid: true}
+	return s
+}
+
+// (a) prompt=login, valid session, NO reauth param → 302 bounce to /login with
+// a reauth nonce; must NOT mint a code.
+func TestAuthorize_PromptLogin_BouncesToLogin(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: sessionWithAuthTime(time.Now())}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Set("prompt", "login")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d", rec.Code)
+	}
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, testIssuer+"/login?return_to=") {
+		t.Fatalf("prompt=login must bounce to the login page, got %q", loc)
+	}
+	u, _ := url.Parse(loc)
+	rt := u.Query().Get("return_to")
+	rtu, err := url.Parse(rt)
+	if err != nil {
+		t.Fatalf("parse return_to %q: %v", rt, err)
+	}
+	if got := rtu.Query().Get("reauth"); got == "" {
+		t.Fatalf("return_to must carry a reauth nonce; return_to=%q", rt)
+	}
+	// A bounce must not have minted a code in the RP query.
+	if got := u.Query().Get("code"); got != "" {
+		t.Fatalf("bounce must not issue a code, got code=%q", got)
+	}
+}
+
+// (b) prompt=login with a STALE session (auth_time BEFORE the demand marker),
+// returning WITH that nonce → must re-bounce (stale session does not satisfy).
+func TestAuthorize_PromptLogin_StaleSessionRebounces(t *testing.T) {
+	p := newProvider(&fakeAuthzQueries{client: validClient()}, &recordingAudit{})
+
+	// Demand a marker NOW; the session's auth_time predates it → stale.
+	nonce, err := authn.DemandReauth(context.Background(), p.kv, "oidc:reauth:")
+	if err != nil {
+		t.Fatalf("DemandReauth: %v", err)
+	}
+	staleAuth := time.Now().Add(-time.Hour)
+	p.queries = &fakeAuthzQueries{client: validClient(), session: sessionWithAuthTime(staleAuth)}
+
+	v := baseParams()
+	v.Set("prompt", "login")
+	v.Set("reauth", nonce)
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d", rec.Code)
+	}
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, testIssuer+"/login?return_to=") {
+		t.Fatalf("stale session must re-bounce to login, got %q", loc)
+	}
+	u, _ := url.Parse(loc)
+	if got := u.Query().Get("code"); got != "" {
+		t.Fatalf("stale session must not issue a code, got code=%q", got)
+	}
+}
+
+// (c) prompt=login with a FRESH session (auth_time AFTER the demand marker) and
+// the valid nonce → issues a code (302 to the RP).
+func TestAuthorize_PromptLogin_FreshSessionIssuesCode(t *testing.T) {
+	p := newProvider(&fakeAuthzQueries{client: validClient()}, &recordingAudit{})
+
+	nonce, err := authn.DemandReauth(context.Background(), p.kv, "oidc:reauth:")
+	if err != nil {
+		t.Fatalf("DemandReauth: %v", err)
+	}
+	// Fresh: auth_time strictly after the marker just written.
+	freshAuth := time.Now().Add(time.Second)
+	p.queries = &fakeAuthzQueries{client: validClient(), session: sessionWithAuthTime(freshAuth)}
+
+	v := baseParams()
+	v.Set("prompt", "login")
+	v.Set("reauth", nonce)
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	gotQ := redirectQuery(t, rec)
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "https://rp.example.com/callback?") {
+		t.Fatalf("fresh session must issue a code to the RP, got %q", loc)
+	}
+	if gotQ.Get("code") == "" {
+		t.Fatal("fresh session + valid nonce must issue a code")
+	}
+	if gotQ.Get("error") != "" {
+		t.Fatalf("must not carry an error: %q", gotQ.Get("error"))
+	}
+}
+
+// (d) max_age=0 → always demand → bounce (no reauth nonce present).
+func TestAuthorize_MaxAgeZero_AlwaysBounces(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: sessionWithAuthTime(time.Now())}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Set("max_age", "0")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d", rec.Code)
+	}
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, testIssuer+"/login?return_to=") {
+		t.Fatalf("max_age=0 must always bounce to login, got %q", loc)
+	}
+}
+
+// (e) max_age=3600 with a ~10-minute-old session → no bounce; issues a code.
+func TestAuthorize_MaxAgeFresh_IssuesCode(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: sessionWithAuthTime(time.Now().Add(-10 * time.Minute))}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Set("max_age", "3600")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	gotQ := redirectQuery(t, rec)
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "https://rp.example.com/callback?") {
+		t.Fatalf("max_age=3600 with a fresh session must issue a code, got %q", loc)
+	}
+	if gotQ.Get("code") == "" {
+		t.Fatal("expected a code")
+	}
+}
+
+// (f) prompt=none + a demand (max_age=0) → login_required to the RP.
+func TestAuthorize_PromptNone_Demand_LoginRequired(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: sessionWithAuthTime(time.Now())}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Set("prompt", "none")
+	v.Set("max_age", "0")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	gotQ := redirectQuery(t, rec)
+	if got := gotQ.Get("error"); got != errCodeLoginRequired {
+		t.Fatalf("want error=%s, got %q", errCodeLoginRequired, got)
+	}
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "https://rp.example.com/callback") {
+		t.Fatalf("login_required must go to the RP, got %q", loc)
+	}
+}
+
+// (g) prompt=login none (both) → invalid_request redirected back to the RP.
+// This guard fires AFTER redirect_uri validation, so it is on the redirectError
+// side of the open-redirect boundary, not a direct 400.
+func TestAuthorize_PromptLoginAndNone_RedirectInvalidRequest(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: validSession()}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Set("prompt", "login none")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	gotQ := redirectQuery(t, rec)
+	if got := gotQ.Get("error"); got != errCodeInvalidRequest {
+		t.Fatalf("want error=%s, got %q", errCodeInvalidRequest, got)
+	}
+	if got := gotQ.Get("state"); got != "xyz-state" {
+		t.Fatalf("want state=xyz-state echoed, got %q", got)
+	}
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "https://rp.example.com/callback") {
+		t.Fatalf("prompt=login+none must redirect to the RP, got %q", loc)
+	}
+}
+
+// invalid max_age (non-int) → redirect error invalid_request to the RP.
+func TestAuthorize_InvalidMaxAge_RedirectInvalidRequest(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: validSession()}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Set("max_age", "abc")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	gotQ := redirectQuery(t, rec)
+	if got := gotQ.Get("error"); got != errCodeInvalidRequest {
+		t.Fatalf("want error=%s, got %q", errCodeInvalidRequest, got)
+	}
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "https://rp.example.com/callback") {
+		t.Fatalf("invalid max_age must redirect to the RP, got %q", loc)
 	}
 }
 
