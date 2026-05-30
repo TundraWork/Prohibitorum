@@ -59,7 +59,7 @@
     {
       "id": 8,
       "subject": "Task 8: /saml/sso handler (sso.go)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 6, 7],
       "description": "**Goal:** HandleSSO: parse+validate -> session gate (no session->login 302; IsPassive->NoPassive; disabled sentinel->no-session) -> rate-limit -> subjectID -> projectAttributes -> buildResponse -> InsertSAMLSession -> audit -> auto-POST form to ACS.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/sso.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run TestSSO -v -count=1\",\"acceptanceCriteria\":[\"no session->login 302; IsPassive->NoPassive; disabled-sentinel no-panic\",\"happy: auto-POST SAMLResponse verifies + NameID stable\",\"saml_session inserted + audit\"]}\n```"
     },
@@ -99,5 +99,5 @@
       "description": "**Goal:** STATUS v0.5 section (shipped/endpoints/smoke-covered+untested/notes D1-D9); AUDIT SAML rows smoke-verified + XSW/XXE/replay defenses recorded + deferred list; INTEGRATION SAML IdP section (saml-sp CLI, /saml/metadata, SP-side config).\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.5 smoke lists\",\"AUDIT SAML rows smoke-verified + defenses\",\"INTEGRATION SAML operator config\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-30T14:30:00Z"
+  "lastUpdated": "2026-05-30T15:00:00Z"
 }
