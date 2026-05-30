@@ -62,13 +62,14 @@ func (i *IdP) idpMetadata(ctx context.Context) ([]byte, error) {
 					},
 				},
 				WantAuthnRequestsSigned: &wantSigned,
-				// SSO-in is HTTP-Redirect only: HandleSSO decodes the
-				// AuthnRequest from the query string. We do NOT advertise an
-				// HTTP-POST SSO binding we cannot serve (POST-binding
-				// AuthnRequest intake is unimplemented). SLO accepts both
-				// bindings, so the SingleLogoutService list keeps both above.
+				// SSO-in accepts BOTH the HTTP-Redirect (GET) and HTTP-POST
+				// bindings: parseAuthnRequest dispatches on the request method,
+				// decoding the AuthnRequest from the query string (redirect) or
+				// the POST form (enveloped-signature). SLO advertises both
+				// bindings above as well.
 				SingleSignOnServices: []crewjam.Endpoint{
 					{Binding: crewjam.HTTPRedirectBinding, Location: i.ssoURL()},
+					{Binding: crewjam.HTTPPostBinding, Location: i.ssoURL()},
 				},
 			},
 		},

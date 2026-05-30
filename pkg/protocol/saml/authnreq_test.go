@@ -17,11 +17,13 @@ import (
 	"errors"
 	"math/big"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/beevik/etree"
 	crewjam "github.com/crewjam/saml"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -229,6 +231,74 @@ func buildAuthnRedirect(t *testing.T, o authnReqOpts) *http.Request {
 func sha1Sum(b []byte) []byte {
 	h := sha1.Sum(b)
 	return h[:]
+}
+
+// buildAuthnPost builds a POST-binding AuthnRequest with an ENVELOPED signature
+// over the AuthnRequest element (signed with signKey/signCertDER), then
+// base64.StdEncoding (NO deflate) as the SAMLRequest form value. It mirrors
+// buildLogoutPost in slo_test.go. When o.sign is false the element is serialized
+// unsigned.
+func buildAuthnPost(t *testing.T, o authnReqOpts, signCertDER []byte) *http.Request {
+	t.Helper()
+
+	version := o.version
+	if version == "" {
+		version = "2.0"
+	}
+	ar := crewjam.AuthnRequest{
+		ID:           o.id,
+		Version:      version,
+		IssueInstant: time.Now().UTC(),
+		Destination:  o.destination,
+		Issuer:       &crewjam.Issuer{Value: testSPEntityID},
+	}
+	if o.acsURL != "" {
+		ar.AssertionConsumerServiceURL = o.acsURL
+	}
+	if o.acsIndex != "" {
+		ar.AssertionConsumerServiceIndex = o.acsIndex
+	}
+	if o.forceAuthn {
+		v := true
+		ar.ForceAuthn = &v
+	}
+	if o.isPassive {
+		v := true
+		ar.IsPassive = &v
+	}
+	if o.nameIDFormat != "" {
+		f := o.nameIDFormat
+		ar.NameIDPolicy = &crewjam.NameIDPolicy{Format: &f}
+	}
+
+	el := ar.Element() // crewjam's Element() already sets the SAML "ID" attribute.
+
+	if o.sign {
+		if o.signKey == nil {
+			t.Fatal("buildAuthnPost: sign=true requires signKey")
+		}
+		signed, err := signElement(el, o.signKey, signCertDER)
+		if err != nil {
+			t.Fatalf("sign authnrequest element: %v", err)
+		}
+		el = signed
+	}
+
+	doc := etree.NewDocument()
+	doc.SetRoot(el)
+	xmlBytes, err := doc.WriteToBytes()
+	if err != nil {
+		t.Fatalf("serialize authnrequest: %v", err)
+	}
+
+	form := url.Values{}
+	form.Set("SAMLRequest", base64.StdEncoding.EncodeToString(xmlBytes))
+	if o.hasRelay {
+		form.Set("RelayState", o.relayState)
+	}
+	req := httptest.NewRequest(http.MethodPost, testSSOURL, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
 }
 
 func newAuthnQueries(sp db.SamlSp, acs []db.SamlSpAc, keys []db.SamlSpKey) *fakeAuthnQueries {
@@ -814,5 +884,109 @@ func TestAuthnReqUnsignedAllowed(t *testing.T) {
 	}
 	if got.ACSURL != testACSURL {
 		t.Errorf("ACSURL = %q", got.ACSURL)
+	}
+}
+
+// spCertDER parses the SP signing-cert PEM back to its DER bytes, which the
+// enveloped-signature builder (signElement) needs for the embedded KeyInfo.
+func spCertDER(t *testing.T, certPEM string) []byte {
+	t.Helper()
+	cert, err := parseCertPEM(certPEM)
+	if err != nil {
+		t.Fatalf("parse sp cert PEM: %v", err)
+	}
+	return cert.Raw
+}
+
+// TestAuthnReqPostHappyPathSigned proves the HTTP-POST binding: an AuthnRequest
+// carrying an ENVELOPED signature on the AuthnRequest element, base64'd (no
+// deflate) as the SAMLRequest form value, parses and verifies against the SP's
+// registered signing cert.
+func TestAuthnReqPostHappyPathSigned(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnPost(t, authnReqOpts{
+		id:          "_req-post-happy",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		relayState:  "post-state/with+specials",
+		hasRelay:    true,
+		forceAuthn:  true,
+		isPassive:   true,
+		sign:        true,
+		signKey:     priv,
+	}, spCertDER(t, certPEM))
+
+	got, err := idp.parseAuthnRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("parseAuthnRequest (POST): %v", err)
+	}
+	if got.RequestID != "_req-post-happy" {
+		t.Errorf("RequestID = %q", got.RequestID)
+	}
+	if got.ACSURL != testACSURL {
+		t.Errorf("ACSURL = %q, want %q", got.ACSURL, testACSURL)
+	}
+	if got.RelayState != "post-state/with+specials" {
+		t.Errorf("RelayState = %q", got.RelayState)
+	}
+	if !got.ForceAuthn {
+		t.Error("ForceAuthn = false, want true")
+	}
+	if !got.IsPassive {
+		t.Error("IsPassive = false, want true")
+	}
+	if got.SP.ID != 7 {
+		t.Errorf("SP.ID = %d, want 7", got.SP.ID)
+	}
+}
+
+// TestAuthnReqPostRequiredButNoSignature proves an UNSIGNED POST-binding
+// AuthnRequest to an SP that requires signing is rejected: the enveloped
+// signature is absent, so verifyPostAuthnSignature returns errNoSignature.
+func TestAuthnReqPostRequiredButNoSignature(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnPost(t, authnReqOpts{
+		id:          "_req-post-nosig",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		sign:        false,
+		signKey:     priv,
+	}, spCertDER(t, certPEM))
+
+	_, err := idp.parseAuthnRequest(context.Background(), req)
+	if !errors.Is(err, errNoSignature) {
+		t.Fatalf("err = %v, want errNoSignature (absent enveloped signature)", err)
+	}
+}
+
+// TestAuthnReqPostWrongKeySignature proves a POST-binding AuthnRequest signed by
+// a key whose cert is NOT registered for the SP fails enveloped-signature
+// verification.
+func TestAuthnReqPostWrongKeySignature(t *testing.T) {
+	_, certPEM := testSPKey(t)            // cert registered for the SP
+	wrongKey, wrongPEM := testSPKey(t)    // a DIFFERENT key+cert signs the request
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnPost(t, authnReqOpts{
+		id:          "_req-post-wrongkey",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		sign:        true,
+		signKey:     wrongKey,
+	}, spCertDER(t, wrongPEM))
+
+	_, err := idp.parseAuthnRequest(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected enveloped-signature verification error, got nil")
+	}
+	if errors.Is(err, errNoSignature) {
+		t.Fatalf("err = %v, want a signature-mismatch error, not errNoSignature", err)
 	}
 }

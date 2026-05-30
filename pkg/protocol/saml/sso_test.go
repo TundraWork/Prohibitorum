@@ -829,3 +829,64 @@ func TestSSONameIDPolicyUnspecifiedIssues(t *testing.T) {
 		t.Errorf("saml_session rows = %d, want 1 (assertion issued)", len(rows))
 	}
 }
+
+// TestSSOPostUnsignedRejected drives HandleSSO with a POST-binding UNSIGNED
+// AuthnRequest for an SP that requires signed requests. The enveloped-signature
+// gate surfaces errNoSignature, which ssoParseError must map to a 400 (NOT the
+// default 500), and no SAMLResponse/assertion may be issued. This exercises the
+// full handler→ssoParseError mapping, regression-guarding the bug where the
+// POST-reachable signature/XML sentinels fell through to the 500 branch.
+func TestSSOPostUnsignedRejected(t *testing.T) {
+	h := newSSOHarness(t, ssoSP()) // ssoSP() has RequireSignedAuthnRequest=true
+	// Build an UNSIGNED POST AuthnRequest (sign:false → signCertDER unused).
+	req := buildAuthnPost(t, authnReqOpts{
+		id:          "_sso-post-unsigned",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		sign:        false,
+	}, nil)
+	req.RemoteAddr = "203.0.113.7:54321"
+	req.Header.Set("User-Agent", "test-agent/1.0")
+	// Attach a live session: the signature gate must reject BEFORE any
+	// session-driven assertion issuance, so this never reaches an auto-POST.
+	req = req.WithContext(authn.WithSession(req.Context(), liveSession(testAccount())))
+	rec := httptest.NewRecorder()
+
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (unsigned POST rejected at signature gate); body=%s", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); samlResponseRe.MatchString(body) {
+		t.Errorf("rejected request must not issue a SAMLResponse; body=%s", body)
+	}
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (no assertion issued)", len(rows))
+	}
+}
+
+// TestSSOPostDoctypeRejected drives HandleSSO with a POST-binding body whose XML
+// carries a DOCTYPE. parseXMLSecure (run during decode, before the signature
+// gate) surfaces errXMLDTD, which ssoParseError must map to a 400 rather than the
+// default 500. Guards the XXE/DTD-rejection sentinel on the POST intake path.
+func TestSSOPostDoctypeRejected(t *testing.T) {
+	h := newSSOHarness(t, ssoSP())
+	doctypeXML := `<?xml version="1.0"?><!DOCTYPE AuthnRequest [<!ENTITY x "y">]>` +
+		`<AuthnRequest xmlns="urn:oasis:names:tc:SAML:2.0:protocol" ID="_sso-post-dtd" Version="2.0">` +
+		`<Issuer xmlns="urn:oasis:names:tc:SAML:2.0:assertion">` + testSPEntityID + `</Issuer></AuthnRequest>`
+	form := url.Values{}
+	form.Set("SAMLRequest", base64.StdEncoding.EncodeToString([]byte(doctypeXML)))
+	req := httptest.NewRequest(http.MethodPost, testSSOURL, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(authn.WithSession(req.Context(), liveSession(testAccount())))
+	rec := httptest.NewRecorder()
+
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (DOCTYPE body rejected); body=%s", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); samlResponseRe.MatchString(body) {
+		t.Errorf("rejected request must not issue a SAMLResponse; body=%s", body)
+	}
+}

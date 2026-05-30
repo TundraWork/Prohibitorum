@@ -79,9 +79,9 @@ func TestMetadataIdPDocument(t *testing.T) {
 		t.Fatalf("signing KeyDescriptors with parseable cert = %d, want >=1", signingCount)
 	}
 
-	// SSO-in is HTTP-Redirect only (POST-binding AuthnRequest intake is
-	// unimplemented, so we must not advertise it). SLO accepts both bindings.
-	assertRedirectOnly(t, "SingleSignOnService", idp.SingleSignOnServices, "https://idp.example.test/saml/sso")
+	// SSO-in and SLO both accept the HTTP-Redirect and HTTP-POST bindings;
+	// metadata advertises both for each.
+	assertBothBindings(t, "SingleSignOnService", idp.SingleSignOnServices, "https://idp.example.test/saml/sso")
 	assertBothBindings(t, "SingleLogoutService", idp.SingleLogoutServices, "https://idp.example.test/saml/slo")
 
 	foundFormat := false
@@ -92,19 +92,6 @@ func TestMetadataIdPDocument(t *testing.T) {
 	}
 	if !foundFormat {
 		t.Fatalf("NameIDFormats = %v, want to contain %q", idp.NameIDFormats, persistentNameID11)
-	}
-}
-
-func assertRedirectOnly(t *testing.T, name string, eps []crewjam.Endpoint, wantLoc string) {
-	t.Helper()
-	if len(eps) != 1 {
-		t.Fatalf("%s endpoints = %d, want exactly 1 (HTTP-Redirect only)", name, len(eps))
-	}
-	if eps[0].Binding != crewjam.HTTPRedirectBinding {
-		t.Fatalf("%s binding = %q, want HTTP-Redirect", name, eps[0].Binding)
-	}
-	if eps[0].Location != wantLoc {
-		t.Fatalf("%s location = %q, want %q", name, eps[0].Location, wantLoc)
 	}
 }
 

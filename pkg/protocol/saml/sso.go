@@ -332,7 +332,12 @@ func (i *IdP) ssoParseError(w http.ResponseWriter, err error) {
 		errors.Is(err, ErrMissingSAMLRequest),
 		errors.Is(err, ErrMissingSignature),
 		errors.Is(err, ErrBadSignature),
-		errors.Is(err, errWeakSigAlg):
+		errors.Is(err, errNoSignature),
+		errors.Is(err, errWeakSigAlg),
+		errors.Is(err, errBadSigAlg),
+		errors.Is(err, errSigRefMismatch),
+		errors.Is(err, errXMLDTD),
+		errors.Is(err, errDuplicateID):
 		http.Error(w, "invalid SAML AuthnRequest", http.StatusBadRequest)
 	default:
 		// Unexpected (e.g. DB unavailable, decompression-internal, XML library
