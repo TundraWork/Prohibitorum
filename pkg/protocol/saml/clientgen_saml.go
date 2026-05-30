@@ -33,6 +33,11 @@ type SPOptions struct {
 	// it to true regardless.
 	RequireSignedAuthnRequest bool
 
+	// AllowIdpInitiated opts this SP into IdP-initiated (unsolicited) SSO. It is
+	// applied verbatim and defaults false: an SP must explicitly opt in before
+	// HandleIdPInitiated will emit an unsolicited Response to it (GHES posture).
+	AllowIdpInitiated bool
+
 	// WantAssertionsSigned overrides the default (true). Nil means "use the
 	// default"; a non-nil pointer is honored verbatim so an operator can pass
 	// --want-assertions-signed=false.
@@ -140,6 +145,7 @@ func BuildSPParams(opts SPOptions) (db.InsertSAMLSPParams, []SPACSEntry, []strin
 	params.WantAssertionsSigned = wantAssertionsSigned
 	params.AuthnRequestsSigned = requireSignedAuthnRequest
 	params.RequireSignedAuthnRequest = requireSignedAuthnRequest
+	params.AllowIdpInitiated = opts.AllowIdpInitiated
 
 	return params, acs, certPEMs, nil
 }

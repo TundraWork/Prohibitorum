@@ -361,6 +361,7 @@ for every client.`,
 		spNameIDFormat  string
 		spRequireSigned bool
 		spWantSigned    bool
+		spIdpInitiated  bool
 		spACSURL        string
 		spACSBinding    string
 	)
@@ -413,6 +414,7 @@ signed AuthnRequests. Explicit flags (--entity-id, --display-name,
 				Kind:                      spKind,
 				NameIDFormat:              spNameIDFormat,
 				RequireSignedAuthnRequest: spRequireSigned,
+				AllowIdpInitiated:         spIdpInitiated,
 			}
 			// Only forward the want-assertions-signed override when the operator
 			// actually set it; otherwise BuildSPParams applies its default (true).
@@ -482,6 +484,7 @@ signed AuthnRequests. Explicit flags (--entity-id, --display-name,
 	createSPCmd.Flags().StringVar(&spNameIDFormat, "name-id-format", "", "NameID format URI (defaults to SAML 1.1 persistent).")
 	createSPCmd.Flags().BoolVar(&spRequireSigned, "require-signed-authn-request", false, "Require signed AuthnRequests (forced true for --kind ghes).")
 	createSPCmd.Flags().BoolVar(&spWantSigned, "want-assertions-signed", true, "Sign assertions sent to this SP (default true).")
+	createSPCmd.Flags().BoolVar(&spIdpInitiated, "allow-idp-initiated", false, "Allow IdP-initiated (unsolicited) SSO to this SP (default false).")
 	createSPCmd.Flags().StringVar(&spACSURL, "acs-url", "", "Manual AssertionConsumerService URL (when no metadata).")
 	createSPCmd.Flags().StringVar(&spACSBinding, "acs-binding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST", "Manual ACS binding (when no metadata).")
 	samlSPCmd.AddCommand(createSPCmd)

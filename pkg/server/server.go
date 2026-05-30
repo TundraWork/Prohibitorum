@@ -346,6 +346,10 @@ func (s *Server) registerOperations() {
 	// from the form. Both are advertised in IdP metadata.
 	s.router.Get("/saml/sso", s.samlIdP.HandleSSO)
 	s.router.Post("/saml/sso", s.samlIdP.HandleSSO)
+	// IdP-initiated (unsolicited) SSO app-launcher (spec D11): emits an
+	// unsolicited Response to the SP's default ACS, gated by the per-SP
+	// allow_idp_initiated opt-in.
+	s.router.Get("/saml/sso/init", s.samlIdP.HandleIdPInitiated)
 	s.router.Get("/saml/slo", s.samlIdP.HandleSLO)
 	s.router.Post("/saml/slo", s.samlIdP.HandleSLO)
 }

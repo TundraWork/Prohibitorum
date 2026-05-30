@@ -172,6 +172,41 @@ func TestSPGenManualGeneric(t *testing.T) {
 	}
 }
 
+func TestSPGenAllowIdpInitiatedDefaultsFalse(t *testing.T) {
+	// Omitting AllowIdpInitiated leaves the SP NOT opted into IdP-initiated SSO.
+	params, _, _, err := BuildSPParams(SPOptions{
+		EntityID: "https://sp.example.test",
+		Kind:     "generic",
+		ManualACS: []SPACSEntry{
+			{Binding: crewjam.HTTPPostBinding, Location: "https://sp.example.test/acs", Index: 0, IsDefault: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildSPParams: %v", err)
+	}
+	if params.AllowIdpInitiated {
+		t.Fatal("AllowIdpInitiated = true, want default false")
+	}
+}
+
+func TestSPGenAllowIdpInitiatedSet(t *testing.T) {
+	// --allow-idp-initiated → AllowIdpInitiated carried verbatim into the insert.
+	params, _, _, err := BuildSPParams(SPOptions{
+		EntityID: "https://sp.example.test",
+		Kind:     "generic",
+		ManualACS: []SPACSEntry{
+			{Binding: crewjam.HTTPPostBinding, Location: "https://sp.example.test/acs", Index: 0, IsDefault: true},
+		},
+		AllowIdpInitiated: true,
+	})
+	if err != nil {
+		t.Fatalf("BuildSPParams: %v", err)
+	}
+	if !params.AllowIdpInitiated {
+		t.Fatal("AllowIdpInitiated = false, want true (from flag)")
+	}
+}
+
 func TestSPGenMissingEntityID(t *testing.T) {
 	_, _, _, err := BuildSPParams(SPOptions{
 		Kind: "generic",
