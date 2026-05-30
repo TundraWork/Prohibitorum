@@ -115,15 +115,18 @@ func TestAssertionOwnVerifyRoundTrip(t *testing.T) {
 		t.Errorf("Assertion signature did not verify: %v", err)
 	}
 
-	// Child order sanity. goxmldsig's SignEnveloped APPENDS the <Signature> as
-	// the last child rather than inserting it right after <Issuer> (the strict
-	// SAML schema position). This is well-tolerated in practice — the enveloped
-	// transform excludes the Signature wherever it sits and the Reference URI
-	// pins the covered element by ID — and the crewjam SP-side interop test
-	// proves a real verifier accepts it. So the realized order is:
-	// Issuer, Status, Assertion, Signature.
+	// Child order (A1). goxmldsig's SignEnveloped APPENDS the <Signature> as the
+	// last child, but signElement relocates it to immediately follow <Issuer> —
+	// the position the SAML 2.0 XSD mandates (StatusResponseType/ResponseType:
+	// Issuer, Signature, ..., Status, Assertion; AssertionType: Issuer,
+	// Signature, Subject, ...). Strict schema-validating SPs reject a misordered
+	// Signature, so we assert Signature is the element immediately after Issuer
+	// on BOTH the Response and the embedded Assertion.
+	assertSignatureAfterIssuer(t, "Response", responseEl)
+	assertSignatureAfterIssuer(t, "Assertion", assertionEl)
+
 	children := responseEl.ChildElements()
-	wantOrder := []string{"Issuer", "Status", "Assertion", "Signature"}
+	wantOrder := []string{"Issuer", "Signature", "Status", "Assertion"}
 	if len(children) != len(wantOrder) {
 		t.Fatalf("Response has %d children, want %d (%v)", len(children), len(wantOrder), childTags(children))
 	}
@@ -131,6 +134,27 @@ func TestAssertionOwnVerifyRoundTrip(t *testing.T) {
 		if children[idx].Tag != want {
 			t.Errorf("Response child[%d] = %q, want %q (full: %v)", idx, children[idx].Tag, want, childTags(children))
 		}
+	}
+}
+
+// assertSignatureAfterIssuer parses el's children and fails the test unless
+// there is an <Issuer> at some index i with a <Signature> immediately following
+// at index i+1 — the SAML 2.0 schema-required ordering (Fix A1).
+func assertSignatureAfterIssuer(t *testing.T, label string, el *etree.Element) {
+	t.Helper()
+	children := el.ChildElements()
+	issuerIdx := -1
+	for idx, c := range children {
+		if c.Tag == "Issuer" {
+			issuerIdx = idx
+			break
+		}
+	}
+	if issuerIdx < 0 {
+		t.Fatalf("%s has no <Issuer> child (%v)", label, childTags(children))
+	}
+	if issuerIdx+1 >= len(children) || children[issuerIdx+1].Tag != "Signature" {
+		t.Errorf("%s: <Signature> must immediately follow <Issuer> (children: %v)", label, childTags(children))
 	}
 }
 

@@ -329,6 +329,81 @@ func TestAuthnReqWrongKeySignature(t *testing.T) {
 	}
 }
 
+// testSPKeyWithValidity mints an SP key whose self-signed cert carries the
+// supplied validity window, so a test can register an expired (or
+// not-yet-valid) signing cert.
+func testSPKeyWithValidity(t *testing.T, notBefore, notAfter time.Time) (*rsa.PrivateKey, string) {
+	t.Helper()
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate sp key: %v", err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(3),
+		Subject:      pkix.Name{CommonName: "sp.example.test"},
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatalf("create sp cert: %v", err)
+	}
+	certPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
+	return priv, certPEM
+}
+
+// TestAuthnReqExpiredCertRejected proves Fix A2: the redirect-binding path now
+// skips a signing cert whose validity window does not include now (matching the
+// POST binding's goxmldsig behavior). With only an expired cert registered, an
+// otherwise-valid signature must be rejected as ErrBadSignature.
+func TestAuthnReqExpiredCertRejected(t *testing.T) {
+	priv, certPEM := testSPKeyWithValidity(t,
+		time.Now().Add(-48*time.Hour), time.Now().Add(-24*time.Hour)) // expired yesterday
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-expired",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		sign:        true,
+		signKey:     priv,
+	})
+
+	_, err := idp.parseAuthnRequest(context.Background(), req)
+	if !errors.Is(err, ErrBadSignature) {
+		t.Fatalf("err = %v, want ErrBadSignature (expired cert must not verify)", err)
+	}
+}
+
+// TestAuthnReqRotationSkipsExpiredCert proves the A2 skip is per-cert: an
+// expired cert AND a live cert are registered; the request is signed with the
+// LIVE key, and parsing must succeed (the expired cert is skipped, not fatal).
+func TestAuthnReqRotationSkipsExpiredCert(t *testing.T) {
+	_, expiredPEM := testSPKeyWithValidity(t,
+		time.Now().Add(-48*time.Hour), time.Now().Add(-24*time.Hour))
+	livePriv, livePEM := testSPKey(t)
+
+	keys := []db.SamlSpKey{
+		{ID: 1, SpID: 7, Use: "signing", CertPem: expiredPEM},
+		{ID: 2, SpID: 7, Use: "signing", CertPem: livePEM},
+	}
+	q := newAuthnQueries(defaultSP(true), acsList(), keys)
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-rotation",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		sign:        true,
+		signKey:     livePriv,
+	})
+
+	if _, err := idp.parseAuthnRequest(context.Background(), req); err != nil {
+		t.Fatalf("parseAuthnRequest with a live cert in the rotation set: %v", err)
+	}
+}
+
 func TestAuthnReqWeakSHA1SigAlg(t *testing.T) {
 	priv, certPEM := testSPKey(t)
 	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))

@@ -18,8 +18,19 @@ var (
 	errXMLDTD         = errors.New("saml: XML contains a DTD or entity declaration")
 	errDuplicateID    = errors.New("saml: XML contains duplicate element IDs")
 	errWeakSigAlg     = errors.New("saml: signature uses a weak (SHA-1) algorithm")
+	errBadSigAlg      = errors.New("saml: signature does not use RSA-SHA256/SHA-256")
 	errSigRefMismatch = errors.New("saml: signature reference does not cover the target element")
 	errNoSignature    = errors.New("saml: no enveloped signature present")
+)
+
+// Algorithm URIs we positively require on every verified signature. These are
+// exactly what signElement produces (RSA-SHA256 over SHA-256 digests) and what
+// dsig's constants name (RSASHA256SignatureMethod / the SHA-256 digest URI in
+// xmlenc). Anything else — SHA-1, SHA-384/512, ECDSA, HMAC — is rejected, so a
+// non-SHA-1 method can no longer slip a denylist.
+const (
+	requiredSigAlgURI    = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+	requiredDigestAlgURI = "http://www.w3.org/2001/04/xmlenc#sha256"
 )
 
 // samlIDAttr is the attribute name SAML uses to identify signable elements.
@@ -138,7 +149,65 @@ func signElement(el *etree.Element, key *rsa.PrivateKey, certDER []byte) (*etree
 	// SAML uses "ID", not goxmldsig's default "Id".
 	ctx.IdAttribute = samlIDAttr
 
-	return ctx.SignEnveloped(el)
+	signed, err := ctx.SignEnveloped(el)
+	if err != nil {
+		return nil, err
+	}
+	// goxmldsig APPENDS <ds:Signature> as the LAST child. The SAML 2.0 XSD
+	// mandates ds:Signature immediately AFTER <Issuer> in both AssertionType
+	// (Issuer, Signature, Subject, ...) and StatusResponseType/ResponseType
+	// (Issuer, Signature, ..., Status, Assertion). Strict schema-validating SPs
+	// (Shibboleth, ADFS, OpenSAML) reject a misordered Signature
+	// (cvc-complex-type.2.4). Relocate it. The enveloped transform excludes the
+	// Signature by ID regardless of its position and the Reference is by ID, so
+	// the signature still validates after the move.
+	relocateSignatureAfterIssuer(signed)
+	return signed, nil
+}
+
+// relocateSignatureAfterIssuer moves signed's direct-child <ds:Signature> to
+// immediately follow its <Issuer> child (or to be the first child if no Issuer
+// is present), matching the SAML 2.0 schema's required element ordering. It is a
+// no-op if there is no direct-child Signature.
+func relocateSignatureAfterIssuer(signed *etree.Element) {
+	sig := childByLocalName(signed, "Signature")
+	if sig == nil {
+		return
+	}
+
+	// goxmldsig's SignEnveloped appends the <Signature> by raw-slice append
+	// (ret.Child = append(ret.Child, sig)) WITHOUT updating sig's parent/index
+	// bookkeeping, so sig.Parent() still points at the pre-sign element and
+	// sig.Index() is stale. etree's RemoveChild relies on that bookkeeping and
+	// would silently no-op, while InsertChildAt would then duplicate the node.
+	// We therefore detach by the Signature's REAL slot in signed.Child and
+	// reinsert with RemoveChildAt/InsertChildAt, which rebuild the indices.
+	sigSlot := -1
+	for i, tok := range signed.Child {
+		if e, ok := tok.(*etree.Element); ok && e == sig {
+			sigSlot = i
+			break
+		}
+	}
+	if sigSlot < 0 {
+		return
+	}
+	signed.RemoveChildAt(sigSlot)
+
+	// InsertChildAt indexes the TOKEN list (signed.Child), which interleaves any
+	// CharData/Comment tokens with elements, so we anchor on the Issuer token's
+	// real slot rather than its element-only ordinal. With no Issuer, the
+	// Signature becomes the very first child.
+	insertIdx := 0
+	if issuer := childByLocalName(signed, "Issuer"); issuer != nil {
+		for i, tok := range signed.Child {
+			if e, ok := tok.(*etree.Element); ok && e == issuer {
+				insertIdx = i + 1
+				break
+			}
+		}
+	}
+	signed.InsertChildAt(insertIdx, sig)
 }
 
 // verifyElementSignature verifies the enveloped signature on el against a
@@ -156,25 +225,55 @@ func verifyElementSignature(el *etree.Element, cert *x509.Certificate) error {
 	if sig == nil {
 		return errNoSignature
 	}
+
+	// Anti-XSW defense-in-depth: goxmldsig's Validate searches the WHOLE subtree
+	// and latches onto the FIRST <Signature> whose Reference URI is empty or
+	// names the top-level element's ID. Our SHA-1/URI/reference-tie checks below
+	// inspect only the DIRECT-CHILD Signature. If a *deeper* Signature also
+	// claims el's ID (or an empty URI), goxmldsig could validate that one
+	// instead of the one we vetted. Reject any such stray Signature so the
+	// element we gate is provably the element goxmldsig validates. (A nested
+	// signed Assertion's own Signature references the Assertion's ID, not el's,
+	// so the legitimate Response-wraps-signed-Assertion case is unaffected.)
+	elID := el.SelectAttrValue(samlIDAttr, "")
+	if hasNestedSignatureForID(el, sig, elID) {
+		return errSigRefMismatch
+	}
+
 	signedInfo := childByLocalName(sig, "SignedInfo")
 	if signedInfo == nil {
 		return errNoSignature
 	}
 
-	// Reject SHA-1 in either the signature or digest method.
-	if sm := childByLocalName(signedInfo, "SignatureMethod"); sm != nil {
-		if isSHA1Algorithm(sm.SelectAttrValue("Algorithm", "")) {
-			return errWeakSigAlg
-		}
+	// Positive algorithm allowlist: the SignatureMethod MUST be RSA-SHA256 and
+	// the DigestMethod MUST be SHA-256 — exactly what signElement produces.
+	// Rejecting anything else (not just SHA-1) closes the gap where a SHA-384/512
+	// or other non-SHA-1 method would slip a denylist.
+	sm := childByLocalName(signedInfo, "SignatureMethod")
+	if sm == nil {
+		return errNoSignature
+	}
+	smAlg := sm.SelectAttrValue("Algorithm", "")
+	if isSHA1Algorithm(smAlg) {
+		return errWeakSigAlg
+	}
+	if smAlg != requiredSigAlgURI {
+		return errBadSigAlg
 	}
 	ref := childByLocalName(signedInfo, "Reference")
 	if ref == nil {
 		return errNoSignature
 	}
-	if dm := childByLocalName(ref, "DigestMethod"); dm != nil {
-		if isSHA1Algorithm(dm.SelectAttrValue("Algorithm", "")) {
-			return errWeakSigAlg
-		}
+	dm := childByLocalName(ref, "DigestMethod")
+	if dm == nil {
+		return errNoSignature
+	}
+	dmAlg := dm.SelectAttrValue("Algorithm", "")
+	if isSHA1Algorithm(dmAlg) {
+		return errWeakSigAlg
+	}
+	if dmAlg != requiredDigestAlgURI {
+		return errBadSigAlg
 	}
 
 	// Anti-XSW: the Reference must cover el itself. SAML signs the element by
@@ -200,6 +299,55 @@ func verifyElementSignature(el *etree.Element, cert *x509.Certificate) error {
 // local name so it is namespace-prefix agnostic), or nil.
 func findSignatureChild(el *etree.Element) *etree.Element {
 	return childByLocalName(el, "Signature")
+}
+
+// hasNestedSignatureForID reports whether, anywhere in el's subtree below the
+// vetted direct-child Signature (keep), there is another <Signature> that
+// goxmldsig could mistake for keep — i.e. one carrying a Reference whose URI is
+// empty or names elID. Such a stray signature is the hallmark of a
+// signature-wrapping (XSW) payload: an attacker hides a second, self-referential
+// signed copy of the target ID deeper in the tree hoping the verifier validates
+// it instead of the one our gate inspected. A legitimately nested signed
+// Assertion's Signature references the Assertion's own ID (not elID) and is
+// therefore NOT flagged. keep is skipped so the gated signature itself never
+// trips the check.
+func hasNestedSignatureForID(el, keep *etree.Element, elID string) bool {
+	var walk func(*etree.Element) bool
+	walk = func(n *etree.Element) bool {
+		for _, c := range n.ChildElements() {
+			if c == keep {
+				continue
+			}
+			if c.Tag == "Signature" && signatureReferencesID(c, elID) {
+				return true
+			}
+			if walk(c) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(el)
+}
+
+// signatureReferencesID reports whether sig's SignedInfo/Reference URI is empty
+// (whole-document) or points at "#<elID>". This is the same matching rule
+// goxmldsig uses to decide a Signature covers the top-level element.
+func signatureReferencesID(sig *etree.Element, elID string) bool {
+	si := childByLocalName(sig, "SignedInfo")
+	if si == nil {
+		return false
+	}
+	for _, ref := range si.ChildElements() {
+		if ref.Tag != "Reference" {
+			continue
+		}
+		uri := ref.SelectAttrValue("URI", "")
+		if uri == "" || (elID != "" && uri == "#"+elID) {
+			return true
+		}
+	}
+	return false
 }
 
 // childByLocalName returns the first direct child element whose local (tag)

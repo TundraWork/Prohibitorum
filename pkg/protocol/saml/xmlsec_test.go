@@ -152,6 +152,124 @@ func TestXMLSecSHA1DigestRejected(t *testing.T) {
 	}
 }
 
+// TestXMLSecNonSHA1WrongAlgRejected proves Fix A3's positive allowlist: a
+// SignatureMethod that is neither SHA-1 nor our required RSA-SHA256 (here
+// RSA-SHA512) is rejected with errBadSigAlg, closing the gap where a non-SHA-1
+// method would slip the old SHA-1-only denylist.
+func TestXMLSecNonSHA1WrongAlgRejected(t *testing.T) {
+	_, _, cert := testKeyCert(t)
+
+	el := etree.NewElement("Thing")
+	el.CreateAttr("ID", "_abc")
+	sig := el.CreateElement("ds:Signature")
+	sig.CreateAttr("xmlns:ds", dsig.Namespace)
+	si := sig.CreateElement("ds:SignedInfo")
+	sm := si.CreateElement("ds:SignatureMethod")
+	sm.CreateAttr("Algorithm", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512")
+	ref := si.CreateElement("ds:Reference")
+	ref.CreateAttr("URI", "#_abc")
+	dm := ref.CreateElement("ds:DigestMethod")
+	dm.CreateAttr("Algorithm", "http://www.w3.org/2001/04/xmlenc#sha256")
+
+	if err := verifyElementSignature(el, cert); !errors.Is(err, errBadSigAlg) {
+		t.Fatalf("RSA-SHA512 SignatureMethod: got %v, want errBadSigAlg", err)
+	}
+}
+
+// TestXMLSecNonSHA1WrongDigestRejected mirrors A3 for the DigestMethod: a
+// non-SHA-1, non-SHA-256 digest (SHA-512) is rejected with errBadSigAlg.
+func TestXMLSecNonSHA1WrongDigestRejected(t *testing.T) {
+	_, _, cert := testKeyCert(t)
+
+	el := etree.NewElement("Thing")
+	el.CreateAttr("ID", "_abc")
+	sig := el.CreateElement("ds:Signature")
+	sig.CreateAttr("xmlns:ds", dsig.Namespace)
+	si := sig.CreateElement("ds:SignedInfo")
+	sm := si.CreateElement("ds:SignatureMethod")
+	sm.CreateAttr("Algorithm", dsig.RSASHA256SignatureMethod)
+	ref := si.CreateElement("ds:Reference")
+	ref.CreateAttr("URI", "#_abc")
+	dm := ref.CreateElement("ds:DigestMethod")
+	dm.CreateAttr("Algorithm", "http://www.w3.org/2001/04/xmlenc#sha512")
+
+	if err := verifyElementSignature(el, cert); !errors.Is(err, errBadSigAlg) {
+		t.Fatalf("SHA-512 DigestMethod: got %v, want errBadSigAlg", err)
+	}
+}
+
+// TestXMLSecNestedSignatureSameIDRejected proves Fix A4: after the genuine,
+// direct-child Signature, a SECOND <Signature> buried deeper in the subtree that
+// also claims the top-level element's ID (a signature-wrapping payload) is
+// rejected. This guarantees the Signature our gate inspects is the same one
+// goxmldsig would latch onto.
+func TestXMLSecNestedSignatureSameIDRejected(t *testing.T) {
+	key, certDER, cert := testKeyCert(t)
+	el := newIDElement(t)
+
+	signed, err := signElement(el, key, certDER)
+	if err != nil {
+		t.Fatalf("signElement: %v", err)
+	}
+	id := signed.SelectAttrValue("ID", "")
+
+	// Bury a stray <Signature> with a Reference URI naming the top-level ID
+	// inside the Inner child (deeper than the vetted direct-child Signature).
+	inner := childByLocalName(signed, "Inner")
+	if inner == nil {
+		t.Fatal("expected an <Inner> child to hide a stray Signature under")
+	}
+	stray := inner.CreateElement("ds:Signature")
+	stray.CreateAttr("xmlns:ds", dsig.Namespace)
+	ssi := stray.CreateElement("ds:SignedInfo")
+	sref := ssi.CreateElement("ds:Reference")
+	sref.CreateAttr("URI", "#"+id)
+
+	wire := reparse(t, signed)
+	if err := verifyElementSignature(wire, cert); !errors.Is(err, errSigRefMismatch) {
+		t.Fatalf("nested same-ID Signature: got %v, want errSigRefMismatch", err)
+	}
+}
+
+// TestXMLSecNestedSignatureForIDHelper unit-tests the A4 gate directly: a nested
+// Signature referencing the top-level ID (or an empty URI) is flagged, while one
+// referencing a DIFFERENT ID is not (so the legitimate Response-wraps-signed-
+// Assertion shape, where the inner Signature names the Assertion's own ID, is
+// tolerated — that end-to-end case is also exercised by
+// TestAssertionOwnVerifyRoundTrip's Response verify).
+func TestXMLSecNestedSignatureForIDHelper(t *testing.T) {
+	build := func(refURI string) (root, keep *etree.Element) {
+		root = etree.NewElement("Root")
+		root.CreateAttr("ID", "_top")
+		keep = root.CreateElement("ds:Signature") // the vetted direct-child sig
+		inner := root.CreateElement("Inner")
+		stray := inner.CreateElement("ds:Signature")
+		si := stray.CreateElement("ds:SignedInfo")
+		ref := si.CreateElement("ds:Reference")
+		ref.CreateAttr("URI", refURI)
+		return root, keep
+	}
+
+	t.Run("same ID flagged", func(t *testing.T) {
+		root, keep := build("#_top")
+		if !hasNestedSignatureForID(root, keep, "_top") {
+			t.Fatal("nested Signature naming the top-level ID should be flagged")
+		}
+	})
+	t.Run("empty URI flagged", func(t *testing.T) {
+		root, keep := build("")
+		if !hasNestedSignatureForID(root, keep, "_top") {
+			t.Fatal("nested Signature with empty (whole-doc) URI should be flagged")
+		}
+	})
+	t.Run("different ID not flagged", func(t *testing.T) {
+		root, keep := build("#_assertion")
+		if hasNestedSignatureForID(root, keep, "_top") {
+			t.Fatal("nested Signature naming a different ID must NOT be flagged")
+		}
+	})
+}
+
 func TestXMLSecDuplicateID(t *testing.T) {
 	raw := []byte(`<Root xmlns="urn:test"><A ID="x"/><B ID="x"/></Root>`)
 	if _, err := parseXMLSecure(raw); !errors.Is(err, errDuplicateID) {

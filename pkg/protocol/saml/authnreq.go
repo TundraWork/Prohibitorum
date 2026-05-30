@@ -311,9 +311,17 @@ func (i *IdP) verifyRedirectSignature(ctx context.Context, r *http.Request, sp d
 	if err != nil {
 		return err
 	}
+	now := time.Now()
 	for _, k := range keys {
 		cert, perr := parseCertPEM(k.CertPem)
 		if perr != nil {
+			continue
+		}
+		// Crypto consistency with the POST binding (goxmldsig rejects expired
+		// certs): skip a cert whose validity window does not include now, but
+		// keep scanning so a rotation set with at least one live cert still
+		// verifies. If none is valid, the loop falls through to ErrBadSignature.
+		if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
 			continue
 		}
 		pub, ok := cert.PublicKey.(*rsa.PublicKey)
