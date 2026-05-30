@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteExpiredSAMLSessions = `-- name: DeleteExpiredSAMLSessions :execrows
+DELETE FROM saml_session WHERE not_on_or_after < now()
+`
+
+func (q *Queries) DeleteExpiredSAMLSessions(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredSAMLSessions)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteSAMLSessionsBySession = `-- name: DeleteSAMLSessionsBySession :exec
 DELETE FROM saml_session WHERE session_id = $1
 `
@@ -212,6 +224,8 @@ func (q *Queries) InsertSAMLSPKey(ctx context.Context, arg InsertSAMLSPKeyParams
 const insertSAMLSession = `-- name: InsertSAMLSession :one
 INSERT INTO saml_session (session_id, sp_id, name_id, session_index, not_on_or_after)
 VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (session_id, sp_id, session_index)
+  DO UPDATE SET not_on_or_after = EXCLUDED.not_on_or_after
 RETURNING id, session_id, sp_id, name_id, session_index, not_on_or_after, created_at
 `
 

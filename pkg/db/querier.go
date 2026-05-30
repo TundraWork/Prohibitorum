@@ -44,6 +44,7 @@ type Querier interface {
 	// Owner-scoped delete: zero rows affected means the id doesn't match an owned
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
+	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
 	DeleteSAMLSessionsBySession(ctx context.Context, sessionID string) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error

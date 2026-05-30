@@ -144,27 +144,49 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		rows = filtered
 	}
 
-	// (7) Revoke each resolved session and delete its saml_session rows.
-	// Best-effort-continue per row, tracking failures.
+	// (7) Revoke each resolved session and ALWAYS delete its saml_session
+	// binding row(s). The DB-delete is UNCONDITIONAL on reaching a row: the
+	// binding must be cleaned up even when the underlying session is already
+	// gone, otherwise the row is orphaned forever and every future SLO for this
+	// NameID re-fails on it. Best-effort-continue per row, tracking REAL
+	// failures (a live revoke that errored, or a DB fault) — but NOT the benign
+	// "session already revoked/expired" case, which is an expected idempotent
+	// outcome with nothing to revoke.
 	var (
 		revokeFailed bool
 		lastAcctID   int32
 		haveAcctID   bool
 	)
+	// DeleteSAMLSessionsBySession deletes ALL rows for a session_id, so track
+	// which session_ids we've already cleaned to avoid redundant deletes when a
+	// session has multiple bound rows (e.g. several SessionIndexes).
+	seen := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		sess, gerr := i.queries.GetSession(ctx, row.SessionID)
-		if gerr != nil {
+		switch {
+		case gerr == nil:
+			// Live session: capture the account (for audit) and revoke it.
+			if !haveAcctID {
+				lastAcctID = sess.AccountID
+				haveAcctID = true
+			}
+			if _, rerr := i.sessions.RevokeBySessionID(ctx, sess.AccountID, row.SessionID); rerr != nil {
+				revokeFailed = true // real revoke error
+			}
+		case errors.Is(gerr, pgx.ErrNoRows):
+			// GetSession filters revoked_at IS NULL, so an already
+			// revoked/expired/gone session returns ErrNoRows. This is NOT a
+			// failure — there is nothing to revoke; just clean up the binding.
+		default:
+			// Some other error (DB fault) while resolving the session.
 			revokeFailed = true
-			continue
 		}
-		lastAcctID = sess.AccountID
-		haveAcctID = true
-		if _, rerr := i.sessions.RevokeBySessionID(ctx, sess.AccountID, row.SessionID); rerr != nil {
-			revokeFailed = true
-			// fall through: still attempt the DB row cleanup
-		}
-		if derr := i.queries.DeleteSAMLSessionsBySession(ctx, row.SessionID); derr != nil {
-			revokeFailed = true
+		// ALWAYS delete the binding row(s), regardless of session liveness.
+		if !seen[row.SessionID] {
+			seen[row.SessionID] = true
+			if derr := i.queries.DeleteSAMLSessionsBySession(ctx, row.SessionID); derr != nil {
+				revokeFailed = true
+			}
 		}
 	}
 
@@ -174,16 +196,25 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	// record (an accountless EventSessionEnd would be misleading).
 	if haveAcctID {
 		acctID := lastAcctID
+		detail := map[string]any{
+			"reason": "slo",
+			"sp":     sp.EntityID,
+		}
+		// (C4) A real revoke/DB error during the loop is swallowed for the SP's
+		// sake (we still return a signed Success — see step 9), but it MUST be
+		// observable. Stamp "partial": true so the degraded teardown is visible
+		// in the audit log rather than masquerading as a clean EventSessionEnd.
+		// (The benign already-revoked ErrNoRows case does NOT set revokeFailed.)
+		if revokeFailed {
+			detail["partial"] = true
+		}
 		_ = i.audit.Record(ctx, audit.Record{
 			Factor:    audit.FactorSAMLSP,
 			Event:     audit.EventSessionEnd,
 			AccountID: &acctID,
 			IP:        audit.ParseIPOrNil(r.RemoteAddr),
 			UserAgent: r.UserAgent(),
-			Detail: map[string]any{
-				"reason": "slo",
-				"sp":     sp.EntityID,
-			},
+			Detail:    detail,
 		})
 	}
 
@@ -196,12 +227,13 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If a per-row revoke/delete failed we still return a signed response: the
-	// degradation is logged via the audit record's success status implicitly and
-	// the partial revoke is best-effort. (A hard error here would leave the SP
-	// unable to complete its own logout while our state is already partly torn
-	// down.) revokeFailed is intentionally not surfaced to the SP.
-	_ = revokeFailed
+	// If a per-row revoke/delete failed we still return a signed Success
+	// response: the binding rows are cleaned and a hard error here would leave
+	// the SP unable to complete its own logout while our state is already partly
+	// torn down — failing the SP response on a transient KV/DB blip is worse.
+	// The degradation is NOT silently dropped: it was recorded above as
+	// "partial": true in the audit Detail (C4), so the swallowed failure stays
+	// observable. revokeFailed is intentionally not surfaced to the SP itself.
 
 	relayState := r.URL.Query().Get("RelayState")
 	if r.Method == http.MethodPost {

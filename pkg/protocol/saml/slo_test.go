@@ -472,6 +472,56 @@ func TestSLOValidRedirectRevokesSession(t *testing.T) {
 	assertLogoutResponseValid(t, h, respXML, "_slo-ok")
 }
 
+// TestSLOAlreadyRevokedSessionCleansOrphanRow proves Fix C1+C4: a saml_session
+// binding whose underlying IdP session is ALREADY revoked/expired (GetSession
+// returns pgx.ErrNoRows) must still produce a signed Success LogoutResponse AND
+// delete the orphan binding row — and must NOT be reported as a partial failure
+// (the already-gone session is a benign idempotent outcome, not a hard error).
+func TestSLOAlreadyRevokedSessionCleansOrphanRow(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-orphan"
+	sid := h.seedSession(t, 42, nameID, "")
+
+	// Simulate the session already being revoked: GetSession filters
+	// revoked_at IS NULL, so a revoked session returns no row. Drop it from the
+	// fake's pgSess map (leaving the saml_session binding row in place) to
+	// reproduce the orphan condition.
+	h.q.mu.Lock()
+	delete(h.q.pgSess, sid)
+	h.q.mu.Unlock()
+
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:          "_slo-orphan",
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	// Still a signed Success LogoutResponse.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 redirect; body=%s", rec.Code, rec.Body.String())
+	}
+	respXML := decodeRedirectLogoutResponse(t, rec.Header().Get("Location"))
+	assertLogoutResponseValid(t, h, respXML, "_slo-orphan")
+
+	// The orphan binding row was deleted (the bug left it forever).
+	if del := h.q.deletedRows(); len(del) != 1 || del[0] != sid {
+		t.Errorf("deleted rows = %v, want [%s] (orphan row must be cleaned)", del, sid)
+	}
+
+	// The already-revoked session is benign: it must NOT be stamped as a partial
+	// failure. (The no-live-session path emits no audit record at all, since
+	// haveAcctID stays false — assert no spurious "partial" record exists.)
+	for _, r := range h.auditW.all() {
+		if p, ok := r.Detail["partial"]; ok && p == true {
+			t.Errorf("audit marked partial=true on a benign already-revoked session")
+		}
+	}
+}
+
 func TestSLOBadSignatureLeavesSessionUntouched(t *testing.T) {
 	h := newSLOHarness(t, sloSP())
 	const nameID = "user-nameid-badsig"

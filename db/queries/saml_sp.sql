@@ -39,6 +39,8 @@ RETURNING *;
 -- name: InsertSAMLSession :one
 INSERT INTO saml_session (session_id, sp_id, name_id, session_index, not_on_or_after)
 VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (session_id, sp_id, session_index)
+  DO UPDATE SET not_on_or_after = EXCLUDED.not_on_or_after
 RETURNING *;
 
 -- name: ListSAMLSessionsBySession :many
@@ -52,3 +54,6 @@ SELECT * FROM saml_sp WHERE id = $1;
 
 -- name: DeleteSAMLSessionsBySession :exec
 DELETE FROM saml_session WHERE session_id = $1;
+
+-- name: DeleteExpiredSAMLSessions :execrows
+DELETE FROM saml_session WHERE not_on_or_after < now();

@@ -191,6 +191,11 @@ func (s *Server) Serve() error {
 	// /introspect) grows unbounded. Launched only from Serve() so tests and the
 	// openapi subcommand never start it.
 	go s.pruneRevokedJTILoop()
+	// Periodically reap expired saml_session rows. The schema's session_id
+	// FK ON DELETE CASCADE never fires (sessions are soft-deleted, never hard
+	// DELETEd), so without this reaper the table grows unbounded even after SLO
+	// and the dedup upsert. Launched only from Serve() (not tests/openapi).
+	go s.pruneExpiredSAMLSessionsLoop()
 
 	addr := fmt.Sprintf(":%d", s.config.Port)
 	logx.WithFields(logrus.Fields{"addr": addr}).Info("serving API")
@@ -207,6 +212,23 @@ func (s *Server) pruneRevokedJTILoop() {
 	for {
 		if err := s.queries.PruneExpiredRevokedJTI(ctx); err != nil {
 			logx.WithContext(ctx).WithError(err).Warn("prune revoked_jti")
+		}
+		<-t.C
+	}
+}
+
+// pruneExpiredSAMLSessionsLoop deletes saml_session rows whose not_on_or_after
+// horizon has passed, once at startup and then hourly. These rows are the SLO
+// binding state; the FK cascade can't reclaim them (sessions are soft-deleted),
+// so this age-based reaper is the only unconditional GC for them. A prune error
+// is logged and retried on the next tick — it must never crash the server.
+func (s *Server) pruneExpiredSAMLSessionsLoop() {
+	ctx := context.Background()
+	t := time.NewTicker(1 * time.Hour)
+	defer t.Stop()
+	for {
+		if _, err := s.queries.DeleteExpiredSAMLSessions(ctx); err != nil {
+			logx.WithContext(ctx).WithError(err).Warn("prune saml_session")
 		}
 		<-t.C
 	}

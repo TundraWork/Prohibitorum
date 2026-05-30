@@ -196,7 +196,10 @@ func (s *SessionStore) Load(ctx context.Context, accountID int32, token, ip, ua 
 // Revoke deletes a specific session. The PG session row is soft-deleted
 // (revoked_at stamped) so audit trails and OIDC sid-claim resolution still
 // work after revocation. Best-effort on the PG side — a stale KV entry is
-// already gone; a lingering active=false PG row gets pruned by sweep.
+// already gone. NOTE: the PG session row is NEVER hard-DELETEd, so any
+// saml_session rows bound to it are NOT reclaimed by the FK ON DELETE CASCADE;
+// they are cleaned up by the SLO delete (HandleSLO) and the age-based
+// pruneExpiredSAMLSessionsLoop reaper in pkg/server.
 func (s *SessionStore) Revoke(ctx context.Context, accountID int32, token string) error {
 	key := sessionKey(accountID, token)
 	var sessionID string

@@ -1474,14 +1474,18 @@ func main() {
 		if assertion.Subject.NameID.Value != stableNameID {
 			log.Fatalf("NameID not stable: first=%q second=%q", stableNameID, assertion.Subject.NameID.Value)
 		}
-		log.Printf("  NameID identical across both SSOs ✓ (a second saml_session row was written)")
+		log.Printf("  NameID identical across both SSOs ✓ (re-SSO upserts the SAME saml_session row, not a duplicate — Fix C2 dedup)")
 	}
 
-	step(fmt.Sprintf("step 93/%d — v0.5: DB assert — saml_subject_id stable (1 row, same name_id) + ≥2 saml_session rows", totalV05))
+	step(fmt.Sprintf("step 93/%d — v0.5: DB assert — saml_subject_id stable (1 row, same name_id) + ≥1 saml_session row", totalV05))
 	if err := verifySAMLSubjectStable(v05Me.ID, stableNameID); err != nil {
 		log.Fatalf("saml_subject_id DB assert: %v", err)
 	}
-	if err := verifySAMLSessionCount(v05Me.ID, 2); err != nil {
+	// Steps 91+92 were two SSOs from the SAME session (client c) to the SAME SP.
+	// Post Fix C2 (UNIQUE (session_id, sp_id, session_index) + upsert), those
+	// collapse to ONE row (the second SSO refreshes not_on_or_after rather than
+	// duplicating). So the correct expectation here is exactly 1, not 2.
+	if err := verifySAMLSessionCount(v05Me.ID, 1); err != nil {
 		log.Fatalf("saml_session DB assert: %v", err)
 	}
 

@@ -54,7 +54,11 @@ CREATE TABLE saml_session (
   name_id         text NOT NULL,
   session_index   text NOT NULL,
   not_on_or_after timestamptz NOT NULL,
-  created_at      timestamptz NOT NULL DEFAULT now()
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  -- Dedup re-SSO from the same session to the same SP: session_index is
+  -- constant per session, so without this constraint each re-SSO inserts a
+  -- duplicate row (unbounded growth). InsertSAMLSession upserts on this key.
+  UNIQUE (session_id, sp_id, session_index)
 );
 CREATE INDEX saml_session_session_id_idx ON saml_session (session_id);
 
