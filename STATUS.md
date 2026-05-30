@@ -1235,6 +1235,217 @@ GHES SP and an authenticated session, so these branches do not fire:
   same request after the user authenticates. Replayed IDs that reach the
   issue path twice are rejected (smoke step 98).
 
+## v0.6 — protocol completeness (done)
+
+Closed the deferred OIDC OP + SAML IdP behaviors tracked across the
+v0.4/v0.5 audits, staying backend-only (no frontend). Four work areas:
+cross-protocol forced re-authentication, OIDC PKCE-method policy +
+introspection client-auth, SAML `NameIDPolicy/@Format` honoring, and SAML
+IdP-initiated SSO (plus POST-binding AuthnRequest intake and signed
+metadata). Handlers extend the existing `pkg/protocol/oidc` (Provider) and
+`pkg/protocol/saml` (IdP) surfaces in place; the cross-protocol re-auth
+gate lives in `pkg/authn` (`DemandReauth` / `ConsumeReauth`). Smoke
+extended from 99 to **111 steps** (v0.6 block is steps 100–111), all green
+end-to-end against live Postgres + a fresh dev server + the in-process
+mock RP and mock SP. Final smoke tally: `45 (v0.2) + 46–69 (v0.3) +
+70–87 (v0.4) + 88–99 (v0.5) + 100–111 (v0.6)`, `SMOKE_EXIT=0`.
+
+> This section is the authoritative current state of the forced-re-auth,
+> PKCE-policy, introspection-auth, and the v0.6 SAML behaviors. The v0.4
+> AUDIT "Accepted / deferred" note that `prompt=login`/`max_age` are
+> ignored, and the v0.5 notes that `ForceAuthn`/`NameIDPolicy`/IdP-initiated
+> SSO/POST-binding/signed-metadata are deferred, are superseded here.
+
+### What shipped
+
+- **OIDC forced re-auth** (`pkg/protocol/oidc/authorize.go`): `/oauth/authorize`
+  honors `prompt=login`, `max_age`, and `prompt=none`. The mechanism is a
+  full fresh re-login plus a single-use KV nonce marker (`pkg/authn`
+  `DemandReauth`/`ConsumeReauth`, key prefix `oidc:reauth:`): when the IdP
+  demands re-auth it stamps `{demand_instant}` under the nonce, embeds the
+  nonce in the `/login?return_to=…&reauth=<nonce>` bounce, and on return
+  requires the marker to still exist AND `session.auth_time >= demand_instant`,
+  then consumes it. A stale pre-existing session cannot satisfy
+  `prompt=login` because its `auth_time` predates the demand. `prompt=none`
+  + a re-auth demand returns `login_required` (no bounce); `prompt=login`
+  combined with `prompt=none` is `invalid_request`. `max_age=0` always
+  demands; a large `max_age` is satisfied by a sufficiently recent session.
+- **OIDC PKCE method policy** (`pkg/protocol/oidc/authorize.go`):
+  `/oauth/authorize` consults the per-client `require_pkce` (if true,
+  `code_challenge` is mandatory) and `allowed_code_challenge_methods` (the
+  requested method must be in the set). `plain` is forbidden ENTIRELY by a
+  DB CHECK on `oidc_client.allowed_code_challenge_methods` (OAuth 2.1 / RFC
+  9700: S256 mandatory) — a `code_challenge_method=plain` request →
+  `invalid_request`.
+- **OIDC public-client introspection rejected** (`pkg/protocol/oidc/introspect.go`):
+  a public (`none`-auth) client calling `/oauth/introspect` → `invalid_client`
+  (401) per RFC 7662 §2.1 (callers are resource servers; no public-client
+  exemption). Confidential-client introspection still works; public clients
+  may still `/oauth/revoke` their own tokens (RFC 7009 permits it). This is a
+  **BEHAVIOR CHANGE** from v0.4, which allowed public-client introspection of
+  their own tokens.
+- **SAML ForceAuthn** (`pkg/protocol/saml/sso.go`): `ForceAuthn=true` triggers
+  the same re-auth bounce + single-use nonce (key prefix `saml:reauth:`);
+  after a fresh login the assertion is issued with an `AuthnInstant`
+  reflecting the fresh `auth_time`. `ForceAuthn` + `IsPassive` (both set) →
+  a `NoPassive` status Response, no assertion (IsPassive wins, OASIS SAML
+  Core normative).
+- **SAML NameIDPolicy/@Format** (`pkg/protocol/saml/sso.go`): a requested
+  concrete `NameIDPolicy/@Format` that the IdP cannot produce (≠ the
+  configured persistent format, ≠ `unspecified`, present + non-empty) →
+  a status Response with `InvalidNameIDPolicy` and NO assertion;
+  `unspecified` / absent / a matching format → a normal assertion.
+- **SAML POST-binding AuthnRequest** (`pkg/protocol/saml/sso.go`):
+  `POST /saml/sso` accepts an enveloped-signed AuthnRequest (form
+  `SAMLRequest`, base64 with no inflate, verified against the registered
+  `saml_sp_key` cert); the POST SSO binding is re-advertised in metadata
+  (reversing the v0.5 audit-batch-D removal, now that the intake is real).
+- **SAML signed metadata** (`pkg/protocol/saml/metadata.go`): the
+  `/saml/metadata` `EntityDescriptor` is signed (verifies against its embedded
+  signing cert) and carries `validUntil` + `cacheDuration`, both from
+  `configx.SAML.MetadataValidity`. It fails OPEN to an unsigned descriptor if
+  there is no active signing key (never 500s).
+- **SAML IdP-initiated SSO** (`pkg/protocol/saml/sso_init.go`): a new
+  `GET /saml/sso/init?sp=<entity_id>&RelayState=<deep-link>` app-launcher
+  emits an UNSOLICITED Response (no `InResponseTo`) to the SP's DEFAULT ACS,
+  gated by the per-SP `saml_sp.allow_idp_initiated` boolean (default false; a
+  non-opted-in SP → 403). `RelayState` is passed through verbatim as the SP's
+  deep-link target. Rate-limited per-account + per-SP; audited with
+  `reason: "idp_initiated"`. The `saml-sp create --allow-idp-initiated` flag
+  opts an SP in.
+
+### Endpoints changed
+
+| Method | Path | Change |
+|---|---|---|
+| GET | `/oauth/authorize` | honor `prompt=login`/`prompt=none`/`max_age` (D1–D5); consult per-client `require_pkce` + `allowed_code_challenge_methods` (D6) |
+| POST | `/oauth/introspect` | reject public (`none`-auth) clients → `invalid_client` 401 (D7) — behavior change from v0.4 |
+| GET / POST | `/saml/sso` | re-add POST-binding intake (D9); honor `ForceAuthn` (D1/D2/D5); honor `NameIDPolicy/@Format` (D8) |
+| GET | `/saml/metadata` | sign the `EntityDescriptor` + `validUntil`/`cacheDuration` (D10); re-advertise the POST SSO binding (D9) |
+| GET | `/saml/sso/init` | **new** — IdP-initiated SSO app-launcher (D11) |
+
+Schema: `saml_sp.allow_idp_initiated boolean NOT NULL DEFAULT false`
+(`db/migrations/005_saml.sql`, amended in place per the pre-deployment
+squash convention); the `plain`-exclusion CHECK on
+`oidc_client.allowed_code_challenge_methods` was already present in
+`db/migrations/002_oidc.sql` (v0.4) and is now consulted by D6;
+`configx.SAML.MetadataValidity` added (D10).
+
+### Smoke-covered runtime paths
+
+`cmd/smoke` extends to **111 steps**; the v0.6 block is steps 100–111
+against a real Postgres + dev server + the in-process mock RP and mock SP.
+Each entry references the smoke step counter in `cmd/smoke/main.go`:
+
+- **100** — OIDC `prompt=login`: a stale session bounces to `/login` with a
+  single-use `reauth` nonce and does NOT issue a code; a fresh login + the
+  nonce → issues.
+- **101** — OIDC `max_age`: `max_age=0` always bounces (even the
+  just-minted session from step 100); a large `max_age=3600` issues a code.
+- **102** — OIDC `prompt=none` + stale session → a redirect carrying
+  `error=login_required` (no `/login` bounce).
+- **103** — OIDC `code_challenge_method=plain` → redirect `error=invalid_request`
+  (the method is excluded by the DB CHECK + the per-client policy).
+- **104** — a public (`none`-auth) client minted via the PKCE-only code flow:
+  `/oauth/introspect` → 401 `invalid_client`; a confidential client's
+  introspection of its own token still returns `active:true`; the public
+  client's `/oauth/revoke` of its own token → 200.
+- **105** — SAML `ForceAuthn`: a stale session bounces (reauth nonce), a fresh
+  login + the nonce → an assertion.
+- **106** — SAML `ForceAuthn` + `IsPassive` → a `NoPassive` status Response,
+  no assertion (IsPassive wins).
+- **107** — SAML `NameIDPolicy` `Format=emailAddress` (≠ persistent) →
+  `InvalidNameIDPolicy` status, no assertion.
+- **108** — SAML POST-binding (enveloped-signed) AuthnRequest at `POST /saml/sso`
+  → a valid assertion.
+- **109** — `GET /saml/metadata` is SIGNED, verifies against its own embedded
+  cert, and `validUntil` is in the future.
+- **110** — SAML IdP-initiated SSO: `GET /saml/sso/init?sp=…&RelayState=deep`
+  for the opted-in SP returns a 200 auto-POST unsolicited Response with
+  `RelayState` echoed verbatim; the v0.5 SP without the `allow_idp_initiated`
+  flag → 403.
+- **111** — DB assert: `credential_event` (factor `saml_sp`) covers the v0.6
+  SAML re-auth / IdP-initiated lifecycle, including a `reason=idp_initiated`
+  record from step 110.
+
+### Smoke-untested runtime paths (acknowledged)
+
+Still out of scope (unchanged from v0.5 — never claimed for v0.6):
+
+- **Assertion / NameID encryption** — NOT implemented; the
+  `saml_sp_key.use='encryption'` column remains reserved + unused.
+- **Front-channel multi-SP SLO propagation** — NOT implemented; SLO stays
+  IdP-local.
+
+Known issues recorded during v0.6 implementation (deferred; details in
+AUDIT.md "Accepted / deferred"):
+
+- **`require_pkce=false` + no `code_challenge` cannot complete token exchange**
+  — a pre-existing v0.4 behavior surfaced during Task 3: `verifyPKCE` rejects
+  an empty challenge, so a `require_pkce=false` client that sends NO PKCE gets
+  `invalid_grant` at `/oauth/token`. Only affects non-default clients (the
+  default is `require_pkce=true`). Deferred.
+- **`sloParseError` omits `errBadSigAlg`** — a SLO POST LogoutRequest with a
+  non-SHA256/non-SHA1 sig alg maps to 500 instead of 400 (the SSO path's
+  `ssoParseError` was fixed to include it; SLO's was not). Cosmetic — still
+  rejects. Deferred.
+- **`ForceAuthn` + POST-binding AuthnRequest** — the re-auth bounce rebuilds
+  `return_to` from the query string, but a POST-binding AuthnRequest body is
+  not in the query, so after the login bounce the return GET has no
+  `SAMLRequest` and fails safe with an error. A degenerate combination
+  (POST-binding SPs rarely also set ForceAuthn). Deferred / documented
+  limitation.
+- **`oidc-client create --public` requires `--post-logout-redirect-uri`** —
+  the public path passes `nil` post-logout URIs, violating the NOT NULL
+  column; the workaround is to supply one (the smoke does exactly this at
+  `cmd/smoke/main.go:4064` `createPublicOIDCClient`). Deferred CLI ergonomics
+  fix.
+
+### Notes
+
+Spec decisions D1–D12
+(`docs/superpowers/specs/2026-05-31-v0.6-protocol-completeness-design.md`):
+
+- **D1 — Forced re-auth = full fresh re-login + per-request freshness gate.**
+  `prompt=login`/`max_age`-exceeded (OIDC) and `ForceAuthn` (SAML) refuse to
+  issue from the current session and bounce to the login flow.
+- **D2 — Freshness gate via a single-use KV nonce.** The shared `reauthGate`
+  (`pkg/authn` `DemandReauth`/`ConsumeReauth`) stamps `<proto>:reauth:<nonce>
+  = <demand_instant>` (10m TTL), embeds the nonce in `return_to`, and on
+  return requires `session.auth_time >= demand_instant` + marker present, then
+  consumes it. A stale session's `auth_time` predates the demand, so it cannot
+  pass.
+- **D3 — `max_age` semantics.** `max_age=N` demands re-auth iff
+  `now - auth_time > N`; `max_age=0` ≡ always demand; absent ≡ no demand. The
+  issued `auth_time` reflects the (possibly refreshed) value.
+- **D4 — `prompt=none` + demand → `login_required`** (no bounce);
+  `prompt=login`+`none` → `invalid_request`.
+- **D5 — SAML `ForceAuthn` + `IsPassive` → `NoPassive`** (IsPassive wins,
+  OASIS normative); `ForceAuthn` + an existing session → the re-auth bounce.
+- **D6 — OIDC PKCE method policy: S256-only by default.** `/authorize`
+  consults `require_pkce` + `allowed_code_challenge_methods`; `plain` is kept
+  out of the default set by a DB CHECK.
+- **D7 — Introspection requires a confidential client.** Public (`none`-auth)
+  clients may NOT introspect (RFC 7662); they may still revoke their own
+  tokens (RFC 7009).
+- **D8 — SAML `NameIDPolicy/@Format`: honor-if-producible.**
+  `unspecified`/absent is free; a genuine mismatch → `InvalidNameIDPolicy`,
+  no assertion.
+- **D9 — SAML POST-binding AuthnRequest intake** re-added (enveloped
+  signature); POST SSO binding re-advertised in metadata.
+- **D10 — Signed IdP metadata + `validUntil`/`cacheDuration`** from
+  `configx.SAML.MetadataValidity`; fails open to unsigned when no active key.
+- **D11 — SAML IdP-initiated SSO with per-SP opt-in** (default false),
+  delivered only to the registered default ACS (open-redirect guard),
+  `RelayState` verbatim as deep-link, rate-limited per-account + per-SP. The
+  inherently weaker login-CSRF posture (no `InResponseTo`, SAML Profiles
+  §4.1.5) is the documented trade-off. Mirrors GHES's own default-reject
+  posture.
+- **D12 — No new auth UI.** The bounce targets the existing `/login?return_to=…`;
+  the re-auth is the existing API ceremony. The smoke drives re-auth via the
+  API ceremony then retries the protocol request, exactly as the v0.4/v0.5
+  no-session paths.
+
 ## v0.6 — Frontend
 
 - `dashboard/` scaffolded with pnpm + vite + Vue 3 + Tailwind v4.
