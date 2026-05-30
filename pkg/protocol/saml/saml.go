@@ -2,7 +2,6 @@ package saml
 
 import (
 	"errors"
-	"net/http"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -81,10 +80,4 @@ func (i *IdP) metadataURL() string {
 		return ""
 	}
 	return base + "/saml/metadata"
-}
-
-// TODO(v0.5): parse LogoutRequest, propagate to other SPs via saml_session,
-// revoke our session.
-func (i *IdP) SLO(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "saml.SLO: TODO(v0.5)", http.StatusNotImplemented)
 }
