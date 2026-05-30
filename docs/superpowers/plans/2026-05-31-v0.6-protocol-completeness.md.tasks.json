@@ -42,7 +42,7 @@
     {
       "id": 6,
       "subject": "Task 6: SAML POST-binding AuthnRequest intake",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** parseAuthnRequest dispatches on method; POST = base64 (no inflate) + enveloped sig via verifyElementSignature; re-add POST /saml/sso route + re-advertise POST SSO binding in metadata.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/authnreq.go\",\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/metadata.go\",\"pkg/server/server.go\",\"pkg/protocol/saml/authnreq_test.go\",\"pkg/protocol/saml/metadata_test.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/protocol/saml/... -run 'TestAuthnReq|TestMetadata' -v -count=1\",\"acceptanceCriteria\":[\"POST signed AuthnRequest parses+verifies; unsigned to required-SP->ErrMissingSignature\",\"metadata advertises both SSO bindings; POST route mounted\"]}\n```"
     },
     {
@@ -74,5 +74,5 @@
       "description": "**Goal:** v0.6 doc sections anchored to smoke steps; flip closed deferred AUDIT rows; INTEGRATION integrator guidance. Then post-implementation audit.\n\n```json:metadata\n{\"files\":[\"STATUS.md\",\"AUDIT.md\",\"INTEGRATION.md\"],\"verifyCommand\":\"git diff --stat STATUS.md AUDIT.md INTEGRATION.md\",\"acceptanceCriteria\":[\"STATUS v0.6 section w/ smoke-covered+untested\",\"AUDIT closed rows flipped + guardrails recorded + accepted/deferred updated\",\"INTEGRATION prompt/max_age/ForceAuthn + PKCE policy + public-introspect + idp-initiated launcher\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-31T05:00:00Z"
+  "lastUpdated": "2026-05-31T05:30:00Z"
 }
