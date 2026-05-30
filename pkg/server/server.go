@@ -340,8 +340,10 @@ func (s *Server) registerOperations() {
 	s.router.Post("/oauth/revoke", s.oidcOP.HandleRevoke)
 	s.router.Get("/oidc/logout", s.oidcOP.HandleLogout)
 	s.router.Get("/saml/metadata", s.samlIdP.HandleMetadata)
+	// SSO-in is HTTP-Redirect (GET) only — HandleSSO decodes the
+	// AuthnRequest from the query string; POST-binding AuthnRequest intake
+	// is unimplemented and not advertised in IdP metadata.
 	s.router.Get("/saml/sso", s.samlIdP.HandleSSO)
-	s.router.Post("/saml/sso", s.samlIdP.HandleSSO)
 	s.router.Get("/saml/slo", s.samlIdP.HandleSLO)
 	s.router.Post("/saml/slo", s.samlIdP.HandleSLO)
 }

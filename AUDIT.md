@@ -309,11 +309,69 @@ routes mounted at `pkg/server/server.go:320–324`.
 - No-stored-SLO-endpoint fallback returns a 200 `text/xml`
   LogoutResponse (unit-tested only).
 
-**Post-implementation audit: pending** — the parallel 3-lens audit
-(crypto / XML-DSig + protocol-standards + race-logic) plus the deep
-second pass (integration / data-integrity / schema-drift) run AFTER this
-docs task per the plan's Verification gates, with special focus on
-XSW/XXE, signature verification, NameID stability, and replay.
+### Post-implementation audit (2026-05-30) — done
+
+After all 14 v0.5 tasks shipped (smoke green end-to-end), a parallel
+4-lens audit ran — crypto/XML-DSig + protocol-standards + race-logic +
+a deep second pass (integration / data-integrity / schema-drift), focus
+on XSW/XXE, signature verification, NameID stability, and replay.
+**No Critical findings.** The deep + race passes earned their keep
+(as in v0.4): they found two High-class issues the schema-resetting
+smoke structurally cannot catch (a live-session-only SLO + a fresh DB
+each run). All Highs and the security/interop Mediums were fixed across
+three batches; the remainder are documented as accepted/deferred below.
+
+- **Batch A (crypto / interop) `3305ac9`:** `<ds:Signature>` is now
+  relocated to immediately after `<Issuer>` in every signed element —
+  goxmldsig appends it last, which violates the SAML XSD element order
+  and is **rejected by strict schema-validating SPs** (Shibboleth / ADFS
+  / OpenSAML); crewjam's lenient parser hid it from the interop test, so
+  this was the v0.5 analog of "an interop break the lenient test missed."
+  Also: SP cert validity (NotBefore/NotAfter) is now checked on the
+  HTTP-Redirect signature path (parity with the POST path); the enveloped
+  verify now requires a **positive** RSA-SHA256 + SHA-256 allowlist (not
+  just a SHA-1 denylist); and an XSW subtree assertion rejects any second
+  `<Signature>` claiming the processed element's own ID.
+- **Batch B (SAML conformance) `e5432cf`:** `resolveACS` now honors
+  `AssertionConsumerServiceIndex` and the lowest-`index` implicit-default
+  ACS (Web SSO Profile §4.1.4.1 / Metadata §2.4.4.1) — the open-redirect
+  guard (only registered Locations) is intact; the persistent NameID now
+  carries `NameQualifier` (IdP entityID) + `SPNameQualifier` (SP entityID)
+  per Core §8.3.7; inbound `Version == "2.0"` is enforced on AuthnRequest
+  + LogoutRequest (Core §3.2.1).
+- **Batch C (saml_session lifecycle) `87bc8c8`:** the two High-class
+  data-integrity findings — **(1)** SLO orphaned a `saml_session` row
+  whenever the bound IdP session was already revoked (`GetSession` filters
+  `revoked_at IS NULL` → the old code skipped `DeleteSAMLSessionsBySession`):
+  the row delete is now **unconditional** (the binding is removed whether
+  or not the underlying session is still live; the signature gate still
+  precedes all mutation); **(2)** re-SSO inserted duplicate rows and the
+  `ON DELETE CASCADE` was dead code (sessions are soft-revoked, never
+  hard-deleted): added `UNIQUE (session_id, sp_id, session_index)` + an
+  upsert (refresh `not_on_or_after`, no dup) and a background
+  `pruneExpiredSAMLSessionsLoop` reaper (mirrors `pruneRevokedJTILoop`).
+  SLO partial-revoke failures are now surfaced in the audit record
+  (`detail.partial=true`) instead of silently swallowed. (Re-ran the
+  full suite + the end-to-end smoke green after the schema amend.)
+
+**Accepted / deferred (tracked, not blocking v0.5):**
+- AuthnRequest-ID replay is a non-atomic KV Get→SetEx (a `SetNX` primitive
+  isn't on the `kv.Store` interface). Real-world impact is low: a replayed
+  AuthnRequest yields an identical assertion to the **same registered ACS**
+  for the same subject (the SP de-dupes by `InResponseTo`), and it requires
+  a live IdP session. Documented limitation.
+- SLO↔SSO resurrection race: a concurrent SSO that already passed the
+  session gate can mint one assertion for a session being logged out
+  (bounded to one in-flight request, same authenticated user).
+- `NameIDPolicy/@Format` is not honored (no `InvalidNameIDPolicy` status) —
+  GHES uses `persistent`, matching our default; generic SPs requesting a
+  different format are silently served `persistent`.
+- POST-binding **AuthnRequest** intake is unimplemented; the IdP no longer
+  advertises a POST SSO endpoint it cannot serve (redirect-binding only for
+  SSO-in; SLO accepts both bindings). IdP-initiated SSO, front-channel SLO
+  propagation, and assertion/NameID **encryption** remain out of scope.
+- IdP metadata is unsigned and omits `validUntil`/`cacheDuration`
+  (operator refreshes out-of-band) — optional Metadata fields, deferred.
 
 ## Cryptography
 
