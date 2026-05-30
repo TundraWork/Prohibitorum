@@ -182,3 +182,31 @@ func TestIntrospectBadClientAuth(t *testing.T) {
 		t.Fatalf("error = %q, want %q", got, errCodeInvalidClient)
 	}
 }
+
+// TestIntrospectPublicClientRejected verifies RFC 7662 §2.1: a public
+// (none-auth) client may not introspect. Even though it authenticates as a
+// known client (client_id in the form, no secret), the endpoint rejects it
+// with invalid_client (401) before any token lookup.
+func TestIntrospectPublicClientRejected(t *testing.T) {
+	h := newEndpointHarness(t)
+	h.q.clients["pub"] = publicClient("pub")
+	// Mint a token owned by the public client so a missing public-client guard
+	// would otherwise return active:true (proving the guard fires first).
+	at := h.mintAccessToken(t, testSubject, "pub", "openid", "jti-i5", time.Now().Add(time.Hour))
+
+	form := url.Values{}
+	form.Set("token", at)
+	form.Set("client_id", "pub")
+	req := httptest.NewRequest(http.MethodPost, "/oauth/introspect", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rec := httptest.NewRecorder()
+	h.p.HandleIntrospect(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidClient {
+		t.Fatalf("error = %q, want %q", got, errCodeInvalidClient)
+	}
+}

@@ -82,15 +82,23 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// PKCE is mandatory (S256 only). Treat an empty method as invalid and
-	// reject "plain" explicitly.
-	if codeChallenge == "" {
+	// PKCE per client policy (D6). require_pkce → code_challenge mandatory;
+	// the requested method must be in allowed_code_challenge_methods. 'plain' is
+	// forbidden entirely by the oidc_client DB CHECK (OAuth 2.1: S256 mandatory);
+	// the allowed set is S256-only. The membership check below is the general gate.
+	if client.RequirePkce && codeChallenge == "" {
 		redirectError(w, r, redirectURI, errCodeInvalidRequest, "PKCE code_challenge is required", state, p.cfg.OIDC.Issuer)
 		return
 	}
-	if codeChallengeMethod != "S256" {
-		redirectError(w, r, redirectURI, errCodeInvalidRequest, "code_challenge_method must be S256", state, p.cfg.OIDC.Issuer)
-		return
+	if codeChallenge != "" {
+		method := codeChallengeMethod
+		if method == "" {
+			method = "plain" // RFC 7636 default when method omitted — rejected unless explicitly allowed
+		}
+		if !slices.Contains(client.AllowedCodeChallengeMethods, method) {
+			redirectError(w, r, redirectURI, errCodeInvalidRequest, "code_challenge_method not allowed for this client", state, p.cfg.OIDC.Issuer)
+			return
+		}
 	}
 
 	// (4) Session gate. A nil session, the disabled-mid-session sentinel

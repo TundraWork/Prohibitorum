@@ -162,8 +162,19 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// PKCE S256 verification (RFC 7636). The challenge was bound to the code at
-	// /authorize; only the holder of the verifier may redeem it.
+	// PKCE verification (RFC 7636). The challenge was bound to the code at
+	// /authorize; only the holder of the verifier may redeem it. verifyPKCE
+	// implements S256 only. Defense-in-depth: when a challenge IS present, the
+	// method must be S256 — reject 'plain' and an omitted method ("" means plain
+	// per RFC 7636 §4.3) rather than mis-verify. /authorize already rejects these
+	// at mint time (the DB CHECK forbids 'plain' in the allowed set entirely), so
+	// this only fires on a malformed/forged stored code. The guard is gated on a
+	// non-empty challenge so a legitimate no-PKCE code (no challenge, empty
+	// method) is not caught here.
+	if ac.CodeChallenge != "" && (ac.CodeChallengeMethod == "plain" || ac.CodeChallengeMethod == "") {
+		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "unsupported PKCE method")
+		return
+	}
 	if !verifyPKCE(r.PostForm.Get("code_verifier"), ac.CodeChallenge) {
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "PKCE verification failed")
 		return

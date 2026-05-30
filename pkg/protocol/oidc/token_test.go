@@ -262,6 +262,87 @@ func TestTokenPKCEMismatch(t *testing.T) {
 	}
 }
 
+// TestTokenPlainPKCERejected verifies that a stored code carrying the unsupported
+// 'plain' method is rejected at exchange with invalid_grant rather than being
+// silently mis-verified by the S256-only verifyPKCE.
+func TestTokenPlainPKCERejected(t *testing.T) {
+	h := newTokenHarness(t)
+	ac := baseAuthCode()
+	// A 'plain' challenge is the verifier verbatim (RFC 7636 §4.6).
+	ac.CodeChallenge = testVerifier
+	ac.CodeChallengeMethod = "plain"
+	code := h.mintTestCode(t, ac)
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(codeExchangeForm(code, testVerifier, testRedirect)))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
+	}
+}
+
+// TestTokenOmittedMethodPKCERejected verifies the defense-in-depth guard also
+// catches a stored code whose method was OMITTED (""). Per RFC 7636 §4.3 an
+// omitted method means 'plain', so a challenge-present code with an empty method
+// must be rejected with invalid_grant rather than mis-verified by the S256-only
+// verifyPKCE. (/authorize rejects this at mint time; this is forged-code defense.)
+func TestTokenOmittedMethodPKCERejected(t *testing.T) {
+	h := newTokenHarness(t)
+	ac := baseAuthCode()
+	// A 'plain' (omitted-method) challenge is the verifier verbatim.
+	ac.CodeChallenge = testVerifier
+	ac.CodeChallengeMethod = ""
+	code := h.mintTestCode(t, ac)
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(codeExchangeForm(code, testVerifier, testRedirect)))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
+	}
+}
+
+// TestTokenNoPKCEGuardNotTriggered verifies the plain/omitted-method guard is
+// gated on a PRESENT challenge: a no-PKCE code (no challenge, empty method) does
+// NOT trip the guard's "unsupported PKCE method" branch. It still flows to the
+// S256 verifyPKCE, which rejects an empty challenge with "PKCE verification
+// failed" — so the guard introduces no behavior change for the no-PKCE path.
+func TestTokenNoPKCEGuardNotTriggered(t *testing.T) {
+	h := newTokenHarness(t)
+	ac := baseAuthCode()
+	ac.CodeChallenge = ""
+	ac.CodeChallengeMethod = ""
+	code := h.mintTestCode(t, ac)
+
+	rec := httptest.NewRecorder()
+	form := codeExchangeForm(code, "", testRedirect)
+	form.Del("code_verifier")
+	h.p.HandleToken(rec, tokenReq(form))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	// The guard must NOT be what rejected it (that message is "unsupported PKCE
+	// method"); the verifyPKCE empty-challenge check is, proving the guard was
+	// gated past for the no-challenge case.
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error body %q: %v", rec.Body.String(), err)
+	}
+	if body["error"] != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, body["error"])
+	}
+	if body["error_description"] == "unsupported PKCE method" {
+		t.Fatalf("no-PKCE code must not trip the plain/omitted guard; got %q", body["error_description"])
+	}
+}
+
 func TestTokenReplayRevokesFamily(t *testing.T) {
 	h := newTokenHarness(t)
 	ctx := context.Background()

@@ -58,9 +58,11 @@ func (a *recordingAudit) Record(ctx context.Context, r audit.Record) error {
 // validClient is the baseline registered client used across the tests.
 func validClient() db.OidcClient {
 	return db.OidcClient{
-		ClientID:      "rp-1",
-		RedirectUris:  []string{"https://rp.example.com/callback"},
-		AllowedScopes: []string{"openid", "profile", "offline_access"},
+		ClientID:                    "rp-1",
+		RedirectUris:                []string{"https://rp.example.com/callback"},
+		AllowedScopes:               []string{"openid", "profile", "offline_access"},
+		RequirePkce:                 true,
+		AllowedCodeChallengeMethods: []string{"S256"},
 	}
 }
 
@@ -221,6 +223,31 @@ func TestAuthorize_PlainPKCEMethod_Redirect(t *testing.T) {
 
 	if got := redirectQuery(t, rec).Get("error"); got != errCodeInvalidRequest {
 		t.Fatalf("want error=%s, got %q", errCodeInvalidRequest, got)
+	}
+}
+
+// TestAuthorize_RequirePkceFalse_NoChallengeProceeds verifies the require_pkce
+// gate: a client with RequirePkce=false may omit code_challenge entirely and
+// still reach the (authenticated) happy path that issues a code.
+func TestAuthorize_RequirePkceFalse_NoChallengeProceeds(t *testing.T) {
+	c := validClient()
+	c.RequirePkce = false
+	q := &fakeAuthzQueries{client: c, session: validSession()}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Del("code_challenge")
+	v.Del("code_challenge_method")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	// A successful authorize 302-redirects with a `code` param, no `error`.
+	loc := redirectQuery(t, rec)
+	if e := loc.Get("error"); e != "" {
+		t.Fatalf("unexpected error=%q (loc query %v)", e, loc)
+	}
+	if loc.Get("code") == "" {
+		t.Fatalf("expected an authorization code in redirect, got %v", loc)
 	}
 }
 

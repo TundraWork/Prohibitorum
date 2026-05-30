@@ -32,6 +32,15 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// RFC 7662 §2.1: introspection callers must authenticate. A public
+	// (none-auth) client cannot, so it may not introspect (mainstream OP
+	// behavior; spec D7). Revocation (RFC 7009) still permits public clients to
+	// revoke their own tokens — that path (revoke.go) is unchanged.
+	if client.TokenEndpointAuthMethod == "none" {
+		writeInvalidClient(w, r, "public clients may not introspect tokens")
+		return
+	}
+
 	token := r.PostForm.Get("token")
 	if token == "" {
 		writeIntrospectionInactive(w)
