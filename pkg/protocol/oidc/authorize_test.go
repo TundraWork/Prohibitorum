@@ -31,6 +31,8 @@ type fakeAuthzQueries struct {
 	clientErr  error
 	session    db.Session
 	sessionErr error
+	granted    []string
+	grantedErr error
 }
 
 func (f *fakeAuthzQueries) GetOIDCClient(ctx context.Context, id string) (db.OidcClient, error) {
@@ -45,6 +47,13 @@ func (f *fakeAuthzQueries) GetSession(ctx context.Context, id string) (db.Sessio
 		return db.Session{}, f.sessionErr
 	}
 	return f.session, nil
+}
+
+func (f *fakeAuthzQueries) GetConsent(ctx context.Context, arg db.GetConsentParams) ([]string, error) {
+	if f.grantedErr != nil {
+		return nil, f.grantedErr
+	}
+	return f.granted, nil
 }
 
 // recordingAudit captures every Record call for assertions.
@@ -347,20 +356,6 @@ func TestAuthorize_DisabledSentinelSessionPromptNone_LoginRequired(t *testing.T)
 	loc := rec.Result().Header.Get("Location")
 	if !strings.HasPrefix(loc, "https://rp.example.com/callback") {
 		t.Fatalf("login_required must go to the RP redirect_uri, got %q", loc)
-	}
-}
-
-func TestAuthorize_RequireConsent_Redirect(t *testing.T) {
-	c := validClient()
-	c.RequireConsent = true
-	q := &fakeAuthzQueries{client: c, session: validSession()}
-	p := newProvider(q, &recordingAudit{})
-
-	rec := httptest.NewRecorder()
-	p.HandleAuthorize(rec, authedReq(baseParams()))
-
-	if got := redirectQuery(t, rec).Get("error"); got != errCodeConsentRequired {
-		t.Fatalf("want error=%s, got %q", errCodeConsentRequired, got)
 	}
 }
 

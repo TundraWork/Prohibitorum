@@ -9,8 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/db"
 )
 
 // authorizeRateLimit caps authorization-code mints per authenticated account.
@@ -187,11 +190,62 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// (5) Consent is not yet implemented (v0.6). A client that requires it
-	// cannot complete the flow yet.
+	// (5) Consent. Trusted clients (RequireConsent=false) skip entirely. Otherwise
+	// a stored grant covering every requested scope satisfies consent — unless the
+	// RP forced re-consent with prompt=consent. When consent is needed we mint a
+	// single-use ticket and bounce to /consent (or, for prompt=none, error to RP).
 	if client.RequireConsent {
-		redirectError(w, r, redirectURI, errCodeConsentRequired, "user consent is required but not yet supported", state, p.cfg.OIDC.Issuer)
-		return
+		granted, gerr := p.queries.GetConsent(r.Context(), db.GetConsentParams{
+			AccountID: sess.Data.AccountID,
+			ClientID:  client.ClientID,
+		})
+		if gerr != nil && !errors.Is(gerr, pgx.ErrNoRows) {
+			redirectError(w, r, redirectURI, errCodeServerError, "could not load consent", state, p.cfg.OIDC.Issuer)
+			return
+		}
+		needConsent := slices.Contains(prompts, "consent")
+		for _, s := range scopes {
+			if !slices.Contains(granted, s) {
+				needConsent = true
+				break
+			}
+		}
+		if needConsent {
+			if wantNone {
+				redirectError(w, r, redirectURI, errCodeConsentRequired, "user consent is required", state, p.cfg.OIDC.Issuer)
+				return
+			}
+			nonce, derr := authn.DemandConsent(r.Context(), p.kv, authn.ConsentTicket{
+				AccountID:   sess.Data.AccountID,
+				ClientID:    client.ClientID,
+				Scopes:      scopes,
+				RedirectURI: redirectURI,
+				State:       state,
+			})
+			if derr != nil {
+				redirectError(w, r, redirectURI, errCodeServerError, "could not start consent", state, p.cfg.OIDC.Issuer)
+				return
+			}
+			// Build return_to from Path+Query with any stale reauth nonce
+			// stripped: a re-auth demand (prompt=login/max_age) is satisfied via
+			// a single-use nonce that was already consumed above, so echoing it
+			// here would be dead state. (Mirrors the re-auth block's own nonce
+			// hygiene.) ACCEPTED LIMITATION: when prompt=login co-occurs with a
+			// first-time (ungranted) consent, the user still sees one extra login
+			// after approving — the single-use re-auth nonce cannot span the extra
+			// consent round-trip. This is fail-safe (over-authentication) and rare;
+			// not re-architected here.
+			retQuery := r.URL.Query()
+			retQuery.Del("reauth")
+			returnTo := p.cfg.OIDC.Issuer + r.URL.Path
+			if enc := retQuery.Encode(); enc != "" {
+				returnTo += "?" + enc
+			}
+			consentURL := p.cfg.OIDC.Issuer + "/consent?ticket=" + url.QueryEscape(nonce) +
+				"&return_to=" + url.QueryEscape(returnTo)
+			http.Redirect(w, r, consentURL, http.StatusFound)
+			return
+		}
 	}
 
 	// (6) Per-account rate limit. The user is authenticated, so a direct 429 is
