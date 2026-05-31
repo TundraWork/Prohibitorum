@@ -99,6 +99,12 @@ func ErrBadRequest() *AuthError {
 	return newErr(http.StatusBadRequest, "bad_request", "请求参数无效")
 }
 
+// ErrInvalidConsentTicket is returned when a consent ticket is missing, expired,
+// already used, or belongs to another account.
+func ErrInvalidConsentTicket() *AuthError {
+	return newErr(http.StatusBadRequest, "invalid_consent_ticket", "授权请求已失效，请重新发起登录")
+}
+
 func ErrInvalidRole() *AuthError {
 	return newErr(http.StatusBadRequest, "invalid_role", "角色无效")
 }

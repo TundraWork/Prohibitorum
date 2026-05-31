@@ -300,3 +300,34 @@ var OperationRevokeInvitation = huma.Operation{
 	Path:        "/invitations/revoke",
 	Summary:     "Revoke a pending invitation by token.",
 }
+
+// ConsentContext is GET /api/prohibitorum/consent — the data the consent UI
+// needs to render. Scope *descriptions* are owned by the frontend i18n layer.
+type ConsentContext struct {
+	Client  ConsentClient `json:"client"`
+	Account ConsentUser   `json:"account"`
+	Scopes  []string      `json:"scopes"`
+}
+
+type ConsentClient struct {
+	ClientID    string `json:"clientId"`
+	DisplayName string `json:"displayName"`
+	LogoURI     string `json:"logoUri,omitempty"`
+	PolicyURI   string `json:"policyUri,omitempty"`
+	TosURI      string `json:"tosUri,omitempty"`
+}
+
+type ConsentUser struct {
+	DisplayName string `json:"displayName"`
+}
+
+// ConsentDecision is the POST body. Decision is "approve" or "deny".
+type ConsentDecision struct {
+	Ticket   string `json:"ticket"`
+	Decision string `json:"decision"`
+}
+
+// ConsentResult tells the SPA where to navigate next.
+type ConsentResult struct {
+	Redirect string `json:"redirect"`
+}

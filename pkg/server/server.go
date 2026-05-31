@@ -286,6 +286,10 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListMySessions, s.handleListMySessions, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeMySession, s.handleRevokeMySession, sessionReq)
 
+	// Consent app API (OIDC consent UI context + decision).
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/consent", sessionReq, s.handleConsentContextHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/consent", sessionReq, s.handleConsentDecisionHTTP)
+
 	// Sudo
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/methods", sessionReq, s.handleSudoMethodsHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/begin", sessionReq, s.handleSudoBeginHTTP)
