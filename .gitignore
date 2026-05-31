@@ -2,6 +2,7 @@
 /dashboard/node_modules
 /dashboard/dist
 /dashboard/.vite
+/.vite
 /node_modules
 /.data
 /.env
