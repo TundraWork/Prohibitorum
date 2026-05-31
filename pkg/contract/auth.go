@@ -331,3 +331,9 @@ type ConsentDecision struct {
 type ConsentResult struct {
 	Redirect string `json:"redirect"`
 }
+
+// FederationProvider is one entry in GET /api/prohibitorum/auth/federation.
+type FederationProvider struct {
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+}

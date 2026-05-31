@@ -76,6 +76,10 @@ type Server struct {
 	// disabled re-check in /auth/{totp,recovery-code}/verify (Bundle 1 /
 	// Fix 4). Nil in production — falls back to s.queries.
 	accountLookup accountLookupQueries
+	// listFedOverride lets tests inject a fake for
+	// handleListFederationProvidersHTTP without standing up *db.Queries. Nil
+	// in production — falls back to s.queries.
+	listFedOverride listFedQueries
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -267,6 +271,7 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery/totp/verify", publicReq, s.handleAuthRecoveryTOTPVerifyHTTP)
 
 	// v0.3 federation: upstream OIDC login + /me/identities management
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/login", publicReq, s.handleFederationLoginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/callback", publicReq, s.handleFederationCallbackHTTP)
 

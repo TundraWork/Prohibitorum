@@ -23,7 +23,9 @@
 package server
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -31,9 +33,25 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation/oidc"
 	sessstore "prohibitorum/pkg/session"
 )
+
+// listFedQueries is the narrow query surface for handleListFederationProvidersHTTP.
+// Tests inject a fake via Server.listFedOverride; production falls back to
+// s.queries.
+type listFedQueries interface {
+	ListUpstreamIDPs(ctx context.Context) ([]db.UpstreamIdp, error)
+}
+
+func (s *Server) listFedQ() listFedQueries {
+	if s.listFedOverride != nil {
+		return s.listFedOverride
+	}
+	return s.queries
+}
 
 // handleFederationLoginHTTP serves
 // GET /api/prohibitorum/auth/federation/{slug}/login.
@@ -127,6 +145,22 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	}
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, result.AccountID, token, s.config.SessionTTL))
 	http.Redirect(w, r, result.ReturnTo, http.StatusFound)
+}
+
+// GET /api/prohibitorum/auth/federation — public list of enabled upstream IdPs
+// for the login page's "sign in with" buttons. ListUpstreamIDPs already filters
+// disabled rows and orders by display_name.
+func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *http.Request) {
+	idps, err := s.listFedQ().ListUpstreamIDPs(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("list federation providers: %w", err))
+		return
+	}
+	out := make([]contract.FederationProvider, 0, len(idps))
+	for _, idp := range idps {
+		out = append(out, contract.FederationProvider{Slug: idp.Slug, DisplayName: idp.DisplayName})
+	}
+	writeJSON(w, out)
 }
 
 // validateFederationReturnTo allows only relative URLs starting with "/" (and

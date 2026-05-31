@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -39,6 +40,7 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation/oidc"
 	"prohibitorum/pkg/kv"
@@ -84,6 +86,10 @@ type fakeFedQueries struct {
 	// enrollment (populated by handle_invite_federation_test.go via seedEnrollment;
 	// declared here so the field lives on the shared fake type).
 	enrollmentByToken map[string]db.Enrollment
+
+	// listIDPs is used by fakeFedQueries.ListUpstreamIDPs (see below).
+	listIDPs    []db.UpstreamIdp
+	listIDPsErr error
 }
 
 func newFakeFedQueries() *fakeFedQueries {
@@ -199,6 +205,12 @@ func (f *fakeFedQueries) InsertCredentialEvent(_ context.Context, arg db.InsertC
 	defer f.mu.Unlock()
 	f.events = append(f.events, arg)
 	return nil
+}
+
+func (f *fakeFedQueries) ListUpstreamIDPs(_ context.Context) ([]db.UpstreamIdp, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.listIDPs, f.listIDPsErr
 }
 
 // Compile-time guard: must satisfy the federator's query surface.
@@ -765,6 +777,107 @@ func TestValidateFederationReturnTo(t *testing.T) {
 		if got != c.want {
 			t.Errorf("validateFederationReturnTo(%q): want %q, got %q", c.in, c.want, got)
 		}
+	}
+}
+
+// --- handleListFederationProvidersHTTP tests ----------------------------------
+
+// newListFedServer builds a minimal Server with a fakeFedQueries whose
+// ListUpstreamIDPs is pre-configured. No federator, KV, or session store
+// needed — the list handler only calls listFedQ().
+func newListFedServer(q *fakeFedQueries) *Server {
+	return &Server{
+		listFedOverride: q,
+	}
+}
+
+func TestListFederationProviders_TwoIDPs(t *testing.T) {
+	q := newFakeFedQueries()
+	q.listIDPs = []db.UpstreamIdp{
+		{Slug: "google", DisplayName: "Google"},
+		{Slug: "github", DisplayName: "GitHub"},
+	}
+
+	s := newListFedServer(q)
+	req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/auth/federation", nil)
+	w := httptest.NewRecorder()
+	s.handleListFederationProvidersHTTP(w, req)
+
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", resp.StatusCode)
+	}
+
+	var out []contract.FederationProvider
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("providers: want 2, got %d", len(out))
+	}
+	// Verify slug + displayName pass through correctly.
+	for _, want := range []struct{ slug, name string }{
+		{"google", "Google"},
+		{"github", "GitHub"},
+	} {
+		found := false
+		for _, p := range out {
+			if p.Slug == want.slug && p.DisplayName == want.name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("provider {%s %s} not found in %+v", want.slug, want.name, out)
+		}
+	}
+}
+
+func TestListFederationProviders_ZeroIDPs(t *testing.T) {
+	q := newFakeFedQueries()
+	// listIDPs is nil by default; handler must emit [] not null.
+
+	s := newListFedServer(q)
+	req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/auth/federation", nil)
+	w := httptest.NewRecorder()
+	s.handleListFederationProvidersHTTP(w, req)
+
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", resp.StatusCode)
+	}
+
+	rawBody, _ := io.ReadAll(resp.Body)
+	// Trim trailing newline added by json.Encoder.
+	trimmed := strings.TrimSpace(string(rawBody))
+	if trimmed != "[]" {
+		t.Errorf("body: want %q, got %q (must be [] not null)", "[]", trimmed)
+	}
+
+	// Also verify the decoded slice has length 0 (not nil-decoded).
+	var out []contract.FederationProvider
+	if err := json.Unmarshal([]byte(trimmed), &out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(out) != 0 {
+		t.Errorf("providers: want 0, got %d", len(out))
+	}
+}
+
+func TestListFederationProviders_QueryError(t *testing.T) {
+	q := newFakeFedQueries()
+	q.listIDPsErr = fmt.Errorf("db unavailable")
+
+	s := newListFedServer(q)
+	req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/auth/federation", nil)
+	w := httptest.NewRecorder()
+	s.handleListFederationProvidersHTTP(w, req)
+
+	resp := w.Result()
+	// writeAuthErr maps a plain fmt.Errorf (non-*authn.AuthError) to 500.
+	if resp.StatusCode != http.StatusInternalServerError {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status: want 500, got %d (body=%s)", resp.StatusCode, body)
 	}
 }
 
