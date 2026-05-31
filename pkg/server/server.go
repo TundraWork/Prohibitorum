@@ -32,6 +32,7 @@ import (
 	oidcop "prohibitorum/pkg/protocol/oidc"
 	samlidp "prohibitorum/pkg/protocol/saml"
 	sessstore "prohibitorum/pkg/session"
+	"prohibitorum/pkg/webui"
 )
 
 type Server struct {
@@ -172,6 +173,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		Audit:         auditWriter,
 	}
 	s.registerOperations()
+	s.router.NotFound(webui.Handler().ServeHTTP)
 	logx.WithContext(ctx).Info("registered operations")
 	return s, nil
 }

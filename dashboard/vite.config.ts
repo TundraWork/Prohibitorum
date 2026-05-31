@@ -13,5 +13,5 @@ export default defineConfig({
       '/.well-known': 'http://localhost:8080',
     },
   },
-  build: { outDir: 'dist' },
+  build: { outDir: '../pkg/webui/dist', emptyOutDir: true },
 })
