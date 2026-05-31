@@ -124,7 +124,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	router := chi.NewMux()
 	router.Use(sessstore.LoadSession(config, queries, sessionStore))
 	api := humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0"))
-	registerSecurityScheme(api)
+	registerSecurityScheme(api, sessstore.SessionCookieNameFor(config))
 
 	auditWriter := audit.NewWriter(queries)
 	throttle := authn.NewThrottle(queries, config.Auth.ThrottleSchedule, auditWriter)
@@ -180,7 +180,7 @@ func NewHuma() huma.API {
 		router: router,
 		api:    humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")),
 	}
-	registerSecurityScheme(s.api)
+	registerSecurityScheme(s.api, sessstore.SessionCookieName)
 	s.registerOperations()
 	return s.api
 }
@@ -234,7 +234,7 @@ func (s *Server) pruneExpiredSAMLSessionsLoop() {
 	}
 }
 
-func registerSecurityScheme(api huma.API) {
+func registerSecurityScheme(api huma.API, cookieName string) {
 	doc := api.OpenAPI()
 	if doc.Components == nil {
 		doc.Components = &huma.Components{}
@@ -245,7 +245,7 @@ func registerSecurityScheme(api huma.API) {
 	doc.Components.SecuritySchemes["prohibitorumSession"] = &huma.SecurityScheme{
 		Type: "apiKey",
 		In:   "cookie",
-		Name: sessstore.SessionCookieName,
+		Name: cookieName,
 	}
 }
 

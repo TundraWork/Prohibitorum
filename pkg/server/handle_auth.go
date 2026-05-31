@@ -277,7 +277,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 // ----- POST /auth/logout (raw chi) -----------------------------------------
 
 func (s *Server) handleLogoutHTTP(w http.ResponseWriter, r *http.Request) {
-	if c, err := r.Cookie(sessstore.SessionCookieName); err == nil && c.Value != "" {
+	if c, err := r.Cookie(sessstore.SessionCookieNameFor(s.config)); err == nil && c.Value != "" {
 		if id, tok, ok := sessstore.ParseCookieValue(c.Value); ok {
 			_ = s.sessionStore.Revoke(r.Context(), id, tok)
 			logx.WithContext(r.Context()).WithFields(logrus.Fields{
