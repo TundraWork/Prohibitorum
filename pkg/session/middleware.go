@@ -16,6 +16,35 @@ const (
 	CeremonyCookieName = "prohibitorum_ceremony"
 )
 
+// secureCookies reports whether session cookies should be hardened for a
+// secure (HTTPS) deployment. Derived from the canonical public origin's scheme
+// so the cookie identity is deployment-stable (not per-request) — required
+// because the __Host- name must match between the set and read paths, and a
+// TLS-terminating proxy must not flip it per request.
+func secureCookies(cfg *configx.Config) bool {
+	return len(cfg.PublicOrigins) > 0 &&
+		strings.HasPrefix(strings.ToLower(strings.TrimSpace(cfg.PublicOrigins[0])), "https://")
+}
+
+// sessionCookieName returns the deployment-appropriate session cookie name:
+// the browser-hardened __Host- prefix in secure deployments, the plain base
+// name otherwise. The __Host- prefix REQUIRES Secure + Path=/ + no Domain
+// (all satisfied below) and gives browser-enforced session-fixation /
+// subdomain-injection defense.
+func sessionCookieName(secure bool) string {
+	if secure {
+		return "__Host-" + SessionCookieName
+	}
+	return SessionCookieName
+}
+
+// SessionCookieNameFor resolves the session cookie name for cfg. Exported so
+// out-of-package readers (the logout handler, the OpenAPI security scheme) name
+// the cookie identically to this package's set/clear/read paths.
+func SessionCookieNameFor(cfg *configx.Config) string {
+	return sessionCookieName(secureCookies(cfg))
+}
+
 // LoadSession returns a chi middleware that:
 //  1. Reads the prohibitorum_session cookie.
 //  2. Validates it against the SessionStore.
@@ -31,7 +60,7 @@ const (
 func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			c, err := r.Cookie(SessionCookieName)
+			c, err := r.Cookie(SessionCookieNameFor(cfg))
 			if err != nil || c.Value == "" {
 				next.ServeHTTP(w, r)
 				return
@@ -85,30 +114,34 @@ func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore) func(ht
 // ----- cookie helpers -------------------------------------------------------
 
 // FreshSessionCookie constructs the Set-Cookie value for issuing or refreshing
-// a session. Path=/api/prohibitorum so the cookie is sent to API calls but not
-// to static asset requests at /. Secure derived from request scheme.
-func FreshSessionCookie(cfg *configx.Config, r *http.Request, accountID int32, token string, ttl time.Duration) *http.Cookie {
+// a session. Path=/ so a real browser sends it to the root-level OIDC/SAML
+// protocol endpoints (/oauth/authorize, /saml/sso, …) — it is an opaque
+// HttpOnly token, so being sent on all paths is exactly what mainstream IdPs
+// do. Name + Secure derive from the deployment scheme (see secureCookies).
+// The *http.Request is no longer needed (Secure comes from cfg) but is kept
+// for signature stability with the call sites.
+func FreshSessionCookie(cfg *configx.Config, _ *http.Request, accountID int32, token string, ttl time.Duration) *http.Cookie {
 	return &http.Cookie{
-		Name:     SessionCookieName,
+		Name:     SessionCookieNameFor(cfg),
 		Value:    CookieValue(accountID, token),
-		Path:     "/api/prohibitorum",
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   isSecure(r, cfg.TrustProxy),
+		Secure:   secureCookies(cfg),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(ttl.Seconds()),
 	}
 }
 
-// ClearedSessionCookie expires the session cookie. Path MUST match the
-// original FreshSessionCookie path or browsers will create a new empty
-// cookie rather than clearing the existing one.
-func ClearedSessionCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
+// ClearedSessionCookie expires the session cookie. Name + Path + attributes
+// MUST match FreshSessionCookie or browsers create a new empty cookie rather
+// than clearing the existing one.
+func ClearedSessionCookie(cfg *configx.Config, _ *http.Request) *http.Cookie {
 	return &http.Cookie{
-		Name:     SessionCookieName,
+		Name:     SessionCookieNameFor(cfg),
 		Value:    "",
-		Path:     "/api/prohibitorum",
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   isSecure(r, cfg.TrustProxy),
+		Secure:   secureCookies(cfg),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	}
