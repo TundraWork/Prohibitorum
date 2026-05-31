@@ -7,6 +7,7 @@ export default {
   profile: { title: '个人资料', username: '用户名', displayName: '显示名称', role: '角色', logout: '退出登录' },
   sessions: { title: '会话', current: '当前', issuedAt: '登录时间', lastSeen: '最近活动', expiresAt: '过期时间', device: '设备', ip: 'IP', actions: '操作', revoke: '撤销' },
   credentials: { title: '通行密钥', nickname: '昵称', suffix: 'ID 后缀', transports: '传输方式', createdAt: '添加时间', lastUsed: '最近使用', actions: '操作', unnamed: '（未命名）', renamePrompt: '新昵称' },
+  accounts: { title: '账户', username: '用户名', displayName: '显示名称', role: '角色', status: '状态', lastSignIn: '最近登录', actions: '操作', active: '正常', disabled: '已禁用', reissue: '重新签发注册链接', reissued: '注册链接（仅显示一次，请立即复制）：', never: '从未' },
   error: { title: '出错了', generic: '发生了未知错误' },
   scopes: { openid: '基本身份', profile: '您的个人资料（姓名、昵称）', email: '您的邮箱地址', offline_access: '在您离线时持续访问', address: '您的地址', phone: '您的电话号码' },
   errors: { no_session: '请先登录', invalid_consent_ticket: '授权请求已失效，请重新发起登录', bad_credentials: '凭证无效', factor_locked: '尝试次数过多，请稍后再试', server_error: '服务器错误，请稍后再试' },
