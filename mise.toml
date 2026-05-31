@@ -28,3 +28,7 @@ run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" up"
 [tasks."db:status"]
 description = "Show migration status"
 run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" status"
+
+[tasks.dev-server]
+description = "Build the SPA into pkg/webui/dist, then run the Go server (embedded SPA at http://localhost:8080). Requires PROHIBITORUM_DATABASE_URL, PROHIBITORUM_DATA_ENCRYPTION_KEY_V1, PROHIBITORUM_PUBLIC_ORIGIN in the environment."
+run = "cd dashboard && npm run build && cd .. && go run ./cmd/prohibitorum"

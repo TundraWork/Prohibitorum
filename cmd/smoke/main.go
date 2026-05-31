@@ -123,6 +123,25 @@ func main() {
 	}
 	log.Printf("  username=%s displayName=%s role=%s", me1.Username, me1.DisplayName, me1.Role)
 
+	// --- SPA shell routes: the new dashboard paths must serve index.html
+	// (id="app") via the NotFound fallback, not be shadowed by a backend route. ---
+	step("step 5b/45 — SPA shell served for dashboard routes")
+	for _, p := range []string{"/", "/sessions", "/credentials", "/admin/accounts", "/enroll/" + token} {
+		resp, err := http.Get(*baseURL + p)
+		if err != nil {
+			log.Fatalf("SPA shell GET %s: %v", p, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			log.Fatalf("SPA shell GET %s: status %d (want 200)", p, resp.StatusCode)
+		}
+		if !strings.Contains(string(body), `id="app"`) {
+			log.Fatalf("SPA shell GET %s: body missing id=\"app\" (got %d bytes)", p, len(body))
+		}
+	}
+	log.Printf("  /, /sessions, /credentials, /admin/accounts, /enroll/<token> all serve the SPA shell ✓")
+
 	step("step 6/45 — POST /auth/logout")
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout: %v", err)
