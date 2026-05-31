@@ -91,6 +91,14 @@ type OidcClient struct {
 	CreatedAt                   pgtype.Timestamptz `json:"createdAt"`
 }
 
+type OidcConsent struct {
+	AccountID     int32              `json:"accountId"`
+	ClientID      string             `json:"clientId"`
+	GrantedScopes []string           `json:"grantedScopes"`
+	CreatedAt     pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamptz `json:"updatedAt"`
+}
+
 type PasswordCredential struct {
 	AccountID         int32              `json:"accountId"`
 	Hash              string             `json:"hash"`

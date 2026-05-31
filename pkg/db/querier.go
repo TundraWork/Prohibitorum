@@ -41,6 +41,7 @@ type Querier interface {
 	DeleteAccountIdentity(ctx context.Context, arg DeleteAccountIdentityParams) (int64, error)
 	DeleteAllCredentialsForAccount(ctx context.Context, accountID int32) error
 	DeleteAllRecoveryCodesByAccount(ctx context.Context, accountID int32) error
+	DeleteConsent(ctx context.Context, arg DeleteConsentParams) error
 	// Owner-scoped delete: zero rows affected means the id doesn't match an owned
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
@@ -57,6 +58,7 @@ type Querier interface {
 	GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAccountIdentityByIssuerSubParams) (AccountIdentity, error)
 	GetActiveSigningKey(ctx context.Context) (SigningKey, error)
 	GetAuthThrottle(ctx context.Context, arg GetAuthThrottleParams) (AuthThrottle, error)
+	GetConsent(ctx context.Context, arg GetConsentParams) ([]string, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
@@ -129,6 +131,7 @@ type Querier interface {
 	// and the Verify path translates that to ErrTOTPReplay.
 	UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) (int64, error)
 	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
+	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
 }
 

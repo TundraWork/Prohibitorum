@@ -63,3 +63,5 @@ sql:
             go_type: "int64"
           - column: "saml_session.sp_id"
             go_type: "int64"
+          - column: "oidc_consent.account_id"
+            go_type: "int32"
