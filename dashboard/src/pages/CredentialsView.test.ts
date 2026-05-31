@@ -15,7 +15,7 @@ function makeI18n() {
 beforeEach(() => { get.mockReset(); post.mockReset() })
 
 const creds = [
-  { id: 1, credentialIdSuffix: 'ab12', nickname: 'Laptop', transports: ['internal'], backupState: false, attestationType: 'none', createdAt: '2026-01-01T00:00:00Z' },
+  { id: 1, credentialIdSuffix: 'ab12', nickname: 'Laptop', transports: ['internal'], backupState: false, attestationType: 'none', createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-01-15T00:00:00Z' },
   { id: 2, credentialIdSuffix: 'cd34', nickname: null, transports: ['usb'], backupState: false, attestationType: 'none', createdAt: '2026-01-01T00:00:00Z' },
 ]
 
@@ -26,6 +26,10 @@ describe('CredentialsView', () => {
     await flushPromises()
     expect(wrapper.findAll('tbody tr').length).toBe(2)
     expect(wrapper.text()).toContain('Laptop')
+    // row 1 has lastUsedAt — expect formatted date (locale-agnostic: just check the year)
+    expect(wrapper.text()).toContain(new Date('2026-01-15T00:00:00Z').toLocaleDateString())
+    // row 2 has no lastUsedAt — expect em-dash
+    expect(wrapper.text()).toContain('—')
   })
 
   it('surfaces a delete rejection (last passkey)', async () => {

@@ -75,6 +75,7 @@ onMounted(load)
           <th class="py-2 pr-4">{{ t('credentials.suffix') }}</th>
           <th class="py-2 pr-4">{{ t('credentials.transports') }}</th>
           <th class="py-2 pr-4">{{ t('credentials.createdAt') }}</th>
+          <th class="py-2 pr-4">{{ t('credentials.lastUsed') }}</th>
           <th class="py-2 pr-4">{{ t('credentials.actions') }}</th>
         </tr>
       </thead>
@@ -91,6 +92,7 @@ onMounted(load)
           <td class="py-2 pr-4 font-mono text-xs">…{{ c.credentialIdSuffix }}</td>
           <td class="py-2 pr-4 text-xs">{{ c.transports.join(', ') }}</td>
           <td class="py-2 pr-4">{{ new Date(c.createdAt).toLocaleDateString() }}</td>
+          <td class="py-2 pr-4">{{ c.lastUsedAt ? new Date(c.lastUsedAt).toLocaleDateString() : '—' }}</td>
           <td class="py-2 pr-4">
             <div class="inline-flex items-center gap-1">
               <template v-if="editing === c.id">
