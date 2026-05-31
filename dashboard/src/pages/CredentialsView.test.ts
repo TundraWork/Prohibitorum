@@ -43,4 +43,21 @@ describe('CredentialsView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/credentials/delete', { id: 1 })
     expect(wrapper.find('[role="alert"]').text()).toContain('cannot remove last passkey')
   })
+
+  it('renames a credential then refetches', async () => {
+    get.mockResolvedValueOnce(creds)
+    post.mockResolvedValueOnce(undefined)
+    get.mockResolvedValueOnce(creds)
+    const wrapper = mount(CredentialsView, { global: { plugins: [makeI18n()] } })
+    await flushPromises()
+    // enter edit mode on row 1 (the Rename button is the first action button there)
+    const renameBtn = wrapper.findAll('button').find((b) => b.text().trim() === en.common.rename)!
+    await renameBtn.trigger('click')
+    await wrapper.find('input').setValue('Work laptop')
+    const saveBtn = wrapper.findAll('button').find((b) => b.text().trim() === en.common.save)!
+    await saveBtn.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/credentials/rename', { id: 1, nickname: 'Work laptop' })
+    expect(get).toHaveBeenCalledTimes(2)
+  })
 })

@@ -3,9 +3,11 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '../lib/api'
+import { useSessionStore } from '../stores/session'
 
 const { t } = useI18n()
 const route = useRoute()
+const session = useSessionStore()
 const done = ref(false)
 // post_logout_redirect_uri is pre-validated by the backend /oidc/logout (exact-match
 // against the client's registered post_logout_redirect_uris) before the browser is
@@ -22,6 +24,7 @@ const postLogout = typeof route.query.post_logout_redirect_uri === 'string'
 
 onMounted(async () => {
   try { await api.post('/api/prohibitorum/auth/logout') } catch { /* idempotent: ignore */ }
+  session.clear()
   done.value = true
 })
 

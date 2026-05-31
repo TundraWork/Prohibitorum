@@ -51,6 +51,23 @@ describe('AccountsView', () => {
     await wrapper.findAll('[data-test="reissue"]')[1].trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/reissue-enrollment', { id: 2 })
-    expect(wrapper.text()).toContain('http://x/enroll/tok')
+    const inputs = wrapper.findAll('input')
+    expect(inputs.some((i) => (i.element as HTMLInputElement).value === 'http://x/enroll/tok')).toBe(true)
+  })
+
+  it('deletes an account after confirm then refetches', async () => {
+    get.mockResolvedValueOnce(accts)
+    post.mockResolvedValueOnce(undefined)
+    get.mockResolvedValueOnce([accts[0]])
+    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n()] } })
+    await flushPromises()
+    // bob is the second row; arm its delete then confirm
+    const delBtns = wrapper.findAll('button').filter((b) => b.text().trim() === en.common.delete)
+    await delBtns[1].trigger('click') // arm bob
+    const confirmBtn = wrapper.findAll('button').find((b) => b.text().trim() === en.common.confirm)!
+    await confirmBtn.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/delete', { id: 2 })
+    expect(get).toHaveBeenCalledTimes(2)
   })
 })

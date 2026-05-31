@@ -115,7 +115,6 @@ onMounted(load)
           <tr v-if="reissued && reissued.id === a.id">
             <td colspan="6" class="py-2 pr-4">
               <p class="text-xs text-muted mb-1">{{ t('accounts.reissued') }}</p>
-              <code class="text-xs break-all">{{ reissued.url }}</code>
               <CopyableUrl :url="reissued.url" />
             </td>
           </tr>
