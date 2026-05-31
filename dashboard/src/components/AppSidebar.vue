@@ -38,6 +38,7 @@ const adminLinks = [
         :to="l.to"
         class="flex items-center gap-2 px-3 py-2 rounded text-sm hover:bg-elevated"
         active-class="bg-elevated font-medium"
+        exact-active-class="bg-elevated font-medium"
       >
         <UIcon :name="l.icon" class="size-4" />
         {{ t(l.label) }}
