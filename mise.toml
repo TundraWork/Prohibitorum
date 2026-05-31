@@ -13,6 +13,10 @@ run = "go run ./cmd/prohibitorum/main.go"
 description = "Run the dashboard dev server"
 run = "pnpm --dir dashboard dev"
 
+[tasks.frontend-build]
+description = "Install + build the dashboard SPA into dashboard/dist"
+run = "cd dashboard && npm ci && npm run build"
+
 [tasks.openapi]
 description = "Regenerate openapi.yaml from the running humacli"
 run = "go run ./cmd/prohibitorum/main.go openapi > openapi.yaml"
