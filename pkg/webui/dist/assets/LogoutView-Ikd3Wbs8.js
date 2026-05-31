@@ -1,0 +1,1 @@
+import{_ as o}from"./Card-CQqlU8Hk.js";import{j as s,J as a,e as n,S as _,d as c,z as r,B as i,u as l}from"./index-B46gxzWW.js";const u={class:"text-xl font-semibold"},h=s({__name:"LogoutView",setup(m){const{t}=a();return(p,d)=>{const e=o;return l(),n(e,null,{default:_(()=>[c("h1",u,r(i(t)("logout.done")),1)]),_:1})}}});export{h as default};
