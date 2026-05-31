@@ -403,7 +403,7 @@ three batches; the remainder are documented as accepted/deferred below.
 | 12-byte per-row nonce, unique per row | ✅ design | NIST SP 800-38D §5 |
 | argon2id PHC for password / recovery / client_secret hashes | ✅ design; ✅ audit-hardened (Bundle 3) | credentials/R5 + credentials/C2. `pkg/credential/password.PHCDecode` enforces a lower-bound floor on `m`/`t`/`p` (Bundle-3 Crypto Open-Q-5) as defense-in-depth against tampered/injected stored hashes; floor is intentionally well below OWASP minimum (m≥8 MiB) — it's a sanity check, not a config gate |
 | HSM / KMS integration | ⚠️ deferred (v0.7+) | private keys in DB column |
-| TLS termination | external | reverse-proxy responsibility; Prohibitorum sets `Secure` cookie when TLS detected |
+| TLS termination | external | reverse-proxy responsibility. Session cookie's `Secure` + `__Host-` derive from the public-origin scheme (`PUBLIC_ORIGIN`=https → hardened), deployment-stable; the ceremony cookie's `Secure` is still per-request TLS-detected |
 | Time skew tolerance on JWT verification | ✅ design | 30s leeway on `exp` / `iat` / `nbf` |
 
 ## Operational
@@ -612,23 +612,37 @@ correct against real IdP/SP behavior. Findings fixed across two batches:
 - Front-channel SLO propagation + assertion/NameID encryption remain out of scope
   (carried from v0.5).
 
-### ⚠️ Architectural finding to resolve before claiming interactive browser flows work (pre-existing; surfaced by the v0.6 deep audit)
+### ✅ Architectural finding RESOLVED (2026-05-31) — session-cookie scoping
 
-The session cookie is scoped `Path=/api/prohibitorum` (`pkg/session/middleware.go`),
-but the OIDC/SAML protocol routes are root-level (`/oauth/authorize`, `/saml/sso`,
-`/saml/sso/init`, `/saml/slo`). A real browser will NOT attach the session cookie
-to those root paths, so the session gate in `HandleAuthorize` / `HandleSSO` /
-`HandleIdPInitiated` sees no session and bounces to `/login` — and the
-post-login return to the root path again carries no cookie. **`cmd/smoke`
-masks this** by extracting the cookie from its jar and manually re-attaching it
-to root-path requests (`authorizeWithSession`) — a maneuver a browser won't
-perform. This predates v0.6 (v0.4/v0.5 OIDC/SAML routes have always been
-root-level), but v0.6's new `prompt=login`/`max_age`/`ForceAuthn` re-auth bounces
-ride the same return-to-login loop, so in a real browser those interactive flows
-would loop or never satisfy. This is an architectural decision (cookie path vs
-route mounting, and how `/login` is served in production) — NOT auto-fixed here,
-since it touches session/cookie security project-wide. **Resolve + verify in a
-real browser before relying on the interactive OIDC/SAML flows.**
+The session cookie was scoped `Path=/api/prohibitorum` while the OIDC/SAML
+protocol routes are root-level (`/oauth/authorize`, `/saml/sso`, `/saml/sso/init`,
+`/saml/slo`), so a real browser never attached the cookie to those paths and the
+session gate (`HandleAuthorize` / `HandleSSO` / `HandleIdPInitiated`) looped to
+`/login`. **Fixed:** the session cookie is now `Path=/` with a deployment-stable
+identity — `__Host-prohibitorum_session` + `Secure` in HTTPS deployments, plain
+`prohibitorum_session` (no `Secure`) in HTTP dev so `cookiejar`-based clients can
+still send it. `SameSite=Lax`, `HttpOnly`, no `Domain` unchanged; no
+route/issuer/metadata changes; ceremony cookie untouched. Name resolution is
+centralized in `pkg/session/middleware.go` (`SessionCookieNameFor`) and reused at
+the logout-read and the OpenAPI security scheme. Spec:
+`docs/superpowers/specs/2026-05-31-session-cookie-scoping-design.md` (D1–D5).
+
+**Verification:** attribute-level unit tests in `pkg/session/middleware_test.go`
+(both deployment modes; clear-matches-set; name resolution incl. empty-origin),
+and `cmd/smoke` now DROPS its manual cookie re-attach — all six OIDC/SAML helpers
+let the jar auto-send the `Path=/` cookie to the root-mounted endpoints
+(browser-equivalent), with `assertSessionCookieAtRoot` proving the scoping (it
+matches either the plain or `__Host-` name, so it cannot pass vacuously). Full
+suite incl. steps 100–111 green, `SMOKE_EXIT=0`. A real-browser HTTPS end-to-end
+run is out of scope (no browser harness); the verification is the unit tests plus
+the dev-mode behavioral smoke, and production browser behavior follows from
+`Path=/` + `SameSite=Lax` per the web-platform spec.
+
+**Carried-forward limitation (D2):** a logged-in user hitting a SAML
+**HTTP-POST-binding** AuthnRequest is a cross-site POST, so the `SameSite=Lax`
+cookie is not sent and the user bounces through `/login` once — same family as the
+deferred `ForceAuthn`+POST-binding item. `SameSite=None` was rejected (broader
+cross-site exposure, requires always-`Secure`, increasingly browser-restricted).
 
 All 12 v0.6 smoke steps (100–111) are green end-to-end (`SMOKE_EXIT=0`).
 The behaviors closed by v0.6 are flipped to ✅ in the OIDC OP and SAML IdP
