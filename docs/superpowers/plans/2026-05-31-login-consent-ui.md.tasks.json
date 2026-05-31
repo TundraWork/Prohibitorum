@@ -4,80 +4,80 @@
     {
       "id": 0,
       "subject": "Task 1: Consent persistence (migration 007 + sqlc queries)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Add oidc_consent stored-grants table + sqlc queries; regenerate pkg/db.\n\n**Files:** db/migrations/007_oidc_consent.sql, db/queries/oidc_consent.sql, sqlc.yaml, pkg/db (generated).\n\n**Acceptance:** table PK(account_id,client_id) + FKs cascade; GetConsent(:one []string)/UpsertConsent/DeleteConsent; account_id int32 override; build exit 0.\n\n```json:metadata\n{\"files\": [\"db/migrations/007_oidc_consent.sql\", \"db/queries/oidc_consent.sql\", \"sqlc.yaml\", \"pkg/db\"], \"verifyCommand\": \"mise exec sqlc -- sqlc generate && mise exec -- go build ./...\", \"acceptanceCriteria\": [\"table + PK + FKs cascade\", \"GetConsent/UpsertConsent/DeleteConsent generated\", \"account_id int32\", \"build exit 0\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 2: Consent KV ticket helper",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Single-use account-bound consent ticket in KV (mirror reauth.go), peek + consume.\n\n**Files:** pkg/authn/consent.go, pkg/authn/consent_test.go.\n\n**Acceptance:** DemandConsent/PeekConsent/ConsumeConsent; JSON ConsentTicket{AccountID,ClientID,Scopes,RedirectURI,State}; 10m TTL; single-use + account-bound; tests pass.\n\n```json:metadata\n{\"files\": [\"pkg/authn/consent.go\", \"pkg/authn/consent_test.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/authn/ -run Consent -v\", \"acceptanceCriteria\": [\"DemandConsent/PeekConsent/ConsumeConsent\", \"single-use + account-bound\", \"tests pass\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 3: authorize.go consent step rewrite",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 1],
       "description": "**Goal:** Replace RequireConsent stub: skip when grant covers (and not prompt=consent), else consent_required (prompt=none) or bounce to /consent with ticket.\n\n**Files:** pkg/protocol/oidc/authorize.go, pkg/protocol/oidc/authorize_consent_test.go.\n\n**Acceptance:** covered→proceed; needed→302 /consent?ticket=; prompt=consent forces; prompt=none→consent_required to RP; RequireConsent=false→proceed; build+vet+tests.\n\n```json:metadata\n{\"files\": [\"pkg/protocol/oidc/authorize.go\", \"pkg/protocol/oidc/authorize_consent_test.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/protocol/oidc/ -run Consent -v && mise exec -- go build ./... && mise exec -- go vet ./...\", \"acceptanceCriteria\": [\"skip when covered\", \"bounce when needed\", \"prompt=consent forces\", \"prompt=none consent_required\", \"trusted skip\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 4: Consent app API (context + decision) + routes",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 1],
       "description": "**Goal:** GET /api/prohibitorum/consent?ticket= returns client+scopes; POST records decision (approve→union grant, deny→access_denied) returning {redirect}.\n\n**Files:** pkg/server/handle_consent.go, pkg/contract/auth.go, pkg/server/server.go, pkg/authn/errors.go.\n\n**Acceptance:** GET session-gated 200 {client,account,scopes}; invalid ticket→400; POST approve UpsertConsent union + {redirect:return_to} (same-origin guarded); deny→access_denied redirect; ticket consumed; build+vet exit 0.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_consent.go\", \"pkg/contract/auth.go\", \"pkg/server/server.go\", \"pkg/authn/errors.go\"], \"verifyCommand\": \"mise exec -- go build ./... && mise exec -- go vet ./...\", \"acceptanceCriteria\": [\"GET context session-gated\", \"POST approve stores union grant\", \"POST deny access_denied redirect\", \"ticket consumed\", \"return_to same-origin guard\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 5: Federation providers list endpoint",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** GET /api/prohibitorum/auth/federation (public) → [{slug,displayName}] from ListUpstreamIDPs.\n\n**Files:** pkg/server/handle_federation.go, pkg/contract/auth.go, pkg/server/server.go.\n\n**Acceptance:** 200 JSON array; empty when none; public; build+vet exit 0.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_federation.go\", \"pkg/contract/auth.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"mise exec -- go build ./... && mise exec -- go vet ./...\", \"acceptanceCriteria\": [\"GET /auth/federation returns [{slug,displayName}]\", \"public\", \"build/vet exit 0\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 6: Smoke — consent + federation-list backend e2e",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 3, 4],
       "description": "**Goal:** Extend cmd/smoke to prove consent flow end-to-end + federation-list against live PG + dev server.\n\n**Files:** cmd/smoke/main.go (+ cmd/prohibitorum if --require-consent flag needed).\n\n**Acceptance:** RequireConsent client→authorize 302 /consent?ticket=; GET context asserts client+scopes; POST approve stores grant; re-authorize issues code; remembered skip; prompt=consent re-bounce; deny access_denied; GET /auth/federation array; SMOKE_EXIT=0.\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\", \"cmd/prohibitorum\"], \"verifyCommand\": \"mise exec -- go build ./cmd/smoke/...\", \"acceptanceCriteria\": [\"consent ticket bounce asserted\", \"approve stores grant + code issued\", \"remembered skip\", \"prompt=consent re-bounce\", \"deny access_denied\", \"federation list asserted\", \"SMOKE_EXIT=0\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 7: Frontend scaffold (Vite + Vue 3 + Nuxt UI + Tailwind + Router + i18n + Pinia)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Buildable Vue 3 SPA skeleton in dashboard/ with Nuxt UI v4, Tailwind v4, Router, vue-i18n (zh+en), Pinia, api client, returnTo guard, Vitest — producing dist/.\n\n**Files:** dashboard/** scaffold, mise.toml, root .gitignore.\n\n**Acceptance:** npm install+build emits dist/index.html; npm test (returnTo) passes; Nuxt UI + Tailwind active; i18n zh/en; dist+node_modules gitignored.\n\n```json:metadata\n{\"files\": [\"dashboard\", \"mise.toml\", \".gitignore\"], \"verifyCommand\": \"cd dashboard && mise exec -- npm install && mise exec -- npm run build && mise exec -- npm run test\", \"acceptanceCriteria\": [\"dist/index.html built\", \"Vitest returnTo test passes\", \"Nuxt UI + Tailwind active\", \"i18n zh/en\", \"dist+node_modules gitignored\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 8: Go embed + SPA fallback + CSP",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** Embed dashboard/dist; serve same-origin via chi NotFound with strict security headers.\n\n**Files:** pkg/webui/webui.go, pkg/server/server.go.\n\n**Acceptance:** go:embed dist + SPA fallback (asset else index.html); CSP default-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none' + X-Frame-Options DENY; API/protocol routes unaffected; /login serves shell, discovery JSON; build exit 0.\n\n```json:metadata\n{\"files\": [\"pkg/webui/webui.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"mise exec -- go build ./...\", \"acceptanceCriteria\": [\"go:embed dist + SPA fallback\", \"CSP + frame-ancestors none + X-Frame-Options DENY\", \"API/protocol routes unaffected\", \"/login serves shell, discovery still JSON\"]}\n```"
     },
     {
       "id": 8,
       "subject": "Task 9: Login page",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4, 6],
       "description": "**Goal:** /login — passkey + federation buttons + progressive password→TOTP, returning to return_to.\n\n**Files:** dashboard/src/pages/LoginView.vue, components/{PasskeyButton,PasswordTotpForm,FederationButtons}.vue, lib/webauthn.ts, components/PasswordTotpForm.test.ts.\n\n**Acceptance:** read+guard return_to + /me skip (except reauth); passkey begin/complete; federation buttons relative return_to; password→TOTP(204)→return_to; error code mapping; component test passes; build exit 0.\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/LoginView.vue\", \"dashboard/src/components/PasskeyButton.vue\", \"dashboard/src/components/PasswordTotpForm.vue\", \"dashboard/src/components/FederationButtons.vue\", \"dashboard/src/lib/webauthn.ts\", \"dashboard/src/components/PasswordTotpForm.test.ts\"], \"verifyCommand\": \"cd dashboard && mise exec -- npm run test && mise exec -- npm run build\", \"acceptanceCriteria\": [\"passkey begin/complete\", \"federation buttons relative return_to\", \"password->TOTP->return_to\", \"already-authed skip except reauth\", \"error code mapping\", \"component test passes\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 10: Consent page",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 6],
       "description": "**Goal:** /consent — fetch context by ticket, render RP + localized scopes + account, approve/deny following server redirect.\n\n**Files:** dashboard/src/pages/ConsentView.vue, components/ConsentScopeList.vue, components/ConsentScopeList.test.ts.\n\n**Acceptance:** GET context by ticket; localized scopes + raw fallback; approve/deny follow redirect; invalid ticket→/error; initial avatar (no remote logo); Vitest passes; build exit 0.\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/ConsentView.vue\", \"dashboard/src/components/ConsentScopeList.vue\", \"dashboard/src/components/ConsentScopeList.test.ts\"], \"verifyCommand\": \"cd dashboard && mise exec -- npm run test && mise exec -- npm run build\", \"acceptanceCriteria\": [\"GET context by ticket\", \"localized scopes + raw fallback\", \"approve/deny follow redirect\", \"invalid ticket -> /error\", \"initial avatar no remote logo\"]}\n```"
     },
     {
       "id": 10,
       "subject": "Task 11: Logout + Error pages",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** /logout (POST /auth/logout, landing, optional return-to-RP) and /error (localized by code).\n\n**Files:** dashboard/src/pages/{LogoutView,ErrorView}.vue.\n\n**Acceptance:** /logout posts logout idempotent + landing + optional return; /error localized by code with fallback; build+test green.\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/LogoutView.vue\", \"dashboard/src/pages/ErrorView.vue\"], \"verifyCommand\": \"cd dashboard && mise exec -- npm run build && mise exec -- npm run test\", \"acceptanceCriteria\": [\"/logout posts logout + landing + optional return\", \"/error localized by code with fallback\", \"build/test green\"]}\n```"
     },
     {
       "id": 11,
       "subject": "Task 12: Full integration gate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 7, 8, 9, 10],
       "description": "**Goal:** Build binary with embedded frontend; run full backend gate + smoke + Vitest; verify interactive surfaces served.\n\n**Files:** none (verification + fixes).\n\n**Acceptance:** frontend build+vitest green; go build/vet/test ./... green; SMOKE_EXIT=0; /login /consent /logout /error serve SPA shell, discovery JSON, CSP present.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"mise exec -- go build ./... && mise exec -- go vet ./... && mise exec -- go test ./...\", \"acceptanceCriteria\": [\"frontend build+vitest green\", \"go build/vet/test green\", \"SMOKE_EXIT=0\", \"all 4 SPA routes serve shell, discovery JSON, CSP present\"]}\n```"
     }
