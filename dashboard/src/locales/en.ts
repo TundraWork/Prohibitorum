@@ -1,7 +1,7 @@
 export default {
   app: { name: 'Prohibitorum' },
   common: { continue: 'Continue', cancel: 'Cancel', signOut: 'Sign out' },
-  login: { title: 'Sign in', passkey: 'Sign in with a passkey', password: 'Sign in with password', or: 'or', totp: 'Enter your authenticator code', signInWith: 'Sign in with {name}' },
+  login: { title: 'Sign in', passkey: 'Sign in with a passkey', password: 'Sign in with password', or: 'or', totp: 'Enter your authenticator code', signInWith: 'Sign in with {name}', username: 'Username', passwordLabel: 'Password', submit: 'Submit', errorFallback: 'Sign-in failed, please try again' },
   consent: { title: 'Authorization request', requests: '"{app}" requests the following permissions:', continueAs: 'Continue as {account}', approve: 'Allow', deny: 'Deny' },
   logout: { done: 'You have signed out', returnTo: 'Return to {app}' },
   error: { title: 'Something went wrong', generic: 'An unknown error occurred' },

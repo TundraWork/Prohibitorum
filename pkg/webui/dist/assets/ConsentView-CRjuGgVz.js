@@ -1,1 +1,0 @@
-import{_ as s}from"./Card-C0Wn27AO.js";import{h as o,l as n,b as a,w as c,o as _,a as r,t as i,u as l}from"./index-xgXpGQFB.js";const m={class:"text-xl font-semibold"},x=o({__name:"ConsentView",setup(p){const{t}=n();return(f,u)=>{const e=s;return _(),a(e,null,{default:c(()=>[r("h1",m,i(l(t)("consent.title")),1)]),_:1})}}});export{x as default};
