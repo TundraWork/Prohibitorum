@@ -44,8 +44,29 @@ go build ./... ✓   go vet ./... ✓   go test ./... ✓   smoke ✓
 - Endpoints: `GET /oauth/authorize`, `POST /oauth/introspect`, `GET|POST /saml/sso`, `GET /saml/metadata`, **new** `GET /saml/sso/init`. CLI: `saml-sp create --allow-idp-initiated`.
 - Spec: `docs/superpowers/specs/2026-05-31-v0.6-protocol-completeness-design.md` (D1–D12 + research appendix). Plan: `docs/superpowers/plans/2026-05-31-v0.6-protocol-completeness.md` + `.tasks.json` (11/11).
 
-## ⚠️ OPEN ARCHITECTURAL ITEM — resolve before claiming interactive browser flows work
-**Session-cookie path vs protocol-route mounting mismatch (pre-existing; surfaced by the v0.6 deep audit).** The session cookie is `Path=/api/prohibitorum` but the OIDC/SAML routes are root-level (`/oauth/authorize`, `/saml/sso`, `/saml/sso/init`, `/saml/slo`). A real browser won't send the cookie to those root paths → the session gate bounces to `/login` and the return loops. `cmd/smoke` masks this by manually re-attaching the cookie (`authorizeWithSession`) — a browser won't. v0.6's new re-auth bounces ride the same loop. **This needs an architectural decision** (cookie path scope, route mounting, how `/login` is served) + a real-browser end-to-end test before the interactive OIDC/SAML flows can be claimed working. Not auto-fixed (touches session/cookie security project-wide). Full detail in AUDIT.md.
+## ▶ NEXT SESSION — implement the session-cookie scoping fix (spec written, ready to plan)
+
+The v0.6 deep audit surfaced a **session-cookie path vs protocol-route mismatch**
+(pre-existing): the cookie is `Path=/api/prohibitorum` but the OIDC/SAML routes
+are root-level (`/oauth/authorize`, `/saml/sso`, `/saml/sso/init`, `/saml/slo`),
+so a real browser never sends the cookie to them → the session gate loops to
+`/login`. `cmd/smoke` masks it by manually re-attaching the cookie.
+
+**This was researched + brainstormed this session; the fix is spec'd and decisions
+are LOCKED.** Spec: `docs/superpowers/specs/2026-05-31-session-cookie-scoping-design.md`
+(D1–D5). Summary: scope the session cookie `Path=/`; keep `SameSite=Lax`; adopt
+the `__Host-` prefix + `Secure` ONLY in secure deployments (`PUBLIC_ORIGIN`=https),
+falling back to a plain non-`Secure` `Path=/` cookie in HTTP dev (so Go's
+cookie-jar — and the smoke — can send it; `__Host-` requires `Secure` which an
+http client/jar won't transmit). `CeremonyCookie` unchanged; no route/issuer/
+metadata changes. The smoke then DROPS its manual cookie re-attach and
+behaviorally proves the fix.
+
+**Resume:** re-enter `superpowers-extended-cc:writing-plans` on that spec → then
+`subagent-driven-development` (same rhythm). It's a small, contained change
+(mostly `pkg/session/middleware.go` + a smoke cleanup + unit tests). After it
+lands + smoke green, update `AUDIT.md` to CLOSE the v0.6 architectural finding.
+Brainstorming is already complete — go straight to writing-plans.
 
 ## Accepted / deferred (see AUDIT.md)
 max_age no clock-skew (fails stricter); prompt=consent/select_account ignored (consent out of scope); signed-metadata two-read rotation race (narrow); ForceAuthn+POST-binding fails-safe; front-channel SLO + encryption (from v0.5).
@@ -58,4 +79,10 @@ max_age no clock-skew (fails stricter); prompt=consent/select_account ignored (c
 - The deep+race audit passes keep earning their keep — they find stateful/integration bugs the schema-resetting smoke structurally can't. Keep doing them.
 
 ## What's next
-v0.6 is a clean stopping point. The remaining roadmap candidates (admin UI / dashboard + consent screen — the original "v0.6 — Frontend" planning text in STATUS.md is SEPARATE, frontend work; or the cookie-path resolution above; or further security/ops hardening) should each be brainstormed + spec'd fresh. The cookie-path architectural item is the highest-priority correctness follow-up if the interactive (non-API) flows matter.
+**Immediate (spec ready):** implement the session-cookie scoping fix per the
+"NEXT SESSION" section above — go straight to writing-plans on
+`docs/superpowers/specs/2026-05-31-session-cookie-scoping-design.md`.
+
+After that, the remaining roadmap candidates (admin UI / dashboard + consent
+screen — the "v0.6 — Frontend" text in STATUS.md is SEPARATE frontend work; or
+further security/ops hardening) should each be brainstormed + spec'd fresh.
