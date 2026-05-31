@@ -40,6 +40,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"slices"
 	"strings"
 	"time"
 
@@ -2191,10 +2192,215 @@ func main() {
 		log.Fatalf("v0.6 SAML audit DB assert: %v", err)
 	}
 
+	// =========================================================================
+	// Login + Consent UI backend: the consent ticket round-trip and the public
+	// federation-providers list. A confidential client registered with
+	// --require-consent bounces /oauth/authorize to <Issuer>/consent?ticket=…
+	// when no grant covers the requested scopes; the consent app API renders
+	// the ticket and records the approve/deny decision. After approve the same
+	// authorize issues a code; a second authorize is remembered (no bounce);
+	// &prompt=consent forces a fresh bounce; deny redirects with
+	// error=access_denied. Per Task 6 of the Login + Consent UI plan.
+	//
+	// Pre-condition: c holds a live, recently-minted webauthn session (steps
+	// 100/104/105 re-logged in; steps 106–110 only drove SAML against c's
+	// session non-destructively, and 110 is read-only on c). The OP issuer ==
+	// *baseURL.
+	const totalUI = 113
+
+	step(fmt.Sprintf("step 112/%d — UI: consent flow (require-consent client) — bounce, context, approve, remember, prompt=consent, deny", totalUI))
+	{
+		const consentClientID = "smoke-consent-rp"
+		consentRedirectURI := *baseURL + "/consent-rp/callback"
+		consentSecret, err := createConsentOIDCClient(*baseURL, consentClientID, consentRedirectURI,
+			[]string{"openid", "profile"})
+		if err != nil {
+			log.Fatalf("oidc-client create --require-consent: %v", err)
+		}
+		_ = consentSecret // token exchange is not required for the consent assertions.
+		log.Printf("  registered require-consent client %q", consentClientID)
+
+		// mkAuthz builds a fresh authorize URL (new state/nonce/PKCE) for the
+		// consent client, optionally appending &prompt=consent.
+		mkAuthz := func(forceConsent bool) (path, state string) {
+			_, challenge := genPKCE()
+			state = randState()
+			path = fmt.Sprintf(
+				"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+				url.QueryEscape(consentClientID),
+				url.QueryEscape(consentRedirectURI),
+				url.QueryEscape("openid profile"),
+				url.QueryEscape(state),
+				url.QueryEscape(randState()),
+				url.QueryEscape(challenge),
+			)
+			if forceConsent {
+				path += "&prompt=consent"
+			}
+			return path, state
+		}
+
+		// parseConsentBounce asserts loc is a 302 to <base>/consent?ticket=… and
+		// returns (ticket, return_to).
+		consentPrefix := *baseURL + "/consent?ticket="
+		parseConsentBounce := func(loc string) (ticket, returnTo string) {
+			if !strings.HasPrefix(loc, consentPrefix) {
+				log.Fatalf("consent: want bounce to %s…, got %q", consentPrefix, loc)
+			}
+			u, perr := url.Parse(loc)
+			if perr != nil {
+				log.Fatalf("consent: parse bounce Location %q: %v", loc, perr)
+			}
+			ticket = u.Query().Get("ticket")
+			returnTo = u.Query().Get("return_to")
+			if ticket == "" || returnTo == "" {
+				log.Fatalf("consent: bounce missing ticket/return_to: %q", loc)
+			}
+			return ticket, returnTo
+		}
+
+		// (1) First authorize → bounce to /consent (no grant yet).
+		authz1, state1 := mkAuthz(false)
+		loc1, err := authorizeRaw(c, authz1)
+		if err != nil {
+			log.Fatalf("consent authorize (1): %v", err)
+		}
+		ticket1, returnTo1 := parseConsentBounce(loc1)
+		log.Printf("  authorize → 302 %s/consent?ticket=%s&return_to=… ✓", *baseURL, ticket1)
+
+		// (2) GET /api/prohibitorum/consent?ticket= → client + scopes.
+		var ctx struct {
+			Client struct {
+				ClientID    string `json:"clientId"`
+				DisplayName string `json:"displayName"`
+			} `json:"client"`
+			Account struct {
+				DisplayName string `json:"displayName"`
+			} `json:"account"`
+			Scopes []string `json:"scopes"`
+		}
+		if err := c.get("/api/prohibitorum/consent?ticket="+url.QueryEscape(ticket1), &ctx); err != nil {
+			log.Fatalf("GET /consent context: %v", err)
+		}
+		if ctx.Client.ClientID != consentClientID {
+			log.Fatalf("consent context clientId: want %q, got %q", consentClientID, ctx.Client.ClientID)
+		}
+		if !slices.Contains(ctx.Scopes, "openid") || !slices.Contains(ctx.Scopes, "profile") {
+			log.Fatalf("consent context scopes: want openid+profile, got %v", ctx.Scopes)
+		}
+		log.Printf("  GET /consent → client=%s account=%q scopes=%v ✓", ctx.Client.ClientID, ctx.Account.DisplayName, ctx.Scopes)
+
+		// (3) POST approve → {redirect} == return_to.
+		var res1 struct {
+			Redirect string `json:"redirect"`
+		}
+		if err := c.postJSON("/api/prohibitorum/consent?return_to="+url.QueryEscape(returnTo1),
+			map[string]string{"ticket": ticket1, "decision": "approve"}, &res1); err != nil {
+			log.Fatalf("POST /consent approve: %v", err)
+		}
+		if res1.Redirect != returnTo1 {
+			log.Fatalf("consent approve redirect: want %q, got %q", returnTo1, res1.Redirect)
+		}
+		log.Printf("  POST approve → redirect == return_to ✓ (grant stored)")
+
+		// (4) Re-drive authorize on the return_to → now issues a code.
+		retryPath, err := pathQueryOf(returnTo1)
+		if err != nil {
+			log.Fatalf("consent retry parse return_to: %v", err)
+		}
+		loc4, err := authorizeWithSession(c, retryPath)
+		if err != nil {
+			log.Fatalf("consent re-authorize: %v", err)
+		}
+		code4, err := parseAuthorizeRedirect(loc4, consentRedirectURI, state1, issuer)
+		if err != nil {
+			log.Fatalf("consent re-authorize redirect: %v", err)
+		}
+		log.Printf("  re-authorize (post-approve) → code (len=%d) ✓", len(code4))
+
+		// (5) A 2nd, fresh authorize → still a code, NOT a /consent bounce.
+		authz5, state5 := mkAuthz(false)
+		loc5, err := authorizeWithSession(c, authz5)
+		if err != nil {
+			log.Fatalf("consent 2nd authorize: %v", err)
+		}
+		if strings.HasPrefix(loc5, consentPrefix) {
+			log.Fatalf("consent 2nd authorize bounced to /consent despite a remembered grant: %q", loc5)
+		}
+		if _, err := parseAuthorizeRedirect(loc5, consentRedirectURI, state5, issuer); err != nil {
+			log.Fatalf("consent 2nd authorize redirect: %v", err)
+		}
+		log.Printf("  2nd authorize → code (remembered grant, no /consent bounce) ✓")
+
+		// (6) Fresh authorize with &prompt=consent → forced re-consent bounce.
+		authz6, _ := mkAuthz(true)
+		loc6, err := authorizeRaw(c, authz6)
+		if err != nil {
+			log.Fatalf("consent prompt=consent authorize: %v", err)
+		}
+		ticket6, returnTo6 := parseConsentBounce(loc6)
+		log.Printf("  authorize &prompt=consent → forced /consent bounce (ticket=%s) ✓", ticket6)
+
+		// (7) Deny on the prompt=consent ticket → redirect carries error=access_denied.
+		var res7 struct {
+			Redirect string `json:"redirect"`
+		}
+		if err := c.postJSON("/api/prohibitorum/consent?return_to="+url.QueryEscape(returnTo6),
+			map[string]string{"ticket": ticket6, "decision": "deny"}, &res7); err != nil {
+			log.Fatalf("POST /consent deny: %v", err)
+		}
+		du, perr := url.Parse(res7.Redirect)
+		if perr != nil {
+			log.Fatalf("consent deny: parse redirect %q: %v", res7.Redirect, perr)
+		}
+		if !strings.HasPrefix(res7.Redirect, consentRedirectURI) {
+			log.Fatalf("consent deny: redirect must target the RP redirect_uri, got %q", res7.Redirect)
+		}
+		if got := du.Query().Get("error"); got != "access_denied" {
+			log.Fatalf("consent deny: want error=access_denied, got %q (redirect=%q)", got, res7.Redirect)
+		}
+		log.Printf("  POST deny → redirect carries error=access_denied ✓")
+	}
+
+	step(fmt.Sprintf("step 113/%d — UI: GET /api/prohibitorum/auth/federation → 200 JSON array incl. seeded slugs", totalUI))
+	{
+		pubc, err := newClient(*baseURL) // no session needed (public endpoint)
+		if err != nil {
+			log.Fatalf("federation-list client: %v", err)
+		}
+		var providers []struct {
+			Slug        string `json:"slug"`
+			DisplayName string `json:"displayName"`
+		}
+		if err := pubc.get("/api/prohibitorum/auth/federation", &providers); err != nil {
+			log.Fatalf("GET /auth/federation: %v", err)
+		}
+		// The federation section (steps 46/58) seeded upstream IdPs 'mockop' and
+		// 'mockop-link'; both are enabled so both must appear here.
+		var haveMockop, haveMockopLink bool
+		for _, p := range providers {
+			switch p.Slug {
+			case "mockop":
+				haveMockop = true
+			case "mockop-link":
+				haveMockopLink = true
+			}
+			if p.Slug == "" || p.DisplayName == "" {
+				log.Fatalf("federation provider with empty slug/displayName: %+v", p)
+			}
+		}
+		if !haveMockop || !haveMockopLink {
+			log.Fatalf("federation list missing seeded slugs (mockop=%v mockop-link=%v): %+v",
+				haveMockop, haveMockopLink, providers)
+		}
+		log.Printf("  /auth/federation → 200, %d providers incl. mockop + mockop-link ✓", len(providers))
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + DB-state assertions passed against",
 		*baseURL)
 }
+
 
 func step(msg string) {
 	log.Println()
@@ -3823,6 +4029,40 @@ func createOIDCClient(baseURL, clientID, redirectURI, postLogoutURI string, scop
 		}
 	}
 	return "", fmt.Errorf("no client secret in oidc-client create output:\n%s", out)
+}
+
+// createConsentOIDCClient registers a CONFIDENTIAL client with
+// --require-consent so the Login+Consent UI backend consent steps (step 112) can drive the /consent bounce.
+// Modeled on createOIDCClient; returns the parsed client secret.
+func createConsentOIDCClient(baseURL, clientID, redirectURI string, scopes []string) (string, error) {
+	args := []string{"exec", "--", "go", "run", "./cmd/prohibitorum", "oidc-client", "create",
+		"--client-id", clientID,
+		"--display-name", "Smoke Consent RP",
+		"--redirect-uri", redirectURI,
+		"--post-logout-redirect-uri", redirectURI,
+		"--require-consent",
+	}
+	for _, s := range scopes {
+		args = append(args, "--scope", s)
+	}
+	cmd := exec.Command("mise", args...)
+	cmd.Env = append(os.Environ(), "PROHIBITORUM_PUBLIC_ORIGIN="+baseURL)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("oidc-client create --require-consent: %v\n%s", err, out)
+	}
+	lines := strings.Split(string(out), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "Client secret") {
+			for j := i + 1; j < len(lines); j++ {
+				s := strings.TrimSpace(lines[j])
+				if s != "" {
+					return s, nil
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("no client secret in oidc-client create --require-consent output:\n%s", out)
 }
 
 // genPKCE generates an RFC 7636 PKCE pair: verifier = base64url(32 random
