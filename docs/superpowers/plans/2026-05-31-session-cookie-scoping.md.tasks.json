@@ -1,0 +1,33 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-31-session-cookie-scoping.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Core session-cookie scoping (pkg/session) + unit tests",
+      "status": "completed",
+      "description": "**Goal:** Change the session cookie to Path=/ with a deployment-conditional name + Secure, read it back by the same resolved name — within pkg/session, callers untouched.\n\n**Files:**\n- Modify: pkg/session/middleware.go\n- Test: pkg/session/middleware_test.go (create)\n\n**Acceptance Criteria:**\n- FreshSessionCookie: Path=/, SameSite=Lax, HttpOnly, no Domain\n- HTTPS deployment → name __Host-prohibitorum_session, Secure=true\n- HTTP/empty origin → plain prohibitorum_session, Secure=false\n- ClearedSessionCookie matches Fresh on name+path+attrs, MaxAge=-1\n- LoadSession reads via resolved name\n- go build/vet + pkg/session tests green\n\n**Steps:** Add secureCookies/sessionCookieName/SessionCookieNameFor; rewrite Fresh/ClearedSessionCookie (Path=/, conditional name, cfg-driven Secure, r→_); LoadSession read via SessionCookieNameFor(cfg); new middleware_test.go both modes; build+vet; commit.\n\n```json:metadata\n{\"files\": [\"pkg/session/middleware.go\", \"pkg/session/middleware_test.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/session/... -v && mise exec -- go build ./... && mise exec -- go vet ./...\", \"acceptanceCriteria\": [\"Path=/ SameSite=Lax HttpOnly no-Domain\", \"https → __Host- name + Secure\", \"http/empty → plain name, no Secure\", \"Cleared matches Fresh, MaxAge=-1\", \"LoadSession reads resolved name\", \"build/vet/pkg-session tests green\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Resolve conditional name at logout-read + OpenAPI scheme (pkg/server)",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "**Goal:** Logout cookie read and OpenAPI security scheme use the resolved deployment-conditional name.\n\n**Files:**\n- Modify: pkg/server/handle_auth.go:280\n- Modify: pkg/server/server.go (registerSecurityScheme + callers ~127, ~183)\n\n**Acceptance Criteria:**\n- handleLogoutHTTP reads via sessstore.SessionCookieNameFor(s.config)\n- registerSecurityScheme takes cookieName; constructor passes SessionCookieNameFor(config), NewHuma passes base SessionCookieName\n- go build/vet + pkg/server tests green\n\n**Steps:** Update logout read; change registerSecurityScheme(api, cookieName); update both callers; build/vet/test; commit.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_auth.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"mise exec -- go test ./pkg/server/... && mise exec -- go build ./... && mise exec -- go vet ./...\", \"acceptanceCriteria\": [\"logout reads SessionCookieNameFor\", \"registerSecurityScheme threads cookieName at both callers\", \"build/vet/server tests green\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Drop smoke manual cookie re-attach (behavioral proof)",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Remove manual cookie re-attach in all 5 OIDC/SAML smoke helpers; let cookiejar auto-send the Path=/ cookie; add root-path proof assertion.\n\n**Files:**\n- Modify: cmd/smoke/main.go (authorizeWithSession, ssoLocation; remove sessionCookieForOIDC; add assertSessionCookieAtRoot + call; fix comments)\n- Modify: cmd/smoke/saml_mock.go (ssoPostForm, ssoInit, ssoWithSession; fix comments)\n\n**Acceptance Criteria:**\n- No helper calls sessionCookieForOIDC/req.AddCookie; each sets Jar: c.jar\n- sessionCookieForOIDC deleted (no refs)\n- assertSessionCookieAtRoot called once before first authorizeWithSession\n- stale Path=/api/prohibitorum comments corrected\n- Full smoke 1–111 green, SMOKE_EXIT=0\n\n**Steps:** Convert 3 saml_mock + 2 main helpers (drop attach, add Jar: c.jar); delete sessionCookieForOIDC; add assertSessionCookieAtRoot; call before first authorize; fix comments; build + run full smoke; commit.\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\", \"cmd/smoke/saml_mock.go\"], \"verifyCommand\": \"mise exec -- go build ./cmd/smoke/... && ! grep -rn sessionCookieForOIDC cmd/smoke\", \"acceptanceCriteria\": [\"5 helpers use Jar: c.jar, no manual attach\", \"sessionCookieForOIDC removed\", \"assertSessionCookieAtRoot called once\", \"stale comments fixed\", \"full smoke green SMOKE_EXIT=0\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Close v0.6 architectural finding in AUDIT.md",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Mark the cookie-path-vs-route finding resolved with fix, spec ref, verification, and carried-forward POST-binding caveat.\n\n**Files:**\n- Modify: AUDIT.md (~line 615 finding block)\n\n**Acceptance Criteria:**\n- Finding marked resolved; names fix (Path=/ + conditional __Host-/Secure); references spec; notes verification (unit tests + unmasked smoke + assertSessionCookieAtRoot)\n- D2 limitation carried forward (SAML POST-binding cross-site = /login bounce once)\n- No false real-browser claim\n\n**Steps:** Rewrite finding block as resolved entry; commit.\n\n```json:metadata\n{\"files\": [\"AUDIT.md\"], \"verifyCommand\": \"rg -n 'RESOLVED.*session-cookie scoping' AUDIT.md\", \"acceptanceCriteria\": [\"finding marked resolved with fix + spec ref + verification\", \"D2 POST-binding caveat carried forward\", \"no false real-browser claim\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-31"
+}
