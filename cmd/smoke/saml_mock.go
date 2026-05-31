@@ -449,11 +449,11 @@ func verifyMetadataSignature(idpMetaXML []byte) (*crewjam.EntityDescriptor, erro
 	return &ed, nil
 }
 
-// ssoPostForm POSTs a base64 SAMLRequest (HTTP-POST binding) to /saml/sso with
-// c's authenticated IdP session attached by hand (the session cookie is
-// Path=/api/prohibitorum so the jar would not send it to the root-mounted
-// endpoint). Redirects are NOT followed. Returns status + body; a 200 carries
-// the auto-POST HTML with the SAMLResponse.
+// ssoPostForm POSTs a base64 SAMLRequest (HTTP-POST binding) to /saml/sso.
+// The session cookie is now Path=/, so c's jar auto-sends c's authenticated IdP
+// session to the root-mounted endpoint (browser-equivalent); no manual attach.
+// Redirects are NOT followed. Returns status + body; a 200 carries the auto-POST
+// HTML with the SAMLResponse.
 func ssoPostForm(c *client, samlRequest, relayState string) (status int, body string, err error) {
 	form := url.Values{"SAMLRequest": {samlRequest}}
 	if relayState != "" {
@@ -464,12 +464,8 @@ func ssoPostForm(c *client, samlRequest, relayState string) (status int, body st
 		return 0, "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	ck := sessionCookieForOIDC(c)
-	if ck == nil {
-		return 0, "", errors.New("ssoPostForm: no session cookie in jar (is c logged in?)")
-	}
-	req.AddCookie(ck)
 	hc := &http.Client{
+		Jar:     c.jar,
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -484,9 +480,10 @@ func ssoPostForm(c *client, samlRequest, relayState string) (status int, body st
 	return resp.StatusCode, string(b), nil
 }
 
-// ssoInit drives GET /saml/sso/init?sp=<entityID>[&RelayState=…] with c's
-// session attached by hand. Redirects are NOT followed. Returns status + body;
-// a 200 carries the auto-POST HTML with the unsolicited SAMLResponse.
+// ssoInit drives GET /saml/sso/init?sp=<entityID>[&RelayState=…]. The session
+// cookie is now Path=/, so c's jar auto-sends it to the root-mounted endpoint
+// (browser-equivalent); no manual attach. Redirects are NOT followed. Returns
+// status + body; a 200 carries the auto-POST HTML with the unsolicited SAMLResponse.
 func ssoInit(c *client, spEntityID, relayState string) (status int, body string, err error) {
 	q := url.Values{"sp": {spEntityID}}
 	if relayState != "" {
@@ -496,12 +493,8 @@ func ssoInit(c *client, spEntityID, relayState string) (status int, body string,
 	if err != nil {
 		return 0, "", err
 	}
-	ck := sessionCookieForOIDC(c)
-	if ck == nil {
-		return 0, "", errors.New("ssoInit: no session cookie in jar (is c logged in?)")
-	}
-	req.AddCookie(ck)
 	hc := &http.Client{
+		Jar:     c.jar,
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -625,22 +618,18 @@ func fetchSAMLMetadata(baseURL string) ([]byte, error) {
 }
 
 // ssoWithSession drives GET /saml/sso?<query> with c's authenticated IdP
-// session attached by hand. /saml/sso is root-mounted while the session cookie
-// is Path=/api/prohibitorum, so the jar would not send it — we attach it the
-// same way authorizeWithSession does for /oauth/authorize. Redirects are NOT
-// followed (a session bounce → 302 /login is observable). Returns the response
-// status and body. A 200 carries the auto-POST HTML with the SAMLResponse.
+// session. /saml/sso is root-mounted; the session cookie is now Path=/, so c's
+// jar auto-sends it to the endpoint (browser-equivalent); no manual attach.
+// Redirects are NOT followed (a session bounce → 302 /login is observable).
+// Returns the response status and body. A 200 carries the auto-POST HTML with
+// the SAMLResponse.
 func ssoWithSession(c *client, query string) (status int, body string, err error) {
 	req, err := http.NewRequest(http.MethodGet, c.base+"/saml/sso?"+query, nil)
 	if err != nil {
 		return 0, "", err
 	}
-	ck := sessionCookieForOIDC(c)
-	if ck == nil {
-		return 0, "", errors.New("ssoWithSession: no session cookie in jar (is c logged in?)")
-	}
-	req.AddCookie(ck)
 	hc := &http.Client{
+		Jar:     c.jar,
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse

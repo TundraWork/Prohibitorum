@@ -628,9 +628,9 @@ func main() {
 	} else if loc != "/me" {
 		log.Fatalf("federation/callback: want redirect to /me, got %q", loc)
 	}
-	// Session cookies are Path=/api/prohibitorum, so c.cookies() (which
-	// queries with URL path "/") returns 0. Verify session presence by
-	// hitting an API endpoint — if the cookie weren't set, /me would 401.
+	// The session cookie is Path=/, so the jar sends it to every endpoint.
+	// Verify session presence by hitting an API endpoint — if the cookie
+	// weren't set, /me would 401.
 	if _, err := extClient.getMe(); err != nil {
 		log.Fatalf("federation/callback: no session cookie (post-callback /me failed: %v)", err)
 	}
@@ -965,13 +965,10 @@ func main() {
 	// /userinfo, /introspect, refresh-token rotation + reuse detection, /revoke,
 	// and RP-initiated logout. Per Task 15 of the v0.4 plan.
 	//
-	// IMPORTANT — session-cookie scope: the OIDC OP routes are mounted at the
-	// server ROOT (/oauth/authorize, /oauth/token, …), NOT under
-	// /api/prohibitorum. The session cookie is Path=/api/prohibitorum, so the
-	// cookie jar will NOT attach it to a root-path /oauth/authorize request. We
-	// therefore extract the session cookie from c's jar (querying the jar at the
-	// /api/prohibitorum path) and attach it by hand to /authorize requests. See
-	// authorizeWithSession below.
+	// session-cookie scope: the OIDC OP routes are mounted at the server ROOT
+	// (/oauth/authorize, /oauth/token, …). The session cookie is now Path=/, so
+	// c's cookie jar auto-sends it to those root-mounted endpoints
+	// (browser-equivalent) — no manual attach. See authorizeWithSession below.
 	//
 	// Ordering: every authenticated /authorize+/token step (incl. the authorize
 	// negatives that need a live session) runs FIRST while c holds a session;
@@ -1036,6 +1033,7 @@ func main() {
 		url.QueryEscape(authNonce),
 		url.QueryEscape(challenge),
 	)
+	assertSessionCookieAtRoot(c)
 	loc, err := authorizeWithSession(c, authzURL)
 	if err != nil {
 		log.Fatalf("/oauth/authorize: %v", err)
@@ -3908,36 +3906,38 @@ func verifyAccessToken(baseURL, accessToken string) (map[string]any, string, err
 	return verifyJWSAgainstJWKS(baseURL, accessToken)
 }
 
-// sessionCookieForOIDC extracts the prohibitorum_session cookie from c's jar.
-// The cookie is Path=/api/prohibitorum, so we query the jar with that path —
-// querying "/" (as c.cookies() does) returns nothing. Returns nil if absent.
-func sessionCookieForOIDC(c *client) *http.Cookie {
-	u, _ := url.Parse(c.base + "/api/prohibitorum")
+// assertSessionCookieAtRoot fails the smoke if c's jar does not hold the
+// session cookie at the ROOT path. This is the behavioral proof of the
+// Path=/ scoping fix: a real browser (and the jar) only sends the cookie to
+// /oauth/authorize and /saml/sso* when it is scoped to "/". It accepts either
+// the plain name (HTTP dev) or the __Host- prefix (HTTPS deployment) so the
+// guard can never pass vacuously when pointed at an https origin.
+func assertSessionCookieAtRoot(c *client) {
+	u, _ := url.Parse(c.base + "/")
 	for _, ck := range c.jar.Cookies(u) {
-		if ck.Name == "prohibitorum_session" {
-			return ck
+		// Match either the plain (HTTP dev) or __Host- (HTTPS) session cookie
+		// name so this guard can never pass vacuously if the smoke is pointed
+		// at an https origin.
+		if ck.Name == "prohibitorum_session" || ck.Name == "__Host-prohibitorum_session" {
+			return
 		}
 	}
-	return nil
+	log.Fatalf("session cookie not present at root path %q — Path=/ scoping regressed", c.base+"/")
 }
 
 // authorizeWithSession issues GET <c.base>+path against the root-mounted
-// /oauth/authorize, MANUALLY attaching c's session cookie (which the jar would
-// not send to a root-path request because it is scoped to /api/prohibitorum).
+// /oauth/authorize. The session cookie is now Path=/, so c's jar auto-sends it
+// to the root-mounted endpoint (browser-equivalent); no manual attach.
 // It expects a 302 and returns the Location. Redirects are NOT followed.
 func authorizeWithSession(c *client, path string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, c.base+path, nil)
 	if err != nil {
 		return "", err
 	}
-	ck := sessionCookieForOIDC(c)
-	if ck == nil {
-		return "", errors.New("authorizeWithSession: no session cookie in jar (is c logged in?)")
-	}
-	req.AddCookie(ck)
 	// Do not follow the redirect — we want to observe the Location (the 302
 	// back to the RP redirect_uri, an unmounted path that would 404 if followed).
 	hc := &http.Client{
+		Jar:     c.jar,
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -4015,20 +4015,17 @@ func rawQueryOf(absURL string) (string, error) {
 	return u.RawQuery, nil
 }
 
-// ssoLocation issues GET /saml/sso?<query> with c's session attached by hand and
-// returns the Location header (used to capture the ForceAuthn /login bounce
-// target — ssoWithSession returns status+body but not Location).
+// ssoLocation issues GET /saml/sso?<query> and returns the Location header (used
+// to capture the ForceAuthn /login bounce target — ssoWithSession returns
+// status+body but not Location). The session cookie is now Path=/, so c's jar
+// auto-sends it to the root-mounted endpoint (browser-equivalent).
 func ssoLocation(c *client, query string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, c.base+"/saml/sso?"+query, nil)
 	if err != nil {
 		return "", err
 	}
-	ck := sessionCookieForOIDC(c)
-	if ck == nil {
-		return "", errors.New("ssoLocation: no session cookie in jar")
-	}
-	req.AddCookie(ck)
 	hc := &http.Client{
+		Jar:     c.jar,
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -4260,7 +4257,7 @@ func freshAuthorizeCode(c *client, baseURL, clientID, redirectURI, issuer string
 // redirect_uri and asserts the OP returns a DIRECT JSON error (per the
 // open-redirect guard) rather than a 302 to the bad URI. Expects a non-302
 // status (400) with a JSON `error` body, and no Location header pointing at the
-// bad URI.
+// bad URI. It uses c's jar so the session cookie is sent browser-equivalently.
 func authorizeExpectDirectError(c *client, baseURL, clientID, badRedirectURI, issuer string) error {
 	v, challenge := genPKCE()
 	_ = v
@@ -4278,10 +4275,8 @@ func authorizeExpectDirectError(c *client, baseURL, clientID, badRedirectURI, is
 	if err != nil {
 		return err
 	}
-	if ck := sessionCookieForOIDC(c); ck != nil {
-		req.AddCookie(ck)
-	}
 	hc := &http.Client{
+		Jar:     c.jar,
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
