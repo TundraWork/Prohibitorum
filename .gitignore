@@ -8,3 +8,6 @@
 *.swp
 .DS_Store
 /smoke
+
+# Brainstorm visual-companion artifacts
+.superpowers/
