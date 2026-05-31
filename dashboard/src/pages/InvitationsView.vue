@@ -77,6 +77,7 @@ onMounted(load)
         <tr class="text-left text-muted border-b border-default">
           <th class="py-2 pr-4">{{ t('invitations.role') }}</th>
           <th class="py-2 pr-4">{{ t('invitations.url') }}</th>
+          <th class="py-2 pr-4">{{ t('invitations.createdAt') }}</th>
           <th class="py-2 pr-4">{{ t('invitations.expiresAt') }}</th>
           <th class="py-2 pr-4">{{ t('invitations.actions') }}</th>
         </tr>
@@ -85,6 +86,7 @@ onMounted(load)
         <tr v-for="inv in rows" :key="inv.token" class="border-b border-default/50">
           <td class="py-2 pr-4">{{ inv.role }}</td>
           <td class="py-2 pr-4 w-1/2"><CopyableUrl :url="inv.url" /></td>
+          <td class="py-2 pr-4">{{ new Date(inv.createdAt).toLocaleDateString() }}</td>
           <td class="py-2 pr-4">{{ new Date(inv.expiresAt).toLocaleDateString() }}</td>
           <td class="py-2 pr-4">
             <div class="inline-flex items-center gap-1">
