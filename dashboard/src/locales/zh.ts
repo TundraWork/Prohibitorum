@@ -6,5 +6,5 @@ export default {
   logout: { done: '您已退出登录', returnTo: '返回 {app}' },
   error: { title: '出错了', generic: '发生了未知错误' },
   scopes: { openid: '基本身份', profile: '您的个人资料（姓名、昵称）', email: '您的邮箱地址', offline_access: '在您离线时持续访问', address: '您的地址', phone: '您的电话号码' },
-  errors: { no_session: '请先登录', invalid_consent_ticket: '授权请求已失效，请重新发起登录', bad_credentials: '凭证无效', factor_locked: '尝试次数过多，请稍后再试' },
+  errors: { no_session: '请先登录', invalid_consent_ticket: '授权请求已失效，请重新发起登录', bad_credentials: '凭证无效', factor_locked: '尝试次数过多，请稍后再试', server_error: '服务器错误，请稍后再试' },
 }

@@ -10,6 +10,12 @@ const done = ref(false)
 // post_logout_redirect_uri is pre-validated by the backend /oidc/logout (exact-match
 // against the client's registered post_logout_redirect_uris) before the browser is
 // redirected here; no same-origin guard — the RP target is legitimately external.
+//
+// NOTE: this branch is currently unreachable in the OIDC flow. The backend /oidc/logout
+// redirects a validated post_logout_redirect_uri straight to the RP (and, when absent,
+// to the issuer root) — it never routes through /logout?post_logout_redirect_uri=. So the
+// "Return to {app}" button below only fires if a future change routes /oidc/logout through
+// this SPA landing page; it is kept (not deleted) for exactly that wiring.
 const postLogout = typeof route.query.post_logout_redirect_uri === 'string'
   ? route.query.post_logout_redirect_uri
   : ''

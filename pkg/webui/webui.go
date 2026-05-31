@@ -48,8 +48,15 @@ func Handler() http.Handler {
 }
 
 func setSecurityHeaders(w http.ResponseWriter) {
+	// style-src needs 'unsafe-inline' because Nuxt UI / Reka UI inject inline
+	// <style> elements at runtime (theme colors, transition suppression) via
+	// document.createElement("style"); a strict style-src would block these and
+	// break styling in production HTTPS (the HTTP curl smoke can't catch it).
+	// script-src is listed explicitly as 'self' so loosening style-src does NOT
+	// also loosen scripts — once we enumerate directives, default-src no longer
+	// covers script-src, and we keep it tight (no unsafe-inline for scripts).
 	w.Header().Set("Content-Security-Policy",
-		"default-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
+		"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
