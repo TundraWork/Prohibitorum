@@ -6,6 +6,7 @@ export default {
   logout: { done: 'You have signed out', returnTo: 'Return to {app}' },
   profile: { title: 'Profile', username: 'Username', displayName: 'Display name', role: 'Role', logout: 'Log out' },
   sessions: { title: 'Sessions', current: 'Current', issuedAt: 'Signed in', lastSeen: 'Last seen', expiresAt: 'Expires', device: 'Device', ip: 'IP', actions: 'Actions', revoke: 'Revoke' },
+  credentials: { title: 'Passkeys', nickname: 'Nickname', suffix: 'ID suffix', transports: 'Transports', createdAt: 'Added', lastUsed: 'Last used', actions: 'Actions', unnamed: '(unnamed)', renamePrompt: 'New nickname' },
   error: { title: 'Something went wrong', generic: 'An unknown error occurred' },
   scopes: { openid: 'Basic identity', profile: 'Your profile (name, nickname)', email: 'Your email address', offline_access: 'Offline access while you are away', address: 'Your address', phone: 'Your phone number' },
   errors: { no_session: 'Please sign in first', invalid_consent_ticket: 'This authorization request has expired; please start over', bad_credentials: 'Invalid credentials', factor_locked: 'Too many attempts, try again later', server_error: 'Server error, please try again later' },
