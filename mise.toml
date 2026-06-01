@@ -30,14 +30,23 @@ description = "Show migration status"
 run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" status"
 
 [tasks.dev-server]
-description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults. The server auto-migrates on boot. Override PROHIBITORUM_DATABASE_URL / PROHIBITORUM_PUBLIC_ORIGIN via env to point elsewhere; the dev data-encryption key is generated once into .dev/encryption-key (gitignored, stable across restarts). NOTE: defaults to the same dev Postgres the smoke runner wipes — don't run the smoke against data you want to keep."
+description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults. Uses a DEDICATED 'prohibitorum_dev' database (auto-created, isolated from the smoke's 'postgres' DB so smoke runs never wipe your dev data and no stale/undecryptable federation rows leak in). The server auto-migrates on boot. The dev data-encryption key is generated once into .dev/encryption-key (gitignored, stable across restarts). Override PROHIBITORUM_DATABASE_URL / PROHIBITORUM_PUBLIC_ORIGIN via env to point elsewhere (then DB auto-create is skipped — point at an existing, migratable DB)."
 run = """
 set -e
 mkdir -p .dev
 [ -f .dev/encryption-key ] || openssl rand -base64 32 > .dev/encryption-key
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(cat .dev/encryption-key)"
-export PROHIBITORUM_DATABASE_URL="${PROHIBITORUM_DATABASE_URL:-postgres://tundra@localhost:55432/postgres?sslmode=disable}"
 export PROHIBITORUM_PUBLIC_ORIGIN="${PROHIBITORUM_PUBLIC_ORIGIN:-http://localhost:8080}"
+if [ -z "${PROHIBITORUM_DATABASE_URL:-}" ]; then
+  export PROHIBITORUM_DATABASE_URL="postgres://tundra@localhost:55432/prohibitorum_dev?sslmode=disable"
+  # Ensure the dedicated dev database exists (idempotent; best-effort if psql is present).
+  PSQL="$(command -v psql || mise which psql 2>/dev/null || true)"
+  if [ -n "$PSQL" ]; then
+    MAINT="postgres://tundra@localhost:55432/postgres?sslmode=disable"
+    "$PSQL" "$MAINT" -tAc "SELECT 1 FROM pg_database WHERE datname='prohibitorum_dev'" | grep -q 1 \
+      || "$PSQL" "$MAINT" -c "CREATE DATABASE prohibitorum_dev"
+  fi
+fi
 cd dashboard && npm run build && cd ..
 exec go run ./cmd/prohibitorum
 """
