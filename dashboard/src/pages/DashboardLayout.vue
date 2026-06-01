@@ -4,10 +4,12 @@ import { useRouter } from 'vue-router'
 import { useSessionStore } from '../stores/session'
 import AppSidebar from '../components/AppSidebar.vue'
 import LocaleSwitcher from '../components/LocaleSwitcher.vue'
+import { isDevMode } from '../lib/devMode'
 
 const { t } = useI18n()
 const router = useRouter()
 const session = useSessionStore()
+const dev = isDevMode()
 
 function logout() {
   router.push('/logout')
@@ -21,6 +23,7 @@ function logout() {
       <header class="flex items-center justify-between px-6 py-3 border-b border-default">
         <span class="text-lg font-semibold">{{ t('app.name') }}</span>
         <div class="flex items-center gap-3">
+          <RouterLink v-if="dev" to="/dev" class="text-xs text-muted hover:underline">🛠 dev</RouterLink>
           <span class="text-sm text-muted">{{ session.me?.displayName }}</span>
           <LocaleSwitcher />
           <UButton type="button" size="sm" color="neutral" variant="ghost" @click="logout">

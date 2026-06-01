@@ -7,6 +7,9 @@ import { useSessionStore } from './stores/session'
 const get = vi.fn()
 vi.mock('./lib/api', () => ({ api: { get: (...a: unknown[]) => get(...a) } }))
 
+const devMode = vi.fn(() => true)
+vi.mock('./lib/devMode', () => ({ isDevMode: () => devMode() }))
+
 function buildRouter() {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -15,13 +18,14 @@ function buildRouter() {
       { path: '/admin/accounts', component: { template: '<div/>' }, meta: { requiresAuth: true, requiresAdmin: true } },
       { path: '/login', component: { template: '<div/>' } },
       { path: '/enroll/:token', component: { template: '<div/>' } },
+      { path: '/dev', component: { template: '<div/>' } },
     ],
   })
   installGuard(router)
   return router
 }
 
-beforeEach(() => { setActivePinia(createPinia()); get.mockReset() })
+beforeEach(() => { setActivePinia(createPinia()); get.mockReset(); devMode.mockReturnValue(true) })
 
 describe('router guard', () => {
   it('redirects unauthenticated users to /login with return_to', async () => {
@@ -51,5 +55,20 @@ describe('router guard', () => {
     const router = buildRouter()
     await router.push('/enroll/tok')
     expect(router.currentRoute.value.path).toBe('/enroll/tok')
+  })
+
+  it('allows /dev in dev mode', async () => {
+    devMode.mockReturnValue(true)
+    const router = buildRouter()
+    await router.push('/dev')
+    expect(router.currentRoute.value.path).toBe('/dev')
+  })
+
+  it('redirects /dev to / outside dev mode', async () => {
+    devMode.mockReturnValue(false)
+    get.mockResolvedValue({ id: 1, username: 'a', displayName: 'A', role: 'admin' }) // so the / target (requiresAuth) resolves
+    const router = buildRouter()
+    await router.push('/dev')
+    expect(router.currentRoute.value.path).toBe('/')
   })
 })

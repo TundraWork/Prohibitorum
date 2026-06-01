@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type Router } from 'vue-router'
 import { useSessionStore } from './stores/session'
+import { isDevMode } from './lib/devMode'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +31,8 @@ export const router = createRouter({
     },
     // Public, no layout.
     { path: '/enroll/:token', name: 'enroll', component: () => import('./pages/EnrollView.vue') },
+    // Dev-only console (lazy chunk; guarded off in real deployments — see installGuard).
+    { path: '/dev', name: 'dev', component: () => import('./pages/DevIndexView.vue') },
     // Unknown paths fall back to the dashboard; the guard bounces to /login if unauthenticated.
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
@@ -39,6 +42,8 @@ export const router = createRouter({
 // requiresAdmin → also require role==='admin'.
 export function installGuard(r: Router) {
   r.beforeEach(async (to) => {
+    // Dev console is unreachable outside dev (loopback host / vite dev server).
+    if (to.path === '/dev' && !isDevMode()) return { path: '/' }
     if (!to.meta.requiresAuth) return true
     const session = useSessionStore()
     await session.ensureLoaded()
