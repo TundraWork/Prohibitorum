@@ -49,7 +49,7 @@ SPA-shell assertion (step 5b).
 
 ## The deliverable's acceptance — the MANUAL browser walkthrough (D9)
 Needs a human + a real passkey ceremony (WebAuthn works over http://localhost). From a fresh DB:
-1. `mise dev-server` (export `PROHIBITORUM_DATABASE_URL`, `PROHIBITORUM_DATA_ENCRYPTION_KEY_V1`, `PROHIBITORUM_PUBLIC_ORIGIN=http://localhost:8080`) → serves :8080.
+1. `mise dev-server` → serves :8080. (As of commit b18b070 it's **self-contained**: dev defaults for `PROHIBITORUM_DATABASE_URL` (localhost:55432 dev PG) + `PROHIBITORUM_PUBLIC_ORIGIN=http://localhost:8080`, and a stable data-encryption key auto-generated into `.dev/encryption-key` (gitignored). Override the DB/origin via env if needed. Server auto-migrates on boot. Caveat: defaults to the same dev PG the smoke wipes.)
 2. `go run ./cmd/prohibitorum enroll-admin` → open the printed `/enroll/<token>`.
 3. Type username + display name → Register passkey → auto-login → `/` Profile (admin sidebar group visible).
 4. Exercise Sessions/Passkeys + Admin Accounts/Invitations (revoke/rename/disable/reissue/create-invite).
