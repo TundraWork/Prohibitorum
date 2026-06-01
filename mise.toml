@@ -3,7 +3,7 @@ go = "1.26"
 node = "24"
 pnpm = "10"
 sqlc = "1.30.0"
-goose = "3.27.0"
+"aqua:pressly/goose" = "3.27.0"
 
 [tasks.server]
 description = "Run the Go server"
@@ -30,5 +30,14 @@ description = "Show migration status"
 run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" status"
 
 [tasks.dev-server]
-description = "Build the SPA into pkg/webui/dist, then run the Go server (embedded SPA at http://localhost:8080). Requires PROHIBITORUM_DATABASE_URL, PROHIBITORUM_DATA_ENCRYPTION_KEY_V1, PROHIBITORUM_PUBLIC_ORIGIN in the environment."
-run = "cd dashboard && npm run build && cd .. && go run ./cmd/prohibitorum"
+description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults. The server auto-migrates on boot. Override PROHIBITORUM_DATABASE_URL / PROHIBITORUM_PUBLIC_ORIGIN via env to point elsewhere; the dev data-encryption key is generated once into .dev/encryption-key (gitignored, stable across restarts). NOTE: defaults to the same dev Postgres the smoke runner wipes — don't run the smoke against data you want to keep."
+run = """
+set -e
+mkdir -p .dev
+[ -f .dev/encryption-key ] || openssl rand -base64 32 > .dev/encryption-key
+export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(cat .dev/encryption-key)"
+export PROHIBITORUM_DATABASE_URL="${PROHIBITORUM_DATABASE_URL:-postgres://tundra@localhost:55432/postgres?sslmode=disable}"
+export PROHIBITORUM_PUBLIC_ORIGIN="${PROHIBITORUM_PUBLIC_ORIGIN:-http://localhost:8080}"
+cd dashboard && npm run build && cd ..
+exec go run ./cmd/prohibitorum
+"""

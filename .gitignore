@@ -5,6 +5,7 @@
 /.vite
 /node_modules
 /.data
+/.dev
 /.env
 *.swp
 .DS_Store
