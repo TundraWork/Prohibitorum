@@ -47,6 +47,16 @@ SPA-shell assertion (step 5b).
 - Out of scope this chunk (unchanged): sudo step-up, add-passkey on credentials, federation enrollment, identities/device-pairing UI, account create-from-scratch.
 - Minor, non-blocking (from the final review, deliberately left): no HTML5 `required` on EnrollView identity inputs (backend validates); `RouteMeta` not type-augmented (guard truthiness works); empty `<script setup>` in App.vue.
 
+## Dev console (`/dev`) — manual-testing hub
+A chrome://-style dev-only page links every page/flow (commit 82f7464). Open
+`http://localhost:8080/dev` (or the `🛠 dev` link in the header/login chrome). It
+shows session status, grouped route links (public/user/admin), an admin
+"mint invitation → enroll link" action, raw API endpoint links, and notes on the
+flows needing external parties. Gated by `lib/devMode.isDevMode()` (loopback host
+or vite-dev) → unreachable in a real deployment (router redirects `/dev`→`/`, link
+hidden, lazy chunk never fetched). Tests: `DevIndexView.test.ts` + the `/dev`
+guard cases in `router.test.ts`.
+
 ## The deliverable's acceptance — the MANUAL browser walkthrough (D9)
 Needs a human + a real passkey ceremony (WebAuthn works over http://localhost). From a fresh DB:
 1. `mise dev-server` → serves :8080. (As of commit b18b070 it's **self-contained**: dev defaults for `PROHIBITORUM_DATABASE_URL` (localhost:55432 dev PG) + `PROHIBITORUM_PUBLIC_ORIGIN=http://localhost:8080`, and a stable data-encryption key auto-generated into `.dev/encryption-key` (gitignored). Override the DB/origin via env if needed. Server auto-migrates on boot. Caveat: defaults to the same dev PG the smoke wipes.)
