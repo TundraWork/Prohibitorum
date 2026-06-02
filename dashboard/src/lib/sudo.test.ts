@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { withSudo, sudoState, _resolveSudo } from './sudo'
+import { withSudo, ensureSudo, sudoState, _resolveSudo } from './sudo'
 
-beforeEach(() => { sudoState.value.open = false; sudoState.value.resolve = null })
+beforeEach(() => { sudoState.value = { open: false, resolve: null } })
 
 describe('withSudo', () => {
   it('returns the result when fn succeeds (no step-up)', async () => {
@@ -34,5 +34,18 @@ describe('withSudo', () => {
   it('does not intercept non-sudo errors', async () => {
     await expect(withSudo(async () => { throw { code: 'boom' } })).rejects.toMatchObject({ code: 'boom' })
     expect(sudoState.value.open).toBe(false)
+  })
+
+  it('ensureSudo resolves true/false from one modal run', async () => {
+    const p = ensureSudo()
+    await Promise.resolve()
+    expect(sudoState.value.open).toBe(true)
+    _resolveSudo(true)
+    expect(await p).toBe(true)
+
+    const p2 = ensureSudo()
+    await Promise.resolve()
+    _resolveSudo(false)
+    expect(await p2).toBe(false)
   })
 })

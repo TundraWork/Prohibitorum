@@ -16,7 +16,7 @@ const loading = ref(false)
 function finish(ok: boolean) {
   const r = sudoState.value.resolve
   sudoState.value = { open: false, resolve: null }
-  methods.value = []; chosen.value = ''; password.value = ''; totp.value = ''; error.value = ''
+  methods.value = []; chosen.value = ''; password.value = ''; totp.value = ''; error.value = ''; busy.value = false; loading.value = false
   r?.(ok)
 }
 
@@ -77,7 +77,7 @@ async function submit() {
           <div class="flex gap-2">
             <UButton v-for="m in methods" :key="m" type="button" size="sm"
               :variant="chosen === m ? 'solid' : 'soft'" @click="chosen = m">
-              {{ m === 'webauthn' ? 'Passkey' : 'Password + 2FA' }}
+              {{ m === 'webauthn' ? 'Passkey' : m === 'password_totp' ? 'Password + 2FA' : m }}
             </UButton>
           </div>
           <div v-if="chosen === 'password_totp'" class="space-y-2">
