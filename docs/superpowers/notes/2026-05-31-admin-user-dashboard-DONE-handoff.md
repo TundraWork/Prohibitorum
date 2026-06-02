@@ -59,8 +59,8 @@ guard cases in `router.test.ts`.
 
 ## The deliverable's acceptance — the MANUAL browser walkthrough (D9)
 Needs a human + a real passkey ceremony (WebAuthn works over http://localhost). From a fresh DB:
-1. `mise dev-server` → serves :8080. (As of commit b18b070 it's **self-contained**: dev defaults for `PROHIBITORUM_DATABASE_URL` (localhost:55432 dev PG) + `PROHIBITORUM_PUBLIC_ORIGIN=http://localhost:8080`, and a stable data-encryption key auto-generated into `.dev/encryption-key` (gitignored). Override the DB/origin via env if needed. Server auto-migrates on boot. Caveat: defaults to the same dev PG the smoke wipes.)
-2. `go run ./cmd/prohibitorum enroll-admin` → open the printed `/enroll/<token>`.
+1. `mise dev-server` → serves :8080. Self-contained (commit 3588ea2): sources `scripts/dev-env.sh` → stable `.dev/encryption-key` (gitignored) + a dedicated, auto-created **`prohibitorum_dev`** DB isolated from the smoke's `postgres` DB. Server auto-migrates on boot. (`mise build` compiles a standalone `./prohibitorum` if you want the binary.)
+2. In another shell: `mise enroll-admin` → prints the bootstrap `http://localhost:8080/enroll/<token>` URL (uses the same dev key/DB). (`mise enroll-admin -- --new` for an extra admin; `-- --reset --username NAME` to recover one.) Open the URL.
 3. Type username + display name → Register passkey → auto-login → `/` Profile (admin sidebar group visible).
 4. Exercise Sessions/Passkeys + Admin Accounts/Invitations (revoke/rename/disable/reissue/create-invite).
 5. Logout (header) → `/login` → sign in with the passkey → back to `/`.
