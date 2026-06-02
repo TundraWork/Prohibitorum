@@ -8,7 +8,7 @@ vi.mock('@simplewebauthn/browser', () => ({
   startRegistration: (...a: unknown[]) => startRegistration(...a),
 }))
 
-import { passkeyRegister } from './webauthn'
+import { passkeyRegister, passkeyAddCredential } from './webauthn'
 
 beforeEach(() => {
   post.mockReset()
@@ -27,5 +27,18 @@ describe('passkeyRegister', () => {
     expect(startRegistration).toHaveBeenCalledWith({ optionsJSON: { challenge: 'abc' } })
     expect(post).toHaveBeenNthCalledWith(2, '/api/prohibitorum/enrollments/tok/register/complete', { id: 'cred' })
     expect(session.username).toBe('a')
+  })
+})
+
+describe('passkeyAddCredential', () => {
+  it('begins (nickname query), runs startRegistration, completes, returns the credential', async () => {
+    post.mockResolvedValueOnce({ challenge: 'abc' })            // begin
+    startRegistration.mockResolvedValueOnce({ id: 'cred' })     // attestation
+    post.mockResolvedValueOnce({ id: 7, credentialIdSuffix: 'ab12', transports: [] }) // complete
+    const cred = await passkeyAddCredential('Laptop')
+    expect(post).toHaveBeenNthCalledWith(1, '/api/prohibitorum/me/credentials/register/begin?nickname=Laptop')
+    expect(startRegistration).toHaveBeenCalledWith({ optionsJSON: { challenge: 'abc' } })
+    expect(post).toHaveBeenNthCalledWith(2, '/api/prohibitorum/me/credentials/register/complete?nickname=Laptop', { id: 'cred' })
+    expect(cred.id).toBe(7)
   })
 })

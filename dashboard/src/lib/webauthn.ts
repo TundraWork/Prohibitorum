@@ -27,6 +27,17 @@ export interface EnrollFields {
   nickname?: string
 }
 
+export interface CredentialView {
+  id: number
+  credentialIdSuffix: string
+  nickname?: string | null
+  transports: string[]
+  backupState?: boolean
+  attestationType?: string
+  createdAt?: string
+  lastUsedAt?: string | null
+}
+
 // Drives the WebAuthn registration ceremony for an enrollment token.
 // /begin returns flat PublicKeyCredentialCreationOptions (probe .publicKey for
 // forward-compat, mirroring passkeyLogin). /complete sets the session cookie and
@@ -37,4 +48,14 @@ export async function passkeyRegister(token: string, fields: EnrollFields): Prom
   const attestation = await startRegistration({ optionsJSON: options.publicKey ?? options })
   const result = await api.post<{ session: SessionView }>(`${base}/register/complete`, attestation)
   return result.session
+}
+
+// Add another passkey to the CURRENT account. begin/complete take the optional
+// nickname as a QUERY param (see handle_me.go); begin returns flat creation
+// options. Not sudo-gated.
+export async function passkeyAddCredential(nickname?: string): Promise<CredentialView> {
+  const q = nickname ? `?nickname=${encodeURIComponent(nickname)}` : ''
+  const options = await api.post<any>(`/api/prohibitorum/me/credentials/register/begin${q}`)
+  const attestation = await startRegistration({ optionsJSON: options.publicKey ?? options })
+  return await api.post<CredentialView>(`/api/prohibitorum/me/credentials/register/complete${q}`, attestation)
 }
