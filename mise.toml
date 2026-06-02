@@ -29,24 +29,28 @@ run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" up"
 description = "Show migration status"
 run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" status"
 
-[tasks.dev-server]
-description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults. Uses a DEDICATED 'prohibitorum_dev' database (auto-created, isolated from the smoke's 'postgres' DB so smoke runs never wipe your dev data and no stale/undecryptable federation rows leak in). The server auto-migrates on boot. The dev data-encryption key is generated once into .dev/encryption-key (gitignored, stable across restarts). Override PROHIBITORUM_DATABASE_URL / PROHIBITORUM_PUBLIC_ORIGIN via env to point elsewhere (then DB auto-create is skipped — point at an existing, migratable DB)."
+[tasks.build]
+description = "Build the SPA into pkg/webui/dist, then compile the ./prohibitorum binary (which embeds the dist). Run it directly, e.g. with the dev env: `. ./scripts/dev-env.sh && ./prohibitorum`."
 run = """
 set -e
-mkdir -p .dev
-[ -f .dev/encryption-key ] || openssl rand -base64 32 > .dev/encryption-key
-export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(cat .dev/encryption-key)"
-export PROHIBITORUM_PUBLIC_ORIGIN="${PROHIBITORUM_PUBLIC_ORIGIN:-http://localhost:8080}"
-if [ -z "${PROHIBITORUM_DATABASE_URL:-}" ]; then
-  export PROHIBITORUM_DATABASE_URL="postgres://tundra@localhost:55432/prohibitorum_dev?sslmode=disable"
-  # Ensure the dedicated dev database exists (idempotent; best-effort if psql is present).
-  PSQL="$(command -v psql || mise which psql 2>/dev/null || true)"
-  if [ -n "$PSQL" ]; then
-    MAINT="postgres://tundra@localhost:55432/postgres?sslmode=disable"
-    "$PSQL" "$MAINT" -tAc "SELECT 1 FROM pg_database WHERE datname='prohibitorum_dev'" | grep -q 1 \
-      || "$PSQL" "$MAINT" -c "CREATE DATABASE prohibitorum_dev"
-  fi
-fi
+cd dashboard && npm run build && cd ..
+go build -o prohibitorum ./cmd/prohibitorum
+echo "built ./prohibitorum"
+"""
+
+[tasks.dev-server]
+description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults (see scripts/dev-env.sh): a dedicated, auto-created 'prohibitorum_dev' DB isolated from the smoke's 'postgres' DB, and a stable .dev/encryption-key. The server auto-migrates on boot. Bootstrap an admin with `mise enroll-admin` in another shell."
+run = """
+set -e
+. ./scripts/dev-env.sh
 cd dashboard && npm run build && cd ..
 exec go run ./cmd/prohibitorum
+"""
+
+[tasks.enroll-admin]
+description = "Issue an admin passkey-enrollment URL against the dev database (same key/DB as dev-server), then open the printed http://localhost:8080/enroll/<token> in a browser. Default errors if an admin already exists; pass flags after --, e.g. `mise enroll-admin -- --new` or `mise enroll-admin -- --reset --username alice`."
+run = """
+set -e
+. ./scripts/dev-env.sh
+exec go run ./cmd/prohibitorum enroll-admin "$@"
 """
