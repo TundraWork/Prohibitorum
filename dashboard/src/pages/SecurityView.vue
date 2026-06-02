@@ -3,6 +3,7 @@
 import PasskeysCard from './security/PasskeysCard.vue'
 import PasswordCard from './security/PasswordCard.vue'
 import TotpCard from './security/TotpCard.vue'
+import RecoveryCodesCard from './security/RecoveryCodesCard.vue'
 </script>
 
 <template>
@@ -11,5 +12,6 @@ import TotpCard from './security/TotpCard.vue'
     <PasskeysCard />
     <PasswordCard />
     <TotpCard />
+    <RecoveryCodesCard />
   </div>
 </template>
