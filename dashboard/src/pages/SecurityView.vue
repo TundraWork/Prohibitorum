@@ -2,6 +2,7 @@
 // TODO(i18n): English-literal scaffold copy; key + translate after the design-system pass.
 import PasskeysCard from './security/PasskeysCard.vue'
 import PasswordCard from './security/PasswordCard.vue'
+import TotpCard from './security/TotpCard.vue'
 </script>
 
 <template>
@@ -9,5 +10,6 @@ import PasswordCard from './security/PasswordCard.vue'
     <h1 class="text-lg font-semibold">Security</h1>
     <PasskeysCard />
     <PasswordCard />
+    <TotpCard />
   </div>
 </template>
