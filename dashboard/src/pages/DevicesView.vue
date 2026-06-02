@@ -45,7 +45,7 @@ async function cancel() {
       <template #footer>
         <div class="flex gap-2">
           <UButton data-test="approve" type="button" size="sm" :disabled="busy" @click="approve">Approve</UButton>
-          <UButton type="button" size="sm" color="error" variant="soft" :disabled="busy" @click="cancel">Cancel pairing</UButton>
+          <UButton data-test="cancel" type="button" size="sm" color="error" variant="soft" :disabled="busy" @click="cancel">Cancel pairing</UButton>
         </div>
       </template>
     </UCard>
