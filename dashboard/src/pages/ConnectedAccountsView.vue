@@ -23,10 +23,13 @@ async function unlink(id: number) {
   try { await withSudo(() => api.post(`/api/prohibitorum/me/identities/${id}/unlink`)); armed.value = null; await load() } catch (e) { show(e); armed.value = null } finally { busy.value = false }
 }
 async function link(slug: string) {
-  // The begin endpoint is a sudo-gated 302 redirect; step up proactively, then navigate.
-  const ok = await ensureSudo()
-  if (!ok) return
-  window.location.assign(`/api/prohibitorum/me/identities/link/${encodeURIComponent(slug)}/begin?return_to=${encodeURIComponent('/connected')}`)
+  if (busy.value) return; busy.value = true; error.value = ''
+  try {
+    // The begin endpoint is a sudo-gated 302 redirect; step up proactively, then navigate.
+    const ok = await ensureSudo()
+    if (!ok) return
+    window.location.assign(`/api/prohibitorum/me/identities/link/${encodeURIComponent(slug)}/begin?return_to=${encodeURIComponent('/connected')}`)
+  } catch (e) { show(e) } finally { busy.value = false }
 }
 onMounted(load)
 </script>
