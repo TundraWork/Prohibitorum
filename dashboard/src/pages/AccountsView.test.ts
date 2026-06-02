@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { createRouter, createMemoryHistory } from 'vue-router'
 import zh from '../locales/zh'
 import en from '../locales/en'
 import AccountsView from './AccountsView.vue'
@@ -17,6 +18,12 @@ vi.mock('../lib/api', () => ({ api: {
 function makeI18n() {
   return createI18n({ legacy: false, locale: 'en', fallbackLocale: 'zh', messages: { zh, en } })
 }
+function makeRouter() {
+  return createRouter({ history: createMemoryHistory(), routes: [
+    { path: '/admin/accounts', component: { template: '<div/>' } },
+    { path: '/admin/accounts/:id', component: { template: '<div/>' } },
+  ] })
+}
 beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset() })
 
 const accts = [
@@ -27,16 +34,18 @@ const accts = [
 describe('AccountsView', () => {
   it('renders accounts', async () => {
     get.mockResolvedValueOnce(accts)
-    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n()] } })
+    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n(), makeRouter()] } })
     await flushPromises()
     expect(wrapper.findAll('tbody tr').length).toBe(2)
+    // the username cell links to the detail page
+    expect(wrapper.find('a[href="/admin/accounts/2"]').exists()).toBe(true)
   })
 
   it('disable sends PUT with current displayName+role and flipped disabled', async () => {
     get.mockResolvedValueOnce(accts)
     put.mockResolvedValueOnce({ ...accts[1], disabled: true })
     get.mockResolvedValueOnce([accts[0], { ...accts[1], disabled: true }])
-    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n()] } })
+    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n(), makeRouter()] } })
     await flushPromises()
     await wrapper.findAll('[data-test="toggle"]')[1].trigger('click')
     await flushPromises()
@@ -46,7 +55,7 @@ describe('AccountsView', () => {
   it('reissue shows the returned url', async () => {
     get.mockResolvedValueOnce(accts)
     post.mockResolvedValueOnce({ url: 'http://x/enroll/tok', expiresAt: '2026-02-01T00:00:00Z' })
-    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n()] } })
+    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n(), makeRouter()] } })
     await flushPromises()
     await wrapper.findAll('[data-test="reissue"]')[1].trigger('click')
     await flushPromises()
@@ -59,7 +68,7 @@ describe('AccountsView', () => {
     get.mockResolvedValueOnce(accts)
     post.mockResolvedValueOnce(undefined)
     get.mockResolvedValueOnce([accts[0]])
-    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n()] } })
+    const wrapper = mount(AccountsView, { global: { plugins: [makeI18n(), makeRouter()] } })
     await flushPromises()
     // bob is the second row; arm its delete then confirm
     const delBtns = wrapper.findAll('button').filter((b) => b.text().trim() === en.common.delete)

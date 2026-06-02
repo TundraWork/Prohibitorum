@@ -52,6 +52,10 @@ describe('DevIndexView', () => {
     expect(text).toContain('Login')
     expect(text).toContain('Sessions')
     expect(text).toContain('Accounts')
+    expect(text).toContain('Security')
+    expect(text).toContain('Connected accounts')
+    expect(text).toContain('Devices')
+    expect(text).toContain('OIDC clients')
     // raw API links present
     expect(wrapper.html()).toContain('/.well-known/openid-configuration')
     expect(wrapper.html()).toContain('/oauth/jwks')
