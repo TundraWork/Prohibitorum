@@ -16,6 +16,8 @@ function buildRouter() {
     routes: [
       { path: '/', component: { template: '<div/>' }, meta: { requiresAuth: true } },
       { path: '/admin/accounts', component: { template: '<div/>' }, meta: { requiresAuth: true, requiresAdmin: true } },
+      { path: '/security', component: { template: '<div/>' }, meta: { requiresAuth: true } },
+      { path: '/admin/oidc-clients', component: { template: '<div/>' }, meta: { requiresAuth: true, requiresAdmin: true } },
       { path: '/login', component: { template: '<div/>' } },
       { path: '/enroll/:token', component: { template: '<div/>' } },
       { path: '/dev', component: { template: '<div/>' } },
@@ -69,6 +71,13 @@ describe('router guard', () => {
     get.mockResolvedValue({ id: 1, username: 'a', displayName: 'A', role: 'admin' }) // so the / target (requiresAuth) resolves
     const router = buildRouter()
     await router.push('/dev')
+    expect(router.currentRoute.value.path).toBe('/')
+  })
+
+  it('bounces non-admin from a planned admin route', async () => {
+    get.mockResolvedValue({ id: 1, username: 'u', displayName: 'U', role: 'user' })
+    const router = buildRouter()
+    await router.push('/admin/oidc-clients')
     expect(router.currentRoute.value.path).toBe('/')
   })
 })

@@ -87,7 +87,9 @@ onMounted(load)
       <tbody>
         <template v-for="a in rows" :key="a.id">
           <tr class="border-b border-default/50">
-            <td class="py-2 pr-4 font-mono text-xs">{{ a.username }}</td>
+            <td class="py-2 pr-4 font-mono text-xs">
+              <RouterLink :to="`/admin/accounts/${a.id}`" class="text-primary hover:underline">{{ a.username }}</RouterLink>
+            </td>
             <td class="py-2 pr-4">{{ a.displayName }}</td>
             <td class="py-2 pr-4">{{ a.role }}</td>
             <td class="py-2 pr-4">

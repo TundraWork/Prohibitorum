@@ -20,21 +20,24 @@ const routeGroups = [
       { to: '/error?code=server_error', label: 'Error page', note: 'sample code' },
     ],
   },
-  {
-    group: 'User · requires session',
-    items: [
-      { to: '/', label: 'Profile' },
-      { to: '/sessions', label: 'Sessions' },
-      { to: '/credentials', label: 'Passkeys' },
-    ],
-  },
-  {
-    group: 'Admin · requires admin',
-    items: [
-      { to: '/admin/accounts', label: 'Accounts' },
-      { to: '/admin/invitations', label: 'Invitations' },
-    ],
-  },
+  { group: 'User · requires session', items: [
+    { to: '/', label: 'Profile' },
+    { to: '/security', label: 'Security' },
+    { to: '/sessions', label: 'Sessions' },
+    { to: '/connected', label: 'Connected accounts' },
+    { to: '/devices', label: 'Devices' },
+  ]},
+  { group: 'Admin · requires admin', items: [
+    { to: '/admin/accounts', label: 'Accounts' },
+    { to: '/admin/invitations', label: 'Invitations' },
+  ]},
+  { group: 'Admin · planned', items: [
+    { to: '/admin/oidc-clients', label: 'OIDC clients' },
+    { to: '/admin/saml-providers', label: 'SAML providers' },
+    { to: '/admin/signing-keys', label: 'Signing keys' },
+    { to: '/admin/audit', label: 'Audit log' },
+    { to: '/admin/settings', label: 'Settings' },
+  ]},
 ]
 
 // Backend endpoints worth poking at directly (open in a new tab).

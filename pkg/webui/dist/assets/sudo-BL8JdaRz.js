@@ -1,0 +1,1 @@
+import{ac as t}from"./index-rhhFTNMl.js";const r=t({open:!1,resolve:null});function a(){return new Promise(o=>{r.value={open:!0,resolve:o}})}async function u(o){try{return await o()}catch(e){if((e==null?void 0:e.code)!=="sudo_required"||!await a())throw e;return await o()}}export{a as e,r as s,u as w};

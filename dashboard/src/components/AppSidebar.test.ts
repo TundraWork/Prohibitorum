@@ -1,23 +1,24 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import zh from '../locales/zh'
-import en from '../locales/en'
 import { useSessionStore } from '../stores/session'
 import AppSidebar from './AppSidebar.vue'
 
-function makeI18n() {
-  return createI18n({ legacy: false, locale: 'en', fallbackLocale: 'zh', messages: { zh, en } })
-}
 function makeRouter() {
   return createRouter({ history: createMemoryHistory(), routes: [
     { path: '/', component: { template: '<div/>' } },
+    { path: '/security', component: { template: '<div/>' } },
     { path: '/sessions', component: { template: '<div/>' } },
-    { path: '/credentials', component: { template: '<div/>' } },
+    { path: '/connected', component: { template: '<div/>' } },
+    { path: '/devices', component: { template: '<div/>' } },
     { path: '/admin/accounts', component: { template: '<div/>' } },
     { path: '/admin/invitations', component: { template: '<div/>' } },
+    { path: '/admin/oidc-clients', component: { template: '<div/>' } },
+    { path: '/admin/saml-providers', component: { template: '<div/>' } },
+    { path: '/admin/signing-keys', component: { template: '<div/>' } },
+    { path: '/admin/audit', component: { template: '<div/>' } },
+    { path: '/admin/settings', component: { template: '<div/>' } },
   ] })
 }
 
@@ -27,16 +28,16 @@ describe('AppSidebar', () => {
   it('hides the admin group for non-admins', async () => {
     const s = useSessionStore()
     s.me = { id: 1, username: 'u', displayName: 'U', role: 'user' }
-    const wrapper = mount(AppSidebar, { global: { plugins: [makeI18n(), makeRouter()] } })
-    expect(wrapper.text()).toContain(en.nav.profile)
-    expect(wrapper.text()).not.toContain(en.nav.accounts)
+    const wrapper = mount(AppSidebar, { global: { plugins: [makeRouter()] } })
+    expect(wrapper.text()).toContain('Profile')
+    expect(wrapper.text()).not.toContain('Accounts')
   })
 
   it('shows the admin group for admins', async () => {
     const s = useSessionStore()
     s.me = { id: 1, username: 'a', displayName: 'A', role: 'admin' }
-    const wrapper = mount(AppSidebar, { global: { plugins: [makeI18n(), makeRouter()] } })
-    expect(wrapper.text()).toContain(en.nav.accounts)
-    expect(wrapper.text()).toContain(en.nav.invitations)
+    const wrapper = mount(AppSidebar, { global: { plugins: [makeRouter()] } })
+    expect(wrapper.text()).toContain('Accounts')
+    expect(wrapper.text()).toContain('Invitations')
   })
 })

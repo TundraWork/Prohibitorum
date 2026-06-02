@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useSessionStore } from '../stores/session'
 import AppSidebar from '../components/AppSidebar.vue'
 import LocaleSwitcher from '../components/LocaleSwitcher.vue'
+import SudoModal from '../components/SudoModal.vue'
 import { isDevMode } from '../lib/devMode'
 
 const { t } = useI18n()
@@ -35,5 +36,6 @@ function logout() {
         <RouterView />
       </main>
     </div>
+    <SudoModal />
   </div>
 </template>
