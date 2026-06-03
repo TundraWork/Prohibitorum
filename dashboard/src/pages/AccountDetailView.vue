@@ -17,6 +17,7 @@ const reissued = ref(''); const revoked = ref<number | null>(null); const armedD
 function show(e: any) { error.value = e?.message ?? 'Something went wrong' }
 async function load() {
   error.value = ''
+  revoked.value = null
   try { const a = await api.get<AccountView>(`/api/prohibitorum/accounts/${id.value}`); acct.value = a; role.value = a.role; disabled.value = a.disabled } catch (e) { show(e) }
 }
 async function save() {

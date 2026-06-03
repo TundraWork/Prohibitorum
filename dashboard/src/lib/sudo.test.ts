@@ -48,4 +48,14 @@ describe('withSudo', () => {
     _resolveSudo(false)
     expect(await p2).toBe(false)
   })
+
+  it('a concurrent ensureSudo does not clobber the pending one', async () => {
+    const p1 = ensureSudo()
+    await Promise.resolve()
+    expect(sudoState.value.open).toBe(true)
+    const p2 = ensureSudo() // must not clobber p1's resolver
+    expect(await p2).toBe(false)
+    _resolveSudo(true)       // resolves the original (still-intact) ceremony
+    expect(await p1).toBe(true)
+  })
 })

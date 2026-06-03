@@ -7,6 +7,10 @@ export const sudoState = ref<SudoState>({ open: false, resolve: null })
 
 // Open the step-up modal and resolve true (succeeded) / false (cancelled).
 export function ensureSudo(): Promise<boolean> {
+  // Guard: if a step-up ceremony is already pending, don't clobber its resolver
+  // (that would orphan the first caller). The second caller resolves false, so
+  // its withSudo rethrows the original error rather than hanging.
+  if (sudoState.value.resolve) return Promise.resolve(false)
   return new Promise<boolean>((resolve) => {
     sudoState.value = { open: true, resolve }
   })
