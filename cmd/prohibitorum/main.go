@@ -537,6 +537,8 @@ signed AuthnRequests. Explicit flags (--entity-id, --display-name,
 	samlSPCmd.AddCommand(listSPCmd)
 	cli.Root().AddCommand(samlSPCmd)
 
+	addDevSeedCmd(cli.Root())
+
 	cli.Run()
 }
 

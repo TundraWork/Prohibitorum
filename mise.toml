@@ -54,3 +54,11 @@ set -e
 . ./scripts/dev-env.sh
 exec go run ./cmd/prohibitorum enroll-admin "$@"
 """
+
+[tasks.dev-seed]
+description = "Seed the dev database (prohibitorum_dev) with example providers/accounts/invitations so the dashboard's data-driven elements render. Idempotent, refuses non-localhost."
+run = """
+set -e
+. ./scripts/dev-env.sh
+exec go run ./cmd/prohibitorum dev-seed
+"""
