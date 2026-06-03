@@ -42,6 +42,7 @@ A grouped-sidebar dashboard covering the full core surface. Gate GREEN: `go buil
 ```
 mise dev-server          # builds SPA + serves :8080 (dedicated prohibitorum_dev DB; auto-migrates)
 mise enroll-admin        # prints /enroll/<token>  (same dev key/DB)
+mise dev-seed            # seed example providers/accounts/invitations so data-driven elements render
 ```
 Register a passkey → dashboard. The **🛠 dev** console at **`/dev`** lists every page (User/Admin/Planned) + a mint-invite button. Try **Security → Set password** to see the `SudoModal` fire. (`mise build` compiles a standalone `./prohibitorum`.)
 
