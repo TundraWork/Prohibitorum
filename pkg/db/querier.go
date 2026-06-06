@@ -99,6 +99,7 @@ type Querier interface {
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
 	ListAllSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListAllUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
+	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]CredentialEvent, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)

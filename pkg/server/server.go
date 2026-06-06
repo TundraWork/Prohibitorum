@@ -352,6 +352,9 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/approve", sessionReq, s.handlePairApproveHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/cancel", sessionReq, s.handlePairCancelHTTP)
 
+	// Admin: audit events (read-only, filterable, keyset-paginated)
+	registerOp(mgmt, contract.OperationListAuditEvents, s.handleListAuditEvents, admin)
+
 	// Admin: accounts + invitations
 	registerOp(mgmt, contract.OperationListAccounts, s.handleListAccounts, admin)
 	registerOp(mgmt, contract.OperationGetAccount, s.handleGetAccount, admin)

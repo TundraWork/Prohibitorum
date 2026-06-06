@@ -40,6 +40,66 @@ func (q *Queries) InsertCredentialEvent(ctx context.Context, arg InsertCredentia
 	return err
 }
 
+const listCredentialEvents = `-- name: ListCredentialEvents :many
+SELECT id, account_id, factor, event, credential_ref, ip, user_agent, detail, at FROM credential_event
+WHERE ($1::text IS NULL OR factor = $1)
+  AND ($2::text IS NULL OR event = $2)
+  AND ($3::int IS NULL OR account_id = $3)
+  AND ($4::timestamptz IS NULL OR at >= $4)
+  AND ($5::timestamptz IS NULL OR at <= $5)
+  AND ($6::bigint IS NULL OR id < $6)
+ORDER BY id DESC
+LIMIT $7
+`
+
+type ListCredentialEventsParams struct {
+	Factor    pgtype.Text        `json:"factor"`
+	Event     pgtype.Text        `json:"event"`
+	AccountID pgtype.Int4        `json:"accountId"`
+	Since     pgtype.Timestamptz `json:"since"`
+	Until     pgtype.Timestamptz `json:"until"`
+	BeforeID  pgtype.Int8        `json:"beforeId"`
+	Lim       int32              `json:"lim"`
+}
+
+func (q *Queries) ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]CredentialEvent, error) {
+	rows, err := q.db.Query(ctx, listCredentialEvents,
+		arg.Factor,
+		arg.Event,
+		arg.AccountID,
+		arg.Since,
+		arg.Until,
+		arg.BeforeID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CredentialEvent
+	for rows.Next() {
+		var i CredentialEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.Factor,
+			&i.Event,
+			&i.CredentialRef,
+			&i.Ip,
+			&i.UserAgent,
+			&i.Detail,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCredentialEventsByAccount = `-- name: ListCredentialEventsByAccount :many
 SELECT id, account_id, factor, event, credential_ref, ip, user_agent, detail, at FROM credential_event
 WHERE account_id = $1

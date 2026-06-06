@@ -470,3 +470,27 @@ var OperationGetSAMLProvider = huma.Operation{
 	Path:        "/saml-providers/{id}",
 	Summary:     "Get one SAML service provider by id (admin only).",
 }
+
+// AuditEventView is the admin-facing projection of a credential_event row.
+// The detail column is passed through as-is from the emitting mutation handler;
+// this viewer does NOT redact — redaction is a write-site invariant enforced by
+// the handlers that call audit.Writer.Record (Tasks 3-6). The credential_event
+// table has no column that carries private key material, client secrets, tokens,
+// or auth codes — those are design-level invariants of the schema.
+type AuditEventView struct {
+	ID        int64          `json:"id"`
+	At        time.Time      `json:"at"`
+	AccountID *int32         `json:"accountId,omitempty"`
+	Factor    string         `json:"factor"`
+	Event     string         `json:"event"`
+	IP        string         `json:"ip,omitempty"`
+	UserAgent string         `json:"userAgent,omitempty"`
+	Detail    map[string]any `json:"detail,omitempty"`
+}
+
+var OperationListAuditEvents = huma.Operation{
+	OperationID: "listAuditEvents",
+	Method:      http.MethodGet,
+	Path:        "/audit-events",
+	Summary:     "List credential/admin audit events, newest first, with filters and keyset pagination (admin only).",
+}
