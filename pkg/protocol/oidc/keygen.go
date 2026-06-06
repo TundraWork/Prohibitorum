@@ -16,35 +16,35 @@ import (
 )
 
 // GenerateSigningKey mints a fresh RSA-2048 signing keypair and returns the
-// parameters needed to persist it. The kid is the RFC 7638 thumbprint of the
-// public key. The returned Active field is left false; callers (the CLI) decide
-// activation. The private key is encoded as PKCS#8 PEM and the public key is
+// parameters needed to persist it as a 'pending' key. The kid is the RFC 7638
+// thumbprint of the public key. Activation is a separate, explicit step
+// (ActivateSigningKey). The private key is encoded as PKCS#8 PEM and the public key is
 // wrapped in a self-signed x509 certificate (CN = kid, ~10 year validity).
-func GenerateSigningKey() (db.InsertSigningKeyParams, error) {
+func GenerateSigningKey() (db.InsertPendingSigningKeyParams, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return db.InsertSigningKeyParams{}, err
+		return db.InsertPendingSigningKeyParams{}, err
 	}
 
 	kid := jwkThumbprint(&priv.PublicKey)
 
 	jwkBytes, err := json.Marshal(publicJWK(kid, &priv.PublicKey))
 	if err != nil {
-		return db.InsertSigningKeyParams{}, err
+		return db.InsertPendingSigningKeyParams{}, err
 	}
 
 	der, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
-		return db.InsertSigningKeyParams{}, err
+		return db.InsertPendingSigningKeyParams{}, err
 	}
 	privPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
 
 	certPEM, err := selfSignedCertPEM(priv, kid)
 	if err != nil {
-		return db.InsertSigningKeyParams{}, err
+		return db.InsertPendingSigningKeyParams{}, err
 	}
 
-	return db.InsertSigningKeyParams{
+	return db.InsertPendingSigningKeyParams{
 		Kid:         kid,
 		Algorithm:   "RS256",
 		PublicJwk:   jwkBytes,

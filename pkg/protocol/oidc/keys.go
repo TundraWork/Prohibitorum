@@ -19,12 +19,12 @@ import (
 const keyCacheTTL = 5 * time.Minute
 
 type signingKeyQueries interface {
-	ListActiveSigningKeys(ctx context.Context) ([]db.SigningKey, error)
+	ListPublishableSigningKeys(ctx context.Context) ([]db.SigningKey, error)
 }
 
 type cachedKey struct {
 	kid     string
-	active  bool
+	status  string
 	public  *rsa.PublicKey
 	private *rsa.PrivateKey
 	jwk     map[string]any
@@ -43,7 +43,7 @@ func newKeyCache(q signingKeyQueries) *keyCache {
 }
 
 func (c *keyCache) refresh(ctx context.Context) error {
-	rows, err := c.q.ListActiveSigningKeys(ctx)
+	rows, err := c.q.ListPublishableSigningKeys(ctx)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (c *keyCache) refresh(ctx context.Context) error {
 		var jwk map[string]any
 		_ = json.Unmarshal(r.PublicJwk, &jwk)
 		parsed = append(parsed, cachedKey{
-			kid: r.Kid, active: r.Active,
+			kid: r.Kid, status: r.Status,
 			public: &priv.PublicKey, private: priv, jwk: jwk,
 		})
 	}
@@ -81,7 +81,7 @@ func (c *keyCache) signingKey(ctx context.Context) (cachedKey, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, k := range c.keys {
-		if k.active {
+		if k.status == "active" {
 			return k, true
 		}
 	}

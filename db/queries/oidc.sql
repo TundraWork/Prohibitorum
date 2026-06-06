@@ -19,21 +19,46 @@ FROM oidc_client ORDER BY created_at DESC;
 SELECT * FROM account WHERE oidc_subject = $1;
 
 -- name: GetActiveSigningKey :one
-SELECT * FROM signing_key WHERE use = 'sig' AND active = true;
+SELECT * FROM signing_key WHERE use = 'sig' AND status = 'active';
 
--- name: ListActiveSigningKeys :many
-SELECT * FROM signing_key WHERE use = 'sig' AND retired_at IS NULL ORDER BY created_at DESC;
+-- name: ListPublishableSigningKeys :many
+SELECT * FROM signing_key
+WHERE use = 'sig' AND status IN ('pending','active','decommissioning')
+ORDER BY created_at DESC;
 
--- name: InsertSigningKey :one
-INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before)
-VALUES ($1,$2,'sig',$3,$4,$5,$6, now())
+-- name: ListAllSigningKeys :many
+SELECT * FROM signing_key WHERE use = 'sig' ORDER BY created_at DESC;
+
+-- name: GetSigningKeyByKID :one
+SELECT * FROM signing_key WHERE kid = $1;
+
+-- name: InsertPendingSigningKey :one
+INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, status, not_before)
+VALUES ($1,$2,'sig',$3,$4,$5,false,'pending', now())
 RETURNING *;
 
--- name: DeactivateSigningKeys :exec
-UPDATE signing_key SET active = false WHERE use = 'sig' AND active = true;
+-- name: DemoteActiveSigningKey :exec
+UPDATE signing_key
+SET status='decommissioning', active=false, decommissioned_at=now(), retire_after=$1
+WHERE use='sig' AND status='active';
 
--- name: RetireSigningKey :exec
-UPDATE signing_key SET active = false, retired_at = now() WHERE kid = $1;
+-- name: PromoteSigningKey :one
+UPDATE signing_key
+SET status='active', active=true, activated_at=now()
+WHERE kid=$1 AND status='pending'
+RETURNING *;
+
+-- name: RetireSigningKey :one
+UPDATE signing_key
+SET status='decommissioning', active=false,
+    decommissioned_at=COALESCE(decommissioned_at, now()), retire_after=$2
+WHERE kid=$1 AND status IN ('pending','decommissioning')
+RETURNING *;
+
+-- name: ReconcileRetiredSigningKeys :execrows
+UPDATE signing_key SET status='retired'
+WHERE use='sig' AND status='decommissioning'
+  AND retire_after IS NOT NULL AND now() >= retire_after;
 
 -- name: InsertRevokedJTI :exec
 INSERT INTO revoked_jti (jti, expires_at, reason) VALUES ($1,$2,$3)

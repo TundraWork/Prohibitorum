@@ -11,12 +11,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const deactivateSigningKeys = `-- name: DeactivateSigningKeys :exec
-UPDATE signing_key SET active = false WHERE use = 'sig' AND active = true
+const demoteActiveSigningKey = `-- name: DemoteActiveSigningKey :exec
+UPDATE signing_key
+SET status='decommissioning', active=false, decommissioned_at=now(), retire_after=$1
+WHERE use='sig' AND status='active'
 `
 
-func (q *Queries) DeactivateSigningKeys(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, deactivateSigningKeys)
+func (q *Queries) DemoteActiveSigningKey(ctx context.Context, retireAfter pgtype.Timestamptz) error {
+	_, err := q.db.Exec(ctx, demoteActiveSigningKey, retireAfter)
 	return err
 }
 
@@ -43,7 +45,7 @@ func (q *Queries) GetAccountByOIDCSubject(ctx context.Context, oidcSubject pgtyp
 }
 
 const getActiveSigningKey = `-- name: GetActiveSigningKey :one
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at FROM signing_key WHERE use = 'sig' AND active = true
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after FROM signing_key WHERE use = 'sig' AND status = 'active'
 `
 
 func (q *Queries) GetActiveSigningKey(ctx context.Context) (SigningKey, error) {
@@ -60,6 +62,10 @@ func (q *Queries) GetActiveSigningKey(ctx context.Context) (SigningKey, error) {
 		&i.NotBefore,
 		&i.CreatedAt,
 		&i.RetiredAt,
+		&i.Status,
+		&i.ActivatedAt,
+		&i.DecommissionedAt,
+		&i.RetireAfter,
 	)
 	return i, err
 }
@@ -93,6 +99,32 @@ func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClien
 		&i.Disabled,
 		&i.RequireConsent,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getSigningKeyByKID = `-- name: GetSigningKeyByKID :one
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after FROM signing_key WHERE kid = $1
+`
+
+func (q *Queries) GetSigningKeyByKID(ctx context.Context, kid string) (SigningKey, error) {
+	row := q.db.QueryRow(ctx, getSigningKeyByKID, kid)
+	var i SigningKey
+	err := row.Scan(
+		&i.Kid,
+		&i.Algorithm,
+		&i.Use,
+		&i.PublicJwk,
+		&i.X509CertPem,
+		&i.PrivatePem,
+		&i.Active,
+		&i.NotBefore,
+		&i.CreatedAt,
+		&i.RetiredAt,
+		&i.Status,
+		&i.ActivatedAt,
+		&i.DecommissionedAt,
+		&i.RetireAfter,
 	)
 	return i, err
 }
@@ -164,6 +196,48 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 	return i, err
 }
 
+const insertPendingSigningKey = `-- name: InsertPendingSigningKey :one
+INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, status, not_before)
+VALUES ($1,$2,'sig',$3,$4,$5,false,'pending', now())
+RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after
+`
+
+type InsertPendingSigningKeyParams struct {
+	Kid         string      `json:"kid"`
+	Algorithm   string      `json:"algorithm"`
+	PublicJwk   []byte      `json:"publicJwk"`
+	X509CertPem pgtype.Text `json:"x509CertPem"`
+	PrivatePem  string      `json:"privatePem"`
+}
+
+func (q *Queries) InsertPendingSigningKey(ctx context.Context, arg InsertPendingSigningKeyParams) (SigningKey, error) {
+	row := q.db.QueryRow(ctx, insertPendingSigningKey,
+		arg.Kid,
+		arg.Algorithm,
+		arg.PublicJwk,
+		arg.X509CertPem,
+		arg.PrivatePem,
+	)
+	var i SigningKey
+	err := row.Scan(
+		&i.Kid,
+		&i.Algorithm,
+		&i.Use,
+		&i.PublicJwk,
+		&i.X509CertPem,
+		&i.PrivatePem,
+		&i.Active,
+		&i.NotBefore,
+		&i.CreatedAt,
+		&i.RetiredAt,
+		&i.Status,
+		&i.ActivatedAt,
+		&i.DecommissionedAt,
+		&i.RetireAfter,
+	)
+	return i, err
+}
+
 const insertRevokedJTI = `-- name: InsertRevokedJTI :exec
 INSERT INTO revoked_jti (jti, expires_at, reason) VALUES ($1,$2,$3)
 ON CONFLICT (jti) DO NOTHING
@@ -180,46 +254,6 @@ func (q *Queries) InsertRevokedJTI(ctx context.Context, arg InsertRevokedJTIPara
 	return err
 }
 
-const insertSigningKey = `-- name: InsertSigningKey :one
-INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before)
-VALUES ($1,$2,'sig',$3,$4,$5,$6, now())
-RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at
-`
-
-type InsertSigningKeyParams struct {
-	Kid         string      `json:"kid"`
-	Algorithm   string      `json:"algorithm"`
-	PublicJwk   []byte      `json:"publicJwk"`
-	X509CertPem pgtype.Text `json:"x509CertPem"`
-	PrivatePem  string      `json:"privatePem"`
-	Active      bool        `json:"active"`
-}
-
-func (q *Queries) InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (SigningKey, error) {
-	row := q.db.QueryRow(ctx, insertSigningKey,
-		arg.Kid,
-		arg.Algorithm,
-		arg.PublicJwk,
-		arg.X509CertPem,
-		arg.PrivatePem,
-		arg.Active,
-	)
-	var i SigningKey
-	err := row.Scan(
-		&i.Kid,
-		&i.Algorithm,
-		&i.Use,
-		&i.PublicJwk,
-		&i.X509CertPem,
-		&i.PrivatePem,
-		&i.Active,
-		&i.NotBefore,
-		&i.CreatedAt,
-		&i.RetiredAt,
-	)
-	return i, err
-}
-
 const isJTIRevoked = `-- name: IsJTIRevoked :one
 SELECT EXISTS (SELECT 1 FROM revoked_jti WHERE jti = $1)
 `
@@ -231,12 +265,12 @@ func (q *Queries) IsJTIRevoked(ctx context.Context, jti string) (bool, error) {
 	return exists, err
 }
 
-const listActiveSigningKeys = `-- name: ListActiveSigningKeys :many
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at FROM signing_key WHERE use = 'sig' AND retired_at IS NULL ORDER BY created_at DESC
+const listAllSigningKeys = `-- name: ListAllSigningKeys :many
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after FROM signing_key WHERE use = 'sig' ORDER BY created_at DESC
 `
 
-func (q *Queries) ListActiveSigningKeys(ctx context.Context) ([]SigningKey, error) {
-	rows, err := q.db.Query(ctx, listActiveSigningKeys)
+func (q *Queries) ListAllSigningKeys(ctx context.Context) ([]SigningKey, error) {
+	rows, err := q.db.Query(ctx, listAllSigningKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +289,10 @@ func (q *Queries) ListActiveSigningKeys(ctx context.Context) ([]SigningKey, erro
 			&i.NotBefore,
 			&i.CreatedAt,
 			&i.RetiredAt,
+			&i.Status,
+			&i.ActivatedAt,
+			&i.DecommissionedAt,
+			&i.RetireAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -310,6 +348,76 @@ func (q *Queries) ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, er
 	return items, nil
 }
 
+const listPublishableSigningKeys = `-- name: ListPublishableSigningKeys :many
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after FROM signing_key
+WHERE use = 'sig' AND status IN ('pending','active','decommissioning')
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListPublishableSigningKeys(ctx context.Context) ([]SigningKey, error) {
+	rows, err := q.db.Query(ctx, listPublishableSigningKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SigningKey
+	for rows.Next() {
+		var i SigningKey
+		if err := rows.Scan(
+			&i.Kid,
+			&i.Algorithm,
+			&i.Use,
+			&i.PublicJwk,
+			&i.X509CertPem,
+			&i.PrivatePem,
+			&i.Active,
+			&i.NotBefore,
+			&i.CreatedAt,
+			&i.RetiredAt,
+			&i.Status,
+			&i.ActivatedAt,
+			&i.DecommissionedAt,
+			&i.RetireAfter,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const promoteSigningKey = `-- name: PromoteSigningKey :one
+UPDATE signing_key
+SET status='active', active=true, activated_at=now()
+WHERE kid=$1 AND status='pending'
+RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after
+`
+
+func (q *Queries) PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error) {
+	row := q.db.QueryRow(ctx, promoteSigningKey, kid)
+	var i SigningKey
+	err := row.Scan(
+		&i.Kid,
+		&i.Algorithm,
+		&i.Use,
+		&i.PublicJwk,
+		&i.X509CertPem,
+		&i.PrivatePem,
+		&i.Active,
+		&i.NotBefore,
+		&i.CreatedAt,
+		&i.RetiredAt,
+		&i.Status,
+		&i.ActivatedAt,
+		&i.DecommissionedAt,
+		&i.RetireAfter,
+	)
+	return i, err
+}
+
 const pruneExpiredRevokedJTI = `-- name: PruneExpiredRevokedJTI :exec
 DELETE FROM revoked_jti WHERE expires_at < now()
 `
@@ -319,11 +427,51 @@ func (q *Queries) PruneExpiredRevokedJTI(ctx context.Context) error {
 	return err
 }
 
-const retireSigningKey = `-- name: RetireSigningKey :exec
-UPDATE signing_key SET active = false, retired_at = now() WHERE kid = $1
+const reconcileRetiredSigningKeys = `-- name: ReconcileRetiredSigningKeys :execrows
+UPDATE signing_key SET status='retired'
+WHERE use='sig' AND status='decommissioning'
+  AND retire_after IS NOT NULL AND now() >= retire_after
 `
 
-func (q *Queries) RetireSigningKey(ctx context.Context, kid string) error {
-	_, err := q.db.Exec(ctx, retireSigningKey, kid)
-	return err
+func (q *Queries) ReconcileRetiredSigningKeys(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, reconcileRetiredSigningKeys)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const retireSigningKey = `-- name: RetireSigningKey :one
+UPDATE signing_key
+SET status='decommissioning', active=false,
+    decommissioned_at=COALESCE(decommissioned_at, now()), retire_after=$2
+WHERE kid=$1 AND status IN ('pending','decommissioning')
+RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after
+`
+
+type RetireSigningKeyParams struct {
+	Kid         string             `json:"kid"`
+	RetireAfter pgtype.Timestamptz `json:"retireAfter"`
+}
+
+func (q *Queries) RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) (SigningKey, error) {
+	row := q.db.QueryRow(ctx, retireSigningKey, arg.Kid, arg.RetireAfter)
+	var i SigningKey
+	err := row.Scan(
+		&i.Kid,
+		&i.Algorithm,
+		&i.Use,
+		&i.PublicJwk,
+		&i.X509CertPem,
+		&i.PrivatePem,
+		&i.Active,
+		&i.NotBefore,
+		&i.CreatedAt,
+		&i.RetiredAt,
+		&i.Status,
+		&i.ActivatedAt,
+		&i.DecommissionedAt,
+		&i.RetireAfter,
+	)
+	return i, err
 }

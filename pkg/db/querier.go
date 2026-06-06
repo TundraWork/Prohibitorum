@@ -33,7 +33,6 @@ type Querier interface {
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (RecoveryCode, error)
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
-	DeactivateSigningKeys(ctx context.Context) error
 	DeleteAccountByID(ctx context.Context, id int32) error
 	// Returns the deleted row's id when one matched; pgx.ErrNoRows when the
 	// (id, account_id) pair matches nothing (foreign identity, already-
@@ -50,6 +49,7 @@ type Querier interface {
 	DeleteSAMLSessionsBySession(ctx context.Context, sessionID string) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	DeleteUpstreamIDP(ctx context.Context, id int64) error
+	DemoteActiveSigningKey(ctx context.Context, retireAfter pgtype.Timestamptz) error
 	GetAccountByID(ctx context.Context, id int32) (Account, error)
 	GetAccountByIDForUpdate(ctx context.Context, id int32) (Account, error)
 	GetAccountByOIDCSubject(ctx context.Context, oidcSubject pgtype.UUID) (Account, error)
@@ -67,6 +67,7 @@ type Querier interface {
 	GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error)
 	GetSAMLSubjectID(ctx context.Context, arg GetSAMLSubjectIDParams) (SamlSubjectID, error)
 	GetSession(ctx context.Context, id string) (Session, error)
+	GetSigningKeyByKID(ctx context.Context, kid string) (SigningKey, error)
 	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error)
 	HasAnyActiveAdmin(ctx context.Context) (bool, error)
@@ -76,6 +77,7 @@ type Querier interface {
 	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
+	InsertPendingSigningKey(ctx context.Context, arg InsertPendingSigningKeyParams) (SigningKey, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) (RecoveryCode, error)
 	InsertRevokedJTI(ctx context.Context, arg InsertRevokedJTIParams) error
 	InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (SamlSp, error)
@@ -84,18 +86,18 @@ type Querier interface {
 	InsertSAMLSession(ctx context.Context, arg InsertSAMLSessionParams) (SamlSession, error)
 	InsertSAMLSubjectID(ctx context.Context, arg InsertSAMLSubjectIDParams) (SamlSubjectID, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error)
-	InsertSigningKey(ctx context.Context, arg InsertSigningKeyParams) (SigningKey, error)
 	InsertTOTPCredential(ctx context.Context, arg InsertTOTPCredentialParams) (TotpCredential, error)
 	InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPParams) (UpstreamIdp, error)
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
-	ListActiveSigningKeys(ctx context.Context) ([]SigningKey, error)
+	ListAllSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
+	ListPublishableSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
 	ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]SamlSpAc, error)
 	ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) ([]SamlSpKey, error)
@@ -104,9 +106,11 @@ type Querier interface {
 	ListSAMLSessionsBySession(ctx context.Context, sessionID string) ([]SamlSession, error)
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)
 	ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
+	PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error)
 	PruneExpiredRevokedJTI(ctx context.Context) error
+	ReconcileRetiredSigningKeys(ctx context.Context) (int64, error)
 	ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error
-	RetireSigningKey(ctx context.Context, kid string) error
+	RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) (SigningKey, error)
 	RevokeAllSessionsByAccount(ctx context.Context, accountID int32) error
 	// Same DB effect as ConsumeEnrollment but intent-restricted to 'invite' so an
 	// admin cannot accidentally use this to mark a bootstrap/reset token consumed.

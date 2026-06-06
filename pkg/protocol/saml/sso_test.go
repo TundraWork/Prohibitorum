@@ -65,7 +65,7 @@ func (f *fakeSSOQueries) ListSAMLSPKeys(_ context.Context, _ db.ListSAMLSPKeysPa
 	return f.spKeys, nil
 }
 
-func (f *fakeSSOQueries) ListActiveSigningKeys(context.Context) ([]db.SigningKey, error) {
+func (f *fakeSSOQueries) ListPublishableSigningKeys(context.Context) ([]db.SigningKey, error) {
 	return f.idpKeys, nil
 }
 

@@ -23,7 +23,7 @@ type fakeSAMLSigningKeyQueries struct {
 	err  error
 }
 
-func (f *fakeSAMLSigningKeyQueries) ListActiveSigningKeys(context.Context) ([]db.SigningKey, error) {
+func (f *fakeSAMLSigningKeyQueries) ListPublishableSigningKeys(context.Context) ([]db.SigningKey, error) {
 	return f.rows, f.err
 }
 
@@ -64,6 +64,7 @@ func testSAMLSigningKeyRow(t *testing.T) (db.SigningKey, *rsa.PrivateKey, *x509.
 		Use:         "sig",
 		PrivatePem:  keyPEM,
 		X509CertPem: pgtype.Text{String: certPEM, Valid: true},
+		Status:      "active",
 		Active:      true,
 	}
 	return row, priv, cert

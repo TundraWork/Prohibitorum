@@ -17,10 +17,11 @@ import (
 const keyCacheTTL = 5 * time.Minute
 
 // samlSigningKeyQueries is the narrow slice of db.Querier the cache needs.
-// ListActiveSigningKeys returns ALL non-retired use='sig' keys; the one with
-// Active=true is the signer, the whole set is the metadata cert list.
+// ListPublishableSigningKeys returns all use='sig' keys with status in
+// (pending,active,decommissioning); the status='active' one is the signer, the
+// whole set is the metadata cert list (so a rotation does not break verifiers).
 type samlSigningKeyQueries interface {
-	ListActiveSigningKeys(ctx context.Context) ([]db.SigningKey, error)
+	ListPublishableSigningKeys(ctx context.Context) ([]db.SigningKey, error)
 }
 
 // samlCachedKey holds the material the SAML layer needs per signing key: the
@@ -29,7 +30,7 @@ type samlSigningKeyQueries interface {
 // metadata rendering and verifyElementSignature).
 type samlCachedKey struct {
 	kid     string
-	active  bool
+	status  string
 	private *rsa.PrivateKey
 	certDER []byte
 	cert    *x509.Certificate
@@ -51,7 +52,7 @@ func newSAMLKeyCache(q samlSigningKeyQueries) *samlKeyCache {
 }
 
 func (c *samlKeyCache) refresh(ctx context.Context) error {
-	rows, err := c.q.ListActiveSigningKeys(ctx)
+	rows, err := c.q.ListPublishableSigningKeys(ctx)
 	if err != nil {
 		return err
 	}
@@ -61,7 +62,7 @@ func (c *samlKeyCache) refresh(ctx context.Context) error {
 		if perr != nil {
 			return perr
 		}
-		ck := samlCachedKey{kid: r.Kid, active: r.Active, private: priv}
+		ck := samlCachedKey{kid: r.Kid, status: r.Status, private: priv}
 		if r.X509CertPem.Valid && r.X509CertPem.String != "" {
 			block, _ := pem.Decode([]byte(r.X509CertPem.String))
 			if block == nil {
@@ -104,7 +105,7 @@ func (c *samlKeyCache) signingKey(ctx context.Context) (priv *rsa.PrivateKey, ce
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, k := range c.keys {
-		if k.active && len(k.certDER) > 0 {
+		if k.status == "active" && len(k.certDER) > 0 {
 			return k.private, k.certDER, k.kid, true
 		}
 	}

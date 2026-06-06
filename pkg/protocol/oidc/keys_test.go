@@ -18,14 +18,21 @@ type fakeSigningKeyQueries struct {
 	err  error
 }
 
-func (f *fakeSigningKeyQueries) ListActiveSigningKeys(context.Context) ([]db.SigningKey, error) {
+func (f *fakeSigningKeyQueries) ListPublishableSigningKeys(context.Context) ([]db.SigningKey, error) {
 	return f.rows, f.err
 }
 
 // testSigningKeyRow mints a fresh RSA-2048 key and returns a db.SigningKey
 // row built the way Task 2's keygen will (PKCS#8 PEM, JWK from publicJWK,
-// kid = RFC 7638 thumbprint, active). Downstream test files reuse this.
+// kid = RFC 7638 thumbprint, status=active). Downstream test files reuse this.
 func testSigningKeyRow(t *testing.T) (db.SigningKey, *rsa.PrivateKey) {
+	t.Helper()
+	return testSigningKeyRowStatus(t, "active")
+}
+
+// testSigningKeyRowStatus is testSigningKeyRow with an explicit lifecycle
+// status, so tests can build pending/decommissioning/retired rows.
+func testSigningKeyRowStatus(t *testing.T, status string) (db.SigningKey, *rsa.PrivateKey) {
 	t.Helper()
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -47,7 +54,8 @@ func testSigningKeyRow(t *testing.T) (db.SigningKey, *rsa.PrivateKey) {
 		Use:        "sig",
 		PublicJwk:  jwkBytes,
 		PrivatePem: pemStr,
-		Active:     true,
+		Status:     status,
+		Active:     status == "active",
 	}
 	return row, priv
 }
@@ -91,6 +99,47 @@ func TestKeysJWKS(t *testing.T) {
 	}
 	if keys[0]["kty"] != "RSA" {
 		t.Fatalf("jwks key kty = %v, want RSA", keys[0]["kty"])
+	}
+}
+
+// TestKeysSelectsActiveAndPublishesNonRetired proves the status-based cutover:
+// the signing key is the single status='active' row, and JWKS publishes the
+// pending+active+decommissioning rows the fake feeds it. (Note: 'retired' rows
+// are excluded by the ListPublishableSigningKeys query itself — the cache
+// publishes whatever the query returns — so this test feeds the publishable set
+// and asserts the active selection + full publication of that set.)
+func TestKeysSelectsActiveAndPublishesNonRetired(t *testing.T) {
+	pending, _ := testSigningKeyRowStatus(t, "pending")
+	active, activePriv := testSigningKeyRowStatus(t, "active")
+	decom, _ := testSigningKeyRowStatus(t, "decommissioning")
+
+	c := newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{pending, active, decom}})
+	ctx := context.Background()
+
+	got, ok := c.signingKey(ctx)
+	if !ok {
+		t.Fatal("signingKey: expected an active key")
+	}
+	if got.kid != active.Kid {
+		t.Fatalf("signingKey kid = %q, want the active row %q", got.kid, active.Kid)
+	}
+	if got.private.D.Cmp(activePriv.D) != 0 {
+		t.Fatal("signingKey: selected key is not the active key's private key")
+	}
+
+	set := c.jwks(ctx)
+	keys, _ := set["keys"].([]map[string]any)
+	if len(keys) != 3 {
+		t.Fatalf("jwks: got %d keys, want 3 (pending+active+decommissioning)", len(keys))
+	}
+	kids := map[string]bool{}
+	for _, k := range keys {
+		kids[k["kid"].(string)] = true
+	}
+	for _, want := range []string{pending.Kid, active.Kid, decom.Kid} {
+		if !kids[want] {
+			t.Fatalf("jwks missing publishable kid %q", want)
+		}
 	}
 }
 

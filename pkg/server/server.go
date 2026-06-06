@@ -202,6 +202,12 @@ func (s *Server) Serve() error {
 	// DELETEd), so without this reaper the table grows unbounded even after SLO
 	// and the dedup upsert. Launched only from Serve() (not tests/openapi).
 	go s.pruneExpiredSAMLSessionsLoop()
+	// Periodically advance decommissioning signing keys past their retire_after
+	// horizon to 'retired', which drops them from JWKS / SAML metadata. This is
+	// the only caller of ReconcileRetiredSigningKeys; the operation is
+	// idempotent and never touches active/pending keys. Launched only from
+	// Serve() (not tests/openapi).
+	go s.reconcileSigningKeysLoop()
 
 	addr := fmt.Sprintf(":%d", s.config.Port)
 	logx.WithFields(logrus.Fields{"addr": addr}).Info("serving API")
@@ -235,6 +241,28 @@ func (s *Server) pruneExpiredSAMLSessionsLoop() {
 	for {
 		if _, err := s.queries.DeleteExpiredSAMLSessions(ctx); err != nil {
 			logx.WithContext(ctx).WithError(err).Warn("prune saml_session")
+		}
+		<-t.C
+	}
+}
+
+// reconcileSigningKeysLoop flips decommissioning signing keys whose retire_after
+// horizon has passed to 'retired', once at startup and then hourly. Retiring a
+// key removes it from the published JWKS / SAML metadata set, so this is what
+// finally garbage-collects a rotated-out key once its grace window elapses. The
+// query is idempotent and never touches active/pending keys; an error is logged
+// and retried on the next tick — it must never crash the server.
+func (s *Server) reconcileSigningKeysLoop() {
+	ctx := context.Background()
+	t := time.NewTicker(1 * time.Hour)
+	defer t.Stop()
+	for {
+		n, err := s.queries.ReconcileRetiredSigningKeys(ctx)
+		switch {
+		case err != nil:
+			logx.WithContext(ctx).WithError(err).Warn("reconcile signing keys")
+		case n > 0:
+			logx.WithContext(ctx).WithFields(logrus.Fields{"retired": n}).Info("reconciled signing keys")
 		}
 		<-t.C
 	}

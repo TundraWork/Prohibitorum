@@ -180,18 +180,21 @@ generating a new one.`,
 			defer conn.Close()
 			q := db.New(conn)
 
-			// Retire mode: retire the named kid and exit, no new key.
+			grace := config.SAML.MetadataRotationGrace
+
+			// Retire mode: move the named kid toward retirement and exit, no
+			// new key. Retiring the active key is refused — activate a
+			// replacement first.
 			if signingRetire != "" {
-				if err := q.RetireSigningKey(ctx, signingRetire); err != nil {
+				if _, err := oidc.RetireSigningKey(ctx, q, signingRetire, grace); err != nil {
+					if errors.Is(err, oidc.ErrActiveKeyNoReplacement) {
+						log.Fatalf("retire signing key: %v (activate a replacement first)", err)
+					}
 					log.Fatalf("retire signing key: %v", err)
 				}
-				fmt.Printf("Retired signing key %s\n", signingRetire)
+				fmt.Printf("Retired signing key %s (decommissioning until %s)\n",
+					signingRetire, time.Now().Add(grace).Format(time.RFC3339))
 				return
-			}
-
-			params, err := oidc.GenerateSigningKey()
-			if err != nil {
-				log.Fatalf("generate signing key: %v", err)
 			}
 
 			// Decide activation: explicit --activate, or no active key exists yet.
@@ -206,31 +209,20 @@ generating a new one.`,
 				}
 			}
 
-			tx, err := conn.Begin(ctx)
+			// Always insert as pending first; activation is an explicit promote.
+			pending, err := oidc.InsertPendingKey(ctx, q)
 			if err != nil {
-				log.Fatalf("begin tx: %v", err)
+				log.Fatalf("insert pending signing key: %v", err)
 			}
-			defer tx.Rollback(ctx) //nolint:errcheck
-			qtx := q.WithTx(tx)
 
+			state := "pending"
 			if activate {
-				if err := qtx.DeactivateSigningKeys(ctx); err != nil {
-					log.Fatalf("deactivate signing keys: %v", err)
+				if _, err := oidc.ActivateSigningKey(ctx, conn, q, pending.Kid, grace); err != nil {
+					log.Fatalf("activate signing key: %v", err)
 				}
-				params.Active = true
-			}
-			if _, err := qtx.InsertSigningKey(ctx, params); err != nil {
-				log.Fatalf("insert signing key: %v", err)
-			}
-			if err := tx.Commit(ctx); err != nil {
-				log.Fatalf("commit tx: %v", err)
-			}
-
-			state := "inactive"
-			if activate {
 				state = "active"
 			}
-			fmt.Printf("Generated signing key %s (%s)\n", params.Kid, state)
+			fmt.Printf("Generated signing key %s (%s)\n", pending.Kid, state)
 		},
 	}
 	generateCmd.Flags().BoolVar(&signingActivate, "activate", false, "Make the new key active, deactivating any prior active key.")

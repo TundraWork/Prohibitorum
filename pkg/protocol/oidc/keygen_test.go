@@ -16,10 +16,6 @@ func TestKeygenGenerateSigningKey(t *testing.T) {
 	if params.Algorithm != "RS256" {
 		t.Errorf("algorithm = %q, want RS256", params.Algorithm)
 	}
-	if params.Active {
-		t.Errorf("Active = true, want false (CLI sets it, not generator)")
-	}
-
 	// Private PEM must round-trip via the package's PKCS#1/PKCS#8 parser.
 	priv, err := parseRSAPrivatePEM(params.PrivatePem)
 	if err != nil {
