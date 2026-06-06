@@ -72,13 +72,7 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 		return params, "", nil
 	}
 
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return db.InsertOIDCClientParams{}, "", err
-	}
-	secret := base64.RawURLEncoding.EncodeToString(buf)
-
-	hash, err := password.HashRaw(secret, password.DefaultParams())
+	secret, hash, err := generateClientSecret()
 	if err != nil {
 		return db.InsertOIDCClientParams{}, "", err
 	}
@@ -86,4 +80,20 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 	params.TokenEndpointAuthMethod = "client_secret_basic"
 
 	return params, secret, nil
+}
+
+// generateClientSecret generates a 32-byte random client secret, returns the
+// plaintext (to be revealed once) and the argon2id PHC hash (to be stored).
+// Shared between BuildClientParams (create) and RotateClientSecret (rotate).
+func generateClientSecret() (secret, hash string, err error) {
+	buf := make([]byte, 32)
+	if _, err = rand.Read(buf); err != nil {
+		return "", "", err
+	}
+	secret = base64.RawURLEncoding.EncodeToString(buf)
+	hash, err = password.HashRaw(secret, password.DefaultParams())
+	if err != nil {
+		return "", "", err
+	}
+	return secret, hash, nil
 }

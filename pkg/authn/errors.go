@@ -369,6 +369,12 @@ func ErrActiveKeyNoReplacement() *AuthError {
 	return newErr(http.StatusConflict, "active_key_no_replacement", "Activate a replacement key before retiring the active signing key.")
 }
 
+// ErrClientNotFound is returned when an OIDC client lookup by client_id yields
+// no row. Status 404.
+func ErrClientNotFound() *AuthError {
+	return newErr(http.StatusNotFound, "client_not_found", "OIDC client not found.")
+}
+
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,
 // or nil otherwise. Useful for handler error mapping.
 func AsAuthError(err error) *AuthError {

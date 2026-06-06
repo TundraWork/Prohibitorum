@@ -370,6 +370,14 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/{kid}/activate", admin, s.handleActivateSigningKeyHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/{kid}/retire", admin, s.handleRetireSigningKeyHTTP)
 
+	// Admin: OIDC client management
+	registerOp(mgmt, contract.OperationListOIDCClients, s.handleListOIDCClients, admin)
+	registerOp(mgmt, contract.OperationGetOIDCClient, s.handleGetOIDCClient, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients", admin, s.handleCreateOIDCClientHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-clients/{clientId}", admin, s.handleUpdateOIDCClientHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients/rotate-secret", admin, s.handleRotateOIDCClientSecretHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients/delete", admin, s.handleDeleteOIDCClientHTTP)
+
 	// OIDC OP — v0.4 full surface. Discovery and JWKS are public. Authorize
 	// benefits from the global LoadSession middleware (already installed on
 	// the router) so that authn.SessionFromContext works inside the handler.

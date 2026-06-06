@@ -359,3 +359,32 @@ var OperationListSigningKeys = huma.Operation{
 	Path:        "/signing-keys",
 	Summary:     "List signing keys with lifecycle status (admin only). Private material is never returned.",
 }
+
+// OIDCClientView is the admin-facing projection of an oidc_client row.
+// client_secret_hash is NEVER included — only the public configuration fields
+// are returned to callers.
+type OIDCClientView struct {
+	ClientID                    string    `json:"clientId"`
+	DisplayName                 string    `json:"displayName"`
+	RedirectURIs                []string  `json:"redirectUris"`
+	PostLogoutRedirectURIs      []string  `json:"postLogoutRedirectUris"`
+	AllowedScopes               []string  `json:"allowedScopes"`
+	TokenEndpointAuthMethod     string    `json:"tokenEndpointAuthMethod"`
+	RequireConsent              bool      `json:"requireConsent"`
+	Disabled                    bool      `json:"disabled"`
+	CreatedAt                   time.Time `json:"createdAt"`
+}
+
+var OperationListOIDCClients = huma.Operation{
+	OperationID: "listOIDCClients",
+	Method:      http.MethodGet,
+	Path:        "/oidc-clients",
+	Summary:     "List all OIDC clients (admin only). Secret material is never returned.",
+}
+
+var OperationGetOIDCClient = huma.Operation{
+	OperationID: "getOIDCClient",
+	Method:      http.MethodGet,
+	Path:        "/oidc-clients/{clientId}",
+	Summary:     "Get one OIDC client by client_id (admin only). Secret material is never returned.",
+}

@@ -45,6 +45,7 @@ type Querier interface {
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
 	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
+	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
 	DeleteSAMLSessionsBySession(ctx context.Context, sessionID string) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
@@ -62,6 +63,7 @@ type Querier interface {
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
+	GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error)
 	GetPasswordCredential(ctx context.Context, accountID int32) (PasswordCredential, error)
 	GetSAMLSPByEntityID(ctx context.Context, entityID string) (SamlSp, error)
 	GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error)
@@ -127,6 +129,8 @@ type Querier interface {
 	// Zero rows affected means the id doesn't match an owned credential; the
 	// handler then surfaces credential_not_found.
 	UpdateMyCredentialNickname(ctx context.Context, arg UpdateMyCredentialNicknameParams) (int64, error)
+	UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientParams) (OidcClient, error)
+	UpdateOIDCClientSecret(ctx context.Context, arg UpdateOIDCClientSecretParams) error
 	// RFC 6238 §5.2: this UPDATE is the atomic gate that prevents a parallel
 	// replay of the same code from issuing two sessions. The Go-side
 	// `matchedStep <= row.LastStep` check short-circuits the common (serial)

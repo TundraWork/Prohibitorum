@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteOIDCClient = `-- name: DeleteOIDCClient :execrows
+DELETE FROM oidc_client WHERE client_id = $1
+`
+
+func (q *Queries) DeleteOIDCClient(ctx context.Context, clientID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOIDCClient, clientID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const demoteActiveSigningKey = `-- name: DemoteActiveSigningKey :exec
 UPDATE signing_key
 SET status='decommissioning', active=false, decommissioned_at=now(), retire_after=$1
@@ -76,6 +88,39 @@ SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_r
 
 func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error) {
 	row := q.db.QueryRow(ctx, getOIDCClient, clientID)
+	var i OidcClient
+	err := row.Scan(
+		&i.ClientID,
+		&i.DisplayName,
+		&i.ClientSecretHash,
+		&i.RedirectUris,
+		&i.PostLogoutRedirectUris,
+		&i.AllowedScopes,
+		&i.RequirePkce,
+		&i.AllowedCodeChallengeMethods,
+		&i.TokenEndpointAuthMethod,
+		&i.IDTokenSignedResponseAlg,
+		&i.SubjectType,
+		&i.ApplicationType,
+		&i.DefaultMaxAge,
+		&i.RequireAuthTime,
+		&i.Contacts,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.Disabled,
+		&i.RequireConsent,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getOIDCClientAny = `-- name: GetOIDCClientAny :one
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at FROM oidc_client WHERE client_id = $1
+`
+
+func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error) {
+	row := q.db.QueryRow(ctx, getOIDCClientAny, clientID)
 	var i OidcClient
 	err := row.Scan(
 		&i.ClientID,
@@ -474,4 +519,73 @@ func (q *Queries) RetireSigningKey(ctx context.Context, arg RetireSigningKeyPara
 		&i.RetireAfter,
 	)
 	return i, err
+}
+
+const updateOIDCClient = `-- name: UpdateOIDCClient :one
+UPDATE oidc_client SET
+  display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,
+  allowed_scopes = $5, require_consent = $6, disabled = $7
+WHERE client_id = $1
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
+`
+
+type UpdateOIDCClientParams struct {
+	ClientID               string   `json:"clientId"`
+	DisplayName            string   `json:"displayName"`
+	RedirectUris           []string `json:"redirectUris"`
+	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris"`
+	AllowedScopes          []string `json:"allowedScopes"`
+	RequireConsent         bool     `json:"requireConsent"`
+	Disabled               bool     `json:"disabled"`
+}
+
+func (q *Queries) UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientParams) (OidcClient, error) {
+	row := q.db.QueryRow(ctx, updateOIDCClient,
+		arg.ClientID,
+		arg.DisplayName,
+		arg.RedirectUris,
+		arg.PostLogoutRedirectUris,
+		arg.AllowedScopes,
+		arg.RequireConsent,
+		arg.Disabled,
+	)
+	var i OidcClient
+	err := row.Scan(
+		&i.ClientID,
+		&i.DisplayName,
+		&i.ClientSecretHash,
+		&i.RedirectUris,
+		&i.PostLogoutRedirectUris,
+		&i.AllowedScopes,
+		&i.RequirePkce,
+		&i.AllowedCodeChallengeMethods,
+		&i.TokenEndpointAuthMethod,
+		&i.IDTokenSignedResponseAlg,
+		&i.SubjectType,
+		&i.ApplicationType,
+		&i.DefaultMaxAge,
+		&i.RequireAuthTime,
+		&i.Contacts,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.Disabled,
+		&i.RequireConsent,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateOIDCClientSecret = `-- name: UpdateOIDCClientSecret :exec
+UPDATE oidc_client SET client_secret_hash = $2 WHERE client_id = $1
+`
+
+type UpdateOIDCClientSecretParams struct {
+	ClientID         string      `json:"clientId"`
+	ClientSecretHash pgtype.Text `json:"clientSecretHash"`
+}
+
+func (q *Queries) UpdateOIDCClientSecret(ctx context.Context, arg UpdateOIDCClientSecretParams) error {
+	_, err := q.db.Exec(ctx, updateOIDCClientSecret, arg.ClientID, arg.ClientSecretHash)
+	return err
 }

@@ -1,6 +1,22 @@
 -- name: GetOIDCClient :one
 SELECT * FROM oidc_client WHERE client_id = $1 AND disabled = false;
 
+-- name: GetOIDCClientAny :one
+SELECT * FROM oidc_client WHERE client_id = $1;
+
+-- name: UpdateOIDCClient :one
+UPDATE oidc_client SET
+  display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,
+  allowed_scopes = $5, require_consent = $6, disabled = $7
+WHERE client_id = $1
+RETURNING *;
+
+-- name: UpdateOIDCClientSecret :exec
+UPDATE oidc_client SET client_secret_hash = $2 WHERE client_id = $1;
+
+-- name: DeleteOIDCClient :execrows
+DELETE FROM oidc_client WHERE client_id = $1;
+
 -- name: InsertOIDCClient :one
 INSERT INTO oidc_client (
   client_id, display_name, client_secret_hash, redirect_uris,
