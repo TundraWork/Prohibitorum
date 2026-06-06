@@ -2415,8 +2415,414 @@ func main() {
 		log.Printf("  /auth/federation → 200, %d providers incl. mockop + mockop-link ✓", len(providers))
 	}
 
+	// =========================================================================
+	// Admin Management API arc (steps 114–121) — Task 10 integration capstone.
+	//
+	// Runs LAST, while c still holds a live admin session (step 112 drove
+	// /oauth/authorize and got codes, not /login bounces). Every 🔐 mutation is
+	// preceded by a fresh sudoWebAuthn — the grant is one-shot (consumed per
+	// gated action), so it is re-asserted before EACH mutation.
+	//
+	// The signing-key sub-arc adds a 2nd key; this is safe because nothing after
+	// this arc depends on JWKS having exactly 1 key (step 70's "exactly 1 key"
+	// assertion ran far earlier, before any key was added here).
+	// =========================================================================
+	const totalAdmin = 121
+
+	step(fmt.Sprintf("step 114/%d — admin: POST /oidc-clients reveals secret ONCE; GET list/one never expose it", totalAdmin))
+	const adminClientID = "smoke-admin-rp"
+	var createdClientSecret string
+	{
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("admin oidc-client create: sudo: %v", err)
+		}
+		var created struct {
+			ClientID                string   `json:"clientId"`
+			DisplayName             string   `json:"displayName"`
+			RedirectURIs            []string `json:"redirectUris"`
+			TokenEndpointAuthMethod string   `json:"tokenEndpointAuthMethod"`
+			Secret                  string   `json:"secret"`
+		}
+		if err := c.postJSON("/api/prohibitorum/oidc-clients", map[string]any{
+			"clientId":     adminClientID,
+			"displayName":  "Smoke Admin RP",
+			"redirectUris": []string{*baseURL + "/admin-rp/callback"},
+			"scopes":       []string{"openid", "profile"},
+			"public":       false,
+		}, &created); err != nil {
+			log.Fatalf("POST /oidc-clients: %v", err)
+		}
+		if created.ClientID != adminClientID {
+			log.Fatalf("create: clientId want %q got %q", adminClientID, created.ClientID)
+		}
+		if created.Secret == "" {
+			log.Fatalf("create: confidential client response must reveal a secret exactly once, got empty")
+		}
+		if created.TokenEndpointAuthMethod == "" {
+			log.Fatalf("create: tokenEndpointAuthMethod must be set for a confidential client")
+		}
+		createdClientSecret = created.Secret
+
+		// GET list → secret/hash NEVER present (verify on the raw bytes too).
+		listRaw, err := c.getBytes("/api/prohibitorum/oidc-clients")
+		if err != nil {
+			log.Fatalf("GET /oidc-clients: %v", err)
+		}
+		assertNoSecretLeak("GET /oidc-clients", listRaw)
+		// And the created client appears in the list.
+		var list []struct {
+			ClientID string `json:"clientId"`
+		}
+		if err := json.Unmarshal(listRaw, &list); err != nil {
+			log.Fatalf("GET /oidc-clients decode: %v", err)
+		}
+		var found bool
+		for _, c := range list {
+			if c.ClientID == adminClientID {
+				found = true
+			}
+		}
+		if !found {
+			log.Fatalf("GET /oidc-clients: created client %q not in list", adminClientID)
+		}
+
+		// GET one → secret/hash NEVER present.
+		oneRaw, err := c.getBytes("/api/prohibitorum/oidc-clients/" + url.PathEscape(adminClientID))
+		if err != nil {
+			log.Fatalf("GET /oidc-clients/%s: %v", adminClientID, err)
+		}
+		assertNoSecretLeak("GET /oidc-clients/{clientId}", oneRaw)
+		log.Printf("  created %q (secret len=%d, revealed once); list+get expose NO secret/hash ✓", adminClientID, len(createdClientSecret))
+	}
+
+	step(fmt.Sprintf("step 115/%d — admin: PUT /oidc-clients/{clientId} changes config; reflected on GET", totalAdmin))
+	const updatedDisplayName = "Smoke Admin RP (renamed)"
+	updatedRedirectURI := *baseURL + "/admin-rp/callback2"
+	{
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("admin oidc-client update: sudo: %v", err)
+		}
+		var updated struct {
+			ClientID     string   `json:"clientId"`
+			DisplayName  string   `json:"displayName"`
+			RedirectURIs []string `json:"redirectUris"`
+		}
+		if err := c.putJSON("/api/prohibitorum/oidc-clients/"+url.PathEscape(adminClientID), map[string]any{
+			"displayName":    updatedDisplayName,
+			"redirectUris":   []string{updatedRedirectURI},
+			"allowedScopes":  []string{"openid", "profile"},
+			"requireConsent": false,
+			"disabled":       false,
+		}, &updated); err != nil {
+			log.Fatalf("PUT /oidc-clients/%s: %v", adminClientID, err)
+		}
+		// Re-GET and assert the change is reflected.
+		var got struct {
+			DisplayName  string   `json:"displayName"`
+			RedirectURIs []string `json:"redirectUris"`
+		}
+		if err := c.get("/api/prohibitorum/oidc-clients/"+url.PathEscape(adminClientID), &got); err != nil {
+			log.Fatalf("GET (post-update) /oidc-clients/%s: %v", adminClientID, err)
+		}
+		if got.DisplayName != updatedDisplayName {
+			log.Fatalf("update not reflected: displayName want %q got %q", updatedDisplayName, got.DisplayName)
+		}
+		if !slices.Contains(got.RedirectURIs, updatedRedirectURI) {
+			log.Fatalf("update not reflected: redirectUris %v missing %q", got.RedirectURIs, updatedRedirectURI)
+		}
+		log.Printf("  PUT changed displayName→%q + redirect_uri; GET reflects both ✓", updatedDisplayName)
+	}
+
+	step(fmt.Sprintf("step 116/%d — admin: POST /oidc-clients/rotate-secret returns a NEW secret (≠ create secret)", totalAdmin))
+	{
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("admin oidc-client rotate-secret: sudo: %v", err)
+		}
+		var rotated struct {
+			ClientID string `json:"clientId"`
+			Secret   string `json:"secret"`
+		}
+		if err := c.postJSON("/api/prohibitorum/oidc-clients/rotate-secret",
+			map[string]any{"clientId": adminClientID}, &rotated); err != nil {
+			log.Fatalf("POST /oidc-clients/rotate-secret: %v", err)
+		}
+		if rotated.Secret == "" {
+			log.Fatalf("rotate-secret: empty secret")
+		}
+		if rotated.Secret == createdClientSecret {
+			log.Fatalf("rotate-secret: returned the SAME secret as create — rotation did not change it")
+		}
+		log.Printf("  rotate-secret → new secret (len=%d) ≠ create secret ✓", len(rotated.Secret))
+	}
+
+	step(fmt.Sprintf("step 117/%d — admin: snapshot JWKS (1 active key=oldKID) + mint priorKeyToken under oldKID", totalAdmin))
+	var oldKID string
+	var priorKeyToken string
+	{
+		jwksBefore, err := fetchJWKS(*baseURL)
+		if err != nil {
+			log.Fatalf("fetch jwks (snapshot): %v", err)
+		}
+		if len(jwksBefore.Keys) != 1 {
+			log.Fatalf("jwks snapshot: want exactly 1 key at arc start, got %d", len(jwksBefore.Keys))
+		}
+		oldKID = jwksBefore.Keys[0].KeyID
+		if oldKID == "" {
+			log.Fatalf("jwks snapshot: empty kid")
+		}
+		// Mint a token under the current active key via the existing smoke-rp
+		// confidential client + c's live session.
+		v, code := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+		ptok, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {code},
+			"redirect_uri":  {rpRedirectURI},
+			"code_verifier": {v},
+		})
+		if err != nil {
+			log.Fatalf("mint priorKeyToken: token exchange: %v", err)
+		}
+		priorKeyToken = ptok.IDToken
+		if priorKeyToken == "" {
+			log.Fatalf("mint priorKeyToken: empty id_token")
+		}
+		kid, err := tokenKID(priorKeyToken)
+		if err != nil {
+			log.Fatalf("priorKeyToken kid: %v", err)
+		}
+		if kid != oldKID {
+			log.Fatalf("priorKeyToken signed by kid=%q, want active oldKID=%q", kid, oldKID)
+		}
+		if _, err := verifyIDToken(*baseURL, priorKeyToken); err != nil {
+			log.Fatalf("priorKeyToken must verify now: %v", err)
+		}
+		log.Printf("  JWKS=1 key oldKID=%s; priorKeyToken signed by oldKID and verifies now ✓", oldKID)
+	}
+
+	step(fmt.Sprintf("step 118/%d — admin: POST /signing-keys/generate → newKID PENDING; JWKS publishes BOTH; oldKID still signs", totalAdmin))
+	var newKID string
+	{
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("admin signing-key generate: sudo: %v", err)
+		}
+		var gen struct {
+			Kid    string `json:"kid"`
+			Status string `json:"status"`
+		}
+		if err := c.postJSON("/api/prohibitorum/signing-keys/generate", map[string]any{}, &gen); err != nil {
+			log.Fatalf("POST /signing-keys/generate: %v", err)
+		}
+		newKID = gen.Kid
+		if newKID == "" || newKID == oldKID {
+			log.Fatalf("generate: newKID=%q invalid (oldKID=%q)", newKID, oldKID)
+		}
+		if gen.Status != "pending" {
+			log.Fatalf("generate: new key status want pending, got %q", gen.Status)
+		}
+		// JWKS now publishes BOTH keys.
+		jwks2, err := fetchJWKS(*baseURL)
+		if err != nil {
+			log.Fatalf("fetch jwks (post-generate): %v", err)
+		}
+		if len(jwks2.Keys) != 2 {
+			log.Fatalf("jwks post-generate: want 2 keys, got %d", len(jwks2.Keys))
+		}
+		if len(jwks2.Key(oldKID)) == 0 || len(jwks2.Key(newKID)) == 0 {
+			log.Fatalf("jwks post-generate must publish both oldKID=%q and newKID=%q; got kids=%v", oldKID, newKID, jwksKIDs(jwks2))
+		}
+		// oldKID is still the signer: mint a token, assert kid == oldKID.
+		v, code := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+		t2, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {code},
+			"redirect_uri":  {rpRedirectURI},
+			"code_verifier": {v},
+		})
+		if err != nil {
+			log.Fatalf("post-generate token exchange: %v", err)
+		}
+		kid, err := tokenKID(t2.IDToken)
+		if err != nil {
+			log.Fatalf("post-generate token kid: %v", err)
+		}
+		if kid != oldKID {
+			log.Fatalf("post-generate: signer should still be oldKID=%q, got %q (pending key must NOT sign)", oldKID, kid)
+		}
+		log.Printf("  newKID=%s pending; JWKS=2 (oldKID active + newKID pending); oldKID still signs ✓", newKID)
+	}
+
+	step(fmt.Sprintf("step 119/%d — admin: POST /signing-keys/{newKID}/activate → newKID signs; oldKID decommissioning; both in JWKS; priorKeyToken STILL verifies", totalAdmin))
+	{
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("admin signing-key activate: sudo: %v", err)
+		}
+		var act struct {
+			Kid    string `json:"kid"`
+			Status string `json:"status"`
+		}
+		if err := c.postJSON("/api/prohibitorum/signing-keys/"+url.PathEscape(newKID)+"/activate", map[string]any{}, &act); err != nil {
+			log.Fatalf("POST /signing-keys/%s/activate: %v", newKID, err)
+		}
+		if act.Status != "active" {
+			log.Fatalf("activate: newKID status want active, got %q", act.Status)
+		}
+		// (a) signing now uses newKID — mint a FRESH token, assert kid == newKID.
+		v, code := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+		t3, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {code},
+			"redirect_uri":  {rpRedirectURI},
+			"code_verifier": {v},
+		})
+		if err != nil {
+			log.Fatalf("post-activate token exchange: %v", err)
+		}
+		freshKID, err := tokenKID(t3.IDToken)
+		if err != nil {
+			log.Fatalf("post-activate token kid: %v", err)
+		}
+		if freshKID != newKID {
+			log.Fatalf("post-activate: signer should be newKID=%q, got %q", newKID, freshKID)
+		}
+		if _, err := verifyIDToken(*baseURL, t3.IDToken); err != nil {
+			log.Fatalf("post-activate fresh token must verify: %v", err)
+		}
+
+		// (b) GET /signing-keys shows oldKID=decommissioning, newKID=active.
+		keysRaw, err := c.getBytes("/api/prohibitorum/signing-keys")
+		if err != nil {
+			log.Fatalf("GET /signing-keys: %v", err)
+		}
+		// (e) no private_pem-like field present in the JSON.
+		assertNoSecretLeak("GET /signing-keys", keysRaw)
+		var keys []struct {
+			Kid    string `json:"kid"`
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal(keysRaw, &keys); err != nil {
+			log.Fatalf("GET /signing-keys decode: %v", err)
+		}
+		statusByKID := map[string]string{}
+		for _, k := range keys {
+			statusByKID[k.Kid] = k.Status
+		}
+		if statusByKID[oldKID] != "decommissioning" {
+			log.Fatalf("post-activate: oldKID=%q status want decommissioning, got %q (all=%v)", oldKID, statusByKID[oldKID], statusByKID)
+		}
+		if statusByKID[newKID] != "active" {
+			log.Fatalf("post-activate: newKID=%q status want active, got %q (all=%v)", newKID, statusByKID[newKID], statusByKID)
+		}
+
+		// (c) JWKS still publishes BOTH newKID (active) and oldKID (decommissioning).
+		jwks3, err := fetchJWKS(*baseURL)
+		if err != nil {
+			log.Fatalf("fetch jwks (post-activate): %v", err)
+		}
+		if len(jwks3.Key(oldKID)) == 0 || len(jwks3.Key(newKID)) == 0 {
+			log.Fatalf("jwks post-activate must still publish both oldKID=%q and newKID=%q; got kids=%v", oldKID, newKID, jwksKIDs(jwks3))
+		}
+
+		// (d) priorKeyToken (signed by oldKID) STILL VERIFIES — grace-window proof.
+		if _, err := verifyIDToken(*baseURL, priorKeyToken); err != nil {
+			log.Fatalf("GRACE-WINDOW FAIL: priorKeyToken (signed by decommissioning oldKID=%q) must still verify, got: %v", oldKID, err)
+		}
+		log.Printf("  newKID=%s now SIGNS; GET /signing-keys: oldKID=decommissioning newKID=active; JWKS still publishes BOTH; priorKeyToken (oldKID) STILL verifies in grace ✓", newKID)
+	}
+
+	step(fmt.Sprintf("step 120/%d — admin: GET /audit-events?factor=oidc_client|signing_key shows the mutations; light redaction spot-check", totalAdmin))
+	{
+		var oidcEvents []contractAuditEvent
+		if err := c.get("/api/prohibitorum/audit-events?factor=oidc_client&limit=200", &oidcEvents); err != nil {
+			log.Fatalf("GET /audit-events?factor=oidc_client: %v", err)
+		}
+		var sawClientRegister bool
+		for _, e := range oidcEvents {
+			if e.Factor != "oidc_client" {
+				log.Fatalf("audit filter leaked a non-oidc_client factor: %q", e.Factor)
+			}
+			if e.Event == "register" {
+				if cid, _ := e.Detail["client_id"].(string); cid == adminClientID {
+					sawClientRegister = true
+				}
+			}
+			assertAuditDetailNoSecret("oidc_client", e.Event, e.Detail)
+		}
+		if !sawClientRegister {
+			log.Fatalf("audit: no oidc_client register event for %q found in %d events", adminClientID, len(oidcEvents))
+		}
+
+		var keyEvents []contractAuditEvent
+		if err := c.get("/api/prohibitorum/audit-events?factor=signing_key&limit=200", &keyEvents); err != nil {
+			log.Fatalf("GET /audit-events?factor=signing_key: %v", err)
+		}
+		var sawKeyMutation bool
+		for _, e := range keyEvents {
+			if e.Factor != "signing_key" {
+				log.Fatalf("audit filter leaked a non-signing_key factor: %q", e.Factor)
+			}
+			// generate emits register; activate emits update — either proves it.
+			if e.Event == "register" || e.Event == "update" {
+				if kid, _ := e.Detail["kid"].(string); kid == newKID {
+					sawKeyMutation = true
+				}
+			}
+			assertAuditDetailNoSecret("signing_key", e.Event, e.Detail)
+		}
+		if !sawKeyMutation {
+			log.Fatalf("audit: no signing_key register/update event for newKID=%q found in %d events", newKID, len(keyEvents))
+		}
+		log.Printf("  audit-events: oidc_client register(%q) + signing_key mutation(newKID) present; no secret in any detail ✓", adminClientID)
+	}
+
+	step(fmt.Sprintf("step 121/%d — admin: GET /accounts/{id}/credentials lists passkey(s) w/ 4-char suffix only; force-revoke endpoint is sudo-gated", totalAdmin))
+	{
+		me, err := c.getMe()
+		if err != nil {
+			log.Fatalf("admin credentials: getMe: %v", err)
+		}
+		credsRaw, err := c.getBytes(fmt.Sprintf("/api/prohibitorum/accounts/%d/credentials", me.ID))
+		if err != nil {
+			log.Fatalf("GET /accounts/%d/credentials: %v", me.ID, err)
+		}
+		var creds []struct {
+			ID                 int32  `json:"id"`
+			CredentialIDSuffix string `json:"credentialIdSuffix"`
+		}
+		if err := json.Unmarshal(credsRaw, &creds); err != nil {
+			log.Fatalf("GET /accounts/{id}/credentials decode: %v (body=%s)", err, credsRaw)
+		}
+		if len(creds) == 0 {
+			log.Fatalf("admin credentials: account %d should have >=1 registered passkey, got 0", me.ID)
+		}
+		for _, cr := range creds {
+			if len(cr.CredentialIDSuffix) != 4 {
+				log.Fatalf("admin credentials: credentialIdSuffix must be exactly 4 chars, got %q (len=%d)", cr.CredentialIDSuffix, len(cr.CredentialIDSuffix))
+			}
+		}
+		// The full credential id must NOT appear anywhere in the response (only
+		// the 4-char suffix is forensic-safe).
+		if strings.Contains(string(credsRaw), "credentialId\"") {
+			log.Fatalf("admin credentials: response exposes a full credentialId field: %s", credsRaw)
+		}
+
+		// Force-revoke is sudo-gated: WITHOUT a fresh sudo grant the delete must
+		// be rejected (sudo_required), NOT executed. This asserts the gate
+		// without bricking the admin's remaining credential.
+		resp, err := c.postJSONRaw("/api/prohibitorum/accounts/credentials/delete",
+			map[string]any{"accountId": me.ID, "credentialId": creds[0].ID})
+		if err != nil {
+			log.Fatalf("admin credentials: POST delete (no-sudo probe): %v", err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusUnauthorized {
+			log.Fatalf("admin credentials: force-revoke WITHOUT sudo must be rejected (401/403), got %d — gate may be missing (body=%s)", resp.StatusCode, body)
+		}
+		log.Printf("  /accounts/%d/credentials: %d passkey(s), 4-char suffix only, no full id; force-revoke without sudo → %d (gated) ✓", me.ID, len(creds), resp.StatusCode)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -3494,6 +3900,39 @@ func (c *client) getRaw(path string) (*http.Response, error) {
 	return c.hc.Do(req)
 }
 
+// getBytes issues GET path with c's session jar and returns the raw response
+// body bytes (so callers can both decode AND scan the wire JSON for leaked
+// secret material). Errors on any >= 400 status.
+func (c *client) getBytes(path string) ([]byte, error) {
+	resp, err := c.getRaw(path)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("GET %s: %d %s — %s", path, resp.StatusCode, resp.Status, body)
+	}
+	return body, nil
+}
+
+// putJSON issues PUT path with a JSON body and decodes the response into out
+// (out may be nil). Mirrors postJSON. Used by the admin oidc-client update arc.
+func (c *client) putJSON(path string, body any, out any) error {
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			return err
+		}
+	}
+	req, err := http.NewRequest(http.MethodPut, c.base+path, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return c.do(req, out)
+}
+
 // getRedirect issues GET path and expects a 302 with a Location header,
 // returning the Location value. Fails the test if the response is not 302.
 func (c *client) getRedirect(path string) (string, error) {
@@ -4157,6 +4596,110 @@ func verifyJWSAgainstJWKS(baseURL, token string) (map[string]any, string, error)
 func verifyIDToken(baseURL, idToken string) (map[string]any, error) {
 	claims, _, err := verifyJWSAgainstJWKS(baseURL, idToken)
 	return claims, err
+}
+
+// tokenKID parses an RS256 JWS and returns the `kid` from its JOSE header,
+// WITHOUT verifying the signature. Used by the signing-key-lifecycle arc to
+// prove which key signed a freshly minted token.
+func tokenKID(token string) (string, error) {
+	parsed, err := jwt.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256})
+	if err != nil {
+		return "", fmt.Errorf("parse jws: %w", err)
+	}
+	if len(parsed.Headers) != 1 {
+		return "", fmt.Errorf("unexpected JOSE header count: %d", len(parsed.Headers))
+	}
+	return parsed.Headers[0].KeyID, nil
+}
+
+// jwksKIDs returns the kids in a JWKS, for diagnostics.
+func jwksKIDs(set *jose.JSONWebKeySet) []string {
+	out := make([]string, 0, len(set.Keys))
+	for _, k := range set.Keys {
+		out = append(out, k.KeyID)
+	}
+	return out
+}
+
+// contractAuditEvent mirrors the wire shape of contract.AuditEventView for the
+// audit-events viewer arc.
+type contractAuditEvent struct {
+	ID     int64          `json:"id"`
+	Factor string         `json:"factor"`
+	Event  string         `json:"event"`
+	Detail map[string]any `json:"detail"`
+}
+
+// secretLeakNeedles are substrings that must NEVER appear in a wire-safe admin
+// read response (signing-key list, oidc-client list/get). A hit means a secret-
+// bearing field (private key PEM, client secret/hash) leaked through the view.
+var secretLeakNeedles = []string{
+	"private_pem", "privatePem", "privateKey", "private_key",
+	"-----BEGIN", // PEM header (private OR encrypted key blocks)
+	"client_secret_hash", "clientSecretHash", "secret_hash", "secretHash",
+}
+
+// assertNoSecretLeak fails the smoke if the raw response JSON contains any
+// secret-bearing field name or PEM material. The create/rotate responses
+// legitimately carry a top-level "secret" — those are checked separately and do
+// NOT pass through this scanner.
+func assertNoSecretLeak(label string, body []byte) {
+	s := string(body)
+	for _, needle := range secretLeakNeedles {
+		if strings.Contains(s, needle) {
+			log.Fatalf("%s: response leaks secret material (matched %q): %s", label, needle, s)
+		}
+	}
+}
+
+// publicAuditDetailKeys are detail fields whose values are PUBLIC identifiers
+// (key ids, client ids, etc.) and so are legitimately opaque/base64-shaped. They
+// are exempt from the base64-secret length heuristic — but the key-name and PEM
+// checks still apply to every field.
+var publicAuditDetailKeys = map[string]bool{
+	"kid": true, "client_id": true, "slug": true, "sp_id": true,
+	"entity_id": true, "status": true, "action": true, "mode": true,
+	"public": true, "reason": true,
+}
+
+// assertAuditDetailNoSecret spot-checks an audit-event detail map for obvious
+// secret material: no key named like a secret, no PEM block in any value, and no
+// long opaque base64 value in a field that is NOT a known public identifier.
+func assertAuditDetailNoSecret(factor, event string, detail map[string]any) {
+	for k, v := range detail {
+		lk := strings.ToLower(k)
+		if strings.Contains(lk, "private") || strings.Contains(lk, "secret") || strings.Contains(lk, "password") {
+			log.Fatalf("audit detail (factor=%s event=%s) has a secret-like key %q: %v", factor, event, k, detail)
+		}
+		s, ok := v.(string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(s, "-----BEGIN") {
+			log.Fatalf("audit detail (factor=%s event=%s) value for %q contains a PEM block", factor, event, k)
+		}
+		// A long all-base64url value in a NON-public field is a redaction smell.
+		// Public identifiers (kid, client_id, …) are legitimately base64-shaped.
+		if !publicAuditDetailKeys[lk] && len(s) >= 32 && isLikelyBase64Secret(s) {
+			log.Fatalf("audit detail (factor=%s event=%s) value for %q looks like a raw secret: %q", factor, event, k, s)
+		}
+	}
+}
+
+// isLikelyBase64Secret reports whether s is composed only of base64url/base64
+// alphabet characters (a heuristic for an unredacted secret/token).
+func isLikelyBase64Secret(s string) bool {
+	for _, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z':
+		case r >= 'a' && r <= 'z':
+		case r >= '0' && r <= '9':
+		case r == '+' || r == '/' || r == '-' || r == '_' || r == '=':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // verifyAccessToken verifies an access token's signature and returns its

@@ -76,6 +76,17 @@ func (c *keyCache) maybeRefresh(ctx context.Context) {
 	}
 }
 
+// invalidate marks the cache stale so the next access reloads from the DB. It
+// is called after an admin signing-key lifecycle mutation (generate / activate
+// / retire) so JWKS and the active signer reflect the change immediately rather
+// than after the keyCacheTTL window elapses.
+func (c *keyCache) invalidate() {
+	c.mu.Lock()
+	c.loadedAt = time.Time{} // zero time → maybeRefresh sees it as stale
+	c.keys = nil
+	c.mu.Unlock()
+}
+
 func (c *keyCache) signingKey(ctx context.Context) (cachedKey, bool) {
 	c.maybeRefresh(ctx)
 	c.mu.RLock()

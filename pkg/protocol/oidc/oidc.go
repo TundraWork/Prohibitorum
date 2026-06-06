@@ -100,6 +100,15 @@ func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(doc)
 }
 
+// InvalidateKeyCache marks the signing-key cache stale so the next JWKS read or
+// token-signing operation reloads the key set from the database. Admin
+// signing-key lifecycle mutations (generate / activate / retire) call this so
+// the published JWKS and the active signer reflect the change immediately
+// instead of lagging by up to keyCacheTTL.
+func (p *Provider) InvalidateKeyCache() {
+	p.keys.invalidate()
+}
+
 // HandleJWKS serves the active public signing keys from the key cache as a
 // JWK Set at /oauth/jwks.
 func (p *Provider) HandleJWKS(w http.ResponseWriter, r *http.Request) {

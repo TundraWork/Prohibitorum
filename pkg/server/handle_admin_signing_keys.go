@@ -112,6 +112,12 @@ func (s *Server) handleGenerateSigningKeyHTTP(w http.ResponseWriter, r *http.Req
 		Detail:    map[string]any{"kid": key.Kid, "status": key.Status, "action": "generate"},
 	})
 
+	// The new pending key must appear in JWKS immediately (the OP key cache
+	// otherwise lags by up to keyCacheTTL).
+	if s.oidcOP != nil {
+		s.oidcOP.InvalidateKeyCache()
+	}
+
 	writeSigningKeyJSON(w, http.StatusCreated, signingKeyView(key))
 }
 
@@ -146,6 +152,12 @@ func (s *Server) handleActivateSigningKeyHTTP(w http.ResponseWriter, r *http.Req
 		Event:     audit.EventUpdate,
 		Detail:    map[string]any{"kid": key.Kid, "status": key.Status, "action": "activate"},
 	})
+
+	// Activation changes which key signs new tokens and demotes the prior active
+	// key to decommissioning — the OP cache must reload now, not after the TTL.
+	if s.oidcOP != nil {
+		s.oidcOP.InvalidateKeyCache()
+	}
 
 	writeSigningKeyJSON(w, http.StatusOK, signingKeyView(key))
 }
@@ -184,6 +196,12 @@ func (s *Server) handleRetireSigningKeyHTTP(w http.ResponseWriter, r *http.Reque
 		Event:     audit.EventRevoke,
 		Detail:    map[string]any{"kid": key.Kid, "status": key.Status, "action": "retire"},
 	})
+
+	// Retiring moves the key out of the publishable set — drop the cache so JWKS
+	// stops advertising it immediately.
+	if s.oidcOP != nil {
+		s.oidcOP.InvalidateKeyCache()
+	}
 
 	writeSigningKeyJSON(w, http.StatusOK, signingKeyView(key))
 }
