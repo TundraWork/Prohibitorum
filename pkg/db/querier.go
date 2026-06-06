@@ -75,6 +75,7 @@ type Querier interface {
 	GetSigningKeyByKID(ctx context.Context, kid string) (SigningKey, error)
 	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error)
+	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (UpstreamIdp, error)
 	HasAnyActiveAdmin(ctx context.Context) (bool, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
 	InsertAccountIdentity(ctx context.Context, arg InsertAccountIdentityParams) (AccountIdentity, error)
@@ -97,6 +98,7 @@ type Querier interface {
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
 	ListAllSigningKeys(ctx context.Context) ([]SigningKey, error)
+	ListAllUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
@@ -143,6 +145,8 @@ type Querier interface {
 	// and the Verify path translates that to ErrTOTPReplay.
 	UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) (int64, error)
 	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
+	UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error)
+	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) error
 	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
 }

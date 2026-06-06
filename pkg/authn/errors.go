@@ -375,6 +375,12 @@ func ErrClientNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "client_not_found", "OIDC client not found.")
 }
 
+// ErrUpstreamIDPNotFound is returned when an upstream IdP lookup by slug yields
+// no row. Status 404.
+func ErrUpstreamIDPNotFound() *AuthError {
+	return newErr(http.StatusNotFound, "upstream_idp_not_found", "Upstream IdP not found.")
+}
+
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,
 // or nil otherwise. Useful for handler error mapping.
 func AsAuthError(err error) *AuthError {

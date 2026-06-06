@@ -378,6 +378,14 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients/rotate-secret", admin, s.handleRotateOIDCClientSecretHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients/delete", admin, s.handleDeleteOIDCClientHTTP)
 
+	// Admin: upstream IdP management
+	registerOp(mgmt, contract.OperationListUpstreamIDPs, s.handleListUpstreamIDPs, admin)
+	registerOp(mgmt, contract.OperationGetUpstreamIDP, s.handleGetUpstreamIDP, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/upstream-idps", admin, s.handleCreateUpstreamIDPHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/upstream-idps/{slug}", admin, s.handleUpdateUpstreamIDPHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/upstream-idps/rotate-secret", admin, s.handleRotateUpstreamIDPSecretHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/upstream-idps/delete", admin, s.handleDeleteUpstreamIDPHTTP)
+
 	// Admin: SAML SP management
 	registerOp(mgmt, contract.OperationListSAMLProviders, s.handleListSAMLProviders, admin)
 	registerOp(mgmt, contract.OperationGetSAMLProvider, s.handleGetSAMLProvider, admin)

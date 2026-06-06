@@ -47,6 +47,35 @@ func (q *Queries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (Upstre
 	return i, err
 }
 
+const getUpstreamIDPBySlugAny = `-- name: GetUpstreamIDPBySlugAny :one
+SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email FROM upstream_idp WHERE slug = $1
+`
+
+func (q *Queries) GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, getUpstreamIDPBySlugAny, slug)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.IssuerUrl,
+		&i.ClientID,
+		&i.ClientSecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Scopes,
+		&i.Mode,
+		&i.AllowedDomains,
+		&i.UsernameClaim,
+		&i.DisplayNameClaim,
+		&i.EmailClaim,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.RequireVerifiedEmail,
+	)
+	return i, err
+}
+
 const insertUpstreamIDP = `-- name: InsertUpstreamIDP :one
 INSERT INTO upstream_idp (slug, display_name, issuer_url, client_id,
   client_secret_enc, secret_nonce, key_version, scopes, mode,
@@ -111,6 +140,48 @@ func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPPa
 		&i.RequireVerifiedEmail,
 	)
 	return i, err
+}
+
+const listAllUpstreamIDPs = `-- name: ListAllUpstreamIDPs :many
+SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email FROM upstream_idp ORDER BY display_name
+`
+
+func (q *Queries) ListAllUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
+	rows, err := q.db.Query(ctx, listAllUpstreamIDPs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UpstreamIdp
+	for rows.Next() {
+		var i UpstreamIdp
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.DisplayName,
+			&i.IssuerUrl,
+			&i.ClientID,
+			&i.ClientSecretEnc,
+			&i.SecretNonce,
+			&i.KeyVersion,
+			&i.Scopes,
+			&i.Mode,
+			&i.AllowedDomains,
+			&i.UsernameClaim,
+			&i.DisplayNameClaim,
+			&i.EmailClaim,
+			&i.Disabled,
+			&i.CreatedAt,
+			&i.RequireVerifiedEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listUpstreamIDPs = `-- name: ListUpstreamIDPs :many
@@ -200,6 +271,90 @@ func (q *Queries) UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPPa
 		arg.EmailClaim,
 		arg.Disabled,
 		arg.RequireVerifiedEmail,
+	)
+	return err
+}
+
+const updateUpstreamIDPConfig = `-- name: UpdateUpstreamIDPConfig :one
+UPDATE upstream_idp SET
+  display_name = $2, issuer_url = $3, client_id = $4, scopes = $5, mode = $6,
+  allowed_domains = $7, username_claim = $8, display_name_claim = $9,
+  email_claim = $10, require_verified_email = $11, disabled = $12
+WHERE slug = $1
+RETURNING id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email
+`
+
+type UpdateUpstreamIDPConfigParams struct {
+	Slug                 string   `json:"slug"`
+	DisplayName          string   `json:"displayName"`
+	IssuerUrl            string   `json:"issuerUrl"`
+	ClientID             string   `json:"clientId"`
+	Scopes               []string `json:"scopes"`
+	Mode                 string   `json:"mode"`
+	AllowedDomains       []string `json:"allowedDomains"`
+	UsernameClaim        string   `json:"usernameClaim"`
+	DisplayNameClaim     string   `json:"displayNameClaim"`
+	EmailClaim           string   `json:"emailClaim"`
+	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
+	Disabled             bool     `json:"disabled"`
+}
+
+func (q *Queries) UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, updateUpstreamIDPConfig,
+		arg.Slug,
+		arg.DisplayName,
+		arg.IssuerUrl,
+		arg.ClientID,
+		arg.Scopes,
+		arg.Mode,
+		arg.AllowedDomains,
+		arg.UsernameClaim,
+		arg.DisplayNameClaim,
+		arg.EmailClaim,
+		arg.RequireVerifiedEmail,
+		arg.Disabled,
+	)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.IssuerUrl,
+		&i.ClientID,
+		&i.ClientSecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Scopes,
+		&i.Mode,
+		&i.AllowedDomains,
+		&i.UsernameClaim,
+		&i.DisplayNameClaim,
+		&i.EmailClaim,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.RequireVerifiedEmail,
+	)
+	return i, err
+}
+
+const updateUpstreamIDPSecret = `-- name: UpdateUpstreamIDPSecret :exec
+UPDATE upstream_idp SET client_secret_enc = $2, secret_nonce = $3, key_version = $4
+WHERE slug = $1
+`
+
+type UpdateUpstreamIDPSecretParams struct {
+	Slug            string `json:"slug"`
+	ClientSecretEnc []byte `json:"clientSecretEnc"`
+	SecretNonce     []byte `json:"secretNonce"`
+	KeyVersion      int32  `json:"keyVersion"`
+}
+
+func (q *Queries) UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) error {
+	_, err := q.db.Exec(ctx, updateUpstreamIDPSecret,
+		arg.Slug,
+		arg.ClientSecretEnc,
+		arg.SecretNonce,
+		arg.KeyVersion,
 	)
 	return err
 }

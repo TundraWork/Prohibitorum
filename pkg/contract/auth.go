@@ -424,6 +424,39 @@ type SAMLProviderView struct {
 	CreatedAt                 time.Time     `json:"createdAt"`
 }
 
+// UpstreamIDPView is the admin-facing projection of an upstream_idp row.
+// client_secret_enc and secret_nonce are NEVER included — the sealed bytes
+// are write-only. Only the public configuration fields are returned.
+type UpstreamIDPView struct {
+	Slug                 string    `json:"slug"`
+	DisplayName          string    `json:"displayName"`
+	IssuerUrl            string    `json:"issuerUrl"`
+	ClientID             string    `json:"clientId"`
+	Scopes               []string  `json:"scopes"`
+	Mode                 string    `json:"mode"`
+	AllowedDomains       []string  `json:"allowedDomains"`
+	UsernameClaim        string    `json:"usernameClaim"`
+	DisplayNameClaim     string    `json:"displayNameClaim"`
+	EmailClaim           string    `json:"emailClaim"`
+	RequireVerifiedEmail bool      `json:"requireVerifiedEmail"`
+	Disabled             bool      `json:"disabled"`
+	CreatedAt            time.Time `json:"createdAt"`
+}
+
+var OperationListUpstreamIDPs = huma.Operation{
+	OperationID: "listUpstreamIDPs",
+	Method:      http.MethodGet,
+	Path:        "/upstream-idps",
+	Summary:     "List all upstream IdPs including disabled (admin only). Secret material is never returned.",
+}
+
+var OperationGetUpstreamIDP = huma.Operation{
+	OperationID: "getUpstreamIDP",
+	Method:      http.MethodGet,
+	Path:        "/upstream-idps/{slug}",
+	Summary:     "Get one upstream IdP by slug including disabled (admin only). Secret material is never returned.",
+}
+
 var OperationListSAMLProviders = huma.Operation{
 	OperationID: "listSAMLProviders",
 	Method:      http.MethodGet,
