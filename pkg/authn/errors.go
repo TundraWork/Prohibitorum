@@ -363,6 +363,12 @@ func ErrUpstreamError(upstreamCode, description string) *AuthError {
 	return newErr(http.StatusBadRequest, "upstream_error", msg)
 }
 
+// ErrActiveKeyNoReplacement is returned when an admin tries to retire the
+// active signing key before activating a replacement. Status 409 Conflict.
+func ErrActiveKeyNoReplacement() *AuthError {
+	return newErr(http.StatusConflict, "active_key_no_replacement", "Activate a replacement key before retiring the active signing key.")
+}
+
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,
 // or nil otherwise. Useful for handler error mapping.
 func AsAuthError(err error) *AuthError {

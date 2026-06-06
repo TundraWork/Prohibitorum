@@ -364,6 +364,12 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListInvitations, s.handleListInvitations, admin)
 	registerOp(mgmt, contract.OperationRevokeInvitation, s.handleRevokeInvitation, admin)
 
+	// Admin: signing-key lifecycle management
+	registerOp(mgmt, contract.OperationListSigningKeys, s.handleListSigningKeys, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/generate", admin, s.handleGenerateSigningKeyHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/{kid}/activate", admin, s.handleActivateSigningKeyHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/{kid}/retire", admin, s.handleRetireSigningKeyHTTP)
+
 	// OIDC OP — v0.4 full surface. Discovery and JWKS are public. Authorize
 	// benefits from the global LoadSession middleware (already installed on
 	// the router) so that authn.SessionFromContext works inside the handler.

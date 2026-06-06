@@ -337,3 +337,25 @@ type FederationProvider struct {
 	Slug        string `json:"slug"`
 	DisplayName string `json:"displayName"`
 }
+
+// SigningKeyView is the admin-facing projection of a signing_key row.
+// Private key material is NEVER included — only the public JWK and lifecycle
+// timestamps are returned to callers.
+type SigningKeyView struct {
+	Kid              string         `json:"kid"`
+	Algorithm        string         `json:"algorithm"`
+	Use              string         `json:"use"`
+	Status           string         `json:"status"`
+	PublicJWK        map[string]any `json:"publicJwk"`
+	NotBefore        *time.Time     `json:"notBefore,omitempty"`
+	ActivatedAt      *time.Time     `json:"activatedAt,omitempty"`
+	DecommissionedAt *time.Time     `json:"decommissionedAt,omitempty"`
+	RetireAfter      *time.Time     `json:"retireAfter,omitempty"`
+}
+
+var OperationListSigningKeys = huma.Operation{
+	OperationID: "listSigningKeys",
+	Method:      http.MethodGet,
+	Path:        "/signing-keys",
+	Summary:     "List signing keys with lifecycle status (admin only). Private material is never returned.",
+}
