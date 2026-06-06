@@ -5,21 +5,21 @@
       "id": 0,
       "nativeId": 5,
       "subject": "Task 0: Sudo route-policy wrapper + audit constants",
-      "status": "pending",
+      "status": "completed",
       "description": "registerSudoOpHTTP wrapper (admin auth + fresh sudo + body-size limit + JSON content-type); add upstream_idp/signing_key factors + update/rotate events.\n\n```json:metadata\n{\"files\":[\"pkg/server/operations.go\",\"pkg/audit/audit.go\",\"pkg/server/operations_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestRegisterSudoOpHTTP -v\",\"acceptanceCriteria\":[\"registerSudoOpHTTP rejects no-sudo with sudo_required 401\",\"applies MaxBytesReader + JSON content-type check\",\"new audit Factor/Event constants exist\"]}\n```"
     },
     {
       "id": 1,
       "nativeId": 6,
       "subject": "Task 1: Migration 008 — signing-key lifecycle columns + backfill",
-      "status": "pending",
+      "status": "completed",
       "description": "Add status + activated_at/decommissioned_at/retire_after to signing_key (expand), backfill, partial unique index. Keep legacy columns.\n\n```json:metadata\n{\"files\":[\"db/migrations/008_signing_key_lifecycle.sql\",\"pkg/db/signing_key_backfill_test.go\"],\"verifyCommand\":\"go test ./pkg/db/ -run TestSigningKeyBackfill -tags integration -v\",\"acceptanceCriteria\":[\"migration applies fresh + with existing rows\",\"backfill mapping correct\",\"partial unique index one_active_signing_key\",\"legacy columns retained\"]}\n```"
     },
     {
       "id": 2,
       "nativeId": 7,
       "subject": "Task 2: Signing-key lifecycle queries + domain cutover + reconcile loop",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "Cut over selection/publication to status; lifecycle queries + domain functions (InsertPendingKey/ActivateSigningKey/RetireSigningKey/Reconcile); reconcile loop in Serve().\n\n```json:metadata\n{\"files\":[\"db/queries/oidc.sql\",\"pkg/protocol/oidc/keygen.go\",\"pkg/protocol/oidc/keys.go\",\"pkg/protocol/oidc/keylifecycle.go\",\"pkg/protocol/oidc/keylifecycle_test.go\",\"pkg/protocol/saml/keys_saml.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/protocol/... -v\",\"acceptanceCriteria\":[\"publish set = pending+active+decommissioning\",\"sign uses single active\",\"Activate demotes prior first then promotes\",\"Retire active→409 else decommissioning\",\"Reconcile idempotent\",\"concurrent activate cannot yield two actives\",\"full suite + smoke green\"]}\n```"
     },
@@ -27,7 +27,7 @@
       "id": 3,
       "nativeId": 8,
       "subject": "Task 3: Signing-key admin endpoints",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 2],
       "description": "GET /signing-keys (🔓) + generate/activate/retire (🔐) via registerSudoOpHTTP; audit + 409 mapping; never serialize private_pem.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_signing_keys.go\",\"pkg/server/handle_admin_signing_keys_test.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\",\"pkg/authn/errors.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestAdminSigningKeys -v\",\"acceptanceCriteria\":[\"list omits private material\",\"generate/activate/retire transitions\",\"retire active→409\",\"mutations audited + sudo-gated\"]}\n```"
     },
@@ -35,7 +35,7 @@
       "id": 4,
       "nativeId": 9,
       "subject": "Task 4: OIDC client admin endpoints",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "list/detail (🔓), create/update/rotate-secret/delete (🔐); reuse BuildClientParams; Update/UpdateSecret/Delete queries + RotateClientSecret. Secret revealed once.\n\n```json:metadata\n{\"files\":[\"db/queries/oidc.sql\",\"pkg/protocol/oidc/clientadmin.go\",\"pkg/protocol/oidc/clientgen.go\",\"pkg/server/handle_admin_oidc_clients.go\",\"pkg/server/handle_admin_oidc_clients_test.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestAdminOIDCClients -v\",\"acceptanceCriteria\":[\"reads never reveal secret\",\"create reveals once\",\"update changes config+audits\",\"rotate new secret + old rejected\",\"mutations sudo-gated\"]}\n```"
     },
@@ -43,7 +43,7 @@
       "id": 5,
       "nativeId": 10,
       "subject": "Task 5: SAML SP admin endpoints",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "list/detail (🔓), create/update/reingest/delete (🔐); extract+reuse CLI metadata-ingest; Update/Delete + child-delete queries.\n\n```json:metadata\n{\"files\":[\"db/queries/saml_sp.sql\",\"pkg/protocol/saml\",\"pkg/server/handle_admin_saml_sps.go\",\"pkg/server/handle_admin_saml_sps_test.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\",\"cmd/prohibitorum/main.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestAdminSAMLSPs -v\",\"acceptanceCriteria\":[\"create from metadata one tx\",\"update flags\",\"reingest replaces ACS+keys\",\"delete cascades\",\"sudo-gated + audited\"]}\n```"
     },
@@ -51,7 +51,7 @@
       "id": 6,
       "nativeId": 11,
       "subject": "Task 6: Upstream IdP admin endpoints",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "list/detail (🔓 secret write-only), create/update/rotate-secret/delete (🔐); reuse upstream_idp queries + SealClientSecret; secret-only update query.\n\n```json:metadata\n{\"files\":[\"db/queries/upstream_idp.sql\",\"pkg/server/handle_admin_upstream_idps.go\",\"pkg/server/handle_admin_upstream_idps_test.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestAdminUpstreamIDPs -v\",\"acceptanceCriteria\":[\"reads never reveal sealed secret\",\"create seals secret\",\"update excludes secret\",\"rotate seals new\",\"sudo-gated + audited\"]}\n```"
     },
@@ -59,7 +59,7 @@
       "id": 7,
       "nativeId": 12,
       "subject": "Task 7: Audit-events viewer",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "GET /audit-events (🔓) paginated/filterable over credential_event; redaction-guarded.\n\n```json:metadata\n{\"files\":[\"db/queries/credential_event.sql\",\"pkg/server/handle_admin_audit.go\",\"pkg/server/handle_admin_audit_test.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestAdminAuditEvents -v\",\"acceptanceCriteria\":[\"keyset pagination + filters\",\"newest-first\",\"redaction test: no secrets/keys/tokens/auth codes/raw SAML in detail\"]}\n```"
     },
@@ -67,14 +67,14 @@
       "id": 8,
       "nativeId": 13,
       "subject": "Task 8: Admin account-credentials list",
-      "status": "pending",
+      "status": "completed",
       "description": "GET /accounts/{id}/credentials (🔓) reusing ListCredentialsByAccount + CredentialView; unblocks force-revoke.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_account.go\",\"pkg/server/handle_account_credentials_test.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestListAccountCredentials -v\",\"acceptanceCriteria\":[\"returns CredentialView suffix only\",\"404 unknown account\",\"reuses existing query+type\"]}\n```"
     },
     {
       "id": 9,
       "nativeId": 14,
       "subject": "Task 9: Route-policy test — every mutation sudo-wrapped",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4, 5, 6],
       "description": "Table-driven test asserting every 🔐 route returns sudo_required without a grant; promote /accounts/credentials/delete to 🔐.\n\n```json:metadata\n{\"files\":[\"pkg/server/admin_route_policy_test.go\",\"pkg/server/server.go\",\"pkg/server/handle_account.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestAdminMutationRoutesRequireSudo -v\",\"acceptanceCriteria\":[\"every 🔐 route asserted 401 sudo_required\",\"creds-delete migrated to registerSudoOpHTTP\",\"guard comment for new routes\"]}\n```"
     },
@@ -82,7 +82,7 @@
       "id": 10,
       "nativeId": 15,
       "subject": "Task 10: CLI parity + smoke arc",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4, 5, 6, 7, 8],
       "description": "CLI verbs on shared domain path; extend cmd/smoke with admin-API arc incl. corrected key-lifecycle JWKS assertions.\n\n```json:metadata\n{\"files\":[\"cmd/prohibitorum/main.go\",\"cmd/smoke/main.go\"],\"verifyCommand\":\"setsid bash /tmp/run_v06.sh; cat /tmp/v06.result\",\"acceptanceCriteria\":[\"CLI signing-key generate/activate/retire + --yes\",\"smoke: generate→JWKS active+pending; activate→new-active+prior-decommissioning; prior-key token verifies in grace\",\"audit-events reflects mutations\",\"list+force-revoke creds\",\"SMOKE_EXIT=0\"]}\n```"
     },
@@ -90,7 +90,7 @@
       "id": 11,
       "nativeId": 16,
       "subject": "Task 11: Docs",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "Update AUDIT/STATUS/ARCHITECTURE/api.md with admin surface, sudo posture, audit coverage, key lifecycle; code-anchored; note deferred 009.\n\n```json:metadata\n{\"files\":[\"AUDIT.md\",\"STATUS.md\",\"ARCHITECTURE.md\",\"api.md\"],\"verifyCommand\":\"manual review\",\"acceptanceCriteria\":[\"AUDIT admin rows+sudo+lifecycle\",\"STATUS phase done w/ smoke refs\",\"ARCHITECTURE admin routes\",\"api.md raw sudo routes\",\"claims anchored to code\"]}\n```"
     }
