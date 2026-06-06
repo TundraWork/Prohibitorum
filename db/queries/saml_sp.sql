@@ -57,3 +57,24 @@ DELETE FROM saml_session WHERE session_id = $1;
 
 -- name: DeleteExpiredSAMLSessions :execrows
 DELETE FROM saml_session WHERE not_on_or_after < now();
+
+-- name: UpdateSAMLSP :one
+UPDATE saml_sp SET
+  display_name                 = $2,
+  name_id_format               = $3,
+  require_signed_authn_request = $4,
+  authn_requests_signed        = $4,
+  want_assertions_signed       = $5,
+  allow_idp_initiated          = $6,
+  session_lifetime             = $7
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteSAMLSP :execrows
+DELETE FROM saml_sp WHERE id = $1;
+
+-- name: DeleteSAMLSPACSByID :exec
+DELETE FROM saml_sp_acs WHERE sp_id = $1;
+
+-- name: DeleteSAMLSPKeysByID :exec
+DELETE FROM saml_sp_key WHERE sp_id = $1;

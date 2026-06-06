@@ -23,6 +23,36 @@ func (q *Queries) DeleteExpiredSAMLSessions(ctx context.Context) (int64, error) 
 	return result.RowsAffected(), nil
 }
 
+const deleteSAMLSP = `-- name: DeleteSAMLSP :execrows
+DELETE FROM saml_sp WHERE id = $1
+`
+
+func (q *Queries) DeleteSAMLSP(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSAMLSP, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteSAMLSPACSByID = `-- name: DeleteSAMLSPACSByID :exec
+DELETE FROM saml_sp_acs WHERE sp_id = $1
+`
+
+func (q *Queries) DeleteSAMLSPACSByID(ctx context.Context, spID int64) error {
+	_, err := q.db.Exec(ctx, deleteSAMLSPACSByID, spID)
+	return err
+}
+
+const deleteSAMLSPKeysByID = `-- name: DeleteSAMLSPKeysByID :exec
+DELETE FROM saml_sp_key WHERE sp_id = $1
+`
+
+func (q *Queries) DeleteSAMLSPKeysByID(ctx context.Context, spID int64) error {
+	_, err := q.db.Exec(ctx, deleteSAMLSPKeysByID, spID)
+	return err
+}
+
 const deleteSAMLSessionsBySession = `-- name: DeleteSAMLSessionsBySession :exec
 DELETE FROM saml_session WHERE session_id = $1
 `
@@ -471,4 +501,60 @@ func (q *Queries) ListSAMLSessionsBySession(ctx context.Context, sessionID strin
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateSAMLSP = `-- name: UpdateSAMLSP :one
+UPDATE saml_sp SET
+  display_name                 = $2,
+  name_id_format               = $3,
+  require_signed_authn_request = $4,
+  authn_requests_signed        = $4,
+  want_assertions_signed       = $5,
+  allow_idp_initiated          = $6,
+  session_lifetime             = $7
+WHERE id = $1
+RETURNING id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at
+`
+
+type UpdateSAMLSPParams struct {
+	ID                        int64           `json:"id"`
+	DisplayName               string          `json:"displayName"`
+	NameIDFormat              string          `json:"nameIdFormat"`
+	RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
+	WantAssertionsSigned      bool            `json:"wantAssertionsSigned"`
+	AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
+	SessionLifetime           pgtype.Interval `json:"sessionLifetime"`
+}
+
+func (q *Queries) UpdateSAMLSP(ctx context.Context, arg UpdateSAMLSPParams) (SamlSp, error) {
+	row := q.db.QueryRow(ctx, updateSAMLSP,
+		arg.ID,
+		arg.DisplayName,
+		arg.NameIDFormat,
+		arg.RequireSignedAuthnRequest,
+		arg.WantAssertionsSigned,
+		arg.AllowIdpInitiated,
+		arg.SessionLifetime,
+	)
+	var i SamlSp
+	err := row.Scan(
+		&i.ID,
+		&i.EntityID,
+		&i.DisplayName,
+		&i.SpKind,
+		&i.NameIDFormat,
+		&i.NameIDClaim,
+		&i.AttributeMap,
+		&i.WantAssertionsSigned,
+		&i.AuthnRequestsSigned,
+		&i.RequireSignedAuthnRequest,
+		&i.AllowIdpInitiated,
+		&i.SessionLifetime,
+		&i.MetadataXml,
+		&i.MetadataValidUntil,
+		&i.MetadataCacheDuration,
+		&i.MetadataFetchedAt,
+		&i.CreatedAt,
+	)
+	return i, err
 }

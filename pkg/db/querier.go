@@ -47,6 +47,9 @@ type Querier interface {
 	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
+	DeleteSAMLSP(ctx context.Context, id int64) (int64, error)
+	DeleteSAMLSPACSByID(ctx context.Context, spID int64) error
+	DeleteSAMLSPKeysByID(ctx context.Context, spID int64) error
 	DeleteSAMLSessionsBySession(ctx context.Context, sessionID string) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	DeleteUpstreamIDP(ctx context.Context, id int64) error
@@ -131,6 +134,7 @@ type Querier interface {
 	UpdateMyCredentialNickname(ctx context.Context, arg UpdateMyCredentialNicknameParams) (int64, error)
 	UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientParams) (OidcClient, error)
 	UpdateOIDCClientSecret(ctx context.Context, arg UpdateOIDCClientSecretParams) error
+	UpdateSAMLSP(ctx context.Context, arg UpdateSAMLSPParams) (SamlSp, error)
 	// RFC 6238 §5.2: this UPDATE is the atomic gate that prevents a parallel
 	// replay of the same code from issuing two sessions. The Go-side
 	// `matchedStep <= row.LastStep` check short-circuits the common (serial)

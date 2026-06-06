@@ -378,6 +378,14 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients/rotate-secret", admin, s.handleRotateOIDCClientSecretHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients/delete", admin, s.handleDeleteOIDCClientHTTP)
 
+	// Admin: SAML SP management
+	registerOp(mgmt, contract.OperationListSAMLProviders, s.handleListSAMLProviders, admin)
+	registerOp(mgmt, contract.OperationGetSAMLProvider, s.handleGetSAMLProvider, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-providers", admin, s.handleCreateSAMLProviderHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-providers/{id}", admin, s.handleUpdateSAMLProviderHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-providers/{id}/reingest-metadata", admin, s.handleReingestSAMLProviderHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-providers/delete", admin, s.handleDeleteSAMLProviderHTTP)
+
 	// OIDC OP — v0.4 full surface. Discovery and JWKS are public. Authorize
 	// benefits from the global LoadSession middleware (already installed on
 	// the router) so that authn.SessionFromContext works inside the handler.

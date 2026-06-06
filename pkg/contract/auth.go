@@ -388,3 +388,52 @@ var OperationGetOIDCClient = huma.Operation{
 	Path:        "/oidc-clients/{clientId}",
 	Summary:     "Get one OIDC client by client_id (admin only). Secret material is never returned.",
 }
+
+// SAMLACSView is the wire representation of a single AssertionConsumerService
+// endpoint registered for a SAML SP.
+type SAMLACSView struct {
+	Binding   string `json:"binding"`
+	Location  string `json:"location"`
+	Index     int32  `json:"index"`
+	IsDefault bool   `json:"isDefault"`
+}
+
+// SAMLKeyView is the wire representation of a signing/encryption key
+// certificate registered for a SAML SP. Raw PEM is not returned — callers
+// receive a fingerprint-suitable summary (notAfter and use) only.
+type SAMLKeyView struct {
+	Use      string     `json:"use"`
+	NotAfter *time.Time `json:"notAfter,omitempty"`
+}
+
+// SAMLProviderView is the admin-facing projection of a saml_sp row plus its
+// associated ACS endpoints and key summaries. Raw certificate material (PEM)
+// is never returned — SAMLKeyView carries only the lifecycle fields.
+type SAMLProviderView struct {
+	ID                        int64         `json:"id"`
+	EntityID                  string        `json:"entityId"`
+	DisplayName               string        `json:"displayName"`
+	Kind                      string        `json:"kind,omitempty"`
+	NameIDFormat              string        `json:"nameIdFormat"`
+	RequireSignedAuthnRequest bool          `json:"requireSignedAuthnRequest"`
+	WantAssertionsSigned      bool          `json:"wantAssertionsSigned"`
+	AllowIdpInitiated         bool          `json:"allowIdpInitiated"`
+	SessionLifetimeSecs       *int64        `json:"sessionLifetimeSecs,omitempty"`
+	ACS                       []SAMLACSView `json:"acs"`
+	Keys                      []SAMLKeyView `json:"keys"`
+	CreatedAt                 time.Time     `json:"createdAt"`
+}
+
+var OperationListSAMLProviders = huma.Operation{
+	OperationID: "listSAMLProviders",
+	Method:      http.MethodGet,
+	Path:        "/saml-providers",
+	Summary:     "List all SAML service providers (admin only). Certificate PEM is never returned.",
+}
+
+var OperationGetSAMLProvider = huma.Operation{
+	OperationID: "getSAMLProvider",
+	Method:      http.MethodGet,
+	Path:        "/saml-providers/{id}",
+	Summary:     "Get one SAML service provider by id (admin only).",
+}
