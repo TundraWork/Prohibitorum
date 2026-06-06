@@ -176,10 +176,21 @@ func (s *Server) handleCreateUpstreamIDPHTTP(w http.ResponseWriter, r *http.Requ
 		emailClaim = "email"
 	}
 
-	// Insert first with placeholder bytes to obtain the auto-assigned row id.
-	// The AAD is bound to (idp_id, key_version), so we need the id before sealing.
+	// Execute insert → seal → secret-update inside a single transaction.
+	// The AAD is bound to (idp_id, key_version), so we insert first to obtain
+	// the auto-assigned row id, then seal using that id, then update — all
+	// within the transaction so a seal or update failure rolls back the insert
+	// (no orphan-row window).
+	tx, err := s.dbPool.Begin(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleCreateUpstreamIDP: begin tx: %w", err))
+		return
+	}
+	defer tx.Rollback(r.Context()) //nolint:errcheck
+
 	placeholder := make([]byte, 1)
-	row, err := s.queries.InsertUpstreamIDP(r.Context(), db.InsertUpstreamIDPParams{
+	qtx := s.queries.WithTx(tx)
+	row, err := qtx.InsertUpstreamIDP(r.Context(), db.InsertUpstreamIDPParams{
 		Slug:                 body.Slug,
 		DisplayName:          body.DisplayName,
 		IssuerUrl:            body.IssuerUrl,
@@ -196,6 +207,10 @@ func (s *Server) handleCreateUpstreamIDPHTTP(w http.ResponseWriter, r *http.Requ
 		RequireVerifiedEmail: body.RequireVerifiedEmail,
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			writeAuthErr(w, authn.ErrUpstreamIDPAlreadyExists())
+			return
+		}
 		writeAuthErr(w, fmt.Errorf("handleCreateUpstreamIDP: insert: %w", err))
 		return
 	}
@@ -203,21 +218,23 @@ func (s *Server) handleCreateUpstreamIDPHTTP(w http.ResponseWriter, r *http.Requ
 	// Seal the real secret using the row id for AAD.
 	ciphertext, nonce, err := oidc.EncryptClientSecret(dek, []byte(body.ClientSecret), row.ID, keyVer)
 	if err != nil {
-		// Best-effort: delete the placeholder row to avoid orphan.
-		_ = s.queries.DeleteUpstreamIDP(r.Context(), row.ID)
 		writeAuthErr(w, fmt.Errorf("handleCreateUpstreamIDP: seal: %w", err))
 		return
 	}
 
-	// Write the real sealed secret back.
-	if err := s.queries.UpdateUpstreamIDPSecret(r.Context(), db.UpdateUpstreamIDPSecretParams{
+	// Write the real sealed secret back within the same transaction.
+	if err := qtx.UpdateUpstreamIDPSecret(r.Context(), db.UpdateUpstreamIDPSecretParams{
 		Slug:            row.Slug,
 		ClientSecretEnc: ciphertext,
 		SecretNonce:     nonce,
 		KeyVersion:      keyVer,
 	}); err != nil {
-		_ = s.queries.DeleteUpstreamIDP(r.Context(), row.ID)
 		writeAuthErr(w, fmt.Errorf("handleCreateUpstreamIDP: seal-update: %w", err))
+		return
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		writeAuthErr(w, fmt.Errorf("handleCreateUpstreamIDP: commit: %w", err))
 		return
 	}
 
@@ -233,7 +250,7 @@ func (s *Server) handleCreateUpstreamIDPHTTP(w http.ResponseWriter, r *http.Requ
 		Detail:    map[string]any{"slug": row.Slug, "mode": row.Mode},
 	})
 
-	// Refresh the row so the view reflects the updated secret fields (not placeholder).
+	// Re-query so the view reflects the committed secret fields (not placeholder).
 	final, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), row.Slug)
 	if err != nil {
 		// View is still safe to return from the insert row; secret not exposed.
@@ -380,7 +397,7 @@ func (s *Server) handleRotateUpstreamIDPSecretHTTP(w http.ResponseWriter, r *htt
 	_ = s.Audit.Record(r.Context(), audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorUpstreamIDP,
-		Event:     audit.EventUpdate,
+		Event:     audit.EventRotate,
 		Detail:    map[string]any{"slug": body.Slug, "action": "rotate_secret"},
 	})
 

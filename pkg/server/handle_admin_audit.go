@@ -15,7 +15,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"net/netip"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -66,7 +65,7 @@ func auditEventView(r db.CredentialEvent) contract.AuditEventView {
 		aid := *r.AccountID
 		v.AccountID = &aid
 	}
-	if r.Ip != nil && r.Ip != (&netip.Addr{}) {
+	if r.Ip != nil && r.Ip.IsValid() {
 		v.IP = r.Ip.String()
 	}
 	if r.UserAgent.Valid {

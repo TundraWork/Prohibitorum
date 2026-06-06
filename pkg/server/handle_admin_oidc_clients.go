@@ -155,6 +155,10 @@ func (s *Server) handleCreateOIDCClientHTTP(w http.ResponseWriter, r *http.Reque
 
 	c, err := s.queries.InsertOIDCClient(r.Context(), params)
 	if err != nil {
+		if isUniqueViolation(err) {
+			writeAuthErr(w, authn.ErrClientAlreadyExists())
+			return
+		}
 		writeAuthErr(w, fmt.Errorf("handleCreateOIDCClient: insert: %w", err))
 		return
 	}
@@ -300,7 +304,7 @@ func (s *Server) handleRotateOIDCClientSecretHTTP(w http.ResponseWriter, r *http
 	_ = s.Audit.Record(r.Context(), audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
-		Event:     audit.EventUpdate,
+		Event:     audit.EventRotate,
 		Detail:    map[string]any{"client_id": body.ClientID, "action": "rotate_secret"},
 	})
 

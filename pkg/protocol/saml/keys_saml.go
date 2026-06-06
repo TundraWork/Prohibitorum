@@ -127,6 +127,17 @@ func (c *samlKeyCache) allCerts(ctx context.Context) []*x509.Certificate {
 	return out
 }
 
+// invalidate marks the cache stale so the next access reloads from the DB.
+// Called by IdP.InvalidateKeyCache after an admin signing-key mutation
+// (generate / activate / retire) so the SAML signer and metadata cert list
+// reflect the change immediately rather than after the keyCacheTTL window.
+func (c *samlKeyCache) invalidate() {
+	c.mu.Lock()
+	c.loadedAt = time.Time{} // zero time → maybeRefresh sees it as stale
+	c.keys = nil
+	c.mu.Unlock()
+}
+
 // parseRSAPrivatePEM is duplicated from the oidc package (per the v0.5 plan's
 // no-cross-package-coupling decision). It accepts PKCS#1 or PKCS#8 PEM.
 func parseRSAPrivatePEM(pemStr string) (*rsa.PrivateKey, error) {

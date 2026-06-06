@@ -46,6 +46,15 @@ func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions 
 	}
 }
 
+// InvalidateKeyCache marks the SAML signing-key cache stale so the next SSO
+// signing or metadata render reloads the key set from the database. Admin
+// signing-key lifecycle mutations (generate / activate / retire) call this so
+// the SAML metadata and the active signer reflect the change immediately
+// instead of lagging by up to keyCacheTTL.
+func (i *IdP) InvalidateKeyCache() {
+	i.keys.invalidate()
+}
+
 // entityID is the IdP's SAML EntityID — the first configured public origin.
 // Returns "" (rather than panicking) if no origin is configured.
 func (i *IdP) entityID() string {

@@ -143,15 +143,15 @@ func (s *Server) handleGetSAMLProvider(ctx context.Context, in *getSAMLProviderI
 
 type createSAMLProviderBody struct {
 	// Metadata path: supply MetadataXML + Kind (+ optional overrides).
-	MetadataXML string `json:"metadataXml,omitempty"`
-	Kind        string `json:"kind"` // "ghes" | "generic" | "" (defaults to generic)
-	DisplayName string `json:"displayName,omitempty"`
-	EntityID    string `json:"entityId,omitempty"`
+	MetadataXML  string `json:"metadataXml,omitempty"`
+	Kind         string `json:"kind"` // "ghes" | "generic" | "" (defaults to generic)
+	DisplayName  string `json:"displayName,omitempty"`
+	EntityID     string `json:"entityId,omitempty"`
 	NameIDFormat string `json:"nameIdFormat,omitempty"`
 
 	// Override flags (also respected on the manual path).
-	RequireSignedAuthnRequest bool `json:"requireSignedAuthnRequest"`
-	AllowIdpInitiated         bool `json:"allowIdpInitiated"`
+	RequireSignedAuthnRequest bool  `json:"requireSignedAuthnRequest"`
+	AllowIdpInitiated         bool  `json:"allowIdpInitiated"`
 	WantAssertionsSigned      *bool `json:"wantAssertionsSigned,omitempty"`
 
 	// Manual path: supply ACS entries directly (no metadata).
@@ -219,6 +219,10 @@ func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 	qtx := s.queries.WithTx(tx)
 	sp, err := qtx.InsertSAMLSP(r.Context(), params)
 	if err != nil {
+		if isUniqueViolation(err) {
+			writeAuthErr(w, authn.ErrSAMLProviderAlreadyExists())
+			return
+		}
 		writeAuthErr(w, fmt.Errorf("handleCreateSAMLProvider: insert sp: %w", err))
 		return
 	}
@@ -273,12 +277,12 @@ func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 // ----- PUT /saml-providers/{id} (raw, sudo-gated) ----------------------------
 
 type updateSAMLProviderBody struct {
-	DisplayName               string  `json:"displayName"`
-	NameIDFormat              string  `json:"nameIdFormat"`
-	RequireSignedAuthnRequest bool    `json:"requireSignedAuthnRequest"`
-	WantAssertionsSigned      bool    `json:"wantAssertionsSigned"`
-	AllowIdpInitiated         bool    `json:"allowIdpInitiated"`
-	SessionLifetimeSecs       *int64  `json:"sessionLifetimeSecs,omitempty"`
+	DisplayName               string `json:"displayName"`
+	NameIDFormat              string `json:"nameIdFormat"`
+	RequireSignedAuthnRequest bool   `json:"requireSignedAuthnRequest"`
+	WantAssertionsSigned      bool   `json:"wantAssertionsSigned"`
+	AllowIdpInitiated         bool   `json:"allowIdpInitiated"`
+	SessionLifetimeSecs       *int64 `json:"sessionLifetimeSecs,omitempty"`
 }
 
 func (s *Server) handleUpdateSAMLProviderHTTP(w http.ResponseWriter, r *http.Request) {
@@ -390,7 +394,7 @@ func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.R
 		MetadataXML: []byte(body.MetadataXML),
 		EntityID:    sp.EntityID, // keep the canonical entity_id; metadata entityID is ignored
 		DisplayName: sp.DisplayName,
-		Kind:        "",           // re-derive kind from SpKind if valid
+		Kind:        "", // re-derive kind from SpKind if valid
 	}
 	if sp.SpKind.Valid {
 		opts.Kind = sp.SpKind.String

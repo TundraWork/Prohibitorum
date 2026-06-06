@@ -381,6 +381,24 @@ func ErrUpstreamIDPNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "upstream_idp_not_found", "Upstream IdP not found.")
 }
 
+// ErrClientAlreadyExists is returned when an OIDC client insert violates the
+// unique constraint on client_id. Status 409.
+func ErrClientAlreadyExists() *AuthError {
+	return newErr(http.StatusConflict, "oidc_client_already_exists", "An OIDC client with this client_id already exists.")
+}
+
+// ErrUpstreamIDPAlreadyExists is returned when an upstream IdP insert violates
+// the unique constraint on slug. Status 409.
+func ErrUpstreamIDPAlreadyExists() *AuthError {
+	return newErr(http.StatusConflict, "upstream_idp_already_exists", "An upstream IdP with this slug already exists.")
+}
+
+// ErrSAMLProviderAlreadyExists is returned when a SAML SP insert violates the
+// unique constraint on entity_id. Status 409.
+func ErrSAMLProviderAlreadyExists() *AuthError {
+	return newErr(http.StatusConflict, "saml_provider_already_exists", "A SAML service provider with this entity_id already exists.")
+}
+
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,
 // or nil otherwise. Useful for handler error mapping.
 func AsAuthError(err error) *AuthError {

@@ -112,10 +112,14 @@ func (s *Server) handleGenerateSigningKeyHTTP(w http.ResponseWriter, r *http.Req
 		Detail:    map[string]any{"kid": key.Kid, "status": key.Status, "action": "generate"},
 	})
 
-	// The new pending key must appear in JWKS immediately (the OP key cache
-	// otherwise lags by up to keyCacheTTL).
+	// The new pending key must appear in JWKS and SAML metadata immediately.
+	// Both caches are invalidated on this replica; other replicas in a
+	// multi-replica deployment refresh within the cache TTL.
 	if s.oidcOP != nil {
 		s.oidcOP.InvalidateKeyCache()
+	}
+	if s.samlIdP != nil {
+		s.samlIdP.InvalidateKeyCache()
 	}
 
 	writeSigningKeyJSON(w, http.StatusCreated, signingKeyView(key))
@@ -154,9 +158,14 @@ func (s *Server) handleActivateSigningKeyHTTP(w http.ResponseWriter, r *http.Req
 	})
 
 	// Activation changes which key signs new tokens and demotes the prior active
-	// key to decommissioning — the OP cache must reload now, not after the TTL.
+	// key to decommissioning. Both the OIDC and SAML caches are invalidated on
+	// this replica; other replicas in a multi-replica deployment refresh within
+	// the cache TTL.
 	if s.oidcOP != nil {
 		s.oidcOP.InvalidateKeyCache()
+	}
+	if s.samlIdP != nil {
+		s.samlIdP.InvalidateKeyCache()
 	}
 
 	writeSigningKeyJSON(w, http.StatusOK, signingKeyView(key))
@@ -197,10 +206,15 @@ func (s *Server) handleRetireSigningKeyHTTP(w http.ResponseWriter, r *http.Reque
 		Detail:    map[string]any{"kid": key.Kid, "status": key.Status, "action": "retire"},
 	})
 
-	// Retiring moves the key out of the publishable set — drop the cache so JWKS
-	// stops advertising it immediately.
+	// Retiring moves the key out of the publishable set. Both the OIDC and SAML
+	// caches are invalidated on this replica so JWKS and SAML metadata stop
+	// advertising the retired key immediately; other replicas in a multi-replica
+	// deployment refresh within the cache TTL.
 	if s.oidcOP != nil {
 		s.oidcOP.InvalidateKeyCache()
+	}
+	if s.samlIdP != nil {
+		s.samlIdP.InvalidateKeyCache()
 	}
 
 	writeSigningKeyJSON(w, http.StatusOK, signingKeyView(key))
