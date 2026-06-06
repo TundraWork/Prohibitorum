@@ -1,4 +1,4 @@
-# Prohibitorum — Design
+# Prohibitorum — Architecture
 
 > Index Librorum Prohibitorum. The list of who's allowed and what they can do.
 
@@ -191,11 +191,11 @@ published. RS256 signing (key store unified with SAML; see
 - **RP-Initiated Logout:** `post_logout_redirect_uri` exact-matched
   against `oidc_client.post_logout_redirect_uris`.
 
-### SAML IdP (v0.5)
+### SAML IdP (v0.5, extended v0.6)
 
-SP-initiated SSO only (no IdP-initiated). HTTP-Redirect and HTTP-POST
-bindings for AuthnRequest; HTTP-POST binding for the Response.
-`crewjam/saml` does the protocol heavy lifting.
+SP-initiated SSO (HTTP-Redirect and HTTP-POST bindings for AuthnRequest;
+HTTP-POST binding for the Response) plus IdP-initiated SSO (v0.6,
+per-SP opt-in). `crewjam/saml` does the protocol heavy lifting.
 
 - **Assertion construction.** Always sign both `<Response>` and
   `<Assertion>`. `Destination` on `<Response>` = chosen ACS URL.
@@ -219,6 +219,77 @@ bindings for AuthnRequest; HTTP-POST binding for the Response.
 - **Metadata at `/saml/metadata`** publishes every `signing_key` row
   where `retired_at IS NULL OR retired_at > now() - rotation_grace`
   (default 7d), so verification continues across rotation.
+
+## Admin management API
+
+All routes are under `/api/prohibitorum`, admin-role gated. Mutations are
+also fresh-sudo gated. The `registerSudoOpHTTP` wrapper in
+`pkg/server/operations.go` is the single chokepoint for admin mutations
+(admin auth + fresh sudo + 64 KiB body-size cap + JSON content-type
+check). See `api.md` for the full route table and gate notation.
+
+### OIDC clients
+
+- `GET /oidc-clients`, `GET /oidc-clients/{clientId}` — read (🔓, secret never returned)
+- `POST /oidc-clients` — create (🔐, secret revealed once in response)
+- `PUT /oidc-clients/{clientId}` — update config (🔐, does not touch secret)
+- `POST /oidc-clients/rotate-secret` — new secret (🔐, revealed once)
+- `POST /oidc-clients/delete` — hard-delete (🔐)
+
+### SAML service providers
+
+- `GET /saml-providers`, `GET /saml-providers/{id}` — read (🔓)
+- `POST /saml-providers` — create, optionally with metadata XML ingestion (🔐)
+- `PUT /saml-providers/{id}` — update (🔐)
+- `POST /saml-providers/{id}/reingest-metadata` — re-parse fresh SP metadata (🔐)
+- `POST /saml-providers/delete` — hard-delete (🔐)
+
+### Upstream IdPs
+
+- `GET /upstream-idps`, `GET /upstream-idps/{slug}` — read (🔓, secret write-only: never returned)
+- `POST /upstream-idps` — create including AES-GCM-sealed secret (🔐)
+- `PUT /upstream-idps/{slug}` — update config excluding secret (🔐)
+- `POST /upstream-idps/rotate-secret` — re-seal with new secret value (🔐)
+- `POST /upstream-idps/delete` — hard-delete + cascade `account_identity` (🔐)
+
+### Signing keys
+
+- `GET /signing-keys` — read all, public material only (🔓, `private_pem` never returned)
+- `POST /signing-keys/generate` — mint RSA-2048 key, enters `pending` (🔐)
+- `POST /signing-keys/{kid}/activate` — promote `pending`→`active`, prior `active`→`decommissioning` (🔐)
+- `POST /signing-keys/{kid}/retire` — transition `decommissioning` key; 409 on the `active` key (🔐)
+
+#### Signing-key lifecycle states
+
+```
+pending ──activate──► active ──activate(new)──► decommissioning ──reconcile──► retired
+```
+
+Migration `008_signing_key_lifecycle.sql` introduced the `status` column
+(backfilled from legacy `active`/`retired_at`). Partial unique index
+`one_active_signing_key (use) WHERE status='active'` enforces single
+active signer per `use`. The publish set for JWKS (`/oauth/jwks`) and
+SAML metadata (`/saml/metadata`) is `{pending, active, decommissioning}`.
+Signing always uses the single `active` key.
+
+Legacy `active` bool + `retired_at` are kept consistent but are
+redundant; migration `009` (dropping them) is deferred.
+
+### Audit events
+
+- `GET /audit-events` — query `credential_event` (🔓), filterable by
+  `factor`, `event`, `accountId`, `since`, `until`; keyset pagination
+
+Every admin mutation writes a `credential_event` row (`factor` ∈
+`oidc_client` / `saml_sp` / `upstream_idp` / `signing_key`; `event` ∈
+`register` / `update` / `rotate` / `revoke`). The `detail` JSONB
+contains redacted metadata only — no secret, hash, or private key
+material (enforced at the write site; smoke-verified at step 120).
+
+### Account credentials (admin)
+
+- `GET /accounts/{id}/credentials` — list passkeys (🔓, suffix-only: last 4 chars of credential ID)
+- `POST /accounts/credentials/delete` — admin force-revoke a passkey (🔐)
 
 ## Authentication ceremony
 
@@ -297,8 +368,13 @@ SAML IdP flow:
 - `auth_throttle` — `(account_id, factor)` PK, failed_attempts,
   window_start, locked_until. Persists across restarts.
 - `signing_key` — kid, algorithm, use (sig/enc), public_jwk,
-  x509_cert_pem, private_pem, active, not_before, retired_at. One
-  row services both OIDC (via JWK) and SAML (via x509 cert).
+  x509_cert_pem, private_pem, status (pending/active/decommissioning/retired,
+  migration 008), activated_at, decommissioned_at, retire_after; legacy
+  columns active (bool) + not_before + retired_at kept for compatibility
+  (migration 009 will drop them — deferred). One row services both OIDC
+  (via JWK) and SAML (via x509 cert). Partial unique index
+  `one_active_signing_key (use) WHERE status='active'` ensures exactly
+  one active signer per key-use value.
 - `oidc_client` — full RFC 8414 / OIDC Discovery static-registration
   metadata: redirect_uris, post_logout_redirect_uris, allowed_scopes,
   require_pkce, allowed_code_challenge_methods,

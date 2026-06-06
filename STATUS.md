@@ -1461,6 +1461,119 @@ Spec decisions D1–D12
 - New views: `ClientsView` (OIDC clients), `IdPsView` (upstream OIDC),
   `SPsView` (SAML).
 
+## Admin Management API (done, smoke steps 114–121)
+
+Delivered a full HTTP API surface for administering OIDC clients, SAML
+SPs, upstream IdPs, signing keys, audit events, and account credentials.
+All handlers live under `/api/prohibitorum` (admin-role gated). Mutations
+are also fresh-sudo gated via `registerSudoOpHTTP`
+(`pkg/server/operations.go`) — a single chokepoint enforcing admin auth +
+fresh sudo + 64 KiB body-size limit + JSON content-type check so the
+policy cannot drift per-handler.
+
+Smoke arc is steps 114–121 (run last, while the smoke's admin session is
+still live), `SMOKE_EXIT=0`. Steps reference `cmd/smoke/main.go`.
+
+### What shipped
+
+- **OIDC client CRUD** — create (secret revealed once, argon2id hash
+  stored; smoke step 114), update (smoke step 115), rotate-secret (new
+  secret once; smoke step 116), delete. Read endpoints never expose the
+  hash or cleartext secret (unit-tested:
+  `TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash`).
+- **SAML SP CRUD** — create (with optional metadata XML ingestion),
+  update, reingest-metadata, delete.
+- **Upstream IdP CRUD** — create (AES-GCM seal after insert; crash
+  mid-create leaves a row that fails closed), update (excludes secret),
+  rotate-secret, delete. Read endpoints never expose encrypted secret
+  bytes (unit-tested:
+  `TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes`).
+- **Signing-key lifecycle** — generate (→ `pending`; smoke step 118),
+  activate (demotes prior `active` → `decommissioning`, promotes target;
+  smoke step 119), retire. Migration `008_signing_key_lifecycle.sql`
+  added `status` ∈ {pending, active, decommissioning, retired} with a
+  partial unique index `one_active_signing_key (use) WHERE status='active'`
+  and a backfill from the legacy `active`/`retired_at` columns. The
+  publish set for JWKS + SAML metadata is
+  pending+active+decommissioning. Smoke steps 117–119 verify
+  generate→active+pending, activate→new-active+prior-decommissioning,
+  and prior-key tokens still verify during the grace window.
+  Background reconcile loop (in `Server.Serve`) advances
+  decommissioning → retired once `retire_after` has passed.
+  Legacy `active` bool + `retired_at` remain in schema; dropping them
+  is deferred to a future `009` migration.
+- **Audit-events viewer** — `GET /audit-events` with `factor`, `event`,
+  `accountId`, `since`, `until` filters and keyset pagination. Every
+  admin mutation writes a `credential_event` (factor ∈
+  oidc_client/saml_sp/upstream_idp/signing_key; event ∈
+  register/update/rotate/revoke; no secret or key material in `detail`).
+  Smoke step 120 asserts filtering works and no secret bytes appear in
+  any returned event.
+- **Account credentials admin view** — `GET /accounts/{id}/credentials`
+  returns passkey list with only the last-4-char suffix of the
+  credential ID. `POST /accounts/credentials/delete` force-revokes a
+  passkey (promoted to sudo-gated in this phase). Smoke step 121.
+- **Route-policy test** — `TestAdminMutationRoutesRequireSudo`
+  (`pkg/server/admin_route_policy_test.go`) serves the REAL
+  `registerOperations()` route table and asserts that every 🔐 mutation
+  returns `sudo_required` (401) without a grant. Documented as a
+  security regression guard.
+- **CLI parity** — `signing-key {generate,activate,retire}`,
+  `oidc-client {update,rotate-secret,delete}`,
+  `saml-sp {update,delete}`, `upstream-idp {create,list,update,rotate-secret,delete}`
+  all exist and share the same domain code path as the HTTP handlers.
+- **API documentation** — `api.md` created with the full route table,
+  gate notation, reveal-once semantics, signing-key lifecycle states, and
+  known caveats.
+
+### Endpoints introduced in this phase
+
+See `api.md` for the authoritative route table. Summary:
+
+| Method | Path | Gate |
+|--------|------|------|
+| GET | `/api/prohibitorum/oidc-clients` | 🔓 |
+| GET | `/api/prohibitorum/oidc-clients/{clientId}` | 🔓 |
+| POST | `/api/prohibitorum/oidc-clients` | 🔐 |
+| PUT | `/api/prohibitorum/oidc-clients/{clientId}` | 🔐 |
+| POST | `/api/prohibitorum/oidc-clients/rotate-secret` | 🔐 |
+| POST | `/api/prohibitorum/oidc-clients/delete` | 🔐 |
+| GET | `/api/prohibitorum/saml-providers` | 🔓 |
+| GET | `/api/prohibitorum/saml-providers/{id}` | 🔓 |
+| POST | `/api/prohibitorum/saml-providers` | 🔐 |
+| PUT | `/api/prohibitorum/saml-providers/{id}` | 🔐 |
+| POST | `/api/prohibitorum/saml-providers/{id}/reingest-metadata` | 🔐 |
+| POST | `/api/prohibitorum/saml-providers/delete` | 🔐 |
+| GET | `/api/prohibitorum/upstream-idps` | 🔓 |
+| GET | `/api/prohibitorum/upstream-idps/{slug}` | 🔓 |
+| POST | `/api/prohibitorum/upstream-idps` | 🔐 |
+| PUT | `/api/prohibitorum/upstream-idps/{slug}` | 🔐 |
+| POST | `/api/prohibitorum/upstream-idps/rotate-secret` | 🔐 |
+| POST | `/api/prohibitorum/upstream-idps/delete` | 🔐 |
+| GET | `/api/prohibitorum/signing-keys` | 🔓 |
+| POST | `/api/prohibitorum/signing-keys/generate` | 🔐 |
+| POST | `/api/prohibitorum/signing-keys/{kid}/activate` | 🔐 |
+| POST | `/api/prohibitorum/signing-keys/{kid}/retire` | 🔐 |
+| GET | `/api/prohibitorum/audit-events` | 🔓 |
+| GET | `/api/prohibitorum/accounts/{id}/credentials` | 🔓 |
+| POST | `/api/prohibitorum/accounts/credentials/delete` | 🔐 |
+
+### Known caveats
+
+- **Key-cache lag (multi-replica).** `Provider.InvalidateKeyCache()` is
+  called on the mutating replica, but other replicas pick up a new or
+  activated key within the 5-min cache TTL. Same family as the v0.2
+  in-process rate-limiter caveat (v0.2-deployment-notes.md §1). The
+  background reconcile loop (decommissioning→retired) also does NOT
+  invalidate the cache — an already-non-signing key lingers in JWKS
+  slightly longer than its `retire_after`, in the safe direction.
+- **Upstream IdP crash mid-create.** Insert-then-seal-then-update: a
+  crash between insert and seal leaves a row with a placeholder secret
+  that decrypts to a failure (fails closed). Best-effort cleanup only.
+- **`009` (drop legacy `active`/`retired_at`) deferred.** The legacy
+  columns are kept consistent but redundant; the dropping migration
+  is written after `status` is proven in production.
+
 ## v0.7+ — Hardening
 
 - KMS-backed signing keys (AWS KMS / GCP KMS / Vault Transit adapter).
