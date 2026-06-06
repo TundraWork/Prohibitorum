@@ -248,13 +248,6 @@ var OperationDeleteAccount = huma.Operation{
 	Summary:     "Hard-delete an account.",
 }
 
-var OperationDeleteAccountCredential = huma.Operation{
-	OperationID: "deleteAccountCredential",
-	Method:      http.MethodPost,
-	Path:        "/accounts/credentials/delete",
-	Summary:     "Admin force-revoke of a specific credential.",
-}
-
 var OperationListAccountCredentials = huma.Operation{
 	OperationID: "listAccountCredentials",
 	Method:      http.MethodGet,

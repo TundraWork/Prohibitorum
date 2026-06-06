@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"reflect"
 	"time"
 
@@ -359,6 +360,77 @@ func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAc
 	}).Info("auth")
 
 	return &struct{}{}, nil
+}
+
+// handleDeleteAccountCredentialHTTP is the raw http.HandlerFunc wrapper used by
+// registerSudoOpHTTP. It mirrors handleDeleteAccountCredential but operates on
+// the raw net/http layer (sudo gating is performed by the wrapper, not here).
+func (s *Server) handleDeleteAccountCredentialHTTP(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		AccountID    int32 `json:"accountId"`
+		CredentialID int32 `json:"credentialId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if body.AccountID == 0 || body.CredentialID == 0 {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+
+	ctx := r.Context()
+
+	// Verify the account exists.
+	_, err := s.queries.GetAccountByID(ctx, body.AccountID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrAccountNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleDeleteAccountCredential: load account: %w", err))
+		return
+	}
+
+	// Verify ownership: the credential must belong to the given account.
+	creds, err := s.queries.ListCredentialsByAccount(ctx, body.AccountID)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteAccountCredential: list creds: %w", err))
+		return
+	}
+	found := false
+	for _, c := range creds {
+		if c.ID == body.CredentialID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeAuthErr(w, authn.ErrCredentialNotFound())
+		return
+	}
+
+	if _, err := s.queries.DeleteCredentialByID(ctx, db.DeleteCredentialByIDParams{
+		ID:        body.CredentialID,
+		AccountID: body.AccountID,
+	}); err != nil {
+		writeAuthErr(w, fmt.Errorf("handleDeleteAccountCredential: delete: %w", err))
+		return
+	}
+
+	sess := authn.SessionFromContext(ctx)
+	actorID := int32(0)
+	if sess != nil {
+		actorID = sess.Account.ID
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":         "auth.credential_revoked_admin",
+		"actor_id":      actorID,
+		"target_id":     body.AccountID,
+		"credential_id": body.CredentialID,
+	}).Info("auth")
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ----- POST /accounts/revoke-sessions ----------------------------------------
