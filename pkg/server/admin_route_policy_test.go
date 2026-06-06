@@ -11,15 +11,16 @@ package server
 // security bug — the test will not catch an un-gated route it doesn't know about.
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
-	"prohibitorum/pkg/contract"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // sudoRoute is one entry in the table of sudo-gated admin mutations.
@@ -64,58 +65,45 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/accounts/credentials/delete", body: `{"accountId":1,"credentialId":1}`},
 }
 
-// TestAdminMutationRoutesRequireSudo builds a minimal chi router (matching the
-// real registration path via registerSudoOpHTTP) and asserts that each route in
+// TestAdminMutationRoutesRequireSudo builds the REAL router via registerOperations()
+// (the same path as NewHuma / production) and asserts that each route in
 // sudoGatedRoutes returns 401 + "sudo_required" when the session has no fresh
 // sudo grant (SudoUntil is zero).
 //
-// Construction strategy: registerSudoOpHTTP requires only s.sessionStore to
-// actually consume a sudo grant — but the reject path (no fresh sudo) runs
+// Construction strategy: we use the exact same pattern as NewHuma — a *Server
+// with a real chi.Mux and huma.API but no DB/KV wiring. The REAL
+// s.registerOperations() registers every route exactly as production does,
+// including the real registerSudoOpHTTP calls. The sudo reject path runs
 // entirely inside requireFreshSudo, which only reads the session from context
-// and writes the error. So &Server{} is sufficient for all reject-path tests;
-// the handler body is never reached, and no DB/KV dependencies are exercised.
+// and writes a 401 — so s.queries (nil) is never reached and no external
+// dependencies are exercised.
+//
+// This test exercises the REAL routes in server.go. If a route is accidentally
+// registered via plain registerOpHTTP (no sudo wrapper), this test catches it:
+// the real handler body would execute and either crash (nil s.queries) or return
+// something other than 401 sudo_required.
 func TestAdminMutationRoutesRequireSudo(t *testing.T) {
-	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
-
-	// Build a chi router with every sudo-gated route registered against a
-	// sentinel handler. The sentinel must never be called — if it runs, the
-	// sudo gate is absent or broken.
-	s := &Server{}
-	router := chi.NewRouter()
-
-	sentinel := func(called *bool) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			*called = true
-			w.WriteHeader(204)
-		}
+	// Build the real router the same way NewHuma does, but keep handles to
+	// both the *Server and its chi.Mux so we can serve requests directly.
+	router := chi.NewMux()
+	s := &Server{
+		router: router,
+		api:    humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")),
 	}
-
-	// Track per-route whether the sentinel fired.
-	type routeEntry struct {
-		sudoRoute
-		called bool
-	}
-	entries := make([]routeEntry, len(sudoGatedRoutes))
-	for i, sr := range sudoGatedRoutes {
-		entries[i].sudoRoute = sr
-		s.registerSudoOpHTTP(router, sr.method, sr.path, admin,
-			sentinel(&entries[i].called))
-	}
+	registerSecurityScheme(s.api, sessstore.SessionCookieName)
+	s.registerOperations()
 
 	sess := adminSession(time.Time{}) // zero SudoUntil = no fresh sudo
 
-	for i := range entries {
-		e := &entries[i]
-		t.Run(e.method+" "+e.path, func(t *testing.T) {
+	for _, sr := range sudoGatedRoutes {
+		sr := sr // capture loop variable for t.Run closure
+		t.Run(sr.method+" "+sr.path, func(t *testing.T) {
 			rr := httptest.NewRecorder()
-			req := reqWithSession(e.method, e.path, e.body, "", sess)
+			req := reqWithSession(sr.method, sr.path, sr.body, "", sess)
 			router.ServeHTTP(rr, req)
 
-			if e.called {
-				t.Errorf("handler ran despite missing fresh sudo — route is not properly gated")
-			}
 			if rr.Code != 401 {
-				t.Errorf("status = %d, want 401", rr.Code)
+				t.Errorf("status = %d, want 401 (sudo_required) — is this route actually wrapped with registerSudoOpHTTP?", rr.Code)
 			}
 			if !strings.Contains(rr.Body.String(), "sudo_required") {
 				t.Errorf("body = %q, want sudo_required", rr.Body.String())
