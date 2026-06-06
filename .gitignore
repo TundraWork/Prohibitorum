@@ -13,3 +13,6 @@
 
 # Brainstorm visual-companion artifacts
 .superpowers/
+
+# Editor-local config (may contain absolute $HOME paths — keep out of history)
+/.vscode/
