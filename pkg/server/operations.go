@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -81,4 +82,44 @@ func registerOpHTTP(
 		h(w, r)
 	})
 	router.Method(method, path, wrapped)
+}
+
+const maxAdminBody = 64 << 10 // 64 KiB
+
+// withFreshSudo wraps a raw handler so the fresh-sudo gate runs as route
+// policy, not the handler's first line. Single chokepoint for admin mutations.
+//
+// Ordering: content-type + body-size checks run BEFORE requireFreshSudo so a
+// malformed request never burns the user's one-shot sudo grant. This is safe:
+// the content-type check reveals nothing about grant state (a 400 is no more
+// informative than the 401 that requireFreshSudo would have emitted).
+func (s *Server) withFreshSudo(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Baseline body checks first — do not consume the sudo grant on a
+		// clearly malformed request.
+		if r.Method != http.MethodGet && r.ContentLength != 0 {
+			ct := r.Header.Get("Content-Type")
+			if ct != "" && !strings.HasPrefix(ct, "application/json") {
+				writeAuthErr(w, authn.ErrBadRequest())
+				return
+			}
+		}
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, maxAdminBody)
+		}
+		// Sudo gate: verify fresh grant and consume it (one-shot).
+		sess := authn.SessionFromContext(r.Context())
+		if s.requireFreshSudo(r.Context(), w, sess) {
+			return
+		}
+		h(w, r)
+	}
+}
+
+// registerSudoOpHTTP = registerOpHTTP (admin auth check) + withFreshSudo
+// (content-type, body-size, fresh-sudo gate). Every admin mutation route MUST
+// use this instead of the bare registerOpHTTP so the sudo policy cannot drift
+// per-handler.
+func (s *Server) registerSudoOpHTTP(router chiRouter, method, path string, req contract.AuthRequirement, h http.HandlerFunc) {
+	registerOpHTTP(router, method, path, req, s.withFreshSudo(h))
 }

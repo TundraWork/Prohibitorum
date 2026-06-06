@@ -24,6 +24,8 @@ const (
 	FactorSession        Factor = "session"
 	FactorOIDCClient     Factor = "oidc_client"
 	FactorSAMLSP         Factor = "saml_sp"
+	FactorUpstreamIDP    Factor = "upstream_idp"
+	FactorSigningKey     Factor = "signing_key"
 )
 
 const (
@@ -45,6 +47,8 @@ const (
 	// OWASP MFA Cheat Sheet: log and alert on anomalies. The throttle
 	// owns the transition signal, so it owns the audit emission.
 	EventFactorLocked = "factor_locked"
+	EventUpdate       = "update"
+	EventRotate       = "rotate"
 )
 
 type Record struct {
