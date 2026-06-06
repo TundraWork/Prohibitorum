@@ -255,6 +255,13 @@ var OperationDeleteAccountCredential = huma.Operation{
 	Summary:     "Admin force-revoke of a specific credential.",
 }
 
+var OperationListAccountCredentials = huma.Operation{
+	OperationID: "listAccountCredentials",
+	Method:      http.MethodGet,
+	Path:        "/accounts/{id}/credentials",
+	Summary:     "List an account's WebAuthn credentials (admin only).",
+}
+
 var OperationRevokeAccountSessions = huma.Operation{
 	OperationID: "revokeAccountSessions",
 	Method:      http.MethodPost,

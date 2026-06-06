@@ -565,6 +565,30 @@ func (s *Server) handleRevokeInvitation(ctx context.Context, in *revokeInvitatio
 	return &struct{}{}, nil
 }
 
+// ----- GET /accounts/{id}/credentials ----------------------------------------
+
+type accountCredentialsOut struct {
+	Body []contract.CredentialView
+}
+
+func (s *Server) handleListAccountCredentials(ctx context.Context, in *getAccountIn) (*accountCredentialsOut, error) {
+	if _, err := s.queries.GetAccountByID(ctx, in.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleListAccountCredentials: load account: %w", err)
+	}
+	rows, err := s.queries.ListCredentialsByAccount(ctx, in.ID)
+	if err != nil {
+		return nil, fmt.Errorf("handleListAccountCredentials: list: %w", err)
+	}
+	views := make([]contract.CredentialView, 0, len(rows))
+	for i := range rows {
+		views = append(views, credentialView(&rows[i]))
+	}
+	return &accountCredentialsOut{Body: views}, nil
+}
+
 // ----- shared output types ---------------------------------------------------
 
 type accountOut struct {

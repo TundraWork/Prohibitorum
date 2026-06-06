@@ -361,6 +361,7 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationUpdateAccount, s.handleUpdateAccount, admin)
 	registerOp(mgmt, contract.OperationDeleteAccount, s.handleDeleteAccount, admin)
 	registerOp(mgmt, contract.OperationDeleteAccountCredential, s.handleDeleteAccountCredential, admin)
+	registerOp(mgmt, contract.OperationListAccountCredentials, s.handleListAccountCredentials, admin)
 	registerOp(mgmt, contract.OperationRevokeAccountSessions, s.handleRevokeAccountSessions, admin)
 	registerOp(mgmt, contract.OperationReissueEnrollment, s.handleReissueEnrollment, admin)
 	registerOp(mgmt, contract.OperationCreateInvitation, s.handleCreateInvitation, admin)
