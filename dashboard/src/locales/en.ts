@@ -19,6 +19,7 @@ export default {
     continue: 'Continue',
     save: 'Save',
     close: 'Close',
+    language: 'Language',
   },
 
   login: {
