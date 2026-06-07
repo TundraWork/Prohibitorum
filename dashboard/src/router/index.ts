@@ -73,6 +73,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'profile', component: () => import('../pages/ProfileView.vue') },
       { path: 'sessions', name: 'sessions', component: () => import('../pages/SessionsView.vue') },
+      { path: 'security', name: 'security', component: () => import('../pages/SecurityView.vue') },
     ],
   },
   // Catch-all → /error

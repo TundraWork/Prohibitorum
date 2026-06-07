@@ -27,6 +27,7 @@ export default {
   nav: {
     account: 'Account',
     profile: 'Profile',
+    security: 'Security',
     sessions: 'Sessions',
     signOut: 'Sign out',
   },
@@ -233,6 +234,20 @@ export default {
       codeLabel: 'Enter the 6-digit code to confirm',
       verify: 'Verify & enable',
       enabled: 'Authenticator enabled.',
+    },
+    recovery: {
+      title: 'Recovery codes',
+      help: 'One-time codes to sign in if you lose your authenticator. Requires an authenticator app.',
+      regenerate: 'Regenerate codes',
+      needTotp: 'Set up an authenticator app first.',
+    },
+    revoke: {
+      title: 'Password & authenticator',
+      help: 'Remove your password, authenticator app, and recovery codes. You’ll sign in with passkeys only.',
+      button: 'Remove password & authenticator',
+      confirmTitle: 'Remove password & authenticator?',
+      confirmBody: 'This deletes your password, authenticator app, and recovery codes. You’ll be able to sign in with your passkeys only. You can set them up again later.',
+      done: 'Removed. You now sign in with passkeys only.',
     },
   },
 } as const
