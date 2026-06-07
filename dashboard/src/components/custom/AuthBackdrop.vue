@@ -53,32 +53,40 @@ const sceneUrl: string | undefined = Object.values(sceneModules)[0]
   background-position: center;
 }
 
-/* Painterly placeholder — a "Drenched" dawn: a deep Tide sky washing down into
-   a warm Ember/Amber horizon. Muted on purpose; the scrim + card carry the
-   legibility, the painting only supplies warmth. */
+/* Painterly placeholder — a "Drenched" dusk: a deep Tide-teal vault washing down
+   into a warm Ember/Amber horizon glow, with a whisper of Sage in the midground.
+   Confident colour here is the point (DESIGN.md §Threshold Exception): the card
+   above is opaque, so it carries legibility; the scene supplies the warmth. */
 .auth-backdrop__scene--placeholder {
   background:
-    radial-gradient(120% 85% at 50% 118%, oklch(0.70 0.150 42 / 0.55), transparent 60%),
-    radial-gradient(90% 70% at 82% 8%, oklch(0.55 0.118 205 / 0.40), transparent 55%),
+    /* warm ember/amber dawn-glow blooming up from the lower centre */
+    radial-gradient(135% 95% at 50% 128%, oklch(0.76 0.155 58 / 0.92), transparent 56%),
+    /* a deeper ember pool, lower-left, for asymmetry and richness */
+    radial-gradient(72% 64% at 20% 112%, oklch(0.68 0.150 38 / 0.60), transparent 60%),
+    /* cool tide light raking in from the upper-right — the vault's calm */
+    radial-gradient(95% 85% at 90% -8%, oklch(0.64 0.110 200 / 0.65), transparent 55%),
+    /* deep tide base, top→foot, with a sage whisper before the warm horizon */
     linear-gradient(
-      162deg,
-      oklch(0.47 0.130 205) 0%,
-      oklch(0.55 0.118 205) 46%,
-      oklch(0.76 0.140 75 / 0.55) 100%
+      164deg,
+      oklch(0.40 0.110 218) 0%,
+      oklch(0.49 0.122 206) 40%,
+      oklch(0.58 0.110 165 / 0.45) 68%,
+      oklch(0.80 0.150 72 / 0.40) 100%
     );
 }
 
-/* Soft white wash, strongest where the card sits, fading outward. Keeps a hint
-   of the painted warmth at the edges while guaranteeing the card region and any
-   corner chrome hold WCAG 2.2 AA over any image. */
+/* Soft white bloom behind the centred card, fading to clear at the edges so the
+   warm scene stays rich in the periphery. The card is opaque (legibility lives
+   there) and the corner locale chip carries its own surface, so the scrim can be
+   gentle — it only keeps the composition calm around the card. */
 .auth-backdrop__scrim {
   position: absolute;
   inset: 0;
   background: radial-gradient(
-    72% 62% at 50% 46%,
-    oklch(1 0 0 / 0.80),
-    oklch(1 0 0 / 0.58) 62%,
-    oklch(1 0 0 / 0.46) 100%
+    58% 52% at 50% 44%,
+    oklch(1 0 0 / 0.62),
+    oklch(1 0 0 / 0.22) 56%,
+    oklch(1 0 0 / 0) 82%
   );
 }
 </style>

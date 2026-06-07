@@ -46,7 +46,7 @@ function onSuccess(): void {
 <template>
   <CenteredLayout>
     <template #title>
-      <h1 class="text-lg font-semibold tracking-tight text-ink">{{ t('login.title') }}</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-ink">{{ t('login.title') }}</h1>
     </template>
 
     <div class="flex flex-col gap-6">

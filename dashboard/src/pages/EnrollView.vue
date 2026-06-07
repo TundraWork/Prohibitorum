@@ -157,7 +157,7 @@ async function enroll(): Promise<void> {
 <template>
   <CenteredLayout>
     <template #title>
-      <h1 class="text-lg font-semibold tracking-tight text-ink">{{ heading }}</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-ink">{{ heading }}</h1>
     </template>
 
     <p v-if="loading" class="text-center text-sm text-muted">{{ t('common.loading') }}</p>

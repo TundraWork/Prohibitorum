@@ -39,7 +39,7 @@ async function revoke(): Promise<void> {
 
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
-    <h1 class="text-lg font-semibold tracking-tight text-ink">{{ t('security.title') }}</h1>
+    <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('security.title') }}</h1>
     <PasskeysCard />
     <PasswordCard />
     <TotpCard />

@@ -10,7 +10,7 @@ const auth = useAuthStore()
 
 <template>
   <div class="flex max-w-xl flex-col gap-4">
-    <h1 class="text-lg font-semibold tracking-tight text-ink">{{ t('profile.title') }}</h1>
+    <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('profile.title') }}</h1>
     <Card>
       <CardContent class="pt-6">
         <dl v-if="auth.me" class="grid grid-cols-[8rem_1fr] gap-y-3 text-sm">

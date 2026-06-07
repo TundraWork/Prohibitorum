@@ -39,7 +39,7 @@ const message = computed(() => {
 <template>
   <CenteredLayout>
     <template #title>
-      <h1 class="text-lg font-semibold tracking-tight text-ink">{{ t('error.title') }}</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-ink">{{ t('error.title') }}</h1>
     </template>
 
     <div class="flex flex-col items-center gap-6 text-center">
