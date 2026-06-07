@@ -59,8 +59,8 @@ onMounted(load)
       <CardContent class="flex items-center justify-between gap-4 py-4">
         <div class="flex flex-col gap-1 text-sm">
           <div class="flex items-center gap-2">
-            <span class="text-ink">{{ r.userAgent || r.lastSeenIp }}</span>
-            <StatusBadge v-if="r.isCurrent" variant="success">{{ t('sessions.current') }}</StatusBadge>
+            <span class="min-w-0 truncate text-ink">{{ r.userAgent || r.lastSeenIp }}</span>
+            <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
           </div>
           <span class="text-muted">{{ t('sessions.lastSeen') }}: {{ r.lastSeenIp }}</span>
           <span v-if="fmt(r.issuedAt)" class="text-muted">{{ t('sessions.issued') }}: {{ fmt(r.issuedAt) }}</span>
