@@ -76,13 +76,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/logout',
     name: 'logout',
-    component: () => Promise.resolve(makePlaceholder('LogoutView')),
+    component: () => import('../pages/LogoutView.vue'),
     meta: { public: true },
   },
   {
     path: '/error',
     name: 'error',
-    component: () => Promise.resolve(makePlaceholder('ErrorView')),
+    component: () => import('../pages/ErrorView.vue'),
     meta: { public: true },
   },
   {
