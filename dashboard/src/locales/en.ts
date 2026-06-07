@@ -22,6 +22,13 @@ export default {
     language: 'Language',
   },
 
+  nav: {
+    account: 'Account',
+    profile: 'Profile',
+    sessions: 'Sessions',
+    signOut: 'Sign out',
+  },
+
   login: {
     title: 'Sign in',
     passkeyButton: 'Sign in with passkey',
