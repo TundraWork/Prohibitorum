@@ -79,6 +79,19 @@ export default {
     alreadyBound: 'You’ve already approved this device.',
   },
 
+  pair: {
+    title: 'Pair this device',
+    intro: 'On a device where you’re already signed in, open Devices and enter this code.',
+    waiting: 'Waiting for approval…',
+    expiresIn: 'Expires in {seconds}s',
+    expired: 'This code has expired.',
+    regenerate: 'Generate a new code',
+    success: 'This device is now signed in.',
+    addPasskey: 'Add a passkey to this device',
+    addPasskeyHelp: 'So you can sign in directly next time, without pairing.',
+    skip: 'Continue to dashboard',
+  },
+
   login: {
     title: 'Sign in',
     passkeyButton: 'Sign in with passkey',
