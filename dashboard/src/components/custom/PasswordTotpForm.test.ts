@@ -65,7 +65,7 @@ describe('PasswordTotpForm', () => {
   })
 
   it('renders a mapped error message and does not advance on a failed begin', async () => {
-    post.mockRejectedValueOnce({ code: 'invalid_credentials', message: 'nope' })
+    post.mockRejectedValueOnce({ code: 'bad_credentials', message: 'nope' })
     const wrapper = mountForm()
 
     await wrapper.find('input[name=username]').setValue('alex')
@@ -73,7 +73,7 @@ describe('PasswordTotpForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.find('[role=alert]').text()).toBe(en.errors.invalid_credentials)
+    expect(wrapper.find('[role=alert]').text()).toBe(en.errors.bad_credentials)
     expect(wrapper.find('input[name=code]').exists()).toBe(false)
   })
 })

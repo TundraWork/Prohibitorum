@@ -70,7 +70,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/consent',
     name: 'consent',
-    component: () => Promise.resolve(makePlaceholder('ConsentView')),
+    component: () => import('../pages/ConsentView.vue'),
     meta: { public: true },
   },
   {

@@ -80,35 +80,65 @@ export default {
   },
 
   /**
-   * errors.* — map backend error codes to user-facing messages.
+   * errors.* — map backend error codes to user-facing English messages.
    * Usage: te('errors.'+code) ? t('errors.'+code) : err.message
    *
-   * These codes come from the Go handlers (see pkg/server for error bodies).
+   * IMPORTANT: the backend AuthError messages are authored in Chinese, so the
+   * te()/fallback MUST resolve a key here for every code a user can reach —
+   * the err.message fallback is a last resort, not the happy path. Codes below
+   * are the real values from pkg/authn/errors.go (verified against the
+   * catalogue), plus two client-synthesized codes: `webauthn_error`
+   * (useWebauthn) and `server_error` (api.ts / useApi).
    */
   errors: {
-    // Auth
-    unauthorized: 'You need to sign in to continue.',
-    forbidden: 'You do not have permission to do that.',
-    invalid_credentials: 'Incorrect username or password.',
-    totp_required: 'A one-time code is required.',
-    invalid_totp: 'That code is incorrect or has expired. Try again.',
-    passkey_not_found: 'No passkey found for this account.',
-    webauthn_error: 'The passkey ceremony failed. Please try again.',
-    session_expired: 'Your session has expired. Please sign in again.',
+    // Session / authorization
+    no_session: 'Please sign in to continue.',
+    not_admin: 'This action requires administrator access.',
+    permission_denied: 'You do not have permission to do that.',
+    account_disabled: 'This account has been disabled. Contact an administrator.',
+    rate_limited: 'Too many attempts. Please wait a moment and try again.',
+    factor_locked: 'Too many failed attempts — this sign-in method is temporarily locked.',
+
+    // Login (passkey + password/TOTP)
+    not_bootstrapped:
+      'No account has been set up yet. Run `prohibitorum enroll-admin` to create the first administrator.',
+    bad_credentials: 'Incorrect username, password, or code.',
+    partial_session_invalid: 'Your sign-in session expired. Please start again.',
+    ceremony_missing: 'The sign-in attempt expired. Please try again.',
+    ceremony_expired: 'The sign-in attempt expired. Please try again.',
+    ceremony_state_invalid: 'The sign-in attempt could not be verified. Please try again.',
+    login_account_not_found: 'No matching account was found for that passkey.',
+    login_failed: 'Sign-in could not be completed. Please try again.',
+    login_verification_failed: 'Your passkey could not be verified. Please try again.',
+    webauthn_error: 'The passkey step did not complete. Please try again.',
 
     // Consent
-    invalid_ticket: 'This consent request has expired or is invalid. Please sign in again.',
-    consent_denied: 'You denied access.',
+    invalid_consent_ticket:
+      'This authorization request has expired. Please start again from the application.',
+    bad_request: 'The request was invalid.',
 
     // Enrollment
-    token_not_found: 'This invitation link is invalid or has already been used.',
-    token_expired: 'This invitation link has expired.',
-    token_consumed: 'This invitation link has already been used.',
+    enrollment_expired: 'This invitation link has expired.',
+    enrollment_consumed: 'This invitation link has already been used.',
+    enrollment_federation_required:
+      'This invitation must be completed through your identity provider.',
+    invite_required: 'An invitation is required to create an account.',
+    username_taken: 'That username is already taken.',
+    username_collision: 'That username is already taken.',
+    invalid_username:
+      'Usernames must be 2–32 lowercase letters, numbers, underscores, or hyphens.',
+    invalid_display_name: 'Please enter a valid display name.',
+    credential_already_registered: 'That passkey is already registered.',
+    registration_failed: 'Passkey setup could not be completed. Please try again.',
 
-    // Generic
-    server_error: 'A server error occurred. Please try again.',
+    // Federation (upstream IdP)
+    upstream_error: 'Your identity provider returned an error. Please try again.',
+    email_not_verified: 'Your identity provider has not verified your email address.',
+    federation_state_invalid: 'The sign-in attempt expired. Please try again.',
+    invalid_return_to: 'The return address was invalid.',
+
+    // Generic / client-synthesized
+    server_error: 'Something went wrong on our end. Please try again.',
     not_found: 'The requested page could not be found.',
-    rate_limited: 'Too many requests. Please wait a moment and try again.',
-    invalid_request: 'The request was invalid.',
   },
 } as const
