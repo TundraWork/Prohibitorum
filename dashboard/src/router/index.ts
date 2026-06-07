@@ -2,8 +2,7 @@
  * Router — threshold page routes + guard scaffold.
  *
  * Routes: /login /consent /logout /error /enroll/:token + catch-all → /error.
- * Pages are lazy-imported. For Tasks 6–9 they are stub placeholder components;
- * each task replaces the stub with the real implementation.
+ * Pages are lazy-imported (one chunk per threshold page).
  *
  * `installGuard` — sets up the navigation guard for requiresAuth/requiresAdmin
  * meta (reserved for Spec 2/3 authenticated routes). Threshold routes (login,
@@ -13,7 +12,6 @@
  */
 
 import { createRouter, createWebHistory, type Router, type RouteRecordRaw } from 'vue-router'
-import { defineComponent, h } from 'vue'
 
 // ---------------------------------------------------------------------------
 // Extend vue-router's RouteMeta with our custom guard meta fields.
@@ -33,32 +31,7 @@ declare module 'vue-router' {
 }
 
 // ---------------------------------------------------------------------------
-// Stub page component — used for any route whose real page hasn't been built
-// yet. Tasks 6–9 replace these with real implementations.
-// ---------------------------------------------------------------------------
-function makePlaceholder(name: string) {
-  return defineComponent({
-    name,
-    render() {
-      return h(
-        'div',
-        {
-          style:
-            'display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#555',
-        },
-        `Prohibitorum — ${name} (coming soon)`,
-      )
-    },
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Route table
-//
-// Each entry uses () => Promise<Component> (the lazy-import pattern) so
-// Tasks 6–9 can drop in the real page with a one-line edit:
-//   component: () => import('../pages/LoginView.vue')
-// For now, all resolve synchronously via a resolved promise so the build passes.
+// Route table — each threshold page is lazy-imported into its own chunk.
 // ---------------------------------------------------------------------------
 const routes: RouteRecordRaw[] = [
   {
@@ -88,7 +61,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/enroll/:token',
     name: 'enroll',
-    component: () => Promise.resolve(makePlaceholder('EnrollView')),
+    component: () => import('../pages/EnrollView.vue'),
     meta: { public: true },
   },
   // Catch-all → /error
