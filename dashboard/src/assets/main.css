@@ -1,3 +1,130 @@
 @import "tailwindcss";
 @import "@fontsource-variable/hanken-grotesk";
 @import "@fontsource/ibm-plex-mono";
+
+/* =============================================================================
+   Welcoming Vault Design System — Tailwind v4 @theme
+   Source of truth: DESIGN.md §2 (colors), §3 (type), §4 (elevation), §rounded
+   ============================================================================= */
+
+@theme {
+  /* --- Colors: Brand --- */
+  --color-tide:        oklch(0.55 0.118 205);   /* primary teal: fills, selection, focus */
+  --color-tide-strong: oklch(0.47 0.130 205);   /* text-weight primary: links, hover/active, AA on white */
+  --color-ember:       oklch(0.70 0.150 42);    /* warm accent: brand/human moments, used scarcely */
+
+  /* --- Colors: State --- */
+  --color-sage:        oklch(0.62 0.130 150);   /* success / confirmed / session-active */
+  --color-amber:       oklch(0.76 0.140 75);    /* caution / pending / expiring */
+  --color-rose:        oklch(0.58 0.180 22);    /* danger / revoked / failed */
+
+  /* --- Colors: Neutral (light mode) --- */
+  --color-bg:          oklch(1 0 0);             /* pure white — surface carries no warmth */
+  --color-surface:     oklch(0.985 0.005 205);  /* cards, panels */
+  --color-sunken:      oklch(0.965 0.006 205);  /* sidebar / toolbar (second neutral layer) */
+  --color-border:      oklch(0.920 0.006 205);  /* hairline dividers, input strokes */
+  --color-ink:         oklch(0.22 0.015 230);   /* body text (~12:1 on bg) */
+  --color-muted:       oklch(0.50 0.012 230);   /* secondary text (~4.5:1 on bg — AA) */
+
+  /* --- Typography --- */
+  --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* --- Border Radius --- */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-full: 9999px;
+
+  /* --- Elevation (DESIGN.md §4: flat at rest; depth only on state) --- */
+  /* Raised: hover/active on interactive surfaces */
+  --shadow-raised:  0 1px 2px oklch(0.22 0.015 230 / 0.06), 0 2px 8px oklch(0.22 0.015 230 / 0.06);
+  /* Overlay: dialogs, popovers, command menus, anything floating above the page */
+  --shadow-overlay: 0 8px 32px oklch(0.22 0.015 230 / 0.14);
+}
+
+/* =============================================================================
+   shadcn-vue semantic CSS variable aliases mapped onto Welcoming Vault tokens.
+   These variable names are what shadcn-vue/new-york vendored ui/ primitives
+   read at runtime — mapping them here lets the ui/ kit inherit the design
+   without any hand-edits to the primitives themselves.
+   ============================================================================= */
+
+:root {
+  /* Page chrome */
+  --background:            var(--color-bg);
+  --foreground:            var(--color-ink);
+
+  /* Cards & panels */
+  --card:                  var(--color-surface);
+  --card-foreground:       var(--color-ink);
+
+  /* Popovers / dropdowns (same neutral surface as cards) */
+  --popover:               var(--color-surface);
+  --popover-foreground:    var(--color-ink);
+
+  /* Primary action — Tide Strong (passes 4.5:1 AA on white; Tide 0.55 is large-text only) */
+  --primary:               var(--color-tide-strong);
+  --primary-foreground:    var(--color-bg);        /* white label on Tide fill */
+
+  /* Secondary / muted surfaces — Sunken tonal step */
+  --secondary:             var(--color-sunken);
+  --secondary-foreground:  var(--color-ink);
+
+  /* Muted: used for de-emphasised backgrounds and text */
+  --muted:                 var(--color-sunken);
+  --muted-foreground:      var(--color-muted);
+
+  /* Accent — Ember (the scarce warm accent; used sparsely per Scarce Accent Rule) */
+  --accent:                var(--color-ember);
+  --accent-foreground:     var(--color-bg);        /* white label on Ember fill */
+
+  /* Destructive — Rose (danger: revoke, delete, failed) */
+  --destructive:           var(--color-rose);
+  --destructive-foreground: var(--color-bg);       /* white label on Rose fill */
+
+  /* Structural */
+  --border:                var(--color-border);
+  --input:                 var(--color-border);    /* input stroke: same hairline as dividers */
+  --ring:                  var(--color-tide);      /* focus ring: Tide (the 0.55 fill tone) */
+
+  /* Radius: md = 10px for controls; cards use --radius-lg (14px) directly */
+  --radius:                10px;
+}
+
+/* =============================================================================
+   Dark mode — RESERVED. Values land in a later polish pass.
+   DESIGN.md §2: bg ≈ oklch(0.16 0.008 230), ink ≈ oklch(0.95 0.005 230),
+   tide/ember lightened ~0.12–0.15 L to hold contrast.
+   Not in scope for Spec 1 / Task 2.
+   ============================================================================= */
+.dark {
+  /* TODO(dark): wire dark-mode token overrides here.
+     Sketch values from DESIGN.md (exact values deferred to scan pass):
+       --background:  oklch(0.16 0.008 230);
+       --foreground:  oklch(0.95 0.005 230);
+       --color-tide:        oklch(~0.67 0.118 205);  lightened ~0.12 L
+       --color-tide-strong: oklch(~0.59 0.130 205);
+       --color-ember:       oklch(~0.82 0.150 42);
+       (all other neutrals inverted to the cool-near-black ramp)
+  */
+}
+
+/* =============================================================================
+   Base layer — apply tokens to the document root.
+   ============================================================================= */
+
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    color:            var(--color-ink);
+    font-family:      var(--font-sans);
+    line-height:      1.55;  /* DESIGN.md body line-height */
+    -webkit-font-smoothing:  antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code, kbd, samp, pre {
+    font-family: var(--font-mono);
+  }
+}
