@@ -56,7 +56,7 @@ async function approve(): Promise<void> {
     await api.post('/api/prohibitorum/me/devices/pair/approve', { code: c })
     return true as const
   }))
-  if (ok) { approved.value = true; found.value = null }
+  if (ok) { approved.value = true; found.value = null; code.value = '' }
 }
 async function cancel(): Promise<void> {
   const c = code.value.trim()
