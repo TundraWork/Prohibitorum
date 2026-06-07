@@ -20,6 +20,8 @@ export default {
     save: 'Save',
     close: 'Close',
     language: 'Language',
+    copy: 'Copy',
+    copied: 'Copied',
   },
 
   nav: {
@@ -100,6 +102,10 @@ export default {
     expired: 'This invitation has expired.',
     invalid: 'This invitation link is invalid or has already been used.',
     federationRedirect: 'Redirecting to your identity provider…',
+  },
+
+  confirm: {
+    cancel: 'Cancel',
   },
 
   sudo: {
