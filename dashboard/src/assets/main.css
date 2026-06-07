@@ -97,6 +97,17 @@
 
   /* Radius: md = 10px for controls; cards use --radius-lg (14px) directly */
   --radius:                10px;
+
+  /* Sidebar (shadcn-vue Sidebar primitive) — mapped onto Welcoming Vault tokens.
+     The sidebar is the Sunken second neutral layer; active item = Tide. */
+  --sidebar:                    var(--color-sunken);
+  --sidebar-foreground:         var(--color-ink);
+  --sidebar-primary:            var(--color-tide-strong);
+  --sidebar-primary-foreground: var(--color-bg);
+  --sidebar-accent:             var(--color-border);
+  --sidebar-accent-foreground:  var(--color-ink);
+  --sidebar-border:             var(--color-border);
+  --sidebar-ring:               var(--color-tide);
 }
 
 /* =============================================================================

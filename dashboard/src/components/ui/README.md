@@ -62,3 +62,10 @@ a system-level hover color.
 | `dialog/` | `Dialog`, `DialogTrigger`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`, `DialogClose`, `DialogOverlay`, `DialogScrollContent` |
 | `badge/`  | `Badge` (variants: default/secondary/destructive/outline) |
 | `alert/`  | `Alert`, `AlertTitle`, `AlertDescription`  |
+| `sheet/`  | `Sheet`, `SheetTrigger`, `SheetContent`, `SheetHeader`, `SheetFooter`, `SheetTitle`, `SheetDescription`, `SheetClose`, `SheetOverlay` |
+| `tooltip/` | `Tooltip`, `TooltipProvider`, `TooltipTrigger`, `TooltipContent` |
+| `separator/` | `Separator`                               |
+| `skeleton/` | `Skeleton`                               |
+| `sidebar/` | `SidebarProvider`, `Sidebar`, `SidebarHeader`, `SidebarContent`, `SidebarFooter`, `SidebarGroup`, `SidebarGroupLabel`, `SidebarGroupAction`, `SidebarGroupContent`, `SidebarMenu`, `SidebarMenuItem`, `SidebarMenuButton`, `SidebarMenuAction`, `SidebarMenuBadge`, `SidebarMenuSkeleton`, `SidebarMenuSub`, `SidebarMenuSubItem`, `SidebarMenuSubButton`, `SidebarInput`, `SidebarInset`, `SidebarRail`, `SidebarSeparator`, `SidebarTrigger`, `useSidebar` |
+
+**Capability-floor rule:** Vendor the FULL primitive as delivered by the shadcn-vue CLI — never strip collapse/mobile-drawer/tooltip/a11y/persisted-state behaviour. Enhancement and theming happen exclusively through CSS tokens in `main.css`, not through hand-edits to component markup.
