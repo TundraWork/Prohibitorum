@@ -19,6 +19,7 @@ import CenteredLayout from '@/pages/CenteredLayout.vue'
 import PasskeyButton from '@/components/custom/PasskeyButton.vue'
 import PasswordTotpForm from '@/components/custom/PasswordTotpForm.vue'
 import FederationButtons from '@/components/custom/FederationButtons.vue'
+import OrDivider from '@/components/custom/OrDivider.vue'
 
 const { t } = useI18n()
 const { goReturnTo } = useReturnTo()
@@ -52,11 +53,7 @@ function onSuccess(): void {
       <template v-if="bootstrapped">
         <PasskeyButton @success="onSuccess" />
 
-        <div class="flex items-center gap-3" aria-hidden="true">
-          <span class="h-px flex-1 bg-border" />
-          <span class="text-xs uppercase tracking-wide text-muted">{{ t('login.orDivider') }}</span>
-          <span class="h-px flex-1 bg-border" />
-        </div>
+        <OrDivider :label="t('login.orDivider')" />
 
         <PasswordTotpForm @success="onSuccess" />
       </template>

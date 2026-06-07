@@ -98,6 +98,14 @@
   /* Radius: md = 10px for controls; cards use --radius-lg (14px) directly */
   --radius:                10px;
 
+  /* Data-viz series — the five Welcoming Vault hues, in case a future component
+     charts anything. Tide first (primary), then the warm accent + the states. */
+  --chart-1:               var(--color-tide);
+  --chart-2:               var(--color-ember);
+  --chart-3:               var(--color-sage);
+  --chart-4:               var(--color-amber);
+  --chart-5:               var(--color-rose);
+
   /* Sidebar (shadcn-vue Sidebar primitive) — mapped onto Welcoming Vault tokens.
      The sidebar is the Sunken second neutral layer; active item = Tide. */
   --sidebar:                    var(--color-sunken);
@@ -108,6 +116,57 @@
   --sidebar-accent-foreground:  var(--color-ink);
   --sidebar-border:             var(--color-border);
   --sidebar-ring:               var(--color-tide);
+}
+
+/* =============================================================================
+   Bridge the shadcn-vue semantic vars (defined in :root above) into Tailwind v4
+   theme tokens, so the background, text, border and ring utilities the vendored
+   ui/ primitives reference are actually GENERATED. Without this, classes like
+   bg-primary, bg-popover, bg-card, text-primary-foreground, ring-ring do not
+   exist and the components render unstyled (no fills, transparent dialogs).
+   The "inline" keyword keeps each as a var() reference, so a future .dark block
+   recolors the whole kit by overriding :root alone.
+
+   This is the COMPLETE shadcn token set (incl. chart-1..5), so any standard
+   shadcn-vue component added later inherits the design with no edits here. To
+   add a new token: define it in :root (and .dark), then map one line below.
+
+   NOTE: the brand --color-muted (secondary TEXT, 0.50 ink) is deliberately left
+   in the @theme block above and NOT redefined here. Nothing uses bg-muted, and
+   text-muted must stay the ink tone; the shadcn muted TEXT is exposed as
+   --color-muted-foreground.
+   ============================================================================= */
+@theme inline {
+  --color-background:             var(--background);
+  --color-foreground:             var(--foreground);
+  --color-card:                   var(--card);
+  --color-card-foreground:        var(--card-foreground);
+  --color-popover:                var(--popover);
+  --color-popover-foreground:     var(--popover-foreground);
+  --color-primary:                var(--primary);
+  --color-primary-foreground:     var(--primary-foreground);
+  --color-secondary:              var(--secondary);
+  --color-secondary-foreground:   var(--secondary-foreground);
+  --color-muted-foreground:       var(--muted-foreground);
+  --color-accent:                 var(--accent);
+  --color-accent-foreground:      var(--accent-foreground);
+  --color-destructive:            var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input:                  var(--input);
+  --color-ring:                   var(--ring);
+  --color-chart-1:                var(--chart-1);
+  --color-chart-2:                var(--chart-2);
+  --color-chart-3:                var(--chart-3);
+  --color-chart-4:                var(--chart-4);
+  --color-chart-5:                var(--chart-5);
+  --color-sidebar:                     var(--sidebar);
+  --color-sidebar-foreground:          var(--sidebar-foreground);
+  --color-sidebar-primary:             var(--sidebar-primary);
+  --color-sidebar-primary-foreground:  var(--sidebar-primary-foreground);
+  --color-sidebar-accent:              var(--sidebar-accent);
+  --color-sidebar-accent-foreground:   var(--sidebar-accent-foreground);
+  --color-sidebar-border:              var(--sidebar-border);
+  --color-sidebar-ring:                var(--sidebar-ring);
 }
 
 /* =============================================================================
@@ -133,6 +192,16 @@
    ============================================================================= */
 
 @layer base {
+  /* Tailwind v4 defaults plain `border`/`outline` to currentColor; shadcn-vue
+     components rely on the hairline token instead. Default them to our border +
+     Tide ring so vendored primitives (cards, inputs, dialogs) get the right
+     strokes without per-component overrides. */
+  *,
+  ::after,
+  ::before {
+    border-color: var(--color-border);
+  }
+
   body {
     background-color: var(--color-bg);
     color:            var(--color-ink);

@@ -20,6 +20,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useReturnTo } from '@/composables/useReturnTo'
 import { Button } from '@/components/ui/button'
+import OrDivider from '@/components/custom/OrDivider.vue'
 
 interface FederationProvider {
   slug: string
@@ -49,7 +50,8 @@ function startFederation(slug: string): void {
 </script>
 
 <template>
-  <div v-if="providers.length" class="flex flex-col gap-3">
+  <div v-if="providers.length" class="flex flex-col gap-4">
+    <OrDivider :label="t('login.orDivider')" />
     <p class="text-center text-sm text-muted">{{ t('login.federationHeading') }}</p>
     <div class="flex flex-col gap-2">
       <Button
