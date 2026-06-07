@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
+import { TriangleAlert } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -45,8 +46,13 @@ async function revoke(): Promise<void> {
     <TotpCard />
     <RecoveryCodesCard />
 
-    <Card>
-      <CardHeader><CardTitle>{{ t('security.revoke.title') }}</CardTitle></CardHeader>
+    <Card class="border-destructive/30 bg-destructive/[0.02]">
+      <CardHeader>
+        <CardTitle class="flex items-center gap-2 text-destructive">
+          <TriangleAlert class="size-4 shrink-0" aria-hidden="true" />
+          {{ t('security.revoke.title') }}
+        </CardTitle>
+      </CardHeader>
       <CardContent class="flex flex-col gap-3">
         <p class="text-sm text-muted">{{ t('security.revoke.help') }}</p>
         <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
