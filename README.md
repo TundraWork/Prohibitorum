@@ -93,7 +93,7 @@ either by hand is a known antipattern.
 
 ## Docs
 
-- [`DESIGN.md`](./DESIGN.md) — architecture, methods, protocols,
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — architecture, methods, protocols,
   threat model, scope.
 - [`STATUS.md`](./STATUS.md) — what's done in v0.1 / v0.1.1 / v0.2, what's
   coming in v0.3 / v0.4 / v0.5 / v0.6 / v0.7+.

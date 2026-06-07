@@ -14,5 +14,10 @@
 # Brainstorm visual-companion artifacts
 .superpowers/
 
+# Impeccable design-skill artifacts + installed skill copies (tooling, not source)
+/.impeccable/
+/.agents/
+/.claude/
+
 # Editor-local config (may contain absolute $HOME paths — keep out of history)
 /.vscode/
