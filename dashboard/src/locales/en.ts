@@ -51,7 +51,7 @@ export default {
   login: {
     title: 'Sign in',
     passkeyButton: 'Sign in with passkey',
-    passkeyHint: "Use your device's built-in authenticator.",
+    passkeyHint: 'Use your device’s built-in authenticator.',
     passwordLabel: 'Password',
     usernameLabel: 'Username',
     passwordSubmit: 'Continue',
@@ -121,7 +121,7 @@ export default {
   },
 
   sudo: {
-    title: 'Confirm it\'s you',
+    title: 'Confirm it’s you',
     prompt: 'For your security, re-verify before making this change.',
     passkeyButton: 'Verify with passkey',
     usePassword: 'Use password and code instead',
@@ -151,7 +151,7 @@ export default {
     account_disabled: 'This account has been disabled. Contact an administrator.',
     rate_limited: 'Too many attempts. Please wait a moment and try again.',
     factor_locked: 'Too many failed attempts — this sign-in method is temporarily locked.',
-    sudo_method_unavailable: 'That verification method isn\'t available on your account.',
+    sudo_method_unavailable: 'That verification method isn’t available on your account.',
 
     // Login (passkey + password/TOTP)
     not_bootstrapped:
@@ -196,7 +196,7 @@ export default {
     not_found: 'The requested page could not be found.',
 
     // Passkey management
-    last_passkey: 'You can\'t remove your only passkey. Add another first.',
+    last_passkey: 'You can’t remove your only passkey. Add another first.',
   },
 
   security: {
@@ -208,7 +208,7 @@ export default {
       save: 'Save',
       remove: 'Remove',
       removeTitle: 'Remove this passkey?',
-      removeBody: 'You\'ll sign in with your other passkeys. This passkey will stop working on its device.',
+      removeBody: 'You’ll sign in with your other passkeys. This passkey will stop working on its device.',
       created: 'Added',
       lastUsed: 'Last used',
       synced: 'Synced',
