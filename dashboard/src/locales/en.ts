@@ -48,6 +48,20 @@ export default {
     empty: 'No other active sessions.',
   },
 
+  connected: {
+    title: 'Connected accounts',
+    help: 'Sign in using accounts from other identity providers.',
+    empty: 'You haven’t connected any accounts yet.',
+    linked: 'Linked',
+    unlink: 'Disconnect',
+    unlinkConfirmTitle: 'Disconnect this account?',
+    unlinkConfirmBody: 'You will no longer be able to sign in using this provider.',
+    linkHeading: 'Connect an account',
+    linkHelp: 'Add another identity provider you can sign in with.',
+    alreadyLinked: 'Connected',
+    noProviders: 'No identity providers are available to connect.',
+  },
+
   login: {
     title: 'Sign in',
     passkeyButton: 'Sign in with passkey',
@@ -197,6 +211,10 @@ export default {
 
     // Passkey management
     last_passkey: 'You can’t remove your only passkey. Add another first.',
+
+    // Connected accounts
+    last_sign_in_method: 'You can’t remove your last sign-in method. Add another first.',
+    credential_not_found: 'That connection no longer exists.',
   },
 
   security: {
