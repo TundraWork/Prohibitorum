@@ -29,6 +29,20 @@ export default {
     signOut: 'Sign out',
   },
 
+  profile: {
+    title: 'Profile',
+    username: 'Username',
+    displayName: 'Display name',
+    role: 'Role',
+  },
+  sessions: {
+    title: 'Active sessions',
+    current: 'This device',
+    revoke: 'Sign out',
+    lastSeen: 'Last seen',
+    empty: 'No other active sessions.',
+  },
+
   login: {
     title: 'Sign in',
     passkeyButton: 'Sign in with passkey',

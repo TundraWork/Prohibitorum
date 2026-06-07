@@ -64,6 +64,17 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/EnrollView.vue'),
     meta: { public: true },
   },
+  // Authenticated dashboard shell (Spec 2a). requiresAuth → installGuard
+  // redirects to /login?return_to= when not signed in.
+  {
+    path: '/',
+    component: () => import('../pages/DashboardLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      { path: '', name: 'profile', component: () => import('../pages/ProfileView.vue') },
+      { path: 'sessions', name: 'sessions', component: () => import('../pages/SessionsView.vue') },
+    ],
+  },
   // Catch-all → /error
   {
     path: '/:pathMatch(.*)*',
