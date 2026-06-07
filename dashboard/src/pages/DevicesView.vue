@@ -1,0 +1,124 @@
+<script setup lang="ts">
+/**
+ * DevicesView (/devices) — approve a new device by its pairing code.
+ * lookup (not sudo) shows the initiator context; approve is sudo-gated; cancel
+ * drops the pairing. The lookup → confirm → approve sequence IS the
+ * confirmation, so there is no extra ConfirmDialog here.
+ */
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { api } from '@/lib/api'
+import { useApi } from '@/composables/useApi'
+import { withSudo } from '@/lib/sudo'
+import { MonitorSmartphone } from 'lucide-vue-next'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import CodeField from '@/components/custom/CodeField.vue'
+
+interface Lookup {
+  pairingId: string
+  displayCode: string
+  initiatorUa: string
+  initiatorIp: string
+  createdAt: string
+  expiresAt: string
+  alreadyBound: boolean
+}
+
+const { t, te } = useI18n()
+const { busy, error, run } = useApi()
+
+const code = ref('')
+const found = ref<Lookup | null>(null)
+const approved = ref(false)
+
+const fmt = (d: string) => { const ms = Date.parse(d); return Number.isNaN(ms) ? '' : new Date(ms).toLocaleString() }
+const errorText = computed(() => {
+  const e = error.value
+  if (!e) return ''
+  const key = `errors.${e.code}`
+  return te(key) ? t(key) : e.message || t('common.error')
+})
+
+async function lookup(): Promise<void> {
+  approved.value = false
+  const c = code.value.trim()
+  if (!c) return
+  const res = await run(() => api.get<Lookup>(
+    `/api/prohibitorum/me/devices/pair/lookup?code=${encodeURIComponent(c)}`))
+  if (res) found.value = res
+}
+async function approve(): Promise<void> {
+  const c = code.value.trim()
+  const ok = await run(() => withSudo(async () => {
+    await api.post('/api/prohibitorum/me/devices/pair/approve', { code: c })
+    return true as const
+  }))
+  if (ok) { approved.value = true; found.value = null }
+}
+async function cancel(): Promise<void> {
+  const c = code.value.trim()
+  const ok = await run(async () => {
+    await api.post('/api/prohibitorum/me/devices/pair/cancel', { code: c })
+    return true as const
+  })
+  if (ok) { found.value = null; code.value = '' }
+}
+</script>
+
+<template>
+  <div class="flex max-w-2xl flex-col gap-6">
+    <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('devices.title') }}</h1>
+    <p class="text-sm text-muted">{{ t('devices.help') }}</p>
+
+    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
+      <AlertDescription>{{ errorText }}</AlertDescription>
+    </Alert>
+
+    <p v-if="approved" class="text-sm text-sage" role="status">{{ t('devices.approved') }}</p>
+
+    <!-- Entry -->
+    <Card v-if="!found">
+      <CardContent class="flex flex-col gap-3 py-4">
+        <label class="text-sm font-medium text-ink" for="code">{{ t('devices.codeLabel') }}</label>
+        <div class="flex items-center gap-2">
+          <Input id="code" name="code" v-model="code" :placeholder="t('devices.codePlaceholder')"
+                 autocomplete="off" class="font-mono uppercase" @keydown.enter.prevent="lookup" />
+          <Button type="button" class="shrink-0" :disabled="busy || !code.trim()" data-test="lookup" @click="lookup">
+            {{ t('devices.lookup') }}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- Confirmation -->
+    <Card v-else>
+      <CardHeader>
+        <CardTitle class="flex items-center gap-2">
+          <MonitorSmartphone class="size-4 shrink-0" aria-hidden="true" />
+          {{ t('devices.confirmTitle') }}
+        </CardTitle>
+      </CardHeader>
+      <CardContent class="flex flex-col gap-3 text-sm">
+        <CodeField :value="found.displayCode" />
+        <div class="flex min-w-0 flex-col gap-1">
+          <span class="truncate text-muted">{{ t('devices.requestedFrom') }}: {{ found.initiatorUa }}</span>
+          <span class="truncate text-muted">{{ t('devices.ipAddress') }}: {{ found.initiatorIp }}</span>
+          <span v-if="fmt(found.createdAt)" class="truncate text-muted">{{ t('devices.started') }}: {{ fmt(found.createdAt) }}</span>
+          <span v-if="fmt(found.expiresAt)" class="truncate text-muted">{{ t('devices.expires') }}: {{ fmt(found.expiresAt) }}</span>
+        </div>
+        <p v-if="found.alreadyBound" class="text-sm text-sage" role="status">{{ t('devices.alreadyBound') }}</p>
+        <div class="flex gap-2">
+          <Button v-if="!found.alreadyBound" type="button" :disabled="busy" data-test="approve" @click="approve">
+            {{ t('devices.approve') }}
+          </Button>
+          <Button type="button" variant="outline" :disabled="busy" data-test="cancel" @click="cancel">
+            {{ t('devices.cancel') }}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+</template>

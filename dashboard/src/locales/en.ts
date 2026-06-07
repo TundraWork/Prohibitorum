@@ -62,6 +62,23 @@ export default {
     noProviders: 'No identity providers are available to connect.',
   },
 
+  devices: {
+    title: 'Devices',
+    help: 'Approve a new device that’s trying to sign in to your account.',
+    codeLabel: 'Pairing code',
+    codePlaceholder: 'XXXX-XXXX',
+    lookup: 'Look up',
+    confirmTitle: 'Approve this device?',
+    requestedFrom: 'Requested from',
+    ipAddress: 'IP address',
+    started: 'Started',
+    expires: 'Expires',
+    approve: 'Approve device',
+    cancel: 'Cancel',
+    approved: 'Device approved. It will be signed in shortly.',
+    alreadyBound: 'You’ve already approved this device.',
+  },
+
   login: {
     title: 'Sign in',
     passkeyButton: 'Sign in with passkey',
@@ -215,6 +232,12 @@ export default {
     // Connected accounts
     last_sign_in_method: 'You can’t remove your last sign-in method. Add another first.',
     credential_not_found: 'That connection no longer exists.',
+
+    // Device pairing
+    pairing_not_found: 'That code is invalid, used, or expired.',
+    pairing_expired: 'That code has expired. Ask the device to generate a new one.',
+    pairing_not_approved: 'This device hasn’t been approved yet.',
+    pairing_state: 'That pairing can’t be changed right now.',
   },
 
   security: {
