@@ -29,6 +29,8 @@ export default {
     profile: 'Profile',
     security: 'Security',
     sessions: 'Sessions',
+    connected: 'Connected',
+    devices: 'Devices',
     signOut: 'Sign out',
   },
 
@@ -105,6 +107,7 @@ export default {
     orDivider: 'or',
     federationHeading: 'Sign in with another account',
     noBootstrap: 'No accounts yet — run `prohibitorum enroll-admin` to get started.',
+    pairDevice: 'New device? Pair it',
   },
 
   consent: {

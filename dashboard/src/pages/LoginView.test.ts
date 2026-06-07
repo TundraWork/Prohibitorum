@@ -32,7 +32,12 @@ function makeI18n() {
 }
 
 function mountView() {
-  return mount(LoginView, { global: { plugins: [makeI18n()] } })
+  return mount(LoginView, {
+    global: {
+      plugins: [makeI18n()],
+      stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } },
+    },
+  })
 }
 
 beforeEach(() => {
@@ -86,5 +91,17 @@ describe('LoginView', () => {
       .findAll('button')
       .find((b) => b.text().includes(en.login.passkeyButton))
     expect(passkeyBtn).toBeFalsy()
+  })
+
+  it('renders the "New device? Pair it" link pointing at /pair', async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path === '/api/prohibitorum/auth/status') return { bootstrapped: true }
+      if (path === '/api/prohibitorum/auth/federation') return []
+      throw new Error(`unexpected GET ${path}`)
+    })
+    const w = mountView()
+    await flushPromises()
+
+    expect(w.find('a[href="/pair"]').text()).toBe(en.login.pairDevice)
   })
 })

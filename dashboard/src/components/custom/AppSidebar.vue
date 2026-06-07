@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ShieldCheck, User, MonitorSmartphone, LogOut, KeyRound } from 'lucide-vue-next'
+import { ShieldCheck, User, MonitorSmartphone, LogOut, KeyRound, Link2, TabletSmartphone } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
@@ -28,6 +28,8 @@ const accountItems = computed(() => [
   { to: '/', label: t('nav.profile'), icon: User },
   { to: '/security', label: t('nav.security'), icon: KeyRound },
   { to: '/sessions', label: t('nav.sessions'), icon: MonitorSmartphone },
+  { to: '/connected', label: t('nav.connected'), icon: Link2 },
+  { to: '/devices', label: t('nav.devices'), icon: TabletSmartphone },
 ])
 </script>
 

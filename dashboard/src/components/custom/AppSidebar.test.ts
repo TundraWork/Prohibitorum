@@ -18,7 +18,7 @@ const stub = defineComponent({ template: '<div/>' })
 function makeRouter() {
   return createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/logout', component: stub }],
+    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/connected', component: stub }, { path: '/devices', component: stub }, { path: '/logout', component: stub }],
   })
 }
 function makeI18n() {
@@ -40,6 +40,8 @@ describe('AppSidebar', () => {
     expect(links).toContain('/')
     expect(links).toContain('/sessions')
     expect(links).toContain('/logout')
+    expect(links).toContain('/connected')
+    expect(links).toContain('/devices')
     expect(wrapper.text()).toContain('Alex Smith')
   })
 

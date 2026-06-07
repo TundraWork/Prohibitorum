@@ -63,6 +63,10 @@ function onSuccess(): void {
       </p>
 
       <FederationButtons />
+
+      <RouterLink to="/pair" class="text-center text-sm text-muted underline-offset-4 hover:underline">
+        {{ t('login.pairDevice') }}
+      </RouterLink>
     </div>
   </CenteredLayout>
 </template>

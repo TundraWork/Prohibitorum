@@ -64,6 +64,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/EnrollView.vue'),
     meta: { public: true },
   },
+  {
+    path: '/pair',
+    name: 'pair',
+    component: () => import('../pages/PairDeviceView.vue'),
+    meta: { public: true },
+  },
   // Authenticated dashboard shell (Spec 2a). requiresAuth → installGuard
   // redirects to /login?return_to= when not signed in.
   {
@@ -74,6 +80,8 @@ const routes: RouteRecordRaw[] = [
       { path: '', name: 'profile', component: () => import('../pages/ProfileView.vue') },
       { path: 'sessions', name: 'sessions', component: () => import('../pages/SessionsView.vue') },
       { path: 'security', name: 'security', component: () => import('../pages/SecurityView.vue') },
+      { path: 'connected', name: 'connected', component: () => import('../pages/ConnectedAccountsView.vue') },
+      { path: 'devices', name: 'devices', component: () => import('../pages/DevicesView.vue') },
     ],
   },
   // Catch-all → /error
