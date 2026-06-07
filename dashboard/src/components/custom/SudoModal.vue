@@ -12,6 +12,7 @@ import { api, type ApiError } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
 import { sudoState, _resolveSudo } from '@/lib/sudo'
+import { ShieldCheck, Fingerprint } from 'lucide-vue-next'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
@@ -99,6 +100,9 @@ async function doPasswordTotp(): Promise<void> {
   <Dialog v-model:open="open">
     <DialogContent>
       <DialogHeader>
+        <span class="inline-flex size-10 items-center justify-center rounded-full bg-tide/10 text-tide-strong">
+          <ShieldCheck class="size-5" aria-hidden="true" />
+        </span>
         <DialogTitle>{{ t('sudo.title') }}</DialogTitle>
         <DialogDescription>{{ t('sudo.prompt') }}</DialogDescription>
       </DialogHeader>
@@ -108,7 +112,8 @@ async function doPasswordTotp(): Promise<void> {
       <p v-else-if="methods.length === 0" class="text-sm text-muted">{{ t('sudo.noMethod') }}</p>
 
       <div v-else class="flex flex-col gap-4">
-        <Button v-if="hasPasskey && !showPwForm" class="w-full" :disabled="busy" @click="doPasskey">
+        <Button v-if="hasPasskey && !showPwForm" size="lg" class="w-full" :disabled="busy" @click="doPasskey">
+          <Fingerprint aria-hidden="true" />
           {{ t('sudo.passkeyButton') }}
         </Button>
 
