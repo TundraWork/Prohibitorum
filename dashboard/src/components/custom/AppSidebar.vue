@@ -8,6 +8,7 @@
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { ShieldCheck, User, MonitorSmartphone, LogOut } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -18,6 +19,10 @@ import {
 
 const { t } = useI18n()
 const auth = useAuthStore()
+const route = useRoute()
+
+const isActive = (to: string) =>
+  to === '/' ? route.path === '/' : route.path === to || route.path.startsWith(to + '/')
 
 const accountItems = computed(() => [
   { to: '/', label: t('nav.profile'), icon: User },
@@ -42,7 +47,7 @@ const accountItems = computed(() => [
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in accountItems" :key="item.to">
-              <SidebarMenuButton as-child :tooltip="item.label">
+              <SidebarMenuButton as-child :tooltip="item.label" :is-active="isActive(item.to)">
                 <RouterLink :to="item.to">
                   <component :is="item.icon" aria-hidden="true" />
                   <span>{{ item.label }}</span>

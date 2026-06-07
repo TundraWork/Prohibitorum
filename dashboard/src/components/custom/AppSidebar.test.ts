@@ -42,4 +42,14 @@ describe('AppSidebar', () => {
     expect(links).toContain('/logout')
     expect(wrapper.text()).toContain('Alex Smith')
   })
+
+  it('marks only the current route link as active', async () => {
+    const auth = useAuthStore()
+    auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
+    const router = makeRouter(); router.push('/'); await router.isReady()
+    const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
+    // Exactly one element should carry data-active="true" — the Profile nav item
+    const activeEls = wrapper.findAll('[data-active="true"]')
+    expect(activeEls.length).toBe(1)
+  })
 })

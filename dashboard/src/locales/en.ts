@@ -38,6 +38,8 @@ export default {
   sessions: {
     title: 'Active sessions',
     current: 'This device',
+    issued: 'Signed in',
+    expires: 'Expires',
     revoke: 'Sign out',
     lastSeen: 'Last seen',
     empty: 'No other active sessions.',

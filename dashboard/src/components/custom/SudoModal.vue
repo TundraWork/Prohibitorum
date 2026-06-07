@@ -62,6 +62,8 @@ watch(() => sudoState.value.open, async (isOpen) => {
   }
 })
 
+function switchToPassword() { netError.value = null; waError.value = null; showPwForm.value = true }
+
 async function doPasskey(): Promise<void> {
   const options = await run(() =>
     api.post<PublicKeyCredentialRequestOptionsJSON>('/api/prohibitorum/me/sudo/begin', { method: 'webauthn' }),
@@ -114,7 +116,7 @@ async function doPasswordTotp(): Promise<void> {
           v-if="hasPasskey && hasPwTotp && !showPwForm"
           type="button"
           class="text-sm text-tide-strong underline-offset-4 hover:underline"
-          @click="showPwForm = true"
+          @click="switchToPassword"
         >
           {{ t('sudo.usePassword') }}
         </button>

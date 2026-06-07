@@ -25,6 +25,8 @@ interface SessionListItem {
 const { t, te } = useI18n()
 const { busy, error, run } = useApi()
 
+const fmt = (d: string) => { const t = Date.parse(d); return Number.isNaN(t) ? '' : new Date(t).toLocaleString() }
+
 const errorText = computed(() => {
   const e = error.value
   if (!e) return ''
@@ -61,6 +63,8 @@ onMounted(load)
             <StatusBadge v-if="r.isCurrent" variant="success">{{ t('sessions.current') }}</StatusBadge>
           </div>
           <span class="text-muted">{{ t('sessions.lastSeen') }}: {{ r.lastSeenIp }}</span>
+          <span v-if="fmt(r.issuedAt)" class="text-muted">{{ t('sessions.issued') }}: {{ fmt(r.issuedAt) }}</span>
+          <span v-if="fmt(r.expiresAt)" class="text-muted">{{ t('sessions.expires') }}: {{ fmt(r.expiresAt) }}</span>
         </div>
         <Button v-if="!r.isCurrent" variant="outline" size="sm" :disabled="busy"
                 data-test="revoke" @click="revoke(r.id)">
