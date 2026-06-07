@@ -108,6 +108,17 @@ export default {
     cancel: 'Cancel',
   },
 
+  recoveryCodes: {
+    heading: 'Save your recovery codes',
+    intro: 'Each code can be used once if you lose access to your authenticator app.',
+    regeneratedWarning: 'Your previous recovery codes no longer work.',
+    storage: 'Store them in a safe place — a password manager or printed copy. Don’t keep them next to your password, and don’t rely on a single screenshot.',
+    copyAll: 'Copy all',
+    download: 'Download .txt',
+    savedConfirm: 'I’ve saved my recovery codes',
+    done: 'Done',
+  },
+
   sudo: {
     title: 'Confirm it\'s you',
     prompt: 'For your security, re-verify before making this change.',
