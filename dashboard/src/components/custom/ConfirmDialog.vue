@@ -29,7 +29,9 @@ function onOpenChange(v: boolean): void {
   if (!v) emit('cancel')
 }
 
-// Give Cancel initial focus when the dialog opens (safe default per NN/g).
+// Best-effort: nudge focus to Cancel (the safe option) when the dialog opens.
+// reka-ui's Dialog runs its own focus-trap on open (focus enters the dialog),
+// which is the authoritative a11y behavior; this is a hint layered on top.
 watch(() => props.open, async (o) => {
   if (o) { await nextTick(); cancelRef.value?.$el?.focus() }
 })
