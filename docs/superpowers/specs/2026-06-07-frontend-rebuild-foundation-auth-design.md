@@ -26,7 +26,7 @@ was rejected: as a pre-styled, opinionated library it would reintroduce the
 override-someone-else's-theme friction we are leaving, accessibility is not a
 headline feature, and `flowbite-vue` docs are immature.
 
-## 2. Sources of truth (canonical vs critical-reference)
+## 2. Sources of truth (authoritative vs advisory)
 
 - **Authoritative — preserve the contract:**
   - The backend API endpoints + request/response shapes (the Go server is
@@ -36,12 +36,13 @@ headline feature, and `flowbite-vue` docs are immature.
     CSP, `credentials:'include'` session cookie flow.
   - `DESIGN.md` (the design system) and `PRODUCT.md` (users, principles,
     accessibility bar).
-- **Critical reference only — re-engineer the logic:** the OLD `dashboard/`
-  code (in git history at `e45f356` and the Login+Consent UI commits). Mine it
-  to recover *what* each flow does and *which edge cases* exist, then **redesign
-  how** — cleaner state, clearer naming, better error handling, focused units.
-  The old logic quality is explicitly NOT a target to reproduce. Where the old
-  approach was weak, the rewrite fixes it and says how.
+- **Advisory only — consult with judgement, do not follow blindly:** the OLD
+  `dashboard/` code (in git history at `e45f356` and the Login+Consent UI
+  commits). It carries **no authority**. Treat it as a low-trust reference:
+  consult it to recover *what* each flow does and *which edge cases* exist, then
+  evaluate every decision on its merits and **deviate freely**. Its logic
+  quality is explicitly NOT a target to reproduce — where it was weak, or simply
+  not the best approach, redesign and say how. Do not port; re-derive.
 
 ## 3. Decomposition (this spec is slice 1 of 3)
 
@@ -149,7 +150,7 @@ component styling.
 
 The flows below are the **contract** (preserve the behavior + security
 properties); the **implementation is re-derived** to a clean-architecture bar
-(§9), reading the old code critically for edge cases.
+(§9), consulting the old code with judgement (§2) only to recover edge cases.
 
 **`/login?return_to=`** — method-selection auth on a centered card over
 `AuthBackdrop`:
@@ -194,10 +195,11 @@ run the passkey **registration** ceremony
   Tide focus ring on every interactive element.
 - No inline `<script>` anywhere (`script-src 'self'`).
 
-## 9. Quality bar (critical-review stance)
+## 9. Quality bar (judgement-first stance)
 
-Every ported flow gets an explicit *"read old impl → note weaknesses →
-redesign"* step in the plan — a port is not acceptable. Standards:
+Every flow gets an explicit *"consult old impl with judgement → note weaknesses
+→ redesign"* step in the plan — a port is not acceptable; the old code informs
+but never dictates. Standards:
 - TypeScript `strict`; a typed API layer (request/response types).
 - Focused, single-responsibility units; shared flow logic extracted into
   composables (`useWebauthn`, `useReturnTo`, `useApi`).
