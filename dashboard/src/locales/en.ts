@@ -214,5 +214,15 @@ export default {
       deviceBound: 'This device',
       defaultName: 'Passkey',
     },
+    password: {
+      title: 'Password',
+      help: 'Set a password you can use with a one-time code if a passkey isn’t available.',
+      newLabel: 'New password',
+      confirmLabel: 'Confirm password',
+      submit: 'Save password',
+      tooShort: 'Use at least 8 characters.',
+      mismatch: 'Passwords don’t match.',
+      saved: 'Password updated.',
+    },
   },
 } as const
