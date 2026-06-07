@@ -18,7 +18,7 @@ const stub = defineComponent({ template: '<div/>' })
 function makeRouter() {
   return createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/connected', component: stub }, { path: '/devices', component: stub }, { path: '/logout', component: stub }],
+    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/connected', component: stub }, { path: '/devices', component: stub }, { path: '/logout', component: stub }, { path: '/admin/accounts', component: stub }, { path: '/admin/invitations', component: stub }],
   })
 }
 function makeI18n() {
@@ -53,5 +53,24 @@ describe('AppSidebar', () => {
     // Exactly one element should carry data-active="true" — the Profile nav item
     const activeEls = wrapper.findAll('[data-active="true"]')
     expect(activeEls.length).toBe(1)
+  })
+
+  it('renders the admin group only for admins', async () => {
+    const auth = useAuthStore()
+    auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'admin' }
+    const router = makeRouter(); router.push('/'); await router.isReady()
+    const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
+    const links = wrapper.findAll('a').map((a) => a.attributes('href'))
+    expect(links).toContain('/admin/accounts')
+    expect(links).toContain('/admin/invitations')
+  })
+
+  it('hides the admin group for non-admins', async () => {
+    const auth = useAuthStore()
+    auth.me = { id: 2, username: 'bob', displayName: 'Bob Lee', role: 'user' }
+    const router = makeRouter(); router.push('/'); await router.isReady()
+    const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
+    const links = wrapper.findAll('a').map((a) => a.attributes('href'))
+    expect(links).not.toContain('/admin/accounts')
   })
 })

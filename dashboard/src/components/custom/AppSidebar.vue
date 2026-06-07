@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ShieldCheck, User, MonitorSmartphone, LogOut, KeyRound, Link2, TabletSmartphone } from 'lucide-vue-next'
+import { ShieldCheck, User, MonitorSmartphone, LogOut, KeyRound, Link2, TabletSmartphone, Users, Ticket } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
@@ -30,6 +30,11 @@ const accountItems = computed(() => [
   { to: '/sessions', label: t('nav.sessions'), icon: MonitorSmartphone },
   { to: '/connected', label: t('nav.connected'), icon: Link2 },
   { to: '/devices', label: t('nav.devices'), icon: TabletSmartphone },
+])
+
+const adminItems = computed(() => [
+  { to: '/admin/accounts', label: t('admin.nav.accounts'), icon: Users },
+  { to: '/admin/invitations', label: t('admin.nav.invitations'), icon: Ticket },
 ])
 </script>
 
@@ -60,7 +65,21 @@ const accountItems = computed(() => [
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-      <!-- Admin group (Spec 3): rendered only for admins. Empty in 2a. -->
+      <SidebarGroup v-if="auth.isAdmin">
+        <SidebarGroupLabel>{{ t('admin.nav.title') }}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="item in adminItems" :key="item.to">
+              <SidebarMenuButton as-child :tooltip="item.label" :is-active="isActive(item.to)">
+                <RouterLink :to="item.to">
+                  <component :is="item.icon" aria-hidden="true" />
+                  <span>{{ item.label }}</span>
+                </RouterLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
     </SidebarContent>
 
     <SidebarFooter>

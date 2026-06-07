@@ -82,6 +82,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'security', name: 'security', component: () => import('../pages/SecurityView.vue') },
       { path: 'connected', name: 'connected', component: () => import('../pages/ConnectedAccountsView.vue') },
       { path: 'devices', name: 'devices', component: () => import('../pages/DevicesView.vue') },
+      { path: 'admin/accounts', name: 'admin-accounts', component: () => import('../pages/admin/AdminAccountsView.vue'), meta: { requiresAdmin: true } },
+      { path: 'admin/accounts/:id', name: 'admin-account-detail', component: () => import('../pages/admin/AdminAccountDetailView.vue'), meta: { requiresAdmin: true } },
+      { path: 'admin/invitations', name: 'admin-invitations', component: () => import('../pages/admin/AdminInvitationsView.vue'), meta: { requiresAdmin: true } },
     ],
   },
   // Catch-all → /error
