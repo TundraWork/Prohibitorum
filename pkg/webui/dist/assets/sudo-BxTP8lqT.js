@@ -1,1 +1,0 @@
-import{ac as t}from"./index-C8QuUFfl.js";const o=t({open:!1,resolve:null});function a(){return o.value.resolve?Promise.resolve(!1):new Promise(r=>{o.value={open:!0,resolve:r}})}async function n(r){try{return await r()}catch(e){if((e==null?void 0:e.code)!=="sudo_required"||!await a())throw e;return await r()}}export{a as e,o as s,n as w};

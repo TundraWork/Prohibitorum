@@ -9,14 +9,22 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@nuxt/ui": "^4",
+    "@fontsource-variable/hanken-grotesk": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
     "@simplewebauthn/browser": "^13",
+    "@vueuse/core": "^11",
+    "class-variance-authority": "^0.7",
+    "clsx": "^2",
+    "lucide-vue-next": "^0.460",
     "pinia": "^2",
+    "reka-ui": "^2",
+    "tailwind-merge": "^2",
     "vue": "^3.5",
     "vue-i18n": "^10",
     "vue-router": "^4"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4",
     "@types/node": "^24",
     "@vitejs/plugin-vue": "^5",
     "@vue/test-utils": "^2",

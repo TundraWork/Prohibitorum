@@ -1,11 +1,9 @@
 import { createI18n } from 'vue-i18n'
-import zh from './locales/zh'
-import en from './locales/en'
 
-const stored = localStorage.getItem('locale')
+// Minimal stub — Task 3 replaces this with full English translations.
 export const i18n = createI18n({
   legacy: false,
-  locale: stored ?? (navigator.language.startsWith('zh') ? 'zh' : 'en'),
-  fallbackLocale: 'zh',
-  messages: { zh, en },
+  locale: 'en',
+  fallbackLocale: 'en',
+  messages: { en: {} },
 })
