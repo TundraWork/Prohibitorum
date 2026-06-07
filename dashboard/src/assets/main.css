@@ -112,8 +112,10 @@
   --sidebar-foreground:         var(--color-ink);
   --sidebar-primary:            var(--color-tide-strong);
   --sidebar-primary-foreground: var(--color-bg);
-  --sidebar-accent:             var(--color-border);
-  --sidebar-accent-foreground:  var(--color-ink);
+  /* Hover/active nav items wash with a calm Tide tint + Tide-strong label
+     (DESIGN.md: Tide carries current-selection), not the old faint gray. */
+  --sidebar-accent:             oklch(0.955 0.028 205);
+  --sidebar-accent-foreground:  var(--color-tide-strong);
   --sidebar-border:             var(--color-border);
   --sidebar-ring:               var(--color-tide);
 }
@@ -213,5 +215,27 @@
 
   code, kbd, samp, pre {
     font-family: var(--font-mono);
+  }
+
+  /* Tide-tinted text selection — a small, on-brand richness touch. */
+  ::selection {
+    background-color: oklch(0.55 0.118 205 / 0.20);
+    color: var(--color-ink);
+  }
+}
+
+/* =============================================================================
+   Reduced motion — honored project-wide (PRODUCT.md Accessibility). Any
+   transition/animation collapses to ~instant; reveals still land in their
+   final state.
+   ============================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

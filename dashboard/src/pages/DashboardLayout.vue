@@ -19,11 +19,11 @@ onMounted(() => { void auth.ensureLoaded() })
   <SidebarProvider>
     <AppSidebar />
     <SidebarInset>
-      <header class="flex h-14 items-center gap-2 border-b border-border px-4">
+      <header class="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-border bg-background px-4">
         <SidebarTrigger />
       </header>
       <!-- SidebarInset already renders the page's <main> landmark; this is a plain content wrapper. -->
-      <div class="flex-1 p-6">
+      <div class="flex-1 p-6 sm:p-8">
         <RouterView />
       </div>
     </SidebarInset>

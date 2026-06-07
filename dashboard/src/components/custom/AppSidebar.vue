@@ -34,11 +34,11 @@ const accountItems = computed(() => [
 <template>
   <Sidebar>
     <SidebarHeader>
-      <div class="flex items-center gap-2 px-2 py-1.5">
-        <span class="inline-flex size-7 items-center justify-center rounded-md bg-ember/10 text-ember">
+      <div class="flex items-center gap-2.5 px-2 py-1.5">
+        <span class="inline-flex size-8 items-center justify-center rounded-md bg-ember/12 text-ember ring-1 ring-inset ring-ember/15">
           <ShieldCheck class="size-5" aria-hidden="true" />
         </span>
-        <span class="font-semibold tracking-tight text-ink">Prohibitorum</span>
+        <span class="text-base font-semibold tracking-tight text-ink">Prohibitorum</span>
       </div>
     </SidebarHeader>
 
@@ -62,8 +62,11 @@ const accountItems = computed(() => [
     </SidebarContent>
 
     <SidebarFooter>
-      <div class="flex flex-col gap-1 px-2 py-1.5">
-        <span v-if="auth.me" class="truncate text-sm text-muted">{{ auth.me.displayName }}</span>
+      <div class="flex flex-col gap-1 border-t border-sidebar-border pt-2">
+        <div v-if="auth.me" class="flex min-w-0 flex-col px-2 py-1">
+          <span class="truncate text-sm font-medium text-ink">{{ auth.me.displayName }}</span>
+          <span class="truncate text-xs capitalize text-muted">{{ auth.me.role }}</span>
+        </div>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton as-child :tooltip="t('nav.signOut')">
