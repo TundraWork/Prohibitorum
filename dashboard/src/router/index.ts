@@ -64,7 +64,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     name: 'login',
-    component: () => Promise.resolve(makePlaceholder('LoginView')),
+    component: () => import('../pages/LoginView.vue'),
     meta: { public: true },
   },
   {
