@@ -79,6 +79,18 @@ export default {
     federationRedirect: 'Redirecting to your identity provider…',
   },
 
+  sudo: {
+    title: 'Confirm it\'s you',
+    prompt: 'For your security, re-verify before making this change.',
+    passkeyButton: 'Verify with passkey',
+    usePassword: 'Use password and code instead',
+    passwordLabel: 'Current password',
+    codeLabel: 'One-time code',
+    verify: 'Verify',
+    cancel: 'Cancel',
+    noMethod: 'No verification method is available on this account. Contact an administrator.',
+  },
+
   /**
    * errors.* — map backend error codes to user-facing English messages.
    * Usage: te('errors.'+code) ? t('errors.'+code) : err.message
@@ -98,6 +110,7 @@ export default {
     account_disabled: 'This account has been disabled. Contact an administrator.',
     rate_limited: 'Too many attempts. Please wait a moment and try again.',
     factor_locked: 'Too many failed attempts — this sign-in method is temporarily locked.',
+    sudo_method_unavailable: 'That verification method isn\'t available on your account.',
 
     // Login (passkey + password/TOTP)
     not_bootstrapped:
