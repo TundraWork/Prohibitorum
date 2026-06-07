@@ -224,5 +224,15 @@ export default {
       mismatch: 'Passwords don’t match.',
       saved: 'Password updated.',
     },
+    totp: {
+      title: 'Authenticator app',
+      help: 'Use a TOTP app (Google Authenticator, 1Password, …) for one-time codes.',
+      setup: 'Set up authenticator',
+      scan: 'Scan this QR code with your authenticator app',
+      secretLabel: 'Or enter this key manually',
+      codeLabel: 'Enter the 6-digit code to confirm',
+      verify: 'Verify & enable',
+      enabled: 'Authenticator enabled.',
+    },
   },
 } as const
