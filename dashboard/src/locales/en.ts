@@ -193,5 +193,26 @@ export default {
     // Generic / client-synthesized
     server_error: 'Something went wrong on our end. Please try again.',
     not_found: 'The requested page could not be found.',
+
+    // Passkey management
+    last_passkey: 'You can\'t remove your only passkey. Add another first.',
+  },
+
+  security: {
+    title: 'Security',
+    passkeys: {
+      title: 'Passkeys',
+      add: 'Add passkey',
+      rename: 'Rename',
+      save: 'Save',
+      remove: 'Remove',
+      removeTitle: 'Remove this passkey?',
+      removeBody: 'You\'ll sign in with your other passkeys. This passkey will stop working on its device.',
+      created: 'Added',
+      lastUsed: 'Last used',
+      synced: 'Synced',
+      deviceBound: 'This device',
+      defaultName: 'Passkey',
+    },
   },
 } as const
