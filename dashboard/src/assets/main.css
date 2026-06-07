@@ -75,9 +75,16 @@
   --muted:                 var(--color-sunken);
   --muted-foreground:      var(--color-muted);
 
-  /* Accent — Ember (the scarce warm accent; used sparsely per Scarce Accent Rule) */
-  --accent:                var(--color-ember);
-  --accent-foreground:     var(--color-bg);        /* white label on Ember fill */
+  /* Accent — NEUTRAL TINT (NOT Ember).
+     shadcn-vue maps --accent to hover backgrounds on ghost buttons, outline buttons,
+     command/menu items, etc. Mapping this to --color-ember would violate DESIGN.md's
+     Scarce Accent Rule (Ember = brand mark only; never a hover state).
+     Decision: map --accent to the Sunken neutral tint (barely-off-white with a teal
+     cast) and --accent-foreground to Ink, so ghost/outline hover backgrounds are
+     a calm, barely-visible tint — not a warm ember burst.
+     Ember is injected manually as a one-off class only in brand-mark elements. */
+  --accent:                var(--color-sunken);
+  --accent-foreground:     var(--color-ink);
 
   /* Destructive — Rose (danger: revoke, delete, failed) */
   --destructive:           var(--color-rose);
