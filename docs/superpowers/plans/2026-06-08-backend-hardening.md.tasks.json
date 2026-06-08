@@ -10,7 +10,7 @@
     {
       "id": 2,
       "subject": "Task 2: Refresh-token rotation idempotency",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** SetNX rotation lock + previous-token idempotency window; benign replay re-mints + returns existing current token; no victim lockout.\n\n**Files:** pkg/protocol/oidc/refresh.go, refresh_test.go\n\n**Verify:** go test ./pkg/protocol/oidc/...\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/refresh.go\",\"pkg/protocol/oidc/refresh_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/... && go build ./...\",\"acceptanceCriteria\":[\"concurrent: one rotates, other retryable no revoke\",\"replay within window same successor no second mint\",\"after window family revoked\",\"SetNX error safe\",\"idempotent replay audited\"]}\n```"
     },
