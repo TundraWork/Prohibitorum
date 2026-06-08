@@ -150,31 +150,18 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Re-do the last-sign-in-method check INSIDE the locked transaction.
-	// federation_oidc remains iff >1 identity row existed before; webauthn
-	// + password_totp survive unconditionally.
-	methods, err := authn.AvailableMethods(r.Context(), q, sess.Account.ID)
-	if err != nil && !errors.Is(err, authn.ErrNoUsableMethod) {
-		writeAuthErr(w, err)
-		return
-	}
-	identities, err := q.ListAccountIdentitiesByAccount(r.Context(), sess.Account.ID)
-	if err != nil {
-		writeAuthErr(w, err)
-		return
-	}
-	federationStillAvailable := len(identities) > 1
-	nonFederationMethods := 0
-	for _, m := range methods {
-		if m != authn.MethodFederationOIDC {
-			nonFederationMethods++
-		}
-	}
-	if !federationStillAvailable && nonFederationMethods == 0 {
-		writeAuthErr(w, authn.ErrLastSignInMethod())
-		return
-	}
-
+	// Delete-then-check: delete the identity row first (within the locked
+	// tx), then call AvailableMethods to see how many usable sign-in methods
+	// remain in the post-delete state. This is safer than check-then-delete
+	// because it avoids the divergence between a raw identity-row count and
+	// AvailableMethods' usable-federation count (which excludes identities
+	// whose upstream IdP is DISABLED). With the old pattern, an account
+	// holding one enabled-upstream identity + one disabled-upstream identity
+	// would pass the raw len(identities)>1 gate and allow unlinking the
+	// enabled one, leaving the account with zero usable sign-in methods
+	// (admin recovery required). The delete-then-check pattern sees the
+	// real post-delete usable count; if it's zero the deferred rollback()
+	// undoes the delete and the unlink is refused.
 	deletedID, err := q.DeleteAccountIdentity(r.Context(), db.DeleteAccountIdentityParams{
 		ID:        id64,
 		AccountID: sess.Account.ID,
@@ -184,11 +171,27 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 			// The (id, account_id) pair didn't match a row — caller asked to
 			// delete an identity that either doesn't exist or belongs to a
 			// different account. 404 + no audit (avoid polluting the log
-			// with no-op unlinks; audit M1-di finding).
+			// with no-op unlinks; audit M1-di finding). Nothing was changed,
+			// so no lockout check is needed.
 			writeAuthErr(w, authn.ErrCredentialNotFound())
 			return
 		}
 		writeAuthErr(w, err)
+		return
+	}
+
+	// Re-check available methods AFTER the delete. AvailableMethods uses
+	// CountUsableSignInFederation (not a raw identity count), so disabled-
+	// upstream links are excluded from the usable-federation tally. If the
+	// deleted identity was the last usable sign-in method, len(methods)==0
+	// and we refuse; the deferred rollback() undoes the delete.
+	methods, err := authn.AvailableMethods(r.Context(), q, sess.Account.ID)
+	if err != nil && !errors.Is(err, authn.ErrNoUsableMethod) {
+		writeAuthErr(w, err)
+		return
+	}
+	if len(methods) == 0 {
+		writeAuthErr(w, authn.ErrLastSignInMethod())
 		return
 	}
 
