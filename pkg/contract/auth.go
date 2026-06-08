@@ -150,6 +150,22 @@ var OperationGetMe = huma.Operation{
 	Summary:     "Return the authenticated session view.",
 }
 
+// MeFactorsView is the response body of GET /me/factors — the caller's
+// enrolled sign-in factor status as of the current moment.
+type MeFactorsView struct {
+	PasswordSet            bool `json:"passwordSet"`
+	TOTPEnrolled           bool `json:"totpEnrolled"`
+	RecoveryCodesRemaining int  `json:"recoveryCodesRemaining"`
+	PasskeyCount           int  `json:"passkeyCount"`
+}
+
+var OperationGetMyFactors = huma.Operation{
+	OperationID: "getMyFactors",
+	Method:      http.MethodGet,
+	Path:        "/me/factors",
+	Summary:     "Return the caller's enrolled sign-in factor status.",
+}
+
 var OperationUpdateMe = huma.Operation{
 	OperationID: "updateMe",
 	Method:      http.MethodPut,

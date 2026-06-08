@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 
@@ -81,6 +83,66 @@ func (s *Server) handleUpdateMe(ctx context.Context, in *updateMeIn) (*meOut, er
 func (s *Server) updateMeQueries() updateMeQueries {
 	if s.updateMeOverride != nil {
 		return s.updateMeOverride
+	}
+	return s.queries
+}
+
+// ----- GET /me/factors ----------------------------------------------------
+
+// getMyFactorsQueries is the narrow DB surface handleGetMyFactors requires.
+// Declared here so tests can stub it without constructing *db.Queries.
+// Production wiring (NewServer) leaves getMyFactorsOverride nil and the handler
+// falls back to s.queries.
+type getMyFactorsQueries interface {
+	GetPasswordCredential(ctx context.Context, accountID int32) (db.PasswordCredential, error)
+	GetTOTPCredential(ctx context.Context, accountID int32) (db.TotpCredential, error)
+	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]db.RecoveryCode, error)
+	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
+}
+
+type meFactorsOut struct {
+	Body contract.MeFactorsView
+}
+
+func (s *Server) handleGetMyFactors(ctx context.Context, _ *struct{}) (*meFactorsOut, error) {
+	sess := authn.SessionFromContext(ctx)
+	if sess == nil {
+		return nil, authErrToHuma(authn.ErrNoSession())
+	}
+	id := sess.Account.ID
+	q := s.getMyFactorsQueries()
+	v := contract.MeFactorsView{}
+
+	if _, err := q.GetPasswordCredential(ctx, id); err == nil {
+		v.PasswordSet = true
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("handleGetMyFactors: password: %w", err)
+	}
+
+	if totp, err := q.GetTOTPCredential(ctx, id); err == nil {
+		v.TOTPEnrolled = totp.ConfirmedAt.Valid
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("handleGetMyFactors: totp: %w", err)
+	}
+
+	codes, err := q.ListRecoveryCodesByAccount(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("handleGetMyFactors: recovery: %w", err)
+	}
+	v.RecoveryCodesRemaining = len(codes)
+
+	n, err := q.CountCredentialsByAccount(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("handleGetMyFactors: passkeys: %w", err)
+	}
+	v.PasskeyCount = int(n)
+
+	return &meFactorsOut{Body: v}, nil
+}
+
+func (s *Server) getMyFactorsQueries() getMyFactorsQueries {
+	if s.getMyFactorsOverride != nil {
+		return s.getMyFactorsOverride
 	}
 	return s.queries
 }
