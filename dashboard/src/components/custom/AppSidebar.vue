@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ShieldCheck, User, MonitorSmartphone, LogOut, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2 } from 'lucide-vue-next'
+import { ShieldCheck, User, MonitorSmartphone, LogOut, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
@@ -37,6 +37,9 @@ const adminItems = computed(() => [
   { to: '/admin/invitations', label: t('admin.nav.invitations'), icon: Ticket },
   { to: '/admin/oidc-clients', label: t('admin.nav.oidcClients'), icon: AppWindow },
   { to: '/admin/saml-providers', label: t('admin.nav.samlProviders'), icon: Building2 },
+  { to: '/admin/upstream-idps', label: t('admin.nav.upstreamIdps'), icon: Network },
+  { to: '/admin/signing-keys', label: t('admin.nav.signingKeys'), icon: KeySquare },
+  { to: '/admin/audit', label: t('admin.nav.audit'), icon: ScrollText },
 ])
 </script>
 

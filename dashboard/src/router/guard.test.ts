@@ -38,3 +38,16 @@ describe('router guard (requiresAdmin)', () => {
     expect(r.currentRoute.value.name).toBe('test-admin')
   })
 })
+
+import realRouter from './index'
+
+describe('3c admin routes require admin', () => {
+  it.each([
+    '/admin/upstream-idps',
+    '/admin/signing-keys',
+    '/admin/audit',
+  ])('%s is marked requiresAdmin', (path) => {
+    const resolved = realRouter.resolve(path)
+    expect(resolved.meta.requiresAdmin).toBe(true)
+  })
+})
