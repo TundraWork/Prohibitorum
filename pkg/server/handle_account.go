@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/sirupsen/logrus"
 
@@ -18,6 +20,7 @@ import (
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // decodeAttributes converts a sqlc-generated jsonb []byte into map[string]any.
@@ -679,6 +682,103 @@ func (s *Server) handleListAccountCredentials(ctx context.Context, in *getAccoun
 		views = append(views, credentialView(&rows[i]))
 	}
 	return &accountCredentialsOut{Body: views}, nil
+}
+
+// ----- GET /accounts/{id}/sessions ------------------------------------------
+
+// sessionRecordToItem maps a session record to the wire view with IsCurrent=false
+// (admin viewing another account). handleListMySessions in handle_me.go keeps an
+// inline copy because it derives IsCurrent from the caller's own session token.
+func sessionRecordToItem(r sessstore.SessionRecord) contract.SessionListItem {
+	return contract.SessionListItem{
+		ID:         r.Data.SessionID,
+		IsCurrent:  false,
+		IssuedAt:   r.Data.IssuedAt,
+		ExpiresAt:  r.Data.ExpiresAt,
+		LastSeenIP: r.Data.LastSeenIP,
+		UserAgent:  r.Data.UserAgent,
+	}
+}
+
+type accountSessionsOut struct {
+	Body []contract.SessionListItem
+}
+
+func (s *Server) handleListAccountSessions(ctx context.Context, in *getAccountIn) (*accountSessionsOut, error) {
+	if _, err := s.queries.GetAccountByID(ctx, in.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleListAccountSessions: load: %w", err)
+	}
+	records, err := s.sessionStore.ListByAccount(ctx, in.ID)
+	if err != nil {
+		return nil, fmt.Errorf("handleListAccountSessions: list: %w", err)
+	}
+	items := make([]contract.SessionListItem, 0, len(records))
+	for _, r := range records {
+		items = append(items, sessionRecordToItem(r))
+	}
+	return &accountSessionsOut{Body: items}, nil
+}
+
+// ----- POST /accounts/{id}/sessions/revoke (raw sudo) ------------------------
+
+func (s *Server) handleRevokeAccountSessionHTTP(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	if idStr == "" {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	id64, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	accountID := int32(id64)
+
+	var body struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.SessionID == "" {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+
+	ctx := r.Context()
+
+	if _, err := s.queries.GetAccountByID(ctx, accountID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrAccountNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleRevokeAccountSession: load: %w", err))
+		return
+	}
+
+	ok, err := s.sessionStore.RevokeBySessionID(ctx, accountID, body.SessionID)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleRevokeAccountSession: %w", err))
+		return
+	}
+	if !ok {
+		writeAuthErr(w, authn.ErrSessionNotFound())
+		return
+	}
+
+	sess := authn.SessionFromContext(ctx)
+	actorID := int32(0)
+	if sess != nil {
+		actorID = sess.Account.ID
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":          "auth.session_revoked_admin",
+		"actor_id":       actorID,
+		"target_id":      accountID,
+		"target_session": body.SessionID,
+	}).Info("auth")
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ----- shared output types ---------------------------------------------------

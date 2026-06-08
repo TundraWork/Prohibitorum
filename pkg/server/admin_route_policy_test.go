@@ -63,6 +63,9 @@ var sudoGatedRoutes = []sudoRoute{
 
 	// Account credential revoke — promoted to sudo (Task 9)
 	{method: "POST", path: "/api/prohibitorum/accounts/credentials/delete", body: `{"accountId":1,"credentialId":1}`},
+
+	// Per-account session revoke (admin, sudo-gated)
+	{method: "POST", path: "/api/prohibitorum/accounts/1/sessions/revoke", body: `{"sessionId":"abc"}`},
 }
 
 // TestAdminMutationRoutesRequireSudo builds the REAL router via registerOperations()
@@ -96,7 +99,6 @@ func TestAdminMutationRoutesRequireSudo(t *testing.T) {
 	sess := adminSession(time.Time{}) // zero SudoUntil = no fresh sudo
 
 	for _, sr := range sudoGatedRoutes {
-		sr := sr // capture loop variable for t.Run closure
 		t.Run(sr.method+" "+sr.path, func(t *testing.T) {
 			rr := httptest.NewRecorder()
 			req := reqWithSession(sr.method, sr.path, sr.body, "", sess)

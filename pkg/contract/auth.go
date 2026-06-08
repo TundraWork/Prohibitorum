@@ -278,6 +278,13 @@ var OperationListAccountCredentials = huma.Operation{
 	Summary:     "List an account's WebAuthn credentials (admin only).",
 }
 
+var OperationListAccountSessions = huma.Operation{
+	OperationID: "listAccountSessions",
+	Method:      http.MethodGet,
+	Path:        "/accounts/{id}/sessions",
+	Summary:     "List an account's active sessions (admin only).",
+}
+
 var OperationRevokeAccountSessions = huma.Operation{
 	OperationID: "revokeAccountSessions",
 	Method:      http.MethodPost,
