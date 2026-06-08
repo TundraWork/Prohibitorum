@@ -86,7 +86,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <RouterLink to="/admin/upstream-idps" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.upstream.back') }}</RouterLink>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.upstream.notFound') }}</p>
 
     <template v-else-if="idp">
