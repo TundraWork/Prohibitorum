@@ -17,7 +17,7 @@
     {
       "id": 3,
       "subject": "Task 3: SAML AuthnRequest replay via SetNX",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Atomic, SP-scoped, fail-closed replay check.\n\n**Files:** pkg/protocol/saml/authnreq.go, sso.go, *_test.go\n\n**Verify:** go test ./pkg/protocol/saml/...\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/authnreq.go\",\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/authnreq_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/saml/... && go build ./...\",\"acceptanceCriteria\":[\"key scoped by sp+id\",\"first nil second ErrReplayedRequest\",\"same id diff SP nil\",\"KV error fail closed\"]}\n```"
     },
