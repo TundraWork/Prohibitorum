@@ -16,7 +16,7 @@
     {
       "id": 3,
       "subject": "Task 3: FE profile edit + security factor badges",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** ProfileView displayName edit via PUT /me; SecurityView factor badges from GET /me/factors. Files: ProfileView.vue, SecurityView.vue, security/{Password,Totp,RecoveryCodes}Card.vue, stores/auth.ts, locales/en.ts + tests.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/ProfileView.vue\",\"dashboard/src/pages/SecurityView.vue\",\"dashboard/src/pages/security/PasswordCard.vue\",\"dashboard/src/pages/security/TotpCard.vue\",\"dashboard/src/pages/security/RecoveryCodesCard.vue\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/ProfileView.test.ts src/pages/SecurityView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"Profile edit→PUT /me→patch store→exit edit\",\"Security mounts→/me/factors→3 badges\",\"username+role read-only\"]}\n```"
     },
