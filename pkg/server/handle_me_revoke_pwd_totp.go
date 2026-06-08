@@ -17,6 +17,7 @@ package server
 import (
 	"net/http"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 )
 
@@ -67,7 +68,14 @@ func (s *Server) handleMeRevokePwdTOTPHTTP(w http.ResponseWriter, r *http.Reques
 		writeAuthErr(w, err)
 		return
 	}
-	if err := authn.DisableNonWebAuthnFallbacks(ctx, qtx, s.Audit, acctID); err != nil {
+	// Audit MUST be written on the tx connection (audit.NewWriter(qtx)), NOT the
+	// pool-bound s.Audit. credential_event has an FK to account(id), so the audit
+	// INSERT needs FOR KEY SHARE on the account row — which conflicts with the
+	// FOR UPDATE this tx already holds. On a separate pool connection that would
+	// deadlock at the application layer (PG can't detect it: the holder is
+	// idle-in-transaction). Writing audit through qtx keeps it in the same tx
+	// (no self-conflict) and makes the audit atomic with the deletes.
+	if err := authn.DisableNonWebAuthnFallbacks(ctx, qtx, audit.NewWriter(qtx), acctID); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
