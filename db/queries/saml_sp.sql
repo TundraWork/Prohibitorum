@@ -63,10 +63,11 @@ UPDATE saml_sp SET
   display_name                 = $2,
   name_id_format               = $3,
   require_signed_authn_request = $4,
-  authn_requests_signed        = $4,
   want_assertions_signed       = $5,
   allow_idp_initiated          = $6,
-  session_lifetime             = $7
+  session_lifetime             = $7,
+  name_id_claim                = $8,
+  attribute_map                = $9
 WHERE id = $1
 RETURNING *;
 

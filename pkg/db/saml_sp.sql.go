@@ -508,10 +508,11 @@ UPDATE saml_sp SET
   display_name                 = $2,
   name_id_format               = $3,
   require_signed_authn_request = $4,
-  authn_requests_signed        = $4,
   want_assertions_signed       = $5,
   allow_idp_initiated          = $6,
-  session_lifetime             = $7
+  session_lifetime             = $7,
+  name_id_claim                = $8,
+  attribute_map                = $9
 WHERE id = $1
 RETURNING id, entity_id, display_name, sp_kind, name_id_format, name_id_claim, attribute_map, want_assertions_signed, authn_requests_signed, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at
 `
@@ -524,6 +525,8 @@ type UpdateSAMLSPParams struct {
 	WantAssertionsSigned      bool            `json:"wantAssertionsSigned"`
 	AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
 	SessionLifetime           pgtype.Interval `json:"sessionLifetime"`
+	NameIDClaim               string          `json:"nameIdClaim"`
+	AttributeMap              []byte          `json:"attributeMap"`
 }
 
 func (q *Queries) UpdateSAMLSP(ctx context.Context, arg UpdateSAMLSPParams) (SamlSp, error) {
@@ -535,6 +538,8 @@ func (q *Queries) UpdateSAMLSP(ctx context.Context, arg UpdateSAMLSPParams) (Sam
 		arg.WantAssertionsSigned,
 		arg.AllowIdpInitiated,
 		arg.SessionLifetime,
+		arg.NameIDClaim,
+		arg.AttributeMap,
 	)
 	var i SamlSp
 	err := row.Scan(

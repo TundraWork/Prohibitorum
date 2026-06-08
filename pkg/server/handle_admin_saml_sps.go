@@ -46,11 +46,17 @@ import (
 // wire-safe contract view. Raw cert PEM is deliberately excluded — SAMLKeyView
 // carries only the lifecycle summary fields.
 func samlProviderView(sp db.SamlSp, acs []db.SamlSpAc, keys []db.SamlSpKey) contract.SAMLProviderView {
+	attrMap := json.RawMessage(sp.AttributeMap)
+	if len(attrMap) == 0 {
+		attrMap = json.RawMessage("[]")
+	}
 	v := contract.SAMLProviderView{
 		ID:                        sp.ID,
 		EntityID:                  sp.EntityID,
 		DisplayName:               sp.DisplayName,
 		NameIDFormat:              sp.NameIDFormat,
+		NameIDClaim:               sp.NameIDClaim,
+		AttributeMap:              attrMap,
 		RequireSignedAuthnRequest: sp.RequireSignedAuthnRequest,
 		WantAssertionsSigned:      sp.WantAssertionsSigned,
 		AllowIdpInitiated:         sp.AllowIdpInitiated,
@@ -277,12 +283,14 @@ func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 // ----- PUT /saml-providers/{id} (raw, sudo-gated) ----------------------------
 
 type updateSAMLProviderBody struct {
-	DisplayName               string `json:"displayName"`
-	NameIDFormat              string `json:"nameIdFormat"`
-	RequireSignedAuthnRequest bool   `json:"requireSignedAuthnRequest"`
-	WantAssertionsSigned      bool   `json:"wantAssertionsSigned"`
-	AllowIdpInitiated         bool   `json:"allowIdpInitiated"`
-	SessionLifetimeSecs       *int64 `json:"sessionLifetimeSecs,omitempty"`
+	DisplayName               string          `json:"displayName"`
+	NameIDFormat              string          `json:"nameIdFormat"`
+	NameIDClaim               string          `json:"nameIdClaim"`
+	AttributeMap              json.RawMessage `json:"attributeMap"`
+	RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
+	WantAssertionsSigned      bool            `json:"wantAssertionsSigned"`
+	AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
+	SessionLifetimeSecs       *int64          `json:"sessionLifetimeSecs,omitempty"`
 }
 
 func (s *Server) handleUpdateSAMLProviderHTTP(w http.ResponseWriter, r *http.Request) {
@@ -307,6 +315,16 @@ func (s *Server) handleUpdateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Default attribute_map to an empty array so the NOT NULL jsonb column is
+	// never set to NULL.  The outer json.NewDecoder already rejects structurally-
+	// malformed JSON before we reach here, so no inner Unmarshal guard is needed.
+	// Normalise an explicit JSON null to [] so callers can pass null to mean
+	// "reset to default" without causing a 500 on the NOT NULL column.
+	attrMapBytes := []byte("[]")
+	if len(body.AttributeMap) > 0 && string(body.AttributeMap) != "null" {
+		attrMapBytes = body.AttributeMap
+	}
+
 	var sessionLifetime pgtype.Interval
 	if body.SessionLifetimeSecs != nil && *body.SessionLifetimeSecs > 0 {
 		sessionLifetime = pgtype.Interval{
@@ -323,6 +341,8 @@ func (s *Server) handleUpdateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 		WantAssertionsSigned:      body.WantAssertionsSigned,
 		AllowIdpInitiated:         body.AllowIdpInitiated,
 		SessionLifetime:           sessionLifetime,
+		NameIDClaim:               body.NameIDClaim,
+		AttributeMap:              attrMapBytes,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

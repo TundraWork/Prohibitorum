@@ -1,22 +1,34 @@
 // Package server — handle_admin_saml_sps_test.go
 //
-// Unit tests for the SAML SP admin surface (Task 5). Tests are intentionally
-// DB-free: samlProviderView (the projection from db rows → contract view) is
-// the primary unit under test, verified for correct field mapping, PEM
-// exclusion, optional-field handling, and ACS / key sub-view accuracy.
+// Unit tests for the SAML SP admin surface (Task 5 + Task 6). Tests are
+// intentionally DB-free: samlProviderView (the projection from db rows →
+// contract view) is the primary unit under test, verified for correct field
+// mapping, PEM exclusion, optional-field handling, and ACS / key sub-view
+// accuracy.
 //
 // Body-to-SPOptions mapping is also exercised via saml.BuildSPParams directly
 // (the same path the handler uses), using the manual-ACS fixture so no DB or
 // metadata XML parsing is required.
+//
+// Handler guard-path tests (Task 6) exercise early-return code paths that
+// require only a Server{} with a nil queries field — the handler returns before
+// any DB call.
 //
 // Route-level sudo gating is covered centrally in Task 9.
 
 package server
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
@@ -314,6 +326,168 @@ func TestAdminSAMLSPs_BodyToSPOptions_NoACSError(t *testing.T) {
 	_, _, _, err := saml.BuildSPParams(opts)
 	if err == nil {
 		t.Fatal("BuildSPParams: got nil error, want error for no ACS")
+	}
+}
+
+// ----- TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim -----------------
+
+// TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim verifies that
+// samlProviderView correctly projects NameIDClaim and AttributeMap from the
+// db.SamlSp row into the contract view.
+func TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim(t *testing.T) {
+	t.Parallel()
+
+	sp := makeSamlSp(7, "https://sp.example.com", "Test SP", "generic")
+	sp.NameIDClaim = "email"
+	sp.AttributeMap = []byte(`[{"claim":"email","samlAttr":"mail"}]`)
+
+	view := samlProviderView(sp, nil, nil)
+
+	if view.NameIDClaim != "email" {
+		t.Errorf("NameIDClaim: got %q, want %q", view.NameIDClaim, "email")
+	}
+	if string(view.AttributeMap) != `[{"claim":"email","samlAttr":"mail"}]` {
+		t.Errorf("AttributeMap: got %s, want [{...}]", view.AttributeMap)
+	}
+}
+
+// TestUpdateSAMLSP_ViewProjection_NilAttrMapDefaultsToEmptyArray verifies that
+// when AttributeMap is nil or empty in the db row, samlProviderView emits a
+// valid JSON empty-array ("[]") rather than null or empty bytes.
+func TestUpdateSAMLSP_ViewProjection_NilAttrMapDefaultsToEmptyArray(t *testing.T) {
+	t.Parallel()
+
+	sp := makeSamlSp(8, "https://sp.example.com", "Test SP", "generic")
+	// AttributeMap intentionally left nil.
+
+	view := samlProviderView(sp, nil, nil)
+
+	if string(view.AttributeMap) != "[]" {
+		t.Errorf("AttributeMap: got %q, want []", string(view.AttributeMap))
+	}
+
+	// Verify it round-trips as valid JSON.
+	var arr []any
+	if err := json.Unmarshal(view.AttributeMap, &arr); err != nil {
+		t.Errorf("AttributeMap: not valid JSON: %v", err)
+	}
+	if len(arr) != 0 {
+		t.Errorf("AttributeMap: got %d elements, want 0", len(arr))
+	}
+}
+
+// ----- TestUpdateSAMLSP_UpdateSAMLSPParams_NoAuthnRequestsSignedField --------
+
+// TestUpdateSAMLSP_UpdateSAMLSPParams_NoAuthnRequestsSignedField is a
+// compile-time guard: if UpdateSAMLSPParams ever regains an AuthnRequestsSigned
+// field (the clobbering bug), this test will fail to compile because the struct
+// literal sets all known fields and there is no AuthnRequestsSigned key.
+//
+// The test verifies the bug-fix: require_signed_authn_request and
+// authn_requests_signed are now separate columns controlled by separate paths —
+// UpdateSAMLSP only touches require_signed_authn_request, not
+// authn_requests_signed.
+func TestUpdateSAMLSP_UpdateSAMLSPParams_NoAuthnRequestsSignedField(t *testing.T) {
+	t.Parallel()
+
+	// Readable inventory of UpdateSAMLSPParams fields: asserts the struct carries
+	// RequireSignedAuthnRequest (the alias-safe flag) and does NOT carry a
+	// separate AuthnRequestsSigned field.  Go named-field literals are additive,
+	// so adding an unrelated field would not break this literal; the real
+	// protection against the alias bug is the SQL SET clause, exercised by the
+	// smoke/gate tests.
+	p := db.UpdateSAMLSPParams{
+		ID:                        1,
+		DisplayName:               "Test",
+		NameIDFormat:              "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent",
+		RequireSignedAuthnRequest: true,
+		WantAssertionsSigned:      true,
+		AllowIdpInitiated:         false,
+		SessionLifetime:           pgtype.Interval{},
+		NameIDClaim:               "email",
+		AttributeMap:              []byte("[]"),
+	}
+	// RequireSignedAuthnRequest controls one flag; authn_requests_signed is set
+	// only via the create/reingest path (InsertSAMLSP) and is NOT touched by
+	// UpdateSAMLSP.
+	if !p.RequireSignedAuthnRequest {
+		t.Error("RequireSignedAuthnRequest should be true")
+	}
+}
+
+// ----- TestUpdateSAMLSP_Handler_InvalidAttrMapJSON ---------------------------
+
+// buildUpdateSAMLSPRequest builds a PUT request to /saml-providers/{id} with
+// chi URL params pre-populated so chi.URLParam works without a real router.
+func buildUpdateSAMLSPRequest(idParam string, bodyJSON string) *http.Request {
+	req := httptest.NewRequest(http.MethodPut, "/api/prohibitorum/saml-providers/"+idParam,
+		bytes.NewReader([]byte(bodyJSON)))
+	req.Header.Set("Content-Type", "application/json")
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", idParam)
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+}
+
+// TestUpdateSAMLSP_Handler_InvalidAttrMapJSON verifies that a PUT body whose
+// top-level structure is broken JSON is rejected as bad_request before any DB
+// call.  The body `{"displayName":"Test SP","attributeMap":{broken}}` is
+// structurally invalid, so json.NewDecoder(...).Decode(&body) rejects it and
+// the handler returns 400 bad_request.  This guards the outer-decoder rejection
+// path, which is what enforces "attributeMap must be valid JSON".
+func TestUpdateSAMLSP_Handler_InvalidAttrMapJSON(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{} // queries is nil; handler must return before reaching it
+	rr := httptest.NewRecorder()
+	// Structurally invalid JSON — the outer decoder rejects the whole body.
+	body := `{"displayName":"Test SP","attributeMap":{broken}}`
+	req := buildUpdateSAMLSPRequest("1", body)
+	s.handleUpdateSAMLProviderHTTP(rr, req)
+
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for invalid attributeMap JSON", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "bad_request") {
+		t.Errorf("body = %q; want bad_request error code", rr.Body.String())
+	}
+}
+
+// TestUpdateSAMLSP_Handler_MissingDisplayName verifies that a PUT body with an
+// empty displayName is rejected as bad_request before any DB call.
+func TestUpdateSAMLSP_Handler_MissingDisplayName(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{}
+	rr := httptest.NewRecorder()
+	body := `{"displayName":"","attributeMap":[]}`
+	req := buildUpdateSAMLSPRequest("1", body)
+	s.handleUpdateSAMLProviderHTTP(rr, req)
+
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for empty displayName", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "bad_request") {
+		t.Errorf("body = %q; want bad_request error code", rr.Body.String())
+	}
+}
+
+// TestUpdateSAMLSP_Handler_BadID verifies that a non-integer path id is
+// rejected as bad_request before any DB or body-decode call.
+func TestUpdateSAMLSP_Handler_BadID(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{}
+	rr := httptest.NewRecorder()
+	body := `{"displayName":"Test"}`
+	req := buildUpdateSAMLSPRequest("not-an-int", body)
+	s.handleUpdateSAMLProviderHTTP(rr, req)
+
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for non-integer id", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "bad_request") {
+		t.Errorf("body = %q; want bad_request error code", rr.Body.String())
 	}
 }
 

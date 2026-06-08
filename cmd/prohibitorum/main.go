@@ -719,6 +719,8 @@ certificates are not modified here.`,
 				WantAssertionsSigned:      updSPWantSigned,
 				AllowIdpInitiated:         updSPIdpInitiated,
 				SessionLifetime:           sessionLifetime,
+				NameIDClaim:               sp.NameIDClaim,
+				AttributeMap:              sp.AttributeMap,
 			})
 			if err != nil {
 				log.Fatalf("saml-sp update: %v", err)

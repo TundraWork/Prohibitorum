@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -441,18 +442,20 @@ type SAMLKeyView struct {
 // associated ACS endpoints and key summaries. Raw certificate material (PEM)
 // is never returned — SAMLKeyView carries only the lifecycle fields.
 type SAMLProviderView struct {
-	ID                        int64         `json:"id"`
-	EntityID                  string        `json:"entityId"`
-	DisplayName               string        `json:"displayName"`
-	Kind                      string        `json:"kind,omitempty"`
-	NameIDFormat              string        `json:"nameIdFormat"`
-	RequireSignedAuthnRequest bool          `json:"requireSignedAuthnRequest"`
-	WantAssertionsSigned      bool          `json:"wantAssertionsSigned"`
-	AllowIdpInitiated         bool          `json:"allowIdpInitiated"`
-	SessionLifetimeSecs       *int64        `json:"sessionLifetimeSecs,omitempty"`
-	ACS                       []SAMLACSView `json:"acs"`
-	Keys                      []SAMLKeyView `json:"keys"`
-	CreatedAt                 time.Time     `json:"createdAt"`
+	ID                        int64           `json:"id"`
+	EntityID                  string          `json:"entityId"`
+	DisplayName               string          `json:"displayName"`
+	Kind                      string          `json:"kind,omitempty"`
+	NameIDFormat              string          `json:"nameIdFormat"`
+	NameIDClaim               string          `json:"nameIdClaim"`
+	AttributeMap              json.RawMessage `json:"attributeMap"`
+	RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
+	WantAssertionsSigned      bool            `json:"wantAssertionsSigned"`
+	AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
+	SessionLifetimeSecs       *int64          `json:"sessionLifetimeSecs,omitempty"`
+	ACS                       []SAMLACSView   `json:"acs"`
+	Keys                      []SAMLKeyView   `json:"keys"`
+	CreatedAt                 time.Time       `json:"createdAt"`
 }
 
 // UpstreamIDPView is the admin-facing projection of an upstream_idp row.
