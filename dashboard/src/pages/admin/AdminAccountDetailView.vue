@@ -3,9 +3,10 @@
  * AdminAccountDetailView (/admin/accounts/:id) — per-account admin actions.
  * Edit identity/role/disabled (PUT round-trips attributes — the backend REPLACES
  * them, so omitting would clear them); force-revoke passkeys (sudo); revoke all
- * sessions; reissue an enrollment link; delete. Attribute EDITING is out of scope
- * (shown read-only). All mutations go through withSudo (no-op unless the server
- * demands sudo — only credential force-revoke does today).
+ * sessions; reissue an enrollment link; delete. Attributes are editable via
+ * key/value rows (string values); non-string values are preserved read-only.
+ * All mutations go through withSudo (no-op unless the server demands sudo —
+ * only credential force-revoke does today).
  */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -53,6 +54,36 @@ const role = ref<'admin' | 'user'>('user')
 const disabled = ref(false)
 const saved = ref(false)
 
+// Attributes editor state
+interface AttrRow { uid: number; key: string; value: string }
+let attrUid = 0
+const attrRows = ref<AttrRow[]>([])
+const attrComplex = ref<Record<string, unknown>>({})
+
+function seedAttrs(attrs: Record<string, unknown> | undefined): void {
+  const rows: AttrRow[] = []
+  const complex: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(attrs ?? {})) {
+    if (typeof v === 'string') rows.push({ uid: attrUid++, key: k, value: v })
+    else complex[k] = v
+  }
+  attrRows.value = rows
+  attrComplex.value = complex
+}
+
+function buildAttrs(): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...attrComplex.value }
+  for (const row of attrRows.value) {
+    if (row.key !== '' && !(row.key in attrComplex.value)) {
+      result[row.key] = row.value
+    }
+  }
+  return result
+}
+
+function addAttrRow(): void { attrRows.value.push({ uid: attrUid++, key: '', value: '' }) }
+function removeAttrRow(i: number): void { attrRows.value.splice(i, 1) }
+
 const revokeCredId = ref<number | null>(null)
 const confirmRevokeAll = ref(false)
 const confirmDelete = ref(false)
@@ -66,8 +97,7 @@ const errorText = computed(() => {
   const key = `errors.${e.code}`
   return te(key) ? t(key) : e.message || t('common.error')
 })
-const attributeEntries = computed(() =>
-  Object.entries(account.value?.attributes ?? {}).map(([k, v]) => [k, String(v)] as [string, string]))
+const hasComplexAttrs = computed(() => Object.keys(attrComplex.value).length > 0)
 
 async function loadCredentials(): Promise<void> {
   const creds = await run(() => api.get<Credential[]>(`/api/prohibitorum/accounts/${id}/credentials`))
@@ -84,6 +114,7 @@ async function load(): Promise<void> {
   displayName.value = acc.displayName
   role.value = acc.role === 'admin' ? 'admin' : 'user'
   disabled.value = acc.disabled
+  seedAttrs(acc.attributes)
   await loadCredentials()
   await loadSessions()
 }
@@ -94,9 +125,9 @@ async function save(): Promise<void> {
     displayName: displayName.value,
     role: role.value,
     disabled: disabled.value,
-    attributes: account.value?.attributes ?? {},
+    attributes: buildAttrs(),
   })))
-  if (updated) { account.value = updated; saved.value = true }
+  if (updated) { account.value = updated; seedAttrs(updated.attributes); saved.value = true }
 }
 async function forceRevoke(): Promise<void> {
   saved.value = false
@@ -172,11 +203,21 @@ onMounted(load)
             <input type="checkbox" name="disabled" v-model="disabled" />
             {{ t('admin.account.disabledLabel') }}
           </label>
-          <div v-if="attributeEntries.length" class="flex flex-col gap-1">
+          <div class="flex flex-col gap-2">
             <Label>{{ t('admin.account.attributes') }}</Label>
-            <div v-for="[k, v] in attributeEntries" :key="k" class="flex min-w-0 gap-2 text-sm text-muted">
-              <span class="font-mono">{{ k }}</span><span>=</span><span class="min-w-0 truncate">{{ v }}</span>
+            <p v-if="attrRows.length === 0 && !hasComplexAttrs" class="text-sm text-muted">{{ t('admin.account.attributesEmpty') }}</p>
+            <div v-for="(row, i) in attrRows" :key="row.uid" class="flex items-center gap-2" :data-test="`attr-row-${i}`">
+              <Input :placeholder="t('admin.account.attributesKey')" v-model="row.key" class="flex-1" :data-test="`attr-key-${i}`" />
+              <Input :placeholder="t('admin.account.attributesValue')" v-model="row.value" class="flex-1" :data-test="`attr-value-${i}`" />
+              <Button type="button" variant="outline" size="sm" class="shrink-0" :data-test="`attr-remove-${i}`" @click="removeAttrRow(i)">{{ t('admin.account.attributesRemove') }}</Button>
             </div>
+            <div v-if="hasComplexAttrs" class="flex flex-col gap-1">
+              <p class="text-xs text-muted">{{ t('admin.account.attributesComplexNote') }}</p>
+              <div v-for="(v, k) in attrComplex" :key="k" class="flex min-w-0 gap-2 text-sm text-muted">
+                <span class="font-mono">{{ k }}</span><span>=</span><span class="min-w-0 truncate font-mono">{{ JSON.stringify(v) }}</span>
+              </div>
+            </div>
+            <Button type="button" variant="outline" size="sm" class="w-fit" data-test="attr-add" @click="addAttrRow">{{ t('admin.account.attributesAdd') }}</Button>
           </div>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.account.save') }}</Button>

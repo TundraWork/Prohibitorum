@@ -17,7 +17,7 @@ const mountView = () => mount(AdminAccountDetailView, {
 })
 const ACCOUNT = {
   id: 7, username: 'carol', displayName: 'Carol Ng', role: 'user',
-  attributes: { team: 'security' }, disabled: false,
+  attributes: { team: 'security', score: 42 }, disabled: false,
   createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-02-01T00:00:00Z', lastSignInAt: '2026-06-01T00:00:00Z',
 }
 const CREDS = [
@@ -51,7 +51,9 @@ describe('AdminAccountDetailView', () => {
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7/credentials')
     expect(w.text()).toContain('Carol Ng')
     expect(w.text()).toContain('Laptop')
-    expect(w.text()).toContain('team')
+    // string attr 'team' is seeded into the editable row editor
+    expect(w.find('[data-test="attr-row-0"]').exists()).toBe(true)
+    expect(w.find<HTMLInputElement>('[data-test="attr-key-0"]').element.value).toBe('team')
   })
   it('shows not-found when the account is missing', async () => {
     get.mockRejectedValue({ code: 'account_not_found', message: 'zh' })
@@ -70,7 +72,8 @@ describe('AdminAccountDetailView', () => {
     await w.find<HTMLSelectElement>('select[name="role"]').setValue('admin')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/accounts/7', {
-      username: '', displayName: 'Carol Ng', role: 'admin', disabled: false, attributes: { team: 'security' },
+      username: '', displayName: 'Carol Ng', role: 'admin', disabled: false,
+      attributes: { team: 'security', score: 42 },
     })
     expect(w.text()).toContain(en.admin.account.saved)
   })
@@ -159,5 +162,93 @@ describe('AdminAccountDetailView', () => {
     clickConfirm(en.admin.account.revokeAllSessions); await flushPromises()
     const getSessionsAfter = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
     expect(getSessionsAfter).toBe(getSessionsBefore + 1)
+  })
+
+  // ---- attributes editor ----
+
+  it('edits an existing string attr value + adds a new row → PUT body attributes reflect edits', async () => {
+    mockGets()
+    put.mockResolvedValue({ ...ACCOUNT })
+    const w = mountView(); await flushPromises()
+    // edit existing string attr 'team' value from 'security' to 'engineering'
+    const valInput = w.find<HTMLInputElement>('[data-test="attr-value-0"]')
+    await valInput.setValue('engineering')
+    // add a new row and fill it in
+    await w.find('[data-test="attr-add"]').trigger('click'); await flushPromises()
+    const keyInput1 = w.find<HTMLInputElement>('[data-test="attr-key-1"]')
+    const valInput1 = w.find<HTMLInputElement>('[data-test="attr-value-1"]')
+    await keyInput1.setValue('region')
+    await valInput1.setValue('eu-west')
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/accounts/7', expect.objectContaining({
+      attributes: { team: 'engineering', region: 'eu-west', score: 42 },
+    }))
+  })
+
+  it('remove a row → that key is dropped from PUT attributes', async () => {
+    mockGets()
+    put.mockResolvedValue({ ...ACCOUNT })
+    const w = mountView(); await flushPromises()
+    // remove the only string attr row (team)
+    await w.find('[data-test="attr-remove-0"]').trigger('click'); await flushPromises()
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    const call = put.mock.calls[0]!
+    const body = call[1] as { attributes: Record<string, unknown> }
+    expect(body.attributes).not.toHaveProperty('team')
+    // non-string 'score' still preserved
+    expect(body.attributes).toMatchObject({ score: 42 })
+  })
+
+  it('non-string attribute is preserved in PUT and not turned into an editable row', async () => {
+    mockGets()
+    put.mockResolvedValue({ ...ACCOUNT })
+    const w = mountView(); await flushPromises()
+    // score=42 (number) must NOT produce an editable row — only team=string is row 0
+    expect(w.find('[data-test="attr-row-0"]').exists()).toBe(true)
+    expect(w.find('[data-test="attr-row-1"]').exists()).toBe(false) // no second editable row
+    // save without touching anything → exact PUT attributes: team + score preserved
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/accounts/7', expect.objectContaining({
+      attributes: { team: 'security', score: 42 },
+    }))
+    const call = put.mock.calls[0]!
+    const body = call[1] as { attributes: Record<string, unknown> }
+    expect(typeof body.attributes.score).toBe('number')
+  })
+
+  it('complex key collision: editable row whose key matches a complex key does NOT overwrite the complex value', async () => {
+    mockGets()
+    put.mockResolvedValue({ ...ACCOUNT })
+    const w = mountView(); await flushPromises()
+    // add a new editable row and type the complex key 'score' with a string value
+    await w.find('[data-test="attr-add"]').trigger('click'); await flushPromises()
+    const keyInput1 = w.find<HTMLInputElement>('[data-test="attr-key-1"]')
+    const valInput1 = w.find<HTMLInputElement>('[data-test="attr-value-1"]')
+    await keyInput1.setValue('score')
+    await valInput1.setValue('not-a-number')
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    const call = put.mock.calls[0]!
+    const body = call[1] as { attributes: Record<string, unknown> }
+    // complex value must be preserved — string row must NOT win
+    expect(body.attributes.score).toBe(42)
+    expect(typeof body.attributes.score).toBe('number')
+    // existing string attr and the preserved complex are both present
+    expect(body.attributes).toEqual({ team: 'security', score: 42 })
+  })
+
+  it('empty-key rows are skipped on save', async () => {
+    mockGets()
+    put.mockResolvedValue({ ...ACCOUNT })
+    const w = mountView(); await flushPromises()
+    // add a row but leave key empty
+    await w.find('[data-test="attr-add"]').trigger('click'); await flushPromises()
+    const valInput1 = w.find<HTMLInputElement>('[data-test="attr-value-1"]')
+    await valInput1.setValue('orphan')
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    const call = put.mock.calls[0]!
+    const body = call[1] as { attributes: Record<string, unknown> }
+    // the empty-key row must not appear in attributes
+    expect(Object.keys(body.attributes)).not.toContain('')
+    expect(body.attributes).toMatchObject({ team: 'security', score: 42 })
   })
 })
