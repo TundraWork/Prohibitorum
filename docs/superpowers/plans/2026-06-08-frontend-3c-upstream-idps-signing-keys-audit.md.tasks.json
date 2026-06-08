@@ -24,7 +24,7 @@
     {
       "id": 4,
       "subject": "Task 4: AdminSigningKeysView — list + lifecycle",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** /admin/signing-keys list (status badges + timestamps + expandable publicJwk) + generate/activate/retire, each sudo-gated behind ConfirmDialog, actions status-gated.\n\n**Files:** Create AdminSigningKeysView.vue; Test AdminSigningKeysView.test.ts\n\n**Verify:** cd dashboard && npx vitest run src/pages/admin/AdminSigningKeysView.test.ts\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/AdminSigningKeysView.vue\",\"dashboard/src/pages/admin/AdminSigningKeysView.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/AdminSigningKeysView.test.ts\", \"acceptanceCriteria\": [\"list status badges pending/active/decommissioning/retired\",\"generate POST no body via withSudo+confirm\",\"activate gated to pending, retire gated to decommissioning\",\"active_key_no_replacement surfaced\",\"expandable publicJwk\"]}\n```"
     },
