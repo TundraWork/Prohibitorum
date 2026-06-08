@@ -18,12 +18,15 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 
-interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string }
+interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string }
+interface Idp { slug: string; displayName: string; disabled: boolean }
 const { t, te } = useI18n()
 const { busy, error, run } = useApi()
 const rows = ref<Invitation[]>([])
+const idps = ref<Idp[]>([])
 const createOpen = ref(false)
 const newRole = ref<'admin' | 'user'>('user')
+const newIdp = ref('')
 const created = ref(false)
 const revokeToken = ref<string | null>(null)
 const errorText = computed(() => {
@@ -32,17 +35,33 @@ const errorText = computed(() => {
   const key = `errors.${e.code}`
   return te(key) ? t(key) : e.message || t('common.error')
 })
+function idpDisplayName(slug: string | undefined): string {
+  if (!slug) return '—'
+  const found = idps.value.find((i) => i.slug === slug)
+  return found ? found.displayName : slug
+}
 async function load(): Promise<void> {
-  const res = await run(() => api.get<Invitation[]>('/api/prohibitorum/invitations'))
+  const [res] = await Promise.all([
+    run(() => api.get<Invitation[]>('/api/prohibitorum/invitations')),
+    (async () => {
+      try {
+        idps.value = (await api.get<Idp[]>('/api/prohibitorum/upstream-idps')).filter((i) => !i.disabled)
+      } catch {
+        idps.value = []
+      }
+    })(),
+  ])
   if (res) rows.value = res
 }
 async function create(): Promise<void> {
   created.value = false
+  const body: Record<string, unknown> = { role: newRole.value }
+  if (newIdp.value) body.expectedUpstreamIdpSlug = newIdp.value
   const ok = await run(() => withSudo(async () => {
-    await api.post('/api/prohibitorum/invitations', { role: newRole.value })
+    await api.post('/api/prohibitorum/invitations', body)
     return true as const
   }))
-  if (ok) { createOpen.value = false; created.value = true; await load() }
+  if (ok) { createOpen.value = false; created.value = true; newIdp.value = ''; await load() }
 }
 async function revoke(): Promise<void> {
   const token = revokeToken.value
@@ -74,9 +93,16 @@ onMounted(load)
             <option value="admin">{{ t('admin.invitations.roleAdmin') }}</option>
           </select>
         </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="newIdp" class="text-sm font-medium text-ink">{{ t('admin.invitations.requireMethod') }}</label>
+          <select id="newIdp" name="idp" v-model="newIdp" class="bg-sunken border-input h-9 w-fit rounded-md border px-3 text-sm text-ink">
+            <option value="">{{ t('admin.invitations.anyMethod') }}</option>
+            <option v-for="idp in idps" :key="idp.slug" :value="idp.slug">{{ idp.displayName }}</option>
+          </select>
+        </div>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.invitations.create') }}</Button>
-          <Button type="button" variant="outline" :disabled="busy" data-test="create-cancel" @click="createOpen = false">{{ t('common.cancel') }}</Button>
+          <Button type="button" variant="outline" :disabled="busy" data-test="create-cancel" @click="createOpen = false; newIdp = ''">{{ t('common.cancel') }}</Button>
         </div>
       </CardContent>
     </Card>
@@ -85,6 +111,7 @@ onMounted(load)
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.invitations.colRole') }}</TableHead>
+          <TableHead>{{ t('admin.invitations.colMethod') }}</TableHead>
           <TableHead>{{ t('admin.invitations.colCreated') }}</TableHead>
           <TableHead>{{ t('admin.invitations.colExpires') }}</TableHead>
           <TableHead>{{ t('admin.invitations.colLink') }}</TableHead>
@@ -94,6 +121,7 @@ onMounted(load)
       <TableBody>
         <TableRow v-for="inv in rows" :key="inv.token">
           <TableCell><StatusBadge :variant="inv.role === 'admin' ? 'caution' : 'neutral'">{{ inv.role === 'admin' ? t('admin.invitations.roleAdmin') : t('admin.invitations.roleUser') }}</StatusBadge></TableCell>
+          <TableCell class="max-w-[12rem] truncate text-muted">{{ idpDisplayName(inv.expectedUpstreamIdpSlug) }}</TableCell>
           <TableCell class="text-muted">{{ relativeTime(inv.createdAt) }}</TableCell>
           <TableCell class="text-muted">{{ formatDateTime(inv.expiresAt) }}</TableCell>
           <TableCell><CodeField :value="inv.url" /></TableCell>
