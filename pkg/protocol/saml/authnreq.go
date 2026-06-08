@@ -23,7 +23,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"prohibitorum/pkg/db"
-	"prohibitorum/pkg/kv"
 )
 
 // AuthnRequestTTL bounds how long a parsed AuthnRequest's ID is remembered for
@@ -285,8 +284,9 @@ func parseAuthnRequestXML(raw []byte, out *crewjam.AuthnRequest) (*etree.Element
 		return nil, uerr
 	}
 	// SAML requires AuthnRequest/@ID. An empty ID would degenerate the replay
-	// key to "saml:authnreq:" (collapsing all such requests into one slot) and
-	// leave InResponseTo empty downstream — reject it as malformed.
+	// key to "saml:authn_request_replay:{spEntityID}:" (collapsing all such
+	// requests for that SP into one slot) and leave InResponseTo empty
+	// downstream — reject it as malformed.
 	if out.ID == "" {
 		return nil, ErrMalformedRequest
 	}
@@ -330,9 +330,10 @@ func (i *IdP) verifyPostAuthnSignature(ctx context.Context, el *etree.Element, s
 }
 
 // consumeAuthnRequestID enforces single-use replay protection for an
-// AuthnRequest ID. It is called from the terminal/issue path (HandleSSO), NOT
-// from parseAuthnRequest, so a login bounce that re-parses the same SAMLRequest
-// does not trip replay (see parseAuthnRequest's doc comment).
+// AuthnRequest ID, scoped by the SP entity ID. It is called from the
+// terminal/issue path (HandleSSO), NOT from parseAuthnRequest, so a login
+// bounce that re-parses the same SAMLRequest does not trip replay (see
+// parseAuthnRequest's doc comment).
 //
 // PLACEMENT: this deliberately lives here in authnreq.go — next to the replay
 // sentinel (ErrReplayedRequest) and TTL (AuthnRequestTTL) it depends on — even
@@ -341,23 +342,25 @@ func (i *IdP) verifyPostAuthnSignature(ctx context.Context, el *etree.Element, s
 // lets parseAuthnRequest stay a pure (side-effect-free) reader that the login
 // bounce can safely re-run. Do not move or inline it.
 //
-// The first call for an id stores a marker (TTL AuthnRequestTTL) and returns
-// nil; any subsequent call within the TTL returns ErrReplayedRequest.
+// The check is atomic via SetNX: the first call for a (spEntityID, id) pair
+// sets the replay marker (TTL AuthnRequestTTL) and returns nil; any subsequent
+// call within the TTL returns ErrReplayedRequest. Concurrent first-presentations
+// of the same ID are serialised by SetNX — exactly one succeeds. A KV error
+// causes an immediate rejection (fail closed): the request is never allowed
+// through on a storage failure.
 //
-// NOTE: the Get→SetEx sequence is NOT atomic across KV ops (mirrors the OIDC
-// refresh-token pattern). Two concurrent presentations of the same fresh
-// AuthnRequest ID could both miss the Get and proceed. This is an accepted
-// limitation: a fully atomic check-and-set would need a KV primitive the Store
-// interface does not expose, and an AuthnRequest's blast radius is one login
-// that still requires a live IdP session.
-func (i *IdP) consumeAuthnRequestID(ctx context.Context, id string) error {
-	replayKey := "saml:authnreq:" + id
-	if _, gerr := i.kv.Get(ctx, replayKey); gerr == nil {
-		return ErrReplayedRequest
-	} else if !errors.Is(gerr, kv.ErrKeyNotFound) {
-		return gerr
+// The key is scoped by SP entity ID: the same request ID issued by two
+// different SPs is treated as two independent requests.
+func (i *IdP) consumeAuthnRequestID(ctx context.Context, spEntityID, id string) error {
+	replayKey := "saml:authn_request_replay:" + spEntityID + ":" + id
+	ok, err := i.kv.SetNX(ctx, replayKey, "1", AuthnRequestTTL)
+	if err != nil {
+		return err // fail closed: a KV error must not allow the request through
 	}
-	return i.kv.SetEx(ctx, replayKey, "1", AuthnRequestTTL)
+	if !ok {
+		return ErrReplayedRequest
+	}
+	return nil
 }
 
 // resolveACS maps the SP's requested AssertionConsumerService — identified by

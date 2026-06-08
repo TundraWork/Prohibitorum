@@ -20,6 +20,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -684,15 +685,119 @@ func TestAuthnReqReplay(t *testing.T) {
 	idp := newAuthnTestIdP(q)
 	ctx := context.Background()
 
-	const id = "_req-replay-same"
+	const sp1 = "https://sp1.example.test/saml/metadata"
+	const sp2 = "https://sp2.example.test/saml/metadata"
+	const id1 = "_req-replay-same"
 
-	// parseAuthnRequest must NOT consume the replay key: parsing the same
-	// request twice both succeed at the consume step below.
-	if err := idp.consumeAuthnRequestID(ctx, id); err != nil {
+	// First presentation of (sp1, id1) must succeed.
+	if err := idp.consumeAuthnRequestID(ctx, sp1, id1); err != nil {
 		t.Fatalf("first consume: %v", err)
 	}
-	if err := idp.consumeAuthnRequestID(ctx, id); !errors.Is(err, ErrReplayedRequest) {
+	// Second presentation of the same (sp1, id1) within TTL must be rejected.
+	if err := idp.consumeAuthnRequestID(ctx, sp1, id1); !errors.Is(err, ErrReplayedRequest) {
 		t.Fatalf("second consume err = %v, want ErrReplayedRequest", err)
+	}
+
+	// Same id1 but a different SP (sp2) must NOT be treated as a replay — the
+	// key is scoped by SP entity ID.
+	if err := idp.consumeAuthnRequestID(ctx, sp2, id1); err != nil {
+		t.Fatalf("(sp2, id1) should not be a replay: %v", err)
+	}
+}
+
+// fakeErrorKV wraps a MemoryStore but overrides SetNX to always return an
+// error, simulating a KV backend failure.
+type fakeErrorKV struct {
+	*kv.MemoryStore
+	setNXErr error
+}
+
+func (f *fakeErrorKV) SetNX(_ context.Context, _, _ string, _ time.Duration) (bool, error) {
+	return false, f.setNXErr
+}
+
+// TestConsumeAuthnRequestIDFailClosed confirms that a KV error from SetNX
+// causes consumeAuthnRequestID to return that error (fail closed), and that a
+// subsequent call on the real MemoryStore (no error injected) still succeeds,
+// proving the key was never actually set by the failed call.
+func TestConsumeAuthnRequestIDFailClosed(t *testing.T) {
+	mem := kv.NewMemoryStore()
+	injectedErr := errors.New("kv: simulated backend failure")
+	errStore := &fakeErrorKV{MemoryStore: mem, setNXErr: injectedErr}
+
+	q := newAuthnQueries(defaultSP(false), acsList(), nil)
+	errIdP := &IdP{
+		cfg:     newAuthnTestIdP(q).cfg,
+		queries: q,
+		kv:      errStore,
+	}
+
+	ctx := context.Background()
+	const sp = "https://sp.example.test/saml/metadata"
+	const id = "_req-fail-closed"
+
+	// With the error-injecting store, consumeAuthnRequestID must return the
+	// injected error (fail closed) — the request must not be let through.
+	if err := errIdP.consumeAuthnRequestID(ctx, sp, id); !errors.Is(err, injectedErr) {
+		t.Fatalf("got err = %v, want injected error (fail closed)", err)
+	}
+
+	// Now use a fresh IdP backed by the real MemoryStore (no error). Since
+	// the failed SetNX never wrote the key, this first real call must succeed
+	// (nil), proving fail-closed does not permanently poison the key slot.
+	realIdP := &IdP{
+		cfg:     newAuthnTestIdP(q).cfg,
+		queries: q,
+		kv:      mem,
+	}
+	if err := realIdP.consumeAuthnRequestID(ctx, sp, id); err != nil {
+		t.Fatalf("real call after failed SetNX: %v (key slot should be clean)", err)
+	}
+}
+
+// TestConsumeAuthnRequestIDConcurrent fires 50 goroutines all presenting the
+// same (sp, id) simultaneously. Exactly one must get nil; the rest must all
+// get ErrReplayedRequest.
+func TestConsumeAuthnRequestIDConcurrent(t *testing.T) {
+	q := newAuthnQueries(defaultSP(false), acsList(), nil)
+	idp := newAuthnTestIdP(q)
+	ctx := context.Background()
+
+	const n = 50
+	const sp = "https://sp.example.test/saml/metadata"
+	const id = "_req-concurrent"
+
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	wg.Add(n)
+	for i := range n {
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			errs[i] = idp.consumeAuthnRequestID(ctx, sp, id)
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	nils := 0
+	replays := 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			nils++
+		case errors.Is(err, ErrReplayedRequest):
+			replays++
+		default:
+			t.Errorf("unexpected error: %v", err)
+		}
+	}
+	if nils != 1 {
+		t.Errorf("nils = %d, want exactly 1", nils)
+	}
+	if replays != n-1 {
+		t.Errorf("replays = %d, want %d", replays, n-1)
 	}
 }
 
@@ -969,8 +1074,8 @@ func TestAuthnReqPostRequiredButNoSignature(t *testing.T) {
 // a key whose cert is NOT registered for the SP fails enveloped-signature
 // verification.
 func TestAuthnReqPostWrongKeySignature(t *testing.T) {
-	_, certPEM := testSPKey(t)            // cert registered for the SP
-	wrongKey, wrongPEM := testSPKey(t)    // a DIFFERENT key+cert signs the request
+	_, certPEM := testSPKey(t)         // cert registered for the SP
+	wrongKey, wrongPEM := testSPKey(t) // a DIFFERENT key+cert signs the request
 	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
 	idp := newAuthnTestIdP(q)
 

@@ -107,7 +107,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// NoPassive Response (no assertion) and auto-POST it to the ACS.
 			// Because this IS a terminal Response, consume the replay key here
 			// too — a NoPassive answer counts as the single use of this ID.
-			if cerr := i.consumeAuthnRequestID(ctx, req.RequestID); cerr != nil {
+			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
 					http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
 				} else {
@@ -174,7 +174,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// terminal NoPassive Response (no assertion). This consumes the
 			// AuthnRequest ID below only on the success path; a terminal answer
 			// here is also a single use, so consume it now.
-			if cerr := i.consumeAuthnRequestID(ctx, req.RequestID); cerr != nil {
+			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
 					http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
 				} else {
@@ -228,7 +228,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 
 	// (4-replay) Single-use replay enforcement on the terminal/issue path. A
 	// replayed ID is a client error → 400; any other KV error → 500.
-	if cerr := i.consumeAuthnRequestID(ctx, req.RequestID); cerr != nil {
+	if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 		if errors.Is(cerr, ErrReplayedRequest) {
 			http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
 		} else {
