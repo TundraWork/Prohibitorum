@@ -4,7 +4,7 @@
     {
       "id": 1,
       "subject": "Task 1: SetNX KV primitive",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Atomic set-if-absent on kv.Store + both backends + concurrency tests.\n\n**Files:** pkg/kv/store.go, memory.go (mutex), redis.go (native), memory_test.go\n\n**Verify:** go test ./pkg/kv/...\n\n```json:metadata\n{\"files\":[\"pkg/kv/store.go\",\"pkg/kv/memory.go\",\"pkg/kv/redis.go\",\"pkg/kv/memory_test.go\"],\"verifyCommand\":\"go test ./pkg/kv/... && go build ./... && go vet ./...\",\"acceptanceCriteria\":[\"SetNX on interface+both backends\",\"true iff set; expired=absent\",\"ttl<=0 errors\",\"100-concurrent exactly one true\"]}\n```"
     },
     {
