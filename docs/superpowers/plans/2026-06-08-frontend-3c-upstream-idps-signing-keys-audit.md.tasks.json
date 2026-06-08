@@ -1,0 +1,40 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-08-frontend-3c-upstream-idps-signing-keys-audit.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Foundation — i18n, error codes, routes, sidebar, guard test",
+      "status": "pending",
+      "description": "**Goal:** Scaffolding for all three 3c areas: i18n namespaces (admin.upstream/signingKeys/audit + nav labels), 3 error codes, 4 requiresAdmin routes, 3 sidebar items, guard regression test.\n\n**Files:** Modify dashboard/src/locales/en.ts, components/custom/AppSidebar.vue, router/index.ts; Test router/guard.test.ts\n\n**Verify:** cd dashboard && npx vitest run src/router/guard.test.ts && npx vue-tsc --noEmit\n\n```json:metadata\n{\"files\": [\"dashboard/src/locales/en.ts\",\"dashboard/src/components/custom/AppSidebar.vue\",\"dashboard/src/router/index.ts\",\"dashboard/src/router/guard.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/router/guard.test.ts && npx vue-tsc --noEmit\", \"acceptanceCriteria\": [\"i18n complete + apostrophe guard clean\",\"sidebar shows 3 new admin items\",\"4 requiresAdmin routes exist\",\"guard test asserts requiresAdmin\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: AdminUpstreamIdpsView — list + create",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** /admin/upstream-idps lists providers + inline create (sudo, write-only secret, mode select), modeled on AdminOidcClientsView.\n\n**Files:** Create dashboard/src/pages/admin/AdminUpstreamIdpsView.vue (+ export interface UpstreamIdp); Test AdminUpstreamIdpsView.test.ts\n\n**Verify:** cd dashboard && npx vitest run src/pages/admin/AdminUpstreamIdpsView.test.ts\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/AdminUpstreamIdpsView.vue\",\"dashboard/src/pages/admin/AdminUpstreamIdpsView.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/AdminUpstreamIdpsView.test.ts\", \"acceptanceCriteria\": [\"GET list + Table (mode/state badges) + empty state\",\"create posts all fields via withSudo\",\"clientSecret write-only\",\"already_exists inline\",\"success shows created + reload\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: AdminUpstreamIdpDetailView — edit + rotate + delete",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** /admin/upstream-idps/:slug edit (PUT, no secret, +disabled), rotate-secret (POST 204, no reveal), delete (ConfirmDialog→POST), modeled on AdminOidcClientDetailView.\n\n**Files:** Create AdminUpstreamIdpDetailView.vue; Test AdminUpstreamIdpDetailView.test.ts\n\n**Verify:** cd dashboard && npx vitest run src/pages/admin/AdminUpstreamIdpDetailView.test.ts\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.vue\",\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/AdminUpstreamIdpDetailView.test.ts\", \"acceptanceCriteria\": [\"not-found + visible load-error\",\"PUT all fields incl disabled, no clientSecret\",\"rotate POST 204 no reveal\",\"delete navigates to list\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: AdminSigningKeysView — list + lifecycle",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** /admin/signing-keys list (status badges + timestamps + expandable publicJwk) + generate/activate/retire, each sudo-gated behind ConfirmDialog, actions status-gated.\n\n**Files:** Create AdminSigningKeysView.vue; Test AdminSigningKeysView.test.ts\n\n**Verify:** cd dashboard && npx vitest run src/pages/admin/AdminSigningKeysView.test.ts\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/AdminSigningKeysView.vue\",\"dashboard/src/pages/admin/AdminSigningKeysView.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/AdminSigningKeysView.test.ts\", \"acceptanceCriteria\": [\"list status badges pending/active/decommissioning/retired\",\"generate POST no body via withSudo+confirm\",\"activate gated to pending, retire gated to decommissioning\",\"active_key_no_replacement surfaced\",\"expandable publicJwk\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: AdminAuditView — filters + load-more + expandable detail",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** /admin/audit newest-first table, filters (factor/event/accountId/since/until), keyset load-more (before=lastId), per-row expandable pretty-JSON detail.\n\n**Files:** Create AdminAuditView.vue; Test AdminAuditView.test.ts\n\n**Verify:** cd dashboard && npx vitest run src/pages/admin/AdminAuditView.test.ts\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/AdminAuditView.vue\",\"dashboard/src/pages/admin/AdminAuditView.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/AdminAuditView.test.ts\", \"acceptanceCriteria\": [\"initial GET limit=50 newest-first\",\"filters Apply re-queries from top; Clear empties\",\"load-more before=lastId appends; hidden when <limit\",\"row expands to pretty JSON detail + userAgent\",\"empty state\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-08"
+}
