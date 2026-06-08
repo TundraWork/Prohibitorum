@@ -17,7 +17,7 @@
     {
       "id": 3,
       "subject": "Task 3: AdminUpstreamIdpDetailView — edit + rotate + delete",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** /admin/upstream-idps/:slug edit (PUT, no secret, +disabled), rotate-secret (POST 204, no reveal), delete (ConfirmDialog→POST), modeled on AdminOidcClientDetailView.\n\n**Files:** Create AdminUpstreamIdpDetailView.vue; Test AdminUpstreamIdpDetailView.test.ts\n\n**Verify:** cd dashboard && npx vitest run src/pages/admin/AdminUpstreamIdpDetailView.test.ts\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.vue\",\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/AdminUpstreamIdpDetailView.test.ts\", \"acceptanceCriteria\": [\"not-found + visible load-error\",\"PUT all fields incl disabled, no clientSecret\",\"rotate POST 204 no reveal\",\"delete navigates to list\"]}\n```"
     },
