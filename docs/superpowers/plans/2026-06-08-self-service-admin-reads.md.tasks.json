@@ -29,7 +29,7 @@
     {
       "id": 5,
       "subject": "Task 5: FE admin per-session table + row revoke",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** AdminAccountDetailView per-session table + per-row revoke (withSudo), keep bulk revoke. Files: AdminAccountDetailView.vue, locales/en.ts + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminAccountDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin/AdminAccountDetailView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"load→GET sessions→table\",\"row revoke→withSudo POST→reload; bulk stays\",\"empty state\"]}\n```"
     },
