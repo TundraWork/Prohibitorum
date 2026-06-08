@@ -4,7 +4,7 @@
     {
       "id": 1,
       "subject": "Task 1: PUT /me (self displayName)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Session-authed PUT /me updating only the caller's display_name (no sudo). Files: pkg/contract/auth.go (OperationUpdateMe), pkg/server/handle_me.go (handleUpdateMe), server.go, handle_me_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_me.go\",\"pkg/server/server.go\",\"pkg/server/handle_me_test.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./... && go vet ./...\",\"acceptanceCriteria\":[\"PUT /me validates+UpdateAccountDisplayName+returns SessionView\",\"only display_name changes\",\"invalid → invalid_display_name, no sudo\"]}\n```"
     },
     {
@@ -53,5 +53,5 @@
       "description": "**Goal:** AdminAccountDetailView key/value attributes editor; Save includes rebuilt attributes in existing PUT /accounts/{id} (backend unchanged). Files: AdminAccountDetailView.vue, locales/en.ts + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminAccountDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin/AdminAccountDetailView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"editable key/value rows; add/remove\",\"Save includes rebuilt attributes in PUT\",\"non-string existing values preserved/read-only\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-08T00:00:00Z"
+  "lastUpdated": "2026-06-08T23:00:00Z"
 }
