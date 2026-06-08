@@ -107,18 +107,16 @@ function addAcsRow(): void {
   })
 }
 
-function setDefault(i: number): void {
-  acsRows.value.forEach((r, j) => { r.isDefault = j === i })
-}
-
 // RadioGroup binds to the default row's id (as a string); selecting one marks
-// it as the sole default ACS endpoint.
+// it as the sole default ACS endpoint. The emit type is reka's AcceptableValue,
+// so accept it broadly and normalize to the row-id string.
 const defaultAcsKey = computed(() => {
   const d = acsRows.value.find(r => r.isDefault)
   return d ? String(d.id) : ''
 })
-function onDefaultChange(val: string): void {
-  acsRows.value.forEach(r => { r.isDefault = String(r.id) === val })
+function onDefaultChange(val: unknown): void {
+  const key = val == null ? '' : String(val)
+  acsRows.value.forEach(r => { r.isDefault = String(r.id) === key })
 }
 
 function removeAcsRow(i: number): void {
