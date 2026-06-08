@@ -13,6 +13,10 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 
 const POST_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
@@ -107,6 +111,16 @@ function setDefault(i: number): void {
   acsRows.value.forEach((r, j) => { r.isDefault = j === i })
 }
 
+// RadioGroup binds to the default row's id (as a string); selecting one marks
+// it as the sole default ACS endpoint.
+const defaultAcsKey = computed(() => {
+  const d = acsRows.value.find(r => r.isDefault)
+  return d ? String(d.id) : ''
+})
+function onDefaultChange(val: string): void {
+  acsRows.value.forEach(r => { r.isDefault = String(r.id) === val })
+}
+
 function removeAcsRow(i: number): void {
   acsRows.value = acsRows.value.filter((_, idx) => idx !== i)
   acsRows.value.forEach((r, j) => { r.index = j })
@@ -157,84 +171,91 @@ onMounted(load)
     <p v-if="created" class="text-sm text-sage" role="status">{{ t('admin.saml.created') }}</p>
 
     <Card v-if="createOpen">
-      <CardContent class="flex flex-col gap-3 py-4">
-        <!-- Mode toggle -->
-        <div class="flex gap-2">
-          <Button type="button" :variant="mode === 'metadata' ? 'default' : 'outline'" data-test="mode-metadata" @click="mode = 'metadata'">{{ t('admin.saml.modeMetadata') }}</Button>
-          <Button type="button" :variant="mode === 'manual' ? 'default' : 'outline'" data-test="mode-manual" @click="mode = 'manual'">{{ t('admin.saml.modeManual') }}</Button>
-        </div>
+      <CardContent class="flex flex-col gap-4 py-4">
+        <!-- Mode toggle (segmented control) -->
+        <Tabs v-model="mode" class="gap-4">
+          <TabsList class="w-full max-w-xs">
+            <TabsTrigger value="metadata" data-test="mode-metadata">{{ t('admin.saml.modeMetadata') }}</TabsTrigger>
+            <TabsTrigger value="manual" data-test="mode-manual">{{ t('admin.saml.modeManual') }}</TabsTrigger>
+          </TabsList>
 
-        <!-- Metadata mode -->
-        <template v-if="mode === 'metadata'">
-          <div class="flex flex-col gap-1.5">
-            <Label for="metadataXml">{{ t('admin.saml.metadataXml') }}</Label>
-            <Textarea id="metadataXml" name="metadataXml" v-model="metadataXml" :placeholder="t('admin.saml.metadataHint')" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="metadataDisplayName">{{ t('admin.saml.displayName') }}</Label>
-            <Input id="metadataDisplayName" name="metadataDisplayName" v-model="metadataDisplayName" />
-          </div>
-        </template>
-
-        <!-- Manual mode -->
-        <template v-else>
-          <div class="flex flex-col gap-1.5">
-            <Label for="displayName">{{ t('admin.saml.displayName') }}</Label>
-            <Input id="displayName" name="displayName" v-model="displayName" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="entityId">{{ t('admin.saml.entityId') }}</Label>
-            <Input id="entityId" name="entityId" v-model="entityId" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="nameIdFormat">{{ t('admin.saml.nameIdFormat') }}</Label>
-            <Input id="nameIdFormat" name="nameIdFormat" v-model="nameIdFormat" />
-          </div>
-
-          <!-- ACS rows -->
-          <div class="flex flex-col gap-2">
-            <span class="text-sm font-medium text-ink">{{ t('admin.saml.acs') }}</span>
-            <div v-for="(row, i) in acsRows" :key="row.id" class="flex flex-wrap items-end gap-2 rounded-md border p-2">
-              <div class="flex flex-col gap-1">
-                <label :for="`acs-binding-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsBinding') }}</label>
-                <select :id="`acs-binding-${i}`" v-model="row.binding" class="bg-sunken border-input h-9 rounded-md border px-2 text-sm text-ink">
-                  <option :value="POST_URN">{{ t('admin.saml.bindingPost') }}</option>
-                  <option :value="REDIRECT_URN">{{ t('admin.saml.bindingRedirect') }}</option>
-                </select>
-              </div>
-              <div class="flex min-w-0 flex-1 flex-col gap-1">
-                <label :for="`acs-location-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsLocation') }}</label>
-                <Input :id="`acs-location-${i}`" :name="`acs-location-${i}`" v-model="row.location" />
-              </div>
-              <div class="flex w-16 flex-col gap-1">
-                <label :for="`acs-index-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsIndex') }}</label>
-                <Input :id="`acs-index-${i}`" :name="`acs-index-${i}`" type="number" v-model.number="row.index" />
-              </div>
-              <div class="flex flex-col gap-1">
-                <span class="text-xs text-muted">{{ t('admin.saml.acsDefault') }}</span>
-                <label class="flex items-center gap-1.5 text-sm text-ink">
-                  <input type="checkbox" :checked="row.isDefault" @change="setDefault(i)" />
-                </label>
-              </div>
-              <Button type="button" variant="outline" size="sm" :data-test="`acs-remove-${i}`" @click="removeAcsRow(i)">{{ t('admin.saml.acsRemove') }}</Button>
+          <!-- Metadata mode -->
+          <TabsContent value="metadata" class="flex flex-col gap-3">
+            <div class="flex flex-col gap-1.5">
+              <Label for="metadataXml">{{ t('admin.saml.metadataXml') }}</Label>
+              <Textarea id="metadataXml" name="metadataXml" v-model="metadataXml" :placeholder="t('admin.saml.metadataHint')" />
             </div>
-            <Button type="button" variant="outline" size="sm" data-test="acs-add" @click="addAcsRow">{{ t('admin.saml.acsAdd') }}</Button>
-          </div>
-        </template>
+            <div class="flex flex-col gap-1.5">
+              <Label for="metadataDisplayName">{{ t('admin.saml.displayName') }}</Label>
+              <Input id="metadataDisplayName" name="metadataDisplayName" v-model="metadataDisplayName" />
+            </div>
+          </TabsContent>
+
+          <!-- Manual mode -->
+          <TabsContent value="manual" class="flex flex-col gap-3">
+            <div class="flex flex-col gap-1.5">
+              <Label for="displayName">{{ t('admin.saml.displayName') }}</Label>
+              <Input id="displayName" name="displayName" v-model="displayName" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="entityId">{{ t('admin.saml.entityId') }}</Label>
+              <Input id="entityId" name="entityId" v-model="entityId" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="nameIdFormat">{{ t('admin.saml.nameIdFormat') }}</Label>
+              <Input id="nameIdFormat" name="nameIdFormat" v-model="nameIdFormat" />
+            </div>
+
+            <!-- ACS rows -->
+            <div class="flex flex-col gap-2">
+              <span class="text-sm font-medium text-ink">{{ t('admin.saml.acs') }}</span>
+              <RadioGroup :model-value="defaultAcsKey" class="gap-2" @update:model-value="onDefaultChange">
+                <div v-for="(row, i) in acsRows" :key="row.id" class="flex flex-wrap items-end gap-3 rounded-md border p-2">
+                  <div class="flex flex-col gap-1">
+                    <Label :for="`acs-binding-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsBinding') }}</Label>
+                    <Select v-model="row.binding">
+                      <SelectTrigger :id="`acs-binding-${i}`" class="w-44"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem :value="POST_URN">{{ t('admin.saml.bindingPost') }}</SelectItem>
+                        <SelectItem :value="REDIRECT_URN">{{ t('admin.saml.bindingRedirect') }}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div class="flex min-w-0 flex-1 flex-col gap-1">
+                    <Label :for="`acs-location-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsLocation') }}</Label>
+                    <Input :id="`acs-location-${i}`" :name="`acs-location-${i}`" v-model="row.location" />
+                  </div>
+                  <div class="flex w-16 flex-col gap-1">
+                    <Label :for="`acs-index-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsIndex') }}</Label>
+                    <Input :id="`acs-index-${i}`" :name="`acs-index-${i}`" type="number" v-model.number="row.index" />
+                  </div>
+                  <div class="flex flex-col items-center gap-1">
+                    <Label :for="`acs-default-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsDefault') }}</Label>
+                    <RadioGroupItem :id="`acs-default-${i}`" :value="String(row.id)" :data-test="`acs-default-${i}`" class="my-2" />
+                  </div>
+                  <Button type="button" variant="outline" size="sm" :data-test="`acs-remove-${i}`" @click="removeAcsRow(i)">{{ t('admin.saml.acsRemove') }}</Button>
+                </div>
+              </RadioGroup>
+              <Button type="button" variant="outline" size="sm" data-test="acs-add" @click="addAcsRow">{{ t('admin.saml.acsAdd') }}</Button>
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <!-- Shared flags -->
-        <label class="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" v-model="requireSignedAuthnRequest" />
-          {{ t('admin.saml.requireSignedAuthn') }}
-        </label>
-        <label class="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" v-model="wantAssertionsSigned" />
-          {{ t('admin.saml.wantAssertionsSigned') }}
-        </label>
-        <label class="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" v-model="allowIdpInitiated" />
-          {{ t('admin.saml.allowIdpInitiated') }}
-        </label>
+        <div class="flex flex-col gap-3 border-t pt-3">
+          <div class="flex items-center justify-between gap-3">
+            <Label for="requireSignedAuthnRequest" class="font-normal text-ink">{{ t('admin.saml.requireSignedAuthn') }}</Label>
+            <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <Label for="wantAssertionsSigned" class="font-normal text-ink">{{ t('admin.saml.wantAssertionsSigned') }}</Label>
+            <Switch id="wantAssertionsSigned" v-model="wantAssertionsSigned" />
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <Label for="allowIdpInitiated" class="font-normal text-ink">{{ t('admin.saml.allowIdpInitiated') }}</Label>
+            <Switch id="allowIdpInitiated" v-model="allowIdpInitiated" />
+          </div>
+        </div>
 
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.saml.create') }}</Button>

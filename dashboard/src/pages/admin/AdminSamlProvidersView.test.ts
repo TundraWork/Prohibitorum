@@ -41,7 +41,9 @@ describe('AdminSamlProvidersView', () => {
     get.mockResolvedValue([]); post.mockResolvedValue({ id: 3 })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
-    await w.find('[data-test="mode-manual"]').trigger('click')
+    // reka Tabs activates on mousedown (not click).
+    await w.find('[data-test="mode-manual"]').trigger('mousedown')
+    await flushPromises()
     await w.find('input[name="entityId"]').setValue('https://manual/sp')
     await w.find('input[name="displayName"]').setValue('Manual SP')
     await w.find('[data-test="acs-add"]').trigger('click')
