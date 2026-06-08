@@ -34,22 +34,40 @@ var errRefreshInvalid = errors.New("oidc: refresh token invalid")
 // §4.13.2). Callers map this to invalid_grant.
 var errRefreshReuse = errors.New("oidc: refresh token reuse detected")
 
+// errRotationInProgress is returned when a concurrent rotation holds the lock
+// for the presented token. It is BENIGN (not reuse): the caller maps it to a
+// retryable invalid_grant and does NOT revoke the family.
+var errRotationInProgress = errors.New("oidc: refresh rotation in progress")
+
+// refreshIdempotencyWindow bounds how long a just-rotated (previous) refresh
+// token may be re-presented to receive the SAME successor instead of tripping
+// reuse detection. Covers benign client double-submit / network retry. Kept
+// short: within this window a stolen previous token could also redeem the
+// successor, an accepted tradeoff (the token is already compromised in that
+// case, and false family revocation is user-hostile).
+const refreshIdempotencyWindow = 10 * time.Second
+
+// refreshLockKey is the SetNX rotation-lock key for a presented token.
+func refreshLockKey(token string) string { return "oidc:refresh:lock:" + token }
+
 // refreshFamily is the per-family record for a chain of rotated refresh tokens.
 // CurrentToken names the single token that may be exchanged; every prior token
 // in the chain resolves to this family but, being != CurrentToken, trips reuse
 // detection if presented. The remaining fields are the authentication snapshot
 // carried forward into each refreshed access/ID token.
 type refreshFamily struct {
-	FamilyID     string    `json:"family_id"`
-	CurrentToken string    `json:"current_token"`
-	ClientID     string    `json:"client_id"`
-	AccountID    int32     `json:"account_id"`
-	SessionID    string    `json:"session_id"`
-	Scope        []string  `json:"scope"`
-	AuthTime     time.Time `json:"auth_time"`
-	AMR          []string  `json:"amr"`
-	ACR          string    `json:"acr"`
-	IssuedAt     time.Time `json:"issued_at"`
+	FamilyID           string    `json:"family_id"`
+	CurrentToken       string    `json:"current_token"`
+	ClientID           string    `json:"client_id"`
+	AccountID          int32     `json:"account_id"`
+	SessionID          string    `json:"session_id"`
+	Scope              []string  `json:"scope"`
+	AuthTime           time.Time `json:"auth_time"`
+	AMR                []string  `json:"amr"`
+	ACR                string    `json:"acr"`
+	IssuedAt           time.Time `json:"issued_at"`
+	PreviousToken      string    `json:"previous_token,omitempty"`
+	PreviousValidUntil time.Time `json:"previous_valid_until"`
 }
 
 // refreshFamilyKey is the KV key under which a family record is stored.
@@ -138,53 +156,62 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily) (token
 	return token, fid, nil
 }
 
-// rotateRefresh performs a single-use exchange of a refresh token.
+// rotateRefresh performs a single-use exchange of a refresh token, made
+// atomic by a per-token SetNX rotation lock and made benign-concurrency-safe
+// by a previous-token idempotency window on the family record.
 //
-//   - The presented token is resolved to its family; a miss (unknown/expired
-//     token, or revoked/expired family) returns errRefreshInvalid.
-//   - If the presented token is NOT the family's CurrentToken it is a
-//     superseded token — REUSE. The family record is deleted (revoking the
-//     whole chain) and errRefreshReuse is returned.
-//   - Otherwise a new opaque token is minted, set as CurrentToken, and the
-//     family record is rewritten with a fresh sliding TTL alongside the new
-//     token→family mapping. The updated family and new token are returned.
+//   - Acquire the rotation lock (SetNX). If held, a concurrent rotation for
+//     this exact token is in flight → errRotationInProgress (retryable, no
+//     revoke).
+//   - Resolve the family; a miss → errRefreshInvalid.
+//   - presented == PreviousToken and within PreviousValidUntil → benign
+//     idempotent replay: return the already-rotated CurrentToken (caller
+//     re-mints access/ID tokens). No second mint.
+//   - presented != CurrentToken (and not valid-previous) → superseded/stolen
+//     → revoke family, errRefreshReuse.
+//   - presented == CurrentToken → mint newToken, record PreviousToken=presented,
+//     PreviousValidUntil, set CurrentToken=newToken, persist.
 //
-// On a successful rotation the OLD token mapping is deliberately NOT deleted:
-// it remains resolvable so a later replay trips the reuse branch above. It
-// expires naturally at its own original TTL.
-func rotateRefresh(ctx context.Context, store kv.Store, presented string) (*refreshFamily, string, error) {
-	// NOTE: The Get→compare→SetEx sequence below is NOT atomic across KV ops.
-	// Two concurrent rotations presenting the same current token could both pass
-	// the presented == CurrentToken check. The race is non-immortalizing — it
-	// self-heals, since whichever superseded branch loses the last write trips
-	// reuse detection (and revokes the family) on its next use. But it is not
-	// harmless: a concurrent stolen-token rotation can let the attacker win the
-	// last write and transiently hold the live branch, so the LEGITIMATE
-	// client's next refresh trips the reuse alarm and revokes the family —
-	// victim lockout. A fully atomic compare-and-swap would require a Redis
-	// WATCH/Lua primitive that the kv.Store interface does not expose.
-	fam, err := loadFamily(ctx, store, presented)
+// rotated reports whether this call performed a real rotation (true) vs served
+// an idempotent replay (false) — the caller uses it to pick the audit reason.
+func rotateRefresh(ctx context.Context, store kv.Store, presented string) (fam *refreshFamily, newToken string, rotated bool, err error) {
+	got, lockErr := store.SetNX(ctx, refreshLockKey(presented), "1", refreshIdempotencyWindow)
+	if lockErr != nil {
+		return nil, "", false, lockErr // fail closed: no rotation, no revoke
+	}
+	if !got {
+		return nil, "", false, errRotationInProgress
+	}
+	defer func() { _ = store.Del(ctx, refreshLockKey(presented)) }()
+
+	fam, err = loadFamily(ctx, store, presented)
 	if err != nil {
-		return nil, "", err
+		return nil, "", false, err
+	}
+
+	now := time.Now().UTC()
+	if presented == fam.PreviousToken && now.Before(fam.PreviousValidUntil) {
+		return fam, fam.CurrentToken, false, nil
 	}
 
 	if presented != fam.CurrentToken {
-		// Superseded token replayed: revoke the entire family.
 		if delErr := store.Del(ctx, refreshFamilyKey(fam.FamilyID)); delErr != nil {
-			return nil, "", delErr
+			return nil, "", false, delErr
 		}
-		return nil, "", errRefreshReuse
+		return nil, "", false, errRefreshReuse
 	}
 
-	newToken, err := randToken()
+	minted, err := randToken()
 	if err != nil {
-		return nil, "", fmt.Errorf("oidc: generate refresh token: %w", err)
+		return nil, "", false, fmt.Errorf("oidc: generate refresh token: %w", err)
 	}
-	fam.CurrentToken = newToken
+	fam.PreviousToken = presented
+	fam.PreviousValidUntil = now.Add(refreshIdempotencyWindow)
+	fam.CurrentToken = minted
 	if err := putFamily(ctx, store, fam); err != nil {
-		return nil, "", err
+		return nil, "", false, err
 	}
-	return fam, newToken, nil
+	return fam, minted, true, nil
 }
 
 // lookupRefresh resolves a presented token to its family WITHOUT mutating
@@ -210,19 +237,27 @@ func revokeFamily(ctx context.Context, store kv.Store, familyID string) error {
 }
 
 // grantRefreshToken implements the RFC 6749 §6 refresh_token grant. It rotates
-// the presented token (single-use; reuse trips family revocation), re-checks
-// the bound client and account, and re-issues a fresh access + ID token plus
-// the rotated refresh token. The re-issued ID token carries the family's
-// snapshotted auth_time/amr/acr/sid and omits nonce (none is snapshotted).
+// the presented token (single-use; reuse trips family revocation), or — for a
+// just-rotated token re-presented within the idempotency window — serves the
+// same successor without a second mint. Either way it re-checks the bound
+// client and account and re-issues a fresh access + ID token plus the
+// (rotated or replayed) refresh token. The re-issued ID token carries the
+// family's snapshotted auth_time/amr/acr/sid and omits nonce (none is
+// snapshotted).
 func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, client db.OidcClient) {
 	ctx := r.Context()
 	presented := r.PostForm.Get("refresh_token")
 
-	fam, newToken, err := rotateRefresh(ctx, p.kv, presented)
+	fam, newToken, rotated, err := rotateRefresh(ctx, p.kv, presented)
+	if errors.Is(err, errRotationInProgress) {
+		p.auditTokenEvent(ctx, r, audit.EventFail, nil, map[string]any{
+			"reason":    "refresh_rotation_in_progress",
+			"client_id": client.ClientID,
+		})
+		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "refresh rotation in progress, retry")
+		return
+	}
 	if errors.Is(err, errRefreshReuse) {
-		// A superseded token was replayed: rotateRefresh has already revoked the
-		// whole family. We have no account context here (rotateRefresh returns no
-		// family on reuse), so the security audit records only the client.
 		p.auditTokenEvent(ctx, r, audit.EventFail, nil, map[string]any{
 			"reason":    "refresh_reuse",
 			"client_id": client.ClientID,
@@ -231,16 +266,14 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 	if err != nil {
-		// errRefreshInvalid (unknown/expired/revoked) or any storage error: the
-		// token is unusable either way and the response must not leak which.
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "invalid refresh token")
 		return
 	}
 
 	// Client binding (RFC 6749 §6): a refresh token presented by a client other
-	// than the one it was issued to is anomalous. rotateRefresh has already
-	// rotated, so the new token is live — revoke the whole family (treat the
-	// mismatch as an attack) before refusing.
+	// than the one it was issued to is anomalous. The family is live (rotated or
+	// served an idempotent replay) — revoke the whole family (treat the mismatch
+	// as an attack) before refusing.
 	if fam.ClientID != client.ClientID {
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "client mismatch")
@@ -264,18 +297,22 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	now := time.Now()
 	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, fam.AuthTime, now)
 	if err != nil {
-		// rotateRefresh already advanced the family (new CurrentToken set, old
-		// token superseded) but we return no token here — leaving a live but
-		// unusable family the client is locked out of. Fail closed: revoke the
-		// family so the client cleanly re-authenticates rather than wedging.
+		// The family is live (from this or a prior rotation). Returning no token
+		// would leave it in a live-but-unusable state the client is locked out of.
+		// Fail closed: revoke the family so the client cleanly re-authenticates
+		// rather than wedging.
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
 		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
 		return
 	}
 
+	reason := "refresh_rotated"
+	if !rotated {
+		reason = "refresh_idempotent_replay"
+	}
 	acctID := acct.ID
 	p.auditTokenEvent(ctx, r, audit.EventUse, &acctID, map[string]any{
-		"reason":    "refresh_rotated",
+		"reason":    reason,
 		"client_id": client.ClientID,
 	})
 

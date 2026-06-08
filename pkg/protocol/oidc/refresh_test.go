@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,7 +57,7 @@ func TestRefreshIssueAndRotateHappy(t *testing.T) {
 		t.Fatalf("expected family record at %q: %v", refreshFamilyKey(fid), err)
 	}
 
-	fam, newTok, err := rotateRefresh(ctx, store, t0)
+	fam, newTok, _, err := rotateRefresh(ctx, store, t0)
 	if err != nil {
 		t.Fatalf("rotateRefresh(t0): %v", err)
 	}
@@ -113,13 +114,26 @@ func TestRefreshReuseRevokesFamily(t *testing.T) {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
-	_, t1, err := rotateRefresh(ctx, store, t0)
+	_, t1, _, err := rotateRefresh(ctx, store, t0)
 	if err != nil {
 		t.Fatalf("rotateRefresh(t0): %v", err)
 	}
 
+	// Wait out the idempotency window so t0 is treated as genuine reuse, not replay.
+	// Force-expire the window by zeroing PreviousValidUntil on the family record.
+	{
+		fam0, lerr := loadFamily(ctx, store, t1)
+		if lerr != nil {
+			t.Fatalf("loadFamily for window-clear: %v", lerr)
+		}
+		fam0.PreviousValidUntil = time.Time{}
+		if perr := putFamily(ctx, store, fam0); perr != nil {
+			t.Fatalf("putFamily for window-clear: %v", perr)
+		}
+	}
+
 	// Replaying the superseded token must be detected as reuse.
-	fam, tok, err := rotateRefresh(ctx, store, t0)
+	fam, tok, _, err := rotateRefresh(ctx, store, t0)
 	if !errors.Is(err, errRefreshReuse) {
 		t.Fatalf("rotateRefresh(superseded t0): got %v, want errRefreshReuse", err)
 	}
@@ -129,7 +143,7 @@ func TestRefreshReuseRevokesFamily(t *testing.T) {
 
 	// The reuse revokes the whole family, so the previously-current token is
 	// now invalid (family record gone).
-	if _, _, err := rotateRefresh(ctx, store, t1); !errors.Is(err, errRefreshInvalid) {
+	if _, _, _, err := rotateRefresh(ctx, store, t1); !errors.Is(err, errRefreshInvalid) {
 		t.Fatalf("rotateRefresh(t1) after reuse: got %v, want errRefreshInvalid", err)
 	}
 }
@@ -148,7 +162,7 @@ func TestRefreshRevokeFamily(t *testing.T) {
 		t.Fatalf("revokeFamily: %v", err)
 	}
 
-	if _, _, err := rotateRefresh(ctx, store, t0); !errors.Is(err, errRefreshInvalid) {
+	if _, _, _, err := rotateRefresh(ctx, store, t0); !errors.Is(err, errRefreshInvalid) {
 		t.Fatalf("rotateRefresh after revoke: got %v, want errRefreshInvalid", err)
 	}
 }
@@ -177,7 +191,7 @@ func TestRefreshLookup(t *testing.T) {
 	if _, ok := lookupRefresh(ctx, store, t0); !ok {
 		t.Fatal("second lookupRefresh: ok=false, want true (must not mutate)")
 	}
-	if _, _, err := rotateRefresh(ctx, store, t0); err != nil {
+	if _, _, _, err := rotateRefresh(ctx, store, t0); err != nil {
 		t.Fatalf("rotate after lookups: %v (lookup must not have mutated state)", err)
 	}
 
@@ -214,7 +228,7 @@ func TestRefreshRotateUnknown(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	fam, tok, err := rotateRefresh(ctx, store, "never-issued")
+	fam, tok, _, err := rotateRefresh(ctx, store, "never-issued")
 	if !errors.Is(err, errRefreshInvalid) {
 		t.Fatalf("rotateRefresh(unknown): got %v, want errRefreshInvalid", err)
 	}
@@ -237,7 +251,7 @@ func TestRefreshLookupSupersededToken(t *testing.T) {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
-	_, t1, err := rotateRefresh(ctx, store, t0)
+	_, t1, _, err := rotateRefresh(ctx, store, t0)
 	if err != nil {
 		t.Fatalf("rotateRefresh(t0): %v", err)
 	}
@@ -390,6 +404,18 @@ func TestTokenRefreshReuseRevokesFamily(t *testing.T) {
 	}
 	newToken := resp1.RefreshToken
 
+	// Expire the idempotency window so re-presenting `presented` is genuine reuse.
+	{
+		fam0, lerr := loadFamily(ctx, h.p.kv, newToken)
+		if lerr != nil {
+			t.Fatalf("loadFamily for window-clear: %v", lerr)
+		}
+		fam0.PreviousValidUntil = time.Time{}
+		if perr := putFamily(ctx, h.p.kv, fam0); perr != nil {
+			t.Fatalf("putFamily for window-clear: %v", perr)
+		}
+	}
+
 	// Replaying the OLD (superseded) token trips reuse detection.
 	rec2 := httptest.NewRecorder()
 	h.p.HandleToken(rec2, tokenReq(refreshForm(presented)))
@@ -521,5 +547,219 @@ func TestTokenRefreshAccountNotFound(t *testing.T) {
 	// rotation inside grantRefreshToken) no longer resolves.
 	if _, ok := lookupRefresh(ctx, h.p.kv, presented); ok {
 		t.Fatal("deleted account's family should be revoked")
+	}
+}
+
+// ── idempotency window + concurrency tests (Task 2) ─────────────────────────
+
+// TestRotateIdempotentReplay verifies that presenting a just-rotated token
+// within the idempotency window returns the SAME successor without a second
+// mint, and does not revoke the family.
+func TestRotateIdempotentReplay(t *testing.T) {
+	ctx := context.Background()
+	store := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = store.Close() })
+
+	r1, _, err := issueRefresh(ctx, store, sampleFamily())
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	// First rotation: r1 → r2, rotated=true.
+	fam1, r2, rotated1, err := rotateRefresh(ctx, store, r1)
+	if err != nil {
+		t.Fatalf("rotateRefresh(r1) first: %v", err)
+	}
+	if !rotated1 {
+		t.Fatal("first rotateRefresh: want rotated=true")
+	}
+	if r2 == "" || r2 == r1 {
+		t.Fatalf("first rotate: expected distinct new token, got %q", r2)
+	}
+	if fam1.CurrentToken != r2 {
+		t.Errorf("first rotate: family.CurrentToken=%q, want r2=%q", fam1.CurrentToken, r2)
+	}
+
+	// Idempotent replay: present r1 again within the window.
+	// rotateRefresh deleted its own lock after the first call, so SetNX re-acquires.
+	fam2, tok2, rotated2, err := rotateRefresh(ctx, store, r1)
+	if err != nil {
+		t.Fatalf("rotateRefresh(r1) idempotent replay: %v", err)
+	}
+	if rotated2 {
+		t.Fatal("idempotent replay: want rotated=false (no second mint)")
+	}
+	if tok2 != r2 {
+		t.Fatalf("idempotent replay: got token %q, want same as first rotation %q", tok2, r2)
+	}
+	if fam2.CurrentToken != r2 {
+		t.Errorf("idempotent replay: family.CurrentToken=%q, want r2=%q", fam2.CurrentToken, r2)
+	}
+
+	// Family must still be alive: r2 is still the current token.
+	famLive, ok := lookupRefresh(ctx, store, r2)
+	if !ok {
+		t.Fatal("family should still be live after idempotent replay")
+	}
+	if famLive.CurrentToken != r2 {
+		t.Errorf("post-replay family.CurrentToken=%q, want %q", famLive.CurrentToken, r2)
+	}
+}
+
+// TestRotateReuseAfterWindow verifies that presenting a superseded token after
+// the idempotency window has expired trips reuse detection and revokes the family.
+func TestRotateReuseAfterWindow(t *testing.T) {
+	ctx := context.Background()
+	store := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = store.Close() })
+
+	r1, _, err := issueRefresh(ctx, store, sampleFamily())
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	// Rotate r1 → r2.
+	_, r2, _, err := rotateRefresh(ctx, store, r1)
+	if err != nil {
+		t.Fatalf("rotateRefresh(r1): %v", err)
+	}
+
+	// Force the idempotency window closed by zeroing PreviousValidUntil.
+	fam, err := loadFamily(ctx, store, r2)
+	if err != nil {
+		t.Fatalf("loadFamily(r2): %v", err)
+	}
+	fam.PreviousValidUntil = time.Time{} // expired: zero time is before any Now()
+	if err := putFamily(ctx, store, fam); err != nil {
+		t.Fatalf("putFamily after window-clear: %v", err)
+	}
+
+	// Re-presenting r1 now trips reuse detection.
+	famReuse, tokReuse, _, err := rotateRefresh(ctx, store, r1)
+	if !errors.Is(err, errRefreshReuse) {
+		t.Fatalf("rotateRefresh(r1) after window: got %v, want errRefreshReuse", err)
+	}
+	if famReuse != nil || tokReuse != "" {
+		t.Fatalf("reuse should return nil fam/token; got fam=%v tok=%q", famReuse, tokReuse)
+	}
+
+	// Family must be dead: r2 no longer resolves.
+	if _, _, _, err := rotateRefresh(ctx, store, r2); !errors.Is(err, errRefreshInvalid) {
+		t.Fatalf("rotateRefresh(r2) after reuse: got %v, want errRefreshInvalid", err)
+	}
+}
+
+// TestRotateConcurrent verifies that two concurrent rotations of the same
+// current token result in exactly one real rotation and one benign outcome
+// (either errRotationInProgress or an idempotent replay), with NO reuse/revoke.
+func TestRotateConcurrent(t *testing.T) {
+	ctx := context.Background()
+	store := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = store.Close() })
+
+	r1, _, err := issueRefresh(ctx, store, sampleFamily())
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	type result struct {
+		fam     *refreshFamily
+		tok     string
+		rotated bool
+		err     error
+	}
+
+	results := make([]result, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for i := range 2 {
+		go func(i int) {
+			defer wg.Done()
+			fam, tok, rotated, err := rotateRefresh(ctx, store, r1)
+			results[i] = result{fam, tok, rotated, err}
+		}(i)
+	}
+	wg.Wait()
+
+	// Tally outcomes.
+	var realRotations, inProgress, idempotentReplays, reuses int
+	for _, res := range results {
+		switch {
+		case errors.Is(res.err, errRefreshReuse):
+			reuses++
+		case errors.Is(res.err, errRotationInProgress):
+			inProgress++
+		case res.err == nil && res.rotated:
+			realRotations++
+		case res.err == nil && !res.rotated:
+			idempotentReplays++
+		default:
+			t.Errorf("unexpected error from concurrent rotateRefresh: %v", res.err)
+		}
+	}
+
+	// Never a reuse/revoke.
+	if reuses != 0 {
+		t.Fatalf("got %d errRefreshReuse outcomes; concurrent rotation must NEVER revoke", reuses)
+	}
+	// Exactly one real rotation.
+	if realRotations != 1 {
+		t.Fatalf("got %d real rotations, want exactly 1", realRotations)
+	}
+	// The loser gets inProgress or idempotent replay, not reuse.
+	benignLoser := inProgress + idempotentReplays
+	if benignLoser != 1 {
+		t.Fatalf("got %d benign-loser outcomes (inProgress=%d, idempotent=%d), want exactly 1",
+			benignLoser, inProgress, idempotentReplays)
+	}
+
+	// Family must still exist.
+	if _, ok := lookupRefresh(ctx, store, r1); !ok {
+		t.Fatal("family should still be alive after concurrent rotation")
+	}
+}
+
+// errFakeSetNX is the sentinel error the fakeSetNXStore injects.
+var errFakeSetNX = errors.New("kv: injected SetNX error")
+
+// fakeSetNXStore wraps a MemoryStore and replaces SetNX with a failing stub.
+type fakeSetNXStore struct {
+	*kv.MemoryStore
+}
+
+func (f *fakeSetNXStore) SetNX(_ context.Context, _, _ string, _ time.Duration) (bool, error) {
+	return false, errFakeSetNX
+}
+
+// TestRotateSetNXError verifies that a SetNX backend error causes rotateRefresh
+// to return that error without mutating the family record.
+func TestRotateSetNXError(t *testing.T) {
+	ctx := context.Background()
+	real := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = real.Close() })
+	store := &fakeSetNXStore{real}
+
+	r1, _, err := issueRefresh(ctx, real, sampleFamily())
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	// rotateRefresh must fail closed: return the injected error, no rotation, no revoke.
+	fam, tok, rotated, err := rotateRefresh(ctx, store, r1)
+	if !errors.Is(err, errFakeSetNX) {
+		t.Fatalf("want errFakeSetNX, got %v", err)
+	}
+	if fam != nil || tok != "" || rotated {
+		t.Fatalf("SetNX error should produce nil fam/token and rotated=false; got fam=%v tok=%q rotated=%v",
+			fam, tok, rotated)
+	}
+
+	// Family must still be intact and loadable via the original token.
+	famLive, ok := lookupRefresh(ctx, real, r1)
+	if !ok {
+		t.Fatal("family should still be intact after SetNX error")
+	}
+	if famLive.CurrentToken != r1 {
+		t.Errorf("family.CurrentToken=%q, want r1=%q", famLive.CurrentToken, r1)
 	}
 }
