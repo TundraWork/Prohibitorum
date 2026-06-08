@@ -1195,18 +1195,51 @@ func main() {
 	refreshToken = refreshed.RefreshToken
 	log.Printf("  refresh rotated (new != old); refreshed id_token verifies ✓")
 
-	step(fmt.Sprintf("step 77/%d — v0.4: replay OLD refresh_token → invalid_grant (reuse detection)", totalV04))
+	step(fmt.Sprintf("step 77/%d — v0.4: refresh idempotency window + reuse detection", totalV04))
+	// Refresh rotation carries a short previous-token idempotency window so a
+	// benign client double-submit / network retry of the JUST-rotated token
+	// returns the SAME successor instead of falsely tripping reuse and locking
+	// the client out. A genuinely superseded token (older than the single
+	// previous generation, or beyond the window) is still reuse → invalid_grant
+	// + family revocation.
+	//
+	// (a) Replay the immediately-previous token within the window → SAME
+	// successor (no second mint, family intact).
+	idem, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {oldRefreshToken},
+	})
+	if err != nil {
+		log.Fatalf("refresh idempotent replay: %v", err)
+	}
+	if idem.RefreshToken != refreshToken {
+		log.Fatalf("idempotent replay: want same successor %q, got %q", refreshToken, idem.RefreshToken)
+	}
+	// (b) Rotate again so the original token is now TWO generations old (beyond
+	// the single-previous-token window) — no time-wait needed.
+	refreshed2, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+	})
+	if err != nil {
+		log.Fatalf("/oauth/token second rotation: %v", err)
+	}
+	if refreshed2.RefreshToken == "" || refreshed2.RefreshToken == refreshToken {
+		log.Fatalf("second rotation did not rotate")
+	}
+	refreshToken = refreshed2.RefreshToken
+	// (c) Replay the two-generations-old token → genuine reuse → 400 + revoke.
 	if err := tokenExpectError(*baseURL, rpClientID, rpSecret, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {oldRefreshToken},
 	}, http.StatusBadRequest, "invalid_grant"); err != nil {
-		log.Fatalf("refresh reuse: %v", err)
+		log.Fatalf("refresh reuse (two-generations-old): %v", err)
 	}
-	log.Printf("  replayed superseded refresh_token → 400 invalid_grant ✓")
+	log.Printf("  idempotent replay → same successor; two-gen-old replay → 400 reuse ✓")
 
 	step(fmt.Sprintf("step 78/%d — v0.4: reuse detection revoked the whole family (current token now dead)", totalV04))
-	// rotateRefresh revokes the family on reuse, so the current (rotated) token
-	// must now also fail with invalid_grant.
+	// The reuse trip in step 77 revoked the family, so the current (twice-rotated)
+	// token must now also fail with invalid_grant.
 	if err := tokenExpectError(*baseURL, rpClientID, rpSecret, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {refreshToken},
