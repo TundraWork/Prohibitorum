@@ -78,6 +78,13 @@ These unblock features the rebuilt UI already wants; mostly small, no new protoc
 
 ## Tier 2 — Correctness / security hardening (existing features, narrow gaps)
 
+> **STATUS: DONE (2026-06-08)** — shipped as the backend-hardening cycle (`5257598`..`13173f8`;
+> spec/plan `2026-06-08-backend-hardening*`, handoff `2026-06-08-backend-hardening-DONE-handoff.md`).
+> Items 10–12 below are complete: `SetNX` retired the refresh-rotation + SAML-replay races (auth-code
+> was already atomic via `Pop`); revoke-password-totp is transactional + lockout-guarded (+ passkey
+> delete serialized; + an unlink-guard regression fix); the client-id timing oracle is closed.
+> #13 dropped (moot), #14 will-not-implement.
+
 10. **Atomic KV primitive (`SetNX`)** — fixes TWO live races. `[code, KV interface change]` *(In the hardening cycle — spec `2026-06-08-backend-hardening-design.md`.)*
     `kv.Store` exposes no set-if-absent. Two non-atomic Get→Set paths depend on it:
     - OIDC **refresh-token rotation** race → legitimate-client victim-lockout (`pkg/protocol/oidc/refresh.go:155-188`). Fixed via `SetNX` rotation-lock + a previous-token idempotency window (re-mint; NO cached bearer envelope — tokens already raw in KV).
