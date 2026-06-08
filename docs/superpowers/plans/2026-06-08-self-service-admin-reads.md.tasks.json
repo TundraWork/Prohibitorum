@@ -49,7 +49,7 @@
     {
       "id": 8,
       "subject": "Task 8: FE admin account attributes editor",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** AdminAccountDetailView key/value attributes editor; Save includes rebuilt attributes in existing PUT /accounts/{id} (backend unchanged). Files: AdminAccountDetailView.vue, locales/en.ts + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminAccountDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin/AdminAccountDetailView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"editable key/value rows; add/remove\",\"Save includes rebuilt attributes in PUT\",\"non-string existing values preserved/read-only\"]}\n```"
     }
   ],
