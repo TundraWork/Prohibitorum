@@ -2,13 +2,15 @@
 //
 // /me/auth/revoke-password-totp is always sudo-gated. It deletes the
 // password credential, TOTP credential, and every recovery code for the
-// account, leaving only WebAuthn (passkeys) as a usable factor. Idempotent
-// — calling on an account that already has no non-WebAuthn factors is a
-// 204 no-op.
+// account, leaving only WebAuthn (passkeys) or federation as a usable factor.
 //
-// v0.2 does not run these deletes inside a single Postgres transaction; see
-// authn.DisableNonWebAuthnFallbacks for the rationale (partial failure is
-// recoverable by retrying the endpoint; full atomicity is a v0.3+ harden).
+// A lockout guard in authn.DisableNonWebAuthnFallbacks prevents the delete
+// when doing so would leave the account with zero usable sign-in methods.
+//
+// Production path: the deletes run inside a pgx transaction; the account row
+// is locked with SELECT ... FOR UPDATE before the guard check so concurrent
+// factor mutations cannot race the guard. Unit tests inject a fake via
+// revokeFlowOverride (s.dbPool == nil), bypassing the tx wrap.
 
 package server
 
@@ -32,11 +34,44 @@ func (s *Server) revokeFlowQ() authn.FlowQueries {
 
 // POST /api/prohibitorum/me/auth/revoke-password-totp
 func (s *Server) handleMeRevokePwdTOTPHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := authn.SessionFromContext(r.Context())
-	if s.requireFreshSudo(r.Context(), w, sess) {
+	ctx := r.Context()
+	sess := authn.SessionFromContext(ctx)
+	if s.requireFreshSudo(ctx, w, sess) {
 		return
 	}
-	if err := authn.DisableNonWebAuthnFallbacks(r.Context(), s.revokeFlowQ(), s.Audit, sess.Account.ID); err != nil {
+	acctID := sess.Account.ID
+
+	// Unit-test seam: when no real pool is wired (fake injected via
+	// revokeFlowOverride), run without a tx. Production serialises on the
+	// account row so concurrent factor mutations can't race the lockout guard.
+	// The FOR UPDATE row lock (the race-safety mechanism vs a concurrent
+	// passkey-delete) runs only in this production path; unit tests cover the
+	// guard logic but not the concurrency property (smoke covers the wired path).
+	if s.dbPool == nil {
+		if err := authn.DisableNonWebAuthnFallbacks(ctx, s.revokeFlowQ(), s.Audit, acctID); err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	if _, err := qtx.GetAccountByIDForUpdate(ctx, acctID); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	if err := authn.DisableNonWebAuthnFallbacks(ctx, qtx, s.Audit, acctID); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
 		writeAuthErr(w, err)
 		return
 	}

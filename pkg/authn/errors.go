@@ -129,6 +129,14 @@ func ErrLastPasskey() *AuthError {
 	return newErr(http.StatusBadRequest, "last_passkey", "无法删除最后一把密钥")
 }
 
+// ErrWouldRemoveLastFactorAuth is returned by DisableNonWebAuthnFallbacks when
+// removing password+TOTP would leave the account with no passkeys and no usable
+// federated identity, which would lock the account out entirely. Status 409
+// Conflict; the caller must add a passkey or link a federated identity first.
+func ErrWouldRemoveLastFactorAuth() *AuthError {
+	return newErr(http.StatusConflict, "would_remove_last_factor", "无法撤销密码和 TOTP：账户将无任何可用登录方式，请先添加 Passkey 或联合身份")
+}
+
 // ErrLoginAccountNotFound is returned when the WebAuthn library can't resolve
 // the credential's user handle to an account row — typically because the
 // account was deleted or the credential was force-revoked. Distinct from

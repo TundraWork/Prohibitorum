@@ -38,7 +38,7 @@ type FlowQueries interface {
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
 	DeleteTOTPCredential(ctx context.Context, accountID int32) error
 	DeleteAllRecoveryCodesByAccount(ctx context.Context, accountID int32) error
-	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]db.ListAccountIdentitiesByAccountRow, error)
+	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
 }
 
 func AvailableMethods(ctx context.Context, q FlowQueries, accountID int32) ([]Method, error) {
@@ -72,11 +72,11 @@ func AvailableMethods(ctx context.Context, q FlowQueries, accountID int32) ([]Me
 		methods = append(methods, MethodPasswordTOTP)
 	}
 
-	identities, err := q.ListAccountIdentitiesByAccount(ctx, accountID)
+	usableFed, err := q.CountUsableSignInFederation(ctx, accountID)
 	if err != nil {
-		return nil, fmt.Errorf("AvailableMethods: list identities: %w", err)
+		return nil, fmt.Errorf("AvailableMethods: count usable federation: %w", err)
 	}
-	if len(identities) > 0 {
+	if usableFed > 0 {
 		methods = append(methods, MethodFederationOIDC)
 	}
 
@@ -91,6 +91,11 @@ func AvailableMethods(ctx context.Context, q FlowQueries, accountID int32) ([]Me
 // row is a no-op at the SQL level. Returns the first error encountered,
 // wrapped with context.
 //
+// Lockout guard: if removing password+TOTP would leave the account with no
+// passkeys AND no usable federation identities, returns ErrWouldRemoveLastFactorAuth()
+// — an *AuthError with Code "would_remove_last_factor" and HTTP 409 — before
+// making any deletes.
+//
 // Order matters: recovery → TOTP → password is the safe sequencing under
 // partial failure. The pre-bundle order (password → TOTP → recovery) left
 // an orphan window where, on a failure between TOTP delete and recovery
@@ -101,9 +106,21 @@ func AvailableMethods(ctx context.Context, q FlowQueries, accountID int32) ([]Me
 // alive and consumable" — strictly safer because TOTP still requires the
 // authenticator and the password.
 //
-// v0.2 does NOT wrap these in a Postgres transaction; partial failure is
-// recoverable by retrying the endpoint. Hardening is deferred to v0.3+.
+// v0.3+ wraps these in a Postgres transaction with a SELECT ... FOR UPDATE
+// on the account row (handler level) to prevent concurrent race conditions.
 func DisableNonWebAuthnFallbacks(ctx context.Context, q FlowQueries, w audit.Writer, accountID int32) error {
+	creds, err := q.ListCredentialsByAccount(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("DisableNonWebAuthnFallbacks: list webauthn: %w", err)
+	}
+	usableFed, err := q.CountUsableSignInFederation(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("DisableNonWebAuthnFallbacks: count federation: %w", err)
+	}
+	if len(creds) == 0 && usableFed == 0 {
+		return ErrWouldRemoveLastFactorAuth()
+	}
+
 	if err := q.DeleteAllRecoveryCodesByAccount(ctx, accountID); err != nil {
 		return fmt.Errorf("DisableNonWebAuthnFallbacks: delete recovery: %w", err)
 	}

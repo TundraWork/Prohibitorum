@@ -50,6 +50,7 @@ import (
 // record the call (no actual lock).
 type meIdentitiesQueries interface {
 	authn.FlowQueries
+	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]db.ListAccountIdentitiesByAccountRow, error)
 	DeleteAccountIdentity(ctx context.Context, arg db.DeleteAccountIdentityParams) (int64, error)
 	GetAccountByIDForUpdate(ctx context.Context, id int32) (db.Account, error)
 }

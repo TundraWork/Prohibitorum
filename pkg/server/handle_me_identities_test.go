@@ -105,8 +105,10 @@ func (f *fakeIdentitiesQueries) GetTOTPCredential(_ context.Context, accountID i
 	return *f.totpRow, nil
 }
 
-func (f *fakeIdentitiesQueries) DeletePasswordCredential(_ context.Context, _ int32) error { return nil }
-func (f *fakeIdentitiesQueries) DeleteTOTPCredential(_ context.Context, _ int32) error     { return nil }
+func (f *fakeIdentitiesQueries) DeletePasswordCredential(_ context.Context, _ int32) error {
+	return nil
+}
+func (f *fakeIdentitiesQueries) DeleteTOTPCredential(_ context.Context, _ int32) error { return nil }
 func (f *fakeIdentitiesQueries) DeleteAllRecoveryCodesByAccount(_ context.Context, _ int32) error {
 	return nil
 }
@@ -122,6 +124,21 @@ func (f *fakeIdentitiesQueries) ListAccountIdentitiesByAccount(_ context.Context
 		}
 	}
 	return out, nil
+}
+
+// CountUsableSignInFederation counts identityRows for the account as usable —
+// the identities fake does not model the disabled flag, so all linked rows
+// count. Required by authn.FlowQueries (v0.4).
+func (f *fakeIdentitiesQueries) CountUsableSignInFederation(_ context.Context, accountID int32) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var n int64
+	for _, r := range f.identityRows {
+		if r.AccountID == accountID {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (f *fakeIdentitiesQueries) DeleteAccountIdentity(_ context.Context, arg db.DeleteAccountIdentityParams) (int64, error) {
@@ -162,8 +179,10 @@ func (f *fakeIdentitiesQueries) InsertSession(_ context.Context, arg db.InsertSe
 	return row, nil
 }
 
-func (f *fakeIdentitiesQueries) RevokeSession(_ context.Context, _ string) error             { return nil }
-func (f *fakeIdentitiesQueries) RevokeAllSessionsByAccount(_ context.Context, _ int32) error { return nil }
+func (f *fakeIdentitiesQueries) RevokeSession(_ context.Context, _ string) error { return nil }
+func (f *fakeIdentitiesQueries) RevokeAllSessionsByAccount(_ context.Context, _ int32) error {
+	return nil
+}
 
 // Compile-time guards.
 var _ meIdentitiesQueries = (*fakeIdentitiesQueries)(nil)

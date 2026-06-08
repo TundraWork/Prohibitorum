@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUsableSignInFederation = `-- name: CountUsableSignInFederation :one
+SELECT COUNT(*) FROM account_identity ai
+JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+WHERE ai.account_id = $1 AND NOT ip.disabled
+`
+
+// Linked identities the account can actually sign in / step up with: the
+// upstream IdP must still exist and be enabled. (ListAccountIdentitiesByAccount
+// intentionally returns ALL links, incl. disabled-upstream, for display/unlink.)
+func (q *Queries) CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsableSignInFederation, accountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteAccountIdentity = `-- name: DeleteAccountIdentity :one
 DELETE FROM account_identity WHERE id = $1 AND account_id = $2 RETURNING id
 `

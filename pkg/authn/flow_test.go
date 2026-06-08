@@ -15,10 +15,10 @@ import (
 type flowFake struct {
 	db.Querier
 
-	webauthnRows  []db.WebauthnCredential
-	passwordRow   *db.PasswordCredential
-	totpRow       *db.TotpCredential
-	identityRows  []db.ListAccountIdentitiesByAccountRow
+	webauthnRows []db.WebauthnCredential
+	passwordRow  *db.PasswordCredential
+	totpRow      *db.TotpCredential
+	usableFed    int64 // returned by CountUsableSignInFederation
 
 	deletePasswordCalls int
 	deleteTOTPCalls     int
@@ -62,8 +62,8 @@ func (f *flowFake) DeleteAllRecoveryCodesByAccount(_ context.Context, _ int32) e
 	return f.deleteRecoveryErr
 }
 
-func (f *flowFake) ListAccountIdentitiesByAccount(_ context.Context, _ int32) ([]db.ListAccountIdentitiesByAccountRow, error) {
-	return f.identityRows, nil
+func (f *flowFake) CountUsableSignInFederation(_ context.Context, _ int32) (int64, error) {
+	return f.usableFed, nil
 }
 
 func confirmed() *db.TotpCredential {
@@ -122,7 +122,7 @@ func TestAvailableMethods_Both(t *testing.T) {
 
 func TestAvailableMethods_FederationOnly(t *testing.T) {
 	f := &flowFake{
-		identityRows: []db.ListAccountIdentitiesByAccountRow{{ID: 1}},
+		usableFed: 1,
 	}
 	methods, err := AvailableMethods(context.Background(), f, 1)
 	if err != nil {
@@ -136,7 +136,7 @@ func TestAvailableMethods_FederationOnly(t *testing.T) {
 func TestAvailableMethods_WebAuthnAndFederation(t *testing.T) {
 	f := &flowFake{
 		webauthnRows: []db.WebauthnCredential{{ID: 1}},
-		identityRows: []db.ListAccountIdentitiesByAccountRow{{ID: 1}},
+		usableFed:    1,
 	}
 	methods, err := AvailableMethods(context.Background(), f, 1)
 	if err != nil {
@@ -149,9 +149,9 @@ func TestAvailableMethods_WebAuthnAndFederation(t *testing.T) {
 
 func TestAvailableMethods_PasswordTOTPAndFederation(t *testing.T) {
 	f := &flowFake{
-		passwordRow:  &db.PasswordCredential{},
-		totpRow:      confirmed(),
-		identityRows: []db.ListAccountIdentitiesByAccountRow{{ID: 1}},
+		passwordRow: &db.PasswordCredential{},
+		totpRow:     confirmed(),
+		usableFed:   1,
 	}
 	methods, err := AvailableMethods(context.Background(), f, 1)
 	if err != nil {
@@ -224,7 +224,7 @@ func (c *captureWriter) Record(_ context.Context, r audit.Record) error {
 }
 
 func TestDisableNonWebAuthnFallbacks_DeletesAllThree(t *testing.T) {
-	f := &flowFake{}
+	f := &flowFake{usableFed: 1}
 	w := &captureWriter{}
 
 	if err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42); err != nil {
@@ -242,7 +242,7 @@ func TestDisableNonWebAuthnFallbacks_DeletesAllThree(t *testing.T) {
 }
 
 func TestDisableNonWebAuthnFallbacks_Idempotent(t *testing.T) {
-	f := &flowFake{}
+	f := &flowFake{usableFed: 1}
 	w := &captureWriter{}
 
 	if err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42); err != nil {
@@ -258,7 +258,7 @@ func TestDisableNonWebAuthnFallbacks_Idempotent(t *testing.T) {
 }
 
 func TestDisableNonWebAuthnFallbacks_EmitsAuditEvents(t *testing.T) {
-	f := &flowFake{}
+	f := &flowFake{usableFed: 1}
 	w := &captureWriter{}
 
 	if err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42); err != nil {
@@ -296,7 +296,7 @@ func TestDisableNonWebAuthnFallbacks_EmitsAuditEvents(t *testing.T) {
 }
 
 func TestDisableNonWebAuthnFallbacks_NilAuditOK(t *testing.T) {
-	f := &flowFake{}
+	f := &flowFake{usableFed: 1}
 
 	if err := DisableNonWebAuthnFallbacks(context.Background(), f, nil, 42); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -314,7 +314,7 @@ func TestDisableNonWebAuthnFallbacks_NilAuditOK(t *testing.T) {
 
 func TestDisableNonWebAuthnFallbacks_RecoveryDeleteErrorStops(t *testing.T) {
 	errSim := errors.New("sim")
-	f := &flowFake{deleteRecoveryErr: errSim}
+	f := &flowFake{deleteRecoveryErr: errSim, usableFed: 1}
 	w := &captureWriter{}
 
 	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
@@ -337,7 +337,7 @@ func TestDisableNonWebAuthnFallbacks_RecoveryDeleteErrorStops(t *testing.T) {
 
 func TestDisableNonWebAuthnFallbacks_TOTPDeleteErrorStops(t *testing.T) {
 	errSim := errors.New("sim")
-	f := &flowFake{deleteTOTPErr: errSim}
+	f := &flowFake{deleteTOTPErr: errSim, usableFed: 1}
 	w := &captureWriter{}
 
 	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
@@ -360,7 +360,7 @@ func TestDisableNonWebAuthnFallbacks_TOTPDeleteErrorStops(t *testing.T) {
 
 func TestDisableNonWebAuthnFallbacks_PasswordDeleteErrorStops(t *testing.T) {
 	errSim := errors.New("sim")
-	f := &flowFake{deletePasswordErr: errSim}
+	f := &flowFake{deletePasswordErr: errSim, usableFed: 1}
 	w := &captureWriter{}
 
 	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
@@ -378,5 +378,113 @@ func TestDisableNonWebAuthnFallbacks_PasswordDeleteErrorStops(t *testing.T) {
 	}
 	if len(w.records) != 0 {
 		t.Errorf("len(records) = %d, want 0 (no audit on partial failure)", len(w.records))
+	}
+}
+
+// ---- Lockout guard tests --------------------------------------------------
+
+// TestDisableNonWebAuthnFallbacks_Guard_NoPasskeyNoFed: account has zero
+// passkeys and zero usable federation — the guard must return the 409 sentinel
+// before making any deletes.
+func TestDisableNonWebAuthnFallbacks_Guard_NoPasskeyNoFed(t *testing.T) {
+	f := &flowFake{} // no webauthnRows, usableFed defaults to 0
+	w := &captureWriter{}
+
+	err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	ae, ok := err.(*AuthError)
+	if !ok {
+		t.Fatalf("expected *AuthError, got %T: %v", err, err)
+	}
+	if ae.Code != "would_remove_last_factor" {
+		t.Errorf("code = %q, want would_remove_last_factor", ae.Code)
+	}
+	if ae.Status != 409 {
+		t.Errorf("status = %d, want 409", ae.Status)
+	}
+	// No deletes must have been attempted.
+	if f.deleteRecoveryCalls != 0 {
+		t.Errorf("deleteRecoveryCalls = %d, want 0 (guard must abort before deletes)", f.deleteRecoveryCalls)
+	}
+	if f.deleteTOTPCalls != 0 {
+		t.Errorf("deleteTOTPCalls = %d, want 0 (guard must abort before deletes)", f.deleteTOTPCalls)
+	}
+	if f.deletePasswordCalls != 0 {
+		t.Errorf("deletePasswordCalls = %d, want 0 (guard must abort before deletes)", f.deletePasswordCalls)
+	}
+}
+
+// TestDisableNonWebAuthnFallbacks_Guard_PasskeyPresent: account has >=1 passkey
+// and no federation — guard passes, deletes proceed.
+func TestDisableNonWebAuthnFallbacks_Guard_PasskeyPresent(t *testing.T) {
+	f := &flowFake{
+		webauthnRows: []db.WebauthnCredential{{ID: 1}},
+		// usableFed is 0
+	}
+	w := &captureWriter{}
+
+	if err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.deleteRecoveryCalls != 1 || f.deleteTOTPCalls != 1 || f.deletePasswordCalls != 1 {
+		t.Errorf("delete call counts = (rec=%d,totp=%d,pw=%d), want all 1",
+			f.deleteRecoveryCalls, f.deleteTOTPCalls, f.deletePasswordCalls)
+	}
+}
+
+// TestDisableNonWebAuthnFallbacks_Guard_UsableFedPresent: account has no
+// passkeys but >=1 usable federation identity — guard passes, deletes proceed.
+func TestDisableNonWebAuthnFallbacks_Guard_UsableFedPresent(t *testing.T) {
+	f := &flowFake{usableFed: 1} // no webauthnRows
+	w := &captureWriter{}
+
+	if err := DisableNonWebAuthnFallbacks(context.Background(), f, w, 42); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.deleteRecoveryCalls != 1 || f.deleteTOTPCalls != 1 || f.deletePasswordCalls != 1 {
+		t.Errorf("delete call counts = (rec=%d,totp=%d,pw=%d), want all 1",
+			f.deleteRecoveryCalls, f.deleteTOTPCalls, f.deletePasswordCalls)
+	}
+}
+
+// ---- AvailableMethods usable-federation tests ----------------------------
+
+// TestAvailableMethods_UsableFedZero_NoFederationMethod: usableFed=0 even
+// when a webauthn credential is present (disabled upstream IdP) — federation
+// must not appear in the method list.
+func TestAvailableMethods_UsableFedZero_NoFederationMethod(t *testing.T) {
+	f := &flowFake{
+		webauthnRows: []db.WebauthnCredential{{ID: 1}},
+		// usableFed = 0 (disabled upstream)
+	}
+	methods, err := AvailableMethods(context.Background(), f, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, m := range methods {
+		if m == MethodFederationOIDC {
+			t.Errorf("MethodFederationOIDC should not appear when usableFed=0 (disabled upstream)")
+		}
+	}
+}
+
+// TestAvailableMethods_UsableFedNonZero_FederationMethod: usableFed>0 — the
+// federation method appears.
+func TestAvailableMethods_UsableFedNonZero_FederationMethod(t *testing.T) {
+	f := &flowFake{usableFed: 2} // two enabled IdPs
+	methods, err := AvailableMethods(context.Background(), f, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := false
+	for _, m := range methods {
+		if m == MethodFederationOIDC {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("MethodFederationOIDC not found in methods=%v; expected it when usableFed>0", methods)
 	}
 }

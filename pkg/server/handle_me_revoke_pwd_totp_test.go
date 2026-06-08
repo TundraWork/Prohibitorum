@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/db"
 )
 
 func TestMeRevokePwdTOTP_RequiresSudo(t *testing.T) {
@@ -43,7 +44,8 @@ func TestMeRevokePwdTOTP_Success(t *testing.T) {
 	s, f, dek := newSudoTestServer(t)
 	s.revokeFlowOverride = f
 	const accountID int32 = 42
-	// Seed: password + confirmed TOTP + 10 recovery codes.
+	// Seed: passkey (so the lockout guard passes) + password + confirmed TOTP + recovery codes.
+	f.webauthnRows = append(f.webauthnRows, db.WebauthnCredential{ID: 1, AccountID: accountID})
 	seedPassword(t, s, accountID, "correct-horse-battery")
 	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
 
@@ -89,7 +91,9 @@ func TestMeRevokePwdTOTP_Idempotent(t *testing.T) {
 	s, f, _ := newSudoTestServer(t)
 	s.revokeFlowOverride = f
 	const accountID int32 = 42
-	// No password, no TOTP, no recovery codes — clean slate.
+	// Account has a passkey so the lockout guard passes; no password/TOTP/recovery
+	// codes — the deletes are no-ops and the call returns 204 (idempotent).
+	f.webauthnRows = append(f.webauthnRows, db.WebauthnCredential{ID: 1, AccountID: accountID})
 
 	token, sess := issueSudoTestSession(t, s, accountID)
 	grantFreshSudo(t, s, accountID, token)
@@ -118,6 +122,33 @@ func TestMeRevokePwdTOTP_Idempotent(t *testing.T) {
 	s.handleMeRevokePwdTOTPHTTP(w2, r2)
 	if w2.Code != http.StatusNoContent {
 		t.Fatalf("second call: want 204, got %d (body=%s)", w2.Code, w2.Body.String())
+	}
+}
+
+// TestMeRevokePwdTOTP_409WouldRemoveLastFactor verifies that the handler
+// surfaces HTTP 409 / would_remove_last_factor when the lockout guard fires.
+// The fake has zero passkeys (webauthnRows empty by default) and
+// CountUsableSignInFederation returns 0 — the guard should abort before any
+// deletes and the handler must return 409 with code would_remove_last_factor.
+func TestMeRevokePwdTOTP_409WouldRemoveLastFactor(t *testing.T) {
+	s, f, _ := newSudoTestServer(t)
+	s.revokeFlowOverride = f
+	const accountID int32 = 42
+	// No webauthn rows and no usable federation (both zero by default in fake).
+
+	token, sess := issueSudoTestSession(t, s, accountID)
+	grantFreshSudo(t, s, accountID, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+
+	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/auth/revoke-password-totp", "")
+	w := httptest.NewRecorder()
+	s.handleMeRevokePwdTOTPHTTP(w, r)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status: want 409, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	body := decodeJSON(t, w.Body.Bytes())
+	if body["code"] != "would_remove_last_factor" {
+		t.Errorf("code: want would_remove_last_factor, got %v", body["code"])
 	}
 }
 

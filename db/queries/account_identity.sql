@@ -20,3 +20,11 @@ DELETE FROM account_identity WHERE id = $1 AND account_id = $2 RETURNING id;
 
 -- name: UpdateAccountIdentityEmail :exec
 UPDATE account_identity SET upstream_email = $2 WHERE id = $1;
+
+-- name: CountUsableSignInFederation :one
+-- Linked identities the account can actually sign in / step up with: the
+-- upstream IdP must still exist and be enabled. (ListAccountIdentitiesByAccount
+-- intentionally returns ALL links, incl. disabled-upstream, for display/unlink.)
+SELECT COUNT(*) FROM account_identity ai
+JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+WHERE ai.account_id = $1 AND NOT ip.disabled;

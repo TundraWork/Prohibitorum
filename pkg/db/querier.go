@@ -33,6 +33,10 @@ type Querier interface {
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (RecoveryCode, error)
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
+	// Linked identities the account can actually sign in / step up with: the
+	// upstream IdP must still exist and be enabled. (ListAccountIdentitiesByAccount
+	// intentionally returns ALL links, incl. disabled-upstream, for display/unlink.)
+	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
 	DeleteAccountByID(ctx context.Context, id int32) error
 	// Returns the deleted row's id when one matched; pgx.ErrNoRows when the
 	// (id, account_id) pair matches nothing (foreign identity, already-

@@ -180,6 +180,12 @@ func (f *fakeSudoQueries) ListAccountIdentitiesByAccount(_ context.Context, _ in
 	return nil, nil
 }
 
+// CountUsableSignInFederation returns 0 in the sudo tests — none of these
+// scenarios seed federation identities. Required by authn.FlowQueries (v0.4).
+func (f *fakeSudoQueries) CountUsableSignInFederation(_ context.Context, _ int32) (int64, error) {
+	return 0, nil
+}
+
 func (f *fakeSudoQueries) DeleteAllRecoveryCodesByAccount(_ context.Context, accountID int32) error {
 	keep := f.recoveryRows[:0]
 	for _, r := range f.recoveryRows {
