@@ -78,12 +78,11 @@ These unblock features the rebuilt UI already wants; mostly small, no new protoc
 
 ## Tier 2 — Correctness / security hardening (existing features, narrow gaps)
 
-10. **KV compare-and-swap primitive** — the structural root of three races. `[code, KV interface change]`
-    `kv.Store` exposes no atomic CAS (Redis WATCH/Lua). Three non-atomic Get→Set paths depend on it:
-    - OIDC **refresh-token rotation** race → legitimate-client victim-lockout (`pkg/protocol/oidc/refresh.go:156-165`).
-    - SAML **AuthnRequest replay** detection (`pkg/protocol/saml/authnreq.go:347-351`).
-    - OIDC **auth-code concurrent replay** mint window (`notes/2026-05-30-session-handoff.md`).
-    Fix once at the interface → fixes all three.
+10. **Atomic KV primitive (`SetNX`)** — fixes TWO live races. `[code, KV interface change]` *(In the hardening cycle — spec `2026-06-08-backend-hardening-design.md`.)*
+    `kv.Store` exposes no set-if-absent. Two non-atomic Get→Set paths depend on it:
+    - OIDC **refresh-token rotation** race → legitimate-client victim-lockout (`pkg/protocol/oidc/refresh.go:155-188`). Fixed via `SetNX` rotation-lock + a previous-token idempotency window (re-mint; NO cached bearer envelope — tokens already raw in KV).
+    - SAML **AuthnRequest replay** detection (`pkg/protocol/saml/authnreq.go:353-360`) → `SetNX`, SP-scoped key, fail-closed.
+    - (CORRECTION: the OIDC **auth-code consume** path is ALREADY atomic — it uses `Pop`/GETDEL (`pkg/protocol/oidc/codes.go`). Not a race; removed from this list.)
 
 11. **Wrap multi-credential deletes in a DB transaction.** `[code-only]`
     `revoke-password-totp` / `DisableNonWebAuthnFallbacks` delete recovery codes + TOTP + password
@@ -94,14 +93,13 @@ These unblock features the rebuilt UI already wants; mostly small, no new protoc
     before argon2id verify → enumeration oracle. Fix: dummy verify against a fixed PHC.
     Src: `pkg/protocol/oidc/client.go:89-94`.
 
-13. **Account-existence privacy on `/auth/methods?username=`.** `[code + UX decision]`
-    Reveals whether a username exists (NIST 800-63B-4 discourages). Needs an opaque/constant-time
-    response + a UX decision.
-    Src: `specs/2026-05-25-v0.2-password-totp-design.md`.
+13. **Account-existence privacy on `/auth/methods?username=`.** **DROPPED — MOOT (2026-06-08).**
+    Verified: there is NO `/auth/methods` endpoint. Login uses `/auth/status` (only `bootstrapped`),
+    `/auth/password/begin` (uniform `bad_credentials` + dummy argon2 burn), public `/auth/federation`.
+    No account-existence leak exists to fix.
 
-14. **Password breach-list check** at `POST /me/password/set`. `[needs dataset/service]`
-    No HIBP/known-breach check. Needs a bundled dataset or k-anonymity API + block-vs-warn policy.
-    Src: v0.7+ hardening bucket.
+14. **Password breach-list check** at `POST /me/password/set`. **WILL NOT IMPLEMENT (2026-06-08, user decision).**
+    HIBP/dataset dependency not wanted. Removed from the roadmap (not merely deferred).
 
 ---
 
