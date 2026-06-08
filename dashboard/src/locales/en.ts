@@ -39,6 +39,9 @@ export default {
     username: 'Username',
     displayName: 'Display name',
     role: 'Role',
+    edit: 'Edit',
+    save: 'Save',
+    cancel: 'Cancel',
   },
   sessions: {
     title: 'Active sessions',
@@ -512,6 +515,13 @@ export default {
       help: 'One-time codes to sign in if you lose your authenticator. Requires an authenticator app.',
       regenerate: 'Regenerate codes',
       needTotp: 'Set up an authenticator app first.',
+    },
+    factors: {
+      passwordSet: 'Password set',
+      passwordUnset: 'Not set',
+      totpActive: 'Active',
+      totpInactive: 'Not set',
+      recoveryRemaining: '{n} codes remaining',
     },
     revoke: {
       title: 'Password & authenticator',

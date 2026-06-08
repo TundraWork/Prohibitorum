@@ -55,10 +55,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function setDisplayName(name: string): void {
+    if (me.value) me.value = { ...me.value, displayName: name }
+  }
+
   function clear(): void {
     me.value = null
     _loaded.value = false
   }
 
-  return { me, isAdmin, ensureLoaded, clear }
+  return { me, isAdmin, ensureLoaded, setDisplayName, clear }
 })

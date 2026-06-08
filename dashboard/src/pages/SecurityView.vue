@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** SecurityView (/security) — stacks the factor cards + the coarse revoke action. */
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -15,10 +15,18 @@ import PasswordCard from '@/pages/security/PasswordCard.vue'
 import TotpCard from '@/pages/security/TotpCard.vue'
 import RecoveryCodesCard from '@/pages/security/RecoveryCodesCard.vue'
 
+interface MeFactors {
+  passwordSet: boolean
+  totpEnrolled: boolean
+  recoveryCodesRemaining: number
+  passkeyCount: number
+}
+
 const { t, te } = useI18n()
 const { busy, error, run } = useApi()
 const confirmOpen = ref(false)
 const done = ref(false)
+const factors = ref<MeFactors | null>(null)
 
 const errorText = computed(() => {
   const e = error.value
@@ -27,6 +35,16 @@ const errorText = computed(() => {
   return te(key) ? t(key) : e.message || t('common.error')
 })
 
+async function loadFactors(): Promise<void> {
+  try {
+    factors.value = await api.get<MeFactors>('/api/prohibitorum/me/factors')
+  } catch {
+    // non-fatal: badges simply won't render
+  }
+}
+
+onMounted(loadFactors)
+
 async function revoke(): Promise<void> {
   done.value = false
   const ok = await run(() => withSudo(async () => {
@@ -34,7 +52,7 @@ async function revoke(): Promise<void> {
     return true as const
   }))
   confirmOpen.value = false
-  if (ok) done.value = true
+  if (ok) { done.value = true; await loadFactors() }
 }
 </script>
 
@@ -42,9 +60,9 @@ async function revoke(): Promise<void> {
   <div class="flex max-w-2xl flex-col gap-6">
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('security.title') }}</h1>
     <PasskeysCard />
-    <PasswordCard />
-    <TotpCard />
-    <RecoveryCodesCard />
+    <PasswordCard :set="factors?.passwordSet" @changed="loadFactors" />
+    <TotpCard :enrolled="factors?.totpEnrolled" @changed="loadFactors" />
+    <RecoveryCodesCard :remaining="factors?.recoveryCodesRemaining" @changed="loadFactors" />
 
     <Card class="border-destructive/30 bg-destructive/[0.02]">
       <CardHeader>

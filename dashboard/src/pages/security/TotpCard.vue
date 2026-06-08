@@ -17,6 +17,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import CodeField from '@/components/custom/CodeField.vue'
 import TotpQr from '@/components/custom/TotpQr.vue'
 import RecoveryCodesDisplay from '@/components/custom/RecoveryCodesDisplay.vue'
+import StatusBadge from '@/components/custom/StatusBadge.vue'
+
+const props = defineProps<{ enrolled?: boolean }>()
+const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t, te } = useI18n()
 const { busy, error, run } = useApi()
@@ -51,12 +55,20 @@ async function verify(): Promise<void> {
   enabled.value = true
   secret.value = ''; otpauth.value = ''; code.value = ''
   if (r && r.recovery_codes) recovery.value = r.recovery_codes
+  emit('changed')
 }
 </script>
 
 <template>
   <Card>
-    <CardHeader><CardTitle>{{ t('security.totp.title') }}</CardTitle></CardHeader>
+    <CardHeader>
+      <CardTitle class="flex items-center gap-2">
+        {{ t('security.totp.title') }}
+        <StatusBadge v-if="props.enrolled !== undefined" :variant="props.enrolled ? 'success' : 'neutral'">
+          {{ props.enrolled ? t('security.factors.totpActive') : t('security.factors.totpInactive') }}
+        </StatusBadge>
+      </CardTitle>
+    </CardHeader>
     <CardContent class="flex flex-col gap-4">
       <p class="text-sm text-muted">{{ t('security.totp.help') }}</p>
 

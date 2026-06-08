@@ -10,6 +10,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import StatusBadge from '@/components/custom/StatusBadge.vue'
+
+const props = defineProps<{ set?: boolean }>()
+const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t, te } = useI18n()
 const { busy, error, run } = useApi()
@@ -35,13 +39,20 @@ async function submit(): Promise<void> {
     await api.post('/api/prohibitorum/me/password/set', { password: pw.value })
     return true as const
   }))
-  if (ok) { done.value = true; pw.value = ''; confirm.value = '' }
+  if (ok) { done.value = true; pw.value = ''; confirm.value = ''; emit('changed') }
 }
 </script>
 
 <template>
   <Card>
-    <CardHeader><CardTitle>{{ t('security.password.title') }}</CardTitle></CardHeader>
+    <CardHeader>
+      <CardTitle class="flex items-center gap-2">
+        {{ t('security.password.title') }}
+        <StatusBadge v-if="props.set !== undefined" :variant="props.set ? 'success' : 'neutral'">
+          {{ props.set ? t('security.factors.passwordSet') : t('security.factors.passwordUnset') }}
+        </StatusBadge>
+      </CardTitle>
+    </CardHeader>
     <CardContent>
       <form class="flex max-w-sm flex-col gap-4" @submit.prevent="submit">
         <p class="text-sm text-muted">{{ t('security.password.help') }}</p>
