@@ -30,7 +30,7 @@
     {
       "id": 5,
       "subject": "Task 5: Serialize passkey-delete on account row",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Wrap handleDeleteMyCredential count+delete in a tx that first locks the account row; preserve last-passkey guard.\n\n**Files:** pkg/server/handle_me.go\n\n**Verify:** go test ./pkg/server/... + smoke\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_me.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./...\",\"acceptanceCriteria\":[\"count+delete under one tx with FOR UPDATE\",\"last-passkey guard preserved\",\"behavior otherwise unchanged\"]}\n```"
     },
     {
