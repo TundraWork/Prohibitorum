@@ -36,7 +36,7 @@
     {
       "id": 6,
       "subject": "Task 6: SAML PUT attribute_map/name_id_claim + alias fix",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** UpdateSAMLSP persists name_id_claim+attribute_map; view exposes; remove authn_requests_signed=$4 clobber. Files: db/queries/saml_sp.sql (+sqlc), handle_admin_saml_sps.go, contract/auth.go (SAMLProviderView), test.\n\n```json:metadata\n{\"files\":[\"db/queries/saml_sp.sql\",\"pkg/db\",\"pkg/server/handle_admin_saml_sps.go\",\"pkg/contract/auth.go\",\"pkg/server/handle_admin_saml_sps_test.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./... && go vet ./...\",\"acceptanceCriteria\":[\"UpdateSAMLSP sets name_id_claim+attribute_map; authn_requests_signed removed from SET\",\"PUT accepts nameIdClaim+attributeMap(JSON-validated); view+GET expose\",\"changing only requireSignedAuthnRequest leaves authn_requests_signed unchanged\"]}\n```"
     },
     {
