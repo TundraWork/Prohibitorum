@@ -155,6 +155,7 @@ export default {
       urisHint: 'One URI per line.',
       scopes: 'Scopes', publicClient: 'Public client (no secret)', requireConsent: 'Always show consent',
       secretReveal: 'Client secret — copy it now; it is shown only once.',
+      configTitle: 'Client settings',
       back: 'Back to clients', notFound: 'That client no longer exists.',
       save: 'Save changes', saved: 'Saved.',
       rotate: 'Rotate secret', rotateConfirmTitle: 'Rotate the client secret?',
