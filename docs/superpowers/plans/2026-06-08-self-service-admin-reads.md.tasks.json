@@ -23,7 +23,7 @@
     {
       "id": 4,
       "subject": "Task 4: Admin GET /accounts/{id}/sessions + per-session revoke",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Admin list a target account's sessions + revoke one (admin+sudo). Files: pkg/contract/auth.go (OperationListAccountSessions), handle_account.go (handleListAccountSessions + raw handleRevokeAccountSessionHTTP), server.go, handle_account_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_account.go\",\"pkg/server/server.go\",\"pkg/server/handle_account_test.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./...\",\"acceptanceCriteria\":[\"GET /accounts/{id}/sessions admin, isCurrent=false, 404 if no account\",\"POST .../sessions/revoke {sessionId} admin+sudo; ok=false→session_not_found\"]}\n```"
     },
     {
