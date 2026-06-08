@@ -148,7 +148,7 @@ export default {
     oidc: {
       title: 'OIDC clients', create: 'Register client',
       colClient: 'Client', colType: 'Type', colState: 'State',
-      confidential: 'Confidential', public: 'Public', active: 'Active', disabled: 'Disabled',
+      confidential: 'Confidential', public: 'Public', active: 'Active', disabled: 'Disabled', created: 'Client registered.',
       empty: 'No OIDC clients registered.',
       clientId: 'Client ID', displayName: 'Display name',
       redirectUris: 'Redirect URIs', postLogoutUris: 'Post-logout redirect URIs',
