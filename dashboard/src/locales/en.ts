@@ -165,7 +165,7 @@ export default {
       deleteConfirmBody: 'This permanently removes the client. This cannot be undone.',
     },
     saml: {
-      title: 'SAML providers', create: 'Register provider',
+      title: 'SAML providers', create: 'Register provider', created: 'Provider registered.',
       colEntity: 'Entity ID', colName: 'Name', colIdpInit: 'IdP-initiated',
       yes: 'Yes', no: 'No', empty: 'No SAML providers registered.',
       modeMetadata: 'Paste metadata XML', modeManual: 'Enter manually',
