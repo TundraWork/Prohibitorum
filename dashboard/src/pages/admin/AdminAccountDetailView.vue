@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Switch } from '@/components/ui/switch'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 
@@ -194,15 +196,18 @@ onMounted(load)
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="role">{{ t('admin.account.role') }}</Label>
-            <select id="role" name="role" v-model="role" class="bg-sunken border-input h-9 w-fit rounded-md border px-3 text-sm text-ink">
-              <option value="user">{{ t('admin.account.roleUser') }}</option>
-              <option value="admin">{{ t('admin.account.roleAdmin') }}</option>
-            </select>
+            <Select v-model="role">
+              <SelectTrigger id="role" name="role" data-test="role" class="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user">{{ t('admin.account.roleUser') }}</SelectItem>
+                <SelectItem value="admin">{{ t('admin.account.roleAdmin') }}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <label class="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" name="disabled" v-model="disabled" />
-            {{ t('admin.account.disabledLabel') }}
-          </label>
+          <div class="flex items-center justify-between gap-3">
+            <Label for="disabled" class="font-normal text-ink">{{ t('admin.account.disabledLabel') }}</Label>
+            <Switch id="disabled" data-test="disabled" v-model="disabled" />
+          </div>
           <div class="flex flex-col gap-2">
             <Label>{{ t('admin.account.attributes') }}</Label>
             <p v-if="attrRows.length === 0 && !hasComplexAttrs" class="text-sm text-muted">{{ t('admin.account.attributesEmpty') }}</p>

@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { Copy, Check, Download } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
 
 const props = defineProps<{ codes: string[]; regenerated?: boolean }>()
 const emit = defineEmits<{ confirmed: [] }>()
@@ -67,7 +68,7 @@ function download(): void {
     <p class="text-xs text-muted">{{ t('recoveryCodes.storage') }}</p>
 
     <label class="flex items-center gap-2 text-sm text-ink">
-      <input v-model="saved" type="checkbox" data-test="saved" />
+      <Checkbox v-model="saved" data-test="saved" />
       <span>{{ t('recoveryCodes.savedConfirm') }}</span>
     </label>
 

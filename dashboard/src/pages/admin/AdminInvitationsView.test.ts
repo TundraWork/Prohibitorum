@@ -7,6 +7,7 @@ import { api } from '@/lib/api'
 vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
 const get = vi.mocked(api.get); const post = vi.mocked(api.post)
 import AdminInvitationsView from './AdminInvitationsView.vue'
+import { Select } from '@/components/ui/select'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminInvitationsView, { global: { plugins: [i18n()] }, attachTo: document.body })
@@ -38,7 +39,8 @@ describe('AdminInvitationsView', () => {
     post.mockResolvedValue({ url: 'https://x/enroll/new', expiresAt: '2026-06-10T00:00:00Z' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()
-    await w.find<HTMLSelectElement>('select[name="newRole"]').setValue('admin')
+    const selects = w.findAllComponents(Select)  // [0]=role, [1]=idp
+    await selects[0].vm.$emit('update:modelValue', 'admin'); await flushPromises()
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'admin' })
     expect(w.text()).toContain(en.admin.invitations.created)
@@ -67,7 +69,8 @@ describe('AdminInvitationsView', () => {
     post.mockResolvedValue({ url: 'https://x/enroll/n', expiresAt: '2026-06-10T00:00:00Z' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()
-    await w.find<HTMLSelectElement>('select[name="idp"]').setValue('okta')
+    const selects = w.findAllComponents(Select)  // [0]=role, [1]=idp
+    await selects[1].vm.$emit('update:modelValue', 'okta'); await flushPromises()
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'user', expectedUpstreamIdpSlug: 'okta' })
   })
@@ -88,9 +91,9 @@ describe('AdminInvitationsView', () => {
       ? [{ slug: 'okta', displayName: 'Okta', disabled: false }, { slug: 'old', displayName: 'Old IdP', disabled: true }]
       : [])
     const w = mountView(); await flushPromises()
-    await w.find('[data-test="create"]').trigger('click')
-    const opts = w.findAll('select[name="idp"] option').map((o) => o.text())
-    expect(opts).toContain('Okta')
-    expect(opts).not.toContain('Old IdP')
+    // Assert the component's idp list (which feeds the Select items) only contains enabled IdPs
+    const vm = w.vm as unknown as { idps: Array<{ slug: string; displayName: string; disabled: boolean }> }
+    expect(vm.idps.map((i) => i.displayName)).toContain('Okta')
+    expect(vm.idps.map((i) => i.displayName)).not.toContain('Old IdP')
   })
 })

@@ -30,7 +30,7 @@ describe('AccountRecovery', () => {
     await w.find('[data-test="confirm-reenroll"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/recovery/totp/verify', { recovery_session_token: 'rs_1', code: '123456' })
     expect(w.text()).toContain(en.recoveryCodes.heading) // RecoveryCodesDisplay heading
-    await w.find('[data-test="saved"]').setValue(true)
+    await w.find('[data-test="saved"]').trigger('click')
     await w.find('[data-test="done"]').trigger('click'); await flushPromises()
     expect(w.emitted('success')).toBeTruthy()
   })

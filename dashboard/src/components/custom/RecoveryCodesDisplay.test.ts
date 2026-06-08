@@ -28,7 +28,7 @@ describe('RecoveryCodesDisplay', () => {
     const w = mount(RecoveryCodesDisplay, { props: { codes: CODES }, global: { plugins: [i18n()] } })
     const done = w.find('[data-test=done]')
     expect((done.element as HTMLButtonElement).disabled).toBe(true)
-    await w.find('[data-test=saved]').setValue(true)
+    await w.find('[data-test=saved]').trigger('click')
     expect((done.element as HTMLButtonElement).disabled).toBe(false)
     await done.trigger('click')
     expect(w.emitted('confirmed')).toBeTruthy()

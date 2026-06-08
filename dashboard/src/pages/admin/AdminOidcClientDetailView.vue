@@ -16,6 +16,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 
@@ -146,27 +148,27 @@ onMounted(load)
             <span class="text-sm font-medium text-ink">{{ t('admin.oidc.scopes') }}</span>
             <div class="flex flex-col gap-1">
               <label class="flex items-center gap-2 text-sm text-ink">
-                <input type="checkbox" value="openid" :checked="scopes.includes('openid')" disabled />
+                <Checkbox :model-value="scopes.includes('openid')" disabled />
                 openid
               </label>
               <label class="flex items-center gap-2 text-sm text-ink">
-                <input type="checkbox" value="profile" :checked="scopes.includes('profile')" @change="(e) => toggleScope('profile', (e.target as HTMLInputElement).checked)" />
+                <Checkbox :model-value="scopes.includes('profile')" @update:model-value="(c) => toggleScope('profile', c === true)" />
                 profile
               </label>
               <label class="flex items-center gap-2 text-sm text-ink">
-                <input type="checkbox" value="email" :checked="scopes.includes('email')" @change="(e) => toggleScope('email', (e.target as HTMLInputElement).checked)" />
+                <Checkbox :model-value="scopes.includes('email')" @update:model-value="(c) => toggleScope('email', c === true)" />
                 email
               </label>
             </div>
           </div>
-          <label class="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" v-model="requireConsent" />
-            {{ t('admin.oidc.requireConsent') }}
-          </label>
-          <label class="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" name="disabled" v-model="disabled" />
-            {{ t('admin.oidc.disabled') }}
-          </label>
+          <div class="flex items-center justify-between gap-3">
+            <Label for="requireConsent" class="font-normal text-ink">{{ t('admin.oidc.requireConsent') }}</Label>
+            <Switch id="requireConsent" v-model="requireConsent" />
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <Label for="disabled" class="font-normal text-ink">{{ t('admin.oidc.disabled') }}</Label>
+            <Switch id="disabled" v-model="disabled" />
+          </div>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.oidc.save') }}</Button>
             <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.oidc.saved') }}</span>

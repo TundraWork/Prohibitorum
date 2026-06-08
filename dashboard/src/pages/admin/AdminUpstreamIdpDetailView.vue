@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Switch } from '@/components/ui/switch'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import type { UpstreamIdp } from './AdminUpstreamIdpsView.vue'
 
@@ -109,11 +111,14 @@ onMounted(load)
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="mode">{{ t('admin.upstream.mode') }}</Label>
-            <select id="mode" name="mode" v-model="mode" class="h-9 rounded-md border border-input bg-transparent px-3 text-sm text-ink">
-              <option value="auto_provision">{{ t('admin.upstream.modeAutoProvision') }}</option>
-              <option value="invite_only">{{ t('admin.upstream.modeInviteOnly') }}</option>
-              <option value="link_only">{{ t('admin.upstream.modeLinkOnly') }}</option>
-            </select>
+            <Select v-model="mode">
+              <SelectTrigger id="mode" name="mode" data-test="mode" class="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto_provision">{{ t('admin.upstream.modeAutoProvision') }}</SelectItem>
+                <SelectItem value="invite_only">{{ t('admin.upstream.modeInviteOnly') }}</SelectItem>
+                <SelectItem value="link_only">{{ t('admin.upstream.modeLinkOnly') }}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
@@ -135,14 +140,14 @@ onMounted(load)
             <Label for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
             <Input id="emailClaim" name="emailClaim" v-model="emailClaim" autocomplete="off" />
           </div>
-          <label class="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" name="requireVerifiedEmail" v-model="requireVerifiedEmail" />
-            {{ t('admin.upstream.requireVerifiedEmail') }}
-          </label>
-          <label class="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" name="disabled" v-model="disabled" />
-            {{ t('admin.upstream.disabled') }}
-          </label>
+          <div class="flex items-center justify-between gap-3">
+            <Label for="requireVerifiedEmail" class="font-normal text-ink">{{ t('admin.upstream.requireVerifiedEmail') }}</Label>
+            <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <Label for="disabled" class="font-normal text-ink">{{ t('admin.upstream.disabled') }}</Label>
+            <Switch id="disabled" v-model="disabled" data-test="disabled" />
+          </div>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.upstream.save') }}</Button>
             <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.upstream.saved') }}</span>

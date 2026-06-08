@@ -12,8 +12,10 @@ import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
@@ -22,11 +24,12 @@ interface Invitation { token: string; url: string; role: string; attributes?: Re
 interface Idp { slug: string; displayName: string; disabled: boolean }
 const { t, te } = useI18n()
 const { busy, error, run } = useApi()
+const IDP_NONE = '__none__'
 const rows = ref<Invitation[]>([])
 const idps = ref<Idp[]>([])
 const createOpen = ref(false)
 const newRole = ref<'admin' | 'user'>('user')
-const newIdp = ref('')
+const newIdp = ref(IDP_NONE)
 const created = ref(false)
 const revokeToken = ref<string | null>(null)
 const errorText = computed(() => {
@@ -56,12 +59,13 @@ async function load(): Promise<void> {
 async function create(): Promise<void> {
   created.value = false
   const body: Record<string, unknown> = { role: newRole.value }
-  if (newIdp.value) body.expectedUpstreamIdpSlug = newIdp.value
+  const idpSlug = newIdp.value && newIdp.value !== IDP_NONE ? newIdp.value : ''
+  if (idpSlug) body.expectedUpstreamIdpSlug = idpSlug
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/invitations', body)
     return true as const
   }))
-  if (ok) { createOpen.value = false; created.value = true; newIdp.value = ''; await load() }
+  if (ok) { createOpen.value = false; created.value = true; newIdp.value = IDP_NONE; await load() }
 }
 async function revoke(): Promise<void> {
   const token = revokeToken.value
@@ -87,22 +91,28 @@ onMounted(load)
     <Card v-if="createOpen">
       <CardContent class="flex flex-col gap-3 py-4">
         <div class="flex flex-col gap-1.5">
-          <label for="newRole" class="text-sm font-medium text-ink">{{ t('admin.invitations.role') }}</label>
-          <select id="newRole" name="newRole" v-model="newRole" class="bg-sunken border-input h-9 w-fit rounded-md border px-3 text-sm text-ink">
-            <option value="user">{{ t('admin.invitations.roleUser') }}</option>
-            <option value="admin">{{ t('admin.invitations.roleAdmin') }}</option>
-          </select>
+          <Label for="newRole">{{ t('admin.invitations.role') }}</Label>
+          <Select v-model="newRole">
+            <SelectTrigger id="newRole" name="newRole" data-test="newRole" class="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="user">{{ t('admin.invitations.roleUser') }}</SelectItem>
+              <SelectItem value="admin">{{ t('admin.invitations.roleAdmin') }}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div class="flex flex-col gap-1.5">
-          <label for="newIdp" class="text-sm font-medium text-ink">{{ t('admin.invitations.requireMethod') }}</label>
-          <select id="newIdp" name="idp" v-model="newIdp" class="bg-sunken border-input h-9 w-fit rounded-md border px-3 text-sm text-ink">
-            <option value="">{{ t('admin.invitations.anyMethod') }}</option>
-            <option v-for="idp in idps" :key="idp.slug" :value="idp.slug">{{ idp.displayName }}</option>
-          </select>
+          <Label for="newIdp">{{ t('admin.invitations.requireMethod') }}</Label>
+          <Select v-model="newIdp">
+            <SelectTrigger id="newIdp" name="idp" data-test="idp" class="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem :value="IDP_NONE">{{ t('admin.invitations.anyMethod') }}</SelectItem>
+              <SelectItem v-for="idp in idps" :key="idp.slug" :value="idp.slug">{{ idp.displayName }}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.invitations.create') }}</Button>
-          <Button type="button" variant="outline" :disabled="busy" data-test="create-cancel" @click="createOpen = false; newIdp = ''">{{ t('common.cancel') }}</Button>
+          <Button type="button" variant="outline" :disabled="busy" data-test="create-cancel" @click="createOpen = false; newIdp = IDP_NONE">{{ t('common.cancel') }}</Button>
         </div>
       </CardContent>
     </Card>

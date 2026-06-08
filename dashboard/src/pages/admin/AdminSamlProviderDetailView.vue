@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Switch } from '@/components/ui/switch'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 
 interface AcsEndpoint {
@@ -191,18 +192,20 @@ onMounted(load)
             <p class="text-xs text-muted">{{ t('admin.saml.attributeMapHint') }}</p>
             <p v-if="attributeMapError" class="text-xs text-destructive" data-test="saml-attributeMap-error">{{ attributeMapError }}</p>
           </div>
-          <label class="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" v-model="requireSignedAuthnRequest" />
-            {{ t('admin.saml.requireSignedAuthn') }}
-          </label>
-          <label class="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" v-model="wantAssertionsSigned" />
-            {{ t('admin.saml.wantAssertionsSigned') }}
-          </label>
-          <label class="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" v-model="allowIdpInitiated" />
-            {{ t('admin.saml.allowIdpInitiated') }}
-          </label>
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between gap-3">
+              <Label for="requireSignedAuthnRequest" class="font-normal text-ink">{{ t('admin.saml.requireSignedAuthn') }}</Label>
+              <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <Label for="wantAssertionsSigned" class="font-normal text-ink">{{ t('admin.saml.wantAssertionsSigned') }}</Label>
+              <Switch id="wantAssertionsSigned" v-model="wantAssertionsSigned" />
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <Label for="allowIdpInitiated" class="font-normal text-ink">{{ t('admin.saml.allowIdpInitiated') }}</Label>
+              <Switch id="allowIdpInitiated" v-model="allowIdpInitiated" />
+            </div>
+          </div>
           <div class="flex flex-col gap-1.5">
             <Label for="sessionLifetimeSecs">{{ t('admin.saml.sessionLifetime') }}</Label>
             <Input id="sessionLifetimeSecs" name="sessionLifetimeSecs" v-model="sessionLifetimeSecs" inputmode="numeric" />

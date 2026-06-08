@@ -9,6 +9,7 @@ const get = vi.mocked(api.get); const post = vi.mocked(api.post); const put = vi
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => ({ params: { id: '7' } }) }))
 import AdminAccountDetailView from './AdminAccountDetailView.vue'
+import { Select } from '@/components/ui/select'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminAccountDetailView, {
@@ -69,7 +70,7 @@ describe('AdminAccountDetailView', () => {
     mockGets()
     put.mockResolvedValue({ ...ACCOUNT, role: 'admin' })
     const w = mountView(); await flushPromises()
-    await w.find<HTMLSelectElement>('select[name="role"]').setValue('admin')
+    await w.findComponent(Select).vm.$emit('update:modelValue', 'admin'); await flushPromises()
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/accounts/7', {
       username: '', displayName: 'Carol Ng', role: 'admin', disabled: false,
