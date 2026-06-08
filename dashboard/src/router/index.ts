@@ -85,6 +85,10 @@ const routes: RouteRecordRaw[] = [
       { path: 'admin/accounts', name: 'admin-accounts', component: () => import('../pages/admin/AdminAccountsView.vue'), meta: { requiresAdmin: true } },
       { path: 'admin/accounts/:id', name: 'admin-account-detail', component: () => import('../pages/admin/AdminAccountDetailView.vue'), meta: { requiresAdmin: true } },
       { path: 'admin/invitations', name: 'admin-invitations', component: () => import('../pages/admin/AdminInvitationsView.vue'), meta: { requiresAdmin: true } },
+      { path: 'admin/oidc-clients', name: 'admin-oidc-clients', component: () => import('../pages/admin/AdminOidcClientsView.vue'), meta: { requiresAdmin: true } },
+      { path: 'admin/oidc-clients/:clientId', name: 'admin-oidc-client-detail', component: () => import('../pages/admin/AdminOidcClientDetailView.vue'), meta: { requiresAdmin: true } },
+      { path: 'admin/saml-providers', name: 'admin-saml-providers', component: () => import('../pages/admin/AdminSamlProvidersView.vue'), meta: { requiresAdmin: true } },
+      { path: 'admin/saml-providers/:id', name: 'admin-saml-provider-detail', component: () => import('../pages/admin/AdminSamlProviderDetailView.vue'), meta: { requiresAdmin: true } },
     ],
   },
   // Catch-all → /error
