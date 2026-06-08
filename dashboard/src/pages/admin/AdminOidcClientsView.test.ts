@@ -22,14 +22,14 @@ describe('AdminOidcClientsView', () => {
   it('lists clients with type badges', async () => {
     get.mockResolvedValue(CLIENTS)
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-clients')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications')
     expect(w.text()).toContain('Web App'); expect(w.text()).toContain(en.admin.oidc.confidential); expect(w.text()).toContain(en.admin.oidc.public)
   })
   it('row click navigates to detail', async () => {
     get.mockResolvedValue(CLIENTS)
     const w = mountView(); await flushPromises()
     await w.find('[data-test="client-row-spa"]').trigger('click')
-    expect(push).toHaveBeenCalledWith('/admin/oidc-clients/spa')
+    expect(push).toHaveBeenCalledWith('/admin/oidc-applications/spa')
   })
   it('creates a confidential client and reveals the secret', async () => {
     get.mockResolvedValue([])
@@ -40,7 +40,7 @@ describe('AdminOidcClientsView', () => {
     await w.find('input[name="displayName"]').setValue('New')
     await w.find('textarea[name="redirectUris"]').setValue('https://n/cb')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-clients', expect.objectContaining({
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications', expect.objectContaining({
       clientId: 'new', displayName: 'New', redirectUris: ['https://n/cb'],
     }))
     expect(w.text()).toContain('s3cr3t')

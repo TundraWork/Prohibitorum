@@ -21,7 +21,7 @@ import { Switch } from '@/components/ui/switch'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 
-interface OidcClient {
+interface OidcApplication {
   clientId: string
   displayName: string
   redirectUris: string[]
@@ -39,7 +39,7 @@ const router = useRouter()
 const { busy, error, run } = useApi()
 
 const clientId = String(route.params.clientId)
-const client = ref<OidcClient | null>(null)
+const client = ref<OidcApplication | null>(null)
 const notFound = ref(false)
 
 const displayName = ref('')
@@ -74,7 +74,7 @@ function toggleScope(scope: string, checked: boolean): void {
 }
 
 async function load(): Promise<void> {
-  const c = await run(() => api.get<OidcClient>(`/api/prohibitorum/oidc-clients/${clientId}`))
+  const c = await run(() => api.get<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}`))
   if (!c) { if (error.value?.code === 'client_not_found') notFound.value = true; return }
   client.value = c
   displayName.value = c.displayName
@@ -88,7 +88,7 @@ async function load(): Promise<void> {
 async function save(): Promise<void> {
   saved.value = false
   rotatedSecret.value = ''
-  const updated = await run(() => withSudo(() => api.put<OidcClient>(`/api/prohibitorum/oidc-clients/${clientId}`, {
+  const updated = await run(() => withSudo(() => api.put<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}`, {
     displayName: displayName.value,
     redirectUris: lines(redirectUris.value),
     postLogoutRedirectUris: lines(postLogoutUris.value),
@@ -102,7 +102,7 @@ async function save(): Promise<void> {
 async function rotateSecret(): Promise<void> {
   saved.value = false
   const res = await run(() => withSudo(() =>
-    api.post<{ clientId: string; secret: string }>('/api/prohibitorum/oidc-clients/rotate-secret', { clientId })))
+    api.post<{ clientId: string; secret: string }>('/api/prohibitorum/oidc-applications/rotate-secret', { clientId })))
   confirmRotate.value = false
   if (res) rotatedSecret.value = res.secret
 }
@@ -111,18 +111,18 @@ async function destroy(): Promise<void> {
   saved.value = false
   rotatedSecret.value = ''
   const ok = await run(() => withSudo(async () => {
-    await api.post('/api/prohibitorum/oidc-clients/delete', { clientId })
+    await api.post('/api/prohibitorum/oidc-applications/delete', { clientId })
     return true as const
   }))
   confirmDelete.value = false
-  if (ok) router.push('/admin/oidc-clients')
+  if (ok) router.push('/admin/oidc-applications')
 }
 
 onMounted(load)
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
-    <RouterLink to="/admin/oidc-clients" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.oidc.back') }}</RouterLink>
+    <RouterLink to="/admin/oidc-applications" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.oidc.back') }}</RouterLink>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.oidc.notFound') }}</p>
 

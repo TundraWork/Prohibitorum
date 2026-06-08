@@ -32,7 +32,7 @@ interface SamlKey {
   notAfter?: string
 }
 
-interface SamlProvider {
+interface SamlApplication {
   id: number
   entityId: string
   displayName: string
@@ -54,7 +54,7 @@ const router = useRouter()
 const { busy, error, run } = useApi()
 
 const id = Number(route.params.id)
-const sp = ref<SamlProvider | null>(null)
+const sp = ref<SamlApplication | null>(null)
 const notFound = ref(false)
 const localError = ref('')
 
@@ -81,7 +81,7 @@ const errorText = computed(() => {
   return te(key) ? t(key) : e.message || t('common.error')
 })
 
-function seedForm(data: SamlProvider): void {
+function seedForm(data: SamlApplication): void {
   displayName.value = data.displayName
   nameIdFormat.value = data.nameIdFormat
   nameIdClaim.value = data.nameIdClaim ?? ''
@@ -94,7 +94,7 @@ function seedForm(data: SamlProvider): void {
 }
 
 async function load(): Promise<void> {
-  const data = await run(() => api.get<SamlProvider>(`/api/prohibitorum/saml-providers/${id}`))
+  const data = await run(() => api.get<SamlApplication>(`/api/prohibitorum/saml-applications/${id}`))
   if (!data) { if (error.value?.code === 'credential_not_found') notFound.value = true; return }
   sp.value = data
   seedForm(data)
@@ -114,7 +114,7 @@ async function save(): Promise<void> {
     attributeMapError.value = t('admin.saml.attributeMapInvalid')
     return
   }
-  const updated = await run(() => withSudo(() => api.put<SamlProvider>(`/api/prohibitorum/saml-providers/${id}`, {
+  const updated = await run(() => withSudo(() => api.put<SamlApplication>(`/api/prohibitorum/saml-applications/${id}`, {
     displayName: displayName.value,
     nameIdFormat: nameIdFormat.value,
     nameIdClaim: nameIdClaim.value,
@@ -132,7 +132,7 @@ async function reingest(): Promise<void> {
   saved.value = false
   reingestDone.value = false
   const res = await run(() => withSudo(() =>
-    api.post<SamlProvider>(`/api/prohibitorum/saml-providers/${id}/reingest-metadata`, { metadataXml: reingestXml.value })))
+    api.post<SamlApplication>(`/api/prohibitorum/saml-applications/${id}/reingest-metadata`, { metadataXml: reingestXml.value })))
   if (res) { sp.value = res; seedForm(res); reingestDone.value = true }
 }
 
@@ -141,11 +141,11 @@ async function destroy(): Promise<void> {
   saved.value = false
   reingestDone.value = false
   const ok = await run(() => withSudo(async () => {
-    await api.post('/api/prohibitorum/saml-providers/delete', { id })
+    await api.post('/api/prohibitorum/saml-applications/delete', { id })
     return true as const
   }))
   confirmDelete.value = false
-  if (ok) router.push('/admin/saml-providers')
+  if (ok) router.push('/admin/saml-applications')
 }
 
 function bindingLabel(b: string): string {
@@ -158,7 +158,7 @@ onMounted(load)
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
-    <RouterLink to="/admin/saml-providers" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.saml.back') }}</RouterLink>
+    <RouterLink to="/admin/saml-applications" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.saml.back') }}</RouterLink>
     <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <Alert v-if="localError" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ localError }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.saml.notFound') }}</p>

@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 
-interface OidcClient {
+interface OidcApplication {
   clientId: string
   displayName: string
   redirectUris: string[]
@@ -34,7 +34,7 @@ const { t, te } = useI18n()
 const router = useRouter()
 const { busy, error, run } = useApi()
 
-const rows = ref<OidcClient[]>([])
+const rows = ref<OidcApplication[]>([])
 const createOpen = ref(false)
 const created = ref(false)
 const revealedSecret = ref('')
@@ -56,11 +56,11 @@ const errorText = computed(() => {
 })
 
 async function load(): Promise<void> {
-  const res = await run(() => api.get<OidcClient[]>('/api/prohibitorum/oidc-clients'))
+  const res = await run(() => api.get<OidcApplication[]>('/api/prohibitorum/oidc-applications'))
   if (res) rows.value = res
 }
 
-function go(id: string): void { router.push(`/admin/oidc-clients/${id}`) }
+function go(id: string): void { router.push(`/admin/oidc-applications/${id}`) }
 
 function lines(s: string): string[] {
   return s.split('\n').map((x) => x.trim()).filter(Boolean)
@@ -76,7 +76,7 @@ function toggleScope(scope: string, checked: boolean): void {
 
 async function create(): Promise<void> {
   created.value = false
-  const res = await run(() => withSudo(() => api.post<{ clientId: string; secret?: string }>('/api/prohibitorum/oidc-clients', {
+  const res = await run(() => withSudo(() => api.post<{ clientId: string; secret?: string }>('/api/prohibitorum/oidc-applications', {
     clientId: clientId.value,
     displayName: displayName.value,
     redirectUris: lines(redirectUris.value),

@@ -18,7 +18,7 @@ const stub = defineComponent({ template: '<div/>' })
 function makeRouter() {
   return createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/connected', component: stub }, { path: '/devices', component: stub }, { path: '/logout', component: stub }, { path: '/admin/accounts', component: stub }, { path: '/admin/invitations', component: stub }, { path: '/admin/oidc-clients', component: stub }, { path: '/admin/saml-providers', component: stub }],
+    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/connected', component: stub }, { path: '/devices', component: stub }, { path: '/logout', component: stub }, { path: '/admin/accounts', component: stub }, { path: '/admin/invitations', component: stub }, { path: '/admin/oidc-applications', component: stub }, { path: '/admin/saml-applications', component: stub }, { path: '/admin/identity-providers', component: stub }, { path: '/admin/signing-keys', component: stub }, { path: '/admin/audit', component: stub }],
   })
 }
 function makeI18n() {
@@ -63,8 +63,9 @@ describe('AppSidebar', () => {
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
     expect(links).toContain('/admin/accounts')
     expect(links).toContain('/admin/invitations')
-    expect(links).toContain('/admin/oidc-clients')
-    expect(links).toContain('/admin/saml-providers')
+    expect(links).toContain('/admin/oidc-applications')
+    expect(links).toContain('/admin/saml-applications')
+    expect(links).toContain('/admin/identity-providers')
   })
 
   it('hides the admin group for non-admins', async () => {

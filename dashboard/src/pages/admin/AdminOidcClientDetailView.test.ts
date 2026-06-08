@@ -23,10 +23,10 @@ describe('AdminOidcClientDetailView', () => {
   it('loads the client and saves config via PUT (allowedScopes)', async () => {
     get.mockResolvedValue(CLIENT); put.mockResolvedValue({ ...CLIENT, displayName: 'Renamed' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-clients/web')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/web')
     await w.find('input[name="displayName"]').setValue('Renamed')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
-    expect(put).toHaveBeenCalledWith('/api/prohibitorum/oidc-clients/web', expect.objectContaining({
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/web', expect.objectContaining({
       displayName: 'Renamed', allowedScopes: ['openid', 'profile'], requireConsent: true, disabled: false,
     }))
     expect(w.text()).toContain(en.admin.oidc.saved)
@@ -41,7 +41,7 @@ describe('AdminOidcClientDetailView', () => {
     const w = mountView(); await flushPromises()
     await w.find('[data-test="rotate"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.oidc.rotate); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-clients/rotate-secret', { clientId: 'web' })
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/rotate-secret', { clientId: 'web' })
     expect(w.text()).toContain('newsecret')
   })
   it('deletes and navigates to the list', async () => {
@@ -49,8 +49,8 @@ describe('AdminOidcClientDetailView', () => {
     const w = mountView(); await flushPromises()
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.oidc.delete); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-clients/delete', { clientId: 'web' })
-    expect(push).toHaveBeenCalledWith('/admin/oidc-clients')
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/delete', { clientId: 'web' })
+    expect(push).toHaveBeenCalledWith('/admin/oidc-applications')
   })
   it('clears the revealed secret after a subsequent save', async () => {
     get.mockResolvedValue(CLIENT)

@@ -15,7 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
-import type { UpstreamIdp } from './AdminUpstreamIdpsView.vue'
+import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
 
 const { t, te } = useI18n()
 const route = useRoute()
@@ -23,7 +23,7 @@ const router = useRouter()
 const { busy, error, run } = useApi()
 
 const slug = String(route.params.slug)
-const idp = ref<UpstreamIdp | null>(null)
+const idp = ref<IdentityProvider | null>(null)
 const notFound = ref(false)
 
 const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
@@ -44,7 +44,7 @@ const errorText = computed(() => {
 function lines(s: string): string[] { return s.split('\n').map((x) => x.trim()).filter(Boolean) }
 
 async function load(): Promise<void> {
-  const i = await run(() => api.get<UpstreamIdp>(`/api/prohibitorum/upstream-idps/${slug}`))
+  const i = await run(() => api.get<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`))
   if (!i) { if (error.value?.code === 'upstream_idp_not_found') notFound.value = true; return }
   idp.value = i
   displayName.value = i.displayName; issuerUrl.value = i.issuerUrl; clientId.value = i.clientId
@@ -55,7 +55,7 @@ async function load(): Promise<void> {
 
 async function save(): Promise<void> {
   saved.value = false; rotated.value = false
-  const updated = await run(() => withSudo(() => api.put<UpstreamIdp>(`/api/prohibitorum/upstream-idps/${slug}`, {
+  const updated = await run(() => withSudo(() => api.put<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`, {
     displayName: displayName.value, issuerUrl: issuerUrl.value, clientId: clientId.value, mode: mode.value,
     scopes: lines(scopes.value), allowedDomains: lines(allowedDomains.value), usernameClaim: usernameClaim.value,
     displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value,
@@ -67,7 +67,7 @@ async function save(): Promise<void> {
 async function rotate(): Promise<void> {
   saved.value = false; rotated.value = false
   const ok = await run(() => withSudo(async () => {
-    await api.post('/api/prohibitorum/upstream-idps/rotate-secret', { slug, clientSecret: newSecret.value })
+    await api.post('/api/prohibitorum/identity-providers/rotate-secret', { slug, clientSecret: newSecret.value })
     return true as const
   }))
   if (ok) { rotated.value = true; newSecret.value = '' }
@@ -76,18 +76,18 @@ async function rotate(): Promise<void> {
 async function destroy(): Promise<void> {
   saved.value = false; rotated.value = false
   const ok = await run(() => withSudo(async () => {
-    await api.post('/api/prohibitorum/upstream-idps/delete', { slug })
+    await api.post('/api/prohibitorum/identity-providers/delete', { slug })
     return true as const
   }))
   confirmDelete.value = false
-  if (ok) router.push('/admin/upstream-idps')
+  if (ok) router.push('/admin/identity-providers')
 }
 
 onMounted(load)
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
-    <RouterLink to="/admin/upstream-idps" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.upstream.back') }}</RouterLink>
+    <RouterLink to="/admin/identity-providers" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.upstream.back') }}</RouterLink>
     <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.upstream.notFound') }}</p>
 

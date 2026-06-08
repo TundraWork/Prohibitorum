@@ -31,7 +31,7 @@ describe('AdminUpstreamIdpDetailView', () => {
     await w.find('input[name="displayName"]').setValue('Okta 2')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
     const body = put.mock.calls[0][1] as Record<string, unknown>
-    expect(put).toHaveBeenCalledWith('/api/prohibitorum/upstream-idps/okta', expect.objectContaining({ displayName: 'Okta 2', disabled: false }))
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', expect.objectContaining({ displayName: 'Okta 2', disabled: false }))
     expect(body).not.toHaveProperty('clientSecret')
     expect(w.text()).toContain(en.admin.upstream.saved)
   })
@@ -40,7 +40,7 @@ describe('AdminUpstreamIdpDetailView', () => {
     const w = mountView(); await flushPromises()
     await w.find('input[name="newSecret"]').setValue('newsek')
     await w.find('[data-test="rotate"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/upstream-idps/rotate-secret', { slug: 'okta', clientSecret: 'newsek' })
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/rotate-secret', { slug: 'okta', clientSecret: 'newsek' })
     expect(w.text()).toContain(en.admin.upstream.rotated)
   })
   it('deletes and navigates back to the list', async () => {
@@ -48,8 +48,8 @@ describe('AdminUpstreamIdpDetailView', () => {
     const w = mountView(); await flushPromises()
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
     await clickConfirm(w, en.admin.upstream.delete)
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/upstream-idps/delete', { slug: 'okta' })
-    expect(push).toHaveBeenCalledWith('/admin/upstream-idps')
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/delete', { slug: 'okta' })
+    expect(push).toHaveBeenCalledWith('/admin/identity-providers')
   })
   it('surfaces a generic load error in the Alert without showing not-found', async () => {
     get.mockRejectedValue({ code: 'server_error', message: 'boom' })

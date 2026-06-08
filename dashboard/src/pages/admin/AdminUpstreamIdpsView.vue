@@ -17,7 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 
-export interface UpstreamIdp {
+export interface IdentityProvider {
   slug: string; displayName: string; issuerUrl: string; clientId: string
   scopes: string[]; mode: 'auto_provision' | 'invite_only' | 'link_only'; allowedDomains: string[]
   usernameClaim: string; displayNameClaim: string; emailClaim: string
@@ -28,7 +28,7 @@ const { t, te } = useI18n()
 const router = useRouter()
 const { busy, error, run } = useApi()
 
-const rows = ref<UpstreamIdp[]>([])
+const rows = ref<IdentityProvider[]>([])
 const createOpen = ref(false)
 const created = ref(false)
 
@@ -52,10 +52,10 @@ function modeLabel(m: string): string {
   return t('admin.upstream.modeAutoProvision')
 }
 function lines(s: string): string[] { return s.split('\n').map((x) => x.trim()).filter(Boolean) }
-function go(s: string): void { router.push(`/admin/upstream-idps/${s}`) }
+function go(s: string): void { router.push(`/admin/identity-providers/${s}`) }
 
 async function load(): Promise<void> {
-  const res = await run(() => api.get<UpstreamIdp[]>('/api/prohibitorum/upstream-idps'))
+  const res = await run(() => api.get<IdentityProvider[]>('/api/prohibitorum/identity-providers'))
   if (res) rows.value = res
 }
 
@@ -69,7 +69,7 @@ function openCreate(): void {
 
 async function create(): Promise<void> {
   created.value = false
-  const res = await run(() => withSudo(() => api.post<UpstreamIdp>('/api/prohibitorum/upstream-idps', {
+  const res = await run(() => withSudo(() => api.post<IdentityProvider>('/api/prohibitorum/identity-providers', {
     slug: slug.value, displayName: displayName.value, issuerUrl: issuerUrl.value, clientId: clientId.value,
     clientSecret: clientSecret.value, mode: mode.value, scopes: lines(scopes.value),
     allowedDomains: lines(allowedDomains.value), usernameClaim: usernameClaim.value,

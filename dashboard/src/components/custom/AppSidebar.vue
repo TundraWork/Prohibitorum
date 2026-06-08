@@ -35,11 +35,17 @@ const accountItems = computed(() => [
 const adminItems = computed(() => [
   { to: '/admin/accounts', label: t('admin.nav.accounts'), icon: Users },
   { to: '/admin/invitations', label: t('admin.nav.invitations'), icon: Ticket },
-  { to: '/admin/oidc-clients', label: t('admin.nav.oidcClients'), icon: AppWindow },
-  { to: '/admin/saml-providers', label: t('admin.nav.samlProviders'), icon: Building2 },
-  { to: '/admin/upstream-idps', label: t('admin.nav.upstreamIdps'), icon: Network },
   { to: '/admin/signing-keys', label: t('admin.nav.signingKeys'), icon: KeySquare },
   { to: '/admin/audit', label: t('admin.nav.audit'), icon: ScrollText },
+])
+
+const federationItems = computed(() => [
+  { to: '/admin/identity-providers', label: t('admin.nav.identityProviders'), icon: Network },
+])
+
+const applicationItems = computed(() => [
+  { to: '/admin/oidc-applications', label: t('admin.nav.oidcApplications'), icon: AppWindow },
+  { to: '/admin/saml-applications', label: t('admin.nav.samlApplications'), icon: Building2 },
 ])
 </script>
 
@@ -75,6 +81,36 @@ const adminItems = computed(() => [
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in adminItems" :key="item.to">
+              <SidebarMenuButton as-child :tooltip="item.label" :is-active="isActive(item.to)">
+                <RouterLink :to="item.to">
+                  <component :is="item.icon" aria-hidden="true" />
+                  <span>{{ item.label }}</span>
+                </RouterLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      <SidebarGroup v-if="auth.isAdmin">
+        <SidebarGroupLabel>{{ t('admin.nav.federation') }}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="item in federationItems" :key="item.to">
+              <SidebarMenuButton as-child :tooltip="item.label" :is-active="isActive(item.to)">
+                <RouterLink :to="item.to">
+                  <component :is="item.icon" aria-hidden="true" />
+                  <span>{{ item.label }}</span>
+                </RouterLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      <SidebarGroup v-if="auth.isAdmin">
+        <SidebarGroupLabel>{{ t('admin.nav.applications') }}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="item in applicationItems" :key="item.to">
               <SidebarMenuButton as-child :tooltip="item.label" :is-active="isActive(item.to)">
                 <RouterLink :to="item.to">
                   <component :is="item.icon" aria-hidden="true" />

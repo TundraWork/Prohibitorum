@@ -23,14 +23,14 @@ describe('AdminUpstreamIdpsView', () => {
   it('lists providers with mode + state', async () => {
     get.mockResolvedValue(IDPS)
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/upstream-idps')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/identity-providers')
     expect(w.text()).toContain('Okta'); expect(w.text()).toContain(en.admin.upstream.modeInviteOnly)
   })
   it('row click navigates to detail', async () => {
     get.mockResolvedValue(IDPS)
     const w = mountView(); await flushPromises()
     await w.find('[data-test="idp-row-okta"]').trigger('click')
-    expect(push).toHaveBeenCalledWith('/admin/upstream-idps/okta')
+    expect(push).toHaveBeenCalledWith('/admin/identity-providers/okta')
   })
   it('creates a provider with mode + secret via withSudo', async () => {
     get.mockResolvedValue([])
@@ -44,7 +44,7 @@ describe('AdminUpstreamIdpsView', () => {
     await w.find('input[name="clientSecret"]').setValue('sek')
     await w.findComponent(Select).vm.$emit('update:modelValue', 'link_only'); await flushPromises()
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/upstream-idps', expect.objectContaining({
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({
       slug: 'new', displayName: 'New', issuerUrl: 'https://new/', clientId: 'cid', clientSecret: 'sek', mode: 'link_only',
     }))
     expect(w.text()).toContain(en.admin.upstream.created)

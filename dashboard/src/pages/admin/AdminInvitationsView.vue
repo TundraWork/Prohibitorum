@@ -48,7 +48,7 @@ async function load(): Promise<void> {
     run(() => api.get<Invitation[]>('/api/prohibitorum/invitations')),
     (async () => {
       try {
-        idps.value = (await api.get<Idp[]>('/api/prohibitorum/upstream-idps')).filter((i) => !i.disabled)
+        idps.value = (await api.get<Idp[]>('/api/prohibitorum/identity-providers')).filter((i) => !i.disabled)
       } catch {
         idps.value = []
       }

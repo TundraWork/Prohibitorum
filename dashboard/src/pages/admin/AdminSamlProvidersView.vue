@@ -23,7 +23,7 @@ const POST_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
 const REDIRECT_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect'
 let acsRowId = 0
 
-interface SamlProvider {
+interface SamlApplication {
   id: number
   entityId: string
   displayName: string
@@ -46,7 +46,7 @@ const { t, te } = useI18n()
 const router = useRouter()
 const { busy, error, run } = useApi()
 
-const rows = ref<SamlProvider[]>([])
+const rows = ref<SamlApplication[]>([])
 const createOpen = ref(false)
 const created = ref(false)
 
@@ -76,11 +76,11 @@ const errorText = computed(() => {
 })
 
 async function load(): Promise<void> {
-  const res = await run(() => api.get<SamlProvider[]>('/api/prohibitorum/saml-providers'))
+  const res = await run(() => api.get<SamlApplication[]>('/api/prohibitorum/saml-applications'))
   if (res) rows.value = res
 }
 
-function go(id: number): void { router.push(`/admin/saml-providers/${id}`) }
+function go(id: number): void { router.push(`/admin/saml-applications/${id}`) }
 
 function openCreate(): void {
   mode.value = 'metadata'
@@ -149,7 +149,7 @@ async function create(): Promise<void> {
       acs: acsRows.value.map(({ id: _id, ...rest }) => rest),
     }
   }
-  const res = await run(() => withSudo(() => api.post('/api/prohibitorum/saml-providers', body)))
+  const res = await run(() => withSudo(() => api.post('/api/prohibitorum/saml-applications', body)))
   if (res) {
     createOpen.value = false
     created.value = true

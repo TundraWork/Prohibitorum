@@ -20,11 +20,11 @@ describe('AdminSamlProviderDetailView', () => {
   it('loads the SP, shows ACS, saves flags via PUT', async () => {
     get.mockResolvedValue(SP); put.mockResolvedValue({ ...SP, displayName: 'GHES 2' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-providers/5')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5')
     expect(w.text()).toContain('https://sp/acs')
     await w.find('input[name="displayName"]').setValue('GHES 2')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
-    expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-providers/5', expect.objectContaining({ displayName: 'GHES 2', allowIdpInitiated: true }))
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5', expect.objectContaining({ displayName: 'GHES 2', allowIdpInitiated: true }))
     expect(w.text()).toContain(en.admin.saml.saved)
   })
   it('not found', async () => {
@@ -37,7 +37,7 @@ describe('AdminSamlProviderDetailView', () => {
     const w = mountView(); await flushPromises()
     await w.find('textarea[name="reingestXml"]').setValue('<xml2/>')
     await w.find('[data-test="reingest"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-providers/5/reingest-metadata', { metadataXml: '<xml2/>' })
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5/reingest-metadata', { metadataXml: '<xml2/>' })
     expect(w.text()).toContain(en.admin.saml.reingestDone)
   })
   it('deletes and navigates to the list', async () => {
@@ -45,8 +45,8 @@ describe('AdminSamlProviderDetailView', () => {
     const w = mountView(); await flushPromises()
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.saml.delete); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-providers/delete', { id: 5 })
-    expect(push).toHaveBeenCalledWith('/admin/saml-providers')
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/delete', { id: 5 })
+    expect(push).toHaveBeenCalledWith('/admin/saml-applications')
   })
   it('does not navigate when delete fails', async () => {
     get.mockResolvedValue(SP)
@@ -71,7 +71,7 @@ describe('AdminSamlProviderDetailView', () => {
     await w.find<HTMLInputElement>('[data-test="saml-nameIdClaim"]').setValue('uid')
     await w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]').setValue('[]')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
-    expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-providers/5', expect.objectContaining({
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5', expect.objectContaining({
       nameIdClaim: 'uid',
       attributeMap: [],
       displayName: 'GHES',

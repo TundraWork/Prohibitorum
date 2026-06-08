@@ -19,14 +19,14 @@ describe('AdminSamlProvidersView', () => {
   it('lists providers', async () => {
     get.mockResolvedValue(SPS)
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-providers')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-applications')
     expect(w.text()).toContain('GHES'); expect(w.text()).toContain('https://sp/meta')
   })
   it('row click navigates to detail', async () => {
     get.mockResolvedValue(SPS)
     const w = mountView(); await flushPromises()
     await w.find('[data-test="sp-row-1"]').trigger('click')
-    expect(push).toHaveBeenCalledWith('/admin/saml-providers/1')
+    expect(push).toHaveBeenCalledWith('/admin/saml-applications/1')
   })
   it('creates via metadata paste', async () => {
     get.mockResolvedValue([]); post.mockResolvedValue({ id: 2 })
@@ -35,7 +35,7 @@ describe('AdminSamlProvidersView', () => {
     // metadata mode is default
     await w.find('textarea[name="metadataXml"]').setValue('<xml/>')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-providers', expect.objectContaining({ metadataXml: '<xml/>' }))
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-applications', expect.objectContaining({ metadataXml: '<xml/>' }))
   })
   it('creates via manual ACS', async () => {
     get.mockResolvedValue([]); post.mockResolvedValue({ id: 3 })
@@ -49,17 +49,17 @@ describe('AdminSamlProvidersView', () => {
     await w.find('[data-test="acs-add"]').trigger('click')
     await w.find('input[name="acs-location-0"]').setValue('https://manual/acs')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-providers', expect.objectContaining({
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-applications', expect.objectContaining({
       entityId: 'https://manual/sp', displayName: 'Manual SP',
       acs: [expect.objectContaining({ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://manual/acs', isDefault: true })],
     }))
   })
-  it('surfaces saml_provider_already_exists', async () => {
-    get.mockResolvedValue([]); post.mockRejectedValue({ code: 'saml_provider_already_exists', message: 'zh' })
+  it('surfaces saml_application_already_exists', async () => {
+    get.mockResolvedValue([]); post.mockRejectedValue({ code: 'saml_application_already_exists', message: 'zh' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     await w.find('textarea[name="metadataXml"]').setValue('<xml/>')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(w.text()).toContain(en.errors.saml_provider_already_exists)
+    expect(w.text()).toContain(en.errors.saml_application_already_exists)
   })
 })

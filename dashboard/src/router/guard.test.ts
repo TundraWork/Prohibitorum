@@ -43,7 +43,7 @@ import realRouter from './index'
 
 describe('3c admin routes require admin', () => {
   it.each([
-    '/admin/upstream-idps',
+    '/admin/identity-providers',
     '/admin/signing-keys',
     '/admin/audit',
   ])('%s is marked requiresAdmin', (path) => {
