@@ -8,6 +8,14 @@ that are rooted in missing backend capability. Citations are file:line where ava
 Context: the **frontend rebuild is complete through full admin parity** (Spec 3c done).
 Everything below is backend (or backend-blocked) work. Tiers are by leverage, not effort.
 
+**SCOPE DECISION (2026-06-08):** Federation directionality is fixed.
+- **Upstream (sign-IN to Prohibitorum):** Passkey, Password, TOTP, and **OIDC** federation ONLY.
+- **Downstream (Prohibitorum as IdP for relying parties):** OIDC **and** SAML.
+- **SAML is never an upstream/login protocol.** The former item "E — SAML-as-login
+  (upstream SAML RP)" is **OUT OF SCOPE — not deferred, will not be built.** SAML stays
+  strictly downstream (we issue assertions; we never consume them). "SAML invites" are
+  therefore also out of scope; invites use passkey / OIDC-federated / (future D) password-TOTP.
+
 Legend for readiness: **[schema ready]** = tables/columns already exist; **[greenfield]** =
 needs new schema + endpoints; **[code-only]** = no schema change.
 
@@ -99,16 +107,14 @@ These unblock features the rebuilt UI already wants; mostly small, no new protoc
 
 ## Tier 3 — New major subsystems (large, demand-driven)
 
-15. **E — SAML-as-login (upstream SAML relying-party).** `[greenfield, major]`
-    We are a SAML IdP only; federation-as-login is OIDC-only. Needs an ACS callback, assertion
-    validation (sig/conditions/attrs), account linking, and an `upstream_saml` config table
-    (analogous to `upstream_idp`). Enables SAML invites. Label **E**.
-    Src: every recent handoff §NEXT WORK.
-
-16. **Email channel (SMTP).** `[greenfield]`
+15. **Email channel (SMTP).** `[greenfield]`
     "No email channel; admin-issued enrollment is the only recovery path" (`ARCHITECTURE.md:17-18`).
     Blocks email invites, self-service password reset, email verification. Foundational for several
     consumer-style flows.
+
+> **REMOVED — formerly "E — SAML-as-login (upstream SAML RP)":** out of scope per the
+> 2026-06-08 scope decision above. SAML is downstream-only; there will be no upstream SAML
+> consumer, no `upstream_saml` table, and no SAML invites.
 
 ---
 
@@ -170,7 +176,7 @@ These unblock features the rebuilt UI already wants; mostly small, no new protoc
 - **Quick wins first (Tier 1, mostly code-only):** #1 `GET /me/factors`, #2 `PUT /me`, #3 granular factor disable, #5 admin sessions list — these visibly complete the existing UI for low cost.
 - **Then D (#4)** — the enrollment-ceremony gap the user just hit; medium, needs a migration.
 - **Then the hardening cluster #10 (KV CAS)** — one interface change retires three documented races + relates to #28.
-- **Larger subsystems E (#15) and email (#16)** are their own cycles, demand-driven.
+- **Email (#15)** is its own cycle, demand-driven. (SAML-as-login is out of scope — see scope decision.)
 - **Tier 4/5** as specific deployments require them; **#27 (009)** after a soak.
 
 Each item above should still go through brainstorm → spec → plan before building.
