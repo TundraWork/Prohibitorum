@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** AdminSamlProvidersView (/admin/saml-providers) — table of SAML SPs; inline create (metadata XML or manual ACS). */
+/** AdminSamlProvidersView (/admin/saml-applications) — table of SAML SPs; inline create (metadata XML or manual ACS). */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

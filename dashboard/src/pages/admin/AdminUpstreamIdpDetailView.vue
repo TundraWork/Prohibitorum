@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** AdminUpstreamIdpDetailView (/admin/upstream-idps/:slug) — edit, rotate secret, delete. */
+/** AdminUpstreamIdpDetailView (/admin/identity-providers/:slug) — edit, rotate secret, delete. */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

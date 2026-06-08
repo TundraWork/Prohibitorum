@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * AdminOidcClientDetailView (/admin/oidc-clients/:clientId) — per-client admin actions.
+ * AdminOidcClientDetailView (/admin/oidc-applications/:clientId) — per-client admin actions.
  * Edit config (PUT with allowedScopes); rotate secret (reveal-once CodeField);
  * delete. All mutations go through withSudo.
  */

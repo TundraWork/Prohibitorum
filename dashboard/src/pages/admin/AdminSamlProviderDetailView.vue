@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * AdminSamlProviderDetailView (/admin/saml-providers/:id) — per-SP admin actions.
+ * AdminSamlProviderDetailView (/admin/saml-applications/:id) — per-SP admin actions.
  * Edit flags (PUT); re-ingest metadata; view ACS endpoints and signing certificates
  * (read-only); delete. All mutations go through withSudo.
  */

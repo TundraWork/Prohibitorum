@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** AdminOidcClientsView (/admin/oidc-clients) — table of OIDC clients; inline create with reveal-once secret. */
+/** AdminOidcClientsView (/admin/oidc-applications) — table of OIDC clients; inline create with reveal-once secret. */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

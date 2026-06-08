@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** AdminUpstreamIdpsView (/admin/upstream-idps) — list upstream IdPs; inline create (sudo). */
+/** AdminUpstreamIdpsView (/admin/identity-providers) — list upstream IdPs; inline create (sudo). */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
