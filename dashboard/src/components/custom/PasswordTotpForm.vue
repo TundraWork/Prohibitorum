@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import AccountRecovery from '@/components/custom/AccountRecovery.vue'
 
 const emit = defineEmits<{ success: [] }>()
 
@@ -37,6 +38,8 @@ const username = ref('')
 const password = ref('')
 const code = ref('')
 const partialToken = ref('')
+const recovering = ref(false)
+const recoveryNote = ref('')
 
 // Input is a single-root component → its DOM element is exposed on $el.
 const totpInput = useTemplateRef<{ $el?: HTMLElement }>('totpInput')
@@ -49,7 +52,15 @@ const errorText = computed(() => {
   return te(key) ? t(key) : e.message || t('common.error')
 })
 
+function onRecoveryRestart(): void {
+  recovering.value = false
+  phase.value = 'password'
+  code.value = ''
+  recoveryNote.value = t('login.recoveryRestart')
+}
+
 async function submitPassword(): Promise<void> {
+  recoveryNote.value = ''
   const res = await run(() =>
     api.post<{ partial_session_token: string }>('/api/prohibitorum/auth/password/begin', {
       username: username.value,
@@ -83,6 +94,7 @@ async function submitTotp(): Promise<void> {
   >
     <!-- Phase 1: username + password -->
     <template v-if="phase === 'password'">
+      <p v-if="recoveryNote" class="text-sm text-muted" role="status">{{ recoveryNote }}</p>
       <div class="flex flex-col gap-1.5">
         <Label for="login-username">{{ t('login.usernameLabel') }}</Label>
         <Input
@@ -110,29 +122,37 @@ async function submitTotp(): Promise<void> {
 
     <!-- Phase 2: one-time code -->
     <template v-else>
-      <div class="flex flex-col gap-1.5">
-        <Label for="login-totp">{{ t('login.totpLabel') }}</Label>
-        <Input
-          id="login-totp"
-          ref="totpInput"
-          v-model="code"
-          name="code"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          pattern="[0-9]*"
-          maxlength="8"
-          required
-        />
-        <p class="text-sm text-muted">{{ t('login.totpHint') }}</p>
-      </div>
+      <template v-if="!recovering">
+        <div class="flex flex-col gap-1.5">
+          <Label for="login-totp">{{ t('login.totpLabel') }}</Label>
+          <Input
+            id="login-totp"
+            ref="totpInput"
+            v-model="code"
+            name="code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]*"
+            maxlength="8"
+            required
+          />
+          <p class="text-sm text-muted">{{ t('login.totpHint') }}</p>
+        </div>
+        <button type="button" class="text-left text-sm text-muted underline-offset-4 hover:underline" data-test="lost-authenticator" @click="recovering = true">
+          {{ t('login.lostAuthenticator') }}
+        </button>
+      </template>
+      <AccountRecovery v-else :partial-token="partialToken" @success="emit('success')" @restart="onRecoveryRestart" />
     </template>
 
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <template v-if="!recovering">
+      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
+        <AlertDescription>{{ errorText }}</AlertDescription>
+      </Alert>
 
-    <Button type="submit" variant="outline" class="w-full" :disabled="busy">
-      {{ phase === 'password' ? t('login.passwordSubmit') : t('login.totpSubmit') }}
-    </Button>
+      <Button type="submit" variant="outline" class="w-full" :disabled="busy">
+        {{ phase === 'password' ? t('login.passwordSubmit') : t('login.totpSubmit') }}
+      </Button>
+    </template>
   </form>
 </template>

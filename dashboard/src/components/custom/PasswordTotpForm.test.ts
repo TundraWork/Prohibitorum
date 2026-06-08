@@ -76,4 +76,31 @@ describe('PasswordTotpForm', () => {
     expect(wrapper.find('[role=alert]').text()).toBe(en.errors.bad_credentials)
     expect(wrapper.find('input[name=code]').exists()).toBe(false)
   })
+
+  it('reveals the recovery sub-flow from the TOTP step', async () => {
+    post.mockResolvedValueOnce({ partial_session_token: 'pt_123' })
+    const w = mountForm()
+    await w.find('input[name=username]').setValue('alex')
+    await w.find('input[name=password]').setValue('hunter2')
+    await w.find('form').trigger('submit'); await flushPromises()
+    expect(w.find('[data-test="lost-authenticator"]').exists()).toBe(true)
+    await w.find('[data-test="lost-authenticator"]').trigger('click')
+    expect(w.find('input[name="recovery-code"]').exists()).toBe(true) // AccountRecovery mounted
+  })
+  it('returns to the password step when recovery restarts', async () => {
+    post.mockImplementation(async (p: string) => {
+      if (p.endsWith('/auth/password/begin')) return { partial_session_token: 'pt_1' }
+      if (p.endsWith('/auth/recovery-code/verify')) throw { code: 'bad_credentials', message: 'zh' }
+      return undefined
+    })
+    const w = mountForm()
+    await w.find('input[name=username]').setValue('alex')
+    await w.find('input[name=password]').setValue('hunter2')
+    await w.find('form').trigger('submit'); await flushPromises()
+    await w.find('[data-test="lost-authenticator"]').trigger('click')
+    await w.find('input[name="recovery-code"]').setValue('wrong')
+    await w.find('[data-test="verify-code"]').trigger('click'); await flushPromises()
+    expect(w.find('input[name=username]').exists()).toBe(true) // back to password phase
+    expect(w.text()).toContain(en.login.recoveryRestart)
+  })
 })
