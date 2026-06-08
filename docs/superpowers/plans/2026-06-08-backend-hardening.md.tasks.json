@@ -36,7 +36,7 @@
     {
       "id": 6,
       "subject": "Task 6: Close OIDC client-id timing oracle",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Dummy argon2id verify (matching params) on unknown-client+secret; uniform invalid_client; no argon2 when no secret.\n\n**Files:** pkg/protocol/oidc/client.go (+ Provider ctor), client_test.go\n\n**Verify:** go test ./pkg/protocol/oidc/...\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/client.go\",\"pkg/protocol/oidc/client_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/... && go build ./...\",\"acceptanceCriteria\":[\"dummy verify on unknown-client+secret\",\"no argon2 when no secret\",\"identical invalid_client both paths\",\"dummy PHC same params\"]}\n```"
     }
   ],
