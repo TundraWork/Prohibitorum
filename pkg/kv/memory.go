@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/jellydator/ttlcache/v3"
@@ -11,6 +12,7 @@ import (
 
 // MemoryStore implements Store backed by an in-process ttlcache.
 type MemoryStore struct {
+	mu    sync.Mutex
 	cache *ttlcache.Cache[string, string]
 }
 
@@ -69,6 +71,27 @@ func (m *MemoryStore) Pop(_ context.Context, key string) (string, error) {
 		return "", ErrKeyNotFound
 	}
 	return item.Value(), nil
+}
+
+// SetNX atomically sets key=value with ttl only if key is absent. The mutex
+// serialises the Get→Set against other SetNX callers; ttlcache's Get returns
+// nil for expired items (WithDisableTouchOnHit means Get has no side effect),
+// so an expired key is correctly treated as absent.
+//
+// Note: m.mu only serialises concurrent SetNX calls — it does NOT exclude
+// plain Set/SetEx/Del on the same key (those use ttlcache's own lock). Keys
+// used with SetNX must therefore not be written by other methods.
+func (m *MemoryStore) SetNX(_ context.Context, key, value string, ttl time.Duration) (bool, error) {
+	if ttl <= 0 {
+		return false, ErrSetNXInvalidTTL
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if item := m.cache.Get(key); item != nil {
+		return false, nil
+	}
+	m.cache.Set(key, value, ttl)
+	return true, nil
 }
 
 // ScanEntries implements Store.ScanEntries by iterating in-memory items

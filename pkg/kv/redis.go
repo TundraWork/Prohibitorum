@@ -140,6 +140,19 @@ func (r *RedisStore) Pop(ctx context.Context, key string) (string, error) {
 	return val, nil
 }
 
+// SetNX atomically sets key=value with ttl only if key is absent, via Redis
+// SET ... NX (go-redis SetNX). An expired key is absent. ttl must be > 0.
+func (r *RedisStore) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	if ttl <= 0 {
+		return false, ErrSetNXInvalidTTL
+	}
+	ok, err := r.client.SetNX(ctx, key, value, ttl).Result()
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
+}
+
 func (r *RedisStore) Close() error {
 	return r.client.Close()
 }

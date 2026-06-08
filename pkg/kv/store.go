@@ -9,6 +9,9 @@ import (
 // ErrKeyNotFound is returned when a key does not exist in the store.
 var ErrKeyNotFound = errors.New("kv: key not found")
 
+// ErrSetNXInvalidTTL is returned by SetNX when ttl <= 0.
+var ErrSetNXInvalidTTL = errors.New("kv: SetNX ttl must be positive")
+
 // KvEntry is a key-value entry with its remaining TTL.
 type KvEntry struct {
 	Key   string
@@ -50,6 +53,12 @@ type Store interface {
 	// flows (partial-session token consume, sudo intent consume, WebAuthn
 	// ceremony stash consume) where a Get-then-Del would race.
 	Pop(ctx context.Context, key string) (string, error)
+
+	// SetNX atomically sets key=value with the given ttl ONLY if key does not
+	// already exist (an expired key counts as absent). Returns true if it set
+	// the key, false if the key already existed. ttl MUST be > 0. A backend
+	// error returns (false, err) so callers can fail closed.
+	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 
 	// ScanEntries returns entries (key + value + TTL) matching a Redis-style
 	// glob pattern. cursor=0 starts a new scan. count is a hint for batch

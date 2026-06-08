@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // TestMemoryStore_PopAtomic covers the audit's Critical-2 finding: the
@@ -85,5 +86,74 @@ func TestMemoryStore_PopRemovesKey(t *testing.T) {
 	}
 	if _, err := store.Get(ctx, "k"); !errors.Is(err, ErrKeyNotFound) {
 		t.Fatalf("Get after Pop: want ErrKeyNotFound, got %v", err)
+	}
+}
+
+func TestMemorySetNX(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	ok, err := s.SetNX(ctx, "k", "v1", time.Minute)
+	if err != nil || !ok {
+		t.Fatalf("first SetNX = (%v,%v), want (true,nil)", ok, err)
+	}
+	ok, err = s.SetNX(ctx, "k", "v2", time.Minute)
+	if err != nil || ok {
+		t.Fatalf("second SetNX = (%v,%v), want (false,nil)", ok, err)
+	}
+	if got, _ := s.Get(ctx, "k"); got != "v1" {
+		t.Fatalf("value = %q, want v1 (NX must not overwrite)", got)
+	}
+	if _, err := s.SetNX(ctx, "k2", "v", 0); !errors.Is(err, ErrSetNXInvalidTTL) {
+		t.Fatal("SetNX with ttl=0 should return ErrSetNXInvalidTTL")
+	}
+	if _, err := s.SetNX(ctx, "k3", "v", -time.Second); !errors.Is(err, ErrSetNXInvalidTTL) {
+		t.Fatalf("negative ttl err = %v, want ErrSetNXInvalidTTL", err)
+	}
+}
+
+func TestMemorySetNXExpiredIsAbsent(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	if ok, _ := s.SetNX(ctx, "k", "v1", 20*time.Millisecond); !ok {
+		t.Fatal("seed SetNX should succeed")
+	}
+	time.Sleep(40 * time.Millisecond)
+	ok, err := s.SetNX(ctx, "k", "v2", time.Minute)
+	if err != nil || !ok {
+		t.Fatalf("post-expiry SetNX = (%v,%v), want (true,nil)", ok, err)
+	}
+	if got, _ := s.Get(ctx, "k"); got != "v2" {
+		t.Fatalf("post-expiry value = %q, want v2", got)
+	}
+}
+
+func TestMemorySetNXConcurrentExactlyOneWinner(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	const n = 100
+	var wins int64
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			ok, err := s.SetNX(ctx, "race", "v", time.Minute)
+			if err != nil {
+				t.Errorf("unexpected SetNX error: %v", err)
+			}
+			if ok {
+				atomic.AddInt64(&wins, 1)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	if wins != 1 {
+		t.Fatalf("winners = %d, want exactly 1", wins)
 	}
 }
