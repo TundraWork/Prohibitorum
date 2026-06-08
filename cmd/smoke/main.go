@@ -39,8 +39,8 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"strconv"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -2854,11 +2854,244 @@ func main() {
 		log.Printf("  /accounts/%d/credentials: %d passkey(s), 4-char suffix only, no full id; force-revoke without sudo → %d (gated) ✓", me.ID, len(creds), resp.StatusCode)
 	}
 
+	// =========================================================================
+	// Tier-1 self-service + admin reads (steps appended after the existing 121).
+	//
+	// Pre-condition: c holds a live webauthn session (confirmed by step 121's
+	// c.getMe() success). Password+TOTP were revoked at step 42 and never
+	// restored; all assertions below are written accordingly.
+	// me2.ID is the smoke-admin's account id (set at step 10, never changes).
+	// =========================================================================
+
+	step("Tier-1 a — PUT /me round-trip (displayName rename + revert)")
+	{
+		// Capture current displayName.
+		before, err := c.getMe()
+		if err != nil {
+			log.Fatalf("Tier-1 a: getMe before: %v", err)
+		}
+		originalName := before.DisplayName
+
+		// Rename.
+		var renamed meResponse
+		if err := c.putJSON("/api/prohibitorum/me",
+			map[string]string{"displayName": "Smoke Renamed"}, &renamed); err != nil {
+			log.Fatalf("Tier-1 a: PUT /me (rename): %v", err)
+		}
+		// Re-GET and assert.
+		after, err := c.getMe()
+		if err != nil {
+			log.Fatalf("Tier-1 a: getMe after rename: %v", err)
+		}
+		if after.DisplayName != "Smoke Renamed" {
+			log.Fatalf("Tier-1 a: displayName after rename: want %q, got %q", "Smoke Renamed", after.DisplayName)
+		}
+		if after.Username != before.Username {
+			log.Fatalf("Tier-1 a: username changed across rename: was %q, now %q", before.Username, after.Username)
+		}
+		if after.Role != before.Role {
+			log.Fatalf("Tier-1 a: role changed across rename: was %q, now %q", before.Role, after.Role)
+		}
+		log.Printf("  displayName → %q (rename confirmed, username=%s role=%s)", after.DisplayName, after.Username, after.Role)
+
+		// Revert.
+		var reverted meResponse
+		if err := c.putJSON("/api/prohibitorum/me",
+			map[string]string{"displayName": originalName}, &reverted); err != nil {
+			log.Fatalf("Tier-1 a: PUT /me (revert): %v", err)
+		}
+		check, err := c.getMe()
+		if err != nil {
+			log.Fatalf("Tier-1 a: getMe after revert: %v", err)
+		}
+		if check.DisplayName != originalName {
+			log.Fatalf("Tier-1 a: displayName after revert: want %q, got %q", originalName, check.DisplayName)
+		}
+		log.Printf("  displayName reverted to %q ✓", check.DisplayName)
+	}
+
+	step("Tier-1 b — GET /me/factors (passkey count >= 1; password+TOTP revoked at step 42)")
+	{
+		var factors struct {
+			PasswordSet            bool `json:"passwordSet"`
+			TOTPEnrolled           bool `json:"totpEnrolled"`
+			RecoveryCodesRemaining int  `json:"recoveryCodesRemaining"`
+			PasskeyCount           int  `json:"passkeyCount"`
+		}
+		if err := c.get("/api/prohibitorum/me/factors", &factors); err != nil {
+			log.Fatalf("Tier-1 b: GET /me/factors: %v", err)
+		}
+		log.Printf("  factors: passwordSet=%v totpEnrolled=%v recoveryCodesRemaining=%d passkeyCount=%d",
+			factors.PasswordSet, factors.TOTPEnrolled, factors.RecoveryCodesRemaining, factors.PasskeyCount)
+		if factors.PasswordSet {
+			log.Fatalf("Tier-1 b: passwordSet=true but password was revoked at step 42")
+		}
+		if factors.TOTPEnrolled {
+			log.Fatalf("Tier-1 b: totpEnrolled=true but TOTP was revoked at step 42")
+		}
+		if factors.PasskeyCount < 1 {
+			log.Fatalf("Tier-1 b: passkeyCount=%d, want >=1", factors.PasskeyCount)
+		}
+		log.Printf("  /me/factors: passwordSet=false totpEnrolled=false recoveryCodesRemaining=%d passkeyCount=%d ✓",
+			factors.RecoveryCodesRemaining, factors.PasskeyCount)
+	}
+
+	step("Tier-1 c — admin GET /accounts/{id}/sessions: len>=1, all isCurrent==false")
+	{
+		var sessions []struct {
+			ID         string `json:"id"`
+			IsCurrent  bool   `json:"isCurrent"`
+			IssuedAt   string `json:"issuedAt"`
+			ExpiresAt  string `json:"expiresAt"`
+			LastSeenIP string `json:"lastSeenIp"`
+			UserAgent  string `json:"userAgent"`
+		}
+		path := fmt.Sprintf("/api/prohibitorum/accounts/%d/sessions", me2.ID)
+		if err := c.get(path, &sessions); err != nil {
+			log.Fatalf("Tier-1 c: GET %s: %v", path, err)
+		}
+		if len(sessions) < 1 {
+			log.Fatalf("Tier-1 c: admin sessions: want >=1, got 0 for account %d", me2.ID)
+		}
+		for _, s := range sessions {
+			if s.IsCurrent {
+				log.Fatalf("Tier-1 c: admin sessions: isCurrent=true for session %q — admin route must always return false", s.ID)
+			}
+		}
+		log.Printf("  /accounts/%d/sessions → %d session(s), all isCurrent=false ✓", me2.ID, len(sessions))
+	}
+
+	step("Tier-1 d — SAML provider PUT attr_map/name_id_claim round-trip")
+	{
+		// Find the mock SP (entityId == mockSPEntityID == "https://mock-sp.smoke.test")
+		// via the admin list endpoint, then GET the full record, PUT back with
+		// nameIdClaim + attributeMap added, and assert both round-trip on GET.
+		type samlProviderItem struct {
+			ID                        int64           `json:"id"`
+			EntityID                  string          `json:"entityId"`
+			DisplayName               string          `json:"displayName"`
+			NameIDFormat              string          `json:"nameIdFormat"`
+			NameIDClaim               string          `json:"nameIdClaim"`
+			AttributeMap              json.RawMessage `json:"attributeMap"`
+			RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
+			WantAssertionsSigned      bool            `json:"wantAssertionsSigned"`
+			AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
+		}
+
+		// List all SAML providers to find the mock SP's id.
+		var providers []samlProviderItem
+		if err := c.get("/api/prohibitorum/saml-providers", &providers); err != nil {
+			log.Fatalf("Tier-1 d: GET /saml-providers: %v", err)
+		}
+		var spID int64
+		for _, p := range providers {
+			if p.EntityID == mockSPEntityID {
+				spID = p.ID
+				break
+			}
+		}
+		if spID == 0 {
+			log.Fatalf("Tier-1 d: mock SP %q not found in /saml-providers list (%d providers)", mockSPEntityID, len(providers))
+		}
+		log.Printf("  mock SP id=%d found in list", spID)
+
+		// GET the full provider record to capture current required fields.
+		var current samlProviderItem
+		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-providers/%d", spID), &current); err != nil {
+			log.Fatalf("Tier-1 d: GET /saml-providers/%d: %v", spID, err)
+		}
+
+		// Build the attribute map entry to add.
+		type attrEntry struct {
+			Name       string `json:"name"`
+			NameFormat string `json:"name_format"`
+			Source     string `json:"source"`
+			Multi      bool   `json:"multi"`
+		}
+		newAttrs := []attrEntry{
+			{
+				Name:       "EMAIL",
+				NameFormat: "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+				Source:     "email",
+				Multi:      false,
+			},
+		}
+
+		// sudo is required for PUT /saml-providers/{id} (registerSudoOpHTTP).
+		// The admin arc (steps 114–121) consumed the per-session sudo budget;
+		// log out and back in to reset it before the sudo call.
+		if err := c.logout(); err != nil {
+			log.Fatalf("Tier-1 d: logout pre-SAML-PUT: %v", err)
+		}
+		{
+			lo, err := c.beginLogin()
+			if err != nil {
+				log.Fatalf("Tier-1 d: relogin/begin: %v", err)
+			}
+			signed, err := auth.signAssertion(lo.Challenge, *baseURL)
+			if err != nil {
+				log.Fatalf("Tier-1 d: relogin sign: %v", err)
+			}
+			if err := c.completeLogin(auth, signed); err != nil {
+				log.Fatalf("Tier-1 d: relogin/complete: %v", err)
+			}
+		}
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("Tier-1 d: sudo webauthn (pre SAML PUT): %v", err)
+		}
+
+		// displayName must not be empty (PUT handler rejects empty string).
+		// Use the stored value if present, otherwise fall back to the entityId.
+		displayNameForPUT := current.DisplayName
+		if displayNameForPUT == "" {
+			displayNameForPUT = current.EntityID
+		}
+
+		// PUT back the current fields with nameIdClaim and attributeMap added.
+		putBody := map[string]any{
+			"displayName":               displayNameForPUT,
+			"nameIdFormat":              current.NameIDFormat,
+			"nameIdClaim":               "email",
+			"attributeMap":              newAttrs,
+			"requireSignedAuthnRequest": current.RequireSignedAuthnRequest,
+			"wantAssertionsSigned":      current.WantAssertionsSigned,
+			"allowIdpInitiated":         current.AllowIdpInitiated,
+		}
+		var putResp samlProviderItem
+		if err := c.putJSON(fmt.Sprintf("/api/prohibitorum/saml-providers/%d", spID), putBody, &putResp); err != nil {
+			log.Fatalf("Tier-1 d: PUT /saml-providers/%d: %v", spID, err)
+		}
+
+		// Re-GET to confirm round-trip.
+		var updated samlProviderItem
+		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-providers/%d", spID), &updated); err != nil {
+			log.Fatalf("Tier-1 d: GET /saml-providers/%d (post-PUT): %v", spID, err)
+		}
+		if updated.NameIDClaim != "email" {
+			log.Fatalf("Tier-1 d: nameIdClaim round-trip: want %q, got %q", "email", updated.NameIDClaim)
+		}
+		// Decode the returned attributeMap and check for the EMAIL entry.
+		var gotAttrs []attrEntry
+		if err := json.Unmarshal(updated.AttributeMap, &gotAttrs); err != nil {
+			log.Fatalf("Tier-1 d: attributeMap decode: %v (raw=%s)", err, updated.AttributeMap)
+		}
+		var foundEmail bool
+		for _, a := range gotAttrs {
+			if a.Name == "EMAIL" {
+				foundEmail = true
+				break
+			}
+		}
+		if !foundEmail {
+			log.Fatalf("Tier-1 d: attributeMap round-trip: EMAIL entry missing (got %+v)", gotAttrs)
+		}
+		log.Printf("  PUT /saml-providers/%d: nameIdClaim=%q attributeMap has EMAIL entry ✓", spID, updated.NameIDClaim)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + DB-state assertions passed against",
 		*baseURL)
 }
-
 
 func step(msg string) {
 	log.Println()
@@ -3072,11 +3305,11 @@ func (a *authenticator) coseKey() ([]byte, error) {
 	// fxamacker/cbor library defaults to canonical/CTAP2-compatible encoding
 	// when given a map with integer keys.
 	m := map[int]any{
-		1:  2,    // kty: EC2
-		3:  -7,   // alg: ES256
-		-1: 1,    // crv: P-256
-		-2: x,    // x coordinate (32 bytes, big-endian)
-		-3: y,    // y coordinate (32 bytes, big-endian)
+		1:  2,  // kty: EC2
+		3:  -7, // alg: ES256
+		-1: 1,  // crv: P-256
+		-2: x,  // x coordinate (32 bytes, big-endian)
+		-3: y,  // y coordinate (32 bytes, big-endian)
 	}
 	opts, err := cbor.CTAP2EncOptions().EncMode()
 	if err != nil {
@@ -3106,7 +3339,7 @@ func (a *authenticator) authData(includeAttested bool, flagsExtra byte) ([]byte,
 		flagBS = 0x10
 		flagAT = 0x40
 	)
-	flags := byte(flagUP | flagUV) | flagsExtra
+	flags := byte(flagUP|flagUV) | flagsExtra
 	if includeAttested {
 		flags |= flagAT
 	}
@@ -3249,7 +3482,7 @@ func (c *client) completeEnrollment(token string, a *authenticator, att *attesta
 			"attestationObject": base64.RawURLEncoding.EncodeToString(att.attestationObject),
 			"transports":        []string{"internal"},
 		},
-		"clientExtensionResults": map[string]any{},
+		"clientExtensionResults":  map[string]any{},
 		"authenticatorAttachment": "platform",
 	}
 	return c.postJSON("/api/prohibitorum/enrollments/"+token+"/register/complete", payload, nil)
@@ -3371,7 +3604,7 @@ func (c *client) completeAddCredential(a *authenticator, att *attestationResult,
 //     (proves the COSEAlg helper at handle_enrollment.go AND handle_me.go)
 //   - the session table has at least 3 rows for accountID, with at least
 //     one revoked (proves InsertSession at Issue + RevokeSession at logout
-//     + RevokeSession at /me/sessions/revoke)
+//   - RevokeSession at /me/sessions/revoke)
 //   - every session row has amr = '{hwk}' for WebAuthn
 func verifyDB(accountID int32) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
