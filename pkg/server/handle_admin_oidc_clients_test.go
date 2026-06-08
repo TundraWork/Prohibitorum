@@ -1,7 +1,7 @@
 // Package server — handle_admin_oidc_clients_test.go
 //
 // Unit tests for the OIDC-client admin surface (Task 4). These tests are
-// intentionally DB-free: the view projection (oidcClientView) is the primary
+// intentionally DB-free: the view projection (oidcApplicationView) is the primary
 // unit under test, with assertion on secret-hash exclusion and correct field
 // mapping. generateClientSecret is tested via the exported BuildClientParams
 // path (package-level) and via the internal round-trip through VerifyRaw.
@@ -23,8 +23,8 @@ import (
 )
 
 // TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash verifies that
-// oidcClientView never copies ClientSecretHash into the wire view. The
-// contract.OIDCClientView type has no ClientSecretHash field — the test
+// oidcApplicationView never copies ClientSecretHash into the wire view. The
+// contract.OIDCApplicationView type has no ClientSecretHash field — the test
 // additionally checks that no field carries the secret string value.
 func TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash(t *testing.T) {
 	t.Parallel()
@@ -43,9 +43,9 @@ func TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash(t *testing.T) {
 		CreatedAt:               pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 
-	view := oidcClientView(row)
+	view := oidcApplicationView(row)
 
-	// contract.OIDCClientView has no ClientSecretHash field — the compiler
+	// contract.OIDCApplicationView has no ClientSecretHash field — the compiler
 	// structurally prevents it. Runtime check: none of the string fields carry
 	// the secret hash value.
 	if view.ClientID == secretHash {
@@ -88,7 +88,7 @@ func TestAdminOIDCClients_ViewProjection_FieldMapping(t *testing.T) {
 		CreatedAt:               pgtype.Timestamptz{Time: createdAt, Valid: true},
 	}
 
-	view := oidcClientView(row)
+	view := oidcApplicationView(row)
 
 	if view.ClientID != "my-client" {
 		t.Errorf("ClientID: got %q, want %q", view.ClientID, "my-client")
@@ -131,7 +131,7 @@ func TestAdminOIDCClients_ViewProjection_InvalidTimestamp(t *testing.T) {
 		// CreatedAt intentionally left as zero value (Valid=false)
 	}
 
-	view := oidcClientView(row)
+	view := oidcApplicationView(row)
 
 	if !view.CreatedAt.IsZero() {
 		t.Errorf("CreatedAt: got %v, want zero time for invalid column", view.CreatedAt)
@@ -248,17 +248,17 @@ func TestAdminOIDCClients_ErrClientNotFound(t *testing.T) {
 }
 
 // TestAdminOIDCClients_ContractType_NoSecretHashField verifies at compile time
-// that contract.OIDCClientView does not declare a ClientSecretHash field.
+// that contract.OIDCApplicationView does not declare a ClientSecretHash field.
 // This catches any future refactor that might accidentally add one.
 func TestAdminOIDCClients_ContractType_NoSecretHashField(t *testing.T) {
 	t.Parallel()
 
-	v := contract.OIDCClientView{
+	v := contract.OIDCApplicationView{
 		ClientID:                "k",
 		DisplayName:             "Test",
 		TokenEndpointAuthMethod: "client_secret_basic",
 	}
-	// If contract.OIDCClientView ever grew a ClientSecretHash field this test
+	// If contract.OIDCApplicationView ever grew a ClientSecretHash field this test
 	// would fail to compile — keeping the guarantee in the test suite.
 	_ = v
 }

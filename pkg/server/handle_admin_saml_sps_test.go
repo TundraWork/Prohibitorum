@@ -1,7 +1,7 @@
 // Package server — handle_admin_saml_sps_test.go
 //
 // Unit tests for the SAML SP admin surface (Task 5 + Task 6). Tests are
-// intentionally DB-free: samlProviderView (the projection from db rows →
+// intentionally DB-free: samlApplicationView (the projection from db rows →
 // contract view) is the primary unit under test, verified for correct field
 // mapping, PEM exclusion, optional-field handling, and ACS / key sub-view
 // accuracy.
@@ -57,7 +57,7 @@ func makeSamlSp(id int64, entityID, displayName, kind string) db.SamlSp {
 
 // ----- TestAdminSAMLSPs_ViewProjection_FieldMapping --------------------------
 
-// TestAdminSAMLSPs_ViewProjection_FieldMapping verifies that samlProviderView
+// TestAdminSAMLSPs_ViewProjection_FieldMapping verifies that samlApplicationView
 // correctly maps all scalar fields from db.SamlSp, including the optional
 // SpKind (nullable text) and CreatedAt.
 func TestAdminSAMLSPs_ViewProjection_FieldMapping(t *testing.T) {
@@ -67,7 +67,7 @@ func TestAdminSAMLSPs_ViewProjection_FieldMapping(t *testing.T) {
 	sp.RequireSignedAuthnRequest = true
 	sp.AllowIdpInitiated = true
 
-	view := samlProviderView(sp, nil, nil)
+	view := samlApplicationView(sp, nil, nil)
 
 	if view.ID != 42 {
 		t.Errorf("ID: got %d, want 42", view.ID)
@@ -107,7 +107,7 @@ func TestAdminSAMLSPs_ViewProjection_NullableKind(t *testing.T) {
 	sp := makeSamlSp(1, "https://sp.test", "Test", "")
 	sp.SpKind = pgtype.Text{Valid: false}
 
-	view := samlProviderView(sp, nil, nil)
+	view := samlApplicationView(sp, nil, nil)
 	if view.Kind != "" {
 		t.Errorf("Kind: got %q, want empty for NULL SpKind", view.Kind)
 	}
@@ -122,7 +122,7 @@ func TestAdminSAMLSPs_ViewProjection_SessionLifetime(t *testing.T) {
 	// 3600 seconds = 3,600,000,000 microseconds
 	sp.SessionLifetime = pgtype.Interval{Microseconds: 3_600_000_000, Valid: true}
 
-	view := samlProviderView(sp, nil, nil)
+	view := samlApplicationView(sp, nil, nil)
 	if view.SessionLifetimeSecs == nil {
 		t.Fatal("SessionLifetimeSecs: got nil, want non-nil")
 	}
@@ -139,7 +139,7 @@ func TestAdminSAMLSPs_ViewProjection_NullSessionLifetime(t *testing.T) {
 	sp := makeSamlSp(1, "https://sp.test", "Test", "generic")
 	// SessionLifetime left at zero value (Valid=false)
 
-	view := samlProviderView(sp, nil, nil)
+	view := samlApplicationView(sp, nil, nil)
 	if view.SessionLifetimeSecs != nil {
 		t.Errorf("SessionLifetimeSecs: got %d, want nil for NULL interval", *view.SessionLifetimeSecs)
 	}
@@ -158,7 +158,7 @@ func TestAdminSAMLSPs_ViewProjection_ACSSubView(t *testing.T) {
 		{SpID: 10, Idx: 1, Binding: crewjam.HTTPRedirectBinding, Location: "https://sp.test/acs-redirect", IsDefault: false},
 	}
 
-	view := samlProviderView(sp, acs, nil)
+	view := samlApplicationView(sp, acs, nil)
 
 	if len(view.ACS) != 2 {
 		t.Fatalf("ACS: got %d, want 2", len(view.ACS))
@@ -198,7 +198,7 @@ func TestAdminSAMLSPs_ViewProjection_KeySubView(t *testing.T) {
 		{ID: 1, SpID: 10, Use: "signing", CertPem: rawPEM, NotAfter: pgtype.Timestamptz{Time: notAfter, Valid: true}},
 	}
 
-	view := samlProviderView(sp, nil, keys)
+	view := samlApplicationView(sp, nil, keys)
 
 	if len(view.Keys) != 1 {
 		t.Fatalf("Keys: got %d, want 1", len(view.Keys))
@@ -238,7 +238,7 @@ func TestAdminSAMLSPs_ViewProjection_NullNotAfterKey(t *testing.T) {
 		{ID: 1, SpID: 10, Use: "signing", CertPem: "PEM", NotAfter: pgtype.Timestamptz{Valid: false}},
 	}
 
-	view := samlProviderView(sp, nil, keys)
+	view := samlApplicationView(sp, nil, keys)
 	if len(view.Keys) != 1 {
 		t.Fatalf("Keys: got %d, want 1", len(view.Keys))
 	}
@@ -332,7 +332,7 @@ func TestAdminSAMLSPs_BodyToSPOptions_NoACSError(t *testing.T) {
 // ----- TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim -----------------
 
 // TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim verifies that
-// samlProviderView correctly projects NameIDClaim and AttributeMap from the
+// samlApplicationView correctly projects NameIDClaim and AttributeMap from the
 // db.SamlSp row into the contract view.
 func TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim(t *testing.T) {
 	t.Parallel()
@@ -341,7 +341,7 @@ func TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim(t *testing.T) {
 	sp.NameIDClaim = "email"
 	sp.AttributeMap = []byte(`[{"claim":"email","samlAttr":"mail"}]`)
 
-	view := samlProviderView(sp, nil, nil)
+	view := samlApplicationView(sp, nil, nil)
 
 	if view.NameIDClaim != "email" {
 		t.Errorf("NameIDClaim: got %q, want %q", view.NameIDClaim, "email")
@@ -352,7 +352,7 @@ func TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim(t *testing.T) {
 }
 
 // TestUpdateSAMLSP_ViewProjection_NilAttrMapDefaultsToEmptyArray verifies that
-// when AttributeMap is nil or empty in the db row, samlProviderView emits a
+// when AttributeMap is nil or empty in the db row, samlApplicationView emits a
 // valid JSON empty-array ("[]") rather than null or empty bytes.
 func TestUpdateSAMLSP_ViewProjection_NilAttrMapDefaultsToEmptyArray(t *testing.T) {
 	t.Parallel()
@@ -360,7 +360,7 @@ func TestUpdateSAMLSP_ViewProjection_NilAttrMapDefaultsToEmptyArray(t *testing.T
 	sp := makeSamlSp(8, "https://sp.example.com", "Test SP", "generic")
 	// AttributeMap intentionally left nil.
 
-	view := samlProviderView(sp, nil, nil)
+	view := samlApplicationView(sp, nil, nil)
 
 	if string(view.AttributeMap) != "[]" {
 		t.Errorf("AttributeMap: got %q, want []", string(view.AttributeMap))
@@ -417,10 +417,10 @@ func TestUpdateSAMLSP_UpdateSAMLSPParams_NoAuthnRequestsSignedField(t *testing.T
 
 // ----- TestUpdateSAMLSP_Handler_InvalidAttrMapJSON ---------------------------
 
-// buildUpdateSAMLSPRequest builds a PUT request to /saml-providers/{id} with
+// buildUpdateSAMLSPRequest builds a PUT request to /saml-applications/{id} with
 // chi URL params pre-populated so chi.URLParam works without a real router.
 func buildUpdateSAMLSPRequest(idParam string, bodyJSON string) *http.Request {
-	req := httptest.NewRequest(http.MethodPut, "/api/prohibitorum/saml-providers/"+idParam,
+	req := httptest.NewRequest(http.MethodPut, "/api/prohibitorum/saml-applications/"+idParam,
 		bytes.NewReader([]byte(bodyJSON)))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -443,7 +443,7 @@ func TestUpdateSAMLSP_Handler_InvalidAttrMapJSON(t *testing.T) {
 	// Structurally invalid JSON — the outer decoder rejects the whole body.
 	body := `{"displayName":"Test SP","attributeMap":{broken}}`
 	req := buildUpdateSAMLSPRequest("1", body)
-	s.handleUpdateSAMLProviderHTTP(rr, req)
+	s.handleUpdateSAMLApplicationHTTP(rr, req)
 
 	if rr.Code < 400 || rr.Code >= 500 {
 		t.Errorf("status = %d; want 4xx for invalid attributeMap JSON", rr.Code)
@@ -462,7 +462,7 @@ func TestUpdateSAMLSP_Handler_MissingDisplayName(t *testing.T) {
 	rr := httptest.NewRecorder()
 	body := `{"displayName":"","attributeMap":[]}`
 	req := buildUpdateSAMLSPRequest("1", body)
-	s.handleUpdateSAMLProviderHTTP(rr, req)
+	s.handleUpdateSAMLApplicationHTTP(rr, req)
 
 	if rr.Code < 400 || rr.Code >= 500 {
 		t.Errorf("status = %d; want 4xx for empty displayName", rr.Code)
@@ -481,7 +481,7 @@ func TestUpdateSAMLSP_Handler_BadID(t *testing.T) {
 	rr := httptest.NewRecorder()
 	body := `{"displayName":"Test"}`
 	req := buildUpdateSAMLSPRequest("not-an-int", body)
-	s.handleUpdateSAMLProviderHTTP(rr, req)
+	s.handleUpdateSAMLApplicationHTTP(rr, req)
 
 	if rr.Code < 400 || rr.Code >= 500 {
 		t.Errorf("status = %d; want 4xx for non-integer id", rr.Code)
@@ -523,11 +523,11 @@ func TestAdminSAMLSPs_ErrSPNotFound_IsAuthError(t *testing.T) {
 // ----- TestAdminSAMLSPs_ContractType_SAMLProviderView ------------------------
 
 // TestAdminSAMLSPs_ContractType_SAMLProviderView verifies at compile time that
-// contract.SAMLProviderView declares the expected fields used by the handler.
+// contract.SAMLApplicationView declares the expected fields used by the handler.
 func TestAdminSAMLSPs_ContractType_SAMLProviderView(t *testing.T) {
 	t.Parallel()
 
-	v := contract.SAMLProviderView{
+	v := contract.SAMLApplicationView{
 		ID:                        1,
 		EntityID:                  "https://sp.test",
 		DisplayName:               "Test",

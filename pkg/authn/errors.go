@@ -401,10 +401,10 @@ func ErrUpstreamIDPAlreadyExists() *AuthError {
 	return newErr(http.StatusConflict, "upstream_idp_already_exists", "An upstream IdP with this slug already exists.")
 }
 
-// ErrSAMLProviderAlreadyExists is returned when a SAML SP insert violates the
+// ErrSAMLApplicationAlreadyExists is returned when a SAML SP insert violates the
 // unique constraint on entity_id. Status 409.
-func ErrSAMLProviderAlreadyExists() *AuthError {
-	return newErr(http.StatusConflict, "saml_provider_already_exists", "A SAML service provider with this entity_id already exists.")
+func ErrSAMLApplicationAlreadyExists() *AuthError {
+	return newErr(http.StatusConflict, "saml_application_already_exists", "A SAML application with this entity_id already exists.")
 }
 
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,

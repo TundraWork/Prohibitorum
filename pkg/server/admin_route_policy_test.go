@@ -43,23 +43,23 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/signing-keys/abc/activate", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/signing-keys/abc/retire", body: `{}`},
 
-	// OIDC client management
-	{method: "POST", path: "/api/prohibitorum/oidc-clients", body: `{"clientId":"x"}`},
-	{method: "PUT", path: "/api/prohibitorum/oidc-clients/x", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/oidc-clients/rotate-secret", body: `{"clientId":"x"}`},
-	{method: "POST", path: "/api/prohibitorum/oidc-clients/delete", body: `{"clientId":"x"}`},
+	// OIDC application management
+	{method: "POST", path: "/api/prohibitorum/oidc-applications", body: `{"clientId":"x"}`},
+	{method: "PUT", path: "/api/prohibitorum/oidc-applications/x", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/rotate-secret", body: `{"clientId":"x"}`},
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/delete", body: `{"clientId":"x"}`},
 
-	// SAML SP management
-	{method: "POST", path: "/api/prohibitorum/saml-providers", body: `{}`},
-	{method: "PUT", path: "/api/prohibitorum/saml-providers/1", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/saml-providers/1/reingest-metadata", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/saml-providers/delete", body: `{"id":1}`},
+	// SAML application management
+	{method: "POST", path: "/api/prohibitorum/saml-applications", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/saml-applications/1", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/reingest-metadata", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/delete", body: `{"id":1}`},
 
-	// Upstream IdP management
-	{method: "POST", path: "/api/prohibitorum/upstream-idps", body: `{}`},
-	{method: "PUT", path: "/api/prohibitorum/upstream-idps/x", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/upstream-idps/rotate-secret", body: `{"slug":"x"}`},
-	{method: "POST", path: "/api/prohibitorum/upstream-idps/delete", body: `{"slug":"x"}`},
+	// Identity provider management
+	{method: "POST", path: "/api/prohibitorum/identity-providers", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/identity-providers/x", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/identity-providers/rotate-secret", body: `{"slug":"x"}`},
+	{method: "POST", path: "/api/prohibitorum/identity-providers/delete", body: `{"slug":"x"}`},
 
 	// Account credential revoke — promoted to sudo (Task 9)
 	{method: "POST", path: "/api/prohibitorum/accounts/credentials/delete", body: `{"accountId":1,"credentialId":1}`},

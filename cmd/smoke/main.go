@@ -2476,7 +2476,7 @@ func main() {
 			TokenEndpointAuthMethod string   `json:"tokenEndpointAuthMethod"`
 			Secret                  string   `json:"secret"`
 		}
-		if err := c.postJSON("/api/prohibitorum/oidc-clients", map[string]any{
+		if err := c.postJSON("/api/prohibitorum/oidc-applications", map[string]any{
 			"clientId":     adminClientID,
 			"displayName":  "Smoke Admin RP",
 			"redirectUris": []string{*baseURL + "/admin-rp/callback"},
@@ -2497,7 +2497,7 @@ func main() {
 		createdClientSecret = created.Secret
 
 		// GET list → secret/hash NEVER present (verify on the raw bytes too).
-		listRaw, err := c.getBytes("/api/prohibitorum/oidc-clients")
+		listRaw, err := c.getBytes("/api/prohibitorum/oidc-applications")
 		if err != nil {
 			log.Fatalf("GET /oidc-clients: %v", err)
 		}
@@ -2520,7 +2520,7 @@ func main() {
 		}
 
 		// GET one → secret/hash NEVER present.
-		oneRaw, err := c.getBytes("/api/prohibitorum/oidc-clients/" + url.PathEscape(adminClientID))
+		oneRaw, err := c.getBytes("/api/prohibitorum/oidc-applications/" + url.PathEscape(adminClientID))
 		if err != nil {
 			log.Fatalf("GET /oidc-clients/%s: %v", adminClientID, err)
 		}
@@ -2540,7 +2540,7 @@ func main() {
 			DisplayName  string   `json:"displayName"`
 			RedirectURIs []string `json:"redirectUris"`
 		}
-		if err := c.putJSON("/api/prohibitorum/oidc-clients/"+url.PathEscape(adminClientID), map[string]any{
+		if err := c.putJSON("/api/prohibitorum/oidc-applications/"+url.PathEscape(adminClientID), map[string]any{
 			"displayName":    updatedDisplayName,
 			"redirectUris":   []string{updatedRedirectURI},
 			"allowedScopes":  []string{"openid", "profile"},
@@ -2554,7 +2554,7 @@ func main() {
 			DisplayName  string   `json:"displayName"`
 			RedirectURIs []string `json:"redirectUris"`
 		}
-		if err := c.get("/api/prohibitorum/oidc-clients/"+url.PathEscape(adminClientID), &got); err != nil {
+		if err := c.get("/api/prohibitorum/oidc-applications/"+url.PathEscape(adminClientID), &got); err != nil {
 			log.Fatalf("GET (post-update) /oidc-clients/%s: %v", adminClientID, err)
 		}
 		if got.DisplayName != updatedDisplayName {
@@ -2575,7 +2575,7 @@ func main() {
 			ClientID string `json:"clientId"`
 			Secret   string `json:"secret"`
 		}
-		if err := c.postJSON("/api/prohibitorum/oidc-clients/rotate-secret",
+		if err := c.postJSON("/api/prohibitorum/oidc-applications/rotate-secret",
 			map[string]any{"clientId": adminClientID}, &rotated); err != nil {
 			log.Fatalf("POST /oidc-clients/rotate-secret: %v", err)
 		}
@@ -2980,7 +2980,7 @@ func main() {
 
 		// List all SAML providers to find the mock SP's id.
 		var providers []samlProviderItem
-		if err := c.get("/api/prohibitorum/saml-providers", &providers); err != nil {
+		if err := c.get("/api/prohibitorum/saml-applications", &providers); err != nil {
 			log.Fatalf("Tier-1 d: GET /saml-providers: %v", err)
 		}
 		var spID int64
@@ -2997,7 +2997,7 @@ func main() {
 
 		// GET the full provider record to capture current required fields.
 		var current samlProviderItem
-		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-providers/%d", spID), &current); err != nil {
+		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), &current); err != nil {
 			log.Fatalf("Tier-1 d: GET /saml-providers/%d: %v", spID, err)
 		}
 
@@ -3058,13 +3058,13 @@ func main() {
 			"allowIdpInitiated":         current.AllowIdpInitiated,
 		}
 		var putResp samlProviderItem
-		if err := c.putJSON(fmt.Sprintf("/api/prohibitorum/saml-providers/%d", spID), putBody, &putResp); err != nil {
+		if err := c.putJSON(fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), putBody, &putResp); err != nil {
 			log.Fatalf("Tier-1 d: PUT /saml-providers/%d: %v", spID, err)
 		}
 
 		// Re-GET to confirm round-trip.
 		var updated samlProviderItem
-		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-providers/%d", spID), &updated); err != nil {
+		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), &updated); err != nil {
 			log.Fatalf("Tier-1 d: GET /saml-providers/%d (post-PUT): %v", spID, err)
 		}
 		if updated.NameIDClaim != "email" {

@@ -392,10 +392,10 @@ var OperationListSigningKeys = huma.Operation{
 	Summary:     "List signing keys with lifecycle status (admin only). Private material is never returned.",
 }
 
-// OIDCClientView is the admin-facing projection of an oidc_client row.
+// OIDCApplicationView is the admin-facing projection of an oidc_client row.
 // client_secret_hash is NEVER included — only the public configuration fields
 // are returned to callers.
-type OIDCClientView struct {
+type OIDCApplicationView struct {
 	ClientID                    string    `json:"clientId"`
 	DisplayName                 string    `json:"displayName"`
 	RedirectURIs                []string  `json:"redirectUris"`
@@ -407,18 +407,18 @@ type OIDCClientView struct {
 	CreatedAt                   time.Time `json:"createdAt"`
 }
 
-var OperationListOIDCClients = huma.Operation{
-	OperationID: "listOIDCClients",
+var OperationListOIDCApplications = huma.Operation{
+	OperationID: "listOIDCApplications",
 	Method:      http.MethodGet,
-	Path:        "/oidc-clients",
-	Summary:     "List all OIDC clients (admin only). Secret material is never returned.",
+	Path:        "/oidc-applications",
+	Summary:     "List all OIDC applications (admin only). Secret material is never returned.",
 }
 
-var OperationGetOIDCClient = huma.Operation{
-	OperationID: "getOIDCClient",
+var OperationGetOIDCApplication = huma.Operation{
+	OperationID: "getOIDCApplication",
 	Method:      http.MethodGet,
-	Path:        "/oidc-clients/{clientId}",
-	Summary:     "Get one OIDC client by client_id (admin only). Secret material is never returned.",
+	Path:        "/oidc-applications/{clientId}",
+	Summary:     "Get one OIDC application by client_id (admin only). Secret material is never returned.",
 }
 
 // SAMLACSView is the wire representation of a single AssertionConsumerService
@@ -438,10 +438,10 @@ type SAMLKeyView struct {
 	NotAfter *time.Time `json:"notAfter,omitempty"`
 }
 
-// SAMLProviderView is the admin-facing projection of a saml_sp row plus its
+// SAMLApplicationView is the admin-facing projection of a saml_sp row plus its
 // associated ACS endpoints and key summaries. Raw certificate material (PEM)
 // is never returned — SAMLKeyView carries only the lifecycle fields.
-type SAMLProviderView struct {
+type SAMLApplicationView struct {
 	ID                        int64           `json:"id"`
 	EntityID                  string          `json:"entityId"`
 	DisplayName               string          `json:"displayName"`
@@ -458,10 +458,10 @@ type SAMLProviderView struct {
 	CreatedAt                 time.Time       `json:"createdAt"`
 }
 
-// UpstreamIDPView is the admin-facing projection of an upstream_idp row.
+// IdentityProviderView is the admin-facing projection of an upstream_idp row.
 // client_secret_enc and secret_nonce are NEVER included — the sealed bytes
 // are write-only. Only the public configuration fields are returned.
-type UpstreamIDPView struct {
+type IdentityProviderView struct {
 	Slug                 string    `json:"slug"`
 	DisplayName          string    `json:"displayName"`
 	IssuerUrl            string    `json:"issuerUrl"`
@@ -477,32 +477,32 @@ type UpstreamIDPView struct {
 	CreatedAt            time.Time `json:"createdAt"`
 }
 
-var OperationListUpstreamIDPs = huma.Operation{
-	OperationID: "listUpstreamIDPs",
+var OperationListIdentityProviders = huma.Operation{
+	OperationID: "listIdentityProviders",
 	Method:      http.MethodGet,
-	Path:        "/upstream-idps",
-	Summary:     "List all upstream IdPs including disabled (admin only). Secret material is never returned.",
+	Path:        "/identity-providers",
+	Summary:     "List all identity providers including disabled (admin only). Secret material is never returned.",
 }
 
-var OperationGetUpstreamIDP = huma.Operation{
-	OperationID: "getUpstreamIDP",
+var OperationGetIdentityProvider = huma.Operation{
+	OperationID: "getIdentityProvider",
 	Method:      http.MethodGet,
-	Path:        "/upstream-idps/{slug}",
-	Summary:     "Get one upstream IdP by slug including disabled (admin only). Secret material is never returned.",
+	Path:        "/identity-providers/{slug}",
+	Summary:     "Get one identity provider by slug including disabled (admin only). Secret material is never returned.",
 }
 
-var OperationListSAMLProviders = huma.Operation{
-	OperationID: "listSAMLProviders",
+var OperationListSAMLApplications = huma.Operation{
+	OperationID: "listSAMLApplications",
 	Method:      http.MethodGet,
-	Path:        "/saml-providers",
-	Summary:     "List all SAML service providers (admin only). Certificate PEM is never returned.",
+	Path:        "/saml-applications",
+	Summary:     "List all SAML applications (admin only). Certificate PEM is never returned.",
 }
 
-var OperationGetSAMLProvider = huma.Operation{
-	OperationID: "getSAMLProvider",
+var OperationGetSAMLApplication = huma.Operation{
+	OperationID: "getSAMLApplication",
 	Method:      http.MethodGet,
-	Path:        "/saml-providers/{id}",
-	Summary:     "Get one SAML service provider by id (admin only).",
+	Path:        "/saml-applications/{id}",
+	Summary:     "Get one SAML application by id (admin only).",
 }
 
 // AuditEventView is the admin-facing projection of a credential_event row.

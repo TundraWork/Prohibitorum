@@ -390,29 +390,29 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/{kid}/activate", admin, s.handleActivateSigningKeyHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/{kid}/retire", admin, s.handleRetireSigningKeyHTTP)
 
-	// Admin: OIDC client management
-	registerOp(mgmt, contract.OperationListOIDCClients, s.handleListOIDCClients, admin)
-	registerOp(mgmt, contract.OperationGetOIDCClient, s.handleGetOIDCClient, admin)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients", admin, s.handleCreateOIDCClientHTTP)
-	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-clients/{clientId}", admin, s.handleUpdateOIDCClientHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients/rotate-secret", admin, s.handleRotateOIDCClientSecretHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-clients/delete", admin, s.handleDeleteOIDCClientHTTP)
+	// Admin: OIDC application management
+	registerOp(mgmt, contract.OperationListOIDCApplications, s.handleListOIDCApplications, admin)
+	registerOp(mgmt, contract.OperationGetOIDCApplication, s.handleGetOIDCApplication, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications", admin, s.handleCreateOIDCApplicationHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}", admin, s.handleUpdateOIDCApplicationHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/rotate-secret", admin, s.handleRotateOIDCApplicationSecretHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/delete", admin, s.handleDeleteOIDCApplicationHTTP)
 
-	// Admin: upstream IdP management
-	registerOp(mgmt, contract.OperationListUpstreamIDPs, s.handleListUpstreamIDPs, admin)
-	registerOp(mgmt, contract.OperationGetUpstreamIDP, s.handleGetUpstreamIDP, admin)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/upstream-idps", admin, s.handleCreateUpstreamIDPHTTP)
-	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/upstream-idps/{slug}", admin, s.handleUpdateUpstreamIDPHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/upstream-idps/rotate-secret", admin, s.handleRotateUpstreamIDPSecretHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/upstream-idps/delete", admin, s.handleDeleteUpstreamIDPHTTP)
+	// Admin: identity provider management
+	registerOp(mgmt, contract.OperationListIdentityProviders, s.handleListIdentityProviders, admin)
+	registerOp(mgmt, contract.OperationGetIdentityProvider, s.handleGetIdentityProvider, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers", admin, s.handleCreateIdentityProviderHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/identity-providers/{slug}", admin, s.handleUpdateIdentityProviderHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/rotate-secret", admin, s.handleRotateIdentityProviderSecretHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/delete", admin, s.handleDeleteIdentityProviderHTTP)
 
-	// Admin: SAML SP management
-	registerOp(mgmt, contract.OperationListSAMLProviders, s.handleListSAMLProviders, admin)
-	registerOp(mgmt, contract.OperationGetSAMLProvider, s.handleGetSAMLProvider, admin)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-providers", admin, s.handleCreateSAMLProviderHTTP)
-	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-providers/{id}", admin, s.handleUpdateSAMLProviderHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-providers/{id}/reingest-metadata", admin, s.handleReingestSAMLProviderHTTP)
-	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-providers/delete", admin, s.handleDeleteSAMLProviderHTTP)
+	// Admin: SAML application management
+	registerOp(mgmt, contract.OperationListSAMLApplications, s.handleListSAMLApplications, admin)
+	registerOp(mgmt, contract.OperationGetSAMLApplication, s.handleGetSAMLApplication, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications", admin, s.handleCreateSAMLApplicationHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-applications/{id}", admin, s.handleUpdateSAMLApplicationHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/reingest-metadata", admin, s.handleReingestSAMLApplicationHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/delete", admin, s.handleDeleteSAMLApplicationHTTP)
 
 	// OIDC OP — v0.4 full surface. Discovery and JWKS are public. Authorize
 	// benefits from the global LoadSession middleware (already installed on

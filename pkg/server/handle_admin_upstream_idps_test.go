@@ -1,7 +1,7 @@
 // Package server — handle_admin_upstream_idps_test.go
 //
 // Unit tests for the upstream-IdP admin surface (Task 6). These tests are
-// intentionally DB-free: the view projection (upstreamIDPView) is the primary
+// intentionally DB-free: the view projection (identityProviderView) is the primary
 // unit under test, with assertions on sealed-secret exclusion and correct field
 // mapping. Route-level sudo gating is covered centrally in Task 9.
 
@@ -19,8 +19,8 @@ import (
 )
 
 // TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes verifies that
-// upstreamIDPView never copies ClientSecretEnc or SecretNonce into the wire
-// view. The contract.UpstreamIDPView type has no such fields — the test
+// identityProviderView never copies ClientSecretEnc or SecretNonce into the wire
+// view. The contract.IdentityProviderView type has no such fields — the test
 // additionally verifies the value-exclusion at runtime.
 func TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes(t *testing.T) {
 	t.Parallel()
@@ -47,9 +47,9 @@ func TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes(t *testing.T) 
 		CreatedAt:            pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 
-	view := upstreamIDPView(row)
+	view := identityProviderView(row)
 
-	// contract.UpstreamIDPView has no ClientSecretEnc or SecretNonce fields —
+	// contract.IdentityProviderView has no ClientSecretEnc or SecretNonce fields —
 	// the compiler structurally prevents it. Runtime check: none of the string
 	// fields carry the secret or nonce bytes interpreted as string.
 	secretStr := string(secretBytes)
@@ -109,7 +109,7 @@ func TestAdminUpstreamIDPs_ViewProjection_FieldMapping(t *testing.T) {
 		CreatedAt:            pgtype.Timestamptz{Time: createdAt, Valid: true},
 	}
 
-	view := upstreamIDPView(row)
+	view := identityProviderView(row)
 
 	if view.Slug != "my-idp" {
 		t.Errorf("Slug: got %q, want %q", view.Slug, "my-idp")
@@ -164,7 +164,7 @@ func TestAdminUpstreamIDPs_ViewProjection_InvalidTimestamp(t *testing.T) {
 		// CreatedAt intentionally left as zero value (Valid=false)
 	}
 
-	view := upstreamIDPView(row)
+	view := identityProviderView(row)
 
 	if !view.CreatedAt.IsZero() {
 		t.Errorf("CreatedAt: got %v, want zero time for invalid column", view.CreatedAt)
@@ -192,20 +192,20 @@ func TestAdminUpstreamIDPs_ErrUpstreamIDPNotFound(t *testing.T) {
 }
 
 // TestAdminUpstreamIDPs_ContractType_NoSecretFields verifies at compile time
-// that contract.UpstreamIDPView does not declare ClientSecretEnc or
+// that contract.IdentityProviderView does not declare ClientSecretEnc or
 // SecretNonce fields. This catches any future refactor that might accidentally
 // add one.
 func TestAdminUpstreamIDPs_ContractType_NoSecretFields(t *testing.T) {
 	t.Parallel()
 
-	v := contract.UpstreamIDPView{
+	v := contract.IdentityProviderView{
 		Slug:        "test",
 		DisplayName: "Test",
 		IssuerUrl:   "https://idp.test",
 		ClientID:    "client-1",
 		Mode:        "auto_provision",
 	}
-	// If contract.UpstreamIDPView ever grew a ClientSecretEnc or SecretNonce
+	// If contract.IdentityProviderView ever grew a ClientSecretEnc or SecretNonce
 	// field this test would fail to compile — keeping the guarantee in the
 	// test suite.
 	_ = v
@@ -225,7 +225,7 @@ func TestAdminUpstreamIDPs_ViewProjection_EmptySlices(t *testing.T) {
 	}
 
 	// Must not panic.
-	view := upstreamIDPView(row)
+	view := identityProviderView(row)
 	_ = view.AllowedDomains
 	_ = view.Scopes
 }

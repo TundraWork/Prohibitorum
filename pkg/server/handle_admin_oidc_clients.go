@@ -1,12 +1,12 @@
 // Package server — handle_admin_oidc_clients.go
 //
-// Admin OIDC-client endpoints:
-//   GET  /oidc-clients              — list all clients (admin role, no sudo)
-//   GET  /oidc-clients/{clientId}   — get one client (admin role, no sudo)
-//   POST /oidc-clients              — create a new client (admin + sudo)
-//   PUT  /oidc-clients/{clientId}   — replace mutable fields (admin + sudo, full config required)
-//   POST /oidc-clients/rotate-secret — rotate the client secret (admin + sudo)
-//   POST /oidc-clients/delete        — hard-delete a client (admin + sudo)
+// Admin OIDC application endpoints:
+//   GET  /oidc-applications              — list all applications (admin role, no sudo)
+//   GET  /oidc-applications/{clientId}   — get one application (admin role, no sudo)
+//   POST /oidc-applications              — create a new application (admin + sudo)
+//   PUT  /oidc-applications/{clientId}   — replace mutable fields (admin + sudo, full config required)
+//   POST /oidc-applications/rotate-secret — rotate the client secret (admin + sudo)
+//   POST /oidc-applications/delete        — hard-delete an application (admin + sudo)
 //
 // client_secret_hash is NEVER serialized or included in any response or audit
 // detail. The cleartext secret is revealed exactly once: in the create and
@@ -40,11 +40,11 @@ import (
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
-// oidcClientView projects a db.OidcClient row into the wire-safe contract
+// oidcApplicationView projects a db.OidcClient row into the wire-safe contract
 // view. ClientSecretHash is explicitly excluded — this function is the single
 // chokepoint that prevents accidental leakage of secret material.
-func oidcClientView(c db.OidcClient) contract.OIDCClientView {
-	v := contract.OIDCClientView{
+func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
+	v := contract.OIDCApplicationView{
 		ClientID:                c.ClientID,
 		DisplayName:             c.DisplayName,
 		RedirectURIs:            c.RedirectUris,
@@ -60,21 +60,21 @@ func oidcClientView(c db.OidcClient) contract.OIDCClientView {
 	return v
 }
 
-// ----- GET /oidc-clients (typed, role-only) -----------------------------------
+// ----- GET /oidc-applications (typed, role-only) -----------------------------------
 
-type listOIDCClientsOut struct {
-	Body []contract.OIDCClientView
+type listOIDCApplicationsOut struct {
+	Body []contract.OIDCApplicationView
 }
 
-func (s *Server) handleListOIDCClients(ctx context.Context, _ *struct{}) (*listOIDCClientsOut, error) {
+func (s *Server) handleListOIDCApplications(ctx context.Context, _ *struct{}) (*listOIDCApplicationsOut, error) {
 	rows, err := s.queries.ListOIDCClients(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("handler: listOIDCClients: %w", err)
+		return nil, fmt.Errorf("handler: listOIDCApplications: %w", err)
 	}
-	views := make([]contract.OIDCClientView, 0, len(rows))
+	views := make([]contract.OIDCApplicationView, 0, len(rows))
 	for _, r := range rows {
 		// ListOIDCClients returns a summary row — project the subset fields.
-		v := contract.OIDCClientView{
+		v := contract.OIDCApplicationView{
 			ClientID:                r.ClientID,
 			DisplayName:             r.DisplayName,
 			RedirectURIs:            r.RedirectUris,
@@ -87,34 +87,34 @@ func (s *Server) handleListOIDCClients(ctx context.Context, _ *struct{}) (*listO
 		}
 		views = append(views, v)
 	}
-	return &listOIDCClientsOut{Body: views}, nil
+	return &listOIDCApplicationsOut{Body: views}, nil
 }
 
-// ----- GET /oidc-clients/{clientId} (typed, role-only) -----------------------
+// ----- GET /oidc-applications/{clientId} (typed, role-only) -----------------------
 
-type getOIDCClientIn struct {
+type getOIDCApplicationIn struct {
 	ClientID string `path:"clientId"`
 }
 
-type oidcClientOut struct {
-	Body contract.OIDCClientView
+type oidcApplicationOut struct {
+	Body contract.OIDCApplicationView
 }
 
-func (s *Server) handleGetOIDCClient(ctx context.Context, in *getOIDCClientIn) (*oidcClientOut, error) {
+func (s *Server) handleGetOIDCApplication(ctx context.Context, in *getOIDCApplicationIn) (*oidcApplicationOut, error) {
 	// Use GetOIDCClientAny so disabled clients are visible to admins.
 	c, err := s.queries.GetOIDCClientAny(ctx, in.ClientID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, authErrToHuma(authn.ErrClientNotFound())
 		}
-		return nil, fmt.Errorf("handleGetOIDCClient: query: %w", err)
+		return nil, fmt.Errorf("handleGetOIDCApplication: query: %w", err)
 	}
-	return &oidcClientOut{Body: oidcClientView(c)}, nil
+	return &oidcApplicationOut{Body: oidcApplicationView(c)}, nil
 }
 
-// ----- POST /oidc-clients (raw, sudo-gated) -----------------------------------
+// ----- POST /oidc-applications (raw, sudo-gated) -----------------------------------
 
-type createOIDCClientBody struct {
+type createOIDCApplicationBody struct {
 	ClientID               string   `json:"clientId"`
 	DisplayName            string   `json:"displayName"`
 	RedirectURIs           []string `json:"redirectUris"`
@@ -124,14 +124,14 @@ type createOIDCClientBody struct {
 	RequireConsent         bool     `json:"requireConsent"`
 }
 
-type createOIDCClientResponse struct {
-	contract.OIDCClientView
+type createOIDCApplicationResponse struct {
+	contract.OIDCApplicationView
 	// Secret is present only for confidential clients, on creation only.
 	Secret string `json:"secret,omitempty"`
 }
 
-func (s *Server) handleCreateOIDCClientHTTP(w http.ResponseWriter, r *http.Request) {
-	var body createOIDCClientBody
+func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.Request) {
+	var body createOIDCApplicationBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
@@ -159,7 +159,7 @@ func (s *Server) handleCreateOIDCClientHTTP(w http.ResponseWriter, r *http.Reque
 			writeAuthErr(w, authn.ErrClientAlreadyExists())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleCreateOIDCClient: insert: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleCreateOIDCApplication: insert: %w", err))
 		return
 	}
 
@@ -175,18 +175,18 @@ func (s *Server) handleCreateOIDCClientHTTP(w http.ResponseWriter, r *http.Reque
 		Detail:    map[string]any{"client_id": c.ClientID, "public": body.Public},
 	})
 
-	resp := createOIDCClientResponse{
-		OIDCClientView: oidcClientView(c),
-		Secret:         secret, // empty string for public clients (omitempty handles it)
+	resp := createOIDCApplicationResponse{
+		OIDCApplicationView: oidcApplicationView(c),
+		Secret:              secret, // empty string for public clients (omitempty handles it)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-// ----- PUT /oidc-clients/{clientId} (raw, sudo-gated) ------------------------
+// ----- PUT /oidc-applications/{clientId} (raw, sudo-gated) ------------------------
 
-type updateOIDCClientBody struct {
+type updateOIDCApplicationBody struct {
 	DisplayName            string   `json:"displayName"`
 	RedirectURIs           []string `json:"redirectUris"`
 	PostLogoutRedirectURIs []string `json:"postLogoutRedirectUris"`
@@ -195,14 +195,14 @@ type updateOIDCClientBody struct {
 	Disabled               bool     `json:"disabled"`
 }
 
-func (s *Server) handleUpdateOIDCClientHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.Request) {
 	clientID := chi.URLParam(r, "clientId")
 	if clientID == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
 
-	var body updateOIDCClientBody
+	var body updateOIDCApplicationBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
@@ -239,7 +239,7 @@ func (s *Server) handleUpdateOIDCClientHTTP(w http.ResponseWriter, r *http.Reque
 			writeAuthErr(w, authn.ErrClientNotFound())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleUpdateOIDCClient: update: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleUpdateOIDCApplication: update: %w", err))
 		return
 	}
 
@@ -255,22 +255,22 @@ func (s *Server) handleUpdateOIDCClientHTTP(w http.ResponseWriter, r *http.Reque
 		Detail:    map[string]any{"client_id": clientID},
 	})
 
-	writeJSON(w, oidcClientView(c))
+	writeJSON(w, oidcApplicationView(c))
 }
 
-// ----- POST /oidc-clients/rotate-secret (raw, sudo-gated) --------------------
+// ----- POST /oidc-applications/rotate-secret (raw, sudo-gated) --------------------
 
-type rotateOIDCClientSecretBody struct {
+type rotateOIDCApplicationSecretBody struct {
 	ClientID string `json:"clientId"`
 }
 
-type rotateOIDCClientSecretResponse struct {
+type rotateOIDCApplicationSecretResponse struct {
 	ClientID string `json:"clientId"`
 	Secret   string `json:"secret"`
 }
 
-func (s *Server) handleRotateOIDCClientSecretHTTP(w http.ResponseWriter, r *http.Request) {
-	var body rotateOIDCClientSecretBody
+func (s *Server) handleRotateOIDCApplicationSecretHTTP(w http.ResponseWriter, r *http.Request) {
+	var body rotateOIDCApplicationSecretBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
@@ -286,13 +286,13 @@ func (s *Server) handleRotateOIDCClientSecretHTTP(w http.ResponseWriter, r *http
 			writeAuthErr(w, authn.ErrClientNotFound())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleRotateOIDCClientSecret: lookup: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleRotateOIDCApplicationSecret: lookup: %w", err))
 		return
 	}
 
 	secret, err := oidc.RotateClientSecret(r.Context(), s.queries, body.ClientID)
 	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleRotateOIDCClientSecret: rotate: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleRotateOIDCApplicationSecret: rotate: %w", err))
 		return
 	}
 
@@ -308,20 +308,20 @@ func (s *Server) handleRotateOIDCClientSecretHTTP(w http.ResponseWriter, r *http
 		Detail:    map[string]any{"client_id": body.ClientID, "action": "rotate_secret"},
 	})
 
-	writeJSON(w, rotateOIDCClientSecretResponse{
+	writeJSON(w, rotateOIDCApplicationSecretResponse{
 		ClientID: body.ClientID,
 		Secret:   secret,
 	})
 }
 
-// ----- POST /oidc-clients/delete (raw, sudo-gated) ---------------------------
+// ----- POST /oidc-applications/delete (raw, sudo-gated) ---------------------------
 
-type deleteOIDCClientBody struct {
+type deleteOIDCApplicationBody struct {
 	ClientID string `json:"clientId"`
 }
 
-func (s *Server) handleDeleteOIDCClientHTTP(w http.ResponseWriter, r *http.Request) {
-	var body deleteOIDCClientBody
+func (s *Server) handleDeleteOIDCApplicationHTTP(w http.ResponseWriter, r *http.Request) {
+	var body deleteOIDCApplicationBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
@@ -333,7 +333,7 @@ func (s *Server) handleDeleteOIDCClientHTTP(w http.ResponseWriter, r *http.Reque
 
 	rows, err := s.queries.DeleteOIDCClient(r.Context(), body.ClientID)
 	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteOIDCClient: delete: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleDeleteOIDCApplication: delete: %w", err))
 		return
 	}
 	if rows == 0 {
@@ -356,12 +356,12 @@ func (s *Server) handleDeleteOIDCClientHTTP(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Compile-time check: ensure oidcClientView never exposes ClientSecretHash.
+// Compile-time check: ensure oidcApplicationView never exposes ClientSecretHash.
 // db.OidcClient.ClientSecretHash is a pgtype.Text field that is deliberately
-// absent from contract.OIDCClientView — the compiler enforces this.
+// absent from contract.OIDCApplicationView — the compiler enforces this.
 var _ = func() bool {
 	c := db.OidcClient{ClientSecretHash: pgtype.Text{String: "SECRET", Valid: true}}
-	v := oidcClientView(c)
+	v := oidcApplicationView(c)
 	_ = v
 	return true
 }()

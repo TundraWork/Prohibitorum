@@ -1,12 +1,12 @@
 // Package server — handle_admin_saml_sps.go
 //
-// Admin SAML service-provider endpoints:
-//   GET  /saml-providers              — list all SPs (admin role, no sudo)
-//   GET  /saml-providers/{id}         — get one SP with ACS + key summaries (admin role, no sudo)
-//   POST /saml-providers              — create SP + ACS + keys in one tx (admin + sudo)
-//   PUT  /saml-providers/{id}         — update mutable SP flags/fields (admin + sudo)
-//   POST /saml-providers/{id}/reingest-metadata — replace ACS + keys from fresh metadata (admin + sudo)
-//   POST /saml-providers/delete       — hard-delete SP + children in one tx (admin + sudo)
+// Admin SAML application endpoints:
+//   GET  /saml-applications              — list all SPs (admin role, no sudo)
+//   GET  /saml-applications/{id}         — get one SP with ACS + key summaries (admin role, no sudo)
+//   POST /saml-applications              — create SP + ACS + keys in one tx (admin + sudo)
+//   PUT  /saml-applications/{id}         — update mutable SP flags/fields (admin + sudo)
+//   POST /saml-applications/{id}/reingest-metadata — replace ACS + keys from fresh metadata (admin + sudo)
+//   POST /saml-applications/delete       — hard-delete SP + children in one tx (admin + sudo)
 //
 // Raw certificate PEM is NEVER returned — callers get SAMLKeyView{Use, NotAfter}
 // summaries only. SPs have only public certificates (signing certs from metadata)
@@ -42,15 +42,15 @@ import (
 
 // ----- projection helpers ---------------------------------------------------
 
-// samlProviderView projects a db.SamlSp row + its ACS + key rows into the
+// samlApplicationView projects a db.SamlSp row + its ACS + key rows into the
 // wire-safe contract view. Raw cert PEM is deliberately excluded — SAMLKeyView
 // carries only the lifecycle summary fields.
-func samlProviderView(sp db.SamlSp, acs []db.SamlSpAc, keys []db.SamlSpKey) contract.SAMLProviderView {
+func samlApplicationView(sp db.SamlSp, acs []db.SamlSpAc, keys []db.SamlSpKey) contract.SAMLApplicationView {
 	attrMap := json.RawMessage(sp.AttributeMap)
 	if len(attrMap) == 0 {
 		attrMap = json.RawMessage("[]")
 	}
-	v := contract.SAMLProviderView{
+	v := contract.SAMLApplicationView{
 		ID:                        sp.ID,
 		EntityID:                  sp.EntityID,
 		DisplayName:               sp.DisplayName,
@@ -97,57 +97,57 @@ func samlSPNotFound() *authn.AuthError {
 	return authn.ErrCredentialNotFound() // reuse 404 shape; no need for a dedicated code
 }
 
-// ----- GET /saml-providers (typed, role-only) --------------------------------
+// ----- GET /saml-applications (typed, role-only) --------------------------------
 
-type listSAMLProvidersOut struct {
-	Body []contract.SAMLProviderView
+type listSAMLApplicationsOut struct {
+	Body []contract.SAMLApplicationView
 }
 
-func (s *Server) handleListSAMLProviders(ctx context.Context, _ *struct{}) (*listSAMLProvidersOut, error) {
+func (s *Server) handleListSAMLApplications(ctx context.Context, _ *struct{}) (*listSAMLApplicationsOut, error) {
 	rows, err := s.queries.ListSAMLSPs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("handleListSAMLProviders: query: %w", err)
+		return nil, fmt.Errorf("handleListSAMLApplications: query: %w", err)
 	}
-	views := make([]contract.SAMLProviderView, 0, len(rows))
+	views := make([]contract.SAMLApplicationView, 0, len(rows))
 	for _, sp := range rows {
 		// List omits ACS + key details (summary only — id, entityId, displayName, flags).
-		views = append(views, samlProviderView(sp, nil, nil))
+		views = append(views, samlApplicationView(sp, nil, nil))
 	}
-	return &listSAMLProvidersOut{Body: views}, nil
+	return &listSAMLApplicationsOut{Body: views}, nil
 }
 
-// ----- GET /saml-providers/{id} (typed, role-only) ---------------------------
+// ----- GET /saml-applications/{id} (typed, role-only) ---------------------------
 
-type getSAMLProviderIn struct {
+type getSAMLApplicationIn struct {
 	ID int64 `path:"id"`
 }
 
-type getSAMLProviderOut struct {
-	Body contract.SAMLProviderView
+type getSAMLApplicationOut struct {
+	Body contract.SAMLApplicationView
 }
 
-func (s *Server) handleGetSAMLProvider(ctx context.Context, in *getSAMLProviderIn) (*getSAMLProviderOut, error) {
+func (s *Server) handleGetSAMLApplication(ctx context.Context, in *getSAMLApplicationIn) (*getSAMLApplicationOut, error) {
 	sp, err := s.queries.GetSAMLSPByID(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, authErrToHuma(samlSPNotFound())
 		}
-		return nil, fmt.Errorf("handleGetSAMLProvider: query: %w", err)
+		return nil, fmt.Errorf("handleGetSAMLApplication: query: %w", err)
 	}
 	acs, err := s.queries.ListSAMLSPACSEndpoints(ctx, sp.ID)
 	if err != nil {
-		return nil, fmt.Errorf("handleGetSAMLProvider: acs: %w", err)
+		return nil, fmt.Errorf("handleGetSAMLApplication: acs: %w", err)
 	}
 	keys, err := s.queries.ListSAMLSPKeys(ctx, db.ListSAMLSPKeysParams{SpID: sp.ID, Use: "signing"})
 	if err != nil {
-		return nil, fmt.Errorf("handleGetSAMLProvider: keys: %w", err)
+		return nil, fmt.Errorf("handleGetSAMLApplication: keys: %w", err)
 	}
-	return &getSAMLProviderOut{Body: samlProviderView(sp, acs, keys)}, nil
+	return &getSAMLApplicationOut{Body: samlApplicationView(sp, acs, keys)}, nil
 }
 
-// ----- POST /saml-providers (raw, sudo-gated) --------------------------------
+// ----- POST /saml-applications (raw, sudo-gated) --------------------------------
 
-type createSAMLProviderBody struct {
+type createSAMLApplicationBody struct {
 	// Metadata path: supply MetadataXML + Kind (+ optional overrides).
 	MetadataXML  string `json:"metadataXml,omitempty"`
 	Kind         string `json:"kind"` // "ghes" | "generic" | "" (defaults to generic)
@@ -172,8 +172,8 @@ type createSAMLProviderBody struct {
 	SessionLifetimeSecs *int64 `json:"sessionLifetimeSecs,omitempty"`
 }
 
-func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Request) {
-	var body createSAMLProviderBody
+func (s *Server) handleCreateSAMLApplicationHTTP(w http.ResponseWriter, r *http.Request) {
+	var body createSAMLApplicationBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
@@ -217,7 +217,7 @@ func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 
 	tx, err := s.dbPool.Begin(r.Context())
 	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleCreateSAMLProvider: begin tx: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleCreateSAMLApplication: begin tx: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context()) //nolint:errcheck
@@ -226,10 +226,10 @@ func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 	sp, err := qtx.InsertSAMLSP(r.Context(), params)
 	if err != nil {
 		if isUniqueViolation(err) {
-			writeAuthErr(w, authn.ErrSAMLProviderAlreadyExists())
+			writeAuthErr(w, authn.ErrSAMLApplicationAlreadyExists())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleCreateSAMLProvider: insert sp: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleCreateSAMLApplication: insert sp: %w", err))
 		return
 	}
 	for _, a := range acs {
@@ -240,7 +240,7 @@ func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 			Location:  a.Location,
 			IsDefault: a.IsDefault,
 		}); err != nil {
-			writeAuthErr(w, fmt.Errorf("handleCreateSAMLProvider: insert acs: %w", err))
+			writeAuthErr(w, fmt.Errorf("handleCreateSAMLApplication: insert acs: %w", err))
 			return
 		}
 	}
@@ -250,12 +250,12 @@ func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 			Use:     "signing",
 			CertPem: certPEM,
 		}); err != nil {
-			writeAuthErr(w, fmt.Errorf("handleCreateSAMLProvider: insert key: %w", err))
+			writeAuthErr(w, fmt.Errorf("handleCreateSAMLApplication: insert key: %w", err))
 			return
 		}
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeAuthErr(w, fmt.Errorf("handleCreateSAMLProvider: commit: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleCreateSAMLApplication: commit: %w", err))
 		return
 	}
 
@@ -277,12 +277,12 @@ func (s *Server) handleCreateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(samlProviderView(sp, spACS, spKeys))
+	_ = json.NewEncoder(w).Encode(samlApplicationView(sp, spACS, spKeys))
 }
 
-// ----- PUT /saml-providers/{id} (raw, sudo-gated) ----------------------------
+// ----- PUT /saml-applications/{id} (raw, sudo-gated) ----------------------------
 
-type updateSAMLProviderBody struct {
+type updateSAMLApplicationBody struct {
 	DisplayName               string          `json:"displayName"`
 	NameIDFormat              string          `json:"nameIdFormat"`
 	NameIDClaim               string          `json:"nameIdClaim"`
@@ -293,7 +293,7 @@ type updateSAMLProviderBody struct {
 	SessionLifetimeSecs       *int64          `json:"sessionLifetimeSecs,omitempty"`
 }
 
-func (s *Server) handleUpdateSAMLProviderHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdateSAMLApplicationHTTP(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	if idStr == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
@@ -305,7 +305,7 @@ func (s *Server) handleUpdateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var body updateSAMLProviderBody
+	var body updateSAMLApplicationBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
@@ -349,7 +349,7 @@ func (s *Server) handleUpdateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 			writeAuthErr(w, samlSPNotFound())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleUpdateSAMLProvider: update: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleUpdateSAMLApplication: update: %w", err))
 		return
 	}
 
@@ -367,16 +367,16 @@ func (s *Server) handleUpdateSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 
 	acs, _ := s.queries.ListSAMLSPACSEndpoints(r.Context(), sp.ID)
 	keys, _ := s.queries.ListSAMLSPKeys(r.Context(), db.ListSAMLSPKeysParams{SpID: sp.ID, Use: "signing"})
-	writeJSON(w, samlProviderView(sp, acs, keys))
+	writeJSON(w, samlApplicationView(sp, acs, keys))
 }
 
-// ----- POST /saml-providers/{id}/reingest-metadata (raw, sudo-gated) ---------
+// ----- POST /saml-applications/{id}/reingest-metadata (raw, sudo-gated) ---------
 
-type reingestSAMLProviderBody struct {
+type reingestSAMLApplicationBody struct {
 	MetadataXML string `json:"metadataXml"`
 }
 
-func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReingestSAMLApplicationHTTP(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	if idStr == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
@@ -388,7 +388,7 @@ func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	var body reingestSAMLProviderBody
+	var body reingestSAMLApplicationBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
@@ -405,7 +405,7 @@ func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.R
 			writeAuthErr(w, samlSPNotFound())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleReingestSAMLProvider: lookup: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleReingestSAMLApplication: lookup: %w", err))
 		return
 	}
 
@@ -428,7 +428,7 @@ func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.R
 
 	tx, err := s.dbPool.Begin(r.Context())
 	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleReingestSAMLProvider: begin tx: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleReingestSAMLApplication: begin tx: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context()) //nolint:errcheck
@@ -436,11 +436,11 @@ func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.R
 	qtx := s.queries.WithTx(tx)
 	// Delete children first, then re-insert from fresh metadata.
 	if err := qtx.DeleteSAMLSPACSByID(r.Context(), id); err != nil {
-		writeAuthErr(w, fmt.Errorf("handleReingestSAMLProvider: delete acs: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleReingestSAMLApplication: delete acs: %w", err))
 		return
 	}
 	if err := qtx.DeleteSAMLSPKeysByID(r.Context(), id); err != nil {
-		writeAuthErr(w, fmt.Errorf("handleReingestSAMLProvider: delete keys: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleReingestSAMLApplication: delete keys: %w", err))
 		return
 	}
 	for _, a := range acs {
@@ -451,7 +451,7 @@ func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.R
 			Location:  a.Location,
 			IsDefault: a.IsDefault,
 		}); err != nil {
-			writeAuthErr(w, fmt.Errorf("handleReingestSAMLProvider: insert acs: %w", err))
+			writeAuthErr(w, fmt.Errorf("handleReingestSAMLApplication: insert acs: %w", err))
 			return
 		}
 	}
@@ -461,12 +461,12 @@ func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.R
 			Use:     "signing",
 			CertPem: certPEM,
 		}); err != nil {
-			writeAuthErr(w, fmt.Errorf("handleReingestSAMLProvider: insert key: %w", err))
+			writeAuthErr(w, fmt.Errorf("handleReingestSAMLApplication: insert key: %w", err))
 			return
 		}
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeAuthErr(w, fmt.Errorf("handleReingestSAMLProvider: commit: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleReingestSAMLApplication: commit: %w", err))
 		return
 	}
 
@@ -484,17 +484,17 @@ func (s *Server) handleReingestSAMLProviderHTTP(w http.ResponseWriter, r *http.R
 
 	newACS, _ := s.queries.ListSAMLSPACSEndpoints(r.Context(), id)
 	newKeys, _ := s.queries.ListSAMLSPKeys(r.Context(), db.ListSAMLSPKeysParams{SpID: id, Use: "signing"})
-	writeJSON(w, samlProviderView(sp, newACS, newKeys))
+	writeJSON(w, samlApplicationView(sp, newACS, newKeys))
 }
 
-// ----- POST /saml-providers/delete (raw, sudo-gated) -------------------------
+// ----- POST /saml-applications/delete (raw, sudo-gated) -------------------------
 
-type deleteSAMLProviderBody struct {
+type deleteSAMLApplicationBody struct {
 	ID int64 `json:"id"`
 }
 
-func (s *Server) handleDeleteSAMLProviderHTTP(w http.ResponseWriter, r *http.Request) {
-	var body deleteSAMLProviderBody
+func (s *Server) handleDeleteSAMLApplicationHTTP(w http.ResponseWriter, r *http.Request) {
+	var body deleteSAMLApplicationBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
@@ -511,7 +511,7 @@ func (s *Server) handleDeleteSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 			writeAuthErr(w, samlSPNotFound())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleDeleteSAMLProvider: lookup: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleDeleteSAMLApplication: lookup: %w", err))
 		return
 	}
 
@@ -519,7 +519,7 @@ func (s *Server) handleDeleteSAMLProviderHTTP(w http.ResponseWriter, r *http.Req
 	// parent row is sufficient — child rows are removed by the DB.
 	rows, err := s.queries.DeleteSAMLSP(r.Context(), body.ID)
 	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteSAMLProvider: delete: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleDeleteSAMLApplication: delete: %w", err))
 		return
 	}
 	if rows == 0 {
