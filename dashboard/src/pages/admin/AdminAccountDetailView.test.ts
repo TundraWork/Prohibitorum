@@ -23,9 +23,17 @@ const ACCOUNT = {
 const CREDS = [
   { id: 11, credentialIdSuffix: 'ab12', nickname: 'Laptop', transports: ['internal'], backupState: true, attestationType: 'none', createdAt: '2026-01-02T00:00:00Z', lastUsedAt: '2026-06-01T00:00:00Z' },
 ]
-// GET router: /accounts/7 → account; /accounts/7/credentials → creds
-function mockGets(account = ACCOUNT, creds = CREDS) {
-  get.mockImplementation(async (p: string) => p.endsWith('/credentials') ? creds : account)
+const SESSIONS = [
+  { id: 'sess-aaa', isCurrent: true,  issuedAt: '2026-06-01T10:00:00Z', expiresAt: '2026-06-08T10:00:00Z', lastSeenIp: '1.2.3.4', userAgent: 'Firefox/126' },
+  { id: 'sess-bbb', isCurrent: false, issuedAt: '2026-06-02T10:00:00Z', expiresAt: '2026-06-09T10:00:00Z', lastSeenIp: '5.6.7.8', userAgent: 'Chrome/125' },
+]
+// GET router: /accounts/7 → account; /accounts/7/credentials → creds; /accounts/7/sessions → sessions
+function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS) {
+  get.mockImplementation(async (p: string) => {
+    if (p.endsWith('/credentials')) return creds
+    if (p.endsWith('/sessions')) return sess
+    return account
+  })
 }
 // ConfirmDialog confirm = destructive button (teleported to body) with the given label.
 function clickConfirm(label: string) {
@@ -112,5 +120,44 @@ describe('AdminAccountDetailView', () => {
     clickConfirm(en.admin.account.delete); await flushPromises()
     expect(push).not.toHaveBeenCalled()
     expect(w.text()).toContain(en.errors.cannot_delete_self)
+  })
+  it('loads and renders session rows on mount', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(get.mock.calls.some((c) => String(c[0]).endsWith('/sessions'))).toBe(true)
+    expect(w.find('[data-test="session-row-sess-aaa"]').exists()).toBe(true)
+    expect(w.find('[data-test="session-row-sess-bbb"]').exists()).toBe(true)
+    expect(w.find('[data-test="session-revoke-sess-aaa"]').exists()).toBe(true)
+    expect(w.find('[data-test="session-revoke-sess-bbb"]').exists()).toBe(true)
+  })
+  it('per-row revoke posts with sessionId and re-fetches the session list', async () => {
+    mockGets(); post.mockResolvedValue(undefined)
+    const w = mountView(); await flushPromises()
+    const getSessionsBefore = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
+    await w.find('[data-test="session-revoke-sess-bbb"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/7/sessions/revoke', { sessionId: 'sess-bbb' })
+    const getSessionsAfter = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
+    expect(getSessionsAfter).toBe(getSessionsBefore + 1)
+  })
+  it('shows session_not_found error when per-row revoke fails', async () => {
+    mockGets()
+    post.mockRejectedValue({ code: 'session_not_found', message: 'some-zh-text' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="session-revoke-sess-bbb"]').trigger('click'); await flushPromises()
+    expect(w.text()).toContain(en.errors.session_not_found)
+  })
+  it('shows empty state when sessions list is empty', async () => {
+    mockGets(ACCOUNT, CREDS, [])
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.admin.account.sessions.empty)
+  })
+  it('revoke-all re-fetches the session list', async () => {
+    mockGets(); post.mockResolvedValue({ revoked: 2 })
+    const w = mountView(); await flushPromises()
+    const getSessionsBefore = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
+    await w.find('[data-test="revoke-all"]').trigger('click'); await flushPromises()
+    clickConfirm(en.admin.account.revokeAllSessions); await flushPromises()
+    const getSessionsAfter = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
+    expect(getSessionsAfter).toBe(getSessionsBefore + 1)
   })
 })

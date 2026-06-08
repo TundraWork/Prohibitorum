@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 
@@ -31,6 +32,10 @@ interface Credential {
   id: number; credentialIdSuffix: string; nickname?: string; transports: string[]
   backupState: boolean; attestationType: string; createdAt: string; lastUsedAt?: string
 }
+interface SessionListItem {
+  id: string; isCurrent: boolean; issuedAt: string; expiresAt: string
+  lastSeenIp: string; userAgent?: string
+}
 
 const { t, te } = useI18n()
 const route = useRoute()
@@ -40,6 +45,7 @@ const { busy, error, run } = useApi()
 const id = Number(route.params.id)
 const account = ref<Account | null>(null)
 const credentials = ref<Credential[]>([])
+const sessions = ref<SessionListItem[]>([])
 const notFound = ref(false)
 
 const displayName = ref('')
@@ -67,6 +73,10 @@ async function loadCredentials(): Promise<void> {
   const creds = await run(() => api.get<Credential[]>(`/api/prohibitorum/accounts/${id}/credentials`))
   if (creds) credentials.value = creds
 }
+async function loadSessions(): Promise<void> {
+  const res = await run(() => api.get<SessionListItem[]>(`/api/prohibitorum/accounts/${id}/sessions`))
+  if (res) sessions.value = res
+}
 async function load(): Promise<void> {
   const acc = await run(() => api.get<Account>(`/api/prohibitorum/accounts/${id}`))
   if (!acc) { if (error.value?.code === 'account_not_found') notFound.value = true; return }
@@ -75,6 +85,7 @@ async function load(): Promise<void> {
   role.value = acc.role === 'admin' ? 'admin' : 'user'
   disabled.value = acc.disabled
   await loadCredentials()
+  await loadSessions()
 }
 async function save(): Promise<void> {
   saved.value = false
@@ -98,12 +109,20 @@ async function forceRevoke(): Promise<void> {
   revokeCredId.value = null
   if (ok) await loadCredentials()
 }
+async function revokeSession(sessionId: string): Promise<void> {
+  saved.value = false
+  const ok = await run(() => withSudo(async () => {
+    await api.post(`/api/prohibitorum/accounts/${id}/sessions/revoke`, { sessionId })
+    return true as const
+  }))
+  if (ok) await loadSessions()
+}
 async function revokeAllSessions(): Promise<void> {
   saved.value = false
   const res = await run(() => withSudo(() =>
     api.post<{ revoked: number }>('/api/prohibitorum/accounts/revoke-sessions', { id })))
   confirmRevokeAll.value = false
-  if (res) revokedCount.value = res.revoked
+  if (res) { revokedCount.value = res.revoked; await loadSessions() }
 }
 async function reissue(): Promise<void> {
   saved.value = false
@@ -183,6 +202,29 @@ onMounted(load)
       <Card>
         <CardHeader><CardTitle>{{ t('admin.account.sessionsTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-3">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{{ t('admin.account.sessions.colTime') }}</TableHead>
+                <TableHead>{{ t('admin.account.sessions.colIp') }}</TableHead>
+                <TableHead>{{ t('admin.account.sessions.colUa') }}</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-if="sessions.length === 0">
+                <TableCell colspan="4" class="text-sm text-muted">{{ t('admin.account.sessions.empty') }}</TableCell>
+              </TableRow>
+              <TableRow v-for="s in sessions" :key="s.id" :data-test="`session-row-${s.id}`">
+                <TableCell class="text-sm text-ink">{{ formatDateTime(s.issuedAt) }}</TableCell>
+                <TableCell class="text-sm text-ink">{{ s.lastSeenIp }}</TableCell>
+                <TableCell class="max-w-xs truncate text-sm text-muted">{{ s.userAgent || '—' }}</TableCell>
+                <TableCell>
+                  <Button type="button" variant="outline" size="sm" :disabled="busy" :data-test="`session-revoke-${s.id}`" @click="revokeSession(s.id)">{{ t('admin.account.sessions.revoke') }}</Button>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
           <p v-if="revokedCount !== null" class="text-sm text-sage" role="status">{{ t('admin.account.sessionsRevoked', { count: revokedCount }) }}</p>
           <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="revoke-all" @click="confirmRevokeAll = true">{{ t('admin.account.revokeAllSessions') }}</Button>
         </CardContent>
