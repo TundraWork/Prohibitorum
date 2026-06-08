@@ -42,7 +42,7 @@
     {
       "id": 7,
       "subject": "Task 7: FE SAML provider name_id_claim + attribute_map fields",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** AdminSamlProviderDetailView nameIdClaim text input + attributeMap JSON textarea (client-validated). Files: AdminSamlProviderDetailView.vue, locales/en.ts + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminSamlProviderDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin/AdminSamlProviderDetailView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"nameIdClaim input + attributeMap textarea seeded\",\"save sends both; invalid JSON → inline error, no PUT\"]}\n```"
     },
