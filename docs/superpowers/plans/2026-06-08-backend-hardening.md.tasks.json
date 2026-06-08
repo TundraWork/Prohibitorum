@@ -1,0 +1,44 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-08-backend-hardening.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: SetNX KV primitive",
+      "status": "pending",
+      "description": "**Goal:** Atomic set-if-absent on kv.Store + both backends + concurrency tests.\n\n**Files:** pkg/kv/store.go, memory.go (mutex), redis.go (native), memory_test.go\n\n**Verify:** go test ./pkg/kv/...\n\n```json:metadata\n{\"files\":[\"pkg/kv/store.go\",\"pkg/kv/memory.go\",\"pkg/kv/redis.go\",\"pkg/kv/memory_test.go\"],\"verifyCommand\":\"go test ./pkg/kv/... && go build ./... && go vet ./...\",\"acceptanceCriteria\":[\"SetNX on interface+both backends\",\"true iff set; expired=absent\",\"ttl<=0 errors\",\"100-concurrent exactly one true\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Refresh-token rotation idempotency",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** SetNX rotation lock + previous-token idempotency window; benign replay re-mints + returns existing current token; no victim lockout.\n\n**Files:** pkg/protocol/oidc/refresh.go, refresh_test.go\n\n**Verify:** go test ./pkg/protocol/oidc/...\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/refresh.go\",\"pkg/protocol/oidc/refresh_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/... && go build ./...\",\"acceptanceCriteria\":[\"concurrent: one rotates, other retryable no revoke\",\"replay within window same successor no second mint\",\"after window family revoked\",\"SetNX error safe\",\"idempotent replay audited\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: SAML AuthnRequest replay via SetNX",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Atomic, SP-scoped, fail-closed replay check.\n\n**Files:** pkg/protocol/saml/authnreq.go, sso.go, *_test.go\n\n**Verify:** go test ./pkg/protocol/saml/...\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/authnreq.go\",\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/authnreq_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/saml/... && go build ./...\",\"acceptanceCriteria\":[\"key scoped by sp+id\",\"first nil second ErrReplayedRequest\",\"same id diff SP nil\",\"KV error fail closed\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Revoke transaction + lockout guard",
+      "status": "pending",
+      "description": "**Goal:** CountUsableSignInFederation query; tighten AvailableMethods; guard ErrWouldRemoveLastFactor + tx + account-row lock.\n\n**Files:** db/queries/account_identity.sql (+sqlc), pkg/authn/flow.go, errors.go, pkg/server/handle_me_revoke_pwd_totp.go, pkg/authn/flow_test.go\n\n**Verify:** go test ./pkg/authn/... ./pkg/server/...\n\n```json:metadata\n{\"files\":[\"db/queries/account_identity.sql\",\"pkg/db\",\"pkg/authn/flow.go\",\"pkg/authn/errors.go\",\"pkg/server/handle_me_revoke_pwd_totp.go\",\"pkg/authn/flow_test.go\"],\"verifyCommand\":\"go test ./pkg/authn/... ./pkg/server/... && go build ./... && go vet ./...\",\"acceptanceCriteria\":[\"CountUsableSignInFederation excludes disabled upstream\",\"AvailableMethods uses it\",\"guard ErrWouldRemoveLastFactor no deletes\",\"deletes in tx + FOR UPDATE prod path\",\"existing no-pool unit tests pass\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Serialize passkey-delete on account row",
+      "status": "pending",
+      "description": "**Goal:** Wrap handleDeleteMyCredential count+delete in a tx that first locks the account row; preserve last-passkey guard.\n\n**Files:** pkg/server/handle_me.go\n\n**Verify:** go test ./pkg/server/... + smoke\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_me.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./...\",\"acceptanceCriteria\":[\"count+delete under one tx with FOR UPDATE\",\"last-passkey guard preserved\",\"behavior otherwise unchanged\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Close OIDC client-id timing oracle",
+      "status": "pending",
+      "description": "**Goal:** Dummy argon2id verify (matching params) on unknown-client+secret; uniform invalid_client; no argon2 when no secret.\n\n**Files:** pkg/protocol/oidc/client.go (+ Provider ctor), client_test.go\n\n**Verify:** go test ./pkg/protocol/oidc/...\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/client.go\",\"pkg/protocol/oidc/client_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/... && go build ./...\",\"acceptanceCriteria\":[\"dummy verify on unknown-client+secret\",\"no argon2 when no secret\",\"identical invalid_client both paths\",\"dummy PHC same params\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-08T00:00:00Z"
+}
