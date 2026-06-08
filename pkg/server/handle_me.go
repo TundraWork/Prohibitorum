@@ -356,14 +356,30 @@ func (s *Server) handleDeleteMyCredential(ctx context.Context, in *deleteMyCrede
 	if sess == nil {
 		return nil, authErrToHuma(authn.ErrNoSession())
 	}
-	count, err := s.queries.CountCredentialsByAccount(ctx, sess.Account.ID)
+	// dbPool is always set in production (NewServer); this handler has no
+	// fake-injection seam and is smoke-tested, so there is no nil-pool path
+	// like handleMeRevokePwdTOTPHTTP's.
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("delete credential: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.queries.WithTx(tx)
+
+	// Serialise factor mutations for this account (vs revoke-password-totp) by
+	// locking the account row before the count-then-delete, so a concurrent
+	// factor removal cannot race this last-passkey guard.
+	if _, err := q.GetAccountByIDForUpdate(ctx, sess.Account.ID); err != nil {
+		return nil, fmt.Errorf("delete credential: lock account: %w", err)
+	}
+	count, err := q.CountCredentialsByAccount(ctx, sess.Account.ID)
 	if err != nil {
 		return nil, fmt.Errorf("count credentials: %w", err)
 	}
 	if count <= 1 {
 		return nil, authErrToHuma(authn.ErrLastPasskey())
 	}
-	n, err := s.queries.DeleteCredentialByID(ctx, db.DeleteCredentialByIDParams{
+	n, err := q.DeleteCredentialByID(ctx, db.DeleteCredentialByIDParams{
 		ID:        in.Body.ID,
 		AccountID: sess.Account.ID,
 	})
@@ -373,12 +389,14 @@ func (s *Server) handleDeleteMyCredential(ctx context.Context, in *deleteMyCrede
 	if n == 0 {
 		return nil, authErrToHuma(authn.ErrCredentialNotFound())
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("delete credential: commit: %w", err)
+	}
 
 	logx.WithContext(ctx).WithFields(logrus.Fields{
 		"event":         "auth.credential_revoked_self",
 		"account_id":    sess.Account.ID,
 		"credential_id": in.Body.ID,
 	}).Info("auth")
-
 	return &emptyOut{}, nil
 }
