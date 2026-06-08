@@ -1,0 +1,241 @@
+<script setup lang="ts">
+/**
+ * AdminSamlProviderDetailView (/admin/saml-providers/:id) — per-SP admin actions.
+ * Edit flags (PUT); re-ingest metadata; view ACS endpoints and signing certificates
+ * (read-only); delete. All mutations go through withSudo.
+ */
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
+import { api } from '@/lib/api'
+import { useApi } from '@/composables/useApi'
+import { withSudo } from '@/lib/sudo'
+import { formatDateTime } from '@/lib/time'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+
+interface AcsEndpoint {
+  binding: string
+  location: string
+  index: number
+  isDefault: boolean
+}
+
+interface SamlKey {
+  use: string
+  notAfter?: string
+}
+
+interface SamlProvider {
+  id: number
+  entityId: string
+  displayName: string
+  nameIdFormat: string
+  requireSignedAuthnRequest: boolean
+  wantAssertionsSigned: boolean
+  allowIdpInitiated: boolean
+  sessionLifetimeSecs?: number
+  acs: AcsEndpoint[]
+  keys: SamlKey[]
+  createdAt: string
+}
+
+const { t, te } = useI18n()
+const route = useRoute()
+const router = useRouter()
+const { busy, error, run } = useApi()
+
+const id = Number(route.params.id)
+const sp = ref<SamlProvider | null>(null)
+const notFound = ref(false)
+const localError = ref('')
+
+const displayName = ref('')
+const nameIdFormat = ref('')
+const requireSignedAuthnRequest = ref(false)
+const wantAssertionsSigned = ref(false)
+const allowIdpInitiated = ref(false)
+const sessionLifetimeSecs = ref('')
+const saved = ref(false)
+
+const reingestXml = ref('')
+const reingestDone = ref(false)
+
+const confirmDelete = ref(false)
+
+const errorText = computed(() => {
+  const e = error.value
+  if (!e) return ''
+  const key = `errors.${e.code}`
+  return te(key) ? t(key) : e.message || t('common.error')
+})
+
+function seedForm(data: SamlProvider): void {
+  displayName.value = data.displayName
+  nameIdFormat.value = data.nameIdFormat
+  requireSignedAuthnRequest.value = data.requireSignedAuthnRequest
+  wantAssertionsSigned.value = data.wantAssertionsSigned
+  allowIdpInitiated.value = data.allowIdpInitiated
+  sessionLifetimeSecs.value = data.sessionLifetimeSecs != null ? String(data.sessionLifetimeSecs) : ''
+}
+
+async function load(): Promise<void> {
+  const data = await run(() => api.get<SamlProvider>(`/api/prohibitorum/saml-providers/${id}`))
+  if (!data) { if (error.value?.code === 'credential_not_found') notFound.value = true; return }
+  sp.value = data
+  seedForm(data)
+}
+
+async function save(): Promise<void> {
+  localError.value = ''
+  saved.value = false
+  reingestDone.value = false
+  const secs = sessionLifetimeSecs.value.trim()
+  if (secs !== '' && !/^\d+$/.test(secs)) { localError.value = t('admin.saml.sessionLifetimeInvalid'); return }
+  const updated = await run(() => withSudo(() => api.put<SamlProvider>(`/api/prohibitorum/saml-providers/${id}`, {
+    displayName: displayName.value,
+    nameIdFormat: nameIdFormat.value,
+    requireSignedAuthnRequest: requireSignedAuthnRequest.value,
+    wantAssertionsSigned: wantAssertionsSigned.value,
+    allowIdpInitiated: allowIdpInitiated.value,
+    ...(secs !== '' ? { sessionLifetimeSecs: Number(secs) } : {}),
+  })))
+  if (updated) { sp.value = updated; saved.value = true }
+}
+
+async function reingest(): Promise<void> {
+  localError.value = ''
+  saved.value = false
+  reingestDone.value = false
+  const res = await run(() => withSudo(() =>
+    api.post<SamlProvider>(`/api/prohibitorum/saml-providers/${id}/reingest-metadata`, { metadataXml: reingestXml.value })))
+  if (res) { sp.value = res; seedForm(res); reingestDone.value = true }
+}
+
+async function destroy(): Promise<void> {
+  localError.value = ''
+  saved.value = false
+  reingestDone.value = false
+  const ok = await run(() => withSudo(async () => {
+    await api.post('/api/prohibitorum/saml-providers/delete', { id })
+    return true as const
+  }))
+  confirmDelete.value = false
+  if (ok) router.push('/admin/saml-providers')
+}
+
+function bindingLabel(b: string): string {
+  if (b.endsWith('HTTP-POST')) return t('admin.saml.bindingPost')
+  if (b.endsWith('HTTP-Redirect')) return t('admin.saml.bindingRedirect')
+  return b
+}
+
+onMounted(load)
+</script>
+<template>
+  <div class="flex max-w-2xl flex-col gap-6">
+    <RouterLink to="/admin/saml-providers" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.saml.back') }}</RouterLink>
+    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <Alert v-if="localError" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ localError }}</AlertDescription></Alert>
+    <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.saml.notFound') }}</p>
+
+    <template v-else-if="sp">
+      <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ sp.displayName }}</h1>
+
+      <!-- Config card -->
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.saml.configTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <Label>{{ t('admin.saml.entityId') }}</Label>
+            <p class="font-mono text-sm text-muted">{{ sp.entityId }}</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="displayName">{{ t('admin.saml.displayName') }}</Label>
+            <Input id="displayName" name="displayName" v-model="displayName" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="nameIdFormat">{{ t('admin.saml.nameIdFormat') }}</Label>
+            <Input id="nameIdFormat" name="nameIdFormat" v-model="nameIdFormat" />
+          </div>
+          <label class="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" v-model="requireSignedAuthnRequest" />
+            {{ t('admin.saml.requireSignedAuthn') }}
+          </label>
+          <label class="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" v-model="wantAssertionsSigned" />
+            {{ t('admin.saml.wantAssertionsSigned') }}
+          </label>
+          <label class="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" v-model="allowIdpInitiated" />
+            {{ t('admin.saml.allowIdpInitiated') }}
+          </label>
+          <div class="flex flex-col gap-1.5">
+            <Label for="sessionLifetimeSecs">{{ t('admin.saml.sessionLifetime') }}</Label>
+            <Input id="sessionLifetimeSecs" name="sessionLifetimeSecs" v-model="sessionLifetimeSecs" inputmode="numeric" />
+          </div>
+          <div class="flex items-center gap-3">
+            <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.saml.save') }}</Button>
+            <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.saml.saved') }}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- ACS card -->
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.saml.acsTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-3">
+          <p v-if="!sp.acs.length" class="text-sm text-muted">—</p>
+          <div v-for="(row, i) in sp.acs" :key="i" class="flex min-w-0 flex-col gap-0.5 text-sm">
+            <span class="break-all font-mono text-ink">{{ row.location }}</span>
+            <span class="text-muted">{{ bindingLabel(row.binding) }} · index {{ row.index }}<template v-if="row.isDefault"> · default</template></span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- Certificates card -->
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.saml.keysTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-3">
+          <p v-if="!sp.keys.length" class="text-sm text-muted">—</p>
+          <div v-for="(key, i) in sp.keys" :key="i" class="flex flex-col gap-0.5 text-sm">
+            <span class="text-ink">{{ key.use }}</span>
+            <span class="text-muted">{{ t('admin.saml.certExpires') }} {{ formatDateTime(key.notAfter) }}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- Re-ingest metadata card -->
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.saml.reingest') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-3">
+          <Label for="reingestXml">{{ t('admin.saml.metadataXml') }}</Label>
+          <Textarea id="reingestXml" name="reingestXml" v-model="reingestXml" :placeholder="t('admin.saml.metadataHint')" />
+          <div class="flex items-center gap-3">
+            <Button type="button" :disabled="busy || !reingestXml" data-test="reingest" @click="reingest">{{ t('admin.saml.reingest') }}</Button>
+            <span v-if="reingestDone" class="text-sm text-sage" role="status">{{ t('admin.saml.reingestDone') }}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- Danger zone card -->
+      <Card class="border-destructive/30 bg-destructive/[0.02]">
+        <CardHeader><CardTitle class="text-destructive">{{ t('admin.saml.dangerTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-3">
+          <p class="text-sm text-muted">{{ t('admin.saml.deleteHelp') }}</p>
+          <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.saml.delete') }}</Button>
+        </CardContent>
+      </Card>
+    </template>
+
+    <ConfirmDialog :open="confirmDelete" :title="t('admin.saml.deleteConfirmTitle')" :confirm-label="t('admin.saml.delete')" :busy="busy"
+      @update:open="(v) => { if (!v) confirmDelete = false }" @cancel="confirmDelete = false" @confirm="destroy">
+      {{ t('admin.saml.deleteConfirmBody') }}
+    </ConfirmDialog>
+  </div>
+</template>
