@@ -29,6 +29,13 @@ func (f fakeClientQueries) GetOIDCClient(_ context.Context, clientID string) (db
 	return c, nil
 }
 
+// errorClientQueries always returns a fixed error from GetOIDCClient.
+type errorClientQueries struct{ err error }
+
+func (e errorClientQueries) GetOIDCClient(_ context.Context, _ string) (db.OidcClient, error) {
+	return db.OidcClient{}, e.err
+}
+
 func mustHash(t *testing.T, secret string) string {
 	t.Helper()
 	phc, err := password.HashRaw(secret, password.DefaultParams())
@@ -246,5 +253,98 @@ func TestClientBasicMethodFormOnlyRejected(t *testing.T) {
 	// postForm sends client_id + client_secret in the POST body, no Basic header.
 	if _, err := authenticateClient(context.Background(), q, postForm("cid", "s3cr3t")); !errors.Is(err, errInvalidClient) {
 		t.Fatalf("expected errInvalidClient for basic client authenticated via form only, got %v", err)
+	}
+}
+
+func TestAuthenticateClientTimingEqualization(t *testing.T) {
+	// spy records each (secret, phc) verifyClientSecret call.
+	type call struct{ secret, phc string }
+	var calls []call
+
+	orig := verifyClientSecret
+	verifyClientSecret = func(secret, phc string) bool {
+		calls = append(calls, call{secret, phc})
+		return orig(secret, phc) // delegate so known-good paths still authenticate
+	}
+	defer func() { verifyClientSecret = orig }()
+
+	// A known confidential client registered for client_secret_post.
+	const knownSecret = "kn0wn-s3cr3t"
+	known := confidentialClient(t, "known", knownSecret, "client_secret_post")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"known": known}}
+
+	// Case A: unknown client_id + secret via form → errInvalidClient AND a
+	// dummy verify ran (calls[0].phc == dummyClientSecretPHC).
+	calls = nil
+	_, err := authenticateClient(context.Background(), q, postForm("ghost", "some-secret"))
+	if !errors.Is(err, errInvalidClient) {
+		t.Fatalf("case A: expected errInvalidClient, got %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("case A: expected 1 verify call (dummy), got %d", len(calls))
+	}
+	if calls[0].phc != dummyClientSecretPHC {
+		t.Fatalf("case A: verify was called against %q, want dummyClientSecretPHC", calls[0].phc)
+	}
+
+	// Case A2: unknown client_id + secret via Basic → same dummy-verify behaviour.
+	calls = nil
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+	req.SetBasicAuth("ghost", "some-secret")
+	_, err = authenticateClient(context.Background(), q, req)
+	if !errors.Is(err, errInvalidClient) {
+		t.Fatalf("case A2: expected errInvalidClient, got %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("case A2: expected 1 verify call (dummy), got %d", len(calls))
+	}
+	if calls[0].phc != dummyClientSecretPHC {
+		t.Fatalf("case A2: verify was called against %q, want dummyClientSecretPHC", calls[0].phc)
+	}
+
+	// Case B: unknown client_id + NO secret → errInvalidClient AND no argon2
+	// runs (no verify call at all).
+	calls = nil
+	_, err = authenticateClient(context.Background(), q, postForm("ghost", ""))
+	if !errors.Is(err, errInvalidClient) {
+		t.Fatalf("case B: expected errInvalidClient, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("case B: expected 0 verify calls (no secret), got %d", len(calls))
+	}
+
+	// Case C: known confidential client + WRONG secret → errInvalidClient AND
+	// a verify ran against the REAL client hash (not dummyClientSecretPHC).
+	calls = nil
+	_, err = authenticateClient(context.Background(), q, postForm("known", "wrong"))
+	if !errors.Is(err, errInvalidClient) {
+		t.Fatalf("case C: expected errInvalidClient, got %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("case C: expected 1 verify call (real hash), got %d", len(calls))
+	}
+	if calls[0].phc == dummyClientSecretPHC {
+		t.Fatal("case C: verify was called against the dummy PHC — should use the real client hash")
+	}
+	if calls[0].phc != known.ClientSecretHash.String {
+		t.Fatalf("case C: verify PHC = %q, want real client hash %q", calls[0].phc, known.ClientSecretHash.String)
+	}
+
+	// Case D: infra error from loadClient (not errInvalidClient, e.g. DB down) +
+	// a presented secret → error is returned AND the dummy verify is NOT run.
+	// Burning argon2 on an infra error is wasteful and pointless: no oracle exists
+	// between known/unknown client_ids when the DB itself is failing.
+	calls = nil
+	dbDown := errors.New("db down")
+	qErr := errorClientQueries{err: dbDown}
+	_, err = authenticateClient(context.Background(), qErr, postForm("any-client", "some-secret"))
+	if err == nil {
+		t.Fatal("case D: expected non-nil error, got nil")
+	}
+	if errors.Is(err, errInvalidClient) {
+		t.Fatalf("case D: expected raw infra error, got errInvalidClient")
+	}
+	if len(calls) != 0 {
+		t.Fatalf("case D: expected 0 verify calls on infra error, got %d", len(calls))
 	}
 }

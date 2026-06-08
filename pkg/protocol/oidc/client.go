@@ -19,6 +19,24 @@ import (
 // full OAuth error set; for now this lives here.
 var errInvalidClient = errors.New("oidc: invalid client")
 
+// dummyClientSecretPHC is a fixed argon2id hash using the SAME parameters as
+// real client secrets (password.DefaultParams). On the unknown-client path we
+// verify the presented secret against it to burn an equivalent argon2id cost,
+// so request timing cannot distinguish a known confidential client (which runs
+// a full verify) from an unknown one. Computed once at package load.
+var dummyClientSecretPHC = func() string {
+	phc, err := password.HashRaw("timing-equalizer", password.DefaultParams())
+	if err != nil {
+		panic("oidc: precompute dummy client secret PHC: " + err.Error())
+	}
+	return phc
+}()
+
+// verifyClientSecret is the secret-verification seam. It is assigned once at
+// init and is overridden ONLY by non-parallel tests (no t.Parallel) so the
+// swap is race-free; do not add t.Parallel to tests that swap it.
+var verifyClientSecret = password.VerifyRaw
+
 // clientQueries is the subset of db.Querier that client.go needs. Mirrors
 // the narrow-interface pattern used by keys.go's signingKeyQueries so this
 // file stays independently compilable and unit-testable with a fake.
@@ -86,12 +104,19 @@ func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (
 
 	client, err := loadClient(ctx, q, clientID)
 	if err != nil {
-		// FUTURE HARDENING: on the not-found path we return before any
-		// argon2 verify, so request timing can distinguish a known client
-		// (which then runs a ~full argon2id verify) from an unknown one.
-		// A constant-time-equalizing dummy verify against a fixed valid PHC
-		// would close this enumeration oracle. Deferred: no Store is wired
-		// into this package yet, and correctness is the priority for v0.4.
+		// Timing-oracle defense: equalize the unknown/disabled-client path with
+		// the known-client wrong-secret path (which runs a full argon2id verify).
+		// Only for the errInvalidClient case (the actual oracle) and only when a
+		// secret was presented — don't burn argon2 on infra errors or on
+		// unauthenticated requests. (No net-new DoS surface vs the known-client
+		// wrong-secret path, which already accepts unauthenticated argon2 burns.)
+		presentedSecret := basicSecret
+		if presentedSecret == "" {
+			presentedSecret = formSecret
+		}
+		if presentedSecret != "" && errors.Is(err, errInvalidClient) {
+			_ = verifyClientSecret(presentedSecret, dummyClientSecretPHC)
+		}
 		return db.OidcClient{}, err
 	}
 
@@ -104,7 +129,7 @@ func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (
 		if !client.ClientSecretHash.Valid {
 			return db.OidcClient{}, errInvalidClient
 		}
-		if !password.VerifyRaw(basicSecret, client.ClientSecretHash.String) {
+		if !verifyClientSecret(basicSecret, client.ClientSecretHash.String) {
 			return db.OidcClient{}, errInvalidClient
 		}
 
@@ -116,7 +141,7 @@ func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (
 		if !client.ClientSecretHash.Valid {
 			return db.OidcClient{}, errInvalidClient
 		}
-		if !password.VerifyRaw(formSecret, client.ClientSecretHash.String) {
+		if !verifyClientSecret(formSecret, client.ClientSecretHash.String) {
 			return db.OidcClient{}, errInvalidClient
 		}
 
