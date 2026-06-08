@@ -1,0 +1,57 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-08-self-service-admin-reads.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: PUT /me (self displayName)",
+      "status": "pending",
+      "description": "**Goal:** Session-authed PUT /me updating only the caller's display_name (no sudo). Files: pkg/contract/auth.go (OperationUpdateMe), pkg/server/handle_me.go (handleUpdateMe), server.go, handle_me_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_me.go\",\"pkg/server/server.go\",\"pkg/server/handle_me_test.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./... && go vet ./...\",\"acceptanceCriteria\":[\"PUT /me validates+UpdateAccountDisplayName+returns SessionView\",\"only display_name changes\",\"invalid → invalid_display_name, no sudo\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: GET /me/factors",
+      "status": "pending",
+      "description": "**Goal:** Read returning {passwordSet,totpEnrolled,recoveryCodesRemaining,passkeyCount} (no sudo). Files: pkg/contract/auth.go (MeFactorsView+OperationGetMyFactors), handle_me.go (handleGetMyFactors), server.go, handle_me_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_me.go\",\"pkg/server/server.go\",\"pkg/server/handle_me_test.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./...\",\"acceptanceCriteria\":[\"GET /me/factors 4 fields\",\"password row exists; totp ConfirmedAt.Valid; len(recovery); CountCredentials\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: FE profile edit + security factor badges",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** ProfileView displayName edit via PUT /me; SecurityView factor badges from GET /me/factors. Files: ProfileView.vue, SecurityView.vue, security/{Password,Totp,RecoveryCodes}Card.vue, stores/auth.ts, locales/en.ts + tests.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/ProfileView.vue\",\"dashboard/src/pages/SecurityView.vue\",\"dashboard/src/pages/security/PasswordCard.vue\",\"dashboard/src/pages/security/TotpCard.vue\",\"dashboard/src/pages/security/RecoveryCodesCard.vue\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/ProfileView.test.ts src/pages/SecurityView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"Profile edit→PUT /me→patch store→exit edit\",\"Security mounts→/me/factors→3 badges\",\"username+role read-only\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Admin GET /accounts/{id}/sessions + per-session revoke",
+      "status": "pending",
+      "description": "**Goal:** Admin list a target account's sessions + revoke one (admin+sudo). Files: pkg/contract/auth.go (OperationListAccountSessions), handle_account.go (handleListAccountSessions + raw handleRevokeAccountSessionHTTP), server.go, handle_account_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_account.go\",\"pkg/server/server.go\",\"pkg/server/handle_account_test.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./...\",\"acceptanceCriteria\":[\"GET /accounts/{id}/sessions admin, isCurrent=false, 404 if no account\",\"POST .../sessions/revoke {sessionId} admin+sudo; ok=false→session_not_found\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: FE admin per-session table + row revoke",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** AdminAccountDetailView per-session table + per-row revoke (withSudo), keep bulk revoke. Files: AdminAccountDetailView.vue, locales/en.ts + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminAccountDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin/AdminAccountDetailView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"load→GET sessions→table\",\"row revoke→withSudo POST→reload; bulk stays\",\"empty state\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: SAML PUT attribute_map/name_id_claim + alias fix",
+      "status": "pending",
+      "description": "**Goal:** UpdateSAMLSP persists name_id_claim+attribute_map; view exposes; remove authn_requests_signed=$4 clobber. Files: db/queries/saml_sp.sql (+sqlc), handle_admin_saml_sps.go, contract/auth.go (SAMLProviderView), test.\n\n```json:metadata\n{\"files\":[\"db/queries/saml_sp.sql\",\"pkg/db\",\"pkg/server/handle_admin_saml_sps.go\",\"pkg/contract/auth.go\",\"pkg/server/handle_admin_saml_sps_test.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./... && go vet ./...\",\"acceptanceCriteria\":[\"UpdateSAMLSP sets name_id_claim+attribute_map; authn_requests_signed removed from SET\",\"PUT accepts nameIdClaim+attributeMap(JSON-validated); view+GET expose\",\"changing only requireSignedAuthnRequest leaves authn_requests_signed unchanged\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: FE SAML provider name_id_claim + attribute_map fields",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** AdminSamlProviderDetailView nameIdClaim text input + attributeMap JSON textarea (client-validated). Files: AdminSamlProviderDetailView.vue, locales/en.ts + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminSamlProviderDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin/AdminSamlProviderDetailView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"nameIdClaim input + attributeMap textarea seeded\",\"save sends both; invalid JSON → inline error, no PUT\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: FE admin account attributes editor",
+      "status": "pending",
+      "description": "**Goal:** AdminAccountDetailView key/value attributes editor; Save includes rebuilt attributes in existing PUT /accounts/{id} (backend unchanged). Files: AdminAccountDetailView.vue, locales/en.ts + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminAccountDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin/AdminAccountDetailView.test.ts && npx vue-tsc --noEmit\",\"acceptanceCriteria\":[\"editable key/value rows; add/remove\",\"Save includes rebuilt attributes in PUT\",\"non-string existing values preserved/read-only\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-08T00:00:00Z"
+}
