@@ -279,12 +279,13 @@ var OperationCreateInvitation = huma.Operation{
 // InvitationView is the server-side projection of a pending enrollment row,
 // including the URL so admin clients don't have to reconstruct it.
 type InvitationView struct {
-	Token      string         `json:"token"`
-	URL        string         `json:"url"`
-	Role       string         `json:"role"`
-	Attributes map[string]any `json:"attributes,omitempty"`
-	CreatedAt  time.Time      `json:"createdAt"`
-	ExpiresAt  time.Time      `json:"expiresAt"`
+	Token                   string         `json:"token"`
+	URL                     string         `json:"url"`
+	Role                    string         `json:"role"`
+	Attributes              map[string]any `json:"attributes,omitempty"`
+	ExpectedUpstreamIdpSlug *string        `json:"expectedUpstreamIdpSlug,omitempty"`
+	CreatedAt               time.Time      `json:"createdAt"`
+	ExpiresAt               time.Time      `json:"expiresAt"`
 }
 
 var OperationListInvitations = huma.Operation{

@@ -526,12 +526,26 @@ func (s *Server) handleReissueEnrollment(ctx context.Context, in *reissueEnrollm
 	}}, nil
 }
 
-// ----- POST /invitations -----------------------------------------------------
+// ----- POST /invitations / GET /invitations ----------------------------------
+
+// invitationQueries is the query surface the invitation handlers need.
+// IssueEnrollment (called by handleCreateInvitation) takes db.Querier, so the
+// full interface is required here. Tests inject a fake via
+// Server.invitationOverride; production falls back to s.queries.
+type invitationQueries = db.Querier
+
+func (s *Server) invitationQ() db.Querier {
+	if s.invitationOverride != nil {
+		return s.invitationOverride
+	}
+	return s.queries
+}
 
 type createInvitationIn struct {
 	Body struct {
-		Role       string         `json:"role"`
-		Attributes map[string]any `json:"attributes,omitempty"`
+		Role                    string         `json:"role"`
+		Attributes              map[string]any `json:"attributes,omitempty"`
+		ExpectedUpstreamIdpSlug *string        `json:"expectedUpstreamIdpSlug,omitempty"`
 	}
 }
 
@@ -544,10 +558,11 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		return nil, authErrToHuma(authn.ErrInvalidRole())
 	}
 	tpl := &enrollment.EnrollmentTemplate{
-		Role:       in.Body.Role,
-		Attributes: in.Body.Attributes,
+		Role:                    in.Body.Role,
+		Attributes:              in.Body.Attributes,
+		ExpectedUpstreamIDPSlug: in.Body.ExpectedUpstreamIdpSlug,
 	}
-	token, expiresAt, err := enrollment.IssueEnrollment(ctx, s.queries, enrollment.IntentInvite, nil, 0, tpl)
+	token, expiresAt, err := enrollment.IssueEnrollment(ctx, s.invitationQ(), enrollment.IntentInvite, nil, 0, tpl)
 	if err != nil {
 		return nil, fmt.Errorf("handleCreateInvitation: issue enrollment: %w", err)
 	}
@@ -579,7 +594,7 @@ type listInvitationsOut struct {
 }
 
 func (s *Server) handleListInvitations(ctx context.Context, _ *struct{}) (*listInvitationsOut, error) {
-	rows, err := s.queries.ListPendingInvitations(ctx)
+	rows, err := s.invitationQ().ListPendingInvitations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("handleListInvitations: %w", err)
 	}
@@ -590,14 +605,19 @@ func (s *Server) handleListInvitations(ctx context.Context, _ *struct{}) (*listI
 			role = r.TemplateRole.String
 		}
 		attrs := enrollment.DecodeTemplateAttributes(r.TemplateAttributes)
-		views = append(views, contract.InvitationView{
+		view := contract.InvitationView{
 			Token:      r.Token,
 			URL:        s.config.PublicOrigins[0] + "/enroll/" + r.Token,
 			Role:       role,
 			Attributes: attrs,
 			CreatedAt:  r.CreatedAt.Time,
 			ExpiresAt:  r.ExpiresAt.Time,
-		})
+		}
+		if r.ExpectedUpstreamIdpSlug.Valid {
+			slug := r.ExpectedUpstreamIdpSlug.String
+			view.ExpectedUpstreamIdpSlug = &slug
+		}
+		views = append(views, view)
 	}
 	return &listInvitationsOut{Body: views}, nil
 }

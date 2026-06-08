@@ -81,6 +81,10 @@ type Server struct {
 	// handleListFederationProvidersHTTP without standing up *db.Queries. Nil
 	// in production — falls back to s.queries.
 	listFedOverride listFedQueries
+	// invitationOverride lets tests inject a fake for the invitation handlers
+	// (handleCreateInvitation, handleListInvitations) without standing up
+	// *db.Queries. Nil in production — falls back to s.queries.
+	invitationOverride db.Querier
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
