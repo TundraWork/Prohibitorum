@@ -150,6 +150,13 @@ var OperationGetMe = huma.Operation{
 	Summary:     "Return the authenticated session view.",
 }
 
+var OperationUpdateMe = huma.Operation{
+	OperationID: "updateMe",
+	Method:      http.MethodPut,
+	Path:        "/me",
+	Summary:     "Update the caller's own profile (display name only).",
+}
+
 var OperationListMyCredentials = huma.Operation{
 	OperationID: "listMyCredentials",
 	Method:      http.MethodGet,

@@ -38,6 +38,53 @@ func (s *Server) handleGetMe(ctx context.Context, _ *struct{}) (*meOut, error) {
 	return &meOut{Body: sessionView(sess.Account)}, nil
 }
 
+// ----- PUT /me ------------------------------------------------------------
+
+// updateMeQueries is the narrow DB surface handleUpdateMe requires.
+// Declared here so tests can stub it without constructing *db.Queries.
+// Production wiring (NewServer) leaves updateMeOverride nil and the handler
+// falls back to s.queries.
+type updateMeQueries interface {
+	UpdateAccountDisplayName(ctx context.Context, arg db.UpdateAccountDisplayNameParams) error
+}
+
+type updateMeIn struct {
+	Body struct {
+		DisplayName string `json:"displayName"`
+	}
+}
+
+func (s *Server) handleUpdateMe(ctx context.Context, in *updateMeIn) (*meOut, error) {
+	sess := authn.SessionFromContext(ctx)
+	if sess == nil {
+		return nil, authErrToHuma(authn.ErrNoSession())
+	}
+	if err := account.ValidateDisplayName(in.Body.DisplayName); err != nil {
+		return nil, authErrToHuma(err)
+	}
+	q := s.updateMeQueries()
+	if err := q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
+		ID:          sess.Account.ID,
+		DisplayName: in.Body.DisplayName,
+	}); err != nil {
+		return nil, fmt.Errorf("handleUpdateMe: %w", err)
+	}
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":        "auth.profile_updated_self",
+		"account_id":   sess.Account.ID,
+		"display_name": in.Body.DisplayName,
+	}).Info("auth")
+	sess.Account.DisplayName = in.Body.DisplayName
+	return &meOut{Body: sessionView(sess.Account)}, nil
+}
+
+func (s *Server) updateMeQueries() updateMeQueries {
+	if s.updateMeOverride != nil {
+		return s.updateMeOverride
+	}
+	return s.queries
+}
+
 // ----- GET /me/credentials -----------------------------------------------
 
 type credentialsOut struct {

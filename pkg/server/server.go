@@ -85,6 +85,10 @@ type Server struct {
 	// (handleCreateInvitation, handleListInvitations) without standing up
 	// *db.Queries. Nil in production — falls back to s.queries.
 	invitationOverride db.Querier
+	// updateMeOverride lets tests inject a fake updateMeQueries for
+	// handleUpdateMe without standing up *db.Queries. Nil in production —
+	// falls back to s.queries.
+	updateMeOverride updateMeQueries
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -317,6 +321,7 @@ func (s *Server) registerOperations() {
 
 	// /me
 	registerOp(mgmt, contract.OperationGetMe, s.handleGetMe, sessionReq)
+	registerOp(mgmt, contract.OperationUpdateMe, s.handleUpdateMe, sessionReq)
 	registerOp(mgmt, contract.OperationListMyCredentials, s.handleListMyCredentials, sessionReq)
 	registerOp(mgmt, contract.OperationDeleteMyCredential, s.handleDeleteMyCredential, sessionReq)
 	registerOp(mgmt, contract.OperationRenameMyCredential, s.handleRenameMyCredential, sessionReq)
