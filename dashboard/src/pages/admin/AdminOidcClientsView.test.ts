@@ -53,7 +53,7 @@ describe('AdminOidcClientsView', () => {
     await w.find('input[name="clientId"]').setValue('spa')
     await w.find('input[name="displayName"]').setValue('SPA')
     await w.find('textarea[name="redirectUris"]').setValue('https://s/cb')
-    await w.find('input[name="public"]').setValue(true)
+    await w.find('[data-test="public"]').trigger('click')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(w.text()).toContain(en.admin.oidc.created)
   })
