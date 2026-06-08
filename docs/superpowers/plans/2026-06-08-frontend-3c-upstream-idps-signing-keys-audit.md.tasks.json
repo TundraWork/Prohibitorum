@@ -31,7 +31,7 @@
     {
       "id": 5,
       "subject": "Task 5: AdminAuditView — filters + load-more + expandable detail",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** /admin/audit newest-first table, filters (factor/event/accountId/since/until), keyset load-more (before=lastId), per-row expandable pretty-JSON detail.\n\n**Files:** Create AdminAuditView.vue; Test AdminAuditView.test.ts\n\n**Verify:** cd dashboard && npx vitest run src/pages/admin/AdminAuditView.test.ts\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/AdminAuditView.vue\",\"dashboard/src/pages/admin/AdminAuditView.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/AdminAuditView.test.ts\", \"acceptanceCriteria\": [\"initial GET limit=50 newest-first\",\"filters Apply re-queries from top; Clear empties\",\"load-more before=lastId appends; hidden when <limit\",\"row expands to pretty JSON detail + userAgent\",\"empty state\"]}\n```"
     }
