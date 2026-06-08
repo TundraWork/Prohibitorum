@@ -24,7 +24,7 @@
     {
       "id": 4,
       "subject": "Task 4: Revoke transaction + lockout guard",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** CountUsableSignInFederation query; tighten AvailableMethods; guard ErrWouldRemoveLastFactor + tx + account-row lock.\n\n**Files:** db/queries/account_identity.sql (+sqlc), pkg/authn/flow.go, errors.go, pkg/server/handle_me_revoke_pwd_totp.go, pkg/authn/flow_test.go\n\n**Verify:** go test ./pkg/authn/... ./pkg/server/...\n\n```json:metadata\n{\"files\":[\"db/queries/account_identity.sql\",\"pkg/db\",\"pkg/authn/flow.go\",\"pkg/authn/errors.go\",\"pkg/server/handle_me_revoke_pwd_totp.go\",\"pkg/authn/flow_test.go\"],\"verifyCommand\":\"go test ./pkg/authn/... ./pkg/server/... && go build ./... && go vet ./...\",\"acceptanceCriteria\":[\"CountUsableSignInFederation excludes disabled upstream\",\"AvailableMethods uses it\",\"guard ErrWouldRemoveLastFactor no deletes\",\"deletes in tx + FOR UPDATE prod path\",\"existing no-pool unit tests pass\"]}\n```"
     },
     {
