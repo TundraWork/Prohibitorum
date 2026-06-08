@@ -10,7 +10,7 @@
     {
       "id": 2,
       "subject": "Task 2: GET /me/factors",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Read returning {passwordSet,totpEnrolled,recoveryCodesRemaining,passkeyCount} (no sudo). Files: pkg/contract/auth.go (MeFactorsView+OperationGetMyFactors), handle_me.go (handleGetMyFactors), server.go, handle_me_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_me.go\",\"pkg/server/server.go\",\"pkg/server/handle_me_test.go\"],\"verifyCommand\":\"go test ./pkg/server/... && go build ./...\",\"acceptanceCriteria\":[\"GET /me/factors 4 fields\",\"password row exists; totp ConfirmedAt.Valid; len(recovery); CountCredentials\"]}\n```"
     },
     {
