@@ -36,6 +36,8 @@ interface SamlProvider {
   entityId: string
   displayName: string
   nameIdFormat: string
+  nameIdClaim: string
+  attributeMap: unknown
   requireSignedAuthnRequest: boolean
   wantAssertionsSigned: boolean
   allowIdpInitiated: boolean
@@ -57,6 +59,9 @@ const localError = ref('')
 
 const displayName = ref('')
 const nameIdFormat = ref('')
+const nameIdClaim = ref('')
+const attributeMapText = ref('[]')
+const attributeMapError = ref('')
 const requireSignedAuthnRequest = ref(false)
 const wantAssertionsSigned = ref(false)
 const allowIdpInitiated = ref(false)
@@ -78,6 +83,9 @@ const errorText = computed(() => {
 function seedForm(data: SamlProvider): void {
   displayName.value = data.displayName
   nameIdFormat.value = data.nameIdFormat
+  nameIdClaim.value = data.nameIdClaim ?? ''
+  attributeMapText.value = JSON.stringify(data.attributeMap ?? [], null, 2)
+  attributeMapError.value = ''
   requireSignedAuthnRequest.value = data.requireSignedAuthnRequest
   wantAssertionsSigned.value = data.wantAssertionsSigned
   allowIdpInitiated.value = data.allowIdpInitiated
@@ -93,19 +101,29 @@ async function load(): Promise<void> {
 
 async function save(): Promise<void> {
   localError.value = ''
+  attributeMapError.value = ''
   saved.value = false
   reingestDone.value = false
   const secs = sessionLifetimeSecs.value.trim()
   if (secs !== '' && !/^\d+$/.test(secs)) { localError.value = t('admin.saml.sessionLifetimeInvalid'); return }
+  let parsedAttributeMap: unknown
+  try {
+    parsedAttributeMap = JSON.parse(attributeMapText.value)
+  } catch {
+    attributeMapError.value = t('admin.saml.attributeMapInvalid')
+    return
+  }
   const updated = await run(() => withSudo(() => api.put<SamlProvider>(`/api/prohibitorum/saml-providers/${id}`, {
     displayName: displayName.value,
     nameIdFormat: nameIdFormat.value,
+    nameIdClaim: nameIdClaim.value,
+    attributeMap: parsedAttributeMap,
     requireSignedAuthnRequest: requireSignedAuthnRequest.value,
     wantAssertionsSigned: wantAssertionsSigned.value,
     allowIdpInitiated: allowIdpInitiated.value,
     ...(secs !== '' ? { sessionLifetimeSecs: Number(secs) } : {}),
   })))
-  if (updated) { sp.value = updated; saved.value = true }
+  if (updated) { sp.value = updated; seedForm(updated); saved.value = true }
 }
 
 async function reingest(): Promise<void> {
@@ -162,6 +180,16 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="nameIdFormat">{{ t('admin.saml.nameIdFormat') }}</Label>
             <Input id="nameIdFormat" name="nameIdFormat" v-model="nameIdFormat" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="nameIdClaim">{{ t('admin.saml.nameIdClaim') }}</Label>
+            <Input id="nameIdClaim" name="nameIdClaim" v-model="nameIdClaim" data-test="saml-nameIdClaim" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="attributeMap">{{ t('admin.saml.attributeMap') }}</Label>
+            <Textarea id="attributeMap" name="attributeMap" v-model="attributeMapText" :rows="8" data-test="saml-attributeMap" />
+            <p class="text-xs text-muted">{{ t('admin.saml.attributeMapHint') }}</p>
+            <p v-if="attributeMapError" class="text-xs text-destructive" data-test="saml-attributeMap-error">{{ attributeMapError }}</p>
           </div>
           <label class="flex items-center gap-2 text-sm text-ink">
             <input type="checkbox" v-model="requireSignedAuthnRequest" />

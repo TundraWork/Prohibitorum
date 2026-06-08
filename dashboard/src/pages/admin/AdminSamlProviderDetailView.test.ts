@@ -12,7 +12,7 @@ import AdminSamlProviderDetailView from './AdminSamlProviderDetailView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminSamlProviderDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
-const SP = { id: 5, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', requireSignedAuthnRequest: false, wantAssertionsSigned: true, allowIdpInitiated: true, sessionLifetimeSecs: 3600, acs: [{ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://sp/acs', index: 0, isDefault: true }], keys: [{ use: 'signing', notAfter: '2027-01-01T00:00:00Z' }], createdAt: '2026-01-01T00:00:00Z' }
+const SP = { id: 5, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', nameIdClaim: 'email', attributeMap: [{ name: 'USERNAME', name_format: 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', source: 'username', multi: false }], requireSignedAuthnRequest: false, wantAssertionsSigned: true, allowIdpInitiated: true, sessionLifetimeSecs: 3600, acs: [{ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://sp/acs', index: 0, isDefault: true }], keys: [{ use: 'signing', notAfter: '2027-01-01T00:00:00Z' }], createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) { const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label)); b[b.length - 1]!.click() }
 beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset() })
 
@@ -56,5 +56,35 @@ describe('AdminSamlProviderDetailView', () => {
     clickConfirm(en.admin.saml.delete); await flushPromises()
     expect(push).not.toHaveBeenCalled()
     expect(w.text()).toContain(en.errors.credential_not_found)
+  })
+  it('seeds nameIdClaim and attributeMap from the loaded provider', async () => {
+    get.mockResolvedValue(SP)
+    const w = mountView(); await flushPromises()
+    const claimInput = w.find<HTMLInputElement>('[data-test="saml-nameIdClaim"]')
+    expect(claimInput.element.value).toBe('email')
+    const mapTextarea = w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]')
+    expect(JSON.parse(mapTextarea.element.value)).toEqual(SP.attributeMap)
+  })
+  it('sends nameIdClaim and attributeMap (parsed) in PUT body alongside other fields', async () => {
+    get.mockResolvedValue(SP); put.mockResolvedValue({ ...SP, nameIdClaim: 'uid', attributeMap: [] })
+    const w = mountView(); await flushPromises()
+    await w.find<HTMLInputElement>('[data-test="saml-nameIdClaim"]').setValue('uid')
+    await w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]').setValue('[]')
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-providers/5', expect.objectContaining({
+      nameIdClaim: 'uid',
+      attributeMap: [],
+      displayName: 'GHES',
+      allowIdpInitiated: true,
+    }))
+    expect(w.text()).toContain(en.admin.saml.saved)
+  })
+  it('shows inline error and does not call PUT when attributeMap is invalid JSON', async () => {
+    get.mockResolvedValue(SP)
+    const w = mountView(); await flushPromises()
+    await w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]').setValue('{bad json')
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    expect(put).not.toHaveBeenCalled()
+    expect(w.find('[data-test="saml-attributeMap-error"]').text()).toBe(en.admin.saml.attributeMapInvalid)
   })
 })
