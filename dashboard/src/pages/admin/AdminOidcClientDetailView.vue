@@ -146,11 +146,13 @@ onMounted(load)
             <Label>{{ t('admin.oidc.redirectUris') }}</Label>
             <ListInput v-model="redirectUris" name="redirectUris" inputmode="url"
               :add-label="t('admin.oidc.addRedirectUri')" :placeholder="t('admin.oidc.redirectUriPlaceholder')" :validate="validateUri" />
+            <p class="text-xs text-muted">{{ t('admin.oidc.redirectUrisDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.oidc.postLogoutUris') }}</Label>
             <ListInput v-model="postLogoutUris" name="postLogoutUris" inputmode="url"
               :add-label="t('admin.oidc.addPostLogoutUri')" :placeholder="t('admin.oidc.postLogoutPlaceholder')" :validate="validateUri" />
+            <p class="text-xs text-muted">{{ t('admin.oidc.postLogoutUrisDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <span class="text-sm font-medium text-ink">{{ t('admin.oidc.scopes') }}</span>
@@ -168,6 +170,7 @@ onMounted(load)
                 email
               </label>
             </div>
+            <p class="text-xs text-muted">{{ t('admin.oidc.scopesNote') }}</p>
           </div>
           <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">
             <Switch id="requireConsent" v-model="requireConsent" />

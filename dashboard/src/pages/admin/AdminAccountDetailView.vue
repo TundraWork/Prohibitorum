@@ -199,6 +199,7 @@ onMounted(load)
             <Label>{{ t('admin.account.role') }}</Label>
             <SegmentedControl v-model="role" :aria-label="t('admin.account.role')"
               :options="[{value:'user',label:t('admin.account.roleUser')},{value:'admin',label:t('admin.account.roleAdmin')}]" />
+            <p class="text-xs text-muted">{{ t('admin.account.roleDesc') }}</p>
           </div>
           <SettingRow :label="t('admin.account.disabledLabel')" :description="t('admin.account.disabledDesc')" for="disabled">
             <Switch id="disabled" data-test="disabled" v-model="disabled" />

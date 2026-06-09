@@ -95,6 +95,7 @@ onMounted(load)
           <Label>{{ t('admin.invitations.role') }}</Label>
           <SegmentedControl v-model="newRole" :aria-label="t('admin.invitations.role')"
             :options="[{value:'user',label:t('admin.invitations.roleUser')},{value:'admin',label:t('admin.invitations.roleAdmin')}]" />
+          <p class="text-xs text-muted">{{ t('admin.invitations.roleDesc') }}</p>
         </div>
         <div class="flex flex-col gap-1.5">
           <Label for="newIdp">{{ t('admin.invitations.requireMethod') }}</Label>
@@ -105,6 +106,7 @@ onMounted(load)
               <SelectItem v-for="idp in idps" :key="idp.slug" :value="idp.slug">{{ idp.displayName }}</SelectItem>
             </SelectContent>
           </Select>
+          <p class="text-xs text-muted">{{ t('admin.invitations.requireMethodDesc') }}</p>
         </div>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.invitations.create') }}</Button>

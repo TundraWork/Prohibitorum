@@ -57,22 +57,18 @@ describe('AdminSamlProviderDetailView', () => {
     expect(push).not.toHaveBeenCalled()
     expect(w.text()).toContain(en.errors.credential_not_found)
   })
-  it('seeds nameIdClaim and attributeMap from the loaded provider', async () => {
+  it('seeds attributeMap from the loaded provider', async () => {
     get.mockResolvedValue(SP)
     const w = mountView(); await flushPromises()
-    const claimInput = w.find<HTMLInputElement>('[data-test="saml-nameIdClaim"]')
-    expect(claimInput.element.value).toBe('email')
     const mapTextarea = w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]')
     expect(JSON.parse(mapTextarea.element.value)).toEqual(SP.attributeMap)
   })
-  it('sends nameIdClaim and attributeMap (parsed) in PUT body alongside other fields', async () => {
-    get.mockResolvedValue(SP); put.mockResolvedValue({ ...SP, nameIdClaim: 'uid', attributeMap: [] })
+  it('sends attributeMap (parsed) in PUT body alongside other fields', async () => {
+    get.mockResolvedValue(SP); put.mockResolvedValue({ ...SP, attributeMap: [] })
     const w = mountView(); await flushPromises()
-    await w.find<HTMLInputElement>('[data-test="saml-nameIdClaim"]').setValue('uid')
     await w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]').setValue('[]')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5', expect.objectContaining({
-      nameIdClaim: 'uid',
       attributeMap: [],
       displayName: 'GHES',
       allowIdpInitiated: true,

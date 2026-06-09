@@ -101,6 +101,7 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="slug">{{ t('admin.upstream.slug') }}</Label>
             <Input id="slug" name="slug" v-model="slug" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.slugDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.upstream.displayName') }}</Label>
@@ -109,6 +110,7 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
             <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.issuerUrlDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
@@ -121,6 +123,7 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
             <TagInput input-id="scopes" v-model="scopes" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
           </div>
         </FormSection>
         <FormSection :title="t('admin.upstream.sectionProvisioning')">
@@ -145,14 +148,17 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
             <Input id="usernameClaim" name="usernameClaim" v-model="usernameClaim" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.usernameClaimDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayNameClaim">{{ t('admin.upstream.displayNameClaim') }}</Label>
             <Input id="displayNameClaim" name="displayNameClaim" v-model="displayNameClaim" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.displayNameClaimDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
             <Input id="emailClaim" name="emailClaim" v-model="emailClaim" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.emailClaimDesc') }}</p>
           </div>
         </FormSection>
         <div class="flex gap-2">

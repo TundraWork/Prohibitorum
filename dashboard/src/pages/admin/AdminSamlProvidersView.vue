@@ -66,7 +66,6 @@ const acsRows = ref<AcsRow[]>([])
 
 // Shared flags
 const requireSignedAuthnRequest = ref(false)
-const wantAssertionsSigned = ref(false)
 const allowIdpInitiated = ref(false)
 
 const errorText = computed(() => {
@@ -92,7 +91,6 @@ function openCreate(): void {
   nameIdFormat.value = ''
   acsRows.value = []
   requireSignedAuthnRequest.value = false
-  wantAssertionsSigned.value = false
   allowIdpInitiated.value = false
   created.value = false
   createOpen.value = true
@@ -136,7 +134,6 @@ async function create(): Promise<void> {
       metadataXml: metadataXml.value,
       displayName: metadataDisplayName.value || undefined,
       requireSignedAuthnRequest: requireSignedAuthnRequest.value,
-      wantAssertionsSigned: wantAssertionsSigned.value,
       allowIdpInitiated: allowIdpInitiated.value,
     }
   } else {
@@ -145,7 +142,6 @@ async function create(): Promise<void> {
       entityId: entityId.value,
       nameIdFormat: nameIdFormat.value || undefined,
       requireSignedAuthnRequest: requireSignedAuthnRequest.value,
-      wantAssertionsSigned: wantAssertionsSigned.value,
       allowIdpInitiated: allowIdpInitiated.value,
       acs: acsRows.value.map(({ id: _id, ...rest }) => rest),
     }
@@ -199,10 +195,12 @@ onMounted(load)
             <div class="flex flex-col gap-1.5">
               <Label for="entityId">{{ t('admin.saml.entityId') }}</Label>
               <Input id="entityId" name="entityId" v-model="entityId" />
+              <p class="text-xs text-muted">{{ t('admin.saml.entityIdDesc') }}</p>
             </div>
             <div class="flex flex-col gap-1.5">
               <Label for="nameIdFormat">{{ t('admin.saml.nameIdFormat') }}</Label>
               <Input id="nameIdFormat" name="nameIdFormat" v-model="nameIdFormat" />
+              <p class="text-xs text-muted">{{ t('admin.saml.nameIdFormatDesc') }}</p>
             </div>
 
             <!-- ACS rows -->
@@ -240,9 +238,6 @@ onMounted(load)
           <span class="text-sm font-medium text-ink">{{ t('admin.saml.securityTitle') }}</span>
           <SettingRow :label="t('admin.saml.requireSignedAuthn')" :description="t('admin.saml.requireSignedAuthnDesc')" for="requireSignedAuthnRequest">
             <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
-          </SettingRow>
-          <SettingRow :label="t('admin.saml.wantAssertionsSigned')" :description="t('admin.saml.wantAssertionsSignedDesc')" for="wantAssertionsSigned">
-            <Switch id="wantAssertionsSigned" v-model="wantAssertionsSigned" />
           </SettingRow>
           <SettingRow :label="t('admin.saml.allowIdpInitiated')" :description="t('admin.saml.allowIdpInitiatedDesc')" for="allowIdpInitiated">
             <Switch id="allowIdpInitiated" v-model="allowIdpInitiated" />

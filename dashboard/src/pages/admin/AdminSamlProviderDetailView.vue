@@ -61,11 +61,9 @@ const localError = ref('')
 
 const displayName = ref('')
 const nameIdFormat = ref('')
-const nameIdClaim = ref('')
 const attributeMapText = ref('[]')
 const attributeMapError = ref('')
 const requireSignedAuthnRequest = ref(false)
-const wantAssertionsSigned = ref(false)
 const allowIdpInitiated = ref(false)
 const sessionLifetimeSecs = ref('')
 const saved = ref(false)
@@ -85,11 +83,9 @@ const errorText = computed(() => {
 function seedForm(data: SamlApplication): void {
   displayName.value = data.displayName
   nameIdFormat.value = data.nameIdFormat
-  nameIdClaim.value = data.nameIdClaim ?? ''
   attributeMapText.value = JSON.stringify(data.attributeMap ?? [], null, 2)
   attributeMapError.value = ''
   requireSignedAuthnRequest.value = data.requireSignedAuthnRequest
-  wantAssertionsSigned.value = data.wantAssertionsSigned
   allowIdpInitiated.value = data.allowIdpInitiated
   sessionLifetimeSecs.value = data.sessionLifetimeSecs != null ? String(data.sessionLifetimeSecs) : ''
 }
@@ -118,10 +114,8 @@ async function save(): Promise<void> {
   const updated = await run(() => withSudo(() => api.put<SamlApplication>(`/api/prohibitorum/saml-applications/${id}`, {
     displayName: displayName.value,
     nameIdFormat: nameIdFormat.value,
-    nameIdClaim: nameIdClaim.value,
     attributeMap: parsedAttributeMap,
     requireSignedAuthnRequest: requireSignedAuthnRequest.value,
-    wantAssertionsSigned: wantAssertionsSigned.value,
     allowIdpInitiated: allowIdpInitiated.value,
     ...(secs !== '' ? { sessionLifetimeSecs: Number(secs) } : {}),
   })))
@@ -175,6 +169,7 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.saml.entityId') }}</Label>
             <p class="font-mono text-sm text-muted">{{ sp.entityId }}</p>
+            <p class="text-xs text-muted">{{ t('admin.saml.entityIdDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.saml.displayName') }}</Label>
@@ -183,13 +178,11 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="nameIdFormat">{{ t('admin.saml.nameIdFormat') }}</Label>
             <Input id="nameIdFormat" name="nameIdFormat" v-model="nameIdFormat" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="nameIdClaim">{{ t('admin.saml.nameIdClaim') }}</Label>
-            <Input id="nameIdClaim" name="nameIdClaim" v-model="nameIdClaim" data-test="saml-nameIdClaim" />
+            <p class="text-xs text-muted">{{ t('admin.saml.nameIdFormatDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="attributeMap">{{ t('admin.saml.attributeMap') }}</Label>
+            <p class="text-xs text-muted">{{ t('admin.saml.attributeMapPurpose') }}</p>
             <Textarea id="attributeMap" name="attributeMap" v-model="attributeMapText" :rows="8" data-test="saml-attributeMap" />
             <p class="text-xs text-muted">{{ t('admin.saml.attributeMapHint') }}</p>
             <p v-if="attributeMapError" class="text-xs text-destructive" data-test="saml-attributeMap-error">{{ attributeMapError }}</p>
@@ -198,9 +191,6 @@ onMounted(load)
             <SettingRow :label="t('admin.saml.requireSignedAuthn')" :description="t('admin.saml.requireSignedAuthnDesc')" for="requireSignedAuthnRequest">
               <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
             </SettingRow>
-            <SettingRow :label="t('admin.saml.wantAssertionsSigned')" :description="t('admin.saml.wantAssertionsSignedDesc')" for="wantAssertionsSigned">
-              <Switch id="wantAssertionsSigned" v-model="wantAssertionsSigned" />
-            </SettingRow>
             <SettingRow :label="t('admin.saml.allowIdpInitiated')" :description="t('admin.saml.allowIdpInitiatedDesc')" for="allowIdpInitiated">
               <Switch id="allowIdpInitiated" v-model="allowIdpInitiated" />
             </SettingRow>
@@ -208,6 +198,7 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="sessionLifetimeSecs">{{ t('admin.saml.sessionLifetime') }}</Label>
             <Input id="sessionLifetimeSecs" name="sessionLifetimeSecs" v-model="sessionLifetimeSecs" inputmode="numeric" />
+            <p class="text-xs text-muted">{{ t('admin.saml.sessionLifetimeDesc') }}</p>
           </div>
           </div><!-- /max-w-xl -->
           <div class="flex items-center gap-3">

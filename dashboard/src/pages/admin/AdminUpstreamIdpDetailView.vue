@@ -107,6 +107,7 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
             <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.issuerUrlDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
@@ -122,6 +123,7 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
             <TagInput input-id="scopes" v-model="scopes" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.upstream.allowedDomains') }}</Label>
@@ -132,14 +134,17 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
             <Input id="usernameClaim" name="usernameClaim" v-model="usernameClaim" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.usernameClaimDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayNameClaim">{{ t('admin.upstream.displayNameClaim') }}</Label>
             <Input id="displayNameClaim" name="displayNameClaim" v-model="displayNameClaim" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.displayNameClaimDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
             <Input id="emailClaim" name="emailClaim" v-model="emailClaim" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.emailClaimDesc') }}</p>
           </div>
           <SettingRow :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
             <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />

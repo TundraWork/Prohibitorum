@@ -136,6 +136,7 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="clientId">{{ t('admin.oidc.clientId') }}</Label>
             <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.oidc.clientIdDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.oidc.displayName') }}</Label>
@@ -147,11 +148,13 @@ onMounted(load)
             <Label>{{ t('admin.oidc.redirectUris') }}</Label>
             <ListInput v-model="redirectUris" name="redirectUris" inputmode="url"
               :add-label="t('admin.oidc.addRedirectUri')" :placeholder="t('admin.oidc.redirectUriPlaceholder')" :validate="validateUri" />
+            <p class="text-xs text-muted">{{ t('admin.oidc.redirectUrisDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.oidc.postLogoutUris') }}</Label>
             <ListInput v-model="postLogoutUris" name="postLogoutUris" inputmode="url"
               :add-label="t('admin.oidc.addPostLogoutUri')" :placeholder="t('admin.oidc.postLogoutPlaceholder')" :validate="validateUri" />
+            <p class="text-xs text-muted">{{ t('admin.oidc.postLogoutUrisDesc') }}</p>
           </div>
         </FormSection>
         <FormSection :title="t('admin.oidc.sectionScopes')">
@@ -169,6 +172,7 @@ onMounted(load)
               email
             </label>
           </div>
+          <p class="text-xs text-muted">{{ t('admin.oidc.scopesNote') }}</p>
         </FormSection>
         <FormSection :title="t('admin.oidc.sectionOptions')">
           <SettingRow :label="t('admin.oidc.publicClient')" :description="t('admin.oidc.publicClientDesc')" for="public">
