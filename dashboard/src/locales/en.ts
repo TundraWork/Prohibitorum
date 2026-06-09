@@ -22,6 +22,7 @@ export default {
     language: 'Language',
     copy: 'Copy',
     copied: 'Copied',
+    remove: 'Remove',
   },
 
   nav: {
