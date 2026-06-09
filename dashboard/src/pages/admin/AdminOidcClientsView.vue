@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CodeField from '@/components/custom/CodeField.vue'
-import TagInput from '@/components/custom/TagInput.vue'
+import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 
@@ -144,14 +144,14 @@ onMounted(load)
         </FormSection>
         <FormSection :title="t('admin.oidc.sectionEndpoints')">
           <div class="flex flex-col gap-1.5">
-            <Label for="redirectUris">{{ t('admin.oidc.redirectUris') }}</Label>
-            <TagInput input-id="redirectUris" v-model="redirectUris" :placeholder="t('admin.oidc.urisHint')"
-              :validate="validateUri" :aria-label="t('admin.oidc.redirectUris')" />
+            <Label>{{ t('admin.oidc.redirectUris') }}</Label>
+            <ListInput v-model="redirectUris" name="redirectUris" inputmode="url"
+              :add-label="t('admin.oidc.addRedirectUri')" :placeholder="t('admin.oidc.redirectUriPlaceholder')" :validate="validateUri" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <Label for="postLogoutUris">{{ t('admin.oidc.postLogoutUris') }}</Label>
-            <TagInput input-id="postLogoutUris" v-model="postLogoutUris" :placeholder="t('admin.oidc.urisHint')"
-              :validate="validateUri" :aria-label="t('admin.oidc.postLogoutUris')" />
+            <Label>{{ t('admin.oidc.postLogoutUris') }}</Label>
+            <ListInput v-model="postLogoutUris" name="postLogoutUris" inputmode="url"
+              :add-label="t('admin.oidc.addPostLogoutUri')" :placeholder="t('admin.oidc.postLogoutPlaceholder')" :validate="validateUri" />
           </div>
         </FormSection>
         <FormSection :title="t('admin.oidc.sectionScopes')">

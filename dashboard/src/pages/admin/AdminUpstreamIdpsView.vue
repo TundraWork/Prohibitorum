@@ -16,6 +16,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import RadioCardGroup from '@/components/custom/RadioCardGroup.vue'
 import TagInput from '@/components/custom/TagInput.vue'
+import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 
@@ -131,8 +132,10 @@ onMounted(load)
               {value:'link_only',title:t('admin.upstream.modeLinkOnly'),description:t('admin.upstream.modeLinkOnlyDesc')}]" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <Label for="allowedDomains">{{ t('admin.upstream.allowedDomains') }}</Label>
-            <TagInput input-id="allowedDomains" v-model="allowedDomains" :placeholder="t('admin.upstream.domainsHint')" :validate="validateDomain" :aria-label="t('admin.upstream.allowedDomains')" />
+            <Label>{{ t('admin.upstream.allowedDomains') }}</Label>
+            <ListInput v-model="allowedDomains" name="allowedDomains"
+              :add-label="t('admin.upstream.addDomain')" :placeholder="t('admin.upstream.domainPlaceholder')" :validate="validateDomain" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.domainsHint') }}</p>
           </div>
           <SettingRow :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
             <Switch id="requireVerifiedEmail" data-test="requireVerifiedEmail" v-model="requireVerifiedEmail" />

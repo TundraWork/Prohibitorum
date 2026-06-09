@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import RadioCardGroup from '@/components/custom/RadioCardGroup.vue'
 import TagInput from '@/components/custom/TagInput.vue'
+import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
 
@@ -123,8 +124,10 @@ onMounted(load)
             <TagInput input-id="scopes" v-model="scopes" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <Label for="allowedDomains">{{ t('admin.upstream.allowedDomains') }}</Label>
-            <TagInput input-id="allowedDomains" v-model="allowedDomains" :placeholder="t('admin.upstream.domainsHint')" :validate="validateDomain" :aria-label="t('admin.upstream.allowedDomains')" />
+            <Label>{{ t('admin.upstream.allowedDomains') }}</Label>
+            <ListInput v-model="allowedDomains" name="allowedDomains"
+              :add-label="t('admin.upstream.addDomain')" :placeholder="t('admin.upstream.domainPlaceholder')" :validate="validateDomain" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.domainsHint') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
