@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import SettingRow from '@/components/custom/SettingRow.vue'
 
 interface AcsEndpoint {
   binding: string
@@ -170,6 +171,7 @@ onMounted(load)
       <Card>
         <CardHeader><CardTitle>{{ t('admin.saml.configTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
+          <div class="flex max-w-xl flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.saml.entityId') }}</Label>
             <p class="font-mono text-sm text-muted">{{ sp.entityId }}</p>
@@ -193,23 +195,21 @@ onMounted(load)
             <p v-if="attributeMapError" class="text-xs text-destructive" data-test="saml-attributeMap-error">{{ attributeMapError }}</p>
           </div>
           <div class="flex flex-col gap-3">
-            <div class="flex items-center justify-between gap-3">
-              <Label for="requireSignedAuthnRequest" class="font-normal text-ink">{{ t('admin.saml.requireSignedAuthn') }}</Label>
+            <SettingRow :label="t('admin.saml.requireSignedAuthn')" :description="t('admin.saml.requireSignedAuthnDesc')" for="requireSignedAuthnRequest">
               <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
-            </div>
-            <div class="flex items-center justify-between gap-3">
-              <Label for="wantAssertionsSigned" class="font-normal text-ink">{{ t('admin.saml.wantAssertionsSigned') }}</Label>
+            </SettingRow>
+            <SettingRow :label="t('admin.saml.wantAssertionsSigned')" :description="t('admin.saml.wantAssertionsSignedDesc')" for="wantAssertionsSigned">
               <Switch id="wantAssertionsSigned" v-model="wantAssertionsSigned" />
-            </div>
-            <div class="flex items-center justify-between gap-3">
-              <Label for="allowIdpInitiated" class="font-normal text-ink">{{ t('admin.saml.allowIdpInitiated') }}</Label>
+            </SettingRow>
+            <SettingRow :label="t('admin.saml.allowIdpInitiated')" :description="t('admin.saml.allowIdpInitiatedDesc')" for="allowIdpInitiated">
               <Switch id="allowIdpInitiated" v-model="allowIdpInitiated" />
-            </div>
+            </SettingRow>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="sessionLifetimeSecs">{{ t('admin.saml.sessionLifetime') }}</Label>
             <Input id="sessionLifetimeSecs" name="sessionLifetimeSecs" v-model="sessionLifetimeSecs" inputmode="numeric" />
           </div>
+          </div><!-- /max-w-xl -->
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.saml.save') }}</Button>
             <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.saml.saved') }}</span>

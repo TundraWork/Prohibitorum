@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
-import { Select } from '@/components/ui/select'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
 vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
@@ -42,7 +41,7 @@ describe('AdminUpstreamIdpsView', () => {
     await w.find('input[name="issuerUrl"]').setValue('https://new/')
     await w.find('input[name="clientId"]').setValue('cid')
     await w.find('input[name="clientSecret"]').setValue('sek')
-    await w.findComponent(Select).vm.$emit('update:modelValue', 'link_only'); await flushPromises()
+    await w.find('[data-test="radio-card-link_only"]').trigger('click'); await flushPromises()
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({
       slug: 'new', displayName: 'New', issuerUrl: 'https://new/', clientId: 'cid', clientSecret: 'sek', mode: 'link_only',

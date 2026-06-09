@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import SegmentedControl from '@/components/custom/SegmentedControl.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
@@ -91,14 +92,9 @@ onMounted(load)
     <Card v-if="createOpen">
       <CardContent class="flex flex-col gap-3 py-4">
         <div class="flex flex-col gap-1.5">
-          <Label for="newRole">{{ t('admin.invitations.role') }}</Label>
-          <Select v-model="newRole">
-            <SelectTrigger id="newRole" name="newRole" data-test="newRole" class="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="user">{{ t('admin.invitations.roleUser') }}</SelectItem>
-              <SelectItem value="admin">{{ t('admin.invitations.roleAdmin') }}</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label>{{ t('admin.invitations.role') }}</Label>
+          <SegmentedControl v-model="newRole" :aria-label="t('admin.invitations.role')"
+            :options="[{value:'user',label:t('admin.invitations.roleUser')},{value:'admin',label:t('admin.invitations.roleAdmin')}]" />
         </div>
         <div class="flex flex-col gap-1.5">
           <Label for="newIdp">{{ t('admin.invitations.requireMethod') }}</Label>

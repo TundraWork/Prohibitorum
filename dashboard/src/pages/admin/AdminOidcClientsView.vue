@@ -12,11 +12,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CodeField from '@/components/custom/CodeField.vue'
+import TagInput from '@/components/custom/TagInput.vue'
+import SettingRow from '@/components/custom/SettingRow.vue'
+import FormSection from '@/components/custom/FormSection.vue'
 
 interface OidcApplication {
   clientId: string
@@ -42,8 +44,8 @@ const revealedSecret = ref('')
 // Create form state
 const clientId = ref('')
 const displayName = ref('')
-const redirectUris = ref('')
-const postLogoutUris = ref('')
+const redirectUris = ref<string[]>([])
+const postLogoutUris = ref<string[]>([])
 const scopes = ref<string[]>(['openid'])
 const isPublic = ref(false)
 const requireConsent = ref(false)
@@ -55,16 +57,21 @@ const errorText = computed(() => {
   return te(key) ? t(key) : e.message || t('common.error')
 })
 
+function validateUri(s: string): string | null {
+  try {
+    const u = new URL(s)
+    return (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol.length > 0) ? null : t('admin.oidc.uriInvalid')
+  } catch {
+    return t('admin.oidc.uriInvalid')
+  }
+}
+
 async function load(): Promise<void> {
   const res = await run(() => api.get<OidcApplication[]>('/api/prohibitorum/oidc-applications'))
   if (res) rows.value = res
 }
 
 function go(id: string): void { router.push(`/admin/oidc-applications/${id}`) }
-
-function lines(s: string): string[] {
-  return s.split('\n').map((x) => x.trim()).filter(Boolean)
-}
 
 function toggleScope(scope: string, checked: boolean): void {
   if (checked && !scopes.value.includes(scope)) {
@@ -79,8 +86,8 @@ async function create(): Promise<void> {
   const res = await run(() => withSudo(() => api.post<{ clientId: string; secret?: string }>('/api/prohibitorum/oidc-applications', {
     clientId: clientId.value,
     displayName: displayName.value,
-    redirectUris: lines(redirectUris.value),
-    postLogoutRedirectUris: lines(postLogoutUris.value),
+    redirectUris: redirectUris.value,
+    postLogoutRedirectUris: postLogoutUris.value,
     scopes: scopes.value,
     public: isPublic.value,
     requireConsent: requireConsent.value,
@@ -97,8 +104,8 @@ function openCreate(): void {
   // Reset form state
   clientId.value = ''
   displayName.value = ''
-  redirectUris.value = ''
-  postLogoutUris.value = ''
+  redirectUris.value = []
+  postLogoutUris.value = []
   scopes.value = ['openid']
   isPublic.value = false
   requireConsent.value = false
@@ -124,25 +131,30 @@ onMounted(load)
     </template>
 
     <Card v-if="createOpen">
-      <CardContent class="flex flex-col gap-3 py-4">
-        <div class="flex flex-col gap-1.5">
-          <Label for="clientId">{{ t('admin.oidc.clientId') }}</Label>
-          <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <Label for="displayName">{{ t('admin.oidc.displayName') }}</Label>
-          <Input id="displayName" name="displayName" v-model="displayName" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <Label for="redirectUris">{{ t('admin.oidc.redirectUris') }}</Label>
-          <Textarea id="redirectUris" name="redirectUris" v-model="redirectUris" :placeholder="t('admin.oidc.urisHint')" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <Label for="postLogoutUris">{{ t('admin.oidc.postLogoutUris') }}</Label>
-          <Textarea id="postLogoutUris" name="postLogoutRedirectUris" v-model="postLogoutUris" :placeholder="t('admin.oidc.urisHint')" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-ink">{{ t('admin.oidc.scopes') }}</span>
+      <CardContent class="flex max-w-xl flex-col gap-4 py-4">
+        <FormSection :title="t('admin.oidc.sectionBasics')">
+          <div class="flex flex-col gap-1.5">
+            <Label for="clientId">{{ t('admin.oidc.clientId') }}</Label>
+            <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="displayName">{{ t('admin.oidc.displayName') }}</Label>
+            <Input id="displayName" name="displayName" v-model="displayName" />
+          </div>
+        </FormSection>
+        <FormSection :title="t('admin.oidc.sectionEndpoints')">
+          <div class="flex flex-col gap-1.5">
+            <Label for="redirectUris">{{ t('admin.oidc.redirectUris') }}</Label>
+            <TagInput input-id="redirectUris" v-model="redirectUris" :placeholder="t('admin.oidc.urisHint')"
+              :validate="validateUri" :aria-label="t('admin.oidc.redirectUris')" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="postLogoutUris">{{ t('admin.oidc.postLogoutUris') }}</Label>
+            <TagInput input-id="postLogoutUris" v-model="postLogoutUris" :placeholder="t('admin.oidc.urisHint')"
+              :validate="validateUri" :aria-label="t('admin.oidc.postLogoutUris')" />
+          </div>
+        </FormSection>
+        <FormSection :title="t('admin.oidc.sectionScopes')">
           <div class="flex flex-col gap-1">
             <label class="flex items-center gap-2 text-sm text-ink">
               <Checkbox :model-value="scopes.includes('openid')" disabled />
@@ -157,15 +169,15 @@ onMounted(load)
               email
             </label>
           </div>
-        </div>
-        <div class="flex items-center justify-between gap-3">
-          <Label for="public" class="font-normal text-ink">{{ t('admin.oidc.publicClient') }}</Label>
-          <Switch id="public" name="public" data-test="public" v-model="isPublic" />
-        </div>
-        <div class="flex items-center justify-between gap-3">
-          <Label for="requireConsent" class="font-normal text-ink">{{ t('admin.oidc.requireConsent') }}</Label>
-          <Switch id="requireConsent" name="requireConsent" v-model="requireConsent" />
-        </div>
+        </FormSection>
+        <FormSection :title="t('admin.oidc.sectionOptions')">
+          <SettingRow :label="t('admin.oidc.publicClient')" :description="t('admin.oidc.publicClientDesc')" for="public">
+            <Switch id="public" name="public" data-test="public" v-model="isPublic" />
+          </SettingRow>
+          <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">
+            <Switch id="requireConsent" v-model="requireConsent" />
+          </SettingRow>
+        </FormSection>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.oidc.create') }}</Button>
           <Button type="button" variant="outline" :disabled="busy" data-test="create-cancel" @click="createOpen = false">{{ t('common.cancel') }}</Button>

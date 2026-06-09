@@ -14,12 +14,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
+import TagInput from '@/components/custom/TagInput.vue'
+import SettingRow from '@/components/custom/SettingRow.vue'
 
 interface OidcApplication {
   clientId: string
@@ -43,8 +44,8 @@ const client = ref<OidcApplication | null>(null)
 const notFound = ref(false)
 
 const displayName = ref('')
-const redirectUris = ref('')
-const postLogoutUris = ref('')
+const redirectUris = ref<string[]>([])
+const postLogoutUris = ref<string[]>([])
 const scopes = ref<string[]>(['openid'])
 const requireConsent = ref(false)
 const disabled = ref(false)
@@ -61,8 +62,13 @@ const errorText = computed(() => {
   return te(key) ? t(key) : e.message || t('common.error')
 })
 
-function lines(s: string): string[] {
-  return s.split('\n').map((x) => x.trim()).filter(Boolean)
+function validateUri(s: string): string | null {
+  try {
+    const u = new URL(s)
+    return (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol.length > 0) ? null : t('admin.oidc.uriInvalid')
+  } catch {
+    return t('admin.oidc.uriInvalid')
+  }
 }
 
 function toggleScope(scope: string, checked: boolean): void {
@@ -78,8 +84,8 @@ async function load(): Promise<void> {
   if (!c) { if (error.value?.code === 'client_not_found') notFound.value = true; return }
   client.value = c
   displayName.value = c.displayName
-  redirectUris.value = c.redirectUris.join('\n')
-  postLogoutUris.value = c.postLogoutRedirectUris.join('\n')
+  redirectUris.value = [...c.redirectUris]
+  postLogoutUris.value = [...c.postLogoutRedirectUris]
   scopes.value = [...c.allowedScopes]
   requireConsent.value = c.requireConsent
   disabled.value = c.disabled
@@ -90,8 +96,8 @@ async function save(): Promise<void> {
   rotatedSecret.value = ''
   const updated = await run(() => withSudo(() => api.put<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}`, {
     displayName: displayName.value,
-    redirectUris: lines(redirectUris.value),
-    postLogoutRedirectUris: lines(postLogoutUris.value),
+    redirectUris: redirectUris.value,
+    postLogoutRedirectUris: postLogoutUris.value,
     allowedScopes: scopes.value,
     requireConsent: requireConsent.value,
     disabled: disabled.value,
@@ -131,18 +137,20 @@ onMounted(load)
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.oidc.configTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-4">
+        <CardContent class="flex max-w-xl flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.oidc.displayName') }}</Label>
             <Input id="displayName" name="displayName" v-model="displayName" />
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="redirectUris">{{ t('admin.oidc.redirectUris') }}</Label>
-            <Textarea id="redirectUris" name="redirectUris" v-model="redirectUris" :placeholder="t('admin.oidc.urisHint')" />
+            <TagInput input-id="redirectUris" v-model="redirectUris" :placeholder="t('admin.oidc.urisHint')"
+              :validate="validateUri" :aria-label="t('admin.oidc.redirectUris')" />
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="postLogoutUris">{{ t('admin.oidc.postLogoutUris') }}</Label>
-            <Textarea id="postLogoutUris" name="postLogoutRedirectUris" v-model="postLogoutUris" :placeholder="t('admin.oidc.urisHint')" />
+            <TagInput input-id="postLogoutUris" v-model="postLogoutUris" :placeholder="t('admin.oidc.urisHint')"
+              :validate="validateUri" :aria-label="t('admin.oidc.postLogoutUris')" />
           </div>
           <div class="flex flex-col gap-1.5">
             <span class="text-sm font-medium text-ink">{{ t('admin.oidc.scopes') }}</span>
@@ -161,14 +169,12 @@ onMounted(load)
               </label>
             </div>
           </div>
-          <div class="flex items-center justify-between gap-3">
-            <Label for="requireConsent" class="font-normal text-ink">{{ t('admin.oidc.requireConsent') }}</Label>
+          <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">
             <Switch id="requireConsent" v-model="requireConsent" />
-          </div>
-          <div class="flex items-center justify-between gap-3">
-            <Label for="disabled" class="font-normal text-ink">{{ t('admin.oidc.disabled') }}</Label>
+          </SettingRow>
+          <SettingRow :label="t('admin.oidc.disabled')" :description="t('admin.oidc.disabledDesc')" for="disabled">
             <Switch id="disabled" v-model="disabled" />
-          </div>
+          </SettingRow>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.oidc.save') }}</Button>
             <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.oidc.saved') }}</span>

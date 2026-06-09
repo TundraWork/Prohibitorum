@@ -39,8 +39,7 @@ describe('AdminInvitationsView', () => {
     post.mockResolvedValue({ url: 'https://x/enroll/new', expiresAt: '2026-06-10T00:00:00Z' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()
-    const selects = w.findAllComponents(Select)  // [0]=role, [1]=idp
-    await selects[0].vm.$emit('update:modelValue', 'admin'); await flushPromises()
+    await w.find('[data-test="segment-admin"]').trigger('click'); await flushPromises()
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'admin' })
     expect(w.text()).toContain(en.admin.invitations.created)
@@ -69,8 +68,8 @@ describe('AdminInvitationsView', () => {
     post.mockResolvedValue({ url: 'https://x/enroll/n', expiresAt: '2026-06-10T00:00:00Z' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()
-    const selects = w.findAllComponents(Select)  // [0]=role, [1]=idp
-    await selects[1].vm.$emit('update:modelValue', 'okta'); await flushPromises()
+    const selects = w.findAllComponents(Select)  // [0]=idp (role is now SegmentedControl)
+    await selects[0].vm.$emit('update:modelValue', 'okta'); await flushPromises()
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'user', expectedUpstreamIdpSlug: 'okta' })
   })

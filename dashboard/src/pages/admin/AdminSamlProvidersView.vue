@@ -15,9 +15,10 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import SegmentedControl from '@/components/custom/SegmentedControl.vue'
+import SettingRow from '@/components/custom/SettingRow.vue'
 
 const POST_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
 const REDIRECT_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect'
@@ -210,14 +211,9 @@ onMounted(load)
               <RadioGroup :model-value="defaultAcsKey" class="gap-2" @update:model-value="onDefaultChange">
                 <div v-for="(row, i) in acsRows" :key="row.id" class="flex flex-wrap items-end gap-3 rounded-md border p-2">
                   <div class="flex flex-col gap-1">
-                    <Label :for="`acs-binding-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsBinding') }}</Label>
-                    <Select v-model="row.binding">
-                      <SelectTrigger :id="`acs-binding-${i}`" class="w-44"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem :value="POST_URN">{{ t('admin.saml.bindingPost') }}</SelectItem>
-                        <SelectItem :value="REDIRECT_URN">{{ t('admin.saml.bindingRedirect') }}</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label class="text-xs text-muted">{{ t('admin.saml.acsBinding') }}</Label>
+                    <SegmentedControl v-model="row.binding" size="sm" :aria-label="t('admin.saml.acsBinding')"
+                      :options="[{value:POST_URN,label:t('admin.saml.bindingPost')},{value:REDIRECT_URN,label:t('admin.saml.bindingRedirect')}]" />
                   </div>
                   <div class="flex min-w-0 flex-1 flex-col gap-1">
                     <Label :for="`acs-location-${i}`" class="text-xs text-muted">{{ t('admin.saml.acsLocation') }}</Label>
@@ -241,18 +237,16 @@ onMounted(load)
 
         <!-- Shared flags -->
         <div class="flex flex-col gap-3 border-t pt-3">
-          <div class="flex items-center justify-between gap-3">
-            <Label for="requireSignedAuthnRequest" class="font-normal text-ink">{{ t('admin.saml.requireSignedAuthn') }}</Label>
+          <span class="text-sm font-medium text-ink">{{ t('admin.saml.securityTitle') }}</span>
+          <SettingRow :label="t('admin.saml.requireSignedAuthn')" :description="t('admin.saml.requireSignedAuthnDesc')" for="requireSignedAuthnRequest">
             <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
-          </div>
-          <div class="flex items-center justify-between gap-3">
-            <Label for="wantAssertionsSigned" class="font-normal text-ink">{{ t('admin.saml.wantAssertionsSigned') }}</Label>
+          </SettingRow>
+          <SettingRow :label="t('admin.saml.wantAssertionsSigned')" :description="t('admin.saml.wantAssertionsSignedDesc')" for="wantAssertionsSigned">
             <Switch id="wantAssertionsSigned" v-model="wantAssertionsSigned" />
-          </div>
-          <div class="flex items-center justify-between gap-3">
-            <Label for="allowIdpInitiated" class="font-normal text-ink">{{ t('admin.saml.allowIdpInitiated') }}</Label>
+          </SettingRow>
+          <SettingRow :label="t('admin.saml.allowIdpInitiated')" :description="t('admin.saml.allowIdpInitiatedDesc')" for="allowIdpInitiated">
             <Switch id="allowIdpInitiated" v-model="allowIdpInitiated" />
-          </div>
+          </SettingRow>
         </div>
 
         <div class="flex gap-2">

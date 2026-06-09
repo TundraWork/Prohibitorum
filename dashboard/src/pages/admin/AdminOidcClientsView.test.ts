@@ -38,7 +38,7 @@ describe('AdminOidcClientsView', () => {
     await w.find('[data-test="create"]').trigger('click')
     await w.find('input[name="clientId"]').setValue('new')
     await w.find('input[name="displayName"]').setValue('New')
-    await w.find('textarea[name="redirectUris"]').setValue('https://n/cb')
+    const ri = w.find('#redirectUris'); await ri.setValue('https://n/cb'); await ri.trigger('keydown.enter')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications', expect.objectContaining({
       clientId: 'new', displayName: 'New', redirectUris: ['https://n/cb'],
@@ -52,7 +52,7 @@ describe('AdminOidcClientsView', () => {
     await w.find('[data-test="create"]').trigger('click')
     await w.find('input[name="clientId"]').setValue('spa')
     await w.find('input[name="displayName"]').setValue('SPA')
-    await w.find('textarea[name="redirectUris"]').setValue('https://s/cb')
+    const ri2 = w.find('#redirectUris'); await ri2.setValue('https://s/cb'); await ri2.trigger('keydown.enter')
     await w.find('[data-test="public"]').trigger('click')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(w.text()).toContain(en.admin.oidc.created)
@@ -64,7 +64,7 @@ describe('AdminOidcClientsView', () => {
     await w.find('[data-test="create"]').trigger('click')
     await w.find('input[name="clientId"]').setValue('web')
     await w.find('input[name="displayName"]').setValue('Dup')
-    await w.find('textarea[name="redirectUris"]').setValue('https://w/cb')
+    const ri3 = w.find('#redirectUris'); await ri3.setValue('https://w/cb'); await ri3.trigger('keydown.enter')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(w.text()).toContain(en.errors.oidc_client_already_exists)
   })

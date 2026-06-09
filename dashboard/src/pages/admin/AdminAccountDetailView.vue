@@ -22,7 +22,8 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import SegmentedControl from '@/components/custom/SegmentedControl.vue'
+import SettingRow from '@/components/custom/SettingRow.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 
@@ -185,7 +186,7 @@ onMounted(load)
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.account.identityTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-4">
+        <CardContent class="flex max-w-xl flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.account.username') }}</Label>
             <p class="text-sm text-muted">@{{ account.username }}</p>
@@ -195,19 +196,13 @@ onMounted(load)
             <Input id="displayName" name="displayName" v-model="displayName" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <Label for="role">{{ t('admin.account.role') }}</Label>
-            <Select v-model="role">
-              <SelectTrigger id="role" name="role" data-test="role" class="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="user">{{ t('admin.account.roleUser') }}</SelectItem>
-                <SelectItem value="admin">{{ t('admin.account.roleAdmin') }}</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>{{ t('admin.account.role') }}</Label>
+            <SegmentedControl v-model="role" :aria-label="t('admin.account.role')"
+              :options="[{value:'user',label:t('admin.account.roleUser')},{value:'admin',label:t('admin.account.roleAdmin')}]" />
           </div>
-          <div class="flex items-center justify-between gap-3">
-            <Label for="disabled" class="font-normal text-ink">{{ t('admin.account.disabledLabel') }}</Label>
+          <SettingRow :label="t('admin.account.disabledLabel')" :description="t('admin.account.disabledDesc')" for="disabled">
             <Switch id="disabled" data-test="disabled" v-model="disabled" />
-          </div>
+          </SettingRow>
           <div class="flex flex-col gap-2">
             <Label>{{ t('admin.account.attributes') }}</Label>
             <p v-if="attrRows.length === 0 && !hasComplexAttrs" class="text-sm text-muted">{{ t('admin.account.attributesEmpty') }}</p>
