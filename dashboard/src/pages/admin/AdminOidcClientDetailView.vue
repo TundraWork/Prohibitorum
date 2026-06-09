@@ -137,7 +137,7 @@ onMounted(load)
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.oidc.configTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex max-w-xl flex-col gap-4">
+        <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.oidc.displayName') }}</Label>
             <Input id="displayName" name="displayName" v-model="displayName" />

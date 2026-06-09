@@ -131,7 +131,7 @@ onMounted(load)
     </template>
 
     <Card v-if="createOpen">
-      <CardContent class="flex max-w-xl flex-col gap-4 py-4">
+      <CardContent class="flex flex-col gap-4 py-4">
         <FormSection :title="t('admin.oidc.sectionBasics')">
           <div class="flex flex-col gap-1.5">
             <Label for="clientId">{{ t('admin.oidc.clientId') }}</Label>

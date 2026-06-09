@@ -186,7 +186,7 @@ onMounted(load)
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.account.identityTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex max-w-xl flex-col gap-4">
+        <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.account.username') }}</Label>
             <p class="text-sm text-muted">@{{ account.username }}</p>

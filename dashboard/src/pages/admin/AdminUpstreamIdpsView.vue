@@ -96,7 +96,7 @@ onMounted(load)
     <p v-if="created" class="text-sm text-sage" role="status">{{ t('admin.upstream.created') }}</p>
 
     <Card v-if="createOpen">
-      <CardContent class="flex max-w-xl flex-col gap-5 py-4">
+      <CardContent class="flex flex-col gap-5 py-4">
         <FormSection :title="t('admin.upstream.sectionConnection')">
           <div class="flex flex-col gap-1.5">
             <Label for="slug">{{ t('admin.upstream.slug') }}</Label>
