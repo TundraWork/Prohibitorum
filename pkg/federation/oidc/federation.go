@@ -188,7 +188,7 @@ func NewFederator(
 // BeginLogin starts a federated login flow. Caller is the unauthenticated
 // /api/prohibitorum/auth/federation/{slug}/start handler (Task 7).
 func (f *Federator) BeginLogin(ctx context.Context, idpSlug, returnTo string) (*LoginRequest, error) {
-	return f.begin(ctx, idpSlug, returnTo, nil, "")
+	return f.begin(ctx, idpSlug, returnTo, nil, "", nil, "")
 }
 
 // LinkBegin starts a link flow for an already-authenticated account. The
@@ -196,7 +196,41 @@ func (f *Federator) BeginLogin(ctx context.Context, idpSlug, returnTo string) (*
 // identity to a different account if the session changes mid-flow.
 func (f *Federator) LinkBegin(ctx context.Context, accountID int32, idpSlug, returnTo string) (*LoginRequest, error) {
 	id := accountID
-	return f.begin(ctx, idpSlug, returnTo, &id, "")
+	return f.begin(ctx, idpSlug, returnTo, &id, "", nil, "")
+}
+
+// SudoBegin starts a forced-re-auth federation flow for the sudo step-up. The
+// account must already have a linked identity at an enabled idpSlug; the
+// callback (Task 3) requires the re-auth to resolve back to that same subject
+// (ExpectedSub), so re-authenticating as a different upstream user can't
+// satisfy the gate. Unlike LinkBegin, the sudo flow carries the anti-forgery
+// browser-binding cookie (linkingAccountID stays nil), and the authorize URL
+// forces a fresh credential prompt via StepUpAuthOptions (prompt=login,
+// max_age=0).
+func (f *Federator) SudoBegin(ctx context.Context, accountID int32, idpSlug, returnTo string) (*LoginRequest, error) {
+	if _, err := f.q.GetUpstreamIDPBySlug(ctx, idpSlug); err != nil {
+		// Collapse "no row", "disabled", and "DB error" — the query excludes
+		// disabled rows, so a disabled provider takes the same not-found path.
+		return nil, ErrUnknownIDP
+	}
+	idents, err := f.q.ListAccountIdentitiesByAccount(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("federation/oidc: list identities: %w", err)
+	}
+	var expectedSub string
+	for _, id := range idents {
+		if id.IdpSlug == idpSlug {
+			expectedSub = id.UpstreamSub
+			break
+		}
+	}
+	if expectedSub == "" {
+		// Account has no linked identity at this provider — there's no subject
+		// to re-verify against, so this method is unavailable for the caller.
+		return nil, authn.ErrSudoMethodUnavailable()
+	}
+	acct := accountID
+	return f.begin(ctx, idpSlug, returnTo, nil, "", &acct, expectedSub)
 }
 
 // BeginInviteRedemption starts an invite-bound federated login flow. The
@@ -235,15 +269,19 @@ func (f *Federator) BeginInviteRedemption(ctx context.Context, token, returnTo s
 		return nil, authn.ErrInviteRequired()
 	}
 
-	return f.begin(ctx, enr.ExpectedUpstreamIdpSlug.String, returnTo, nil, token)
+	return f.begin(ctx, enr.ExpectedUpstreamIdpSlug.String, returnTo, nil, token, nil, "")
 }
 
-// begin is the shared BeginLogin / LinkBegin / BeginInviteRedemption body.
+// begin is the shared BeginLogin / LinkBegin / BeginInviteRedemption /
+// SudoBegin body.
 // linkingAccountID!=nil signals link flow (LinkKey + link-callback template);
 // enrollmentToken!="" signals invite flow (LoginKey, EnrollmentToken stashed
-// in FedState for HandleCallback to dispatch on). The two are mutually
-// exclusive — invite flow never has a current account.
-func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linkingAccountID *int32, enrollmentToken string) (*LoginRequest, error) {
+// in FedState for HandleCallback to dispatch on); sudoAccountID!=nil signals
+// sudo step-up (SudoKey, SudoAccountID+ExpectedSub stashed, and the authorize
+// URL forces a fresh credential prompt via StepUpAuthOptions). These signals
+// are mutually exclusive — invite flow never has a current account, and sudo
+// keeps linkingAccountID nil so it still earns the browser-binding cookie.
+func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linkingAccountID *int32, enrollmentToken string, sudoAccountID *int32, expectedSub string) (*LoginRequest, error) {
 	idp, err := f.q.GetUpstreamIDPBySlug(ctx, idpSlug)
 	if err != nil {
 		// Collapse "no row", "disabled", and "DB error" into one code.
@@ -299,6 +337,8 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		ReturnTo:              returnTo,
 		LinkingAccountID:      linkingAccountID,
 		EnrollmentToken:       enrollmentToken,
+		SudoAccountID:         sudoAccountID,
+		ExpectedSub:           expectedSub,
 		BrowserBinding:        browserBinding,
 	}
 	blob, err := state.Encode()
@@ -310,12 +350,23 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 	if linkingAccountID != nil {
 		key = LinkKey(stateToken)
 	}
+	if sudoAccountID != nil {
+		key = SudoKey(stateToken)
+	}
 	if err := f.kvStore.SetEx(ctx, key, blob, f.cfg.StateTTL); err != nil {
 		return nil, fmt.Errorf("federation/oidc: stash state: %w", err)
 	}
 
+	// The sudo step-up forces a fresh credential prompt at the OP so a stale
+	// upstream session can't silently satisfy the gate (prompt=login,
+	// max_age=0). Other flows use the OP's normal session behavior.
+	authorizeURL := client.AuthURL(stateToken, nonce, challenge)
+	if sudoAccountID != nil {
+		authorizeURL = client.AuthURL(stateToken, nonce, challenge, StepUpAuthOptions()...)
+	}
+
 	return &LoginRequest{
-		AuthorizeURL:     client.AuthURL(stateToken, nonce, challenge),
+		AuthorizeURL:     authorizeURL,
 		StateKey:         stateToken,
 		AntiForgeryToken: antiForgery,
 	}, nil

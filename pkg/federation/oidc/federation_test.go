@@ -1274,3 +1274,78 @@ func TestClient_ExchangePopulatesAuthTime(t *testing.T) {
 		t.Errorf("AuthTime %v is before expected window start %v", toks2.AuthTime, beforeAuth)
 	}
 }
+
+// TestFederator_SudoBegin_BindsStateAndForcesReauth verifies the sudo step-up
+// flow stashes state under the distinct SudoKey namespace, captures the linked
+// identity's subject as ExpectedSub, carries a browser binding (sudo flows set
+// the cookie), and forces re-auth via prompt=login + max_age=0.
+func TestFederator_SudoBegin_BindsStateAndForcesReauth(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	fx.q.identitiesByAccount[7] = []db.ListAccountIdentitiesByAccountRow{
+		{AccountID: 7, UpstreamIdpID: fx.idp.ID, UpstreamSub: "sub-1", IdpSlug: "mockop", IdpDisplayName: "Mock OP"},
+	}
+	req, err := fx.f.SudoBegin(context.Background(), 7, "mockop", "/security")
+	if err != nil {
+		t.Fatalf("SudoBegin: %v", err)
+	}
+
+	blob, err := fx.kvm.Get(context.Background(), federationoidc.SudoKey(req.StateKey))
+	if err != nil {
+		t.Fatalf("sudo state missing from SudoKey: %v", err)
+	}
+	st, err := federationoidc.DecodeFedState(blob)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if st.SudoAccountID == nil || *st.SudoAccountID != 7 {
+		t.Errorf("SudoAccountID = %v, want 7", st.SudoAccountID)
+	}
+	if st.ExpectedSub != "sub-1" {
+		t.Errorf("ExpectedSub = %q, want sub-1", st.ExpectedSub)
+	}
+	if st.BrowserBinding == "" {
+		t.Error("BrowserBinding empty, want non-empty (sudo flow carries the cookie)")
+	}
+	if req.AntiForgeryToken == "" {
+		t.Error("AntiForgeryToken empty, want non-empty (sudo flow sets the cookie)")
+	}
+	u, err := url.Parse(req.AuthorizeURL)
+	if err != nil {
+		t.Fatalf("parse AuthorizeURL: %v", err)
+	}
+	if u.Query().Get("prompt") != "login" || u.Query().Get("max_age") != "0" {
+		t.Errorf("authorize URL missing step-up params: %s", req.AuthorizeURL)
+	}
+	// not present under Login/Link keys
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.LoginKey(req.StateKey)); err == nil {
+		t.Error("sudo state should NOT be under LoginKey")
+	}
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.LinkKey(req.StateKey)); err == nil {
+		t.Error("sudo state should NOT be under LinkKey")
+	}
+}
+
+// TestFederator_SudoBegin_RejectsUnlinkedSlug verifies an account with no linked
+// identity at the slug cannot begin a sudo step-up (would have no subject to
+// re-verify against in the callback).
+func TestFederator_SudoBegin_RejectsUnlinkedSlug(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	// account 7 has NO linked identity
+	_, err := fx.f.SudoBegin(context.Background(), 7, "mockop", "/security")
+	if err == nil {
+		t.Fatal("want error for unlinked slug, got nil")
+	}
+}
+
+// TestFederator_SudoBegin_RejectsUnknownSlug verifies a disabled/unknown slug
+// (GetUpstreamIDPBySlug excludes disabled) yields the provider-not-found path.
+func TestFederator_SudoBegin_RejectsUnknownSlug(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	fx.q.identitiesByAccount[7] = []db.ListAccountIdentitiesByAccountRow{
+		{AccountID: 7, UpstreamIdpID: fx.idp.ID, UpstreamSub: "sub-1", IdpSlug: "mockop", IdpDisplayName: "Mock OP"},
+	}
+	_, err := fx.f.SudoBegin(context.Background(), 7, "no-such-slug", "/security")
+	if err == nil {
+		t.Fatal("want error for unknown slug, got nil")
+	}
+}

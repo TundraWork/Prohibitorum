@@ -62,6 +62,20 @@ type FedState struct {
 	// living in server-side KV only.
 	EnrollmentToken string `json:"enrollment_token,omitempty"`
 
+	// SudoAccountID, when non-nil, marks this as a sudo step-up flow: the
+	// callback handler must confirm the re-authenticated upstream identity
+	// resolves back to ExpectedSub for this account before satisfying the
+	// sudo gate. Like LinkingAccountID it is stored alongside the key-prefix
+	// separation (SudoKey) so a Pop bug can't cross-thread the flows. Sudo
+	// and link are mutually exclusive — a sudo flow never sets LinkingAccountID.
+	SudoAccountID *int32 `json:"sudo_account_id,omitempty"`
+
+	// ExpectedSub, when non-empty, is the upstream subject of the account's
+	// existing linked identity at SudoBegin time. The sudo callback (Task 3)
+	// requires the forced re-auth to resolve back to this exact subject —
+	// re-authenticating as a DIFFERENT upstream user must not satisfy the gate.
+	ExpectedSub string `json:"expected_sub,omitempty"`
+
 	// BrowserBinding, when non-empty, is the SHA-256 (base64url) of a random
 	// anti-forgery token that the HTTP layer set as a short-lived cookie at
 	// BeginLogin time. HandleCallback requires the callback request's cookie
@@ -102,4 +116,12 @@ func LoginKey(token string) string {
 // LoginKey for the cross-purpose-token-reuse rationale.
 func LinkKey(token string) string {
 	return "oidc:fed:link:" + token
+}
+
+// SudoKey returns the KV key under which sudo-step-up-flow state lives. A
+// distinct namespace from LoginKey/LinkKey so a token minted for sudo
+// re-auth cannot be Pop'd by the login or link callbacks (and vice versa) —
+// same cross-purpose-token-reuse defense as the other two.
+func SudoKey(token string) string {
+	return "oidc:fed:sudo:" + token
 }
