@@ -291,6 +291,46 @@ func TestFederator_BeginLogin_StashesStateUnderLoginKey(t *testing.T) {
 	}
 }
 
+// TestFederator_LinkBegin_NoBrowserBinding pins OIDCFED-1: the link flow's
+// handler never sets the anti-forgery cookie and its callback never checks it,
+// so begin() must leave BrowserBinding EMPTY for a link flow rather than persist
+// a value no code path can satisfy. The login flow keeps a non-empty binding.
+func TestFederator_LinkBegin_NoBrowserBinding(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+
+	lreq, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if err != nil {
+		t.Fatalf("BeginLogin: %v", err)
+	}
+	lblob, _ := fx.kvm.Get(context.Background(), federationoidc.LoginKey(lreq.StateKey))
+	lstate, err := federationoidc.DecodeFedState(lblob)
+	if err != nil {
+		t.Fatalf("DecodeFedState (login): %v", err)
+	}
+	if lstate.BrowserBinding == "" {
+		t.Error("login flow: BrowserBinding empty, want non-empty")
+	}
+
+	req, err := fx.f.LinkBegin(context.Background(), 7, "mockop", "/connected")
+	if err != nil {
+		t.Fatalf("LinkBegin: %v", err)
+	}
+	blob, err := fx.kvm.Get(context.Background(), federationoidc.LinkKey(req.StateKey))
+	if err != nil {
+		t.Fatalf("link state missing from LinkKey: %v", err)
+	}
+	state, err := federationoidc.DecodeFedState(blob)
+	if err != nil {
+		t.Fatalf("DecodeFedState (link): %v", err)
+	}
+	if state.BrowserBinding != "" {
+		t.Errorf("link flow: BrowserBinding = %q, want empty", state.BrowserBinding)
+	}
+	if state.LinkingAccountID == nil || *state.LinkingAccountID != 7 {
+		t.Errorf("link flow: LinkingAccountID = %v, want 7", state.LinkingAccountID)
+	}
+}
+
 func TestFederator_HandleCallback_HappyPath_AutoProvision(t *testing.T) {
 	fx := newFixture(t, federationoidc.ModeAutoProvision)
 

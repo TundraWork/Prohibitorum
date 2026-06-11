@@ -77,6 +77,13 @@ func (f *fakeFedQueries) ConsumeEnrollment(_ context.Context, token string) (db.
 	return e, nil
 }
 
+// ConsumeInviteEnrollment delegates to ConsumeEnrollment here — the real query's
+// intent='invite' restriction is verified against PG by the smoke's invite_only
+// federation arc, not by this fake (audit OIDCFED-2).
+func (f *fakeFedQueries) ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error) {
+	return f.ConsumeEnrollment(ctx, token)
+}
+
 // --- helpers --------------------------------------------------------------
 
 // driveStartFederation hits /enrollments/{token}/start-federation and returns

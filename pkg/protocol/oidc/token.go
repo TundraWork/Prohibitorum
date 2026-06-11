@@ -202,6 +202,19 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Re-bind the code to a still-live session. /authorize loaded the session,
+	// but within the short code window the user may have logged out or had the
+	// session revoked. GetSession filters revoked_at IS NULL, so a miss means the
+	// originating session is gone — refuse the exchange rather than mint tokens
+	// (including a long-lived refresh) tied to a dead session (audit OIDC-3).
+	// Guarded on a non-empty SessionID so any non-session-bound code is unaffected.
+	if ac.SessionID != "" {
+		if _, serr := p.queries.GetSession(ctx, ac.SessionID); serr != nil {
+			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "originating session is no longer valid")
+			return
+		}
+	}
+
 	now := time.Now()
 
 	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, ac.Scope, ac.AuthTime, now)

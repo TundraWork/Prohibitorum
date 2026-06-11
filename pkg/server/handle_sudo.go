@@ -175,7 +175,10 @@ func (s *Server) beginSudoWebAuthn(w http.ResponseWriter, r *http.Request, sess 
 		return
 	}
 	wu := &webauthnauth.WebAuthnAccount{Account: sess.Account, Credentials: creds}
-	assertion, sessionData, err := s.webauthn.BeginLogin(wu)
+	// UV=Required (webauthnauth.LoginOptions): the sudo step-up must verify the
+	// asserted user-verification flag, not just user-presence — without it a
+	// UV-bound passkey could elevate with presence only (audit WACER-1).
+	assertion, sessionData, err := s.webauthn.BeginLogin(wu, webauthnauth.LoginOptions()...)
 	if err != nil {
 		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
 		return
@@ -394,9 +397,13 @@ func (s *Server) consumeFreshSudo(ctx context.Context, sess *authn.Session) bool
 	// the user already had to bio-unlock once.
 	sess.Data.SudoUntil = time.Time{}
 	if err := s.sessionStore.Save(ctx, sess.Account.ID, sess.Token, sess.Data); err != nil {
-		// Best-effort — failing to clear means the user gets one extra gated
-		// action this window. Not a security regression.
-		logx.WithContext(ctx).WithError(err).Warn("sudo: clear failed")
+		// Fail CLOSED: every request re-reads SudoUntil from KV, so if the
+		// cleared value did not persist the future SudoUntil keeps satisfying
+		// the gate — turning the one-shot grant into "every gated action for the
+		// rest of the TTL window". Deny this action rather than authorize on an
+		// un-persisted clear (audit SESS-1).
+		logx.WithContext(ctx).WithError(err).Warn("sudo: clear failed — denying gated action")
+		return false
 	}
 	return true
 }

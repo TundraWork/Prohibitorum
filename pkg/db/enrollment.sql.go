@@ -39,6 +39,37 @@ func (q *Queries) ConsumeEnrollment(ctx context.Context, token string) (Enrollme
 	return i, err
 }
 
+const consumeInviteEnrollment = `-- name: ConsumeInviteEnrollment :one
+UPDATE enrollment
+SET consumed_at = now()
+WHERE token = $1 AND intent = 'invite' AND consumed_at IS NULL AND expires_at > now()
+RETURNING token, intent, target_account_id, template_username, template_display_name, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at
+`
+
+// Atomic single-use consume, intent-restricted to 'invite' AND unexpired. Used
+// by the federation invite-redemption path (applyInviteOnly) so a bootstrap or
+// reset token can never be marked consumed via the federation callback —
+// defense-in-depth on top of the begin-time intent gate (audit OIDCFED-2).
+// pgx.ErrNoRows surfaces on any not-consumable branch.
+func (q *Queries) ConsumeInviteEnrollment(ctx context.Context, token string) (Enrollment, error) {
+	row := q.db.QueryRow(ctx, consumeInviteEnrollment, token)
+	var i Enrollment
+	err := row.Scan(
+		&i.Token,
+		&i.Intent,
+		&i.TargetAccountID,
+		&i.TemplateUsername,
+		&i.TemplateDisplayName,
+		&i.TemplateRole,
+		&i.TemplateAttributes,
+		&i.ExpectedUpstreamIdpSlug,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ConsumedAt,
+	)
+	return i, err
+}
+
 const getEnrollmentByToken = `-- name: GetEnrollmentByToken :one
 SELECT token, intent, target_account_id, template_username, template_display_name, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at FROM enrollment WHERE token = $1
 `

@@ -162,6 +162,56 @@ func TestIntrospectOtherClientsRefreshTokenInactive(t *testing.T) {
 	}
 }
 
+// TestIntrospectSupersededRefreshTokenInactive verifies RFC 7662 §2.2: a
+// refresh token that has been rotated away (and is no longer the family's
+// current token, nor an in-window previous token) must introspect as
+// active:false — even though its token→family mapping still resolves (that
+// mapping is retained so /revoke and reuse-detection keep working). We rotate
+// twice so the original token is neither the current nor the idempotency-window
+// previous token, making the assertion timing-independent.
+func TestIntrospectSupersededRefreshTokenInactive(t *testing.T) {
+	h := newEndpointHarness(t)
+	ctx := context.Background()
+
+	rt0, _, err := issueRefresh(ctx, h.p.kv, refreshFamily{
+		ClientID:  testClientID,
+		AccountID: 7,
+		Scope:     []string{"openid", "offline_access"},
+	}, RefreshTokenTTL)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	_, rt1, rotated, err := rotateRefresh(ctx, h.p.kv, rt0, RefreshTokenTTL)
+	if err != nil || !rotated {
+		t.Fatalf("rotate rt0->rt1: rotated=%v err=%v", rotated, err)
+	}
+	_, rt2, rotated, err := rotateRefresh(ctx, h.p.kv, rt1, RefreshTokenTTL)
+	if err != nil || !rotated {
+		t.Fatalf("rotate rt1->rt2: rotated=%v err=%v", rotated, err)
+	}
+
+	// The superseded original token must report inactive.
+	rec := httptest.NewRecorder()
+	h.p.HandleIntrospect(rec, introspectReq(rt0))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	if body := decodeIntrospection(t, rec); body["active"] != false {
+		t.Fatalf("superseded refresh token must be inactive; active = %v", body["active"])
+	}
+
+	// The current token must still report active.
+	rec = httptest.NewRecorder()
+	h.p.HandleIntrospect(rec, introspectReq(rt2))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	if body := decodeIntrospection(t, rec); body["active"] != true {
+		t.Fatalf("current refresh token must be active; active = %v", body["active"])
+	}
+}
+
 func TestIntrospectBadClientAuth(t *testing.T) {
 	h := newEndpointHarness(t)
 	at := h.mintAccessToken(t, testSubject, testClientID, "openid", "jti-i4", time.Now().Add(time.Hour))

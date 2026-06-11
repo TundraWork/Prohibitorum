@@ -43,6 +43,36 @@ import (
 	sessstore "prohibitorum/pkg/session"
 )
 
+// failingSaveKV wraps a kv.Store but errors on SetEx, simulating a transient KV
+// write failure during the sudo one-shot clear (audit SESS-1).
+type failingSaveKV struct{ kv.Store }
+
+func (failingSaveKV) SetEx(context.Context, string, string, time.Duration) error {
+	return fmt.Errorf("kv unavailable")
+}
+
+// TestConsumeFreshSudoFailsClosedOnSaveError: when the cleared SudoUntil cannot
+// be persisted, consumeFreshSudo must DENY (return false). Returning true would
+// leave the future SudoUntil live in KV — and since every request re-reads it,
+// the one-shot grant would silently become "every gated action for the rest of
+// the TTL window" (audit SESS-1).
+func TestConsumeFreshSudoFailsClosedOnSaveError(t *testing.T) {
+	store := sessstore.NewSessionStore(failingSaveKV{kv.NewMemoryStore()}, nil, time.Hour)
+	s := &Server{config: &configx.Config{SessionTTL: time.Hour}, sessionStore: store}
+	sess := &authn.Session{
+		Token:   "tok",
+		Account: &db.Account{ID: 1},
+		Data: &authn.SessionData{
+			SessionID: "sid",
+			ExpiresAt: time.Now().Add(time.Hour),
+			SudoUntil: time.Now().Add(2 * time.Minute),
+		},
+	}
+	if s.consumeFreshSudo(context.Background(), sess) {
+		t.Fatal("consumeFreshSudo returned true despite Save failure; want false (fail closed)")
+	}
+}
+
 // fakeSudoQueries satisfies db.Querier for every surface the sudo handlers
 // (and the password.Store / totp.Store / session.SessionStore they reach
 // through) touch.

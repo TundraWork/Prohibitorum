@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +28,15 @@ import (
 	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
 )
+
+// enrollCeremonyKey derives the WebAuthn-ceremony KV key from a SHA-256 of the
+// enrollment token rather than the raw token, so the bearer secret never appears
+// in the KV keyspace — matching the add-passkey/sudo ceremony hardening (audit
+// WACER-3). SHA-256 of a high-entropy random token needs no salt.
+func enrollCeremonyKey(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return "webauthn_ceremony:enroll:" + hex.EncodeToString(sum[:])
+}
 
 // authErrToHuma converts an *auth.AuthError into a huma.StatusError so typed
 // Huma handlers return the correct HTTP status code AND the project's
@@ -289,7 +300,7 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		writeAuthErr(w, fmt.Errorf("enrollment/begin: marshal: %w", err))
 		return
 	}
-	if err := s.kvStore.SetEx(r.Context(), "webauthn_ceremony:enroll:"+token, string(raw), 5*time.Minute); err != nil {
+	if err := s.kvStore.SetEx(r.Context(), enrollCeremonyKey(token), string(raw), 5*time.Minute); err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/begin: setex: %w", err))
 		return
 	}
@@ -308,7 +319,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	raw, err := s.kvStore.Get(r.Context(), "webauthn_ceremony:enroll:"+token)
+	raw, err := s.kvStore.Get(r.Context(), enrollCeremonyKey(token))
 	if err != nil {
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
@@ -504,7 +515,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	}).Info("auth")
 
 	// Post-commit cleanup (best-effort).
-	_ = s.kvStore.Del(r.Context(), "webauthn_ceremony:enroll:"+token)
+	_ = s.kvStore.Del(r.Context(), enrollCeremonyKey(token))
 	if consumed.Intent == enrollment.IntentReset {
 		_, _ = s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
 	}

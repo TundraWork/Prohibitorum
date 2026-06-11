@@ -231,6 +231,18 @@ func lookupRefresh(ctx context.Context, store kv.Store, presented string) (*refr
 	return fam, true
 }
 
+// isActiveToken reports whether the presented token is still a valid member of
+// the family for read-only purposes (introspection): it must be the current
+// token, or the previous token still inside the idempotency window. A token
+// that has been rotated further away resolves to the family (its mapping is
+// retained for /revoke + reuse detection) but is NOT active per RFC 7662 §2.2.
+func (fam *refreshFamily) isActiveToken(presented string, now time.Time) bool {
+	if presented == fam.CurrentToken {
+		return true
+	}
+	return presented == fam.PreviousToken && now.Before(fam.PreviousValidUntil)
+}
+
 // revokeFamily deletes a family record by id, invalidating every token in the
 // chain (subsequent rotate/lookup of any of them resolves the token mapping but
 // misses the family → errRefreshInvalid / false). Deleting an absent family is

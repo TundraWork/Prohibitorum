@@ -273,10 +273,20 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 
 	// Anti-forgery token bound to the initiating browser (N4). The raw value
 	// rides in a short-lived cookie set by the HTTP layer; only its hash is
-	// persisted in KV, so a KV read never yields the cookie value.
-	antiForgery, err := randB64URL(32)
-	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: anti-forgery token: %w", err)
+	// persisted in KV, so a KV read never yields the cookie value. This binding
+	// applies to the login + invite flows, whose HTTP handlers set the cookie and
+	// whose callback re-checks it. The LINK flow (linkingAccountID != nil) is
+	// already gated by the authenticated dashboard session + a LinkingAccountID
+	// match and never carries this cookie, so leave the binding EMPTY rather than
+	// persist a value no code path can satisfy (audit OIDCFED-1; matches the
+	// FedState.BrowserBinding doc comment).
+	var antiForgery, browserBinding string
+	if linkingAccountID == nil {
+		antiForgery, err = randB64URL(32)
+		if err != nil {
+			return nil, fmt.Errorf("federation/oidc: anti-forgery token: %w", err)
+		}
+		browserBinding = hashAntiForgery(antiForgery)
 	}
 
 	state := FedState{
@@ -289,7 +299,7 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		ReturnTo:              returnTo,
 		LinkingAccountID:      linkingAccountID,
 		EnrollmentToken:       enrollmentToken,
-		BrowserBinding:        hashAntiForgery(antiForgery),
+		BrowserBinding:        browserBinding,
 	}
 	blob, err := state.Encode()
 	if err != nil {

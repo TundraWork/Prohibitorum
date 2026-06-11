@@ -116,11 +116,16 @@ func RegistrationOptions(exclude []protocol.CredentialDescriptor) []webauthn.Reg
 	return opts
 }
 
-// LoginOptions are the per-ceremony options used for BeginDiscoverableLogin.
-// UV=Preferred for smooth platform-authenticator UX (the credential already
-// carries the UV flag from registration). No allowCredentials → discoverable.
+// LoginOptions are the per-ceremony options used for BeginDiscoverableLogin and
+// the sudo step-up (BeginLogin). UV=Required: every credential is registered
+// UV=Required (see RegistrationOptions), so all passkeys are UV-capable, and
+// requesting Required makes go-webauthn verify the asserted UV flag and reject a
+// presence-only (UV=0) assertion. UV=Preferred would leave shouldVerifyUser
+// false, allowing a UV-bound passkey to be used with user-presence only and
+// defeating the sudo gate's biometric/PIN guarantee (audit WACER-1). No
+// allowCredentials → discoverable.
 func LoginOptions() []webauthn.LoginOption {
 	return []webauthn.LoginOption{
-		webauthn.WithUserVerification(protocol.VerificationPreferred),
+		webauthn.WithUserVerification(protocol.VerificationRequired),
 	}
 }

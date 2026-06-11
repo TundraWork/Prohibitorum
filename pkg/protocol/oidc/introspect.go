@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // writeIntrospectionInactive renders the RFC 7662 §2.2 inactive response:
@@ -80,7 +81,11 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Not a live access token: try it as a refresh token (read-only lookup).
-	if fam, ok := lookupRefresh(ctx, p.kv, token); ok && fam.ClientID == client.ClientID {
+	// A superseded (rotated-away) token still resolves to its live family — the
+	// mapping is retained for /revoke + reuse detection — so we additionally
+	// require it to be the family's active token (current, or in-window
+	// previous) before reporting active, per RFC 7662 §2.2.
+	if fam, ok := lookupRefresh(ctx, p.kv, token); ok && fam.ClientID == client.ClientID && fam.isActiveToken(token, time.Now()) {
 		resp := map[string]any{
 			"active":     true,
 			"token_type": "refresh_token",

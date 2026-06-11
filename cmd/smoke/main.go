@@ -245,6 +245,12 @@ func main() {
 	log.Printf("  B is denied, RevokeBySessionID confirmed")
 
 	step("step 16/45 — A adds a second passkey via /me/credentials/register/{begin,complete}")
+	// Adding a passkey is fresh-sudo gated (9de0008: add-passkey gate); prime a
+	// one-shot sudo grant first — /register/begin consumes it, /complete then
+	// rides the ceremony stash. Without this the begin returns 401 sudo_required.
+	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+		log.Fatalf("sudo webauthn (pre add-passkey): %v", err)
+	}
 	addBegin, err := c.beginAddCredential()
 	if err != nil {
 		log.Fatalf("add cred/begin: %v", err)

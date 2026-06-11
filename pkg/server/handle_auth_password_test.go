@@ -40,6 +40,71 @@ import (
 	sessstore "prohibitorum/pkg/session"
 )
 
+// TestPasswordBeginRateLimitsByIP verifies the per-IP fixed-window cap added in
+// front of /auth/password/begin (audit AUTHZ-1): a flood from one IP gets a 429
+// after pwdBeginIPLimit requests, bounding the unauthenticated argon2id DoS
+// surface. Bodies are empty so each allowed request bails at the decode guard
+// before any DB/argon2 work — proving the limiter sits ahead of everything.
+func TestPasswordBeginRateLimitsByIP(t *testing.T) {
+	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter()}
+
+	for i := 0; i < pwdBeginIPLimit; i++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader("{}"))
+		s.handlePasswordBeginHTTP(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("request %d was rate-limited early (got 429); limit is %d", i+1, pwdBeginIPLimit)
+		}
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader("{}"))
+	s.handlePasswordBeginHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("request %d: want 429, got %d", pwdBeginIPLimit+1, rec.Code)
+	}
+}
+
+// TestPasswordBeginRejectsOversizePassword verifies the length cap added to
+// /auth/password/begin (audit AUTHZ-1): an over-cap password is rejected with
+// 401 BEFORE any account lookup or argon2id hash. s.queries is nil here, so if
+// the cap did not short-circuit, the handler would reach s.queries and panic —
+// the clean 401 proves the cap fires first.
+func TestPasswordBeginRejectsOversizePassword(t *testing.T) {
+	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter()}
+
+	body := fmt.Sprintf(`{"username":"alice","password":%q}`, strings.Repeat("a", maxPasswordBytes+1))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader(body))
+	s.handlePasswordBeginHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("oversize password: want 401, got %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+// TestLoginCompleteRateLimitsByIP verifies the per-IP cap added to
+// /auth/login/complete (audit SESS-3). With no ceremony cookie each allowed
+// request bails at the cookie guard (401) before any KV/webauthn work; after
+// loginIPLimit requests the IP is throttled with 429.
+func TestLoginCompleteRateLimitsByIP(t *testing.T) {
+	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter()}
+
+	for i := 0; i < loginIPLimit; i++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/auth/login/complete", strings.NewReader("{}"))
+		s.handleLoginCompleteHTTP(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("request %d was rate-limited early (got 429); limit is %d", i+1, loginIPLimit)
+		}
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/auth/login/complete", strings.NewReader("{}"))
+	s.handleLoginCompleteHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("request %d: want 429, got %d", loginIPLimit+1, rec.Code)
+	}
+}
+
 // fakeAuthQueries satisfies totp.TOTPQueries, authn.ThrottleQueries, the
 // audit InsertCredentialEvent call, and session.SessionQueries — every
 // query surface the verify handlers reach through. Mirrors the pattern in
@@ -344,6 +409,36 @@ func decryptTOTPSecret(t *testing.T, dek []byte, row db.TotpCredential, accountI
 }
 
 // --- Tests -----------------------------------------------------------------
+
+// TestTOTPVerify_RejectsWrongCompletedFactor: step-2 must reject a partial
+// session whose recorded first factor isn't "password", so the MFA state machine
+// self-validates rather than trusting that the sole writer always set it
+// correctly (audit WACER-2). A token carrying a non-password factor is rejected
+// with partial_session_invalid BEFORE any TOTP verification.
+func TestTOTPVerify_RejectsWrongCompletedFactor(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	token := mustToken(t)
+	payload, _ := json.Marshal(partialSession{AccountID: 42, FactorCompleted: "", IssuedAt: time.Now().UTC()})
+	if err := s.kvStore.SetEx(context.Background(), partialSessionKey(token), string(payload), s.config.Auth.PartialSessionTTL); err != nil {
+		t.Fatal(err)
+	}
+
+	body := fmt.Sprintf(`{"partial_session_token":%q,"code":"123456"}`, token)
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/totp/verify", strings.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:5555"
+	w := httptest.NewRecorder()
+
+	s.handleTOTPVerifyHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["code"] != "partial_session_invalid" {
+		t.Errorf("code: want partial_session_invalid, got %v", resp["code"])
+	}
+}
 
 func TestTOTPVerify_MissingTokenReturns401(t *testing.T) {
 	s, _, _ := newTestServer(t)

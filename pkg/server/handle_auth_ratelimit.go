@@ -19,6 +19,27 @@ import (
 	"prohibitorum/pkg/authn"
 )
 
+// Per-IP caps on the unauthenticated auth ceremonies. These are availability /
+// resource-abuse guards, NOT credential-guessing controls (the per-account
+// password/TOTP throttle covers that). They sit ahead of the expensive work:
+// argon2id on /auth/password/begin and WebAuthn verification + DB lookups on
+// /auth/login/*. Sized generous for a NAT'd office but tight enough to bound a
+// flood.
+const (
+	// pwdBeginIPLimit caps /auth/password/begin per IP per authIPWindow. Lower
+	// than login because each request can force a full argon2id computation
+	// (audit AUTHZ-1).
+	pwdBeginIPLimit = 30
+	// loginIPLimit caps /auth/login/begin and /auth/login/complete per IP per
+	// authIPWindow (a ceremony spends one of each) (audit SESS-3).
+	loginIPLimit = 60
+	// authIPWindow is the fixed window for the unauthenticated auth caps.
+	authIPWindow = time.Minute
+	// maxPasswordBytes bounds the password accepted at /auth/password/begin
+	// before it is fed to argon2id, matching /me/password/set (audit AUTHZ-1).
+	maxPasswordBytes = 1024
+)
+
 // rateLimit applies a fixed-window bucket and writes the 429 response when
 // the bucket is full. Returns true when the caller should ABORT (limit hit);
 // false to continue.

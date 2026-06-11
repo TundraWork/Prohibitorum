@@ -119,6 +119,36 @@ type authnReqOpts struct {
 	omitSigP bool   // build the signature octet string but drop the Signature param
 }
 
+// TestParseAuthnRequestXMLRejectsStaleIssueInstant pins SAML-1: a fresh
+// IssueInstant parses, but one older than AuthnRequestTTL is rejected with
+// ErrStaleRequest so the accept window matches the replay-key lifetime.
+func TestParseAuthnRequestXMLRejectsStaleIssueInstant(t *testing.T) {
+	mk := func(instant time.Time) []byte {
+		ar := crewjam.AuthnRequest{
+			ID:           "_id-freshness",
+			Version:      "2.0",
+			IssueInstant: instant,
+			Issuer:       &crewjam.Issuer{Value: testSPEntityID},
+		}
+		b, err := xml.Marshal(ar)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return b
+	}
+
+	var fresh crewjam.AuthnRequest
+	if _, err := parseAuthnRequestXML(mk(time.Now().UTC()), &fresh); err != nil {
+		t.Fatalf("fresh IssueInstant rejected: %v", err)
+	}
+
+	var stale crewjam.AuthnRequest
+	_, err := parseAuthnRequestXML(mk(time.Now().Add(-AuthnRequestTTL-time.Minute).UTC()), &stale)
+	if !errors.Is(err, ErrStaleRequest) {
+		t.Fatalf("stale IssueInstant: err = %v, want ErrStaleRequest", err)
+	}
+}
+
 // buildAuthnRedirect marshals an AuthnRequest, deflates+base64s it as
 // SAMLRequest, and (optionally) appends a detached HTTP-Redirect signature. The
 // signed octet string is built from the SAME url.QueryEscape encoding the

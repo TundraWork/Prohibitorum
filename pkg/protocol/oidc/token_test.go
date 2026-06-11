@@ -31,6 +31,18 @@ type fakeTokenQueries struct {
 	db.Querier
 	clients  map[string]db.OidcClient
 	accounts map[int32]db.Account
+	// revokedSessions mirrors the real GetSession's `revoked_at IS NULL` filter:
+	// an id present here resolves to pgx.ErrNoRows (revoked/absent). Empty by
+	// default so every session reads as live and existing tests are unaffected.
+	revokedSessions map[string]bool
+}
+
+// GetSession mirrors the real query: returns the row only when not revoked.
+func (f *fakeTokenQueries) GetSession(_ context.Context, id string) (db.Session, error) {
+	if f.revokedSessions[id] {
+		return db.Session{}, pgx.ErrNoRows
+	}
+	return db.Session{ID: id, AccountID: 42}, nil
 }
 
 func (f *fakeTokenQueries) GetOIDCClient(_ context.Context, clientID string) (db.OidcClient, error) {
@@ -153,6 +165,29 @@ func decodeError(t *testing.T, rec *httptest.ResponseRecorder) string {
 		t.Fatalf("decode error body %q: %v", rec.Body.String(), err)
 	}
 	return body["error"]
+}
+
+// TestTokenRejectsRevokedSession: if the originating session is revoked (user
+// logged out, admin revoked it) within the short code window, the still-single-
+// use code must NOT exchange — the resulting tokens would reference a dead
+// session (audit OIDC-3).
+func TestTokenRejectsRevokedSession(t *testing.T) {
+	h := newTokenHarness(t)
+	h.p.queries.(*fakeTokenQueries).revokedSessions = map[string]bool{"sid-revoked": true}
+
+	ac := baseAuthCode()
+	ac.SessionID = "sid-revoked"
+	code := h.mintTestCode(t, ac)
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(codeExchangeForm(code, testVerifier, testRedirect)))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d (body %s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("error = %q, want %q", got, errCodeInvalidGrant)
+	}
 }
 
 func TestTokenHappyPath(t *testing.T) {

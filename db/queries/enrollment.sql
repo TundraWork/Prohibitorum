@@ -18,6 +18,17 @@ SET consumed_at = now()
 WHERE token = $1 AND consumed_at IS NULL AND expires_at > now()
 RETURNING *;
 
+-- name: ConsumeInviteEnrollment :one
+-- Atomic single-use consume, intent-restricted to 'invite' AND unexpired. Used
+-- by the federation invite-redemption path (applyInviteOnly) so a bootstrap or
+-- reset token can never be marked consumed via the federation callback —
+-- defense-in-depth on top of the begin-time intent gate (audit OIDCFED-2).
+-- pgx.ErrNoRows surfaces on any not-consumable branch.
+UPDATE enrollment
+SET consumed_at = now()
+WHERE token = $1 AND intent = 'invite' AND consumed_at IS NULL AND expires_at > now()
+RETURNING *;
+
 -- name: ListPendingInvitations :many
 SELECT * FROM enrollment
 WHERE intent = 'invite'

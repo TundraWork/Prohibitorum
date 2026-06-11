@@ -29,7 +29,7 @@ type ModesQueries interface {
 	UpdateAccountDisplayName(ctx context.Context, arg db.UpdateAccountDisplayNameParams) error
 	UpdateAccountEmail(ctx context.Context, arg db.UpdateAccountEmailParams) error
 	UpdateAccountIdentityEmail(ctx context.Context, arg db.UpdateAccountIdentityEmailParams) error
-	ConsumeEnrollment(ctx context.Context, token string) (db.Enrollment, error)
+	ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error)
 }
 
 // Mode constants — must match upstream_idp.mode enum in the schema.
@@ -324,17 +324,21 @@ func applyInviteOnly(
 	}
 
 	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (int32, bool, error) {
-		// Atomic consume — the UPDATE ... WHERE consumed_at IS NULL AND
-		// expires_at > now() guarantees the row is in a redeemable state at
-		// the instant we claim it. Any "already consumed", "expired", or
-		// "token unknown" branch collapses onto pgx.ErrNoRows.
-		enr, err := qtx.ConsumeEnrollment(ctx, enrollmentToken)
+		// Atomic, intent-scoped consume — the UPDATE ... WHERE intent='invite'
+		// AND consumed_at IS NULL AND expires_at > now() guarantees the row is a
+		// redeemable INVITE at the instant we claim it. Restricting to
+		// intent='invite' in SQL means a bootstrap/reset token can never be
+		// marked consumed via this federation path, even if the begin-time intent
+		// gate were ever bypassed (audit OIDCFED-2). Any "already consumed",
+		// "expired", "wrong intent", or "token unknown" branch collapses onto
+		// pgx.ErrNoRows.
+		enr, err := qtx.ConsumeInviteEnrollment(ctx, enrollmentToken)
 		if errors.Is(err, pgx.ErrNoRows) {
 			emitFail(ctx, w, idp, tokens, "invite_consumed_or_expired", nil)
 			return 0, false, authn.ErrInviteRequired()
 		}
 		if err != nil {
-			return 0, false, fmt.Errorf("federation/oidc: ConsumeEnrollment: %w", err)
+			return 0, false, fmt.Errorf("federation/oidc: ConsumeInviteEnrollment: %w", err)
 		}
 
 		// Defense in depth: the invite must have been minted for THIS IdP.

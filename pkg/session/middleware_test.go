@@ -2,11 +2,28 @@ package session
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"prohibitorum/pkg/configx"
 )
+
+// TestCeremonyCookieSecureFromConfig pins the ceremony cookie's Secure flag to
+// the deployment-stable secureCookies(cfg) (the https public-origin scheme),
+// matching the session and fed-state cookies — NOT a per-request TLS/proxy probe
+// that would drop Secure behind a TLS-terminating proxy with TrustProxy off
+// (audit SESS-2). The request is plain http with no proxy header.
+func TestCeremonyCookieSecureFromConfig(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/login/begin", nil) // r.TLS == nil
+
+	if c := CeremonyCookie(secureCfg(), r, "v"); !c.Secure {
+		t.Errorf("https deployment: ceremony cookie Secure = false, want true (behind a TLS proxy r.TLS is nil)")
+	}
+	if c := CeremonyCookie(devCfg(), r, "v"); c.Secure {
+		t.Errorf("http dev deployment: ceremony cookie Secure = true, want false")
+	}
+}
 
 func secureCfg() *configx.Config {
 	return &configx.Config{PublicOrigins: []string{"https://idp.example.com"}}

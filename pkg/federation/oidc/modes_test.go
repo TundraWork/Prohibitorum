@@ -169,6 +169,13 @@ func (f *fakeModesQueries) ConsumeEnrollment(_ context.Context, token string) (d
 	return f.consumeEnrollmentResult, nil
 }
 
+// ConsumeInviteEnrollment delegates to ConsumeEnrollment here — the SQL intent
+// restriction (intent='invite') is exercised against real PG by the smoke's
+// invite_only federation arc, not by this canned fake (audit OIDCFED-2).
+func (f *fakeModesQueries) ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error) {
+	return f.ConsumeEnrollment(ctx, token)
+}
+
 // recordingAudit captures every audit.Record so tests can assert on
 // counts, events, and detail contents.
 type recordingAudit struct {

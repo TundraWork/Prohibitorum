@@ -48,11 +48,26 @@ func partialSessionKey(token string) string { return "partial_session:" + token 
 
 // POST /api/prohibitorum/auth/password/begin
 func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request) {
+	// Per-IP cap ahead of any work: every failure branch below burns a full
+	// argon2id hash (enumeration defense), so an unthrottled flood is a
+	// CPU/RAM-exhaustion DoS amplifier (audit AUTHZ-1). The per-account
+	// throttle does not help the unknown-username path (no account to key on).
+	if s.rateLimit(w, r, "pwd_begin:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), pwdBeginIPLimit, authIPWindow) {
+		return
+	}
+
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || body.Password == "" {
+		writeAuthErr(w, authn.ErrBadCredentials())
+		return
+	}
+	// Bound the password before it reaches argon2id, matching /me/password/set.
+	// Applied uniformly (before the username lookup) so it leaks no existence
+	// signal (audit AUTHZ-1).
+	if len(body.Password) > maxPasswordBytes {
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
@@ -138,6 +153,16 @@ func (s *Server) handleTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
 		return
 	}
+	// Bind the token to its recorded first factor: step-2 proceeds only for a
+	// partial session that completed the password factor, so a future writer
+	// minting a token for a weaker/different first factor cannot complete MFA
+	// here. Today password/begin is the sole writer (always sets "password"), so
+	// this is a self-validating invariant rather than a live exploit fix (audit
+	// WACER-2).
+	if partial.FactorCompleted != "password" {
+		writeAuthErr(w, authn.ErrPartialSessionInvalid())
+		return
+	}
 	// Re-check account state after consuming the partial-session token. An
 	// admin disabling the account between step-1 (/begin) and step-2
 	// (/verify) must prevent session issuance. Pre-bundle we trusted the
@@ -192,6 +217,16 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 	}
 	partial, err := s.consumePartialSession(r.Context(), body.PartialSessionToken)
 	if err != nil {
+		writeAuthErr(w, authn.ErrPartialSessionInvalid())
+		return
+	}
+	// Bind the token to its recorded first factor: step-2 proceeds only for a
+	// partial session that completed the password factor, so a future writer
+	// minting a token for a weaker/different first factor cannot complete MFA
+	// here. Today password/begin is the sole writer (always sets "password"), so
+	// this is a self-validating invariant rather than a live exploit fix (audit
+	// WACER-2).
+	if partial.FactorCompleted != "password" {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
 		return
 	}

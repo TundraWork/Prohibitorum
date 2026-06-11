@@ -155,13 +155,18 @@ func ClearedSessionCookie(cfg *configx.Config, _ *http.Request) *http.Cookie {
 // isn't sent on unrelated API requests. SameSite=Strict because the
 // ceremony is always same-origin and we want maximum tightness during the
 // ~5 minute window. Max-Age 300 mirrors the KV TTL.
-func CeremonyCookie(cfg *configx.Config, r *http.Request, value string) *http.Cookie {
+func CeremonyCookie(cfg *configx.Config, _ *http.Request, value string) *http.Cookie {
 	return &http.Cookie{
 		Name:     CeremonyCookieName,
 		Value:    value,
 		Path:     "/api/prohibitorum/auth",
 		HttpOnly: true,
-		Secure:   isSecure(r, cfg.TrustProxy),
+		// Secure derives from the deployment-stable public-origin scheme
+		// (secureCookies), matching FreshSessionCookie/FedStateCookie — NOT a
+		// per-request isSecure(r) probe, which returns false behind a
+		// TLS-terminating proxy with TrustProxy off and would ship this cookie
+		// without Secure on an https deployment (audit SESS-2).
+		Secure:   secureCookies(cfg),
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   300,
 	}
@@ -212,18 +217,6 @@ func ClearedFedStateCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
 	c := FedStateCookie(cfg, r, "")
 	c.MaxAge = -1
 	return c
-}
-
-// isSecure derives the Secure flag from the request: TLS connection OR
-// honored X-Forwarded-Proto when TrustProxy is enabled.
-func isSecure(r *http.Request, trustProxy bool) bool {
-	if r.TLS != nil {
-		return true
-	}
-	if trustProxy && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
-		return true
-	}
-	return false
 }
 
 // ClientIP returns the client's IP, honoring X-Forwarded-For / X-Real-IP only

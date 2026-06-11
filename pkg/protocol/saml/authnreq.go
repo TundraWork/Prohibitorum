@@ -78,6 +78,11 @@ var (
 	// requests: duplicate redirect-binding params, or an AuthnRequest missing
 	// the required @ID.
 	ErrMalformedRequest = errors.New("saml: AuthnRequest malformed")
+	// ErrStaleRequest is returned when the AuthnRequest's IssueInstant falls
+	// outside ±AuthnRequestTTL of now. Without this bound the only limit on how
+	// old a (signed) AuthnRequest may be re-presented is the replay-key TTL;
+	// once that key expires the same signed request would be accepted again.
+	ErrStaleRequest = errors.New("saml: AuthnRequest IssueInstant outside acceptable window")
 )
 
 // authnReq is the validated, IdP-side view of an inbound SP AuthnRequest. Every
@@ -311,6 +316,18 @@ func parseAuthnRequestXML(raw []byte, out *crewjam.AuthnRequest) (*etree.Element
 	// SAML Core §3.2.1: every request MUST carry Version="2.0".
 	if out.Version != "2.0" {
 		return nil, ErrMalformedRequest
+	}
+	// Bound the request's age. A signed AuthnRequest carries IssueInstant;
+	// without this check the only limit on re-presenting an old (signed) request
+	// is the replay-key TTL — once that key expires the same signed request is
+	// accepted again. Reject when IssueInstant is set and falls outside
+	// ±AuthnRequestTTL of now, so the accept window matches the replay key (audit
+	// SAML-1). A zero/absent instant is tolerated: only a signed request carries
+	// a trustworthy one, and the replay key still bounds the rest.
+	if !out.IssueInstant.IsZero() {
+		if d := time.Since(out.IssueInstant); d > AuthnRequestTTL || d < -AuthnRequestTTL {
+			return nil, ErrStaleRequest
+		}
 	}
 	return doc.Root(), nil
 }
