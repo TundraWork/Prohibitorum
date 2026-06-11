@@ -253,6 +253,12 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 	if current.Disabled != updated.Disabled {
 		changes["disabled"] = []bool{current.Disabled, updated.Disabled}
 	}
+	if current.Email.String != updated.Email.String || current.Email.Valid != updated.Email.Valid {
+		changes["email"] = []*string{textPtr(current.Email), textPtr(updated.Email)}
+	}
+	if current.EmailVerified != updated.EmailVerified {
+		changes["emailVerified"] = []bool{current.EmailVerified, updated.EmailVerified}
+	}
 	currentAttrs := decodeAttributes(current.Attributes)
 	updatedAttrs := decodeAttributes(updated.Attributes)
 	if !reflect.DeepEqual(currentAttrs, updatedAttrs) {
