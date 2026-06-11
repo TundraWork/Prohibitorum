@@ -3087,8 +3087,150 @@ func main() {
 		log.Printf("  PUT /saml-providers/%d: attributeMap has EMAIL entry ✓", spID)
 	}
 
+	// =========================================================================
+	// Federated OIDC sudo step-up — a federated user (signed in via the upstream
+	// mock OP) satisfies the sudo gate by re-authenticating to that upstream.
+	// Exercises GET /me/sudo/methods (federation_oidc + provider list),
+	// POST /me/sudo/begin {method:federation_oidc} → upstream /authorize, the
+	// sudo-specific callback (/me/sudo/federation/callback — proves Task 5b's
+	// redirect_uri), and that a sudo-gated action (credentials/register/begin)
+	// goes from 401 sudo_required to 200 once the grant lands. Pre-condition:
+	// the upstream_idp 'mockop' (auto_provision) seeded at step 46 still exists.
+	// =========================================================================
+	{
+		const fedSudoSub = "ext-user-1" // same upstream sub identity-match relies on
+
+		step("fed-sudo 1/7 — establish a fresh federated session (mockop / ext-user-1)")
+		fedClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("fed-sudo: federation client: %v", err)
+		}
+		opSrv.SetClaims(fedSudoSub, "ext@example.com", true, "extuser", "Ext User v2")
+		opSrv.SetAuthTime(time.Time{}) // initial login: auth_time freshness not required
+		if err := driveFederationLogin(fedClient, *baseURL, "mockop", "/"); err != nil {
+			log.Fatalf("fed-sudo: initial federation login: %v", err)
+		}
+		fedMe, err := fedClient.getMe()
+		if err != nil {
+			log.Fatalf("fed-sudo: /me post-login: %v", err)
+		}
+		log.Printf("  federated session live: id=%d username=%s", fedMe.ID, fedMe.Username)
+
+		step("fed-sudo 2/7 — GET /me/sudo/methods (federation_oidc + mockop provider present)")
+		var sudoMethods struct {
+			Methods             []string `json:"methods"`
+			FederationProviders []struct {
+				Slug        string `json:"slug"`
+				DisplayName string `json:"displayName"`
+			} `json:"federationProviders"`
+		}
+		if err := fedClient.get("/api/prohibitorum/me/sudo/methods", &sudoMethods); err != nil {
+			log.Fatalf("fed-sudo: GET /me/sudo/methods: %v", err)
+		}
+		if !slices.Contains(sudoMethods.Methods, "federation_oidc") {
+			log.Fatalf("fed-sudo: methods missing federation_oidc, got %v", sudoMethods.Methods)
+		}
+		var foundMockop bool
+		for _, p := range sudoMethods.FederationProviders {
+			if p.Slug == "mockop" {
+				foundMockop = true
+				break
+			}
+		}
+		if !foundMockop {
+			log.Fatalf("fed-sudo: federationProviders missing slug=mockop, got %+v", sudoMethods.FederationProviders)
+		}
+		log.Printf("  methods=%v; federationProviders has mockop ✓", sudoMethods.Methods)
+
+		step("fed-sudo 3/7 — POST /me/sudo/begin {method:federation_oidc,slug:mockop,returnTo:/security}")
+		// Prepare a fresh upstream re-auth: same sub (identity-match) + a fresh
+		// auth_time so SudoCallback's freshness check (≤120s) passes.
+		opSrv.SetClaims(fedSudoSub, "ext@example.com", true, "extuser", "Ext User v2")
+		opSrv.SetAuthTime(time.Now())
+		var sudoBegin struct {
+			Redirect string `json:"redirect"`
+		}
+		if err := fedClient.postJSON("/api/prohibitorum/me/sudo/begin",
+			map[string]string{"method": "federation_oidc", "slug": "mockop", "returnTo": "/security"},
+			&sudoBegin); err != nil {
+			log.Fatalf("fed-sudo: /me/sudo/begin: %v", err)
+		}
+		if !strings.HasPrefix(sudoBegin.Redirect, opTS.URL+"/authorize") {
+			log.Fatalf("fed-sudo: begin redirect: want upstream /authorize, got %q", sudoBegin.Redirect)
+		}
+		log.Printf("  302-target upstream /authorize (len=%d); fed_state cookie set on jar", len(sudoBegin.Redirect))
+
+		step("fed-sudo 4/7 — follow upstream /authorize → sudo callback URL")
+		sudoCallbackURL, err := followMockOPAuthorize(sudoBegin.Redirect)
+		if err != nil {
+			log.Fatalf("fed-sudo: mock OP /authorize: %v", err)
+		}
+		// Task 5b: the upstream must redirect to the dedicated SUDO callback,
+		// not the login callback (which would 401/relogin instead of stamping).
+		parsedCB, perr := url.Parse(sudoCallbackURL)
+		if perr != nil {
+			log.Fatalf("fed-sudo: parse callback URL %q: %v", sudoCallbackURL, perr)
+		}
+		if parsedCB.Path != "/api/prohibitorum/me/sudo/federation/callback" {
+			log.Fatalf("fed-sudo: callback path: want /api/prohibitorum/me/sudo/federation/callback, got %q (full=%q)",
+				parsedCB.Path, sudoCallbackURL)
+		}
+		log.Printf("  upstream → %s (code+state+iss) ✓", parsedCB.Path)
+
+		step("fed-sudo 5/7 — GET sudo callback → 302 /security (NOT /?sudo=failed)")
+		sudoLoc, err := fedClient.getRedirectAbs(sudoCallbackURL)
+		if err != nil {
+			log.Fatalf("fed-sudo: sudo callback: %v", err)
+		}
+		if sudoLoc != "/security" {
+			log.Fatalf("fed-sudo: sudo callback redirect: want /security, got %q", sudoLoc)
+		}
+		log.Printf("  sudo callback → 302 /security ✓ (sudo stamped)")
+
+		step("fed-sudo 6/7 — POST /me/credentials/register/begin → 200 (sudo grant took)")
+		// This endpoint is sudo-gated; without the fresh grant it would 401
+		// sudo_required. A 200 from /begin proves the federated sudo elevation.
+		resp, err := fedClient.postJSONRaw("/api/prohibitorum/me/credentials/register/begin",
+			map[string]any{})
+		if err != nil {
+			log.Fatalf("fed-sudo: credentials/register/begin: %v", err)
+		}
+		regBeginStatus := resp.StatusCode
+		_ = resp.Body.Close()
+		if regBeginStatus != http.StatusOK {
+			log.Fatalf("fed-sudo: credentials/register/begin: want 200 (sudo fresh), got %d", regBeginStatus)
+		}
+		log.Printf("  credentials/register/begin → 200 ✓ (federated sudo confirmed)")
+
+		step("fed-sudo 7/7 — sudo is one-shot: a second register/begin must 401 sudo_required")
+		// The grant from fed-sudo 5 was consumed by the begin in fed-sudo 6
+		// (one-shot SudoUntil semantics), so the next sudo-gated call re-gates.
+		resp2, err := fedClient.postJSONRaw("/api/prohibitorum/me/credentials/register/begin",
+			map[string]any{})
+		if err != nil {
+			log.Fatalf("fed-sudo: second credentials/register/begin: %v", err)
+		}
+		reReqStatus := resp2.StatusCode
+		body2, _ := io.ReadAll(resp2.Body)
+		_ = resp2.Body.Close()
+		if reReqStatus != http.StatusUnauthorized {
+			log.Fatalf("fed-sudo: second register/begin: want 401 sudo_required, got %d (body=%s)", reReqStatus, body2)
+		}
+		var reErr struct {
+			Code string `json:"code"`
+		}
+		_ = json.Unmarshal(body2, &reErr)
+		if reErr.Code != "sudo_required" {
+			log.Fatalf("fed-sudo: second register/begin: want code sudo_required, got %q (body=%s)", reErr.Code, body2)
+		}
+		log.Printf("  second register/begin → 401 sudo_required ✓ (one-shot consumed)")
+
+		// Reset the auth_time hook so any later mock-OP use isn't affected.
+		opSrv.SetAuthTime(time.Time{})
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + DB-state assertions passed against",
 		*baseURL)
 }
 
