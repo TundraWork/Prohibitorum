@@ -84,6 +84,10 @@ type fakeSudoQueries struct {
 	totpRow      *db.TotpCredential
 	recoveryRows []db.RecoveryCode
 
+	// linkedIdPs seeds ListLinkedEnabledIdPs and, when len > 0, CountUsableSignInFederation
+	// returns a positive count so AvailableMethods surfaces federation_oidc.
+	linkedIdPs []db.ListLinkedEnabledIdPsRow
+
 	nextRecID int32
 	throttle  map[string]db.AuthThrottle
 	events    []db.InsertCredentialEventParams
@@ -217,10 +221,18 @@ func (f *fakeSudoQueries) ListAccountIdentitiesByAccount(_ context.Context, _ in
 	return nil, nil
 }
 
-// CountUsableSignInFederation returns 0 in the sudo tests — none of these
-// scenarios seed federation identities. Required by authn.FlowQueries (v0.4).
+// CountUsableSignInFederation returns the count of seeded linkedIdPs so
+// AvailableMethods surfaces federation_oidc when linkedIdPs is non-empty.
 func (f *fakeSudoQueries) CountUsableSignInFederation(_ context.Context, _ int32) (int64, error) {
-	return 0, nil
+	return int64(len(f.linkedIdPs)), nil
+}
+
+// ListLinkedEnabledIdPs returns the seeded linkedIdPs slice.
+func (f *fakeSudoQueries) ListLinkedEnabledIdPs(_ context.Context, _ int32) ([]db.ListLinkedEnabledIdPsRow, error) {
+	if f.linkedIdPs == nil {
+		return []db.ListLinkedEnabledIdPsRow{}, nil
+	}
+	return f.linkedIdPs, nil
 }
 
 func (f *fakeSudoQueries) DeleteAllRecoveryCodesByAccount(_ context.Context, accountID int32) error {
@@ -773,6 +785,105 @@ func TestSudoComplete_MissingIntent(t *testing.T) {
 	body := decodeJSON(t, w.Body.Bytes())
 	if body["code"] != "ceremony_expired" {
 		t.Errorf("code: want ceremony_expired, got %v", body["code"])
+	}
+}
+
+// --- /me/sudo/methods federation tests --------------------------------------
+
+// federationProvidersFromBody decodes the federationProviders key from the
+// /me/sudo/methods JSON response.
+func federationProvidersFromBody(t *testing.T, body []byte) []map[string]any {
+	t.Helper()
+	m := decodeJSON(t, body)
+	raw, ok := m["federationProviders"]
+	if !ok {
+		t.Fatalf("federationProviders key missing in %s", string(body))
+	}
+	arr, ok := raw.([]any)
+	if !ok {
+		t.Fatalf("federationProviders is not an array in %s", string(body))
+	}
+	out := make([]map[string]any, 0, len(arr))
+	for _, x := range arr {
+		entry, ok := x.(map[string]any)
+		if !ok {
+			t.Fatalf("federationProviders entry is not an object: %v", x)
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+// TestSudoMethods_FederationOIDCAndProviders: when the account has a linked
+// enabled upstream IdP, /me/sudo/methods must include "federation_oidc" in
+// methods and return the provider slug+displayName in federationProviders.
+func TestSudoMethods_FederationOIDCAndProviders(t *testing.T) {
+	s, f, _ := newSudoTestServer(t)
+	const accountID int32 = 42
+	// Seed a WebAuthn credential so we confirm other methods still appear.
+	f.webauthnRows = []db.WebauthnCredential{{ID: 1, AccountID: accountID, Nickname: pgtype.Text{String: "yk1", Valid: true}}}
+	// Seed a linked enabled upstream IdP.
+	f.linkedIdPs = []db.ListLinkedEnabledIdPsRow{
+		{Slug: "google", DisplayName: "Google"},
+	}
+	_, sess := issueSudoTestSession(t, s, accountID)
+
+	r := sudoReq(t, sess, http.MethodGet, "/api/prohibitorum/me/sudo/methods", "")
+	w := httptest.NewRecorder()
+	s.handleSudoMethodsHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	got := methodsFromBody(t, w.Body.Bytes())
+	if !slices.Contains(got, "federation_oidc") {
+		t.Errorf("methods: want federation_oidc present, got %v", got)
+	}
+	if !slices.Contains(got, "webauthn") {
+		t.Errorf("methods: want webauthn present, got %v", got)
+	}
+
+	providers := federationProvidersFromBody(t, w.Body.Bytes())
+	if len(providers) != 1 {
+		t.Fatalf("federationProviders: want 1, got %d (%v)", len(providers), providers)
+	}
+	if providers[0]["slug"] != "google" {
+		t.Errorf("federationProviders[0].slug: want google, got %v", providers[0]["slug"])
+	}
+	if providers[0]["displayName"] != "Google" {
+		t.Errorf("federationProviders[0].displayName: want Google, got %v", providers[0]["displayName"])
+	}
+}
+
+// TestSudoMethods_NoFederationEmptyProviders: when the account has no linked
+// federation identity, federationProviders must be present and empty (not null).
+func TestSudoMethods_NoFederationEmptyProviders(t *testing.T) {
+	s, f, _ := newSudoTestServer(t)
+	const accountID int32 = 42
+	f.webauthnRows = []db.WebauthnCredential{{ID: 1, AccountID: accountID, Nickname: pgtype.Text{String: "yk1", Valid: true}}}
+	// No linkedIdPs seeded.
+	_, sess := issueSudoTestSession(t, s, accountID)
+
+	r := sudoReq(t, sess, http.MethodGet, "/api/prohibitorum/me/sudo/methods", "")
+	w := httptest.NewRecorder()
+	s.handleSudoMethodsHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	got := methodsFromBody(t, w.Body.Bytes())
+	if slices.Contains(got, "federation_oidc") {
+		t.Errorf("methods: federation_oidc must be absent when no linked IdP, got %v", got)
+	}
+
+	providers := federationProvidersFromBody(t, w.Body.Bytes())
+	if len(providers) != 0 {
+		t.Errorf("federationProviders: want empty slice, got %v", providers)
+	}
+	// Verify the key is present and not null (JSON null would not decode to []any).
+	rawBody := decodeJSON(t, w.Body.Bytes())
+	if rawBody["federationProviders"] == nil {
+		t.Error("federationProviders must not be null; want []")
 	}
 }
 

@@ -113,6 +113,10 @@ type Querier interface {
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
+	// The account's linked upstream IdPs that are currently enabled — the set
+	// offerable for OIDC sudo step-up. Mirrors CountUsableSignInFederation's
+	// enabled filter. Returns slug + display name for the sudo-method picker.
+	ListLinkedEnabledIdPs(ctx context.Context, accountID int32) ([]ListLinkedEnabledIdPsRow, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
 	ListPublishableSigningKeys(ctx context.Context) ([]SigningKey, error)

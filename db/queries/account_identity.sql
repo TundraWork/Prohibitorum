@@ -28,3 +28,13 @@ UPDATE account_identity SET upstream_email = $2 WHERE id = $1;
 SELECT COUNT(*) FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
 WHERE ai.account_id = $1 AND NOT ip.disabled;
+
+-- name: ListLinkedEnabledIdPs :many
+-- The account's linked upstream IdPs that are currently enabled — the set
+-- offerable for OIDC sudo step-up. Mirrors CountUsableSignInFederation's
+-- enabled filter. Returns slug + display name for the sudo-method picker.
+SELECT ip.slug, ip.display_name
+FROM account_identity ai
+JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+WHERE ai.account_id = $1 AND NOT ip.disabled
+ORDER BY ip.display_name;

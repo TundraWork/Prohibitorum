@@ -56,14 +56,23 @@ type sudoIntent struct {
 func sudoIntentKey(sessionID string) string { return "sudo_intent:" + sessionID }
 
 // sudoFlowQueries is the narrow query surface /me/sudo/methods needs:
-// AvailableMethods (via authn.FlowQueries). Recovery codes are no longer a
-// sudo factor (see package-doc rationale), so ListRecoveryCodesByAccount is
-// not part of this interface — but we keep recovery-code listing in the
-// embedded surface as an unused method via authn.FlowQueries so existing
-// fakes can satisfy this contract without churn.
+// AvailableMethods (via authn.FlowQueries) and the linked-IdP listing used
+// to populate the federationProviders field of the methods response.
+// Recovery codes are no longer a sudo factor (see package-doc rationale),
+// so ListRecoveryCodesByAccount is not part of this interface — but we keep
+// recovery-code listing in the embedded surface as an unused method via
+// authn.FlowQueries so existing fakes can satisfy this contract without churn.
 type sudoFlowQueries interface {
 	authn.FlowQueries
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]db.RecoveryCode, error)
+	ListLinkedEnabledIdPs(ctx context.Context, accountID int32) ([]db.ListLinkedEnabledIdPsRow, error)
+}
+
+// sudoFederationProvider is the per-provider entry in the /me/sudo/methods
+// federationProviders list.
+type sudoFederationProvider struct {
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
 }
 
 // ----- GET /me/sudo/methods ----------------------------------------------
@@ -71,17 +80,35 @@ type sudoFlowQueries interface {
 func (s *Server) handleSudoMethodsHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
 	methods := s.availableSudoMethods(r.Context(), sess.Account.ID)
+
+	providers := []sudoFederationProvider{}
+	rows, err := s.sudoFlowQ().ListLinkedEnabledIdPs(r.Context(), sess.Account.ID)
+	if err != nil {
+		logx.WithContext(r.Context()).WithError(err).Warn("sudo: list linked idps")
+	} else {
+		for _, row := range rows {
+			providers = append(providers, sudoFederationProvider{Slug: row.Slug, DisplayName: row.DisplayName})
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"methods": methods})
+	_ = json.NewEncoder(w).Encode(map[string]any{"methods": methods, "federationProviders": providers})
 }
 
 // availableSudoMethods returns the elevation methods enrolled for the
-// account, in priority order: webauthn, password_totp. Always returns a
-// non-nil slice (empty means admin-recovery-only).
+// account, in priority order: webauthn, password_totp, federation_oidc.
+// Always returns a non-nil slice (empty means no enrolled factors).
 //
 // recovery_code is intentionally excluded — see package-doc. Recovery
 // codes redeem at /auth/recovery-code/verify and route through the
 // dedicated re-enrollment ceremony, not the sudo gate.
+//
+// federation_oidc IS a valid sudo factor: OIDC sudo forces a fresh
+// re-authentication (prompt=login, max_age=0) and verifies auth_time in the
+// callback, so possession of the upstream identity is re-proven each time.
+// AvailableMethods surfaces federation_oidc only when the account has at
+// least one enabled linked upstream provider (via CountUsableSignInFederation),
+// so the method list is already enabled-correct.
 func (s *Server) availableSudoMethods(ctx context.Context, accountID int32) []string {
 	out := []string{}
 	q := s.sudoFlowQ()
@@ -90,12 +117,7 @@ func (s *Server) availableSudoMethods(ctx context.Context, accountID int32) []st
 		logx.WithContext(ctx).WithError(err).Warn("sudo: AvailableMethods")
 	}
 	for _, m := range methods {
-		// Federation isn't a sudo factor — it doesn't re-prove possession of
-		// anything held by the user. Skip it here even if AvailableMethods
-		// surfaces it for the login UI.
-		if m == authn.MethodWebAuthn || m == authn.MethodPasswordTOTP {
-			out = append(out, string(m))
-		}
+		out = append(out, string(m))
 	}
 	return out
 }

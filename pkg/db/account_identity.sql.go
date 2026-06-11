@@ -154,6 +154,42 @@ func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID 
 	return items, nil
 }
 
+const listLinkedEnabledIdPs = `-- name: ListLinkedEnabledIdPs :many
+SELECT ip.slug, ip.display_name
+FROM account_identity ai
+JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+WHERE ai.account_id = $1 AND NOT ip.disabled
+ORDER BY ip.display_name
+`
+
+type ListLinkedEnabledIdPsRow struct {
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+}
+
+// The account's linked upstream IdPs that are currently enabled — the set
+// offerable for OIDC sudo step-up. Mirrors CountUsableSignInFederation's
+// enabled filter. Returns slug + display name for the sudo-method picker.
+func (q *Queries) ListLinkedEnabledIdPs(ctx context.Context, accountID int32) ([]ListLinkedEnabledIdPsRow, error) {
+	rows, err := q.db.Query(ctx, listLinkedEnabledIdPs, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLinkedEnabledIdPsRow
+	for rows.Next() {
+		var i ListLinkedEnabledIdPsRow
+		if err := rows.Scan(&i.Slug, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateAccountIdentityEmail = `-- name: UpdateAccountIdentityEmail :exec
 UPDATE account_identity SET upstream_email = $2 WHERE id = $1
 `
