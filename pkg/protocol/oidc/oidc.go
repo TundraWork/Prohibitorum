@@ -136,6 +136,9 @@ func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 
 		"code_challenge_methods_supported": []string{"S256"},
 		"subject_types_supported":          []string{"public"},
+		// OIDC Core §3.1.2.1 prompt values honored by /authorize (T2.3).
+		// select_account is accepted but a no-op for this single-tenant OP.
+		"prompt_values_supported": []string{"none", "login", "consent", "select_account"},
 
 		// RFC 9207: we set the `iss` parameter on authorization responses.
 		"authorization_response_iss_parameter_supported": true,

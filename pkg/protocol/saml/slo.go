@@ -4,12 +4,17 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/xml"
 	"errors"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/beevik/etree"
@@ -464,9 +469,38 @@ func parseSPSLOEndpoint(metadataXML []byte, binding string) (location string, ok
 	return "", false
 }
 
+// signedRedirectQuery builds the DETACHED-signed HTTP-Redirect query string for
+// an outbound SAML message (SAML Bindings §3.4.4.1). It constructs the octet
+// string SAMLResponse=…&RelayState=…&SigAlg=… (RelayState omitted when empty)
+// from the URL-encoded values in that EXACT order — built by hand because
+// url.Values.Encode() sorts keys alphabetically, which would corrupt the signed
+// string — RSA-SHA256-signs it, and appends &Signature=…. The construction
+// order mirrors the inbound verifier verifyRedirectSignature (authnreq.go); an
+// SP reconstructs this exact octet string from the raw query to verify.
+func signedRedirectQuery(samlResponseB64, relayState string, priv *rsa.PrivateKey) (string, error) {
+	var b strings.Builder
+	b.WriteString("SAMLResponse=")
+	b.WriteString(url.QueryEscape(samlResponseB64))
+	if relayState != "" {
+		b.WriteString("&RelayState=")
+		b.WriteString(url.QueryEscape(relayState))
+	}
+	b.WriteString("&SigAlg=")
+	b.WriteString(url.QueryEscape(rsaSHA256SigAlg))
+	signed := b.String()
+
+	h := sha256.Sum256([]byte(signed))
+	sig, err := rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA256, h[:])
+	if err != nil {
+		return "", err
+	}
+	return signed + "&Signature=" + url.QueryEscape(base64.StdEncoding.EncodeToString(sig)), nil
+}
+
 // writeRedirectLogoutResponse delivers a LogoutResponse over the HTTP-Redirect
-// binding: 302 to location?SAMLResponse=base64(deflate(respXML))[&RelayState=…].
-// The location is SP-metadata-derived (never request-supplied).
+// binding: 302 to location?SAMLResponse=…&[RelayState=…&]SigAlg=…&Signature=…,
+// detached-signed per Bindings §3.4.4.1 (T2.1). The location is
+// SP-metadata-derived (never request-supplied).
 func (i *IdP) writeRedirectLogoutResponse(w http.ResponseWriter, r *http.Request, location string, respXML []byte, relayState string) {
 	var deflated bytes.Buffer
 	fw, err := flate.NewWriter(&deflated, flate.DefaultCompression)
@@ -485,17 +519,25 @@ func (i *IdP) writeRedirectLogoutResponse(w http.ResponseWriter, r *http.Request
 	}
 	encoded := base64.StdEncoding.EncodeToString(deflated.Bytes())
 
-	q := url.Values{}
-	q.Set("SAMLResponse", encoded)
-	if relayState != "" {
-		q.Set("RelayState", relayState)
+	// Detached-sign the query (the enveloped XML signature in respXML is not
+	// verifiable after DEFLATE+base64, so a strict SP relies on this).
+	priv, _, _, ok := i.keys.signingKey(r.Context())
+	if !ok {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
+	signedQuery, err := signedRedirectQuery(encoded, relayState, priv)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	sep := "?"
 	if u, perr := url.Parse(location); perr == nil && u.RawQuery != "" {
 		sep = "&"
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	http.Redirect(w, r, location+sep+q.Encode(), http.StatusFound)
+	http.Redirect(w, r, location+sep+signedQuery, http.StatusFound)
 }
 
 // sloParseError maps an SLO parse/validation/signature error to a DIRECT HTTP

@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"context"
 	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -417,6 +418,50 @@ func assertLogoutResponseValid(t *testing.T, h *sloHarness, respXML []byte, want
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+// TestSignedRedirectQueryVerifies guards T2.1: the redirect-binding outbound
+// signature is a DETACHED signature over SAMLResponse[&RelayState]&SigAlg in
+// that exact order, RSA-SHA256, and it verifies against the signer's public key
+// when reconstructed the way an SP (and our own verifyRedirectSignature) does.
+func TestSignedRedirectQueryVerifies(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, relay := range []string{"", "some relay+state/value=="} {
+		q, err := signedRedirectQuery("ZGVmbGF0ZWQ+/abc=", relay, priv)
+		if err != nil {
+			t.Fatalf("signedRedirectQuery(relay=%q): %v", relay, err)
+		}
+		if !strings.HasPrefix(q, "SAMLResponse=") {
+			t.Errorf("query must start with SAMLResponse=, got %q", q)
+		}
+		if !strings.Contains(q, "SigAlg="+url.QueryEscape(rsaSHA256SigAlg)) {
+			t.Errorf("missing/incorrect SigAlg in %q", q)
+		}
+		if hasRelay := strings.Contains(q, "&RelayState="); (relay != "") != hasRelay {
+			t.Errorf("RelayState presence mismatch for relay=%q: %q", relay, q)
+		}
+		// The Signature must verify over the octet string preceding it.
+		idx := strings.LastIndex(q, "&Signature=")
+		if idx < 0 {
+			t.Fatalf("no Signature param in %q", q)
+		}
+		signed := q[:idx]
+		sigB64, err := url.QueryUnescape(q[idx+len("&Signature="):])
+		if err != nil {
+			t.Fatalf("unescape signature: %v", err)
+		}
+		sig, err := base64.StdEncoding.DecodeString(sigB64)
+		if err != nil {
+			t.Fatalf("decode signature: %v", err)
+		}
+		h := sha256.Sum256([]byte(signed))
+		if err := rsa.VerifyPKCS1v15(&priv.PublicKey, crypto.SHA256, h[:], sig); err != nil {
+			t.Errorf("detached signature does not verify (relay=%q): %v", relay, err)
+		}
+	}
+}
 
 func TestSLOValidRedirectRevokesSession(t *testing.T) {
 	h := newSLOHarness(t, sloSP())

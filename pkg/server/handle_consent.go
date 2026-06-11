@@ -106,6 +106,12 @@ func (s *Server) handleConsentDecisionHTTP(w http.ResponseWriter, r *http.Reques
 		if ticket.State != "" {
 			q.Set("state", ticket.State)
 		}
+		// RFC 9207 §2: the iss parameter MUST be included in authorization
+		// responses, INCLUDING error responses. The OP advertises
+		// authorization_response_iss_parameter_supported, and the success +
+		// other error paths set it (authorize.go) — the deny path must too, or a
+		// strict mix-up-checking RP rejects the deny. (T2.2)
+		q.Set("iss", s.config.OIDC.Issuer)
 		u.RawQuery = q.Encode()
 		redirect = u.String()
 	default:
