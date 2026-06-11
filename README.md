@@ -1,8 +1,8 @@
 # Prohibitorum
 
-> Index Librorum Prohibitorum — the list of who's allowed and what they can do.
+> Index Librorum Prohibitorum
 
-A homegrown identity provider for small orgs. Single-tenant, first-party,
+Prohibitorum is a homegrown identity provider for small orgs. Single-tenant, first-party,
 no email channel; admin-issued enrollment is the only recovery path.
 
 - **Upstream auth methods:** WebAuthn (preferred, phishing-resistant),
@@ -17,15 +17,28 @@ no email channel; admin-issued enrollment is the only recovery path.
 
 ## Status
 
-v0.2 shipped — **WebAuthn (v0.1) + Password+TOTP+recovery codes (v0.2)**
-are smoke-verified end-to-end against a live dev server (45/45 steps +
-DB-state assertions). Sudo step-up accepts all three methods;
-`POST /me/auth/revoke-password-totp` lets users drop the fallback once
-their passkey is confirmed working.
+v0.6 shipped — the full IdP is live and smoke-verified end-to-end against a
+live dev server (121 steps + DB-state assertions):
 
-Still ahead: v0.3 upstream OIDC federation, v0.4 OIDC OP, v0.5 SAML IdP,
-v0.6 frontend, v0.7+ hardening. See `STATUS.md` for the roadmap and
-`AUDIT.md` for the spec-compliance checklist.
+- **v0.1 / v0.2** — WebAuthn enrollment/login + `/me` + sessions; Password +
+  TOTP + recovery codes. Sudo step-up accepts two methods (`webauthn` /
+  `password_totp` — recovery codes route through a dedicated re-enrollment
+  ceremony, not sudo); `POST /me/auth/revoke-password-totp` drops the
+  fallback once a passkey is confirmed working.
+- **v0.3** — upstream OIDC federation (`auto_provision` / `link_only` /
+  `invite_only`).
+- **v0.4** — downstream OIDC OP (Authorization Code + PKCE, RFC 9068 access
+  tokens, refresh rotation + reuse detection, introspection, revocation,
+  RP-Initiated Logout).
+- **v0.5** — SAML 2.0 IdP (SP-initiated SSO + IdP-local SLO + metadata),
+  GHES-compatible profile.
+- **v0.6** — forced re-auth (`prompt=login` / `max_age` / `ForceAuthn`),
+  `NameIDPolicy/@Format`, POST-binding AuthnRequest, signed SAML metadata,
+  IdP-initiated SSO, and the admin + end-user dashboard.
+
+Still ahead: v0.7+ hardening (HSM/KMS-backed signing, front-channel SLO,
+DPoP/PAR, SIEM export). See `STATUS.md` for the roadmap and `AUDIT.md` for
+the spec-compliance checklist.
 
 ## Quickstart
 
@@ -45,21 +58,28 @@ mise run db:up
 
 # 4. Bootstrap the first admin
 go run ./cmd/prohibitorum enroll-admin
-# Prints an enrollment URL. v0.6's dashboard will drive the in-browser
-# passkey ceremony; until then, drive the API directly:
+# Prints an enrollment URL (http://localhost:8080/enroll/<token>). Open it in
+# a browser to run the passkey-enrollment ceremony in the dashboard
+# (EnrollView), or drive the API directly:
 #   POST /api/prohibitorum/enrollments/{token}/register/begin
 #   POST /api/prohibitorum/enrollments/{token}/register/complete
-# (See STATUS.md "WebAuthn smoke without a frontend" for options.)
 
 # 5. Run the server
 mise run server
-# Mounted in v0.1: WebAuthn enrollment/login + /me + /.well-known/openid-configuration
-# + /oauth/jwks (JWKS returns empty `keys` until v0.4).
-# Mounted in v0.2: /auth/{password/begin,totp/verify,recovery-code/verify}
-# + /me/{password/set,totp/{begin,verify},recovery-codes/regenerate,auth/revoke-password-totp,sudo/methods}
-# + extended /me/sudo/{begin,complete} dispatching on `method`.
+# The full IdP surface is mounted:
+#   Upstream auth (/api/prohibitorum): WebAuthn enrollment/login, password+TOTP,
+#     recovery ceremony, upstream OIDC federation, /me + sudo.
+#   OIDC OP (issuer root): /oauth/{authorize,token,userinfo,introspect,revoke,jwks},
+#     /oidc/logout, /.well-known/openid-configuration. /oauth/jwks serves the
+#     active signing key once one is provisioned (`prohibitorum signing-key generate`).
+#   SAML IdP (issuer root): /saml/{metadata,sso,slo,sso/init}.
+#   Admin API (/api/prohibitorum): oidc-clients, saml-providers, upstream-idps,
+#     signing-keys, audit-events, accounts.
+#   Dashboard SPA: served as the router fallback (embedded from pkg/webui/dist).
 
-# 6. Dashboard dev (v0.6+; dashboard/ is empty until then)
+# 6. Dashboard dev server (hot-reload). The built SPA is already embedded into
+#    the server binary (pkg/webui/dist), so this is only needed for frontend
+#    work; rebuild the embedded bundle with `mise run build`.
 mise run web
 ```
 
@@ -87,7 +107,7 @@ RPs don't see how the user signed in, only the resulting claims.
   similar to Keycloak.
 - **Auth0 / Clerk / Stytch (SaaS)** — not self-hosted.
 
-`zitadel/oidc` (the Go library, not the service) **is** used as the
+`zitadel/oidc` (the Go library, not the service) is used as the
 OIDC OP toolkit; `crewjam/saml` for the SAML IdP side. Reimplementing
 either by hand is a known antipattern.
 
