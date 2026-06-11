@@ -24,46 +24,49 @@ are registered via `s.registerSudoOpHTTP`, and
 returns `sudo_required` (HTTP 401) when the session carries no fresh
 sudo grant.
 
-All admin routes share the `/api/prohibitorum` prefix.
+All admin routes share the `/api/prohibitorum` prefix. The admin HTTP API uses
+role-oriented resource names (`oidc-applications`, `saml-applications`,
+`identity-providers`); the equivalent CLI verbs keep their protocol-oriented
+names (`oidc-client`, `saml-sp`, `upstream-idp`).
 
 ---
 
-## OIDC clients
+## OIDC applications (downstream relying parties)
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/oidc-clients` | 🔓 | List all clients. `client_secret_hash` never present in response (unit-tested: `TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash`). |
-| GET | `/api/prohibitorum/oidc-clients/{clientId}` | 🔓 | Get one client. Same no-secret guarantee. |
-| POST | `/api/prohibitorum/oidc-clients` | 🔐 | Create a client. Confidential clients (`public: false`): generates a 32-byte `crypto/rand` secret, returns it in `secret` **once only** — not stored plaintext, only the argon2id hash is persisted. Public clients return no secret. Smoke step 114. |
-| PUT | `/api/prohibitorum/oidc-clients/{clientId}` | 🔐 | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. Smoke step 115. |
-| POST | `/api/prohibitorum/oidc-clients/rotate-secret` | 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns the new cleartext in `secret` **once only**. New secret is guaranteed ≠ previous secret. Smoke step 116. |
-| POST | `/api/prohibitorum/oidc-clients/delete` | 🔐 | Body: `{"clientId": "..."}`. Hard-deletes the client row. |
+| GET | `/api/prohibitorum/oidc-applications` | 🔓 | List all clients. `client_secret_hash` never present in response (unit-tested: `TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash`). |
+| GET | `/api/prohibitorum/oidc-applications/{clientId}` | 🔓 | Get one client. Same no-secret guarantee. |
+| POST | `/api/prohibitorum/oidc-applications` | 🔐 | Create a client. Confidential clients (`public: false`): generates a 32-byte `crypto/rand` secret, returns it in `secret` **once only** — not stored plaintext, only the argon2id hash is persisted. Public clients return no secret. Smoke step 114. |
+| PUT | `/api/prohibitorum/oidc-applications/{clientId}` | 🔐 | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. Smoke step 115. |
+| POST | `/api/prohibitorum/oidc-applications/rotate-secret` | 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns the new cleartext in `secret` **once only**. New secret is guaranteed ≠ previous secret. Smoke step 116. |
+| POST | `/api/prohibitorum/oidc-applications/delete` | 🔐 | Body: `{"clientId": "..."}`. Hard-deletes the client row. |
 
 ---
 
-## SAML service providers
+## SAML applications (downstream service providers)
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/saml-providers` | 🔓 | List all registered SPs. |
-| GET | `/api/prohibitorum/saml-providers/{id}` | 🔓 | Get one SP by numeric ID. |
-| POST | `/api/prohibitorum/saml-providers` | 🔐 | Register a new SP. Optionally accepts raw SAML metadata XML in `metadataXml` for ACS + cert ingestion (same path as the `saml-sp create --metadata-file` CLI). |
-| PUT | `/api/prohibitorum/saml-providers/{id}` | 🔐 | Update SP config (display name, attribute map, session lifetime, etc). |
-| POST | `/api/prohibitorum/saml-providers/{id}/reingest-metadata` | 🔐 | Re-parse fresh SAML metadata XML for an existing SP (updates ACS endpoints + signing certs). |
-| POST | `/api/prohibitorum/saml-providers/delete` | 🔐 | Body: `{"id": <int>}`. Hard-deletes the SP row and child rows (`saml_sp_acs`, `saml_sp_key`). |
+| GET | `/api/prohibitorum/saml-applications` | 🔓 | List all registered SPs. |
+| GET | `/api/prohibitorum/saml-applications/{id}` | 🔓 | Get one SP by numeric ID. |
+| POST | `/api/prohibitorum/saml-applications` | 🔐 | Register a new SP. Optionally accepts raw SAML metadata XML in `metadataXml` for ACS + cert ingestion (same path as the `saml-sp create --metadata-file` CLI). |
+| PUT | `/api/prohibitorum/saml-applications/{id}` | 🔐 | Update SP config (display name, attribute map, session lifetime, etc). |
+| POST | `/api/prohibitorum/saml-applications/{id}/reingest-metadata` | 🔐 | Re-parse fresh SAML metadata XML for an existing SP (updates ACS endpoints + signing certs). |
+| POST | `/api/prohibitorum/saml-applications/delete` | 🔐 | Body: `{"id": <int>}`. Hard-deletes the SP row and child rows (`saml_sp_acs`, `saml_sp_key`). |
 
 ---
 
-## Upstream IdPs (OIDC federation)
+## Identity providers (upstream OIDC federation)
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/upstream-idps` | 🔓 | List all upstream IdPs. Client secret is **write-only**: never returned; `TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes` + `TestAdminUpstreamIDPs_ContractType_NoSecretFields` enforce this at the contract level. |
-| GET | `/api/prohibitorum/upstream-idps/{slug}` | 🔓 | Get one upstream IdP by slug. Same no-secret guarantee. |
-| POST | `/api/prohibitorum/upstream-idps` | 🔐 | Create an upstream IdP including its client secret. The secret is AES-GCM sealed after insert; AAD binds to the row `id`. **Known caveat:** a crash between insert and seal leaves a row with a placeholder secret that decrypts to a failure (fails closed; best-effort cleanup). |
-| PUT | `/api/prohibitorum/upstream-idps/{slug}` | 🔐 | Update mutable IdP config. Explicitly **excludes** the client secret — use rotate-secret to change it. |
-| POST | `/api/prohibitorum/upstream-idps/rotate-secret` | 🔐 | Body: `{"slug": "...", "newSecret": "..."}`. Re-seals the client secret under the active DEK version. |
-| POST | `/api/prohibitorum/upstream-idps/delete` | 🔐 | Body: `{"slug": "..."}`. Hard-deletes the upstream IdP row and all `account_identity` rows linked to it. |
+| GET | `/api/prohibitorum/identity-providers` | 🔓 | List all upstream IdPs. Client secret is **write-only**: never returned; `TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes` + `TestAdminUpstreamIDPs_ContractType_NoSecretFields` enforce this at the contract level. |
+| GET | `/api/prohibitorum/identity-providers/{slug}` | 🔓 | Get one upstream IdP by slug. Same no-secret guarantee. |
+| POST | `/api/prohibitorum/identity-providers` | 🔐 | Create an upstream IdP including its client secret. The secret is AES-GCM sealed after insert; AAD binds to the row `id`. **Known caveat:** a crash between insert and seal leaves a row with a placeholder secret that decrypts to a failure (fails closed; best-effort cleanup). |
+| PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔐 | Update mutable IdP config. Explicitly **excludes** the client secret — use rotate-secret to change it. |
+| POST | `/api/prohibitorum/identity-providers/rotate-secret` | 🔐 | Body: `{"slug": "...", "newSecret": "..."}`. Re-seals the client secret under the active DEK version. |
+| POST | `/api/prohibitorum/identity-providers/delete` | 🔐 | Body: `{"slug": "..."}`. Hard-deletes the upstream IdP row and all `account_identity` rows linked to it. |
 
 ---
 

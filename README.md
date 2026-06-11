@@ -15,10 +15,15 @@ no email channel; admin-issued enrollment is the only recovery path.
   Relying parties enforce policy; Prohibitorum just answers "who is
   this and what do you know about them?"
 
+The dashboard SPA (`/`, `/admin/*`) is embedded into the server binary, so a
+single `./prohibitorum` process serves the whole IdP plus its admin UI.
+
 ## Status
 
-v0.6 shipped — the full IdP is live and smoke-verified end-to-end against a
-live dev server (121 steps + DB-state assertions):
+v0.6 shipped — the full IdP is live and smoke-verified end-to-end against a live
+dev server, and a pre-ship logic-correctness / security-invariant audit of the
+auth-critical cores has been completed and remediated
+(`docs/superpowers/notes/2026-06-11-preship-logic-correctness-audit.md`).
 
 - **v0.1 / v0.2** — WebAuthn enrollment/login + `/me` + sessions; Password +
   TOTP + recovery codes. Sudo step-up accepts two methods (`webauthn` /
@@ -40,53 +45,245 @@ Still ahead: v0.7+ hardening (HSM/KMS-backed signing, front-channel SLO,
 DPoP/PAR, SIEM export). See `STATUS.md` for the roadmap and `AUDIT.md` for
 the spec-compliance checklist.
 
-## Quickstart
+## Quickstart (production-style)
 
-Requires Postgres 14+ and a Redis-compatible KV (or in-process memory).
+Requires Postgres 14+ and a Redis-compatible KV (or the in-process memory
+driver). The toolchain is pinned in `mise.toml`.
 
 ```bash
-# 1. Toolchain via mise
+# 1. Toolchain (go 1.26, node 24, pnpm 10, sqlc, goose)
 mise install
 
-# 2. Environment — DEK (required at boot) and origin (required by enroll-admin)
+# 2. Required config: a data-encryption key (boot fails without one) + origin.
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
-export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
-
-# 3. Apply migrations
+export PROHIBITORUM_PUBLIC_ORIGIN="https://auth.example.com"
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum?sslmode=disable"
-mise run db:up
 
-# 4. Bootstrap the first admin
+# 3. Migrations. (The server and every DB-backed CLI command also auto-apply
+#    migrations on start, so this step is optional.)
+mise db:up
+
+# 4. Mint an OIDC signing key — /oauth/jwks and signed tokens need one.
+go run ./cmd/prohibitorum signing-key generate
+
+# 5. Bootstrap the first admin. Prints an enrollment URL; open it in a browser
+#    to run the passkey-enrollment ceremony (the EnrollView page).
 go run ./cmd/prohibitorum enroll-admin
-# Prints an enrollment URL (http://localhost:8080/enroll/<token>). Open it in
-# a browser to run the passkey-enrollment ceremony in the dashboard
-# (EnrollView), or drive the API directly:
-#   POST /api/prohibitorum/enrollments/{token}/register/begin
-#   POST /api/prohibitorum/enrollments/{token}/register/complete
 
-# 5. Run the server
-mise run server
-# The full IdP surface is mounted:
-#   Upstream auth (/api/prohibitorum): WebAuthn enrollment/login, password+TOTP,
-#     recovery ceremony, upstream OIDC federation, /me + sudo.
-#   OIDC OP (issuer root): /oauth/{authorize,token,userinfo,introspect,revoke,jwks},
-#     /oidc/logout, /.well-known/openid-configuration. /oauth/jwks serves the
-#     active signing key once one is provisioned (`prohibitorum signing-key generate`).
-#   SAML IdP (issuer root): /saml/{metadata,sso,slo,sso/init}.
-#   Admin API (/api/prohibitorum): oidc-clients, saml-providers, upstream-idps,
-#     signing-keys, audit-events, accounts.
-#   Dashboard SPA: served as the router fallback (embedded from pkg/webui/dist).
-
-# 6. Dashboard dev server (hot-reload). The built SPA is already embedded into
-#    the server binary (pkg/webui/dist), so this is only needed for frontend
-#    work; rebuild the embedded bundle with `mise run build`.
-mise run web
+# 6. Run the server (defaults to :8080; see PROHIBITORUM_HOST / _PORT).
+mise server
 ```
 
-If `mise run db:up` fails because `goose` isn't installed, see
-`STATUS.md` for the `aqua:pressly/goose` workaround.
+What gets mounted (all on one origin):
 
-### Deployment hardening
+- **Upstream auth** (`/api/prohibitorum/*`): WebAuthn enroll/login, password+TOTP,
+  recovery ceremony, upstream OIDC federation, `/me` + sudo step-up.
+- **OIDC OP** (issuer root): `/oauth/{authorize,token,userinfo,introspect,revoke,jwks}`,
+  `/oidc/logout`, `/.well-known/openid-configuration`.
+- **SAML IdP** (issuer root): `/saml/{metadata,sso,slo,sso/init}`.
+- **Admin API** (`/api/prohibitorum/*`): `oidc-applications`, `saml-applications`,
+  `identity-providers`, `signing-keys`, `audit-events`, `accounts`, `invitations`.
+- **Dashboard SPA**: served as the router fallback (embedded from `pkg/webui/dist`).
+
+See [`api.md`](./api.md) for the full HTTP surface and [`INTEGRATION.md`](./INTEGRATION.md)
+for relying-party integration patterns.
+
+## Development
+
+The `mise dev-*` tasks give you a self-contained loop with no manual env setup.
+They source `scripts/dev-env.sh`, which:
+
+- generates a stable data-encryption key once into `.dev/encryption-key` (gitignored),
+- points at a dedicated **`prohibitorum_dev`** database, isolated from the smoke's
+  `postgres` DB, and auto-creates it when `psql` is available. The default URL is
+  `postgres://tundra@localhost:55432/prohibitorum_dev?sslmode=disable` — override
+  `PROHIBITORUM_DATABASE_URL` (and `PROHIBITORUM_PUBLIC_ORIGIN`) to use a different
+  cluster, in which case DB auto-create is skipped.
+
+```bash
+# Terminal 1 — build the SPA, run the embedded server on :8080, auto-migrate.
+mise dev-server
+
+# Terminal 2 — bootstrap an admin against the same dev DB/key. Prints an
+# /enroll/<token> URL; open it to register a passkey and sign in.
+mise enroll-admin -- --new
+
+# Optional — seed example providers/accounts/invitations so data-driven
+# dashboard elements render (idempotent; refuses to run off-loopback).
+mise dev-seed
+```
+
+**Frontend.** `dashboard/` is a Vue 3 + Vite + Tailwind v4 + shadcn-vue/Reka UI
+SPA (no Nuxt UI). Use `mise web` for a hot-reloading dev server against the
+running backend. The shipped UI is embedded via `go:embed` from the **committed**
+`pkg/webui/dist`, so after any change that should land in the binary, rebuild and
+commit the bundle:
+
+```bash
+mise build                 # builds dashboard/dist -> pkg/webui/dist, then compiles ./prohibitorum
+git add pkg/webui/dist     # Vite chunk hashes are non-deterministic; commit dist deliberately
+```
+
+**Tests.**
+
+```bash
+go build ./... && go vet ./... && go test ./...   # backend
+cd dashboard && npm ci && npm test                # frontend unit tests (vitest)
+cd dashboard && npm run build                     # FE typecheck (vue-tsc -b) + production build
+```
+
+**End-to-end smoke** (`cmd/smoke`) drives a real server over HTTP and bootstraps
+its own admin. Point a server at a throwaway DB and run it against that origin.
+Because the smoke's federation arc runs an in-process mock OP on loopback, the
+server must opt the outbound federation client out of the SSRF dial-screen:
+
+```bash
+export PROHIBITORUM_DATABASE_URL="postgres://tundra@localhost:55432/postgres?sslmode=disable"
+export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(cat .dev/encryption-key)"
+export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
+export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"   # in-process mock OP is on loopback
+go run ./cmd/prohibitorum &                                   # auto-migrates on boot
+go run ./cmd/smoke --base-url http://localhost:8080
+```
+
+## mise tasks
+
+Run as `mise <task>` (or `mise run <task>`). Tasks marked **dev** source
+`scripts/dev-env.sh` and target the loopback `prohibitorum_dev` DB.
+
+| Task | What it does |
+|------|--------------|
+| `mise install` | Install the pinned toolchain (go 1.26, node 24, pnpm 10, sqlc 1.30.0, goose 3.27.0). |
+| `mise server` | Run the Go server (`go run ./cmd/prohibitorum/main.go`) using your current env. |
+| `mise web` | Dashboard dev server with hot reload (`pnpm --dir dashboard dev`). |
+| `mise frontend-build` | Install + build the SPA into `dashboard/dist` (`npm ci && npm run build`). |
+| `mise build` | Build the SPA into `pkg/webui/dist`, then compile the `./prohibitorum` binary (which embeds it). |
+| `mise openapi` | Regenerate `openapi.yaml` from the running humacli. |
+| `mise db:up` | Apply goose migrations against `$PROHIBITORUM_DATABASE_URL`. |
+| `mise db:status` | Show migration status. |
+| `mise dev-server` | **dev** — build the SPA + run the embedded server on `:8080` with dev defaults (auto-created `prohibitorum_dev` DB + stable `.dev/encryption-key`). Auto-migrates on boot. |
+| `mise enroll-admin [-- FLAGS]` | **dev** — issue an admin enrollment URL against the dev DB. Pass flags after `--`, e.g. `-- --new` or `-- --reset --username alice`. |
+| `mise dev-seed` | **dev** — seed `prohibitorum_dev` with example providers/accounts/invitations (idempotent, loopback-only). |
+
+## CLI commands
+
+Invoke as `go run ./cmd/prohibitorum <command>` (dev) or `./prohibitorum <command>`
+(after `mise build`). With no subcommand, the binary runs the server. Every
+DB-backed command auto-applies migrations first. For day-to-day management the
+admin dashboard (`/admin/*`) covers the same surface; the CLI is for
+bootstrapping and automation.
+
+| Command | Purpose |
+|---------|---------|
+| `enroll-admin [--new] [--reset --username NAME]` | Issue a passkey-enrollment URL for an admin. Default errors if an admin already exists; `--new` adds another; `--reset` recovers a named admin. |
+| `signing-key generate [--activate] [--retire KID]` | Mint an RSA-2048 OIDC signing key. The first key (or any `--activate`) becomes active; `--retire KID` decommissions a key (refused for the active key). |
+| `oidc-client create \| list \| update \| rotate-secret \| delete` | Manage downstream OIDC clients (relying parties). `create`/`rotate-secret` print a confidential secret exactly once. |
+| `saml-sp create \| list \| update \| delete` | Manage downstream SAML service providers. `create` ingests `--metadata-file`/`--metadata-url` or manual `--entity-id`/`--acs-url`; `--kind ghes` installs the GHES profile. |
+| `upstream-idp create \| list \| update \| rotate-secret \| delete` | Manage upstream OIDC IdPs for federation. The client secret is AES-GCM sealed at rest. |
+| `openapi` | Print the OpenAPI spec to stdout. |
+| `dev-seed` | Seed the dev database (loopback-only). |
+
+Run `<command> --help` for the full flag list. Note the CLI verbs keep their
+protocol-oriented names (`oidc-client`, `saml-sp`, `upstream-idp`) while the
+admin HTTP API uses the role-oriented names (`oidc-applications`,
+`saml-applications`, `identity-providers`).
+
+## Configuration — environment variables
+
+Config is read from `PROHIBITORUM_*` env vars (an optional `config.yaml` in the
+working directory is also honored). Nested keys map by upper-casing and joining
+with `_` (e.g. `oidc.access_token_ttl` → `PROHIBITORUM_OIDC_ACCESS_TOKEN_TTL`).
+Durations use Go syntax (`10m`, `8h`, `720h`, `60s`). Defaults below are the
+in-code defaults; **only the data-encryption key is strictly required** (boot
+fails without one).
+
+### Core
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>` | — (**required**) | base64-encoded AES-256 key (32 bytes). The highest version `<n>` is used for new writes; lower versions stay available for decryption. Set at least one (e.g. `_V1`). |
+| `PROHIBITORUM_DATABASE_URL` | — | Postgres connection string. Required for the server and every DB-backed CLI command. |
+| `PROHIBITORUM_PUBLIC_ORIGIN` | `http://localhost:8080` | Comma-separated public origin(s). Seeds the OIDC issuer, SAML EntityID + endpoint URLs, and the WebAuthn RP ID/origins when those aren't set explicitly. |
+| `PROHIBITORUM_HOST` | `""` (all interfaces) | Bind interface; set e.g. `127.0.0.1` to listen loopback-only behind a reverse proxy. |
+| `PROHIBITORUM_PORT` | `8080` | Bind port. |
+| `PROHIBITORUM_SESSION_TTL` | `8h` | Session lifetime (cookie + KV). |
+| `PROHIBITORUM_TRUST_PROXY` | `false` | Honor `X-Forwarded-For` / `X-Forwarded-Proto`. Enable only behind a trusted reverse proxy. |
+
+### KV store
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_KV_DRIVER` | `memory` | `memory` (single-process dev) or `redis`. |
+| `PROHIBITORUM_KV_REDIS_URL` | `localhost:6379` | Redis address. |
+| `PROHIBITORUM_KV_REDIS_USERNAME` | `""` | Redis 6+ ACL username (optional). |
+| `PROHIBITORUM_KV_REDIS_PASSWORD` | `""` | Redis password. |
+| `PROHIBITORUM_KV_REDIS_TLS` | `false` | Connect to Redis over TLS. |
+
+### OIDC OP
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_OIDC_ISSUER` | `PublicOrigins[0]` | Issuer string embedded in tokens + discovery. |
+| `PROHIBITORUM_OIDC_ACCESS_TOKEN_TTL` | `10m` | Access-token lifetime. |
+| `PROHIBITORUM_OIDC_ID_TOKEN_TTL` | `10m` | ID-token lifetime. |
+| `PROHIBITORUM_OIDC_REFRESH_TOKEN_TTL` | `720h` (30d) | Refresh-token / family lifetime (slides forward on rotation). |
+| `PROHIBITORUM_OIDC_AUTHORIZATION_CODE_TTL` | `60s` | Authorization-code lifetime (single-use). |
+| `PROHIBITORUM_OIDC_JWKS_CACHE_MAX_AGE` | `5m` | `Cache-Control: max-age` on `/oauth/jwks` + discovery. |
+
+### WebAuthn
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_WEBAUTHN_RP_ID` | host of `PublicOrigins[0]` | WebAuthn Relying Party ID. Override when the RP ID differs from the origin hostname. |
+| `PROHIBITORUM_WEBAUTHN_RP_DISPLAY_NAME` | `Prohibitorum` | RP display name shown by authenticators (also the TOTP issuer fallback). |
+| `PROHIBITORUM_WEBAUTHN_RP_ORIGINS` | `PublicOrigins` | Comma-separated allowed WebAuthn origins. |
+
+### Upstream OIDC federation
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_FEDERATION_STATE_TTL` | `10m` | Lifetime of the single-use federation state blob. |
+| `PROHIBITORUM_FEDERATION_DEFAULT_SCOPES` | `openid,profile,email` | Scopes requested from an upstream when none are set per-IdP. (List value — prefer `config.yaml`.) |
+| `PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK` | `false` | Disable the outbound federation client's SSRF dial-screen. Set `true` only for a trusted internal upstream IdP (or the loopback mock OP in tests). |
+
+### TOTP
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_TOTP_DEFAULT_PERIOD` | `30` | TOTP period (seconds). |
+| `PROHIBITORUM_TOTP_DEFAULT_DIGITS` | `6` | TOTP digit count. |
+| `PROHIBITORUM_TOTP_DEFAULT_ALGORITHM` | `SHA1` | RFC 6238 HMAC algorithm. |
+| `PROHIBITORUM_TOTP_DRIFT_STEPS` | `1` | Accepted ± step drift on verify. |
+| `PROHIBITORUM_TOTP_RECOVERY_CODE_COUNT` | `10` | Recovery codes minted per enrollment. |
+| `PROHIBITORUM_TOTP_ISSUER` | `webauthn.rp_display_name` | Label in the `otpauth://` URI. |
+
+### Cross-factor auth
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_AUTH_SUDO_TTL` | `5m` | Window a step-up (sudo) grant stays valid. |
+| `PROHIBITORUM_AUTH_PARTIAL_SESSION_TTL` | `5m` | Window a password-only partial session has to complete the TOTP step. |
+| `PROHIBITORUM_AUTH_THROTTLE_SCHEDULE` | `0,0,1s,2s,4s,8s,16s,32s,1m,2m,4m,8m,15m` | Per-failure lockout ladder (last entry clamps). List value — prefer `config.yaml`. |
+
+### SAML IdP
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_SAML_ENTITY_ID` | `PublicOrigins[0]` | Stable IdP SAML EntityID. Choose one that never changes — changing it breaks every registered SP. |
+| `PROHIBITORUM_SAML_DEFAULT_NAMEID_FORMAT` | `urn:oasis:names:tc:SAML:1.1:nameid-format:persistent` | Default NameID format. |
+| `PROHIBITORUM_SAML_SESSION_LIFETIME` | `8h` | Default `SessionNotOnOrAfter` horizon. |
+| `PROHIBITORUM_SAML_METADATA_ROTATION_GRACE` | `168h` (7d) | Signing-key decommission grace advertised in metadata. |
+| `PROHIBITORUM_SAML_METADATA_VALIDITY` | `24h` | `validUntil` on published IdP metadata. |
+
+### Password hashing (argon2id)
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_PASSWORD_HASH_MEMORY_KIB` | `65536` (64 MiB) | argon2id memory cost. |
+| `PROHIBITORUM_PASSWORD_HASH_ITERATIONS` | `3` | argon2id time cost. |
+| `PROHIBITORUM_PASSWORD_HASH_PARALLELISM` | `1` | argon2id lanes. |
+
+## Deployment hardening
 
 The KV store backs session lookups, single-use auth codes / federation state,
 PKCE verifiers, and enrollment tokens. Session secrets are stored hashed (the
@@ -107,11 +304,12 @@ Outbound upstream-OIDC federation fetches (discovery / JWKS / token exchange)
 run on an SSRF-hardened HTTP client that refuses to connect to loopback,
 private (RFC1918 / ULA), or link-local / cloud-metadata addresses, and the
 admin API rejects non-`https` or IP-literal issuer URLs. If you federate to an
-IdP that legitimately lives on a private/internal network, opt in explicitly:
+IdP that legitimately lives on a private/internal network, opt in explicitly
+with `PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK=true`.
 
-```bash
-export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"  # default false
-```
+Behind a TLS-terminating reverse proxy, set `PROHIBITORUM_TRUST_PROXY=true` so
+client-IP and scheme are read from the forwarded headers, and keep
+`PROHIBITORUM_PUBLIC_ORIGIN` on `https://…` so secure cookies are issued.
 
 ## Architecture in one paragraph
 
@@ -142,9 +340,12 @@ either by hand is a known antipattern.
 
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — architecture, methods, protocols,
   threat model, scope.
-- [`STATUS.md`](./STATUS.md) — what's done in v0.1 / v0.1.1 / v0.2, what's
-  coming in v0.3 / v0.4 / v0.5 / v0.6 / v0.7+.
-- [`INTEGRATION.md`](./INTEGRATION.md) — three integration patterns
-  for relying parties (OIDC Code+PKCE, cookie+introspect, SAML SP).
-- [`AUDIT.md`](./AUDIT.md) — per-layer compliance checklist with
-  ✅ / ⚠️ deferred / ❌ gap labels per item.
+- [`STATUS.md`](./STATUS.md) — what's done per version and what's coming.
+- [`api.md`](./api.md) — the HTTP surface (runtime protocol endpoints + admin API).
+- [`INTEGRATION.md`](./INTEGRATION.md) — three integration patterns for relying
+  parties (OIDC Code+PKCE, cookie+introspect, SAML SP).
+- [`DESIGN.md`](./DESIGN.md) / [`PRODUCT.md`](./PRODUCT.md) — design tokens and
+  product framing for the dashboard.
+- [`AUDIT.md`](./AUDIT.md) — per-layer compliance checklist with ✅ / ⚠️ deferred
+  / ❌ gap labels per item.
+</content>
