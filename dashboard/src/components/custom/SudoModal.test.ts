@@ -13,6 +13,13 @@ vi.mock('@/lib/webauthn', () => ({
   isUserCancel: () => false,
 }))
 
+const { hardRedirect } = vi.hoisted(() => ({ hardRedirect: vi.fn() }))
+vi.mock('@/lib/navigate', () => ({ hardRedirect }))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ fullPath: '/dashboard' }),
+}))
+
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
 
@@ -91,5 +98,31 @@ describe('SudoModal', () => {
       totp_code: '123456',
     })
     expect(resolve).toHaveBeenCalledWith(true)
+  })
+
+  it('renders a provider button for each federation provider and redirects on click', async () => {
+    get.mockResolvedValue({
+      methods: ['federation_oidc'],
+      federationProviders: [{ slug: 'google', displayName: 'Google' }],
+    })
+    post.mockResolvedValue({ redirect: 'https://accounts.google.com/o/oauth2/auth?step=1' })
+    hardRedirect.mockReset()
+    mountModal()
+    sudoState.value = { open: true, resolve: vi.fn() }
+    await flushPromises()
+
+    const buttons = Array.from(document.querySelectorAll('button'))
+    const googleBtn = buttons.find(b => b.textContent?.includes('Google'))
+    expect(googleBtn).toBeTruthy()
+
+    googleBtn!.click()
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/sudo/begin', {
+      method: 'federation_oidc',
+      slug: 'google',
+      returnTo: '/dashboard',
+    })
+    expect(hardRedirect).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/auth?step=1')
   })
 })

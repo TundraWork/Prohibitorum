@@ -435,6 +435,8 @@ export default {
     verify: 'Verify',
     cancel: 'Cancel',
     noMethod: 'No verification method is available on this account. Contact an administrator.',
+    reauthWith: 'Re-authenticate with {provider}',
+    reauthHint: "You'll be sent to your provider to sign in again, then brought back.",
   },
 
   /**
@@ -528,6 +530,10 @@ export default {
     upstream_idp_not_found: 'That provider no longer exists.',
     upstream_idp_already_exists: 'A provider with that slug already exists.',
     active_key_no_replacement: 'Activate a replacement key before retiring the active key.',
+
+    // Sudo federation re-auth
+    sudo_identity_mismatch: "That sign-in didn't match this account. Try again.",
+    sudo_reauth_stale: "Your provider didn't confirm a fresh sign-in. Please try again.",
   },
 
   security: {

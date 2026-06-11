@@ -7,11 +7,13 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'
 import { api, type ApiError } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
 import { sudoState, _resolveSudo } from '@/lib/sudo'
+import { hardRedirect } from '@/lib/navigate'
 import { ShieldCheck, Fingerprint } from 'lucide-vue-next'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -24,13 +26,17 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 const { t, te } = useI18n()
 const { busy: netBusy, error: netError, run } = useApi()
 const { busy: waBusy, error: waError, authenticate } = useWebauthn()
+const route = useRoute()
 
 const open = computed({
   get: () => sudoState.value.open,
   set: (v) => { if (!v) _resolveSudo(false) },
 })
 
+type SudoMethodsResponse = { methods: string[]; federationProviders?: { slug: string; displayName: string }[] }
+
 const methods = ref<string[] | null>(null)
+const federationProviders = ref<{ slug: string; displayName: string }[]>([])
 const showPwForm = ref(false)
 const password = ref('')
 const code = ref('')
@@ -49,14 +55,16 @@ const hasPwTotp = computed(() => methods.value?.includes('password_totp') ?? fal
 watch(() => sudoState.value.open, async (isOpen) => {
   if (!isOpen) return
   methods.value = null
+  federationProviders.value = []
   showPwForm.value = false
   password.value = ''
   code.value = ''
   netError.value = null
   waError.value = null
   try {
-    const res = await api.get<{ methods: string[] }>('/api/prohibitorum/me/sudo/methods')
+    const res = await api.get<SudoMethodsResponse>('/api/prohibitorum/me/sudo/methods')
     methods.value = res.methods ?? []
+    federationProviders.value = res.federationProviders ?? []
     showPwForm.value = !hasPasskey.value && hasPwTotp.value
   } catch {
     methods.value = []
@@ -93,6 +101,18 @@ async function doPasswordTotp(): Promise<void> {
     return true as const
   })
   if (ok) _resolveSudo(true)
+}
+
+async function reauthFederation(slug: string): Promise<void> {
+  const res = await run(() =>
+    api.post<{ redirect: string }>('/api/prohibitorum/me/sudo/begin', {
+      method: 'federation_oidc',
+      slug,
+      returnTo: route.fullPath,
+    }),
+  )
+  if (!res) return
+  hardRedirect(res.redirect)
 }
 </script>
 
@@ -139,6 +159,19 @@ async function doPasswordTotp(): Promise<void> {
           </div>
           <Button type="submit" class="w-full" :disabled="busy">{{ t('sudo.verify') }}</Button>
         </form>
+
+        <div v-if="federationProviders.length" class="flex flex-col gap-2">
+          <p class="text-sm text-muted-foreground">{{ t('sudo.reauthHint') }}</p>
+          <Button
+            v-for="p in federationProviders"
+            :key="p.slug"
+            variant="outline"
+            size="lg"
+            class="w-full"
+            :disabled="busy"
+            @click="reauthFederation(p.slug)"
+          >{{ t('sudo.reauthWith', { provider: p.displayName }) }}</Button>
+        </div>
 
         <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ errorText }}</AlertDescription>
