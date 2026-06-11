@@ -55,10 +55,8 @@ func samlApplicationView(sp db.SamlSp, acs []db.SamlSpAc, keys []db.SamlSpKey) c
 		EntityID:                  sp.EntityID,
 		DisplayName:               sp.DisplayName,
 		NameIDFormat:              sp.NameIDFormat,
-		NameIDClaim:               sp.NameIDClaim,
 		AttributeMap:              attrMap,
 		RequireSignedAuthnRequest: sp.RequireSignedAuthnRequest,
-		WantAssertionsSigned:      sp.WantAssertionsSigned,
 		AllowIdpInitiated:         sp.AllowIdpInitiated,
 		ACS:                       make([]contract.SAMLACSView, 0, len(acs)),
 		Keys:                      make([]contract.SAMLKeyView, 0, len(keys)),
@@ -156,9 +154,8 @@ type createSAMLApplicationBody struct {
 	NameIDFormat string `json:"nameIdFormat,omitempty"`
 
 	// Override flags (also respected on the manual path).
-	RequireSignedAuthnRequest bool  `json:"requireSignedAuthnRequest"`
-	AllowIdpInitiated         bool  `json:"allowIdpInitiated"`
-	WantAssertionsSigned      *bool `json:"wantAssertionsSigned,omitempty"`
+	RequireSignedAuthnRequest bool `json:"requireSignedAuthnRequest"`
+	AllowIdpInitiated         bool `json:"allowIdpInitiated"`
 
 	// Manual path: supply ACS entries directly (no metadata).
 	ACS []struct {
@@ -205,7 +202,6 @@ func (s *Server) handleCreateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 		NameIDFormat:              nameIDFormat,
 		RequireSignedAuthnRequest: body.RequireSignedAuthnRequest,
 		AllowIdpInitiated:         body.AllowIdpInitiated,
-		WantAssertionsSigned:      body.WantAssertionsSigned,
 		ManualACS:                 manualACS,
 	}
 
@@ -293,10 +289,8 @@ func (s *Server) handleCreateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 type updateSAMLApplicationBody struct {
 	DisplayName               string          `json:"displayName"`
 	NameIDFormat              string          `json:"nameIdFormat"`
-	NameIDClaim               string          `json:"nameIdClaim"`
 	AttributeMap              json.RawMessage `json:"attributeMap"`
 	RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
-	WantAssertionsSigned      bool            `json:"wantAssertionsSigned"`
 	AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
 	SessionLifetimeSecs       *int64          `json:"sessionLifetimeSecs,omitempty"`
 }
@@ -346,10 +340,8 @@ func (s *Server) handleUpdateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 		DisplayName:               body.DisplayName,
 		NameIDFormat:              body.NameIDFormat,
 		RequireSignedAuthnRequest: body.RequireSignedAuthnRequest,
-		WantAssertionsSigned:      body.WantAssertionsSigned,
 		AllowIdpInitiated:         body.AllowIdpInitiated,
 		SessionLifetime:           sessionLifetime,
-		NameIDClaim:               body.NameIDClaim,
 		AttributeMap:              attrMapBytes,
 	})
 	if err != nil {

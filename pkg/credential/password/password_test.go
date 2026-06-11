@@ -19,12 +19,13 @@ import (
 
 type fakeQueries struct {
 	db.Querier
-	pwRow      *db.PasswordCredential
-	upserts    []db.UpsertPasswordCredentialParams
-	deletes    []int32
-	getCalled  int
-	throttle   map[string]db.AuthThrottle
-	events     []db.InsertCredentialEventParams
+	pwRow           *db.PasswordCredential
+	upserts         []db.UpsertPasswordCredentialParams
+	hashOnlyUpdates []db.UpdatePasswordHashOnlyParams
+	deletes         []int32
+	getCalled       int
+	throttle        map[string]db.AuthThrottle
+	events          []db.InsertCredentialEventParams
 }
 
 func newFakeQueries() *fakeQueries {
@@ -43,6 +44,15 @@ func (f *fakeQueries) UpsertPasswordCredential(_ context.Context, arg db.UpsertP
 	f.upserts = append(f.upserts, arg)
 	row := db.PasswordCredential{AccountID: arg.AccountID, Hash: arg.Hash}
 	f.pwRow = &row
+	return nil
+}
+
+func (f *fakeQueries) UpdatePasswordHashOnly(_ context.Context, arg db.UpdatePasswordHashOnlyParams) error {
+	f.hashOnlyUpdates = append(f.hashOnlyUpdates, arg)
+	if f.pwRow != nil && f.pwRow.AccountID == arg.AccountID {
+		// Mirror the SQL: hash changes, password_changed_at does NOT.
+		f.pwRow.Hash = arg.Hash
+	}
 	return nil
 }
 
@@ -166,8 +176,15 @@ func TestStore_VerifyRehashesOnParamsUpgrade(t *testing.T) {
 	if err := s.Verify(ctx, 42, "pw"); err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
-	if len(f.upserts) != 2 {
-		t.Fatalf("upserts after rehash: want 2, got %d", len(f.upserts))
+	// The rehash must go through the hash-only path (T4.3a): exactly one
+	// UpdatePasswordHashOnly, and NO second Upsert — an Upsert would bump
+	// password_changed_at and make the silent re-encoding look like a real
+	// password change to age/reauth policy.
+	if len(f.upserts) != 1 {
+		t.Fatalf("upserts after rehash: want 1 (the initial Set only), got %d", len(f.upserts))
+	}
+	if len(f.hashOnlyUpdates) != 1 {
+		t.Fatalf("hash-only updates after rehash: want 1, got %d", len(f.hashOnlyUpdates))
 	}
 	if f.pwRow.Hash == oldHash {
 		t.Errorf("hash should have been replaced after params upgrade")

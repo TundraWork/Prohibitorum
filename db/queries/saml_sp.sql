@@ -5,11 +5,10 @@ SELECT * FROM saml_sp WHERE entity_id = $1;
 SELECT * FROM saml_sp ORDER BY display_name;
 
 -- name: InsertSAMLSP :one
-INSERT INTO saml_sp (entity_id, display_name, sp_kind, name_id_format, name_id_claim,
-  attribute_map, want_assertions_signed, authn_requests_signed,
-  require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml,
-  metadata_valid_until, metadata_cache_duration, metadata_fetched_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+INSERT INTO saml_sp (entity_id, display_name, sp_kind, name_id_format,
+  attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime,
+  metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: ListSAMLSPACSEndpoints :many
@@ -63,11 +62,9 @@ UPDATE saml_sp SET
   display_name                 = $2,
   name_id_format               = $3,
   require_signed_authn_request = $4,
-  want_assertions_signed       = $5,
-  allow_idp_initiated          = $6,
-  session_lifetime             = $7,
-  name_id_claim                = $8,
-  attribute_map                = $9
+  allow_idp_initiated          = $5,
+  session_lifetime             = $6,
+  attribute_map                = $7
 WHERE id = $1
 RETURNING *;
 

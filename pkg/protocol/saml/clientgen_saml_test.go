@@ -91,20 +91,9 @@ func TestSPGenGHESMetadata(t *testing.T) {
 	if !params.RequireSignedAuthnRequest {
 		t.Fatal("RequireSignedAuthnRequest = false, want true for ghes")
 	}
-	if !params.AuthnRequestsSigned {
-		t.Fatal("AuthnRequestsSigned = false, want true for ghes")
-	}
-
-	// WantAssertionsSigned defaults true.
-	if !params.WantAssertionsSigned {
-		t.Fatal("WantAssertionsSigned = false, want default true")
-	}
-	// NameID defaults.
+	// NameID format default.
 	if params.NameIDFormat != persistentNameIDFormat11 {
 		t.Fatalf("NameIDFormat = %q, want %q", params.NameIDFormat, persistentNameIDFormat11)
-	}
-	if params.NameIDClaim != "sub" {
-		t.Fatalf("NameIDClaim = %q, want sub", params.NameIDClaim)
 	}
 	// MetadataXml stored.
 	if !params.MetadataXml.Valid || params.MetadataXml.String == "" {
@@ -124,7 +113,6 @@ func TestSPGenGHESMetadata(t *testing.T) {
 }
 
 func TestSPGenManualGeneric(t *testing.T) {
-	wantSigned := false
 	params, acs, certPEMs, err := BuildSPParams(SPOptions{
 		EntityID:    "https://sp.example.test",
 		DisplayName: "Generic SP",
@@ -133,7 +121,6 @@ func TestSPGenManualGeneric(t *testing.T) {
 			{Binding: crewjam.HTTPPostBinding, Location: "https://sp.example.test/acs", Index: 0, IsDefault: true},
 		},
 		RequireSignedAuthnRequest: true,
-		WantAssertionsSigned:      &wantSigned,
 	})
 	if err != nil {
 		t.Fatalf("BuildSPParams: %v", err)
@@ -152,10 +139,6 @@ func TestSPGenManualGeneric(t *testing.T) {
 	// require_signed_authn_request honored from the flag.
 	if !params.RequireSignedAuthnRequest {
 		t.Fatal("RequireSignedAuthnRequest = false, want true (from flag)")
-	}
-	// want-assertions-signed override honored.
-	if params.WantAssertionsSigned {
-		t.Fatal("WantAssertionsSigned = true, want false (overridden)")
 	}
 	if len(acs) != 1 {
 		t.Fatalf("acs = %d, want 1", len(acs))

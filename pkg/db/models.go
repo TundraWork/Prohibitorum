@@ -79,12 +79,7 @@ type OidcClient struct {
 	RequirePkce                 bool               `json:"requirePkce"`
 	AllowedCodeChallengeMethods []string           `json:"allowedCodeChallengeMethods"`
 	TokenEndpointAuthMethod     string             `json:"tokenEndpointAuthMethod"`
-	IDTokenSignedResponseAlg    string             `json:"idTokenSignedResponseAlg"`
 	SubjectType                 string             `json:"subjectType"`
-	ApplicationType             string             `json:"applicationType"`
-	DefaultMaxAge               pgtype.Int4        `json:"defaultMaxAge"`
-	RequireAuthTime             bool               `json:"requireAuthTime"`
-	Contacts                    []string           `json:"contacts"`
 	LogoUri                     pgtype.Text        `json:"logoUri"`
 	TosUri                      pgtype.Text        `json:"tosUri"`
 	PolicyUri                   pgtype.Text        `json:"policyUri"`
@@ -141,10 +136,7 @@ type SamlSp struct {
 	DisplayName               string             `json:"displayName"`
 	SpKind                    pgtype.Text        `json:"spKind"`
 	NameIDFormat              string             `json:"nameIdFormat"`
-	NameIDClaim               string             `json:"nameIdClaim"`
 	AttributeMap              []byte             `json:"attributeMap"`
-	WantAssertionsSigned      bool               `json:"wantAssertionsSigned"`
-	AuthnRequestsSigned       bool               `json:"authnRequestsSigned"`
 	RequireSignedAuthnRequest bool               `json:"requireSignedAuthnRequest"`
 	AllowIdpInitiated         bool               `json:"allowIdpInitiated"`
 	SessionLifetime           pgtype.Interval    `json:"sessionLifetime"`

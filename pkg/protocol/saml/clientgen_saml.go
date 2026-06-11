@@ -38,11 +38,6 @@ type SPOptions struct {
 	// HandleIdPInitiated will emit an unsolicited Response to it (GHES posture).
 	AllowIdpInitiated bool
 
-	// WantAssertionsSigned overrides the default (true). Nil means "use the
-	// default"; a non-nil pointer is honored verbatim so an operator can pass
-	// --want-assertions-signed=false.
-	WantAssertionsSigned *bool
-
 	// ManualACS carries operator-supplied ACS endpoints for the no-metadata
 	// path. Ignored when MetadataXML is set (metadata ACS win).
 	ManualACS []SPACSEntry
@@ -133,17 +128,9 @@ func BuildSPParams(opts SPOptions) (db.InsertSAMLSPParams, []SPACSEntry, []strin
 		return db.InsertSAMLSPParams{}, nil, nil, errors.New("saml-sp: unknown --kind " + opts.Kind + " (want ghes or generic)")
 	}
 
-	wantAssertionsSigned := true // default per the IdP profile
-	if opts.WantAssertionsSigned != nil {
-		wantAssertionsSigned = *opts.WantAssertionsSigned
-	}
-
 	params.EntityID = entityID
 	params.DisplayName = opts.DisplayName
 	params.NameIDFormat = nameIDFormat
-	params.NameIDClaim = "sub"
-	params.WantAssertionsSigned = wantAssertionsSigned
-	params.AuthnRequestsSigned = requireSignedAuthnRequest
 	params.RequireSignedAuthnRequest = requireSignedAuthnRequest
 	params.AllowIdpInitiated = opts.AllowIdpInitiated
 

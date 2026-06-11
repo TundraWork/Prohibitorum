@@ -40,6 +40,7 @@ const (
 type PasswordQueries interface {
 	GetPasswordCredential(ctx context.Context, accountID int32) (db.PasswordCredential, error)
 	UpsertPasswordCredential(ctx context.Context, arg db.UpsertPasswordCredentialParams) error
+	UpdatePasswordHashOnly(ctx context.Context, arg db.UpdatePasswordHashOnlyParams) error
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
 }
 
@@ -112,8 +113,12 @@ func (s *Store) Verify(ctx context.Context, accountID int32, pw string) error {
 	})
 
 	if decoded.Params != s.params {
+		// Transparent param-upgrade rehash: the secret is unchanged, so use the
+		// hash-only update — bumping password_changed_at here would make a silent
+		// re-encoding look like a deliberate password change to age/reauth policy
+		// (T4.3a).
 		if newHash, herr := HashRaw(pw, s.params); herr == nil {
-			_ = s.q.UpsertPasswordCredential(ctx, db.UpsertPasswordCredentialParams{
+			_ = s.q.UpdatePasswordHashOnly(ctx, db.UpdatePasswordHashOnlyParams{
 				AccountID: accountID,
 				Hash:      newHash,
 			})

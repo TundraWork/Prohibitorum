@@ -85,7 +85,7 @@ func (q *Queries) GetActiveSigningKey(ctx context.Context) (SigningKey, error) {
 }
 
 const getOIDCClient = `-- name: GetOIDCClient :one
-SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at FROM oidc_client WHERE client_id = $1 AND disabled = false
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at FROM oidc_client WHERE client_id = $1 AND disabled = false
 `
 
 func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error) {
@@ -101,12 +101,7 @@ func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClien
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
 		&i.TokenEndpointAuthMethod,
-		&i.IDTokenSignedResponseAlg,
 		&i.SubjectType,
-		&i.ApplicationType,
-		&i.DefaultMaxAge,
-		&i.RequireAuthTime,
-		&i.Contacts,
 		&i.LogoUri,
 		&i.TosUri,
 		&i.PolicyUri,
@@ -118,7 +113,7 @@ func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClien
 }
 
 const getOIDCClientAny = `-- name: GetOIDCClientAny :one
-SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at FROM oidc_client WHERE client_id = $1
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at FROM oidc_client WHERE client_id = $1
 `
 
 func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error) {
@@ -134,12 +129,7 @@ func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcCl
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
 		&i.TokenEndpointAuthMethod,
-		&i.IDTokenSignedResponseAlg,
 		&i.SubjectType,
-		&i.ApplicationType,
-		&i.DefaultMaxAge,
-		&i.RequireAuthTime,
-		&i.Contacts,
 		&i.LogoUri,
 		&i.TosUri,
 		&i.PolicyUri,
@@ -181,9 +171,9 @@ INSERT INTO oidc_client (
   client_id, display_name, client_secret_hash, redirect_uris,
   post_logout_redirect_uris, allowed_scopes, require_pkce,
   allowed_code_challenge_methods, token_endpoint_auth_method,
-  subject_type, application_type, require_consent
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
+  subject_type, require_consent
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
 `
 
 type InsertOIDCClientParams struct {
@@ -197,7 +187,6 @@ type InsertOIDCClientParams struct {
 	AllowedCodeChallengeMethods []string    `json:"allowedCodeChallengeMethods"`
 	TokenEndpointAuthMethod     string      `json:"tokenEndpointAuthMethod"`
 	SubjectType                 string      `json:"subjectType"`
-	ApplicationType             string      `json:"applicationType"`
 	RequireConsent              bool        `json:"requireConsent"`
 }
 
@@ -213,7 +202,6 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 		arg.AllowedCodeChallengeMethods,
 		arg.TokenEndpointAuthMethod,
 		arg.SubjectType,
-		arg.ApplicationType,
 		arg.RequireConsent,
 	)
 	var i OidcClient
@@ -227,12 +215,7 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
 		&i.TokenEndpointAuthMethod,
-		&i.IDTokenSignedResponseAlg,
 		&i.SubjectType,
-		&i.ApplicationType,
-		&i.DefaultMaxAge,
-		&i.RequireAuthTime,
-		&i.Contacts,
 		&i.LogoUri,
 		&i.TosUri,
 		&i.PolicyUri,
@@ -528,7 +511,7 @@ UPDATE oidc_client SET
   display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,
   allowed_scopes = $5, require_consent = $6, disabled = $7
 WHERE client_id = $1
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, id_token_signed_response_alg, subject_type, application_type, default_max_age, require_auth_time, contacts, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
 `
 
 type UpdateOIDCClientParams struct {
@@ -562,12 +545,7 @@ func (q *Queries) UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientPara
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
 		&i.TokenEndpointAuthMethod,
-		&i.IDTokenSignedResponseAlg,
 		&i.SubjectType,
-		&i.ApplicationType,
-		&i.DefaultMaxAge,
-		&i.RequireAuthTime,
-		&i.Contacts,
 		&i.LogoUri,
 		&i.TosUri,
 		&i.PolicyUri,

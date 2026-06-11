@@ -62,7 +62,6 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 		RequirePkce:                 true,
 		AllowedCodeChallengeMethods: []string{"S256"},
 		SubjectType:                 "public",
-		ApplicationType:             "web",
 		RequireConsent:              opts.RequireConsent,
 	}
 

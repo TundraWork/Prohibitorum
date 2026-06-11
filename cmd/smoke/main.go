@@ -2961,20 +2961,18 @@ func main() {
 		log.Printf("  /accounts/%d/sessions → %d session(s), all isCurrent=false ✓", me2.ID, len(sessions))
 	}
 
-	step("Tier-1 d — SAML provider PUT attr_map/name_id_claim round-trip")
+	step("Tier-1 d — SAML provider PUT attr_map round-trip")
 	{
 		// Find the mock SP (entityId == mockSPEntityID == "https://mock-sp.smoke.test")
 		// via the admin list endpoint, then GET the full record, PUT back with
-		// nameIdClaim + attributeMap added, and assert both round-trip on GET.
+		// attributeMap added, and assert it round-trips on GET.
 		type samlProviderItem struct {
 			ID                        int64           `json:"id"`
 			EntityID                  string          `json:"entityId"`
 			DisplayName               string          `json:"displayName"`
 			NameIDFormat              string          `json:"nameIdFormat"`
-			NameIDClaim               string          `json:"nameIdClaim"`
 			AttributeMap              json.RawMessage `json:"attributeMap"`
 			RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
-			WantAssertionsSigned      bool            `json:"wantAssertionsSigned"`
 			AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
 		}
 
@@ -3047,14 +3045,12 @@ func main() {
 			displayNameForPUT = current.EntityID
 		}
 
-		// PUT back the current fields with nameIdClaim and attributeMap added.
+		// PUT back the current fields with attributeMap added.
 		putBody := map[string]any{
 			"displayName":               displayNameForPUT,
 			"nameIdFormat":              current.NameIDFormat,
-			"nameIdClaim":               "email",
 			"attributeMap":              newAttrs,
 			"requireSignedAuthnRequest": current.RequireSignedAuthnRequest,
-			"wantAssertionsSigned":      current.WantAssertionsSigned,
 			"allowIdpInitiated":         current.AllowIdpInitiated,
 		}
 		var putResp samlProviderItem
@@ -3066,9 +3062,6 @@ func main() {
 		var updated samlProviderItem
 		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), &updated); err != nil {
 			log.Fatalf("Tier-1 d: GET /saml-providers/%d (post-PUT): %v", spID, err)
-		}
-		if updated.NameIDClaim != "email" {
-			log.Fatalf("Tier-1 d: nameIdClaim round-trip: want %q, got %q", "email", updated.NameIDClaim)
 		}
 		// Decode the returned attributeMap and check for the EMAIL entry.
 		var gotAttrs []attrEntry
@@ -3085,7 +3078,7 @@ func main() {
 		if !foundEmail {
 			log.Fatalf("Tier-1 d: attributeMap round-trip: EMAIL entry missing (got %+v)", gotAttrs)
 		}
-		log.Printf("  PUT /saml-providers/%d: nameIdClaim=%q attributeMap has EMAIL entry ✓", spID, updated.NameIDClaim)
+		log.Printf("  PUT /saml-providers/%d: attributeMap has EMAIL entry ✓", spID)
 	}
 
 	fmt.Println()

@@ -38,15 +38,17 @@ type SessionView struct {
 
 // AccountView is admin-facing; lastSignInAt is derived from the account's credentials.
 type AccountView struct {
-	ID           int32          `json:"id"`
-	Username     string         `json:"username"`
-	DisplayName  string         `json:"displayName"`
-	Role         string         `json:"role"`
-	Attributes   map[string]any `json:"attributes,omitempty"`
-	Disabled     bool           `json:"disabled"`
-	CreatedAt    time.Time      `json:"createdAt"`
-	UpdatedAt    time.Time      `json:"updatedAt"`
-	LastSignInAt *time.Time     `json:"lastSignInAt,omitempty"`
+	ID            int32          `json:"id"`
+	Username      string         `json:"username"`
+	DisplayName   string         `json:"displayName"`
+	Email         *string        `json:"email,omitempty"`
+	EmailVerified bool           `json:"emailVerified"`
+	Role          string         `json:"role"`
+	Attributes    map[string]any `json:"attributes,omitempty"`
+	Disabled      bool           `json:"disabled"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
+	LastSignInAt  *time.Time     `json:"lastSignInAt,omitempty"`
 }
 
 // SessionListItem is a single row in /me/sessions. Token is intentionally
@@ -396,15 +398,15 @@ var OperationListSigningKeys = huma.Operation{
 // client_secret_hash is NEVER included — only the public configuration fields
 // are returned to callers.
 type OIDCApplicationView struct {
-	ClientID                    string    `json:"clientId"`
-	DisplayName                 string    `json:"displayName"`
-	RedirectURIs                []string  `json:"redirectUris"`
-	PostLogoutRedirectURIs      []string  `json:"postLogoutRedirectUris"`
-	AllowedScopes               []string  `json:"allowedScopes"`
-	TokenEndpointAuthMethod     string    `json:"tokenEndpointAuthMethod"`
-	RequireConsent              bool      `json:"requireConsent"`
-	Disabled                    bool      `json:"disabled"`
-	CreatedAt                   time.Time `json:"createdAt"`
+	ClientID                string    `json:"clientId"`
+	DisplayName             string    `json:"displayName"`
+	RedirectURIs            []string  `json:"redirectUris"`
+	PostLogoutRedirectURIs  []string  `json:"postLogoutRedirectUris"`
+	AllowedScopes           []string  `json:"allowedScopes"`
+	TokenEndpointAuthMethod string    `json:"tokenEndpointAuthMethod"`
+	RequireConsent          bool      `json:"requireConsent"`
+	Disabled                bool      `json:"disabled"`
+	CreatedAt               time.Time `json:"createdAt"`
 }
 
 var OperationListOIDCApplications = huma.Operation{
@@ -447,10 +449,8 @@ type SAMLApplicationView struct {
 	DisplayName               string          `json:"displayName"`
 	Kind                      string          `json:"kind,omitempty"`
 	NameIDFormat              string          `json:"nameIdFormat"`
-	NameIDClaim               string          `json:"nameIdClaim"`
 	AttributeMap              json.RawMessage `json:"attributeMap"`
 	RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
-	WantAssertionsSigned      bool            `json:"wantAssertionsSigned"`
 	AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
 	SessionLifetimeSecs       *int64          `json:"sessionLifetimeSecs,omitempty"`
 	ACS                       []SAMLACSView   `json:"acs"`
