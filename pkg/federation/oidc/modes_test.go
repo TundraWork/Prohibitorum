@@ -42,8 +42,9 @@ type fakeModesQueries struct {
 	insertedIdentity  db.InsertAccountIdentityParams
 	insertIdentityErr error
 
-	displayNameCalls []db.UpdateAccountDisplayNameParams
-	emailCalls       []db.UpdateAccountIdentityEmailParams
+	displayNameCalls  []db.UpdateAccountDisplayNameParams
+	emailCalls        []db.UpdateAccountIdentityEmailParams
+	accountEmailCalls []db.UpdateAccountEmailParams
 
 	// Enrollment state for invite_only tests. consumeEnrollmentResult is
 	// returned on every ConsumeEnrollment call when consumeEnrollmentErr
@@ -148,6 +149,13 @@ func (f *fakeModesQueries) UpdateAccountIdentityEmail(_ context.Context, arg db.
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.emailCalls = append(f.emailCalls, arg)
+	return nil
+}
+
+func (f *fakeModesQueries) UpdateAccountEmail(_ context.Context, arg db.UpdateAccountEmailParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.accountEmailCalls = append(f.accountEmailCalls, arg)
 	return nil
 }
 

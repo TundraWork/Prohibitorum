@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/account"
@@ -51,6 +53,16 @@ func encodeAttributes(attrs map[string]any) []byte {
 	return b
 }
 
+// textPtr converts a nullable db text column to a *string (nil when NULL) for
+// the wire view — an absent email serializes as omitted rather than "".
+func textPtr(t pgtype.Text) *string {
+	if !t.Valid {
+		return nil
+	}
+	v := t.String
+	return &v
+}
+
 // auditActor returns the acting admin's account id (nil when no session), for
 // the AccountID field of an admin-mutation audit row. account_id is nullable in
 // credential_event, so a nil actor records cleanly rather than a bogus id.
@@ -70,15 +82,17 @@ func accountViewFromRow(r *db.ListAccountsRow) contract.AccountView {
 		lsi = &v
 	}
 	return contract.AccountView{
-		ID:           r.ID,
-		Username:     r.Username,
-		DisplayName:  r.DisplayName,
-		Role:         r.Role,
-		Attributes:   decodeAttributes(r.Attributes),
-		Disabled:     r.Disabled,
-		CreatedAt:    r.CreatedAt.Time,
-		UpdatedAt:    r.UpdatedAt.Time,
-		LastSignInAt: lsi,
+		ID:            r.ID,
+		Username:      r.Username,
+		DisplayName:   r.DisplayName,
+		Email:         textPtr(r.Email),
+		EmailVerified: r.EmailVerified,
+		Role:          r.Role,
+		Attributes:    decodeAttributes(r.Attributes),
+		Disabled:      r.Disabled,
+		CreatedAt:     r.CreatedAt.Time,
+		UpdatedAt:     r.UpdatedAt.Time,
+		LastSignInAt:  lsi,
 	}
 }
 
@@ -87,15 +101,17 @@ func accountViewFromRow(r *db.ListAccountsRow) contract.AccountView {
 // credential subquery).
 func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time) contract.AccountView {
 	return contract.AccountView{
-		ID:           a.ID,
-		Username:     a.Username,
-		DisplayName:  a.DisplayName,
-		Role:         a.Role,
-		Attributes:   decodeAttributes(a.Attributes),
-		Disabled:     a.Disabled,
-		CreatedAt:    a.CreatedAt.Time,
-		UpdatedAt:    a.UpdatedAt.Time,
-		LastSignInAt: lastSignInAt,
+		ID:            a.ID,
+		Username:      a.Username,
+		DisplayName:   a.DisplayName,
+		Email:         textPtr(a.Email),
+		EmailVerified: a.EmailVerified,
+		Role:          a.Role,
+		Attributes:    decodeAttributes(a.Attributes),
+		Disabled:      a.Disabled,
+		CreatedAt:     a.CreatedAt.Time,
+		UpdatedAt:     a.UpdatedAt.Time,
+		LastSignInAt:  lastSignInAt,
 	}
 }
 
@@ -145,6 +161,10 @@ type updateAccountIn struct {
 		Role        string         `json:"role"`
 		Attributes  map[string]any `json:"attributes,omitempty"`
 		Disabled    bool           `json:"disabled"`
+		// Email is a pointer so "omitted" (nil → preserve the current value,
+		// including a federation-verified address) is distinguishable from
+		// "set to empty" (clear it). An admin-supplied email is unverified.
+		Email *string `json:"email,omitempty"`
 	}
 }
 
@@ -197,12 +217,25 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 
 	attrs := encodeAttributes(in.Body.Attributes)
 
+	// Email: preserve the current value (incl. a federation-verified address)
+	// unless the admin explicitly supplies one; a manual set is unverified, and
+	// an empty string clears it. (T3.2)
+	email := current.Email
+	emailVerified := current.EmailVerified
+	if in.Body.Email != nil {
+		v := strings.TrimSpace(*in.Body.Email)
+		email = pgtype.Text{String: v, Valid: v != ""}
+		emailVerified = false
+	}
+
 	updated, err := q.UpdateAccount(ctx, db.UpdateAccountParams{
-		ID:          in.ID,
-		DisplayName: in.Body.DisplayName,
-		Role:        in.Body.Role,
-		Attributes:  attrs,
-		Disabled:    in.Body.Disabled,
+		ID:            in.ID,
+		DisplayName:   in.Body.DisplayName,
+		Role:          in.Body.Role,
+		Attributes:    attrs,
+		Disabled:      in.Body.Disabled,
+		Email:         email,
+		EmailVerified: emailVerified,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("handleUpdateAccount: update: %w", err)

@@ -12,8 +12,8 @@ SELECT * FROM account WHERE webauthn_user_handle = $1;
 
 -- name: InsertAccount :one
 INSERT INTO account (
-  username, display_name, webauthn_user_handle, role, attributes, disabled
-) VALUES ($1, $2, $3, $4, $5, $6)
+  username, display_name, webauthn_user_handle, role, attributes, disabled, email, email_verified
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: HasAnyActiveAdmin :one
@@ -29,9 +29,15 @@ ORDER BY a.created_at ASC, a.id ASC;
 -- name: UpdateAccount :one
 UPDATE account SET
   display_name = $2, role = $3, attributes = $4, disabled = $5,
+  email = $6, email_verified = $7,
   updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: UpdateAccountEmail :exec
+-- Refreshes an account's email from a verified upstream on re-login (federation
+-- claim drift), keeping it in lockstep with account_identity.upstream_email.
+UPDATE account SET email = $2, email_verified = $3, updated_at = now() WHERE id = $1;
 
 -- name: DeleteAccountByID :exec
 DELETE FROM account WHERE id = $1;

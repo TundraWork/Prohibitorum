@@ -262,3 +262,19 @@ func TestAdminOIDCClients_ContractType_NoSecretHashField(t *testing.T) {
 	// would fail to compile — keeping the guarantee in the test suite.
 	_ = v
 }
+
+// TestValidateOIDCScopes guards T3.2: allowed_scopes must be a subset of the
+// scopes the OP actually supports; unknown/typo scopes are rejected so they
+// can't be stored, requested, and consented while delivering nothing.
+func TestValidateOIDCScopes(t *testing.T) {
+	for _, ok := range [][]string{nil, {}, {"openid"}, {"openid", "profile", "email", "offline_access"}} {
+		if err := validateOIDCScopes(ok); err != nil {
+			t.Errorf("validateOIDCScopes(%v) = %v, want nil", ok, err)
+		}
+	}
+	for _, bad := range [][]string{{"groups"}, {"openid", "email", "create"}, {"profilee"}, {"address"}} {
+		if err := validateOIDCScopes(bad); err == nil {
+			t.Errorf("validateOIDCScopes(%v) = nil, want error", bad)
+		}
+	}
+}

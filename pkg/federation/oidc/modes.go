@@ -27,6 +27,7 @@ type ModesQueries interface {
 	InsertAccount(ctx context.Context, arg db.InsertAccountParams) (db.Account, error)
 	InsertAccountIdentity(ctx context.Context, arg db.InsertAccountIdentityParams) (db.AccountIdentity, error)
 	UpdateAccountDisplayName(ctx context.Context, arg db.UpdateAccountDisplayNameParams) error
+	UpdateAccountEmail(ctx context.Context, arg db.UpdateAccountEmailParams) error
 	UpdateAccountIdentityEmail(ctx context.Context, arg db.UpdateAccountIdentityEmailParams) error
 	ConsumeEnrollment(ctx context.Context, token string) (db.Enrollment, error)
 }
@@ -219,6 +220,10 @@ func applyAutoProvision(
 			Role:               "user",
 			Attributes:         []byte("{}"),
 			Disabled:           false,
+			// Seed the account email from the upstream (T3.2); email_verified
+			// only when an address is present AND the OP asserted it verified.
+			Email:         pgtype.Text{String: email, Valid: email != ""},
+			EmailVerified: email != "" && tokens.EmailVerified,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -384,6 +389,10 @@ func applyInviteOnly(
 			displayName = enr.TemplateUsername.String
 		}
 
+		// Honor the per-IdP email_claim override (matches applyAutoProvision);
+		// used for both the account email (T3.2) and account_identity below.
+		email := ClaimString(tokens.Raw, idp.EmailClaim)
+
 		acct, err := qtx.InsertAccount(ctx, db.InsertAccountParams{
 			Username:           enr.TemplateUsername.String,
 			DisplayName:        displayName,
@@ -391,6 +400,8 @@ func applyInviteOnly(
 			Role:               enr.TemplateRole.String,
 			Attributes:         attrs,
 			Disabled:           false,
+			Email:              pgtype.Text{String: email, Valid: email != ""},
+			EmailVerified:      email != "" && tokens.EmailVerified,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -409,8 +420,6 @@ func applyInviteOnly(
 			return 0, false, fmt.Errorf("federation/oidc: insert account: %w", err)
 		}
 
-		// Honor the per-IdP email_claim override (matches applyAutoProvision).
-		email := ClaimString(tokens.Raw, idp.EmailClaim)
 		_, err = qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
 			AccountID:     acct.ID,
 			UpstreamIdpID: idp.ID,
@@ -547,22 +556,31 @@ func syncClaims(
 	// OIDC "name" claim, which Entra doesn't ship).
 	displayName := ClaimString(tokens.Raw, idp.DisplayNameClaim)
 	email := ClaimString(tokens.Raw, idp.EmailClaim)
+	newEmail := pgtype.Text{String: email, Valid: email != ""}
+	newVerified := newEmail.Valid && tokens.EmailVerified
 
-	if displayName != "" {
-		// Compare against current display_name. Lookup is cheap (1 row by PK)
-		// and cheaper than a redundant UPDATE that fires the updated_at
-		// trigger every login.
-		if acct, err := q.GetAccountByID(ctx, identity.AccountID); err == nil {
-			if acct.DisplayName != displayName {
-				_ = q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
-					ID:          identity.AccountID,
-					DisplayName: displayName,
-				})
-			}
+	// Fetch the current account once (cheap PK lookup) for both the display_name
+	// and email drift checks — conditional UPDATEs avoid firing the updated_at
+	// trigger on a no-op login.
+	if acct, err := q.GetAccountByID(ctx, identity.AccountID); err == nil {
+		if displayName != "" && acct.DisplayName != displayName {
+			_ = q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
+				ID:          identity.AccountID,
+				DisplayName: displayName,
+			})
+		}
+		// account.email drift (T3.2): keep the account email + verified flag in
+		// lockstep with the upstream on re-login, mirroring the upstream_email
+		// sync below.
+		if acct.Email.String != newEmail.String || acct.Email.Valid != newEmail.Valid || acct.EmailVerified != newVerified {
+			_ = q.UpdateAccountEmail(ctx, db.UpdateAccountEmailParams{
+				ID:            identity.AccountID,
+				Email:         newEmail,
+				EmailVerified: newVerified,
+			})
 		}
 	}
 
-	newEmail := pgtype.Text{String: email, Valid: email != ""}
 	if newEmail.String != identity.UpstreamEmail.String || newEmail.Valid != identity.UpstreamEmail.Valid {
 		_ = q.UpdateAccountIdentityEmail(ctx, db.UpdateAccountIdentityEmailParams{
 			ID:            identity.ID,
