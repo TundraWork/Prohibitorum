@@ -39,9 +39,52 @@ import (
 	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/credential/totp"
 	"prohibitorum/pkg/db"
+	fedoidc "prohibitorum/pkg/federation/oidc"
 	"prohibitorum/pkg/kv"
 	sessstore "prohibitorum/pkg/session"
 )
+
+// fakeSudoFederator is a seedable stand-in for *fedoidc.Federator used by the
+// federation_oidc sudo branch tests. It records its call args and returns the
+// seeded values.
+type fakeSudoFederator struct {
+	beginReq    *fedoidc.LoginRequest
+	beginErr    error
+	beginArgs   struct{ accountID int32; slug, returnTo string }
+	beginCalled bool
+
+	cbReturnTo string
+	cbErr      error
+	cbArgs     struct {
+		state, code, iss, browserToken string
+		accountID                      int32
+	}
+	cbCalled bool
+}
+
+func (f *fakeSudoFederator) SudoBegin(_ context.Context, accountID int32, idpSlug, returnTo string) (*fedoidc.LoginRequest, error) {
+	f.beginCalled = true
+	f.beginArgs.accountID = accountID
+	f.beginArgs.slug = idpSlug
+	f.beginArgs.returnTo = returnTo
+	if f.beginErr != nil {
+		return nil, f.beginErr
+	}
+	return f.beginReq, nil
+}
+
+func (f *fakeSudoFederator) SudoCallback(_ context.Context, stateToken, code, issParam, browserToken string, currentAccountID int32) (string, error) {
+	f.cbCalled = true
+	f.cbArgs.state = stateToken
+	f.cbArgs.code = code
+	f.cbArgs.iss = issParam
+	f.cbArgs.browserToken = browserToken
+	f.cbArgs.accountID = currentAccountID
+	if f.cbErr != nil {
+		return "", f.cbErr
+	}
+	return f.cbReturnTo, nil
+}
 
 // failingSaveKV wraps a kv.Store but errors on SetEx, simulating a transient KV
 // write failure during the sudo one-shot clear (audit SESS-1).
@@ -899,4 +942,143 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// ----- federation_oidc sudo branch ---------------------------------------
+
+// newFederationSudoServer wires a sudo test server whose account has a linked
+// upstream IdP (so federation_oidc is an available method) and a fake
+// federator injected via sudoFederatorOverride.
+func newFederationSudoServer(t *testing.T) (*Server, *fakeSudoQueries, *fakeSudoFederator, int32) {
+	t.Helper()
+	s, f, _ := newSudoTestServer(t)
+	// Seed one linked enabled IdP so AvailableMethods surfaces federation_oidc.
+	f.linkedIdPs = []db.ListLinkedEnabledIdPsRow{{Slug: "okta", DisplayName: "Okta"}}
+	fed := &fakeSudoFederator{}
+	s.sudoFederatorOverride = fed
+	return s, f, fed, 7
+}
+
+func TestSudoBegin_FederationReturnsRedirectAndCookie(t *testing.T) {
+	s, _, fed, accountID := newFederationSudoServer(t)
+	_, sess := issueSudoTestSession(t, s, accountID)
+	fed.beginReq = &fedoidc.LoginRequest{
+		AuthorizeURL:     "https://okta.example/authorize?x=1",
+		StateKey:         "state-key",
+		AntiForgeryToken: "anti-forgery-123",
+	}
+
+	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/sudo/begin",
+		`{"method":"federation_oidc","slug":"okta","returnTo":"/security"}`)
+	rec := httptest.NewRecorder()
+	s.handleSudoBeginHTTP(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+	body := decodeJSON(t, rec.Body.Bytes())
+	if got := body["redirect"]; got != "https://okta.example/authorize?x=1" {
+		t.Errorf("redirect = %v, want the AuthorizeURL", got)
+	}
+	if !fed.beginCalled {
+		t.Fatal("SudoBegin was not called")
+	}
+	if fed.beginArgs.accountID != accountID || fed.beginArgs.slug != "okta" || fed.beginArgs.returnTo != "/security" {
+		t.Errorf("SudoBegin args = %+v, want acct=%d slug=okta returnTo=/security", fed.beginArgs, accountID)
+	}
+
+	// fed-state cookie set.
+	var found bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sessstore.FedStateCookieName {
+			found = true
+			if c.Value != "anti-forgery-123" {
+				t.Errorf("cookie value = %q, want anti-forgery-123", c.Value)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("no %s cookie set", sessstore.FedStateCookieName)
+	}
+
+	// sudo_intent must NOT be stashed for the federation method.
+	if _, err := s.kvStore.Get(context.Background(), sudoIntentKey(sess.Data.SessionID)); err == nil {
+		t.Error("sudo_intent was stashed for federation_oidc; it must not be (only /complete consumes it)")
+	}
+}
+
+func TestSudoBegin_FederationBeginErrorWritesAuthErr(t *testing.T) {
+	s, _, fed, accountID := newFederationSudoServer(t)
+	_, sess := issueSudoTestSession(t, s, accountID)
+	fed.beginErr = authn.ErrFederationStateInvalid()
+
+	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/sudo/begin",
+		`{"method":"federation_oidc","slug":"okta","returnTo":"/security"}`)
+	rec := httptest.NewRecorder()
+	s.handleSudoBeginHTTP(rec, r)
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("status = 200, want an error status (body=%s)", rec.Body.String())
+	}
+}
+
+func TestSudoFederationCallback_SuccessStampsAndRedirects(t *testing.T) {
+	s, _, fed, accountID := newFederationSudoServer(t)
+	token, sess := issueSudoTestSession(t, s, accountID)
+	fed.cbReturnTo = "/security"
+
+	r := sudoReq(t, sess, http.MethodGet,
+		"/api/prohibitorum/me/sudo/federation/callback?state=st&code=cd&iss=https://okta", "")
+	r.AddCookie(&http.Cookie{Name: sessstore.FedStateCookieName, Value: "browser-tok"})
+	rec := httptest.NewRecorder()
+	s.handleSudoFederationCallbackHTTP(rec, r)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 (body=%s)", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); loc != "/security" {
+		t.Errorf("Location = %q, want /security", loc)
+	}
+	if !fed.cbCalled {
+		t.Fatal("SudoCallback not called")
+	}
+	if fed.cbArgs.state != "st" || fed.cbArgs.code != "cd" || fed.cbArgs.iss != "https://okta" ||
+		fed.cbArgs.browserToken != "browser-tok" || fed.cbArgs.accountID != accountID {
+		t.Errorf("SudoCallback args = %+v", fed.cbArgs)
+	}
+
+	current, _, err := s.sessionStore.Load(context.Background(), accountID, token, "127.0.0.1", "ua/test")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !current.SudoUntil.After(time.Now()) {
+		t.Errorf("SudoUntil = %v, want in the future", current.SudoUntil)
+	}
+}
+
+func TestSudoFederationCallback_FailureRedirectsAndDoesNotStamp(t *testing.T) {
+	s, _, fed, accountID := newFederationSudoServer(t)
+	token, sess := issueSudoTestSession(t, s, accountID)
+	fed.cbErr = authn.ErrSudoReauthStale()
+
+	r := sudoReq(t, sess, http.MethodGet,
+		"/api/prohibitorum/me/sudo/federation/callback?state=st&code=cd&iss=https://okta", "")
+	r.AddCookie(&http.Cookie{Name: sessstore.FedStateCookieName, Value: "browser-tok"})
+	rec := httptest.NewRecorder()
+	s.handleSudoFederationCallbackHTTP(rec, r)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 (body=%s)", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); loc != "/?sudo=failed" {
+		t.Errorf("Location = %q, want /?sudo=failed", loc)
+	}
+
+	current, _, err := s.sessionStore.Load(context.Background(), accountID, token, "127.0.0.1", "ua/test")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if current.SudoUntil.After(time.Now()) {
+		t.Errorf("SudoUntil = %v, want NOT stamped on failure", current.SudoUntil)
+	}
 }

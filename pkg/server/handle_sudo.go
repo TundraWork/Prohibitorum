@@ -41,9 +41,25 @@ import (
 	"prohibitorum/pkg/authn"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
+	fedoidc "prohibitorum/pkg/federation/oidc"
 	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
 )
+
+// sudoFederator is the narrow federation surface the federation_oidc sudo
+// branch needs. Production uses the concrete *fedoidc.Federator (s.federator);
+// tests inject a fake via s.sudoFederatorOverride.
+type sudoFederator interface {
+	SudoBegin(ctx context.Context, accountID int32, idpSlug, returnTo string) (*fedoidc.LoginRequest, error)
+	SudoCallback(ctx context.Context, stateToken, code, issParam, browserToken string, currentAccountID int32) (string, error)
+}
+
+func (s *Server) sudoFed() sudoFederator {
+	if s.sudoFederatorOverride != nil {
+		return s.sudoFederatorOverride
+	}
+	return s.federator
+}
 
 // sudoIntent is the JSON payload stashed at /begin so /complete knows which
 // verification path to take and (eventually) can enforce time limits beyond
@@ -140,7 +156,9 @@ func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Method string `json:"method"`
+		Method   string `json:"method"`
+		Slug     string `json:"slug"`
+		ReturnTo string `json:"returnTo"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Method == "" {
 		writeAuthErr(w, authn.ErrSudoMethodUnavailable())
@@ -153,15 +171,20 @@ func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	intent := sudoIntent{Method: body.Method, IssuedAt: time.Now().UTC()}
-	payload, err := json.Marshal(intent)
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("sudo/begin: marshal intent: %w", err))
-		return
-	}
-	if err := s.kvStore.SetEx(r.Context(), sudoIntentKey(sess.Data.SessionID), string(payload), 5*time.Minute); err != nil {
-		writeAuthErr(w, fmt.Errorf("sudo/begin: setex intent: %w", err))
-		return
+	// The sudo_intent stash is only consumed by /me/sudo/complete (webauthn /
+	// password_totp). The federation_oidc branch finishes at the dedicated
+	// authenticated callback route, never /complete — so don't stash for it.
+	if body.Method != string(authn.MethodFederationOIDC) {
+		intent := sudoIntent{Method: body.Method, IssuedAt: time.Now().UTC()}
+		payload, err := json.Marshal(intent)
+		if err != nil {
+			writeAuthErr(w, fmt.Errorf("sudo/begin: marshal intent: %w", err))
+			return
+		}
+		if err := s.kvStore.SetEx(r.Context(), sudoIntentKey(sess.Data.SessionID), string(payload), 5*time.Minute); err != nil {
+			writeAuthErr(w, fmt.Errorf("sudo/begin: setex intent: %w", err))
+			return
+		}
 	}
 
 	switch body.Method {
@@ -170,6 +193,25 @@ func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	case string(authn.MethodPasswordTOTP):
 		// No challenge — client submits credentials directly at /complete.
 		w.WriteHeader(http.StatusNoContent)
+	case string(authn.MethodFederationOIDC):
+		// Re-auth via the upstream OP (prompt=login, max_age=0). validate the
+		// returnTo; on a bad value fall back to "/" rather than reject the
+		// whole step-up.
+		returnTo, rerr := s.validateFederationReturnTo(body.ReturnTo)
+		if rerr != nil {
+			returnTo = "/"
+		}
+		req, err := s.sudoFed().SudoBegin(r.Context(), sess.Account.ID, body.Slug, returnTo)
+		if err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+		// Bind the flow to this browser — the anti-forgery cookie must come
+		// back on the authenticated callback, matched against the state's
+		// BrowserBinding.
+		http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.AntiForgeryToken))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"redirect": req.AuthorizeURL})
 	default:
 		// Defensive: availableSudoMethods would have rejected this, but
 		// keep the surface narrow.
@@ -353,19 +395,25 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 	s.stampSudoUntil(w, r, sess, string(authn.MethodPasswordTOTP))
 }
 
-// stampSudoUntil writes SudoUntil = now + Auth.SudoTTL onto the live session,
-// clears any KV ceremony state for this session, and emits the
-// sudo_granted audit record.
-func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *authn.Session, method string) {
-	current, _, err := s.sessionStore.Load(r.Context(), sess.Account.ID, sess.Token, sessstore.ClientIP(r, s.config.TrustProxy), r.UserAgent())
+// applySudoGrant writes SudoUntil = now + Auth.SudoTTL onto the live session,
+// clears any KV ceremony state for this session, and emits the sudo_granted
+// audit record + log. It does NOT write an HTTP success response — the caller
+// owns the transport (204 for /complete, 302 for the federation callback).
+//
+// On session load/save failure it writes the error response via writeAuthErr
+// and returns the error so the caller can bail without double-writing. On
+// success it returns nil and writes nothing to w.
+func (s *Server) applySudoGrant(ctx context.Context, w http.ResponseWriter, r *http.Request, sess *authn.Session, method string) error {
+	current, _, err := s.sessionStore.Load(ctx, sess.Account.ID, sess.Token, sessstore.ClientIP(r, s.config.TrustProxy), r.UserAgent())
 	if err != nil {
 		writeAuthErr(w, err)
-		return
+		return err
 	}
 	current.SudoUntil = time.Now().Add(s.config.Auth.SudoTTL)
-	if err := s.sessionStore.Save(r.Context(), sess.Account.ID, sess.Token, current); err != nil {
-		writeAuthErr(w, fmt.Errorf("sudo/complete: save: %w", err))
-		return
+	if err := s.sessionStore.Save(ctx, sess.Account.ID, sess.Token, current); err != nil {
+		err = fmt.Errorf("sudo: save: %w", err)
+		writeAuthErr(w, err)
+		return err
 	}
 
 	// Intent and webauthn stash were already Popped atomically by the
@@ -374,11 +422,11 @@ func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *au
 	// but /complete dispatched a different method (e.g. user changed
 	// their mind, second /begin overrode the intent but left the stash).
 	// Del on an absent key is a no-op.
-	_ = s.kvStore.Del(r.Context(), sudoStashKey(sess.Data.SessionID))
+	_ = s.kvStore.Del(ctx, sudoStashKey(sess.Data.SessionID))
 
 	if s.Audit != nil {
 		accountID := sess.Account.ID
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		_ = s.Audit.Record(ctx, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorSession,
 			Event:     "sudo_granted",
@@ -388,7 +436,7 @@ func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *au
 		})
 	}
 
-	logx.WithContext(r.Context()).WithFields(logrus.Fields{
+	logx.WithContext(ctx).WithFields(logrus.Fields{
 		"event":      "auth.sudo_granted",
 		"account_id": sess.Account.ID,
 		"session_id": sess.Data.SessionID,
@@ -396,7 +444,64 @@ func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *au
 		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
 	}).Info("auth")
 
+	return nil
+}
+
+// stampSudoUntil applies the sudo grant then writes 204 (the /complete idiom).
+func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *authn.Session, method string) {
+	if err := s.applySudoGrant(r.Context(), w, r, sess, method); err != nil {
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ----- GET /me/sudo/federation/callback ----------------------------------
+
+// handleSudoFederationCallbackHTTP is the authenticated landing for the
+// federation_oidc sudo step-up. The user's session must already be live (this
+// route is sessionReq); SudoCallback verifies the fresh upstream re-auth
+// (prompt=login, max_age=0, auth_time freshness) and that the upstream
+// identity still maps to the current account. On success we stamp sudo and
+// 302 to the original returnTo; on failure we audit auth.sudo_failed, stamp
+// nothing, and 302 to /?sudo=failed.
+func (s *Server) handleSudoFederationCallbackHTTP(w http.ResponseWriter, r *http.Request) {
+	sess := authn.SessionFromContext(r.Context())
+	q := r.URL.Query()
+
+	browserToken := ""
+	if c, cerr := r.Cookie(sessstore.FedStateCookieName); cerr == nil {
+		browserToken = c.Value
+	}
+
+	returnTo, err := s.sudoFed().SudoCallback(r.Context(), q.Get("state"), q.Get("code"), q.Get("iss"), browserToken, sess.Account.ID)
+	if err != nil {
+		reason := "sudo_callback_failed"
+		if ae := authn.AsAuthError(err); ae != nil {
+			reason = ae.Code
+		}
+		if s.Audit != nil {
+			accountID := sess.Account.ID
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorSession,
+				Event:     "sudo_failed",
+				IP:        audit.ParseIPOrNil(sessstore.ClientIP(r, s.config.TrustProxy)),
+				UserAgent: r.UserAgent(),
+				Detail:    map[string]any{"method": string(authn.MethodFederationOIDC), "reason": reason},
+			})
+		}
+		http.Redirect(w, r, "/?sudo=failed", http.StatusFound)
+		return
+	}
+
+	if grantErr := s.applySudoGrant(r.Context(), w, r, sess, string(authn.MethodFederationOIDC)); grantErr != nil {
+		// applySudoGrant already wrote the error response.
+		return
+	}
+	if returnTo == "" {
+		returnTo = "/"
+	}
+	http.Redirect(w, r, returnTo, http.StatusFound)
 }
 
 func sudoStashKey(sessionID string) string {

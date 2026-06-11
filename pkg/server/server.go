@@ -95,6 +95,10 @@ type Server struct {
 	// handleGetMyFactors without standing up *db.Queries. Nil in production —
 	// falls back to s.queries.
 	getMyFactorsOverride getMyFactorsQueries
+	// sudoFederatorOverride lets tests inject a fake sudoFederator for the
+	// federation_oidc sudo branch without a live *fedoidc.Federator. Nil in
+	// production — falls back to s.federator.
+	sudoFederatorOverride sudoFederator
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -356,6 +360,7 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/methods", sessionReq, s.handleSudoMethodsHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/begin", sessionReq, s.handleSudoBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/complete", sessionReq, s.handleSudoCompleteHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/federation/callback", sessionReq, s.handleSudoFederationCallbackHTTP)
 
 	// /me sensitive endpoints (sudo-gated, conditional for TOTP enrollment).
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/password/set", sessionReq, s.handleMePasswordSetHTTP)
