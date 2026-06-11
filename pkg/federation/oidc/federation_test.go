@@ -516,6 +516,30 @@ func TestFederator_HandleCallback_RejectsBrowserBindingMismatch(t *testing.T) {
 	}
 }
 
+// TestFederator_HandleCallback_DisabledMidFlowCleanError guards T3.1: if the
+// upstream IdP is disabled/deleted between BeginLogin and the callback, the
+// re-lookup must collapse to a clean federation_state_invalid + audit row (the
+// same shape begin() produces) rather than a wrapped HTTP 500.
+func TestFederator_HandleCallback_DisabledMidFlowCleanError(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	req, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if err != nil {
+		t.Fatalf("BeginLogin: %v", err)
+	}
+	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+
+	// Disable the IdP mid-flow (GetUpstreamIDPBySlug now misses → ErrNoRows).
+	delete(fx.q.idpBySlug, "mockop")
+
+	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+		t.Fatalf("want clean federation_state_invalid, got %v", err)
+	}
+	if r := auditReason(fx.au.snapshot(), audit.EventFail); r != "idp_disabled_or_deleted" {
+		t.Fatalf("audit reason = %q, want idp_disabled_or_deleted", r)
+	}
+}
+
 func TestFederator_HandleCallback_RejectsCodeExchangeFailure(t *testing.T) {
 	fx := newFixture(t, federationoidc.ModeAutoProvision)
 	req, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")

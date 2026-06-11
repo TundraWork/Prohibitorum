@@ -599,6 +599,17 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 	if in.Body.Role != "user" && in.Body.Role != "admin" {
 		return nil, authErrToHuma(authn.ErrInvalidRole())
 	}
+	// A federated invite bound to a non-existent or disabled IdP slug is
+	// permanently un-redeemable. Validate it at create (GetUpstreamIDPBySlug
+	// filters WHERE NOT disabled, so this also rejects a disabled slug). T3.4.
+	if slug := in.Body.ExpectedUpstreamIdpSlug; slug != nil && *slug != "" {
+		if _, err := s.invitationQ().GetUpstreamIDPBySlug(ctx, *slug); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, authErrToHuma(authn.ErrUpstreamIDPNotFound())
+			}
+			return nil, fmt.Errorf("handleCreateInvitation: validate slug: %w", err)
+		}
+	}
 	tpl := &enrollment.EnrollmentTemplate{
 		Role:                    in.Body.Role,
 		Attributes:              in.Body.Attributes,

@@ -68,6 +68,12 @@ Runtime read: `pkg/federation/oidc/{modes.go,federation.go,client.go}`.
   through it. This is defensible (disable = "no new associations") but the admin "Disabled" toggle could be
   read as a hard kill-switch. **Action:** document the semantics in the FE description; no code change needed
   unless a hard cutoff is wanted (would require a disabled check in `Resolve`).
+  > **CORRECTION (2026-06-11):** this bullet is **factually wrong** and was overturned by the
+  > 2026-06-11 functionality audit (⚠️-3). `HandleCallback` re-looks-up the IdP via `GetUpstreamIDPBySlug`,
+  > whose SQL is `WHERE slug=$1 AND NOT disabled` — so disabling an IdP is a **hard kill-switch**: a disabled
+  > IdP makes the callback fail and already-linked users are locked out too. (`Resolve` is only reached
+  > *after* that re-lookup succeeds.) The disabled-mid-flow path was hardened in the Tier-3 remediation to
+  > return a clean `federation_state_invalid` + audit (T3.1), and the FE "Disabled" help text was corrected.
 
 **Completeness:** no dead columns; no FE field that fails to wire. ✅
 
