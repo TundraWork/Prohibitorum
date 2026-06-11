@@ -64,6 +64,31 @@ import (
 // Audit finding H2-sch.
 const clientCacheTTL = 15 * time.Minute
 
+// fedFlow distinguishes the three federation flows that each need their own
+// redirect_uri (and therefore their own cached *Client): login, link, and the
+// sudo step-up. The flow is threaded through buildClient → redirectURI so the
+// value baked into the *Client matches the route the HTTP layer registered.
+type fedFlow int
+
+const (
+	flowLogin fedFlow = iota
+	flowLink
+	flowSudo
+)
+
+// label maps a fedFlow to the token used in the client-cache key, so login,
+// link, and sudo clients cache under distinct keys.
+func (f fedFlow) label() string {
+	switch f {
+	case flowLink:
+		return "link"
+	case flowSudo:
+		return "sudo"
+	default:
+		return "login"
+	}
+}
+
 // cachedClient pairs a built *Client with the wall-clock expiry beyond which
 // it must be rebuilt. Stored as a value in Federator.clientCache.
 type cachedClient struct {
@@ -140,7 +165,7 @@ type Federator struct {
 	dbPool *pgxpool.Pool
 
 	// clientCache memoizes *Client instances keyed by
-	// slug + ":" + key_version + ":link=" + isLink. sync.Map fits the
+	// slug + ":" + key_version + ":flow=" + flow.label(). sync.Map fits the
 	// read-heavy access pattern (one entry per (idp, flow) pair, populated
 	// once per TTL window, hit on every subsequent request). Values are
 	// *cachedClient. Eviction happens lazily on access — admins configure
@@ -290,7 +315,14 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		return nil, ErrUnknownIDP
 	}
 
-	client, err := f.buildClient(ctx, &idp, linkingAccountID != nil)
+	flow := flowLogin
+	switch {
+	case sudoAccountID != nil:
+		flow = flowSudo
+	case linkingAccountID != nil:
+		flow = flowLink
+	}
+	client, err := f.buildClient(ctx, &idp, flow)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +448,7 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 		return nil, authn.ErrFederationStateInvalid()
 	}
 
-	client, err := f.buildClient(ctx, &idp, false)
+	client, err := f.buildClient(ctx, &idp, flowLogin)
 	if err != nil {
 		return nil, err
 	}
@@ -533,7 +565,7 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 		return nil, authn.ErrFederationStateInvalid()
 	}
 
-	client, err := f.buildClient(ctx, &idp, true)
+	client, err := f.buildClient(ctx, &idp, flowLink)
 	if err != nil {
 		return nil, err
 	}
@@ -677,7 +709,7 @@ func (f *Federator) SudoCallback(ctx context.Context, stateToken, code, issParam
 		return "", authn.ErrFederationStateInvalid()
 	}
 
-	client, err := f.buildClient(ctx, &idp, false)
+	client, err := f.buildClient(ctx, &idp, flowSudo)
 	if err != nil {
 		return "", authn.ErrFederationStateInvalid()
 	}
@@ -728,8 +760,9 @@ func (f *Federator) decryptSecret(idp *db.UpstreamIdp) ([]byte, error) {
 }
 
 // buildClient does the decrypt+NewClient dance shared by begin, HandleCallback,
-// and LinkCallback. isLink picks the link- vs login-flavored redirect URI so the
-// token endpoint sees the exact value the OP recorded at /authorize.
+// LinkCallback, and SudoCallback. flow picks the login-, link-, or sudo-flavored
+// redirect URI so the token endpoint sees the exact value the OP recorded at
+// /authorize.
 //
 // Results are memoized in f.clientCache for clientCacheTTL. A DEK rotation that
 // bumps key_version is reflected in the cache key and naturally invalidates
@@ -737,8 +770,8 @@ func (f *Federator) decryptSecret(idp *db.UpstreamIdp) ([]byte, error) {
 // NOT reflected — D8 accepts that staleness window. Errors are never cached:
 // a transient network blip during discovery should not poison subsequent
 // requests.
-func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, isLink bool) (*Client, error) {
-	key := clientCacheKey(idp.Slug, idp.KeyVersion, isLink)
+func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, flow fedFlow) (*Client, error) {
+	key := clientCacheKey(idp.Slug, idp.KeyVersion, flow)
 	if v, ok := f.clientCache.Load(key); ok {
 		entry := v.(*cachedClient)
 		if time.Now().Before(entry.expiresAt) {
@@ -752,7 +785,7 @@ func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, isLink
 	if err != nil {
 		return nil, err
 	}
-	redirectURI := f.redirectURI(idp.Slug, isLink)
+	redirectURI := f.redirectURI(idp.Slug, flow)
 	client, err := NewClient(
 		ctx,
 		idp.ClientID,
@@ -776,20 +809,32 @@ func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, isLink
 
 // clientCacheKey builds the composite key for clientCache. KeyVersion is
 // included so a DEK rotation forces a fresh client (the decrypted secret may
-// change); isLink is included because login and link flows use different
+// change); flow is included because login, link, and sudo flows use different
 // redirect_uri values, which are baked into the *Client.
-func clientCacheKey(slug string, keyVersion int32, isLink bool) string {
-	return slug + ":" + strconv.Itoa(int(keyVersion)) + ":link=" + strconv.FormatBool(isLink)
+func clientCacheKey(slug string, keyVersion int32, flow fedFlow) string {
+	return slug + ":" + strconv.Itoa(int(keyVersion)) + ":flow=" + flow.label()
 }
 
-// redirectURI builds the upstream-facing redirect_uri for {slug}, picking
-// the login or link callback template. Must produce identical strings at
-// BeginLogin and the matching callback handler — the upstream OP records
-// the value and compares it byte-for-byte at code-exchange time.
-func (f *Federator) redirectURI(slug string, isLink bool) string {
-	template := "/api/prohibitorum/auth/federation/{slug}/callback"
-	if isLink {
+// redirectURI builds the upstream-facing redirect_uri for the given flow,
+// picking the login, link, or sudo callback. Must produce identical strings at
+// begin() and the matching callback handler — the upstream OP records the value
+// and compares it byte-for-byte at code-exchange time.
+//
+// The sudo callback is registered WITHOUT a {slug} path param (the state carries
+// IDPSlug), so its template has no substitution. Operators must register this
+// exact sudo callback URI — /api/prohibitorum/me/sudo/federation/callback — as
+// an allowed redirect_uri at EACH upstream IdP, in addition to the per-slug
+// login (/api/prohibitorum/auth/federation/{slug}/callback) and link
+// (/api/prohibitorum/me/identities/link/{slug}/callback) callbacks.
+func (f *Federator) redirectURI(slug string, flow fedFlow) string {
+	var template string
+	switch flow {
+	case flowLink:
 		template = "/api/prohibitorum/me/identities/link/{slug}/callback"
+	case flowSudo:
+		template = "/api/prohibitorum/me/sudo/federation/callback"
+	default:
+		template = "/api/prohibitorum/auth/federation/{slug}/callback"
 	}
 	return strings.TrimRight(f.publicOrigin, "/") + replaceSlug(template, slug)
 }

@@ -1417,3 +1417,44 @@ func TestFederator_SudoCallback_RejectsAccountMismatch(t *testing.T) {
 		t.Fatalf("err = %v, want federation_state_invalid", err)
 	}
 }
+
+// TestFederator_SudoBegin_UsesSudoRedirectURI pins the per-flow redirect_uri
+// fix: the sudo step-up must mint the authorize URL with the dedicated sudo
+// callback (no {slug} segment — the registered route has no slug param), NOT
+// the login callback. The upstream OP records this value at /authorize and
+// compares it byte-for-byte at code-exchange, so the sudo callback handler and
+// the begin() URL must agree. A login flow still yields the login callback to
+// prove no regression.
+func TestFederator_SudoBegin_UsesSudoRedirectURI(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	fx.q.identitiesByAccount[7] = []db.ListAccountIdentitiesByAccountRow{
+		{AccountID: 7, UpstreamIdpID: fx.idp.ID, UpstreamSub: "sub-1", IdpSlug: "mockop", IdpDisplayName: "Mock OP"},
+	}
+
+	req, err := fx.f.SudoBegin(context.Background(), 7, "mockop", "/security")
+	if err != nil {
+		t.Fatalf("SudoBegin: %v", err)
+	}
+	u, err := url.Parse(req.AuthorizeURL)
+	if err != nil {
+		t.Fatalf("parse AuthorizeURL: %v", err)
+	}
+	got := u.Query().Get("redirect_uri")
+	want := fx.origin + "/api/prohibitorum/me/sudo/federation/callback"
+	if got != want {
+		t.Errorf("sudo redirect_uri = %q, want %q", got, want)
+	}
+
+	// No regression: the login flow still uses the login callback (with slug).
+	lreq, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if err != nil {
+		t.Fatalf("BeginLogin: %v", err)
+	}
+	lu, err := url.Parse(lreq.AuthorizeURL)
+	if err != nil {
+		t.Fatalf("parse login AuthorizeURL: %v", err)
+	}
+	if got, want := lu.Query().Get("redirect_uri"), fx.origin+"/api/prohibitorum/auth/federation/mockop/callback"; got != want {
+		t.Errorf("login redirect_uri = %q, want %q", got, want)
+	}
+}
