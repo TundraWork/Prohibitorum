@@ -26,9 +26,11 @@ import SegmentedControl from '@/components/custom/SegmentedControl.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
+import StatusBadge from '@/components/custom/StatusBadge.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
+  email?: string; emailVerified: boolean
   attributes?: Record<string, unknown>; disabled: boolean
   createdAt: string; updatedAt: string; lastSignInAt?: string
 }
@@ -53,6 +55,7 @@ const sessions = ref<SessionListItem[]>([])
 const notFound = ref(false)
 
 const displayName = ref('')
+const email = ref('')
 const role = ref<'admin' | 'user'>('user')
 const disabled = ref(false)
 const saved = ref(false)
@@ -115,6 +118,7 @@ async function load(): Promise<void> {
   if (!acc) { if (error.value?.code === 'account_not_found') notFound.value = true; return }
   account.value = acc
   displayName.value = acc.displayName
+  email.value = acc.email ?? ''
   role.value = acc.role === 'admin' ? 'admin' : 'user'
   disabled.value = acc.disabled
   seedAttrs(acc.attributes)
@@ -123,14 +127,20 @@ async function load(): Promise<void> {
 }
 async function save(): Promise<void> {
   saved.value = false
+  // Send email ONLY when it changed: any explicit email value resets
+  // email_verified=false server-side, so omitting it on an unrelated save
+  // (e.g. toggling disabled) preserves a federation-verified address.
+  const trimmedEmail = email.value.trim()
+  const emailChanged = trimmedEmail !== (account.value?.email ?? '')
   const updated = await run(() => withSudo(() => api.put<Account>(`/api/prohibitorum/accounts/${id}`, {
     username: '',
     displayName: displayName.value,
     role: role.value,
     disabled: disabled.value,
     attributes: buildAttrs(),
+    ...(emailChanged ? { email: trimmedEmail } : {}),
   })))
-  if (updated) { account.value = updated; seedAttrs(updated.attributes); saved.value = true }
+  if (updated) { account.value = updated; displayName.value = updated.displayName; email.value = updated.email ?? ''; seedAttrs(updated.attributes); saved.value = true }
 }
 async function forceRevoke(): Promise<void> {
   saved.value = false
@@ -194,6 +204,16 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.account.displayName') }}</Label>
             <Input id="displayName" name="displayName" v-model="displayName" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <div class="flex items-center gap-2">
+              <Label for="email">{{ t('admin.account.email') }}</Label>
+              <StatusBadge v-if="account.email" :variant="account.emailVerified ? 'success' : 'neutral'">
+                {{ account.emailVerified ? t('admin.account.emailVerified') : t('admin.account.emailUnverified') }}
+              </StatusBadge>
+            </div>
+            <Input id="email" name="email" type="email" v-model="email" :placeholder="t('admin.account.emailPlaceholder')" />
+            <p class="text-xs text-muted">{{ t('admin.account.emailDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.account.role') }}</Label>

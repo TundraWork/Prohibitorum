@@ -30,7 +30,6 @@ interface SamlApplication {
   displayName: string
   nameIdFormat: string
   requireSignedAuthnRequest: boolean
-  wantAssertionsSigned: boolean
   allowIdpInitiated: boolean
   createdAt: string
 }

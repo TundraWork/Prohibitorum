@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
- * PasskeysCard — manage the account's WebAuthn passkeys. List/add/rename/delete
- * are session-only (not sudo-gated). The backend sends excludeCredentials on
- * begin (no duplicate passkeys) and rejects deleting the last passkey.
+ * PasskeysCard — manage the account's WebAuthn passkeys. Adding a passkey is
+ * sudo-gated (the register/begin ceremony requires a fresh step-up; complete
+ * rides the server-side stash from that begin). List/rename/delete are
+ * session-only. The backend sends excludeCredentials on begin (no duplicate
+ * passkeys) and rejects deleting the last passkey.
  */
 import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -10,6 +12,7 @@ import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/bro
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
+import { withSudo } from '@/lib/sudo'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,8 +59,8 @@ async function load(): Promise<void> {
 }
 
 async function add(): Promise<void> {
-  const options = await run(() =>
-    api.post<PublicKeyCredentialCreationOptionsJSON>('/api/prohibitorum/me/credentials/register/begin'))
+  const options = await run(() => withSudo(() =>
+    api.post<PublicKeyCredentialCreationOptionsJSON>('/api/prohibitorum/me/credentials/register/begin')))
   if (!options) return
   const attestation = await register(options)
   if (!attestation) return
