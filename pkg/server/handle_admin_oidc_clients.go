@@ -40,6 +40,29 @@ import (
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
+// supportedOIDCScopes is the set the OP actually honors (matches discovery's
+// scopes_supported). allowed_scopes outside this set are rejected at create /
+// update so a dead or typo'd scope can't be stored, requested, and consented
+// while delivering nothing (T3.2). `email` is now real (email/email_verified
+// claims); `offline_access` gates refresh tokens.
+var supportedOIDCScopes = map[string]bool{
+	"openid":         true,
+	"profile":        true,
+	"email":          true,
+	"offline_access": true,
+}
+
+// validateOIDCScopes rejects any allowed_scopes value the OP does not support.
+// Empty is allowed — the caller defaults it.
+func validateOIDCScopes(scopes []string) error {
+	for _, sc := range scopes {
+		if !supportedOIDCScopes[sc] {
+			return authn.ErrBadRequest()
+		}
+	}
+	return nil
+}
+
 // oidcApplicationView projects a db.OidcClient row into the wire-safe contract
 // view. ClientSecretHash is explicitly excluded — this function is the single
 // chokepoint that prevents accidental leakage of secret material.
@@ -136,6 +159,10 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	if err := validateOIDCScopes(body.Scopes); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 
 	opts := oidc.ClientOptions{
 		ClientID:               body.ClientID,
@@ -218,6 +245,10 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	postLogout := body.PostLogoutRedirectURIs
 	if postLogout == nil {
 		postLogout = []string{}
+	}
+	if err := validateOIDCScopes(body.AllowedScopes); err != nil {
+		writeAuthErr(w, err)
+		return
 	}
 	// Default scopes to openid+profile when omitted.
 	scopes := body.AllowedScopes

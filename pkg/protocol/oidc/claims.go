@@ -115,12 +115,18 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 			c[k] = v
 		}
 	}
+	if hasScope(in.Scope, "email") {
+		for k, v := range emailClaims(a) {
+			c[k] = v
+		}
+	}
 
 	return c
 }
 
 // userinfoClaims projects an account into the /userinfo response: always
-// `sub`, plus the same profile block iff the `profile` scope was granted.
+// `sub`, plus the profile block iff `profile` was granted and the email block
+// iff `email` was granted.
 func userinfoClaims(a db.Account, scope []string) map[string]any {
 	c := map[string]any{
 		"sub": subjectOf(a),
@@ -130,5 +136,25 @@ func userinfoClaims(a db.Account, scope []string) map[string]any {
 			c[k] = v
 		}
 	}
+	if hasScope(scope, "email") {
+		for k, v := range emailClaims(a) {
+			c[k] = v
+		}
+	}
 	return c
+}
+
+// emailClaims returns the OIDC `email` / `email_verified` claim block (Core
+// §5.4), gated on the `email` scope by the caller. Returns nil when the account
+// has no email on file (so both claims are omitted rather than emitted empty);
+// ranging over a nil map is a no-op. email_verified reflects whether the address
+// was asserted by a verified upstream vs set manually.
+func emailClaims(a db.Account) map[string]any {
+	if !a.Email.Valid || a.Email.String == "" {
+		return nil
+	}
+	return map[string]any{
+		"email":          a.Email.String,
+		"email_verified": a.EmailVerified,
+	}
 }

@@ -184,6 +184,10 @@ func (f *fakeFedQueries) UpdateAccountIdentityEmail(_ context.Context, _ db.Upda
 	return nil
 }
 
+func (f *fakeFedQueries) UpdateAccountEmail(_ context.Context, _ db.UpdateAccountEmailParams) error {
+	return nil
+}
+
 func (f *fakeFedQueries) InsertSession(_ context.Context, arg db.InsertSessionParams) (db.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -100,6 +100,49 @@ func baseInput() idTokenInput {
 	}
 }
 
+// TestClaimsEmailScope guards T3.2: the email/email_verified claims are emitted
+// iff the `email` scope is granted AND the account has an email; never leaked
+// under other scopes, and omitted entirely for an account with no email.
+func TestClaimsEmailScope(t *testing.T) {
+	a := testAccount(t)
+	a.Email = pgtype.Text{String: "alice@example.com", Valid: true}
+	a.EmailVerified = true
+
+	// id_token WITH email scope → both claims present.
+	in := baseInput()
+	in.Scope = []string{"openid", "email"}
+	c := idTokenClaims(a, in)
+	if c["email"] != "alice@example.com" {
+		t.Errorf("email claim = %v, want alice@example.com", c["email"])
+	}
+	if c["email_verified"] != true {
+		t.Errorf("email_verified = %v, want true", c["email_verified"])
+	}
+
+	// id_token WITHOUT email scope → omitted (even though the account has one).
+	in.Scope = []string{"openid", "profile"}
+	c = idTokenClaims(a, in)
+	if _, ok := c["email"]; ok {
+		t.Error("email claim leaked without the email scope")
+	}
+
+	// email scope but NO email on the account → omitted (not emitted empty).
+	in.Scope = []string{"openid", "email"}
+	c = idTokenClaims(testAccount(t), in)
+	if _, ok := c["email"]; ok {
+		t.Error("email claim emitted for an account with no email")
+	}
+
+	// userinfo parity.
+	u := userinfoClaims(a, []string{"openid", "email"})
+	if u["email"] != "alice@example.com" || u["email_verified"] != true {
+		t.Errorf("userinfo email block = %v/%v, want alice@example.com/true", u["email"], u["email_verified"])
+	}
+	if _, ok := userinfoClaims(a, []string{"openid"})["email"]; ok {
+		t.Error("userinfo leaked email without the email scope")
+	}
+}
+
 func TestClaimsIDTokenWithProfile(t *testing.T) {
 	a := testAccount(t)
 	in := baseInput()
