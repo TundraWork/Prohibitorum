@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/account"
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/enrollment"
@@ -48,6 +49,16 @@ func encodeAttributes(attrs map[string]any) []byte {
 		return []byte("{}")
 	}
 	return b
+}
+
+// auditActor returns the acting admin's account id (nil when no session), for
+// the AccountID field of an admin-mutation audit row. account_id is nullable in
+// credential_event, so a nil actor records cleanly rather than a bogus id.
+func auditActor(sess *authn.Session) *int32 {
+	if sess == nil {
+		return nil
+	}
+	return &sess.Account.ID
 }
 
 // accountViewFromRow projects a ListAccountsRow into AccountView. The row
@@ -225,6 +236,16 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 			"target_id": updated.ID,
 			"changes":   changes,
 		}).Info("auth")
+		detail := map[string]any{"target_id": updated.ID}
+		for k, v := range changes {
+			detail[k] = v
+		}
+		_ = s.Audit.Record(ctx, audit.Record{
+			AccountID: auditActor(sess),
+			Factor:    audit.FactorAccount,
+			Event:     audit.EventUpdate,
+			Detail:    detail,
+		})
 	}
 
 	// Best-effort: kick sessions when an account is freshly disabled so active
@@ -296,6 +317,12 @@ func (s *Server) handleDeleteAccount(ctx context.Context, in *deleteAccountIn) (
 		"actor_id":  actorID,
 		"target_id": in.Body.ID,
 	}).Info("auth")
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: auditActor(sess),
+		Factor:    audit.FactorAccount,
+		Event:     audit.EventRevoke,
+		Detail:    map[string]any{"target_id": in.Body.ID, "action": "delete"},
+	})
 
 	// Best-effort: active sessions for this account are now dangling; revoke
 	// them so browsers are signed out immediately.
@@ -476,6 +503,12 @@ func (s *Server) handleRevokeAccountSessions(ctx context.Context, in *revokeAcco
 		"target_id": in.Body.ID,
 		"revoked":   revoked,
 	}).Info("auth")
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: auditActor(sess),
+		Factor:    audit.FactorAccount,
+		Event:     audit.EventRevoke,
+		Detail:    map[string]any{"target_id": in.Body.ID, "action": "revoke_all_sessions", "revoked": revoked},
+	})
 
 	out := &revokeAccountSessionsOut{}
 	out.Body.Revoked = revoked
@@ -521,6 +554,12 @@ func (s *Server) handleReissueEnrollment(ctx context.Context, in *reissueEnrollm
 		"target_id": in.Body.ID,
 		"intent":    "reset",
 	}).Info("auth")
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: auditActor(sess),
+		Factor:    audit.FactorAccount,
+		Event:     audit.EventEnrollmentIssued,
+		Detail:    map[string]any{"target_id": in.Body.ID, "intent": "reset"},
+	})
 
 	url := s.config.PublicOrigins[0] + "/enroll/" + token
 	return &enrollmentURLOut{Body: contract.EnrollmentURLResponse{
@@ -580,6 +619,12 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		"actor_id":      actorID,
 		"template_role": in.Body.Role,
 	}).Info("auth")
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: auditActor(sess),
+		Factor:    audit.FactorInvitation,
+		Event:     audit.EventRegister,
+		Detail:    map[string]any{"template_role": in.Body.Role},
+	})
 
 	url := s.config.PublicOrigins[0] + "/enroll/" + token
 	return &invitationOut{
@@ -657,6 +702,12 @@ func (s *Server) handleRevokeInvitation(ctx context.Context, in *revokeInvitatio
 		"actor_id": actorID,
 		"token4":   tokenPrefix,
 	}).Info("auth")
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: auditActor(sess),
+		Factor:    audit.FactorInvitation,
+		Event:     audit.EventRevoke,
+		Detail:    map[string]any{"token4": tokenPrefix},
+	})
 	return &struct{}{}, nil
 }
 

@@ -224,6 +224,12 @@ func (s *Server) handleAddCredentialBeginHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
+	// Registering a new authenticator is a credential-adding action — gate it
+	// behind fresh sudo, matching device-pairing approval and the sudo threat
+	// model (a stolen session must not silently plant a backdoor passkey). T1.3.
+	if s.requireFreshSudo(r.Context(), w, sess) {
+		return
+	}
 
 	creds, err := s.queries.ListCredentialsByAccount(r.Context(), sess.Account.ID)
 	if err != nil {

@@ -250,6 +250,13 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
+		// A reset token must not be usable against a disabled account — otherwise
+		// the holder could wipe its credentials + plant a fresh passkey (T1.2).
+		// Every other credential path re-checks Disabled; mirror it here.
+		if a.Disabled {
+			writeAuthErr(w, authn.ErrEnrollmentConsumed())
+			return
+		}
 		creds, _ := s.queries.ListCredentialsByAccount(r.Context(), a.ID)
 		// On reset, the existing credentials are exclusions for the ceremony (you
 		// can't re-register the same authenticator); they're DELETED at /complete
@@ -448,6 +455,12 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 				return
 			}
 			writeAuthErr(w, fmt.Errorf("enrollment/complete reset: get account: %w", err))
+			return
+		}
+		// Refuse to complete a reset against a disabled account (T1.2): the token
+		// is consumed here, so check before the destructive credential wipe.
+		if a.Disabled {
+			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
 		// Reset: delete all existing credentials, then register the new one.

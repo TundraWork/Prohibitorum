@@ -65,6 +65,24 @@ func TestRegisterSudoOpHTTP_RejectsWithoutFreshSudo(t *testing.T) {
 	}
 }
 
+// TestAddPasskeyBeginRequiresFreshSudo guards T1.3: registering a new
+// authenticator requires fresh sudo. The gate runs before any DB access, so a
+// no-sudo session is rejected 401 "sudo_required" without touching s.queries —
+// &Server{} is safe. (Only /begin is gated; /complete relies on the
+// sudo-gated begin having produced the server-side ceremony stash.)
+func TestAddPasskeyBeginRequiresFreshSudo(t *testing.T) {
+	s := &Server{}
+	rr := httptest.NewRecorder()
+	req := reqWithSession("POST", "/api/prohibitorum/me/credentials/register/begin", "", "", adminSession(time.Time{}))
+	s.handleAddCredentialBeginHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 sudo_required", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "sudo_required") {
+		t.Errorf("body = %q, want sudo_required", rr.Body.String())
+	}
+}
+
 // TestRegisterSudoOpHTTP_RejectsNonJSON verifies that a request with the wrong
 // Content-Type is rejected 400 "bad_request" before the handler runs — and
 // crucially BEFORE requireFreshSudo, so no sudo grant is consumed.

@@ -1,14 +1,16 @@
 package server
 
 // TestAdminMutationRoutesRequireSudo is a cross-cutting security regression
-// test. It asserts that EVERY admin mutation route registered via
-// registerSudoOpHTTP returns HTTP 401 with body containing "sudo_required"
-// when served with an admin session that carries no fresh sudo grant —
-// confirming the sudo gate fires BEFORE any handler logic.
+// test. It asserts that EVERY admin mutation route — whether registered via the
+// raw-HTTP registerSudoOpHTTP or the typed-Huma registerSudoOp — returns HTTP
+// 401 with body containing "sudo_required" when served with an admin session
+// that carries no fresh sudo grant, confirming the sudo gate fires BEFORE any
+// handler logic. Both styles route through the same consumeFreshSudo chokepoint.
 //
-// GUARD: every route registered via s.registerSudoOpHTTP MUST appear in
-// sudoGatedRoutes below. Adding a 🔐 admin route without adding it here is a
-// security bug — the test will not catch an un-gated route it doesn't know about.
+// GUARD: every route registered via s.registerSudoOpHTTP OR registerSudoOp MUST
+// appear in sudoGatedRoutes below. Adding a 🔐 admin mutation without adding it
+// here is a security bug — the test will not catch an un-gated route it doesn't
+// know about.
 
 import (
 	"net/http/httptest"
@@ -31,12 +33,13 @@ type sudoRoute struct {
 }
 
 // sudoGatedRoutes is the canonical list of every 🔐 admin mutation route.
-// Maintain this list whenever s.registerSudoOpHTTP gains a new entry.
+// Maintain this list whenever registerSudoOpHTTP or registerSudoOp gains a new
+// entry.
 //
-// GUARD: every route registered via s.registerSudoOpHTTP MUST appear here.
-// Omitting a route is a security gap — this test won't catch a missing entry it
-// doesn't know about. Cross-check against server.go registerOperations() when
-// adding routes.
+// GUARD: every route registered via registerSudoOpHTTP OR registerSudoOp MUST
+// appear here. Omitting a route is a security gap — this test won't catch a
+// missing entry it doesn't know about. Cross-check against server.go
+// registerOperations() when adding routes.
 var sudoGatedRoutes = []sudoRoute{
 	// Signing-key lifecycle
 	{method: "POST", path: "/api/prohibitorum/signing-keys/generate", body: `{}`},
@@ -66,6 +69,15 @@ var sudoGatedRoutes = []sudoRoute{
 
 	// Per-account session revoke (admin, sudo-gated)
 	{method: "POST", path: "/api/prohibitorum/accounts/1/sessions/revoke", body: `{"sessionId":"abc"}`},
+
+	// Account/invitation lifecycle mutations — fresh-sudo via registerSudoOp
+	// (typed Huma ops). UpdateAccount can escalate user→admin, so step-up matters.
+	{method: "PUT", path: "/api/prohibitorum/accounts/1", body: `{"displayName":"x","role":"user"}`},
+	{method: "POST", path: "/api/prohibitorum/accounts/delete", body: `{"id":1}`},
+	{method: "POST", path: "/api/prohibitorum/accounts/revoke-sessions", body: `{"id":1}`},
+	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
+	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
+	{method: "POST", path: "/api/prohibitorum/invitations/revoke", body: `{"token":"x"}`},
 }
 
 // TestAdminMutationRoutesRequireSudo builds the REAL router via registerOperations()

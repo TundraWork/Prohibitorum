@@ -45,6 +45,43 @@ func registerOp[I, O any](
 	huma.Register(api, op, handler)
 }
 
+// registerSudoOp is registerOp plus a fresh-sudo gate. It is for typed Huma
+// admin MUTATIONS (account/invitation lifecycle) that would otherwise need a
+// raw-HTTP rewrite to reach registerSudoOpHTTP — this keeps their typed I/O +
+// OpenAPI docs while still requiring step-up auth. The sudo check runs as an
+// operation middleware AFTER the auth check and routes through
+// s.consumeFreshSudo (the single chokepoint shared with the raw withFreshSudo
+// path), writing ErrSudoRequired via huma on absence. It is a free function
+// (not a method) because Go methods cannot be generic; pass the Server.
+func registerSudoOp[I, O any](
+	s *Server,
+	api huma.API,
+	op huma.Operation,
+	handler func(context.Context, *I) (*O, error),
+	req contract.AuthRequirement,
+) {
+	if req.Kind != contract.AuthPublic {
+		op.Security = append(op.Security, map[string][]string{
+			"prohibitorumSession": {},
+		})
+	}
+	op.Middlewares = append(op.Middlewares, func(ctx huma.Context, next func(huma.Context)) {
+		sess := authn.SessionFromContext(ctx.Context())
+		if err := authn.Check(sess, req); err != nil {
+			ae := authn.AsAuthError(err)
+			_ = huma.WriteErr(api, ctx, ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
+			return
+		}
+		if !s.consumeFreshSudo(ctx.Context(), sess) {
+			ae := authn.ErrSudoRequired()
+			_ = huma.WriteErr(api, ctx, ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
+			return
+		}
+		next(ctx)
+	})
+	huma.Register(api, op, handler)
+}
+
 // registerOpHTTP wraps a raw chi handler with the same authn.Check gate.
 // Used for endpoints that need to write Set-Cookie headers and read
 // streaming/JSON request bodies — Huma's typed I/O doesn't accommodate
