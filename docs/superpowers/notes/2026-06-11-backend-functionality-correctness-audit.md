@@ -1,5 +1,26 @@
 # Backend functionality correctness + completeness audit (FE-surface-driven)
 
+> **REMEDIATED (2026-06-11).** All four tiers of findings below were fixed in a
+> tier-by-tier remediation cycle on `master`:
+> - **Tier 1 (authz):** the six admin account/invitation mutations are now
+>   fresh-sudo-gated (`registerSudoOp` + a shared `consumeFreshSudo` chokepoint);
+>   reset-enrollment rejects disabled accounts; add-passkey begin is sudo-gated;
+>   audit rows added for all six mutations. (commit `cdf5fc2`)
+> - **Tier 2 (interop):** SAML redirect-binding LogoutResponse is now
+>   detached-signed; consent-deny carries the RFC 9207 `iss`; `prompt` is strictly
+>   validated. (commit `f54f780`)
+> - **Tier 3 (truth/claims):** disabled-IdP mid-flow now returns a clean
+>   state-invalid error + audit row; invite slug is validated; re-login is scoped
+>   to one issuer↔one IdP; the **`email` scope is now a real claim**
+>   (account.email column + federation provisioning + scope whitelist +
+>   offline_access). (commits `2dd98cf`, `8b54cb8`)
+> - **Tier 4 (hygiene):** dropped no-op SAML/OIDC columns (migration 010);
+>   password param-upgrade rehash no longer bumps `password_changed_at`.
+>   (commit `b07ceaf`)
+> - **FE + docs:** dashboard rebuilt; INTEGRATION.md updated. (commit `9c54170`)
+>
+> The body below is the original audit, preserved as the record of what was found.
+
 **Date:** 2026-06-11. **Branch:** `master`. **Tree:** clean (read/verify only; no code changed).
 **HEAD context:** after the v0.6 dashboard ship + the 2026-06-10 column-wiring audit.
 
