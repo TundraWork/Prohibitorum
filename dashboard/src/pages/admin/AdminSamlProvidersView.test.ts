@@ -12,7 +12,7 @@ import AdminSamlProvidersView from './AdminSamlProvidersView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminSamlProvidersView, { global: { plugins: [i18n()] }, attachTo: document.body })
-const SPS = [{ id: 1, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', requireSignedAuthnRequest: false, wantAssertionsSigned: true, allowIdpInitiated: true, acs: [], keys: [], createdAt: '2026-01-01T00:00:00Z' }]
+const SPS = [{ id: 1, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', requireSignedAuthnRequest: false, allowIdpInitiated: true, acs: [], keys: [], createdAt: '2026-01-01T00:00:00Z' }]
 beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
 describe('AdminSamlProvidersView', () => {

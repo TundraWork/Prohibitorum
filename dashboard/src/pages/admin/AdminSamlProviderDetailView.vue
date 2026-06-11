@@ -38,10 +38,8 @@ interface SamlApplication {
   entityId: string
   displayName: string
   nameIdFormat: string
-  nameIdClaim: string
   attributeMap: unknown
   requireSignedAuthnRequest: boolean
-  wantAssertionsSigned: boolean
   allowIdpInitiated: boolean
   sessionLifetimeSecs?: number
   acs: AcsEndpoint[]

@@ -169,6 +169,10 @@ onMounted(load)
                 <Checkbox :model-value="scopes.includes('email')" @update:model-value="(c) => toggleScope('email', c === true)" />
                 email
               </label>
+              <label class="flex items-center gap-2 text-sm text-ink">
+                <Checkbox :model-value="scopes.includes('offline_access')" @update:model-value="(c) => toggleScope('offline_access', c === true)" />
+                offline_access
+              </label>
             </div>
             <p class="text-xs text-muted">{{ t('admin.oidc.scopesNote') }}</p>
           </div>
