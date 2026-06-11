@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -64,7 +65,13 @@ type Tokens struct {
 	PreferredUsername string
 	Name              string
 	AMR               []string
-	Raw               map[string]any
+	// AuthTime is the time at which the end-user was last authenticated by
+	// the upstream OP, as reported in the id_token auth_time claim (RFC 6749 /
+	// OIDC Core §2). Zero if the OP did not include auth_time. The sudo
+	// callback uses this to reject step-up tokens whose auth_time predates
+	// the sudo request.
+	AuthTime time.Time
+	Raw      map[string]any
 }
 
 // ClaimString returns the string value of the named claim, or "" if the
@@ -182,13 +189,30 @@ func (c *Client) TokenEndpoint() string {
 // state, nonce, and codeChallenge (the SHA-256 base64url-encoded
 // transform of the verifier) and for persisting the corresponding
 // codeVerifier alongside state in the KV.
-func (c *Client) AuthURL(state, nonce, codeChallenge string) string {
-	return rp.AuthURL(
-		state,
-		c.rp,
-		rp.WithCodeChallenge(codeChallenge),
-		authURLOpt(oauth2.SetAuthURLParam("nonce", nonce)),
-	)
+//
+// extra accepts additional oauth2.AuthCodeOption values appended after
+// the base parameters. Callers that pass no extras get identical URLs as
+// before (backward-compatible). Use StepUpAuthOptions() to force a
+// fresh upstream re-authentication for the sudo step-up flow.
+func (c *Client) AuthURL(state, nonce, codeChallenge string, extra ...oauth2.AuthCodeOption) string {
+	opts := make([]rp.AuthURLOpt, 0, 2+len(extra))
+	opts = append(opts, rp.WithCodeChallenge(codeChallenge))
+	opts = append(opts, authURLOpt(oauth2.SetAuthURLParam("nonce", nonce)))
+	for _, o := range extra {
+		opts = append(opts, authURLOpt(o))
+	}
+	return rp.AuthURL(state, c.rp, opts...)
+}
+
+// StepUpAuthOptions returns the oauth2.AuthCodeOption slice that forces a
+// fresh upstream re-authentication. prompt=login re-challenges the user
+// unconditionally; max_age=0 obliges a conformant OP to both re-auth AND
+// return a fresh auth_time claim (verified by the sudo callback).
+func StepUpAuthOptions() []oauth2.AuthCodeOption {
+	return []oauth2.AuthCodeOption{
+		oauth2.SetAuthURLParam("prompt", "login"),
+		oauth2.SetAuthURLParam("max_age", "0"),
+	}
 }
 
 // authURLOpt is a convenience adapter so we can drop a single
@@ -314,7 +338,11 @@ func (c *Client) Exchange(
 		PreferredUsername: claims.PreferredUsername,
 		Name:              claims.Name,
 		AMR:               []string(claims.AuthenticationMethodsReferences),
-		Raw:               raw,
+		// AuthTime: zero when the OP omitted auth_time (AuthTime field is
+		// oidc.Time which is int64; AsTime() on the zero value returns the
+		// Go zero time).
+		AuthTime: claims.AuthTime.AsTime(),
+		Raw:      raw,
 	}, nil
 }
 

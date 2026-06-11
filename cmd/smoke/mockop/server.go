@@ -60,7 +60,8 @@ type codeState struct {
 	challengeMethod string
 	claims          Claims
 	amr             []string
-	iss             string // captured at authorize time (base or override)
+	authTime        time.Time // zero means omit auth_time from id_token
+	iss             string    // captured at authorize time (base or override)
 	expiresAt       time.Time
 }
 
@@ -75,6 +76,7 @@ type Server struct {
 	// nextError is single-shot and cleared after the next /authorize.
 	nextClaims     Claims
 	nextAMR        []string
+	nextAuthTime   time.Time // zero means omit auth_time from id_token
 	nextError      *errorParams
 	issuerOverride string
 
@@ -157,6 +159,15 @@ func (s *Server) FailWithError(code, description string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextError = &errorParams{Code: code, Description: description}
+}
+
+// SetAuthTime sets the auth_time value to include in the next ID token.
+// Passing the zero value clears the hook (auth_time is omitted). Persists
+// across calls.
+func (s *Server) SetAuthTime(t time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextAuthTime = t
 }
 
 // OverrideIssuer forces the iss redirect parameter and the id_token iss
@@ -273,6 +284,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		challengeMethod: challengeMethod,
 		claims:          s.nextClaims,
 		amr:             s.nextAMR,
+		authTime:        s.nextAuthTime,
 		iss:             iss,
 		expiresAt:       time.Now().Add(5 * time.Minute),
 	}
@@ -340,6 +352,9 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(st.amr) > 0 {
 		idClaims["amr"] = st.amr
+	}
+	if !st.authTime.IsZero() {
+		idClaims["auth_time"] = st.authTime.Unix()
 	}
 	idToken, err := s.signES256(idClaims)
 	if err != nil {

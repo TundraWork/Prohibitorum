@@ -1196,3 +1196,81 @@ func TestFederator_BeginInviteRedemption_ExpiredToken(t *testing.T) {
 		t.Errorf("audit reason = %q, want invite_expired", r)
 	}
 }
+
+// --- step-up / auth_time tests -------------------------------------------
+
+// TestClient_AuthURLStepUpOptions verifies that passing StepUpAuthOptions()
+// to AuthURL produces a URL with prompt=login and max_age=0. The base URL
+// (without step-up) must NOT contain those params.
+func TestClient_AuthURLStepUpOptions(t *testing.T) {
+	ts, _ := newMockOP(t)
+	c := newClient(t, ts)
+
+	_, challenge := pkceVerifierAndChallenge()
+	state := "step-state"
+	nonce := "step-nonce"
+
+	// Baseline: no extra options — must not inject step-up params.
+	baseURL := c.AuthURL(state, nonce, challenge)
+	bu, err := url.Parse(baseURL)
+	if err != nil {
+		t.Fatalf("parse base AuthURL: %v", err)
+	}
+	bq := bu.Query()
+	if bq.Get("prompt") != "" {
+		t.Errorf("baseline URL has prompt=%q, want absent", bq.Get("prompt"))
+	}
+	if bq.Get("max_age") != "" {
+		t.Errorf("baseline URL has max_age=%q, want absent", bq.Get("max_age"))
+	}
+
+	// Step-up: must inject prompt=login and max_age=0.
+	stepURL := c.AuthURL(state, nonce, challenge, federationoidc.StepUpAuthOptions()...)
+	su, err := url.Parse(stepURL)
+	if err != nil {
+		t.Fatalf("parse step-up AuthURL: %v", err)
+	}
+	sq := su.Query()
+	if got := sq.Get("prompt"); got != "login" {
+		t.Errorf("step-up URL prompt=%q, want login", got)
+	}
+	if got := sq.Get("max_age"); got != "0" {
+		t.Errorf("step-up URL max_age=%q, want 0", got)
+	}
+}
+
+// TestClient_ExchangePopulatesAuthTime verifies that after a code exchange,
+// Tokens.AuthTime is populated from the id_token auth_time claim. When the
+// mock OP does not emit auth_time the field must be zero.
+func TestClient_ExchangePopulatesAuthTime(t *testing.T) {
+	ts, op := newMockOP(t)
+	op.SetClaims("sub-at", "at@example.test", true, "at", "Auth Time Test")
+
+	// Phase 1: mock OP does not emit auth_time — Tokens.AuthTime must be zero.
+	c := newClient(t, ts)
+	verifier, challenge := pkceVerifierAndChallenge()
+	code := driveAuthorize(t, c.AuthURL("s1", "n1", challenge))
+	toks, err := c.Exchange(context.Background(), code, verifier, ts.URL, "n1")
+	if err != nil {
+		t.Fatalf("Exchange (no auth_time): %v", err)
+	}
+	if !toks.AuthTime.IsZero() {
+		t.Errorf("AuthTime = %v, want zero (no auth_time in token)", toks.AuthTime)
+	}
+
+	// Phase 2: mock OP emits auth_time — Tokens.AuthTime must be non-zero
+	// and within a reasonable window of now.
+	beforeAuth := time.Now().Add(-time.Second)
+	op.SetAuthTime(time.Now())
+	code2 := driveAuthorize(t, c.AuthURL("s2", "n2", challenge))
+	toks2, err := c.Exchange(context.Background(), code2, verifier, ts.URL, "n2")
+	if err != nil {
+		t.Fatalf("Exchange (with auth_time): %v", err)
+	}
+	if toks2.AuthTime.IsZero() {
+		t.Error("AuthTime is zero; want non-zero (auth_time was in token)")
+	}
+	if toks2.AuthTime.Before(beforeAuth) {
+		t.Errorf("AuthTime %v is before expected window start %v", toks2.AuthTime, beforeAuth)
+	}
+}
