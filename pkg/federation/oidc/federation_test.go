@@ -1349,3 +1349,71 @@ func TestFederator_SudoBegin_RejectsUnknownSlug(t *testing.T) {
 		t.Fatal("want error for unknown slug, got nil")
 	}
 }
+
+// --- SudoCallback (Task 3) -------------------------------------------------
+
+// seedSudoIdentity links a single upstream identity (sub) to accountID at the
+// fixture's "mockop" IdP so SudoBegin can snapshot ExpectedSub.
+func seedSudoIdentity(fx *fixtureFederator, accountID int32, sub string) {
+	fx.q.identitiesByAccount[accountID] = []db.ListAccountIdentitiesByAccountRow{
+		{AccountID: accountID, UpstreamIdpID: fx.idp.ID, UpstreamSub: sub, IdpSlug: "mockop", IdpDisplayName: "Mock OP"},
+	}
+}
+
+func TestFederator_SudoCallback_HappyPath(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	seedSudoIdentity(fx, 7, "sub-1")
+	fx.op.SetClaims("sub-1", "alice@example.com", true, "alice", "Alice")
+	fx.op.SetAuthTime(time.Now())
+	req, err := fx.f.SudoBegin(context.Background(), 7, "mockop", "/security")
+	if err != nil {
+		t.Fatalf("SudoBegin: %v", err)
+	}
+	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+	returnTo, err := fx.f.SudoCallback(context.Background(), state, code, iss, req.AntiForgeryToken, 7)
+	if err != nil {
+		t.Fatalf("SudoCallback: %v", err)
+	}
+	if returnTo != "/security" {
+		t.Errorf("returnTo = %q, want /security", returnTo)
+	}
+}
+
+func TestFederator_SudoCallback_RejectsWrongSubject(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	seedSudoIdentity(fx, 7, "sub-1")                              // linked identity expects sub-1
+	fx.op.SetClaims("sub-OTHER", "x@example.com", true, "x", "X") // re-auth returns a different sub
+	fx.op.SetAuthTime(time.Now())
+	req, _ := fx.f.SudoBegin(context.Background(), 7, "mockop", "/security")
+	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+	_, err := fx.f.SudoCallback(context.Background(), state, code, iss, req.AntiForgeryToken, 7)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "sudo_identity_mismatch" {
+		t.Fatalf("err = %v, want sudo_identity_mismatch", err)
+	}
+}
+
+func TestFederator_SudoCallback_RejectsStaleAuthTime(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	seedSudoIdentity(fx, 7, "sub-1")
+	fx.op.SetClaims("sub-1", "alice@example.com", true, "alice", "Alice")
+	fx.op.SetAuthTime(time.Now().Add(-10 * time.Minute)) // stale
+	req, _ := fx.f.SudoBegin(context.Background(), 7, "mockop", "/security")
+	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+	_, err := fx.f.SudoCallback(context.Background(), state, code, iss, req.AntiForgeryToken, 7)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "sudo_reauth_stale" {
+		t.Fatalf("err = %v, want sudo_reauth_stale", err)
+	}
+}
+
+func TestFederator_SudoCallback_RejectsAccountMismatch(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	seedSudoIdentity(fx, 7, "sub-1")
+	fx.op.SetClaims("sub-1", "alice@example.com", true, "alice", "Alice")
+	fx.op.SetAuthTime(time.Now())
+	req, _ := fx.f.SudoBegin(context.Background(), 7, "mockop", "/security")
+	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+	_, err := fx.f.SudoCallback(context.Background(), state, code, iss, req.AntiForgeryToken, 8) // wrong account
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+		t.Fatalf("err = %v, want federation_state_invalid", err)
+	}
+}

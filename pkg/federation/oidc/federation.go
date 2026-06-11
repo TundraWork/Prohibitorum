@@ -624,6 +624,91 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 	}, nil
 }
 
+// maxStepUpAuthAge bounds how recent the upstream's id_token auth_time must be
+// for a sudo step-up to count. The federation sudo flow forces a fresh
+// credential prompt (prompt=login, max_age=0); the OP is expected to return an
+// auth_time within seconds of the callback. A generous 120s window absorbs
+// clock skew + the user's typing latency at the OP without admitting a stale
+// session. SudoCallback fails closed on a zero or older auth_time.
+const maxStepUpAuthAge = 120 * time.Second
+
+// SudoCallback consumes the sudo step-up KV state, verifies the forced re-auth,
+// and authorizes the elevation. It is the security core of the OIDC sudo flow:
+// it enforces same-account (the session that began the flow owns it),
+// same-upstream-identity (the re-auth resolved back to the linked subject), and
+// freshness (the upstream returned a recent auth_time, proving it honored the
+// forced prompt). On success it returns the stashed ReturnTo.
+//
+// Unlike HandleCallback, SudoCallback grants no session and provisions no
+// account — it only attests that a fresh re-auth occurred. Audit of the
+// success/failure is owned by the HTTP handler (Task 5), so SudoCallback
+// returns typed errors only and does not call failNoAccount (login semantics
+// would be wrong here). Every "flow is invalid" branch collapses onto
+// ErrFederationStateInvalid; the two terminal security failures get distinct
+// codes (sudo_identity_mismatch, sudo_reauth_stale) the dashboard can surface.
+func (f *Federator) SudoCallback(ctx context.Context, stateToken, code, issParam, browserToken string, currentAccountID int32) (returnTo string, err error) {
+	blob, err := f.kvStore.Pop(ctx, SudoKey(stateToken))
+	if err != nil {
+		return "", authn.ErrFederationStateInvalid()
+	}
+	state, err := DecodeFedState(blob)
+	if err != nil {
+		return "", authn.ErrFederationStateInvalid()
+	}
+
+	// Account match FIRST (fail fast, before any upstream call): the session
+	// presenting this callback must own the flow that minted the state. A nil
+	// SudoAccountID means the token belongs to a non-sudo flow.
+	if state.SudoAccountID == nil || *state.SudoAccountID != currentAccountID {
+		return "", authn.ErrFederationStateInvalid()
+	}
+
+	if !browserBindingOK(state.BrowserBinding, browserToken) {
+		return "", authn.ErrFederationStateInvalid()
+	}
+
+	if issParam != "" && issParam != state.ExpectedIss {
+		return "", authn.ErrFederationStateInvalid()
+	}
+
+	idp, err := f.q.GetUpstreamIDPBySlug(ctx, state.IDPSlug)
+	if err != nil {
+		// IdP disabled or deleted mid-flow (the query filters disabled rows).
+		return "", authn.ErrFederationStateInvalid()
+	}
+
+	client, err := f.buildClient(ctx, &idp, false)
+	if err != nil {
+		return "", authn.ErrFederationStateInvalid()
+	}
+
+	// RFC 9700 mix-up defense: the snapshotted token_endpoint must still match.
+	if client.TokenEndpoint() != state.ExpectedTokenEndpoint {
+		return "", authn.ErrFederationStateInvalid()
+	}
+
+	tokens, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
+	if err != nil {
+		return "", authn.ErrFederationStateInvalid()
+	}
+
+	// Identity match: the re-auth must resolve to the SAME upstream subject the
+	// account linked at SudoBegin time. A different subject means the user
+	// re-authenticated as someone else upstream — must NOT grant sudo.
+	if tokens.Subject != state.ExpectedSub {
+		return "", authn.ErrSudoIdentityMismatch()
+	}
+
+	// Freshness: fail closed. A zero auth_time (OP omitted the claim) or one
+	// older than the step-up window means the OP did not honor prompt=login /
+	// max_age=0 and may have silently reused a stale session.
+	if tokens.AuthTime.IsZero() || time.Since(tokens.AuthTime) > maxStepUpAuthAge {
+		return "", authn.ErrSudoReauthStale()
+	}
+
+	return state.ReturnTo, nil
+}
+
 // --- internal helpers ------------------------------------------------------
 
 // decryptSecret unwraps idp.client_secret_enc using the DEK for
