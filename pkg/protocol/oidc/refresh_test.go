@@ -39,7 +39,7 @@ func TestRefreshIssueAndRotateHappy(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	orig := sampleFamily()
-	t0, _, err := issueRefresh(ctx, store, orig)
+	t0, _, err := issueRefresh(ctx, store, orig, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -57,9 +57,9 @@ func TestRefreshIssueAndRotateHappy(t *testing.T) {
 		t.Fatalf("expected family record at %q: %v", refreshFamilyKey(fid), err)
 	}
 
-	fam, newTok, _, err := rotateRefresh(ctx, store, t0)
+	fam, newTok, _, err := rotateRefresh(ctx, store, t0, RefreshTokenTTL)
 	if err != nil {
-		t.Fatalf("rotateRefresh(t0): %v", err)
+		t.Fatalf("rotateRefresh(t0, RefreshTokenTTL): %v", err)
 	}
 	if newTok == "" {
 		t.Fatal("rotateRefresh returned empty new token")
@@ -109,14 +109,14 @@ func TestRefreshReuseRevokesFamily(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, _, err := issueRefresh(ctx, store, sampleFamily())
+	t0, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
-	_, t1, _, err := rotateRefresh(ctx, store, t0)
+	_, t1, _, err := rotateRefresh(ctx, store, t0, RefreshTokenTTL)
 	if err != nil {
-		t.Fatalf("rotateRefresh(t0): %v", err)
+		t.Fatalf("rotateRefresh(t0, RefreshTokenTTL): %v", err)
 	}
 
 	// Wait out the idempotency window so t0 is treated as genuine reuse, not replay.
@@ -127,15 +127,15 @@ func TestRefreshReuseRevokesFamily(t *testing.T) {
 			t.Fatalf("loadFamily for window-clear: %v", lerr)
 		}
 		fam0.PreviousValidUntil = time.Time{}
-		if perr := putFamily(ctx, store, fam0); perr != nil {
+		if perr := putFamily(ctx, store, fam0, RefreshTokenTTL); perr != nil {
 			t.Fatalf("putFamily for window-clear: %v", perr)
 		}
 	}
 
 	// Replaying the superseded token must be detected as reuse.
-	fam, tok, _, err := rotateRefresh(ctx, store, t0)
+	fam, tok, _, err := rotateRefresh(ctx, store, t0, RefreshTokenTTL)
 	if !errors.Is(err, errRefreshReuse) {
-		t.Fatalf("rotateRefresh(superseded t0): got %v, want errRefreshReuse", err)
+		t.Fatalf("rotateRefresh(superseded t0, RefreshTokenTTL): got %v, want errRefreshReuse", err)
 	}
 	if fam != nil || tok != "" {
 		t.Fatalf("reuse rotate returned non-zero result: fam=%v tok=%q", fam, tok)
@@ -143,8 +143,8 @@ func TestRefreshReuseRevokesFamily(t *testing.T) {
 
 	// The reuse revokes the whole family, so the previously-current token is
 	// now invalid (family record gone).
-	if _, _, _, err := rotateRefresh(ctx, store, t1); !errors.Is(err, errRefreshInvalid) {
-		t.Fatalf("rotateRefresh(t1) after reuse: got %v, want errRefreshInvalid", err)
+	if _, _, _, err := rotateRefresh(ctx, store, t1, RefreshTokenTTL); !errors.Is(err, errRefreshInvalid) {
+		t.Fatalf("rotateRefresh(t1, RefreshTokenTTL) after reuse: got %v, want errRefreshInvalid", err)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestRefreshRevokeFamily(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, fid, err := issueRefresh(ctx, store, sampleFamily())
+	t0, fid, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestRefreshRevokeFamily(t *testing.T) {
 		t.Fatalf("revokeFamily: %v", err)
 	}
 
-	if _, _, _, err := rotateRefresh(ctx, store, t0); !errors.Is(err, errRefreshInvalid) {
+	if _, _, _, err := rotateRefresh(ctx, store, t0, RefreshTokenTTL); !errors.Is(err, errRefreshInvalid) {
 		t.Fatalf("rotateRefresh after revoke: got %v, want errRefreshInvalid", err)
 	}
 }
@@ -172,7 +172,7 @@ func TestRefreshLookup(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, _, err := issueRefresh(ctx, store, sampleFamily())
+	t0, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestRefreshLookup(t *testing.T) {
 	if _, ok := lookupRefresh(ctx, store, t0); !ok {
 		t.Fatal("second lookupRefresh: ok=false, want true (must not mutate)")
 	}
-	if _, _, _, err := rotateRefresh(ctx, store, t0); err != nil {
+	if _, _, _, err := rotateRefresh(ctx, store, t0, RefreshTokenTTL); err != nil {
 		t.Fatalf("rotate after lookups: %v (lookup must not have mutated state)", err)
 	}
 
@@ -206,7 +206,7 @@ func TestRefreshLookupAfterRevoke(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, _, err := issueRefresh(ctx, store, sampleFamily())
+	t0, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -228,12 +228,12 @@ func TestRefreshRotateUnknown(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	fam, tok, _, err := rotateRefresh(ctx, store, "never-issued")
+	fam, tok, _, err := rotateRefresh(ctx, store, "never-issued", RefreshTokenTTL)
 	if !errors.Is(err, errRefreshInvalid) {
-		t.Fatalf("rotateRefresh(unknown): got %v, want errRefreshInvalid", err)
+		t.Fatalf("rotateRefresh(unknown, RefreshTokenTTL): got %v, want errRefreshInvalid", err)
 	}
 	if fam != nil || tok != "" {
-		t.Fatalf("rotateRefresh(unknown) returned non-zero: fam=%v tok=%q", fam, tok)
+		t.Fatalf("rotateRefresh(unknown, RefreshTokenTTL) returned non-zero: fam=%v tok=%q", fam, tok)
 	}
 }
 
@@ -246,14 +246,14 @@ func TestRefreshLookupSupersededToken(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	t0, _, err := issueRefresh(ctx, store, sampleFamily())
+	t0, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
-	_, t1, _, err := rotateRefresh(ctx, store, t0)
+	_, t1, _, err := rotateRefresh(ctx, store, t0, RefreshTokenTTL)
 	if err != nil {
-		t.Fatalf("rotateRefresh(t0): %v", err)
+		t.Fatalf("rotateRefresh(t0, RefreshTokenTTL): %v", err)
 	}
 
 	// t0 is now superseded. lookupRefresh must still resolve it to the live family.
@@ -271,11 +271,11 @@ func TestRefreshDistinctTokens(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	a, _, err := issueRefresh(ctx, store, sampleFamily())
+	a, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh #1: %v", err)
 	}
-	b, _, err := issueRefresh(ctx, store, sampleFamily())
+	b, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh #2: %v", err)
 	}
@@ -313,7 +313,7 @@ func TestTokenRefreshRotateHappy(t *testing.T) {
 	ctx := context.Background()
 
 	fam := grantFamily()
-	presented, _, err := issueRefresh(ctx, h.p.kv, fam)
+	presented, _, err := issueRefresh(ctx, h.p.kv, fam, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -387,7 +387,7 @@ func TestTokenRefreshReuseRevokesFamily(t *testing.T) {
 	h := newTokenHarness(t)
 	ctx := context.Background()
 
-	presented, _, err := issueRefresh(ctx, h.p.kv, grantFamily())
+	presented, _, err := issueRefresh(ctx, h.p.kv, grantFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -411,7 +411,7 @@ func TestTokenRefreshReuseRevokesFamily(t *testing.T) {
 			t.Fatalf("loadFamily for window-clear: %v", lerr)
 		}
 		fam0.PreviousValidUntil = time.Time{}
-		if perr := putFamily(ctx, h.p.kv, fam0); perr != nil {
+		if perr := putFamily(ctx, h.p.kv, fam0, RefreshTokenTTL); perr != nil {
 			t.Fatalf("putFamily for window-clear: %v", perr)
 		}
 	}
@@ -455,7 +455,7 @@ func TestTokenRefreshWrongClient(t *testing.T) {
 	// Family bound to a DIFFERENT client than the one that will authenticate.
 	fam := grantFamily()
 	fam.ClientID = "other-client"
-	presented, _, err := issueRefresh(ctx, h.p.kv, fam)
+	presented, _, err := issueRefresh(ctx, h.p.kv, fam, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -488,7 +488,7 @@ func TestTokenRefreshDisabledAccount(t *testing.T) {
 	// Disable the account the family is bound to.
 	h.p.queries.(*fakeTokenQueries).accounts[42] = db.Account{ID: 42, Disabled: true}
 
-	presented, _, err := issueRefresh(ctx, h.p.kv, grantFamily())
+	presented, _, err := issueRefresh(ctx, h.p.kv, grantFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -529,7 +529,7 @@ func TestTokenRefreshAccountNotFound(t *testing.T) {
 	// (GetAccountByID returns pgx.ErrNoRows for unknown IDs).
 	fam := grantFamily()
 	fam.AccountID = 999
-	presented, _, err := issueRefresh(ctx, h.p.kv, fam)
+	presented, _, err := issueRefresh(ctx, h.p.kv, fam, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -560,15 +560,15 @@ func TestRotateIdempotentReplay(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	r1, _, err := issueRefresh(ctx, store, sampleFamily())
+	r1, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
 	// First rotation: r1 → r2, rotated=true.
-	fam1, r2, rotated1, err := rotateRefresh(ctx, store, r1)
+	fam1, r2, rotated1, err := rotateRefresh(ctx, store, r1, RefreshTokenTTL)
 	if err != nil {
-		t.Fatalf("rotateRefresh(r1) first: %v", err)
+		t.Fatalf("rotateRefresh(r1, RefreshTokenTTL) first: %v", err)
 	}
 	if !rotated1 {
 		t.Fatal("first rotateRefresh: want rotated=true")
@@ -582,9 +582,9 @@ func TestRotateIdempotentReplay(t *testing.T) {
 
 	// Idempotent replay: present r1 again within the window.
 	// rotateRefresh deleted its own lock after the first call, so SetNX re-acquires.
-	fam2, tok2, rotated2, err := rotateRefresh(ctx, store, r1)
+	fam2, tok2, rotated2, err := rotateRefresh(ctx, store, r1, RefreshTokenTTL)
 	if err != nil {
-		t.Fatalf("rotateRefresh(r1) idempotent replay: %v", err)
+		t.Fatalf("rotateRefresh(r1, RefreshTokenTTL) idempotent replay: %v", err)
 	}
 	if rotated2 {
 		t.Fatal("idempotent replay: want rotated=false (no second mint)")
@@ -613,15 +613,15 @@ func TestRotateReuseAfterWindow(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	r1, _, err := issueRefresh(ctx, store, sampleFamily())
+	r1, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
 	// Rotate r1 → r2.
-	_, r2, _, err := rotateRefresh(ctx, store, r1)
+	_, r2, _, err := rotateRefresh(ctx, store, r1, RefreshTokenTTL)
 	if err != nil {
-		t.Fatalf("rotateRefresh(r1): %v", err)
+		t.Fatalf("rotateRefresh(r1, RefreshTokenTTL): %v", err)
 	}
 
 	// Force the idempotency window closed by zeroing PreviousValidUntil.
@@ -630,22 +630,22 @@ func TestRotateReuseAfterWindow(t *testing.T) {
 		t.Fatalf("loadFamily(r2): %v", err)
 	}
 	fam.PreviousValidUntil = time.Time{} // expired: zero time is before any Now()
-	if err := putFamily(ctx, store, fam); err != nil {
+	if err := putFamily(ctx, store, fam, RefreshTokenTTL); err != nil {
 		t.Fatalf("putFamily after window-clear: %v", err)
 	}
 
 	// Re-presenting r1 now trips reuse detection.
-	famReuse, tokReuse, _, err := rotateRefresh(ctx, store, r1)
+	famReuse, tokReuse, _, err := rotateRefresh(ctx, store, r1, RefreshTokenTTL)
 	if !errors.Is(err, errRefreshReuse) {
-		t.Fatalf("rotateRefresh(r1) after window: got %v, want errRefreshReuse", err)
+		t.Fatalf("rotateRefresh(r1, RefreshTokenTTL) after window: got %v, want errRefreshReuse", err)
 	}
 	if famReuse != nil || tokReuse != "" {
 		t.Fatalf("reuse should return nil fam/token; got fam=%v tok=%q", famReuse, tokReuse)
 	}
 
 	// Family must be dead: r2 no longer resolves.
-	if _, _, _, err := rotateRefresh(ctx, store, r2); !errors.Is(err, errRefreshInvalid) {
-		t.Fatalf("rotateRefresh(r2) after reuse: got %v, want errRefreshInvalid", err)
+	if _, _, _, err := rotateRefresh(ctx, store, r2, RefreshTokenTTL); !errors.Is(err, errRefreshInvalid) {
+		t.Fatalf("rotateRefresh(r2, RefreshTokenTTL) after reuse: got %v, want errRefreshInvalid", err)
 	}
 }
 
@@ -657,7 +657,7 @@ func TestRotateConcurrent(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	r1, _, err := issueRefresh(ctx, store, sampleFamily())
+	r1, _, err := issueRefresh(ctx, store, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -675,7 +675,7 @@ func TestRotateConcurrent(t *testing.T) {
 	for i := range 2 {
 		go func(i int) {
 			defer wg.Done()
-			fam, tok, rotated, err := rotateRefresh(ctx, store, r1)
+			fam, tok, rotated, err := rotateRefresh(ctx, store, r1, RefreshTokenTTL)
 			results[i] = result{fam, tok, rotated, err}
 		}(i)
 	}
@@ -739,13 +739,13 @@ func TestRotateSetNXError(t *testing.T) {
 	t.Cleanup(func() { _ = real.Close() })
 	store := &fakeSetNXStore{real}
 
-	r1, _, err := issueRefresh(ctx, real, sampleFamily())
+	r1, _, err := issueRefresh(ctx, real, sampleFamily(), RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
 	// rotateRefresh must fail closed: return the injected error, no rotation, no revoke.
-	fam, tok, rotated, err := rotateRefresh(ctx, store, r1)
+	fam, tok, rotated, err := rotateRefresh(ctx, store, r1, RefreshTokenTTL)
 	if !errors.Is(err, errFakeSetNX) {
 		t.Fatalf("want errFakeSetNX, got %v", err)
 	}

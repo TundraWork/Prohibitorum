@@ -276,7 +276,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// (9) Mint the single-use code into KV.
-	code, err := mintCode(r.Context(), p.kv, ac)
+	code, err := mintCode(r.Context(), p.kv, ac, p.authCodeTTL())
 	if err != nil {
 		redirectError(w, r, redirectURI, errCodeServerError, "could not issue authorization code", state, p.cfg.OIDC.Issuer)
 		return

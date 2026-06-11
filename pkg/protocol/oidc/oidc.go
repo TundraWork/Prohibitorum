@@ -13,7 +13,9 @@ package oidc
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -48,6 +50,59 @@ func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *se
 		rl:       rl,
 		keys:     newKeyCache(queries),
 	}
+}
+
+// defaultJWKSCacheMaxAge is the compiled-in fallback for the JWKS / discovery
+// Cache-Control max-age used when oidc.jwks_cache_max_age is unset (e.g. a
+// hand-built test Config). A parsed config supplies its own default.
+const defaultJWKSCacheMaxAge = 5 * time.Minute
+
+// effectiveDuration returns configured when positive, else def. This is how an
+// operator-supplied oidc.* lifetime overrides the compiled-in default while a
+// zero/absent value falls back safely (the package consts AccessTokenTTL, … are
+// the defaults).
+func effectiveDuration(configured, def time.Duration) time.Duration {
+	if configured > 0 {
+		return configured
+	}
+	return def
+}
+
+// oidcConf returns the OIDC config block, nil-safe: a Provider built without a
+// cfg (some endpoint unit tests) yields the zero OIDCConfig, so every resolver
+// below falls back to its compiled-in default rather than nil-dereferencing.
+func (p *Provider) oidcConf() configx.OIDCConfig {
+	if p.cfg == nil {
+		return configx.OIDCConfig{}
+	}
+	return p.cfg.OIDC
+}
+
+// The TTL resolvers below are the single source of truth for the effective
+// OIDC lifetimes: every mint / KV-store site reads through them so a configured
+// oidc.*_ttl is always honored, falling back to the package-level default const
+// when unset. (configx already supplies non-zero defaults in production; the
+// fallback covers tests that construct a bare Config.)
+func (p *Provider) accessTokenTTL() time.Duration {
+	return effectiveDuration(p.oidcConf().AccessTokenTTL, AccessTokenTTL)
+}
+func (p *Provider) idTokenTTL() time.Duration {
+	return effectiveDuration(p.oidcConf().IDTokenTTL, IDTokenTTL)
+}
+func (p *Provider) refreshTokenTTL() time.Duration {
+	return effectiveDuration(p.oidcConf().RefreshTokenTTL, RefreshTokenTTL)
+}
+func (p *Provider) authCodeTTL() time.Duration {
+	return effectiveDuration(p.oidcConf().AuthorizationCodeTTL, AuthorizationCodeTTL)
+}
+func (p *Provider) jwksCacheMaxAge() time.Duration {
+	return effectiveDuration(p.oidcConf().JWKSCacheMaxAge, defaultJWKSCacheMaxAge)
+}
+
+// jwksCacheControl renders the Cache-Control value for the JWKS + discovery
+// responses from the configured max-age.
+func (p *Provider) jwksCacheControl() string {
+	return fmt.Sprintf("public, max-age=%d", int(p.jwksCacheMaxAge().Seconds()))
 }
 
 // HandleDiscovery serves the OP metadata document — RFC 8414 / OIDC
@@ -96,7 +151,7 @@ func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Cache-Control", p.jwksCacheControl())
 	_ = json.NewEncoder(w).Encode(doc)
 }
 
@@ -113,6 +168,6 @@ func (p *Provider) InvalidateKeyCache() {
 // JWK Set at /oauth/jwks.
 func (p *Provider) HandleJWKS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Cache-Control", p.jwksCacheControl())
 	_ = json.NewEncoder(w).Encode(p.keys.jwks(r.Context()))
 }

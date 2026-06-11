@@ -2,7 +2,9 @@ package kv
 
 import (
 	"context"
+	"crypto/tls"
 	"math"
+	"net"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -72,11 +74,34 @@ type RedisStore struct {
 	client *redis.Client
 }
 
-// NewRedisStore creates a RedisStore. url is a host:port address
-// (e.g. "localhost:6379"). The constructor pings the server to verify
-// connectivity.
-func NewRedisStore(url string) (*RedisStore, error) {
-	client := redis.NewClient(&redis.Options{Addr: url})
+// RedisConfig carries the connection parameters for NewRedisStore. Addr is a
+// host:port (e.g. "localhost:6379"); Username/Password supply Redis AUTH (ACL
+// or legacy), and TLS enables an encrypted channel. Username/Password empty and
+// TLS false reproduce the original plaintext local-dev behavior (audit
+// follow-up N9 — production deployments SHOULD set AUTH + TLS).
+type RedisConfig struct {
+	Addr     string
+	Username string
+	Password string
+	TLS      bool
+}
+
+// NewRedisStore creates a RedisStore from cfg. The constructor pings the server
+// to verify connectivity (and, when TLS is enabled, the handshake).
+func NewRedisStore(cfg RedisConfig) (*RedisStore, error) {
+	opts := &redis.Options{
+		Addr:     cfg.Addr,
+		Username: cfg.Username,
+		Password: cfg.Password,
+	}
+	if cfg.TLS {
+		host, _, err := net.SplitHostPort(cfg.Addr)
+		if err != nil {
+			host = cfg.Addr
+		}
+		opts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: host}
+	}
+	client := redis.NewClient(opts)
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		_ = client.Close()
 		return nil, err
@@ -156,4 +181,3 @@ func (r *RedisStore) SetNX(ctx context.Context, key, value string, ttl time.Dura
 func (r *RedisStore) Close() error {
 	return r.client.Close()
 }
-

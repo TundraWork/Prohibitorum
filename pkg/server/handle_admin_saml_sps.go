@@ -189,12 +189,20 @@ func (s *Server) handleCreateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 		})
 	}
 
+	// NameID-format default: an unset request field falls back to the
+	// deployment-wide saml.default_nameid_format (C11) instead of a value
+	// hardcoded in BuildSPParams, so the global default flows into new SPs.
+	nameIDFormat := body.NameIDFormat
+	if nameIDFormat == "" {
+		nameIDFormat = s.config.SAML.DefaultNameIDFormat
+	}
+
 	opts := saml.SPOptions{
 		MetadataXML:               []byte(body.MetadataXML),
 		Kind:                      body.Kind,
 		DisplayName:               body.DisplayName,
 		EntityID:                  body.EntityID,
-		NameIDFormat:              body.NameIDFormat,
+		NameIDFormat:              nameIDFormat,
 		RequireSignedAuthnRequest: body.RequireSignedAuthnRequest,
 		AllowIdpInitiated:         body.AllowIdpInitiated,
 		WantAssertionsSigned:      body.WantAssertionsSigned,

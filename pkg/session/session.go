@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -77,8 +78,29 @@ func newSessionID() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+// hashToken maps the raw cookie token to the opaque value used in the KV key.
+// The token is 32 bytes of CSPRNG output (newToken), so a bare SHA-256 — no
+// per-record salt — is sufficient: there is nothing to brute-force and lookup
+// stays constant-work. This is what keeps the raw session secret OUT of the KV
+// keyspace, so a Redis SCAN / RDB dump / backup / logged key no longer yields a
+// usable cookie (audit follow-up N1). The cookie still carries the raw token.
+func hashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// sessionKey is the KV key for a session given the RAW cookie token. The raw
+// token is hashed before it goes into the key, so callers holding the cookie
+// half (Issue/Load/Save/Revoke) use this directly.
 func sessionKey(accountID int32, token string) string {
-	return fmt.Sprintf("session:%d:%s", accountID, token)
+	return sessionKeyHashed(accountID, hashToken(token))
+}
+
+// sessionKeyHashed builds the KV key from an ALREADY-hashed token suffix. Used
+// by paths that recovered the suffix from an existing key (ListByAccount /
+// RevokeBySessionID) and must NOT hash it a second time.
+func sessionKeyHashed(accountID int32, hashed string) string {
+	return fmt.Sprintf("session:%d:%s", accountID, hashed)
 }
 
 // Issue writes a fresh session to KV plus a row in the PG session table
@@ -239,10 +261,13 @@ func (s *SessionStore) Save(ctx context.Context, accountID int32, token string, 
 }
 
 // SessionRecord carries a live session for accountID. Each entry is the
-// stored authn.SessionData with its KV-suffix token attached (callers need it
-// only to compute is-current; the token MUST NOT be echoed to clients).
+// stored authn.SessionData with its KV-key suffix attached. As of the N1 fix
+// that suffix is the SHA-256 hash of the cookie token, NOT the raw secret — it
+// can be used to rebuild the KV key (sessionKeyHashed) for deletion but never
+// reconstructs a usable cookie. Callers compute is-current via Data.SessionID,
+// not this field.
 type SessionRecord struct {
-	Token string // raw cookie-half; do not echo
+	Token string // hashed KV-key suffix (NOT the raw cookie token); never echo
 	Data  authn.SessionData
 }
 
@@ -299,7 +324,9 @@ func (s *SessionStore) RevokeBySessionID(ctx context.Context, accountID int32, s
 	}
 	for _, sr := range sessions {
 		if sr.Data.SessionID == sessionID {
-			if err := s.kv.Del(ctx, sessionKey(accountID, sr.Token)); err != nil {
+			// sr.Token is the already-hashed key suffix from ListByAccount —
+			// rebuild the key directly; sessionKey would hash it a second time.
+			if err := s.kv.Del(ctx, sessionKeyHashed(accountID, sr.Token)); err != nil {
 				return false, fmt.Errorf("session: del: %w", err)
 			}
 			if err := s.q.RevokeSession(ctx, sessionID); err != nil {

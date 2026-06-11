@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -228,6 +229,11 @@ type fedTestHarness struct {
 	srvTS  *httptest.Server
 	origin string
 
+	// client carries a cookie jar so the federation anti-forgery cookie set at
+	// /login (N4) is replayed on the /callback hop, mimicking a real browser.
+	// CheckRedirect is disabled so each 302 stays observable.
+	client *http.Client
+
 	// linkAccountID / linkToken are populated by newLinkTestHarness (Task 8
 	// tests). The plain federation tests in this file leave them zero.
 	linkAccountID int32
@@ -298,8 +304,9 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 
 	// 4. Federator. publicOrigin is filled in below after we start srvTS.
 	fedCfg := configx.FederationConfig{
-		StateTTL:      5 * time.Minute,
-		DefaultScopes: []string{"openid", "profile", "email"},
+		StateTTL:            5 * time.Minute,
+		DefaultScopes:       []string{"openid", "profile", "email"},
+		AllowPrivateNetwork: true, // mock OP is on loopback
 	}
 	deks := map[int][]byte{1: fedTestDEK}
 
@@ -322,6 +329,17 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 	s.federator = fedoidc.NewFederator(q, kvStore, auditWriter, fedCfg, deks, nil, srvTS.URL)
 	cfg.PublicOrigins = []string{srvTS.URL}
 
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookiejar: %v", err)
+	}
+	client := &http.Client{
+		Jar: jar,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
 	return &fedTestHarness{
 		t:      t,
 		op:     op,
@@ -331,6 +349,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		s:      s,
 		srvTS:  srvTS,
 		origin: srvTS.URL,
+		client: client,
 	}
 }
 
@@ -352,7 +371,7 @@ func (h *fedTestHarness) driveLogin(t *testing.T, slug, returnTo string) (string
 	if returnTo != "" {
 		u += "?return_to=" + url.QueryEscape(returnTo)
 	}
-	resp, err := noFollow().Get(u)
+	resp, err := h.client.Get(u)
 	if err != nil {
 		t.Fatalf("GET %s: %v", u, err)
 	}
@@ -387,7 +406,7 @@ func driveAuthorize(t *testing.T, authorizeURL string) (code, state, iss string)
 func (h *fedTestHarness) hitCallback(t *testing.T, slug string, q url.Values) *http.Response {
 	t.Helper()
 	u := h.srvTS.URL + "/api/prohibitorum/auth/federation/" + slug + "/callback?" + q.Encode()
-	resp, err := noFollow().Get(u)
+	resp, err := h.client.Get(u)
 	if err != nil {
 		t.Fatalf("GET /callback: %v", err)
 	}

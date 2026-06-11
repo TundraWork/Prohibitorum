@@ -47,9 +47,16 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// faithful return target.
 	sess := authn.SessionFromContext(ctx)
 	if sess == nil || sess.Data == nil || sess.Account == nil || sess.Account.Disabled {
-		returnTo := i.entityID() + r.URL.RequestURI()
-		loginURL := i.entityID() + "/login?return_to=" + url.QueryEscape(returnTo)
+		returnTo := i.baseURL() + r.URL.RequestURI()
+		loginURL := i.baseURL() + "/login?return_to=" + url.QueryEscape(returnTo)
 		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
+	}
+
+	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes (N7). It is echoed
+	// verbatim (HTML-escaped) into the auto-POST form, so bound it up front.
+	if len(r.URL.Query().Get("RelayState")) > maxRelayStateBytes {
+		http.Error(w, "RelayState too large", http.StatusBadRequest)
 		return
 	}
 
@@ -149,7 +156,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// Persist a saml_session row so SLO can later locate + revoke this SP
 	// session. Anchor the expiry on authTime (same base as buildResponse) so the
 	// DB row never outlives the assertion's SessionNotOnOrAfter.
-	sessionExpiry := sessionNotOnOrAfter(sp, authTime)
+	sessionExpiry := sessionNotOnOrAfter(sp, authTime, i.samlSessionLifetime())
 	if _, err := i.queries.InsertSAMLSession(ctx, db.InsertSAMLSessionParams{
 		SessionID:    sess.Data.SessionID,
 		SpID:         sp.ID,

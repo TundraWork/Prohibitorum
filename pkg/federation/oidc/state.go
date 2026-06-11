@@ -61,6 +61,15 @@ type FedState struct {
 	// itself is the secret that grants account creation — protected by
 	// living in server-side KV only.
 	EnrollmentToken string `json:"enrollment_token,omitempty"`
+
+	// BrowserBinding, when non-empty, is the SHA-256 (base64url) of a random
+	// anti-forgery token that the HTTP layer set as a short-lived cookie at
+	// BeginLogin time. HandleCallback requires the callback request's cookie
+	// to hash to this value, binding the flow to the initiating browser and
+	// defeating login-CSRF / session-fixation (audit follow-up N4). Empty for
+	// flows that do not carry the cookie (e.g. the link flow, which is already
+	// account-bound).
+	BrowserBinding string `json:"browser_binding,omitempty"`
 }
 
 // Encode serializes the state to a JSON string for KV storage.

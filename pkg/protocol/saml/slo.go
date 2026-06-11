@@ -44,6 +44,12 @@ var ErrSLOExpired = errors.New("saml: LogoutRequest has expired (NotOnOrAfter)")
 func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// (1) Bound the POST body before any form parse (N7). GET carries the
+	// request in the (already-DEFLATE-capped) query string.
+	if r.Method == http.MethodPost {
+		r.Body = http.MaxBytesReader(w, r.Body, maxSAMLPostBody)
+	}
+
 	// (2) Decode the LogoutRequest from the binding implied by the method.
 	var (
 		req     crewjam.LogoutRequest
@@ -120,6 +126,16 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.NameID == nil {
 		http.Error(w, "invalid SAML LogoutRequest", http.StatusBadRequest)
+		return
+	}
+	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes — reject before any
+	// session mutation (N7). Read it the same way step 10 does.
+	relayStateLen := len(r.URL.Query().Get("RelayState"))
+	if r.Method == http.MethodPost {
+		relayStateLen = len(r.FormValue("RelayState"))
+	}
+	if relayStateLen > maxRelayStateBytes {
+		i.sloParseError(w, ErrMalformedRequest)
 		return
 	}
 

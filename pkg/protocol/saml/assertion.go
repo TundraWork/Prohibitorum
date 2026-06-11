@@ -65,19 +65,21 @@ func newSAMLID() (string, error) {
 
 // sessionNotOnOrAfter derives the AuthnStatement's SessionNotOnOrAfter from the
 // SP's configured session_lifetime interval (if set), falling back to the
-// package default. The interval is interpreted relative to base (the auth
-// instant / now). Months are treated as 30 days, which is adequate for a
-// session-horizon hint (no SP relies on calendar-exact session expiry).
-func sessionNotOnOrAfter(sp db.SamlSp, base time.Time) time.Time {
+// IdP-wide default the caller supplies (i.samlSessionLifetime(), itself the
+// operator-configured saml.session_lifetime or the package default). The
+// interval is interpreted relative to base (the auth instant / now). Months are
+// treated as 30 days, which is adequate for a session-horizon hint (no SP relies
+// on calendar-exact session expiry).
+func sessionNotOnOrAfter(sp db.SamlSp, base time.Time, fallback time.Duration) time.Time {
 	iv := sp.SessionLifetime
 	if !iv.Valid {
-		return base.Add(defaultSessionLifetime)
+		return base.Add(fallback)
 	}
 	d := time.Duration(iv.Microseconds)*time.Microsecond +
 		time.Duration(iv.Days)*24*time.Hour +
 		time.Duration(iv.Months)*30*24*time.Hour
 	if d <= 0 {
-		return base.Add(defaultSessionLifetime)
+		return base.Add(fallback)
 	}
 	return base.Add(d)
 }
@@ -124,7 +126,7 @@ func (i *IdP) buildResponse(ctx context.Context, sp db.SamlSp, acsURL, inRespons
 	}
 
 	notOnOrAfter := now.Add(assertionValidity)
-	sessionExpiry := sessionNotOnOrAfter(sp, authTime)
+	sessionExpiry := sessionNotOnOrAfter(sp, authTime, i.samlSessionLifetime())
 
 	// Build the AttributeStatement only when there are attributes to emit;
 	// an empty <AttributeStatement> is omitted entirely (preferred over an

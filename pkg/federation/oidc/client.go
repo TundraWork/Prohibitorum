@@ -108,12 +108,17 @@ type Client struct {
 // Discovery is performed exactly once during NewClient. Subsequent
 // calls to Exchange reuse the cached endpoints and the JWKS cache
 // managed by zitadel/oidc internally.
+// allowPrivateNetwork, when true, disables the outbound client's dial-time
+// internal-IP screen. Production passes the Federation.AllowPrivateNetwork
+// config flag (default false) — set it true only when the upstream issuer is a
+// trusted IdP on a private/internal network.
 func NewClient(
 	ctx context.Context,
 	clientID, clientSecret, redirectURI string,
 	scopes []string,
 	discoveryIssuer string,
 	allowedAlgs []string,
+	allowPrivateNetwork bool,
 ) (*Client, error) {
 	if allowedAlgs == nil {
 		allowedAlgs = DefaultAllowedAlgs()
@@ -129,6 +134,12 @@ func NewClient(
 		clientSecret,
 		redirectURI,
 		scopes,
+		// SSRF-hardened, size-capped outbound client for discovery / JWKS /
+		// token-exchange. Without this, zitadel/oidc uses a bare default client
+		// (no internal-IP screen, follows redirects, unbounded body) against the
+		// operator-supplied — and publicly-triggerable — issuer URL. See
+		// httpclient.go (audit follow-up N2 + N3).
+		rp.WithHTTPClient(hardenedHTTPClient(allowPrivateNetwork)),
 		rp.WithVerifierOpts(
 			rp.WithSupportedSigningAlgorithms(allowedAlgs...),
 			// Thread the per-flow expected nonce through the

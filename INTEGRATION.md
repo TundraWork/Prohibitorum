@@ -281,12 +281,12 @@ All URLs derive from `configx` `PublicOrigins[0]` (call it
 
 | Field | Value |
 |---|---|
-| IdP `entityID` | `$ISSUER` (= `PublicOrigins[0]`) |
+| IdP `entityID` | `saml.entity_id` if configured, else `$ISSUER` (= `PublicOrigins[0]`). A stable identifier SPs key trust on — it need not be a reachable URL, and pinning it lets the EntityID survive an origin change. The endpoint URLs below always derive from `$ISSUER`, never from this. |
 | IdP metadata | `$ISSUER/saml/metadata` (signed as of v0.6; `validUntil`/`cacheDuration` present) |
 | SSO URL (SingleSignOnService) | `$ISSUER/saml/sso` (HTTP-Redirect + HTTP-POST) |
 | SLO URL (SingleLogoutService) | `$ISSUER/saml/slo` (HTTP-Redirect + HTTP-POST) |
 | IdP-initiated launcher (v0.6, opt-in) | `$ISSUER/saml/sso/init?sp=<entity_id>&RelayState=<target>` (requires `allow_idp_initiated`) |
-| NameID format | `urn:oasis:names:tc:SAML:1.1:nameid-format:persistent` (stable, opaque, per `(account, sp)`) |
+| NameID format | `urn:oasis:names:tc:SAML:1.1:nameid-format:persistent` (stable, opaque, per `(account, sp)`; the IdP default `saml.default_nameid_format`, overridable per-SP) |
 | Signing | `<Response>` AND `<Assertion>` both signed, RSA-SHA256; the IdP's signing cert is published in `/saml/metadata` |
 | `WantAuthnRequestsSigned` | `true` |
 

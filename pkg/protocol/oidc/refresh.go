@@ -16,10 +16,12 @@ import (
 	"prohibitorum/pkg/kv"
 )
 
-// RefreshTokenTTL bounds the lifetime of a refresh token (and its family
-// record) in KV. 30 days is a conventional refresh lifetime; rotation slides
-// this window forward on each successful exchange so an actively-used family
-// persists, while an abandoned one expires.
+// RefreshTokenTTL is the DEFAULT lifetime of a refresh token (and its family
+// record) in KV, used when oidc.refresh_token_ttl is unset. 30 days is a
+// conventional refresh lifetime; rotation slides this window forward on each
+// successful exchange so an actively-used family persists, while an abandoned
+// one expires. Callers pass the effective TTL (p.refreshTokenTTL()) into
+// issueRefresh / rotateRefresh; never read this const directly at a store site.
 const RefreshTokenTTL = 30 * 24 * time.Hour
 
 // errRefreshInvalid is returned when a presented refresh token does not resolve
@@ -89,17 +91,18 @@ func randToken() (string, error) {
 }
 
 // putFamily writes the family record (JSON) and a token→family-id mapping for
-// fam.CurrentToken, both with TTL RefreshTokenTTL. It is used both to seed a
-// new family and to extend (slide) an existing one on rotation.
-func putFamily(ctx context.Context, store kv.Store, fam *refreshFamily) error {
+// fam.CurrentToken, both with the given ttl (the caller passes the effective
+// p.refreshTokenTTL()). It is used both to seed a new family and to extend
+// (slide) an existing one on rotation.
+func putFamily(ctx context.Context, store kv.Store, fam *refreshFamily, ttl time.Duration) error {
 	payload, err := json.Marshal(fam)
 	if err != nil {
 		return fmt.Errorf("oidc: marshal refresh family: %w", err)
 	}
-	if err := store.SetEx(ctx, refreshFamilyKey(fam.FamilyID), string(payload), RefreshTokenTTL); err != nil {
+	if err := store.SetEx(ctx, refreshFamilyKey(fam.FamilyID), string(payload), ttl); err != nil {
 		return err
 	}
-	if err := store.SetEx(ctx, refreshTokenKey(fam.CurrentToken), fam.FamilyID, RefreshTokenTTL); err != nil {
+	if err := store.SetEx(ctx, refreshTokenKey(fam.CurrentToken), fam.FamilyID, ttl); err != nil {
 		return err
 	}
 	return nil
@@ -137,7 +140,7 @@ func loadFamily(ctx context.Context, store kv.Store, presented string) (*refresh
 // token→family mapping (oidc:refresh:<token>) with TTL RefreshTokenTTL. It
 // returns the freshly minted token and the generated family id. The caller need
 // not pre-populate FamilyID/CurrentToken/IssuedAt; they are set here.
-func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily) (token string, familyID string, err error) {
+func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl time.Duration) (token string, familyID string, err error) {
 	fid, err := randToken()
 	if err != nil {
 		return "", "", fmt.Errorf("oidc: generate refresh family id: %w", err)
@@ -150,7 +153,7 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily) (token
 	fam.CurrentToken = token
 	fam.IssuedAt = time.Now().UTC()
 
-	if err := putFamily(ctx, store, &fam); err != nil {
+	if err := putFamily(ctx, store, &fam, ttl); err != nil {
 		return "", "", err
 	}
 	return token, fid, nil
@@ -174,7 +177,7 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily) (token
 //
 // rotated reports whether this call performed a real rotation (true) vs served
 // an idempotent replay (false) — the caller uses it to pick the audit reason.
-func rotateRefresh(ctx context.Context, store kv.Store, presented string) (fam *refreshFamily, newToken string, rotated bool, err error) {
+func rotateRefresh(ctx context.Context, store kv.Store, presented string, ttl time.Duration) (fam *refreshFamily, newToken string, rotated bool, err error) {
 	got, lockErr := store.SetNX(ctx, refreshLockKey(presented), "1", refreshIdempotencyWindow)
 	if lockErr != nil {
 		return nil, "", false, lockErr // fail closed: no rotation, no revoke
@@ -208,7 +211,7 @@ func rotateRefresh(ctx context.Context, store kv.Store, presented string) (fam *
 	fam.PreviousToken = presented
 	fam.PreviousValidUntil = now.Add(refreshIdempotencyWindow)
 	fam.CurrentToken = minted
-	if err := putFamily(ctx, store, fam); err != nil {
+	if err := putFamily(ctx, store, fam, ttl); err != nil {
 		return nil, "", false, err
 	}
 	return fam, minted, true, nil
@@ -248,7 +251,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	ctx := r.Context()
 	presented := r.PostForm.Get("refresh_token")
 
-	fam, newToken, rotated, err := rotateRefresh(ctx, p.kv, presented)
+	fam, newToken, rotated, err := rotateRefresh(ctx, p.kv, presented, p.refreshTokenTTL())
 	if errors.Is(err, errRotationInProgress) {
 		p.auditTokenEvent(ctx, r, audit.EventFail, nil, map[string]any{
 			"reason":    "refresh_rotation_in_progress",
@@ -319,7 +322,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	writeTokenResponse(w, tokenResponse{
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    int(AccessTokenTTL.Seconds()),
+		ExpiresIn:    int(p.accessTokenTTL().Seconds()),
 		IDToken:      idToken,
 		RefreshToken: newToken,
 		Scope:        strings.Join(fam.Scope, " "),

@@ -35,7 +35,7 @@ func TestCodesMintConsumeRoundTrip(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	orig := sampleAuthCode()
-	code, err := mintCode(ctx, store, orig)
+	code, err := mintCode(ctx, store, orig, AuthorizationCodeTTL)
 	if err != nil {
 		t.Fatalf("mintCode: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestCodesSingleUse(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	code, err := mintCode(ctx, store, sampleAuthCode())
+	code, err := mintCode(ctx, store, sampleAuthCode(), AuthorizationCodeTTL)
 	if err != nil {
 		t.Fatalf("mintCode: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestCodesMarkAndReadUsedFamily(t *testing.T) {
 	const code = "consumed-code"
 	const family = "family-99"
 
-	if err := markCodeUsed(ctx, store, code, family); err != nil {
+	if err := markCodeUsed(ctx, store, code, family, AuthorizationCodeTTL); err != nil {
 		t.Fatalf("markCodeUsed: %v", err)
 	}
 
@@ -142,11 +142,11 @@ func TestCodesDistinctCodes(t *testing.T) {
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 
-	c1, err := mintCode(ctx, store, sampleAuthCode())
+	c1, err := mintCode(ctx, store, sampleAuthCode(), AuthorizationCodeTTL)
 	if err != nil {
 		t.Fatalf("mintCode #1: %v", err)
 	}
-	c2, err := mintCode(ctx, store, sampleAuthCode())
+	c2, err := mintCode(ctx, store, sampleAuthCode(), AuthorizationCodeTTL)
 	if err != nil {
 		t.Fatalf("mintCode #2: %v", err)
 	}

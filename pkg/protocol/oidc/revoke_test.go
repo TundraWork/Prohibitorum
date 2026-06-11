@@ -67,7 +67,7 @@ func TestRevokeRefreshToken(t *testing.T) {
 		ClientID:  testClientID,
 		AccountID: 7,
 		Scope:     []string{"openid", "offline_access"},
-	})
+	}, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestRevokeOtherClientsRefreshNotRevoked(t *testing.T) {
 		ClientID:  "other",
 		AccountID: 7,
 		Scope:     []string{"openid"},
-	})
+	}, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
