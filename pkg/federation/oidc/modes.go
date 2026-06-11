@@ -69,6 +69,27 @@ func Resolve(
 	})
 	switch {
 	case err == nil:
+		// Scope re-login to the IdP that minted the identity: one issuer = one
+		// upstream_idp row. If the (iss,sub) identity is bound to a DIFFERENT row
+		// — an admin configured two rows sharing an issuer_url — refuse to
+		// re-login through this one, else a user provisioned via IdP-A could log
+		// in against IdP-B's slug and dodge B's provisioning gates. T4.3c.
+		if existing.UpstreamIdpID != idp.ID {
+			_ = w.Record(ctx, audit.Record{
+				AccountID: int32Ptr(existing.AccountID),
+				Factor:    audit.FactorFederationOIDC,
+				Event:     audit.EventFail,
+				Detail: map[string]any{
+					"reason":           "idp_mismatch_relogin",
+					"idp_slug":         idp.Slug,
+					"bound_idp_id":     existing.UpstreamIdpID,
+					"attempted_idp_id": idp.ID,
+					"iss":              tokens.Issuer,
+					"sub":              tokens.Subject,
+				},
+			})
+			return 0, false, authn.ErrFederationStateInvalid()
+		}
 		// Re-login path. Sync claim drift, audit Use, return existing account.
 		syncClaims(ctx, q, idp, &existing, tokens)
 		_ = w.Record(ctx, audit.Record{
@@ -427,12 +448,12 @@ func applyInviteOnly(
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventRegister,
 			Detail: map[string]any{
-				"idp_slug":     idp.Slug,
-				"iss":          tokens.Issuer,
-				"sub":          tokens.Subject,
-				"mode":         ModeInviteOnly,
-				"reason":       "invite_only_redemption",
-				"username":     enr.TemplateUsername.String,
+				"idp_slug": idp.Slug,
+				"iss":      tokens.Issuer,
+				"sub":      tokens.Subject,
+				"mode":     ModeInviteOnly,
+				"reason":   "invite_only_redemption",
+				"username": enr.TemplateUsername.String,
 			},
 		})
 		_ = txAudit.Record(ctx, audit.Record{
@@ -594,6 +615,5 @@ func emitFail(
 		Detail: detail,
 	})
 }
-
 
 func int32Ptr(v int32) *int32 { return &v }

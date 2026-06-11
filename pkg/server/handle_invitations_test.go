@@ -14,9 +14,12 @@ package server
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
@@ -39,6 +42,19 @@ type fakeInvitationQ struct {
 
 	// seedRows is returned by ListPendingInvitations.
 	seedRows []db.Enrollment
+
+	// idpMissing makes GetUpstreamIDPBySlug return pgx.ErrNoRows (the slug is
+	// unknown or disabled), exercising the invite slug-validation reject path.
+	idpMissing bool
+}
+
+// GetUpstreamIDPBySlug validates a federated-invite slug binding. Returns a
+// minimal row by default; pgx.ErrNoRows when idpMissing is set.
+func (f *fakeInvitationQ) GetUpstreamIDPBySlug(_ context.Context, slug string) (db.UpstreamIdp, error) {
+	if f.idpMissing {
+		return db.UpstreamIdp{}, pgx.ErrNoRows
+	}
+	return db.UpstreamIdp{Slug: slug}, nil
 }
 
 func (f *fakeInvitationQ) InsertEnrollment(_ context.Context, p db.InsertEnrollmentParams) (db.Enrollment, error) {
@@ -138,6 +154,35 @@ func TestCreateInvitation_NoSlug(t *testing.T) {
 	}
 	if q.inserted[0].ExpectedUpstreamIdpSlug.Valid {
 		t.Error("ExpectedUpstreamIdpSlug.Valid: want false (NULL) for unbound invite, got true")
+	}
+}
+
+// TestCreateInvitation_UnknownSlugRejected guards T3.4: a federated invite
+// bound to a non-existent or disabled IdP slug is rejected at create time
+// (rather than minting a permanently un-redeemable invite).
+func TestCreateInvitation_UnknownSlugRejected(t *testing.T) {
+	t.Parallel()
+
+	slug := "ghost"
+	q := &fakeInvitationQ{idpMissing: true}
+	s := minimalServerForInvitations(q)
+
+	in := &createInvitationIn{}
+	in.Body.Role = "user"
+	in.Body.ExpectedUpstreamIdpSlug = &slug
+
+	_, err := s.handleCreateInvitation(context.Background(), in)
+	if err == nil {
+		t.Fatal("expected an error for an unknown/disabled IdP slug")
+	}
+	// The handler wraps the AuthError via authErrToHuma → a 404 huma StatusError.
+	se, ok := err.(huma.StatusError)
+	if !ok || se.GetStatus() != http.StatusNotFound {
+		t.Fatalf("want 404 huma StatusError (upstream_idp_not_found), got %T %v", err, err)
+	}
+	// No enrollment should have been issued.
+	if len(q.inserted) != 0 {
+		t.Errorf("InsertEnrollment must not be called when slug is invalid; got %d", len(q.inserted))
 	}
 }
 

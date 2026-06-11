@@ -347,7 +347,12 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 
 	idp, err := f.q.GetUpstreamIDPBySlug(ctx, state.IDPSlug)
 	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: re-lookup idp %q: %w", state.IDPSlug, err)
+		// The IdP was disabled or deleted between BeginLogin and here
+		// (GetUpstreamIDPBySlug filters WHERE NOT disabled). Collapse to the
+		// generic state-invalid code + audit, exactly as begin() does — never a
+		// wrapped 500 that leaks an internal error (T3.1).
+		f.failNoAccount(ctx, state.IDPSlug, "idp_disabled_or_deleted", nil)
+		return nil, authn.ErrFederationStateInvalid()
 	}
 
 	client, err := f.buildClient(ctx, &idp, false)
@@ -461,7 +466,10 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 
 	idp, err := f.q.GetUpstreamIDPBySlug(ctx, state.IDPSlug)
 	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: re-lookup idp %q: %w", state.IDPSlug, err)
+		// IdP disabled/deleted mid-link-flow → clean state-invalid + audit,
+		// not a wrapped 500 (T3.1).
+		f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "idp_disabled_or_deleted", nil)
+		return nil, authn.ErrFederationStateInvalid()
 	}
 
 	client, err := f.buildClient(ctx, &idp, true)
