@@ -42,8 +42,9 @@ implement SP-initiated SSO + IdP-local SLO + IdP metadata. (The v0.1
 
 Register a client. As of v0.4 the supported path is the
 `prohibitorum oidc-client create` CLI (it generates + argon2id-hashes
-the secret and prints it once) — see "OIDC OP (v0.4)" below. A raw SQL
-insert remains possible for advanced cases (admin UI lands in v0.6):
+the secret and prints it once) — see "OIDC OP (v0.4)" below. The admin
+dashboard also manages OIDC clients; a raw SQL insert remains possible for
+advanced cases:
 
 ```sql
 INSERT INTO oidc_client
@@ -814,9 +815,9 @@ is the OP.
 
 ### One-time setup (admin)
 
-Register an upstream IdP via SQL (admin UI lands in v0.6). The client
-secret must be sealed with the helper in `pkg/federation/oidc/secret.go`
-— do not paste plaintext into the DB.
+Register an upstream IdP via the admin dashboard (Identity Providers) or
+raw SQL. The client secret must be sealed with the helper in
+`pkg/federation/oidc/secret.go` — do not paste plaintext into the DB.
 
 ```sql
 -- Pseudocode: the sealed (enc, nonce, key_version) triple comes from
@@ -916,9 +917,9 @@ that stashes the invite token in federation state so the callback
 provisions the account atomically.
 
 ```bash
-# 1. Admin creates an invite-intent enrollment for the user. The admin
-#    UI lands in v0.6; today this is the existing /admin/enrollments/*
-#    surface (see "Bootstrapping & invites"). Required fields:
+# 1. Admin creates an invite-intent enrollment for the user (via the admin
+#    dashboard's Invitations screen or the /admin/enrollments/* API).
+#    Required fields:
 #      intent='invite'
 #      template_username='alice'
 #      template_display_name='Alice Example'
@@ -1343,10 +1344,12 @@ Two coordinated paths:
    For Pattern A, the RP's session continues until the RP detects the
    user is gone (typically by the next ID-token refresh failing).
 
-3. **SAML SLO (Pattern C, v0.5)**: stubbed at `/saml/slo`; lands in
-   v0.5. The `saml_session` table is populated from day one so that
-   SLO can iterate over an account's active SAML SPs without a schema
-   migration when the feature ships.
+3. **SAML SLO (Pattern C, v0.5)**: shipped. A signed `LogoutRequest` to
+   `/saml/slo` revokes the bound Prohibitorum session and returns a signed
+   `LogoutResponse` (smoke steps 94–95). This is **IdP-local** logout — it
+   does NOT propagate a front-channel logout to the user's other SPs
+   (coordinated multi-SP sign-out is a v0.7+ item). See Pattern C →
+   "Single Logout (SLO)" above for the full flow.
 
 ## What Prohibitorum does NOT do for you
 
