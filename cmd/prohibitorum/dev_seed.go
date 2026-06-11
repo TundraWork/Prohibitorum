@@ -183,7 +183,7 @@ func seedAccounts(ctx context.Context, q *db.Queries) {
 	specs := []acctSpec{
 		{"alice", "Alice Anderson", "user", false},
 		{"bob", "Bob Brown", "user", false},
-		{"carol", "Carol Clark", "admin", false},
+		{"carol", "Carol Clark", "user", false},
 		{"dave", "Dave Davis", "user", true},
 	}
 
