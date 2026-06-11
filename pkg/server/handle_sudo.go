@@ -378,24 +378,36 @@ func sudoStashKey(sessionID string) string {
 	return "webauthn_ceremony:sudo:" + sessionID
 }
 
-// requireFreshSudo writes an ErrSudoRequired (401) when the session is
-// missing or its SudoUntil has lapsed. Returns true on FAIL — caller
-// should return immediately. False means the gate is satisfied and the
-// caller may proceed; the grant is consumed (one gated action per grant).
-func (s *Server) requireFreshSudo(ctx context.Context, w http.ResponseWriter, sess *authn.Session) bool {
+// consumeFreshSudo reports whether sess holds a fresh sudo grant, consuming it
+// (one-shot) when present. It writes NOTHING — the caller renders the
+// sudo_required error in its transport's idiom (writeAuthErr for raw HTTP,
+// huma.WriteErr for typed ops). This is THE single chokepoint for the fresh-sudo
+// gate: both the raw-HTTP withFreshSudo path (registerSudoOpHTTP) and the typed
+// Huma registerSudoOp path route through it, so the policy can't drift between
+// the two registration styles.
+func (s *Server) consumeFreshSudo(ctx context.Context, sess *authn.Session) bool {
 	if sess == nil || sess.Data == nil || !sess.Data.HasFreshSudo() {
-		writeAuthErr(w, authn.ErrSudoRequired())
-		return true
+		return false
 	}
-	// One-shot: consume the grant. A single sudo elevation covers a single
-	// gated action; the user re-asserts for the next one. Cheaper for the
-	// attacker model (stolen cookie windows shrink further) and the user
-	// already had to bio-unlock once.
+	// One-shot: a single sudo elevation covers a single gated action; the user
+	// re-asserts for the next one. Shrinks the stolen-cookie window further, and
+	// the user already had to bio-unlock once.
 	sess.Data.SudoUntil = time.Time{}
 	if err := s.sessionStore.Save(ctx, sess.Account.ID, sess.Token, sess.Data); err != nil {
-		// Best-effort — failing to clear means the user gets one extra
-		// gated action this window. Not a security regression.
+		// Best-effort — failing to clear means the user gets one extra gated
+		// action this window. Not a security regression.
 		logx.WithContext(ctx).WithError(err).Warn("sudo: clear failed")
+	}
+	return true
+}
+
+// requireFreshSudo is the raw-HTTP fresh-sudo gate: it consumes the grant via
+// consumeFreshSudo and, on absence, writes ErrSudoRequired (401) and returns
+// true so the caller returns immediately. False means satisfied — proceed.
+func (s *Server) requireFreshSudo(ctx context.Context, w http.ResponseWriter, sess *authn.Session) bool {
+	if !s.consumeFreshSudo(ctx, sess) {
+		writeAuthErr(w, authn.ErrSudoRequired())
+		return true
 	}
 	return false
 }

@@ -26,6 +26,11 @@ const (
 	FactorSAMLSP         Factor = "saml_sp"
 	FactorUpstreamIDP    Factor = "upstream_idp"
 	FactorSigningKey     Factor = "signing_key"
+	// FactorAccount / FactorInvitation cover admin account-lifecycle and
+	// invitation mutations so role escalations, disables, deletes, and invite
+	// issue/revoke are visible in the audit viewer (not just the structured log).
+	FactorAccount    Factor = "account"
+	FactorInvitation Factor = "invitation"
 )
 
 const (

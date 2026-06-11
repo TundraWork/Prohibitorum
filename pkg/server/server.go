@@ -385,17 +385,20 @@ func (s *Server) registerOperations() {
 	// Admin: accounts + invitations
 	registerOp(mgmt, contract.OperationListAccounts, s.handleListAccounts, admin)
 	registerOp(mgmt, contract.OperationGetAccount, s.handleGetAccount, admin)
-	registerOp(mgmt, contract.OperationUpdateAccount, s.handleUpdateAccount, admin)
-	registerOp(mgmt, contract.OperationDeleteAccount, s.handleDeleteAccount, admin)
+	// Account/invitation MUTATIONS are fresh-sudo gated via registerSudoOp
+	// (typed Huma + sudo) — UpdateAccount can escalate user→admin, so step-up
+	// is required, matching every other admin mutation.
+	registerSudoOp(s, mgmt, contract.OperationUpdateAccount, s.handleUpdateAccount, admin)
+	registerSudoOp(s, mgmt, contract.OperationDeleteAccount, s.handleDeleteAccount, admin)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/credentials/delete", admin, s.handleDeleteAccountCredentialHTTP)
 	registerOp(mgmt, contract.OperationListAccountCredentials, s.handleListAccountCredentials, admin)
 	registerOp(mgmt, contract.OperationListAccountSessions, s.handleListAccountSessions, admin)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/{id}/sessions/revoke", admin, s.handleRevokeAccountSessionHTTP)
-	registerOp(mgmt, contract.OperationRevokeAccountSessions, s.handleRevokeAccountSessions, admin)
-	registerOp(mgmt, contract.OperationReissueEnrollment, s.handleReissueEnrollment, admin)
-	registerOp(mgmt, contract.OperationCreateInvitation, s.handleCreateInvitation, admin)
+	registerSudoOp(s, mgmt, contract.OperationRevokeAccountSessions, s.handleRevokeAccountSessions, admin)
+	registerSudoOp(s, mgmt, contract.OperationReissueEnrollment, s.handleReissueEnrollment, admin)
+	registerSudoOp(s, mgmt, contract.OperationCreateInvitation, s.handleCreateInvitation, admin)
 	registerOp(mgmt, contract.OperationListInvitations, s.handleListInvitations, admin)
-	registerOp(mgmt, contract.OperationRevokeInvitation, s.handleRevokeInvitation, admin)
+	registerSudoOp(s, mgmt, contract.OperationRevokeInvitation, s.handleRevokeInvitation, admin)
 
 	// Admin: signing-key lifecycle management
 	registerOp(mgmt, contract.OperationListSigningKeys, s.handleListSigningKeys, admin)

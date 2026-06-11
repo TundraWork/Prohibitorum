@@ -19,6 +19,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/enrollment"
@@ -57,6 +58,12 @@ func (f *fakeInvitationQ) ListPendingInvitations(_ context.Context) ([]db.Enroll
 	return f.seedRows, nil
 }
 
+// InsertCredentialEvent is a no-op sink for the audit rows the invitation
+// handlers now emit (audit.Writer is wired in minimalServerForInvitations).
+func (f *fakeInvitationQ) InsertCredentialEvent(_ context.Context, _ db.InsertCredentialEventParams) error {
+	return nil
+}
+
 // --- helpers ----------------------------------------------------------------
 
 // minimalServerForInvitations builds the smallest Server that can run the
@@ -65,6 +72,7 @@ func minimalServerForInvitations(q *fakeInvitationQ) *Server {
 	return &Server{
 		config:             &configx.Config{PublicOrigins: []string{"https://id.example.com"}},
 		invitationOverride: q,
+		Audit:              audit.NewWriter(q),
 	}
 }
 
