@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,6 +62,41 @@ func TestSession_IssueAndLoad(t *testing.T) {
 	}
 	if loaded.AccountID != 42 {
 		t.Errorf("loaded AccountID = %d, want 42", loaded.AccountID)
+	}
+}
+
+// TestSession_KVKeyHidesRawToken guards N1: the raw cookie token must never
+// appear as the KV key suffix. A KV read (SCAN / dump / backup) must not yield
+// a usable cookie. The stored key suffix is SHA-256(token); the cookie keeps
+// the raw token.
+func TestSession_KVKeyHidesRawToken(t *testing.T) {
+	mem := kv.NewMemoryStore()
+	s := NewSessionStore(mem, noopSessionQueries{}, time.Hour)
+	ctx := context.Background()
+
+	token, _, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+
+	result, err := mem.ScanEntries(ctx, "session:42:*", 0, 100)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if len(result.Entries) != 1 {
+		t.Fatalf("want 1 session entry, got %d", len(result.Entries))
+	}
+	key := result.Entries[0].Key
+	if strings.Contains(key, token) {
+		t.Fatalf("KV key %q leaks the raw token %q", key, token)
+	}
+	if want := "session:42:" + hashToken(token); key != want {
+		t.Errorf("KV key = %q, want %q (hashed suffix)", key, want)
+	}
+
+	// The raw token must still load the session (cookie half is unchanged).
+	if _, _, err := s.Load(ctx, 42, token, "", ""); err != nil {
+		t.Errorf("Load with raw token failed: %v", err)
 	}
 }
 

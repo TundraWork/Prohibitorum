@@ -14,6 +14,9 @@ import (
 const (
 	SessionCookieName  = "prohibitorum_session"
 	CeremonyCookieName = "prohibitorum_ceremony"
+	// FedStateCookieName carries the upstream-federation anti-forgery token
+	// (audit follow-up N4). See FedStateCookie for the SameSite rationale.
+	FedStateCookieName = "prohibitorum_fed_state"
 )
 
 // secureCookies reports whether session cookies should be hardened for a
@@ -167,6 +170,46 @@ func CeremonyCookie(cfg *configx.Config, r *http.Request, value string) *http.Co
 // ClearedCeremonyCookie expires the ceremony cookie. Path matches the issue path.
 func ClearedCeremonyCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
 	c := CeremonyCookie(cfg, r, "")
+	c.MaxAge = -1
+	return c
+}
+
+// FedStateCookie carries the anti-forgery token that binds an upstream-OIDC
+// federation login (and invite) flow to the initiating browser (audit
+// follow-up N4). It is set at /federation/{slug}/login (and
+// /enrollments/{token}/start-federation) and required to match at the
+// /callback.
+//
+// SameSite=Lax — NOT Strict — is deliberate and load-bearing: the OIDC callback
+// is a cross-site, top-level GET navigation initiated by the upstream IdP, and
+// SameSite=Strict suppresses cookies on cross-site-initiated navigations, which
+// would break the legitimate callback. Lax IS sent on top-level GET navigations
+// (exactly like the session cookie, which is Lax for the same reason). The
+// local WebAuthn CeremonyCookie can afford Strict only because that ceremony is
+// fully same-origin. Path is scoped to /api/prohibitorum so the cookie reaches
+// the federation, invite, and link callbacks but not unrelated origins. Secure
+// is deployment-derived (secureCookies) so it is stable across the set/read
+// requests. MaxAge tracks the federation state TTL.
+func FedStateCookie(cfg *configx.Config, _ *http.Request, value string) *http.Cookie {
+	maxAge := int(cfg.Federation.StateTTL.Seconds())
+	if maxAge <= 0 {
+		maxAge = 600
+	}
+	return &http.Cookie{
+		Name:     FedStateCookieName,
+		Value:    value,
+		Path:     "/api/prohibitorum",
+		HttpOnly: true,
+		Secure:   secureCookies(cfg),
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   maxAge,
+	}
+}
+
+// ClearedFedStateCookie expires the federation anti-forgery cookie. Attributes
+// MUST match FedStateCookie or the browser creates a new empty cookie instead.
+func ClearedFedStateCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
+	c := FedStateCookie(cfg, r, "")
 	c.MaxAge = -1
 	return c
 }

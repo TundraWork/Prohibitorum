@@ -87,7 +87,7 @@ func (h *fedTestHarness) driveStartFederation(t *testing.T, token, returnTo stri
 	if returnTo != "" {
 		u += "?return_to=" + url.QueryEscape(returnTo)
 	}
-	resp, err := noFollow().Get(u)
+	resp, err := h.client.Get(u)
 	if err != nil {
 		t.Fatalf("GET %s: %v", u, err)
 	}

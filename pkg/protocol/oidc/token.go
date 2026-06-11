@@ -17,10 +17,12 @@ import (
 	"prohibitorum/pkg/db"
 )
 
-// AccessTokenTTL and IDTokenTTL bound the lifetimes of the access and ID
-// tokens minted at the token endpoint. Ten minutes is a conventional short
-// access-token lifetime; the refresh token (RefreshTokenTTL, refresh.go)
-// carries the long-lived grant and is rotated on each use.
+// AccessTokenTTL and IDTokenTTL are the DEFAULT lifetimes of the access and ID
+// tokens minted at the token endpoint, used when oidc.access_token_ttl /
+// oidc.id_token_ttl are unset. Ten minutes is a conventional short access-token
+// lifetime; the refresh token (RefreshTokenTTL, refresh.go) carries the
+// long-lived grant and is rotated on each use. Read the effective values via
+// p.accessTokenTTL() / p.idTokenTTL(), never these consts directly.
 const (
 	AccessTokenTTL = 10 * time.Minute
 	IDTokenTTL     = 10 * time.Minute
@@ -222,12 +224,12 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			AuthTime:  ac.AuthTime,
 			AMR:       ac.AMR,
 			ACR:       ac.ACR,
-		})
+		}, p.refreshTokenTTL())
 		if err != nil {
 			writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not issue refresh token")
 			return
 		}
-		_ = markCodeUsed(ctx, p.kv, code, fid)
+		_ = markCodeUsed(ctx, p.kv, code, fid, p.authCodeTTL())
 		refreshToken = rt
 	}
 
@@ -241,7 +243,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 	writeTokenResponse(w, tokenResponse{
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    int(AccessTokenTTL.Seconds()),
+		ExpiresIn:    int(p.accessTokenTTL().Seconds()),
 		IDToken:      idToken,
 		RefreshToken: refreshToken,
 		Scope:        strings.Join(ac.Scope, " "),
@@ -268,7 +270,7 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 		"sub":       subjectOf(acct),
 		"aud":       issuer,
 		"client_id": clientID,
-		"exp":       now.Add(AccessTokenTTL).Unix(),
+		"exp":       now.Add(p.accessTokenTTL()).Unix(),
 		"iat":       now.Unix(),
 		"jti":       jti,
 		"scope":     strings.Join(scope, " "),
@@ -288,7 +290,7 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 		AccessToken: accessToken,
 		Scope:       scope,
 		IssuedAt:    now,
-		Expiry:      now.Add(IDTokenTTL),
+		Expiry:      now.Add(p.idTokenTTL()),
 		AuthTime:    authTime,
 	})
 	idToken, err := p.signJWT(ctx, idClaims, "JWT")

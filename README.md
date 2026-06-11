@@ -86,6 +86,33 @@ mise run web
 If `mise run db:up` fails because `goose` isn't installed, see
 `STATUS.md` for the `aqua:pressly/goose` workaround.
 
+### Deployment hardening
+
+The KV store backs session lookups, single-use auth codes / federation state,
+PKCE verifiers, and enrollment tokens. Session secrets are stored hashed (the
+KV key is `session:<id>:<SHA-256(token)>`, never the raw cookie token), but the
+flow secrets above still live in the KV, so in any non-loopback deployment the
+Redis backend **must be network-isolated and reached over an authenticated,
+encrypted channel**:
+
+```bash
+export PROHIBITORUM_KV_DRIVER="redis"
+export PROHIBITORUM_KV_REDIS_URL="redis.internal:6379"
+export PROHIBITORUM_KV_REDIS_TLS="true"
+export PROHIBITORUM_KV_REDIS_USERNAME="prohibitorum"   # Redis 6+ ACL (optional)
+export PROHIBITORUM_KV_REDIS_PASSWORD="$REDIS_PASSWORD"
+```
+
+Outbound upstream-OIDC federation fetches (discovery / JWKS / token exchange)
+run on an SSRF-hardened HTTP client that refuses to connect to loopback,
+private (RFC1918 / ULA), or link-local / cloud-metadata addresses, and the
+admin API rejects non-`https` or IP-literal issuer URLs. If you federate to an
+IdP that legitimately lives on a private/internal network, opt in explicitly:
+
+```bash
+export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"  # default false
+```
+
 ## Architecture in one paragraph
 
 Three layers, acyclic import graph: an **identity store** (accounts,

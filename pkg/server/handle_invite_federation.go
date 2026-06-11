@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"prohibitorum/pkg/authn"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // handleEnrollmentStartFederationHTTP serves
@@ -55,5 +56,8 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 	// ConsumeEnrollment + short admin-set TTL.
 	w.Header().Set("Referrer-Policy", "no-referrer")
 
+	// Invite redemption shares the federation /callback, so bind the flow to
+	// this browser with the same anti-forgery cookie the login flow uses (N4).
+	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.AntiForgeryToken))
 	http.Redirect(w, r, req.AuthorizeURL, http.StatusFound)
 }

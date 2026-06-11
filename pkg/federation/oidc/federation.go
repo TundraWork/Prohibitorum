@@ -32,6 +32,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -76,11 +77,18 @@ type cachedClient struct {
 var ErrUnknownIDP = errors.New("federation: unknown IdP")
 
 // LoginRequest is the BeginLogin / LinkBegin return value: the URL the
-// browser should be redirected to, plus the opaque state token the caller
-// MUST also stash in a short-lived browser cookie (Task 7 owns the cookie).
+// browser should be redirected to, the opaque state token, and the
+// anti-forgery token the HTTP layer MUST set as a short-lived browser cookie
+// and present back at the callback (audit follow-up N4).
 type LoginRequest struct {
 	AuthorizeURL string
 	StateKey     string
+	// AntiForgeryToken is the raw value the HTTP layer sets as the federation
+	// state cookie. Its SHA-256 is stored in FedState.BrowserBinding;
+	// HandleCallback compares the callback request's cookie against it. The
+	// HTTP handler decides whether to set the cookie (login + invite flows do;
+	// the link flow ignores it).
+	AntiForgeryToken string
 }
 
 // CallbackResult is the HandleCallback return value: enough information for
@@ -142,6 +150,11 @@ type Federator struct {
 	// clientCacheTTL defaults to the package-level clientCacheTTL constant;
 	// tests override via export_test.go to exercise expiry behavior.
 	clientCacheTTL time.Duration
+
+	// allowPrivateNetwork disables the outbound client's dial-time internal-IP
+	// SSRF screen. Sourced from cfg.AllowPrivateNetwork (default false). Set true
+	// only when the upstream IdP is on a trusted private/internal network.
+	allowPrivateNetwork bool
 }
 
 // NewFederator constructs a Federator from its collaborators. publicOrigin is
@@ -160,14 +173,15 @@ func NewFederator(
 	publicOrigin string,
 ) *Federator {
 	return &Federator{
-		q:              q,
-		kvStore:        kvStore,
-		audit:          aud,
-		cfg:            cfg,
-		deks:           deks,
-		publicOrigin:   publicOrigin,
-		dbPool:         dbPool,
-		clientCacheTTL: clientCacheTTL,
+		q:                   q,
+		kvStore:             kvStore,
+		audit:               aud,
+		cfg:                 cfg,
+		deks:                deks,
+		publicOrigin:        publicOrigin,
+		dbPool:              dbPool,
+		clientCacheTTL:      clientCacheTTL,
+		allowPrivateNetwork: cfg.AllowPrivateNetwork,
 	}
 }
 
@@ -257,6 +271,14 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 	}
 	challenge := pkceS256(verifier)
 
+	// Anti-forgery token bound to the initiating browser (N4). The raw value
+	// rides in a short-lived cookie set by the HTTP layer; only its hash is
+	// persisted in KV, so a KV read never yields the cookie value.
+	antiForgery, err := randB64URL(32)
+	if err != nil {
+		return nil, fmt.Errorf("federation/oidc: anti-forgery token: %w", err)
+	}
+
 	state := FedState{
 		IDPID:                 idp.ID,
 		IDPSlug:               idp.Slug,
@@ -267,6 +289,7 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		ReturnTo:              returnTo,
 		LinkingAccountID:      linkingAccountID,
 		EnrollmentToken:       enrollmentToken,
+		BrowserBinding:        hashAntiForgery(antiForgery),
 	}
 	blob, err := state.Encode()
 	if err != nil {
@@ -282,15 +305,22 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 	}
 
 	return &LoginRequest{
-		AuthorizeURL: client.AuthURL(stateToken, nonce, challenge),
-		StateKey:     stateToken,
+		AuthorizeURL:     client.AuthURL(stateToken, nonce, challenge),
+		StateKey:         stateToken,
+		AntiForgeryToken: antiForgery,
 	}, nil
 }
 
 // HandleCallback consumes the login-flow KV state, exchanges the code, and
 // dispatches to Resolve. Returns ErrFederationStateInvalid for nearly every
 // failure mode — the audit log carries the structured reason.
-func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issParam string) (*CallbackResult, error) {
+//
+// browserToken is the value of the anti-forgery cookie the HTTP layer set at
+// BeginLogin time. When the stashed state carries a BrowserBinding, the cookie
+// MUST hash to it — this binds the flow to the initiating browser and defeats
+// login-CSRF / session-fixation (N4). An empty BrowserBinding (e.g. a flow that
+// pre-dates the binding) skips the check.
+func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issParam, browserToken string) (*CallbackResult, error) {
 	blob, err := f.kvStore.Pop(ctx, LoginKey(stateToken))
 	if err != nil {
 		f.failNoAccount(ctx, "", "state_invalid", nil)
@@ -299,6 +329,11 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 	state, err := DecodeFedState(blob)
 	if err != nil {
 		f.failNoAccount(ctx, "", "state_invalid", nil)
+		return nil, authn.ErrFederationStateInvalid()
+	}
+
+	if !browserBindingOK(state.BrowserBinding, browserToken) {
+		f.failNoAccount(ctx, state.IDPSlug, "browser_binding_mismatch", nil)
 		return nil, authn.ErrFederationStateInvalid()
 	}
 
@@ -572,6 +607,7 @@ func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, isLink
 		idp.Scopes,
 		idp.IssuerUrl,
 		DefaultAllowedAlgs(),
+		f.allowPrivateNetwork,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("federation/oidc: build RP client: %w", err)
@@ -665,6 +701,28 @@ func randB64URL(n int) (string, error) {
 func pkceS256(verifier string) string {
 	h := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(h[:])
+}
+
+// hashAntiForgery maps the raw anti-forgery cookie value to the digest stored
+// in FedState.BrowserBinding. SHA-256 (high-entropy input, no salt needed) so
+// the cookie value never lives in KV (N4 + N1 hygiene).
+func hashAntiForgery(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return base64.RawURLEncoding.EncodeToString(h[:])
+}
+
+// browserBindingOK reports whether the callback's anti-forgery cookie matches
+// the binding captured at BeginLogin. An empty binding means the flow carries
+// no binding (skip). A non-empty binding requires a cookie that hashes to it,
+// compared in constant time.
+func browserBindingOK(binding, browserToken string) bool {
+	if binding == "" {
+		return true
+	}
+	if browserToken == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(hashAntiForgery(browserToken)), []byte(binding)) == 1
 }
 
 // isUniqueViolation reports whether err wraps a Postgres SQLSTATE 23505

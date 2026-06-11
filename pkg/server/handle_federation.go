@@ -76,6 +76,10 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Bind the flow to this browser (N4): the anti-forgery cookie must come
+	// back on the cross-site callback navigation, where it is matched against
+	// the state's BrowserBinding.
+	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.AntiForgeryToken))
 	http.Redirect(w, r, req.AuthorizeURL, http.StatusFound)
 }
 
@@ -115,7 +119,14 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	result, err := s.federator.HandleCallback(r.Context(), state, code, iss)
+	// Anti-forgery binding (N4): the cookie set at /login must come back here.
+	// Absent/mismatched → HandleCallback rejects via the state's BrowserBinding.
+	browserToken := ""
+	if c, cerr := r.Cookie(sessstore.FedStateCookieName); cerr == nil {
+		browserToken = c.Value
+	}
+
+	result, err := s.federator.HandleCallback(r.Context(), state, code, iss, browserToken)
 	if err != nil {
 		// HandleCallback returns structured *authn.AuthError for every
 		// expected failure (federation_state_invalid, bad_credentials,
@@ -125,6 +136,9 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, err)
 		return
 	}
+
+	// One-shot binding consumed — clear the anti-forgery cookie.
+	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
 
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	ua := r.UserAgent()

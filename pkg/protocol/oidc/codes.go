@@ -12,17 +12,19 @@ import (
 	"prohibitorum/pkg/kv"
 )
 
-// AuthorizationCodeTTL bounds the lifetime of an authorization code in KV.
-// Codes are exchanged immediately at the token endpoint; RFC 6749 §4.1.2
-// recommends a short lifetime (≤10 minutes), and since these are strictly
-// single-use a tight 60s window further limits the interception surface.
+// AuthorizationCodeTTL is the DEFAULT lifetime of an authorization code in KV,
+// used when oidc.authorization_code_ttl is unset. Codes are exchanged
+// immediately at the token endpoint; RFC 6749 §4.1.2 recommends a short
+// lifetime (≤10 minutes), and since these are strictly single-use a tight 60s
+// window further limits the interception surface. Callers pass the effective
+// TTL (p.authCodeTTL()) into mintCode; never read this const directly at a mint
+// site.
 const AuthorizationCodeTTL = 60 * time.Second
 
-// usedMarkerTTL is the lifetime of the replay marker recorded once a code is
-// consumed. It outlives the code itself by 30s so that a replay arriving just
-// after the code's own expiry is still recognized as a reuse attempt rather
-// than an unknown code.
-const usedMarkerTTL = AuthorizationCodeTTL + 30*time.Second
+// usedMarkerGrace is how long the replay marker outlives the code's own TTL, so
+// a replay arriving just after the code expires is still recognized as a reuse
+// attempt rather than an unknown code.
+const usedMarkerGrace = 30 * time.Second
 
 // errCodeNotFound is returned when an authorization code is absent from KV —
 // either it never existed, it expired, or (single-use) it was already
@@ -54,10 +56,10 @@ func codeKey(code string) string { return "oidc:code:" + code }
 func usedKey(code string) string { return "oidc:code:used:" + code }
 
 // mintCode generates a fresh single-use authorization code, JSON-encodes the
-// authCode state, and stores it under codeKey with AuthorizationCodeTTL. The
-// code is 32 bytes of cryptographic randomness, base64url-encoded without
-// padding so it is URL-safe.
-func mintCode(ctx context.Context, store kv.Store, ac authCode) (string, error) {
+// authCode state, and stores it under codeKey with the given ttl (the caller
+// passes the effective p.authCodeTTL()). The code is 32 bytes of cryptographic
+// randomness, base64url-encoded without padding so it is URL-safe.
+func mintCode(ctx context.Context, store kv.Store, ac authCode, ttl time.Duration) (string, error) {
 	var buf [32]byte
 	if _, err := rand.Read(buf[:]); err != nil {
 		return "", fmt.Errorf("oidc: generate authorization code: %w", err)
@@ -68,7 +70,7 @@ func mintCode(ctx context.Context, store kv.Store, ac authCode) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("oidc: marshal authorization code: %w", err)
 	}
-	if err := store.SetEx(ctx, codeKey(code), string(payload), AuthorizationCodeTTL); err != nil {
+	if err := store.SetEx(ctx, codeKey(code), string(payload), ttl); err != nil {
 		return "", err
 	}
 	return code, nil
@@ -97,9 +99,10 @@ func consumeCode(ctx context.Context, store kv.Store, code string) (*authCode, e
 // markCodeUsed records that a consumed code minted the given refresh family,
 // keyed by the code. If the code is later replayed, usedFamily surfaces this
 // family so the whole token family can be revoked. The marker outlives the
-// code by 30s to catch replays arriving just after the code expires.
-func markCodeUsed(ctx context.Context, store kv.Store, code, familyID string) error {
-	return store.SetEx(ctx, usedKey(code), familyID, usedMarkerTTL)
+// code (codeTTL + usedMarkerGrace) to catch replays arriving just after the
+// code expires; codeTTL is the same effective TTL the code was minted with.
+func markCodeUsed(ctx context.Context, store kv.Store, code, familyID string, codeTTL time.Duration) error {
+	return store.SetEx(ctx, usedKey(code), familyID, codeTTL+usedMarkerGrace)
 }
 
 // usedFamily reports whether a code has already been consumed and, if so, the

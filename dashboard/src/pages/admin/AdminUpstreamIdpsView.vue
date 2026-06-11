@@ -37,7 +37,7 @@ const created = ref(false)
 
 const slug = ref(''); const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
 const clientSecret = ref(''); const mode = ref('auto_provision')
-const scopes = ref<string[]>(['openid', 'email', 'profile'])
+const scopes = ref<string[]>(['openid', 'profile', 'email'])
 const allowedDomains = ref<string[]>([])
 const usernameClaim = ref('preferred_username'); const displayNameClaim = ref('name'); const emailClaim = ref('email')
 const requireVerifiedEmail = ref(false)
@@ -66,7 +66,7 @@ async function load(): Promise<void> {
 function openCreate(): void {
   slug.value = ''; displayName.value = ''; issuerUrl.value = ''; clientId.value = ''
   clientSecret.value = ''; mode.value = 'auto_provision'
-  scopes.value = ['openid', 'email', 'profile']; allowedDomains.value = []
+  scopes.value = ['openid', 'profile', 'email']; allowedDomains.value = []
   usernameClaim.value = 'preferred_username'; displayNameClaim.value = 'name'; emailClaim.value = 'email'
   requireVerifiedEmail.value = false; created.value = false; createOpen.value = true
 }

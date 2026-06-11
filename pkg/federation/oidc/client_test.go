@@ -88,7 +88,8 @@ func newClient(t *testing.T, ts *httptest.Server) *federationoidc.Client {
 		"https://rp.example.test/callback",
 		[]string{"openid", "profile", "email"},
 		ts.URL,
-		nil, // use DefaultAllowedAlgs
+		nil,  // use DefaultAllowedAlgs
+		true, // mock OP is on loopback — bypass the SSRF dial screen
 	)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)

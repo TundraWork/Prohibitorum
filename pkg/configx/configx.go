@@ -19,8 +19,11 @@ import (
 // config.yaml in the working directory.
 type Config struct {
 	DatabaseURL string `mapstructure:"database_url"`
-	Host        string `mapstructure:"host"`
-	Port        int    `mapstructure:"port"`
+	// Host is the interface the HTTP server binds to. Empty (the default) binds
+	// all interfaces (":<port>"); set e.g. "127.0.0.1" to listen loopback-only
+	// behind a reverse proxy.
+	Host string `mapstructure:"host"`
+	Port int    `mapstructure:"port"`
 
 	PublicOrigins []string      `mapstructure:"public_origin"`
 	SessionTTL    time.Duration `mapstructure:"session_ttl"`
@@ -56,6 +59,14 @@ type WebAuthnConfig struct {
 type KVConfig struct {
 	Driver   string `mapstructure:"driver"`
 	RedisURL string `mapstructure:"redis_url"`
+	// Redis AUTH + TLS. The KV store holds session lookups, single-use auth
+	// codes / federation state, PKCE verifiers, and enrollment tokens, so in any
+	// non-loopback deployment the Redis backend MUST be reached over an
+	// authenticated, encrypted channel (audit follow-up N9). Defaults are
+	// empty / false to preserve the local-dev "redis on localhost" experience.
+	RedisUsername string `mapstructure:"redis_username"`
+	RedisPassword string `mapstructure:"redis_password"`
+	RedisTLS      bool   `mapstructure:"redis_tls"`
 }
 
 // OIDCConfig governs token lifetimes + the issuer string. The issuer
@@ -67,15 +78,27 @@ type OIDCConfig struct {
 	IDTokenTTL           time.Duration `mapstructure:"id_token_ttl"`
 	RefreshTokenTTL      time.Duration `mapstructure:"refresh_token_ttl"`
 	AuthorizationCodeTTL time.Duration `mapstructure:"authorization_code_ttl"`
-	// JWKSCacheMaxAge is advertised in the discovery doc as a hint to
-	// downstream RPs; default 1h.
+	// JWKSCacheMaxAge sets the Cache-Control max-age on the JWKS
+	// (/oauth/jwks) and discovery responses — the hint RPs use to decide how
+	// long to cache the signing keys. Kept short so a signing-key rotation
+	// propagates quickly; default 5m.
 	JWKSCacheMaxAge time.Duration `mapstructure:"jwks_cache_max_age"`
 }
 
 // FederationConfig governs upstream-IdP federation flows.
 type FederationConfig struct {
-	StateTTL      time.Duration `mapstructure:"state_ttl"`
-	DefaultScopes []string      `mapstructure:"default_scopes"`
+	StateTTL time.Duration `mapstructure:"state_ttl"`
+	// DefaultScopes is the scope set requested from an upstream OIDC IdP when an
+	// admin registers/updates one without specifying scopes (per-IdP scopes
+	// override this).
+	DefaultScopes []string `mapstructure:"default_scopes"`
+	// AllowPrivateNetwork disables the outbound federation client's dial-time
+	// SSRF screen, which otherwise refuses to connect to loopback / RFC1918 /
+	// link-local (incl. cloud-metadata) / ULA addresses during OIDC discovery,
+	// JWKS, and token exchange. Default false. Set true ONLY when the upstream
+	// IdP legitimately lives on a trusted private/internal network — it removes
+	// the protection against issuer-driven SSRF (audit follow-up N2).
+	AllowPrivateNetwork bool `mapstructure:"allow_private_network"`
 }
 
 // TOTPConfig holds RFC 6238 enrollment defaults + the drift window used
@@ -110,9 +133,18 @@ type AuthConfig struct {
 // SAMLConfig holds IdP identity + the per-deployment defaults that apply
 // to all registered SPs (SPs may override per-row).
 type SAMLConfig struct {
-	EntityID              string        `mapstructure:"entity_id"`
-	BaseURL               string        `mapstructure:"base_url"`
-	DefaultNameIDFormat   string        `mapstructure:"default_nameid_format"`
+	// EntityID is the IdP's SAML EntityID — the stable identifier SPs key trust
+	// on. Empty (the default) derives it from PublicOrigins[0]. SAML treats the
+	// EntityID as an identifier, not a location: it need not be reachable (a URN
+	// is valid) and SHOULD be chosen to never change, since changing it breaks
+	// every registered SP. Endpoint URLs always come from PublicOrigins[0], so an
+	// operator can pin a stable EntityID independent of the HTTP origin.
+	EntityID string `mapstructure:"entity_id"`
+	// DefaultNameIDFormat is the NameID Format advertised in IdP metadata and
+	// used as the default for newly-created SPs that don't specify one.
+	DefaultNameIDFormat string `mapstructure:"default_nameid_format"`
+	// SessionLifetime is the default AuthnStatement SessionNotOnOrAfter horizon
+	// for SPs without a per-row session_lifetime override.
 	SessionLifetime       time.Duration `mapstructure:"session_lifetime"`
 	MetadataRotationGrace time.Duration `mapstructure:"metadata_rotation_grace"`
 	MetadataValidity      time.Duration `mapstructure:"metadata_validity"`
@@ -144,6 +176,9 @@ func Parse() (*Config, error) {
 	viper.SetDefault("port", 8080)
 	viper.SetDefault("kv.driver", "memory")
 	viper.SetDefault("kv.redis_url", "localhost:6379")
+	viper.SetDefault("kv.redis_username", "")
+	viper.SetDefault("kv.redis_password", "")
+	viper.SetDefault("kv.redis_tls", false)
 	viper.SetDefault("public_origin", "http://localhost:8080")
 	viper.SetDefault("session_ttl", 8*time.Hour)
 	viper.SetDefault("trust_proxy", false)
@@ -155,11 +190,16 @@ func Parse() (*Config, error) {
 	viper.SetDefault("oidc.id_token_ttl", 10*time.Minute)
 	viper.SetDefault("oidc.refresh_token_ttl", 720*time.Hour) // 30d
 	viper.SetDefault("oidc.authorization_code_ttl", 60*time.Second)
-	viper.SetDefault("oidc.jwks_cache_max_age", time.Hour)
+	// 5m matches the historical hardcoded JWKS Cache-Control; kept short so a
+	// signing-key rotation reaches RPs quickly.
+	viper.SetDefault("oidc.jwks_cache_max_age", 5*time.Minute)
 
 	// Federation defaults.
 	viper.SetDefault("federation.state_ttl", 10*time.Minute)
 	viper.SetDefault("federation.default_scopes", []string{"openid", "profile", "email"})
+	// Secure by default: the outbound federation client refuses internal/metadata
+	// IPs unless an operator explicitly opts in for a trusted internal IdP.
+	viper.SetDefault("federation.allow_private_network", false)
 
 	// TOTP defaults — RFC 6238 §5.2 baseline, ±1 step drift window,
 	// 10 recovery codes per account. Issuer defaults to empty so the
@@ -190,7 +230,6 @@ func Parse() (*Config, error) {
 	// SAML defaults — persistent NameID per OASIS SAML 2.0 Core §8.3.7,
 	// 7d metadata rotation grace.
 	viper.SetDefault("saml.entity_id", "")
-	viper.SetDefault("saml.base_url", "")
 	viper.SetDefault("saml.default_nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent")
 	viper.SetDefault("saml.session_lifetime", 8*time.Hour)
 	viper.SetDefault("saml.metadata_rotation_grace", 7*24*time.Hour)

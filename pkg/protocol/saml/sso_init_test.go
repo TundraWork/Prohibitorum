@@ -145,6 +145,25 @@ func TestSSOInitOptInIssuesUnsolicited(t *testing.T) {
 	}
 }
 
+// TestSSOInitRejectsOversizeRelayState guards N7: a RelayState longer than the
+// spec's 80-byte limit is rejected with a 400 before any assertion is issued,
+// even for an opted-in SP with a live session.
+func TestSSOInitRejectsOversizeRelayState(t *testing.T) {
+	sp := ssoSP()
+	sp.AllowIdpInitiated = true
+	h := newSSOHarness(t, sp)
+	acct := testAccount()
+
+	oversize := strings.Repeat("x", maxRelayStateBytes+1)
+	req := idpInitRequest(testSPEntityID, oversize, liveSession(acct))
+	rec := httptest.NewRecorder()
+	h.idp.HandleIdPInitiated(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for oversize RelayState; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestSSOInitOptOutForbidden(t *testing.T) {
 	sp := ssoSP()
 	sp.AllowIdpInitiated = false // explicit: not opted in

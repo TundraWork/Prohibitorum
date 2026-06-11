@@ -209,9 +209,18 @@ func credentialIDSuffix(credID []byte) string {
 
 // ----- POST /me/credentials/register/begin (raw chi) ---------------------
 
+// addPasskeyCeremonyKey builds the KV key for the add-passkey WebAuthn ceremony
+// stash. It keys on the opaque SessionData.SessionID (NOT the raw session
+// token) so the secret cookie half never appears in the KV keyspace — matching
+// the sudo ceremony and closing audit follow-up N6 (the second leak surface of
+// N1). Callers MUST have verified sess.Data != nil.
+func addPasskeyCeremonyKey(sess *authn.Session) string {
+	return "webauthn_ceremony:add:" + sess.Data.SessionID
+}
+
 func (s *Server) handleAddCredentialBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
-	if sess == nil {
+	if sess == nil || sess.Data == nil {
 		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
@@ -240,7 +249,7 @@ func (s *Server) handleAddCredentialBeginHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, fmt.Errorf("add credential/begin: marshal: %w", err))
 		return
 	}
-	if err := s.kvStore.SetEx(r.Context(), "webauthn_ceremony:add:"+sess.Token, string(payload), 5*time.Minute); err != nil {
+	if err := s.kvStore.SetEx(r.Context(), addPasskeyCeremonyKey(sess), string(payload), 5*time.Minute); err != nil {
 		writeAuthErr(w, fmt.Errorf("add credential/begin: setex: %w", err))
 		return
 	}
@@ -253,12 +262,12 @@ func (s *Server) handleAddCredentialBeginHTTP(w http.ResponseWriter, r *http.Req
 
 func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
-	if sess == nil {
+	if sess == nil || sess.Data == nil {
 		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
 
-	rawStash, err := s.kvStore.Get(r.Context(), "webauthn_ceremony:add:"+sess.Token)
+	rawStash, err := s.kvStore.Get(r.Context(), addPasskeyCeremonyKey(sess))
 	if err != nil {
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
@@ -324,7 +333,7 @@ func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.
 	}
 
 	// Best-effort cleanup of the ceremony stash.
-	_ = s.kvStore.Del(r.Context(), "webauthn_ceremony:add:"+sess.Token)
+	_ = s.kvStore.Del(r.Context(), addPasskeyCeremonyKey(sess))
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":         "auth.credential_added",
@@ -355,8 +364,11 @@ func (s *Server) handleListMySessions(ctx context.Context, _ *struct{}) (*listMy
 	items := make([]contract.SessionListItem, 0, len(records))
 	for _, r := range records {
 		items = append(items, contract.SessionListItem{
-			ID:         r.Data.SessionID,
-			IsCurrent:  r.Token == sess.Token,
+			ID: r.Data.SessionID,
+			// Compare opaque SessionIDs, not tokens: post-N1 the KV key (and
+			// thus SessionRecord.Token) holds the hashed token, not the raw
+			// cookie secret, so a raw-token comparison would never match.
+			IsCurrent:  sess.Data != nil && r.Data.SessionID == sess.Data.SessionID,
 			IssuedAt:   r.Data.IssuedAt,
 			ExpiresAt:  r.Data.ExpiresAt,
 			LastSeenIP: r.Data.LastSeenIP,

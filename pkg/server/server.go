@@ -6,7 +6,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -123,7 +125,12 @@ func NewServer(ctx context.Context) (*Server, error) {
 
 	queries := db.New(conn)
 
-	kvStore, err := kv.New(config.KV.Driver, kv.WithRedisURL(config.KV.RedisURL))
+	kvStore, err := kv.New(config.KV.Driver,
+		kv.WithRedisURL(config.KV.RedisURL),
+		kv.WithRedisUsername(config.KV.RedisUsername),
+		kv.WithRedisPassword(config.KV.RedisPassword),
+		kv.WithRedisTLS(config.KV.RedisTLS),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("kv: %w", err)
 	}
@@ -221,7 +228,13 @@ func (s *Server) Serve() error {
 	// Serve() (not tests/openapi).
 	go s.reconcileSigningKeysLoop()
 
+	// Bind the configured host interface when set (e.g. 127.0.0.1 to listen
+	// loopback-only behind a reverse proxy); an empty host keeps the default
+	// all-interfaces bind. net.JoinHostPort handles IPv6 literal bracketing.
 	addr := fmt.Sprintf(":%d", s.config.Port)
+	if s.config.Host != "" {
+		addr = net.JoinHostPort(s.config.Host, strconv.Itoa(s.config.Port))
+	}
 	logx.WithFields(logrus.Fields{"addr": addr}).Info("serving API")
 	return http.ListenAndServe(addr, s.router)
 }

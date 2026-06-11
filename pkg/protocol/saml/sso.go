@@ -84,6 +84,12 @@ type autoPostData struct {
 func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// Bound the POST body before any form parse (N7). GET carries the request
+	// in the (already-DEFLATE-capped) query string.
+	if r.Method == http.MethodPost {
+		r.Body = http.MaxBytesReader(w, r.Body, maxSAMLPostBody)
+	}
+
 	// (2/3/4-parse) Parse + validate. Any error here is on the untrusted side
 	// of the open-redirect guard → DIRECT error, never a redirect to an
 	// SP-chosen target. Bad-request-class errors map to 400; an unexpected
@@ -126,8 +132,8 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		// Send the user to the login page; on success they return to this exact
 		// SSO URL and the flow re-runs and issues. This is NOT an SP redirect,
 		// so use a plain redirect to our own login.
-		fullSSOURL := i.entityID() + r.URL.RequestURI()
-		loginURL := i.entityID() + "/login?return_to=" + url.QueryEscape(fullSSOURL)
+		fullSSOURL := i.baseURL() + r.URL.RequestURI()
+		loginURL := i.baseURL() + "/login?return_to=" + url.QueryEscape(fullSSOURL)
 		http.Redirect(w, r, loginURL, http.StatusFound)
 		return
 	}
@@ -220,8 +226,8 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			kept = append(kept, "reauth="+nonce)
-			ret := i.entityID() + r.URL.Path + "?" + strings.Join(kept, "&")
-			http.Redirect(w, r, i.entityID()+"/login?return_to="+url.QueryEscape(ret), http.StatusFound)
+			ret := i.baseURL() + r.URL.Path + "?" + strings.Join(kept, "&")
+			http.Redirect(w, r, i.baseURL()+"/login?return_to="+url.QueryEscape(ret), http.StatusFound)
 			return
 		}
 	}
@@ -289,7 +295,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// horizon, so use the SAME base (authTime) as buildResponse — anchoring on
 	// time.Now() here would let the DB row outlive the assertion's
 	// SessionNotOnOrAfter whenever the session is older than "now".
-	sessionExpiry := sessionNotOnOrAfter(sp, authTime)
+	sessionExpiry := sessionNotOnOrAfter(sp, authTime, i.samlSessionLifetime())
 	if _, err := i.queries.InsertSAMLSession(ctx, db.InsertSAMLSessionParams{
 		SessionID:    sess.Data.SessionID,
 		SpID:         sp.ID,

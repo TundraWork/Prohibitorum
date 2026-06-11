@@ -81,6 +81,32 @@ func (s *Server) currentDEK() (int32, []byte, error) {
 	return int32(maxVer), s.config.DataEncryptionKeys[maxVer], nil
 }
 
+// validateUpstreamIssuer enforces the SSRF-hardening rule (audit follow-up N2)
+// that an upstream issuer_url must be an https:// URL with a non-IP-literal
+// host. It is SKIPPED when federation.allow_private_network is set — that
+// deployment has explicitly opted into trusting internal IdPs (and the runtime
+// dial screen is off to match), so an IP-literal / http issuer is permitted.
+func (s *Server) validateUpstreamIssuer(issuerURL string) error {
+	if s.config != nil && s.config.Federation.AllowPrivateNetwork {
+		return nil
+	}
+	if err := oidc.ValidateIssuerURL(issuerURL); err != nil {
+		return authn.ErrBadRequest()
+	}
+	return nil
+}
+
+// defaultFederationScopes is the scope set applied to a new/updated upstream IdP
+// when the admin supplies none: the deployment-wide federation.default_scopes
+// (C6), or a minimal OIDC-valid fallback if that is somehow empty (an upstream
+// authorize request must at least carry "openid").
+func (s *Server) defaultFederationScopes() []string {
+	if s.config != nil && len(s.config.Federation.DefaultScopes) > 0 {
+		return s.config.Federation.DefaultScopes
+	}
+	return []string{"openid", "profile", "email"}
+}
+
 // ----- GET /identity-providers (typed, role-only) ------------------------------------
 
 type listIdentityProvidersOut struct {
@@ -148,6 +174,10 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	if err := s.validateUpstreamIssuer(body.IssuerUrl); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 
 	keyVer, dek, err := s.currentDEK()
 	if err != nil {
@@ -157,7 +187,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 
 	scopes := body.Scopes
 	if len(scopes) == 0 {
-		scopes = []string{"openid", "email", "profile"}
+		scopes = s.defaultFederationScopes()
 	}
 	allowedDomains := body.AllowedDomains
 	if allowedDomains == nil {
@@ -290,10 +320,14 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	if err := s.validateUpstreamIssuer(body.IssuerUrl); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
 
 	scopes := body.Scopes
 	if len(scopes) == 0 {
-		scopes = []string{"openid", "email", "profile"}
+		scopes = s.defaultFederationScopes()
 	}
 	allowedDomains := body.AllowedDomains
 	if allowedDomains == nil {

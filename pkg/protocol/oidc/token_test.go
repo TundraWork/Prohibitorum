@@ -102,7 +102,7 @@ func newTokenHarness(t *testing.T) *tokenHarness {
 // mintTestCode stores an authCode and returns the issued code.
 func (h *tokenHarness) mintTestCode(t *testing.T, ac authCode) string {
 	t.Helper()
-	code, err := mintCode(context.Background(), h.p.kv, ac)
+	code, err := mintCode(context.Background(), h.p.kv, ac, AuthorizationCodeTTL)
 	if err != nil {
 		t.Fatalf("mintCode: %v", err)
 	}

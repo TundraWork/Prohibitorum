@@ -44,6 +44,20 @@ const rsaSHA256SigAlg = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
 // own DEFLATE limit — and reject anything larger.
 const maxInflatedAuthnRequest = 10 * 1024 * 1024 // 10 MB
 
+// maxRelayStateBytes is the SAML 2.0 Bindings §3.4.3 / §3.5.3 RelayState size
+// limit (MUST NOT exceed 80 bytes). RelayState is treated opaquely (HTML-escaped
+// into the auto-POST form, never a redirect target), so an oversize value is a
+// spec-conformance + DoS-hygiene issue rather than injection — but we reject it
+// to stay within the spec and bound the echoed payload (audit follow-up N7).
+const maxRelayStateBytes = 80
+
+// maxSAMLPostBody caps the request body of the public HTTP-POST SAML endpoints
+// (/saml/sso, /saml/slo). Real AuthnRequest / LogoutRequest messages are a few
+// KB; 512 KiB is generous headroom while bounding an abusive form-body POST that
+// would otherwise be read in full by ParseForm before any validation (the admin
+// JSON routes get a tighter 64 KiB via operations.go). Audit follow-up N7.
+const maxSAMLPostBody = 512 << 10 // 512 KiB
+
 var (
 	// ErrReplayedRequest is returned when an AuthnRequest with an ID we have
 	// already seen (within AuthnRequestTTL) is presented again.
@@ -193,6 +207,10 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 	relayState := r.URL.Query().Get("RelayState")
 	if binding == crewjam.HTTPPostBinding {
 		relayState = r.FormValue("RelayState")
+	}
+	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes (audit follow-up N7).
+	if len(relayState) > maxRelayStateBytes {
+		return nil, ErrMalformedRequest
 	}
 
 	return &authnReq{

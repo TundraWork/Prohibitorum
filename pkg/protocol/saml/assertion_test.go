@@ -404,7 +404,7 @@ func TestAssertionSessionNotOnOrAfter(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			sp := db.SamlSp{SessionLifetime: tc.iv}
-			got := sessionNotOnOrAfter(sp, base)
+			got := sessionNotOnOrAfter(sp, base, defaultSessionLifetime)
 			want := base.Add(tc.want)
 			if delta := got.Sub(want); delta < -tolerance || delta > tolerance {
 				t.Errorf("sessionNotOnOrAfter = %v, want ~%v (delta %v, tolerance %v)", got, want, delta, tolerance)

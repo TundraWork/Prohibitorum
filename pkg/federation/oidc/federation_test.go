@@ -159,8 +159,9 @@ func newFixture(t *testing.T, mode string) *fixtureFederator {
 	au := &recordingAudit{}
 
 	cfg := configx.FederationConfig{
-		StateTTL:      5 * time.Minute,
-		DefaultScopes: []string{"openid", "profile", "email"},
+		StateTTL:            5 * time.Minute,
+		DefaultScopes:       []string{"openid", "profile", "email"},
+		AllowPrivateNetwork: true, // mock OP is on loopback
 	}
 	deks := map[int][]byte{1: testDEK}
 	origin := "https://idp.example.test"
@@ -305,7 +306,7 @@ func TestFederator_HandleCallback_HappyPath_AutoProvision(t *testing.T) {
 		t.Fatalf("iss from authorize = %q, want %q", iss, fx.ts.URL)
 	}
 
-	result, err := fx.f.HandleCallback(context.Background(), state, code, iss)
+	result, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
 	if err != nil {
 		t.Fatalf("HandleCallback: %v", err)
 	}
@@ -364,7 +365,7 @@ func TestFederator_HandleCallback_HappyPath_ExistingIdentity(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	result, err := fx.f.HandleCallback(context.Background(), state, code, iss)
+	result, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
 	if err != nil {
 		t.Fatalf("HandleCallback: %v", err)
 	}
@@ -397,7 +398,7 @@ func TestFederator_HandleCallback_RejectsIssMismatch(t *testing.T) {
 	code, state, _ := driveAuthorizeFed(t, req.AuthorizeURL)
 
 	// Pretend the OP shipped a different iss in the callback param.
-	_, err = fx.f.HandleCallback(context.Background(), state, code, "https://attacker.example/")
+	_, err = fx.f.HandleCallback(context.Background(), state, code, "https://attacker.example/", req.AntiForgeryToken)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -439,7 +440,7 @@ func TestFederator_HandleCallback_RejectsTokenEndpointDrift(t *testing.T) {
 		t.Fatalf("SetEx: %v", err)
 	}
 
-	_, err = fx.f.HandleCallback(context.Background(), stateToken, code, "")
+	_, err = fx.f.HandleCallback(context.Background(), stateToken, code, "", req.AntiForgeryToken)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -452,7 +453,7 @@ func TestFederator_HandleCallback_RejectsMissingState(t *testing.T) {
 	fx := newFixture(t, federationoidc.ModeAutoProvision)
 
 	// Token that never went into KV.
-	_, err := fx.f.HandleCallback(context.Background(), "totally-bogus-state", "any-code", "")
+	_, err := fx.f.HandleCallback(context.Background(), "totally-bogus-state", "any-code", "", "")
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -469,14 +470,49 @@ func TestFederator_HandleCallback_SingleUseStateConsumed(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	if _, err := fx.f.HandleCallback(context.Background(), state, code, iss); err != nil {
+	if _, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken); err != nil {
 		t.Fatalf("first HandleCallback: %v", err)
 	}
 
 	// Second call MUST fail — state was Pop'd on the first call.
-	_, err = fx.f.HandleCallback(context.Background(), state, code, iss)
+	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid on replay, got %v", err)
+	}
+}
+
+// TestFederator_HandleCallback_RejectsBrowserBindingMismatch guards N4: a
+// callback whose anti-forgery cookie is absent or does not match the binding
+// captured at BeginLogin is rejected (login-CSRF / session-fixation defense),
+// before any code exchange or account resolution.
+func TestFederator_HandleCallback_RejectsBrowserBindingMismatch(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	req, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if err != nil {
+		t.Fatalf("BeginLogin: %v", err)
+	}
+	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
+
+	// Wrong token (attacker fed the victim a code/state from the attacker's own
+	// upstream dance; the victim's browser has a different / no binding cookie).
+	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, "wrong-anti-forgery-token")
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+		t.Fatalf("want federation_state_invalid on binding mismatch, got %v", err)
+	}
+	if r := auditReason(fx.au.snapshot(), audit.EventFail); r != "browser_binding_mismatch" {
+		t.Fatalf("audit reason = %q, want browser_binding_mismatch", r)
+	}
+
+	// Absent cookie is likewise refused. A fresh flow (the prior state was
+	// Pop'd) so the binding check — not the missing-state path — is exercised.
+	req2, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if err != nil {
+		t.Fatalf("BeginLogin #2: %v", err)
+	}
+	code2, state2, iss2 := driveAuthorizeFed(t, req2.AuthorizeURL)
+	_, err = fx.f.HandleCallback(context.Background(), state2, code2, iss2, "")
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+		t.Fatalf("want federation_state_invalid on absent cookie, got %v", err)
 	}
 }
 
@@ -489,7 +525,7 @@ func TestFederator_HandleCallback_RejectsCodeExchangeFailure(t *testing.T) {
 	_, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
 	// Submit a code that does not match anything the OP recorded.
-	_, err = fx.f.HandleCallback(context.Background(), state, "definitely-not-a-real-code", iss)
+	_, err = fx.f.HandleCallback(context.Background(), state, "definitely-not-a-real-code", iss, req.AntiForgeryToken)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid on bad code, got %v", err)
 	}
@@ -519,7 +555,7 @@ func TestFederator_HandleCallback_RejectsDisabledAccount(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	_, err = fx.f.HandleCallback(context.Background(), state, code, iss)
+	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "bad_credentials" {
 		t.Fatalf("want bad_credentials for disabled account, got %v", err)
 	}
@@ -832,7 +868,7 @@ func TestFederator_HandleCallback_InviteRedemption_HappyPath(t *testing.T) {
 
 	code, stateTok, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	result, err := fx.f.HandleCallback(context.Background(), stateTok, code, iss)
+	result, err := fx.f.HandleCallback(context.Background(), stateTok, code, iss, req.AntiForgeryToken)
 	if err != nil {
 		t.Fatalf("HandleCallback: %v", err)
 	}
@@ -943,8 +979,9 @@ func newCachingFixture(t *testing.T) (fx *fixtureFederator, discoveryHits *int32
 
 	au := &recordingAudit{}
 	cfg := configx.FederationConfig{
-		StateTTL:      5 * time.Minute,
-		DefaultScopes: []string{"openid", "profile", "email"},
+		StateTTL:            5 * time.Minute,
+		DefaultScopes:       []string{"openid", "profile", "email"},
+		AllowPrivateNetwork: true, // mock OP is on loopback
 	}
 	deks := map[int][]byte{1: testDEK}
 	origin := "https://idp.example.test"
