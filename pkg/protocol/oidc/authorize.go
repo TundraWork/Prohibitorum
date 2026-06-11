@@ -130,10 +130,23 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	// user must authenticate again, producing an auth_time that post-dates the
 	// demand (tracked via a single-use KV marker carried in &reauth=<nonce>).
 	prompts := strings.Fields(prompt)
+	// OIDC Core §3.1.2.1: validate prompt tokens against the supported set
+	// (advertised as prompt_values_supported in discovery) rather than silently
+	// ignoring unknown values, and enforce that "none" is mutually exclusive with
+	// every other value. select_account is accepted but a no-op for this
+	// single-tenant OP (there is exactly one account to select). (T2.3)
+	for _, pr := range prompts {
+		switch pr {
+		case "none", "login", "consent", "select_account":
+		default:
+			redirectError(w, r, redirectURI, errCodeInvalidRequest, "unsupported prompt value", state, p.cfg.OIDC.Issuer)
+			return
+		}
+	}
 	wantLogin := slices.Contains(prompts, "login")
 	wantNone := slices.Contains(prompts, "none")
-	if wantLogin && wantNone {
-		redirectError(w, r, redirectURI, errCodeInvalidRequest, "prompt cannot combine login and none", state, p.cfg.OIDC.Issuer)
+	if wantNone && len(prompts) > 1 {
+		redirectError(w, r, redirectURI, errCodeInvalidRequest, "prompt none must not be combined with other values", state, p.cfg.OIDC.Issuer)
 		return
 	}
 

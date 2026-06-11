@@ -475,6 +475,31 @@ func sessionWithAuthTime(at time.Time) db.Session {
 	return s
 }
 
+// TestAuthorize_PromptValidation guards T2.3: unknown prompt tokens are
+// rejected with invalid_request (not silently ignored), and "none" must not be
+// combined with any other value.
+func TestAuthorize_PromptValidation(t *testing.T) {
+	for _, prompt := range []string{"create", "select_account create", "none login", "none consent"} {
+		q := &fakeAuthzQueries{client: validClient(), session: sessionWithAuthTime(time.Now())}
+		p := newProvider(q, &recordingAudit{})
+		v := baseParams()
+		v.Set("prompt", prompt)
+		rec := httptest.NewRecorder()
+		p.HandleAuthorize(rec, authedReq(v))
+		if rec.Code != http.StatusFound {
+			t.Fatalf("prompt=%q: want 302 error redirect, got %d", prompt, rec.Code)
+		}
+		loc, _ := url.Parse(rec.Result().Header.Get("Location"))
+		if got := loc.Query().Get("error"); got != "invalid_request" {
+			t.Errorf("prompt=%q: want error=invalid_request, got %q", prompt, got)
+		}
+		// RFC 9207: error redirects carry iss.
+		if got := loc.Query().Get("iss"); got != testIssuer {
+			t.Errorf("prompt=%q: error redirect missing iss (got %q)", prompt, got)
+		}
+	}
+}
+
 // (a) prompt=login, valid session, NO reauth param → 302 bounce to /login with
 // a reauth nonce; must NOT mint a code.
 func TestAuthorize_PromptLogin_BouncesToLogin(t *testing.T) {
