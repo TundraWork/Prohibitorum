@@ -48,7 +48,6 @@ func makeSamlSp(id int64, entityID, displayName, kind string) db.SamlSp {
 		DisplayName:               displayName,
 		SpKind:                    pgtype.Text{String: kind, Valid: kind != ""},
 		NameIDFormat:              "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent",
-		WantAssertionsSigned:      true,
 		RequireSignedAuthnRequest: false,
 		AllowIdpInitiated:         false,
 		CreatedAt:                 pgtype.Timestamptz{Time: time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC), Valid: true},
@@ -86,9 +85,6 @@ func TestAdminSAMLSPs_ViewProjection_FieldMapping(t *testing.T) {
 	}
 	if !view.RequireSignedAuthnRequest {
 		t.Error("RequireSignedAuthnRequest: got false, want true")
-	}
-	if !view.WantAssertionsSigned {
-		t.Error("WantAssertionsSigned: got false, want true")
 	}
 	if !view.AllowIdpInitiated {
 		t.Error("AllowIdpInitiated: got false, want true")
@@ -255,14 +251,12 @@ func TestAdminSAMLSPs_ViewProjection_NullNotAfterKey(t *testing.T) {
 func TestAdminSAMLSPs_BodyToSPOptions_ManualPath(t *testing.T) {
 	t.Parallel()
 
-	wantSigned := false
 	opts := saml.SPOptions{
 		EntityID:                  "https://sp.example.com",
 		DisplayName:               "Test SP",
 		Kind:                      "generic",
 		RequireSignedAuthnRequest: true,
 		AllowIdpInitiated:         false,
-		WantAssertionsSigned:      &wantSigned,
 		ManualACS: []saml.SPACSEntry{
 			{Binding: crewjam.HTTPPostBinding, Location: "https://sp.example.com/acs", Index: 0, IsDefault: true},
 		},
@@ -281,9 +275,6 @@ func TestAdminSAMLSPs_BodyToSPOptions_ManualPath(t *testing.T) {
 	}
 	if !params.RequireSignedAuthnRequest {
 		t.Error("RequireSignedAuthnRequest: got false, want true")
-	}
-	if params.WantAssertionsSigned {
-		t.Error("WantAssertionsSigned: got true, want false (override)")
 	}
 	if len(acs) != 1 {
 		t.Fatalf("acs: got %d, want 1", len(acs))
@@ -329,23 +320,18 @@ func TestAdminSAMLSPs_BodyToSPOptions_NoACSError(t *testing.T) {
 	}
 }
 
-// ----- TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim -----------------
+// ----- TestUpdateSAMLSP_ViewProjection_AttrMap ------------------------------
 
-// TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim verifies that
-// samlApplicationView correctly projects NameIDClaim and AttributeMap from the
-// db.SamlSp row into the contract view.
-func TestUpdateSAMLSP_ViewProjection_AttrMapAndNameIDClaim(t *testing.T) {
+// TestUpdateSAMLSP_ViewProjection_AttrMap verifies that samlApplicationView
+// correctly projects AttributeMap from the db.SamlSp row into the contract view.
+func TestUpdateSAMLSP_ViewProjection_AttrMap(t *testing.T) {
 	t.Parallel()
 
 	sp := makeSamlSp(7, "https://sp.example.com", "Test SP", "generic")
-	sp.NameIDClaim = "email"
 	sp.AttributeMap = []byte(`[{"claim":"email","samlAttr":"mail"}]`)
 
 	view := samlApplicationView(sp, nil, nil)
 
-	if view.NameIDClaim != "email" {
-		t.Errorf("NameIDClaim: got %q, want %q", view.NameIDClaim, "email")
-	}
 	if string(view.AttributeMap) != `[{"claim":"email","samlAttr":"mail"}]` {
 		t.Errorf("AttributeMap: got %s, want [{...}]", view.AttributeMap)
 	}
@@ -376,40 +362,27 @@ func TestUpdateSAMLSP_ViewProjection_NilAttrMapDefaultsToEmptyArray(t *testing.T
 	}
 }
 
-// ----- TestUpdateSAMLSP_UpdateSAMLSPParams_NoAuthnRequestsSignedField --------
+// ----- TestUpdateSAMLSP_UpdateSAMLSPParams_NoDeadFields ----------------------
 
-// TestUpdateSAMLSP_UpdateSAMLSPParams_NoAuthnRequestsSignedField is a
-// compile-time guard: if UpdateSAMLSPParams ever regains an AuthnRequestsSigned
-// field (the clobbering bug), this test will fail to compile because the struct
-// literal sets all known fields and there is no AuthnRequestsSigned key.
+// TestUpdateSAMLSP_UpdateSAMLSPParams_NoDeadFields is a compile-time guard: the
+// literal sets every UpdateSAMLSPParams field by name, so if the params struct
+// ever regains a dropped no-op column (authn_requests_signed, want_assertions_
+// signed, name_id_claim — see migration 010 / T4.1) this test stops compiling.
 //
-// The test verifies the bug-fix: require_signed_authn_request and
-// authn_requests_signed are now separate columns controlled by separate paths —
-// UpdateSAMLSP only touches require_signed_authn_request, not
-// authn_requests_signed.
-func TestUpdateSAMLSP_UpdateSAMLSPParams_NoAuthnRequestsSignedField(t *testing.T) {
+// require_signed_authn_request is the one AuthnRequest-signing flag the update
+// path touches; the others were never read at runtime and are gone.
+func TestUpdateSAMLSP_UpdateSAMLSPParams_NoDeadFields(t *testing.T) {
 	t.Parallel()
 
-	// Readable inventory of UpdateSAMLSPParams fields: asserts the struct carries
-	// RequireSignedAuthnRequest (the alias-safe flag) and does NOT carry a
-	// separate AuthnRequestsSigned field.  Go named-field literals are additive,
-	// so adding an unrelated field would not break this literal; the real
-	// protection against the alias bug is the SQL SET clause, exercised by the
-	// smoke/gate tests.
 	p := db.UpdateSAMLSPParams{
 		ID:                        1,
 		DisplayName:               "Test",
 		NameIDFormat:              "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent",
 		RequireSignedAuthnRequest: true,
-		WantAssertionsSigned:      true,
 		AllowIdpInitiated:         false,
 		SessionLifetime:           pgtype.Interval{},
-		NameIDClaim:               "email",
 		AttributeMap:              []byte("[]"),
 	}
-	// RequireSignedAuthnRequest controls one flag; authn_requests_signed is set
-	// only via the create/reingest path (InsertSAMLSP) and is NOT touched by
-	// UpdateSAMLSP.
 	if !p.RequireSignedAuthnRequest {
 		t.Error("RequireSignedAuthnRequest should be true")
 	}
@@ -534,7 +507,6 @@ func TestAdminSAMLSPs_ContractType_SAMLProviderView(t *testing.T) {
 		Kind:                      "generic",
 		NameIDFormat:              "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent",
 		RequireSignedAuthnRequest: false,
-		WantAssertionsSigned:      true,
 		AllowIdpInitiated:         false,
 		ACS:                       []contract.SAMLACSView{},
 		Keys:                      []contract.SAMLKeyView{},

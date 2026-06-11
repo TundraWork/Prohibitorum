@@ -22,8 +22,8 @@ INSERT INTO oidc_client (
   client_id, display_name, client_secret_hash, redirect_uris,
   post_logout_redirect_uris, allowed_scopes, require_pkce,
   allowed_code_challenge_methods, token_endpoint_auth_method,
-  subject_type, application_type, require_consent
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+  subject_type, require_consent
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 RETURNING *;
 
 -- name: ListOIDCClients :many

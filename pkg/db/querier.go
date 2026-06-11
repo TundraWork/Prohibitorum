@@ -144,6 +144,11 @@ type Querier interface {
 	UpdateMyCredentialNickname(ctx context.Context, arg UpdateMyCredentialNicknameParams) (int64, error)
 	UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientParams) (OidcClient, error)
 	UpdateOIDCClientSecret(ctx context.Context, arg UpdateOIDCClientSecretParams) error
+	// Replace the stored hash WITHOUT touching password_changed_at — used by the
+	// transparent argon2id param-upgrade rehash on a successful Verify (T4.3a). The
+	// secret has not changed, so password_changed_at (which feeds password-age /
+	// forced-reauth policy) must not move; only the at-rest encoding did.
+	UpdatePasswordHashOnly(ctx context.Context, arg UpdatePasswordHashOnlyParams) error
 	UpdateSAMLSP(ctx context.Context, arg UpdateSAMLSPParams) (SamlSp, error)
 	// RFC 6238 §5.2: this UPDATE is the atomic gate that prevents a parallel
 	// replay of the same code from issuing two sessions. The Go-side

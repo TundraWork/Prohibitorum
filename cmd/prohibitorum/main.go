@@ -487,7 +487,6 @@ At least one --redirect-uri is required. The client secret is not affected.`,
 		spKind          string
 		spNameIDFormat  string
 		spRequireSigned bool
-		spWantSigned    bool
 		spIdpInitiated  bool
 		spACSURL        string
 		spACSBinding    string
@@ -503,7 +502,7 @@ Without metadata, set --entity-id and at least one --acs-url manually.
 
 --kind ghes installs the GitHub Enterprise Server attribute profile and forces
 signed AuthnRequests. Explicit flags (--entity-id, --display-name,
---name-id-format, --want-assertions-signed) override values parsed from metadata.`,
+--name-id-format) override values parsed from metadata.`,
 		Run: func(cmd *cobra.Command, _ []string) {
 			ctx := context.Background()
 			config, err := configx.Parse()
@@ -542,11 +541,6 @@ signed AuthnRequests. Explicit flags (--entity-id, --display-name,
 				NameIDFormat:              spNameIDFormat,
 				RequireSignedAuthnRequest: spRequireSigned,
 				AllowIdpInitiated:         spIdpInitiated,
-			}
-			// Only forward the want-assertions-signed override when the operator
-			// actually set it; otherwise BuildSPParams applies its default (true).
-			if cmd.Flags().Changed("want-assertions-signed") {
-				opts.WantAssertionsSigned = &spWantSigned
 			}
 			// Manual ACS (no metadata).
 			if len(metadataXML) == 0 && spACSURL != "" {
@@ -610,7 +604,6 @@ signed AuthnRequests. Explicit flags (--entity-id, --display-name,
 	createSPCmd.Flags().StringVar(&spKind, "kind", "generic", "SP profile: ghes or generic.")
 	createSPCmd.Flags().StringVar(&spNameIDFormat, "name-id-format", "", "NameID format URI (defaults to SAML 1.1 persistent).")
 	createSPCmd.Flags().BoolVar(&spRequireSigned, "require-signed-authn-request", false, "Require signed AuthnRequests (forced true for --kind ghes).")
-	createSPCmd.Flags().BoolVar(&spWantSigned, "want-assertions-signed", true, "Sign assertions sent to this SP (default true).")
 	createSPCmd.Flags().BoolVar(&spIdpInitiated, "allow-idp-initiated", false, "Allow IdP-initiated (unsolicited) SSO to this SP (default false).")
 	createSPCmd.Flags().StringVar(&spACSURL, "acs-url", "", "Manual AssertionConsumerService URL (when no metadata).")
 	createSPCmd.Flags().StringVar(&spACSBinding, "acs-binding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST", "Manual ACS binding (when no metadata).")
@@ -671,7 +664,6 @@ signed AuthnRequests. Explicit flags (--entity-id, --display-name,
 		updSPDisplayName   string
 		updSPNameIDFormat  string
 		updSPRequireSigned bool
-		updSPWantSigned    bool
 		updSPIdpInitiated  bool
 		updSPSessionSecs   int64
 	)
@@ -679,9 +671,9 @@ signed AuthnRequests. Explicit flags (--entity-id, --display-name,
 		Use:   "update",
 		Short: "Update a SAML SP's policy fields (identified by --entity-id)",
 		Long: `Update the mutable policy of a registered SAML service provider:
-displayName, NameID format, require-signed-authn-request, want-assertions-signed,
-allow-idp-initiated, and optional session lifetime. ACS endpoints and signing
-certificates are not modified here.`,
+displayName, NameID format, require-signed-authn-request, allow-idp-initiated,
+and optional session lifetime. ACS endpoints and signing certificates are not
+modified here.`,
 		Run: func(cmd *cobra.Command, _ []string) {
 			ctx := context.Background()
 			if updSPEntityID == "" {
@@ -716,25 +708,22 @@ certificates are not modified here.`,
 				DisplayName:               updSPDisplayName,
 				NameIDFormat:              nameIDFormat,
 				RequireSignedAuthnRequest: updSPRequireSigned,
-				WantAssertionsSigned:      updSPWantSigned,
 				AllowIdpInitiated:         updSPIdpInitiated,
 				SessionLifetime:           sessionLifetime,
-				NameIDClaim:               sp.NameIDClaim,
 				AttributeMap:              sp.AttributeMap,
 			})
 			if err != nil {
 				log.Fatalf("saml-sp update: %v", err)
 			}
-			fmt.Printf("Updated SAML SP %q (displayName=%q, requireSigned=%t, wantSigned=%t, idpInitiated=%t)\n",
+			fmt.Printf("Updated SAML SP %q (displayName=%q, requireSigned=%t, idpInitiated=%t)\n",
 				updated.EntityID, updated.DisplayName, updated.RequireSignedAuthnRequest,
-				updated.WantAssertionsSigned, updated.AllowIdpInitiated)
+				updated.AllowIdpInitiated)
 		},
 	}
 	updateSPCmd.Flags().StringVar(&updSPEntityID, "entity-id", "", "Entity ID of the SP to update (required).")
 	updateSPCmd.Flags().StringVar(&updSPDisplayName, "display-name", "", "New display name (required).")
 	updateSPCmd.Flags().StringVar(&updSPNameIDFormat, "name-id-format", "", "NameID format URI (defaults to the existing value).")
 	updateSPCmd.Flags().BoolVar(&updSPRequireSigned, "require-signed-authn-request", false, "Require signed AuthnRequests.")
-	updateSPCmd.Flags().BoolVar(&updSPWantSigned, "want-assertions-signed", true, "Sign assertions sent to this SP.")
 	updateSPCmd.Flags().BoolVar(&updSPIdpInitiated, "allow-idp-initiated", false, "Allow IdP-initiated (unsolicited) SSO.")
 	updateSPCmd.Flags().Int64Var(&updSPSessionSecs, "session-lifetime-secs", 0, "Optional SP session lifetime in seconds (0 = server default).")
 	samlSPCmd.AddCommand(updateSPCmd)

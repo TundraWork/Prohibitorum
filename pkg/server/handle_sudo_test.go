@@ -90,6 +90,13 @@ func (f *fakeSudoQueries) UpsertPasswordCredential(_ context.Context, arg db.Ups
 	return nil
 }
 
+func (f *fakeSudoQueries) UpdatePasswordHashOnly(_ context.Context, arg db.UpdatePasswordHashOnlyParams) error {
+	if f.passwordRow != nil && f.passwordRow.AccountID == arg.AccountID {
+		f.passwordRow.Hash = arg.Hash
+	}
+	return nil
+}
+
 func (f *fakeSudoQueries) DeletePasswordCredential(_ context.Context, accountID int32) error {
 	if f.passwordRow != nil && f.passwordRow.AccountID == accountID {
 		f.passwordRow = nil
