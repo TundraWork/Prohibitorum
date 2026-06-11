@@ -1,0 +1,53 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-12-oidc-sudo-step-up.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Federation client — auth_time + step-up authorize params",
+      "status": "pending",
+      "description": "Add Tokens.AuthTime (from claims.AuthTime) and extend AuthURL with variadic options + StepUpAuthOptions (prompt=login, max_age=0).\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/client.go\",\"pkg/federation/oidc/federation_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run 'AuthURL|AuthTime' -v\",\"acceptanceCriteria\":[\"Tokens.AuthTime populated\",\"AuthURL accepts extra options\",\"StepUpAuthOptions sets prompt=login+max_age=0\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: FedState sudo flow + Federator.SudoBegin",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "FedState.SudoAccountID/ExpectedSub + SudoKey; SudoBegin validates linked+enabled identity and stashes state + forced-re-auth URL.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/state.go\",\"pkg/federation/oidc/federation.go\",\"db/queries/account_identity.sql\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run 'SudoBegin|HappyPath|LinkBegin|StashesState' -v\",\"acceptanceCriteria\":[\"FedState sudo fields + SudoKey\",\"SudoBegin binds state + forces re-auth\",\"login/link tests stay green\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Federator.SudoCallback + sudo error codes",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "SudoCallback: single-use state + browser binding + id_token verify + identity-match (sub==ExpectedSub, account match) + auth_time freshness (<=120s). New ErrSudoIdentityMismatch / ErrSudoReauthStale.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/federation.go\",\"pkg/authn/errors.go\",\"pkg/federation/oidc/federation_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ ./pkg/authn/ -run 'SudoCallback|Sudo' -v\",\"acceptanceCriteria\":[\"identity-match check\",\"auth_time freshness 120s\",\"new error codes wired\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Surface federation_oidc in sudo methods + provider list",
+      "status": "pending",
+      "description": "availableSudoMethods keeps federation_oidc; /me/sudo/methods returns federationProviders (linked + non-disabled).\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_sudo.go\",\"pkg/server/handle_sudo_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run Sudo -v\",\"acceptanceCriteria\":[\"federation_oidc surfaced\",\"federationProviders linked+enabled only\",\"empty when none\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: /me/sudo/begin federation branch + callback route",
+      "status": "pending",
+      "blockedBy": [3, 4],
+      "description": "begin{federation_oidc} returns {redirect}+fed-state cookie; GET /me/sudo/federation/callback (sessionReq) calls SudoCallback, stamps via extracted applySudoGrant, 302 to validated returnTo.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_sudo.go\",\"pkg/server/server.go\",\"pkg/server/handle_sudo_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run Sudo -v && go build ./...\",\"acceptanceCriteria\":[\"begin redirect branch\",\"callback stamps + 302\",\"failure never stamps\",\"returnTo guarded\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Frontend — OIDC re-auth option in the sudo modal",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "SudoModal renders a button per federationProvider; click posts begin{federation_oidc,slug,returnTo} then hardRedirect. New i18n + error strings; grep-verify en.ts apostrophes.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/SudoModal.vue\",\"dashboard/src/locales/en.ts\",\"dashboard/src/lib/sudo.test.ts\"],\"verifyCommand\":\"cd dashboard && npm test && npm run build\",\"acceptanceCriteria\":[\"provider buttons render\",\"click begins+hardRedirects\",\"i18n added + apostrophes verified\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Mock OP step-up + smoke arc + full gate",
+      "status": "pending",
+      "blockedBy": [5, 6],
+      "description": "Mock OP emits fresh auth_time + accepts prompt/max_age; smoke: federated user OIDC-sudo then sudo-gated add-passkey succeeds. Full gate green + dist rebuilt/committed.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/mockop/server.go\",\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"mock OP emits auth_time\",\"smoke federated-sudo arc passes\",\"full gate green + dist committed\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-12"
+}
