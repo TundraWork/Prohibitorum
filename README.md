@@ -90,15 +90,21 @@ for relying-party integration patterns.
 
 ## Development
 
+**Prerequisites:** `mise install` (toolchain) and a reachable local Postgres.
+The dashboard's npm dependencies are installed automatically on the first
+`mise dev-server` / `mise build` / `mise web` (each runs `npm ci` when
+`dashboard/node_modules` is missing) — no separate install step.
+
 The `mise dev-*` tasks give you a self-contained loop with no manual env setup.
 They source `scripts/dev-env.sh`, which:
 
 - generates a stable data-encryption key once into `.dev/encryption-key` (gitignored),
 - points at a dedicated **`prohibitorum_dev`** database, isolated from the smoke's
-  `postgres` DB, and auto-creates it when `psql` is available. The default URL is
-  `postgres://tundra@localhost:55432/prohibitorum_dev?sslmode=disable` — override
-  `PROHIBITORUM_DATABASE_URL` (and `PROHIBITORUM_PUBLIC_ORIGIN`) to use a different
-  cluster, in which case DB auto-create is skipped.
+  `postgres` DB, and auto-creates it when `psql` is available. The connection
+  honors libpq's `PGUSER` / `PGHOST` / `PGPORT`, defaulting to
+  `postgres://$USER@localhost:5432/prohibitorum_dev?sslmode=disable`. Point at a
+  different cluster by setting `PGPORT` etc., or set `PROHIBITORUM_DATABASE_URL`
+  directly (which also skips the auto-create — use an existing, migratable DB).
 
 ```bash
 # Terminal 1 — build the SPA, run the embedded server on :8080, auto-migrate.
@@ -155,7 +161,7 @@ Run as `mise <task>` (or `mise run <task>`). Tasks marked **dev** source
 |------|--------------|
 | `mise install` | Install the pinned toolchain (go 1.26, node 24, pnpm 10, sqlc 1.30.0, goose 3.27.0). |
 | `mise server` | Run the Go server (`go run ./cmd/prohibitorum/main.go`) using your current env. |
-| `mise web` | Dashboard dev server with hot reload (`pnpm --dir dashboard dev`). |
+| `mise web` | Dashboard dev server with hot reload (`npm run dev`; installs deps on first run). |
 | `mise frontend-build` | Install + build the SPA into `dashboard/dist` (`npm ci && npm run build`). |
 | `mise build` | Build the SPA into `pkg/webui/dist`, then compile the `./prohibitorum` binary (which embeds it). |
 | `mise openapi` | Regenerate `openapi.yaml` from the running humacli. |

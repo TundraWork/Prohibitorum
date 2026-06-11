@@ -6,12 +6,20 @@ sqlc = "1.30.0"
 "aqua:pressly/goose" = "3.27.0"
 
 [tasks.server]
-description = "Run the Go server"
-run = "go run ./cmd/prohibitorum/main.go"
+description = "Run the Go server (serves the committed embedded SPA; no npm needed)."
+# Build the whole package, not just main.go — addDevSeedCmd etc. live in
+# sibling files (cmd/prohibitorum/dev_seed.go). `go run .../main.go` compiles
+# only that one file and fails with "undefined: addDevSeedCmd".
+run = "go run ./cmd/prohibitorum"
 
 [tasks.web]
-description = "Run the dashboard dev server"
-run = "pnpm --dir dashboard dev"
+description = "Run the dashboard dev server (hot reload). Installs npm deps on first run."
+run = """
+set -e
+cd dashboard
+[ -d node_modules ] || npm ci
+exec npm run dev
+"""
 
 [tasks.frontend-build]
 description = "Install + build the dashboard SPA into dashboard/dist"
@@ -19,7 +27,7 @@ run = "cd dashboard && npm ci && npm run build"
 
 [tasks.openapi]
 description = "Regenerate openapi.yaml from the running humacli"
-run = "go run ./cmd/prohibitorum/main.go openapi > openapi.yaml"
+run = "go run ./cmd/prohibitorum openapi > openapi.yaml"
 
 [tasks."db:up"]
 description = "Apply DB migrations"
@@ -33,7 +41,10 @@ run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" status
 description = "Build the SPA into pkg/webui/dist, then compile the ./prohibitorum binary (which embeds the dist). Run it directly, e.g. with the dev env: `. ./scripts/dev-env.sh && ./prohibitorum`."
 run = """
 set -e
-cd dashboard && npm run build && cd ..
+cd dashboard
+[ -d node_modules ] || npm ci
+npm run build
+cd ..
 go build -o prohibitorum ./cmd/prohibitorum
 echo "built ./prohibitorum"
 """
@@ -43,7 +54,10 @@ description = "Build the SPA into pkg/webui/dist, then run the embedded server a
 run = """
 set -e
 . ./scripts/dev-env.sh
-cd dashboard && npm run build && cd ..
+cd dashboard
+[ -d node_modules ] || npm ci
+npm run build
+cd ..
 exec go run ./cmd/prohibitorum
 """
 
