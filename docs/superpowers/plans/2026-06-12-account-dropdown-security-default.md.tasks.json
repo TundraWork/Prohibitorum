@@ -1,0 +1,52 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-12-account-dropdown-security-default.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Vendor DropdownMenu primitive",
+      "status": "pending",
+      "description": "**Goal:** Add ui/dropdown-menu/ Reka wrappers so NavUser can use the shadcn account-menu pattern.\n\n**Files:** Create dashboard/src/components/ui/dropdown-menu/{DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,DropdownMenuItem,DropdownMenuLabel,DropdownMenuSeparator,DropdownMenuGroup}.vue + index.ts\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/ui/dropdown-menu/index.ts\"],\"verifyCommand\":\"cd dashboard && npx vue-tsc -b\",\"acceptanceCriteria\":[\"seven wrappers + barrel compile\",\"vue-tsc -b 0 errors\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: UserAvatar component",
+      "status": "pending",
+      "description": "**Goal:** Reusable initials avatar (displayName → username → generic icon). TDD.\n\n**Files:** Create dashboard/src/components/custom/UserAvatar.vue + UserAvatar.test.ts\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/UserAvatar.vue\",\"dashboard/src/components/custom/UserAvatar.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/UserAvatar.test.ts\",\"acceptanceCriteria\":[\"two-word→AS\",\"one-word→AL\",\"blank→username initials\",\"both empty→icon, no text\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: EditDisplayNameDialog + accountMenu i18n",
+      "status": "pending",
+      "description": "**Goal:** Dialog editing displayName via PUT /me, mirroring server validation, inline error. Add accountMenu i18n keys. TDD.\n\n**Files:** Create dashboard/src/components/custom/EditDisplayNameDialog.vue + .test.ts; Modify dashboard/src/locales/en.ts (add accountMenu, additive). Grep apostrophes after edit.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/EditDisplayNameDialog.vue\",\"dashboard/src/components/custom/EditDisplayNameDialog.test.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/EditDisplayNameDialog.test.ts\",\"acceptanceCriteria\":[\"prefills current name\",\"Save disabled unchanged/empty/>128\",\"Save PUT /me + patch store from response + close\",\"invalid_display_name keeps open + mapped msg + preserves input\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: NavUser sidebar account control",
+      "status": "pending",
+      "blockedBy": [1, 2, 3],
+      "description": "**Goal:** Footer dropdown: identity header, Edit (opens dialog on nextTick), Sign out (→/logout); skeleton while loading; sibling edit dialog. defineExpose({openEdit,signOut,editOpen}). TDD.\n\n**Files:** Create dashboard/src/components/custom/NavUser.vue + .test.ts\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/NavUser.vue\",\"dashboard/src/components/custom/NavUser.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/NavUser.test.ts\",\"acceptanceCriteria\":[\"skeleton when me null; trigger w/ name+role+initials when loaded\",\"signOut→/logout\",\"openEdit opens dialog after nextTick\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Wire AppSidebar to NavUser; drop Profile nav item",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Footer → <NavUser/>; remove Profile nav link + unused User/LogOut imports; remove nav.profile; update AppSidebar.test.\n\n**Files:** Modify dashboard/src/components/custom/AppSidebar.vue + AppSidebar.test.ts + dashboard/src/locales/en.ts. Grep apostrophes.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/AppSidebar.vue\",\"dashboard/src/components/custom/AppSidebar.test.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/AppSidebar.test.ts\",\"acceptanceCriteria\":[\"no / Profile link; Security first\",\"footer renders NavUser trigger; no /logout anchor\",\"AppSidebar.test passes\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Default to /security; remove Profile page",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** Redirect / → security; delete ProfileView + test; prune profile i18n block.\n\n**Files:** Modify dashboard/src/router/index.ts + dashboard/src/locales/en.ts; Delete dashboard/src/pages/ProfileView.vue + ProfileView.test.ts. Grep apostrophes.\n\n```json:metadata\n{\"files\":[\"dashboard/src/router/index.ts\",\"dashboard/src/locales/en.ts\",\"dashboard/src/pages/ProfileView.vue\",\"dashboard/src/pages/ProfileView.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vue-tsc -b && npx vitest run\",\"acceptanceCriteria\":[\"/ redirects to security route; no ProfileView refs\",\"profile i18n block removed; vue-tsc -b 0 errors\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Done-gate — verify, rebuild + commit dist",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Full FE+Go+smoke green, rebuild embedded SPA, live-verify click-paths, commit dist.\n\n**Files:** pkg/webui/dist/** (regenerated by vite build)\n\n```json:metadata\n{\"files\":[\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npm run test && npm run build && cd .. && go build ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"vitest green; vue-tsc -b 0\",\"go build/vet/test 0\",\"SMOKE_EXIT=0\",\"dist rebuilt+committed\",\"live: dropdown/edit/signout/'/'→security work\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-12"
+}
