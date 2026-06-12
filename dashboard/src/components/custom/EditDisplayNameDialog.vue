@@ -5,7 +5,7 @@
  * the disabled state; the server stays the source of truth and its error
  * surfaces inline. Sudo-free (PUT /me self-edit).
  */
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -27,10 +27,17 @@ const auth = useAuthStore()
 const { busy, error, run } = useApi()
 
 const draft = ref('')
+const inputRef = ref<{ $el?: HTMLElement }>()
 
-// Reset the draft to the current value each time the dialog opens - no stale carry-over.
+// Reset the draft to the current value each time the dialog opens - no stale
+// carry-over - and focus the input (layered on top of reka's focus trap, as
+// ConfirmDialog does) so the user can start typing immediately.
 watch(() => props.open, (o) => {
-  if (o) { draft.value = auth.me?.displayName ?? ''; error.value = null }
+  if (o) {
+    draft.value = auth.me?.displayName ?? ''
+    error.value = null
+    void nextTick(() => inputRef.value?.$el?.focus())
+  }
 }, { immediate: true })
 
 const hasControlChar = (s: string) =>
@@ -76,13 +83,15 @@ async function save(): Promise<void> {
           <Label for="edit-displayName">{{ t('accountMenu.displayNameLabel') }}</Label>
           <Input
             id="edit-displayName"
+            ref="inputRef"
             v-model="draft"
             data-test="edit-displayname-input"
             :maxlength="128"
-            autofocus
+            :aria-invalid="errorText ? true : undefined"
+            :aria-describedby="errorText ? 'edit-displayName-error' : undefined"
           />
         </div>
-        <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
+        <Alert v-if="errorText" id="edit-displayName-error" variant="destructive" aria-live="polite">
           <AlertDescription>{{ errorText }}</AlertDescription>
         </Alert>
         <DialogFooter class="gap-2">
