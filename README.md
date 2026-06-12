@@ -20,41 +20,34 @@ single `./prohibitorum` process serves the whole IdP plus its admin UI.
 
 ## Status
 
-The full IdP is live and smoke-verified end-to-end. Done and planned (no fixed
-schedule):
+The full IdP is live, smoke-verified end-to-end, and security-audited. Done and
+planned:
 
 **Authentication**
-- [x] WebAuthn passkeys — enrollment + login
-- [x] Password + TOTP fallback — recovery codes + forced re-enrollment ceremony
-- [x] Sudo step-up — WebAuthn, password+TOTP, and federated OIDC re-auth
-- [x] Upstream OIDC federation — auto-provision / link-only / invite-only
-- [ ] Password breach-list check on set (HIBP k-anonymity / blocklist)
+- [x] WebAuthn passkey sign-in
+- [x] Password + TOTP sign-in (fallback)
+- [x] Upstream OIDC federation (sign in with an external provider)
+- [x] Step-up re-authentication for sensitive actions
 
 **Downstream protocols**
-- [x] OIDC OP — Authorization Code + PKCE, RFC 9068 access tokens, refresh rotation + reuse detection, introspection, revocation
-- [x] RP-Initiated Logout; forced re-auth (`prompt=login` / `max_age`)
-- [x] SAML 2.0 IdP — SP- and IdP-initiated SSO, IdP-local SLO, signed metadata, GHES profile
-- [ ] Coordinated sign-out — OIDC front-/back-channel + SAML multi-SP SLO
+- [x] OIDC provider for apps
+- [x] SAML 2.0 identity provider (GHES-compatible)
+- [ ] Coordinated single sign-out across apps
 
-**Dashboard & UX**
-- [x] Admin console — accounts, invitations, OIDC clients, SAML SPs, upstream IdPs, signing keys, audit log
-- [x] End-user area — passkeys, password/TOTP, active sessions, connected accounts, device pairing
-- [ ] Logged-in landing is a launchpad of the user's linked apps — one click into each
-- [ ] Users can manage their own linked apps (review / revoke access)
-- [ ] Profile moves into a popover under the corner username + logout
-- [ ] Security becomes the default view inside the account dashboard
-- [ ] RBAC — per-provider (up/downstream) management of authorized users
+**Dashboard**
+- [x] Admin console — accounts, apps, providers, signing keys, audit log
+- [x] End-user self-service — credentials, sessions, devices, linked accounts
+- [ ] End-user app launchpad — launch authorized apps and self-manage access
+- [ ] RBAC — control which users each app is authorized for
 
-**Operations & hardening**
-- [x] Signing keys sealed at rest (AES-256-GCM, versioned DEK)
-- [x] HTTP security headers from the embedded SPA (CSP, X-Frame-Options, X-Content-Type-Options)
-- [x] Pre-ship logic-correctness / security-invariant audit of the auth cores
-- [ ] HSM/KMS-backed signing (key never leaves the vault)
-- [ ] Audit-log export / SIEM
+**Keys & operations**
+- [x] Signing-key lifecycle — rotation, grace windows, sealed at rest
+- [ ] KMS/HSM-backed signing
+- [ ] Audit-log export to SIEM
 
 Conditional / on-demand extras (DPoP, PAR, mTLS, SAML assertion encryption,
-pairwise `sub`) and explicit non-goals are tracked in `AUDIT.md` and
-`ARCHITECTURE.md`.
+pairwise `sub`), smaller hardening items, and explicit non-goals are tracked in
+`AUDIT.md` and `ARCHITECTURE.md`.
 
 ## Quickstart (production-style)
 
