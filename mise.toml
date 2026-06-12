@@ -4,6 +4,9 @@ node = "24"
 pnpm = "10"
 sqlc = "1.30.0"
 "aqua:pressly/goose" = "3.27.0"
+# The Postgres SERVER runs in a container (see compose.yaml); this pin is only
+# for the psql / pg_isready CLIENT used by the end-to-end smoke (cmd/smoke).
+postgres = "18.4"
 
 [tasks.server]
 description = "Run the Go server (serves the committed embedded SPA; no npm needed)."
@@ -30,12 +33,12 @@ description = "Regenerate openapi.yaml from the running humacli"
 run = "go run ./cmd/prohibitorum openapi > openapi.yaml"
 
 [tasks."db:up"]
-description = "Apply DB migrations"
-run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" up"
+description = "Apply DB migrations to the dev database (override by exporting PROHIBITORUM_DATABASE_URL)."
+run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITORUM_DATABASE_URL\" up"
 
 [tasks."db:status"]
-description = "Show migration status"
-run = "goose -dir db/migrations postgres \"${PROHIBITORUM_DATABASE_URL}\" status"
+description = "Show migration status for the dev database (override by exporting PROHIBITORUM_DATABASE_URL)."
+run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITORUM_DATABASE_URL\" status"
 
 [tasks.build]
 description = "Build the SPA into pkg/webui/dist, then compile the ./prohibitorum binary (which embeds the dist). Run it directly, e.g. with the dev env: `. ./scripts/dev-env.sh && ./prohibitorum`."
@@ -50,7 +53,7 @@ echo "built ./prohibitorum"
 """
 
 [tasks.dev-server]
-description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults (see scripts/dev-env.sh): a dedicated, auto-created 'prohibitorum_dev' DB isolated from the smoke's 'postgres' DB, and a stable .dev/encryption-key. The server auto-migrates on boot. Bootstrap an admin with `mise enroll-admin` in another shell."
+description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults (see scripts/dev-env.sh): the prohibitorum_dev database from `podman compose up -d` and a stable .dev/encryption-key. The server auto-migrates on boot. Bootstrap an admin with `mise enroll-admin -- --new` in another shell."
 run = """
 set -e
 . ./scripts/dev-env.sh

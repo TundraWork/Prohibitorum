@@ -93,32 +93,45 @@ for relying-party integration patterns.
 
 ## Development
 
-**Prerequisites:** `mise install` (toolchain) and a reachable local Postgres.
-The dashboard's npm dependencies install automatically on the first
-`mise dev-server` / `mise build` / `mise web`.
+**Prerequisites:** [`mise`](https://mise.jdx.dev) and [Podman](https://podman.io)
+(for the dev database). `mise install` provides the rest of the toolchain — Go,
+Node, pnpm, sqlc, goose, and the `psql` client. The dashboard's npm dependencies
+install automatically on the first `mise dev-server` / `mise build` / `mise web`.
 
-The `mise dev-*` tasks give you a self-contained loop with no manual env setup.
-They source `scripts/dev-env.sh`, which:
+### How it runs
 
-- generates a stable data-encryption key once into `.dev/encryption-key` (gitignored),
-- points at a dedicated **`prohibitorum_dev`** database, isolated from the smoke's
-  `postgres` DB, and auto-creates it when `psql` is available. The connection
-  honors libpq's `PGUSER` / `PGHOST` / `PGPORT`, defaulting to
-  `postgres://$USER@localhost:5432/prohibitorum_dev?sslmode=disable`. Point at a
-  different cluster by setting `PGPORT` etc., or set `PROHIBITORUM_DATABASE_URL`
-  directly (which also skips the auto-create — use an existing, migratable DB).
+`./prohibitorum` is a **single Go binary**. It needs three things: a **Postgres**
+database (`PROHIBITORUM_DATABASE_URL`), a **data-encryption key**
+(`PROHIBITORUM_DATA_ENCRYPTION_KEY_V1` — boot fails without it), and a **KV** store
+(Redis, or the default in-process `memory` driver). On boot it **auto-migrates**
+the database, then listens on **`:8080`** and serves the upstream-auth API, the
+OIDC OP, the SAML IdP, and the embedded dashboard SPA (baked in via `go:embed`) —
+all on that one origin. `go run ./cmd/prohibitorum` is the same binary without
+compiling first.
+
+The dev database runs in a container (`compose.yaml`); everything else runs on the
+host via `mise`.
+
+### Run it locally
 
 ```bash
-# Terminal 1 — build the SPA, run the embedded server on :8080, auto-migrate.
-mise dev-server
+mise install                  # toolchain: Go, Node, pnpm, sqlc, goose, psql client
+podman compose up -d          # Postgres on localhost:5432 (named volume; see compose.yaml)
+mise dev-server               # build the SPA + run the server on :8080 (auto-migrates)
+mise enroll-admin -- --new    # prints an /enroll/<token> URL — open it to register a passkey
+# then open http://localhost:8080
+```
 
-# Terminal 2 — bootstrap an admin against the same dev DB/key. Prints an
-# /enroll/<token> URL; open it to register a passkey and sign in.
-mise enroll-admin -- --new
+The `mise dev-server` / `enroll-admin` / `dev-seed` tasks source
+`scripts/dev-env.sh`, which generates a stable `.dev/encryption-key` (gitignored)
+and points `PROHIBITORUM_DATABASE_URL` at the compose database
+(`postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_dev`). Export
+that variable yourself to target a different database.
 
-# Optional — seed example providers/accounts/invitations so data-driven
-# dashboard elements render (idempotent; refuses to run off-loopback).
-mise dev-seed
+```bash
+mise dev-seed                 # optional: seed example providers/accounts/invitations
+podman compose down           # stop the database (data persists in the volume)
+podman compose down -v        # stop and wipe the database
 ```
 
 **Frontend.** `dashboard/` is a Vue 3 + Vite + Tailwind v4 + shadcn-vue/Reka UI
@@ -141,13 +154,15 @@ cd dashboard && npm run build                     # FE typecheck (vue-tsc -b) + 
 ```
 
 **End-to-end smoke** (`cmd/smoke`) drives a real server over HTTP and bootstraps
-its own admin. Point a server at a throwaway DB and run it against that origin.
-Because the smoke's federation arc runs an in-process mock OP on loopback, the
-server must opt the outbound federation client out of the SSRF dial-screen:
+its own admin. It runs against the compose Postgres, using the throwaway
+`postgres` maintenance database (isolated from `prohibitorum_dev`). Because the
+smoke's federation arc runs an in-process mock OP on loopback, the server must
+opt the outbound federation client out of the SSRF dial-screen:
 
 ```bash
-export PROHIBITORUM_DATABASE_URL="postgres://tundra@localhost:55432/postgres?sslmode=disable"
-export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(cat .dev/encryption-key)"
+podman compose up -d                                          # if not already running
+export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/postgres?sslmode=disable"
+export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
 export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"   # in-process mock OP is on loopback
 go run ./cmd/prohibitorum &                                   # auto-migrates on boot
@@ -156,20 +171,22 @@ go run ./cmd/smoke --base-url http://localhost:8080
 
 ## mise tasks
 
-Run as `mise <task>` (or `mise run <task>`). Tasks marked **dev** source
-`scripts/dev-env.sh` and target the loopback `prohibitorum_dev` DB.
+Run as `mise <task>` (or `mise run <task>`). The dev database is **not** a mise
+task — start it with `podman compose up -d` (see `compose.yaml`). Tasks marked
+**dev** source `scripts/dev-env.sh` and target the `prohibitorum_dev` database it
+provides (override by exporting `PROHIBITORUM_DATABASE_URL`).
 
 | Task | What it does |
 |------|--------------|
-| `mise install` | Install the pinned toolchain (go 1.26, node 24, pnpm 10, sqlc 1.30.0, goose 3.27.0). |
-| `mise server` | Run the Go server (`go run ./cmd/prohibitorum/main.go`) using your current env. |
+| `mise install` | Install the pinned toolchain (go 1.26, node 24, pnpm 10, sqlc 1.30.0, goose 3.27.0, and the `psql` client). |
+| `mise server` | Run the Go server (`go run ./cmd/prohibitorum`) using your current env. |
 | `mise web` | Dashboard dev server with hot reload (`npm run dev`; installs deps on first run). |
 | `mise frontend-build` | Install + build the SPA into `dashboard/dist` (`npm ci && npm run build`). |
 | `mise build` | Build the SPA into `pkg/webui/dist`, then compile the `./prohibitorum` binary (which embeds it). |
 | `mise openapi` | Regenerate `openapi.yaml` from the running humacli. |
-| `mise db:up` | Apply goose migrations against `$PROHIBITORUM_DATABASE_URL`. |
-| `mise db:status` | Show migration status. |
-| `mise dev-server` | **dev** — build the SPA + run the embedded server on `:8080` with dev defaults (auto-created `prohibitorum_dev` DB + stable `.dev/encryption-key`). Auto-migrates on boot. |
+| `mise db:up` | **dev** — apply goose migrations to `prohibitorum_dev` (or to `$PROHIBITORUM_DATABASE_URL` if you export one). |
+| `mise db:status` | **dev** — show migration status for the dev database. |
+| `mise dev-server` | **dev** — build the SPA + run the embedded server on `:8080` against the compose `prohibitorum_dev` DB + stable `.dev/encryption-key`. Auto-migrates on boot. |
 | `mise enroll-admin [-- FLAGS]` | **dev** — issue an admin enrollment URL against the dev DB. Pass flags after `--`, e.g. `-- --new` or `-- --reset --username alice`. |
 | `mise dev-seed` | **dev** — seed `prohibitorum_dev` with example providers/accounts/invitations (idempotent, loopback-only). |
 

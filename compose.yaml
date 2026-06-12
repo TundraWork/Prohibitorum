@@ -1,0 +1,30 @@
+# Local development dependencies for Prohibitorum.
+#
+#   podman compose up -d        # start Postgres on localhost:5432
+#   podman compose down         # stop (keeps data in the named volume)
+#   podman compose down -v      # stop and wipe the database
+#
+# Postgres only: the dev KV defaults to the in-process "memory" driver
+# (configx: kv.driver=memory), so no Redis container is needed locally.
+services:
+  db:
+    image: docker.io/library/postgres:18
+    environment:
+      POSTGRES_USER: prohibitorum
+      POSTGRES_PASSWORD: prohibitorum
+      POSTGRES_DB: prohibitorum_dev
+      # Keep PGDATA in a subdirectory of the mount (official-image recommendation
+      # when persisting to a volume).
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - prohibitorum_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prohibitorum -d prohibitorum_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  prohibitorum_pgdata:
