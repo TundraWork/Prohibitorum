@@ -35,6 +35,14 @@ export default {
     signOut: 'Sign out',
   },
 
+  accountMenu: {
+    trigger: 'Account menu',
+    editName: 'Edit display name',
+    editTitle: 'Edit display name',
+    editDescription: 'This name is shown across your account.',
+    displayNameLabel: 'Display name',
+  },
+
   profile: {
     title: 'Profile',
     username: 'Username',
