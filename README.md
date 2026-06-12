@@ -20,26 +20,41 @@ single `./prohibitorum` process serves the whole IdP plus its admin UI.
 
 ## Status
 
-v0.6 shipped — the full IdP is live and smoke-verified end-to-end against a live
-dev server, and a pre-ship logic-correctness / security-invariant audit of the
-auth-critical cores has been completed and remediated.
+The full IdP is live and smoke-verified end-to-end. Done and planned (no fixed
+schedule):
 
-- **v0.1 / v0.2** — WebAuthn enrollment/login + `/me` + sessions; Password +
-  TOTP + recovery codes; sudo step-up.
-- **v0.3** — upstream OIDC federation (`auto_provision` / `link_only` /
-  `invite_only`).
-- **v0.4** — downstream OIDC OP (Authorization Code + PKCE, RFC 9068 access
-  tokens, refresh rotation + reuse detection, introspection, revocation,
-  RP-Initiated Logout).
-- **v0.5** — SAML 2.0 IdP (SP-initiated SSO + IdP-local SLO + metadata),
-  GHES-compatible profile.
-- **v0.6** — forced re-auth (`prompt=login` / `max_age` / `ForceAuthn`),
-  `NameIDPolicy/@Format`, POST-binding AuthnRequest, signed SAML metadata,
-  IdP-initiated SSO, and the admin + end-user dashboard.
+**Authentication**
+- [x] WebAuthn passkeys — enrollment + login
+- [x] Password + TOTP fallback — recovery codes + forced re-enrollment ceremony
+- [x] Sudo step-up — WebAuthn, password+TOTP, and federated OIDC re-auth
+- [x] Upstream OIDC federation — auto-provision / link-only / invite-only
+- [ ] Password breach-list check on set (HIBP k-anonymity / blocklist)
 
-Still ahead: v0.7+ hardening (HSM/KMS-backed signing, front-channel SLO,
-DPoP/PAR, SIEM export). See `STATUS.md` for the roadmap and `AUDIT.md` for
-the spec-compliance checklist.
+**Downstream protocols**
+- [x] OIDC OP — Authorization Code + PKCE, RFC 9068 access tokens, refresh rotation + reuse detection, introspection, revocation
+- [x] RP-Initiated Logout; forced re-auth (`prompt=login` / `max_age`)
+- [x] SAML 2.0 IdP — SP- and IdP-initiated SSO, IdP-local SLO, signed metadata, GHES profile
+- [ ] Coordinated sign-out — OIDC front-/back-channel + SAML multi-SP SLO
+
+**Dashboard & UX**
+- [x] Admin console — accounts, invitations, OIDC clients, SAML SPs, upstream IdPs, signing keys, audit log
+- [x] End-user area — passkeys, password/TOTP, active sessions, connected accounts, device pairing
+- [ ] Logged-in landing is a launchpad of the user's linked apps — one click into each
+- [ ] Users can manage their own linked apps (review / revoke access)
+- [ ] Profile moves into a popover under the corner username + logout
+- [ ] Security becomes the default view inside the account dashboard
+- [ ] RBAC — per-provider (up/downstream) management of authorized users
+
+**Operations & hardening**
+- [x] Signing keys sealed at rest (AES-256-GCM, versioned DEK)
+- [x] HTTP security headers from the embedded SPA (CSP, X-Frame-Options, X-Content-Type-Options)
+- [x] Pre-ship logic-correctness / security-invariant audit of the auth cores
+- [ ] HSM/KMS-backed signing (key never leaves the vault)
+- [ ] Audit-log export / SIEM
+
+Conditional / on-demand extras (DPoP, PAR, mTLS, SAML assertion encryption,
+pairwise `sub`) and explicit non-goals are tracked in `AUDIT.md` and
+`ARCHITECTURE.md`.
 
 ## Quickstart (production-style)
 

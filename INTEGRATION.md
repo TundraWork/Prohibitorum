@@ -1111,8 +1111,8 @@ or password+TOTP first.
   refresh token. Federated users re-authenticate by hitting `/login`
   again. There is no `/me/identities/{id}/refresh-profile` endpoint.
 - **Upstream sign-out propagation.** Logging out of Prohibitorum does
-  not log the user out of the upstream OP. Back-channel logout is a
-  v0.7+ item.
+  not log the user out of the upstream OP. Back-channel logout is not
+  implemented (unscheduled).
 
 Custom claim-name overrides (`username_claim` / `display_name_claim`
 / `email_claim` on `upstream_idp`) are honored end-to-end. Defaults are
@@ -1335,8 +1335,8 @@ hint's `sid` claim** — so the user's IdP session is gone. The
 `post_logout_redirect_uri` must
 exactly match one of the client's registered
 `post_logout_redirect_uris`, or the request is rejected directly
-(no redirect). Front-/back-channel logout to *other* RPs is a v0.7+
-item.
+(no redirect). Front-/back-channel logout to *other* RPs is not
+implemented (unscheduled).
 
 ### Rate limits (per identity, not per IP)
 
@@ -1385,7 +1385,7 @@ Two coordinated paths:
    `/saml/slo` revokes the bound Prohibitorum session and returns a signed
    `LogoutResponse`. This is **IdP-local** logout — it
    does NOT propagate a front-channel logout to the user's other SPs
-   (coordinated multi-SP sign-out is a v0.7+ item). See Pattern C →
+   (coordinated multi-SP sign-out is unbuilt). See Pattern C →
    "Single Logout (SLO)" above for the full flow.
 
 ## What Prohibitorum does NOT do for you

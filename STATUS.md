@@ -1,7 +1,7 @@
 # Status — what's done, what's pending
 
 Prohibitorum's roadmap, with v0.1 (this commit) as the rescope + decoupling
-skeleton and v0.1.1 through v0.7+ ahead.
+skeleton and v0.1.1 onward.
 
 ## v0.1 (current commit) — rescope + decoupling
 
@@ -1030,7 +1030,8 @@ do not fire:
   model).
 - **D6 — `sub` = `account.oidc_subject`** (uuid, DB-side
   `gen_random_uuid()` default; no account-creation path changed).
-  Pairwise `sub` salting stays deferred to v0.7+.
+  Pairwise `sub` salting stays deferred (conditional — only if RP
+  correlation-resistance is ever required).
 - **D8 — Storage split.** Codes + refresh tokens in KV; access + ID
   tokens stateless JWTs; access-token revocation via the `revoked_jti`
   PG denylist. The refresh-family forensics table is deferred (KV-only
@@ -1572,18 +1573,26 @@ See `api.md` for the authoritative route table. Summary:
   the legacy `signing_key` columns (`active`/`not_before`/`retired_at`) and
   the plaintext `private_pem` — signing keys are sealed-only.
 
-## v0.7+ — Hardening
+## Optional hardening & known gaps (unscheduled)
 
-- KMS-backed signing keys (AWS KMS / GCP KMS / Vault Transit adapter).
-- Signing-key rotation UX (admin button + scheduled rotation job).
-- Audit-log export to SIEM (kafka / file / stdout structured).
-- Admin UI polish for clients / SPs / IdPs.
-- Pairwise sub identifiers (RFC 9068 + OIDC Core §8.1).
-- DPoP / PAR / JAR (only when a low-trust client demands them).
-- Front-channel / back-channel logout for coordinated SSO sign-out.
-- Conditional UI (passkey autofill) for username-first flows.
-- Content Security Policy, HSTS, X-Frame-Options headers from the
-  static handler (currently reverse-proxy responsibility).
+The full IdP shipped through v0.6. What remains is not a milestone — it is
+optional production hardening, a compliance gap, and demand-driven features.
+None is scheduled; pick up if/when a deployment needs it.
+
+- **HSM/KMS-backed signing.** Signing keys are DEK-sealed at rest; moving to
+  AWS KMS / GCP KMS / Vault Transit (key never leaves the vault) would
+  additionally defend a combined DB + environment compromise.
+- **Password breach-list check.** NIST SP 800-63B-4 §5.1.1.2 SHALL gap for
+  the password fallback (HIBP k-anonymity or a static blocklist).
+- **Front-/back-channel logout.** OIDC and SAML sign-out are IdP-local only;
+  coordinated multi-RP/SP sign-out is unbuilt.
+- **Audit-log export / SIEM.** The append-only `credential_event` table is
+  the only sink today.
+
+Conditional on external demand (tracked in `AUDIT.md`, not planned work):
+DPoP / PAR / JAR / mTLS (low-trust clients), SAML assertion/NameID encryption
+(SP demand), pairwise `sub`. Permanent non-goals: dynamic client registration
+and upstream refresh-token storage (see `ARCHITECTURE.md` → Out of scope).
 
 ## Why ship the rescope as a skeleton
 

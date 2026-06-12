@@ -500,8 +500,8 @@ for the version-by-version delivery plan.
 - Dynamic OIDC client registration (RFC 7591)
 - Consent screen (first-party deployment assumption)
 - DPoP / PAR / JAR / mTLS / Pairwise sub
-- HSM / KMS-backed signing keys (deferred to v0.7+)
+- HSM / KMS-backed signing keys (optional production hardening; unscheduled)
 - Authorization policy engine (RPs enforce; we just supply claims)
-- Audit-log export / SIEM integration (deferred to v0.7+)
+- Audit-log export / SIEM integration (unscheduled)
 
 Each is a clean future addition without breaking the v0.x surface.

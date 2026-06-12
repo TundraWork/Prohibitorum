@@ -57,7 +57,7 @@ tiers are documented as known caveats in
 - In-process rate limiter (multi-replica multiplier — operator
   mitigation via LB affinity or external WAF).
 - AES-GCM DEK rotation budget (comfortably out of reach for any
-  realistic deployment; sweep tooling is v0.7+).
+  realistic deployment; a batch sweep tool is unscheduled).
 - OIDC `auth_time` vs sudo semantics (resolved in v0.4: the ID token's
   `auth_time` is sourced from `session.auth_time` — the original
   authentication moment — not from the last sudo step-up; smoke step 73
@@ -82,7 +82,7 @@ tiers are documented as known caveats in
 | `cose_alg` persisted | ✅ | credentials/R1; `webauthn_credential.cose_alg`; extracted from the COSE_Key CBOR by `pkg/credential/webauthn.COSEAlg`; smoke-verified at both insert sites (`handle_enrollment.go:531` initial enrollment, `handle_me.go:201` add-second-passkey) |
 | `uv_initialized` persisted (L3 §4) | ✅ | credentials/C5; `webauthn_credential.uv_initialized` |
 | `backup_eligible` / `backup_state` persisted | ✅ | `webauthn_credential.backup_eligible/state` |
-| Full attestation-object retention for MDS3 validation | ⚠️ deferred (v0.7+) | credentials/Optional |
+| Full attestation-object retention for MDS3 validation | ⚠️ deferred (unscheduled) | credentials/Optional |
 | `created_via` provenance (registration / add / recovery) | ⚠️ deferred (v0.2) | credentials/Optional |
 
 ## Password (NIST SP 800-63B-4 draft)
@@ -224,20 +224,20 @@ tiers are documented as known caveats in
 | Token introspection (RFC 7662) — `active`, `sub`, `scope`, `client_id`, `exp` | ✅ smoke-verified | oidc/R6; `/oauth/introspect` client-authenticated, per-client ownership; step 75 (`active:true` + `token_type:access_token` + `client_id` + `sub`) and step 80 (revoked token → `active:false`) |
 | Introspection requires a confidential client; public clients rejected | ✅ smoke-verified (v0.6, smoke 104) | v0.6 D7; RFC 7662 §2.1 — a public (`none`-auth) client calling `/oauth/introspect` → `invalid_client` (401). **Behavior change** from v0.4 (which allowed public-client introspection of own tokens). Smoke step 104: public introspect → 401, confidential introspect of own token → `active:true`, public `/oauth/revoke` of own token → 200 (RFC 7009 unchanged) |
 | Token revocation (RFC 7009) | ✅ smoke-verified | `/oauth/revoke` client-authenticated, per-client ownership, always 200; access → `revoked_jti` denylist (step 80 + DB assert step 86), refresh → family revoke (step 79); outstanding access tokens self-expire ≤ `AccessTokenTTL` |
-| Pushed Authorization Requests (PAR, RFC 9126) | ⚠️ deferred (v0.7+) | not required for v1 first-party clients |
-| JAR (RFC 9101) | ⚠️ deferred (v0.7+) | same |
-| DPoP (RFC 9449) sender-constrained tokens | ⚠️ deferred (v0.7+) | bearer for v1 |
-| mTLS (RFC 8705) | ⚠️ deferred (v0.7+) | bearer for v1 |
-| Dynamic client registration (RFC 7591) | ⚠️ deferred (v0.7+) | static config in v0.x |
-| Pairwise sub identifiers | ⚠️ deferred (v0.7+) | `subject_type='pairwise'` column reserved |
+| Pushed Authorization Requests (PAR, RFC 9126) | ⚠️ conditional | not needed for first-party clients; add only if a low-trust client requires it |
+| JAR (RFC 9101) | ⚠️ conditional | same |
+| DPoP (RFC 9449) sender-constrained tokens | ⚠️ conditional | bearer is fine for first-party; add for a low-trust client |
+| mTLS (RFC 8705) | ⚠️ conditional | bearer is fine for first-party; add for a low-trust client |
+| Dynamic client registration (RFC 7591) | ⚠️ out of scope | first-party static config (ARCHITECTURE → Out of scope) |
+| Pairwise sub identifiers | ⚠️ conditional | `subject_type='pairwise'` column reserved; only if RP correlation-resistance is needed |
 | Encrypted ID tokens (JWE) | ⚠️ deferred | TLS provides confidentiality on the wire |
 | RP-Initiated Logout 1.0 | ✅ smoke-verified | `/oidc/logout` validates `id_token_hint` sig + `iss` (tolerates expiry), revokes the `sid`'s session, exact-match `post_logout_redirect_uri`; step 84 (302 + `state`) + step 85 (`sid` session revoked → `/me` 401) |
 | `prompt=login` forced re-auth | ✅ smoke-verified (v0.6, smoke 100) | v0.6 D1/D2; full fresh re-login + single-use KV nonce (`pkg/authn` `DemandReauth`/`ConsumeReauth`, prefix `oidc:reauth:`). A stale session does NOT issue (its `auth_time` predates the demand); a fresh login + the nonce issues. Step 100 |
 | `max_age` forced re-auth | ✅ smoke-verified (v0.6, smoke 101) | v0.6 D3; `max_age=0` always demands (bounces even the just-minted session); a large `max_age` is satisfied by a recent session. Step 101 |
 | `prompt=none` + re-auth demand → `login_required` | ✅ smoke-verified (v0.6, smoke 102) | v0.6 D4; no bounce — a redirect carrying `error=login_required`. Step 102 (`prompt=login`+`none` → `invalid_request` is also implemented but unit-tested only, not step 102) |
-| Front-channel / back-channel logout | ⚠️ deferred (v0.7+) | multi-RP coordinated sign-out |
+| Front-channel / back-channel logout | ⚠️ deferred (unscheduled) | multi-RP coordinated sign-out; IdP-local logout ships |
 | Mix-up attack resistance | ✅ implemented | `iss` param (RFC 9207) emitted at `/authorize` (step 72) + federation state snapshots (v0.3) |
-| Refresh-token family forensics table | ⚠️ deferred (v0.7+) | oidc/R7; KV-only in v0.4 — reuse-detection + family revocation work end-to-end (steps 77–78) without a forensics table |
+| Refresh-token family forensics table | ⚠️ deferred (unscheduled) | oidc/R7; KV-only in v0.4 — reuse-detection + family revocation work end-to-end (steps 77–78) without a forensics table |
 | Rate limit on `/oauth/authorize` and `/oauth/token` | ✅ implemented (per-identity, NOT per-IP — D3) | INTENTIONAL policy, not a per-IP limiter: `/authorize` keyed per `account_id`; `/token`/`/introspect`/`/revoke` per `client_id`; `/userinfo` per `sub` (keys `oidc:authorize:acct:<id>`, `oidc:token:client:<id>`, `oidc:userinfo:sub:<sub>`). Reuses the v0.2/v0.3 account/session-keyed limiter. This both closes the original "rate limit `/authorize` + `/token`" gap AND respects the v0.3 M5 decision that client IP is untrustworthy behind NAT/CDN — no per-IP buckets were reintroduced. Edge DoS remains the reverse-proxy/WAF's job. See "Rate limiting policy (v0.3 audit)" below. Caps are unit-/manually verified; the smoke does not flood to trip them |
 
 ## SAML IdP (SAML 2.0 Core / Bindings / Metadata / Profiles)
@@ -305,7 +305,7 @@ new `GET /saml/sso/init`).
 | Front-channel multi-SP SLO propagation | ⚠️ out of scope (D2) | SLO is IdP-LOCAL only — revokes the bound Prohibitorum session, no propagation to the user's other SPs |
 | AttributeQuery / NameIDMapping / Artifact binding | ⚠️ out of scope | saml/Optional |
 | `default_relay_state` per SP (only if IdP-initiated lands) | ⚠️ out of scope | saml/Optional |
-| Encrypted assertions / NameID (`saml_sp_key.use='encryption'`) | ⚠️ deferred (v0.7+) | column exists but unused; GHES does not require it |
+| Encrypted assertions / NameID (`saml_sp_key.use='encryption'`) | ⚠️ conditional | column exists but unused; add only on SP demand (GHES does not require it) |
 
 **Accepted / deferred (tracked, not blocking v0.6):**
 - IdP-initiated SSO — ✅ shipped in v0.6 (D11; per-SP opt-in, default ACS,
@@ -315,7 +315,7 @@ new `GET /saml/sso/init`).
   deferred.
 - Front-channel multi-SP SLO — STILL out of scope; SLO is IdP-local
   (revokes the bound session only, no propagation) (D2).
-- Assertion / NameID encryption — STILL deferred (v0.7+); the
+- Assertion / NameID encryption — conditional (SP-demand); the
   `saml_sp_key.use='encryption'` column is reserved but unused (GHES
   doesn't require it) (D2).
 - No-stored-SLO-endpoint fallback returns a 200 `text/xml`
@@ -402,7 +402,7 @@ three batches; the remainder are documented as accepted/deferred below.
 | AAD binds ciphertext to row identity | ✅ design | credentials/C4 |
 | 12-byte per-row nonce, unique per row | ✅ design | NIST SP 800-38D §5 |
 | argon2id PHC for password / recovery / client_secret hashes | ✅ design; ✅ audit-hardened (Bundle 3) | credentials/R5 + credentials/C2. `pkg/credential/password.PHCDecode` enforces a lower-bound floor on `m`/`t`/`p` (Bundle-3 Crypto Open-Q-5) as defense-in-depth against tampered/injected stored hashes; floor is intentionally well below OWASP minimum (m≥8 MiB) — it's a sanity check, not a config gate |
-| HSM / KMS integration | ⚠️ deferred (v0.7+) | private keys in DB column |
+| HSM / KMS-backed signing | ⚠️ deferred (unscheduled) | private keys are DEK-sealed at rest (`private_pem_enc`); KMS would additionally defend a DB+env compromise |
 | TLS termination | external | reverse-proxy responsibility. Session cookie's `Secure` + `__Host-` derive from the public-origin scheme (`PUBLIC_ORIGIN`=https → hardened), deployment-stable; the ceremony cookie's `Secure` is still per-request TLS-detected |
 | Time skew tolerance on JWT verification | ✅ design | 30s leeway on `exp` / `iat` / `nbf` |
 
@@ -423,9 +423,9 @@ three batches; the remainder are documented as accepted/deferred below.
 | OpenAPI spec for management API | ✅ | huma-generated |
 | Admin UI for accounts | ⚠️ deferred (v0.6) | dashboard scaffold empty in v0.1 |
 | Admin HTTP API for OIDC clients / SAML SPs / upstream IdPs / signing keys | ✅ smoke-verified | `registerSudoOpHTTP` centralises gate (admin auth + sudo + body-size + content-type); OIDC client create/update/rotate-secret/delete smoke steps 114–116; signing-key generate/activate smoke steps 117–119; audit-events viewer smoke step 120; credential list/force-revoke smoke step 121. Audit events written for every mutation (`factor` ∈ oidc_client/saml_sp/upstream_idp/signing_key). See `api.md` for the full route table. |
-| Admin dashboard UI pages for OIDC clients / SAML SPs / upstream IdPs | ⚠️ deferred (v0.7+) | HTTP API exists (above); dashboard UI pages are still placeholder scaffolds |
+| Admin dashboard UI pages for OIDC clients / SAML SPs / upstream IdPs | ✅ | implemented — `Admin{OidcClients,SamlProviders,UpstreamIdps,SigningKeys,Accounts,Invitations,Audit}View` with CRUD wired to the admin API |
 | Consent screen | ⚠️ deferred | first-party-only deployments don't need it |
-| Audit-log export / SIEM | ⚠️ deferred (v0.7+) | append-only PG table for now |
+| Audit-log export / SIEM | ⚠️ deferred (unscheduled) | append-only PG `credential_event` table for now |
 | Versioned DEK rotation procedure documented | ✅ | spec §"DEK compromise / rotation" |
 | Sudo-gating posture: mutations gated, reads are admin-role only | ✅ smoke-verified; ✅ unit-tested | `consumeFreshSudo` (`pkg/server/handle_sudo.go`) is the single chokepoint for all 🔐 admin mutations, applied via `registerSudoOpHTTP` (raw HTTP) and `registerSudoOp` (typed Huma). The latter gates the account/invitation lifecycle ops — incl. `UpdateAccount` (user→admin escalation), which were previously admin-role-only. Guarded by `TestAdminMutationRoutesRequireSudo` (`pkg/server/admin_route_policy_test.go`), which serves the REAL `registerOperations()` routes and asserts `sudo_required` (401) on every mutation when the session has no fresh sudo grant. |
 | Signing-key lifecycle states (`pending`→`active`→`decommissioning`→`retired`) | ✅ smoke-verified | migration `008_signing_key_lifecycle.sql`; partial unique index `one_active_signing_key (use) WHERE status='active'`; publish set = pending+active+decommissioning; activate demotes prior active→decommissioning + promotes target; background reconcile loop flips decommissioning→retired. Smoke steps 117 (snapshot 1 active key), 118 (generate→pending; JWKS publishes both; old key still signs), 119 (activate→new active + old decommissioning; prior-key tokens STILL verify in grace). Legacy `active` bool + `retired_at` retained; `009` (drop legacy columns) is a deferred follow-up. |
@@ -469,16 +469,19 @@ reverse proxy or WAF.
 | Concurrent ceremony preemption | ⚠️ deferred (v0.6) | SDK aborts prior |
 | Method-selection login UX | ⚠️ deferred (v0.6) | WebAuthn vs password+TOTP vs federation |
 | CSRF on state-changing `/me/*` | ✅ | `SameSite=Lax` session cookie + same-origin |
-| Conditional UI (passkey autofill) | ⚠️ deferred (v0.7+) | identifier-less login |
-| Content Security Policy (CSP) | ❌ gap | reverse-proxy responsibility for v0.x; bake into static handler in v0.7+ |
-| HSTS, X-Frame-Options, etc. | ❌ gap | same |
+| Conditional UI (passkey autofill) | ⚠️ deferred (unscheduled) | identifier-less login |
+| Content Security Policy (CSP) | ✅ | set in `pkg/webui/webui.go` (CSP + `X-Frame-Options: DENY` + `X-Content-Type-Options: nosniff`) |
+| HSTS | ⚠️ deferred | TLS-layer header; set at the reverse proxy that terminates HTTPS |
 
 ## Threats this codebase does NOT protect against (v0.x)
 
-- **HSM-tier private key protection.** RSA private keys live in
-  `signing_key.private_pem`. A DB compromise = a complete IdP
-  compromise (signing + DEK-encrypted secrets). Move to KMS-backed
-  signing (AWS KMS / GCP KMS / Vault Transit) for production — v0.7+.
+- **Combined DB + environment compromise of signing keys.** Signing
+  private keys are DEK-sealed at rest (`signing_key.private_pem_enc`), so a
+  DB-only compromise does not yield them — but the DEK lives in the
+  environment, so an attacker holding BOTH the database and the env (or
+  process memory) can still decrypt them. KMS/HSM-backed signing (AWS KMS /
+  GCP KMS / Vault Transit), where the key never leaves the vault, is
+  optional production hardening (unscheduled).
 - **Loss of all DEK versions.** TOTP secrets and upstream-OIDC
   client secrets become undecryptable; users must re-enroll TOTP and
   re-link upstream IdPs. Operator responsibility: keep at least two
