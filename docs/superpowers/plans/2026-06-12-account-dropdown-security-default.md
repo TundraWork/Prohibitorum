@@ -1122,7 +1122,7 @@ Confirm in the browser:
 - The bottom-left account control opens a dropdown (identity header, Edit, Sign out).
 - "Edit display name…" opens the dialog; saving a new name updates the trigger immediately; an empty/unchanged name disables Save.
 - "Sign out" ends the session.
-- Collapse the sidebar (toggle): the trigger becomes icon-only with a name tooltip.
+- Collapse the sidebar (toggle, Ctrl/Cmd+B): under the default `collapsible="offcanvas"` the whole panel slides away — there is **no** icon-only rail, so the collapsed-icon tooltip from the spec is inert and was intentionally NOT added as dead code (code review M1). This is expected behavior, not a gap.
 
 - [ ] **Step 5: Commit the rebuilt dist**
 
