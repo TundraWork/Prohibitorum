@@ -49,7 +49,7 @@ Conditional / on-demand extras (DPoP, PAR, mTLS, SAML assertion encryption,
 pairwise `sub`), smaller hardening items, and explicit non-goals are tracked in
 `AUDIT.md` and `ARCHITECTURE.md`.
 
-## Quickstart (production-style)
+## Quickstart
 
 Requires Postgres 14+ and a Redis-compatible KV (or the in-process memory
 driver). The toolchain is pinned in `mise.toml`.
@@ -98,35 +98,34 @@ for relying-party integration patterns.
 Node, pnpm, sqlc, goose, and the `psql` client. The dashboard's npm dependencies
 install automatically on the first `mise dev-server` / `mise build` / `mise web`.
 
-### How it runs
+### Runtime
 
-`./prohibitorum` is a **single Go binary**. It needs three things: a **Postgres**
-database (`PROHIBITORUM_DATABASE_URL`), a **data-encryption key**
-(`PROHIBITORUM_DATA_ENCRYPTION_KEY_V1` — boot fails without it), and a **KV** store
-(Redis, or the default in-process `memory` driver). On boot it **auto-migrates**
-the database, then listens on **`:8080`** and serves the upstream-auth API, the
-OIDC OP, the SAML IdP, and the embedded dashboard SPA (baked in via `go:embed`) —
-all on that one origin. `go run ./cmd/prohibitorum` is the same binary without
-compiling first.
+`./prohibitorum` is a single Go binary. It requires a Postgres database
+(`PROHIBITORUM_DATABASE_URL`), a data-encryption key
+(`PROHIBITORUM_DATA_ENCRYPTION_KEY_V1`; the server refuses to start without it),
+and a KV store (Redis, or the default in-process `memory` driver). On startup it
+applies any pending migrations, then listens on `:8080`, serving the upstream-auth
+API, the OIDC OP, the SAML IdP, and the embedded dashboard SPA on a single origin.
+`go run ./cmd/prohibitorum` runs the same server without building a binary.
 
-The dev database runs in a container (`compose.yaml`); everything else runs on the
-host via `mise`.
+The dev database runs in a container (`compose.yaml`); the rest runs on the host
+via `mise`.
 
-### Run it locally
+### Local development
 
 ```bash
 mise install                  # toolchain: Go, Node, pnpm, sqlc, goose, psql client
-podman compose up -d          # Postgres on localhost:5432 (named volume; see compose.yaml)
-mise dev-server               # build the SPA + run the server on :8080 (auto-migrates)
-mise enroll-admin -- --new    # prints an /enroll/<token> URL — open it to register a passkey
-# then open http://localhost:8080
+podman compose up -d          # Postgres on localhost:5432 (see compose.yaml)
+mise dev-server               # build the SPA and run the server on :8080 (auto-migrates)
+mise enroll-admin -- --new    # create an admin; prints an /enroll/<token> URL
+# open http://localhost:8080
 ```
 
-The `mise dev-server` / `enroll-admin` / `dev-seed` tasks source
+The `dev-server`, `enroll-admin`, and `dev-seed` tasks source
 `scripts/dev-env.sh`, which generates a stable `.dev/encryption-key` (gitignored)
-and points `PROHIBITORUM_DATABASE_URL` at the compose database
-(`postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_dev`). Export
-that variable yourself to target a different database.
+and sets `PROHIBITORUM_DATABASE_URL` to the compose database
+(`postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_dev`). Set it
+explicitly to target a different database.
 
 ```bash
 mise dev-seed                 # optional: seed example providers/accounts/invitations
