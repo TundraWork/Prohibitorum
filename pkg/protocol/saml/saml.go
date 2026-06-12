@@ -44,7 +44,7 @@ func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions 
 		sessions: sessions,
 		audit:    auditW,
 		rl:       rl,
-		keys:     newSAMLKeyCache(queries),
+		keys:     newSAMLKeyCache(queries, cfg.DataEncryptionKeys),
 	}
 }
 

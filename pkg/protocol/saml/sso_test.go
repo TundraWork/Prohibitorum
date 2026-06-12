@@ -161,7 +161,7 @@ func newSSOHarness(t *testing.T, sp db.SamlSp) *ssoHarness {
 		kv:      kv.NewMemoryStore(),
 		audit:   &recordingAudit{},
 		rl:      authn.NewRateLimiter(),
-		keys:    newSAMLKeyCache(q),
+		keys:    newSAMLKeyCache(q, samlTestDEKs),
 	}
 	auditW := idp.audit.(*recordingAudit)
 

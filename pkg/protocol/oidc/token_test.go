@@ -106,7 +106,7 @@ func newTokenHarness(t *testing.T) *tokenHarness {
 		kv:      kv.NewMemoryStore(),
 		audit:   ra,
 		rl:      authn.NewRateLimiter(),
-		keys:    newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}),
+		keys:    newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs),
 	}
 	return &tokenHarness{p: p, audit: ra, row: row}
 }

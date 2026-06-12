@@ -1,7 +1,10 @@
 package saml
 
 import (
+	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -16,6 +19,32 @@ import (
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 )
+
+// samlTestDEK is a fixed 32-byte DEK used to seal signing-key rows in tests;
+// samlTestDEKs is the version map the SAML key cache unseals with.
+var (
+	samlTestDEK  = bytes.Repeat([]byte{0x42}, 32)
+	samlTestDEKs = map[int][]byte{1: samlTestDEK}
+)
+
+// sealForTest mirrors the oidc package's sealPrivateKey (the SAML package only
+// ever unseals, so it has no production seal). AAD matches keySealAAD.
+func sealForTest(t *testing.T, dek, pemBytes []byte, kid string, keyVer int32) (ciphertext, nonce []byte) {
+	t.Helper()
+	block, err := aes.NewCipher(dek)
+	if err != nil {
+		t.Fatalf("aes: %v", err)
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		t.Fatalf("gcm: %v", err)
+	}
+	nonce = make([]byte, aead.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		t.Fatalf("rand: %v", err)
+	}
+	return aead.Seal(nil, nonce, pemBytes, keySealAAD(kid, keyVer)), nonce
+}
 
 // fakeSAMLSigningKeyQueries serves a fixed set of rows from memory.
 type fakeSAMLSigningKeyQueries struct {
@@ -56,16 +85,18 @@ func testSAMLSigningKeyRow(t *testing.T) (db.SigningKey, *rsa.PrivateKey, *x509.
 	if err != nil {
 		t.Fatalf("marshal pkcs8: %v", err)
 	}
-	keyPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}))
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+	enc, nonce := sealForTest(t, samlTestDEK, keyPEM, "test-kid", 1)
 
 	row := db.SigningKey{
-		Kid:         "test-kid",
-		Algorithm:   "RS256",
-		Use:         "sig",
-		PrivatePem:  keyPEM,
-		X509CertPem: pgtype.Text{String: certPEM, Valid: true},
-		Status:      "active",
-		Active:      true,
+		Kid:             "test-kid",
+		Algorithm:       "RS256",
+		Use:             "sig",
+		PrivatePemEnc:   enc,
+		PrivatePemNonce: nonce,
+		KeyVersion:      1,
+		X509CertPem:     pgtype.Text{String: certPEM, Valid: true},
+		Status:          "active",
 	}
 	return row, priv, cert
 }
@@ -74,7 +105,7 @@ func newTestIdP(t *testing.T, cfg *configx.Config, rows []db.SigningKey) *IdP {
 	t.Helper()
 	return &IdP{
 		cfg:  cfg,
-		keys: newSAMLKeyCache(&fakeSAMLSigningKeyQueries{rows: rows}),
+		keys: newSAMLKeyCache(&fakeSAMLSigningKeyQueries{rows: rows}, samlTestDEKs),
 	}
 }
 

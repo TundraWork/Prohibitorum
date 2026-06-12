@@ -381,7 +381,6 @@ type SigningKeyView struct {
 	Use              string         `json:"use"`
 	Status           string         `json:"status"`
 	PublicJWK        map[string]any `json:"publicJwk"`
-	NotBefore        *time.Time     `json:"notBefore,omitempty"`
 	ActivatedAt      *time.Time     `json:"activatedAt,omitempty"`
 	DecommissionedAt *time.Time     `json:"decommissionedAt,omitempty"`
 	RetireAfter      *time.Time     `json:"retireAfter,omitempty"`

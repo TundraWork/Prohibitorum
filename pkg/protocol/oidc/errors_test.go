@@ -182,7 +182,7 @@ func TestDiscoveryMissingIssuer(t *testing.T) {
 func TestJWKSServesActiveKey(t *testing.T) {
 	row, _ := testSigningKeyRow(t)
 	fake := &fakeSigningKeyQueries{rows: []db.SigningKey{row}}
-	p := &Provider{keys: newKeyCache(fake)}
+	p := &Provider{keys: newKeyCache(fake, oidcTestDEKs)}
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/oauth/jwks", nil)

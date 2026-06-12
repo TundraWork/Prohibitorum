@@ -2658,6 +2658,19 @@ func main() {
 		if gen.Status != "pending" {
 			log.Fatalf("generate: new key status want pending, got %q", gen.Status)
 		}
+		// Sealed at rest: the new key's private material is DEK-encrypted
+		// (private_pem_enc populated) — there is no plaintext column.
+		if dburl := os.Getenv("PROHIBITORUM_DATABASE_URL"); dburl != "" {
+			sealed, err := psqlScalar(dburl, fmt.Sprintf(
+				"SELECT (private_pem_enc IS NOT NULL)::text FROM signing_key WHERE kid = '%s'", newKID))
+			if err != nil {
+				log.Fatalf("generate: query sealed-at-rest state: %v", err)
+			}
+			if len(sealed) != 1 || sealed[0] != "true" {
+				log.Fatalf("generate: newKID=%q must be sealed at rest (private_pem_enc set); got %v", newKID, sealed)
+			}
+			log.Printf("  newKID private key sealed at rest (private_pem_enc set) ✓")
+		}
 		// JWKS now publishes BOTH keys.
 		jwks2, err := fetchJWKS(*baseURL)
 		if err != nil {

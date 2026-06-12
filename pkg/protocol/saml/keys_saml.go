@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -41,14 +42,29 @@ type samlCachedKey struct {
 // signer plus the full non-retired cert set for metadata.
 type samlKeyCache struct {
 	q        samlSigningKeyQueries
+	deks     map[int][]byte
 	mu       sync.RWMutex
 	keys     []samlCachedKey
 	loadedAt time.Time
 	clockNow func() time.Time
 }
 
-func newSAMLKeyCache(q samlSigningKeyQueries) *samlKeyCache {
-	return &samlKeyCache{q: q, clockNow: time.Now}
+func newSAMLKeyCache(q samlSigningKeyQueries, deks map[int][]byte) *samlKeyCache {
+	return &samlKeyCache{q: q, deks: deks, clockNow: time.Now}
+}
+
+// loadPrivate returns the RSA private key for a signing_key row by unsealing its
+// DEK-encrypted private_pem_enc. Fails closed if the row's DEK version is missing.
+func (c *samlKeyCache) loadPrivate(r db.SigningKey) (*rsa.PrivateKey, error) {
+	dek, ok := c.deks[int(r.KeyVersion)]
+	if !ok {
+		return nil, fmt.Errorf("saml: missing DEK version %d for signing key %q", r.KeyVersion, r.Kid)
+	}
+	pemBytes, err := openPrivateKey(dek, r.PrivatePemEnc, r.PrivatePemNonce, r.Kid, r.KeyVersion)
+	if err != nil {
+		return nil, fmt.Errorf("saml: unseal signing key %q: %w", r.Kid, err)
+	}
+	return parseRSAPrivatePEM(string(pemBytes))
 }
 
 func (c *samlKeyCache) refresh(ctx context.Context) error {
@@ -58,7 +74,7 @@ func (c *samlKeyCache) refresh(ctx context.Context) error {
 	}
 	parsed := make([]samlCachedKey, 0, len(rows))
 	for _, r := range rows {
-		priv, perr := parseRSAPrivatePEM(r.PrivatePem)
+		priv, perr := c.loadPrivate(r)
 		if perr != nil {
 			return perr
 		}

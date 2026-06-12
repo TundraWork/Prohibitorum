@@ -189,15 +189,14 @@ type SigningKey struct {
 	Use              string             `json:"use"`
 	PublicJwk        []byte             `json:"publicJwk"`
 	X509CertPem      pgtype.Text        `json:"x509CertPem"`
-	PrivatePem       string             `json:"privatePem"`
-	Active           bool               `json:"active"`
-	NotBefore        pgtype.Timestamptz `json:"notBefore"`
-	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
-	RetiredAt        pgtype.Timestamptz `json:"retiredAt"`
+	PrivatePemEnc    []byte             `json:"privatePemEnc"`
+	PrivatePemNonce  []byte             `json:"privatePemNonce"`
+	KeyVersion       int32              `json:"keyVersion"`
 	Status           string             `json:"status"`
 	ActivatedAt      pgtype.Timestamptz `json:"activatedAt"`
 	DecommissionedAt pgtype.Timestamptz `json:"decommissionedAt"`
 	RetireAfter      pgtype.Timestamptz `json:"retireAfter"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
 }
 
 type TotpCredential struct {

@@ -74,8 +74,10 @@ func (r fakeRow) Scan(dest ...any) error {
 	if r.err != nil {
 		return r.err
 	}
-	// GetSigningKeyByKID scans Status at index 10 (see signing_key column order).
-	const statusIdx = 10
+	// GetSigningKeyByKID scans Status at index 8 (see signing_key column order:
+	// kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc,
+	// private_pem_nonce, key_version, status, …).
+	const statusIdx = 8
 	if statusIdx < len(dest) {
 		if p, ok := dest[statusIdx].(*string); ok {
 			*p = r.status

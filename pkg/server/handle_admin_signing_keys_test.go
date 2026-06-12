@@ -20,30 +20,31 @@ import (
 )
 
 // TestAdminSigningKeys_ViewProjection_NeverExposesPrivateMaterial verifies that
-// signingKeyView never copies PrivatePem or any private material into the wire
-// view. The contract.SigningKeyView type has no PrivatePem field — the test
-// additionally checks that the projection function doesn't smuggle the secret
-// into PublicJWK or any other map field.
+// signingKeyView never copies the sealed private key or any private material
+// into the wire view. The contract.SigningKeyView type has no private-key field
+// — the test additionally checks that the projection function doesn't smuggle
+// the secret into PublicJWK or any other map field.
 func TestAdminSigningKeys_ViewProjection_NeverExposesPrivateMaterial(t *testing.T) {
 	t.Parallel()
 
 	row := db.SigningKey{
-		Kid:        "test-kid-1",
-		Algorithm:  "RS256",
-		Use:        "sig",
-		Status:     "active",
-		PrivatePem: "-----BEGIN RSA PRIVATE KEY----- SECRET MATERIAL -----END RSA PRIVATE KEY-----",
-		PublicJwk:  []byte(`{"kty":"RSA","kid":"test-kid-1","n":"abc","e":"AQAB"}`),
+		Kid:           "test-kid-1",
+		Algorithm:     "RS256",
+		Use:           "sig",
+		Status:        "active",
+		PrivatePemEnc: []byte("SEALED PRIVATE KEY MATERIAL"),
+		PublicJwk:     []byte(`{"kty":"RSA","kid":"test-kid-1","n":"abc","e":"AQAB"}`),
 	}
 
 	view := signingKeyView(row)
 
-	// Structural check: contract.SigningKeyView has no PrivatePem field, so
+	// Structural check: contract.SigningKeyView has no private-key field, so
 	// the compiler guarantees private material cannot live there. The runtime
 	// check below covers any indirect leakage via PublicJWK map values.
+	secret := string(row.PrivatePemEnc)
 	for k, val := range view.PublicJWK {
-		if s, ok := val.(string); ok && s == row.PrivatePem {
-			t.Errorf("PublicJWK[%q] == PrivatePem: private material leaked into wire view", k)
+		if s, ok := val.(string); ok && s == secret {
+			t.Errorf("PublicJWK[%q] leaked sealed private material into wire view", k)
 		}
 	}
 
@@ -90,14 +91,11 @@ func TestAdminSigningKeys_ViewProjection_TimestampMapping(t *testing.T) {
 			Time:  decommTime,
 			Valid: true,
 		},
-		// NotBefore and RetireAfter are intentionally left Invalid (zero value).
+		// RetireAfter is intentionally left Invalid (zero value).
 	}
 
 	view := signingKeyView(row)
 
-	if view.NotBefore != nil {
-		t.Errorf("NotBefore: got %v, want nil (column not valid)", view.NotBefore)
-	}
 	if view.RetireAfter != nil {
 		t.Errorf("RetireAfter: got %v, want nil (column not valid)", view.RetireAfter)
 	}

@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -10,6 +11,13 @@ import (
 	"testing"
 
 	"prohibitorum/pkg/db"
+)
+
+// oidcTestDEK is a fixed 32-byte DEK used to seal signing-key rows in tests;
+// oidcTestDEKs is the version map the key cache unseals with.
+var (
+	oidcTestDEK  = bytes.Repeat([]byte{0x42}, 32)
+	oidcTestDEKs = map[int][]byte{1: oidcTestDEK}
 )
 
 // fakeSigningKeyQueries serves a fixed set of rows from memory.
@@ -47,15 +55,20 @@ func testSigningKeyRowStatus(t *testing.T, status string) (db.SigningKey, *rsa.P
 	if err != nil {
 		t.Fatalf("marshal pkcs8: %v", err)
 	}
-	pemStr := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+	enc, nonce, err := sealPrivateKey(oidcTestDEK, pemBytes, kid, 1)
+	if err != nil {
+		t.Fatalf("seal: %v", err)
+	}
 	row := db.SigningKey{
-		Kid:        kid,
-		Algorithm:  "RS256",
-		Use:        "sig",
-		PublicJwk:  jwkBytes,
-		PrivatePem: pemStr,
-		Status:     status,
-		Active:     status == "active",
+		Kid:             kid,
+		Algorithm:       "RS256",
+		Use:             "sig",
+		PublicJwk:       jwkBytes,
+		PrivatePemEnc:   enc,
+		PrivatePemNonce: nonce,
+		KeyVersion:      1,
+		Status:          status,
 	}
 	return row, priv
 }
@@ -63,7 +76,7 @@ func testSigningKeyRowStatus(t *testing.T, status string) (db.SigningKey, *rsa.P
 func TestKeysCacheResolves(t *testing.T) {
 	row, priv := testSigningKeyRow(t)
 	fake := &fakeSigningKeyQueries{rows: []db.SigningKey{row}}
-	c := newKeyCache(fake)
+	c := newKeyCache(fake, oidcTestDEKs)
 	ctx := context.Background()
 
 	got, ok := c.signingKey(ctx)
@@ -87,7 +100,7 @@ func TestKeysCacheResolves(t *testing.T) {
 
 func TestKeysJWKS(t *testing.T) {
 	row, _ := testSigningKeyRow(t)
-	c := newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}})
+	c := newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs)
 	set := c.jwks(context.Background())
 
 	keys, ok := set["keys"].([]map[string]any)
@@ -113,7 +126,7 @@ func TestKeysSelectsActiveAndPublishesNonRetired(t *testing.T) {
 	active, activePriv := testSigningKeyRowStatus(t, "active")
 	decom, _ := testSigningKeyRowStatus(t, "decommissioning")
 
-	c := newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{pending, active, decom}})
+	c := newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{pending, active, decom}}, oidcTestDEKs)
 	ctx := context.Background()
 
 	got, ok := c.signingKey(ctx)

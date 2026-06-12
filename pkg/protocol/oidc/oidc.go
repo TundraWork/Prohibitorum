@@ -48,7 +48,7 @@ func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *se
 		sessions: sessions,
 		audit:    auditW,
 		rl:       rl,
-		keys:     newKeyCache(queries),
+		keys:     newKeyCache(queries, cfg.DataEncryptionKeys),
 	}
 }
 

@@ -24,19 +24,27 @@ type txBeginner interface {
 }
 
 // InsertPendingKey mints a fresh RSA-2048 signing key and persists it in the
-// 'pending' lifecycle state (active=false). It does NOT activate the key —
-// promotion to 'active' is an explicit, separate step via ActivateSigningKey.
-func InsertPendingKey(ctx context.Context, q *db.Queries) (db.SigningKey, error) {
-	params, err := GenerateSigningKey()
+// 'pending' lifecycle state. The private key is sealed at rest with the DEK
+// (AES-256-GCM, AAD bound to kid+keyVersion) before it is written. It does NOT
+// activate the key — promotion to 'active' is an explicit, separate step via
+// ActivateSigningKey.
+func InsertPendingKey(ctx context.Context, q *db.Queries, dek []byte, keyVersion int32) (db.SigningKey, error) {
+	gen, err := GenerateSigningKey()
+	if err != nil {
+		return db.SigningKey{}, err
+	}
+	enc, nonce, err := sealPrivateKey(dek, gen.PrivatePEM, gen.Kid, keyVersion)
 	if err != nil {
 		return db.SigningKey{}, err
 	}
 	return q.InsertPendingSigningKey(ctx, db.InsertPendingSigningKeyParams{
-		Kid:         params.Kid,
-		Algorithm:   params.Algorithm,
-		PublicJwk:   params.PublicJwk,
-		X509CertPem: params.X509CertPem,
-		PrivatePem:  params.PrivatePem,
+		Kid:             gen.Kid,
+		Algorithm:       "RS256",
+		PublicJwk:       gen.PublicJWK,
+		X509CertPem:     pgtype.Text{String: gen.X509CertPEM, Valid: true},
+		PrivatePemEnc:   enc,
+		PrivatePemNonce: nonce,
+		KeyVersion:      keyVersion,
 	})
 }
 
@@ -44,9 +52,8 @@ func InsertPendingKey(ctx context.Context, q *db.Queries) (db.SigningKey, error)
 // a single transaction. The prior active key (if any) is demoted to
 // 'decommissioning' FIRST — stamping decommissioned_at and retire_after =
 // now()+grace — and only then is the target promoted. This demote-before-promote
-// ordering is mandatory: both the legacy `signing_key_one_active UNIQUE (use)
-// WHERE active` and the new `one_active_signing_key UNIQUE (use) WHERE
-// status='active'` partial indexes must hold at every statement boundary within
+// ordering is mandatory: the `one_active_signing_key UNIQUE (use) WHERE
+// status='active'` partial index must hold at every statement boundary within
 // the tx, and demoting first guarantees there is never a moment with two active
 // rows for the same `use`.
 //

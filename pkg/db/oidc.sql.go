@@ -25,7 +25,7 @@ func (q *Queries) DeleteOIDCClient(ctx context.Context, clientID string) (int64,
 
 const demoteActiveSigningKey = `-- name: DemoteActiveSigningKey :exec
 UPDATE signing_key
-SET status='decommissioning', active=false, decommissioned_at=now(), retire_after=$1
+SET status='decommissioning', decommissioned_at=now(), retire_after=$1
 WHERE use='sig' AND status='active'
 `
 
@@ -59,7 +59,7 @@ func (q *Queries) GetAccountByOIDCSubject(ctx context.Context, oidcSubject pgtyp
 }
 
 const getActiveSigningKey = `-- name: GetActiveSigningKey :one
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after FROM signing_key WHERE use = 'sig' AND status = 'active'
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at FROM signing_key WHERE use = 'sig' AND status = 'active'
 `
 
 func (q *Queries) GetActiveSigningKey(ctx context.Context) (SigningKey, error) {
@@ -71,15 +71,14 @@ func (q *Queries) GetActiveSigningKey(ctx context.Context) (SigningKey, error) {
 		&i.Use,
 		&i.PublicJwk,
 		&i.X509CertPem,
-		&i.PrivatePem,
-		&i.Active,
-		&i.NotBefore,
-		&i.CreatedAt,
-		&i.RetiredAt,
+		&i.PrivatePemEnc,
+		&i.PrivatePemNonce,
+		&i.KeyVersion,
 		&i.Status,
 		&i.ActivatedAt,
 		&i.DecommissionedAt,
 		&i.RetireAfter,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -141,7 +140,7 @@ func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcCl
 }
 
 const getSigningKeyByKID = `-- name: GetSigningKeyByKID :one
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after FROM signing_key WHERE kid = $1
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at FROM signing_key WHERE kid = $1
 `
 
 func (q *Queries) GetSigningKeyByKID(ctx context.Context, kid string) (SigningKey, error) {
@@ -153,15 +152,14 @@ func (q *Queries) GetSigningKeyByKID(ctx context.Context, kid string) (SigningKe
 		&i.Use,
 		&i.PublicJwk,
 		&i.X509CertPem,
-		&i.PrivatePem,
-		&i.Active,
-		&i.NotBefore,
-		&i.CreatedAt,
-		&i.RetiredAt,
+		&i.PrivatePemEnc,
+		&i.PrivatePemNonce,
+		&i.KeyVersion,
 		&i.Status,
 		&i.ActivatedAt,
 		&i.DecommissionedAt,
 		&i.RetireAfter,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -227,17 +225,19 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 }
 
 const insertPendingSigningKey = `-- name: InsertPendingSigningKey :one
-INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, status, not_before)
-VALUES ($1,$2,'sig',$3,$4,$5,false,'pending', now())
-RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after
+INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status)
+VALUES ($1,$2,'sig',$3,$4,$5,$6,$7,'pending')
+RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at
 `
 
 type InsertPendingSigningKeyParams struct {
-	Kid         string      `json:"kid"`
-	Algorithm   string      `json:"algorithm"`
-	PublicJwk   []byte      `json:"publicJwk"`
-	X509CertPem pgtype.Text `json:"x509CertPem"`
-	PrivatePem  string      `json:"privatePem"`
+	Kid             string      `json:"kid"`
+	Algorithm       string      `json:"algorithm"`
+	PublicJwk       []byte      `json:"publicJwk"`
+	X509CertPem     pgtype.Text `json:"x509CertPem"`
+	PrivatePemEnc   []byte      `json:"privatePemEnc"`
+	PrivatePemNonce []byte      `json:"privatePemNonce"`
+	KeyVersion      int32       `json:"keyVersion"`
 }
 
 func (q *Queries) InsertPendingSigningKey(ctx context.Context, arg InsertPendingSigningKeyParams) (SigningKey, error) {
@@ -246,7 +246,9 @@ func (q *Queries) InsertPendingSigningKey(ctx context.Context, arg InsertPending
 		arg.Algorithm,
 		arg.PublicJwk,
 		arg.X509CertPem,
-		arg.PrivatePem,
+		arg.PrivatePemEnc,
+		arg.PrivatePemNonce,
+		arg.KeyVersion,
 	)
 	var i SigningKey
 	err := row.Scan(
@@ -255,15 +257,14 @@ func (q *Queries) InsertPendingSigningKey(ctx context.Context, arg InsertPending
 		&i.Use,
 		&i.PublicJwk,
 		&i.X509CertPem,
-		&i.PrivatePem,
-		&i.Active,
-		&i.NotBefore,
-		&i.CreatedAt,
-		&i.RetiredAt,
+		&i.PrivatePemEnc,
+		&i.PrivatePemNonce,
+		&i.KeyVersion,
 		&i.Status,
 		&i.ActivatedAt,
 		&i.DecommissionedAt,
 		&i.RetireAfter,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -296,7 +297,7 @@ func (q *Queries) IsJTIRevoked(ctx context.Context, jti string) (bool, error) {
 }
 
 const listAllSigningKeys = `-- name: ListAllSigningKeys :many
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after FROM signing_key WHERE use = 'sig' ORDER BY created_at DESC
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at FROM signing_key WHERE use = 'sig' ORDER BY created_at DESC
 `
 
 func (q *Queries) ListAllSigningKeys(ctx context.Context) ([]SigningKey, error) {
@@ -314,15 +315,14 @@ func (q *Queries) ListAllSigningKeys(ctx context.Context) ([]SigningKey, error) 
 			&i.Use,
 			&i.PublicJwk,
 			&i.X509CertPem,
-			&i.PrivatePem,
-			&i.Active,
-			&i.NotBefore,
-			&i.CreatedAt,
-			&i.RetiredAt,
+			&i.PrivatePemEnc,
+			&i.PrivatePemNonce,
+			&i.KeyVersion,
 			&i.Status,
 			&i.ActivatedAt,
 			&i.DecommissionedAt,
 			&i.RetireAfter,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -379,7 +379,7 @@ func (q *Queries) ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, er
 }
 
 const listPublishableSigningKeys = `-- name: ListPublishableSigningKeys :many
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after FROM signing_key
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at FROM signing_key
 WHERE use = 'sig' AND status IN ('pending','active','decommissioning')
 ORDER BY created_at DESC
 `
@@ -399,15 +399,14 @@ func (q *Queries) ListPublishableSigningKeys(ctx context.Context) ([]SigningKey,
 			&i.Use,
 			&i.PublicJwk,
 			&i.X509CertPem,
-			&i.PrivatePem,
-			&i.Active,
-			&i.NotBefore,
-			&i.CreatedAt,
-			&i.RetiredAt,
+			&i.PrivatePemEnc,
+			&i.PrivatePemNonce,
+			&i.KeyVersion,
 			&i.Status,
 			&i.ActivatedAt,
 			&i.DecommissionedAt,
 			&i.RetireAfter,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -421,9 +420,9 @@ func (q *Queries) ListPublishableSigningKeys(ctx context.Context) ([]SigningKey,
 
 const promoteSigningKey = `-- name: PromoteSigningKey :one
 UPDATE signing_key
-SET status='active', active=true, activated_at=now()
+SET status='active', activated_at=now()
 WHERE kid=$1 AND status='pending'
-RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after
+RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at
 `
 
 func (q *Queries) PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error) {
@@ -435,15 +434,14 @@ func (q *Queries) PromoteSigningKey(ctx context.Context, kid string) (SigningKey
 		&i.Use,
 		&i.PublicJwk,
 		&i.X509CertPem,
-		&i.PrivatePem,
-		&i.Active,
-		&i.NotBefore,
-		&i.CreatedAt,
-		&i.RetiredAt,
+		&i.PrivatePemEnc,
+		&i.PrivatePemNonce,
+		&i.KeyVersion,
 		&i.Status,
 		&i.ActivatedAt,
 		&i.DecommissionedAt,
 		&i.RetireAfter,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -473,10 +471,10 @@ func (q *Queries) ReconcileRetiredSigningKeys(ctx context.Context) (int64, error
 
 const retireSigningKey = `-- name: RetireSigningKey :one
 UPDATE signing_key
-SET status='decommissioning', active=false,
+SET status='decommissioning',
     decommissioned_at=COALESCE(decommissioned_at, now()), retire_after=$2
 WHERE kid=$1 AND status IN ('pending','decommissioning')
-RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, not_before, created_at, retired_at, status, activated_at, decommissioned_at, retire_after
+RETURNING kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at
 `
 
 type RetireSigningKeyParams struct {
@@ -493,15 +491,14 @@ func (q *Queries) RetireSigningKey(ctx context.Context, arg RetireSigningKeyPara
 		&i.Use,
 		&i.PublicJwk,
 		&i.X509CertPem,
-		&i.PrivatePem,
-		&i.Active,
-		&i.NotBefore,
-		&i.CreatedAt,
-		&i.RetiredAt,
+		&i.PrivatePemEnc,
+		&i.PrivatePemNonce,
+		&i.KeyVersion,
 		&i.Status,
 		&i.ActivatedAt,
 		&i.DecommissionedAt,
 		&i.RetireAfter,
+		&i.CreatedAt,
 	)
 	return i, err
 }

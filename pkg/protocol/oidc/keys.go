@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -32,14 +33,29 @@ type cachedKey struct {
 
 type keyCache struct {
 	q        signingKeyQueries
+	deks     map[int][]byte
 	mu       sync.RWMutex
 	keys     []cachedKey
 	loadedAt time.Time
 	clockNow func() time.Time
 }
 
-func newKeyCache(q signingKeyQueries) *keyCache {
-	return &keyCache{q: q, clockNow: time.Now}
+func newKeyCache(q signingKeyQueries, deks map[int][]byte) *keyCache {
+	return &keyCache{q: q, deks: deks, clockNow: time.Now}
+}
+
+// loadPrivate returns the RSA private key for a signing_key row by unsealing its
+// DEK-encrypted private_pem_enc. Fails closed if the row's DEK version is missing.
+func (c *keyCache) loadPrivate(r db.SigningKey) (*rsa.PrivateKey, error) {
+	dek, ok := c.deks[int(r.KeyVersion)]
+	if !ok {
+		return nil, fmt.Errorf("oidc: missing DEK version %d for signing key %q", r.KeyVersion, r.Kid)
+	}
+	pemBytes, err := openPrivateKey(dek, r.PrivatePemEnc, r.PrivatePemNonce, r.Kid, r.KeyVersion)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: unseal signing key %q: %w", r.Kid, err)
+	}
+	return parseRSAPrivatePEM(string(pemBytes))
 }
 
 func (c *keyCache) refresh(ctx context.Context) error {
@@ -49,7 +65,7 @@ func (c *keyCache) refresh(ctx context.Context) error {
 	}
 	parsed := make([]cachedKey, 0, len(rows))
 	for _, r := range rows {
-		priv, perr := parseRSAPrivatePEM(r.PrivatePem)
+		priv, perr := c.loadPrivate(r)
 		if perr != nil {
 			return perr
 		}

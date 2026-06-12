@@ -9,47 +9,51 @@ import (
 	"encoding/pem"
 	"math/big"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"prohibitorum/pkg/db"
 )
 
-// GenerateSigningKey mints a fresh RSA-2048 signing keypair and returns the
-// parameters needed to persist it as a 'pending' key. The kid is the RFC 7638
-// thumbprint of the public key. Activation is a separate, explicit step
-// (ActivateSigningKey). The private key is encoded as PKCS#8 PEM and the public key is
-// wrapped in a self-signed x509 certificate (CN = kid, ~10 year validity).
-func GenerateSigningKey() (db.InsertPendingSigningKeyParams, error) {
+// GeneratedKey is a freshly minted signing keypair, ready to be sealed and
+// persisted. PrivatePEM is the plaintext PKCS#8 PEM — InsertPendingKey seals it
+// under the DEK before it is written to the database.
+type GeneratedKey struct {
+	Kid         string
+	PublicJWK   []byte
+	X509CertPEM string
+	PrivatePEM  []byte
+}
+
+// GenerateSigningKey mints a fresh RSA-2048 signing keypair. The kid is the RFC
+// 7638 thumbprint of the public key. Activation is a separate, explicit step
+// (ActivateSigningKey). The private key is encoded as PKCS#8 PEM and the public
+// key is wrapped in a self-signed x509 certificate (CN = kid, ~10 year validity).
+func GenerateSigningKey() (GeneratedKey, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return db.InsertPendingSigningKeyParams{}, err
+		return GeneratedKey{}, err
 	}
 
 	kid := jwkThumbprint(&priv.PublicKey)
 
 	jwkBytes, err := json.Marshal(publicJWK(kid, &priv.PublicKey))
 	if err != nil {
-		return db.InsertPendingSigningKeyParams{}, err
+		return GeneratedKey{}, err
 	}
 
 	der, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
-		return db.InsertPendingSigningKeyParams{}, err
+		return GeneratedKey{}, err
 	}
-	privPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	privPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 
 	certPEM, err := selfSignedCertPEM(priv, kid)
 	if err != nil {
-		return db.InsertPendingSigningKeyParams{}, err
+		return GeneratedKey{}, err
 	}
 
-	return db.InsertPendingSigningKeyParams{
+	return GeneratedKey{
 		Kid:         kid,
-		Algorithm:   "RS256",
-		PublicJwk:   jwkBytes,
-		X509CertPem: pgtype.Text{String: certPEM, Valid: true},
-		PrivatePem:  privPEM,
+		PublicJWK:   jwkBytes,
+		X509CertPEM: certPEM,
+		PrivatePEM:  privPEM,
 	}, nil
 }
 

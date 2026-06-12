@@ -47,10 +47,6 @@ func signingKeyView(k db.SigningKey) contract.SigningKeyView {
 			v.PublicJWK = m
 		}
 	}
-	if k.NotBefore.Valid {
-		t := k.NotBefore.Time
-		v.NotBefore = &t
-	}
 	if k.ActivatedAt.Valid {
 		t := k.ActivatedAt.Time
 		v.ActivatedAt = &t
@@ -94,7 +90,12 @@ func (s *Server) handleListSigningKeys(ctx context.Context, _ *struct{}) (*listS
 // ----- POST /signing-keys/generate (raw, sudo-gated) ------------------------
 
 func (s *Server) handleGenerateSigningKeyHTTP(w http.ResponseWriter, r *http.Request) {
-	key, err := oidc.InsertPendingKey(r.Context(), s.queries)
+	keyVer, dek, err := s.currentDEK()
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleGenerateSigningKey: dek: %w", err))
+		return
+	}
+	key, err := oidc.InsertPendingKey(r.Context(), s.queries, dek, keyVer)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleGenerateSigningKey: insert: %w", err))
 		return
@@ -220,13 +221,13 @@ func (s *Server) handleRetireSigningKeyHTTP(w http.ResponseWriter, r *http.Reque
 	writeSigningKeyJSON(w, http.StatusOK, signingKeyView(key))
 }
 
-// Compile-time check: ensure signingKeyView never exposes PrivatePem.
-// This is enforced structurally — db.SigningKey.PrivatePem is a string field
-// that is deliberately absent from contract.SigningKeyView.
+// Compile-time check: ensure signingKeyView never exposes private key material.
+// db.SigningKey.PrivatePemEnc is the sealed private key, deliberately absent from
+// contract.SigningKeyView.
 var _ = func() bool {
-	k := db.SigningKey{PrivatePem: "SECRET"}
+	k := db.SigningKey{PrivatePemEnc: []byte("SECRET")}
 	v := signingKeyView(k)
-	// contract.SigningKeyView has no PrivatePem field — the compiler enforces this.
+	// contract.SigningKeyView has no private-key field — the compiler enforces this.
 	_ = v
 	_ = time.Now() // keep time import live
 	return true

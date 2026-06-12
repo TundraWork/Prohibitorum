@@ -212,7 +212,9 @@ generating a new one.`,
 			}
 
 			// Always insert as pending first; activation is an explicit promote.
-			pending, err := oidc.InsertPendingKey(ctx, q)
+			// Seal the private key at rest with the current DEK version.
+			keyVer, dek := mustCurrentDEK()
+			pending, err := oidc.InsertPendingKey(ctx, q, dek, keyVer)
 			if err != nil {
 				log.Fatalf("insert pending signing key: %v", err)
 			}

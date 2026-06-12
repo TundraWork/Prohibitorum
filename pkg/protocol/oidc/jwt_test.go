@@ -13,7 +13,7 @@ import (
 
 func TestJWTRoundTrip(t *testing.T) {
 	row, _ := testSigningKeyRow(t)
-	p := &Provider{keys: newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}})}
+	p := &Provider{keys: newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs)}
 	ctx := context.Background()
 
 	token, err := p.signJWT(ctx, map[string]any{"sub": "x", "iss": "y"}, "JWT")
@@ -53,7 +53,7 @@ func TestJWTRoundTrip(t *testing.T) {
 
 func TestJWTRejectsHS256(t *testing.T) {
 	row, _ := testSigningKeyRow(t)
-	p := &Provider{keys: newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}})}
+	p := &Provider{keys: newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs)}
 
 	// Sign an HS256 token by hand with a symmetric key.
 	signer, err := jose.NewSigner(
@@ -75,13 +75,13 @@ func TestJWTRejectsHS256(t *testing.T) {
 
 func TestJWTRejectsUnknownKID(t *testing.T) {
 	row, _ := testSigningKeyRow(t)
-	p := &Provider{keys: newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}})}
+	p := &Provider{keys: newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs)}
 	ctx := context.Background()
 
 	// A different provider with a different key forges a token whose kid
 	// is unknown to p.
 	otherRow, _ := testSigningKeyRow(t)
-	other := &Provider{keys: newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{otherRow}})}
+	other := &Provider{keys: newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{otherRow}}, oidcTestDEKs)}
 	token, err := other.signJWT(ctx, map[string]any{"sub": "x"}, "JWT")
 	if err != nil {
 		t.Fatalf("signJWT: %v", err)

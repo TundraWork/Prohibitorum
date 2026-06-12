@@ -116,7 +116,7 @@ func newEndpointHarness(t *testing.T) *endpointHarness {
 		kv:      kv.NewMemoryStore(),
 		audit:   ra,
 		rl:      authn.NewRateLimiter(),
-		keys:    newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}),
+		keys:    newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs),
 	}
 	return &endpointHarness{p: p, q: q, audit: ra}
 }

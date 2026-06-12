@@ -181,7 +181,7 @@ func newSLOHarness(t *testing.T, sp db.SamlSp) *sloHarness {
 		kv:       kv.NewMemoryStore(),
 		sessions: store,
 		audit:    &recordingAudit{},
-		keys:     newSAMLKeyCache(q),
+		keys:     newSAMLKeyCache(q, samlTestDEKs),
 	}
 	auditW := idp.audit.(*recordingAudit)
 

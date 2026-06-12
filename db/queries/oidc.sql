@@ -49,24 +49,24 @@ SELECT * FROM signing_key WHERE use = 'sig' ORDER BY created_at DESC;
 SELECT * FROM signing_key WHERE kid = $1;
 
 -- name: InsertPendingSigningKey :one
-INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem, active, status, not_before)
-VALUES ($1,$2,'sig',$3,$4,$5,false,'pending', now())
+INSERT INTO signing_key (kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status)
+VALUES ($1,$2,'sig',$3,$4,$5,$6,$7,'pending')
 RETURNING *;
 
 -- name: DemoteActiveSigningKey :exec
 UPDATE signing_key
-SET status='decommissioning', active=false, decommissioned_at=now(), retire_after=$1
+SET status='decommissioning', decommissioned_at=now(), retire_after=$1
 WHERE use='sig' AND status='active';
 
 -- name: PromoteSigningKey :one
 UPDATE signing_key
-SET status='active', active=true, activated_at=now()
+SET status='active', activated_at=now()
 WHERE kid=$1 AND status='pending'
 RETURNING *;
 
 -- name: RetireSigningKey :one
 UPDATE signing_key
-SET status='decommissioning', active=false,
+SET status='decommissioning',
     decommissioned_at=COALESCE(decommissioned_at, now()), retire_after=$2
 WHERE kid=$1 AND status IN ('pending','decommissioning')
 RETURNING *;
