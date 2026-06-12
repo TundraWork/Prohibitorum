@@ -29,9 +29,8 @@ const { busy, error, run } = useApi()
 const draft = ref('')
 
 // Reset the draft to the current value each time the dialog opens - no stale carry-over.
-// Also emit update:open=true so w.emitted() has a non-undefined array for the error-case test.
 watch(() => props.open, (o) => {
-  if (o) { draft.value = auth.me?.displayName ?? ''; error.value = null; emit('update:open', true) }
+  if (o) { draft.value = auth.me?.displayName ?? ''; error.value = null }
 }, { immediate: true })
 
 const hasControlChar = (s: string) =>

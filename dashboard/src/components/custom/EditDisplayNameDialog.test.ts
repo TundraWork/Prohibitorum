@@ -72,6 +72,6 @@ describe('EditDisplayNameDialog', () => {
     saveBtn().click(); await flushPromises()
     expect(document.body.textContent).toContain(en.errors.invalid_display_name)
     expect(input().value).toBe('Bad')
-    expect(w.emitted('update:open')?.some((e) => e[0] === false)).toBe(false)
+    expect((w.emitted('update:open') ?? []).some((e) => e[0] === false)).toBe(false)
   })
 })
