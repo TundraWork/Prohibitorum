@@ -9,7 +9,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ShieldCheck, User, MonitorSmartphone, LogOut, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText } from 'lucide-vue-next'
+import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText } from 'lucide-vue-next'
+import NavUser from '@/components/custom/NavUser.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
@@ -25,7 +26,6 @@ const isActive = (to: string) =>
   to === '/' ? route.path === '/' : route.path === to || route.path.startsWith(to + '/')
 
 const accountItems = computed(() => [
-  { to: '/', label: t('nav.profile'), icon: User },
   { to: '/security', label: t('nav.security'), icon: KeyRound },
   { to: '/sessions', label: t('nav.sessions'), icon: MonitorSmartphone },
   { to: '/connected', label: t('nav.connected'), icon: Link2 },
@@ -123,23 +123,8 @@ const applicationItems = computed(() => [
       </SidebarGroup>
     </SidebarContent>
 
-    <SidebarFooter>
-      <div class="flex flex-col gap-1 border-t border-sidebar-border pt-2">
-        <div v-if="auth.me" class="flex min-w-0 flex-col px-2 py-1">
-          <span class="truncate text-sm font-medium text-ink">{{ auth.me.displayName }}</span>
-          <span class="truncate text-xs capitalize text-muted">{{ auth.me.role }}</span>
-        </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton as-child :tooltip="t('nav.signOut')">
-              <RouterLink to="/logout">
-                <LogOut aria-hidden="true" />
-                <span>{{ t('nav.signOut') }}</span>
-              </RouterLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </div>
+    <SidebarFooter class="border-t border-sidebar-border">
+      <NavUser />
     </SidebarFooter>
   </Sidebar>
 </template>

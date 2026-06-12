@@ -27,7 +27,6 @@ export default {
 
   nav: {
     account: 'Account',
-    profile: 'Profile',
     security: 'Security',
     sessions: 'Sessions',
     connected: 'Connected',

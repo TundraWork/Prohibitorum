@@ -31,26 +31,27 @@ const Host = defineComponent({ components: { SidebarProvider, AppSidebar },
 beforeEach(() => setActivePinia(createPinia()))
 
 describe('AppSidebar', () => {
-  it('renders the built Account links and a footer sign-out', async () => {
+  it('renders the built Account links and the account control (no Profile, no footer sign-out link)', async () => {
     const auth = useAuthStore()
     auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
-    const router = makeRouter(); router.push('/'); await router.isReady()
+    const router = makeRouter(); router.push('/security'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
-    expect(links).toContain('/')
+    expect(links).toContain('/security')
     expect(links).toContain('/sessions')
-    expect(links).toContain('/logout')
     expect(links).toContain('/connected')
     expect(links).toContain('/devices')
-    expect(wrapper.text()).toContain('Alex Smith')
+    expect(links).not.toContain('/')        // Profile link removed
+    expect(links).not.toContain('/logout')  // sign-out is now inside the account menu
+    expect(wrapper.text()).toContain('Alex Smith') // NavUser trigger shows displayName
   })
 
   it('marks only the current route link as active', async () => {
     const auth = useAuthStore()
     auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
-    const router = makeRouter(); router.push('/'); await router.isReady()
+    const router = makeRouter(); router.push('/security'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
-    // Exactly one element should carry data-active="true" — the Profile nav item
+    // Exactly one element should carry data-active="true" - the Security nav item
     const activeEls = wrapper.findAll('[data-active="true"]')
     expect(activeEls.length).toBe(1)
   })
