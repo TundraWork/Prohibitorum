@@ -10,9 +10,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ChevronsUpDown, LogOut, Pencil } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
-import {
-  SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar,
-} from '@/components/ui/sidebar'
+import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -25,7 +23,6 @@ import EditDisplayNameDialog from '@/components/custom/EditDisplayNameDialog.vue
 const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
-const { isMobile } = useSidebar()
 
 const editOpen = ref(false)
 
@@ -67,8 +64,8 @@ defineExpose({ openEdit, signOut, editOpen })
 
         <DropdownMenuContent
           class="min-w-56"
-          :side="isMobile ? 'bottom' : 'right'"
-          align="end"
+          side="top"
+          align="start"
           :side-offset="4"
         >
           <DropdownMenuLabel class="font-normal">
