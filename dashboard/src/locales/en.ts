@@ -42,15 +42,6 @@ export default {
     displayNameLabel: 'Display name',
   },
 
-  profile: {
-    title: 'Profile',
-    username: 'Username',
-    displayName: 'Display name',
-    role: 'Role',
-    edit: 'Edit',
-    save: 'Save',
-    cancel: 'Cancel',
-  },
   sessions: {
     title: 'Active sessions',
     current: 'This device',

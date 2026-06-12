@@ -77,7 +77,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/DashboardLayout.vue'),
     meta: { requiresAuth: true },
     children: [
-      { path: '', name: 'profile', component: () => import('../pages/ProfileView.vue') },
+      { path: '', redirect: { name: 'security' } },
       { path: 'sessions', name: 'sessions', component: () => import('../pages/SessionsView.vue') },
       { path: 'security', name: 'security', component: () => import('../pages/SecurityView.vue') },
       { path: 'connected', name: 'connected', component: () => import('../pages/ConnectedAccountsView.vue') },
