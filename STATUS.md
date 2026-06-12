@@ -897,7 +897,7 @@ routes mounted root-level (NOT under `/api/prohibitorum`) in
     RSA-2048 signing key (RFC 7638 thumbprint `kid`, JWK, self-signed
     x509, PKCS#8 PEM) into one `signing_key` row; first key / `--activate`
     becomes the active key (deactivating the prior active in one tx);
-    `--retire <kid>` stamps `retired_at`.
+    `--retire <kid>` moves the key to `decommissioning`.
   - `oidc-client create --client-id --display-name --redirect-uri(repeatable)
     [--post-logout-redirect-uri] [--scope] [--public] [--require-consent]`
     — registers a client; confidential (default) generates a 32-byte
@@ -1490,18 +1490,15 @@ still live), `SMOKE_EXIT=0`. Steps reference `cmd/smoke/main.go`.
   `TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes`).
 - **Signing-key lifecycle** — generate (→ `pending`; smoke step 118),
   activate (demotes prior `active` → `decommissioning`, promotes target;
-  smoke step 119), retire. Migration `008_signing_key_lifecycle.sql`
-  added `status` ∈ {pending, active, decommissioning, retired} with a
-  partial unique index `one_active_signing_key (use) WHERE status='active'`
-  and a backfill from the legacy `active`/`retired_at` columns. The
-  publish set for JWKS + SAML metadata is
+  smoke step 119), retire. `status` ∈ {pending, active, decommissioning,
+  retired}, with a partial unique index
+  `one_active_signing_key (use) WHERE status='active'`, is the sole
+  lifecycle. The publish set for JWKS + SAML metadata is
   pending+active+decommissioning. Smoke steps 117–119 verify
   generate→active+pending, activate→new-active+prior-decommissioning,
   and prior-key tokens still verify during the grace window.
   Background reconcile loop (in `Server.Serve`) advances
   decommissioning → retired once `retire_after` has passed.
-  Legacy `active` bool + `retired_at` remain in schema; dropping them
-  is deferred to a future `009` migration.
 - **Audit-events viewer** — `GET /audit-events` with `factor`, `event`,
   `accountId`, `since`, `until` filters and keyset pagination. Every
   admin mutation writes a `credential_event` (factor ∈
@@ -1570,9 +1567,10 @@ See `api.md` for the authoritative route table. Summary:
 - **Upstream IdP crash mid-create.** Insert-then-seal-then-update: a
   crash between insert and seal leaves a row with a placeholder secret
   that decrypts to a failure (fails closed). Best-effort cleanup only.
-- **`009` (drop legacy `active`/`retired_at`) deferred.** The legacy
-  columns are kept consistent but redundant; the dropping migration
-  is written after `status` is proven in production.
+- **Migrations consolidated.** With no deployments yet, the incremental
+  migration history was flattened into a single `001_initial.sql`, dropping
+  the legacy `signing_key` columns (`active`/`not_before`/`retired_at`) and
+  the plaintext `private_pem` — signing keys are sealed-only.
 
 ## v0.7+ — Hardening
 

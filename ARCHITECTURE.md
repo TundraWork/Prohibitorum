@@ -216,9 +216,10 @@ per-SP opt-in). `crewjam/saml` does the protocol heavy lifting.
 - **AuthnContextClassRef:** `…PasswordProtectedTransport` for
   password+TOTP, `…unspecified` for WebAuthn (no standard passkey
   ref exists yet), `Comparison="exact"`.
-- **Metadata at `/saml/metadata`** publishes every `signing_key` row
-  where `retired_at IS NULL OR retired_at > now() - rotation_grace`
-  (default 7d), so verification continues across rotation.
+- **Metadata at `/saml/metadata`** publishes every `signing_key` row in
+  the `{pending, active, decommissioning}` set, so verification continues
+  across rotation (a decommissioning key lingers until its `retire_after`
+  grace, default 7d, elapses).
 
 ## Admin management API
 
@@ -254,7 +255,7 @@ check). See `api.md` for the full route table and gate notation.
 
 ### Signing keys
 
-- `GET /signing-keys` — read all, public material only (🔓, `private_pem` never returned)
+- `GET /signing-keys` — read all, public material only (🔓, sealed private key never returned)
 - `POST /signing-keys/generate` — mint RSA-2048 key, enters `pending` (🔐)
 - `POST /signing-keys/{kid}/activate` — promote `pending`→`active`, prior `active`→`decommissioning` (🔐)
 - `POST /signing-keys/{kid}/retire` — transition `decommissioning` key; 409 on the `active` key (🔐)
@@ -265,15 +266,11 @@ check). See `api.md` for the full route table and gate notation.
 pending ──activate──► active ──activate(new)──► decommissioning ──reconcile──► retired
 ```
 
-Migration `008_signing_key_lifecycle.sql` introduced the `status` column
-(backfilled from legacy `active`/`retired_at`). Partial unique index
-`one_active_signing_key (use) WHERE status='active'` enforces single
+The `status` column is the sole lifecycle. Partial unique index
+`one_active_signing_key (use) WHERE status='active'` enforces a single
 active signer per `use`. The publish set for JWKS (`/oauth/jwks`) and
 SAML metadata (`/saml/metadata`) is `{pending, active, decommissioning}`.
 Signing always uses the single `active` key.
-
-Legacy `active` bool + `retired_at` are kept consistent but are
-redundant; migration `009` (dropping them) is deferred.
 
 ### Audit events
 
@@ -368,19 +365,17 @@ SAML IdP flow:
 - `auth_throttle` — `(account_id, factor)` PK, failed_attempts,
   window_start, locked_until. Persists across restarts.
 - `signing_key` — kid, algorithm, use (sig/enc), public_jwk,
-  x509_cert_pem, private_pem, status (pending/active/decommissioning/retired,
-  migration 008), activated_at, decommissioned_at, retire_after; legacy
-  columns active (bool) + not_before + retired_at kept for compatibility
-  (migration 009 will drop them — deferred). One row services both OIDC
-  (via JWK) and SAML (via x509 cert). Partial unique index
+  x509_cert_pem, private_pem_enc + private_pem_nonce + key_version
+  (AES-256-GCM-sealed private key), status
+  (pending/active/decommissioning/retired), activated_at,
+  decommissioned_at, retire_after. One row services both OIDC (via JWK)
+  and SAML (via x509 cert). Partial unique index
   `one_active_signing_key (use) WHERE status='active'` ensures exactly
   one active signer per key-use value.
-- `oidc_client` — full RFC 8414 / OIDC Discovery static-registration
-  metadata: redirect_uris, post_logout_redirect_uris, allowed_scopes,
-  require_pkce, allowed_code_challenge_methods,
-  token_endpoint_auth_method, id_token_signed_response_alg,
-  subject_type, application_type, default_max_age,
-  require_auth_time, contacts, logo_uri, tos_uri, policy_uri.
+- `oidc_client` — RFC 8414 / OIDC Discovery static-registration metadata:
+  redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce,
+  allowed_code_challenge_methods, token_endpoint_auth_method, subject_type,
+  logo_uri, tos_uri, policy_uri.
 - `revoked_jti` — jti PK, expires_at, reason. Denylist for
   self-contained access tokens (RFC 7009 + RFC 9068).
 - `upstream_idp` — slug, display_name, issuer_url, client_id,
@@ -417,12 +412,14 @@ SAML IdP flow:
   via `signing_key`. `kid` distinguishes rotation generations
   (recommend separate kid ranges per protocol, e.g.
   `oidc-2026-05` / `saml-2026-05`, so rotation can be decoupled).
-  Keys store as PEM in `private_pem`; JWK form in `public_jwk`;
-  self-signed x509 in `x509_cert_pem` for SAML.
-- **At-rest encryption** for TOTP secrets and upstream OIDC client
-  secrets: AES-256-GCM with versioned DEK
+  Private keys are sealed at rest in `private_pem_enc` (see at-rest
+  encryption below); JWK form in `public_jwk`; self-signed x509 in
+  `x509_cert_pem` for SAML.
+- **At-rest encryption** for signing private keys, TOTP secrets, and
+  upstream OIDC client secrets: AES-256-GCM with versioned DEK
   (`PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>`, 32 bytes base64), 12-byte
   nonce per row, AAD bound to row identity:
+  - Signing key: `'signing_key:'||kid||':'||key_version`
   - TOTP: `'totp:'||account_id||':'||key_version`
   - Upstream IdP: `'upstream_idp:'||id||':'||key_version`
 - **Hash storage** (`password_credential.hash`, `recovery_code.hash`,

@@ -72,16 +72,14 @@ names (`oidc-client`, `saml-sp`, `upstream-idp`).
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/signing-keys` | 🔓 | List all signing keys. Returns `kid`, `status`, `use`, `algorithm`, `publicJwk`, `x509CertPem`, timestamps. `private_pem` is **never** returned (enforced at the contract level). |
+| GET | `/api/prohibitorum/signing-keys` | 🔓 | List all signing keys. Returns `kid`, `status`, `use`, `algorithm`, `publicJwk`, `x509CertPem`, timestamps. The sealed private key is **never** returned (enforced at the contract level). |
 | POST | `/api/prohibitorum/signing-keys/generate` | 🔐 | Mint a new RSA-2048 signing key (RFC 7638 thumbprint `kid`, JWK, self-signed x509). The new key enters `status=pending` and is immediately published in JWKS + SAML metadata. The prior active key continues to sign until `activate` is called. |
 | POST | `/api/prohibitorum/signing-keys/{kid}/activate` | 🔐 | Promote a `pending` key to `active`. In one transaction: the prior `active` key transitions to `decommissioning` (sets `retire_after = now() + grace`), then the target key transitions to `active`. After this call new tokens are signed by the new key; the old key remains in JWKS during the grace window so existing tokens continue to verify. Returns 409 if no key exists with the given kid, or if the key is not in `pending` state. |
 | POST | `/api/prohibitorum/signing-keys/{kid}/retire` | 🔐 | Transition a `decommissioning` key directly to `decommissioning` with an immediate `retire_after`. Returns 409 if called on the `active` key (refusing to remove the only signer). The background reconcile loop (`pruneRevokedJTILoop`-style loop in `Server.Serve`) promotes `decommissioning` → `retired` once `retire_after` has passed. |
 
 ### Signing-key lifecycle states
 
-Migration `008_signing_key_lifecycle.sql` introduced an explicit
-`status` column with four values, implemented as an expand→cutover→contract
-rotation sequence:
+The `status` column drives the four-state lifecycle:
 
 ```
 pending ──activate──► active ──activate(new)──► decommissioning ──reconcile──► retired
@@ -100,11 +98,6 @@ pending ──activate──► active ──activate(new)──► decommission
 The publish set for JWKS (`/oauth/jwks`) and SAML metadata
 (`/saml/metadata`) is `status IN ('pending', 'active', 'decommissioning')`.
 Signing always uses the single `active` key.
-
-**Legacy columns** (`active boolean`, `retired_at`) remain in the schema
-and are kept consistent by the application; migration `009` (dropping
-them) is a deferred follow-up after the `status` column is confirmed in
-production — not yet written.
 
 **Key-cache caveat.** The OP signing-key cache is per-process.
 `Provider.InvalidateKeyCache()` is called by every admin key mutation
