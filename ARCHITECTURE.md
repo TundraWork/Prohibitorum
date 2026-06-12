@@ -284,7 +284,7 @@ Every admin mutation writes a `credential_event` row (`factor` ∈
 `oidc_client` / `saml_sp` / `upstream_idp` / `signing_key`; `event` ∈
 `register` / `update` / `rotate` / `revoke`). The `detail` JSONB
 contains redacted metadata only — no secret, hash, or private key
-material (enforced at the write site; smoke-verified at step 120).
+material (enforced at the write site).
 
 ### Account credentials (admin)
 

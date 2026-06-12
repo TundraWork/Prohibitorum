@@ -17,12 +17,10 @@ Route-to-source cross-reference:
 **Sudo-gating model.** Reads and cosmetic edits are 🔓 only. Every
 mutation that releases a secret, changes trust configuration, or
 destroys credentials is 🔐. This is enforced centrally: all 🔐 routes
-are registered via `s.registerSudoOpHTTP`, and
-`TestAdminMutationRoutesRequireSudo`
-(`pkg/server/admin_route_policy_test.go`) serves the REAL
-`registerOperations()` route table and asserts that each mutation
-returns `sudo_required` (HTTP 401) when the session carries no fresh
-sudo grant.
+are registered via `s.registerSudoOpHTTP`, and a route-policy test
+serves the real `registerOperations()` route table and asserts that
+each mutation returns `sudo_required` (HTTP 401) when the session
+carries no fresh sudo grant.
 
 All admin routes share the `/api/prohibitorum` prefix. The admin HTTP API uses
 role-oriented resource names (`oidc-applications`, `saml-applications`,
@@ -35,11 +33,11 @@ names (`oidc-client`, `saml-sp`, `upstream-idp`).
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/oidc-applications` | 🔓 | List all clients. `client_secret_hash` never present in response (unit-tested: `TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash`). |
+| GET | `/api/prohibitorum/oidc-applications` | 🔓 | List all clients. `client_secret_hash` is never present in the response. |
 | GET | `/api/prohibitorum/oidc-applications/{clientId}` | 🔓 | Get one client. Same no-secret guarantee. |
-| POST | `/api/prohibitorum/oidc-applications` | 🔐 | Create a client. Confidential clients (`public: false`): generates a 32-byte `crypto/rand` secret, returns it in `secret` **once only** — not stored plaintext, only the argon2id hash is persisted. Public clients return no secret. Smoke step 114. |
-| PUT | `/api/prohibitorum/oidc-applications/{clientId}` | 🔐 | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. Smoke step 115. |
-| POST | `/api/prohibitorum/oidc-applications/rotate-secret` | 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns the new cleartext in `secret` **once only**. New secret is guaranteed ≠ previous secret. Smoke step 116. |
+| POST | `/api/prohibitorum/oidc-applications` | 🔐 | Create a client. Confidential clients (`public: false`): generates a 32-byte `crypto/rand` secret, returns it in `secret` **once only** — not stored plaintext, only the argon2id hash is persisted. Public clients return no secret. |
+| PUT | `/api/prohibitorum/oidc-applications/{clientId}` | 🔐 | Full replacement of mutable config fields (display name, redirect URIs, scopes, etc). Does not touch the client secret. |
+| POST | `/api/prohibitorum/oidc-applications/rotate-secret` | 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns the new cleartext in `secret` **once only**. The new secret is guaranteed ≠ the previous one. |
 | POST | `/api/prohibitorum/oidc-applications/delete` | 🔐 | Body: `{"clientId": "..."}`. Hard-deletes the client row. |
 
 ---
@@ -61,7 +59,7 @@ names (`oidc-client`, `saml-sp`, `upstream-idp`).
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/identity-providers` | 🔓 | List all upstream IdPs. Client secret is **write-only**: never returned; `TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes` + `TestAdminUpstreamIDPs_ContractType_NoSecretFields` enforce this at the contract level. |
+| GET | `/api/prohibitorum/identity-providers` | 🔓 | List all upstream IdPs. Client secret is **write-only**: never returned (enforced at the contract level). |
 | GET | `/api/prohibitorum/identity-providers/{slug}` | 🔓 | Get one upstream IdP by slug. Same no-secret guarantee. |
 | POST | `/api/prohibitorum/identity-providers` | 🔐 | Create an upstream IdP including its client secret. The secret is AES-GCM sealed after insert; AAD binds to the row `id`. **Known caveat:** a crash between insert and seal leaves a row with a placeholder secret that decrypts to a failure (fails closed; best-effort cleanup). |
 | PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔐 | Update mutable IdP config. Explicitly **excludes** the client secret — use rotate-secret to change it. |
@@ -74,9 +72,9 @@ names (`oidc-client`, `saml-sp`, `upstream-idp`).
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/signing-keys` | 🔓 | List all signing keys. Returns `kid`, `status`, `use`, `algorithm`, `publicJwk`, `x509CertPem`, timestamps. `private_pem` is **never** returned; `TestAdminSigningKeys_ViewProjection_NeverExposesPrivateMaterial` + `TestAdminSigningKeys_ContractType_NoPrivatePemField` enforce this. |
-| POST | `/api/prohibitorum/signing-keys/generate` | 🔐 | Mint a new RSA-2048 signing key (RFC 7638 thumbprint `kid`, JWK, self-signed x509). The new key enters `status=pending` and is immediately published in JWKS + SAML metadata. The prior active key continues to sign until `activate` is called. Smoke step 118. |
-| POST | `/api/prohibitorum/signing-keys/{kid}/activate` | 🔐 | Promote a `pending` key to `active`. In one transaction: the prior `active` key transitions to `decommissioning` (sets `retire_after = now() + grace`), then the target key transitions to `active`. After this call new tokens are signed by the new key; the old key remains in JWKS during the grace window so existing tokens continue to verify. Smoke step 119. Returns 409 if no key exists with the given kid, or if the key is not in `pending` state. |
+| GET | `/api/prohibitorum/signing-keys` | 🔓 | List all signing keys. Returns `kid`, `status`, `use`, `algorithm`, `publicJwk`, `x509CertPem`, timestamps. `private_pem` is **never** returned (enforced at the contract level). |
+| POST | `/api/prohibitorum/signing-keys/generate` | 🔐 | Mint a new RSA-2048 signing key (RFC 7638 thumbprint `kid`, JWK, self-signed x509). The new key enters `status=pending` and is immediately published in JWKS + SAML metadata. The prior active key continues to sign until `activate` is called. |
+| POST | `/api/prohibitorum/signing-keys/{kid}/activate` | 🔐 | Promote a `pending` key to `active`. In one transaction: the prior `active` key transitions to `decommissioning` (sets `retire_after = now() + grace`), then the target key transitions to `active`. After this call new tokens are signed by the new key; the old key remains in JWKS during the grace window so existing tokens continue to verify. Returns 409 if no key exists with the given kid, or if the key is not in `pending` state. |
 | POST | `/api/prohibitorum/signing-keys/{kid}/retire` | 🔐 | Transition a `decommissioning` key directly to `decommissioning` with an immediate `retire_after`. Returns 409 if called on the `active` key (refusing to remove the only signer). The background reconcile loop (`pruneRevokedJTILoop`-style loop in `Server.Serve`) promotes `decommissioning` → `retired` once `retire_after` has passed. |
 
 ### Signing-key lifecycle states
@@ -112,9 +110,7 @@ production — not yet written.
 `Provider.InvalidateKeyCache()` is called by every admin key mutation
 so the replica processing the mutation picks up the change immediately,
 but in a multi-replica deployment other replicas pick up the new or
-activated key within the 5-minute cache TTL. This is in the same
-family as the in-process rate-limiter multi-replica caveat (see
-`docs/superpowers/notes/2026-05-28-v0.2-deployment-notes.md` §1).
+activated key within the 5-minute cache TTL.
 The background reconcile loop (decommissioning→retired) does NOT
 call `InvalidateKeyCache` — a harmless lag in the safe direction (an
 already-non-signing key lingers in JWKS slightly longer than its
@@ -126,7 +122,7 @@ already-non-signing key lingers in JWKS slightly longer than its
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/audit-events` | 🔓 | Query `credential_event` rows. Filterable by `factor`, `event`, `accountId`, `since`, `until`. Keyset pagination via `cursor` + `limit`. Passes `detail` JSONB through verbatim — no secret material should appear there (write-site invariant; smoke step 120 asserts no secret/key bytes in any event returned). |
+| GET | `/api/prohibitorum/audit-events` | 🔓 | Query `credential_event` rows. Filterable by `factor`, `event`, `accountId`, `since`, `until`. Keyset pagination via `cursor` + `limit`. Passes `detail` JSONB through verbatim — no secret material should appear there (write-site invariant). |
 
 Audit coverage for admin mutations: every 🔐 admin mutation writes a
 `credential_event` row with:
@@ -142,5 +138,5 @@ Audit coverage for admin mutations: every 🔐 admin mutation writes a
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/accounts/{id}/credentials` | 🔓 | List WebAuthn credentials for any account. Returns `id`, `credentialIdSuffix` (last 4 characters only, never the full credential ID), `nickname`, `lastUsedAt`, `cloneWarningAt`, `createdAt`. Smoke step 121. |
-| POST | `/api/prohibitorum/accounts/credentials/delete` | 🔐 | Body: `{"accountId": <int>, "credentialId": <int>}`. Admin force-revokes a passkey. Promoted to sudo-gated in the Admin Management API phase. Smoke step 121 (sudo-gating assertion). |
+| GET | `/api/prohibitorum/accounts/{id}/credentials` | 🔓 | List WebAuthn credentials for any account. Returns `id`, `credentialIdSuffix` (last 4 characters only, never the full credential ID), `nickname`, `lastUsedAt`, `cloneWarningAt`, `createdAt`. |
+| POST | `/api/prohibitorum/accounts/credentials/delete` | 🔐 | Body: `{"accountId": <int>, "credentialId": <int>}`. Admin force-revokes a passkey (sudo-gated). |

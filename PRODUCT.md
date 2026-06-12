@@ -1,9 +1,5 @@
 # Product
 
-## Register
-
-product
-
 ## Users
 
 Members and admins of a single small organization running Prohibitorum as

@@ -15,14 +15,13 @@ For new integrations, **start with A**. The library ecosystem is huge,
 and you stop having to think about session theft, cookie domains, and
 revocation propagation.
 
-Pattern C is **shipped in v0.5** — the SAML IdP is live. The three
-routes (`GET /saml/metadata`, `GET|POST /saml/sso`, `GET|POST /saml/slo`)
-are mounted at the issuer root and the GHES-compatible profile is
-smoke-verified end-to-end (`cmd/smoke`, steps 88–99). The schema
-(`saml_sp`, `saml_sp_acs`, `saml_sp_key`, `saml_subject_id`,
-`saml_session`) landed in v0.1; the handlers in `pkg/protocol/saml` now
-implement SP-initiated SSO + IdP-local SLO + IdP metadata. (The v0.1
-"routes not mounted / return 501" note no longer applies.)
+Pattern C is **shipped in v0.5** — the SAML IdP is live and
+smoke-verified end-to-end. The three routes (`GET /saml/metadata`,
+`GET|POST /saml/sso`, `GET|POST /saml/slo`) are mounted at the issuer
+root with a GHES-compatible profile. The schema (`saml_sp`,
+`saml_sp_acs`, `saml_sp_key`, `saml_subject_id`, `saml_session`) landed
+in v0.1; the handlers in `pkg/protocol/saml` implement SP-initiated SSO
++ IdP-local SLO + IdP metadata.
 
 ---
 
@@ -30,13 +29,11 @@ implement SP-initiated SSO + IdP-local SLO + IdP metadata. (The v0.1
 
 > **Status (v0.4 — shipped, smoke-verified).** The full OP surface is
 > live: `/oauth/authorize`, `/oauth/token`, `/oauth/userinfo`,
-> `/oauth/introspect`, `/oauth/revoke`, `/oidc/logout`, a real
-> `/oauth/jwks`, and an expanded `/.well-known/openid-configuration`.
-> All are mounted at the **issuer root** (NOT under
-> `/api/prohibitorum`). The conceptual flow below is unchanged; the
-> "OIDC OP (v0.4)" section near the end of this document has
-> copy-pasteable curl examples whose request shapes are taken verbatim
-> from the smoke harness (`cmd/smoke`, steps 70–87).
+> `/oauth/introspect`, `/oauth/revoke`, `/oidc/logout`, `/oauth/jwks`,
+> and an expanded `/.well-known/openid-configuration`. All are mounted
+> at the **issuer root** (NOT under `/api/prohibitorum`). The conceptual
+> flow below is unchanged; the "OIDC OP (v0.4)" section near the end of
+> this document has copy-pasteable curl examples.
 
 ### One-time setup
 
@@ -200,7 +197,7 @@ identity matters more than its claims.
 
 ### Library recommendations
 
-- Go RP: `github.com/zitadel/oidc/v3/pkg/client`. (Note: Prohibitorum's *OP side* does NOT use that framework — the v0.4 OP is hand-rolled in `pkg/protocol/oidc` with `go-jose/v4` for JWT only. RPs are free to use whatever client library they like.)
+- Go RP: `github.com/zitadel/oidc/v3/pkg/client`. (Any conformant OIDC client library works.)
 - Node RP: `openid-client`.
 - Python RP: `authlib`.
 - Browser-only SPA: don't. Always have a thin back-end that holds the refresh token.
@@ -269,14 +266,13 @@ The RP's back-end caches the introspection response for a short interval
 ## Pattern C — SAML 2.0 SP
 
 > **Status (v0.5 + v0.6 — shipped, smoke-verified).** Prohibitorum is a
-> live SAML 2.0 IdP with a GHES-compatible profile. The base flow is
-> exercised end-to-end by `cmd/smoke` steps 88–99 (v0.5) against an
-> in-process mock SP; v0.6 adds `ForceAuthn`, `NameIDPolicy/@Format`
+> live SAML 2.0 IdP with a GHES-compatible profile. v0.5 ships the base
+> SP-initiated flow; v0.6 adds `ForceAuthn`, `NameIDPolicy/@Format`
 > honoring, POST-binding AuthnRequest intake, signed metadata, and
-> **IdP-initiated SSO** (steps 105–111). **Scope:** SP-initiated SSO +
-> IdP-initiated SSO (opt-in) + IdP-local SLO + metadata + the `saml-sp`
-> CLI. **Still not shipped:** front-channel (multi-SP) SLO, and
-> assertion / NameID encryption.
+> **IdP-initiated SSO**. **Scope:** SP-initiated SSO + IdP-initiated SSO
+> (opt-in) + IdP-local SLO + metadata + the `saml-sp` CLI. **Still not
+> shipped:** front-channel (multi-SP) SLO, and assertion / NameID
+> encryption.
 
 For SPs that only speak SAML — GHES is the canonical case. Prohibitorum
 acts as the SAML IdP; the SP redirects the user to `/saml/sso`,
@@ -299,8 +295,8 @@ All URLs derive from `configx` `PublicOrigins[0]` (call it
 | Signing | `<Response>` AND `<Assertion>` both signed, RSA-SHA256; the IdP's signing cert is published in `/saml/metadata` |
 | `WantAuthnRequestsSigned` | `true` |
 
-Point the SP at `$ISSUER/saml/metadata` to import all of the above in
-one shot.
+Point the SP at `$ISSUER/saml/metadata` to import all of the above at
+once.
 
 ### One-time setup — `saml-sp create` CLI (recommended)
 
@@ -399,8 +395,7 @@ INSERT INTO saml_sp_key (sp_id, use, cert_pem) VALUES
 
 ### GHES-specific notes
 
-GHES is opinionated. Get these wrong and you'll spend an afternoon in
-the SAML response inspector:
+GHES is opinionated. Common ways to get it wrong:
 
 1. **Persistent NameID, 1.1 namespace URI.** GHES expects
    `urn:oasis:names:tc:SAML:1.1:nameid-format:persistent`, not the
@@ -460,11 +455,6 @@ signing key) and carries `validUntil` + `cacheDuration` (from
 cache-bound it. If the IdP has no active signing key it fails open and
 serves an unsigned descriptor rather than erroring. The metadata also
 re-advertises the **HTTP-POST** SSO binding (see "SSO binding" below).
-
-> Smoke step 89 (v0.5) asserts the metadata carries ≥1 signing
-> `KeyDescriptor`; smoke step 109 (v0.6) verifies the descriptor's
-> signature against its own cert and that `validUntil` is in the future.
-> The multi-key / grace-window selection is unit-tested (`keys_saml_test.go`).
 
 ### SAML SSO behaviors (v0.6)
 
@@ -526,9 +516,6 @@ GET $ISSUER/saml/sso/init?sp=<SP entity_id>&RelayState=<target>
 > assertion validity window, the per-(account,SP) SessionIndex, the
 > AudienceRestriction, delivery only to the registered default ACS, and the
 > default-off opt-in. Enable it only for SPs that need it.
->
-> Smoke steps 110–111 verify the opted-in SP receives an unsolicited Response
-> with `RelayState` echoed, and that a non-opted-in (v0.5) SP gets a 403.
 
 ### Single Logout (SLO)
 
@@ -545,9 +532,7 @@ returns a 200 `text/xml` `LogoutResponse` directly.
 This is **IdP-local** logout: it terminates the one Prohibitorum session
 tied to that `saml_session`. It does NOT propagate a front-channel
 logout to the user's other SPs — coordinated multi-SP sign-out is a
-later version. Smoke steps 94–95 verify the round trip (signed
-LogoutRequest → signed LogoutResponse, the bound session is revoked
-while a different session survives).
+later version.
 
 ---
 
@@ -597,9 +582,8 @@ When the user's authenticator app is unavailable, the recovery flow is a
 **three-step ceremony**, not a one-shot login. The recovery code never
 issues a session directly; it grants a narrow-scope token (10-min TTL)
 that the user must redeem by re-enrolling TOTP. NIST SP 800-63B-4 §5.2
-forbids using a knowledge factor for reauthentication, so the
-pre-2026-05-28 behaviour (recovery code → session + sudo) is replaced
-with this ceremony.
+forbids using a knowledge factor for reauthentication, which is why a
+recovery code cannot mint a session or sudo grant directly.
 
 **Step 1.** `/auth/password/begin` exactly as the normal login (see
 above) — returns a `partial_session_token`.
@@ -864,8 +848,7 @@ is the OP.
 > **Status (v0.3).** All three provisioning modes ship end-to-end:
 > `auto_provision`, `link_only`, and `invite_only` (token-bearing
 > redemption via `GET /enrollments/{token}/start-federation`). Each
-> mode is smoke-verified against an in-process mock OP in
-> `cmd/smoke`.
+> mode is smoke-verified against an in-process mock OP.
 
 ### One-time setup (admin)
 
@@ -939,9 +922,8 @@ curl http://localhost:8080/api/prohibitorum/me -b cookies.txt
 `return_to` MUST be a relative path starting with `/` (and not `//`).
 Anything else returns `400 invalid_return_to`.
 
-The federation handlers do NOT carry IP-keyed rate limits (v0.3 audit
-fix M5 removed all 13 IP buckets project-wide because
-`sessstore.ClientIP` is not trustworthy behind NAT / CDN). Replay /
+The federation handlers do NOT carry IP-keyed rate limits (client IP
+is not trustworthy behind NAT / CDN). Replay /
 brute-force defense lives in PKCE + single-use KV state tokens
 (`/callback`) and per-account `auth_throttle` rows once a credential
 failure occurs against a known account. Edge DoS is the reverse
@@ -1050,8 +1032,7 @@ Notes:
   set) CANNOT be redeemed via the WebAuthn enrollment path. Both
   `/enrollments/{token}/register/begin` and `/register/complete`
   reject with `403 enrollment_federation_required` so the invitee
-  is forced through `/start-federation`. Audit fix M1-int
-  (commit `9ed0b1b`).
+  is forced through `/start-federation`.
 
 ### Listing linked identities
 
@@ -1134,8 +1115,8 @@ or password+TOTP first.
   v0.7+ item.
 
 Custom claim-name overrides (`username_claim` / `display_name_claim`
-/ `email_claim` on `upstream_idp`) ARE honored end-to-end as of v0.3
-audit fix M4 (commit `45083bc`). Defaults are the OIDC standard
+/ `email_claim` on `upstream_idp`) are honored end-to-end. Defaults are
+the OIDC standard
 names (`preferred_username` / `name` / `email`); override only when
 the upstream OP ships claims under non-standard keys (e.g. Microsoft
 Entra ID's `upn`).
@@ -1143,9 +1124,7 @@ Entra ID's `upn`).
 ## OIDC OP (v0.4)
 
 This section gives the concrete, copy-pasteable shape of the
-downstream OP flow. **Every request shape here is taken verbatim from
-the smoke harness (`cmd/smoke`, steps 70–87), which runs green
-end-to-end against a live server** — so these are the exact params,
+downstream OP flow. The request shapes below are the exact params,
 headers, and form fields the server accepts.
 
 Key facts:
@@ -1262,15 +1241,14 @@ curl -s -X POST https://auth.example.com/oauth/token \
 ```
 
 (`client_secret_post` — credentials in the form body — and `none`
-(public client; PKCE-only) are also accepted; the example uses Basic
-because that is the smoke-verified path.)
+(public client; PKCE-only) are also accepted; the example uses Basic.)
 
 **Validate the id_token** (the RP does this): fetch `/oauth/jwks`,
 resolve the key by the token header `kid`, verify the RS256 signature,
 then check `iss`, `aud == client_id`, `exp > now`, and
-`nonce ==` the value sent in step 1. The smoke also asserts the
-id_token carries `sub`, `at_hash`, `sid`, `auth_time`, and `amr`. The
-access token is a JWS with JOSE `typ: at+jwt` and a `jti` claim
+`nonce ==` the value sent in step 1. The id_token also carries `sub`,
+`at_hash`, `sid`, `auth_time`, and `amr`. The access token is a JWS
+with JOSE `typ: at+jwt` and a `jti` claim
 (RFC 9068) — resource servers MUST reject any other `typ`.
 
 ### 3. `/oauth/userinfo` (Bearer access token)
@@ -1315,7 +1293,7 @@ curl -s -X POST https://auth.example.com/oauth/token \
 # and a re-issued id_token. The OLD refresh_token is now invalid.
 ```
 
-**Rotation + reuse detection (smoke steps 76–78):** each refresh
+**Rotation + reuse detection:** each refresh
 rotates the token. Replaying a **superseded** refresh token is treated
 as a compromise — it returns `400 invalid_grant` AND revokes the whole
 family, so even the current (rotated) token is immediately dead. The
@@ -1353,8 +1331,8 @@ Location: https://rp.example.com/rp/post-logout?state=<state>
 
 The OP validates the `id_token_hint`'s signature + `iss` (it tolerates
 an expired hint), then **revokes the Prohibitorum session named by the
-hint's `sid` claim** — so the user's IdP session is gone (smoke step 85
-confirms `/me` then returns 401). The `post_logout_redirect_uri` must
+hint's `sid` claim** — so the user's IdP session is gone. The
+`post_logout_redirect_uri` must
 exactly match one of the client's registered
 `post_logout_redirect_uris`, or the request is rejected directly
 (no redirect). Front-/back-channel logout to *other* RPs is a v0.7+
@@ -1385,8 +1363,7 @@ structured `detail->>'reason'`:
 | `revoke` | `revoked` | `/oauth/revoke` (access or refresh) |
 
 (plus failure reasons such as `invalid_client` / `invalid_grant` on the
-respective error paths). Smoke step 87 asserts lower-bound counts on
-the `(event, reason)` pairs above.
+respective error paths).
 
 ## Logout
 
@@ -1406,7 +1383,7 @@ Two coordinated paths:
 
 3. **SAML SLO (Pattern C, v0.5)**: shipped. A signed `LogoutRequest` to
    `/saml/slo` revokes the bound Prohibitorum session and returns a signed
-   `LogoutResponse` (smoke steps 94–95). This is **IdP-local** logout — it
+   `LogoutResponse`. This is **IdP-local** logout — it
    does NOT propagate a front-channel logout to the user's other SPs
    (coordinated multi-SP sign-out is a v0.7+ item). See Pattern C →
    "Single Logout (SLO)" above for the full flow.

@@ -90,8 +90,6 @@ components:
     padding: "2px 10px"
 ---
 
-<!-- SEED: colors/type/motion are committed from research + the init brief, but they are NOT yet wired into the Nuxt UI theme or the components. Re-run `/impeccable document` (scan mode) once the tokens live in code, to capture the real implemented values and generate per-component specs. -->
-
 # Design System: Prohibitorum
 
 ## 1. Overview
@@ -136,7 +134,7 @@ why the brand color is a fresh teal rather than the obvious indigo.
 A calm teal foundation with one warm human accent over a clean white surface; chromatic roles are semantic, never decorative.
 
 ### Primary
-- **Tide** (`oklch(0.55 0.118 205)`): the brand teal. Primary action fills, the current/selected item, focus rings, progress. Calm and fresh, not corporate-navy, not the Nuxt-default green. Filled Tide buttons take a **white** label (Helmholtz-Kohlrausch: dark text on a saturated mid-tone reads muddy).
+- **Tide** (`oklch(0.55 0.118 205)`): the brand teal. Primary action fills, the current/selected item, focus rings, progress. Calm and fresh, not corporate-navy, not a generic UI-kit green. Filled Tide buttons take a **white** label (Helmholtz-Kohlrausch: dark text on a saturated mid-tone reads muddy).
 - **Tide Strong** (`oklch(0.47 0.130 205)`): the text-weight and button variant. Use for link text, primary button fills carrying normal-weight labels, and hover/active, anywhere Tide must pass 4.5:1 on white. Tide at 0.55 passes only large-text 3:1.
 
 ### Secondary
@@ -154,7 +152,7 @@ A calm teal foundation with one warm human accent over a clean white surface; ch
 - **Surface** (`oklch(0.985 0.005 205)`) / **Sunken** (`oklch(0.965 0.006 205)`): cards/panels, and the cooler second layer for the sidebar and toolbars.
 - **Background** (`oklch(1 0 0)`): pure white.
 
-> Dark mode mirrors these roles on a cool near-black (`bg ≈ oklch(0.16 0.008 230)`, `ink ≈ oklch(0.95 0.005 230)`), with Tide and Ember lightened ~0.12–0.15 L to hold contrast. Exact dark tokens land on the scan pass once they exist in the Nuxt UI theme.
+> Dark mode mirrors these roles on a cool near-black (`bg ≈ oklch(0.16 0.008 230)`, `ink ≈ oklch(0.95 0.005 230)`), with Tide and Ember lightened ~0.12–0.15 L to hold contrast. Exact dark tokens are pinned once they're implemented in the theme.
 
 ### Named Rules
 **The Warm-Word, Cool-Hand Rule.** Warmth is carried by the Ember accent, the copy, and the spacing. Never by tinting the background. The surface is pure white (`oklch(1 0 0)`); a warm-cream body background is forbidden.
@@ -199,7 +197,7 @@ Flat by default. Surfaces sit directly on the background separated by the Border
 
 ## 5. Components
 
-Built on **Nuxt UI v4** (Tailwind v4). The system is applied by configuring Nuxt UI's `primary`/`neutral` theme to Tide/the neutral ramp and overriding the few primitives below; we do not reinvent standard affordances. *(Exact per-component token specs are deferred to the scan pass, when these live in code. The direction below is binding.)*
+Built on **shadcn-vue / Reka UI** (Tailwind v4). The system is applied by aliasing shadcn-vue's semantic CSS variables (`--primary`, `--ring`, `--destructive`, …) onto the Tide/neutral OKLCH tokens in `src/assets/main.css`, restyling the vendored primitives through tokens rather than rebuilding them. *(Exact per-component token specs are deferred until they live in code. The direction below is binding.)*
 
 ### Buttons
 - **Shape:** gently rounded (`10px` / `{rounded.md}`), friendly but not pill-shaped.
@@ -245,7 +243,7 @@ The one place this app diverges from a generic dashboard. TOTP codes, recovery-c
 - **Don't** use the **dark hacker / terminal aesthetic**: neon-on-black, monospace-everything, "cyber" security theater.
 - **Don't** ship the generic SaaS look: warm-cream background, hero-metric template (big-number + gradient), identical icon-card grids.
 - **Don't** use consumer-login playful gradients, mascots, or gradient text. Warmth here is space and tone, not decoration.
-- **Don't** drift back to the obvious hues: navy-and-gold fintech, AI-purple-on-white, or the Nuxt-default green. The brand is Tide teal on purpose.
+- **Don't** drift back to the obvious hues: navy-and-gold fintech, AI-purple-on-white, or a generic UI-kit green. The brand is Tide teal on purpose.
 - **Don't** use a colored `border-left`/`border-right` stripe on cards, alerts, or list items. Full border, background tint, or icon instead.
 - **Don't** use light-gray body or placeholder text "for elegance." Muted is `oklch(0.50 0.012 230)` and holds 4.5:1.
 - **Don't** put a resting drop-shadow on a card for "depth" (The Flat-Until-It-Acts Rule).

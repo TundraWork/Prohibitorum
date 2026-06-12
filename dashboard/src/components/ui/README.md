@@ -1,6 +1,6 @@
 # ui/ — Vendored shadcn-vue Primitives
 
-Vendored shadcn-vue primitives (new-york style, Reka UI under the hood).
+Vendored shadcn-vue primitives (new-york style, built on Reka UI).
 
 **Do NOT hand-edit markup in this directory.** Restyle via tokens in
 `src/assets/main.css`. Re-sync with:
