@@ -24,35 +24,35 @@
     {
       "id": 4,
       "subject": "Task 4: FE upload helper, store field, image UserAvatar",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "**Goal:** api.upload (raw PUT)+api.del; SessionView.avatarUrl + reload(); UserAvatar src (img→initials→icon, @error fallback).\n\n**Files:** Modify dashboard/src/lib/api.ts, stores/auth.ts, UserAvatar.vue + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/lib/api.ts\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/components/custom/UserAvatar.vue\",\"dashboard/src/components/custom/UserAvatar.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/UserAvatar.test.ts\",\"acceptanceCriteria\":[\"api.upload raw PUT throws ApiError on non-2xx\",\"UserAvatar img for src; fallback on error/empty\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Edit Profile dialog + NavUser wiring",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4],
       "description": "**Goal:** EditDisplayNameDialog→EditProfileDialog (avatar upload/remove + name); 'Edit profile' item; NavUser avatarUrl; i18n + error codes.\n\n**Files:** git mv dialog (+test); Modify NavUser.vue, stores/auth.ts (reload), locales/en.ts.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/EditProfileDialog.vue\",\"dashboard/src/components/custom/EditProfileDialog.test.ts\",\"dashboard/src/components/custom/NavUser.vue\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/EditProfileDialog.test.ts src/components/custom/NavUser.test.ts && npx vue-tsc -b\",\"acceptanceCriteria\":[\"Edit profile dialog avatar upload/remove + name\",\"upload→api.upload→reload; remove→api.del; >5MB reject; errors mapped\",\"NavUser avatarUrl\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Admin views — AccountView.avatarUrl + render",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4],
       "description": "**Goal:** AccountView.avatarUrl (both projections); render UserAvatar :src in admin list+detail.\n\n**Files:** Modify pkg/contract/auth.go, pkg/server/handle_account.go, admin AdminAccountsView.vue + AdminAccountDetailView.vue.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_account.go\",\"dashboard/src/pages/admin/AdminAccountsView.vue\",\"dashboard/src/pages/admin/AdminAccountDetailView.vue\"],\"verifyCommand\":\"go build ./... && go test ./pkg/server/ -run Account -v && cd dashboard && npx vue-tsc -b\",\"acceptanceCriteria\":[\"AccountView.avatarUrl in both projections\",\"admin list+detail render avatars\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: OIDC picture claim",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 3],
       "description": "**Goal:** profileClaims(a,origin) emits picture; thread origin via idTokenInput.Issuer + userinfoClaims(a,scope,origin).\n\n**Files:** Modify pkg/protocol/oidc/claims.go + userinfo.go + claims_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/claims.go\",\"pkg/protocol/oidc/userinfo.go\",\"pkg/protocol/oidc/claims_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/ -v\",\"acceptanceCriteria\":[\"picture present with profile scope+avatar; absent otherwise\"]}\n```"
     },
     {
       "id": 8,
       "subject": "Task 8: SAML avatar_url attribute source",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 3],
       "description": "**Goal:** resolveSource avatar_url source (thread origin); document in SAML attr-map hint.\n\n**Files:** Modify pkg/protocol/saml/attributes.go + caller + test; locales/en.ts.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/attributes.go\",\"pkg/protocol/saml/attributes_test.go\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"go test ./pkg/protocol/saml/ -v\",\"acceptanceCriteria\":[\"avatar_url returns URL when set, nil when unset\",\"hint documents avatar_url\"]}\n```"
     },
