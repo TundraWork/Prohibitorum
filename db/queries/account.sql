@@ -47,3 +47,21 @@ SELECT COUNT(*) FROM account WHERE role = 'admin' AND NOT disabled FOR UPDATE;
 
 -- name: UpdateAccountDisplayName :exec
 UPDATE account SET display_name = $2, updated_at = now() WHERE id = $1;
+
+-- name: UpsertAccountAvatarBytes :exec
+INSERT INTO account_avatar (account_id, bytes) VALUES ($1, $2)
+ON CONFLICT (account_id) DO UPDATE SET bytes = EXCLUDED.bytes;
+
+-- name: SetAccountAvatarMeta :exec
+UPDATE account SET avatar_content_type = $2, avatar_etag = $3, updated_at = now() WHERE id = $1;
+
+-- name: ClearAccountAvatarBytes :exec
+DELETE FROM account_avatar WHERE account_id = $1;
+
+-- name: ClearAccountAvatarMeta :exec
+UPDATE account SET avatar_content_type = NULL, avatar_etag = NULL, updated_at = now() WHERE id = $1;
+
+-- name: GetAvatarBySubject :one
+SELECT av.bytes, a.avatar_content_type, a.avatar_etag, a.disabled
+FROM account a JOIN account_avatar av ON av.account_id = a.id
+WHERE a.oidc_subject = $1;

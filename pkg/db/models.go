@@ -23,6 +23,13 @@ type Account struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updatedAt"`
 	Email              pgtype.Text        `json:"email"`
 	EmailVerified      bool               `json:"emailVerified"`
+	AvatarContentType  pgtype.Text        `json:"avatarContentType"`
+	AvatarEtag         pgtype.Text        `json:"avatarEtag"`
+}
+
+type AccountAvatar struct {
+	AccountID int32  `json:"accountId"`
+	Bytes     []byte `json:"bytes"`
 }
 
 type AccountIdentity struct {

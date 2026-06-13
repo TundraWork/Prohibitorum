@@ -26,6 +26,8 @@ type Querier interface {
 	// free-attempt prefix". Indexing past the array clamps to the last entry,
 	// matching the Go-side schedule-walk semantics.
 	BumpAuthThrottle(ctx context.Context, arg BumpAuthThrottleParams) (BumpAuthThrottleRow, error)
+	ClearAccountAvatarBytes(ctx context.Context, accountID int32) error
+	ClearAccountAvatarMeta(ctx context.Context, id int32) error
 	ConfirmTOTPCredential(ctx context.Context, accountID int32) error
 	// Atomic single-use consume. Returns the row only if it was unconsumed and unexpired.
 	// Callers detect any "not consumable" branch via pgx.ErrNoRows.
@@ -72,6 +74,7 @@ type Querier interface {
 	GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAccountIdentityByIssuerSubParams) (AccountIdentity, error)
 	GetActiveSigningKey(ctx context.Context) (SigningKey, error)
 	GetAuthThrottle(ctx context.Context, arg GetAuthThrottleParams) (AuthThrottle, error)
+	GetAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetAvatarBySubjectRow, error)
 	GetConsent(ctx context.Context, arg GetConsentParams) ([]string, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
@@ -140,6 +143,7 @@ type Querier interface {
 	// pgx.ErrNoRows surfaces and the handler maps to invitation_not_found.
 	RevokeInvitation(ctx context.Context, token string) (Enrollment, error)
 	RevokeSession(ctx context.Context, id string) error
+	SetAccountAvatarMeta(ctx context.Context, arg SetAccountAvatarMetaParams) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateAccountDisplayName(ctx context.Context, arg UpdateAccountDisplayNameParams) error
@@ -170,6 +174,7 @@ type Querier interface {
 	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
 	UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error)
 	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) error
+	UpsertAccountAvatarBytes(ctx context.Context, arg UpsertAccountAvatarBytesParams) error
 	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
 }

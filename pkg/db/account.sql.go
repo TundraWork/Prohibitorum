@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearAccountAvatarBytes = `-- name: ClearAccountAvatarBytes :exec
+DELETE FROM account_avatar WHERE account_id = $1
+`
+
+func (q *Queries) ClearAccountAvatarBytes(ctx context.Context, accountID int32) error {
+	_, err := q.db.Exec(ctx, clearAccountAvatarBytes, accountID)
+	return err
+}
+
+const clearAccountAvatarMeta = `-- name: ClearAccountAvatarMeta :exec
+UPDATE account SET avatar_content_type = NULL, avatar_etag = NULL, updated_at = now() WHERE id = $1
+`
+
+func (q *Queries) ClearAccountAvatarMeta(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, clearAccountAvatarMeta, id)
+	return err
+}
+
 const countActiveAdminsForUpdate = `-- name: CountActiveAdminsForUpdate :one
 SELECT COUNT(*) FROM account WHERE role = 'admin' AND NOT disabled FOR UPDATE
 `
@@ -32,7 +50,7 @@ func (q *Queries) DeleteAccountByID(ctx context.Context, id int32) error {
 }
 
 const getAccountByID = `-- name: GetAccountByID :one
-SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified FROM account WHERE id = $1
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified, avatar_content_type, avatar_etag FROM account WHERE id = $1
 `
 
 func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error) {
@@ -51,12 +69,14 @@ func (q *Queries) GetAccountByID(ctx context.Context, id int32) (Account, error)
 		&i.UpdatedAt,
 		&i.Email,
 		&i.EmailVerified,
+		&i.AvatarContentType,
+		&i.AvatarEtag,
 	)
 	return i, err
 }
 
 const getAccountByIDForUpdate = `-- name: GetAccountByIDForUpdate :one
-SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified FROM account WHERE id = $1 FOR UPDATE
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified, avatar_content_type, avatar_etag FROM account WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetAccountByIDForUpdate(ctx context.Context, id int32) (Account, error) {
@@ -75,12 +95,14 @@ func (q *Queries) GetAccountByIDForUpdate(ctx context.Context, id int32) (Accoun
 		&i.UpdatedAt,
 		&i.Email,
 		&i.EmailVerified,
+		&i.AvatarContentType,
+		&i.AvatarEtag,
 	)
 	return i, err
 }
 
 const getAccountByUsername = `-- name: GetAccountByUsername :one
-SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified FROM account WHERE username = $1
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified, avatar_content_type, avatar_etag FROM account WHERE username = $1
 `
 
 func (q *Queries) GetAccountByUsername(ctx context.Context, username string) (Account, error) {
@@ -99,12 +121,14 @@ func (q *Queries) GetAccountByUsername(ctx context.Context, username string) (Ac
 		&i.UpdatedAt,
 		&i.Email,
 		&i.EmailVerified,
+		&i.AvatarContentType,
+		&i.AvatarEtag,
 	)
 	return i, err
 }
 
 const getAccountByWebauthnUserHandle = `-- name: GetAccountByWebauthnUserHandle :one
-SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified FROM account WHERE webauthn_user_handle = $1
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified, avatar_content_type, avatar_etag FROM account WHERE webauthn_user_handle = $1
 `
 
 func (q *Queries) GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error) {
@@ -123,6 +147,33 @@ func (q *Queries) GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUs
 		&i.UpdatedAt,
 		&i.Email,
 		&i.EmailVerified,
+		&i.AvatarContentType,
+		&i.AvatarEtag,
+	)
+	return i, err
+}
+
+const getAvatarBySubject = `-- name: GetAvatarBySubject :one
+SELECT av.bytes, a.avatar_content_type, a.avatar_etag, a.disabled
+FROM account a JOIN account_avatar av ON av.account_id = a.id
+WHERE a.oidc_subject = $1
+`
+
+type GetAvatarBySubjectRow struct {
+	Bytes             []byte      `json:"bytes"`
+	AvatarContentType pgtype.Text `json:"avatarContentType"`
+	AvatarEtag        pgtype.Text `json:"avatarEtag"`
+	Disabled          bool        `json:"disabled"`
+}
+
+func (q *Queries) GetAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetAvatarBySubjectRow, error) {
+	row := q.db.QueryRow(ctx, getAvatarBySubject, oidcSubject)
+	var i GetAvatarBySubjectRow
+	err := row.Scan(
+		&i.Bytes,
+		&i.AvatarContentType,
+		&i.AvatarEtag,
+		&i.Disabled,
 	)
 	return i, err
 }
@@ -142,7 +193,7 @@ const insertAccount = `-- name: InsertAccount :one
 INSERT INTO account (
   username, display_name, webauthn_user_handle, role, attributes, disabled, email, email_verified
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified
+RETURNING id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified, avatar_content_type, avatar_etag
 `
 
 type InsertAccountParams struct {
@@ -181,13 +232,15 @@ func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (A
 		&i.UpdatedAt,
 		&i.Email,
 		&i.EmailVerified,
+		&i.AvatarContentType,
+		&i.AvatarEtag,
 	)
 	return i, err
 }
 
 const listAccounts = `-- name: ListAccounts :many
 SELECT
-  a.id, a.username, a.display_name, a.webauthn_user_handle, a.oidc_subject, a.role, a.attributes, a.disabled, a.created_at, a.updated_at, a.email, a.email_verified,
+  a.id, a.username, a.display_name, a.webauthn_user_handle, a.oidc_subject, a.role, a.attributes, a.disabled, a.created_at, a.updated_at, a.email, a.email_verified, a.avatar_content_type, a.avatar_etag,
   (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at
 FROM account a
 ORDER BY a.created_at ASC, a.id ASC
@@ -206,6 +259,8 @@ type ListAccountsRow struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updatedAt"`
 	Email              pgtype.Text        `json:"email"`
 	EmailVerified      bool               `json:"emailVerified"`
+	AvatarContentType  pgtype.Text        `json:"avatarContentType"`
+	AvatarEtag         pgtype.Text        `json:"avatarEtag"`
 	LastSignInAt       pgtype.Timestamptz `json:"lastSignInAt"`
 }
 
@@ -231,6 +286,8 @@ func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
 			&i.UpdatedAt,
 			&i.Email,
 			&i.EmailVerified,
+			&i.AvatarContentType,
+			&i.AvatarEtag,
 			&i.LastSignInAt,
 		); err != nil {
 			return nil, err
@@ -243,13 +300,28 @@ func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
 	return items, nil
 }
 
+const setAccountAvatarMeta = `-- name: SetAccountAvatarMeta :exec
+UPDATE account SET avatar_content_type = $2, avatar_etag = $3, updated_at = now() WHERE id = $1
+`
+
+type SetAccountAvatarMetaParams struct {
+	ID                int32       `json:"id"`
+	AvatarContentType pgtype.Text `json:"avatarContentType"`
+	AvatarEtag        pgtype.Text `json:"avatarEtag"`
+}
+
+func (q *Queries) SetAccountAvatarMeta(ctx context.Context, arg SetAccountAvatarMetaParams) error {
+	_, err := q.db.Exec(ctx, setAccountAvatarMeta, arg.ID, arg.AvatarContentType, arg.AvatarEtag)
+	return err
+}
+
 const updateAccount = `-- name: UpdateAccount :one
 UPDATE account SET
   display_name = $2, role = $3, attributes = $4, disabled = $5,
   email = $6, email_verified = $7,
   updated_at = now()
 WHERE id = $1
-RETURNING id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified
+RETURNING id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified, avatar_content_type, avatar_etag
 `
 
 type UpdateAccountParams struct {
@@ -286,6 +358,8 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (A
 		&i.UpdatedAt,
 		&i.Email,
 		&i.EmailVerified,
+		&i.AvatarContentType,
+		&i.AvatarEtag,
 	)
 	return i, err
 }
@@ -318,5 +392,20 @@ type UpdateAccountEmailParams struct {
 // claim drift), keeping it in lockstep with account_identity.upstream_email.
 func (q *Queries) UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmailParams) error {
 	_, err := q.db.Exec(ctx, updateAccountEmail, arg.ID, arg.Email, arg.EmailVerified)
+	return err
+}
+
+const upsertAccountAvatarBytes = `-- name: UpsertAccountAvatarBytes :exec
+INSERT INTO account_avatar (account_id, bytes) VALUES ($1, $2)
+ON CONFLICT (account_id) DO UPDATE SET bytes = EXCLUDED.bytes
+`
+
+type UpsertAccountAvatarBytesParams struct {
+	AccountID int32  `json:"accountId"`
+	Bytes     []byte `json:"bytes"`
+}
+
+func (q *Queries) UpsertAccountAvatarBytes(ctx context.Context, arg UpsertAccountAvatarBytesParams) error {
+	_, err := q.db.Exec(ctx, upsertAccountAvatarBytes, arg.AccountID, arg.Bytes)
 	return err
 }
