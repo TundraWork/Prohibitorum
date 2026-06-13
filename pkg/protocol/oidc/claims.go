@@ -73,17 +73,18 @@ func profileClaims(a db.Account, origin string) map[string]any {
 // separate so idTokenClaims can remain a pure, deterministic function: it
 // never reads the clock — all times are passed in.
 type idTokenInput struct {
-	Issuer      string
-	Audience    string   // client_id; single audience today
-	Nonce       string   // optional; claim omitted if ""
-	ACR         string   // optional; claim omitted if ""
-	SID         string   // session id
-	AMR         []string // authentication methods, e.g. ["webauthn"]
-	AccessToken string   // to compute at_hash; at_hash omitted if ""
-	Scope       []string // granted scopes; gates the profile block
-	IssuedAt    time.Time
-	Expiry      time.Time
-	AuthTime    time.Time
+	Issuer       string
+	AvatarOrigin string   // public origin for picture URL (may differ from Issuer)
+	Audience     string   // client_id; single audience today
+	Nonce        string   // optional; claim omitted if ""
+	ACR          string   // optional; claim omitted if ""
+	SID          string   // session id
+	AMR          []string // authentication methods, e.g. ["webauthn"]
+	AccessToken  string   // to compute at_hash; at_hash omitted if ""
+	Scope        []string // granted scopes; gates the profile block
+	IssuedAt     time.Time
+	Expiry       time.Time
+	AuthTime     time.Time
 }
 
 // idTokenClaims projects an account + issuance context into the ID-token
@@ -117,7 +118,7 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 	// (Audience is a single string here; no multi-aud path to set azp.)
 
 	if hasScope(in.Scope, "profile") {
-		for k, v := range profileClaims(a, in.Issuer) {
+		for k, v := range profileClaims(a, in.AvatarOrigin) {
 			c[k] = v
 		}
 	}
@@ -132,9 +133,9 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 
 // userinfoClaims projects an account into the /userinfo response: always
 // `sub`, plus the profile block iff `profile` was granted and the email block
-// iff `email` was granted. origin is the OIDC issuer base URL (e.g.
-// "https://auth.example.com"); it is forwarded to profileClaims to build the
-// picture URL.
+// iff `email` was granted. origin is the public origin where the avatar
+// endpoint is served (cfg.PublicOrigins[0]); it is forwarded to profileClaims
+// to build the picture URL.
 func userinfoClaims(a db.Account, scope []string, origin string) map[string]any {
 	c := map[string]any{
 		"sub": subjectOf(a),

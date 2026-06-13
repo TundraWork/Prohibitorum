@@ -111,7 +111,7 @@ func newEndpointHarness(t *testing.T) *endpointHarness {
 	}
 	ra := &recordingAudit{}
 	p := &Provider{
-		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}},
+		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}, PublicOrigins: []string{testIssuer}},
 		queries: q,
 		kv:      kv.NewMemoryStore(),
 		audit:   ra,

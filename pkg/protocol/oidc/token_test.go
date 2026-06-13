@@ -101,7 +101,7 @@ func newTokenHarness(t *testing.T) *tokenHarness {
 	}
 	ra := &recordingAudit{}
 	p := &Provider{
-		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}},
+		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}, PublicOrigins: []string{testIssuer}},
 		queries: q,
 		kv:      kv.NewMemoryStore(),
 		audit:   ra,

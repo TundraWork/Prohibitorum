@@ -321,3 +321,34 @@ func TestProfileClaims_Picture(t *testing.T) {
 		t.Fatal("picture must be absent without an avatar")
 	}
 }
+
+// TestIDTokenPictureUsesAvatarOrigin asserts that when Issuer and AvatarOrigin
+// differ (e.g. PROHIBITORUM_OIDC_ISSUER != public origin), the picture URL in
+// the id_token is built from AvatarOrigin, not Issuer.
+func TestIDTokenPictureUsesAvatarOrigin(t *testing.T) {
+	var u pgtype.UUID
+	if err := u.Scan("11111111-2222-3333-4444-555555555555"); err != nil {
+		t.Fatalf("scan uuid: %v", err)
+	}
+	a := db.Account{
+		Username: "u", DisplayName: "U", Role: "user",
+		OidcSubject: u,
+		AvatarEtag:  pgtype.Text{String: "deadbeefcafe", Valid: true},
+	}
+	in := baseInput()
+	in.Issuer = "https://sso.internal"        // issuer may differ from public origin
+	in.AvatarOrigin = "https://auth.example.com" // public origin where /avatar is served
+	in.Scope = []string{"openid", "profile"}
+
+	c := idTokenClaims(a, in)
+
+	// iss must still use the issuer, not AvatarOrigin.
+	if c["iss"] != "https://sso.internal" {
+		t.Fatalf("iss = %v, want https://sso.internal", c["iss"])
+	}
+	// picture must use AvatarOrigin, not Issuer.
+	wantPic := "https://auth.example.com/avatar/11111111-2222-3333-4444-555555555555?v=deadbeef"
+	if c["picture"] != wantPic {
+		t.Fatalf("picture = %v, want %v", c["picture"], wantPic)
+	}
+}

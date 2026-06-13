@@ -294,17 +294,18 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 	}
 
 	idClaims := idTokenClaims(acct, idTokenInput{
-		Issuer:      issuer,
-		Audience:    clientID,
-		Nonce:       nonce,
-		ACR:         acr,
-		SID:         sid,
-		AMR:         amr,
-		AccessToken: accessToken,
-		Scope:       scope,
-		IssuedAt:    now,
-		Expiry:      now.Add(p.idTokenTTL()),
-		AuthTime:    authTime,
+		Issuer:       issuer,
+		AvatarOrigin: p.cfg.PublicOrigins[0],
+		Audience:     clientID,
+		Nonce:        nonce,
+		ACR:          acr,
+		SID:          sid,
+		AMR:          amr,
+		AccessToken:  accessToken,
+		Scope:        scope,
+		IssuedAt:     now,
+		Expiry:       now.Add(p.idTokenTTL()),
+		AuthTime:     authTime,
 	})
 	idToken, err := p.signJWT(ctx, idClaims, "JWT")
 	if err != nil {
