@@ -1,6 +1,6 @@
 <script setup lang="ts">
-/** UserAvatar — initials box (displayName → username), generic-icon fallback. */
-import { computed } from 'vue'
+/** UserAvatar — image (src) → initials → generic-icon fallback. */
+import { computed, ref, watch } from 'vue'
 import { User } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
@@ -8,7 +8,12 @@ const props = withDefaults(defineProps<{
   displayName?: string | null
   username?: string | null
   size?: 'sm' | 'md'
+  src?: string | null
 }>(), { size: 'md' })
+
+const failed = ref(false)
+watch(() => props.src, () => { failed.value = false })
+const showImg = computed(() => !!props.src && !failed.value)
 
 const initials = computed(() => {
   const name = (props.displayName ?? '').trim()
@@ -28,9 +33,10 @@ const sizeClass = computed(() => (props.size === 'sm' ? 'size-6 text-[0.625rem]'
 <template>
   <span
     aria-hidden="true"
-    :class="cn('inline-flex shrink-0 items-center justify-center rounded-md bg-sidebar-accent font-medium text-sidebar-accent-foreground', sizeClass)"
+    :class="cn('inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent font-medium text-sidebar-accent-foreground', sizeClass)"
   >
-    <template v-if="initials">{{ initials }}</template>
+    <img v-if="showImg" :src="src!" alt="" class="size-full object-cover" @error="failed = true" />
+    <template v-else-if="initials">{{ initials }}</template>
     <User v-else class="size-4" />
   </span>
 </template>

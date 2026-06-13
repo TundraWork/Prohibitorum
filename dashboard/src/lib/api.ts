@@ -61,8 +61,21 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T
 }
 
+async function upload<T>(path: string, body: Blob): Promise<T> {
+  const res = await fetch(path, { method: 'PUT', credentials: 'include', body })
+  const text = await res.text()
+  const data = text ? JSON.parse(text) : {}
+  if (!res.ok) {
+    const err: ApiError = isApiError(data) ? data : { code: 'server_error', message: text || res.statusText }
+    throw err
+  }
+  return data as T
+}
+
 export const api = {
   get: <T>(path: string): Promise<T> => request<T>('GET', path),
   post: <T>(path: string, body?: unknown): Promise<T> => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown): Promise<T> => request<T>('PUT', path, body),
+  del: <T>(path: string): Promise<T> => request<T>('DELETE', path),
+  upload: <T>(path: string, body: Blob): Promise<T> => upload<T>(path, body),
 }

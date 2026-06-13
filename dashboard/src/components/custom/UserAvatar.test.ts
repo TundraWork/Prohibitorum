@@ -23,4 +23,18 @@ describe('UserAvatar', () => {
     expect(w.text()).toBe('')
     expect(w.find('svg').exists()).toBe(true)
   })
+
+  it('renders an <img> when src is provided', () => {
+    const w = mount(UserAvatar, { props: { displayName: 'Alex Smith', src: '/avatar/x?v=ab' } })
+    const img = w.find('img')
+    expect(img.exists()).toBe(true)
+    expect(img.attributes('src')).toBe('/avatar/x?v=ab')
+  })
+
+  it('falls back to initials when the image errors', async () => {
+    const w = mount(UserAvatar, { props: { displayName: 'Alex Smith', src: '/avatar/x?v=ab' } })
+    await w.find('img').trigger('error')
+    expect(w.find('img').exists()).toBe(false)
+    expect(w.text()).toBe('AS')
+  })
 })

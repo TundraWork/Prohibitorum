@@ -23,6 +23,7 @@ export interface SessionView {
   displayName: string
   role: string
   attributes?: Record<string, unknown>
+  avatarUrl?: string
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -55,6 +56,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function reload(): Promise<void> { _loaded.value = false; await ensureLoaded() }
+
   function setDisplayName(name: string): void {
     if (me.value) me.value = { ...me.value, displayName: name }
   }
@@ -64,5 +67,5 @@ export const useAuthStore = defineStore('auth', () => {
     _loaded.value = false
   }
 
-  return { me, isAdmin, ensureLoaded, setDisplayName, clear }
+  return { me, isAdmin, ensureLoaded, reload, setDisplayName, clear }
 })
