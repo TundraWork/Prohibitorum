@@ -27,12 +27,13 @@ import SettingRow from '@/components/custom/SettingRow.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import UserAvatar from '@/components/custom/UserAvatar.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
   email?: string; emailVerified: boolean
   attributes?: Record<string, unknown>; disabled: boolean
-  createdAt: string; updatedAt: string; lastSignInAt?: string
+  createdAt: string; updatedAt: string; lastSignInAt?: string; avatarUrl?: string
 }
 interface Credential {
   id: number; credentialIdSuffix: string; nickname?: string; transports: string[]
@@ -192,7 +193,10 @@ onMounted(load)
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.account.notFound') }}</p>
 
     <template v-else-if="account">
-      <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ account.displayName }}</h1>
+      <div class="flex items-center gap-3">
+        <UserAvatar :display-name="account.displayName" :username="account.username" :src="account.avatarUrl" />
+        <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ account.displayName }}</h1>
+      </div>
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.account.identityTitle') }}</CardTitle></CardHeader>

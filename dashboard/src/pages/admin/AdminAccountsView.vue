@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import UserAvatar from '@/components/custom/UserAvatar.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
-  disabled: boolean; lastSignInAt?: string
+  disabled: boolean; lastSignInAt?: string; avatarUrl?: string
 }
 const { t, te } = useI18n()
 const router = useRouter()
@@ -53,9 +54,12 @@ onMounted(load)
                   :data-test="`account-row-${a.id}`"
                   @click="go(a.id)" @keydown.enter="go(a.id)" @keydown.space.prevent="go(a.id)">
           <TableCell>
-            <div class="flex min-w-0 flex-col">
-              <span class="truncate font-medium text-ink">{{ a.displayName }}</span>
-              <span class="truncate text-muted">@{{ a.username }}</span>
+            <div class="flex min-w-0 items-center gap-2">
+              <UserAvatar :display-name="a.displayName" :username="a.username" :src="a.avatarUrl" size="sm" />
+              <div class="flex min-w-0 flex-col">
+                <span class="truncate font-medium text-ink">{{ a.displayName }}</span>
+                <span class="truncate text-muted">@{{ a.username }}</span>
+              </div>
             </div>
           </TableCell>
           <TableCell><StatusBadge :variant="a.role === 'admin' ? 'caution' : 'neutral'">{{ a.role === 'admin' ? t('admin.account.roleAdmin') : t('admin.account.roleUser') }}</StatusBadge></TableCell>

@@ -19,6 +19,7 @@ import (
 	"prohibitorum/pkg/account"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
@@ -75,13 +76,13 @@ func auditActor(sess *authn.Session) *int32 {
 
 // accountViewFromRow projects a ListAccountsRow into AccountView. The row
 // carries the same columns as db.Account plus a pre-computed LastSignInAt.
-func accountViewFromRow(r *db.ListAccountsRow) contract.AccountView {
+func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountView {
 	var lsi *time.Time
 	if r.LastSignInAt.Valid {
 		v := r.LastSignInAt.Time
 		lsi = &v
 	}
-	return contract.AccountView{
+	v := contract.AccountView{
 		ID:            r.ID,
 		Username:      r.Username,
 		DisplayName:   r.DisplayName,
@@ -94,13 +95,19 @@ func accountViewFromRow(r *db.ListAccountsRow) contract.AccountView {
 		UpdatedAt:     r.UpdatedAt.Time,
 		LastSignInAt:  lsi,
 	}
+	if r.AvatarEtag.Valid {
+		if u := avatar.PublicURL(r.OidcSubject.String(), r.AvatarEtag.String, origin); u != "" {
+			v.AvatarURL = &u
+		}
+	}
+	return v
 }
 
 // accountViewFromAccount projects a db.Account into AccountView with an
 // optional lastSignInAt (nil on single-row fetches that don't carry the
 // credential subquery).
-func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time) contract.AccountView {
-	return contract.AccountView{
+func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin string) contract.AccountView {
+	v := contract.AccountView{
 		ID:            a.ID,
 		Username:      a.Username,
 		DisplayName:   a.DisplayName,
@@ -113,6 +120,10 @@ func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time) contract.Acc
 		UpdatedAt:     a.UpdatedAt.Time,
 		LastSignInAt:  lastSignInAt,
 	}
+	if u := avatar.AccountURL(*a, origin); u != "" {
+		v.AvatarURL = &u
+	}
+	return v
 }
 
 // ----- GET /accounts ---------------------------------------------------------
@@ -126,9 +137,10 @@ func (s *Server) handleListAccounts(ctx context.Context, _ *struct{}) (*listAcco
 	if err != nil {
 		return nil, fmt.Errorf("handleListAccounts: query: %w", err)
 	}
+	origin := s.config.PublicOrigins[0]
 	views := make([]contract.AccountView, 0, len(rows))
 	for i := range rows {
-		views = append(views, accountViewFromRow(&rows[i]))
+		views = append(views, accountViewFromRow(&rows[i], origin))
 	}
 	return &listAccountsOut{Body: views}, nil
 }
@@ -147,7 +159,7 @@ func (s *Server) handleGetAccount(ctx context.Context, in *getAccountIn) (*accou
 		}
 		return nil, fmt.Errorf("handleGetAccount: query: %w", err)
 	}
-	return &accountOut{Body: accountViewFromAccount(&a, nil)}, nil
+	return &accountOut{Body: accountViewFromAccount(&a, nil, s.config.PublicOrigins[0])}, nil
 }
 
 // ----- PUT /accounts/{id} ----------------------------------------------------
@@ -293,7 +305,7 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		_, _ = s.sessionStore.RevokeAllForAccount(ctx, in.ID)
 	}
 
-	return &accountOut{Body: accountViewFromAccount(&updated, nil)}, nil
+	return &accountOut{Body: accountViewFromAccount(&updated, nil, s.config.PublicOrigins[0])}, nil
 }
 
 // ----- POST /accounts/delete -------------------------------------------------

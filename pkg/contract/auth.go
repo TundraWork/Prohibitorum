@@ -50,6 +50,7 @@ type AccountView struct {
 	CreatedAt     time.Time      `json:"createdAt"`
 	UpdatedAt     time.Time      `json:"updatedAt"`
 	LastSignInAt  *time.Time     `json:"lastSignInAt,omitempty"`
+	AvatarURL     *string        `json:"avatarUrl,omitempty"`
 }
 
 // SessionListItem is a single row in /me/sessions. Token is intentionally
