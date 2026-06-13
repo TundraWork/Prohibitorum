@@ -36,10 +36,15 @@ export default {
 
   accountMenu: {
     trigger: 'Account menu',
-    editName: 'Edit display name',
-    editTitle: 'Edit display name',
-    editDescription: 'This name is shown across your account.',
+    editProfile: 'Edit profile',
+    editTitle: 'Edit profile',
+    editDescription: 'Your avatar and display name are shown across your account.',
     displayNameLabel: 'Display name',
+    avatarLabel: 'Avatar',
+    avatarUpload: 'Upload',
+    avatarRemove: 'Remove',
+    avatarHint: 'PNG, JPEG, or WebP, up to 5 MB. Cropped to a square.',
+    avatarTooLargeClient: 'That image is larger than 5 MB.',
   },
 
   sessions: {
@@ -528,6 +533,10 @@ export default {
     upstream_idp_not_found: 'That provider no longer exists.',
     upstream_idp_already_exists: 'A provider with that slug already exists.',
     active_key_no_replacement: 'Activate a replacement key before retiring the active key.',
+
+    // Avatar upload
+    avatar_too_large: 'That image is too large.',
+    avatar_invalid_image: 'That file is not a supported image.',
 
     // Sudo federation re-auth
     sudo_identity_mismatch: "That sign-in didn't match this account. Try again.",

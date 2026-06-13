@@ -1,9 +1,11 @@
 <script setup lang="ts">
 /**
- * EditDisplayNameDialog — edits the current account's displayName via PUT /me.
+ * EditProfileDialog — edits the current account avatar and displayName.
+ * Avatar: PUT /me/avatar (raw image body) / DELETE /me/avatar.
+ * Display name: PUT /me { displayName }.
  * Client validation mirrors the server (1-128, no control chars, NO trim) for
  * the disabled state; the server stays the source of truth and its error
- * surfaces inline. Sudo-free (PUT /me self-edit).
+ * surfaces inline. Sudo-free.
  */
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -18,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import UserAvatar from '@/components/custom/UserAvatar.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
@@ -28,6 +31,7 @@ const { busy, error, run } = useApi()
 
 const draft = ref('')
 const inputRef = ref<{ $el?: HTMLElement }>()
+const fileRef = ref<HTMLInputElement>()
 
 // Reset the draft to the current value each time the dialog opens - no stale
 // carry-over - and focus the input (layered on top of reka's focus trap, as
@@ -69,6 +73,23 @@ async function save(): Promise<void> {
     emit('update:open', false)
   }
 }
+
+async function onFile(e: Event): Promise<void> {
+  const f = (e.target as HTMLInputElement).files?.[0]
+  if (fileRef.value) fileRef.value.value = ''
+  if (!f) return
+  if (f.size > 5 * 1024 * 1024) {
+    error.value = { code: 'avatar_too_large_client', message: t('accountMenu.avatarTooLargeClient') }
+    return
+  }
+  const ok = await run(() => api.upload('/api/prohibitorum/me/avatar', f))
+  if (ok !== undefined) await auth.reload()
+}
+
+async function removeAvatar(): Promise<void> {
+  const ok = await run(() => api.del('/api/prohibitorum/me/avatar'))
+  if (ok !== undefined) await auth.reload()
+}
 </script>
 
 <template>
@@ -79,6 +100,18 @@ async function save(): Promise<void> {
         <DialogDescription>{{ t('accountMenu.editDescription') }}</DialogDescription>
       </DialogHeader>
       <form class="flex flex-col gap-3" @submit.prevent="save">
+        <div class="flex items-center gap-3">
+          <UserAvatar :display-name="auth.me?.displayName" :username="auth.me?.username" :src="auth.me?.avatarUrl" class="size-16 text-xl" />
+          <div class="flex flex-col gap-1.5">
+            <span class="text-sm text-muted">{{ t('accountMenu.avatarLabel') }}</span>
+            <div class="flex gap-2">
+              <input ref="fileRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" data-test="avatar-file" @change="onFile" />
+              <Button type="button" size="sm" variant="outline" :disabled="busy" data-test="avatar-upload" @click="fileRef?.click()">{{ t('accountMenu.avatarUpload') }}</Button>
+              <Button v-if="auth.me?.avatarUrl" type="button" size="sm" variant="ghost" :disabled="busy" data-test="avatar-remove" @click="removeAvatar">{{ t('accountMenu.avatarRemove') }}</Button>
+            </div>
+            <span class="text-xs text-muted">{{ t('accountMenu.avatarHint') }}</span>
+          </div>
+        </div>
         <div class="flex flex-col gap-1.5">
           <Label for="edit-displayName">{{ t('accountMenu.displayNameLabel') }}</Label>
           <Input

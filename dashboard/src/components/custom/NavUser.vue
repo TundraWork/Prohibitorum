@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
-import EditDisplayNameDialog from '@/components/custom/EditDisplayNameDialog.vue'
+import EditProfileDialog from '@/components/custom/EditProfileDialog.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -53,7 +53,7 @@ defineExpose({ openEdit, signOut, editOpen })
             :aria-label="t('accountMenu.trigger')"
             class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" />
+            <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" />
             <div class="grid flex-1 text-left text-sm leading-tight">
               <span class="truncate font-medium text-ink">{{ auth.me.displayName }}</span>
               <span class="truncate text-xs capitalize text-muted">{{ auth.me.role }}</span>
@@ -70,7 +70,7 @@ defineExpose({ openEdit, signOut, editOpen })
         >
           <DropdownMenuLabel class="font-normal">
             <div class="flex items-center gap-2">
-              <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" />
+              <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" />
               <div class="grid flex-1 text-left text-sm leading-tight">
                 <span class="truncate font-medium text-ink">{{ auth.me.displayName }}</span>
                 <span class="truncate text-xs text-muted">@{{ auth.me.username }}</span>
@@ -83,7 +83,7 @@ defineExpose({ openEdit, signOut, editOpen })
           <DropdownMenuSeparator />
           <DropdownMenuItem data-test="account-edit" @select="openEdit">
             <Pencil />
-            <span>{{ t('accountMenu.editName') }}</span>
+            <span>{{ t('accountMenu.editProfile') }}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem data-test="account-signout" @select="signOut">
@@ -95,5 +95,5 @@ defineExpose({ openEdit, signOut, editOpen })
     </SidebarMenuItem>
   </SidebarMenu>
 
-  <EditDisplayNameDialog v-model:open="editOpen" />
+  <EditProfileDialog v-model:open="editOpen" />
 </template>
