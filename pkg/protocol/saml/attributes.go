@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/db"
 )
 
@@ -56,7 +57,7 @@ type samlAttr struct {
 //
 // A nil/empty mapJSON yields an empty slice and no error. An error is returned
 // only when mapJSON is not a valid JSON array.
-func projectAttributes(a db.Account, mapJSON []byte) ([]samlAttr, error) {
+func projectAttributes(a db.Account, mapJSON []byte, origin string) ([]samlAttr, error) {
 	if len(mapJSON) == 0 {
 		return nil, nil
 	}
@@ -90,7 +91,7 @@ func projectAttributes(a db.Account, mapJSON []byte) ([]samlAttr, error) {
 			continue
 		}
 
-		values := resolveSource(a, attrs, e.Source, e.Multi)
+		values := resolveSource(a, attrs, e.Source, e.Multi, origin)
 		if len(values) == 0 {
 			continue // omit attributes that resolve to nothing
 		}
@@ -106,7 +107,14 @@ func projectAttributes(a db.Account, mapJSON []byte) ([]samlAttr, error) {
 
 // resolveSource resolves a single non-administrator source spec against the
 // account into zero or more string values.
-func resolveSource(a db.Account, attrs map[string]any, source string, multi bool) []string {
+func resolveSource(a db.Account, attrs map[string]any, source string, multi bool, origin string) []string {
+	if source == "avatar_url" {
+		if u := avatar.AccountURL(a, origin); u != "" {
+			return []string{u}
+		}
+		return nil
+	}
+
 	if source == "username" {
 		if a.Username == "" {
 			return nil

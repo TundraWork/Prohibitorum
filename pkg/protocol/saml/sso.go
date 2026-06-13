@@ -275,7 +275,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// (7-attrs) Project the account into SAML attributes per the SP's map.
-	attrs, err := projectAttributes(account, sp.AttributeMap)
+	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL())
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

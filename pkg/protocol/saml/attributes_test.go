@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"prohibitorum/pkg/db"
 )
 
@@ -37,7 +39,7 @@ func TestAttributesGHESAdminAccount(t *testing.T) {
 		}),
 	}
 
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap())
+	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "")
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -116,7 +118,7 @@ func TestAttributesNonAdminOmitsAdministrator(t *testing.T) {
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"bob@x.test"}}),
 	}
 
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap())
+	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "")
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -153,7 +155,7 @@ func TestAttributesAdministratorTruthyViaAttribute(t *testing.T) {
 				Role:       "user",
 				Attributes: mustAttrJSON(t, map[string]any{"administrator": tc.val}),
 			}
-			attrs, err := projectAttributes(acct, ghesDefaultAttributeMap())
+			attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "")
 			if err != nil {
 				t.Fatalf("projectAttributes: %v", err)
 			}
@@ -177,7 +179,7 @@ func TestAttributesAdministratorViaRoleOnly(t *testing.T) {
 		Role:       "admin",
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"b@x.test"}}),
 	}
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap())
+	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "")
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -202,7 +204,7 @@ func TestAttributesMalformedAccountAttributes(t *testing.T) {
 		t.Fatalf("marshal map: %v", err)
 	}
 	acct := db.Account{Username: "x", Attributes: []byte("{not json")}
-	if _, err := projectAttributes(acct, mapJSON); err == nil {
+	if _, err := projectAttributes(acct, mapJSON, ""); err == nil {
 		t.Error("expected error for malformed account Attributes, got nil")
 	}
 }
@@ -218,14 +220,14 @@ func TestAttributesNameFormatURIsExact(t *testing.T) {
 
 func TestAttributesMalformedMap(t *testing.T) {
 	acct := db.Account{Username: "alice"}
-	if _, err := projectAttributes(acct, []byte("{not an array}")); err == nil {
+	if _, err := projectAttributes(acct, []byte("{not an array}"), ""); err == nil {
 		t.Error("expected error for malformed mapJSON, got nil")
 	}
 }
 
 func TestAttributesEmptyMap(t *testing.T) {
 	acct := db.Account{Username: "alice"}
-	attrs, err := projectAttributes(acct, nil)
+	attrs, err := projectAttributes(acct, nil, "")
 	if err != nil {
 		t.Errorf("unexpected error for nil mapJSON: %v", err)
 	}
@@ -246,7 +248,7 @@ func TestAttributesMultiValueOrderAndSingleFromArray(t *testing.T) {
 		Username:   "dave",
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"first@x.test", "second@x.test"}}),
 	}
-	attrs, err := projectAttributes(acct, mapJSON)
+	attrs, err := projectAttributes(acct, mapJSON, "")
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -256,5 +258,19 @@ func TestAttributesMultiValueOrderAndSingleFromArray(t *testing.T) {
 	}
 	if len(a.Values) != 1 || a.Values[0] != "first@x.test" {
 		t.Errorf("first_email values = %v, want [first@x.test]", a.Values)
+	}
+}
+
+func TestResolveSource_AvatarURL(t *testing.T) {
+	var u pgtype.UUID
+	_ = u.Scan("11111111-2222-3333-4444-555555555555")
+	a := db.Account{OidcSubject: u, AvatarEtag: pgtype.Text{String: "deadbeefcafe", Valid: true}}
+	got := resolveSource(a, nil, "avatar_url", false, "https://auth.example.com")
+	if len(got) != 1 || got[0] != "https://auth.example.com/avatar/11111111-2222-3333-4444-555555555555?v=deadbeef" {
+		t.Fatalf("got %v", got)
+	}
+	a.AvatarEtag = pgtype.Text{}
+	if resolveSource(a, nil, "avatar_url", false, "https://auth.example.com") != nil {
+		t.Fatal("want nil without avatar")
 	}
 }

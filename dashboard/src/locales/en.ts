@@ -222,7 +222,7 @@ export default {
       certExpires: 'Expires',
       sessionLifetimeInvalid: 'Session lifetime must be a whole number of seconds.',
       attributeMap: 'Attribute map (JSON)',
-      attributeMapHint: "Array of attribute mappings, e.g. [{'{'}" + '"name":"USERNAME","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:basic","source":"username","multi":false' + "{'}'}" + "].",
+      attributeMapHint: "Array of attribute mappings, e.g. [{'{'}" + '"name":"USERNAME","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:basic","source":"username","multi":false' + "{'}'}" + "]. Sources: username, attributes.<key>, avatar_url.",
       attributeMapInvalid: 'Attribute map must be valid JSON.',
       back: 'Back to applications', notFound: 'That application no longer exists.',
       save: 'Save changes', saved: 'Saved.',
