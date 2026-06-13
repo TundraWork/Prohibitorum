@@ -563,3 +563,35 @@ func TestTokenBadClientSecret(t *testing.T) {
 		t.Fatalf("want %s, got %s", errCodeInvalidClient, got)
 	}
 }
+
+// TestTokenEmptyPublicOriginsNoPanic asserts that a provider configured with
+// PublicOrigins: nil (a valid operator configuration — only the data-encryption
+// key is hard-required) does not panic at token exchange and instead falls back
+// to the OIDC issuer as the avatar origin. The ID token must still be issued
+// successfully (200 OK).
+func TestTokenEmptyPublicOriginsNoPanic(t *testing.T) {
+	h := newTokenHarness(t)
+	// Override to nil PublicOrigins — the issuer remains set.
+	h.p.cfg = &configx.Config{
+		OIDC:          configx.OIDCConfig{Issuer: testIssuer},
+		PublicOrigins: nil,
+	}
+
+	ac := baseAuthCode()
+	ac.Scope = []string{"openid", "profile", "offline_access"}
+	code := h.mintTestCode(t, ac)
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(codeExchangeForm(code, testVerifier, testRedirect)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("empty PublicOrigins must not panic or error; got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var resp tokenResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode token response: %v", err)
+	}
+	if resp.IDToken == "" {
+		t.Fatal("expected a non-empty id_token")
+	}
+}

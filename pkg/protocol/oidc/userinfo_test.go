@@ -288,3 +288,30 @@ func TestUserinfoDisabledAccount(t *testing.T) {
 		t.Fatalf("want 401 for disabled account, got %d", rec.Code)
 	}
 }
+
+// TestUserinfoEmptyPublicOriginsNoPanic asserts that a provider configured with
+// PublicOrigins: nil does not panic at /userinfo and falls back to the OIDC
+// issuer as the avatar origin. The response must be 200 OK.
+func TestUserinfoEmptyPublicOriginsNoPanic(t *testing.T) {
+	h := newEndpointHarness(t)
+	// Override to nil PublicOrigins — the issuer remains set.
+	h.p.cfg = &configx.Config{
+		OIDC:          configx.OIDCConfig{Issuer: testIssuer},
+		PublicOrigins: nil,
+	}
+
+	at := h.mintAccessToken(t, testSubject, testClientID, "openid profile", "jti-nopub", time.Now().Add(time.Hour))
+	rec := httptest.NewRecorder()
+	h.p.HandleUserinfo(rec, userinfoReq(at))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("empty PublicOrigins must not panic or error; got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode userinfo response: %v", err)
+	}
+	if body["sub"] != testSubject {
+		t.Fatalf("sub = %v, want %s", body["sub"], testSubject)
+	}
+}

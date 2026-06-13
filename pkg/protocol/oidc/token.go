@@ -293,9 +293,13 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 		return "", "", err
 	}
 
+	avatarOrigin := issuer
+	if len(p.cfg.PublicOrigins) > 0 {
+		avatarOrigin = p.cfg.PublicOrigins[0]
+	}
 	idClaims := idTokenClaims(acct, idTokenInput{
 		Issuer:       issuer,
-		AvatarOrigin: p.cfg.PublicOrigins[0],
+		AvatarOrigin: avatarOrigin,
 		Audience:     clientID,
 		Nonce:        nonce,
 		ACR:          acr,

@@ -64,12 +64,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 async function upload<T>(path: string, body: Blob): Promise<T> {
   const res = await fetch(path, { method: 'PUT', credentials: 'include', body })
   const text = await res.text()
-  const data = text ? JSON.parse(text) : {}
-  if (!res.ok) {
-    const err: ApiError = isApiError(data) ? data : { code: 'server_error', message: text || res.statusText }
-    throw err
+  let data: unknown = undefined
+  if (text) {
+    try { data = JSON.parse(text) } catch { /* non-JSON body */ }
   }
-  return data as T
+  if (!res.ok) {
+    throw isApiError(data) ? data : { code: 'server_error', message: text || res.statusText }
+  }
+  return (data ?? {}) as T
 }
 
 export const api = {
