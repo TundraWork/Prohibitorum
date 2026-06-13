@@ -1,0 +1,68 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-13-account-avatars.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Migration + avatar SQL queries",
+      "status": "pending",
+      "description": "**Goal:** account_avatar table + small avatar_content_type/avatar_etag columns on account + sqlc queries.\n\n**Files:** Create db/migrations/002_avatar.sql; Modify db/queries/account.sql; regenerate pkg/db.\n\n```json:metadata\n{\"files\":[\"db/migrations/002_avatar.sql\",\"db/queries/account.sql\",\"pkg/db\"],\"verifyCommand\":\"podman compose up -d && mise db:up && mise exec -- sqlc generate && go build ./...\",\"acceptanceCriteria\":[\"002 applies; account has avatar_content_type+avatar_etag; account_avatar exists\",\"sqlc generate + go build pass\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: pkg/avatar pipeline + URL helper",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Pure package: Process (decode→square-crop→512² resize→WebP q85/m6 encode, 5MB+garbage guards) + PublicURL/AccountURL. Add gen2brain/webp + x/image.\n\n**Files:** Create pkg/avatar/avatar.go + avatar_test.go; Modify go.mod/go.sum.\n\n```json:metadata\n{\"files\":[\"pkg/avatar/avatar.go\",\"pkg/avatar/avatar_test.go\",\"go.mod\",\"go.sum\"],\"verifyCommand\":\"go test ./pkg/avatar/ -v && CGO_ENABLED=0 go build -tags nodynamic ./pkg/avatar/\",\"acceptanceCriteria\":[\">5MB→ErrTooLarge; garbage→ErrInvalidImage; valid→512x512 webp+etag\",\"PublicURL/AccountURL correct\",\"builds no-cgo with nodynamic\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Avatar HTTP endpoints + SessionView.avatarUrl",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** PUT/DELETE /me/avatar (authed, tx bytes+meta), public GET /avatar/{subject} (ETag/304/404), SessionView.avatarUrl.\n\n**Files:** Create pkg/server/handle_avatar.go + test; Modify pkg/contract/auth.go, pkg/server/handle_me.go, server.go.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_avatar.go\",\"pkg/server/handle_avatar_test.go\",\"pkg/contract/auth.go\",\"pkg/server/handle_me.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go build ./... && go test ./pkg/server/ -run Avatar -v\",\"acceptanceCriteria\":[\"PUT stores+refreshes; DELETE clears; both need session\",\"public GET image/webp+ETag; 304; 404 none/unknown/disabled\",\"/me avatarUrl\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: FE upload helper, store field, image UserAvatar",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** api.upload (raw PUT)+api.del; SessionView.avatarUrl + reload(); UserAvatar src (img→initials→icon, @error fallback).\n\n**Files:** Modify dashboard/src/lib/api.ts, stores/auth.ts, UserAvatar.vue + test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/lib/api.ts\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/components/custom/UserAvatar.vue\",\"dashboard/src/components/custom/UserAvatar.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/UserAvatar.test.ts\",\"acceptanceCriteria\":[\"api.upload raw PUT throws ApiError on non-2xx\",\"UserAvatar img for src; fallback on error/empty\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Edit Profile dialog + NavUser wiring",
+      "status": "pending",
+      "blockedBy": [3, 4],
+      "description": "**Goal:** EditDisplayNameDialog→EditProfileDialog (avatar upload/remove + name); 'Edit profile' item; NavUser avatarUrl; i18n + error codes.\n\n**Files:** git mv dialog (+test); Modify NavUser.vue, stores/auth.ts (reload), locales/en.ts.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/EditProfileDialog.vue\",\"dashboard/src/components/custom/EditProfileDialog.test.ts\",\"dashboard/src/components/custom/NavUser.vue\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/EditProfileDialog.test.ts src/components/custom/NavUser.test.ts && npx vue-tsc -b\",\"acceptanceCriteria\":[\"Edit profile dialog avatar upload/remove + name\",\"upload→api.upload→reload; remove→api.del; >5MB reject; errors mapped\",\"NavUser avatarUrl\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Admin views — AccountView.avatarUrl + render",
+      "status": "pending",
+      "blockedBy": [3, 4],
+      "description": "**Goal:** AccountView.avatarUrl (both projections); render UserAvatar :src in admin list+detail.\n\n**Files:** Modify pkg/contract/auth.go, pkg/server/handle_account.go, admin AdminAccountsView.vue + AdminAccountDetailView.vue.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_account.go\",\"dashboard/src/pages/admin/AdminAccountsView.vue\",\"dashboard/src/pages/admin/AdminAccountDetailView.vue\"],\"verifyCommand\":\"go build ./... && go test ./pkg/server/ -run Account -v && cd dashboard && npx vue-tsc -b\",\"acceptanceCriteria\":[\"AccountView.avatarUrl in both projections\",\"admin list+detail render avatars\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: OIDC picture claim",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** profileClaims(a,origin) emits picture; thread origin via idTokenInput.Issuer + userinfoClaims(a,scope,origin).\n\n**Files:** Modify pkg/protocol/oidc/claims.go + userinfo.go + claims_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/claims.go\",\"pkg/protocol/oidc/userinfo.go\",\"pkg/protocol/oidc/claims_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/ -v\",\"acceptanceCriteria\":[\"picture present with profile scope+avatar; absent otherwise\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: SAML avatar_url attribute source",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** resolveSource avatar_url source (thread origin); document in SAML attr-map hint.\n\n**Files:** Modify pkg/protocol/saml/attributes.go + caller + test; locales/en.ts.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/attributes.go\",\"pkg/protocol/saml/attributes_test.go\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"go test ./pkg/protocol/saml/ -v\",\"acceptanceCriteria\":[\"avatar_url returns URL when set, nil when unset\",\"hint documents avatar_url\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Smoke coverage + done-gate",
+      "status": "pending",
+      "blockedBy": [5, 6, 7, 8],
+      "description": "**Goal:** Smoke avatar round-trip (PUT→public GET→userinfo picture); full gate; rebuild+commit dist.\n\n**Files:** Modify cmd/smoke/main.go; pkg/webui/dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npm run test && npm run build && cd .. && CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke avatar PUT→GET 200→userinfo picture; SMOKE_EXIT=0\",\"gate green; dist rebuilt+committed\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-13"
+}
