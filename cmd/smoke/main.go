@@ -30,6 +30,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"image"
+	"image/png"
 	"io"
 	"log"
 	"math/big"
@@ -3242,8 +3244,114 @@ func main() {
 		opSrv.SetAuthTime(time.Time{})
 	}
 
+	// =========================================================================
+	// Avatar round-trip: upload → public GET → OIDC picture claim assertion.
+	//
+	// Pre-condition: c holds a live webauthn session (fed-sudo ended with c's
+	// session intact — fed-sudo used a separate fedClient). idSub (the
+	// smoke-admin's OIDC subject UUID) and rpClientID/rpSecret/rpRedirectURI/
+	// issuer are all still in scope from the v0.4 block.
+	// =========================================================================
+
+	step("avatar 1/4 — PUT /me/avatar with a tiny 8×8 PNG (upload round-trip)")
+	var pngBuf bytes.Buffer
+	{
+		img := image.NewRGBA(image.Rect(0, 0, 8, 8))
+		if err := png.Encode(&pngBuf, img); err != nil {
+			log.Fatalf("avatar: encode PNG: %v", err)
+		}
+	}
+	{
+		req, err := http.NewRequest(http.MethodPut,
+			*baseURL+"/api/prohibitorum/me/avatar",
+			bytes.NewReader(pngBuf.Bytes()))
+		if err != nil {
+			log.Fatalf("avatar: build PUT request: %v", err)
+		}
+		req.Header.Set("Content-Type", "image/png")
+		// Attach the session cookies from c's jar so the server recognises the authed request.
+		for _, ck := range c.cookies() {
+			req.AddCookie(ck)
+		}
+		resp, err := c.hc.Do(req)
+		if err != nil {
+			log.Fatalf("avatar: PUT /me/avatar: %v", err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNoContent {
+			log.Fatalf("avatar: PUT /me/avatar: want 204, got %d (body=%s)", resp.StatusCode, body)
+		}
+		log.Printf("  PUT /me/avatar → 204 ✓")
+	}
+
+	step("avatar 2/4 — GET /avatar/{subject} (public, unauthenticated) → 200 image/webp + ETag")
+	{
+		resp, err := http.Get(*baseURL + "/avatar/" + idSub)
+		if err != nil {
+			log.Fatalf("avatar: GET /avatar/%s: %v", idSub, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			log.Fatalf("avatar: GET /avatar/%s: want 200, got %d (body=%s)", idSub, resp.StatusCode, body)
+		}
+		ct := resp.Header.Get("Content-Type")
+		if !strings.HasPrefix(ct, "image/webp") {
+			log.Fatalf("avatar: GET /avatar/%s: want Content-Type image/webp, got %q", idSub, ct)
+		}
+		if len(body) == 0 {
+			log.Fatalf("avatar: GET /avatar/%s: body is empty", idSub)
+		}
+		etag := resp.Header.Get("ETag")
+		if etag == "" {
+			log.Fatalf("avatar: GET /avatar/%s: ETag header missing", idSub)
+		}
+		log.Printf("  GET /avatar/%s → 200 Content-Type=%s ETag=%s body=%d bytes ✓", idSub, ct, etag, len(body))
+	}
+
+	step("avatar 3/4 — GET /me reflects non-null avatarUrl with prefix /avatar/{subject}?v=")
+	{
+		meAvatar, err := c.getMe()
+		if err != nil {
+			log.Fatalf("avatar: getMe post-upload: %v", err)
+		}
+		if meAvatar.AvatarURL == nil {
+			log.Fatalf("avatar: /me.avatarUrl is null after upload (expected non-null)")
+		}
+		wantPrefix := *baseURL + "/avatar/" + idSub + "?v="
+		if !strings.HasPrefix(*meAvatar.AvatarURL, wantPrefix) {
+			log.Fatalf("avatar: /me.avatarUrl=%q does not have expected prefix %q", *meAvatar.AvatarURL, wantPrefix)
+		}
+		log.Printf("  /me.avatarUrl=%q (prefix OK) ✓", *meAvatar.AvatarURL)
+	}
+
+	step("avatar 4/4 — GET /oauth/userinfo (fresh token, profile scope) has picture claim matching /avatar/{subject}?v=")
+	{
+		v, code := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
+		tok, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {code},
+			"redirect_uri":  {rpRedirectURI},
+			"code_verifier": {v},
+		})
+		if err != nil {
+			log.Fatalf("avatar: token exchange for userinfo: %v", err)
+		}
+		ui, err := fetchUserinfo(*baseURL, tok.AccessToken)
+		if err != nil {
+			log.Fatalf("avatar: GET /oauth/userinfo: %v", err)
+		}
+		pic := str(ui["picture"])
+		wantPrefix := *baseURL + "/avatar/" + idSub + "?v="
+		if !strings.HasPrefix(pic, wantPrefix) {
+			log.Fatalf("avatar: userinfo.picture=%q does not have expected prefix %q", pic, wantPrefix)
+		}
+		log.Printf("  userinfo.picture=%q (picture claim present, prefix OK) ✓", pic)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -3606,10 +3714,11 @@ func clientDataJSON(typ string, challenge []byte, origin string) []byte {
 // ---------- Prohibitorum REST shapes ----------
 
 type meResponse struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-	Role        string `json:"role"`
+	ID          int32   `json:"id"`
+	Username    string  `json:"username"`
+	DisplayName string  `json:"displayName"`
+	Role        string  `json:"role"`
+	AvatarURL   *string `json:"avatarUrl,omitempty"`
 }
 
 func (c *client) beginEnrollment(token, username, display, nickname string) (*creationOptions, error) {
