@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
+import { defineComponent, h } from 'vue'
 import en from '@/locales/en'
 import EditProfileDialog from './EditProfileDialog.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -11,6 +12,23 @@ import { api } from '@/lib/api'
 const put = vi.mocked(api.put)
 const upload = vi.mocked(api.upload)
 const del = vi.mocked(api.del)
+
+// jsdom has no URL.createObjectURL / revokeObjectURL
+URL.createObjectURL = vi.fn(() => 'blob:x')
+URL.revokeObjectURL = vi.fn()
+
+// Stub AvatarCropper so jsdom doesn't attempt canvas rendering.
+const AvatarCropperStub = defineComponent({
+  name: 'AvatarCropper',
+  props: ['src'],
+  emits: ['crop', 'cancel'],
+  setup(_props, { emit }) {
+    return () => h('div', { 'data-test': 'cropper-stub' }, [
+      h('button', { 'data-test': 'stub-crop', onClick: () => emit('crop', new Blob([1], { type: 'image/jpeg' })) }, 'crop'),
+      h('button', { 'data-test': 'stub-cancel', onClick: () => emit('cancel') }, 'cancel'),
+    ])
+  },
+})
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 
@@ -22,7 +40,9 @@ function seedUser(displayName = 'Alex Smith', avatarUrl?: string) {
 
 function mountOpen() {
   return mount(EditProfileDialog, {
-    props: { open: true }, attachTo: document.body, global: { plugins: [i18n()] },
+    props: { open: true },
+    attachTo: document.body,
+    global: { plugins: [i18n()], stubs: { AvatarCropper: AvatarCropperStub } },
   })
 }
 
@@ -110,16 +130,27 @@ describe('EditProfileDialog — avatar', () => {
     expect(removeBtn()).not.toBeNull()
   })
 
-  it('rejects a file >5MB and does NOT call api.upload', async () => {
+  it('rejects a file >5MB, does NOT enter crop mode, and shows the error', async () => {
     seedUser(); mountOpen(); await flushPromises()
     const big = new File([new ArrayBuffer(6 * 1024 * 1024)], 'big.png', { type: 'image/png' })
     simulateFile(big)
     await flushPromises()
     expect(upload).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[data-test="cropper-stub"]')).toBeNull()
     expect(document.body.textContent).toContain(en.accountMenu.avatarTooLargeClient)
   })
 
-  it('uploads a valid file and reloads the store', async () => {
+  it('selecting a valid file shows the crop UI and does NOT upload yet', async () => {
+    seedUser(); mountOpen(); await flushPromises()
+    const small = new File([new ArrayBuffer(100)], 'a.png', { type: 'image/png' })
+    simulateFile(small)
+    await flushPromises()
+    expect(URL.createObjectURL).toHaveBeenCalledWith(small)
+    expect(document.body.querySelector('[data-test="cropper-stub"]')).not.toBeNull()
+    expect(upload).not.toHaveBeenCalled()
+  })
+
+  it('confirming crop calls api.upload with the Blob then reloads the store', async () => {
     seedUser()
     upload.mockResolvedValue({})
     vi.mocked(api.get).mockResolvedValue({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
@@ -127,8 +158,28 @@ describe('EditProfileDialog — avatar', () => {
     const small = new File([new ArrayBuffer(100)], 'a.png', { type: 'image/png' })
     simulateFile(small)
     await flushPromises()
-    expect(upload).toHaveBeenCalledWith('/api/prohibitorum/me/avatar', small)
+    // Click the stub crop button (emits a Blob)
+    ;(document.body.querySelector('[data-test="stub-crop"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(upload).toHaveBeenCalledWith('/api/prohibitorum/me/avatar', expect.any(Blob))
     expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+    // Cropper dismissed after upload
+    expect(document.body.querySelector('[data-test="cropper-stub"]')).toBeNull()
+  })
+
+  it('cancelling crop returns to the form without uploading', async () => {
+    seedUser(); mountOpen(); await flushPromises()
+    const small = new File([new ArrayBuffer(100)], 'a.png', { type: 'image/png' })
+    simulateFile(small)
+    await flushPromises()
+    expect(document.body.querySelector('[data-test="cropper-stub"]')).not.toBeNull()
+    ;(document.body.querySelector('[data-test="stub-cancel"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(upload).not.toHaveBeenCalled()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:x')
+    expect(document.body.querySelector('[data-test="cropper-stub"]')).toBeNull()
+    // Form is back (the displayname input should be visible again)
+    expect(document.body.querySelector('[data-test="edit-displayname-input"]')).not.toBeNull()
   })
 
   it('calls api.del on remove and reloads the store', async () => {

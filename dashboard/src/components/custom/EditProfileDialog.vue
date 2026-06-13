@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
+import AvatarCropper from '@/components/custom/AvatarCropper.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
@@ -32,6 +33,7 @@ const { busy, error, run } = useApi()
 const draft = ref('')
 const inputRef = ref<{ $el?: HTMLElement }>()
 const fileRef = ref<HTMLInputElement>()
+const cropSrc = ref<string | null>(null)
 
 // Reset the draft to the current value each time the dialog opens - no stale
 // carry-over - and focus the input (layered on top of reka's focus trap, as
@@ -82,8 +84,19 @@ async function onFile(e: Event): Promise<void> {
     error.value = { code: 'avatar_too_large_client', message: t('accountMenu.avatarTooLargeClient') }
     return
   }
-  await run(() => api.upload('/api/prohibitorum/me/avatar', f))
+  error.value = null
+  cropSrc.value = URL.createObjectURL(f)
+}
+
+function closeCrop(): void {
+  if (cropSrc.value) URL.revokeObjectURL(cropSrc.value)
+  cropSrc.value = null
+}
+
+async function onCropped(blob: Blob): Promise<void> {
+  await run(() => api.upload('/api/prohibitorum/me/avatar', blob))
   if (!error.value) await auth.reload()
+  closeCrop()
 }
 
 async function removeAvatar(): Promise<void> {
@@ -99,7 +112,8 @@ async function removeAvatar(): Promise<void> {
         <DialogTitle>{{ t('accountMenu.editTitle') }}</DialogTitle>
         <DialogDescription>{{ t('accountMenu.editDescription') }}</DialogDescription>
       </DialogHeader>
-      <form class="flex flex-col gap-3" @submit.prevent="save">
+      <AvatarCropper v-if="cropSrc" :src="cropSrc" @crop="onCropped" @cancel="closeCrop" />
+      <form v-else class="flex flex-col gap-3" @submit.prevent="save">
         <div class="flex items-center gap-3">
           <UserAvatar :display-name="auth.me?.displayName" :username="auth.me?.username" :src="auth.me?.avatarUrl" class="size-16 text-xl" />
           <div class="flex flex-col gap-1.5">

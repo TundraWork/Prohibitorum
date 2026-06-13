@@ -45,6 +45,7 @@ export default {
     avatarRemove: 'Remove',
     avatarHint: 'PNG, JPEG, or WebP, up to 5 MB. Cropped to a square.',
     avatarTooLargeClient: 'That image is larger than 5 MB.',
+    avatarUse: 'Use photo',
   },
 
   sessions: {
