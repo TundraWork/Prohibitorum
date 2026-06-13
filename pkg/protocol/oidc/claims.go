@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/db"
 )
 
@@ -50,8 +51,10 @@ func decodeAttributes(raw []byte) map[string]any {
 
 // profileClaims returns the scope-gated profile claim block for an account.
 // The `attributes` claim is omitted entirely when the account has no
-// attributes (rather than emitting null). Shared by id_token and userinfo.
-func profileClaims(a db.Account) map[string]any {
+// attributes (rather than emitting null). The `picture` claim is included when
+// the account has an avatar and origin is non-empty. Shared by id_token and
+// userinfo.
+func profileClaims(a db.Account, origin string) map[string]any {
 	c := map[string]any{
 		"username":    a.Username,
 		"displayName": a.DisplayName,
@@ -59,6 +62,9 @@ func profileClaims(a db.Account) map[string]any {
 	}
 	if attrs := decodeAttributes(a.Attributes); attrs != nil {
 		c["attributes"] = attrs
+	}
+	if pic := avatar.AccountURL(a, origin); pic != "" {
+		c["picture"] = pic
 	}
 	return c
 }
@@ -111,7 +117,7 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 	// (Audience is a single string here; no multi-aud path to set azp.)
 
 	if hasScope(in.Scope, "profile") {
-		for k, v := range profileClaims(a) {
+		for k, v := range profileClaims(a, in.Issuer) {
 			c[k] = v
 		}
 	}
@@ -126,13 +132,15 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 
 // userinfoClaims projects an account into the /userinfo response: always
 // `sub`, plus the profile block iff `profile` was granted and the email block
-// iff `email` was granted.
-func userinfoClaims(a db.Account, scope []string) map[string]any {
+// iff `email` was granted. origin is the OIDC issuer base URL (e.g.
+// "https://auth.example.com"); it is forwarded to profileClaims to build the
+// picture URL.
+func userinfoClaims(a db.Account, scope []string, origin string) map[string]any {
 	c := map[string]any{
 		"sub": subjectOf(a),
 	}
 	if hasScope(scope, "profile") {
-		for k, v := range profileClaims(a) {
+		for k, v := range profileClaims(a, origin) {
 			c[k] = v
 		}
 	}

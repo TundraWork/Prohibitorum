@@ -134,11 +134,11 @@ func TestClaimsEmailScope(t *testing.T) {
 	}
 
 	// userinfo parity.
-	u := userinfoClaims(a, []string{"openid", "email"})
+	u := userinfoClaims(a, []string{"openid", "email"}, "")
 	if u["email"] != "alice@example.com" || u["email_verified"] != true {
 		t.Errorf("userinfo email block = %v/%v, want alice@example.com/true", u["email"], u["email_verified"])
 	}
-	if _, ok := userinfoClaims(a, []string{"openid"})["email"]; ok {
+	if _, ok := userinfoClaims(a, []string{"openid"}, "")["email"]; ok {
 		t.Error("userinfo leaked email without the email scope")
 	}
 }
@@ -264,7 +264,7 @@ func TestClaimsIDTokenOmitsAttributesWhenEmpty(t *testing.T) {
 
 func TestClaimsUserinfoWithProfile(t *testing.T) {
 	a := testAccount(t)
-	c := userinfoClaims(a, []string{"openid", "profile"})
+	c := userinfoClaims(a, []string{"openid", "profile"}, "")
 
 	if c["sub"] != subjectOf(a) {
 		t.Fatalf("sub = %v, want %v", c["sub"], subjectOf(a))
@@ -292,12 +292,32 @@ func TestClaimsUserinfoWithProfile(t *testing.T) {
 
 func TestClaimsUserinfoWithoutProfile(t *testing.T) {
 	a := testAccount(t)
-	c := userinfoClaims(a, []string{"openid"})
+	c := userinfoClaims(a, []string{"openid"}, "")
 
 	if c["sub"] != subjectOf(a) {
 		t.Fatalf("sub = %v, want %v", c["sub"], subjectOf(a))
 	}
 	if len(c) != 1 {
 		t.Fatalf("userinfo without profile has %d claims, want 1 (sub only): %v", len(c), c)
+	}
+}
+
+func TestProfileClaims_Picture(t *testing.T) {
+	var u pgtype.UUID
+	if err := u.Scan("11111111-2222-3333-4444-555555555555"); err != nil {
+		t.Fatalf("scan uuid: %v", err)
+	}
+	a := db.Account{
+		Username: "u", DisplayName: "U", Role: "user",
+		OidcSubject: u,
+		AvatarEtag:  pgtype.Text{String: "deadbeefcafe", Valid: true},
+	}
+	c := profileClaims(a, "https://auth.example.com")
+	if c["picture"] != "https://auth.example.com/avatar/11111111-2222-3333-4444-555555555555?v=deadbeef" {
+		t.Fatalf("picture = %v", c["picture"])
+	}
+	a.AvatarEtag = pgtype.Text{}
+	if _, ok := profileClaims(a, "https://auth.example.com")["picture"]; ok {
+		t.Fatal("picture must be absent without an avatar")
 	}
 }
