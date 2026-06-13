@@ -4,20 +4,20 @@
     {
       "id": 1,
       "subject": "Task 1: Migration + avatar SQL queries",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** account_avatar table + small avatar_content_type/avatar_etag columns on account + sqlc queries.\n\n**Files:** Create db/migrations/002_avatar.sql; Modify db/queries/account.sql; regenerate pkg/db.\n\n```json:metadata\n{\"files\":[\"db/migrations/002_avatar.sql\",\"db/queries/account.sql\",\"pkg/db\"],\"verifyCommand\":\"podman compose up -d && mise db:up && mise exec -- sqlc generate && go build ./...\",\"acceptanceCriteria\":[\"002 applies; account has avatar_content_type+avatar_etag; account_avatar exists\",\"sqlc generate + go build pass\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: pkg/avatar pipeline + URL helper",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Pure package: Process (decode→square-crop→512² resize→WebP q85/m6 encode, 5MB+garbage guards) + PublicURL/AccountURL. Add gen2brain/webp + x/image.\n\n**Files:** Create pkg/avatar/avatar.go + avatar_test.go; Modify go.mod/go.sum.\n\n```json:metadata\n{\"files\":[\"pkg/avatar/avatar.go\",\"pkg/avatar/avatar_test.go\",\"go.mod\",\"go.sum\"],\"verifyCommand\":\"go test ./pkg/avatar/ -v && CGO_ENABLED=0 go build -tags nodynamic ./pkg/avatar/\",\"acceptanceCriteria\":[\">5MB→ErrTooLarge; garbage→ErrInvalidImage; valid→512x512 webp+etag\",\"PublicURL/AccountURL correct\",\"builds no-cgo with nodynamic\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: Avatar HTTP endpoints + SessionView.avatarUrl",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** PUT/DELETE /me/avatar (authed, tx bytes+meta), public GET /avatar/{subject} (ETag/304/404), SessionView.avatarUrl.\n\n**Files:** Create pkg/server/handle_avatar.go + test; Modify pkg/contract/auth.go, pkg/server/handle_me.go, server.go.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_avatar.go\",\"pkg/server/handle_avatar_test.go\",\"pkg/contract/auth.go\",\"pkg/server/handle_me.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go build ./... && go test ./pkg/server/ -run Avatar -v\",\"acceptanceCriteria\":[\"PUT stores+refreshes; DELETE clears; both need session\",\"public GET image/webp+ETag; 304; 404 none/unknown/disabled\",\"/me avatarUrl\"]}\n```"
     },

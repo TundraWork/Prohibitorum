@@ -29,16 +29,27 @@ The dashboard renders an initials `UserAvatar`, but there is no way to set an ac
 
 ### 1. Database — `db/migrations/002_avatar.sql`
 
-Add nullable columns to `account`:
-- `avatar bytea` — the processed WebP bytes (null = no avatar → initials fallback).
-- `avatar_content_type text` — always `image/webp` in v1; stored for forward-compat.
-- `avatar_etag text` — hex SHA-256 of `avatar`, for `ETag` / cache-busting.
+**Image bytes go in a separate table** so they never load on ordinary account reads. `GetAccountByID` is `SELECT *` and `ListAccounts` is `SELECT a.*`; putting `bytea` on `account` would pull the image into every `/me`, session-account load, and the whole admin list (N×~40 KB). Instead:
+
+- Add two *small* nullable columns to `account` (loaded freely by `SELECT *`):
+  - `avatar_content_type text` — always `image/webp` in v1; stored for forward-compat.
+  - `avatar_etag text` — hex SHA-256 of the bytes; powers the URL `?v=` cache-bust + the `ETag` header. `NULL` etag = no avatar → initials fallback.
+- New table for the bytes only:
+  ```sql
+  CREATE TABLE account_avatar (
+    account_id int PRIMARY KEY REFERENCES account(id) ON DELETE CASCADE,
+    bytes      bytea NOT NULL
+  );
+  ```
 
 sqlc (`db/queries/account.sql` → regenerate `pkg/db`):
-- `SetAccountAvatar` — UPDATE avatar, avatar_content_type, avatar_etag, updated_at WHERE id.
-- `ClearAccountAvatar` — UPDATE the three avatar columns to NULL WHERE id.
-- `GetAvatarBySubject :one` — SELECT avatar, avatar_content_type, avatar_etag, disabled WHERE oidc_subject = $1.
-- Ensure both `oidc_subject` and `avatar_etag` are selected in the rows backing `SessionView` and `AccountView` — `GetAccountByID` already carries the account (gains `avatar_etag` as a new column); `ListAccounts` must add `oidc_subject` and `avatar_etag` to its projection so the admin list can build avatar URLs without an extra round-trip.
+- `UpsertAccountAvatarBytes :exec` — `INSERT INTO account_avatar (account_id, bytes) VALUES ($1,$2) ON CONFLICT (account_id) DO UPDATE SET bytes = EXCLUDED.bytes`.
+- `SetAccountAvatarMeta :exec` — `UPDATE account SET avatar_content_type = $2, avatar_etag = $3, updated_at = now() WHERE id = $1`.
+- `ClearAccountAvatarBytes :exec` — `DELETE FROM account_avatar WHERE account_id = $1`.
+- `ClearAccountAvatarMeta :exec` — `UPDATE account SET avatar_content_type = NULL, avatar_etag = NULL, updated_at = now() WHERE id = $1`.
+- `GetAvatarBySubject :one` — `SELECT av.bytes, a.avatar_content_type, a.avatar_etag, a.disabled FROM account a JOIN account_avatar av ON av.account_id = a.id WHERE a.oidc_subject = $1`.
+
+`SetAccountAvatar`/`ClearAccountAvatar` are performed as a **transaction** in the handler (bytes + meta together) using the tx querier. `GetAccountByID` (`SELECT *`, returns `db.Account`) and `ListAccounts` (`SELECT a.*`) automatically gain the two small columns + already carry `oidc_subject` — no read-query edits needed, and **no image bytes** in those rows.
 
 ### 2. Image pipeline — `pkg/avatar/` (one focused unit)
 
