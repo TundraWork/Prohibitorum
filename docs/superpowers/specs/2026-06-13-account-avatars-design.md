@@ -20,7 +20,7 @@ The dashboard renders an initials `UserAvatar`, but there is no way to set an ac
 - **Storage:** raw bytes in Postgres (`BYTEA`), not base64 text.
 - **Serving:** a single **public** endpoint keyed by the non-enumerable `oidc_subject` UUID, with HTTP caching. (Public because the OIDC `picture` claim is a URL a relying party / browser must fetch cross-origin without our session.)
 - **Size:** center-crop to square, resize to **512×512**.
-- **Encoder:** **WebP lossy** via `gen2brain/webp` — libwebp compiled to WASM, run with the pure-Go `wazero` runtime, built with the `nodynamic` tag (embedded WASM only, no `dlopen` of a system lib, no cgo). **Exact params (researched): `Quality: 80`, `Method: 6`, `Lossless: false`, `Exact: false`** — the canonical `cwebp -q 80 -m 6` recipe (q80 = lossy sweet spot for photos; m6 = max effort, fine on an upload path). Note: `gen2brain/webp` exposes only `Quality/Method/Lossless/Exact`, so libwebp's `-preset picture` portrait tuning and `target_size` byte-cap are NOT available — q80/m6 is the standard good choice without them. Isolated behind one `encodeAvatar()` function so the format/params can change later with no data migration. Trade-off accepted: embedded `libwebp.wasm` adds ~0.5–1.5 MB to the binary; WASM encode is ~tens of ms (acceptable for a user-initiated, non-hot path).
+- **Encoder:** **WebP lossy** via `gen2brain/webp` — libwebp compiled to WASM, run with the pure-Go `wazero` runtime, built with the `nodynamic` tag (embedded WASM only, no `dlopen` of a system lib, no cgo). **Exact params (researched): `Quality: 85`, `Method: 6`, `Lossless: false`, `Exact: false`** — `cwebp -q 85 -m 6` (q85 = upper end of the lossy sweet spot, slightly sharper at a modest size cost; m6 = max effort, fine on an upload path). Note: `gen2brain/webp` exposes only `Quality/Method/Lossless/Exact`, so libwebp's `-preset picture` portrait tuning and `target_size` byte-cap are NOT available — q85/m6 is a solid choice without them. Isolated behind one `encodeAvatar()` function so the format/params can change later with no data migration. Trade-off accepted: embedded `libwebp.wasm` adds ~0.5–1.5 MB to the binary; WASM encode is ~tens of ms (acceptable for a user-initiated, non-hot path).
 - **Decode (input):** png/jpeg/gif via stdlib, webp via `gen2brain/webp`; resize via `golang.org/x/image/draw`.
 - **Upload UI:** the account-dropdown's "Edit display name" dialog becomes **"Edit profile"** (avatar + display name).
 - **Migration:** a **new** `002_avatar.sql` — the consolidated `001_initial` is immutable now that the repo has a remote/may be deployed.
@@ -47,7 +47,7 @@ sqlc (`db/queries/account.sql` → regenerate `pkg/db`):
   - Decode (png/jpeg/gif stdlib; webp via `gen2brain/webp`). Undecodable → `ErrAvatarInvalidImage`.
   - Reject absurd decoded dimensions (e.g. either side `> 10000 px`) → `ErrAvatarInvalidImage` (decompression-bomb guard).
   - Center-crop to a square (cover), resize to 512×512 with `golang.org/x/image/draw` (CatmullRom).
-  - `encodeAvatar(img) []byte` — WebP via `gen2brain/webp` (`nodynamic`) with `Options{Quality: 80, Method: 6}` (lossy). **Only this function knows the output format/params.**
+  - `encodeAvatar(img) []byte` — WebP via `gen2brain/webp` (`nodynamic`) with `Options{Quality: 85, Method: 6}` (lossy). **Only this function knows the output format/params.**
   - `etag = hex(sha256(out))`.
 - Pure function over bytes — unit-testable with no DB/HTTP.
 
