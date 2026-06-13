@@ -59,7 +59,7 @@
     {
       "id": 9,
       "subject": "Task 9: Smoke coverage + done-gate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 6, 7, 8],
       "description": "**Goal:** Smoke avatar round-trip (PUT→public GET→userinfo picture); full gate; rebuild+commit dist.\n\n**Files:** Modify cmd/smoke/main.go; pkg/webui/dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npm run test && npm run build && cd .. && CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke avatar PUT→GET 200→userinfo picture; SMOKE_EXIT=0\",\"gate green; dist rebuilt+committed\"]}\n```"
     }
