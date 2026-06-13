@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
@@ -36,15 +37,23 @@ func newCeremonyToken() (string, error) {
 }
 
 // sessionView projects a db.Account into the response shape of GET /me and
-// POST /auth/login/complete.
-func sessionView(a *db.Account) contract.SessionView {
-	return contract.SessionView{
+// POST /auth/login/complete. origin is s.config.PublicOrigins[0] (or "").
+func (s *Server) sessionView(a *db.Account) contract.SessionView {
+	v := contract.SessionView{
 		ID:          a.ID,
 		Username:    a.Username,
 		DisplayName: a.DisplayName,
 		Role:        a.Role,
 		Attributes:  decodeAttributes(a.Attributes),
 	}
+	origin := ""
+	if s.config != nil && len(s.config.PublicOrigins) > 0 {
+		origin = s.config.PublicOrigins[0]
+	}
+	if u := avatar.AccountURL(*a, origin); u != "" {
+		v.AvatarURL = &u
+	}
+	return v
 }
 
 // writeAuthErr serializes an *authn.AuthError onto a raw http.ResponseWriter
@@ -284,7 +293,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	}).Info("auth")
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(sessionView(&resolvedAccount))
+	_ = json.NewEncoder(w).Encode(s.sessionView(&resolvedAccount))
 }
 
 // ----- POST /auth/logout (raw chi) -----------------------------------------

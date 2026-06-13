@@ -34,6 +34,7 @@ type SessionView struct {
 	DisplayName string         `json:"displayName"`
 	Role        string         `json:"role"`
 	Attributes  map[string]any `json:"attributes,omitempty"`
+	AvatarURL   *string        `json:"avatarUrl,omitempty"`
 }
 
 // AccountView is admin-facing; lastSignInAt is derived from the account's credentials.

@@ -158,7 +158,7 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		"client_ip":  ip,
 	}).Info("auth")
 
-	writeJSON(w, pairCompleteResp{Session: sessionView(&acct)})
+	writeJSON(w, pairCompleteResp{Session: s.sessionView(&acct)})
 }
 
 // ----- GET /me/devices/pair/lookup (authed) --------------------------------

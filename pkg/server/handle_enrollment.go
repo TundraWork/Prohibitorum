@@ -537,7 +537,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(enrollCompleteResp{
-		Session:         sessionView(&acct),
+		Session:         s.sessionView(&acct),
 		NewCredentialID: credID,
 	})
 }

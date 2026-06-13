@@ -37,7 +37,7 @@ func (s *Server) handleGetMe(ctx context.Context, _ *struct{}) (*meOut, error) {
 		// AuthSession requirement would have already rejected. Defensive.
 		return nil, authErrToHuma(authn.ErrNoSession())
 	}
-	return &meOut{Body: sessionView(sess.Account)}, nil
+	return &meOut{Body: s.sessionView(sess.Account)}, nil
 }
 
 // ----- PUT /me ------------------------------------------------------------
@@ -77,7 +77,7 @@ func (s *Server) handleUpdateMe(ctx context.Context, in *updateMeIn) (*meOut, er
 		"display_name": in.Body.DisplayName,
 	}).Info("auth")
 	sess.Account.DisplayName = in.Body.DisplayName
-	return &meOut{Body: sessionView(sess.Account)}, nil
+	return &meOut{Body: s.sessionView(sess.Account)}, nil
 }
 
 func (s *Server) updateMeQueries() updateMeQueries {
