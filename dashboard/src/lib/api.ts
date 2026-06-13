@@ -58,7 +58,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw err
   }
 
-  return data as T
+  // A 2xx with an empty body (e.g. 204 No Content from DELETE) parses to no
+  // data; return {} rather than undefined so a void success is distinguishable
+  // from a failure (run() returns undefined only on error). Matches upload().
+  return (data ?? {}) as T
 }
 
 async function upload<T>(path: string, body: Blob): Promise<T> {

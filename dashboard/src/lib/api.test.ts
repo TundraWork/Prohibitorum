@@ -25,6 +25,13 @@ describe('api', () => {
     expect(result).toEqual({ hello: 'world' })
   })
 
+  it('returns {} (not undefined) for a 204 empty body — e.g. DELETE', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }))
+    const result = await api.del('/api/test')
+    expect(result).toEqual({})
+    expect(result).not.toBeUndefined()
+  })
+
   it('sends credentials:include on every request', async () => {
     vi.mocked(fetch).mockResolvedValue(mockResponse(200, '{}'))
     await api.get('/api/test')

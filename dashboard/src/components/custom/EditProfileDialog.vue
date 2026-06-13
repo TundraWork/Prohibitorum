@@ -82,13 +82,13 @@ async function onFile(e: Event): Promise<void> {
     error.value = { code: 'avatar_too_large_client', message: t('accountMenu.avatarTooLargeClient') }
     return
   }
-  const ok = await run(() => api.upload('/api/prohibitorum/me/avatar', f))
-  if (ok !== undefined) await auth.reload()
+  await run(() => api.upload('/api/prohibitorum/me/avatar', f))
+  if (!error.value) await auth.reload()
 }
 
 async function removeAvatar(): Promise<void> {
-  const ok = await run(() => api.del('/api/prohibitorum/me/avatar'))
-  if (ok !== undefined) await auth.reload()
+  await run(() => api.del('/api/prohibitorum/me/avatar'))
+  if (!error.value) await auth.reload()
 }
 </script>
 
