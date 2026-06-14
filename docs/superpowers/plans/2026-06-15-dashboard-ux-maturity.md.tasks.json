@@ -86,7 +86,7 @@
     {
       "id": 11,
       "subject": "T11: backend SAML disable (migration+endpoint+FE)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         5
       ]
@@ -110,5 +110,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T07:00:00Z"
+  "lastUpdated": "2026-06-15T07:30:00Z"
 }
