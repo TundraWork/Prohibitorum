@@ -33,7 +33,7 @@
     {
       "id": 5,
       "subject": "T5: list+detail consistency",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3,
         4
@@ -110,5 +110,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T04:00:00Z"
+  "lastUpdated": "2026-06-15T04:30:00Z"
 }
