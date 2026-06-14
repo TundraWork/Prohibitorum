@@ -61,13 +61,20 @@ func setSecurityHeaders(w http.ResponseWriter) {
 	//                                the attribute channel is loosened, not <style>.
 	// script-src stays 'self' (the only script is the same-origin module bundle;
 	// no inline JS). font-src 'self' — webfonts are bundled into /assets and served
-	// same-origin. default-src 'self' no longer covers the enumerated directives.
+	// same-origin (Vite is configured not to inline them as data: URIs).
+	// default-src 'self' no longer covers the enumerated directives.
+	//
+	// connect-src / img-src allow blob: in addition to 'self' for the avatar
+	// cropper: the client reads the chosen image as a page-created blob: URL to
+	// detect EXIF orientation (connect-src) and renders the crop preview from it
+	// (img-src). blob: is same-origin and page-created — it cannot reach external
+	// hosts, so this does not weaken the egress posture.
 	//
 	// Fallback: if style-src-attr ever proves too strict in a real HTTPS browser
 	// check (e.g. a dependency starts emitting inline <style> elements), revert to
 	// "style-src 'self' 'unsafe-inline'" — no worse than the pre-rebuild policy.
 	w.Header().Set("Content-Security-Policy",
-		"default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
+		"default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; img-src 'self' data: blob:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
