@@ -140,6 +140,11 @@ onMounted(load)
         <CardHeader><CardTitle>{{ t('admin.oidc.configTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
+            <Label>{{ t('admin.oidc.clientId') }}</Label>
+            <p class="font-mono text-sm text-muted" data-test="oidc-client-id">{{ client.clientId }}</p>
+            <p class="text-xs text-muted">{{ t('admin.oidc.clientIdDesc') }}</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.oidc.displayName') }}</Label>
             <Input id="displayName" name="displayName" v-model="displayName" />
           </div>

@@ -99,14 +99,16 @@ onMounted(load)
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.upstream.notFound') }}</p>
 
     <template v-else-if="idp">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ idp.displayName }}</h1>
-        <p class="mt-1 text-sm text-muted" data-test="idp-slug">{{ idp.slug }}</p>
-      </div>
+      <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ idp.displayName }}</h1>
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.upstream.configTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <Label>{{ t('admin.upstream.slug') }}</Label>
+            <p class="font-mono text-sm text-muted" data-test="idp-slug">{{ idp.slug }}</p>
+            <p class="text-xs text-muted">{{ t('admin.upstream.slugDesc') }}</p>
+          </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.upstream.displayName') }}</Label>
             <Input id="displayName" name="displayName" v-model="displayName" autocomplete="off" />

@@ -31,6 +31,15 @@ describe('AdminOidcClientDetailView', () => {
     }))
     expect(w.text()).toContain(en.admin.oidc.saved)
   })
+  it('shows the client_id as a read-only field (immutable identifier, not editable)', async () => {
+    get.mockResolvedValue(CLIENT)
+    const w = mountView(); await flushPromises()
+    const idEl = w.find('[data-test="oidc-client-id"]')
+    expect(idEl.exists()).toBe(true)
+    expect(idEl.text()).toBe('web')
+    // No input has name="clientId" (client_id cannot be changed)
+    expect(w.find('input[name="clientId"]').exists()).toBe(false)
+  })
   it('groups disable, rotate-secret and delete in the Danger zone card', async () => {
     get.mockResolvedValue(CLIENT)
     const w = mountView(); await flushPromises()
