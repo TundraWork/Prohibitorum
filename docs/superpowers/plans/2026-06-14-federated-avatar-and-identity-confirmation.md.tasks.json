@@ -66,7 +66,7 @@
     {
       "id": 10,
       "subject": "Task 10: Admin + CLI pictureClaim",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Expose per-IdP picture_claim (default 'picture') in contract, admin handler + form/detail, CLI upstream-idp (--picture-claim), dev-seed.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_admin_upstream_idps.go\",\"pkg/server/handle_admin_upstream_idps_test.go\",\"cmd/prohibitorum/main.go\",\"cmd/prohibitorum/dev_seed.go\",\"dashboard/src/pages/admin\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"go test ./pkg/server/ -run UpstreamIDP -v && CGO_ENABLED=0 go build -tags nodynamic ./... && cd dashboard && npx vue-tsc -b\",\"acceptanceCriteria\":[\"create/update accept pictureClaim (default picture)\",\"admin form + CLI flag present\"]}\n```"
     },
