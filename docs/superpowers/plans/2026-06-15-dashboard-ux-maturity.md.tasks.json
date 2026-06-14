@@ -9,7 +9,7 @@
     {
       "id": 2,
       "subject": "T2: useTransientFlag",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1
       ]
@@ -110,5 +110,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T02:30:00Z"
+  "lastUpdated": "2026-06-15T03:00:00Z"
 }
