@@ -289,6 +289,54 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	writeJSON(w, oidcApplicationView(c))
 }
 
+// ----- POST /oidc-applications/set-disabled (raw, sudo-gated) ---------------------
+
+type setOIDCApplicationDisabledBody struct {
+	ClientID string `json:"clientId"`
+	Disabled bool   `json:"disabled"`
+}
+
+// handleSetOIDCApplicationDisabledHTTP flips ONLY the disabled flag, independent
+// of the config form's Save. Returns the updated application view.
+func (s *Server) handleSetOIDCApplicationDisabledHTTP(w http.ResponseWriter, r *http.Request) {
+	var body setOIDCApplicationDisabledBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if body.ClientID == "" {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+
+	c, err := s.queries.SetOIDCClientDisabled(r.Context(), db.SetOIDCClientDisabledParams{
+		ClientID: body.ClientID,
+		Disabled: body.Disabled,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrClientNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleSetOIDCApplicationDisabled: update: %w", err))
+		return
+	}
+
+	sess := authn.SessionFromContext(r.Context())
+	var actorID *int32
+	if sess != nil {
+		actorID = &sess.Account.ID
+	}
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: actorID,
+		Factor:    audit.FactorOIDCClient,
+		Event:     audit.EventUpdate,
+		Detail:    map[string]any{"client_id": body.ClientID, "disabled": body.Disabled},
+	})
+
+	writeJSON(w, oidcApplicationView(c))
+}
+
 // ----- POST /oidc-applications/rotate-secret (raw, sudo-gated) --------------------
 
 type rotateOIDCApplicationSecretBody struct {

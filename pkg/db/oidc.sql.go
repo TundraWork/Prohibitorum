@@ -506,6 +506,39 @@ func (q *Queries) RetireSigningKey(ctx context.Context, arg RetireSigningKeyPara
 	return i, err
 }
 
+const setOIDCClientDisabled = `-- name: SetOIDCClientDisabled :one
+UPDATE oidc_client SET disabled = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
+`
+
+type SetOIDCClientDisabledParams struct {
+	ClientID string `json:"clientId"`
+	Disabled bool   `json:"disabled"`
+}
+
+func (q *Queries) SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error) {
+	row := q.db.QueryRow(ctx, setOIDCClientDisabled, arg.ClientID, arg.Disabled)
+	var i OidcClient
+	err := row.Scan(
+		&i.ClientID,
+		&i.DisplayName,
+		&i.ClientSecretHash,
+		&i.RedirectUris,
+		&i.PostLogoutRedirectUris,
+		&i.AllowedScopes,
+		&i.RequirePkce,
+		&i.AllowedCodeChallengeMethods,
+		&i.TokenEndpointAuthMethod,
+		&i.SubjectType,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.Disabled,
+		&i.RequireConsent,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const updateOIDCClient = `-- name: UpdateOIDCClient :one
 UPDATE oidc_client SET
   display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,

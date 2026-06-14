@@ -14,6 +14,9 @@ RETURNING *;
 -- name: UpdateOIDCClientSecret :exec
 UPDATE oidc_client SET client_secret_hash = $2 WHERE client_id = $1;
 
+-- name: SetOIDCClientDisabled :one
+UPDATE oidc_client SET disabled = $2 WHERE client_id = $1 RETURNING *;
+
 -- name: DeleteOIDCClient :execrows
 DELETE FROM oidc_client WHERE client_id = $1;
 

@@ -233,6 +233,41 @@ func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
 	return items, nil
 }
 
+const setUpstreamIDPDisabled = `-- name: SetUpstreamIDPDisabled :one
+UPDATE upstream_idp SET disabled = $2 WHERE slug = $1 RETURNING id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email, picture_claim
+`
+
+type SetUpstreamIDPDisabledParams struct {
+	Slug     string `json:"slug"`
+	Disabled bool   `json:"disabled"`
+}
+
+func (q *Queries) SetUpstreamIDPDisabled(ctx context.Context, arg SetUpstreamIDPDisabledParams) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, setUpstreamIDPDisabled, arg.Slug, arg.Disabled)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.IssuerUrl,
+		&i.ClientID,
+		&i.ClientSecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Scopes,
+		&i.Mode,
+		&i.AllowedDomains,
+		&i.UsernameClaim,
+		&i.DisplayNameClaim,
+		&i.EmailClaim,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.RequireVerifiedEmail,
+		&i.PictureClaim,
+	)
+	return i, err
+}
+
 const updateUpstreamIDP = `-- name: UpdateUpstreamIDP :exec
 UPDATE upstream_idp
 SET display_name = $2, issuer_url = $3, client_id = $4,

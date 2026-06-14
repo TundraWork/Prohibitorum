@@ -42,3 +42,6 @@ RETURNING *;
 -- name: UpdateUpstreamIDPSecret :exec
 UPDATE upstream_idp SET client_secret_enc = $2, secret_nonce = $3, key_version = $4
 WHERE slug = $1;
+
+-- name: SetUpstreamIDPDisabled :one
+UPDATE upstream_idp SET disabled = $2 WHERE slug = $1 RETURNING *;

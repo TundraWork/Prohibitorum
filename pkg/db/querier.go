@@ -150,6 +150,8 @@ type Querier interface {
 	// ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
 	SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
+	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
+	SetUpstreamIDPDisabled(ctx context.Context, arg SetUpstreamIDPDisabledParams) (UpstreamIdp, error)
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateAccountDisplayName(ctx context.Context, arg UpdateAccountDisplayNameParams) error
 	// Refreshes an account's email from a verified upstream on re-login (federation

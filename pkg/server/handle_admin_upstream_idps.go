@@ -389,6 +389,54 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 	writeJSON(w, identityProviderView(updated))
 }
 
+// ----- POST /identity-providers/set-disabled (raw, sudo-gated) --------------------
+
+type setIdentityProviderDisabledBody struct {
+	Slug     string `json:"slug"`
+	Disabled bool   `json:"disabled"`
+}
+
+// handleSetIdentityProviderDisabledHTTP flips ONLY the disabled flag, independent
+// of the config form's Save. Returns the updated provider view.
+func (s *Server) handleSetIdentityProviderDisabledHTTP(w http.ResponseWriter, r *http.Request) {
+	var body setIdentityProviderDisabledBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if body.Slug == "" {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+
+	updated, err := s.queries.SetUpstreamIDPDisabled(r.Context(), db.SetUpstreamIDPDisabledParams{
+		Slug:     body.Slug,
+		Disabled: body.Disabled,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrUpstreamIDPNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleSetIdentityProviderDisabled: update: %w", err))
+		return
+	}
+
+	sess := authn.SessionFromContext(r.Context())
+	var actorID *int32
+	if sess != nil {
+		actorID = &sess.Account.ID
+	}
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: actorID,
+		Factor:    audit.FactorUpstreamIDP,
+		Event:     audit.EventUpdate,
+		Detail:    map[string]any{"slug": body.Slug, "disabled": body.Disabled},
+	})
+
+	writeJSON(w, identityProviderView(updated))
+}
+
 // ----- POST /identity-providers/rotate-secret (raw, sudo-gated) -------------------
 
 type rotateIdentityProviderSecretBody struct {
