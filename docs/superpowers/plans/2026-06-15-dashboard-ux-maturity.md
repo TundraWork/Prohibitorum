@@ -136,3 +136,6 @@
 
 ## Done-gate
 `CGO_ENABLED=0 go build -tags nodynamic ./...` / `go vet` / `go test ./...` (0), `vitest` green, `vue-tsc -b` (0), live smoke `SMOKE_EXIT=0`, rebuild + commit `pkg/webui/dist`.
+
+## Outcome — COMPLETE (2026-06-15)
+All 12 tasks done; per-task combined reviews + a final opus holistic review = **SHIP**. Gate GREEN: go build/vet/`go test ./...` 0 (16 pkgs), vitest 322/322, vue-tsc 0, `npm run build` 0, live smoke `SMOKE_EXIT=0` (server booted at migration v14). dist rebuilt+committed (`d5e9788`). Trivial leftover (non-blocking): `admin.account.disabledLabel` i18n key is now orphaned (T10 removed the Switch that used it) — delete on the next en.ts touch (deferred to avoid a dist rebuild for one dead string). set-disabled smoke coverage intentionally omitted (the `/me/sudo/begin` 10/min fixed-window ceiling — same call as the OIDC set-disabled; covered by handler guard tests + `go test` + the SAML SSO unit tests).
