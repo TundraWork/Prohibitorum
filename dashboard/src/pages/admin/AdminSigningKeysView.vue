@@ -91,7 +91,7 @@ onMounted(load)
       <TableBody>
         <template v-for="k in rows" :key="k.kid">
           <TableRow>
-            <TableCell><button type="button" class="max-w-[18rem] truncate font-mono text-sm text-ink underline-offset-4 hover:underline" :data-test="`expand-${k.kid}`" @click="toggle(k.kid)">{{ k.kid }}</button></TableCell>
+            <TableCell><button type="button" class="max-w-[18rem] cursor-pointer truncate rounded-sm font-mono text-sm text-ink underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring" :data-test="`expand-${k.kid}`" :aria-expanded="!!expanded[k.kid]" @click="toggle(k.kid)">{{ k.kid }}</button></TableCell>
             <TableCell class="text-sm text-muted">{{ k.algorithm }} · {{ k.use }}</TableCell>
             <TableCell><StatusBadge :variant="statusVariant(k.status)">{{ statusLabel(k.status) }}</StatusBadge></TableCell>
             <TableCell class="text-sm text-muted">{{ formatDateTime(k.activatedAt) }}</TableCell>

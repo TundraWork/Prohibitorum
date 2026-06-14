@@ -64,7 +64,7 @@ async function verifyReenroll(): Promise<void> {
         <Input id="recovery-code" name="recovery-code" v-model="recoveryCode" autocomplete="one-time-code" @keydown.enter.prevent="verifyCode" />
         <p class="text-sm text-muted">{{ t('recovery.codeHint') }}</p>
       </div>
-      <Button type="button" class="w-full" :disabled="busy || !recoveryCode" data-test="verify-code" @click="verifyCode">{{ t('recovery.verify') }}</Button>
+      <Button type="button" class="w-full" :disabled="busy || !recoveryCode" :aria-busy="busy" data-test="verify-code" @click="verifyCode">{{ t('recovery.verify') }}</Button>
     </template>
 
     <template v-else-if="phase === 'reenroll'">
@@ -79,7 +79,7 @@ async function verifyReenroll(): Promise<void> {
         <Label for="reenroll-code">{{ t('recovery.codeInputLabel') }}</Label>
         <Input id="reenroll-code" name="reenroll-code" v-model="totpCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="8" @keydown.enter.prevent="verifyReenroll" />
       </div>
-      <Button type="button" class="w-full" :disabled="busy || !totpCode" data-test="confirm-reenroll" @click="verifyReenroll">{{ t('recovery.confirm') }}</Button>
+      <Button type="button" class="w-full" :disabled="busy || !totpCode" :aria-busy="busy" data-test="confirm-reenroll" @click="verifyReenroll">{{ t('recovery.confirm') }}</Button>
     </template>
 
     <template v-else>

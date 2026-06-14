@@ -140,7 +140,7 @@ async function reauthFederation(slug: string): Promise<void> {
         <button
           v-if="hasPasskey && hasPwTotp && !showPwForm"
           type="button"
-          class="text-sm text-tide-strong underline-offset-4 hover:underline"
+          class="cursor-pointer rounded-sm text-sm text-tide-strong underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           @click="switchToPassword"
         >
           {{ t('sudo.usePassword') }}

@@ -154,9 +154,9 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
       <AvatarCropper v-if="cropSrc" :src="cropSrc" @crop="onCropped" @cancel="closeCrop" />
       <form v-else class="flex flex-col gap-3" @submit.prevent="save">
         <div class="flex flex-col gap-2">
-          <span class="text-sm text-muted">{{ t('accountMenu.avatarLabel') }}</span>
+          <span id="avatar-picker-label" class="text-sm text-muted">{{ t('accountMenu.avatarLabel') }}</span>
           <!-- Source picker: one card per stored source + always-present None -->
-          <div class="flex flex-wrap gap-2">
+          <div role="group" aria-labelledby="avatar-picker-label" class="flex flex-wrap gap-2">
             <button
               v-for="[key, url] in sourceEntries"
               :key="key"
@@ -198,7 +198,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
           <span class="text-xs text-muted">{{ t('accountMenu.avatarSourceHint') }}</span>
           <!-- Upload / Remove row -->
           <div class="flex gap-2">
-            <input ref="fileRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" data-test="avatar-file" @change="onFile" />
+            <input ref="fileRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" aria-hidden="true" data-test="avatar-file" @change="onFile" />
             <Button type="button" size="sm" variant="outline" :disabled="busy" data-test="avatar-upload" @click="fileRef?.click()">{{ t('accountMenu.avatarUpload') }}</Button>
             <Button v-if="auth.me?.avatarSourceUrls?.user" type="button" size="sm" variant="ghost" :disabled="busy" data-test="avatar-remove" @click="removeAvatar">{{ t('accountMenu.avatarRemove') }}</Button>
           </div>

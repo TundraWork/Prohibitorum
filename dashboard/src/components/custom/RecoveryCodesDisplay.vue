@@ -16,14 +16,18 @@ const emit = defineEmits<{ confirmed: [] }>()
 const { t } = useI18n()
 
 const copied = ref(false)
+const copying = ref(false)
 const saved = ref(false)
 
 async function copyAll(): Promise<void> {
+  copying.value = true
   try {
     await navigator.clipboard.writeText(props.codes.join('\n'))
     copied.value = true
     setTimeout(() => { copied.value = false }, 1500)
-  } catch { /* no-op */ }
+  } catch { /* no-op */ } finally {
+    copying.value = false
+  }
 }
 
 function download(): void {
@@ -55,7 +59,7 @@ function download(): void {
     </ul>
 
     <div class="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" size="sm" @click="copyAll">
+      <Button type="button" variant="outline" size="sm" :aria-busy="copying" @click="copyAll">
         <component :is="copied ? Check : Copy" class="size-4" aria-hidden="true" />
         <span>{{ copied ? t('common.copied') : t('recoveryCodes.copyAll') }}</span>
       </Button>

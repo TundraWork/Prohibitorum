@@ -46,6 +46,7 @@ export default {
     avatarHint: 'PNG, JPEG, or WebP, up to 5 MB. Cropped to a square.',
     avatarTooLargeClient: 'That image is larger than 5 MB.',
     avatarUse: 'Use photo',
+    avatarCropLabel: 'Crop your photo',
     avatarInherited: 'Inherited',
     avatarUploaded: 'Uploaded',
     avatarNone: 'No avatar',

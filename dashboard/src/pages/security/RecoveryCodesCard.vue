@@ -40,7 +40,7 @@ async function regenerate(): Promise<void> {
         {{ t('security.recovery.title') }}
         <StatusBadge
           v-if="props.remaining !== undefined"
-          :variant="props.remaining > 0 ? 'success' : 'neutral'"
+          :variant="props.remaining > 4 ? 'success' : props.remaining > 0 ? 'caution' : 'danger'"
         >
           {{ t('security.factors.recoveryRemaining', { n: props.remaining }) }}
         </StatusBadge>

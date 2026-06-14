@@ -48,7 +48,7 @@ watch(() => props.open, async (o) => {
         <Button ref="cancelRef" type="button" variant="ghost" :disabled="busy" @click="onCancel">
           {{ t('confirm.cancel') }}
         </Button>
-        <Button type="button" variant="destructive" :disabled="busy" @click="emit('confirm')">
+        <Button type="button" variant="destructive" :disabled="busy" :aria-busy="busy" @click="emit('confirm')">
           {{ confirmLabel }}
         </Button>
       </DialogFooter>

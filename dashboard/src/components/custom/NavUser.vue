@@ -62,7 +62,7 @@ defineExpose({ openEdit, signOut, editOpen })
               <span class="truncate font-medium text-ink">{{ auth.me.displayName }}</span>
               <span class="truncate text-xs capitalize text-muted">{{ auth.me.role }}</span>
             </div>
-            <ChevronsUpDown class="ml-auto size-4 text-muted" />
+            <ChevronsUpDown class="ml-auto size-4 text-muted" aria-hidden="true" />
           </SidebarMenuButton>
         </DropdownMenuTrigger>
 

@@ -201,7 +201,7 @@ function focusInput(): void {
           type="button"
           class="shrink-0 rounded-sm opacity-70 transition-opacity hover:opacity-100"
           :data-test="`tag-remove-${item}`"
-          :aria-label="t('common.remove')"
+          :aria-label="t('common.remove') + ': ' + item"
           @click.stop="removeAt(i)"
         >
           <X class="size-3" aria-hidden="true" />

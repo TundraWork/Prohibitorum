@@ -130,7 +130,7 @@ async function submitTotp(): Promise<void> {
           />
           <p class="text-sm text-muted">{{ t('login.totpHint') }}</p>
         </div>
-        <button type="button" class="text-left text-sm text-muted underline-offset-4 hover:underline" data-test="lost-authenticator" @click="recovering = true">
+        <button type="button" class="cursor-pointer text-left text-sm text-muted underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" data-test="lost-authenticator" @click="recovering = true">
           {{ t('login.lostAuthenticator') }}
         </button>
       </template>

@@ -81,6 +81,7 @@ function removeRow(index: number): void {
             :placeholder="placeholder"
             :inputmode="inputmode"
             :aria-invalid="!!errorFor(row.value)"
+            :aria-describedby="errorFor(row.value) ? `${name}-err-${row.id}` : undefined"
             :data-test="`${name}-input-${i}`"
             class="flex-1 font-mono text-sm"
             @update:model-value="(v) => onInput(i, v)"
@@ -98,7 +99,7 @@ function removeRow(index: number): void {
             <X class="size-4" aria-hidden="true" />
           </Button>
         </div>
-        <p v-if="errorFor(row.value)" class="pl-1 text-xs text-destructive">{{ errorFor(row.value) }}</p>
+        <p v-if="errorFor(row.value)" :id="`${name}-err-${row.id}`" class="pl-1 text-xs text-destructive">{{ errorFor(row.value) }}</p>
       </div>
     </div>
     <Button

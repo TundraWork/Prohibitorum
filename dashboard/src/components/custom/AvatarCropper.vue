@@ -28,7 +28,7 @@ function defaultSize({ imageSize }: { imageSize: { width: number; height: number
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-col gap-3">
+  <div class="flex min-w-0 flex-col gap-3" :aria-label="t('accountMenu.avatarCropLabel')" role="group">
     <Cropper
       ref="cropperRef"
       :src="src"
