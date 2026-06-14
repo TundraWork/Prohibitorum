@@ -246,6 +246,7 @@ export default {
       empty: 'No upstream identity providers configured yet.',
       poweredNote: 'These providers power the sign-in and connected-account options.',
       colName: 'Provider',
+      colSlug: 'Slug',
       colMode: 'Mode',
       colState: 'State',
       slug: 'Slug',

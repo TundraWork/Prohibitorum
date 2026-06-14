@@ -95,7 +95,10 @@ onMounted(load)
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.upstream.notFound') }}</p>
 
     <template v-else-if="idp">
-      <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ idp.displayName }}</h1>
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ idp.displayName }}</h1>
+        <p class="mt-1 text-sm text-muted" data-test="idp-slug">{{ idp.slug }}</p>
+      </div>
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.upstream.configTitle') }}</CardTitle></CardHeader>

@@ -25,6 +25,16 @@ describe('AdminUpstreamIdpDetailView', () => {
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.upstream.notFound)
   })
+  it('shows the slug as read-only text near the header, not in an editable input', async () => {
+    get.mockResolvedValue(IDP)
+    const w = mountView(); await flushPromises()
+    // The read-only slug element exists and shows the slug value
+    const slugEl = w.find('[data-test="idp-slug"]')
+    expect(slugEl.exists()).toBe(true)
+    expect(slugEl.text()).toBe('okta')
+    // No input has name="slug" (slug is not editable)
+    expect(w.find('input[name="slug"]').exists()).toBe(false)
+  })
   it('saves config via PUT without clientSecret', async () => {
     get.mockResolvedValue(IDP); put.mockResolvedValue({ ...IDP, displayName: 'Okta 2' })
     const w = mountView(); await flushPromises()

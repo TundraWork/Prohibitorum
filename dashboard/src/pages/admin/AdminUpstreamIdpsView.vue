@@ -177,6 +177,7 @@ onMounted(load)
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.upstream.colName') }}</TableHead>
+          <TableHead>{{ t('admin.upstream.colSlug') }}</TableHead>
           <TableHead>{{ t('admin.upstream.colMode') }}</TableHead>
           <TableHead>{{ t('admin.upstream.colState') }}</TableHead>
         </TableRow>
@@ -188,9 +189,9 @@ onMounted(load)
           <TableCell>
             <div class="flex min-w-0 flex-col">
               <span class="truncate font-medium text-ink">{{ i.displayName }}</span>
-              <span class="truncate text-muted">{{ i.slug }}</span>
             </div>
           </TableCell>
+          <TableCell class="text-muted">{{ i.slug }}</TableCell>
           <TableCell><StatusBadge variant="neutral">{{ modeLabel(i.mode) }}</StatusBadge></TableCell>
           <TableCell>
             <StatusBadge :variant="i.disabled ? 'danger' : 'success'">
