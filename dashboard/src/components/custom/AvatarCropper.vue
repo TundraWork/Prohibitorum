@@ -21,13 +21,13 @@ function useCrop(): void {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
+  <div class="flex min-w-0 flex-col gap-3">
     <Cropper
       ref="cropperRef"
       :src="src"
       :stencil-props="{ aspectRatio: 1 }"
       :canvas="{ maxWidth: 1024, maxHeight: 1024 }"
-      class="h-64 w-full rounded-md bg-sunken"
+      class="h-64 w-full min-w-0 rounded-md bg-sunken"
       data-test="avatar-cropper"
     />
     <div class="flex justify-end gap-2">
