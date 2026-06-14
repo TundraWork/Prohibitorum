@@ -31,6 +31,17 @@ describe('AdminOidcClientDetailView', () => {
     }))
     expect(w.text()).toContain(en.admin.oidc.saved)
   })
+  it('renders the disabled toggle inside its own Status card, not the Config card', async () => {
+    get.mockResolvedValue(CLIENT)
+    const w = mountView(); await flushPromises()
+    const cards = w.findAll('[data-slot="card"]')
+    const statusCard = cards.find((c) => c.text().includes(en.admin.oidc.statusTitle))
+    expect(statusCard).toBeTruthy()
+    expect(statusCard!.find('[data-test="disabled"]').exists()).toBe(true)
+    // The toggle must have moved OUT of the Config card (the one holding Save).
+    const configCard = cards.find((c) => c.find('[data-test="save"]').exists())
+    expect(configCard!.find('[data-test="disabled"]').exists()).toBe(false)
+  })
   it('not found', async () => {
     get.mockRejectedValue({ code: 'client_not_found', message: 'zh' })
     const w = mountView(); await flushPromises()

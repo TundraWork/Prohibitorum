@@ -45,6 +45,17 @@ describe('AdminUpstreamIdpDetailView', () => {
     expect(body).not.toHaveProperty('clientSecret')
     expect(w.text()).toContain(en.admin.upstream.saved)
   })
+  it('renders the disabled toggle inside its own Status card, not the Config card', async () => {
+    get.mockResolvedValue(IDP)
+    const w = mountView(); await flushPromises()
+    const cards = w.findAll('[data-slot="card"]')
+    const statusCard = cards.find((c) => c.text().includes(en.admin.upstream.statusTitle))
+    expect(statusCard).toBeTruthy()
+    expect(statusCard!.find('[data-test="disabled"]').exists()).toBe(true)
+    // The toggle must have moved OUT of the Config card (the one holding Save).
+    const configCard = cards.find((c) => c.find('[data-test="save"]').exists())
+    expect(configCard!.find('[data-test="disabled"]').exists()).toBe(false)
+  })
   it('includes pictureClaim in save payload and renders the input', async () => {
     get.mockResolvedValue(IDP); put.mockResolvedValue({ ...IDP, pictureClaim: 'avatar_url' })
     const w = mountView(); await flushPromises()

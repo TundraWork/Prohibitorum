@@ -179,13 +179,19 @@ onMounted(load)
           <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">
             <Switch id="requireConsent" v-model="requireConsent" />
           </SettingRow>
-          <SettingRow :label="t('admin.oidc.disabled')" :description="t('admin.oidc.disabledDesc')" for="disabled">
-            <Switch id="disabled" v-model="disabled" />
-          </SettingRow>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.oidc.save') }}</Button>
             <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.oidc.saved') }}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.oidc.statusTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-4">
+          <SettingRow :label="t('admin.oidc.disabled')" :description="t('admin.oidc.disabledDesc')" for="disabled">
+            <Switch id="disabled" v-model="disabled" data-test="disabled" />
+          </SettingRow>
         </CardContent>
       </Card>
 

@@ -157,13 +157,19 @@ onMounted(load)
           <SettingRow :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
             <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />
           </SettingRow>
-          <SettingRow :label="t('admin.upstream.disabled')" :description="t('admin.upstream.disabledDesc')" for="disabled">
-            <Switch id="disabled" v-model="disabled" data-test="disabled" />
-          </SettingRow>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.upstream.save') }}</Button>
             <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.upstream.saved') }}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.upstream.statusTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-4">
+          <SettingRow :label="t('admin.upstream.disabled')" :description="t('admin.upstream.disabledDesc')" for="disabled">
+            <Switch id="disabled" v-model="disabled" data-test="disabled" />
+          </SettingRow>
         </CardContent>
       </Card>
 
