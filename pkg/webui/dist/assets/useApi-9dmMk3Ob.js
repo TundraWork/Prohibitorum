@@ -1,0 +1,1 @@
+import{r as a}from"./index-9xeNynDR.js";function l(){const r=a(!1),e=a(null);async function o(t){if(!r.value){r.value=!0,e.value=null;try{return await t()}catch(n){const u=n;u&&typeof u.code=="string"?e.value=u:e.value={code:"server_error",message:n instanceof Error?n.message:"An unexpected error occurred"};return}finally{r.value=!1}}}return{busy:r,error:e,run:o}}export{l as u};
