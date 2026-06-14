@@ -25,23 +25,19 @@ describe('AdminUpstreamIdpsView', () => {
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/identity-providers')
     expect(w.text()).toContain('Okta'); expect(w.text()).toContain(en.admin.upstream.modeInviteOnly)
   })
-  it('has a dedicated Slug column header and shows slug in its own cell', async () => {
+  it('shows name + slug stacked in the first cell, with both named in its header', async () => {
     get.mockResolvedValue(IDPS)
     const w = mountView(); await flushPromises()
-    const headers = w.findAll('th')
-    const headerTexts = headers.map((h) => h.text())
-    expect(headerTexts).toContain(en.admin.upstream.colSlug)
-    // slug column is between Name (index 0) and Mode (index 2)
-    const slugHeaderIdx = headerTexts.indexOf(en.admin.upstream.colSlug)
-    expect(slugHeaderIdx).toBe(1)
-    // okta row: its slug 'okta' appears as a standalone cell (not a sub-line of the name cell)
-    const row = w.find('[data-test="idp-row-okta"]')
-    const cells = row.findAll('td')
-    // Name cell should only contain the display name, not the slug
-    expect(cells[0].text()).toBe('Okta')
-    expect(cells[0].text()).not.toContain('okta')
-    // Slug cell (index 1) should contain the slug
-    expect(cells[1].text()).toBe('okta')
+    // The first column header names both lines (Provider · Slug).
+    const firstHeader = w.findAll('th')[0].text()
+    expect(firstHeader).toContain(en.admin.upstream.colName)
+    expect(firstHeader).toContain(en.admin.upstream.colSlug)
+    // okta row: the first cell stacks the display name AND the slug (two-line).
+    const cells = w.find('[data-test="idp-row-okta"]').findAll('td')
+    expect(cells[0].text()).toContain('Okta')
+    expect(cells[0].text()).toContain('okta')
+    // There is no longer a standalone slug column: 3 columns (Name·Slug / Mode / State).
+    expect(cells.length).toBe(3)
   })
   it('row click navigates to detail', async () => {
     get.mockResolvedValue(IDPS)
