@@ -29,8 +29,11 @@ type Account struct {
 }
 
 type AccountAvatar struct {
-	AccountID int32  `json:"accountId"`
-	Bytes     []byte `json:"bytes"`
+	AccountID   int32       `json:"accountId"`
+	Bytes       []byte      `json:"bytes"`
+	Source      string      `json:"source"`
+	ContentType pgtype.Text `json:"contentType"`
+	Etag        pgtype.Text `json:"etag"`
 }
 
 type AccountIdentity struct {

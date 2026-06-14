@@ -11,21 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const clearAccountAvatarBytes = `-- name: ClearAccountAvatarBytes :exec
-DELETE FROM account_avatar WHERE account_id = $1
+const clearActiveAvatar = `-- name: ClearActiveAvatar :exec
+UPDATE account SET avatar_source = $1::text, avatar_etag = NULL, avatar_content_type = NULL, updated_at = now()
+WHERE id = $2
 `
 
-func (q *Queries) ClearAccountAvatarBytes(ctx context.Context, accountID int32) error {
-	_, err := q.db.Exec(ctx, clearAccountAvatarBytes, accountID)
-	return err
+type ClearActiveAvatarParams struct {
+	Source    string `json:"source"`
+	AccountID int32  `json:"accountId"`
 }
 
-const clearAccountAvatarMeta = `-- name: ClearAccountAvatarMeta :exec
-UPDATE account SET avatar_content_type = NULL, avatar_etag = NULL, avatar_source = 'user', updated_at = now() WHERE id = $1
-`
-
-func (q *Queries) ClearAccountAvatarMeta(ctx context.Context, id int32) error {
-	_, err := q.db.Exec(ctx, clearAccountAvatarMeta, id)
+func (q *Queries) ClearActiveAvatar(ctx context.Context, arg ClearActiveAvatarParams) error {
+	_, err := q.db.Exec(ctx, clearActiveAvatar, arg.Source, arg.AccountID)
 	return err
 }
 
@@ -46,6 +43,20 @@ DELETE FROM account WHERE id = $1
 
 func (q *Queries) DeleteAccountByID(ctx context.Context, id int32) error {
 	_, err := q.db.Exec(ctx, deleteAccountByID, id)
+	return err
+}
+
+const deleteAvatarSource = `-- name: DeleteAvatarSource :exec
+DELETE FROM account_avatar WHERE account_id = $1 AND source = $2
+`
+
+type DeleteAvatarSourceParams struct {
+	AccountID int32  `json:"accountId"`
+	Source    string `json:"source"`
+}
+
+func (q *Queries) DeleteAvatarSource(ctx context.Context, arg DeleteAvatarSourceParams) error {
+	_, err := q.db.Exec(ctx, deleteAvatarSource, arg.AccountID, arg.Source)
 	return err
 }
 
@@ -157,26 +168,56 @@ func (q *Queries) GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUs
 	return i, err
 }
 
-const getAvatarBySubject = `-- name: GetAvatarBySubject :one
-SELECT av.bytes, a.avatar_content_type, a.avatar_etag, a.disabled
-FROM account a JOIN account_avatar av ON av.account_id = a.id
+const getActiveAvatarBySubject = `-- name: GetActiveAvatarBySubject :one
+SELECT av.bytes, av.content_type, av.etag, a.disabled
+FROM account a JOIN account_avatar av ON av.account_id = a.id AND av.source = a.avatar_source
 WHERE a.oidc_subject = $1
 `
 
-type GetAvatarBySubjectRow struct {
-	Bytes             []byte      `json:"bytes"`
-	AvatarContentType pgtype.Text `json:"avatarContentType"`
-	AvatarEtag        pgtype.Text `json:"avatarEtag"`
-	Disabled          bool        `json:"disabled"`
+type GetActiveAvatarBySubjectRow struct {
+	Bytes       []byte      `json:"bytes"`
+	ContentType pgtype.Text `json:"contentType"`
+	Etag        pgtype.Text `json:"etag"`
+	Disabled    bool        `json:"disabled"`
 }
 
-func (q *Queries) GetAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetAvatarBySubjectRow, error) {
-	row := q.db.QueryRow(ctx, getAvatarBySubject, oidcSubject)
-	var i GetAvatarBySubjectRow
+func (q *Queries) GetActiveAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetActiveAvatarBySubjectRow, error) {
+	row := q.db.QueryRow(ctx, getActiveAvatarBySubject, oidcSubject)
+	var i GetActiveAvatarBySubjectRow
 	err := row.Scan(
 		&i.Bytes,
-		&i.AvatarContentType,
-		&i.AvatarEtag,
+		&i.ContentType,
+		&i.Etag,
+		&i.Disabled,
+	)
+	return i, err
+}
+
+const getAvatarSourceBySubject = `-- name: GetAvatarSourceBySubject :one
+SELECT av.bytes, av.content_type, av.etag, a.disabled
+FROM account a JOIN account_avatar av ON av.account_id = a.id
+WHERE a.oidc_subject = $1 AND av.source = $2
+`
+
+type GetAvatarSourceBySubjectParams struct {
+	OidcSubject pgtype.UUID `json:"oidcSubject"`
+	Source      string      `json:"source"`
+}
+
+type GetAvatarSourceBySubjectRow struct {
+	Bytes       []byte      `json:"bytes"`
+	ContentType pgtype.Text `json:"contentType"`
+	Etag        pgtype.Text `json:"etag"`
+	Disabled    bool        `json:"disabled"`
+}
+
+func (q *Queries) GetAvatarSourceBySubject(ctx context.Context, arg GetAvatarSourceBySubjectParams) (GetAvatarSourceBySubjectRow, error) {
+	row := q.db.QueryRow(ctx, getAvatarSourceBySubject, arg.OidcSubject, arg.Source)
+	var i GetAvatarSourceBySubjectRow
+	err := row.Scan(
+		&i.Bytes,
+		&i.ContentType,
+		&i.Etag,
 		&i.Disabled,
 	)
 	return i, err
@@ -307,33 +348,53 @@ func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
 	return items, nil
 }
 
-const setAccountAvatarMetaUpstream = `-- name: SetAccountAvatarMetaUpstream :exec
-UPDATE account SET avatar_content_type = $2, avatar_etag = $3, avatar_source = 'upstream', updated_at = now() WHERE id = $1
+const listAvatarSourcesByAccount = `-- name: ListAvatarSourcesByAccount :many
+SELECT source, etag FROM account_avatar WHERE account_id = $1
 `
 
-type SetAccountAvatarMetaUpstreamParams struct {
-	ID                int32       `json:"id"`
-	AvatarContentType pgtype.Text `json:"avatarContentType"`
-	AvatarEtag        pgtype.Text `json:"avatarEtag"`
+type ListAvatarSourcesByAccountRow struct {
+	Source string      `json:"source"`
+	Etag   pgtype.Text `json:"etag"`
 }
 
-func (q *Queries) SetAccountAvatarMetaUpstream(ctx context.Context, arg SetAccountAvatarMetaUpstreamParams) error {
-	_, err := q.db.Exec(ctx, setAccountAvatarMetaUpstream, arg.ID, arg.AvatarContentType, arg.AvatarEtag)
-	return err
+func (q *Queries) ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error) {
+	rows, err := q.db.Query(ctx, listAvatarSourcesByAccount, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAvatarSourcesByAccountRow
+	for rows.Next() {
+		var i ListAvatarSourcesByAccountRow
+		if err := rows.Scan(&i.Source, &i.Etag); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const setAccountAvatarMetaUser = `-- name: SetAccountAvatarMetaUser :exec
-UPDATE account SET avatar_content_type = $2, avatar_etag = $3, avatar_source = 'user', updated_at = now() WHERE id = $1
+const setActiveAvatar = `-- name: SetActiveAvatar :exec
+UPDATE account SET
+  avatar_source       = $1::text,
+  avatar_etag         = (SELECT etag         FROM account_avatar av WHERE av.account_id = $2 AND av.source = $1),
+  avatar_content_type = (SELECT content_type FROM account_avatar av WHERE av.account_id = $2 AND av.source = $1),
+  updated_at = now()
+WHERE id = $2
 `
 
-type SetAccountAvatarMetaUserParams struct {
-	ID                int32       `json:"id"`
-	AvatarContentType pgtype.Text `json:"avatarContentType"`
-	AvatarEtag        pgtype.Text `json:"avatarEtag"`
+type SetActiveAvatarParams struct {
+	Source    string `json:"source"`
+	AccountID int32  `json:"accountId"`
 }
 
-func (q *Queries) SetAccountAvatarMetaUser(ctx context.Context, arg SetAccountAvatarMetaUserParams) error {
-	_, err := q.db.Exec(ctx, setAccountAvatarMetaUser, arg.ID, arg.AvatarContentType, arg.AvatarEtag)
+// source is forced non-null text (the column is nullable, but this query only
+// ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
+func (q *Queries) SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error {
+	_, err := q.db.Exec(ctx, setActiveAvatar, arg.Source, arg.AccountID)
 	return err
 }
 
@@ -418,17 +479,28 @@ func (q *Queries) UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmail
 	return err
 }
 
-const upsertAccountAvatarBytes = `-- name: UpsertAccountAvatarBytes :exec
-INSERT INTO account_avatar (account_id, bytes) VALUES ($1, $2)
-ON CONFLICT (account_id) DO UPDATE SET bytes = EXCLUDED.bytes
+const upsertAvatarSource = `-- name: UpsertAvatarSource :exec
+INSERT INTO account_avatar (account_id, source, bytes, content_type, etag)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (account_id, source) DO UPDATE
+  SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, etag = EXCLUDED.etag
 `
 
-type UpsertAccountAvatarBytesParams struct {
-	AccountID int32  `json:"accountId"`
-	Bytes     []byte `json:"bytes"`
+type UpsertAvatarSourceParams struct {
+	AccountID   int32       `json:"accountId"`
+	Source      string      `json:"source"`
+	Bytes       []byte      `json:"bytes"`
+	ContentType pgtype.Text `json:"contentType"`
+	Etag        pgtype.Text `json:"etag"`
 }
 
-func (q *Queries) UpsertAccountAvatarBytes(ctx context.Context, arg UpsertAccountAvatarBytesParams) error {
-	_, err := q.db.Exec(ctx, upsertAccountAvatarBytes, arg.AccountID, arg.Bytes)
+func (q *Queries) UpsertAvatarSource(ctx context.Context, arg UpsertAvatarSourceParams) error {
+	_, err := q.db.Exec(ctx, upsertAvatarSource,
+		arg.AccountID,
+		arg.Source,
+		arg.Bytes,
+		arg.ContentType,
+		arg.Etag,
+	)
 	return err
 }

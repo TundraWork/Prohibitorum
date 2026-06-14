@@ -48,23 +48,38 @@ SELECT COUNT(*) FROM account WHERE role = 'admin' AND NOT disabled FOR UPDATE;
 -- name: UpdateAccountDisplayName :exec
 UPDATE account SET display_name = $2, updated_at = now() WHERE id = $1;
 
--- name: UpsertAccountAvatarBytes :exec
-INSERT INTO account_avatar (account_id, bytes) VALUES ($1, $2)
-ON CONFLICT (account_id) DO UPDATE SET bytes = EXCLUDED.bytes;
+-- name: UpsertAvatarSource :exec
+INSERT INTO account_avatar (account_id, source, bytes, content_type, etag)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (account_id, source) DO UPDATE
+  SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, etag = EXCLUDED.etag;
 
--- name: SetAccountAvatarMetaUpstream :exec
-UPDATE account SET avatar_content_type = $2, avatar_etag = $3, avatar_source = 'upstream', updated_at = now() WHERE id = $1;
+-- name: SetActiveAvatar :exec
+-- source is forced non-null text (the column is nullable, but this query only
+-- ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
+UPDATE account SET
+  avatar_source       = sqlc.arg(source)::text,
+  avatar_etag         = (SELECT etag         FROM account_avatar av WHERE av.account_id = sqlc.arg(account_id) AND av.source = sqlc.arg(source)),
+  avatar_content_type = (SELECT content_type FROM account_avatar av WHERE av.account_id = sqlc.arg(account_id) AND av.source = sqlc.arg(source)),
+  updated_at = now()
+WHERE id = sqlc.arg(account_id);
 
--- name: SetAccountAvatarMetaUser :exec
-UPDATE account SET avatar_content_type = $2, avatar_etag = $3, avatar_source = 'user', updated_at = now() WHERE id = $1;
+-- name: ClearActiveAvatar :exec
+UPDATE account SET avatar_source = sqlc.arg(source)::text, avatar_etag = NULL, avatar_content_type = NULL, updated_at = now()
+WHERE id = sqlc.arg(account_id);
 
--- name: ClearAccountAvatarBytes :exec
-DELETE FROM account_avatar WHERE account_id = $1;
+-- name: DeleteAvatarSource :exec
+DELETE FROM account_avatar WHERE account_id = $1 AND source = $2;
 
--- name: ClearAccountAvatarMeta :exec
-UPDATE account SET avatar_content_type = NULL, avatar_etag = NULL, avatar_source = 'user', updated_at = now() WHERE id = $1;
-
--- name: GetAvatarBySubject :one
-SELECT av.bytes, a.avatar_content_type, a.avatar_etag, a.disabled
-FROM account a JOIN account_avatar av ON av.account_id = a.id
+-- name: GetActiveAvatarBySubject :one
+SELECT av.bytes, av.content_type, av.etag, a.disabled
+FROM account a JOIN account_avatar av ON av.account_id = a.id AND av.source = a.avatar_source
 WHERE a.oidc_subject = $1;
+
+-- name: GetAvatarSourceBySubject :one
+SELECT av.bytes, av.content_type, av.etag, a.disabled
+FROM account a JOIN account_avatar av ON av.account_id = a.id
+WHERE a.oidc_subject = $1 AND av.source = sqlc.arg(source);
+
+-- name: ListAvatarSourcesByAccount :many
+SELECT source, etag FROM account_avatar WHERE account_id = $1;

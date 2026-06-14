@@ -26,8 +26,7 @@ type Querier interface {
 	// free-attempt prefix". Indexing past the array clamps to the last entry,
 	// matching the Go-side schedule-walk semantics.
 	BumpAuthThrottle(ctx context.Context, arg BumpAuthThrottleParams) (BumpAuthThrottleRow, error)
-	ClearAccountAvatarBytes(ctx context.Context, accountID int32) error
-	ClearAccountAvatarMeta(ctx context.Context, id int32) error
+	ClearActiveAvatar(ctx context.Context, arg ClearActiveAvatarParams) error
 	ConfirmAccountIdentity(ctx context.Context, id int64) error
 	ConfirmTOTPCredential(ctx context.Context, accountID int32) error
 	// Atomic single-use consume. Returns the row only if it was unconsumed and unexpired.
@@ -53,6 +52,7 @@ type Querier interface {
 	DeleteAccountIdentity(ctx context.Context, arg DeleteAccountIdentityParams) (int64, error)
 	DeleteAllCredentialsForAccount(ctx context.Context, accountID int32) error
 	DeleteAllRecoveryCodesByAccount(ctx context.Context, accountID int32) error
+	DeleteAvatarSource(ctx context.Context, arg DeleteAvatarSourceParams) error
 	DeleteConsent(ctx context.Context, arg DeleteConsentParams) error
 	// Owner-scoped delete: zero rows affected means the id doesn't match an owned
 	// credential; handlers map that to credential_not_found.
@@ -73,9 +73,10 @@ type Querier interface {
 	GetAccountByUsername(ctx context.Context, username string) (Account, error)
 	GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error)
 	GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAccountIdentityByIssuerSubParams) (AccountIdentity, error)
+	GetActiveAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetActiveAvatarBySubjectRow, error)
 	GetActiveSigningKey(ctx context.Context) (SigningKey, error)
 	GetAuthThrottle(ctx context.Context, arg GetAuthThrottleParams) (AuthThrottle, error)
-	GetAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetAvatarBySubjectRow, error)
+	GetAvatarSourceBySubject(ctx context.Context, arg GetAvatarSourceBySubjectParams) (GetAvatarSourceBySubjectRow, error)
 	GetConsent(ctx context.Context, arg GetConsentParams) ([]string, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
@@ -113,6 +114,7 @@ type Querier interface {
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
 	ListAllSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListAllUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
+	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error)
 	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]CredentialEvent, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
@@ -144,8 +146,9 @@ type Querier interface {
 	// pgx.ErrNoRows surfaces and the handler maps to invitation_not_found.
 	RevokeInvitation(ctx context.Context, token string) (Enrollment, error)
 	RevokeSession(ctx context.Context, id string) error
-	SetAccountAvatarMetaUpstream(ctx context.Context, arg SetAccountAvatarMetaUpstreamParams) error
-	SetAccountAvatarMetaUser(ctx context.Context, arg SetAccountAvatarMetaUserParams) error
+	// source is forced non-null text (the column is nullable, but this query only
+	// ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
+	SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateAccountDisplayName(ctx context.Context, arg UpdateAccountDisplayNameParams) error
@@ -176,7 +179,7 @@ type Querier interface {
 	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
 	UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error)
 	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) error
-	UpsertAccountAvatarBytes(ctx context.Context, arg UpsertAccountAvatarBytesParams) error
+	UpsertAvatarSource(ctx context.Context, arg UpsertAvatarSourceParams) error
 	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
 }
