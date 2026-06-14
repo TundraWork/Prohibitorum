@@ -1261,7 +1261,16 @@ git commit -m "test(smoke): federated confirm + upstream avatar round-trip + no-
 
 **Type consistency:** `ResolveOutcome{AccountID int32, IdentityID int64, IsNew bool, Confirmed bool}` (T5) is consumed by `CallbackResult` (T5/T6) and `CreateConfirmGrant` (T6); `ConfirmGrant{AccountID, IdentityID, IDPID, IDPSlug, ReturnTo, BrowserBinding}` (T6); `AvatarFetchKey(int32)`/`ConfirmKey(string)` (T4/T6); `SetAccountAvatarMetaUpstream`/`SetAccountAvatarMetaUser`/`ClearAccountAvatarMeta` (T1) used in T4/T7; `ConfirmAccountIdentity(int64)` (T1) used in T5/T6; `FederationConfirmView`/`SessionView.AvatarPending` (T6/T7) consumed by T8/T9; `avatar.AccountURL`/`avatar.Process` (existing) reused. Consistent.
 
-## Review follow-ups (tracked during execution)
+## Review follow-ups
+
+**Resolved in-feature:** UserInfo-fallback coverage → smoke `avatar-fed 3` (Task 11); `ConfirmAccountIdentity` error→rollback unit test → added (Task 11 A1); `avatarPending` TS type on `SessionView` → added (Task 9); self-service-linked identities now auto-confirm so they don't hit `/welcome` on a later login → fixed post-final-review (`LinkCallback`).
+
+**Post-merge follow-ups (non-blocking, from the final review):**
+- **M-1:** `pkg/avatar.Process` calls `image.Decode` (full decode into memory) BEFORE the `maxInputDim=10000` bounds check — a ~5 MiB PNG declaring 10000×10000 allocates ~400 MiB. Pre-existing (same code as the authenticated `PUT /me/avatar`), and the upstream-URL path is behind the SSRF dial-screen + 5 MiB cap, but worth checking `image.DecodeConfig` dimensions before the full decode.
+- **M-2 (noted, fail-closed):** the confirm grant reuses `FedStateCookieName`; a concurrent second federation flow overwrites it — both directions fail closed (no authority crosses), the overlapping flow just restarts. A dedicated confirm-cookie name would make them independent.
+- **M-3 (noted, mitigated):** the confirm POST doesn't re-check `account.Disabled` (an admin could disable in the ≤15 min grant window) — fully neutralized by `LoadSession`'s per-request disabled re-check + force-revoke.
+
+### (historical) tracked during execution
 
 - **[from Task 7 code review → do in Task 9]** Add `avatarPending?: boolean` to the TS `SessionView` interface in `dashboard/src/stores/auth.ts` (the backend `/me` now emits it). Convention: `avatarPending` uses Go `omitempty`, so `/me` OMITS the key when false (absent ⇒ not pending); the `GET /me/avatar/status` endpoint always returns `{pending: bool}`. The dashboard poll must treat absent-or-false as "not pending".
 
