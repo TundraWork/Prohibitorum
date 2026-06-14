@@ -4,7 +4,7 @@
     {
       "id": 1,
       "subject": "Task 1: Avatar dual-source schema + queries",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** account_avatar keyed by (account_id, source) + per-row meta; account.avatar_source as the 4-state active pointer; source-aware sqlc queries; regen pkg/db. Leaves full go build red until T2/T3 (pkg/db green only) by design.\n\n```json:metadata\n{\"files\":[\"db/migrations/013_avatar_dual_source.sql\",\"db/queries/account.sql\",\"pkg/db\"],\"verifyCommand\":\"podman compose up -d && mise db:up && mise exec -- sqlc generate && go build ./pkg/db/\",\"acceptanceCriteria\":[\"013 applies; account_avatar PK (account_id,source)+bytes/content_type/etag; existing blobs migrate by avatar_source\",\"sqlc generate ok; old single-blob query methods gone\"]}\n```"
     },
     {
