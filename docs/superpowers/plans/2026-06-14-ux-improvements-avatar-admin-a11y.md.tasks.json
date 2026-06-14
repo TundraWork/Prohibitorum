@@ -55,7 +55,7 @@
     {
       "id": 7,
       "subject": "Task 7: Frontend — disable toggle as its own section",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Lift the disabled Switch into its own Status FormSection in IdP/OIDC/SAML detail views; save payload unchanged.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.vue\",\"dashboard/src/pages/admin/AdminOidcClientDetailView.vue\",\"dashboard/src/pages/admin/AdminSamlProviderDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin && npx vue-tsc -b\",\"acceptanceCriteria\":[\"disabled toggle in its own titled section in all 3 detail views; save payload unchanged\"]}\n```"
     },
     {
@@ -89,5 +89,5 @@
       "description": "**Goal:** Update avatar smoke to dual-source (coexist + selection switch + ?source); full gate; rebuild+commit dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm run test && npm run build\",\"acceptanceCriteria\":[\"smoke: upload+inherit coexist, switch upstream/user/none asserts active GET + ?source previews, SMOKE_EXIT=0\",\"full gate green; dist rebuilt+committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-14T23:25:00Z"
+  "lastUpdated": "2026-06-14T23:45:00Z"
 }
