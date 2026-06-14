@@ -16,6 +16,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 
 interface Identity {
   id: number
@@ -79,21 +80,24 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
       <AlertDescription>{{ errorText }}</AlertDescription>
     </Alert>
 
-    <Card v-for="ident in identities" :key="ident.id">
-      <CardContent class="flex items-center justify-between gap-4 py-4">
-        <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-          <span class="min-w-0 truncate font-medium text-ink">{{ ident.idpDisplayName }}</span>
-          <span v-if="ident.upstreamEmail" class="min-w-0 truncate text-muted">{{ ident.upstreamEmail }}</span>
-          <span v-if="fmt(ident.linkedAt)" class="truncate text-muted">{{ t('connected.linked') }}: {{ fmt(ident.linkedAt) }}</span>
-        </div>
-        <Button variant="outline" size="sm" class="shrink-0" :disabled="busy"
-                :data-test="`unlink-${ident.id}`" @click="confirmId = ident.id">
-          {{ t('connected.unlink') }}
-        </Button>
-      </CardContent>
-    </Card>
+    <TableSkeleton v-if="busy && !identities.length" :rows="3" :cols="1" />
+    <template v-else-if="identities.length">
+      <Card v-for="ident in identities" :key="ident.id">
+        <CardContent class="flex items-center justify-between gap-4 py-4">
+          <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+            <span class="min-w-0 truncate font-medium text-ink">{{ ident.idpDisplayName }}</span>
+            <span v-if="ident.upstreamEmail" class="min-w-0 truncate text-muted">{{ ident.upstreamEmail }}</span>
+            <span v-if="fmt(ident.linkedAt)" class="truncate text-muted">{{ t('connected.linked') }}: {{ fmt(ident.linkedAt) }}</span>
+          </div>
+          <Button variant="outline" size="sm" class="shrink-0" :disabled="busy"
+                  :data-test="`unlink-${ident.id}`" @click="confirmId = ident.id">
+            {{ t('connected.unlink') }}
+          </Button>
+        </CardContent>
+      </Card>
+    </template>
 
-    <p v-if="!busy && identities.length === 0 && !errorText" class="text-sm text-muted">
+    <p v-else-if="!errorText" class="text-sm text-muted">
       {{ t('connected.empty') }}
     </p>
 

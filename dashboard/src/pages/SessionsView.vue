@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 
 interface SessionListItem {
   id: string
@@ -49,23 +50,26 @@ onMounted(load)
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
       <AlertDescription>{{ errorText }}</AlertDescription>
     </Alert>
-    <Card v-for="r in rows" :key="r.id">
-      <CardContent class="flex items-center justify-between gap-4 py-4">
-        <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-          <div class="flex min-w-0 items-center gap-2">
-            <span class="min-w-0 truncate text-ink">{{ r.userAgent || r.lastSeenIp }}</span>
-            <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
+    <TableSkeleton v-if="busy && !rows.length" :rows="3" :cols="1" />
+    <template v-else-if="rows.length">
+      <Card v-for="r in rows" :key="r.id">
+        <CardContent class="flex items-center justify-between gap-4 py-4">
+          <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="min-w-0 truncate text-ink">{{ r.userAgent || r.lastSeenIp }}</span>
+              <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
+            </div>
+            <span class="truncate text-muted">{{ t('sessions.lastSeen') }}: {{ r.lastSeenIp }}</span>
+            <span v-if="fmt(r.issuedAt)" class="truncate text-muted">{{ t('sessions.issued') }}: {{ fmt(r.issuedAt) }}</span>
+            <span v-if="fmt(r.expiresAt)" class="truncate text-muted">{{ t('sessions.expires') }}: {{ fmt(r.expiresAt) }}</span>
           </div>
-          <span class="truncate text-muted">{{ t('sessions.lastSeen') }}: {{ r.lastSeenIp }}</span>
-          <span v-if="fmt(r.issuedAt)" class="truncate text-muted">{{ t('sessions.issued') }}: {{ fmt(r.issuedAt) }}</span>
-          <span v-if="fmt(r.expiresAt)" class="truncate text-muted">{{ t('sessions.expires') }}: {{ fmt(r.expiresAt) }}</span>
-        </div>
-        <Button v-if="!r.isCurrent" variant="outline" size="sm" class="shrink-0" :disabled="busy"
-                data-test="revoke" @click="revoke(r.id)">
-          {{ t('sessions.revoke') }}
-        </Button>
-      </CardContent>
-    </Card>
-    <p v-if="!busy && rows.length === 0 && !errorText" class="text-sm text-muted">{{ t('sessions.empty') }}</p>
+          <Button v-if="!r.isCurrent" variant="outline" size="sm" class="shrink-0" :disabled="busy"
+                  data-test="revoke" @click="revoke(r.id)">
+            {{ t('sessions.revoke') }}
+          </Button>
+        </CardContent>
+      </Card>
+    </template>
+    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('sessions.empty') }}</p>
   </div>
 </template>

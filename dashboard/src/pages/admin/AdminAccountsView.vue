@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
@@ -34,7 +35,8 @@ onMounted(load)
       <Button type="button" data-test="invite" @click="router.push('/admin/invitations')">{{ t('admin.accounts.invite') }}</Button>
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
-    <Table v-if="rows.length">
+    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="4" />
+    <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.accounts.colUser') }}</TableHead>
@@ -62,6 +64,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!busy && !errorText" class="text-sm text-muted">{{ t('admin.accounts.empty') }}</p>
+    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('admin.accounts.empty') }}</p>
   </div>
 </template>

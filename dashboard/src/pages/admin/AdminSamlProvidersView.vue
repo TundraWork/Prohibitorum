@@ -19,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import SegmentedControl from '@/components/custom/SegmentedControl.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 
 const POST_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
@@ -242,7 +243,8 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <Table v-if="rows.length">
+    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="3" />
+    <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.saml.colEntity') }}</TableHead>
@@ -264,6 +266,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!busy && !errorText && !createOpen" class="text-sm text-muted">{{ t('admin.saml.empty') }}</p>
+    <p v-else-if="!errorText && !createOpen" class="text-sm text-muted">{{ t('admin.saml.empty') }}</p>
   </div>
 </template>

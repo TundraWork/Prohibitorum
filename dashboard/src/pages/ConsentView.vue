@@ -29,6 +29,7 @@ import CenteredLayout from '@/pages/CenteredLayout.vue'
 import ConsentScopeList from '@/components/custom/ConsentScopeList.vue'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 
 interface ConsentClient {
   clientId: string
@@ -93,7 +94,7 @@ async function decide(decision: 'approve' | 'deny'): Promise<void> {
       <h1 class="text-xl font-semibold tracking-tight text-ink">{{ t('consent.title') }}</h1>
     </template>
 
-    <p v-if="loading" class="text-center text-sm text-muted">{{ t('common.loading') }}</p>
+    <CardSkeleton v-if="loading" :lines="3" />
 
     <div v-else-if="ctx" class="flex flex-col gap-6">
       <div class="flex flex-col gap-1 text-center">

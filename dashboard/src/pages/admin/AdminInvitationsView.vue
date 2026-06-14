@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import SegmentedControl from '@/components/custom/SegmentedControl.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
@@ -109,7 +110,8 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <Table v-if="rows.length">
+    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="6" />
+    <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.invitations.colRole') }}</TableHead>
@@ -131,7 +133,7 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!busy && !errorText" class="text-sm text-muted">{{ t('admin.invitations.empty') }}</p>
+    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('admin.invitations.empty') }}</p>
 
     <ConfirmDialog :open="revokeToken !== null" :title="t('admin.invitations.revokeConfirmTitle')" :confirm-label="t('admin.invitations.revoke')" :busy="busy"
       @update:open="(v) => { if (!v) revokeToken = null }" @cancel="revokeToken = null" @confirm="revoke">

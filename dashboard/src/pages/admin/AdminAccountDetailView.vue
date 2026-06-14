@@ -29,6 +29,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
+import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
@@ -180,6 +181,8 @@ onMounted(load)
     <RouterLink to="/admin/accounts" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.account.back') }}</RouterLink>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.account.notFound') }}</p>
+
+    <CardSkeleton v-else-if="busy && !account" />
 
     <template v-else-if="account">
       <div class="flex items-center gap-3">

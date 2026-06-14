@@ -21,6 +21,7 @@ import ListInput from '@/components/custom/ListInput.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
 import SettingRow from '@/components/custom/SettingRow.vue'
+import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
 
 const { t } = useI18n()
@@ -98,6 +99,8 @@ onMounted(load)
     <RouterLink to="/admin/identity-providers" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.upstream.back') }}</RouterLink>
     <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.upstream.notFound') }}</p>
+
+    <CardSkeleton v-else-if="busy && !idp" />
 
     <template v-else-if="idp">
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ idp.displayName }}</h1>

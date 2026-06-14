@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CodeField from '@/components/custom/CodeField.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
@@ -186,7 +187,8 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <Table v-if="rows.length">
+    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="3" />
+    <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.oidc.colClient') }} · {{ t('admin.oidc.clientId') }}</TableHead>
@@ -217,6 +219,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!busy && !errorText && !createOpen" class="text-sm text-muted">{{ t('admin.oidc.empty') }}</p>
+    <p v-else-if="!errorText && !createOpen" class="text-sm text-muted">{{ t('admin.oidc.empty') }}</p>
   </div>
 </template>

@@ -24,6 +24,7 @@ import CodeField from '@/components/custom/CodeField.vue'
 import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 
 interface OidcApplication {
   clientId: string
@@ -134,6 +135,8 @@ onMounted(load)
     <RouterLink to="/admin/oidc-applications" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.oidc.back') }}</RouterLink>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.oidc.notFound') }}</p>
+
+    <CardSkeleton v-else-if="busy && !client" />
 
     <template v-else-if="client">
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ client.displayName }}</h1>

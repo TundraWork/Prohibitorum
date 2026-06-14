@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { formatDateTime } from '@/lib/time'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 
 interface AuditEvent {
   id: number; at: string; accountId?: number; factor: string; event: string
@@ -98,7 +99,8 @@ onMounted(reload)
       <Button type="button" variant="outline" :disabled="busy" data-test="clear" @click="clearFilters">{{ t('admin.audit.clear') }}</Button>
     </div>
 
-    <Table v-if="rows.length">
+    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="5" />
+    <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.audit.colTime') }}</TableHead>
@@ -129,7 +131,7 @@ onMounted(reload)
         </template>
       </TableBody>
     </Table>
-    <p v-else-if="!busy && !errorText" class="text-sm text-muted">{{ t('admin.audit.empty') }}</p>
+    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('admin.audit.empty') }}</p>
 
     <Button v-if="hasMore" type="button" variant="outline" class="w-fit" :disabled="busy" data-test="load-more" @click="loadMore">{{ t('admin.audit.loadMore') }}</Button>
   </div>

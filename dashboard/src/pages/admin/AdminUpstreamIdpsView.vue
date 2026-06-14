@@ -21,6 +21,7 @@ import ListInput from '@/components/custom/ListInput.vue'
 import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 
 export interface IdentityProvider {
   slug: string; displayName: string; issuerUrl: string; clientId: string
@@ -169,7 +170,8 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <Table v-if="rows.length">
+    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="3" />
+    <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.upstream.colName') }} · {{ t('admin.upstream.colSlug') }}</TableHead>
@@ -196,6 +198,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!busy && !errorText && !createOpen" class="text-sm text-muted">{{ t('admin.upstream.empty') }}</p>
+    <p v-else-if="!errorText && !createOpen" class="text-sm text-muted">{{ t('admin.upstream.empty') }}</p>
   </div>
 </template>

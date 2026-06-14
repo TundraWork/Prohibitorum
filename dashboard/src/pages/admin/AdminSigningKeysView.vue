@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import { formatDateTime } from '@/lib/time'
 
 interface SigningKey {
@@ -74,7 +75,8 @@ onMounted(load)
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
 
-    <Table v-if="rows.length">
+    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="5" />
+    <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('admin.signingKeys.colKid') }}</TableHead>
@@ -107,7 +109,7 @@ onMounted(load)
         </template>
       </TableBody>
     </Table>
-    <p v-else-if="!busy && !errorText" class="text-sm text-muted">{{ t('admin.signingKeys.empty') }}</p>
+    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('admin.signingKeys.empty') }}</p>
 
     <ConfirmDialog :open="confirmGenerate" :title="t('admin.signingKeys.generateTitle')" :confirm-label="t('admin.signingKeys.generateConfirm')" :busy="busy"
       @update:open="closeGenerate" @cancel="confirmGenerate = false" @confirm="generate">
