@@ -1,0 +1,72 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-14-ux-improvements-avatar-admin-a11y.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Avatar dual-source schema + queries",
+      "status": "pending",
+      "description": "**Goal:** account_avatar keyed by (account_id, source) + per-row meta; account.avatar_source as the 4-state active pointer; source-aware sqlc queries; regen pkg/db. Leaves full go build red until T2/T3 (pkg/db green only) by design.\n\n```json:metadata\n{\"files\":[\"db/migrations/013_avatar_dual_source.sql\",\"db/queries/account.sql\",\"pkg/db\"],\"verifyCommand\":\"podman compose up -d && mise db:up && mise exec -- sqlc generate && go build ./pkg/db/\",\"acceptanceCriteria\":[\"013 applies; account_avatar PK (account_id,source)+bytes/content_type/etag; existing blobs migrate by avatar_source\",\"sqlc generate ok; old single-blob query methods gone\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Avatar handlers + SourceURL (upload/selection/delete-fallback/?source GET)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** avatar.SourceURL; rework handle_avatar.go to dual-source: PUT upload->user+active, new PUT /me/avatar/selection, DELETE removes upload+fallback, GET serves active or ?source. Keep dbPool==nil seam + tx.\n\n```json:metadata\n{\"files\":[\"pkg/avatar/avatar.go\",\"pkg/avatar/avatar_test.go\",\"pkg/server/handle_avatar.go\",\"pkg/server/handle_avatar_test.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/avatar/ ./pkg/server/ -run Avatar -v && go build ./pkg/server/ ./pkg/avatar/\",\"acceptanceCriteria\":[\"SourceURL builds ?source=&v= URL\",\"upload->user+active; selection switch/none/400 avatar_source_unavailable; delete-upload fallback; GET active or ?source\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Inherit-job rework (retain both, sticky active)",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** runAvatarInherit upserts upstream source + activates only when avatar_source is NULL or already 'upstream' (never overrides none/user); etag-skip; remove old user-source guard. Full build green again.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/federation.go\",\"pkg/federation/oidc/federation_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run AvatarInherit -v && CGO_ENABLED=0 go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"NULL active->store+activate upstream; user/none active->store only; upstream active->store+refresh; unchanged etag->no-op\",\"full build green\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: /me reports avatarSource + per-source preview URLs",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** SessionView.avatarSource (active) + avatarSourceUrls (source->SourceURL) populated in sessionView via ListAvatarSourcesByAccount.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_auth.go\",\"pkg/server/handle_me_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run 'Me|Avatar' -v\",\"acceptanceCriteria\":[\"/me has avatarSource (omit when NULL) + avatarSourceUrls per existing row\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Frontend — avatar source picker",
+      "status": "pending",
+      "blockedBy": [2, 4],
+      "description": "**Goal:** EditProfileDialog picker (Inherited/Uploaded/None, active highlighted, selection PUT+reload, upload crop flow, remove-upload); SessionView TS fields; i18n.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/EditProfileDialog.vue\",\"dashboard/src/components/custom/EditProfileDialog.test.ts\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/EditProfileDialog.test.ts && npx vue-tsc -b\",\"acceptanceCriteria\":[\"picker renders available sources + None, active highlighted; select->PUT selection+reload; upload+remove-upload work\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Frontend — IdP slug (list column + detail display)",
+      "status": "pending",
+      "description": "**Goal:** Slug as its own list column (Name·Slug·Mode·State); read-only slug on the detail page.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminUpstreamIdpsView.vue\",\"dashboard/src/pages/admin/AdminUpstreamIdpsView.test.ts\",\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.vue\",\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.test.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin/AdminUpstreamIdp && npx vue-tsc -b\",\"acceptanceCriteria\":[\"list has dedicated Slug column\",\"detail shows read-only slug\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Frontend — disable toggle as its own section",
+      "status": "pending",
+      "description": "**Goal:** Lift the disabled Switch into its own Status FormSection in IdP/OIDC/SAML detail views; save payload unchanged.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.vue\",\"dashboard/src/pages/admin/AdminOidcClientDetailView.vue\",\"dashboard/src/pages/admin/AdminSamlProviderDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/admin && npx vue-tsc -b\",\"acceptanceCriteria\":[\"disabled toggle in its own titled section in all 3 detail views; save payload unchanged\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Frontend — ComboboxTokenInput + upstream scopes",
+      "status": "pending",
+      "description": "**Goal:** Reusable ComboboxTokenInput (suggestions w/ descriptions + custom + chips); wire into upstream IdP scopes (create+detail), replacing TagInput. OIDC app scopes unchanged.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/ComboboxTokenInput.vue\",\"dashboard/src/components/custom/ComboboxTokenInput.test.ts\",\"dashboard/src/lib/scopes.ts\",\"dashboard/src/pages/admin/AdminUpstreamIdpsView.vue\",\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/ComboboxTokenInput.test.ts src/pages/admin/AdminUpstreamIdp && npx vue-tsc -b\",\"acceptanceCriteria\":[\"combobox: chips, suggestions+descriptions, custom add, remove; upstream scopes use it; scopes payload shape unchanged\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Frontend — accessibility sweep",
+      "status": "pending",
+      "blockedBy": [5, 8],
+      "description": "**Goal:** cursor-pointer on Button cva + all interactive primitives + disabled:cursor-not-allowed; aria-labels on icon-only buttons; focus-visible + semantics audit; Button-cursor regression test.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/ui/button/index.ts\",\"dashboard/src/components/ui\",\"dashboard/src/components/custom\",\"dashboard/src/pages\"],\"verifyCommand\":\"cd dashboard && npx vitest run && npx vue-tsc -b\",\"acceptanceCriteria\":[\"Button cva has cursor-pointer; all interactive primitives show pointer; icon-only buttons aria-labelled; focus-visible+semantics fixed\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Smoke update (dual-source) + done-gate + dist",
+      "status": "pending",
+      "blockedBy": [3, 5, 6, 7, 8, 9],
+      "description": "**Goal:** Update avatar smoke to dual-source (coexist + selection switch + ?source); full gate; rebuild+commit dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm run test && npm run build\",\"acceptanceCriteria\":[\"smoke: upload+inherit coexist, switch upstream/user/none asserts active GET + ?source previews, SMOKE_EXIT=0\",\"full gate green; dist rebuilt+committed\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-14T21:30:00Z"
+}
