@@ -24,7 +24,7 @@
     {
       "id": 4,
       "subject": "Task 4: /me reports avatarSource + per-source preview URLs",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** SessionView.avatarSource (active) + avatarSourceUrls (source->SourceURL) populated in sessionView via ListAvatarSourcesByAccount.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_auth.go\",\"pkg/server/handle_me_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run 'Me|Avatar' -v\",\"acceptanceCriteria\":[\"/me has avatarSource (omit when NULL) + avatarSourceUrls per existing row\"]}\n```"
     },
