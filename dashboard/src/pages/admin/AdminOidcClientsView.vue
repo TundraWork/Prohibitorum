@@ -196,7 +196,7 @@ onMounted(load)
     <Table v-if="rows.length">
       <TableHeader>
         <TableRow>
-          <TableHead>{{ t('admin.oidc.colClient') }}</TableHead>
+          <TableHead>{{ t('admin.oidc.colClient') }} · {{ t('admin.oidc.clientId') }}</TableHead>
           <TableHead>{{ t('admin.oidc.colType') }}</TableHead>
           <TableHead>{{ t('admin.oidc.colState') }}</TableHead>
         </TableRow>
