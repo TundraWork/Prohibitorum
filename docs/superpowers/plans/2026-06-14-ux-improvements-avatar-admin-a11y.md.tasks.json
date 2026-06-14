@@ -17,7 +17,7 @@
     {
       "id": 3,
       "subject": "Task 3: Inherit-job rework (retain both, sticky active)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** runAvatarInherit upserts upstream source + activates only when avatar_source is NULL or already 'upstream' (never overrides none/user); etag-skip; remove old user-source guard. Full build green again.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/federation.go\",\"pkg/federation/oidc/federation_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run AvatarInherit -v && CGO_ENABLED=0 go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"NULL active->store+activate upstream; user/none active->store only; upstream active->store+refresh; unchanged etag->no-op\",\"full build green\"]}\n```"
     },
