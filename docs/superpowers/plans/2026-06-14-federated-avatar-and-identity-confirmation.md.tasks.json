@@ -52,7 +52,7 @@
     {
       "id": 8,
       "subject": "Task 8: Frontend — WelcomeView interstitial + route + i18n",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** /welcome standalone page: fetch confirm view, render identity+avatar, spinner+poll while avatarPending, gate Continue (settled or ~30s cap), confirm POST→redirect, decline→/login. Route + i18n.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/WelcomeView.vue\",\"dashboard/src/pages/WelcomeView.test.ts\",\"dashboard/src/router\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/WelcomeView.test.ts && npx vue-tsc -b\",\"acceptanceCriteria\":[\"renders identity; Continue gated until avatar settles/cap\",\"confirm POST navigates to redirect; decline → /login\"]}\n```"
     },
