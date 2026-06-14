@@ -12,6 +12,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
+import { Users } from 'lucide-vue-next'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
@@ -64,6 +66,8 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('admin.accounts.empty') }}</p>
+    <EmptyState v-else-if="!errorText" :icon="Users" :title="t('admin.accounts.empty')">
+      <Button type="button" variant="outline" @click="router.push('/admin/invitations')">{{ t('admin.accounts.invite') }}</Button>
+    </EmptyState>
   </div>
 </template>

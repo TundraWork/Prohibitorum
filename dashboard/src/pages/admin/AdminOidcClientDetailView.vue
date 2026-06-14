@@ -25,6 +25,7 @@ import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
+import BackLink from '@/components/custom/BackLink.vue'
 
 interface OidcApplication {
   clientId: string
@@ -132,7 +133,7 @@ onMounted(load)
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
-    <RouterLink to="/admin/oidc-applications" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.oidc.back') }}</RouterLink>
+    <BackLink to="/admin/oidc-applications" :label="t('admin.oidc.back')" />
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.oidc.notFound') }}</p>
 

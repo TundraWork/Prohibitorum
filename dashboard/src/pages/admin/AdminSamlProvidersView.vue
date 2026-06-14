@@ -21,6 +21,8 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import SegmentedControl from '@/components/custom/SegmentedControl.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
+import { Building2 } from 'lucide-vue-next'
 
 const POST_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
 const REDIRECT_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect'
@@ -266,6 +268,8 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!errorText && !createOpen" class="text-sm text-muted">{{ t('admin.saml.empty') }}</p>
+    <EmptyState v-else-if="!errorText && !createOpen" :icon="Building2" :title="t('admin.saml.empty')">
+      <Button type="button" variant="outline" @click="openCreate">{{ t('admin.saml.create') }}</Button>
+    </EmptyState>
   </div>
 </template>

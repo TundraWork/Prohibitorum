@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
 
 interface Identity {
   id: number
@@ -97,9 +98,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
       </Card>
     </template>
 
-    <p v-else-if="!errorText" class="text-sm text-muted">
-      {{ t('connected.empty') }}
-    </p>
+    <EmptyState v-else-if="!errorText" :title="t('connected.empty')" />
 
     <Card>
       <CardHeader>

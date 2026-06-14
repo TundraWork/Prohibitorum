@@ -22,6 +22,8 @@ import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
+import { Mail } from 'lucide-vue-next'
 
 interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string }
 interface Idp { slug: string; displayName: string; disabled: boolean }
@@ -133,7 +135,9 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('admin.invitations.empty') }}</p>
+    <EmptyState v-else-if="!errorText" :icon="Mail" :title="t('admin.invitations.empty')">
+      <Button type="button" variant="outline" @click="createOpen = true">{{ t('admin.invitations.create') }}</Button>
+    </EmptyState>
 
     <ConfirmDialog :open="revokeToken !== null" :title="t('admin.invitations.revokeConfirmTitle')" :confirm-label="t('admin.invitations.revoke')" :busy="busy"
       @update:open="(v) => { if (!v) revokeToken = null }" @cancel="revokeToken = null" @confirm="revoke">

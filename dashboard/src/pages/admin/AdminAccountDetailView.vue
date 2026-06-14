@@ -30,6 +30,7 @@ import CodeField from '@/components/custom/CodeField.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
+import BackLink from '@/components/custom/BackLink.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
@@ -178,7 +179,7 @@ onMounted(load)
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
-    <RouterLink to="/admin/accounts" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.account.back') }}</RouterLink>
+    <BackLink to="/admin/accounts" :label="t('admin.account.back')" />
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.account.notFound') }}</p>
 

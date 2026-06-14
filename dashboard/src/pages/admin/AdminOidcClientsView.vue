@@ -20,6 +20,8 @@ import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
+import { AppWindow } from 'lucide-vue-next'
 
 interface OidcApplication {
   clientId: string
@@ -219,6 +221,8 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!errorText && !createOpen" class="text-sm text-muted">{{ t('admin.oidc.empty') }}</p>
+    <EmptyState v-else-if="!errorText && !createOpen" :icon="AppWindow" :title="t('admin.oidc.empty')">
+      <Button type="button" variant="outline" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
+    </EmptyState>
   </div>
 </template>

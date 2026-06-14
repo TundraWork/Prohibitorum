@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
+import BackLink from '@/components/custom/BackLink.vue'
 
 interface AcsEndpoint {
   binding: string
@@ -143,7 +144,7 @@ onMounted(load)
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
-    <RouterLink to="/admin/saml-applications" class="text-sm text-muted underline-offset-4 hover:underline">{{ t('admin.saml.back') }}</RouterLink>
+    <BackLink to="/admin/saml-applications" :label="t('admin.saml.back')" />
     <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <Alert v-if="localError" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ localError }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.saml.notFound') }}</p>

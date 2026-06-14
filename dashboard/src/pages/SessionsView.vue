@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
+import { MonitorSmartphone } from 'lucide-vue-next'
 
 interface SessionListItem {
   id: string
@@ -70,6 +72,6 @@ onMounted(load)
         </CardContent>
       </Card>
     </template>
-    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('sessions.empty') }}</p>
+    <EmptyState v-else-if="!errorText" :icon="MonitorSmartphone" :title="t('sessions.empty')" />
   </div>
 </template>

@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { formatDateTime } from '@/lib/time'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
+import { FileX } from 'lucide-vue-next'
 
 interface AuditEvent {
   id: number; at: string; accountId?: number; factor: string; event: string
@@ -131,7 +133,7 @@ onMounted(reload)
         </template>
       </TableBody>
     </Table>
-    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('admin.audit.empty') }}</p>
+    <EmptyState v-else-if="!errorText" :icon="FileX" :title="t('admin.audit.empty')" />
 
     <Button v-if="hasMore" type="button" variant="outline" class="w-fit" :disabled="busy" data-test="load-more" @click="loadMore">{{ t('admin.audit.loadMore') }}</Button>
   </div>

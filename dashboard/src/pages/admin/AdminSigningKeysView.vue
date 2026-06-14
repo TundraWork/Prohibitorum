@@ -11,7 +11,9 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
 import { formatDateTime } from '@/lib/time'
+import { KeyRound } from 'lucide-vue-next'
 
 interface SigningKey {
   kid: string; algorithm: string; use: string; status: string
@@ -109,7 +111,9 @@ onMounted(load)
         </template>
       </TableBody>
     </Table>
-    <p v-else-if="!errorText" class="text-sm text-muted">{{ t('admin.signingKeys.empty') }}</p>
+    <EmptyState v-else-if="!errorText" :icon="KeyRound" :title="t('admin.signingKeys.empty')">
+      <Button type="button" variant="outline" @click="confirmGenerate = true">{{ t('admin.signingKeys.generate') }}</Button>
+    </EmptyState>
 
     <ConfirmDialog :open="confirmGenerate" :title="t('admin.signingKeys.generateTitle')" :confirm-label="t('admin.signingKeys.generateConfirm')" :busy="busy"
       @update:open="closeGenerate" @cancel="confirmGenerate = false" @confirm="generate">

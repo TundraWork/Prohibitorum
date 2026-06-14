@@ -22,6 +22,8 @@ import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
+import { Link2 } from 'lucide-vue-next'
 
 export interface IdentityProvider {
   slug: string; displayName: string; issuerUrl: string; clientId: string
@@ -198,6 +200,8 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <p v-else-if="!errorText && !createOpen" class="text-sm text-muted">{{ t('admin.upstream.empty') }}</p>
+    <EmptyState v-else-if="!errorText && !createOpen" :icon="Link2" :title="t('admin.upstream.empty')">
+      <Button type="button" variant="outline" @click="openCreate">{{ t('admin.upstream.create') }}</Button>
+    </EmptyState>
   </div>
 </template>
