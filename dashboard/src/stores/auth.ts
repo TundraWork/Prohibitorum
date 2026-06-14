@@ -24,6 +24,7 @@ export interface SessionView {
   role: string
   attributes?: Record<string, unknown>
   avatarUrl?: string
+  avatarPending?: boolean
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -67,5 +68,29 @@ export const useAuthStore = defineStore('auth', () => {
     _loaded.value = false
   }
 
-  return { me, isAdmin, ensureLoaded, reload, setDisplayName, clear }
+  let _pollActive = false
+  function pollAvatarUntilSettled(): () => void {
+    if (!me.value?.avatarPending || _pollActive) return () => {}
+    _pollActive = true
+    let cancelled = false
+    const stop = () => { cancelled = true; _pollActive = false }
+    const tick = async (): Promise<void> => {
+      if (cancelled) return
+      try {
+        const res = await api.get<{ pending: boolean }>('/api/prohibitorum/me/avatar/status')
+        if (res.pending) { if (!cancelled) setTimeout(() => { void tick() }, 1500); return }
+      } catch {
+        // Terminal: stop polling and clear the pending flag client-side so the
+        // spinner never sticks (the avatar refreshes on the next natural /me load).
+        if (me.value) me.value.avatarPending = false
+        _pollActive = false
+        return
+      }
+      if (!cancelled) { _pollActive = false; await reload() }
+    }
+    setTimeout(() => { void tick() }, 1500)
+    return stop
+  }
+
+  return { me, isAdmin, ensureLoaded, reload, setDisplayName, clear, pollAvatarUntilSettled }
 })

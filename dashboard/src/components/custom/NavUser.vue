@@ -5,7 +5,7 @@
  * is a SIBLING (not nested in the menu) and opens on nextTick after select,
  * avoiding Reka's menu->dialog focus / lingering-pointer-events bug.
  */
-import { nextTick, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ChevronsUpDown, LogOut, Pencil } from 'lucide-vue-next'
@@ -25,6 +25,10 @@ const auth = useAuthStore()
 const router = useRouter()
 
 const editOpen = ref(false)
+
+let cancelPoll: (() => void) | null = null
+onMounted(() => { cancelPoll = auth.pollAvatarUntilSettled() })
+onUnmounted(() => { cancelPoll?.(); cancelPoll = null })
 
 // Open the dialog on the next tick so the menu finishes closing / restoring
 // focus to the trigger first - prevents Reka's lingering pointer-events:none.
@@ -53,7 +57,7 @@ defineExpose({ openEdit, signOut, editOpen })
             :aria-label="t('accountMenu.trigger')"
             class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" />
+            <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" :loading="auth.me.avatarPending" />
             <div class="grid flex-1 text-left text-sm leading-tight">
               <span class="truncate font-medium text-ink">{{ auth.me.displayName }}</span>
               <span class="truncate text-xs capitalize text-muted">{{ auth.me.role }}</span>
@@ -70,6 +74,7 @@ defineExpose({ openEdit, signOut, editOpen })
         >
           <DropdownMenuLabel class="font-normal">
             <div class="flex items-center gap-2">
+              <!-- No :loading here intentionally — the spinner is only on the always-visible trigger avatar, not the dropdown header -->
               <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" />
               <div class="grid flex-1 text-left text-sm leading-tight">
                 <span class="truncate font-medium text-ink">{{ auth.me.displayName }}</span>

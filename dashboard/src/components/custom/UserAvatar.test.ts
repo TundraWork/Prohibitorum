@@ -37,4 +37,19 @@ describe('UserAvatar', () => {
     expect(w.find('img').exists()).toBe(false)
     expect(w.text()).toBe('AS')
   })
+
+  it('shows the spinner overlay when loading is true', () => {
+    const w = mount(UserAvatar, { props: { displayName: 'Alex Smith', loading: true } })
+    expect(w.find('[data-test="avatar-spinner"]').exists()).toBe(true)
+  })
+
+  it('does not show the spinner overlay when loading is false', () => {
+    const w = mount(UserAvatar, { props: { displayName: 'Alex Smith', loading: false } })
+    expect(w.find('[data-test="avatar-spinner"]').exists()).toBe(false)
+  })
+
+  it('does not show the spinner overlay when loading is absent', () => {
+    const w = mount(UserAvatar, { props: { displayName: 'Alex Smith' } })
+    expect(w.find('[data-test="avatar-spinner"]').exists()).toBe(false)
+  })
 })

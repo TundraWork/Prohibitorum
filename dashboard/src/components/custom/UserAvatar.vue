@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** UserAvatar — image (src) → initials → generic-icon fallback. */
 import { computed, ref, watch } from 'vue'
-import { User } from 'lucide-vue-next'
+import { User, Loader2 } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
 const props = withDefaults(defineProps<{
@@ -9,6 +9,7 @@ const props = withDefaults(defineProps<{
   username?: string | null
   size?: 'sm' | 'md'
   src?: string | null
+  loading?: boolean
 }>(), { size: 'md' })
 
 const failed = ref(false)
@@ -31,12 +32,16 @@ const sizeClass = computed(() => (props.size === 'sm' ? 'size-6 text-[0.625rem]'
 </script>
 
 <template>
+  <!-- aria-hidden: the avatar is decorative; the loading overlay is a visual-only indicator, not announced -->
   <span
     aria-hidden="true"
-    :class="cn('inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent font-medium text-sidebar-accent-foreground', sizeClass)"
+    :class="cn('relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent font-medium text-sidebar-accent-foreground', sizeClass)"
   >
     <img v-if="showImg" :src="src!" alt="" class="size-full object-cover" @error="failed = true" />
     <template v-else-if="initials">{{ initials }}</template>
     <User v-else class="size-4" />
+    <span v-if="loading" data-test="avatar-spinner" class="absolute inset-0 flex items-center justify-center bg-black/40">
+      <Loader2 class="size-3 animate-spin text-white" />
+    </span>
   </span>
 </template>

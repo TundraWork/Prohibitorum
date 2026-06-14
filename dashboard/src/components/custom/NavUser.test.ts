@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
@@ -8,6 +8,7 @@ import en from '@/locales/en'
 import NavUser from './NavUser.vue'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/stores/auth'
+import { api } from '@/lib/api'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 
@@ -29,7 +30,7 @@ const Host = defineComponent({
   template: '<SidebarProvider><NavUser ref="nav" /></SidebarProvider>',
 })
 
-beforeEach(() => { setActivePinia(createPinia()); document.body.innerHTML = '' })
+beforeEach(() => { setActivePinia(createPinia()); document.body.innerHTML = ''; vi.clearAllMocks() })
 
 async function mountHost(router: Router) {
   router.push('/security'); await router.isReady()
@@ -73,5 +74,114 @@ describe('NavUser', () => {
     nav.openEdit()
     await nextTick(); await flushPromises()
     expect(document.body.querySelector('[data-test="edit-displayname-input"]')).not.toBeNull()
+  })
+
+  describe('pollAvatarUntilSettled', () => {
+    beforeEach(() => { vi.useFakeTimers() })
+    afterEach(() => { vi.useRealTimers() })
+
+    it('polls /me/avatar/status and reloads /me when pending clears', async () => {
+      const auth = useAuthStore()
+      // Seed with avatarPending: true
+      auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user', avatarPending: true }
+
+      const apiGet = vi.mocked(api.get)
+      // First call: status endpoint → settled immediately; second call: reload /me
+      apiGet
+        .mockResolvedValueOnce({ pending: false })                                      // status → settled
+        .mockResolvedValueOnce({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }) // reload /me
+
+      await mountHost(makeRouter())
+
+      // Advance past the initial 1500ms delay
+      await vi.advanceTimersByTimeAsync(1600)
+      await flushPromises()
+
+      expect(apiGet).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/status')
+      // reload() calls ensureLoaded() which calls /me
+      expect(apiGet).toHaveBeenCalledWith('/api/prohibitorum/me')
+    })
+
+    it('keeps polling when status returns pending:true then settles', async () => {
+      const auth = useAuthStore()
+      auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user', avatarPending: true }
+
+      const apiGet = vi.mocked(api.get)
+      apiGet
+        .mockResolvedValueOnce({ pending: true })                                       // first poll → still pending
+        .mockResolvedValueOnce({ pending: false })                                      // second poll → settled
+        .mockResolvedValueOnce({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }) // reload /me
+
+      await mountHost(makeRouter())
+
+      // First tick (1500ms) → pending:true, schedules another tick
+      await vi.advanceTimersByTimeAsync(1600)
+      await flushPromises()
+
+      // Second tick (another 1500ms) → pending:false, reload fires
+      await vi.advanceTimersByTimeAsync(1600)
+      await flushPromises()
+
+      const statusCalls = apiGet.mock.calls.filter(c => c[0] === '/api/prohibitorum/me/avatar/status')
+      expect(statusCalls.length).toBe(2)
+      expect(apiGet).toHaveBeenCalledWith('/api/prohibitorum/me')
+    })
+
+    it('does not poll when avatarPending is absent', async () => {
+      const auth = useAuthStore()
+      auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
+
+      const apiGet = vi.mocked(api.get)
+
+      await mountHost(makeRouter())
+      await vi.advanceTimersByTimeAsync(1600)
+      await flushPromises()
+
+      const statusCalls = apiGet.mock.calls.filter(c => c[0] === '/api/prohibitorum/me/avatar/status')
+      expect(statusCalls.length).toBe(0)
+    })
+
+    it('error path clears avatarPending and does not schedule further calls', async () => {
+      const auth = useAuthStore()
+      auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user', avatarPending: true }
+
+      const apiGet = vi.mocked(api.get)
+      apiGet.mockRejectedValueOnce(new Error('network error'))
+
+      await mountHost(makeRouter())
+
+      // Advance past the initial 1500ms delay — the status call rejects
+      await vi.advanceTimersByTimeAsync(1600)
+      await flushPromises()
+
+      // The spinner flag should be cleared
+      expect(auth.me?.avatarPending).toBe(false)
+
+      // Verify no further status calls are scheduled: advance another full interval
+      const callsBefore = apiGet.mock.calls.filter(c => c[0] === '/api/prohibitorum/me/avatar/status').length
+      await vi.advanceTimersByTimeAsync(3000)
+      await flushPromises()
+      const callsAfter = apiGet.mock.calls.filter(c => c[0] === '/api/prohibitorum/me/avatar/status').length
+      expect(callsAfter).toBe(callsBefore)
+    })
+
+    it('unmount cancels the pending poll — status endpoint is never called', async () => {
+      const auth = useAuthStore()
+      auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user', avatarPending: true }
+
+      const apiGet = vi.mocked(api.get)
+
+      const w = await mountHost(makeRouter())
+
+      // Unmount BEFORE the 1500ms timer fires
+      w.unmount()
+
+      // Advance past the timer and flush — the cancelled tick should be a no-op
+      await vi.advanceTimersByTimeAsync(1600)
+      await flushPromises()
+
+      const statusCalls = apiGet.mock.calls.filter(c => c[0] === '/api/prohibitorum/me/avatar/status')
+      expect(statusCalls.length).toBe(0)
+    })
   })
 })
