@@ -78,7 +78,7 @@
     {
       "id": 10,
       "subject": "T10: backend account set-disabled + FE",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         5
       ]
@@ -110,5 +110,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T06:30:00Z"
+  "lastUpdated": "2026-06-15T07:00:00Z"
 }
