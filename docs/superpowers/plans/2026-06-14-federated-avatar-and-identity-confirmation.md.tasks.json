@@ -38,7 +38,7 @@
     {
       "id": 6,
       "subject": "Task 6: Confirmation grant + callback branch + confirm HTTP endpoints",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4, 5],
       "description": "**Goal:** ConfirmGrant/ConfirmKey + Create/Pop/Peek ConfirmGrant + AvatarPending on Federator; HandleCallback withholds session for Confirmed=false (grant+cookie→/welcome) + kicks off avatar job both branches; confirm GET/POST/decline; FederationConfirmView; routes.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/state.go\",\"pkg/federation/oidc/federation.go\",\"pkg/server/handle_federation.go\",\"pkg/server/handle_federation_confirm.go\",\"pkg/server/handle_federation_confirm_test.go\",\"pkg/server/server.go\",\"pkg/contract/auth.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run FederationConfirm -v && go test ./pkg/federation/...\",\"acceptanceCriteria\":[\"unconfirmed → no session cookie, fed-state cookie, redirect /welcome\",\"confirm GET returns identity+avatar status (401 on bad grant)\",\"confirm POST issues session + sets confirmed_at; decline pops grant\"]}\n```"
     },
