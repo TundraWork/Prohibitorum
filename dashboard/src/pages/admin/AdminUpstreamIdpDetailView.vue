@@ -30,7 +30,7 @@ const notFound = ref(false)
 
 const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
 const mode = ref('auto_provision'); const scopes = ref<string[]>([]); const allowedDomains = ref<string[]>([])
-const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClaim = ref('')
+const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClaim = ref(''); const pictureClaim = ref('')
 const requireVerifiedEmail = ref(false); const disabled = ref(false)
 const saved = ref(false)
 
@@ -52,7 +52,7 @@ async function load(): Promise<void> {
   idp.value = i
   displayName.value = i.displayName; issuerUrl.value = i.issuerUrl; clientId.value = i.clientId
   mode.value = i.mode; scopes.value = [...i.scopes]; allowedDomains.value = [...i.allowedDomains]
-  usernameClaim.value = i.usernameClaim; displayNameClaim.value = i.displayNameClaim; emailClaim.value = i.emailClaim
+  usernameClaim.value = i.usernameClaim; displayNameClaim.value = i.displayNameClaim; emailClaim.value = i.emailClaim; pictureClaim.value = i.pictureClaim
   requireVerifiedEmail.value = i.requireVerifiedEmail; disabled.value = i.disabled
 }
 
@@ -61,7 +61,7 @@ async function save(): Promise<void> {
   const updated = await run(() => withSudo(() => api.put<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`, {
     displayName: displayName.value, issuerUrl: issuerUrl.value, clientId: clientId.value, mode: mode.value,
     scopes: scopes.value, allowedDomains: allowedDomains.value, usernameClaim: usernameClaim.value,
-    displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value,
+    displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value, pictureClaim: pictureClaim.value,
     requireVerifiedEmail: requireVerifiedEmail.value, disabled: disabled.value,
   })))
   if (updated) { idp.value = updated; saved.value = true }
@@ -145,6 +145,11 @@ onMounted(load)
             <Label for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
             <Input id="emailClaim" name="emailClaim" v-model="emailClaim" autocomplete="off" />
             <p class="text-xs text-muted">{{ t('admin.upstream.emailClaimDesc') }}</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="pictureClaim">{{ t('admin.upstream.pictureClaim') }}</Label>
+            <Input id="pictureClaim" name="pictureClaim" v-model="pictureClaim" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.pictureClaimDesc') }}</p>
           </div>
           <SettingRow :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
             <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />

@@ -843,6 +843,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 		uUsernameClaim string
 		uDisplayClaim  string
 		uEmailClaim    string
+		uPictureClaim  string
 		uRequireVerEml bool
 	)
 	createUpstreamCmd := &cobra.Command{
@@ -877,6 +878,10 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			if emailClaim == "" {
 				emailClaim = "email"
 			}
+			pictureClaim := uPictureClaim
+			if pictureClaim == "" {
+				pictureClaim = "picture"
+			}
 
 			// Insert with placeholder secret bytes to get the auto-assigned id
 			// (the AAD is bound to id + key_version), then seal and write back.
@@ -895,7 +900,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				UsernameClaim:        usernameClaim,
 				DisplayNameClaim:     displayClaim,
 				EmailClaim:           emailClaim,
-				PictureClaim:         "picture",
+				PictureClaim:         pictureClaim,
 				RequireVerifiedEmail: uRequireVerEml,
 			})
 			if err != nil {
@@ -929,6 +934,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	createUpstreamCmd.Flags().StringVar(&uUsernameClaim, "username-claim", "", "Claim to map to username (default preferred_username).")
 	createUpstreamCmd.Flags().StringVar(&uDisplayClaim, "display-name-claim", "", "Claim to map to display name (default name).")
 	createUpstreamCmd.Flags().StringVar(&uEmailClaim, "email-claim", "", "Claim to map to email (default email).")
+	createUpstreamCmd.Flags().StringVar(&uPictureClaim, "picture-claim", "", "Claim to map to avatar picture URL (default picture).")
 	createUpstreamCmd.Flags().BoolVar(&uRequireVerEml, "require-verified-email", false, "Require email_verified=true from the upstream.")
 	upstreamCmd.AddCommand(createUpstreamCmd)
 
@@ -968,6 +974,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 		upUsernameClaim string
 		upDisplayClaim  string
 		upEmailClaim    string
+		upPictureClaim  string
 		upRequireVerEml bool
 		upDisabled      bool
 	)
@@ -1002,6 +1009,10 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			if emailClaim == "" {
 				emailClaim = "email"
 			}
+			pictureClaim := upPictureClaim
+			if pictureClaim == "" {
+				pictureClaim = "picture"
+			}
 			updated, err := q.UpdateUpstreamIDPConfig(ctx, db.UpdateUpstreamIDPConfigParams{
 				Slug:                 upSlug,
 				DisplayName:          upDisplayName,
@@ -1013,6 +1024,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				UsernameClaim:        usernameClaim,
 				DisplayNameClaim:     displayClaim,
 				EmailClaim:           emailClaim,
+				PictureClaim:         pictureClaim,
 				RequireVerifiedEmail: upRequireVerEml,
 				Disabled:             upDisabled,
 			})
@@ -1035,6 +1047,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	updateUpstreamCmd.Flags().StringVar(&upUsernameClaim, "username-claim", "", "Claim to map to username (default preferred_username).")
 	updateUpstreamCmd.Flags().StringVar(&upDisplayClaim, "display-name-claim", "", "Claim to map to display name (default name).")
 	updateUpstreamCmd.Flags().StringVar(&upEmailClaim, "email-claim", "", "Claim to map to email (default email).")
+	updateUpstreamCmd.Flags().StringVar(&upPictureClaim, "picture-claim", "", "Claim to map to avatar picture URL (default picture).")
 	updateUpstreamCmd.Flags().BoolVar(&upRequireVerEml, "require-verified-email", false, "Require email_verified=true from the upstream.")
 	updateUpstreamCmd.Flags().BoolVar(&upDisabled, "disabled", false, "Disable this IdP.")
 	upstreamCmd.AddCommand(updateUpstreamCmd)

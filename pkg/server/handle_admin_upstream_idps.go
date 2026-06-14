@@ -56,6 +56,7 @@ func identityProviderView(r db.UpstreamIdp) contract.IdentityProviderView {
 		UsernameClaim:        r.UsernameClaim,
 		DisplayNameClaim:     r.DisplayNameClaim,
 		EmailClaim:           r.EmailClaim,
+		PictureClaim:         r.PictureClaim,
 		RequireVerifiedEmail: r.RequireVerifiedEmail,
 		Disabled:             r.Disabled,
 	}
@@ -160,6 +161,7 @@ type createIdentityProviderBody struct {
 	UsernameClaim        string   `json:"usernameClaim"`
 	DisplayNameClaim     string   `json:"displayNameClaim"`
 	EmailClaim           string   `json:"emailClaim"`
+	PictureClaim         string   `json:"pictureClaim"`
 	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
 }
 
@@ -205,6 +207,10 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 	if emailClaim == "" {
 		emailClaim = "email"
 	}
+	pictureClaim := body.PictureClaim
+	if pictureClaim == "" {
+		pictureClaim = "picture"
+	}
 
 	// Execute insert → seal → secret-update inside a single transaction.
 	// The AAD is bound to (idp_id, key_version), so we insert first to obtain
@@ -234,7 +240,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		UsernameClaim:        usernameClaim,
 		DisplayNameClaim:     displayNameClaim,
 		EmailClaim:           emailClaim,
-		PictureClaim:         "picture",
+		PictureClaim:         pictureClaim,
 		RequireVerifiedEmail: body.RequireVerifiedEmail,
 	})
 	if err != nil {
@@ -305,6 +311,7 @@ type updateIdentityProviderBody struct {
 	UsernameClaim        string   `json:"usernameClaim"`
 	DisplayNameClaim     string   `json:"displayNameClaim"`
 	EmailClaim           string   `json:"emailClaim"`
+	PictureClaim         string   `json:"pictureClaim"`
 	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
 	Disabled             bool     `json:"disabled"`
 }
@@ -334,6 +341,14 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 	if allowedDomains == nil {
 		allowedDomains = []string{}
 	}
+	// Intentionally default an empty picture_claim back to "picture" (unlike the
+	// other claims above, which pass through as-is). An empty picture_claim would
+	// silently disable upstream avatar inheritance; defaulting here keeps the
+	// NOT NULL DEFAULT meaningful even if the UI ever sends a blank field.
+	updatePictureClaim := body.PictureClaim
+	if updatePictureClaim == "" {
+		updatePictureClaim = "picture"
+	}
 
 	updated, err := s.queries.UpdateUpstreamIDPConfig(r.Context(), db.UpdateUpstreamIDPConfigParams{
 		Slug:                 slug,
@@ -346,7 +361,7 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		UsernameClaim:        body.UsernameClaim,
 		DisplayNameClaim:     body.DisplayNameClaim,
 		EmailClaim:           body.EmailClaim,
-		PictureClaim:         "picture",
+		PictureClaim:         updatePictureClaim,
 		RequireVerifiedEmail: body.RequireVerifiedEmail,
 		Disabled:             body.Disabled,
 	})

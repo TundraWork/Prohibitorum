@@ -13,8 +13,8 @@ import AdminUpstreamIdpsView from './AdminUpstreamIdpsView.vue'
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminUpstreamIdpsView, { global: { plugins: [i18n()] }, attachTo: document.body })
 const IDPS = [
-  { slug: 'okta', displayName: 'Okta', issuerUrl: 'https://okta/', clientId: 'c1', scopes: ['openid'], mode: 'auto_provision', allowedDomains: [], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', requireVerifiedEmail: false, disabled: false, createdAt: '2026-01-01T00:00:00Z' },
-  { slug: 'entra', displayName: 'Entra', issuerUrl: 'https://entra/', clientId: 'c2', scopes: ['openid'], mode: 'invite_only', allowedDomains: [], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', requireVerifiedEmail: true, disabled: true, createdAt: '2026-01-02T00:00:00Z' },
+  { slug: 'okta', displayName: 'Okta', issuerUrl: 'https://okta/', clientId: 'c1', scopes: ['openid'], mode: 'auto_provision', allowedDomains: [], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', pictureClaim: 'picture', requireVerifiedEmail: false, disabled: false, createdAt: '2026-01-01T00:00:00Z' },
+  { slug: 'entra', displayName: 'Entra', issuerUrl: 'https://entra/', clientId: 'c2', scopes: ['openid'], mode: 'invite_only', allowedDomains: [], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', pictureClaim: 'picture', requireVerifiedEmail: true, disabled: true, createdAt: '2026-01-02T00:00:00Z' },
 ]
 beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
@@ -47,6 +47,21 @@ describe('AdminUpstreamIdpsView', () => {
       slug: 'new', displayName: 'New', issuerUrl: 'https://new/', clientId: 'cid', clientSecret: 'sek', mode: 'link_only',
     }))
     expect(w.text()).toContain(en.admin.upstream.created)
+  })
+  it('includes pictureClaim in create payload and renders the input', async () => {
+    get.mockResolvedValue([])
+    post.mockResolvedValue({ slug: 'new', displayName: 'New', mode: 'auto_provision', pictureClaim: 'avatar' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    expect(w.find('input[name="pictureClaim"]').exists()).toBe(true)
+    await w.find('input[name="slug"]').setValue('new')
+    await w.find('input[name="displayName"]').setValue('New')
+    await w.find('input[name="issuerUrl"]').setValue('https://new/')
+    await w.find('input[name="clientId"]').setValue('cid')
+    await w.find('input[name="clientSecret"]').setValue('sek')
+    await w.find('input[name="pictureClaim"]').setValue('avatar')
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({ pictureClaim: 'avatar' }))
   })
   it('surfaces upstream_idp_already_exists', async () => {
     get.mockResolvedValue([])

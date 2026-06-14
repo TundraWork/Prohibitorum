@@ -42,6 +42,7 @@ func TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes(t *testing.T) 
 		UsernameClaim:        "email",
 		DisplayNameClaim:     "name",
 		EmailClaim:           "email",
+		PictureClaim:         "picture",
 		RequireVerifiedEmail: true,
 		Disabled:             false,
 		CreatedAt:            pgtype.Timestamptz{Time: time.Now(), Valid: true},
@@ -64,6 +65,7 @@ func TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes(t *testing.T) 
 		view.UsernameClaim,
 		view.DisplayNameClaim,
 		view.EmailClaim,
+		view.PictureClaim,
 	} {
 		if fieldVal == secretStr {
 			t.Errorf("a string field carries the secret ciphertext: %q", fieldVal)
@@ -104,6 +106,7 @@ func TestAdminUpstreamIDPs_ViewProjection_FieldMapping(t *testing.T) {
 		UsernameClaim:        "preferred_username",
 		DisplayNameClaim:     "name",
 		EmailClaim:           "email",
+		PictureClaim:         "picture_url",
 		RequireVerifiedEmail: true,
 		Disabled:             true,
 		CreatedAt:            pgtype.Timestamptz{Time: createdAt, Valid: true},
@@ -140,6 +143,9 @@ func TestAdminUpstreamIDPs_ViewProjection_FieldMapping(t *testing.T) {
 	}
 	if view.EmailClaim != "email" {
 		t.Errorf("EmailClaim: got %q", view.EmailClaim)
+	}
+	if view.PictureClaim != "picture_url" {
+		t.Errorf("PictureClaim: got %q", view.PictureClaim)
 	}
 	if !view.RequireVerifiedEmail {
 		t.Error("RequireVerifiedEmail: got false, want true")
@@ -228,4 +234,34 @@ func TestAdminUpstreamIDPs_ViewProjection_EmptySlices(t *testing.T) {
 	view := identityProviderView(row)
 	_ = view.AllowedDomains
 	_ = view.Scopes
+}
+
+// TestAdminUpstreamIDPs_ViewProjection_PictureClaim verifies that PictureClaim
+// is projected from the db row into the view, and that a custom claim value
+// round-trips correctly (distinct from the "picture" default).
+func TestAdminUpstreamIDPs_ViewProjection_PictureClaim(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"default", "picture", "picture"},
+		{"custom", "avatar_url", "avatar_url"},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			row := db.UpstreamIdp{
+				Slug:         "idp",
+				DisplayName:  "IdP",
+				PictureClaim: tc.input,
+			}
+			view := identityProviderView(row)
+			if view.PictureClaim != tc.want {
+				t.Errorf("PictureClaim: got %q, want %q", view.PictureClaim, tc.want)
+			}
+		})
+	}
 }

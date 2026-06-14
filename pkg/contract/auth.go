@@ -489,6 +489,7 @@ type IdentityProviderView struct {
 	UsernameClaim        string    `json:"usernameClaim"`
 	DisplayNameClaim     string    `json:"displayNameClaim"`
 	EmailClaim           string    `json:"emailClaim"`
+	PictureClaim         string    `json:"pictureClaim"`
 	RequireVerifiedEmail bool      `json:"requireVerifiedEmail"`
 	Disabled             bool      `json:"disabled"`
 	CreatedAt            time.Time `json:"createdAt"`

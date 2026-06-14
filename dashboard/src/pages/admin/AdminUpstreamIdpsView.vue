@@ -23,7 +23,7 @@ import FormSection from '@/components/custom/FormSection.vue'
 export interface IdentityProvider {
   slug: string; displayName: string; issuerUrl: string; clientId: string
   scopes: string[]; mode: 'auto_provision' | 'invite_only' | 'link_only'; allowedDomains: string[]
-  usernameClaim: string; displayNameClaim: string; emailClaim: string
+  usernameClaim: string; displayNameClaim: string; emailClaim: string; pictureClaim: string
   requireVerifiedEmail: boolean; disabled: boolean; createdAt: string
 }
 
@@ -39,7 +39,7 @@ const slug = ref(''); const displayName = ref(''); const issuerUrl = ref(''); co
 const clientSecret = ref(''); const mode = ref('auto_provision')
 const scopes = ref<string[]>(['openid', 'profile', 'email'])
 const allowedDomains = ref<string[]>([])
-const usernameClaim = ref('preferred_username'); const displayNameClaim = ref('name'); const emailClaim = ref('email')
+const usernameClaim = ref('preferred_username'); const displayNameClaim = ref('name'); const emailClaim = ref('email'); const pictureClaim = ref('picture')
 const requireVerifiedEmail = ref(false)
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
@@ -67,7 +67,7 @@ function openCreate(): void {
   slug.value = ''; displayName.value = ''; issuerUrl.value = ''; clientId.value = ''
   clientSecret.value = ''; mode.value = 'auto_provision'
   scopes.value = ['openid', 'profile', 'email']; allowedDomains.value = []
-  usernameClaim.value = 'preferred_username'; displayNameClaim.value = 'name'; emailClaim.value = 'email'
+  usernameClaim.value = 'preferred_username'; displayNameClaim.value = 'name'; emailClaim.value = 'email'; pictureClaim.value = 'picture'
   requireVerifiedEmail.value = false; created.value = false; createOpen.value = true
 }
 
@@ -77,7 +77,7 @@ async function create(): Promise<void> {
     slug: slug.value, displayName: displayName.value, issuerUrl: issuerUrl.value, clientId: clientId.value,
     clientSecret: clientSecret.value, mode: mode.value, scopes: scopes.value,
     allowedDomains: allowedDomains.value, usernameClaim: usernameClaim.value,
-    displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value,
+    displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value, pictureClaim: pictureClaim.value,
     requireVerifiedEmail: requireVerifiedEmail.value,
   })))
   if (res) { createOpen.value = false; created.value = true; await load() }
@@ -159,6 +159,11 @@ onMounted(load)
             <Label for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
             <Input id="emailClaim" name="emailClaim" v-model="emailClaim" autocomplete="off" />
             <p class="text-xs text-muted">{{ t('admin.upstream.emailClaimDesc') }}</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="pictureClaim">{{ t('admin.upstream.pictureClaim') }}</Label>
+            <Input id="pictureClaim" name="pictureClaim" v-model="pictureClaim" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.pictureClaimDesc') }}</p>
           </div>
         </FormSection>
         <div class="flex gap-2">

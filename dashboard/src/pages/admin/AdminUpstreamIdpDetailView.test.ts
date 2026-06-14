@@ -10,7 +10,7 @@ const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ params: { slug: 'okta' } }), useRouter: () => ({ push }), RouterLink: { template: '<a><slot/></a>' } }))
 import AdminUpstreamIdpDetailView from './AdminUpstreamIdpDetailView.vue'
 
-const IDP = { slug: 'okta', displayName: 'Okta', issuerUrl: 'https://okta/', clientId: 'c1', scopes: ['openid','email'], mode: 'auto_provision', allowedDomains: ['ex.com'], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', requireVerifiedEmail: false, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
+const IDP = { slug: 'okta', displayName: 'Okta', issuerUrl: 'https://okta/', clientId: 'c1', scopes: ['openid','email'], mode: 'auto_provision', allowedDomains: ['ex.com'], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', pictureClaim: 'picture', requireVerifiedEmail: false, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminUpstreamIdpDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
 const clickConfirm = async (_w: ReturnType<typeof mountView>, label: string) => {
@@ -34,6 +34,14 @@ describe('AdminUpstreamIdpDetailView', () => {
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', expect.objectContaining({ displayName: 'Okta 2', disabled: false }))
     expect(body).not.toHaveProperty('clientSecret')
     expect(w.text()).toContain(en.admin.upstream.saved)
+  })
+  it('includes pictureClaim in save payload and renders the input', async () => {
+    get.mockResolvedValue(IDP); put.mockResolvedValue({ ...IDP, pictureClaim: 'avatar_url' })
+    const w = mountView(); await flushPromises()
+    expect(w.find('input[name="pictureClaim"]').exists()).toBe(true)
+    await w.find('input[name="pictureClaim"]').setValue('avatar_url')
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', expect.objectContaining({ pictureClaim: 'avatar_url' }))
   })
   it('rotates the secret without revealing a value', async () => {
     get.mockResolvedValue(IDP); post.mockResolvedValue(undefined)
