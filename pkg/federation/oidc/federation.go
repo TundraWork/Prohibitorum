@@ -639,7 +639,7 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 		return nil, authn.ErrInviteRequired()
 	}
 
-	_, err = f.q.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
+	ident, err := f.q.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
 		AccountID:     currentAccountID,
 		UpstreamIdpID: idp.ID,
 		UpstreamIss:   tokens.Issuer,
@@ -661,6 +661,17 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 			"sub": tokens.Subject,
 		})
 		return nil, authn.ErrFederationStateInvalid()
+	}
+
+	// A self-service link is performed from inside an authenticated dashboard
+	// session — the user deliberately bound this upstream identity to their own
+	// account, so it is confirmed on creation (no /welcome confirmation gate on a
+	// later federated login through it; that gate is for first-sight auto-provision).
+	// Best-effort: a failed confirm only means the user re-confirms at /welcome on
+	// their next federated login, which degrades gracefully.
+	if cerr := f.q.ConfirmAccountIdentity(ctx, ident.ID); cerr != nil {
+		slog.WarnContext(ctx, "federation: confirm linked identity failed (will re-confirm at /welcome on next login)",
+			"account_id", currentAccountID, "err", cerr)
 	}
 
 	id := currentAccountID
