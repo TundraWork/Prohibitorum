@@ -326,6 +326,12 @@ func (c *Client) Exchange(
 	if claims.Issuer != "" {
 		raw["iss"] = claims.Issuer
 	}
+	// picture is parsed by the library into UserInfoProfile.Picture and
+	// dropped from claims.Claims, so it must be explicitly hoisted here
+	// alongside the other typed standard claims.
+	if claims.Picture != "" {
+		raw["picture"] = claims.Picture
+	}
 
 	return &Tokens{
 		IDToken:           tokens.IDToken,
@@ -374,4 +380,48 @@ func algInAllowlist(alg string, allowed []string) bool {
 		}
 	}
 	return false
+}
+
+// UserInfoToRaw converts a *oidc.UserInfo into a unified claims map using the
+// same hoisting convention as Exchange: extras from info.Claims are merged
+// first, then typed standard claims (picture, name, preferred_username, email)
+// are written under their JSON-tag keys so they win over any OP that happened to
+// also put them in the extras map.
+//
+// Exported so the package test can exercise the transform without a live HTTP
+// server. Callers inside this package should prefer Client.UserInfo, which
+// fetches the endpoint and then calls this helper.
+func UserInfoToRaw(info *oidc.UserInfo) map[string]any {
+	raw := make(map[string]any, len(info.Claims)+4)
+	for k, v := range info.Claims {
+		raw[k] = v
+	}
+	if info.Picture != "" {
+		raw["picture"] = info.Picture
+	}
+	if info.PreferredUsername != "" {
+		raw["preferred_username"] = info.PreferredUsername
+	}
+	if info.Name != "" {
+		raw["name"] = info.Name
+	}
+	if info.Email != "" {
+		raw["email"] = info.Email
+	}
+	return raw
+}
+
+// UserInfo fetches the OIDC UserInfo endpoint with the given access token,
+// through the same SSRF-hardened HTTP client as discovery/token-exchange. It
+// returns a unified claims map (typed standard claims hoisted under their
+// JSON-tag keys, plus any extras) so ClaimString can read picture/etc.
+// uniformly. subject must be the id_token sub for the same token exchange —
+// the library rejects a UserInfo response whose sub does not match.
+// Errors are returned for the caller to treat as non-fatal.
+func (c *Client) UserInfo(ctx context.Context, accessToken, subject string) (map[string]any, error) {
+	info, err := rp.Userinfo[*oidc.UserInfo](ctx, accessToken, oidc.BearerToken, subject, c.rp)
+	if err != nil {
+		return nil, fmt.Errorf("federation/oidc: userinfo: %w", err)
+	}
+	return UserInfoToRaw(info), nil
 }

@@ -45,6 +45,7 @@ type Claims struct {
 	EmailVerified     bool
 	PreferredUsername string
 	Name              string
+	Picture           string
 }
 
 type errorParams struct {
@@ -142,6 +143,14 @@ func (s *Server) SetClaims(sub, email string, emailVerified bool, preferredUsern
 		PreferredUsername: preferredUsername,
 		Name:              name,
 	}
+}
+
+// SetPicture sets the picture claim to include in the next ID token. Persists
+// across calls until replaced. Pass "" to clear (no picture claim emitted).
+func (s *Server) SetPicture(picture string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextClaims.Picture = picture
 }
 
 // SetAMR sets the amr claim added to the next ID token. Passing nil clears
@@ -349,6 +358,9 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		"email_verified":     st.claims.EmailVerified,
 		"preferred_username": st.claims.PreferredUsername,
 		"name":               st.claims.Name,
+	}
+	if st.claims.Picture != "" {
+		idClaims["picture"] = st.claims.Picture
 	}
 	if len(st.amr) > 0 {
 		idClaims["amr"] = st.amr

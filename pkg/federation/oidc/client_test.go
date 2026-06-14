@@ -14,6 +14,8 @@ import (
 	federationoidc "prohibitorum/pkg/federation/oidc"
 
 	"prohibitorum/cmd/smoke/mockop"
+
+	oidclib "github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
 // --- helpers ----------------------------------------------------------------
@@ -301,4 +303,100 @@ func TestClient_ExchangeRejectsNonceMismatch(t *testing.T) {
 
 func TestClient_AlgAllowlistRejectsUnsupportedAlg(t *testing.T) {
 	t.Skip("HS256/none rejection is a defense-in-depth check; the mockop signs ES256 only and has no flag to switch algs. Covered conceptually by configuring rp.WithSupportedSigningAlgorithms with the explicit allowlist; behavioural coverage deferred to Task 5 federation_test or future hardening.")
+}
+
+// TestClient_ExchangePictureHoisted verifies that when the upstream OP includes
+// a picture claim in the id_token, Exchange hoists it into Tokens.Raw["picture"]
+// so ClaimString can read it via the per-IdP picture_claim override.
+func TestClient_ExchangePictureHoisted(t *testing.T) {
+	ts, op := newMockOP(t)
+	op.SetClaims("sub-pic", "pic@example.test", true, "pic", "Pic User")
+	op.SetPicture("https://cdn.example.test/avatar/pic.jpg")
+
+	c := newClient(t, ts)
+
+	verifier, challenge := pkceVerifierAndChallenge()
+	state := "pic-state-1"
+	nonce := "pic-nonce-1"
+	authURL := c.AuthURL(state, nonce, challenge)
+	code := driveAuthorize(t, authURL)
+
+	toks, err := c.Exchange(context.Background(), code, verifier, ts.URL, nonce)
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if toks.Raw == nil {
+		t.Fatal("Raw is nil; want populated claims map")
+	}
+	if got, want := toks.Raw["picture"], "https://cdn.example.test/avatar/pic.jpg"; got != want {
+		t.Errorf("raw[picture] = %v, want %q", got, want)
+	}
+}
+
+// TestClient_ExchangeNoPictureClaimAbsent verifies that when the upstream OP
+// does not include a picture claim, Raw["picture"] is absent (not empty string),
+// so ClaimString returns "" and no spurious empty-string picture URL is stored.
+func TestClient_ExchangeNoPictureClaimAbsent(t *testing.T) {
+	ts, op := newMockOP(t)
+	op.SetClaims("sub-nopic", "nopic@example.test", true, "nopic", "No Pic User")
+	// Deliberately do NOT call op.SetPicture — picture claim should be absent.
+
+	c := newClient(t, ts)
+
+	verifier, challenge := pkceVerifierAndChallenge()
+	state := "nopic-state-1"
+	nonce := "nopic-nonce-1"
+	authURL := c.AuthURL(state, nonce, challenge)
+	code := driveAuthorize(t, authURL)
+
+	toks, err := c.Exchange(context.Background(), code, verifier, ts.URL, nonce)
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if toks.Raw == nil {
+		t.Fatal("Raw is nil; want populated claims map")
+	}
+	if _, present := toks.Raw["picture"]; present {
+		t.Errorf("raw[picture] = %v; want key absent when OP emits no picture claim", toks.Raw["picture"])
+	}
+}
+
+// TestUserInfoToRaw exercises the exported UserInfoToRaw helper directly
+// (no live server needed). It verifies that typed UserInfoProfile fields are
+// hoisted under their JSON-tag keys, and that extras from Claims pass through.
+func TestUserInfoToRaw(t *testing.T) {
+	info := &oidclib.UserInfo{
+		Subject: "sub-uir",
+		UserInfoProfile: oidclib.UserInfoProfile{
+			Picture:           "https://pic/x",
+			PreferredUsername: "uir-user",
+			Name:              "UIR User",
+		},
+		UserInfoEmail: oidclib.UserInfoEmail{
+			Email: "uir@example.test",
+		},
+	}
+	// Inject an extra claim that would only be in Claims (e.g. a custom claim).
+	info.Claims = map[string]any{"custom_claim": "cval"}
+
+	raw := federationoidc.UserInfoToRaw(info)
+
+	if raw == nil {
+		t.Fatal("UserInfoToRaw returned nil")
+	}
+	if got, want := raw["picture"], "https://pic/x"; got != want {
+		t.Errorf("raw[picture] = %v, want %q", got, want)
+	}
+	if got, want := raw["name"], "UIR User"; got != want {
+		t.Errorf("raw[name] = %v, want %q", got, want)
+	}
+	if got, want := raw["preferred_username"], "uir-user"; got != want {
+		t.Errorf("raw[preferred_username] = %v, want %q", got, want)
+	}
+	if got, want := raw["email"], "uir@example.test"; got != want {
+		t.Errorf("raw[email] = %v, want %q", got, want)
+	}
+	if got, want := raw["custom_claim"], "cval"; got != want {
+		t.Errorf("raw[custom_claim] = %v, want %q", got, want)
+	}
 }
