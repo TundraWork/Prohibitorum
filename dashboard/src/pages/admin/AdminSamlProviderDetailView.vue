@@ -19,9 +19,11 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
+import StatusBadge from '@/components/custom/StatusBadge.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 
 interface AcsEndpoint {
@@ -44,6 +46,7 @@ interface SamlApplication {
   attributeMap: unknown
   requireSignedAuthnRequest: boolean
   allowIdpInitiated: boolean
+  disabled: boolean
   sessionLifetimeSecs?: number
   acs: AcsEndpoint[]
   keys: SamlKey[]
@@ -66,6 +69,7 @@ const attributeMapText = ref('[]')
 const attributeMapError = ref('')
 const requireSignedAuthnRequest = ref(false)
 const allowIdpInitiated = ref(false)
+const disabled = ref(false)
 const sessionLifetimeSecs = ref('')
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
@@ -81,6 +85,7 @@ function seedForm(data: SamlApplication): void {
   attributeMapError.value = ''
   requireSignedAuthnRequest.value = data.requireSignedAuthnRequest
   allowIdpInitiated.value = data.allowIdpInitiated
+  disabled.value = data.disabled
   sessionLifetimeSecs.value = data.sessionLifetimeSecs != null ? String(data.sessionLifetimeSecs) : ''
 }
 
@@ -121,6 +126,17 @@ async function reingest(): Promise<void> {
   const res = await run(() => withSudo(() =>
     api.post<SamlApplication>(`/api/prohibitorum/saml-applications/${id}/reingest-metadata`, { metadataXml: reingestXml.value })))
   if (res) { sp.value = res; seedForm(res); reingestDone.value = true }
+}
+
+// Flip the disabled flag on its own (independent of the config Save), via the
+// dedicated set-disabled endpoint.
+async function toggleDisabled(): Promise<void> {
+  localError.value = ''
+  reingestDone.value = false
+  const next = !disabled.value
+  const updated = await run(() => withSudo(() =>
+    api.post<SamlApplication>('/api/prohibitorum/saml-applications/set-disabled', { id, disabled: next })))
+  if (updated) { sp.value = updated; disabled.value = updated.disabled }
 }
 
 async function destroy(): Promise<void> {
@@ -239,7 +255,21 @@ onMounted(load)
       <!-- Danger zone card -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.saml.dangerTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-3">
+        <CardContent class="flex flex-col gap-4">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-ink">{{ t('admin.saml.statusLabel') }}</span>
+              <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
+                {{ disabled ? t('admin.saml.disabled') : t('admin.saml.active') }}
+              </StatusBadge>
+            </div>
+            <p class="text-xs text-muted">{{ t('admin.saml.disabledDesc') }}</p>
+            <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="disable-toggle" @click="toggleDisabled">
+              {{ disabled ? t('admin.saml.enable') : t('admin.saml.disable') }}
+            </Button>
+          </div>
+
+          <Separator />
           <p class="text-sm text-muted">{{ t('admin.saml.deleteHelp') }}</p>
           <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.saml.delete') }}</Button>
         </CardContent>

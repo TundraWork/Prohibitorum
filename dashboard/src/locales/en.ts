@@ -218,8 +218,10 @@ export default {
     },
     saml: {
       title: 'SAML applications', create: 'Register application', created: 'Application registered.',
-      colEntity: 'Entity ID', colName: 'Name', colIdpInit: 'IdP-initiated',
-      yes: 'Yes', no: 'No', empty: 'No SAML applications registered.',
+      colEntity: 'Entity ID', colName: 'Name', colIdpInit: 'IdP-initiated', colState: 'State',
+      yes: 'Yes', no: 'No', active: 'Active', disabled: 'Disabled', empty: 'No SAML applications registered.',
+      statusLabel: 'Application status', enable: 'Enable', disable: 'Disable',
+      disabledDesc: 'Rejects all SSO and SLO for this app. Existing sessions are unaffected.',
       modeMetadata: 'Paste metadata XML', modeManual: 'Enter manually',
       metadataXml: 'SP metadata XML', metadataHint: "Paste the service provider's SAML metadata; we extract the ACS endpoints and certificates.",
       displayName: 'Display name', entityId: 'Entity ID', nameIdFormat: 'NameID format',

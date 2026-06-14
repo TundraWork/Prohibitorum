@@ -58,6 +58,7 @@ func samlApplicationView(sp db.SamlSp, acs []db.SamlSpAc, keys []db.SamlSpKey) c
 		AttributeMap:              attrMap,
 		RequireSignedAuthnRequest: sp.RequireSignedAuthnRequest,
 		AllowIdpInitiated:         sp.AllowIdpInitiated,
+		Disabled:                  sp.Disabled,
 		ACS:                       make([]contract.SAMLACSView, 0, len(acs)),
 		Keys:                      make([]contract.SAMLKeyView, 0, len(keys)),
 	}
@@ -540,4 +541,56 @@ func (s *Server) handleDeleteSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 	})
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ----- POST /saml-applications/set-disabled (raw, sudo-gated) -------------------
+
+type setSAMLApplicationDisabledBody struct {
+	ID       int64 `json:"id"`
+	Disabled bool  `json:"disabled"`
+}
+
+// handleSetSAMLApplicationDisabledHTTP flips ONLY the disabled flag, independent
+// of the config PUT. A disabled SP is rejected by the SP-initiated AuthnRequest,
+// SLO, and IdP-initiated SSO flows (treated as an unregistered SP). Returns the
+// updated application view.
+func (s *Server) handleSetSAMLApplicationDisabledHTTP(w http.ResponseWriter, r *http.Request) {
+	var body setSAMLApplicationDisabledBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if body.ID <= 0 {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+
+	sp, err := s.queries.SetSAMLSPDisabled(r.Context(), db.SetSAMLSPDisabledParams{
+		ID:       body.ID,
+		Disabled: body.Disabled,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, samlSPNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleSetSAMLApplicationDisabled: update: %w", err))
+		return
+	}
+
+	sess := authn.SessionFromContext(r.Context())
+	var actorID *int32
+	if sess != nil {
+		actorID = &sess.Account.ID
+	}
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: actorID,
+		Factor:    audit.FactorSAMLSP,
+		Event:     audit.EventUpdate,
+		Detail:    map[string]any{"sp_id": body.ID, "disabled": body.Disabled},
+	})
+
+	acs, _ := s.queries.ListSAMLSPACSEndpoints(r.Context(), sp.ID)
+	keys, _ := s.queries.ListSAMLSPKeys(r.Context(), db.ListSAMLSPKeysParams{SpID: sp.ID, Use: "signing"})
+	writeJSON(w, samlApplicationView(sp, acs, keys))
 }

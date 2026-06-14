@@ -111,3 +111,39 @@ func TestHandleSetAccountDisabled_BadJSON(t *testing.T) {
 		t.Errorf("status = %d; want 4xx for malformed body", rr.Code)
 	}
 }
+
+func TestHandleSetSAMLApplicationDisabled_ZeroID(t *testing.T) {
+	t.Parallel()
+	s := &Server{} // nil queries — the guard must return before any DB call
+	rr := postSetDisabled(t, "/api/prohibitorum/saml-applications/set-disabled",
+		`{"id":0,"disabled":true}`, s.handleSetSAMLApplicationDisabledHTTP)
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for zero id", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "bad_request") {
+		t.Errorf("body = %q; want bad_request", rr.Body.String())
+	}
+}
+
+func TestHandleSetSAMLApplicationDisabled_NegativeID(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	rr := postSetDisabled(t, "/api/prohibitorum/saml-applications/set-disabled",
+		`{"id":-7,"disabled":true}`, s.handleSetSAMLApplicationDisabledHTTP)
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for negative id", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "bad_request") {
+		t.Errorf("body = %q; want bad_request", rr.Body.String())
+	}
+}
+
+func TestHandleSetSAMLApplicationDisabled_BadJSON(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	rr := postSetDisabled(t, "/api/prohibitorum/saml-applications/set-disabled",
+		`not json`, s.handleSetSAMLApplicationDisabledHTTP)
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for malformed body", rr.Code)
+	}
+}

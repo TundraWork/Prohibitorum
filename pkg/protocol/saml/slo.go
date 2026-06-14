@@ -99,6 +99,11 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	// A disabled SP is treated as if it were unregistered — the flow is denied.
+	if sp.Disabled {
+		i.sloParseError(w, ErrUnknownSP)
+		return
+	}
 
 	// (4) Verify the SP signature. SLO ALWAYS requires a signature. This gate
 	// runs BEFORE any session lookup or mutation.

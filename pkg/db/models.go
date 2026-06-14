@@ -157,6 +157,7 @@ type SamlSp struct {
 	MetadataCacheDuration     pgtype.Interval    `json:"metadataCacheDuration"`
 	MetadataFetchedAt         pgtype.Timestamptz `json:"metadataFetchedAt"`
 	CreatedAt                 pgtype.Timestamptz `json:"createdAt"`
+	Disabled                  bool               `json:"disabled"`
 }
 
 type SamlSpAc struct {

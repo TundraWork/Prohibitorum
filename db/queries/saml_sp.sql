@@ -68,6 +68,9 @@ UPDATE saml_sp SET
 WHERE id = $1
 RETURNING *;
 
+-- name: SetSAMLSPDisabled :one
+UPDATE saml_sp SET disabled = $2 WHERE id = $1 RETURNING *;
+
 -- name: DeleteSAMLSP :execrows
 DELETE FROM saml_sp WHERE id = $1;
 

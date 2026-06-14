@@ -77,6 +77,11 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	// A disabled SP is treated as if it were unregistered — the flow is denied.
+	if sp.Disabled {
+		http.Error(w, "unknown SP", http.StatusBadRequest)
+		return
+	}
 
 	// Per-SP opt-in guard. Emitting an unsolicited assertion to an SP that did
 	// not ask for IdP-initiated SSO is refused outright (GHES posture).

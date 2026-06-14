@@ -162,6 +162,10 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 		}
 		return nil, err
 	}
+	// A disabled SP is treated as if it were unregistered — the flow is denied.
+	if sp.Disabled {
+		return nil, ErrUnknownSP
+	}
 
 	// --- 3. SP signature verification (when required) ---------------------
 	// The verification differs by binding: HTTP-Redirect uses a DETACHED

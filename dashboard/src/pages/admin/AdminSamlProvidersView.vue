@@ -35,6 +35,7 @@ interface SamlApplication {
   nameIdFormat: string
   requireSignedAuthnRequest: boolean
   allowIdpInitiated: boolean
+  disabled: boolean
   createdAt: string
 }
 
@@ -251,6 +252,7 @@ onMounted(load)
         <TableRow>
           <TableHead>{{ t('admin.saml.colName') }} · {{ t('admin.saml.colEntity') }}</TableHead>
           <TableHead>{{ t('admin.saml.colIdpInit') }}</TableHead>
+          <TableHead>{{ t('admin.saml.colState') }}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -266,6 +268,11 @@ onMounted(load)
           <TableCell>
             <StatusBadge :variant="sp.allowIdpInitiated ? 'success' : 'neutral'">
               {{ sp.allowIdpInitiated ? t('admin.saml.yes') : t('admin.saml.no') }}
+            </StatusBadge>
+          </TableCell>
+          <TableCell>
+            <StatusBadge :variant="sp.disabled ? 'danger' : 'success'">
+              {{ sp.disabled ? t('admin.saml.disabled') : t('admin.saml.active') }}
             </StatusBadge>
           </TableCell>
         </TableRow>

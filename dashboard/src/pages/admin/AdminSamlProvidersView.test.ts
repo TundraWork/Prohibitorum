@@ -12,7 +12,7 @@ import AdminSamlProvidersView from './AdminSamlProvidersView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminSamlProvidersView, { global: { plugins: [i18n()] }, attachTo: document.body })
-const SPS = [{ id: 1, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', requireSignedAuthnRequest: false, allowIdpInitiated: true, acs: [], keys: [], createdAt: '2026-01-01T00:00:00Z' }]
+const SPS = [{ id: 1, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', requireSignedAuthnRequest: false, allowIdpInitiated: true, disabled: false, acs: [], keys: [], createdAt: '2026-01-01T00:00:00Z' }]
 beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
 describe('AdminSamlProvidersView', () => {
@@ -21,6 +21,16 @@ describe('AdminSamlProvidersView', () => {
     const w = mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-applications')
     expect(w.text()).toContain('GHES'); expect(w.text()).toContain('https://sp/meta')
+  })
+  it('shows the active status badge for an enabled provider', async () => {
+    get.mockResolvedValue(SPS)
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.admin.saml.active)
+  })
+  it('shows the disabled status badge for a disabled provider', async () => {
+    get.mockResolvedValue([{ ...SPS[0], disabled: true }])
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.admin.saml.disabled)
   })
   it('row click navigates to detail', async () => {
     get.mockResolvedValue(SPS)

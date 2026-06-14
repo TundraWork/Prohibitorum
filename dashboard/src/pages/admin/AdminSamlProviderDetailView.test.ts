@@ -12,7 +12,7 @@ import AdminSamlProviderDetailView from './AdminSamlProviderDetailView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminSamlProviderDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
-const SP = { id: 5, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', attributeMap: [{ name: 'USERNAME', name_format: 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', source: 'username', multi: false }], requireSignedAuthnRequest: false, allowIdpInitiated: true, sessionLifetimeSecs: 3600, acs: [{ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://sp/acs', index: 0, isDefault: true }], keys: [{ use: 'signing', notAfter: '2027-01-01T00:00:00Z' }], createdAt: '2026-01-01T00:00:00Z' }
+const SP = { id: 5, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', attributeMap: [{ name: 'USERNAME', name_format: 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', source: 'username', multi: false }], requireSignedAuthnRequest: false, allowIdpInitiated: true, disabled: false, sessionLifetimeSecs: 3600, acs: [{ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://sp/acs', index: 0, isDefault: true }], keys: [{ use: 'signing', notAfter: '2027-01-01T00:00:00Z' }], createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) { const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label)); b[b.length - 1]!.click() }
 beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset() })
 
@@ -56,6 +56,14 @@ describe('AdminSamlProviderDetailView', () => {
     clickConfirm(en.admin.saml.delete); await flushPromises()
     expect(push).not.toHaveBeenCalled()
     expect(w.text()).toContain(en.errors.credential_not_found)
+  })
+  it('disables the provider via set-disabled and flips the badge', async () => {
+    get.mockResolvedValue(SP); post.mockResolvedValue({ ...SP, disabled: true })
+    const w = mountView(); await flushPromises()
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.saml.active)
+    await w.find('[data-test="disable-toggle"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/set-disabled', { id: 5, disabled: true })
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.saml.disabled)
   })
   it('seeds attributeMap from the loaded provider', async () => {
     get.mockResolvedValue(SP)

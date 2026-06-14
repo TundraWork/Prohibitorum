@@ -63,7 +63,7 @@ func (q *Queries) DeleteSAMLSessionsBySession(ctx context.Context, sessionID str
 }
 
 const getSAMLSPByEntityID = `-- name: GetSAMLSPByEntityID :one
-SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp WHERE entity_id = $1
+SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled FROM saml_sp WHERE entity_id = $1
 `
 
 func (q *Queries) GetSAMLSPByEntityID(ctx context.Context, entityID string) (SamlSp, error) {
@@ -84,12 +84,13 @@ func (q *Queries) GetSAMLSPByEntityID(ctx context.Context, entityID string) (Sam
 		&i.MetadataCacheDuration,
 		&i.MetadataFetchedAt,
 		&i.CreatedAt,
+		&i.Disabled,
 	)
 	return i, err
 }
 
 const getSAMLSPByID = `-- name: GetSAMLSPByID :one
-SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp WHERE id = $1
+SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled FROM saml_sp WHERE id = $1
 `
 
 func (q *Queries) GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error) {
@@ -110,6 +111,7 @@ func (q *Queries) GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error) {
 		&i.MetadataCacheDuration,
 		&i.MetadataFetchedAt,
 		&i.CreatedAt,
+		&i.Disabled,
 	)
 	return i, err
 }
@@ -141,7 +143,7 @@ INSERT INTO saml_sp (entity_id, display_name, sp_kind, name_id_format,
   attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime,
   metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-RETURNING id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at
+RETURNING id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled
 `
 
 type InsertSAMLSPParams struct {
@@ -190,6 +192,7 @@ func (q *Queries) InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (Sam
 		&i.MetadataCacheDuration,
 		&i.MetadataFetchedAt,
 		&i.CreatedAt,
+		&i.Disabled,
 	)
 	return i, err
 }
@@ -377,7 +380,7 @@ func (q *Queries) ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) 
 }
 
 const listSAMLSPs = `-- name: ListSAMLSPs :many
-SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at FROM saml_sp ORDER BY display_name
+SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled FROM saml_sp ORDER BY display_name
 `
 
 func (q *Queries) ListSAMLSPs(ctx context.Context) ([]SamlSp, error) {
@@ -404,6 +407,7 @@ func (q *Queries) ListSAMLSPs(ctx context.Context) ([]SamlSp, error) {
 			&i.MetadataCacheDuration,
 			&i.MetadataFetchedAt,
 			&i.CreatedAt,
+			&i.Disabled,
 		); err != nil {
 			return nil, err
 		}
@@ -484,6 +488,38 @@ func (q *Queries) ListSAMLSessionsBySession(ctx context.Context, sessionID strin
 	return items, nil
 }
 
+const setSAMLSPDisabled = `-- name: SetSAMLSPDisabled :one
+UPDATE saml_sp SET disabled = $2 WHERE id = $1 RETURNING id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled
+`
+
+type SetSAMLSPDisabledParams struct {
+	ID       int64 `json:"id"`
+	Disabled bool  `json:"disabled"`
+}
+
+func (q *Queries) SetSAMLSPDisabled(ctx context.Context, arg SetSAMLSPDisabledParams) (SamlSp, error) {
+	row := q.db.QueryRow(ctx, setSAMLSPDisabled, arg.ID, arg.Disabled)
+	var i SamlSp
+	err := row.Scan(
+		&i.ID,
+		&i.EntityID,
+		&i.DisplayName,
+		&i.SpKind,
+		&i.NameIDFormat,
+		&i.AttributeMap,
+		&i.RequireSignedAuthnRequest,
+		&i.AllowIdpInitiated,
+		&i.SessionLifetime,
+		&i.MetadataXml,
+		&i.MetadataValidUntil,
+		&i.MetadataCacheDuration,
+		&i.MetadataFetchedAt,
+		&i.CreatedAt,
+		&i.Disabled,
+	)
+	return i, err
+}
+
 const updateSAMLSP = `-- name: UpdateSAMLSP :one
 UPDATE saml_sp SET
   display_name                 = $2,
@@ -493,7 +529,7 @@ UPDATE saml_sp SET
   session_lifetime             = $6,
   attribute_map                = $7
 WHERE id = $1
-RETURNING id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at
+RETURNING id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled
 `
 
 type UpdateSAMLSPParams struct {
@@ -532,6 +568,7 @@ func (q *Queries) UpdateSAMLSP(ctx context.Context, arg UpdateSAMLSPParams) (Sam
 		&i.MetadataCacheDuration,
 		&i.MetadataFetchedAt,
 		&i.CreatedAt,
+		&i.Disabled,
 	)
 	return i, err
 }

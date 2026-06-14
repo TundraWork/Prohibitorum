@@ -471,6 +471,7 @@ type SAMLApplicationView struct {
 	AttributeMap              json.RawMessage `json:"attributeMap"`
 	RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
 	AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
+	Disabled                  bool            `json:"disabled"`
 	SessionLifetimeSecs       *int64          `json:"sessionLifetimeSecs,omitempty"`
 	ACS                       []SAMLACSView   `json:"acs"`
 	Keys                      []SAMLKeyView   `json:"keys"`
