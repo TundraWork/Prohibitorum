@@ -158,6 +158,7 @@ type FederatorQueries interface {
 
 	UpsertAvatarSource(ctx context.Context, arg db.UpsertAvatarSourceParams) error
 	SetActiveAvatar(ctx context.Context, arg db.SetActiveAvatarParams) error
+	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]db.ListAvatarSourcesByAccountRow, error)
 }
 
 // Federator orchestrates upstream OIDC federation. Constructed once at
@@ -532,9 +533,10 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 	// Kick off the upstream avatar inherit for BOTH confirmed and unconfirmed
 	// outcomes: when the identity is unconfirmed the HTTP layer parks the user on
 	// /welcome, and we want the avatar fetched (so /welcome can preview it) by the
-	// time they accept. kickoffAvatarInherit no-ops when the user owns their
-	// avatar and dedupes concurrent runs via SetNX; the goroutine is detached.
-	f.kickoffAvatarInherit(ctx, client, idp, tokens, outcome.AccountID)
+	// time they accept. The job keeps the 'upstream' avatar row fresh on every
+	// login but only makes it active when the user hasn't chosen 'none'/'user';
+	// it dedupes concurrent runs via SetNX and runs on a detached goroutine.
+	f.kickoffAvatarInherit(client, idp, tokens, outcome.AccountID)
 
 	return &CallbackResult{
 		AccountID:  outcome.AccountID,
@@ -777,19 +779,16 @@ func (f *Federator) SudoCallback(ctx context.Context, stateToken, code, issParam
 	return state.ReturnTo, nil
 }
 
-// kickoffAvatarInherit launches the background avatar-inherit job unless the user
-// owns their avatar. Non-blocking; safe on every federated login. client is the
-// already-built RP client (reused for the UserInfo fallback).
+// kickoffAvatarInherit always launches the background avatar-inherit job.
+// Non-blocking; safe on every federated login. The job keeps the upstream avatar
+// row fresh regardless of the user's active-source preference, and only promotes
+// it to active when the user has not chosen otherwise. client is the
+// already-built RP client (reused for the UserInfo fallback inside the goroutine).
 //
-// ctx is used ONLY for the cheap pre-flight GetAccountByID (so the request's
-// deadline/cancellation bounds the skip check). The spawned goroutine runs on a
-// fresh context.Background() — the request ctx is cancelled when the HTTP
-// response is written, which would otherwise abort the detached fetch+store.
-func (f *Federator) kickoffAvatarInherit(ctx context.Context, client *Client, idp db.UpstreamIdp, tokens *Tokens, accountID int32) {
-	if acct, err := f.q.GetAccountByID(ctx, accountID); err == nil &&
-		acct.AvatarSource.Valid && acct.AvatarSource.String == "user" {
-		return
-	}
+// The spawned goroutine runs on a fresh context.Background() — the request ctx
+// is cancelled when the HTTP response is written, which would otherwise abort
+// the detached fetch+store.
+func (f *Federator) kickoffAvatarInherit(client *Client, idp db.UpstreamIdp, tokens *Tokens, accountID int32) {
 	go f.runAvatarInherit(context.Background(), client, idp, tokens, accountID)
 }
 
@@ -868,9 +867,12 @@ func (f *Federator) AvatarPending(ctx context.Context, accountID int32) bool {
 }
 
 // runAvatarInherit resolves the upstream picture (id_token claim, else UserInfo),
-// fetches + normalizes it, and stores it with avatar_source='upstream'. All
-// failures are non-fatal (logged, status cleared). Deduped via SetNX. Detached
-// context with a timeout.
+// fetches + normalizes it, and always upserts the 'upstream' avatar row so it
+// stays fresh regardless of the user's active-source choice. It then activates
+// the upstream source ONLY when the user has not deliberately chosen otherwise:
+// NULL (never chosen) or already 'upstream'. It never overrides 'none' or 'user'.
+// All failures are non-fatal (logged, status cleared). Deduped via SetNX.
+// Detached context with a timeout.
 func (f *Federator) runAvatarInherit(parent context.Context, client *Client, idp db.UpstreamIdp, tokens *Tokens, accountID int32) {
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
@@ -883,16 +885,6 @@ func (f *Federator) runAvatarInherit(parent context.Context, client *Client, idp
 		return
 	}
 	defer func() { _ = f.kvStore.Del(ctx, key) }()
-
-	// Cheap pre-fetch guard: if the user already owns their avatar, never even
-	// fetch the upstream picture. (kickoffAvatarInherit makes the same check
-	// before launching, but re-checking here closes the window where the user
-	// uploaded between kickoff and this goroutine actually running, and makes
-	// runAvatarInherit a true no-op when driven directly.)
-	if acct, err := f.q.GetAccountByID(ctx, accountID); err == nil &&
-		acct.AvatarSource.Valid && acct.AvatarSource.String == "user" {
-		return
-	}
 
 	pic := ClaimString(tokens.Raw, idp.PictureClaim)
 	if pic == "" && client != nil {
@@ -919,35 +911,48 @@ func (f *Federator) runAvatarInherit(parent context.Context, client *Client, idp
 		return
 	}
 
-	// Re-read the account after the (slow) fetch+process: the user may have
-	// uploaded their own avatar in the meantime, and the stored etag may already
-	// match — both make this a no-op.
+	// Re-read the account after the (slow) fetch+process so we see the current
+	// active-source choice and have an accurate base for the etag-skip check.
 	acct, err := f.q.GetAccountByID(ctx, accountID)
 	if err != nil {
 		return
 	}
-	if acct.AvatarSource.Valid && acct.AvatarSource.String == "user" {
+	// Find the current 'upstream' row etag (if any) to skip a redundant re-store.
+	// On a read error we can't reliably make the skip decision, so bail rather
+	// than blindly re-storing the same bytes on every subsequent login.
+	srcs, err := f.q.ListAvatarSourcesByAccount(ctx, accountID)
+	if err != nil {
+		slog.WarnContext(ctx, "federation: list avatar sources failed", "account_id", accountID, "err", err)
 		return
 	}
-	if acct.AvatarEtag.Valid && acct.AvatarEtag.String == etag {
-		return
+	var upstreamEtag string
+	for _, s := range srcs {
+		if s.Source == "upstream" && s.Etag.Valid {
+			upstreamEtag = s.Etag.String
+		}
 	}
-
-	if err := f.q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
-		AccountID:   accountID,
-		Source:      "upstream",
-		Bytes:       out,
-		ContentType: pgtype.Text{String: "image/webp", Valid: true},
-		Etag:        pgtype.Text{String: etag, Valid: true},
-	}); err != nil {
-		slog.WarnContext(ctx, "federation: store upstream avatar bytes failed", "account_id", accountID, "err", err)
-		return
+	changed := upstreamEtag != etag
+	if changed {
+		if err := f.q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
+			AccountID:   accountID,
+			Source:      "upstream",
+			Bytes:       out,
+			ContentType: pgtype.Text{String: "image/webp", Valid: true},
+			Etag:        pgtype.Text{String: etag, Valid: true},
+		}); err != nil {
+			slog.WarnContext(ctx, "federation: store upstream avatar failed", "account_id", accountID, "err", err)
+			return
+		}
 	}
-	if err := f.q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{
-		Source:    "upstream",
-		AccountID: accountID,
-	}); err != nil {
-		slog.WarnContext(ctx, "federation: set upstream avatar meta failed", "account_id", accountID, "err", err)
+	// Activate upstream ONLY when the user hasn't chosen otherwise: NULL (never
+	// chosen) or already 'upstream'. Never override 'none' or 'user'. Re-activate
+	// when the bytes changed (refresh the denormalized active etag cache) or when
+	// nothing was active yet.
+	activeUpstreamOK := !acct.AvatarSource.Valid || acct.AvatarSource.String == "upstream"
+	if activeUpstreamOK && (changed || !acct.AvatarSource.Valid) {
+		if err := f.q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: "upstream", AccountID: accountID}); err != nil {
+			slog.WarnContext(ctx, "federation: activate upstream avatar failed", "account_id", accountID, "err", err)
+		}
 	}
 }
 
