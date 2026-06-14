@@ -23,7 +23,7 @@ const forwarded = useForwardProps(delegatedProps)
       'border-input text-primary aspect-square size-4 shrink-0 rounded-full border bg-bg shadow-xs transition-shadow outline-none',
       'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
       'data-[state=checked]:border-primary',
-      'disabled:cursor-not-allowed disabled:opacity-50',
+      'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50',
       props.class,
     )"
   >

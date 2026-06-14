@@ -173,6 +173,7 @@ onMounted(load)
           <SettingRow :label="t('admin.upstream.disabled')" :description="t('admin.upstream.disabledDesc')" for="disabled">
             <Switch id="disabled" v-model="disabled" data-test="disabled" />
           </SettingRow>
+          <p class="text-xs text-muted">{{ t('admin.upstream.statusSavedHint') }}</p>
         </CardContent>
       </Card>
 

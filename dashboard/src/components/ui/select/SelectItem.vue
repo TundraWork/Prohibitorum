@@ -25,7 +25,7 @@ const forwarded = useForwardProps(delegatedProps)
     data-slot="select-item"
     v-bind="forwarded"
     :class="cn(
-      'relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm text-ink outline-none select-none',
+      'relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm text-ink outline-none select-none',
       'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
       'data-[state=checked]:font-medium',
       'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',

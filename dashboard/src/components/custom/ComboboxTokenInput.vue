@@ -245,7 +245,7 @@ function focusInput(): void {
         :data-test="`scope-option-${s.value}`"
         :aria-selected="i === activeIndex"
         :class="cn(
-          'flex cursor-default flex-col gap-0.5 rounded-sm px-2 py-1.5 text-sm',
+          'flex cursor-pointer flex-col gap-0.5 rounded-sm px-2 py-1.5 text-sm',
           i === activeIndex ? 'bg-accent text-accent-foreground' : 'text-ink',
         )"
         @mousedown.prevent

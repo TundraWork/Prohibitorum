@@ -19,7 +19,7 @@ const forwarded = useForwardProps(delegatedProps)
     data-slot="tabs-trigger"
     v-bind="forwarded"
     :class="cn(
-      'inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] outline-none',
+      'inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] outline-none cursor-pointer',
       'text-muted hover:text-ink',
       'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
       'data-[state=active]:bg-bg data-[state=active]:text-ink data-[state=active]:shadow-sm',

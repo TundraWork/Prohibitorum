@@ -27,7 +27,7 @@ const forwarded = useForwardProps(delegatedProps)
       'data-[placeholder]:text-muted',
       'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
       'aria-invalid:border-destructive aria-invalid:ring-destructive/20',
-      'disabled:cursor-not-allowed disabled:opacity-50',
+      'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50',
       '*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2',
       '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4',
       props.class,

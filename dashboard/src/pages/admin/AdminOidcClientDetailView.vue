@@ -192,6 +192,7 @@ onMounted(load)
           <SettingRow :label="t('admin.oidc.disabled')" :description="t('admin.oidc.disabledDesc')" for="disabled">
             <Switch id="disabled" v-model="disabled" data-test="disabled" />
           </SettingRow>
+          <p class="text-xs text-muted">{{ t('admin.oidc.statusSavedHint') }}</p>
         </CardContent>
       </Card>
 

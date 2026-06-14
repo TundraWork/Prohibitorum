@@ -26,7 +26,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       'data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary',
       'data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground data-[state=indeterminate]:border-primary',
       'aria-invalid:border-destructive aria-invalid:ring-destructive/20',
-      'disabled:cursor-not-allowed disabled:opacity-50',
+      'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50',
       props.class,
     )"
   >
