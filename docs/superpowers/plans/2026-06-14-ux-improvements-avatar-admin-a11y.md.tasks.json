@@ -61,7 +61,7 @@
     {
       "id": 8,
       "subject": "Task 8: Frontend — ComboboxTokenInput + upstream scopes",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Reusable ComboboxTokenInput (suggestions w/ descriptions + custom + chips); wire into upstream IdP scopes (create+detail), replacing TagInput. OIDC app scopes unchanged.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/ComboboxTokenInput.vue\",\"dashboard/src/components/custom/ComboboxTokenInput.test.ts\",\"dashboard/src/lib/scopes.ts\",\"dashboard/src/pages/admin/AdminUpstreamIdpsView.vue\",\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/ComboboxTokenInput.test.ts src/pages/admin/AdminUpstreamIdp && npx vue-tsc -b\",\"acceptanceCriteria\":[\"combobox: chips, suggestions+descriptions, custom add, remove; upstream scopes use it; scopes payload shape unchanged\"]}\n```"
     },
     {
@@ -89,5 +89,5 @@
       "description": "**Goal:** Update avatar smoke to dual-source (coexist + selection switch + ?source); full gate; rebuild+commit dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm run test && npm run build\",\"acceptanceCriteria\":[\"smoke: upload+inherit coexist, switch upstream/user/none asserts active GET + ?source previews, SMOKE_EXIT=0\",\"full gate green; dist rebuilt+committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-14T23:45:00Z"
+  "lastUpdated": "2026-06-15T00:10:00Z"
 }
