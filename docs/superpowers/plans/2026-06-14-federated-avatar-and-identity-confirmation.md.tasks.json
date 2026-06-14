@@ -10,7 +10,7 @@
     {
       "id": 2,
       "subject": "Task 2: Claim plumbing — picture hoist + Client.UserInfo",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Hoist id_token picture into Tokens.Raw; add Client.UserInfo(ctx, accessToken) returning a claims map (picture hoisted) via the hardened RP client.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/client.go\",\"pkg/federation/oidc/client_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run 'Picture|UserInfo' -v\",\"acceptanceCriteria\":[\"Tokens.Raw['picture'] carries id_token picture\",\"Client.UserInfo returns claims map with picture hoisted\"]}\n```"
     },
