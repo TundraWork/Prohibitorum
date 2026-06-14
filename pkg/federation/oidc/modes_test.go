@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -41,6 +42,13 @@ type fakeModesQueries struct {
 	nextIdentityID    int64
 	insertedIdentity  db.InsertAccountIdentityParams
 	insertIdentityErr error
+
+	// confirmedIdentityID records the id passed to the most recent
+	// ConfirmAccountIdentity call (0 = never called). Invite redemption
+	// auto-confirms in-tx; happy-path tests assert this matches the
+	// just-inserted identity id.
+	confirmedIdentityID int64
+	confirmIdentityErr  error
 
 	displayNameCalls  []db.UpdateAccountDisplayNameParams
 	emailCalls        []db.UpdateAccountIdentityEmailParams
@@ -136,6 +144,16 @@ func (f *fakeModesQueries) InsertAccountIdentity(_ context.Context, arg db.Inser
 		UpstreamSub:   arg.UpstreamSub,
 		UpstreamEmail: arg.UpstreamEmail,
 	}, nil
+}
+
+func (f *fakeModesQueries) ConfirmAccountIdentity(_ context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.confirmIdentityErr != nil {
+		return f.confirmIdentityErr
+	}
+	f.confirmedIdentityID = id
+	return nil
 }
 
 func (f *fakeModesQueries) UpdateAccountDisplayName(_ context.Context, arg db.UpdateAccountDisplayNameParams) error {
@@ -269,15 +287,21 @@ func TestApplyAutoProvision_HappyPath(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens()
 
-	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if !isNew {
+	if !out.IsNew {
 		t.Fatalf("want isNew=true, got false")
 	}
-	if id != 100 {
-		t.Fatalf("want accountID=100, got %d", id)
+	if out.AccountID != 100 {
+		t.Fatalf("want accountID=100, got %d", out.AccountID)
+	}
+	if out.Confirmed {
+		t.Fatalf("auto-provision must yield Confirmed=false (routes to /welcome gate)")
+	}
+	if out.IdentityID == 0 {
+		t.Fatalf("auto-provision must capture the inserted IdentityID, got 0")
 	}
 
 	if q.insertedAccount.Username != "alice" ||
@@ -331,7 +355,7 @@ func TestApplyAutoProvision_EmailNotVerifiedRejected(t *testing.T) {
 	tok := goodTokens()
 	tok.EmailVerified = false
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
 		t.Fatalf("want email_not_verified, got %v", err)
 	}
@@ -355,7 +379,7 @@ func TestApplyAutoProvision_DomainNotAllowedRejected(t *testing.T) {
 	idp.AllowedDomains = []string{"corp.example", "other.example"}
 	tok := goodTokens() // alice@example.com
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required, got %v", err)
 	}
@@ -376,7 +400,7 @@ func TestApplyAutoProvision_DomainAllowedCaseInsensitive(t *testing.T) {
 	idp.AllowedDomains = []string{"EXAMPLE.com"}
 	tok := goodTokens() // alice@example.com
 
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
+	if _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("expected provision to succeed (case-insensitive domain match), got %v", err)
 	}
 }
@@ -388,7 +412,7 @@ func TestApplyAutoProvision_UsernameCollisionRejected(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
 		t.Fatalf("want username_collision, got %v", err)
 	}
@@ -415,7 +439,7 @@ func TestApplyAutoProvision_MissingPreferredUsername(t *testing.T) {
 	// clear the Raw entry too so the "claim genuinely absent" branch fires.
 	delete(tok.Raw, "preferred_username")
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err == nil {
 		t.Fatal("want error for missing preferred_username")
 	}
@@ -444,7 +468,7 @@ func TestApplyAutoProvision_UsernameRaceMapsToCollisionError(t *testing.T) {
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
 		t.Fatalf("want username_collision AuthError, got %v", err)
 	}
@@ -465,7 +489,7 @@ func TestApplyAutoProvision_IdentityConflictRaceMapsToInviteRequired(t *testing.
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required AuthError, got %v", err)
 	}
@@ -484,7 +508,7 @@ func TestApplyInviteOnly_UsernameRaceMapsToCollisionError(t *testing.T) {
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
-	_, _, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
+	_, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
 		t.Fatalf("want username_collision AuthError, got %v", err)
 	}
@@ -502,7 +526,7 @@ func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) 
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
-	_, _, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
+	_, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required AuthError, got %v", err)
 	}
@@ -535,7 +559,7 @@ func TestApplyInviteOnly_NoTokenRejects(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required, got %v", err)
 	}
@@ -560,17 +584,29 @@ func TestApplyInviteOnly_HappyPath(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	id, isNew, err := federationoidc.ApplyInviteOnlyForTest(
+	out, err := federationoidc.ApplyInviteOnlyForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if err != nil {
 		t.Fatalf("applyInviteOnly: %v", err)
 	}
-	if !isNew {
+	if !out.IsNew {
 		t.Fatalf("want isNew=true, got false")
 	}
-	if id != 100 {
-		t.Fatalf("want accountID=100, got %d", id)
+	if out.AccountID != 100 {
+		t.Fatalf("want accountID=100, got %d", out.AccountID)
+	}
+	// The invite IS the authorization: invite redemption auto-confirms the
+	// identity in-tx, so the HTTP layer issues a session immediately (no
+	// /welcome gate).
+	if !out.Confirmed {
+		t.Fatalf("invite redemption must yield Confirmed=true")
+	}
+	if out.IdentityID == 0 {
+		t.Fatalf("invite redemption must capture the inserted IdentityID, got 0")
+	}
+	if q.confirmedIdentityID != out.IdentityID {
+		t.Fatalf("ConfirmAccountIdentity called with id=%d, want the inserted identity id=%d", q.confirmedIdentityID, out.IdentityID)
 	}
 
 	if len(q.consumedTokens) != 1 || q.consumedTokens[0] != "invite-token-xyz" {
@@ -613,7 +649,7 @@ func TestApplyInviteOnly_ConsumedOrExpired(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteOnlyForTest(
 		context.Background(), q, a, idp, tok, "stale-token", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
@@ -638,7 +674,7 @@ func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteOnlyForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
@@ -664,7 +700,7 @@ func TestApplyInviteOnly_UsernameCollision(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteOnlyForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
@@ -688,7 +724,7 @@ func TestApplyInviteOnly_DisplayNameFallsBackToUsername(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	if _, _, err := federationoidc.ApplyInviteOnlyForTest(
+	if _, err := federationoidc.ApplyInviteOnlyForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	); err != nil {
 		t.Fatalf("applyInviteOnly: %v", err)
@@ -704,7 +740,7 @@ func TestApplyLinkOnly_NoExistingIdentity_Rejects(t *testing.T) {
 	idp := newIDP(federationoidc.ModeLinkOnly)
 	tok := goodTokens()
 
-	_, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "link_required" {
 		t.Fatalf("want link_required, got %v", err)
 	}
@@ -729,6 +765,7 @@ func TestResolve_ExistingIdentitySyncsClaims(t *testing.T) {
 		UpstreamIss:   "https://issuer.example/",
 		UpstreamSub:   "sub-1",
 		UpstreamEmail: pgtype.Text{String: "alice-old@example.com", Valid: true},
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true}, // already confirmed
 	}
 	q.accountByIDResults[50] = db.Account{ID: 50, Username: "alice", DisplayName: "Alice Old"}
 
@@ -736,15 +773,21 @@ func TestResolve_ExistingIdentitySyncsClaims(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens() // Name: "Alice Example", Email: "alice@example.com"
 
-	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if isNew {
+	if out.IsNew {
 		t.Fatalf("want isNew=false, got true")
 	}
-	if id != 50 {
-		t.Fatalf("want accountID=50, got %d", id)
+	if out.AccountID != 50 {
+		t.Fatalf("want accountID=50, got %d", out.AccountID)
+	}
+	if !out.Confirmed {
+		t.Fatalf("confirmed re-login must yield Confirmed=true")
+	}
+	if out.IdentityID != 300 {
+		t.Fatalf("want IdentityID=300, got %d", out.IdentityID)
 	}
 
 	if len(q.displayNameCalls) != 1 {
@@ -781,6 +824,9 @@ func TestResolve_ExistingIdentityNoChangesSkipsSync(t *testing.T) {
 		UpstreamIss:   "https://issuer.example/",
 		UpstreamSub:   "sub-1",
 		UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true},
+		// Confirmed so this stays a pure "no drift -> no sync" test rather than
+		// silently exercising the unconfirmed re-login branch.
+		ConfirmedAt: pgtype.Timestamptz{Time: time.Unix(1, 0), Valid: true},
 	}
 	q.accountByIDResults[50] = db.Account{ID: 50, Username: "alice", DisplayName: "Alice Example"}
 
@@ -788,7 +834,7 @@ func TestResolve_ExistingIdentityNoChangesSkipsSync(t *testing.T) {
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens()
 
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
+	if _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 
@@ -800,11 +846,155 @@ func TestResolve_ExistingIdentityNoChangesSkipsSync(t *testing.T) {
 	}
 }
 
+// TestResolve_ExistingUnconfirmed_NotConfirmed covers a re-login against an
+// account_identity whose confirmed_at IS NULL (the user abandoned the /welcome
+// gate previously, or a federated invite is still pending). Resolve must report
+// Confirmed=false with the EXISTING account+identity ids (no re-insert) so the
+// HTTP layer routes back to the confirmation gate, and MUST NOT emit a Use
+// audit (the Use is recorded on confirm in Task 6).
+func TestResolve_ExistingUnconfirmed_NotConfirmed(t *testing.T) {
+	q := newFakeModesQueries()
+	q.identityErr = nil
+	q.identityResult = db.AccountIdentity{
+		ID:            5,
+		AccountID:     9,
+		UpstreamIdpID: 42,
+		UpstreamIss:   "https://issuer.example/",
+		UpstreamSub:   "sub-1",
+		UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true},
+		ConfirmedAt:   pgtype.Timestamptz{}, // pending — NULL confirmed_at
+	}
+	q.accountByIDResults[9] = db.Account{ID: 9, Username: "alice", DisplayName: "Alice Example"}
+
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+	tok := goodTokens()
+
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if out.Confirmed {
+		t.Fatalf("pending identity must yield Confirmed=false")
+	}
+	if out.AccountID != 9 {
+		t.Fatalf("want AccountID=9 (existing), got %d", out.AccountID)
+	}
+	if out.IdentityID != 5 {
+		t.Fatalf("want IdentityID=5 (existing), got %d", out.IdentityID)
+	}
+	if out.IsNew {
+		t.Fatalf("want IsNew=false (no re-insert), got true")
+	}
+	// No re-insert of either an account or an identity.
+	if len(q.insertedAccounts) != 0 {
+		t.Fatalf("pending re-login must not insert an account; got %d", len(q.insertedAccounts))
+	}
+	// MUST NOT audit Use for an unconfirmed identity (recorded on confirm).
+	if findEvent(a.snapshot(), audit.EventUse) != nil {
+		t.Fatalf("unconfirmed re-login must NOT emit a Use audit (recorded on confirm)")
+	}
+}
+
+// TestResolve_ExistingConfirmed_Confirmed covers a normal returning user: the
+// account_identity has a valid confirmed_at. Resolve issues Confirmed=true and
+// emits the Use audit as it always has.
+func TestResolve_ExistingConfirmed_Confirmed(t *testing.T) {
+	q := newFakeModesQueries()
+	q.identityErr = nil
+	q.identityResult = db.AccountIdentity{
+		ID:            5,
+		AccountID:     9,
+		UpstreamIdpID: 42,
+		UpstreamIss:   "https://issuer.example/",
+		UpstreamSub:   "sub-1",
+		UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true},
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+	q.accountByIDResults[9] = db.Account{ID: 9, Username: "alice", DisplayName: "Alice Example"}
+
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+	tok := goodTokens()
+
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if !out.Confirmed {
+		t.Fatalf("confirmed identity must yield Confirmed=true")
+	}
+	if out.AccountID != 9 || out.IdentityID != 5 || out.IsNew {
+		t.Fatalf("want {AccountID:9 IdentityID:5 IsNew:false}, got %+v", out)
+	}
+	if findEvent(a.snapshot(), audit.EventUse) == nil {
+		t.Fatalf("confirmed re-login must emit a Use audit")
+	}
+}
+
+// TestApplyAutoProvision_NotConfirmed asserts the first-sight auto_provision
+// path yields a PENDING identity: Confirmed=false, IsNew=true, with a captured
+// IdentityID. The user must confirm on /welcome before a session is issued.
+func TestApplyAutoProvision_NotConfirmed(t *testing.T) {
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+	tok := goodTokens()
+
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if out.Confirmed {
+		t.Fatalf("auto-provision must yield Confirmed=false")
+	}
+	if !out.IsNew {
+		t.Fatalf("auto-provision must yield IsNew=true")
+	}
+	if out.IdentityID == 0 {
+		t.Fatalf("auto-provision must capture a non-zero IdentityID")
+	}
+	// Auto-provision must NOT confirm the identity (no ConfirmAccountIdentity).
+	if q.confirmedIdentityID != 0 {
+		t.Fatalf("auto-provision must NOT call ConfirmAccountIdentity; got id=%d", q.confirmedIdentityID)
+	}
+}
+
+// TestApplyInviteOnly_Confirmed asserts invite redemption auto-confirms the
+// just-inserted identity in-tx (the invite IS the authorization) → Confirmed=true,
+// and ConfirmAccountIdentity was called with the inserted identity id.
+func TestApplyInviteOnly_Confirmed(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice Inv", "user", nil)
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+
+	out, err := federationoidc.ApplyInviteOnlyForTest(
+		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
+	)
+	if err != nil {
+		t.Fatalf("applyInviteOnly: %v", err)
+	}
+	if !out.Confirmed {
+		t.Fatalf("invite redemption must yield Confirmed=true")
+	}
+	if !out.IsNew {
+		t.Fatalf("invite redemption must yield IsNew=true")
+	}
+	if out.IdentityID == 0 {
+		t.Fatalf("invite redemption must capture a non-zero IdentityID")
+	}
+	if q.confirmedIdentityID != out.IdentityID {
+		t.Fatalf("ConfirmAccountIdentity id=%d, want inserted identity id=%d", q.confirmedIdentityID, out.IdentityID)
+	}
+}
+
 func TestResolve_NilArgs(t *testing.T) {
-	if _, _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, nil, goodTokens(), nil); err == nil {
+	if _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, nil, goodTokens(), nil); err == nil {
 		t.Fatal("want error for nil idp")
 	}
-	if _, _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, newIDP(federationoidc.ModeAutoProvision), nil, nil); err == nil {
+	if _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, newIDP(federationoidc.ModeAutoProvision), nil, nil); err == nil {
 		t.Fatal("want error for nil tokens")
 	}
 }
@@ -830,12 +1020,12 @@ func TestApplyAutoProvision_HonorsUsernameClaimOverride(t *testing.T) {
 	tok.PreferredUsername = ""
 	tok.Raw["upn"] = "alice-upn"
 
-	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if !isNew || id != 100 {
-		t.Fatalf("want new id=100, got id=%d isNew=%v", id, isNew)
+	if !out.IsNew || out.AccountID != 100 {
+		t.Fatalf("want new id=100, got id=%d isNew=%v", out.AccountID, out.IsNew)
 	}
 	if q.insertedAccount.Username != "alice-upn" {
 		t.Errorf("InsertAccount.Username = %q, want alice-upn (from raw[upn])", q.insertedAccount.Username)
@@ -859,12 +1049,12 @@ func TestApplyAutoProvision_HonorsEmailClaimOverride(t *testing.T) {
 	tok.Email = ""
 	tok.Raw["mail"] = "alice@corp.example"
 
-	id, isNew, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v (domainAllowed must read raw[mail])", err)
 	}
-	if !isNew || id != 100 {
-		t.Fatalf("want new id=100, got id=%d isNew=%v", id, isNew)
+	if !out.IsNew || out.AccountID != 100 {
+		t.Fatalf("want new id=100, got id=%d isNew=%v", out.AccountID, out.IsNew)
 	}
 	if !q.insertedIdentity.UpstreamEmail.Valid ||
 		q.insertedIdentity.UpstreamEmail.String != "alice@corp.example" {
@@ -886,7 +1076,7 @@ func TestApplyAutoProvision_HonorsDisplayNameClaimOverride(t *testing.T) {
 	tok.Name = ""
 	tok.Raw["given_name"] = "Alice From Override"
 
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
+	if _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if q.insertedAccount.DisplayName != "Alice From Override" {
@@ -926,7 +1116,7 @@ func TestResolve_SyncClaims_HonorsOverrides(t *testing.T) {
 	tok.Raw["given_name"] = "Alice Override"
 	tok.Raw["mail"] = "alice-new@corp.example"
 
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
+	if _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 
@@ -947,7 +1137,7 @@ func TestResolve_PropagatesUnknownLookupError(t *testing.T) {
 	q := newFakeModesQueries()
 	q.identityErr = errors.New("db down")
 	a := &recordingAudit{}
-	if _, _, err := federationoidc.Resolve(context.Background(), q, a, newIDP(federationoidc.ModeAutoProvision), goodTokens(), nil); err == nil {
+	if _, err := federationoidc.Resolve(context.Background(), q, a, newIDP(federationoidc.ModeAutoProvision), goodTokens(), nil); err == nil {
 		t.Fatal("want error to propagate")
 	}
 }

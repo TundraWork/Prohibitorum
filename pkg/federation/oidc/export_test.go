@@ -51,7 +51,7 @@ func ApplyInviteOnlyForTest(
 	tokens *Tokens,
 	enrollmentToken string,
 	pool *pgxpool.Pool,
-) (int32, bool, error) {
+) (ResolveOutcome, error) {
 	return applyInviteOnly(ctx, q, w, idp, tokens, enrollmentToken, pool)
 }
 

@@ -416,7 +416,9 @@ func TestFederator_HandleCallback_HappyPath_AutoProvision(t *testing.T) {
 func TestFederator_HandleCallback_HappyPath_ExistingIdentity(t *testing.T) {
 	fx := newFixture(t, federationoidc.ModeAutoProvision)
 
-	// Seed an existing identity row for (iss=ts.URL, sub=sub-1).
+	// Seed an existing CONFIRMED identity row for (iss=ts.URL, sub=sub-1):
+	// a normal returning user whose confirmed_at is set, so the re-login
+	// emits Use and issues a session directly (no /welcome gate).
 	fx.q.identityErr = nil
 	fx.q.identityResult = db.AccountIdentity{
 		ID:            300,
@@ -425,6 +427,7 @@ func TestFederator_HandleCallback_HappyPath_ExistingIdentity(t *testing.T) {
 		UpstreamIss:   fx.ts.URL,
 		UpstreamSub:   "sub-1",
 		UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true},
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 	fx.q.accountByIDResults[50] = db.Account{ID: 50, Username: "alice", DisplayName: "Alice Example"}
 
@@ -630,7 +633,9 @@ func TestFederator_HandleCallback_RejectsCodeExchangeFailure(t *testing.T) {
 func TestFederator_HandleCallback_RejectsDisabledAccount(t *testing.T) {
 	fx := newFixture(t, federationoidc.ModeAutoProvision)
 
-	// Seed an existing identity that points at a disabled account.
+	// Seed an existing CONFIRMED identity that points at a disabled account:
+	// Resolve emits Use, then HandleCallback's post-resolve disabled check
+	// rejects with bad_credentials + a separate account_disabled fail.
 	fx.q.identityErr = nil
 	fx.q.identityResult = db.AccountIdentity{
 		ID:            300,
@@ -639,6 +644,7 @@ func TestFederator_HandleCallback_RejectsDisabledAccount(t *testing.T) {
 		UpstreamIss:   fx.ts.URL,
 		UpstreamSub:   "sub-1",
 		UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true},
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 	fx.q.accountByIDResults[77] = db.Account{ID: 77, Username: "alice", DisplayName: "Alice", Disabled: true}
 
@@ -967,6 +973,14 @@ func TestFederator_HandleCallback_InviteRedemption_HappyPath(t *testing.T) {
 	}
 	if !result.IsNew {
 		t.Error("IsNew = false, want true (invite-minted fresh account)")
+	}
+	// The invite IS the authorization: HandleCallback threads Confirmed=true
+	// so the HTTP layer issues a session immediately (no /welcome gate).
+	if !result.Confirmed {
+		t.Error("Confirmed = false, want true (invite auto-confirms)")
+	}
+	if result.IdentityID == 0 {
+		t.Error("IdentityID = 0, want the inserted identity id")
 	}
 	if result.ReturnTo != "/me" {
 		t.Errorf("ReturnTo = %q", result.ReturnTo)

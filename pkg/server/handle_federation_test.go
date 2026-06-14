@@ -78,6 +78,11 @@ type fakeFedQueries struct {
 	nextIdentityID  int64
 	insertIdentitys []db.InsertAccountIdentityParams
 
+	// confirmedIdentityID records the id passed to ConfirmAccountIdentity
+	// (0 = never called). Invite redemption auto-confirms the just-inserted
+	// identity in-tx via the federation modes layer.
+	confirmedIdentityID int64
+
 	// session
 	sessions []db.Session
 
@@ -174,6 +179,13 @@ func (f *fakeFedQueries) InsertAccountIdentity(_ context.Context, arg db.InsertA
 		UpstreamSub:   arg.UpstreamSub,
 		UpstreamEmail: arg.UpstreamEmail,
 	}, nil
+}
+
+func (f *fakeFedQueries) ConfirmAccountIdentity(_ context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.confirmedIdentityID = id
+	return nil
 }
 
 func (f *fakeFedQueries) UpdateAccountDisplayName(_ context.Context, _ db.UpdateAccountDisplayNameParams) error {

@@ -127,6 +127,13 @@ type CallbackResult struct {
 	IsNew     bool
 	IDPID     int64
 	IDPSlug   string
+	// Confirmed reports whether the resolved account_identity is confirmed.
+	// Confirmed=false routes the HTTP layer to the /welcome confirmation gate
+	// (no session yet); Confirmed=true means issue a durable session now.
+	Confirmed bool
+	// IdentityID is the account_identity row to confirm when the user accepts
+	// at the /welcome gate (only meaningful when Confirmed=false).
+	IdentityID int64
 }
 
 // LinkResult is the LinkCallback return value: enough for the HTTP layer
@@ -493,14 +500,11 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 	// invite IS the authorization, so D11 gates are skipped inside
 	// applyInviteOnly. When there's no token, fall through to mode-based
 	// Resolve dispatch.
-	var (
-		accountID int32
-		isNew     bool
-	)
+	var outcome ResolveOutcome
 	if state.EnrollmentToken != "" {
-		accountID, isNew, err = applyInviteOnly(ctx, f.q, f.audit, &idp, tokens, state.EnrollmentToken, f.dbPool)
+		outcome, err = applyInviteOnly(ctx, f.q, f.audit, &idp, tokens, state.EnrollmentToken, f.dbPool)
 	} else {
-		accountID, isNew, err = Resolve(ctx, f.q, f.audit, &idp, tokens, f.dbPool)
+		outcome, err = Resolve(ctx, f.q, f.audit, &idp, tokens, f.dbPool)
 	}
 	if err != nil {
 		// Resolve / applyInviteOnly already audited its own failure with
@@ -509,16 +513,16 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 		return nil, err
 	}
 
-	acct, err := f.q.GetAccountByID(ctx, accountID)
+	acct, err := f.q.GetAccountByID(ctx, outcome.AccountID)
 	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: re-fetch account %d: %w", accountID, err)
+		return nil, fmt.Errorf("federation/oidc: re-fetch account %d: %w", outcome.AccountID, err)
 	}
 	if acct.Disabled {
 		// Username-enumeration symmetry with the password flow: same code
 		// (bad_credentials) whether the username doesn't exist, the
 		// password is wrong, or — here — the upstream-resolved account
 		// is disabled.
-		f.failWithAccount(ctx, accountID, state.IDPSlug, "account_disabled", map[string]any{
+		f.failWithAccount(ctx, outcome.AccountID, state.IDPSlug, "account_disabled", map[string]any{
 			"iss": tokens.Issuer,
 			"sub": tokens.Subject,
 		})
@@ -526,12 +530,14 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 	}
 
 	return &CallbackResult{
-		AccountID: accountID,
-		AMR:       tokens.AMR,
-		ReturnTo:  state.ReturnTo,
-		IsNew:     isNew,
-		IDPID:     idp.ID,
-		IDPSlug:   idp.Slug,
+		AccountID:  outcome.AccountID,
+		AMR:        tokens.AMR,
+		ReturnTo:   state.ReturnTo,
+		IsNew:      outcome.IsNew,
+		IDPID:      idp.ID,
+		IDPSlug:    idp.Slug,
+		Confirmed:  outcome.Confirmed,
+		IdentityID: outcome.IdentityID,
 	}, nil
 }
 
