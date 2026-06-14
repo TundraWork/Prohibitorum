@@ -31,7 +31,7 @@
     {
       "id": 5,
       "subject": "Task 5: Frontend — avatar source picker",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 4],
       "description": "**Goal:** EditProfileDialog picker (Inherited/Uploaded/None, active highlighted, selection PUT+reload, upload crop flow, remove-upload); SessionView TS fields; i18n.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/EditProfileDialog.vue\",\"dashboard/src/components/custom/EditProfileDialog.test.ts\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/EditProfileDialog.test.ts && npx vue-tsc -b\",\"acceptanceCriteria\":[\"picker renders available sources + None, active highlighted; select->PUT selection+reload; upload+remove-upload work\"]}\n```"
     },
@@ -68,5 +68,5 @@
       "description": "**Goal:** Update avatar smoke to dual-source (coexist + selection switch + ?source); full gate; rebuild+commit dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm run test && npm run build\",\"acceptanceCriteria\":[\"smoke: upload+inherit coexist, switch upstream/user/none asserts active GET + ?source previews, SMOKE_EXIT=0\",\"full gate green; dist rebuilt+committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-14T21:30:00Z"
+  "lastUpdated": "2026-06-14T23:05:00Z"
 }
