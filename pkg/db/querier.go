@@ -28,6 +28,7 @@ type Querier interface {
 	BumpAuthThrottle(ctx context.Context, arg BumpAuthThrottleParams) (BumpAuthThrottleRow, error)
 	ClearAccountAvatarBytes(ctx context.Context, accountID int32) error
 	ClearAccountAvatarMeta(ctx context.Context, id int32) error
+	ConfirmAccountIdentity(ctx context.Context, id int64) error
 	ConfirmTOTPCredential(ctx context.Context, accountID int32) error
 	// Atomic single-use consume. Returns the row only if it was unconsumed and unexpired.
 	// Callers detect any "not consumable" branch via pgx.ErrNoRows.
@@ -143,7 +144,8 @@ type Querier interface {
 	// pgx.ErrNoRows surfaces and the handler maps to invitation_not_found.
 	RevokeInvitation(ctx context.Context, token string) (Enrollment, error)
 	RevokeSession(ctx context.Context, id string) error
-	SetAccountAvatarMeta(ctx context.Context, arg SetAccountAvatarMetaParams) error
+	SetAccountAvatarMetaUpstream(ctx context.Context, arg SetAccountAvatarMetaUpstreamParams) error
+	SetAccountAvatarMetaUser(ctx context.Context, arg SetAccountAvatarMetaUserParams) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateAccountDisplayName(ctx context.Context, arg UpdateAccountDisplayNameParams) error

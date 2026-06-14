@@ -35,7 +35,7 @@ import (
 type fakeAvatarQueries struct {
 	// in-memory avatar store: keyed by accountID
 	avatarBytes map[int32][]byte
-	avatarMeta  map[int32]db.SetAccountAvatarMetaParams
+	avatarMeta  map[int32]db.SetAccountAvatarMetaUserParams
 	// for GetAvatarBySubject: keyed by subject UUID string
 	subjectMap map[string]int32 // subject → accountID
 	disabled   map[int32]bool
@@ -44,7 +44,7 @@ type fakeAvatarQueries struct {
 func newFakeAvatarQ() *fakeAvatarQueries {
 	return &fakeAvatarQueries{
 		avatarBytes: make(map[int32][]byte),
-		avatarMeta:  make(map[int32]db.SetAccountAvatarMetaParams),
+		avatarMeta:  make(map[int32]db.SetAccountAvatarMetaUserParams),
 		subjectMap:  make(map[string]int32),
 		disabled:    make(map[int32]bool),
 	}
@@ -55,7 +55,7 @@ func (f *fakeAvatarQueries) UpsertAccountAvatarBytes(_ context.Context, arg db.U
 	return nil
 }
 
-func (f *fakeAvatarQueries) SetAccountAvatarMeta(_ context.Context, arg db.SetAccountAvatarMetaParams) error {
+func (f *fakeAvatarQueries) SetAccountAvatarMetaUser(_ context.Context, arg db.SetAccountAvatarMetaUserParams) error {
 	f.avatarMeta[arg.ID] = arg
 	return nil
 }

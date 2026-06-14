@@ -38,7 +38,7 @@ import (
 // to s.queries.
 type avatarQueries interface {
 	UpsertAccountAvatarBytes(ctx context.Context, arg db.UpsertAccountAvatarBytesParams) error
-	SetAccountAvatarMeta(ctx context.Context, arg db.SetAccountAvatarMetaParams) error
+	SetAccountAvatarMetaUser(ctx context.Context, arg db.SetAccountAvatarMetaUserParams) error
 	ClearAccountAvatarBytes(ctx context.Context, accountID int32) error
 	ClearAccountAvatarMeta(ctx context.Context, id int32) error
 	GetAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (db.GetAvatarBySubjectRow, error)
@@ -108,7 +108,7 @@ func (s *Server) handlePutAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := q.SetAccountAvatarMeta(ctx, db.SetAccountAvatarMetaParams{
+		if err := q.SetAccountAvatarMetaUser(ctx, db.SetAccountAvatarMetaUserParams{
 			ID:                acctID,
 			AvatarContentType: ct,
 			AvatarEtag:        etagPG,
@@ -131,7 +131,7 @@ func (s *Server) handlePutAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := qtx.SetAccountAvatarMeta(ctx, db.SetAccountAvatarMetaParams{
+		if err := qtx.SetAccountAvatarMetaUser(ctx, db.SetAccountAvatarMetaUserParams{
 			ID:                acctID,
 			AvatarContentType: ct,
 			AvatarEtag:        etagPG,

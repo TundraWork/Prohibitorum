@@ -25,6 +25,7 @@ type Account struct {
 	EmailVerified      bool               `json:"emailVerified"`
 	AvatarContentType  pgtype.Text        `json:"avatarContentType"`
 	AvatarEtag         pgtype.Text        `json:"avatarEtag"`
+	AvatarSource       pgtype.Text        `json:"avatarSource"`
 }
 
 type AccountAvatar struct {
@@ -40,6 +41,7 @@ type AccountIdentity struct {
 	UpstreamSub   string             `json:"upstreamSub"`
 	UpstreamEmail pgtype.Text        `json:"upstreamEmail"`
 	LinkedAt      pgtype.Timestamptz `json:"linkedAt"`
+	ConfirmedAt   pgtype.Timestamptz `json:"confirmedAt"`
 }
 
 type AuthThrottle struct {
@@ -237,6 +239,7 @@ type UpstreamIdp struct {
 	Disabled             bool               `json:"disabled"`
 	CreatedAt            pgtype.Timestamptz `json:"createdAt"`
 	RequireVerifiedEmail bool               `json:"requireVerifiedEmail"`
+	PictureClaim         string             `json:"pictureClaim"`
 }
 
 type WebauthnCredential struct {

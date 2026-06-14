@@ -120,6 +120,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 			UsernameClaim:        "email",
 			DisplayNameClaim:     "name",
 			EmailClaim:           "email",
+			PictureClaim:         "picture",
 			RequireVerifiedEmail: true,
 		},
 		{
@@ -136,6 +137,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 			UsernameClaim:        "preferred_username",
 			DisplayNameClaim:     "name",
 			EmailClaim:           "email",
+			PictureClaim:         "picture",
 			RequireVerifiedEmail: false,
 		},
 		{
@@ -152,6 +154,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 			UsernameClaim:        "email",
 			DisplayNameClaim:     "name",
 			EmailClaim:           "email",
+			PictureClaim:         "picture",
 			RequireVerifiedEmail: false,
 		},
 	}

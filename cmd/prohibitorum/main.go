@@ -895,6 +895,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				UsernameClaim:        usernameClaim,
 				DisplayNameClaim:     displayClaim,
 				EmailClaim:           emailClaim,
+				PictureClaim:         "picture",
 				RequireVerifiedEmail: uRequireVerEml,
 			})
 			if err != nil {

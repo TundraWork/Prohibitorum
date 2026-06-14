@@ -38,3 +38,6 @@ FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
 WHERE ai.account_id = $1 AND NOT ip.disabled
 ORDER BY ip.display_name;
+
+-- name: ConfirmAccountIdentity :exec
+UPDATE account_identity SET confirmed_at = now() WHERE id = $1 AND confirmed_at IS NULL;

@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const confirmAccountIdentity = `-- name: ConfirmAccountIdentity :exec
+UPDATE account_identity SET confirmed_at = now() WHERE id = $1 AND confirmed_at IS NULL
+`
+
+func (q *Queries) ConfirmAccountIdentity(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, confirmAccountIdentity, id)
+	return err
+}
+
 const countUsableSignInFederation = `-- name: CountUsableSignInFederation :one
 SELECT COUNT(*) FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
@@ -47,7 +56,7 @@ func (q *Queries) DeleteAccountIdentity(ctx context.Context, arg DeleteAccountId
 }
 
 const getAccountIdentityByIssuerSub = `-- name: GetAccountIdentityByIssuerSub :one
-SELECT id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at FROM account_identity WHERE upstream_iss = $1 AND upstream_sub = $2
+SELECT id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at, confirmed_at FROM account_identity WHERE upstream_iss = $1 AND upstream_sub = $2
 `
 
 type GetAccountIdentityByIssuerSubParams struct {
@@ -66,6 +75,7 @@ func (q *Queries) GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAcco
 		&i.UpstreamSub,
 		&i.UpstreamEmail,
 		&i.LinkedAt,
+		&i.ConfirmedAt,
 	)
 	return i, err
 }
@@ -73,7 +83,7 @@ func (q *Queries) GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAcco
 const insertAccountIdentity = `-- name: InsertAccountIdentity :one
 INSERT INTO account_identity (account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at
+RETURNING id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at, confirmed_at
 `
 
 type InsertAccountIdentityParams struct {
@@ -101,12 +111,13 @@ func (q *Queries) InsertAccountIdentity(ctx context.Context, arg InsertAccountId
 		&i.UpstreamSub,
 		&i.UpstreamEmail,
 		&i.LinkedAt,
+		&i.ConfirmedAt,
 	)
 	return i, err
 }
 
 const listAccountIdentitiesByAccount = `-- name: ListAccountIdentitiesByAccount :many
-SELECT ai.id, ai.account_id, ai.upstream_idp_id, ai.upstream_iss, ai.upstream_sub, ai.upstream_email, ai.linked_at, ip.slug AS idp_slug, ip.display_name AS idp_display_name
+SELECT ai.id, ai.account_id, ai.upstream_idp_id, ai.upstream_iss, ai.upstream_sub, ai.upstream_email, ai.linked_at, ai.confirmed_at, ip.slug AS idp_slug, ip.display_name AS idp_display_name
 FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
 WHERE ai.account_id = $1
@@ -120,6 +131,7 @@ type ListAccountIdentitiesByAccountRow struct {
 	UpstreamSub    string             `json:"upstreamSub"`
 	UpstreamEmail  pgtype.Text        `json:"upstreamEmail"`
 	LinkedAt       pgtype.Timestamptz `json:"linkedAt"`
+	ConfirmedAt    pgtype.Timestamptz `json:"confirmedAt"`
 	IdpSlug        string             `json:"idpSlug"`
 	IdpDisplayName string             `json:"idpDisplayName"`
 }
@@ -141,6 +153,7 @@ func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID 
 			&i.UpstreamSub,
 			&i.UpstreamEmail,
 			&i.LinkedAt,
+			&i.ConfirmedAt,
 			&i.IdpSlug,
 			&i.IdpDisplayName,
 		); err != nil {

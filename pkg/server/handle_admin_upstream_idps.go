@@ -234,6 +234,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		UsernameClaim:        usernameClaim,
 		DisplayNameClaim:     displayNameClaim,
 		EmailClaim:           emailClaim,
+		PictureClaim:         "picture",
 		RequireVerifiedEmail: body.RequireVerifiedEmail,
 	})
 	if err != nil {
@@ -345,6 +346,7 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		UsernameClaim:        body.UsernameClaim,
 		DisplayNameClaim:     body.DisplayNameClaim,
 		EmailClaim:           body.EmailClaim,
+		PictureClaim:         "picture",
 		RequireVerifiedEmail: body.RequireVerifiedEmail,
 		Disabled:             body.Disabled,
 	})
