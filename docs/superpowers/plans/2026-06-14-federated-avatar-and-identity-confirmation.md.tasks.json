@@ -45,7 +45,7 @@
     {
       "id": 7,
       "subject": "Task 7: Avatar source on self-service + status endpoint + /me avatarPending",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** PUT/DELETE /me/avatar set avatar_source='user'; GET /me/avatar/status (authed) {pending}; SessionView.AvatarPending in /me.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_avatar.go\",\"pkg/server/handle_me.go\",\"pkg/server/server.go\",\"pkg/contract/auth.go\",\"pkg/server/handle_avatar_test.go\",\"pkg/server/handle_me_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run 'Avatar|Me' -v\",\"acceptanceCriteria\":[\"upload/remove set avatar_source='user'\",\"/me/avatar/status + /me avatarPending reflect KV key\"]}\n```"
     },
