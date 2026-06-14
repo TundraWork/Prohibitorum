@@ -156,8 +156,8 @@ type FederatorQueries interface {
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]db.ListAccountIdentitiesByAccountRow, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (db.Enrollment, error)
 
-	UpsertAccountAvatarBytes(ctx context.Context, arg db.UpsertAccountAvatarBytesParams) error
-	SetAccountAvatarMetaUpstream(ctx context.Context, arg db.SetAccountAvatarMetaUpstreamParams) error
+	UpsertAvatarSource(ctx context.Context, arg db.UpsertAvatarSourceParams) error
+	SetActiveAvatar(ctx context.Context, arg db.SetActiveAvatarParams) error
 }
 
 // Federator orchestrates upstream OIDC federation. Constructed once at
@@ -933,14 +933,19 @@ func (f *Federator) runAvatarInherit(parent context.Context, client *Client, idp
 		return
 	}
 
-	if err := f.q.UpsertAccountAvatarBytes(ctx, db.UpsertAccountAvatarBytesParams{AccountID: accountID, Bytes: out}); err != nil {
+	if err := f.q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
+		AccountID:   accountID,
+		Source:      "upstream",
+		Bytes:       out,
+		ContentType: pgtype.Text{String: "image/webp", Valid: true},
+		Etag:        pgtype.Text{String: etag, Valid: true},
+	}); err != nil {
 		slog.WarnContext(ctx, "federation: store upstream avatar bytes failed", "account_id", accountID, "err", err)
 		return
 	}
-	if err := f.q.SetAccountAvatarMetaUpstream(ctx, db.SetAccountAvatarMetaUpstreamParams{
-		ID:                accountID,
-		AvatarContentType: pgtype.Text{String: "image/webp", Valid: true},
-		AvatarEtag:        pgtype.Text{String: etag, Valid: true},
+	if err := f.q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{
+		Source:    "upstream",
+		AccountID: accountID,
 	}); err != nil {
 		slog.WarnContext(ctx, "federation: set upstream avatar meta failed", "account_id", accountID, "err", err)
 	}

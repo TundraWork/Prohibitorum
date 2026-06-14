@@ -108,3 +108,15 @@ func AccountURL(a db.Account, origin string) string {
 	}
 	return PublicURL(a.OidcSubject.String(), a.AvatarEtag.String, origin)
 }
+
+// SourceURL builds the cache-busting avatar URL for a SPECIFIC source, or "" when no etag.
+func SourceURL(subject, source, etag, origin string) string {
+	if subject == "" || etag == "" {
+		return ""
+	}
+	v := etag
+	if len(v) > 8 {
+		v = v[:8]
+	}
+	return origin + "/avatar/" + subject + "?source=" + source + "&v=" + v
+}

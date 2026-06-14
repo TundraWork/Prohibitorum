@@ -64,3 +64,13 @@ func TestPublicURL(t *testing.T) {
 		t.Fatal("empty etag must yield empty URL")
 	}
 }
+
+func TestSourceURL(t *testing.T) {
+	got := SourceURL("11111111-2222-3333-4444-555555555555", "upstream", "deadbeefcafe", "https://x")
+	if got != "https://x/avatar/11111111-2222-3333-4444-555555555555?source=upstream&v=deadbeef" {
+		t.Fatalf("got %q", got)
+	}
+	if SourceURL("s", "user", "", "https://x") != "" {
+		t.Fatal("empty etag -> empty")
+	}
+}

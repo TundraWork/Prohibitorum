@@ -1,19 +1,20 @@
 // Package server — handle_avatar.go
 //
-// Avatar upload, delete, and public-fetch endpoints.
+// Avatar upload, selection, delete, and public-fetch endpoints.
 //
-//   PUT    /api/prohibitorum/me/avatar    — authed self; stores/replaces avatar
-//   DELETE /api/prohibitorum/me/avatar    — authed self; removes avatar
-//   GET    /avatar/{subject}              — public; serves avatar bytes
+//   PUT    /api/prohibitorum/me/avatar           — authed self; upload → user source + active=user
+//   PUT    /api/prohibitorum/me/avatar/selection — authed self; switch active source
+//   DELETE /api/prohibitorum/me/avatar           — authed self; delete user upload + fallback
+//   GET    /avatar/{subject}                     — public; serves active avatar or ?source= specific
 //
 // The PUT/DELETE handlers follow the same transaction pattern as the other
 // sensitive /me mutations: when s.dbPool is nil (unit-test seam), the writes
 // run without a transaction through avatarQ(); in production they run inside a
-// pgx transaction so both the avatar_bytes upsert and the meta update are atomic.
+// pgx transaction so both the source upsert and the meta update are atomic.
 //
-// Error codes avatar_too_large and avatar_invalid_image are project-local
-// codes that map to HTTP 400. They are emitted in the JSON error envelope as
-// {code, message, details}.
+// Error codes avatar_too_large, avatar_invalid_image, and avatar_source_unavailable
+// are project-local codes that map to HTTP 400. They are emitted in the JSON
+// error envelope as {code, message, details}.
 
 package server
 
@@ -25,6 +26,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
@@ -37,11 +39,13 @@ import (
 // Production wiring leaves avatarQueriesOverride nil; handlers fall back
 // to s.queries.
 type avatarQueries interface {
-	UpsertAccountAvatarBytes(ctx context.Context, arg db.UpsertAccountAvatarBytesParams) error
-	SetAccountAvatarMetaUser(ctx context.Context, arg db.SetAccountAvatarMetaUserParams) error
-	ClearAccountAvatarBytes(ctx context.Context, accountID int32) error
-	ClearAccountAvatarMeta(ctx context.Context, id int32) error
-	GetAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (db.GetAvatarBySubjectRow, error)
+	UpsertAvatarSource(ctx context.Context, arg db.UpsertAvatarSourceParams) error
+	SetActiveAvatar(ctx context.Context, arg db.SetActiveAvatarParams) error
+	ClearActiveAvatar(ctx context.Context, arg db.ClearActiveAvatarParams) error
+	DeleteAvatarSource(ctx context.Context, arg db.DeleteAvatarSourceParams) error
+	GetActiveAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (db.GetActiveAvatarBySubjectRow, error)
+	GetAvatarSourceBySubject(ctx context.Context, arg db.GetAvatarSourceBySubjectParams) (db.GetAvatarSourceBySubjectRow, error)
+	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]db.ListAvatarSourcesByAccountRow, error)
 }
 
 func (s *Server) avatarQ() avatarQueries {
@@ -97,22 +101,27 @@ func (s *Server) handlePutAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 	ct := pgtype.Text{String: "image/webp", Valid: true}
 	etagPG := pgtype.Text{String: etag, Valid: true}
 
+	upsertArg := db.UpsertAvatarSourceParams{
+		AccountID:   acctID,
+		Source:      "user",
+		Bytes:       out,
+		ContentType: ct,
+		Etag:        etagPG,
+	}
+	setActiveArg := db.SetActiveAvatarParams{
+		Source:    "user",
+		AccountID: acctID,
+	}
+
 	if s.dbPool == nil {
 		// Unit-test seam: no real pool — run writes without a transaction via
 		// avatarQ() (which resolves to the injected fake or s.queries).
 		q := s.avatarQ()
-		if err := q.UpsertAccountAvatarBytes(ctx, db.UpsertAccountAvatarBytesParams{
-			AccountID: acctID,
-			Bytes:     out,
-		}); err != nil {
+		if err := q.UpsertAvatarSource(ctx, upsertArg); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := q.SetAccountAvatarMetaUser(ctx, db.SetAccountAvatarMetaUserParams{
-			ID:                acctID,
-			AvatarContentType: ct,
-			AvatarEtag:        etagPG,
-		}); err != nil {
+		if err := q.SetActiveAvatar(ctx, setActiveArg); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
@@ -124,18 +133,11 @@ func (s *Server) handlePutAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		defer tx.Rollback(ctx) //nolint:errcheck
 		qtx := s.queries.WithTx(tx)
-		if err := qtx.UpsertAccountAvatarBytes(ctx, db.UpsertAccountAvatarBytesParams{
-			AccountID: acctID,
-			Bytes:     out,
-		}); err != nil {
+		if err := qtx.UpsertAvatarSource(ctx, upsertArg); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := qtx.SetAccountAvatarMetaUser(ctx, db.SetAccountAvatarMetaUserParams{
-			ID:                acctID,
-			AvatarContentType: ct,
-			AvatarEtag:        etagPG,
-		}); err != nil {
+		if err := qtx.SetActiveAvatar(ctx, setActiveArg); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
@@ -145,10 +147,125 @@ func (s *Server) handlePutAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Mutate in-memory so subsequent /me in the same session sees the new etag.
+	// Mutate in-memory so subsequent /me in the same session sees the new state.
+	sess.Account.AvatarSource = pgtype.Text{String: "user", Valid: true}
 	sess.Account.AvatarContentType = ct
 	sess.Account.AvatarEtag = etagPG
 
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PUT /api/prohibitorum/me/avatar/selection
+func (s *Server) handlePutAvatarSelectionHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	sess := authn.SessionFromContext(ctx)
+	if sess == nil {
+		writeAuthErr(w, authn.ErrNoSession())
+		return
+	}
+
+	var body struct {
+		Source string `json:"source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+
+	src := body.Source
+	if src != "upstream" && src != "user" && src != "none" {
+		writeAvatarErr(w, "avatar_source_unavailable", "unknown source")
+		return
+	}
+
+	acctID := sess.Account.ID
+
+	if src == "none" {
+		clearArg := db.ClearActiveAvatarParams{Source: "none", AccountID: acctID}
+		if s.dbPool == nil {
+			if err := s.avatarQ().ClearActiveAvatar(ctx, clearArg); err != nil {
+				writeAuthErr(w, err)
+				return
+			}
+		} else {
+			tx, txErr := s.dbPool.Begin(ctx)
+			if txErr != nil {
+				writeAuthErr(w, txErr)
+				return
+			}
+			defer tx.Rollback(ctx) //nolint:errcheck
+			if err := s.queries.WithTx(tx).ClearActiveAvatar(ctx, clearArg); err != nil {
+				writeAuthErr(w, err)
+				return
+			}
+			if err := tx.Commit(ctx); err != nil {
+				writeAuthErr(w, err)
+				return
+			}
+		}
+		sess.Account.AvatarSource = pgtype.Text{String: "none", Valid: true}
+		sess.Account.AvatarEtag = pgtype.Text{}
+		sess.Account.AvatarContentType = pgtype.Text{}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// For "upstream" or "user": existence check + activation via GetAvatarSourceBySubject.
+	// In the nil-pool seam both operations go through q; in production they share
+	// the same transaction (qtx) so the existence proof and the pointer update are atomic.
+	getSourceArg := db.GetAvatarSourceBySubjectParams{
+		OidcSubject: sess.Account.OidcSubject,
+		Source:      src,
+	}
+	setActiveArg := db.SetActiveAvatarParams{Source: src, AccountID: acctID}
+
+	if s.dbPool == nil {
+		q := s.avatarQ()
+		row, gerr := q.GetAvatarSourceBySubject(ctx, getSourceArg)
+		if errors.Is(gerr, pgx.ErrNoRows) {
+			writeAvatarErr(w, "avatar_source_unavailable", "avatar: no stored image for that source")
+			return
+		}
+		if gerr != nil {
+			writeAuthErr(w, gerr)
+			return
+		}
+		if err := q.SetActiveAvatar(ctx, setActiveArg); err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+		sess.Account.AvatarSource = pgtype.Text{String: src, Valid: true}
+		sess.Account.AvatarEtag = row.Etag
+		sess.Account.AvatarContentType = row.ContentType
+	} else {
+		tx, txErr := s.dbPool.Begin(ctx)
+		if txErr != nil {
+			writeAuthErr(w, txErr)
+			return
+		}
+		defer tx.Rollback(ctx) //nolint:errcheck
+		qtx := s.queries.WithTx(tx)
+		row, gerr := qtx.GetAvatarSourceBySubject(ctx, getSourceArg)
+		if errors.Is(gerr, pgx.ErrNoRows) {
+			writeAvatarErr(w, "avatar_source_unavailable", "avatar: no stored image for that source")
+			return
+		}
+		if gerr != nil {
+			writeAuthErr(w, gerr)
+			return
+		}
+		if err := qtx.SetActiveAvatar(ctx, setActiveArg); err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+		if err := tx.Commit(ctx); err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+		sess.Account.AvatarSource = pgtype.Text{String: src, Valid: true}
+		sess.Account.AvatarEtag = row.Etag
+		sess.Account.AvatarContentType = row.ContentType
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -162,16 +279,18 @@ func (s *Server) handleDeleteAvatarHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	acctID := sess.Account.ID
+	priorActive := sess.Account.AvatarSource
+
+	deleteArg := db.DeleteAvatarSourceParams{AccountID: acctID, Source: "user"}
 
 	if s.dbPool == nil {
-		// Unit-test seam: no real pool — run writes without a transaction via
-		// avatarQ() (which resolves to the injected fake or s.queries).
+		// Unit-test seam.
 		q := s.avatarQ()
-		if err := q.ClearAccountAvatarBytes(ctx, acctID); err != nil {
+		if err := q.DeleteAvatarSource(ctx, deleteArg); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := q.ClearAccountAvatarMeta(ctx, acctID); err != nil {
+		if err := s.applyDeleteFallback(ctx, q, acctID, priorActive, sess); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
@@ -183,11 +302,11 @@ func (s *Server) handleDeleteAvatarHTTP(w http.ResponseWriter, r *http.Request) 
 		}
 		defer tx.Rollback(ctx) //nolint:errcheck
 		qtx := s.queries.WithTx(tx)
-		if err := qtx.ClearAccountAvatarBytes(ctx, acctID); err != nil {
+		if err := qtx.DeleteAvatarSource(ctx, deleteArg); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
-		if err := qtx.ClearAccountAvatarMeta(ctx, acctID); err != nil {
+		if err := s.applyDeleteFallback(ctx, qtx, acctID, priorActive, sess); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
@@ -197,11 +316,52 @@ func (s *Server) handleDeleteAvatarHTTP(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Clear in-memory so subsequent /me reflects cleared state.
-	sess.Account.AvatarContentType = pgtype.Text{}
-	sess.Account.AvatarEtag = pgtype.Text{}
-
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// applyDeleteFallback sets active to upstream (if available) or none after the
+// user upload has been deleted. It also refreshes sess.
+func (s *Server) applyDeleteFallback(
+	ctx context.Context,
+	q avatarQueries,
+	acctID int32,
+	priorActive pgtype.Text,
+	sess *authn.Session,
+) error {
+	if priorActive.Valid && priorActive.String == "user" {
+		// Look for an upstream fallback.
+		srcs, err := q.ListAvatarSourcesByAccount(ctx, acctID)
+		if err != nil {
+			return err
+		}
+		hasUpstream := false
+		var upstreamEtag pgtype.Text
+		for _, row := range srcs {
+			if row.Source == "upstream" {
+				hasUpstream = true
+				upstreamEtag = row.Etag
+				break
+			}
+		}
+		if hasUpstream {
+			if err := q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: "upstream", AccountID: acctID}); err != nil {
+				return err
+			}
+			sess.Account.AvatarSource = pgtype.Text{String: "upstream", Valid: true}
+			sess.Account.AvatarEtag = upstreamEtag
+			sess.Account.AvatarContentType = pgtype.Text{String: "image/webp", Valid: true}
+		} else {
+			if err := q.ClearActiveAvatar(ctx, db.ClearActiveAvatarParams{Source: "none", AccountID: acctID}); err != nil {
+				return err
+			}
+			sess.Account.AvatarSource = pgtype.Text{String: "none", Valid: true}
+			sess.Account.AvatarEtag = pgtype.Text{}
+			sess.Account.AvatarContentType = pgtype.Text{}
+		}
+	}
+	// Active was not "user" — deletion doesn't change the active pointer;
+	// leave the session fields untouched.
+	return nil
 }
 
 // GET /api/prohibitorum/me/avatar/status — authed; reports whether the background
@@ -226,25 +386,58 @@ func (s *Server) handleGetAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	row, err := s.avatarQ().GetAvatarBySubject(ctx, subUUID)
-	if err != nil || row.Disabled || len(row.Bytes) == 0 || !row.AvatarEtag.Valid {
+	// Shared response fields extracted from either query result.
+	var (
+		imgBytes []byte
+		ct       pgtype.Text
+		etag     pgtype.Text
+		disabled bool
+	)
+
+	src := r.URL.Query().Get("source")
+	if src != "" {
+		row, err := s.avatarQ().GetAvatarSourceBySubject(ctx, db.GetAvatarSourceBySubjectParams{
+			OidcSubject: subUUID,
+			Source:      src,
+		})
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		imgBytes = row.Bytes
+		ct = row.ContentType
+		etag = row.Etag
+		disabled = row.Disabled
+	} else {
+		row, err := s.avatarQ().GetActiveAvatarBySubject(ctx, subUUID)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		imgBytes = row.Bytes
+		ct = row.ContentType
+		etag = row.Etag
+		disabled = row.Disabled
+	}
+
+	if disabled || len(imgBytes) == 0 || !etag.Valid {
 		http.NotFound(w, r)
 		return
 	}
 
-	ct := row.AvatarContentType.String
-	if ct == "" {
-		ct = "image/webp"
+	ctStr := ct.String
+	if ctStr == "" {
+		ctStr = "image/webp"
 	}
-	quotedEtag := `"` + row.AvatarEtag.String + `"`
+	quotedEtag := `"` + etag.String + `"`
 
 	if r.Header.Get("If-None-Match") == quotedEtag {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
 
-	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Content-Type", ctStr)
 	w.Header().Set("ETag", quotedEtag)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	_, _ = w.Write(row.Bytes)
+	_, _ = w.Write(imgBytes)
 }

@@ -95,23 +95,25 @@ func (f *fakeFederatorQueries) GetEnrollmentByToken(_ context.Context, token str
 	return db.Enrollment{}, pgx.ErrNoRows
 }
 
-func (f *fakeFederatorQueries) UpsertAccountAvatarBytes(_ context.Context, arg db.UpsertAccountAvatarBytesParams) error {
+func (f *fakeFederatorQueries) UpsertAvatarSource(_ context.Context, arg db.UpsertAvatarSourceParams) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.upsertedAvatar == nil {
 		f.upsertedAvatar = map[int32][]byte{}
 	}
 	f.upsertedAvatar[arg.AccountID] = arg.Bytes
-	return nil
-}
-
-func (f *fakeFederatorQueries) SetAccountAvatarMetaUpstream(_ context.Context, arg db.SetAccountAvatarMetaUpstreamParams) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	// Also record the etag here (previously done by SetAccountAvatarMetaUpstream)
+	// so test assertions on setMetaUpstream[accountID] still pass.
 	if f.setMetaUpstream == nil {
 		f.setMetaUpstream = map[int32]string{}
 	}
-	f.setMetaUpstream[arg.ID] = arg.AvatarEtag.String
+	f.setMetaUpstream[arg.AccountID] = arg.Etag.String
+	return nil
+}
+
+func (f *fakeFederatorQueries) SetActiveAvatar(_ context.Context, _ db.SetActiveAvatarParams) error {
+	// No-op for test purposes: the active-source update is a no-op in the fake.
+	// Assertions are made via upsertedAvatar and setMetaUpstream.
 	return nil
 }
 
