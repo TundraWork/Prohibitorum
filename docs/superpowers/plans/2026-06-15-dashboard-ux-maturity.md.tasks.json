@@ -50,7 +50,7 @@
     {
       "id": 7,
       "subject": "T7: account-list maturity",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3,
         4,
@@ -110,5 +110,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T05:00:00Z"
+  "lastUpdated": "2026-06-15T05:30:00Z"
 }
