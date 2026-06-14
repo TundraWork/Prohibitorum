@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** SecurityView (/security) — stacks the factor cards + the coarse revoke action. */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -22,18 +22,11 @@ interface MeFactors {
   passkeyCount: number
 }
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 const confirmOpen = ref(false)
 const done = ref(false)
 const factors = ref<MeFactors | null>(null)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 async function loadFactors(): Promise<void> {
   try {

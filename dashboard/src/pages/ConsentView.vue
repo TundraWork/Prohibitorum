@@ -19,7 +19,7 @@
  * server-validated; safeReturnTo only permits same-origin RELATIVE paths and
  * would wrongly reject both. We hand off to the server's value verbatim.
  */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, type ApiError } from '@/lib/api'
@@ -48,21 +48,14 @@ interface ConsentResult {
 
 const route = useRoute()
 const router = useRouter()
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 
 const ticket = String(route.query.ticket ?? '')
 const returnTo = String(route.query.return_to ?? '')
 
 const ctx = ref<ConsentContext | null>(null)
 const loading = ref(true)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 onMounted(async () => {
   try {

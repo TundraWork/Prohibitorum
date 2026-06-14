@@ -22,10 +22,10 @@ import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run } = useApi()
+const { busy, error, run, errorText } = useApi()
 
 const slug = String(route.params.slug)
 const idp = ref<IdentityProvider | null>(null)
@@ -39,13 +39,6 @@ const saved = ref(false)
 
 const newSecret = ref(''); const rotated = ref(false)
 const confirmDelete = ref(false)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
 

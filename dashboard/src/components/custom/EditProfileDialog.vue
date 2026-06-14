@@ -26,9 +26,9 @@ import AvatarCropper from '@/components/custom/AvatarCropper.vue'
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const auth = useAuthStore()
-const { busy, error, run } = useApi()
+const { busy, error, run, errorText } = useApi()
 
 const draft = ref('')
 const inputRef = ref<{ $el?: HTMLElement }>()
@@ -55,13 +55,6 @@ const valid = computed(() => {
 })
 const dirty = computed(() => draft.value !== (auth.me?.displayName ?? ''))
 const canSave = computed(() => valid.value && dirty.value && !busy.value)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 function onOpenChange(v: boolean): void { emit('update:open', v) }
 

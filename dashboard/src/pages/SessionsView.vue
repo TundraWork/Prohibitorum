@@ -4,7 +4,7 @@
  * GET /me/sessions → SessionListItem[]; POST /me/sessions/revoke {id} (not
  * sudo-gated). The current session has no revoke control.
  */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -22,17 +22,11 @@ interface SessionListItem {
   userAgent?: string
 }
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 
 const fmt = (d: string) => { const t = Date.parse(d); return Number.isNaN(t) ? '' : new Date(t).toLocaleString() }
 
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 const rows = ref<SessionListItem[]>([])
 
 async function load(): Promise<void> {

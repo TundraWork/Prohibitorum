@@ -26,8 +26,8 @@ interface Identity {
 }
 interface Provider { slug: string; displayName: string }
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 
 const identities = ref<Identity[]>([])
 const providers = ref<Provider[]>([])
@@ -35,12 +35,6 @@ const providersLoaded = ref(false)
 const confirmId = ref<number | null>(null)
 
 const fmt = (d: string) => { const ms = Date.parse(d); return Number.isNaN(ms) ? '' : new Date(ms).toLocaleDateString() }
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 const linkedSlugs = computed(() => new Set(identities.value.map((i) => i.idpSlug)))
 
 async function loadIdentities(): Promise<void> {

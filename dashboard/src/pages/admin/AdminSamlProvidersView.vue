@@ -42,9 +42,9 @@ interface AcsRow {
   isDefault: boolean
 }
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const router = useRouter()
-const { busy, error, run } = useApi()
+const { busy, run, errorText } = useApi()
 
 const rows = ref<SamlApplication[]>([])
 const createOpen = ref(false)
@@ -66,13 +66,6 @@ const acsRows = ref<AcsRow[]>([])
 // Shared flags
 const requireSignedAuthnRequest = ref(false)
 const allowIdpInitiated = ref(false)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 async function load(): Promise<void> {
   const res = await run(() => api.get<SamlApplication[]>('/api/prohibitorum/saml-applications'))

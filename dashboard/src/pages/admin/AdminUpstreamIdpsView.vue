@@ -28,9 +28,9 @@ export interface IdentityProvider {
   requireVerifiedEmail: boolean; disabled: boolean; createdAt: string
 }
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const router = useRouter()
-const { busy, error, run } = useApi()
+const { busy, run, errorText } = useApi()
 
 const rows = ref<IdentityProvider[]>([])
 const createOpen = ref(false)
@@ -46,13 +46,6 @@ const requireVerifiedEmail = ref(false)
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
 
 const scopeSuggestions = computed(() => UPSTREAM_SCOPE_SUGGESTIONS.map((s) => ({ value: s.value, description: t(s.descKey) })))
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 function modeLabel(m: string): string {
   if (m === 'invite_only') return t('admin.upstream.modeInviteOnly')

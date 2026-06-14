@@ -5,7 +5,7 @@
  * partial_session_token in hand. code → re-enroll TOTP → new recovery codes → success.
  * A failed recovery code spends the partial token, so failure emits 'restart'.
  */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -20,8 +20,8 @@ import RecoveryCodesDisplay from '@/components/custom/RecoveryCodesDisplay.vue'
 const props = defineProps<{ partialToken: string }>()
 const emit = defineEmits<{ success: []; restart: [] }>()
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 
 const phase = ref<'code' | 'reenroll' | 'done'>('code')
 const recoveryCode = ref('')
@@ -30,13 +30,6 @@ const otpauthUri = ref('')
 const secret = ref('')
 const totpCode = ref('')
 const newCodes = ref<string[]>([])
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 async function verifyCode(): Promise<void> {
   const res = await run(() => api.post<{ recovery_session_token: string }>(

@@ -5,7 +5,7 @@
  * drops the pairing. The lookup → confirm → approve sequence IS the
  * confirmation, so there is no extra ConfirmDialog here.
  */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -27,20 +27,14 @@ interface Lookup {
   alreadyBound: boolean
 }
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 
 const code = ref('')
 const found = ref<Lookup | null>(null)
 const approved = ref(false)
 
 const fmt = (d: string) => { const ms = Date.parse(d); return Number.isNaN(ms) ? '' : new Date(ms).toLocaleString() }
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 async function lookup(): Promise<void> {
   approved.value = false

@@ -4,7 +4,7 @@
  * invitations. Create is an inline form (not a ConfirmDialog — creating isn't
  * destructive). The list returns the full URL, so it stays copyable per row.
  */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -23,8 +23,8 @@ import CodeField from '@/components/custom/CodeField.vue'
 
 interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string }
 interface Idp { slug: string; displayName: string; disabled: boolean }
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 const IDP_NONE = '__none__'
 const rows = ref<Invitation[]>([])
 const idps = ref<Idp[]>([])
@@ -33,12 +33,6 @@ const newRole = ref<'admin' | 'user'>('user')
 const newIdp = ref(IDP_NONE)
 const created = ref(false)
 const revokeToken = ref<string | null>(null)
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 function idpDisplayName(slug: string | undefined): string {
   if (!slug) return '—'
   const found = idps.value.find((i) => i.slug === slug)

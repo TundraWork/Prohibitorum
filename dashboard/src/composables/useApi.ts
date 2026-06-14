@@ -14,10 +14,12 @@
  *   await run(() => api.post('/auth/login/begin'))
  */
 
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ApiError } from '@/lib/api'
 
 export function useApi() {
+  const { t, te } = useI18n()
   const busy = ref(false)
   const error = ref<ApiError | null>(null)
 
@@ -44,5 +46,12 @@ export function useApi() {
     }
   }
 
-  return { busy, error, run }
+  const errorText = computed(() => {
+    const e = error.value
+    if (!e) return ''
+    const key = `errors.${e.code}`
+    return te(key) ? t(key) : e.message || t('common.error')
+  })
+
+  return { busy, error, run, errorText }
 }

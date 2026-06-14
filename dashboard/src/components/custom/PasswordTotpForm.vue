@@ -18,7 +18,7 @@
  * Errors render via errors.<code> (fallback to the raw message) in a
  * role="alert" aria-live="polite" region; busy guards re-entrancy.
  */
-import { computed, nextTick, ref, useTemplateRef } from 'vue'
+import { nextTick, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -30,8 +30,8 @@ import AccountRecovery from '@/components/custom/AccountRecovery.vue'
 
 const emit = defineEmits<{ success: [] }>()
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 
 const phase = ref<'password' | 'totp'>('password')
 const username = ref('')
@@ -43,14 +43,6 @@ const recoveryNote = ref('')
 
 // Input is a single-root component → its DOM element is exposed on $el.
 const totpInput = useTemplateRef<{ $el?: HTMLElement }>('totpInput')
-
-/** errors.<code> with fallback to the server message, then a generic string. */
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 function onRecoveryRestart(): void {
   recovering.value = false

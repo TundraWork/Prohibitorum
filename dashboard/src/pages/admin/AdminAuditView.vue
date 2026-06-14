@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** AdminAuditView (/admin/audit) — filterable, keyset-paginated audit log. */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -17,8 +17,8 @@ interface AuditEvent {
 }
 const LIMIT = 50
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 
 const rows = ref<AuditEvent[]>([])
 const hasMore = ref(false)
@@ -26,13 +26,6 @@ const expanded = ref<Record<number, boolean>>({})
 
 const factor = ref(''); const event = ref(''); const accountId = ref('')
 const since = ref(''); const until = ref('')
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 function buildQuery(before?: number): string {
   const p = new URLSearchParams()

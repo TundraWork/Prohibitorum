@@ -4,7 +4,7 @@
  * returns secret+otpauth; the backend persists only on verify. First
  * enrollment returns recovery codes.
  */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -22,20 +22,13 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 const props = defineProps<{ enrolled?: boolean }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, error, run, errorText } = useApi()
 const secret = ref('')
 const otpauth = ref('')
 const code = ref('')
 const recovery = ref<string[]>([])
 const enabled = ref(false)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 async function setup(): Promise<void> {
   const r = await run(() => withSudo(() =>

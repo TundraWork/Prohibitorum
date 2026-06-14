@@ -44,10 +44,10 @@ interface SessionListItem {
   lastSeenIp: string; userAgent?: string
 }
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run } = useApi()
+const { busy, error, run, errorText } = useApi()
 
 const id = Number(route.params.id)
 const account = ref<Account | null>(null)
@@ -98,12 +98,6 @@ const revokedCount = ref<number | null>(null)
 const reissueUrl = ref('')
 const reissueExpires = ref('')
 
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 const hasComplexAttrs = computed(() => Object.keys(attrComplex.value).length > 0)
 
 async function loadCredentials(): Promise<void> {

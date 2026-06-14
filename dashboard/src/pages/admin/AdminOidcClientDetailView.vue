@@ -4,7 +4,7 @@
  * Edit config (PUT with allowedScopes); rotate secret (reveal-once CodeField);
  * delete. All mutations go through withSudo.
  */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
@@ -36,10 +36,10 @@ interface OidcApplication {
   createdAt: string
 }
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run } = useApi()
+const { busy, error, run, errorText } = useApi()
 
 const clientId = String(route.params.clientId)
 const client = ref<OidcApplication | null>(null)
@@ -56,13 +56,6 @@ const saved = ref(false)
 const confirmRotate = ref(false)
 const rotatedSecret = ref('')
 const confirmDelete = ref(false)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 function validateUri(s: string): string | null {
   try {

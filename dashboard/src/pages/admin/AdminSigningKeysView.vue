@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** AdminSigningKeysView (/admin/signing-keys) — list + lifecycle (generate/activate/retire). */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -19,21 +19,14 @@ interface SigningKey {
 }
 type Variant = 'neutral' | 'success' | 'caution' | 'danger'
 
-const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { t } = useI18n()
+const { busy, run, errorText } = useApi()
 
 const rows = ref<SigningKey[]>([])
 const expanded = ref<Record<string, boolean>>({})
 const confirmGenerate = ref(false)
 const confirmActivate = ref('')
 const confirmRetire = ref('')
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 const STATUS_VARIANT: Record<string, Variant> = { pending: 'neutral', active: 'success', decommissioning: 'caution', retired: 'neutral' }
 function statusVariant(s: string): Variant { return STATUS_VARIANT[s] ?? 'neutral' }

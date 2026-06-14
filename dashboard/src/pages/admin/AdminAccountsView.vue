@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** AdminAccountsView (/admin/accounts) — table of accounts; row → detail. */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
@@ -16,16 +16,10 @@ interface Account {
   id: number; username: string; displayName: string; role: string
   disabled: boolean; lastSignInAt?: string; avatarUrl?: string
 }
-const { t, te } = useI18n()
+const { t } = useI18n()
 const router = useRouter()
-const { busy, error, run } = useApi()
+const { busy, run, errorText } = useApi()
 const rows = ref<Account[]>([])
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 async function load(): Promise<void> {
   const res = await run(() => api.get<Account[]>('/api/prohibitorum/accounts'))
   if (res) rows.value = res

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** AdminOidcClientsView (/admin/oidc-applications) — table of OIDC clients; inline create with reveal-once secret. */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
@@ -32,9 +32,9 @@ interface OidcApplication {
   createdAt: string
 }
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const router = useRouter()
-const { busy, error, run } = useApi()
+const { busy, run, errorText } = useApi()
 
 const rows = ref<OidcApplication[]>([])
 const createOpen = ref(false)
@@ -49,13 +49,6 @@ const postLogoutUris = ref<string[]>([])
 const scopes = ref<string[]>(['openid'])
 const isPublic = ref(false)
 const requireConsent = ref(false)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 function validateUri(s: string): string | null {
   try {
