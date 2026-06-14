@@ -94,7 +94,7 @@
     {
       "id": 12,
       "subject": "T12: done-gate (verify+smoke+dist)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1,
         2,
@@ -110,5 +110,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T07:30:00Z"
+  "lastUpdated": "2026-06-15T07:45:00Z"
 }
