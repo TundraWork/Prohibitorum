@@ -36,6 +36,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +48,7 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -146,6 +148,9 @@ type FederatorQueries interface {
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (db.UpstreamIdp, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]db.ListAccountIdentitiesByAccountRow, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (db.Enrollment, error)
+
+	UpsertAccountAvatarBytes(ctx context.Context, arg db.UpsertAccountAvatarBytesParams) error
+	SetAccountAvatarMetaUpstream(ctx context.Context, arg db.SetAccountAvatarMetaUpstreamParams) error
 }
 
 // Federator orchestrates upstream OIDC federation. Constructed once at
@@ -180,6 +185,12 @@ type Federator struct {
 	// SSRF screen. Sourced from cfg.AllowPrivateNetwork (default false). Set true
 	// only when the upstream IdP is on a trusted private/internal network.
 	allowPrivateNetwork bool
+
+	// avatarFetch resolves an upstream picture URL to its raw bytes (SSRF-
+	// screened, https-only, image/* only, size-capped). Defaults to
+	// fetchUpstreamAvatar; the test seam (export_test.go) swaps it for a stub so
+	// the avatar-inherit job can run without a live image server.
+	avatarFetch func(ctx context.Context, url string, allowPrivate bool) ([]byte, error)
 }
 
 // NewFederator constructs a Federator from its collaborators. publicOrigin is
@@ -207,6 +218,7 @@ func NewFederator(
 		dbPool:              dbPool,
 		clientCacheTTL:      clientCacheTTL,
 		allowPrivateNetwork: cfg.AllowPrivateNetwork,
+		avatarFetch:         fetchUpstreamAvatar,
 	}
 }
 
@@ -739,6 +751,96 @@ func (f *Federator) SudoCallback(ctx context.Context, stateToken, code, issParam
 	}
 
 	return state.ReturnTo, nil
+}
+
+// kickoffAvatarInherit launches the background avatar-inherit job unless the user
+// owns their avatar. Non-blocking; safe on every federated login. client is the
+// already-built RP client (reused for the UserInfo fallback).
+func (f *Federator) kickoffAvatarInherit(client *Client, idp db.UpstreamIdp, tokens *Tokens, accountID int32) {
+	if acct, err := f.q.GetAccountByID(context.Background(), accountID); err == nil &&
+		acct.AvatarSource.Valid && acct.AvatarSource.String == "user" {
+		return
+	}
+	go f.runAvatarInherit(context.Background(), client, idp, tokens, accountID)
+}
+
+// runAvatarInherit resolves the upstream picture (id_token claim, else UserInfo),
+// fetches + normalizes it, and stores it with avatar_source='upstream'. All
+// failures are non-fatal (logged, status cleared). Deduped via SetNX. Detached
+// context with a timeout.
+func (f *Federator) runAvatarInherit(parent context.Context, client *Client, idp db.UpstreamIdp, tokens *Tokens, accountID int32) {
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+	defer cancel()
+
+	key := AvatarFetchKey(accountID)
+	ok, err := f.kvStore.SetNX(ctx, key, "1", 60*time.Second)
+	if err != nil || !ok {
+		// Another login for this account is already inheriting (or the KV is
+		// unavailable); a concurrent run owns the key, so exit without touching it.
+		return
+	}
+	defer func() { _ = f.kvStore.Del(ctx, key) }()
+
+	// Cheap pre-fetch guard: if the user already owns their avatar, never even
+	// fetch the upstream picture. (kickoffAvatarInherit makes the same check
+	// before launching, but re-checking here closes the window where the user
+	// uploaded between kickoff and this goroutine actually running, and makes
+	// runAvatarInherit a true no-op when driven directly.)
+	if acct, err := f.q.GetAccountByID(ctx, accountID); err == nil &&
+		acct.AvatarSource.Valid && acct.AvatarSource.String == "user" {
+		return
+	}
+
+	pic := ClaimString(tokens.Raw, idp.PictureClaim)
+	if pic == "" && client != nil {
+		// The id_token omitted the picture claim — fall back to the UserInfo
+		// endpoint. UserInfo enforces the sub match, so pass tokens.Subject.
+		if ui, uerr := client.UserInfo(ctx, tokens.AccessToken, tokens.Subject); uerr == nil {
+			pic = ClaimString(ui, idp.PictureClaim)
+		} else {
+			slog.WarnContext(ctx, "federation: upstream userinfo fallback failed", "account_id", accountID, "err", uerr)
+		}
+	}
+	if pic == "" {
+		return
+	}
+
+	raw, err := f.avatarFetch(ctx, pic, f.allowPrivateNetwork)
+	if err != nil {
+		slog.WarnContext(ctx, "federation: upstream avatar fetch failed", "account_id", accountID, "err", err)
+		return
+	}
+	out, etag, err := avatar.Process(raw)
+	if err != nil {
+		slog.WarnContext(ctx, "federation: upstream avatar process failed", "account_id", accountID, "err", err)
+		return
+	}
+
+	// Re-read the account after the (slow) fetch+process: the user may have
+	// uploaded their own avatar in the meantime, and the stored etag may already
+	// match — both make this a no-op.
+	acct, err := f.q.GetAccountByID(ctx, accountID)
+	if err != nil {
+		return
+	}
+	if acct.AvatarSource.Valid && acct.AvatarSource.String == "user" {
+		return
+	}
+	if acct.AvatarEtag.Valid && acct.AvatarEtag.String == etag {
+		return
+	}
+
+	if err := f.q.UpsertAccountAvatarBytes(ctx, db.UpsertAccountAvatarBytesParams{AccountID: accountID, Bytes: out}); err != nil {
+		slog.WarnContext(ctx, "federation: store upstream avatar bytes failed", "account_id", accountID, "err", err)
+		return
+	}
+	if err := f.q.SetAccountAvatarMetaUpstream(ctx, db.SetAccountAvatarMetaUpstreamParams{
+		ID:                accountID,
+		AvatarContentType: pgtype.Text{String: "image/webp", Valid: true},
+		AvatarEtag:        pgtype.Text{String: etag, Valid: true},
+	}); err != nil {
+		slog.WarnContext(ctx, "federation: set upstream avatar meta failed", "account_id", accountID, "err", err)
+	}
 }
 
 // --- internal helpers ------------------------------------------------------

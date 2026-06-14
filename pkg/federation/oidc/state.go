@@ -3,6 +3,7 @@ package oidc
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
 // FedState is the per-request flow context stashed in KV between
@@ -124,4 +125,11 @@ func LinkKey(token string) string {
 // same cross-purpose-token-reuse defense as the other two.
 func SudoKey(token string) string {
 	return "oidc:fed:sudo:" + token
+}
+
+// AvatarFetchKey is the KV key marking an in-flight upstream avatar fetch for an
+// account. Presence = "pending"; value unused. Short TTL backstops a dead
+// goroutine; SetNX on this key dedupes concurrent logins.
+func AvatarFetchKey(accountID int32) string {
+	return "oidc:fed:avatar:" + strconv.Itoa(int(accountID))
 }

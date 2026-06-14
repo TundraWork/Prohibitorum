@@ -54,3 +54,18 @@ func ApplyInviteOnlyForTest(
 ) (int32, bool, error) {
 	return applyInviteOnly(ctx, q, w, idp, tokens, enrollmentToken, pool)
 }
+
+// RunAvatarInheritForTest drives the unexported background avatar-inherit job
+// synchronously so tests can assert its store / no-op behavior without spawning
+// a goroutine. client may be nil — runAvatarInherit only falls back to UserInfo
+// when the id_token Raw carries no picture claim.
+func RunAvatarInheritForTest(f *Federator, ctx context.Context, client *Client, idp db.UpstreamIdp, tokens *Tokens, accountID int32) {
+	f.runAvatarInherit(ctx, client, idp, tokens, accountID)
+}
+
+// SetAvatarFetchForTest swaps the Federator's upstream-picture fetcher for a
+// stub, so the avatar-inherit job can run against canned bytes (no live image
+// server, no SSRF dance).
+func SetAvatarFetchForTest(f *Federator, fn func(ctx context.Context, url string, allowPrivate bool) ([]byte, error)) {
+	f.avatarFetch = fn
+}

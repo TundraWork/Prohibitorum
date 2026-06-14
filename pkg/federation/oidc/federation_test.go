@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"image"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +23,7 @@ import (
 	"prohibitorum/cmd/smoke/mockop"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	federationoidc "prohibitorum/pkg/federation/oidc"
@@ -42,6 +45,12 @@ type fakeFederatorQueries struct {
 
 	enrollmentByToken    map[string]db.Enrollment
 	enrollmentByTokenErr error
+
+	// Avatar-inherit recorders (Task 4): the stored WebP bytes per account and
+	// the upstream meta etag per account, so RunAvatarInheritForTest assertions
+	// can confirm a store happened (or didn't).
+	upsertedAvatar  map[int32][]byte
+	setMetaUpstream map[int32]string
 }
 
 func newFakeFederatorQueries() *fakeFederatorQueries {
@@ -84,6 +93,26 @@ func (f *fakeFederatorQueries) GetEnrollmentByToken(_ context.Context, token str
 		return e, nil
 	}
 	return db.Enrollment{}, pgx.ErrNoRows
+}
+
+func (f *fakeFederatorQueries) UpsertAccountAvatarBytes(_ context.Context, arg db.UpsertAccountAvatarBytesParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.upsertedAvatar == nil {
+		f.upsertedAvatar = map[int32][]byte{}
+	}
+	f.upsertedAvatar[arg.AccountID] = arg.Bytes
+	return nil
+}
+
+func (f *fakeFederatorQueries) SetAccountAvatarMetaUpstream(_ context.Context, arg db.SetAccountAvatarMetaUpstreamParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.setMetaUpstream == nil {
+		f.setMetaUpstream = map[int32]string{}
+	}
+	f.setMetaUpstream[arg.ID] = arg.AvatarEtag.String
+	return nil
 }
 
 // Compile-time guard: the fake must satisfy the interface the Federator wants.
@@ -1456,5 +1485,163 @@ func TestFederator_SudoBegin_UsesSudoRedirectURI(t *testing.T) {
 	}
 	if got, want := lu.Query().Get("redirect_uri"), fx.origin+"/api/prohibitorum/auth/federation/mockop/callback"; got != want {
 		t.Errorf("login redirect_uri = %q, want %q", got, want)
+	}
+}
+
+// --- avatar-inherit (Task 4) ----------------------------------------------
+
+// validPNG encodes a small opaque PNG that avatar.Process can decode + resize.
+// A fully-transparent image is fine for the pipeline (it only needs a decodable
+// raster); the bytes are deterministic so avatar.Process yields a stable etag.
+func validPNG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png.Encode: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// avatarFetchTokens builds a *Tokens carrying the upstream picture URL under the
+// "picture" claim, so runAvatarInherit resolves it from id_token Raw and never
+// needs to call UserInfo (we pass a nil client).
+func avatarFetchTokens() *federationoidc.Tokens {
+	return &federationoidc.Tokens{
+		Raw: map[string]any{"picture": "https://pic.example/x.png"},
+	}
+}
+
+func TestAvatarInherit_StoresUpstream(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	// Account 7: no avatar yet, avatar_source NULL.
+	fx.q.accountByIDResults[7] = db.Account{ID: 7}
+
+	png := validPNG(t)
+	federationoidc.SetAvatarFetchForTest(fx.f, func(_ context.Context, _ string, _ bool) ([]byte, error) {
+		return png, nil
+	})
+
+	federationoidc.RunAvatarInheritForTest(
+		fx.f, context.Background(), nil, /* client nil: picture is in Raw */
+		db.UpstreamIdp{PictureClaim: "picture"}, avatarFetchTokens(), 7,
+	)
+
+	if _, ok := fx.q.setMetaUpstream[7]; !ok {
+		t.Fatal("want SetAccountAvatarMetaUpstream for account 7")
+	}
+	if _, ok := fx.q.upsertedAvatar[7]; !ok {
+		t.Fatal("want UpsertAccountAvatarBytes for account 7")
+	}
+	// Etag recorded must equal what avatar.Process produced.
+	_, wantEtag, err := avatar.Process(png)
+	if err != nil {
+		t.Fatalf("avatar.Process: %v", err)
+	}
+	if got := fx.q.setMetaUpstream[7]; got != wantEtag {
+		t.Errorf("stored etag = %q, want %q", got, wantEtag)
+	}
+	// Status key cleared on completion.
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err == nil {
+		t.Error("status key should be cleared after the job completes")
+	}
+}
+
+func TestAvatarInherit_SkipsUserSource(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	fx.q.accountByIDResults[7] = db.Account{ID: 7, AvatarSource: pgtype.Text{String: "user", Valid: true}}
+
+	called := false
+	federationoidc.SetAvatarFetchForTest(fx.f, func(_ context.Context, _ string, _ bool) ([]byte, error) {
+		called = true
+		return validPNG(t), nil
+	})
+
+	federationoidc.RunAvatarInheritForTest(
+		fx.f, context.Background(), nil,
+		db.UpstreamIdp{PictureClaim: "picture"}, avatarFetchTokens(), 7,
+	)
+
+	if called {
+		t.Fatal("must not fetch when avatar_source='user'")
+	}
+	if _, ok := fx.q.setMetaUpstream[7]; ok {
+		t.Fatal("must not store meta when avatar_source='user'")
+	}
+	// Status key still cleared (the job marks-then-clears even on no-op).
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err == nil {
+		t.Error("status key should be cleared after the user-source no-op")
+	}
+}
+
+func TestAvatarInherit_SkipsUnchangedEtag(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+
+	png := validPNG(t)
+	_, etag, err := avatar.Process(png)
+	if err != nil {
+		t.Fatalf("avatar.Process: %v", err)
+	}
+	// Seed account 7 with the SAME etag the fetched picture will normalize to,
+	// and an upstream source (not user-owned, so the fetch proceeds far enough
+	// to compare etags).
+	fx.q.accountByIDResults[7] = db.Account{
+		ID:           7,
+		AvatarSource: pgtype.Text{String: "upstream", Valid: true},
+		AvatarEtag:   pgtype.Text{String: etag, Valid: true},
+	}
+
+	federationoidc.SetAvatarFetchForTest(fx.f, func(_ context.Context, _ string, _ bool) ([]byte, error) {
+		return png, nil
+	})
+
+	federationoidc.RunAvatarInheritForTest(
+		fx.f, context.Background(), nil,
+		db.UpstreamIdp{PictureClaim: "picture"}, avatarFetchTokens(), 7,
+	)
+
+	if _, ok := fx.q.setMetaUpstream[7]; ok {
+		t.Fatal("must NOT re-store when the new etag matches the stored etag")
+	}
+	if _, ok := fx.q.upsertedAvatar[7]; ok {
+		t.Fatal("must NOT re-upsert bytes when the etag is unchanged")
+	}
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err == nil {
+		t.Error("status key should be cleared after the unchanged-etag no-op")
+	}
+}
+
+func TestAvatarInherit_DedupesViaSetNX(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	fx.q.accountByIDResults[7] = db.Account{ID: 7}
+
+	// Simulate a concurrent run already in flight: pre-set the status key so the
+	// SetNX inside runAvatarInherit fails and the second run exits immediately.
+	ok, err := fx.kvm.SetNX(context.Background(), federationoidc.AvatarFetchKey(7), "1", time.Minute)
+	if err != nil || !ok {
+		t.Fatalf("seed SetNX: ok=%v err=%v", ok, err)
+	}
+
+	called := false
+	federationoidc.SetAvatarFetchForTest(fx.f, func(_ context.Context, _ string, _ bool) ([]byte, error) {
+		called = true
+		return validPNG(t), nil
+	})
+
+	federationoidc.RunAvatarInheritForTest(
+		fx.f, context.Background(), nil,
+		db.UpstreamIdp{PictureClaim: "picture"}, avatarFetchTokens(), 7,
+	)
+
+	if called {
+		t.Fatal("second run must not fetch — SetNX dedup should make it exit immediately")
+	}
+	if _, ok := fx.q.setMetaUpstream[7]; ok {
+		t.Fatal("second run must not store while another run holds the key")
+	}
+	// The deduped run must NOT delete the key it never acquired (the in-flight
+	// run owns it).
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err != nil {
+		t.Errorf("deduped run must leave the in-flight key intact, got %v", err)
 	}
 }
