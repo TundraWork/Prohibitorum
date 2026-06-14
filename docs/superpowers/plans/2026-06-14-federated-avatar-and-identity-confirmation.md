@@ -1264,6 +1264,7 @@ git commit -m "test(smoke): federated confirm + upstream avatar round-trip + no-
 ## Review follow-ups (tracked during execution)
 
 - **[from Task 4 code review → do in Task 6]** Thread a `ctx context.Context` parameter into `kickoffAvatarInherit` (it currently uses `context.Background()` for its pre-flight `GetAccountByID`); pass the callback request ctx when wiring it into `HandleCallback`.
+- **[from Task 5 code review → do before done-gate]** Add a unit test for the `ConfirmAccountIdentity` error→rollback path in `applyInviteOnly` (the fake `fakeModesQueries` already wires `confirmIdentityErr`): set it, assert `applyInviteOnly` returns the wrapped error (tx rolls back). Reachable when the DB degrades mid-request.
 - **[from Task 4 code review → do in Task 11]** Add coverage for the **UserInfo-sourced picture fallback** in `runAvatarInherit` (the `client.UserInfo` branch — unit-untested; all Task 4 tests use a nil client + picture-in-id_token). Faithful approach: give the smoke's mock OP a `/userinfo` endpoint (advertised in discovery) that serves `picture`, and a case where the id_token OMITS `picture` so the avatar is inherited via the UserInfo fallback. Asserts the 3-arg `UserInfo(ctx, accessToken, subject)` wiring end-to-end.
 
 ## Done-gate

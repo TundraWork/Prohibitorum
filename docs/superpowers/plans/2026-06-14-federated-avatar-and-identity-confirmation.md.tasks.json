@@ -31,7 +31,7 @@
     {
       "id": 5,
       "subject": "Task 5: ResolveOutcome + invite auto-confirm + re-login confirmed",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Resolve/applyAutoProvision/applyInviteOnly return ResolveOutcome{AccountID,IdentityID,IsNew,Confirmed}; auto-provision Confirmed=false; invite confirms in-tx; existing identity Confirmed from confirmed_at. Update HandleCallback + CallbackResult.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/modes.go\",\"pkg/federation/oidc/federation.go\",\"pkg/federation/oidc/modes_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run 'Resolve|Provision|Invite' -v\",\"acceptanceCriteria\":[\"ResolveOutcome confirmed semantics correct across new/existing/invite\",\"invite calls ConfirmAccountIdentity in-tx\"]}\n```"
     },
