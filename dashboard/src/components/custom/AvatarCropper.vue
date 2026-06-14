@@ -18,6 +18,13 @@ function useCrop(): void {
   if (!canvas) return
   canvas.toBlob((blob) => { if (blob) emit('crop', blob) }, 'image/jpeg', 0.92)
 }
+
+// Default the stencil to the largest centered square the image allows -
+// side = min(width, height) - rather than the library's smaller default.
+function defaultSize({ imageSize }: { imageSize: { width: number; height: number } }) {
+  const edge = Math.min(imageSize.width, imageSize.height)
+  return { width: edge, height: edge }
+}
 </script>
 
 <template>
@@ -26,6 +33,7 @@ function useCrop(): void {
       ref="cropperRef"
       :src="src"
       :stencil-props="{ aspectRatio: 1 }"
+      :default-size="defaultSize"
       :canvas="{ maxWidth: 1024, maxHeight: 1024 }"
       class="h-64 w-full min-w-0 rounded-md bg-sunken"
       data-test="avatar-cropper"

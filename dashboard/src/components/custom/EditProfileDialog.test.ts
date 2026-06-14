@@ -17,6 +17,31 @@ const del = vi.mocked(api.del)
 URL.createObjectURL = vi.fn(() => 'blob:x')
 URL.revokeObjectURL = vi.fn()
 
+// jsdom does not load images, so onFile's dimension probe never resolves.
+// Mock Image to fire onload with controllable natural dimensions (default:
+// non-square, so the crop UI shows). setImageSize() overrides per test;
+// nextImageSize = null simulates a load error.
+let nextImageSize: { w: number; h: number } | null = { w: 200, h: 100 }
+function setImageSize(w: number, h: number) { nextImageSize = { w, h } }
+class MockImage {
+  onload: (() => void) | null = null
+  onerror: (() => void) | null = null
+  naturalWidth = 0
+  naturalHeight = 0
+  set src(_v: string) {
+    queueMicrotask(() => {
+      if (nextImageSize) {
+        this.naturalWidth = nextImageSize.w
+        this.naturalHeight = nextImageSize.h
+        this.onload?.()
+      } else {
+        this.onerror?.()
+      }
+    })
+  }
+}
+vi.stubGlobal('Image', MockImage)
+
 // Stub AvatarCropper so jsdom doesn't attempt canvas rendering.
 const AvatarCropperStub = defineComponent({
   name: 'AvatarCropper',
@@ -56,7 +81,7 @@ function saveBtn() {
   return document.body.querySelector('[data-test="edit-save"]') as HTMLButtonElement
 }
 
-beforeEach(() => { setActivePinia(createPinia()); put.mockReset(); upload.mockReset(); del.mockReset(); document.body.innerHTML = '' })
+beforeEach(() => { setActivePinia(createPinia()); put.mockReset(); upload.mockReset(); del.mockReset(); document.body.innerHTML = ''; setImageSize(200, 100) })
 
 describe('EditProfileDialog — display name', () => {
   it('prefills the input with the current displayName', async () => {
@@ -148,6 +173,22 @@ describe('EditProfileDialog — avatar', () => {
     expect(URL.createObjectURL).toHaveBeenCalledWith(small)
     expect(document.body.querySelector('[data-test="cropper-stub"]')).not.toBeNull()
     expect(upload).not.toHaveBeenCalled()
+  })
+
+  it('skips the cropper for a 1:1 image and uploads the original file directly', async () => {
+    seedUser()
+    upload.mockResolvedValue({})
+    vi.mocked(api.get).mockResolvedValue({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
+    setImageSize(256, 256)
+    mountOpen(); await flushPromises()
+    const square = new File([new ArrayBuffer(100)], 'sq.png', { type: 'image/png' })
+    simulateFile(square)
+    await flushPromises(); await flushPromises()
+    // A square image needs no crop — the cropper UI must not appear.
+    expect(document.body.querySelector('[data-test="cropper-stub"]')).toBeNull()
+    // The original file is uploaded as-is (server normalizes to 512 WebP), then /me reloads.
+    expect(upload).toHaveBeenCalledWith('/api/prohibitorum/me/avatar', square)
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
   })
 
   it('confirming crop calls api.upload with the Blob then reloads the store', async () => {

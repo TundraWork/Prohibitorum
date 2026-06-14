@@ -76,6 +76,21 @@ async function save(): Promise<void> {
   }
 }
 
+// Resolve an image's natural dimensions, or null if it cannot be loaded.
+function loadImageSize(url: string): Promise<{ w: number; h: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
+
+async function uploadAvatar(body: Blob): Promise<void> {
+  await run(() => api.upload('/api/prohibitorum/me/avatar', body))
+  if (!error.value) await auth.reload()
+}
+
 async function onFile(e: Event): Promise<void> {
   const f = (e.target as HTMLInputElement).files?.[0]
   if (fileRef.value) fileRef.value.value = ''
@@ -85,7 +100,17 @@ async function onFile(e: Event): Promise<void> {
     return
   }
   error.value = null
-  cropSrc.value = URL.createObjectURL(f)
+  const url = URL.createObjectURL(f)
+  const sz = await loadImageSize(url)
+  // Already square (1:1): no crop needed - upload as-is (the server crops to a
+  // square and resizes to 512). Skip straight to upload.
+  if (sz && sz.w > 0 && sz.w === sz.h) {
+    URL.revokeObjectURL(url)
+    await uploadAvatar(f)
+    return
+  }
+  // Non-square (or dimensions undeterminable): let the user pick the square region.
+  cropSrc.value = url
 }
 
 function closeCrop(): void {
@@ -94,8 +119,7 @@ function closeCrop(): void {
 }
 
 async function onCropped(blob: Blob): Promise<void> {
-  await run(() => api.upload('/api/prohibitorum/me/avatar', blob))
-  if (!error.value) await auth.reload()
+  await uploadAvatar(blob)
   closeCrop()
 }
 
