@@ -146,7 +146,7 @@ func NewClient(
 		// (no internal-IP screen, follows redirects, unbounded body) against the
 		// operator-supplied — and publicly-triggerable — issuer URL. See
 		// httpclient.go (audit follow-up N2 + N3).
-		rp.WithHTTPClient(hardenedHTTPClient(allowPrivateNetwork)),
+		rp.WithHTTPClient(hardenedHTTPClient(allowPrivateNetwork, maxFederationResponseBytes)),
 		rp.WithVerifierOpts(
 			rp.WithSupportedSigningAlgorithms(allowedAlgs...),
 			// Thread the per-flow expected nonce through the

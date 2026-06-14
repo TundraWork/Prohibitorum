@@ -99,20 +99,23 @@ func screenDialControl(allowPrivate bool) func(network, address string, c syscal
 }
 
 // cappingTransport wraps a RoundTripper so every response body is bounded by
-// maxFederationResponseBytes. It also rejects an over-cap declared
-// Content-Length up front (cheap fail-fast before reading).
-type cappingTransport struct{ base http.RoundTripper }
+// max bytes. It also rejects an over-cap declared Content-Length up front
+// (cheap fail-fast before reading).
+type cappingTransport struct {
+	base http.RoundTripper
+	max  int64
+}
 
 func (t cappingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
-	if resp.ContentLength > maxFederationResponseBytes {
+	if resp.ContentLength > t.max {
 		_ = resp.Body.Close()
 		return nil, fmt.Errorf("federation/oidc: upstream response too large (%d bytes)", resp.ContentLength)
 	}
-	resp.Body = &cappedBody{r: io.LimitReader(resp.Body, maxFederationResponseBytes+1), c: resp.Body}
+	resp.Body = &cappedBody{r: io.LimitReader(resp.Body, t.max+1), c: resp.Body, max: t.max}
 	return resp, nil
 }
 
@@ -123,13 +126,14 @@ type cappedBody struct {
 	r    io.Reader
 	c    io.Closer
 	read int64
+	max  int64
 }
 
 func (b *cappedBody) Read(p []byte) (int, error) {
 	n, err := b.r.Read(p)
 	b.read += int64(n)
-	if b.read > maxFederationResponseBytes {
-		return n, fmt.Errorf("federation/oidc: upstream response exceeded %d-byte cap", maxFederationResponseBytes)
+	if b.read > b.max {
+		return n, fmt.Errorf("federation/oidc: upstream response exceeded %d-byte cap", b.max)
 	}
 	return n, err
 }
@@ -141,7 +145,9 @@ func (b *cappedBody) Close() error { return b.c.Close() }
 // upstream_idp row and discovery runs once per client construction. When
 // allowPrivate is true the dial-time internal-IP screen is disabled (for
 // deployments federating to a trusted internal IdP, and for tests).
-func hardenedHTTPClient(allowPrivate bool) *http.Client {
+// maxBytes caps every response body; callers pass maxFederationResponseBytes
+// for federation metadata or maxAvatarFetchBytes for avatar fetches.
+func hardenedHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,
 		KeepAlive: 30 * time.Second,
@@ -156,7 +162,7 @@ func hardenedHTTPClient(allowPrivate bool) *http.Client {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return &http.Client{
-		Transport: cappingTransport{base: transport},
+		Transport: cappingTransport{base: transport, max: maxBytes},
 		Timeout:   federationHTTPTimeout,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= maxFederationRedirects {
