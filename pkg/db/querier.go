@@ -146,6 +146,7 @@ type Querier interface {
 	// pgx.ErrNoRows surfaces and the handler maps to invitation_not_found.
 	RevokeInvitation(ctx context.Context, token string) (Enrollment, error)
 	RevokeSession(ctx context.Context, id string) error
+	SetAccountDisabled(ctx context.Context, arg SetAccountDisabledParams) (Account, error)
 	// source is forced non-null text (the column is nullable, but this query only
 	// ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
 	SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error

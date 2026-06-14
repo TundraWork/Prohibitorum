@@ -377,6 +377,38 @@ func (q *Queries) ListAvatarSourcesByAccount(ctx context.Context, accountID int3
 	return items, nil
 }
 
+const setAccountDisabled = `-- name: SetAccountDisabled :one
+UPDATE account SET disabled = $2, updated_at = now() WHERE id = $1 RETURNING id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified, avatar_content_type, avatar_etag, avatar_source
+`
+
+type SetAccountDisabledParams struct {
+	ID       int32 `json:"id"`
+	Disabled bool  `json:"disabled"`
+}
+
+func (q *Queries) SetAccountDisabled(ctx context.Context, arg SetAccountDisabledParams) (Account, error) {
+	row := q.db.QueryRow(ctx, setAccountDisabled, arg.ID, arg.Disabled)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.DisplayName,
+		&i.WebauthnUserHandle,
+		&i.OidcSubject,
+		&i.Role,
+		&i.Attributes,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Email,
+		&i.EmailVerified,
+		&i.AvatarContentType,
+		&i.AvatarEtag,
+		&i.AvatarSource,
+	)
+	return i, err
+}
+
 const setActiveAvatar = `-- name: SetActiveAvatar :exec
 UPDATE account SET
   avatar_source       = $1::text,

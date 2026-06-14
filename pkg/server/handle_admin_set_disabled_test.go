@@ -4,6 +4,7 @@
 //
 //	POST /oidc-applications/set-disabled   (handleSetOIDCApplicationDisabledHTTP)
 //	POST /identity-providers/set-disabled  (handleSetIdentityProviderDisabledHTTP)
+//	POST /accounts/set-disabled            (handleSetAccountDisabledHTTP)
 //
 // These flip ONLY the disabled flag, independent of the config PUT. Following the
 // convention for the admin handlers (s.queries is a concrete *db.Queries that can
@@ -70,6 +71,42 @@ func TestHandleSetIdentityProviderDisabled_BadJSON(t *testing.T) {
 	s := &Server{}
 	rr := postSetDisabled(t, "/api/prohibitorum/identity-providers/set-disabled",
 		`{`, s.handleSetIdentityProviderDisabledHTTP)
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for malformed body", rr.Code)
+	}
+}
+
+func TestHandleSetAccountDisabled_ZeroID(t *testing.T) {
+	t.Parallel()
+	s := &Server{} // nil queries — the guard must return before any DB call
+	rr := postSetDisabled(t, "/api/prohibitorum/accounts/set-disabled",
+		`{"id":0,"disabled":true}`, s.handleSetAccountDisabledHTTP)
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for zero id", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "bad_request") {
+		t.Errorf("body = %q; want bad_request", rr.Body.String())
+	}
+}
+
+func TestHandleSetAccountDisabled_NegativeID(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	rr := postSetDisabled(t, "/api/prohibitorum/accounts/set-disabled",
+		`{"id":-3,"disabled":true}`, s.handleSetAccountDisabledHTTP)
+	if rr.Code < 400 || rr.Code >= 500 {
+		t.Errorf("status = %d; want 4xx for negative id", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "bad_request") {
+		t.Errorf("body = %q; want bad_request", rr.Body.String())
+	}
+}
+
+func TestHandleSetAccountDisabled_BadJSON(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	rr := postSetDisabled(t, "/api/prohibitorum/accounts/set-disabled",
+		`not json`, s.handleSetAccountDisabledHTTP)
 	if rr.Code < 400 || rr.Code >= 500 {
 		t.Errorf("status = %d; want 4xx for malformed body", rr.Code)
 	}

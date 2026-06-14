@@ -22,9 +22,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 import SegmentedControl from '@/components/custom/SegmentedControl.vue'
-import SettingRow from '@/components/custom/SettingRow.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
@@ -167,6 +166,20 @@ async function reissue(): Promise<void> {
     api.post<{ url: string; expiresAt: string }>('/api/prohibitorum/accounts/reissue-enrollment', { id })))
   if (res) { reissueUrl.value = res.url; reissueExpires.value = res.expiresAt }
 }
+// Flip the disabled flag on its own (independent of the identity-form Save), via
+// the dedicated set-disabled endpoint. The backend rejects disabling an admin —
+// the button is gated on the PERSISTED role below so the unsaved form ref can't
+// mislead the operator.
+async function toggleDisabled(): Promise<void> {
+  const next = !disabled.value
+  const updated = await run(() => withSudo(() =>
+    api.post<Account>('/api/prohibitorum/accounts/set-disabled', { id, disabled: next })))
+  if (updated) { account.value = updated; disabled.value = updated.disabled }
+}
+// Use the SAVED role (account.role), not the unsaved form `role` ref: an admin
+// account cannot be disabled, and switching the form to "user" without saving
+// must not unlock the button.
+const isPersistedAdmin = computed(() => account.value?.role === 'admin')
 async function destroy(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/accounts/delete', { id })
@@ -219,9 +232,6 @@ onMounted(load)
               :options="[{value:'user',label:t('admin.account.roleUser')},{value:'admin',label:t('admin.account.roleAdmin')}]" />
             <p class="text-xs text-muted">{{ t('admin.account.roleDesc') }}</p>
           </div>
-          <SettingRow :label="t('admin.account.disabledLabel')" :description="t('admin.account.disabledDesc')" for="disabled">
-            <Switch id="disabled" data-test="disabled" v-model="disabled" />
-          </SettingRow>
           <div class="flex flex-col gap-2">
             <Label>{{ t('admin.account.attributes') }}</Label>
             <p v-if="attrRows.length === 0 && !hasComplexAttrs" class="text-sm text-muted">{{ t('admin.account.attributesEmpty') }}</p>
@@ -302,7 +312,22 @@ onMounted(load)
 
       <Card class="border-destructive/30 bg-destructive/[0.02]">
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.account.dangerTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-3">
+        <CardContent class="flex flex-col gap-4">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-ink">{{ t('admin.account.statusLabel') }}</span>
+              <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
+                {{ disabled ? t('admin.account.statusDisabled') : t('admin.account.statusActive') }}
+              </StatusBadge>
+            </div>
+            <p class="text-xs text-muted">{{ t('admin.account.disabledDesc') }}</p>
+            <p v-if="isPersistedAdmin && !disabled" class="text-xs text-amber" data-test="disable-admin-hint">{{ t('admin.account.disableAdminHint') }}</p>
+            <Button type="button" variant="outline" class="w-fit" :disabled="busy || (isPersistedAdmin && !disabled)" data-test="disable-toggle" @click="toggleDisabled">
+              {{ disabled ? t('admin.account.enable') : t('admin.account.disable') }}
+            </Button>
+          </div>
+
+          <Separator />
           <p class="text-sm text-muted">{{ t('admin.account.deleteHelp') }}</p>
           <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.account.delete') }}</Button>
         </CardContent>

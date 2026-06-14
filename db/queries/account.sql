@@ -34,6 +34,9 @@ UPDATE account SET
 WHERE id = $1
 RETURNING *;
 
+-- name: SetAccountDisabled :one
+UPDATE account SET disabled = $2, updated_at = now() WHERE id = $1 RETURNING *;
+
 -- name: UpdateAccountEmail :exec
 -- Refreshes an account's email from a verified upstream on re-login (federation
 -- claim drift), keeping it in lockstep with account_identity.upstream_email.

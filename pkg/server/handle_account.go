@@ -308,6 +308,79 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 	return &accountOut{Body: accountViewFromAccount(&updated, nil, s.config.PublicOrigins[0])}, nil
 }
 
+// ----- POST /accounts/set-disabled (raw, sudo-gated) -------------------------
+
+type setAccountDisabledBody struct {
+	ID       int32 `json:"id"`
+	Disabled bool  `json:"disabled"`
+}
+
+// handleSetAccountDisabledHTTP flips ONLY the disabled flag, independent of the
+// identity-form PUT. Mirrors the dedicated set-disabled endpoints for OIDC
+// clients and upstream IdPs. The auth layer already rejects disabled accounts,
+// so this only flips the flag (no session-revocation logic here — UpdateAccount
+// owns that). Preserves the safety invariant: an admin-role account cannot be
+// disabled (demote to user first); re-enabling is always allowed.
+func (s *Server) handleSetAccountDisabledHTTP(w http.ResponseWriter, r *http.Request) {
+	var body setAccountDisabledBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if body.ID <= 0 {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+
+	ctx := r.Context()
+
+	current, err := s.queries.GetAccountByID(ctx, body.ID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrAccountNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleSetAccountDisabled: load: %w", err))
+		return
+	}
+
+	// Admin accounts cannot be disabled — demote first. (Re-enabling is fine.)
+	if body.Disabled && current.Role == "admin" {
+		writeAuthErr(w, authn.ErrAdminCannotBeDisabled())
+		return
+	}
+
+	updated, err := s.queries.SetAccountDisabled(ctx, db.SetAccountDisabledParams{
+		ID:       body.ID,
+		Disabled: body.Disabled,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrAccountNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleSetAccountDisabled: update: %w", err))
+		return
+	}
+
+	sess := authn.SessionFromContext(ctx)
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: auditActor(sess),
+		Factor:    audit.FactorAccount,
+		Event:     audit.EventUpdate,
+		Detail:    map[string]any{"account_id": body.ID, "disabled": body.Disabled},
+	})
+
+	// Best-effort: kick active sessions when an account is freshly disabled so
+	// browsers are signed out immediately (parity with handleUpdateAccount; this
+	// is now the primary disable path, so the "revokes sessions" promise lives here).
+	if body.Disabled && !current.Disabled {
+		_, _ = s.sessionStore.RevokeAllForAccount(ctx, body.ID)
+	}
+
+	writeJSON(w, accountViewFromAccount(&updated, nil, s.config.PublicOrigins[0]))
+}
+
 // ----- POST /accounts/delete -------------------------------------------------
 
 type deleteAccountIn struct {

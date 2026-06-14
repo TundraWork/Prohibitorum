@@ -236,6 +236,36 @@ describe('AdminAccountDetailView', () => {
     expect(body.attributes).toEqual({ team: 'security', score: 42 })
   })
 
+  // ---- danger-zone disable ----
+
+  it('shows an Active badge and the Disable button for an active user account', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.account.statusActive)
+    const btn = w.find<HTMLButtonElement>('[data-test="disable-toggle"]')
+    expect(btn.text()).toBe(en.admin.account.disable)
+    expect(btn.element.disabled).toBe(false)
+  })
+
+  it('clicking Disable POSTs set-disabled and flips the badge to Disabled', async () => {
+    mockGets()
+    post.mockResolvedValue({ ...ACCOUNT, disabled: true })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="disable-toggle"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/set-disabled', { id: 7, disabled: true })
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.account.statusDisabled)
+    // button now offers Enable
+    expect(w.find('[data-test="disable-toggle"]').text()).toBe(en.admin.account.enable)
+  })
+
+  it('an admin account cannot be disabled — button is disabled with a hint', async () => {
+    mockGets({ ...ACCOUNT, role: 'admin' })
+    const w = mountView(); await flushPromises()
+    const btn = w.find<HTMLButtonElement>('[data-test="disable-toggle"]')
+    expect(btn.element.disabled).toBe(true)
+    expect(w.find('[data-test="disable-admin-hint"]').exists()).toBe(true)
+  })
+
   it('empty-key rows are skipped on save', async () => {
     mockGets()
     put.mockResolvedValue({ ...ACCOUNT })

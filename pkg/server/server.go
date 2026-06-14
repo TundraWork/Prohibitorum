@@ -413,6 +413,7 @@ func (s *Server) registerOperations() {
 	// (typed Huma + sudo) — UpdateAccount can escalate user→admin, so step-up
 	// is required, matching every other admin mutation.
 	registerSudoOp(s, mgmt, contract.OperationUpdateAccount, s.handleUpdateAccount, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/set-disabled", admin, s.handleSetAccountDisabledHTTP)
 	registerSudoOp(s, mgmt, contract.OperationDeleteAccount, s.handleDeleteAccount, admin)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/credentials/delete", admin, s.handleDeleteAccountCredentialHTTP)
 	registerOp(mgmt, contract.OperationListAccountCredentials, s.handleListAccountCredentials, admin)
