@@ -1023,6 +1023,9 @@ func main() {
 	//
 	//   avatar-fed 1 — picture in the id_token → inherited (poll until stored).
 	//   avatar-fed 2 — no-clobber: a user upload survives an upstream re-login.
+	//   avatar-fed 4 — dual-source selection: with BOTH a user upload AND an
+	//                  upstream row stored, switch the active pointer between
+	//                  user/upstream/none and verify ?source previews + active GET.
 	//   avatar-fed 3 — userinfo fallback: picture only in /userinfo → inherited.
 	//
 	// The avatar fetch hits the mockop /avatar.png image endpoint (Part B) and
@@ -1030,7 +1033,7 @@ func main() {
 	// PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK=true.
 	// =========================================================================
 
-	step("avatar-fed 1/3 — federated first login inherits upstream id_token picture")
+	step("avatar-fed 1/4 — federated first login inherits upstream id_token picture")
 	{
 		const avSub = "ext-avatar-1"
 		opSrv.SetClaims(avSub, "ext-avatar-1@example.com", true, "extavatar1", "Ext Avatar One")
@@ -1077,9 +1080,9 @@ func main() {
 		}
 		log.Printf("  /me.avatarUrl=%q ✓", *avMe2.AvatarURL)
 
-		// avatar-fed 2/3 — no-clobber: a user upload must survive an upstream
+		// avatar-fed 2/4 — no-clobber: a user upload must survive an upstream
 		// re-login with a different picture. Re-use this confirmed account.
-		step("avatar-fed 2/3 — user upload survives an upstream re-login (no clobber)")
+		step("avatar-fed 2/4 — user upload survives an upstream re-login (no clobber)")
 		var pngBuf bytes.Buffer
 		{
 			img := image.NewRGBA(image.Rect(0, 0, 8, 8))
@@ -1152,9 +1155,141 @@ func main() {
 				etagAfterUpload, etagAfter)
 		}
 		log.Printf("  avatar_source still 'user', etag unchanged (%s) after upstream re-login ✓", etagAfter)
+
+		// avatar-fed 4/4 — dual-source selection. After avatar-fed 2 this account
+		// is in the IDEAL dual-source state: avatar_source='user' (active) AND an
+		// 'upstream' row also stored (Task 3 upserts upstream on every federated
+		// login without activating it). Exercise the active-pointer switch across
+		// user/upstream/none and the per-source ?source= previews.
+		//
+		// Race note: avatar-fed 2's re-login may have left a background inherit
+		// goroutine in flight. It cannot corrupt these assertions: runAvatarInherit
+		// re-reads avatar_source from the DB after its slow I/O and only calls
+		// SetActiveAvatar when that fresh read is NULL or 'upstream' — so it can
+		// neither override the explicit 'user'/'none' we set below nor write a value
+		// different from the 'upstream' a switch-to-upstream already wrote.
+		step("avatar-fed 4/4 — dual-source selection + ?source previews")
+		const selPath = "/api/prohibitorum/me/avatar/selection"
+
+		// (a) /me reports the active source AND both per-source preview URLs.
+		dsMe, err := avClient.getMe()
+		if err != nil {
+			log.Fatalf("avatar-fed dual: /me: %v", err)
+		}
+		if dsMe.AvatarSource == nil || *dsMe.AvatarSource != "user" {
+			log.Fatalf("avatar-fed dual: /me.avatarSource want 'user', got %v", dsMe.AvatarSource)
+		}
+		if _, ok := dsMe.AvatarSourceUrls["user"]; !ok {
+			log.Fatalf("avatar-fed dual: /me.avatarSourceUrls missing 'user' key (got %v)", dsMe.AvatarSourceUrls)
+		}
+		if _, ok := dsMe.AvatarSourceUrls["upstream"]; !ok {
+			log.Fatalf("avatar-fed dual: /me.avatarSourceUrls missing 'upstream' key — coexistence not proven (got %v)", dsMe.AvatarSourceUrls)
+		}
+		log.Printf("  /me.avatarSource=%q avatarSourceUrls has both user+upstream keys ✓", *dsMe.AvatarSource)
+
+		// (b) ?source previews both resolve to a non-empty image/webp regardless of
+		// which source is active (a 200 carrying a JSON error envelope would be a bug).
+		for _, src := range []string{"upstream", "user"} {
+			resp, err := avClient.getRaw("/avatar/" + avSubject + "?source=" + src)
+			if err != nil {
+				log.Fatalf("avatar-fed dual: GET ?source=%s: %v", src, err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				log.Fatalf("avatar-fed dual: ?source=%s want 200, got %d", src, resp.StatusCode)
+			}
+			if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "image/webp") {
+				log.Fatalf("avatar-fed dual: ?source=%s content-type want image/webp, got %q", src, ct)
+			}
+			if len(body) == 0 {
+				log.Fatalf("avatar-fed dual: ?source=%s returned empty body", src)
+			}
+			log.Printf("  ?source=%s → 200 image/webp %d bytes ✓", src, len(body))
+		}
+
+		// (c) Switch active → upstream. 204 No Content; DB pointer flips; active GET 200.
+		if resp, err := avClient.putJSONRaw(selPath, map[string]string{"source": "upstream"}); err != nil {
+			log.Fatalf("avatar-fed dual: PUT selection upstream: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("avatar-fed dual: PUT selection upstream: want 204, got %d (%s)", resp.StatusCode, body)
+			}
+		}
+		if src, _, err := getAvatarSourceEtag(avMe.ID); err != nil {
+			log.Fatalf("avatar-fed dual: read source post-upstream: %v", err)
+		} else if src != "upstream" {
+			log.Fatalf("avatar-fed dual: avatar_source after switch want 'upstream', got %q", src)
+		}
+		if resp, err := avClient.getRaw("/avatar/" + avSubject); err != nil {
+			log.Fatalf("avatar-fed dual: active GET post-upstream: %v", err)
+		} else {
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				log.Fatalf("avatar-fed dual: active GET post-upstream want 200, got %d", resp.StatusCode)
+			}
+		}
+		log.Printf("  selection→upstream: 204, avatar_source='upstream', active GET 200 ✓")
+
+		// (d) Switch active → none. 204; pointer='none'; active GET 404; /me.avatarUrl nil.
+		if resp, err := avClient.putJSONRaw(selPath, map[string]string{"source": "none"}); err != nil {
+			log.Fatalf("avatar-fed dual: PUT selection none: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("avatar-fed dual: PUT selection none: want 204, got %d (%s)", resp.StatusCode, body)
+			}
+		}
+		if src, _, err := getAvatarSourceEtag(avMe.ID); err != nil {
+			log.Fatalf("avatar-fed dual: read source post-none: %v", err)
+		} else if src != "none" {
+			log.Fatalf("avatar-fed dual: avatar_source after switch want 'none', got %q", src)
+		}
+		if resp, err := avClient.getRaw("/avatar/" + avSubject); err != nil {
+			log.Fatalf("avatar-fed dual: active GET post-none: %v", err)
+		} else {
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNotFound {
+				log.Fatalf("avatar-fed dual: active GET post-none want 404, got %d", resp.StatusCode)
+			}
+		}
+		if noneMe, err := avClient.getMe(); err != nil {
+			log.Fatalf("avatar-fed dual: /me post-none: %v", err)
+		} else if noneMe.AvatarURL != nil {
+			log.Fatalf("avatar-fed dual: /me.avatarUrl want nil after selection=none, got %q", *noneMe.AvatarURL)
+		}
+		log.Printf("  selection→none: 204, avatar_source='none', active GET 404, /me.avatarUrl nil ✓")
+
+		// (e) Switch active → user. 204; pointer='user'; active GET 200 (sane final state).
+		if resp, err := avClient.putJSONRaw(selPath, map[string]string{"source": "user"}); err != nil {
+			log.Fatalf("avatar-fed dual: PUT selection user: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("avatar-fed dual: PUT selection user: want 204, got %d (%s)", resp.StatusCode, body)
+			}
+		}
+		if src, _, err := getAvatarSourceEtag(avMe.ID); err != nil {
+			log.Fatalf("avatar-fed dual: read source post-user: %v", err)
+		} else if src != "user" {
+			log.Fatalf("avatar-fed dual: avatar_source after switch-back want 'user', got %q", src)
+		}
+		if resp, err := avClient.getRaw("/avatar/" + avSubject); err != nil {
+			log.Fatalf("avatar-fed dual: active GET post-user: %v", err)
+		} else {
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				log.Fatalf("avatar-fed dual: active GET post-user want 200, got %d", resp.StatusCode)
+			}
+		}
+		log.Printf("  selection→user: 204, avatar_source='user', active GET 200 (final state restored) ✓")
 	}
 
-	step("avatar-fed 3/3 — userinfo fallback: picture only in /userinfo is still inherited")
+	step("avatar-fed 3/4 — userinfo fallback: picture only in /userinfo is still inherited")
 	{
 		const avSub = "ext-avatar-ui-1"
 		opSrv.SetClaims(avSub, "ext-avatar-ui-1@example.com", true, "extavatarui1", "Ext Avatar UI")
@@ -1190,6 +1325,33 @@ func main() {
 		}
 		log.Printf("  GET /avatar/%s → 200 image/webp etag=%s body=%d bytes (inherited via UserInfo fallback) ✓",
 			uiSubject, etag, n)
+
+		// Negative: this account has ONLY an upstream row (no user upload), so
+		// switching the active source to 'user' must be rejected with a 400
+		// avatar_source_unavailable error envelope.
+		if resp, err := uiClient.putJSONRaw("/api/prohibitorum/me/avatar/selection",
+			map[string]string{"source": "user"}); err != nil {
+			log.Fatalf("avatar-fed ui: PUT selection user (negative): %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest {
+				log.Fatalf("avatar-fed ui: selection→user with no user row: want 400, got %d (%s)",
+					resp.StatusCode, body)
+			}
+			var env struct {
+				Code string `json:"code"`
+			}
+			if err := json.Unmarshal(body, &env); err != nil {
+				log.Fatalf("avatar-fed ui: decode error envelope: %v (body=%s)", err, body)
+			}
+			if env.Code != "avatar_source_unavailable" {
+				log.Fatalf("avatar-fed ui: selection→user error code want 'avatar_source_unavailable', got %q (body=%s)",
+					env.Code, body)
+			}
+			log.Printf("  selection→user with no stored user row → 400 avatar_source_unavailable ✓")
+		}
+
 		// Reset the picture knobs so they don't bleed into later mockop uses.
 		opSrv.SetPicture("")
 	}
@@ -3558,7 +3720,7 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed 1-3 (federated first-login confirm gate at /welcome → upstream picture inherited via background job, no-clobber of a user upload on re-login, UserInfo-fallback inherit) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed 1-4 (federated first-login confirm gate at /welcome → upstream picture inherited via background job, no-clobber of a user upload on re-login, UserInfo-fallback inherit, dual-source selection switch upstream/user/none + ?source previews + avatar_source_unavailable negative) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -3921,11 +4083,13 @@ func clientDataJSON(typ string, challenge []byte, origin string) []byte {
 // ---------- Prohibitorum REST shapes ----------
 
 type meResponse struct {
-	ID          int32   `json:"id"`
-	Username    string  `json:"username"`
-	DisplayName string  `json:"displayName"`
-	Role        string  `json:"role"`
-	AvatarURL   *string `json:"avatarUrl,omitempty"`
+	ID               int32             `json:"id"`
+	Username         string            `json:"username"`
+	DisplayName      string            `json:"displayName"`
+	Role             string            `json:"role"`
+	AvatarURL        *string           `json:"avatarUrl,omitempty"`
+	AvatarSource     *string           `json:"avatarSource,omitempty"`
+	AvatarSourceUrls map[string]string `json:"avatarSourceUrls,omitempty"`
 }
 
 func (c *client) beginEnrollment(token, username, display, nickname string) (*creationOptions, error) {
@@ -4158,6 +4322,25 @@ func (c *client) postJSONRaw(path string, body any) (*http.Response, error) {
 		}
 	}
 	req, err := http.NewRequest(http.MethodPost, c.base+path, &buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return c.hc.Do(req)
+}
+
+// putJSONRaw is the PUT analogue of postJSONRaw: it issues PUT path with a JSON
+// body and returns the raw *http.Response without c.do's >=400 error wrap, so
+// callers can assert non-2xx status codes (e.g. the 400 avatar_source_unavailable
+// envelope) directly.
+func (c *client) putJSONRaw(path string, body any) (*http.Response, error) {
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			return nil, err
+		}
+	}
+	req, err := http.NewRequest(http.MethodPut, c.base+path, &buf)
 	if err != nil {
 		return nil, err
 	}
