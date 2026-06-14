@@ -127,6 +127,28 @@ async function removeAvatar(): Promise<void> {
   await run(() => api.del('/api/prohibitorum/me/avatar'))
   if (!error.value) await auth.reload()
 }
+
+async function selectSource(source: 'upstream' | 'user' | 'none'): Promise<void> {
+  await run(() => api.put('/api/prohibitorum/me/avatar/selection', { source }))
+  if (!error.value) await auth.reload()
+}
+
+// The set of sources that have a stored image, derived from avatarSourceUrls.
+// Keys present: 'upstream' and/or 'user'. Always show 'none'.
+const sourceEntries = computed(() => {
+  const urls = auth.me?.avatarSourceUrls ?? {}
+  return Object.entries(urls) as [string, string][]
+})
+
+function sourceLabel(key: string): string {
+  if (key === 'upstream') return t('accountMenu.avatarInherited')
+  if (key === 'user') return t('accountMenu.avatarUploaded')
+  return key
+}
+
+// The active selection; absent (NULL) is treated as 'none'. Single source of
+// truth for both the aria-pressed state and the selected-card styling.
+const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
 </script>
 
 <template>
@@ -138,17 +160,56 @@ async function removeAvatar(): Promise<void> {
       </DialogHeader>
       <AvatarCropper v-if="cropSrc" :src="cropSrc" @crop="onCropped" @cancel="closeCrop" />
       <form v-else class="flex flex-col gap-3" @submit.prevent="save">
-        <div class="flex items-center gap-3">
-          <UserAvatar :display-name="auth.me?.displayName" :username="auth.me?.username" :src="auth.me?.avatarUrl" class="size-16 text-xl" />
-          <div class="flex flex-col gap-1.5">
-            <span class="text-sm text-muted">{{ t('accountMenu.avatarLabel') }}</span>
-            <div class="flex gap-2">
-              <input ref="fileRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" data-test="avatar-file" @change="onFile" />
-              <Button type="button" size="sm" variant="outline" :disabled="busy" data-test="avatar-upload" @click="fileRef?.click()">{{ t('accountMenu.avatarUpload') }}</Button>
-              <Button v-if="auth.me?.avatarUrl" type="button" size="sm" variant="ghost" :disabled="busy" data-test="avatar-remove" @click="removeAvatar">{{ t('accountMenu.avatarRemove') }}</Button>
-            </div>
-            <span class="text-xs text-muted">{{ t('accountMenu.avatarHint') }}</span>
+        <div class="flex flex-col gap-2">
+          <span class="text-sm text-muted">{{ t('accountMenu.avatarLabel') }}</span>
+          <!-- Source picker: one card per stored source + always-present None -->
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="[key, url] in sourceEntries"
+              :key="key"
+              type="button"
+              :data-test="`avatar-source-${key}`"
+              :aria-pressed="activeSource === key"
+              :disabled="busy"
+              :class="[
+                'flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition-colors',
+                activeSource === key
+                  ? 'border-primary bg-primary/10 font-semibold'
+                  : 'border-border hover:bg-muted/50',
+                busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+              ]"
+              @click="selectSource(key as 'upstream' | 'user')"
+            >
+              <UserAvatar :display-name="auth.me?.displayName" :username="auth.me?.username" :src="url" class="size-10" />
+              <span>{{ sourceLabel(key) }}</span>
+            </button>
+            <!-- None option — always shown -->
+            <button
+              type="button"
+              data-test="avatar-source-none"
+              :aria-pressed="activeSource === 'none'"
+              :disabled="busy"
+              :class="[
+                'flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition-colors',
+                activeSource === 'none'
+                  ? 'border-primary bg-primary/10 font-semibold'
+                  : 'border-border hover:bg-muted/50',
+                busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+              ]"
+              @click="selectSource('none')"
+            >
+              <UserAvatar :display-name="auth.me?.displayName" :username="auth.me?.username" class="size-10" />
+              <span>{{ t('accountMenu.avatarNone') }}</span>
+            </button>
           </div>
+          <span class="text-xs text-muted">{{ t('accountMenu.avatarSourceHint') }}</span>
+          <!-- Upload / Remove row -->
+          <div class="flex gap-2">
+            <input ref="fileRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" data-test="avatar-file" @change="onFile" />
+            <Button type="button" size="sm" variant="outline" :disabled="busy" data-test="avatar-upload" @click="fileRef?.click()">{{ t('accountMenu.avatarUpload') }}</Button>
+            <Button v-if="auth.me?.avatarSourceUrls?.user" type="button" size="sm" variant="ghost" :disabled="busy" data-test="avatar-remove" @click="removeAvatar">{{ t('accountMenu.avatarRemove') }}</Button>
+          </div>
+          <span class="text-xs text-muted">{{ t('accountMenu.avatarHint') }}</span>
         </div>
         <div class="flex flex-col gap-1.5">
           <Label for="edit-displayName">{{ t('accountMenu.displayNameLabel') }}</Label>

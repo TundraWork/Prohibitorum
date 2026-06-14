@@ -63,6 +63,23 @@ function seedUser(displayName = 'Alex Smith', avatarUrl?: string) {
   return auth
 }
 
+function seedUserWithSources(displayName = 'Alex Smith') {
+  const auth = useAuthStore()
+  auth.me = {
+    id: 1,
+    username: 'alex',
+    displayName,
+    role: 'user',
+    avatarUrl: '/avatar/x?source=user&v=cd',
+    avatarSource: 'user',
+    avatarSourceUrls: {
+      upstream: '/avatar/x?source=upstream&v=ab',
+      user: '/avatar/x?source=user&v=cd',
+    },
+  }
+  return auth
+}
+
 function mountOpen() {
   return mount(EditProfileDialog, {
     props: { open: true },
@@ -81,7 +98,7 @@ function saveBtn() {
   return document.body.querySelector('[data-test="edit-save"]') as HTMLButtonElement
 }
 
-beforeEach(() => { setActivePinia(createPinia()); put.mockReset(); upload.mockReset(); del.mockReset(); document.body.innerHTML = ''; setImageSize(200, 100) })
+beforeEach(() => { setActivePinia(createPinia()); put.mockReset(); upload.mockReset(); del.mockReset(); vi.mocked(api.get).mockReset(); document.body.innerHTML = ''; setImageSize(200, 100) })
 
 describe('EditProfileDialog — display name', () => {
   it('prefills the input with the current displayName', async () => {
@@ -145,13 +162,13 @@ describe('EditProfileDialog — avatar', () => {
     expect(uploadBtn()).not.toBeNull()
   })
 
-  it('hides the Remove button when there is no avatarUrl', async () => {
+  it('hides the Remove button when there is no uploaded source', async () => {
     seedUser('Alex Smith', undefined); mountOpen(); await flushPromises()
     expect(removeBtn()).toBeNull()
   })
 
-  it('shows the Remove button when avatarUrl is set', async () => {
-    seedUser('Alex Smith', '/api/prohibitorum/me/avatar'); mountOpen(); await flushPromises()
+  it('shows the Remove button when avatarSourceUrls.user exists', async () => {
+    seedUserWithSources(); mountOpen(); await flushPromises()
     expect(removeBtn()).not.toBeNull()
   })
 
@@ -224,7 +241,7 @@ describe('EditProfileDialog — avatar', () => {
   })
 
   it('calls api.del on remove and reloads the store', async () => {
-    seedUser('Alex Smith', '/api/prohibitorum/me/avatar')
+    seedUserWithSources()
     del.mockResolvedValue({})
     vi.mocked(api.get).mockResolvedValue({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
     mountOpen(); await flushPromises()
@@ -232,5 +249,76 @@ describe('EditProfileDialog — avatar', () => {
     await flushPromises()
     expect(del).toHaveBeenCalledWith('/api/prohibitorum/me/avatar')
     expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+  })
+})
+
+describe('EditProfileDialog — avatar source picker', () => {
+  function upstreamOption() {
+    return document.body.querySelector('[data-test="avatar-source-upstream"]') as HTMLButtonElement
+  }
+  function userOption() {
+    return document.body.querySelector('[data-test="avatar-source-user"]') as HTMLButtonElement
+  }
+  function noneOption() {
+    return document.body.querySelector('[data-test="avatar-source-none"]') as HTMLButtonElement
+  }
+
+  it('renders Inherited, Uploaded, and None options when both sources exist', async () => {
+    seedUserWithSources(); mountOpen(); await flushPromises()
+    expect(upstreamOption()).not.toBeNull()
+    expect(userOption()).not.toBeNull()
+    expect(noneOption()).not.toBeNull()
+  })
+
+  it('marks the active source (user) as selected via aria-pressed', async () => {
+    seedUserWithSources(); mountOpen(); await flushPromises()
+    expect(userOption().getAttribute('aria-pressed')).toBe('true')
+    expect(upstreamOption().getAttribute('aria-pressed')).toBe('false')
+    expect(noneOption().getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('clicking Inherited calls PUT /me/avatar/selection with {source: upstream} then reloads', async () => {
+    seedUserWithSources()
+    put.mockResolvedValue({})
+    vi.mocked(api.get).mockResolvedValue({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user', avatarSource: 'upstream', avatarSourceUrls: { upstream: '/avatar/x?source=upstream&v=ab', user: '/avatar/x?source=user&v=cd' } })
+    mountOpen(); await flushPromises()
+    upstreamOption().click()
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'upstream' })
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+  })
+
+  it('clicking None calls PUT /me/avatar/selection with {source: none} then reloads', async () => {
+    seedUserWithSources()
+    put.mockResolvedValue({})
+    vi.mocked(api.get).mockResolvedValue({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user', avatarSource: 'none', avatarSourceUrls: { upstream: '/avatar/x?source=upstream&v=ab', user: '/avatar/x?source=user&v=cd' } })
+    mountOpen(); await flushPromises()
+    noneOption().click()
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'none' })
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+  })
+
+  it('renders only None option (no source cards) when no source URLs exist', async () => {
+    seedUser('Alex Smith', undefined); mountOpen(); await flushPromises()
+    expect(upstreamOption()).toBeNull()
+    expect(userOption()).toBeNull()
+    expect(noneOption()).not.toBeNull()
+  })
+
+  it('marks None as active when avatarSource is absent', async () => {
+    seedUser('Alex Smith', undefined); mountOpen(); await flushPromises()
+    expect(noneOption().getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('shows the mapped error and does not reload when selection fails (avatar_source_unavailable)', async () => {
+    seedUserWithSources()
+    put.mockRejectedValue({ code: 'avatar_source_unavailable', message: 'zh' })
+    mountOpen(); await flushPromises()
+    upstreamOption().click()
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'upstream' })
+    expect(document.body.textContent).toContain(en.errors.avatar_source_unavailable)
+    expect(vi.mocked(api.get)).not.toHaveBeenCalled()
   })
 })

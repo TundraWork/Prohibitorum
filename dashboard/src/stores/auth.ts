@@ -25,6 +25,8 @@ export interface SessionView {
   attributes?: Record<string, unknown>
   avatarUrl?: string
   avatarPending?: boolean
+  avatarSource?: string
+  avatarSourceUrls?: Record<string, string>
 }
 
 export const useAuthStore = defineStore('auth', () => {

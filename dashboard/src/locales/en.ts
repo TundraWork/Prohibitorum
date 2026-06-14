@@ -46,6 +46,10 @@ export default {
     avatarHint: 'PNG, JPEG, or WebP, up to 5 MB. Cropped to a square.',
     avatarTooLargeClient: 'That image is larger than 5 MB.',
     avatarUse: 'Use photo',
+    avatarInherited: 'Inherited',
+    avatarUploaded: 'Uploaded',
+    avatarNone: 'No avatar',
+    avatarSourceHint: 'Choose which picture to show.',
   },
 
   sessions: {
@@ -550,6 +554,7 @@ export default {
     // Avatar upload
     avatar_too_large: 'That image is too large.',
     avatar_invalid_image: 'That file is not a supported image.',
+    avatar_source_unavailable: 'That avatar is not available.',
 
     // Sudo federation re-auth
     sudo_identity_mismatch: "That sign-in didn't match this account. Try again.",
