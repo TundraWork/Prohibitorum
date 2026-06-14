@@ -59,7 +59,7 @@
     {
       "id": 9,
       "subject": "Task 9: Frontend — dashboard avatar spinner (returning users)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "**Goal:** UserAvatar loading overlay; NavUser polls /me/avatar/status when me.avatarPending and auth.reload() on clear; auth store pollAvatarUntilSettled helper.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/UserAvatar.vue\",\"dashboard/src/components/custom/NavUser.vue\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/components/custom/UserAvatar.test.ts\",\"dashboard/src/components/custom/NavUser.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/UserAvatar.test.ts src/components/custom/NavUser.test.ts && npx vue-tsc -b\",\"acceptanceCriteria\":[\"UserAvatar shows spinner when loading\",\"NavUser polls + reloads when avatarPending clears\"]}\n```"
     },
