@@ -15,6 +15,7 @@ import { Link2 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
@@ -86,7 +87,10 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
       <Card v-for="ident in identities" :key="ident.id">
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-            <span class="min-w-0 truncate font-medium text-ink">{{ ident.idpDisplayName }}</span>
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="min-w-0 truncate font-medium text-ink">{{ ident.idpDisplayName }}</span>
+              <StatusBadge variant="success" class="shrink-0">{{ t('connected.linked') }}</StatusBadge>
+            </div>
             <span v-if="ident.upstreamEmail" class="min-w-0 truncate text-muted">{{ ident.upstreamEmail }}</span>
             <span v-if="fmt(ident.linkedAt)" class="truncate text-muted">{{ t('connected.linked') }}: {{ fmt(ident.linkedAt) }}</span>
           </div>
@@ -114,7 +118,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
           <Button v-for="p in providers" :key="p.slug" type="button" variant="outline" class="w-full justify-between"
                   :disabled="linkedSlugs.has(p.slug) || busy" :data-test="`link-${p.slug}`" @click="link(p.slug)">
             <span>{{ p.displayName }}</span>
-            <span v-if="linkedSlugs.has(p.slug)" class="text-xs text-muted">{{ t('connected.alreadyLinked') }}</span>
+            <StatusBadge v-if="linkedSlugs.has(p.slug)" variant="success" class="shrink-0">{{ t('connected.alreadyLinked') }}</StatusBadge>
           </Button>
         </div>
       </CardContent>

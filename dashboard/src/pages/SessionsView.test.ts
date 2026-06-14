@@ -12,6 +12,14 @@ const post = vi.mocked(api.post)
 function makeI18n() {
   return createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 }
+// ConfirmDialog (reka-ui) teleports to document.body; its confirm button is the
+// destructive-variant one carrying the revoke label.
+function clickConfirm() {
+  const btns = Array.from(document.body.querySelectorAll('button'))
+    .filter((b) => b.getAttribute('data-variant') === 'destructive'
+      && b.textContent?.includes(en.sessions.revoke))
+  btns[btns.length - 1]!.click()
+}
 const SESSIONS = [
   { id: 's1', isCurrent: true, issuedAt: '', expiresAt: '', lastSeenIp: '10.0.0.1', userAgent: 'Firefox' },
   { id: 's2', isCurrent: false, issuedAt: '', expiresAt: '', lastSeenIp: '10.0.0.2', userAgent: 'Safari' },
@@ -28,12 +36,24 @@ describe('SessionsView', () => {
     expect(wrapper.findAll('[data-test=revoke]')).toHaveLength(1)
   })
 
-  it('revoke posts {id} and refreshes', async () => {
+  it('revoke is gated behind a confirm dialog (no post until confirmed)', async () => {
     get.mockResolvedValue(SESSIONS)
     post.mockResolvedValue(undefined)
-    const wrapper = mount(SessionsView, { global: { plugins: [makeI18n()] } })
+    const wrapper = mount(SessionsView, { global: { plugins: [makeI18n()] }, attachTo: document.body })
     await flushPromises()
     await wrapper.find('[data-test=revoke]').trigger('click')
+    await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('confirming the dialog posts {id} and refreshes', async () => {
+    get.mockResolvedValue(SESSIONS)
+    post.mockResolvedValue(undefined)
+    const wrapper = mount(SessionsView, { global: { plugins: [makeI18n()] }, attachTo: document.body })
+    await flushPromises()
+    await wrapper.find('[data-test=revoke]').trigger('click')
+    await flushPromises()
+    clickConfirm()
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/sessions/revoke', { id: 's2' })
     expect(get).toHaveBeenCalledTimes(2)

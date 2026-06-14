@@ -80,8 +80,9 @@ async function cancel(): Promise<void> {
         <div class="flex items-center gap-2">
           <Input id="code" name="code" v-model="code" :placeholder="t('devices.codePlaceholder')"
                  autocomplete="off" class="font-mono uppercase" @keydown.enter.prevent="lookup" />
-          <Button type="button" class="shrink-0" :disabled="busy || !code.trim()" data-test="lookup" @click="lookup">
-            {{ t('devices.lookup') }}
+          <Button type="button" class="shrink-0" :disabled="busy || !code.trim()" :aria-busy="busy"
+                  data-test="lookup" @click="lookup">
+            {{ busy ? t('devices.lookingUp') : t('devices.lookup') }}
           </Button>
         </div>
       </CardContent>
@@ -98,7 +99,7 @@ async function cancel(): Promise<void> {
       <CardContent class="flex flex-col gap-3 text-sm">
         <CodeField :value="found.displayCode" />
         <div class="flex min-w-0 flex-col gap-1">
-          <span class="truncate text-muted">{{ t('devices.requestedFrom') }}: {{ found.initiatorUa }}</span>
+          <span class="truncate text-muted" :title="found.initiatorUa">{{ t('devices.requestedFrom') }}: {{ found.initiatorUa }}</span>
           <span class="truncate text-muted">{{ t('devices.ipAddress') }}: {{ found.initiatorIp }}</span>
           <span v-if="fmt(found.createdAt)" class="truncate text-muted">{{ t('devices.started') }}: {{ fmt(found.createdAt) }}</span>
           <span v-if="fmt(found.expiresAt)" class="truncate text-muted">{{ t('devices.expires') }}: {{ fmt(found.expiresAt) }}</span>

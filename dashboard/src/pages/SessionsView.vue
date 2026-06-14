@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import { MonitorSmartphone } from 'lucide-vue-next'
@@ -31,23 +32,27 @@ const { busy, run, errorText } = useApi()
 const fmt = (d: string) => { const t = Date.parse(d); return Number.isNaN(t) ? '' : new Date(t).toLocaleString() }
 
 const rows = ref<SessionListItem[]>([])
+const confirmRevokeId = ref<string | null>(null)
 
 async function load(): Promise<void> {
   const res = await run(() => api.get<SessionListItem[]>('/api/prohibitorum/me/sessions'))
   if (res) rows.value = res
 }
-async function revoke(id: string): Promise<void> {
+async function revoke(): Promise<void> {
+  const id = confirmRevokeId.value
+  if (id == null) return
   const ok = await run(async () => {
     await api.post('/api/prohibitorum/me/sessions/revoke', { id })
     return true as const
   })
+  confirmRevokeId.value = null
   if (ok) await load()
 }
 onMounted(load)
 </script>
 
 <template>
-  <div class="flex max-w-2xl flex-col gap-4">
+  <div class="flex max-w-2xl flex-col gap-6">
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('sessions.title') }}</h1>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
       <AlertDescription>{{ errorText }}</AlertDescription>
@@ -58,20 +63,32 @@ onMounted(load)
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
             <div class="flex min-w-0 items-center gap-2">
-              <span class="min-w-0 truncate text-ink">{{ r.userAgent || r.lastSeenIp }}</span>
+              <span class="min-w-0 truncate text-ink" :title="r.userAgent || r.lastSeenIp">{{ r.userAgent || r.lastSeenIp }}</span>
               <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
             </div>
-            <span class="truncate text-muted">{{ t('sessions.lastSeen') }}: {{ r.lastSeenIp }}</span>
+            <span class="truncate text-muted">{{ t('sessions.lastSeen') }}: <span class="font-mono">{{ r.lastSeenIp }}</span></span>
             <span v-if="fmt(r.issuedAt)" class="truncate text-muted">{{ t('sessions.issued') }}: {{ fmt(r.issuedAt) }}</span>
             <span v-if="fmt(r.expiresAt)" class="truncate text-muted">{{ t('sessions.expires') }}: {{ fmt(r.expiresAt) }}</span>
           </div>
           <Button v-if="!r.isCurrent" variant="outline" size="sm" class="shrink-0" :disabled="busy"
-                  data-test="revoke" @click="revoke(r.id)">
+                  data-test="revoke" @click="confirmRevokeId = r.id">
             {{ t('sessions.revoke') }}
           </Button>
         </CardContent>
       </Card>
     </template>
     <EmptyState v-else-if="!errorText" :icon="MonitorSmartphone" :title="t('sessions.empty')" />
+
+    <ConfirmDialog
+      :open="confirmRevokeId !== null"
+      :title="t('sessions.revokeConfirmTitle')"
+      :confirm-label="t('sessions.revoke')"
+      :busy="busy"
+      @update:open="(v) => { if (!v) confirmRevokeId = null }"
+      @cancel="confirmRevokeId = null"
+      @confirm="revoke"
+    >
+      {{ t('sessions.revokeConfirmBody') }}
+    </ConfirmDialog>
   </div>
 </template>
