@@ -582,6 +582,7 @@ export default {
 
   security: {
     title: 'Security',
+    factorsLoadError: 'Could not load your security status. Some indicators may be missing.',
     passkeys: {
       title: 'Passkeys',
       add: 'Add passkey',
@@ -589,12 +590,13 @@ export default {
       save: 'Save',
       remove: 'Remove',
       removeTitle: 'Remove this passkey?',
-      removeBody: 'You’ll sign in with your other passkeys. This passkey will stop working on its device.',
+      removeBody: "You’ll sign in with your other passkeys. This passkey will stop working on its device.",
       created: 'Added',
       lastUsed: 'Last used',
       synced: 'Synced',
       deviceBound: 'This device',
       defaultName: 'Passkey',
+      empty: 'No passkeys yet. Add one to sign in without a password.',
     },
     password: {
       title: 'Password',
@@ -615,6 +617,7 @@ export default {
       codeLabel: 'Enter the 6-digit code to confirm',
       verify: 'Verify & enable',
       enabled: 'Authenticator enabled.',
+      cancelSetup: 'Cancel',
     },
     recovery: {
       title: 'Recovery codes',

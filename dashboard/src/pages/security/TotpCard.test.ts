@@ -28,4 +28,21 @@ describe('TotpCard', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/totp/verify', { code: '123456' })
     expect(w.text()).toContain(en.recoveryCodes.heading)
   })
+
+  it('cancel during setup returns to idle state', async () => {
+    post.mockResolvedValue({ secret_base32: 'SECRET', otpauth_uri: 'otpauth://totp/x' })
+    const w = mountCard()
+    // Start setup
+    await w.findAll('button').find((b) => b.text().includes(en.security.totp.setup))!.trigger('click')
+    await flushPromises()
+    // QR/secret should be shown
+    expect(w.find('img').exists()).toBe(true)
+    // Click cancel
+    const cancelBtn = w.findAll('button').find((b) => b.text() === en.security.totp.cancelSetup)!
+    await cancelBtn.trigger('click')
+    await flushPromises()
+    // Should be back to idle: setup button visible, no QR
+    expect(w.find('img').exists()).toBe(false)
+    expect(w.findAll('button').some((b) => b.text().includes(en.security.totp.setup))).toBe(true)
+  })
 })

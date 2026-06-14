@@ -107,11 +107,13 @@ onMounted(load)
         <AlertDescription>{{ errorText }}</AlertDescription>
       </Alert>
 
+      <p v-if="!busy && rows.length === 0 && !errorText" class="text-sm text-muted">{{ t('security.passkeys.empty') }}</p>
+
       <div v-for="c in rows" :key="c.id" class="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
         <div class="flex min-w-0 flex-col gap-1">
           <div class="flex min-w-0 items-center gap-2">
             <template v-if="editingId === c.id">
-              <Input ref="nameInput" v-model="draftName" name="nickname" class="h-8 w-48" :placeholder="displayName(c)" />
+              <Input ref="nameInput" v-model="draftName" name="nickname" class="h-8 w-48" :placeholder="displayName(c)" :aria-label="t('security.passkeys.rename')" />
               <Button type="button" size="sm" :disabled="busy" @click="saveRename(c.id)">{{ t('security.passkeys.save') }}</Button>
             </template>
             <template v-else>

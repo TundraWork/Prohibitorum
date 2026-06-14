@@ -28,12 +28,14 @@ const { busy, run, errorText } = useApi()
 const confirmOpen = ref(false)
 const { flag: done, trigger: triggerDone } = useTransientFlag()
 const factors = ref<MeFactors | null>(null)
+const factorsError = ref(false)
 
 async function loadFactors(): Promise<void> {
+  factorsError.value = false
   try {
     factors.value = await api.get<MeFactors>('/api/prohibitorum/me/factors')
   } catch {
-    // non-fatal: badges simply won't render
+    factorsError.value = true
   }
 }
 
@@ -52,6 +54,9 @@ async function revoke(): Promise<void> {
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('security.title') }}</h1>
+    <Alert v-if="factorsError" role="alert">
+      <AlertDescription>{{ t('security.factorsLoadError') }}</AlertDescription>
+    </Alert>
     <PasskeysCard />
     <PasswordCard :set="factors?.passwordSet" @changed="loadFactors" />
     <TotpCard :enrolled="factors?.totpEnrolled" @changed="loadFactors" />

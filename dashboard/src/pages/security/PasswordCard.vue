@@ -48,7 +48,8 @@ async function submit(): Promise<void> {
     <CardHeader>
       <CardTitle class="flex items-center gap-2">
         {{ t('security.password.title') }}
-        <StatusBadge v-if="props.set !== undefined" :variant="props.set ? 'success' : 'neutral'">
+        <StatusBadge v-if="props.set === undefined" variant="neutral">—</StatusBadge>
+        <StatusBadge v-else :variant="props.set ? 'success' : 'neutral'">
           {{ props.set ? t('security.factors.passwordSet') : t('security.factors.passwordUnset') }}
         </StatusBadge>
       </CardTitle>

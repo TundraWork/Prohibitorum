@@ -50,6 +50,11 @@ async function verify(): Promise<void> {
   if (r && r.recovery_codes) recovery.value = r.recovery_codes
   emit('changed')
 }
+
+function cancelSetup(): void {
+  secret.value = ''; otpauth.value = ''; code.value = ''
+  error.value = null
+}
 </script>
 
 <template>
@@ -57,7 +62,8 @@ async function verify(): Promise<void> {
     <CardHeader>
       <CardTitle class="flex items-center gap-2">
         {{ t('security.totp.title') }}
-        <StatusBadge v-if="props.enrolled !== undefined" :variant="props.enrolled ? 'success' : 'neutral'">
+        <StatusBadge v-if="props.enrolled === undefined" variant="neutral">—</StatusBadge>
+        <StatusBadge v-else :variant="props.enrolled ? 'success' : 'neutral'">
           {{ props.enrolled ? t('security.factors.totpActive') : t('security.factors.totpInactive') }}
         </StatusBadge>
       </CardTitle>
@@ -79,7 +85,10 @@ async function verify(): Promise<void> {
         <form class="flex max-w-xs flex-col gap-2" @submit.prevent="verify">
           <Label for="totp-code">{{ t('security.totp.codeLabel') }}</Label>
           <Input id="totp-code" v-model="code" name="code" inputmode="numeric" autocomplete="one-time-code" required />
-          <Button type="submit" :disabled="busy">{{ t('security.totp.verify') }}</Button>
+          <div class="flex gap-2">
+            <Button type="submit" :disabled="busy">{{ t('security.totp.verify') }}</Button>
+            <Button type="button" variant="ghost" :disabled="busy" @click="cancelSetup">{{ t('security.totp.cancelSetup') }}</Button>
+          </div>
         </form>
       </template>
 

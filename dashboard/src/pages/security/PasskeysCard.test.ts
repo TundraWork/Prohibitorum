@@ -62,4 +62,19 @@ describe('PasskeysCard', () => {
     confirmBtn.click(); await flushPromises()
     expect(w.text()).toContain(en.errors.last_passkey)
   })
+
+  it('shows empty state when loaded with no passkeys', async () => {
+    get.mockResolvedValue([])
+    const w = mountCard(); await flushPromises()
+    expect(w.text()).toContain(en.security.passkeys.empty)
+  })
+
+  it('rename input has aria-label', async () => {
+    get.mockResolvedValue(CREDS)
+    const w = mountCard(); await flushPromises()
+    const renameBtn = w.findAll('button').find((b) => b.text() === en.security.passkeys.rename)!
+    await renameBtn.trigger('click'); await flushPromises()
+    const input = w.find<HTMLInputElement>('input[name="nickname"]')
+    expect(input.attributes('aria-label')).toBe(en.security.passkeys.rename)
+  })
 })

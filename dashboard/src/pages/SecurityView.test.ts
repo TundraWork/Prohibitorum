@@ -77,6 +77,19 @@ describe('SecurityView', () => {
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/factors')
   })
 
+  it('shows a non-destructive alert when /me/factors fails', async () => {
+    // factors GET for /me/factors rejects; credentials GET returns [] for PasskeysCard
+    get.mockImplementation(async (url: string) => {
+      if (url === '/api/prohibitorum/me/factors') throw new Error('network')
+      return []
+    })
+    const w = mount(SecurityView, { global: { plugins: [i18n()] }, attachTo: document.body })
+    await flushPromises()
+    expect(w.text()).toContain(en.security.factorsLoadError)
+    // Cards should still render
+    expect(w.text()).toContain(en.security.passkeys.title)
+  })
+
   it('@changed from PasswordCard triggers re-fetch and updates badge', async () => {
     // Initial mount: password is not set
     get.mockResolvedValue(FACTORS_UNSET)
