@@ -132,7 +132,7 @@
 ---
 
 ## Review follow-ups (tracked during execution)
-- (none yet)
+- **[T3 review → fix in T5 (account) + fold into T10/T11 area]** `AdminAccountDetailView.vue` and `AdminOidcClientDetailView.vue` render the destructive error `<Alert v-if="errorText">` WITHOUT `&& !notFound`, so a 404 double-renders the Alert + the not-found message. The SAML/Upstream detail pages already use `v-if="errorText && !notFound"`. Add `&& !notFound` to both (AdminAccountDetailView in T5; AdminOidcClientDetailView opportunistically).
 
 ## Done-gate
 `CGO_ENABLED=0 go build -tags nodynamic ./...` / `go vet` / `go test ./...` (0), `vitest` green, `vue-tsc -b` (0), live smoke `SMOKE_EXIT=0`, rebuild + commit `pkg/webui/dist`.
