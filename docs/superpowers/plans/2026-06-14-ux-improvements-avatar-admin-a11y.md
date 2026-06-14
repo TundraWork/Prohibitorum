@@ -502,6 +502,11 @@ git commit -m "test(smoke): dual-source avatar round-trip (coexist + selection);
 
 **Build-sequencing note:** Task 1 intentionally leaves `go build ./...` red (only `pkg/db` green) until Tasks 2+3 migrate the callers — called out in T1 Step 4 + the commit body. T2 verifies `pkg/server`+`pkg/avatar`; T3 restores the full green build.
 
+## Review follow-ups (tracked during execution)
+
+- **[from Task 2 review → do in Task 5]** Add `avatar_source_unavailable` to `dashboard/src/locales/en.ts` `errors.*` (next to `avatar_too_large`/`avatar_invalid_image`) so the picker can show a readable error when switching to a missing source.
+- **[from Task 2 → MUST do in Task 3]** Task 2 left `pkg/federation/oidc/federation.go` `runAvatarInherit` as a COMPILE-STUB preserving the OLD single-blob semantics (it still early-returns when `avatar_source=='user'` and otherwise unconditionally activates upstream). Task 3 must REWORK it to the dual-source rule: always upsert the `upstream` row (so it's available to pick later — remove the user-skip early return), and `SetActiveAvatar('upstream')` ONLY when `avatar_source` is `NULL` or already `'upstream'` (never override `'none'`/`'user'`), keeping the etag-skip; and rewrite `federation_test.go`'s AvatarInherit tests (currently made-to-compile asserting old behavior) to the new rule.
+
 ## Done-gate
 
 `CGO_ENABLED=0 go build -tags nodynamic ./...` / `go vet` / `go test ./...` (0), `vitest` (green), `vue-tsc -b` (0), smoke `SMOKE_EXIT=0` (incl. the dual-source avatar round-trip), rebuild + commit `pkg/webui/dist`.

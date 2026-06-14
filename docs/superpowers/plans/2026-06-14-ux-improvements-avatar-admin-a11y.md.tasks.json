@@ -10,7 +10,7 @@
     {
       "id": 2,
       "subject": "Task 2: Avatar handlers + SourceURL (upload/selection/delete-fallback/?source GET)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** avatar.SourceURL; rework handle_avatar.go to dual-source: PUT upload->user+active, new PUT /me/avatar/selection, DELETE removes upload+fallback, GET serves active or ?source. Keep dbPool==nil seam + tx.\n\n```json:metadata\n{\"files\":[\"pkg/avatar/avatar.go\",\"pkg/avatar/avatar_test.go\",\"pkg/server/handle_avatar.go\",\"pkg/server/handle_avatar_test.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/avatar/ ./pkg/server/ -run Avatar -v && go build ./pkg/server/ ./pkg/avatar/\",\"acceptanceCriteria\":[\"SourceURL builds ?source=&v= URL\",\"upload->user+active; selection switch/none/400 avatar_source_unavailable; delete-upload fallback; GET active or ?source\"]}\n```"
     },
