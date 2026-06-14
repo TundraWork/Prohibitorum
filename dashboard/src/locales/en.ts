@@ -111,7 +111,7 @@ export default {
     accounts: {
       title: 'Accounts',
       invite: 'Invite',
-      colUser: 'User', colRole: 'Role', colState: 'State', colLastSeen: 'Last seen',
+      colUser: 'User', colUsername: 'Username', colRole: 'Role', colState: 'State', colLastSeen: 'Last seen',
       active: 'Active', disabled: 'Disabled',
       empty: 'No accounts yet.',
     },
@@ -119,7 +119,7 @@ export default {
       back: 'Back to accounts',
       notFound: 'That account no longer exists.',
       identityTitle: 'Identity & role',
-      username: 'Username', displayName: 'Display name', role: 'Role',
+      username: 'Username', usernameDesc: 'The immutable account handle.', displayName: 'Display name', role: 'Role',
       email: 'Email', emailPlaceholder: 'name@example.com',
       emailVerified: 'Verified', emailUnverified: 'Unverified',
       emailDesc: 'Used for the OIDC email scope. Setting it here marks it unverified; a verified address comes from an upstream identity provider.',

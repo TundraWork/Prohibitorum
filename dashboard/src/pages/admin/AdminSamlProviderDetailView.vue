@@ -158,7 +158,6 @@ onMounted(load)
       <Card>
         <CardHeader><CardTitle>{{ t('admin.saml.configTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
-          <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.saml.entityId') }}</Label>
             <p class="font-mono text-sm text-muted">{{ sp.entityId }}</p>
@@ -192,7 +191,6 @@ onMounted(load)
             <Label for="sessionLifetimeSecs">{{ t('admin.saml.sessionLifetime') }}</Label>
             <Input id="sessionLifetimeSecs" name="sessionLifetimeSecs" v-model="sessionLifetimeSecs" inputmode="numeric" />
             <p class="text-xs text-muted">{{ t('admin.saml.sessionLifetimeDesc') }}</p>
-          </div>
           </div>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.saml.save') }}</Button>

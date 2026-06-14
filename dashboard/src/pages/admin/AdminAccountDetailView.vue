@@ -180,7 +180,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/accounts" :label="t('admin.account.back')" />
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.account.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !account" />
@@ -196,7 +196,8 @@ onMounted(load)
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.account.username') }}</Label>
-            <p class="text-sm text-muted">@{{ account.username }}</p>
+            <p class="font-mono text-sm text-muted">{{ account.username }}</p>
+            <p class="text-xs text-muted">{{ t('admin.account.usernameDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.account.displayName') }}</Label>

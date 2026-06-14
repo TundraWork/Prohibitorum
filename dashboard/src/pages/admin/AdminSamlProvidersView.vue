@@ -249,8 +249,7 @@ onMounted(load)
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
-          <TableHead>{{ t('admin.saml.colEntity') }}</TableHead>
-          <TableHead>{{ t('admin.saml.colName') }}</TableHead>
+          <TableHead>{{ t('admin.saml.colName') }} · {{ t('admin.saml.colEntity') }}</TableHead>
           <TableHead>{{ t('admin.saml.colIdpInit') }}</TableHead>
         </TableRow>
       </TableHeader>
@@ -258,8 +257,12 @@ onMounted(load)
         <TableRow v-for="sp in rows" :key="sp.id" class="cursor-pointer" tabindex="0"
                   :data-test="`sp-row-${sp.id}`"
                   @click="go(sp.id)" @keydown.enter="go(sp.id)" @keydown.space.prevent="go(sp.id)">
-          <TableCell class="font-medium text-ink">{{ sp.entityId }}</TableCell>
-          <TableCell class="text-ink">{{ sp.displayName }}</TableCell>
+          <TableCell>
+            <div class="flex min-w-0 flex-col">
+              <span class="truncate font-medium text-ink">{{ sp.displayName }}</span>
+              <span class="truncate font-mono text-muted">{{ sp.entityId }}</span>
+            </div>
+          </TableCell>
           <TableCell>
             <StatusBadge :variant="sp.allowIdpInitiated ? 'success' : 'neutral'">
               {{ sp.allowIdpInitiated ? t('admin.saml.yes') : t('admin.saml.no') }}

@@ -20,6 +20,6 @@ const props = defineProps<{
     <div class="flex">
       <slot />
     </div>
-    <p v-if="description" class="text-sm text-muted">{{ description }}</p>
+    <p v-if="description" class="text-xs text-muted">{{ description }}</p>
   </div>
 </template>

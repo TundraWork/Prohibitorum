@@ -41,7 +41,7 @@ onMounted(load)
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
-          <TableHead>{{ t('admin.accounts.colUser') }}</TableHead>
+          <TableHead>{{ t('admin.accounts.colUser') }} · {{ t('admin.accounts.colUsername') }}</TableHead>
           <TableHead>{{ t('admin.accounts.colRole') }}</TableHead>
           <TableHead>{{ t('admin.accounts.colState') }}</TableHead>
           <TableHead>{{ t('admin.accounts.colLastSeen') }}</TableHead>
