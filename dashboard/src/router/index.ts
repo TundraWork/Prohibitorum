@@ -70,6 +70,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/PairDeviceView.vue'),
     meta: { public: true },
   },
+  {
+    path: '/welcome',
+    name: 'welcome',
+    component: () => import('../pages/WelcomeView.vue'),
+    meta: { public: true },
+  },
   // Authenticated dashboard shell (Spec 2a). requiresAuth → installGuard
   // redirects to /login?return_to= when not signed in.
   {

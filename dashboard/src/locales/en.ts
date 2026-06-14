@@ -414,6 +414,16 @@ export default {
     federationRedirect: 'Redirecting to your identity provider…',
   },
 
+  welcome: {
+    title: 'Confirm your account',
+    via: 'Signing in via {idp}',
+    description: 'Confirm this is the account you want to connect.',
+    fetchingAvatar: 'Setting up your profile picture...',
+    continue: 'Continue',
+    notMe: 'Not me',
+    confirmError: 'Could not confirm, please try signing in again.',
+  },
+
   confirm: {
     cancel: 'Cancel',
   },
