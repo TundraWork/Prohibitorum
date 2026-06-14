@@ -22,25 +22,31 @@ const maxAvatarFetchBytes = 5 << 20 // 5 MiB, matches pkg/avatar input cap.
 // dial-screen as the rest of federation, capped to 5 MiB. https-only; rejects
 // non-image responses. Returns raw bytes for pkg/avatar.Process.
 func fetchUpstreamAvatar(ctx context.Context, rawURL string, allowPrivate bool) ([]byte, error) {
-	if err := validateAvatarURL(rawURL); err != nil {
+	// https-only in production. allowPrivate (trusted-internal-IdP deployments +
+	// loopback-OP tests; the same flag that disables the dial-time IP screen)
+	// additionally permits http so a plaintext loopback OP can serve the picture.
+	if err := validateAvatarURL(rawURL, allowPrivate); err != nil {
 		return nil, err
 	}
-	return fetchUpstreamAvatarWithClient(ctx, rawURL, hardenedHTTPClient(allowPrivate, maxAvatarFetchBytes))
+	return fetchUpstreamAvatarWithClient(ctx, rawURL, hardenedHTTPClient(allowPrivate, maxAvatarFetchBytes), allowPrivate)
 }
 
-func validateAvatarURL(rawURL string) error {
+func validateAvatarURL(rawURL string, allowPrivate bool) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("federation/oidc: avatar url parse: %w", err)
 	}
-	if u.Scheme != "https" {
-		return fmt.Errorf("federation/oidc: avatar url must be https, got %q", u.Scheme)
+	if u.Scheme == "https" {
+		return nil
 	}
-	return nil
+	if u.Scheme == "http" && allowPrivate {
+		return nil
+	}
+	return fmt.Errorf("federation/oidc: avatar url must be https, got %q", u.Scheme)
 }
 
-func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *http.Client) ([]byte, error) {
-	if err := validateAvatarURL(rawURL); err != nil {
+func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *http.Client, allowPrivate bool) ([]byte, error) {
+	if err := validateAvatarURL(rawURL, allowPrivate); err != nil {
 		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)

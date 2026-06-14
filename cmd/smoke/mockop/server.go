@@ -22,12 +22,16 @@
 package mockop
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -81,6 +85,11 @@ type Server struct {
 	nextError      *errorParams
 	issuerOverride string
 
+	// userinfoPicture, when non-empty, is returned ONLY from /userinfo (never
+	// in the id_token). SetPictureUserInfoOnly sets it AND clears the id_token
+	// picture so the RP must fall back to UserInfo to discover the avatar.
+	userinfoPicture string
+
 	// Per-code state, keyed by the authorization code.
 	codes map[string]codeState
 }
@@ -115,6 +124,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/token", s.handleToken)
 	mux.HandleFunc("/jwks", s.handleJWKS)
 	mux.HandleFunc("/userinfo", s.handleUserinfo)
+	mux.HandleFunc("/avatar.png", s.handleAvatarPNG)
 	return mux
 }
 
@@ -147,10 +157,32 @@ func (s *Server) SetClaims(sub, email string, emailVerified bool, preferredUsern
 
 // SetPicture sets the picture claim to include in the next ID token. Persists
 // across calls until replaced. Pass "" to clear (no picture claim emitted).
+// Also clears any userinfo-only picture so the two knobs don't fight.
 func (s *Server) SetPicture(picture string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextClaims.Picture = picture
+	s.userinfoPicture = ""
+}
+
+// SetPictureUserInfoOnly arranges for the picture claim to appear ONLY in the
+// /userinfo response, never in the id_token. This forces the RP's avatar-inherit
+// path down the UserInfo fallback branch. Clears the id_token picture. Pass ""
+// to clear the userinfo picture too.
+func (s *Server) SetPictureUserInfoOnly(picture string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextClaims.Picture = ""
+	s.userinfoPicture = picture
+}
+
+// PictureURL returns the absolute URL of the small PNG this mock OP serves at
+// /avatar.png. Use it as the value passed to SetPicture / SetPictureUserInfoOnly
+// so the RP fetches a real image during avatar inheritance.
+func (s *Server) PictureURL() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.base + "/avatar.png"
 }
 
 // SetAMR sets the amr claim added to the next ID token. Passing nil clears
@@ -229,15 +261,55 @@ func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(jwks)
 }
 
-// handleUserinfo is a stub: this fixture mints all needed claims into the
-// id_token, so the RP under test should never need to call /userinfo. We
-// advertise the endpoint in discovery (zitadel/oidc/v3 may derive its URL
-// from there) but return 501 if anyone actually hits it, which surfaces an
-// unexpected call loudly instead of silently failing later.
+// handleUserinfo returns the current active claims as an OIDC UserInfo document.
+// The mock OP issues opaque (non-introspectable) access tokens, so this endpoint
+// does not validate the Bearer token; it simply mirrors the latest SetClaims
+// snapshot. The "sub" MUST equal the id_token subject (the RP's UserInfo client
+// rejects a sub mismatch), which holds because the avatar-inherit fetch races
+// ahead of the next SetClaims call. The "picture" field reflects whichever
+// picture knob is active: SetPicture (also in id_token) or SetPictureUserInfoOnly
+// (userinfo only).
 func (s *Server) handleUserinfo(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	cl := s.nextClaims
+	uiPic := s.userinfoPicture
+	s.mu.Unlock()
+
+	doc := map[string]any{
+		"sub":                cl.Sub,
+		"name":               cl.Name,
+		"email":              cl.Email,
+		"email_verified":     cl.EmailVerified,
+		"preferred_username": cl.PreferredUsername,
+	}
+	switch {
+	case uiPic != "":
+		doc["picture"] = uiPic
+	case cl.Picture != "":
+		doc["picture"] = cl.Picture
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
-	_, _ = w.Write([]byte(`{"error":"userinfo_not_implemented"}`))
+	_ = json.NewEncoder(w).Encode(doc)
+}
+
+// handleAvatarPNG serves a small, valid PNG so the RP's avatar-inherit fetch has
+// a real image to normalize. A 16×16 solid-colour RGBA bitmap is plenty for
+// pkg/avatar.Process (which re-encodes to a 512 WebP) — the exact pixels don't
+// matter, only that the bytes decode as a real image.
+func (s *Server) handleAvatarPNG(w http.ResponseWriter, r *http.Request) {
+	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			img.Set(x, y, color.RGBA{R: 0x33, G: 0x88, B: 0xcc, A: 0xff})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		http.Error(w, "encode", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	_, _ = w.Write(buf.Bytes())
 }
 
 func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {

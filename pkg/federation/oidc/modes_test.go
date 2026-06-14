@@ -990,6 +990,28 @@ func TestApplyInviteOnly_Confirmed(t *testing.T) {
 	}
 }
 
+// TestApplyInviteOnly_ConfirmFails asserts that when the in-tx
+// ConfirmAccountIdentity fails (e.g. the DB went away mid-redemption), the whole
+// invite redemption aborts with a non-nil (wrapped) error rather than silently
+// issuing an unconfirmed identity. The invite IS the authorization, so a failed
+// confirm must roll the redemption back (the real handler runs applyInviteOnly
+// inside a tx; this exercises the error-propagation seam).
+func TestApplyInviteOnly_ConfirmFails(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice Inv", "user", nil)
+	q.confirmIdentityErr = errors.New("db down")
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+
+	_, err := federationoidc.ApplyInviteOnlyForTest(
+		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
+	)
+	if err == nil {
+		t.Fatal("want a non-nil error when ConfirmAccountIdentity fails")
+	}
+}
+
 func TestResolve_NilArgs(t *testing.T) {
 	if _, err := federationoidc.Resolve(context.Background(), newFakeModesQueries(), &recordingAudit{}, nil, goodTokens(), nil); err == nil {
 		t.Fatal("want error for nil idp")

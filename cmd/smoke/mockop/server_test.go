@@ -1,9 +1,11 @@
 package mockop
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -454,20 +456,102 @@ func TestMockOP_OverrideIssuerEndsUpInIDToken(t *testing.T) {
 	}
 }
 
-func TestMockOP_UserinfoStubReturns501(t *testing.T) {
+func TestMockOP_UserinfoReturnsActiveClaims(t *testing.T) {
 	h := newHarness(t)
+	h.s.SetClaims("sub-ui", "ui@example.com", true, "uiuser", "UI User")
 
 	resp, err := http.Get(h.ts.URL + "/userinfo")
 	if err != nil {
 		t.Fatalf("GET /userinfo: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("userinfo status = %d, want 501", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("userinfo status = %d, want 200", resp.StatusCode)
+	}
+	var doc map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		t.Fatalf("userinfo json: %v", err)
+	}
+	if got := doc["sub"]; got != "sub-ui" {
+		t.Errorf("userinfo sub = %v, want sub-ui", got)
+	}
+	if got := doc["preferred_username"]; got != "uiuser" {
+		t.Errorf("userinfo preferred_username = %v, want uiuser", got)
+	}
+	if got := doc["name"]; got != "UI User" {
+		t.Errorf("userinfo name = %v, want UI User", got)
+	}
+	if got := doc["email"]; got != "ui@example.com" {
+		t.Errorf("userinfo email = %v, want ui@example.com", got)
+	}
+	if _, present := doc["picture"]; present {
+		t.Errorf("userinfo should omit picture when none is set; got %v", doc["picture"])
+	}
+}
+
+// TestMockOP_UserinfoOnlyPicture verifies SetPictureUserInfoOnly: the picture
+// claim appears in /userinfo but NOT the id_token, so the RP must fall back to
+// UserInfo to discover the avatar.
+func TestMockOP_UserinfoOnlyPicture(t *testing.T) {
+	h := newHarness(t)
+	h.s.SetClaims("sub-uip", "uip@example.com", true, "uipuser", "UIP User")
+	h.s.SetPictureUserInfoOnly(h.s.PictureURL())
+
+	// /userinfo carries the picture.
+	resp, err := http.Get(h.ts.URL + "/userinfo")
+	if err != nil {
+		t.Fatalf("GET /userinfo: %v", err)
+	}
+	defer resp.Body.Close()
+	var doc map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		t.Fatalf("userinfo json: %v", err)
+	}
+	if got, want := doc["picture"], h.ts.URL+"/avatar.png"; got != want {
+		t.Errorf("userinfo picture = %v, want %v", got, want)
+	}
+
+	// The id_token must NOT carry the picture (drive a full authorize+token).
+	loc, verifier := driveAuthorize(t, h, "c1", "https://rp.example/cb", "st", "nc")
+	code := loc.Query().Get("code")
+	tr, err := http.PostForm(h.ts.URL+"/token", url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"code_verifier": {verifier},
+	})
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	defer tr.Body.Close()
+	var tok struct {
+		IDToken string `json:"id_token"`
+	}
+	if err := json.NewDecoder(tr.Body).Decode(&tok); err != nil {
+		t.Fatalf("token json: %v", err)
+	}
+	_, claims := decodeJWT(t, tok.IDToken)
+	if _, present := claims["picture"]; present {
+		t.Errorf("id_token must NOT carry picture under SetPictureUserInfoOnly; got %v", claims["picture"])
+	}
+}
+
+// TestMockOP_AvatarPNG verifies the /avatar.png endpoint returns a real PNG.
+func TestMockOP_AvatarPNG(t *testing.T) {
+	h := newHarness(t)
+	resp, err := http.Get(h.s.PictureURL())
+	if err != nil {
+		t.Fatalf("GET /avatar.png: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("avatar.png status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "image/png" {
+		t.Errorf("avatar.png content-type = %q, want image/png", ct)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "userinfo_not_implemented") {
-		t.Errorf("body = %q, want it to contain userinfo_not_implemented", string(body))
+	if _, err := png.Decode(bytes.NewReader(body)); err != nil {
+		t.Errorf("avatar.png body is not a valid PNG: %v", err)
 	}
 }
 

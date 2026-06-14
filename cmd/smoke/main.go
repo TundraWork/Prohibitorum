@@ -650,19 +650,47 @@ func main() {
 	}
 	log.Printf("  302 to RP /callback (with code, state, iss)")
 
-	step(fmt.Sprintf("step 49/%d — RP /callback → 302 /me + session cookie", totalV03))
+	step(fmt.Sprintf("step 49/%d — RP /callback (first login) → 302 /welcome, NO session", totalV03))
+	// First-time federated identity is UNCONFIRMED: the callback withholds the
+	// durable session and parks the browser on /welcome with a fed-state
+	// confirmation-grant cookie. There must be no session yet.
 	if loc, err := extClient.getRedirectAbs(callbackURL); err != nil {
 		log.Fatalf("federation/callback: %v", err)
-	} else if loc != "/me" {
-		log.Fatalf("federation/callback: want redirect to /me, got %q", loc)
+	} else if loc != "/welcome" {
+		log.Fatalf("federation/callback: want redirect to /welcome (unconfirmed first login), got %q", loc)
+	}
+	if _, err := extClient.getMe(); err == nil {
+		log.Fatalf("federation/callback: session issued before confirmation; /me should 401 pre-confirm")
+	}
+	log.Printf("  302 to /welcome; no session cookie yet (post-callback /me 401) ✓")
+
+	step(fmt.Sprintf("step 49b/%d — GET /auth/federation/confirm → pending identity (grant-scoped)", totalV03))
+	view, err := extClient.confirmGet()
+	if err != nil {
+		log.Fatalf("federation/confirm GET: %v", err)
+	}
+	if view.Username != "extuser" {
+		log.Fatalf("confirm GET username: got %q want %q", view.Username, "extuser")
+	}
+	if view.DisplayName != "Ext User" {
+		log.Fatalf("confirm GET displayName: got %q want %q", view.DisplayName, "Ext User")
+	}
+	log.Printf("  confirm GET: idp=%q username=%s displayName=%s avatarPending=%v ✓",
+		view.IDPDisplayName, view.Username, view.DisplayName, view.AvatarPending)
+
+	step(fmt.Sprintf("step 49c/%d — POST /auth/federation/confirm → {redirect:/me} + session", totalV03))
+	if redirect, err := extClient.confirmPost(); err != nil {
+		log.Fatalf("federation/confirm POST: %v", err)
+	} else if redirect != "/me" {
+		log.Fatalf("federation/confirm POST: want redirect /me, got %q", redirect)
 	}
 	// The session cookie is Path=/, so the jar sends it to every endpoint.
 	// Verify session presence by hitting an API endpoint — if the cookie
 	// weren't set, /me would 401.
 	if _, err := extClient.getMe(); err != nil {
-		log.Fatalf("federation/callback: no session cookie (post-callback /me failed: %v)", err)
+		log.Fatalf("federation/confirm: no session cookie post-confirm (/me failed: %v)", err)
 	}
-	log.Printf("  session cookie issued (verified via /me)")
+	log.Printf("  confirm POST → /me; session cookie issued (verified via /me) ✓")
 
 	step(fmt.Sprintf("step 50/%d — GET /me as federated user", totalV03))
 	extMe, err := extClient.getMe()
@@ -985,6 +1013,185 @@ func main() {
 	step(fmt.Sprintf("step 69/%d — DB assert: credential_event covers v0.3 federation lifecycle", totalV03))
 	if err := verifyV03FederationAuditEvents(); err != nil {
 		log.Fatalf("v0.3 federation audit DB assert: %v", err)
+	}
+
+	// =========================================================================
+	// Upstream avatar inheritance over federation (Tasks 1–10): a first-time
+	// federated login now inherits the upstream `picture` into the account
+	// avatar via a BACKGROUND goroutine, unless the user uploaded their own.
+	// Three cases, all against the auto_provision `mockop` IdP seeded at step 46:
+	//
+	//   avatar-fed 1 — picture in the id_token → inherited (poll until stored).
+	//   avatar-fed 2 — no-clobber: a user upload survives an upstream re-login.
+	//   avatar-fed 3 — userinfo fallback: picture only in /userinfo → inherited.
+	//
+	// The avatar fetch hits the mockop /avatar.png image endpoint (Part B) and
+	// is SSRF-allowed because mockop is on 127.0.0.1 and the server runs with
+	// PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK=true.
+	// =========================================================================
+
+	step("avatar-fed 1/3 — federated first login inherits upstream id_token picture")
+	{
+		const avSub = "ext-avatar-1"
+		opSrv.SetClaims(avSub, "ext-avatar-1@example.com", true, "extavatar1", "Ext Avatar One")
+		opSrv.SetPicture(opSrv.PictureURL()) // picture in id_token, pointing at the mockop image
+		avClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("avatar-fed: client: %v", err)
+		}
+		// First login → /welcome → confirm → session (the confirm flow from C0).
+		if err := driveFederationToWelcome(avClient, *baseURL, "mockop"); err != nil {
+			log.Fatalf("avatar-fed: drive to /welcome: %v", err)
+		}
+		if _, err := avClient.confirmGet(); err != nil {
+			log.Fatalf("avatar-fed: confirm GET: %v", err)
+		}
+		if redirect, err := avClient.confirmPost(); err != nil {
+			log.Fatalf("avatar-fed: confirm POST: %v", err)
+		} else if redirect != "/me" {
+			log.Fatalf("avatar-fed: confirm redirect want /me, got %q", redirect)
+		}
+		avMe, err := avClient.getMe()
+		if err != nil {
+			log.Fatalf("avatar-fed: /me: %v", err)
+		}
+		avSubject, err := getOIDCSubject(avMe.ID)
+		if err != nil {
+			log.Fatalf("avatar-fed: oidc_subject: %v", err)
+		}
+		// The avatar fetch is a background goroutine — poll the public endpoint
+		// until the WebP appears (never assume it's instant).
+		n, etag, err := pollAvatarInherited(*baseURL, avSubject, 10*time.Second)
+		if err != nil {
+			log.Fatalf("avatar-fed: %v", err)
+		}
+		log.Printf("  GET /avatar/%s → 200 image/webp etag=%s body=%d bytes (inherited from upstream) ✓",
+			avSubject, etag, n)
+		// Bonus: /me should now surface a non-null avatarUrl.
+		avMe2, err := avClient.getMe()
+		if err != nil {
+			log.Fatalf("avatar-fed: /me post-inherit: %v", err)
+		}
+		if avMe2.AvatarURL == nil {
+			log.Fatalf("avatar-fed: /me.avatarUrl is null after upstream inherit")
+		}
+		log.Printf("  /me.avatarUrl=%q ✓", *avMe2.AvatarURL)
+
+		// avatar-fed 2/3 — no-clobber: a user upload must survive an upstream
+		// re-login with a different picture. Re-use this confirmed account.
+		step("avatar-fed 2/3 — user upload survives an upstream re-login (no clobber)")
+		var pngBuf bytes.Buffer
+		{
+			img := image.NewRGBA(image.Rect(0, 0, 8, 8))
+			if err := png.Encode(&pngBuf, img); err != nil {
+				log.Fatalf("avatar-fed: encode user PNG: %v", err)
+			}
+		}
+		{
+			req, err := http.NewRequest(http.MethodPut,
+				*baseURL+"/api/prohibitorum/me/avatar", bytes.NewReader(pngBuf.Bytes()))
+			if err != nil {
+				log.Fatalf("avatar-fed: build PUT: %v", err)
+			}
+			req.Header.Set("Content-Type", "image/png")
+			for _, ck := range avClient.cookies() {
+				req.AddCookie(ck)
+			}
+			resp, err := avClient.hc.Do(req)
+			if err != nil {
+				log.Fatalf("avatar-fed: PUT /me/avatar: %v", err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("avatar-fed: PUT /me/avatar: want 204, got %d (%s)", resp.StatusCode, body)
+			}
+		}
+		// Snapshot avatar_source/etag after the user upload.
+		srcAfterUpload, etagAfterUpload, err := getAvatarSourceEtag(avMe.ID)
+		if err != nil {
+			log.Fatalf("avatar-fed: read source/etag post-upload: %v", err)
+		}
+		if srcAfterUpload != "user" {
+			log.Fatalf("avatar-fed: avatar_source after user upload want 'user', got %q", srcAfterUpload)
+		}
+		log.Printf("  user upload set avatar_source=user etag=%s", etagAfterUpload)
+
+		// Log out, change the upstream picture, re-login (confirmed → straight to
+		// /me, no /welcome), then give the background job a chance to run.
+		if err := avClient.logout(); err != nil {
+			log.Fatalf("avatar-fed: logout pre-reclaim: %v", err)
+		}
+		opSrv.SetClaims(avSub, "ext-avatar-1@example.com", true, "extavatar1", "Ext Avatar One")
+		opSrv.SetPicture(opSrv.PictureURL())
+		if err := driveFederationLogin(avClient, *baseURL, "mockop", "/me"); err != nil {
+			log.Fatalf("avatar-fed: re-login (confirmed) failed: %v", err)
+		}
+		// Poll the avatar status until the background job (if it ran) settles, then
+		// assert the user avatar is UNCHANGED.
+		for i := 0; i < 25; i++ {
+			var st struct {
+				Pending bool `json:"pending"`
+			}
+			if err := avClient.get("/api/prohibitorum/me/avatar/status", &st); err == nil && !st.Pending {
+				break
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		// A short settle so any (incorrect) clobber would have landed.
+		time.Sleep(500 * time.Millisecond)
+		srcAfter, etagAfter, err := getAvatarSourceEtag(avMe.ID)
+		if err != nil {
+			log.Fatalf("avatar-fed: read source/etag post-relogin: %v", err)
+		}
+		if srcAfter != "user" {
+			log.Fatalf("avatar-fed: NO-CLOBBER VIOLATED — avatar_source changed to %q after upstream re-login", srcAfter)
+		}
+		if etagAfter != etagAfterUpload {
+			log.Fatalf("avatar-fed: NO-CLOBBER VIOLATED — avatar_etag changed (%q → %q) after upstream re-login",
+				etagAfterUpload, etagAfter)
+		}
+		log.Printf("  avatar_source still 'user', etag unchanged (%s) after upstream re-login ✓", etagAfter)
+	}
+
+	step("avatar-fed 3/3 — userinfo fallback: picture only in /userinfo is still inherited")
+	{
+		const avSub = "ext-avatar-ui-1"
+		opSrv.SetClaims(avSub, "ext-avatar-ui-1@example.com", true, "extavatarui1", "Ext Avatar UI")
+		// Picture appears ONLY in /userinfo — the id_token omits it, forcing the
+		// RP's avatar-inherit path down the UserInfo fallback branch.
+		opSrv.SetPictureUserInfoOnly(opSrv.PictureURL())
+		uiClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("avatar-fed ui: client: %v", err)
+		}
+		if err := driveFederationToWelcome(uiClient, *baseURL, "mockop"); err != nil {
+			log.Fatalf("avatar-fed ui: drive to /welcome: %v", err)
+		}
+		if _, err := uiClient.confirmGet(); err != nil {
+			log.Fatalf("avatar-fed ui: confirm GET: %v", err)
+		}
+		if redirect, err := uiClient.confirmPost(); err != nil {
+			log.Fatalf("avatar-fed ui: confirm POST: %v", err)
+		} else if redirect != "/me" {
+			log.Fatalf("avatar-fed ui: confirm redirect want /me, got %q", redirect)
+		}
+		uiMe, err := uiClient.getMe()
+		if err != nil {
+			log.Fatalf("avatar-fed ui: /me: %v", err)
+		}
+		uiSubject, err := getOIDCSubject(uiMe.ID)
+		if err != nil {
+			log.Fatalf("avatar-fed ui: oidc_subject: %v", err)
+		}
+		n, etag, err := pollAvatarInherited(*baseURL, uiSubject, 10*time.Second)
+		if err != nil {
+			log.Fatalf("avatar-fed ui: %v (proves the UserInfo fallback did NOT run)", err)
+		}
+		log.Printf("  GET /avatar/%s → 200 image/webp etag=%s body=%d bytes (inherited via UserInfo fallback) ✓",
+			uiSubject, etag, n)
+		// Reset the picture knobs so they don't bleed into later mockop uses.
+		opSrv.SetPicture("")
 	}
 
 	// =========================================================================
@@ -3351,7 +3558,7 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed 1-3 (federated first-login confirm gate at /welcome → upstream picture inherited via background job, no-clobber of a user upload on re-login, UserInfo-fallback inherit) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -4599,6 +4806,72 @@ func expectFederationCallbackError(c *client, baseURL, slug string, wantStatus i
 	return nil
 }
 
+// federationConfirmView mirrors contract.FederationConfirmView — the projection
+// the /welcome confirm GET returns for a pending first-time federated identity.
+type federationConfirmView struct {
+	IDPDisplayName string  `json:"idpDisplayName"`
+	DisplayName    string  `json:"displayName"`
+	Username       string  `json:"username"`
+	Email          string  `json:"email"`
+	AvatarURL      *string `json:"avatarUrl,omitempty"`
+	AvatarPending  bool    `json:"avatarPending"`
+}
+
+// confirmGet drives GET /api/prohibitorum/auth/federation/confirm — the
+// grant-scoped peek the /welcome page makes to render the pending identity.
+// The fed-state (confirmation-grant) cookie must already be in c's jar (set by
+// the callback 302). No session is required or issued.
+func (c *client) confirmGet() (*federationConfirmView, error) {
+	var v federationConfirmView
+	if err := c.get("/api/prohibitorum/auth/federation/confirm", &v); err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
+// confirmPost drives POST /api/prohibitorum/auth/federation/confirm — the YES
+// click: single-use-consumes the grant, stamps confirmed_at, and issues the
+// durable session cookie. Returns the {redirect} the server hands back.
+func (c *client) confirmPost() (string, error) {
+	var out struct {
+		Redirect string `json:"redirect"`
+	}
+	if err := c.postJSON("/api/prohibitorum/auth/federation/confirm", map[string]any{}, &out); err != nil {
+		return "", err
+	}
+	return out.Redirect, nil
+}
+
+// driveFederationToWelcome runs /federation/{slug}/login → upstream /authorize →
+// RP /callback for a FIRST-TIME (unconfirmed) federated identity and asserts the
+// callback 302s to /welcome with NO session issued (post-callback getMe must
+// fail). The fed-state confirmation-grant cookie is left in c's jar so a
+// subsequent confirmGet/confirmPost can complete the ceremony. The mockop
+// *server* claims must already be set by the caller.
+func driveFederationToWelcome(c *client, baseURL, slug string) error {
+	loginPath := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", slug)
+	authorizeURL, err := c.getRedirect(loginPath)
+	if err != nil {
+		return fmt.Errorf("login: %w", err)
+	}
+	callbackURL, err := followMockOPAuthorize(authorizeURL)
+	if err != nil {
+		return fmt.Errorf("authorize: %w", err)
+	}
+	loc, err := c.getRedirectAbs(callbackURL)
+	if err != nil {
+		return fmt.Errorf("callback: %w", err)
+	}
+	if loc != "/welcome" {
+		return fmt.Errorf("callback: want redirect to /welcome (unconfirmed first login), got %q", loc)
+	}
+	// The callback must NOT have issued a session for an unconfirmed identity.
+	if _, err := c.getMe(); err == nil {
+		return errors.New("callback issued a session before confirmation; /me should 401 pre-confirm")
+	}
+	return nil
+}
+
 // (*client).listMyIdentities calls GET /api/prohibitorum/me/identities and
 // decodes the JSON array of federation identities.
 func (c *client) listMyIdentities() ([]federationIdentity, error) {
@@ -4747,6 +5020,70 @@ func verifyFederatedIdentityGone(accountID int32, upstreamSub string) error {
 	}
 	log.Printf("  account_identity[%s] for account %d is gone ✓", upstreamSub, accountID)
 	return nil
+}
+
+// getOIDCSubject reads the account.oidc_subject UUID for accountID. This is the
+// path segment the public avatar endpoint GET /avatar/{subject} keys on, so the
+// avatar smoke steps use it to poll for the inherited image.
+func getOIDCSubject(accountID int32) (string, error) {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	rows, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT oidc_subject::text FROM account WHERE id=%d", accountID))
+	if err != nil {
+		return "", err
+	}
+	if len(rows) != 1 || rows[0] == "" {
+		return "", fmt.Errorf("oidc_subject for account %d: got %v", accountID, rows)
+	}
+	return rows[0], nil
+}
+
+// getAvatarSourceEtag reads (avatar_source, avatar_etag) for accountID. Used by
+// the no-clobber assertion to prove a user-uploaded avatar survives an upstream
+// re-login. NULL columns come back as empty strings.
+func getAvatarSourceEtag(accountID int32) (source, etag string, err error) {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	rows, err := psqlScalar(dburl, fmt.Sprintf(
+		"SELECT coalesce(avatar_source,'') || '|' || coalesce(avatar_etag,'') "+
+			"FROM account WHERE id=%d", accountID))
+	if err != nil {
+		return "", "", err
+	}
+	if len(rows) != 1 {
+		return "", "", fmt.Errorf("avatar_source/etag for account %d: got %v", accountID, rows)
+	}
+	parts := strings.SplitN(rows[0], "|", 2)
+	source = parts[0]
+	if len(parts) == 2 {
+		etag = parts[1]
+	}
+	return source, etag, nil
+}
+
+// pollAvatarInherited polls GET /avatar/{subject} until it returns 200 with a
+// Content-Type of image/webp (the background avatar-inherit goroutine has
+// stored the upstream image) or the timeout elapses. Returns the response body
+// length + ETag on success.
+func pollAvatarInherited(baseURL, subject string, timeout time.Duration) (int, string, error) {
+	deadline := time.Now().Add(timeout)
+	var lastStatus int
+	var lastCT string
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(baseURL + "/avatar/" + subject)
+		if err != nil {
+			return 0, "", err
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		lastStatus = resp.StatusCode
+		lastCT = resp.Header.Get("Content-Type")
+		if resp.StatusCode == http.StatusOK && strings.HasPrefix(lastCT, "image/webp") && len(body) > 0 {
+			return len(body), resp.Header.Get("ETag"), nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return 0, "", fmt.Errorf("avatar never appeared for subject %s within %s (last status=%d ct=%q)",
+		subject, timeout, lastStatus, lastCT)
 }
 
 // verifyV03FederationAuditEvents asserts credential_event has lower-bound
