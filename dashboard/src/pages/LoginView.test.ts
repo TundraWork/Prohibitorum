@@ -47,6 +47,32 @@ beforeEach(() => {
 })
 
 describe('LoginView', () => {
+  it('shows a skeleton while the status check is in flight, then renders methods', async () => {
+    let resolveStatus!: (v: { bootstrapped: boolean }) => void
+    get.mockImplementation((path: string) => {
+      if (path === '/api/prohibitorum/auth/status') return new Promise((r) => { resolveStatus = r })
+      if (path === '/api/prohibitorum/auth/federation') return Promise.resolve([])
+      return Promise.reject(new Error(`unexpected GET ${path}`))
+    })
+    const wrapper = mountView()
+    // Before status resolves: skeleton visible, passkey button absent.
+    const skeletonBefore = wrapper.find('[role="status"][aria-busy="true"]')
+    expect(skeletonBefore.exists(), 'skeleton present while checking').toBe(true)
+    expect(
+      wrapper.findAll('button').find((b) => b.text().includes(en.login.passkeyButton)),
+      'passkey button absent while checking',
+    ).toBeFalsy()
+    // Resolve status — skeleton should disappear, methods appear.
+    resolveStatus({ bootstrapped: true })
+    await flushPromises()
+    const skeletonAfter = wrapper.find('[role="status"][aria-busy="true"]')
+    expect(skeletonAfter.exists(), 'skeleton gone after check').toBe(false)
+    expect(
+      wrapper.findAll('button').find((b) => b.text().includes(en.login.passkeyButton)),
+      'passkey button visible after check',
+    ).toBeTruthy()
+  })
+
   it('completes a passkey login and navigates to the guarded return_to', async () => {
     get.mockImplementation(async (path: string) => {
       if (path === '/api/prohibitorum/auth/status') return { bootstrapped: true }

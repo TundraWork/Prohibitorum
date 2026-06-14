@@ -112,7 +112,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
         />
         <span
           v-if="!settled"
-          class="absolute inset-0 flex items-center justify-center rounded-md bg-black/40"
+          class="absolute inset-0 flex items-center justify-center rounded-full bg-black/40"
           role="status"
           :aria-label="t('welcome.fetchingAvatar')"
         >

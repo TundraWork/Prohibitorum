@@ -14,7 +14,7 @@
  * post_logout_redirect_uri + id_token_hint), this landing would branch on it;
  * until then there is only the local "signed out" terminal state.
  */
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
@@ -24,6 +24,10 @@ import { Button } from '@/components/ui/button'
 const { t } = useI18n()
 const auth = useAuthStore()
 
+// True while the logout POST is in flight — disables the "Sign in again" button
+// so the user cannot navigate away before the session is cleared.
+const loggingOut = ref(true)
+
 onMounted(async () => {
   try {
     await api.post('/api/prohibitorum/auth/logout')
@@ -31,6 +35,7 @@ onMounted(async () => {
     // Already signed out / network hiccup — the landing is terminal either way.
   } finally {
     auth.clear()
+    loggingOut.value = false
   }
 })
 </script>
@@ -43,8 +48,8 @@ onMounted(async () => {
 
     <div class="flex flex-col items-center gap-6 text-center">
       <p class="text-sm text-muted">{{ t('logout.message') }}</p>
-      <Button as-child class="w-full">
-        <RouterLink to="/login">{{ t('logout.signInAgain') }}</RouterLink>
+      <Button as-child class="w-full" :class="{ 'pointer-events-none opacity-50': loggingOut }">
+        <RouterLink to="/login" :aria-disabled="loggingOut" :tabindex="loggingOut ? -1 : undefined">{{ t('logout.signInAgain') }}</RouterLink>
       </Button>
     </div>
   </CenteredLayout>

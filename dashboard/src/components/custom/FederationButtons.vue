@@ -20,6 +20,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useReturnTo } from '@/composables/useReturnTo'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import OrDivider from '@/components/custom/OrDivider.vue'
 
 interface FederationProvider {
@@ -31,6 +32,7 @@ const { t } = useI18n()
 const { returnTo } = useReturnTo()
 
 const providers = ref<FederationProvider[]>([])
+const loading = ref(true)
 
 onMounted(async () => {
   try {
@@ -38,6 +40,8 @@ onMounted(async () => {
   } catch {
     // Optional path — leave the list empty and render nothing.
     providers.value = []
+  } finally {
+    loading.value = false
   }
 })
 
@@ -50,7 +54,13 @@ function startFederation(slug: string): void {
 </script>
 
 <template>
-  <div v-if="providers.length" class="flex flex-col gap-4">
+  <!-- While loading: show ghost placeholders so the layout doesn't jump -->
+  <div v-if="loading" class="flex flex-col gap-2" role="status" aria-busy="true">
+    <Skeleton class="h-9 w-full rounded-md" />
+    <Skeleton class="h-9 w-full rounded-md" />
+  </div>
+
+  <div v-else-if="providers.length" class="flex flex-col gap-4">
     <OrDivider :label="t('login.orDivider')" />
     <p class="text-center text-sm text-muted">{{ t('login.federationHeading') }}</p>
     <div class="flex flex-col gap-2">

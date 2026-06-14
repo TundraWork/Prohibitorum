@@ -42,6 +42,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import CodeField from '@/components/custom/CodeField.vue'
 
 interface EnrollmentTarget {
   username: string
@@ -177,6 +178,7 @@ async function enroll(): Promise<void> {
             spellcheck="false"
             required
           />
+          <p class="text-xs text-muted">{{ t('enroll.usernameDesc') }}</p>
         </div>
         <div class="flex flex-col gap-1.5">
           <Label for="enroll-displayname">{{ t('enroll.displayNameLabel') }}</Label>
@@ -188,13 +190,17 @@ async function enroll(): Promise<void> {
             autocomplete="name"
             required
           />
+          <p class="text-xs text-muted">{{ t('enroll.displayNameDesc') }}</p>
         </div>
       </template>
 
-      <!-- reset: identity is fixed, show the target -->
-      <p v-else-if="preview.target" class="text-center text-sm text-muted">
-        {{ t('enroll.targetAccount', { username: preview.target.username }) }}
-      </p>
+      <!-- reset: identity is fixed, show the target as a read-only identifier -->
+      <template v-else-if="preview.target">
+        <div class="flex flex-col gap-1.5">
+          <Label>{{ t('enroll.targetAccountLabel') }}</Label>
+          <CodeField :value="t('enroll.targetAccount', { username: preview.target.username })" />
+        </div>
+      </template>
 
       <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
         <AlertDescription>{{ errorText }}</AlertDescription>

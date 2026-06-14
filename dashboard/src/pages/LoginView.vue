@@ -20,6 +20,7 @@ import PasskeyButton from '@/components/custom/PasskeyButton.vue'
 import PasswordTotpForm from '@/components/custom/PasswordTotpForm.vue'
 import FederationButtons from '@/components/custom/FederationButtons.vue'
 import OrDivider from '@/components/custom/OrDivider.vue'
+import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 
 const { t } = useI18n()
 const { goReturnTo } = useReturnTo()
@@ -27,6 +28,9 @@ const { goReturnTo } = useReturnTo()
 // Default to bootstrapped (show the sign-in methods); flip to the instruction
 // only when /auth/status explicitly says no admin exists.
 const bootstrapped = ref(true)
+// True while the status check is in flight — hides the auth-method section
+// until we know which methods to render, preventing a visible flash.
+const checking = ref(true)
 
 onMounted(async () => {
   try {
@@ -35,6 +39,8 @@ onMounted(async () => {
   } catch {
     // If status can't be read, fail open to the sign-in methods.
     bootstrapped.value = true
+  } finally {
+    checking.value = false
   }
 })
 
@@ -50,7 +56,10 @@ function onSuccess(): void {
     </template>
 
     <div class="flex flex-col gap-6">
-      <template v-if="bootstrapped">
+      <template v-if="checking">
+        <CardSkeleton :lines="3" />
+      </template>
+      <template v-else-if="bootstrapped">
         <PasskeyButton @success="onSuccess" />
 
         <OrDivider :label="t('login.orDivider')" />
@@ -64,7 +73,7 @@ function onSuccess(): void {
 
       <FederationButtons />
 
-      <RouterLink to="/pair" class="text-center text-sm text-muted underline-offset-4 hover:underline">
+      <RouterLink to="/pair" class="cursor-pointer text-center text-sm text-muted underline-offset-4 hover:underline">
         {{ t('login.pairDevice') }}
       </RouterLink>
     </div>
