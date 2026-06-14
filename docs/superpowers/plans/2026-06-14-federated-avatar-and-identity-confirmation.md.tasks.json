@@ -73,7 +73,7 @@
     {
       "id": 11,
       "subject": "Task 11: Smoke coverage + done-gate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 9, 10],
       "description": "**Goal:** Smoke: federated auto-provision → /welcome (no session cookie) → confirm GET identity → poll avatarPending → confirm POST → session + GET /avatar/{sub} 200 webp + picture claim; no-clobber case. Full gate + rebuild/commit dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm run test && npm run build\",\"acceptanceCriteria\":[\"smoke federated confirm→avatar round-trip + no-clobber, SMOKE_EXIT=0\",\"full gate green; dist rebuilt+committed\"]}\n```"
     }
