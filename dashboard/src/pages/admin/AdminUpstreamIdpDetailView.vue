@@ -80,6 +80,16 @@ async function rotate(): Promise<void> {
   if (ok) { rotated.value = true; newSecret.value = '' }
 }
 
+// Flip the disabled flag on its own (independent of the config Save), via the
+// dedicated set-disabled endpoint.
+async function toggleDisabled(): Promise<void> {
+  saved.value = false; rotated.value = false
+  const next = !disabled.value
+  const updated = await run(() => withSudo(() =>
+    api.post<IdentityProvider>('/api/prohibitorum/identity-providers/set-disabled', { slug, disabled: next })))
+  if (updated) { idp.value = updated; disabled.value = updated.disabled }
+}
+
 async function destroy(): Promise<void> {
   saved.value = false; rotated.value = false
   const ok = await run(() => withSudo(async () => {
@@ -174,16 +184,19 @@ onMounted(load)
       <Card class="border-destructive/30 bg-destructive/[0.02]">
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.upstream.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
-          <SettingRow :label="t('admin.upstream.disabled')" :description="t('admin.upstream.disabledDesc')" for="disabled">
-            <Switch id="disabled" v-model="disabled" data-test="disabled" />
-          </SettingRow>
-          <p class="text-xs text-muted">{{ t('admin.upstream.statusSavedHint') }}</p>
+          <div class="flex flex-col gap-2">
+            <p class="text-sm font-medium text-ink">{{ disabled ? t('admin.upstream.disabled') : t('admin.upstream.active') }}</p>
+            <p class="text-xs text-muted">{{ t('admin.upstream.disabledDesc') }}</p>
+            <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="disable-toggle" @click="toggleDisabled">
+              {{ disabled ? t('admin.upstream.enable') : t('admin.upstream.disable') }}
+            </Button>
+          </div>
 
           <Separator />
-          <p class="text-sm text-muted">{{ t('admin.upstream.rotateBody') }}</p>
           <div class="flex flex-col gap-1.5">
             <Label for="newSecret">{{ t('admin.upstream.clientSecret') }}</Label>
             <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
+            <p class="text-xs text-muted">{{ t('admin.upstream.rotateBody') }}</p>
           </div>
           <span v-if="rotated" class="text-sm text-sage" role="status">{{ t('admin.upstream.rotated') }}</span>
           <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ t('admin.upstream.rotateConfirm') }}</Button>

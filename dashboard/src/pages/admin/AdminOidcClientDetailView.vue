@@ -114,6 +114,17 @@ async function rotateSecret(): Promise<void> {
   if (res) rotatedSecret.value = res.secret
 }
 
+// Flip the disabled flag on its own (independent of the config Save), via the
+// dedicated set-disabled endpoint.
+async function toggleDisabled(): Promise<void> {
+  saved.value = false
+  rotatedSecret.value = ''
+  const next = !disabled.value
+  const updated = await run(() => withSudo(() =>
+    api.post<OidcApplication>('/api/prohibitorum/oidc-applications/set-disabled', { clientId, disabled: next })))
+  if (updated) { client.value = updated; disabled.value = updated.disabled }
+}
+
 async function destroy(): Promise<void> {
   saved.value = false
   rotatedSecret.value = ''
@@ -196,10 +207,13 @@ onMounted(load)
       <Card class="border-destructive/30 bg-destructive/[0.02]">
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.oidc.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
-          <SettingRow :label="t('admin.oidc.disabled')" :description="t('admin.oidc.disabledDesc')" for="disabled">
-            <Switch id="disabled" v-model="disabled" data-test="disabled" />
-          </SettingRow>
-          <p class="text-xs text-muted">{{ t('admin.oidc.statusSavedHint') }}</p>
+          <div class="flex flex-col gap-2">
+            <p class="text-sm font-medium text-ink">{{ disabled ? t('admin.oidc.disabled') : t('admin.oidc.active') }}</p>
+            <p class="text-xs text-muted">{{ t('admin.oidc.disabledDesc') }}</p>
+            <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="disable-toggle" @click="toggleDisabled">
+              {{ disabled ? t('admin.oidc.enable') : t('admin.oidc.disable') }}
+            </Button>
+          </div>
 
           <Separator />
           <template v-if="client.tokenEndpointAuthMethod !== 'none'">

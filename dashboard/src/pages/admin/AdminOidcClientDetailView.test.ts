@@ -40,18 +40,29 @@ describe('AdminOidcClientDetailView', () => {
     // No input has name="clientId" (client_id cannot be changed)
     expect(w.find('input[name="clientId"]').exists()).toBe(false)
   })
-  it('groups disable, rotate-secret and delete in the Danger zone card', async () => {
+  it('groups the disable button, rotate-secret and delete in the Danger zone card', async () => {
     get.mockResolvedValue(CLIENT)
     const w = mountView(); await flushPromises()
     const cards = w.findAll('[data-slot="card"]')
     // The Danger zone is the card holding Delete; it now also holds disable + rotate.
     const dangerCard = cards.find((c) => c.find('[data-test="delete"]').exists())
     expect(dangerCard).toBeTruthy()
-    expect(dangerCard!.find('[data-test="disabled"]').exists()).toBe(true)
+    expect(dangerCard!.find('[data-test="disable-toggle"]').exists()).toBe(true)
     expect(dangerCard!.find('[data-test="rotate"]').exists()).toBe(true)
-    // The toggle must NOT be in the Config card (the one holding Save).
+    // The disable control must NOT be in the Config card (the one holding Save).
     const configCard = cards.find((c) => c.find('[data-test="save"]').exists())
-    expect(configCard!.find('[data-test="disabled"]').exists()).toBe(false)
+    expect(configCard!.find('[data-test="disable-toggle"]').exists()).toBe(false)
+  })
+  it('disables independently via the dedicated set-disabled endpoint (no config PUT)', async () => {
+    get.mockResolvedValue(CLIENT) // disabled: false → button reads "Disable"
+    post.mockResolvedValue({ ...CLIENT, disabled: true })
+    const w = mountView(); await flushPromises()
+    const btn = w.find('[data-test="disable-toggle"]')
+    expect(btn.text()).toBe(en.admin.oidc.disable)
+    await btn.trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/set-disabled', { clientId: 'web', disabled: true })
+    expect(put).not.toHaveBeenCalled() // independent of the config Save
+    expect(w.find('[data-test="disable-toggle"]').text()).toBe(en.admin.oidc.enable) // flipped to "Enable"
   })
   it('not found', async () => {
     get.mockRejectedValue({ code: 'client_not_found', message: 'zh' })

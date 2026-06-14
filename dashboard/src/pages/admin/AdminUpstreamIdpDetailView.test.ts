@@ -45,18 +45,29 @@ describe('AdminUpstreamIdpDetailView', () => {
     expect(body).not.toHaveProperty('clientSecret')
     expect(w.text()).toContain(en.admin.upstream.saved)
   })
-  it('groups disable, rotate-secret and delete in the Danger zone card', async () => {
+  it('groups the disable button, rotate-secret and delete in the Danger zone card', async () => {
     get.mockResolvedValue(IDP)
     const w = mountView(); await flushPromises()
     const cards = w.findAll('[data-slot="card"]')
     // The Danger zone is the card holding Delete; it now also holds disable + rotate.
     const dangerCard = cards.find((c) => c.find('[data-test="delete"]').exists())
     expect(dangerCard).toBeTruthy()
-    expect(dangerCard!.find('[data-test="disabled"]').exists()).toBe(true)
+    expect(dangerCard!.find('[data-test="disable-toggle"]').exists()).toBe(true)
     expect(dangerCard!.find('[data-test="rotate"]').exists()).toBe(true)
-    // The toggle must NOT be in the Config card (the one holding Save).
+    // The disable control must NOT be in the Config card (the one holding Save).
     const configCard = cards.find((c) => c.find('[data-test="save"]').exists())
-    expect(configCard!.find('[data-test="disabled"]').exists()).toBe(false)
+    expect(configCard!.find('[data-test="disable-toggle"]').exists()).toBe(false)
+  })
+  it('disables independently via the dedicated set-disabled endpoint (no config PUT)', async () => {
+    get.mockResolvedValue(IDP) // disabled: false → button reads "Disable"
+    post.mockResolvedValue({ ...IDP, disabled: true })
+    const w = mountView(); await flushPromises()
+    const btn = w.find('[data-test="disable-toggle"]')
+    expect(btn.text()).toBe(en.admin.upstream.disable)
+    await btn.trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/set-disabled', { slug: 'okta', disabled: true })
+    expect(put).not.toHaveBeenCalled() // independent of the config Save
+    expect(w.find('[data-test="disable-toggle"]').text()).toBe(en.admin.upstream.enable) // flipped to "Enable"
   })
   it('includes pictureClaim in save payload and renders the input', async () => {
     get.mockResolvedValue(IDP); put.mockResolvedValue({ ...IDP, pictureClaim: 'avatar_url' })
