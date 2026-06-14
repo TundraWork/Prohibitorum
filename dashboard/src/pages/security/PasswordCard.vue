@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,7 +21,7 @@ const { busy, error, run } = useApi()
 const pw = ref('')
 const confirm = ref('')
 const localError = ref('')
-const done = ref(false)
+const { flag: done, trigger: triggerDone } = useTransientFlag()
 
 const errorText = computed(() => {
   if (localError.value) return localError.value
@@ -32,14 +33,13 @@ const errorText = computed(() => {
 
 async function submit(): Promise<void> {
   localError.value = ''
-  done.value = false
   if (pw.value.length < 8) { localError.value = t('security.password.tooShort'); return }
   if (pw.value !== confirm.value) { localError.value = t('security.password.mismatch'); return }
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/me/password/set', { password: pw.value })
     return true as const
   }))
-  if (ok) { done.value = true; pw.value = ''; confirm.value = ''; emit('changed') }
+  if (ok) { triggerDone(); pw.value = ''; confirm.value = ''; emit('changed') }
 }
 </script>
 

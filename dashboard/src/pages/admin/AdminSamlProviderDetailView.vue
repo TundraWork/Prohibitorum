@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { formatDateTime } from '@/lib/time'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -64,7 +65,7 @@ const attributeMapError = ref('')
 const requireSignedAuthnRequest = ref(false)
 const allowIdpInitiated = ref(false)
 const sessionLifetimeSecs = ref('')
-const saved = ref(false)
+const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
 const reingestXml = ref('')
 const reingestDone = ref(false)
@@ -91,7 +92,6 @@ async function load(): Promise<void> {
 async function save(): Promise<void> {
   localError.value = ''
   attributeMapError.value = ''
-  saved.value = false
   reingestDone.value = false
   const secs = sessionLifetimeSecs.value.trim()
   if (secs !== '' && !/^\d+$/.test(secs)) { localError.value = t('admin.saml.sessionLifetimeInvalid'); return }
@@ -110,12 +110,11 @@ async function save(): Promise<void> {
     allowIdpInitiated: allowIdpInitiated.value,
     ...(secs !== '' ? { sessionLifetimeSecs: Number(secs) } : {}),
   })))
-  if (updated) { sp.value = updated; seedForm(updated); saved.value = true }
+  if (updated) { sp.value = updated; seedForm(updated); triggerSaved() }
 }
 
 async function reingest(): Promise<void> {
   localError.value = ''
-  saved.value = false
   reingestDone.value = false
   const res = await run(() => withSudo(() =>
     api.post<SamlApplication>(`/api/prohibitorum/saml-applications/${id}/reingest-metadata`, { metadataXml: reingestXml.value })))
@@ -124,7 +123,6 @@ async function reingest(): Promise<void> {
 
 async function destroy(): Promise<void> {
   localError.value = ''
-  saved.value = false
   reingestDone.value = false
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/saml-applications/delete', { id })

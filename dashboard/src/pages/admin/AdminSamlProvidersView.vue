@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,7 +49,7 @@ const { busy, run, errorText } = useApi()
 
 const rows = ref<SamlApplication[]>([])
 const createOpen = ref(false)
-const created = ref(false)
+const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
 // Mode toggle
 const mode = ref<'metadata' | 'manual'>('metadata')
@@ -84,7 +85,6 @@ function openCreate(): void {
   acsRows.value = []
   requireSignedAuthnRequest.value = false
   allowIdpInitiated.value = false
-  created.value = false
   createOpen.value = true
 }
 
@@ -119,7 +119,6 @@ function removeAcsRow(i: number): void {
 }
 
 async function create(): Promise<void> {
-  created.value = false
   let body: Record<string, unknown>
   if (mode.value === 'metadata') {
     body = {
@@ -141,7 +140,7 @@ async function create(): Promise<void> {
   const res = await run(() => withSudo(() => api.post('/api/prohibitorum/saml-applications', body)))
   if (res) {
     createOpen.value = false
-    created.value = true
+    triggerCreated()
     await load()
   }
 }

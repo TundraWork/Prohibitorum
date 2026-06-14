@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,9 +36,9 @@ const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
 const mode = ref('auto_provision'); const scopes = ref<string[]>([]); const allowedDomains = ref<string[]>([])
 const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClaim = ref(''); const pictureClaim = ref('')
 const requireVerifiedEmail = ref(false); const disabled = ref(false)
-const saved = ref(false)
+const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
-const newSecret = ref(''); const rotated = ref(false)
+const newSecret = ref(''); const { flag: rotated, trigger: triggerRotated } = useTransientFlag()
 const confirmDelete = ref(false)
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
@@ -55,29 +56,26 @@ async function load(): Promise<void> {
 }
 
 async function save(): Promise<void> {
-  saved.value = false; rotated.value = false
   const updated = await run(() => withSudo(() => api.put<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`, {
     displayName: displayName.value, issuerUrl: issuerUrl.value, clientId: clientId.value, mode: mode.value,
     scopes: scopes.value, allowedDomains: allowedDomains.value, usernameClaim: usernameClaim.value,
     displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value, pictureClaim: pictureClaim.value,
     requireVerifiedEmail: requireVerifiedEmail.value, disabled: disabled.value,
   })))
-  if (updated) { idp.value = updated; saved.value = true }
+  if (updated) { idp.value = updated; triggerSaved() }
 }
 
 async function rotate(): Promise<void> {
-  saved.value = false; rotated.value = false
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/identity-providers/rotate-secret', { slug, clientSecret: newSecret.value })
     return true as const
   }))
-  if (ok) { rotated.value = true; newSecret.value = '' }
+  if (ok) { triggerRotated(); newSecret.value = '' }
 }
 
 // Flip the disabled flag on its own (independent of the config Save), via the
 // dedicated set-disabled endpoint.
 async function toggleDisabled(): Promise<void> {
-  saved.value = false; rotated.value = false
   const next = !disabled.value
   const updated = await run(() => withSudo(() =>
     api.post<IdentityProvider>('/api/prohibitorum/identity-providers/set-disabled', { slug, disabled: next })))
@@ -85,7 +83,6 @@ async function toggleDisabled(): Promise<void> {
 }
 
 async function destroy(): Promise<void> {
-  saved.value = false; rotated.value = false
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/identity-providers/delete', { slug })
     return true as const

@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -51,7 +52,7 @@ const postLogoutUris = ref<string[]>([])
 const scopes = ref<string[]>(['openid'])
 const requireConsent = ref(false)
 const disabled = ref(false)
-const saved = ref(false)
+const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
 const confirmRotate = ref(false)
 const rotatedSecret = ref('')
@@ -87,7 +88,6 @@ async function load(): Promise<void> {
 }
 
 async function save(): Promise<void> {
-  saved.value = false
   rotatedSecret.value = ''
   const updated = await run(() => withSudo(() => api.put<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}`, {
     displayName: displayName.value,
@@ -97,11 +97,10 @@ async function save(): Promise<void> {
     requireConsent: requireConsent.value,
     disabled: disabled.value,
   })))
-  if (updated) { client.value = updated; saved.value = true }
+  if (updated) { client.value = updated; triggerSaved() }
 }
 
 async function rotateSecret(): Promise<void> {
-  saved.value = false
   const res = await run(() => withSudo(() =>
     api.post<{ clientId: string; secret: string }>('/api/prohibitorum/oidc-applications/rotate-secret', { clientId })))
   confirmRotate.value = false
@@ -111,7 +110,6 @@ async function rotateSecret(): Promise<void> {
 // Flip the disabled flag on its own (independent of the config Save), via the
 // dedicated set-disabled endpoint.
 async function toggleDisabled(): Promise<void> {
-  saved.value = false
   rotatedSecret.value = ''
   const next = !disabled.value
   const updated = await run(() => withSudo(() =>
@@ -120,7 +118,6 @@ async function toggleDisabled(): Promise<void> {
 }
 
 async function destroy(): Promise<void> {
-  saved.value = false
   rotatedSecret.value = ''
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/oidc-applications/delete', { clientId })

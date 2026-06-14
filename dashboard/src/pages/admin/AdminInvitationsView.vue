@@ -8,6 +8,7 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
 import { Card, CardContent } from '@/components/ui/card'
@@ -31,7 +32,7 @@ const idps = ref<Idp[]>([])
 const createOpen = ref(false)
 const newRole = ref<'admin' | 'user'>('user')
 const newIdp = ref(IDP_NONE)
-const created = ref(false)
+const { flag: created, trigger: triggerCreated } = useTransientFlag()
 const revokeToken = ref<string | null>(null)
 function idpDisplayName(slug: string | undefined): string {
   if (!slug) return '—'
@@ -52,7 +53,6 @@ async function load(): Promise<void> {
   if (res) rows.value = res
 }
 async function create(): Promise<void> {
-  created.value = false
   const body: Record<string, unknown> = { role: newRole.value }
   const idpSlug = newIdp.value && newIdp.value !== IDP_NONE ? newIdp.value : ''
   if (idpSlug) body.expectedUpstreamIdpSlug = idpSlug
@@ -60,7 +60,7 @@ async function create(): Promise<void> {
     await api.post('/api/prohibitorum/invitations', body)
     return true as const
   }))
-  if (ok) { createOpen.value = false; created.value = true; newIdp.value = IDP_NONE; await load() }
+  if (ok) { createOpen.value = false; triggerCreated(); newIdp.value = IDP_NONE; await load() }
 }
 async function revoke(): Promise<void> {
   const token = revokeToken.value

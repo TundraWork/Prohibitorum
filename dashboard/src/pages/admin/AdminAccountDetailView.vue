@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -59,7 +60,7 @@ const displayName = ref('')
 const email = ref('')
 const role = ref<'admin' | 'user'>('user')
 const disabled = ref(false)
-const saved = ref(false)
+const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
 // Attributes editor state
 interface AttrRow { uid: number; key: string; value: string }
@@ -121,7 +122,6 @@ async function load(): Promise<void> {
   await loadSessions()
 }
 async function save(): Promise<void> {
-  saved.value = false
   // Send email ONLY when it changed: any explicit email value resets
   // email_verified=false server-side, so omitting it on an unrelated save
   // (e.g. toggling disabled) preserves a federation-verified address.
@@ -135,10 +135,9 @@ async function save(): Promise<void> {
     attributes: buildAttrs(),
     ...(emailChanged ? { email: trimmedEmail } : {}),
   })))
-  if (updated) { account.value = updated; displayName.value = updated.displayName; email.value = updated.email ?? ''; seedAttrs(updated.attributes); saved.value = true }
+  if (updated) { account.value = updated; displayName.value = updated.displayName; email.value = updated.email ?? ''; seedAttrs(updated.attributes); triggerSaved() }
 }
 async function forceRevoke(): Promise<void> {
-  saved.value = false
   const credentialId = revokeCredId.value
   if (credentialId == null) return
   const ok = await run(() => withSudo(async () => {
@@ -149,7 +148,6 @@ async function forceRevoke(): Promise<void> {
   if (ok) await loadCredentials()
 }
 async function revokeSession(sessionId: string): Promise<void> {
-  saved.value = false
   const ok = await run(() => withSudo(async () => {
     await api.post(`/api/prohibitorum/accounts/${id}/sessions/revoke`, { sessionId })
     return true as const
@@ -157,20 +155,17 @@ async function revokeSession(sessionId: string): Promise<void> {
   if (ok) await loadSessions()
 }
 async function revokeAllSessions(): Promise<void> {
-  saved.value = false
   const res = await run(() => withSudo(() =>
     api.post<{ revoked: number }>('/api/prohibitorum/accounts/revoke-sessions', { id })))
   confirmRevokeAll.value = false
   if (res) { revokedCount.value = res.revoked; await loadSessions() }
 }
 async function reissue(): Promise<void> {
-  saved.value = false
   const res = await run(() => withSudo(() =>
     api.post<{ url: string; expiresAt: string }>('/api/prohibitorum/accounts/reissue-enrollment', { id })))
   if (res) { reissueUrl.value = res.url; reissueExpires.value = res.expiresAt }
 }
 async function destroy(): Promise<void> {
-  saved.value = false
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/accounts/delete', { id })
     return true as const

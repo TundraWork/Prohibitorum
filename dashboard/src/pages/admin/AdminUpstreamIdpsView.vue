@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,7 +35,7 @@ const { busy, run, errorText } = useApi()
 
 const rows = ref<IdentityProvider[]>([])
 const createOpen = ref(false)
-const created = ref(false)
+const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
 const slug = ref(''); const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
 const clientSecret = ref(''); const mode = ref('auto_provision')
@@ -64,11 +65,10 @@ function openCreate(): void {
   clientSecret.value = ''; mode.value = 'auto_provision'
   scopes.value = ['openid', 'profile', 'email']; allowedDomains.value = []
   usernameClaim.value = 'preferred_username'; displayNameClaim.value = 'name'; emailClaim.value = 'email'; pictureClaim.value = 'picture'
-  requireVerifiedEmail.value = false; created.value = false; createOpen.value = true
+  requireVerifiedEmail.value = false; createOpen.value = true
 }
 
 async function create(): Promise<void> {
-  created.value = false
   const res = await run(() => withSudo(() => api.post<IdentityProvider>('/api/prohibitorum/identity-providers', {
     slug: slug.value, displayName: displayName.value, issuerUrl: issuerUrl.value, clientId: clientId.value,
     clientSecret: clientSecret.value, mode: mode.value, scopes: scopes.value,
@@ -76,7 +76,7 @@ async function create(): Promise<void> {
     displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value, pictureClaim: pictureClaim.value,
     requireVerifiedEmail: requireVerifiedEmail.value,
   })))
-  if (res) { createOpen.value = false; created.value = true; await load() }
+  if (res) { createOpen.value = false; triggerCreated(); await load() }
 }
 
 onMounted(load)

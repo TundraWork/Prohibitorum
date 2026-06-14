@@ -4,6 +4,7 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { TriangleAlert } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -25,7 +26,7 @@ interface MeFactors {
 const { t } = useI18n()
 const { busy, run, errorText } = useApi()
 const confirmOpen = ref(false)
-const done = ref(false)
+const { flag: done, trigger: triggerDone } = useTransientFlag()
 const factors = ref<MeFactors | null>(null)
 
 async function loadFactors(): Promise<void> {
@@ -39,13 +40,12 @@ async function loadFactors(): Promise<void> {
 onMounted(loadFactors)
 
 async function revoke(): Promise<void> {
-  done.value = false
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/me/auth/revoke-password-totp')
     return true as const
   }))
   confirmOpen.value = false
-  if (ok) { done.value = true; await loadFactors() }
+  if (ok) { triggerDone(); await loadFactors() }
 }
 </script>
 
