@@ -18,8 +18,8 @@ import (
 	"prohibitorum/pkg/account"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
-	"prohibitorum/pkg/db"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
+	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -37,7 +37,11 @@ func (s *Server) handleGetMe(ctx context.Context, _ *struct{}) (*meOut, error) {
 		// AuthSession requirement would have already rejected. Defensive.
 		return nil, authErrToHuma(authn.ErrNoSession())
 	}
-	return &meOut{Body: s.sessionView(sess.Account)}, nil
+	v := s.sessionView(sess.Account)
+	if s.federator != nil {
+		v.AvatarPending = s.federator.AvatarPending(ctx, sess.Account.ID)
+	}
+	return &meOut{Body: v}, nil
 }
 
 // ----- PUT /me ------------------------------------------------------------
@@ -77,7 +81,11 @@ func (s *Server) handleUpdateMe(ctx context.Context, in *updateMeIn) (*meOut, er
 		"display_name": in.Body.DisplayName,
 	}).Info("auth")
 	sess.Account.DisplayName = in.Body.DisplayName
-	return &meOut{Body: s.sessionView(sess.Account)}, nil
+	v := s.sessionView(sess.Account)
+	if s.federator != nil {
+		v.AvatarPending = s.federator.AvatarPending(ctx, sess.Account.ID)
+	}
+	return &meOut{Body: v}, nil
 }
 
 func (s *Server) updateMeQueries() updateMeQueries {
@@ -414,8 +422,8 @@ func (s *Server) handleRevokeMySession(ctx context.Context, in *revokeMySessionI
 		return nil, authErrToHuma(authn.ErrSessionNotFound())
 	}
 	logx.WithContext(ctx).WithFields(logrus.Fields{
-		"event":         "auth.session_revoked_self",
-		"account_id":    sess.Account.ID,
+		"event":          "auth.session_revoked_self",
+		"account_id":     sess.Account.ID,
 		"target_session": in.Body.ID,
 	}).Info("auth")
 	return &struct{}{}, nil

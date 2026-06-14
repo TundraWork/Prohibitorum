@@ -204,6 +204,17 @@ func (s *Server) handleDeleteAvatarHTTP(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GET /api/prohibitorum/me/avatar/status — authed; reports whether the background
+// upstream-avatar fetch is in flight for the current account (drives the dashboard spinner).
+func (s *Server) handleAvatarStatusHTTP(w http.ResponseWriter, r *http.Request) {
+	sess := authn.SessionFromContext(r.Context())
+	pending := false
+	if s.federator != nil {
+		pending = s.federator.AvatarPending(r.Context(), sess.Account.ID)
+	}
+	writeJSON(w, map[string]bool{"pending": pending})
+}
+
 // GET /avatar/{subject}  (public, no auth required)
 func (s *Server) handleGetAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -29,12 +29,13 @@ type AuthRequirement struct {
 
 // SessionView is the response body of GET /me — the public face of the current session.
 type SessionView struct {
-	ID          int32          `json:"id"`
-	Username    string         `json:"username"`
-	DisplayName string         `json:"displayName"`
-	Role        string         `json:"role"`
-	Attributes  map[string]any `json:"attributes,omitempty"`
-	AvatarURL   *string        `json:"avatarUrl,omitempty"`
+	ID            int32          `json:"id"`
+	Username      string         `json:"username"`
+	DisplayName   string         `json:"displayName"`
+	Role          string         `json:"role"`
+	Attributes    map[string]any `json:"attributes,omitempty"`
+	AvatarURL     *string        `json:"avatarUrl,omitempty"`
+	AvatarPending bool           `json:"avatarPending,omitempty"`
 }
 
 // AccountView is admin-facing; lastSignInAt is derived from the account's credentials.

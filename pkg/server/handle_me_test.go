@@ -12,6 +12,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -19,6 +20,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/errorx"
+	fedoidc "prohibitorum/pkg/federation/oidc"
 )
 
 // fakeUpdateMeQ is a minimal stub satisfying the updateMeQueries interface.
@@ -346,5 +348,73 @@ func TestHandleGetMyFactors_PasskeyCountDBError(t *testing.T) {
 	_, err := s.handleGetMyFactors(ctx, nil)
 	if err == nil {
 		t.Fatal("expected non-nil error from passkey-count DB failure, got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GET /me avatarPending
+// ---------------------------------------------------------------------------
+
+// getMeCtxWithSession returns a context with a minimal session for accountID.
+func getMeCtxWithSession(accountID int32) context.Context {
+	acct := &db.Account{ID: accountID, Username: "carol", DisplayName: "Carol"}
+	sess := &authn.Session{Account: acct}
+	return authn.WithSession(context.Background(), sess)
+}
+
+// TestHandleGetMe_AvatarPendingTrue verifies that handleGetMe returns
+// avatarPending:true when the KV marker is present.
+func TestHandleGetMe_AvatarPendingTrue(t *testing.T) {
+	const acctID int32 = 55
+
+	// Build a Server with a real Federator backed by a memory KV.
+	s, kvStore := newAvatarStatusTestServer(t)
+
+	// Seed the KV marker.
+	if err := kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(acctID), "1", time.Minute); err != nil {
+		t.Fatalf("seed KV key: %v", err)
+	}
+
+	ctx := getMeCtxWithSession(acctID)
+	out, err := s.handleGetMe(ctx, nil)
+	if err != nil {
+		t.Fatalf("handleGetMe: %v", err)
+	}
+	if !out.Body.AvatarPending {
+		t.Error("avatarPending: want true, got false")
+	}
+}
+
+// TestHandleGetMe_AvatarPendingFalse verifies that handleGetMe omits/false
+// avatarPending when the KV marker is absent.
+func TestHandleGetMe_AvatarPendingFalse(t *testing.T) {
+	const acctID int32 = 56
+
+	s, _ := newAvatarStatusTestServer(t)
+
+	// No KV marker seeded.
+	ctx := getMeCtxWithSession(acctID)
+	out, err := s.handleGetMe(ctx, nil)
+	if err != nil {
+		t.Fatalf("handleGetMe: %v", err)
+	}
+	if out.Body.AvatarPending {
+		t.Error("avatarPending: want false, got true")
+	}
+}
+
+// TestHandleGetMe_AvatarPendingNilFederator verifies that handleGetMe with a nil
+// federator returns avatarPending:false safely (nil-guard).
+func TestHandleGetMe_AvatarPendingNilFederator(t *testing.T) {
+	const acctID int32 = 57
+
+	s := &Server{} // no federator, no config
+	ctx := getMeCtxWithSession(acctID)
+	out, err := s.handleGetMe(ctx, nil)
+	if err != nil {
+		t.Fatalf("handleGetMe: %v", err)
+	}
+	if out.Body.AvatarPending {
+		t.Error("avatarPending: want false when federator nil, got true")
 	}
 }

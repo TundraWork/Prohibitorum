@@ -12,20 +12,26 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"image"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	_ "github.com/gen2brain/webp" // register webp decoder for image.DecodeConfig
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
+	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/kv"
 )
 
 // ---------------------------------------------------------------------------
@@ -39,6 +45,9 @@ type fakeAvatarQueries struct {
 	// for GetAvatarBySubject: keyed by subject UUID string
 	subjectMap map[string]int32 // subject → accountID
 	disabled   map[int32]bool
+	// tracks which meta setter was called (for source assertions)
+	setMetaUserCalled bool
+	clearMetaCalled   bool
 }
 
 func newFakeAvatarQ() *fakeAvatarQueries {
@@ -57,6 +66,7 @@ func (f *fakeAvatarQueries) UpsertAccountAvatarBytes(_ context.Context, arg db.U
 
 func (f *fakeAvatarQueries) SetAccountAvatarMetaUser(_ context.Context, arg db.SetAccountAvatarMetaUserParams) error {
 	f.avatarMeta[arg.ID] = arg
+	f.setMetaUserCalled = true
 	return nil
 }
 
@@ -67,6 +77,7 @@ func (f *fakeAvatarQueries) ClearAccountAvatarBytes(_ context.Context, accountID
 
 func (f *fakeAvatarQueries) ClearAccountAvatarMeta(_ context.Context, id int32) error {
 	delete(f.avatarMeta, id)
+	f.clearMetaCalled = true
 	return nil
 }
 
@@ -516,3 +527,173 @@ func TestDeleteAvatar_ThenGet_404(t *testing.T) {
 
 // Compile-time check: fakeAvatarQueries must satisfy the avatarQueries interface.
 var _ avatarQueries = (*fakeAvatarQueries)(nil)
+
+// ---------------------------------------------------------------------------
+// Source assertions: PUT sets avatar_source='user', DELETE sets avatar_source='user'
+// ---------------------------------------------------------------------------
+
+// TestPutAvatar_SetsAvatarSourceUser confirms that PUT /me/avatar drives
+// SetAccountAvatarMetaUser (which SQL-bakes avatar_source='user'), never the
+// upstream variant.
+func TestPutAvatar_SetsAvatarSourceUser(t *testing.T) {
+	q := newFakeAvatarQ()
+	s := newAvatarServer(t, q)
+	sess := avatarSession(testSubject)
+
+	r := putAvatarReq(t, smallPNG(t), sess)
+	w := httptest.NewRecorder()
+	s.handlePutAvatarHTTP(w, r)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status: want 204, got %d; body=%s", w.Code, w.Body.String())
+	}
+	// SetAccountAvatarMetaUser must have been called — that function issues SQL
+	// with avatar_source='user' baked in.
+	if !q.setMetaUserCalled {
+		t.Error("SetAccountAvatarMetaUser must be called on PUT (sets avatar_source='user')")
+	}
+}
+
+// TestDeleteAvatar_SetsAvatarSourceUser confirms that DELETE /me/avatar drives
+// ClearAccountAvatarMeta (which SQL-bakes avatar_source='user').
+func TestDeleteAvatar_SetsAvatarSourceUser(t *testing.T) {
+	q := newFakeAvatarQ()
+	s := newAvatarServer(t, q)
+	sess := avatarSession(testSubject)
+
+	// Seed first.
+	pr := putAvatarReq(t, smallPNG(t), sess)
+	pw := httptest.NewRecorder()
+	s.handlePutAvatarHTTP(pw, pr)
+	if pw.Code != http.StatusNoContent {
+		t.Fatalf("seed PUT: want 204, got %d", pw.Code)
+	}
+
+	// Reset tracker so we only observe the DELETE call.
+	q.clearMetaCalled = false
+
+	dr := deleteAvatarReq(t, sess)
+	dw := httptest.NewRecorder()
+	s.handleDeleteAvatarHTTP(dw, dr)
+
+	if dw.Code != http.StatusNoContent {
+		t.Fatalf("status: want 204, got %d; body=%s", dw.Code, dw.Body.String())
+	}
+	// ClearAccountAvatarMeta must have been called — that function issues SQL
+	// with avatar_source='user' baked in.
+	if !q.clearMetaCalled {
+		t.Error("ClearAccountAvatarMeta must be called on DELETE (sets avatar_source='user')")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GET /me/avatar/status — pending / not-pending
+// ---------------------------------------------------------------------------
+
+// newAvatarStatusTestServer builds a minimal *Server with a real Federator backed
+// by a memory KV, suitable for testing handleAvatarStatusHTTP.
+func newAvatarStatusTestServer(t *testing.T) (*Server, kv.Store) {
+	t.Helper()
+	kvStore := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = kvStore.Close() })
+
+	fq := newFakeFedQueries()
+	aud := audit.NewWriter(fq)
+
+	fed := fedoidc.NewFederator(
+		fq,
+		kvStore,
+		aud,
+		configx.FederationConfig{
+			StateTTL:      5 * time.Minute,
+			DefaultScopes: []string{"openid"},
+		},
+		map[int][]byte{1: make([]byte, 32)},
+		nil,
+		"",
+	)
+
+	s := &Server{
+		federator: fed,
+		// dbPool nil — status handler doesn't touch DB.
+	}
+	return s, kvStore
+}
+
+// statusReq builds a GET request for /me/avatar/status attached to the given session.
+func statusReq(sess *authn.Session) *http.Request {
+	r := httptest.NewRequest("GET", "/api/prohibitorum/me/avatar/status", nil)
+	if sess != nil {
+		r = r.WithContext(authn.WithSession(r.Context(), sess))
+	}
+	return r
+}
+
+// TestAvatarStatus_PendingTrue verifies that when the AvatarFetchKey is present
+// in KV the status endpoint returns {"pending":true}.
+func TestAvatarStatus_PendingTrue(t *testing.T) {
+	s, kvStore := newAvatarStatusTestServer(t)
+	sess := avatarSession(testSubject)
+
+	// Mark the fetch in flight.
+	if err := kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(testAccountID), "1", time.Minute); err != nil {
+		t.Fatalf("seed KV key: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	s.handleAvatarStatusHTTP(w, statusReq(sess))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var out map[string]bool
+	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if !out["pending"] {
+		t.Errorf("pending: want true, got false")
+	}
+}
+
+// TestAvatarStatus_PendingFalse verifies that when the AvatarFetchKey is absent
+// the status endpoint returns {"pending":false}.
+func TestAvatarStatus_PendingFalse(t *testing.T) {
+	s, _ := newAvatarStatusTestServer(t)
+	sess := avatarSession(testSubject)
+
+	// No key seeded.
+	w := httptest.NewRecorder()
+	s.handleAvatarStatusHTTP(w, statusReq(sess))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var out map[string]bool
+	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if out["pending"] {
+		t.Errorf("pending: want false, got true")
+	}
+}
+
+// TestAvatarStatus_NilFederator verifies that the status endpoint returns
+// {"pending":false} safely when s.federator is nil.
+func TestAvatarStatus_NilFederator(t *testing.T) {
+	s := &Server{} // no federator
+	sess := avatarSession(testSubject)
+
+	w := httptest.NewRecorder()
+	s.handleAvatarStatusHTTP(w, statusReq(sess))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var out map[string]bool
+	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if out["pending"] {
+		t.Errorf("pending: want false when federator is nil, got true")
+	}
+}

@@ -374,9 +374,10 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/complete", sessionReq, s.handleSudoCompleteHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/federation/callback", sessionReq, s.handleSudoFederationCallbackHTTP)
 
-	// Avatar upload/delete (self) and public fetch.
+	// Avatar upload/delete (self), status, and public fetch.
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/me/avatar", sessionReq, s.handlePutAvatarHTTP)
 	registerOpHTTP(s.router, "DELETE", "/api/prohibitorum/me/avatar", sessionReq, s.handleDeleteAvatarHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/avatar/status", sessionReq, s.handleAvatarStatusHTTP)
 	registerOpHTTP(s.router, "GET", "/avatar/{subject}", contract.AuthRequirement{Kind: contract.AuthPublic}, s.handleGetAvatarHTTP)
 
 	// /me sensitive endpoints (sudo-gated, conditional for TOTP enrollment).
