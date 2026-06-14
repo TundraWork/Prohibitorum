@@ -67,7 +67,7 @@
     {
       "id": 9,
       "subject": "Task 9: Frontend — accessibility sweep",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         5,
         8
@@ -89,5 +89,5 @@
       "description": "**Goal:** Update avatar smoke to dual-source (coexist + selection switch + ?source); full gate; rebuild+commit dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm run test && npm run build\",\"acceptanceCriteria\":[\"smoke: upload+inherit coexist, switch upstream/user/none asserts active GET + ?source previews, SMOKE_EXIT=0\",\"full gate green; dist rebuilt+committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-15T00:10:00Z"
+  "lastUpdated": "2026-06-15T00:45:00Z"
 }
