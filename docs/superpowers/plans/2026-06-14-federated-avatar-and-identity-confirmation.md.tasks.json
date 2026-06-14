@@ -24,7 +24,7 @@
     {
       "id": 4,
       "subject": "Task 4: Background avatar-inherit job + KV status",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2, 3],
       "description": "**Goal:** Detached goroutine: SetNX-deduped status key, resolve picture (id_token→UserInfo), fetch→Process→store (source='upstream'), skip when avatar_source='user' or etag unchanged; AvatarFetchKey helper; avatarFetch seam.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/federation.go\",\"pkg/federation/oidc/state.go\",\"pkg/federation/oidc/federation_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run AvatarInherit -v\",\"acceptanceCriteria\":[\"stores upstream avatar for fresh account\",\"no-op on source=user or unchanged etag\",\"SetNX dedup; status key cleared always\"]}\n```"
     },

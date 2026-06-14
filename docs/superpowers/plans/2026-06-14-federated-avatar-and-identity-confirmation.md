@@ -1261,6 +1261,11 @@ git commit -m "test(smoke): federated confirm + upstream avatar round-trip + no-
 
 **Type consistency:** `ResolveOutcome{AccountID int32, IdentityID int64, IsNew bool, Confirmed bool}` (T5) is consumed by `CallbackResult` (T5/T6) and `CreateConfirmGrant` (T6); `ConfirmGrant{AccountID, IdentityID, IDPID, IDPSlug, ReturnTo, BrowserBinding}` (T6); `AvatarFetchKey(int32)`/`ConfirmKey(string)` (T4/T6); `SetAccountAvatarMetaUpstream`/`SetAccountAvatarMetaUser`/`ClearAccountAvatarMeta` (T1) used in T4/T7; `ConfirmAccountIdentity(int64)` (T1) used in T5/T6; `FederationConfirmView`/`SessionView.AvatarPending` (T6/T7) consumed by T8/T9; `avatar.AccountURL`/`avatar.Process` (existing) reused. Consistent.
 
+## Review follow-ups (tracked during execution)
+
+- **[from Task 4 code review → do in Task 6]** Thread a `ctx context.Context` parameter into `kickoffAvatarInherit` (it currently uses `context.Background()` for its pre-flight `GetAccountByID`); pass the callback request ctx when wiring it into `HandleCallback`.
+- **[from Task 4 code review → do in Task 11]** Add coverage for the **UserInfo-sourced picture fallback** in `runAvatarInherit` (the `client.UserInfo` branch — unit-untested; all Task 4 tests use a nil client + picture-in-id_token). Faithful approach: give the smoke's mock OP a `/userinfo` endpoint (advertised in discovery) that serves `picture`, and a case where the id_token OMITS `picture` so the avatar is inherited via the UserInfo fallback. Asserts the 3-arg `UserInfo(ctx, accessToken, subject)` wiring end-to-end.
+
 ## Done-gate
 
-`CGO_ENABLED=0 go build -tags nodynamic ./...` / `go vet` / `go test ./...` (0), `vitest` (green), `vue-tsc -b` (0), smoke `SMOKE_EXIT=0` (incl. federated confirm→avatar + no-clobber), rebuild + commit `pkg/webui/dist`.
+`CGO_ENABLED=0 go build -tags nodynamic ./...` / `go vet` / `go test ./...` (0), `vitest` (green), `vue-tsc -b` (0), smoke `SMOKE_EXIT=0` (incl. federated confirm→avatar + no-clobber + UserInfo-fallback), rebuild + commit `pkg/webui/dist`.
