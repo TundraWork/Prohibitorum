@@ -60,7 +60,7 @@
     {
       "id": 8,
       "subject": "T8: security cards maturity",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1,
         6
@@ -110,5 +110,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T05:30:00Z"
+  "lastUpdated": "2026-06-15T06:00:00Z"
 }
