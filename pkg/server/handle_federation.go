@@ -137,6 +137,23 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if !result.Confirmed {
+		// First-time federated sign-in: WITHHOLD the durable session. Mint a
+		// single-use, browser-bound confirmation grant (KV + cookie, mirroring
+		// the federation-state pattern) and park the user on /welcome, where the
+		// confirm/decline endpoints read it. The fed-state cookie carries
+		// "<grant-token>.<anti-forgery>"; only the anti-forgery hash is in KV.
+		token, antiForgery, gerr := s.federator.CreateConfirmGrant(r.Context(), result.AccountID, result.IdentityID, result.IDPID, result.IDPSlug, result.ReturnTo, result.AMR)
+		if gerr != nil {
+			writeAuthErr(w, gerr)
+			return
+		}
+		http.SetCookie(w, sessstore.FedStateCookie(s.config, r, token+"."+antiForgery))
+		http.Redirect(w, r, "/welcome", http.StatusFound)
+		return
+	}
+
+	// Confirmed identity — issue the durable session.
 	// One-shot binding consumed — clear the anti-forgery cookie.
 	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
 

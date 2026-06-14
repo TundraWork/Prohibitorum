@@ -133,3 +133,41 @@ func SudoKey(token string) string {
 func AvatarFetchKey(accountID int32) string {
 	return "oidc:fed:avatar:" + strconv.Itoa(int(accountID))
 }
+
+// ConfirmGrant is the short-lived, single-use, browser-bound context for the
+// /welcome identity-confirmation step. Created when the callback withholds a
+// session for an unconfirmed identity; consumed by the confirm endpoint.
+type ConfirmGrant struct {
+	AccountID      int32    `json:"account_id"`
+	IdentityID     int64    `json:"identity_id"`
+	IDPID          int64    `json:"idp_id"`
+	IDPSlug        string   `json:"idp_slug"`
+	ReturnTo       string   `json:"return_to"`
+	BrowserBinding string   `json:"browser_binding"`
+	AMR            []string `json:"amr,omitempty"`
+}
+
+// Encode serializes the grant to a JSON string for KV storage.
+func (g ConfirmGrant) Encode() (string, error) {
+	b, err := json.Marshal(g)
+	if err != nil {
+		return "", fmt.Errorf("federation/oidc: encode confirm grant: %w", err)
+	}
+	return string(b), nil
+}
+
+// DecodeConfirmGrant parses a JSON-encoded ConfirmGrant back into a struct.
+func DecodeConfirmGrant(raw string) (*ConfirmGrant, error) {
+	var g ConfirmGrant
+	if err := json.Unmarshal([]byte(raw), &g); err != nil {
+		return nil, fmt.Errorf("federation/oidc: decode confirm grant: %w", err)
+	}
+	return &g, nil
+}
+
+// ConfirmKey namespaces the confirmation-grant token, distinct from the
+// login/link/sudo flow namespaces so a token minted for one purpose cannot be
+// Pop'd by the handler for another (same cross-purpose-token-reuse defense).
+func ConfirmKey(token string) string {
+	return "oidc:fed:confirm:" + token
+}

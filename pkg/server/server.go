@@ -103,6 +103,10 @@ type Server struct {
 	// avatar handlers without standing up *db.Queries. Nil in production —
 	// handlers fall back to s.queries.
 	avatarQueriesOverride avatarQueries
+	// confirmFedOverride lets tests inject a fake confirmFedQueries for the
+	// /welcome federation confirm endpoints without standing up *db.Queries.
+	// Nil in production — handlers fall back to s.queries.
+	confirmFedOverride confirmFedQueries
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -337,6 +341,10 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/login", publicReq, s.handleFederationLoginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/callback", publicReq, s.handleFederationCallbackHTTP)
+	// /welcome confirmation step for first-time (unconfirmed) federated identities.
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/confirm", publicReq, s.handleFederationConfirmGet)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/confirm", publicReq, s.handleFederationConfirmPost)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/confirm/decline", publicReq, s.handleFederationConfirmDecline)
 
 	// Enrollment
 	registerOp(mgmt, contract.OperationPreviewEnrollment, s.handlePreviewEnrollment, publicReq)

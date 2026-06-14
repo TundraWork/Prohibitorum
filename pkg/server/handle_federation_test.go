@@ -36,6 +36,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/cmd/smoke/mockop"
 	"prohibitorum/pkg/audit"
@@ -334,9 +335,16 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		rateLimiter:  authn.NewRateLimiter(),
 		Audit:        auditWriter,
 	}
+	// The confirm endpoints reach through s.queries via confirmFedQ(); the fake
+	// satisfies that narrow surface (GetAccountByID/GetUpstreamIDPBySlug/
+	// ConfirmAccountIdentity), so point the override at it.
+	s.confirmFedOverride = q
 	r := chi.NewRouter()
 	r.Get("/api/prohibitorum/auth/federation/{slug}/login", s.handleFederationLoginHTTP)
 	r.Get("/api/prohibitorum/auth/federation/{slug}/callback", s.handleFederationCallbackHTTP)
+	r.Get("/api/prohibitorum/auth/federation/confirm", s.handleFederationConfirmGet)
+	r.Post("/api/prohibitorum/auth/federation/confirm", s.handleFederationConfirmPost)
+	r.Post("/api/prohibitorum/auth/federation/confirm/decline", s.handleFederationConfirmDecline)
 	srvTS := httptest.NewServer(r)
 	t.Cleanup(srvTS.Close)
 
@@ -516,8 +524,30 @@ func TestFederationLogin_UnknownSlugReturnsStateInvalid(t *testing.T) {
 	}
 }
 
+// seedConfirmedIdentity makes the harness's upstream subject ("sub-1") resolve
+// to an EXISTING, confirmed local account — exercising the re-login path that
+// issues a durable session immediately (Confirmed=true). Without this, a fresh
+// auto-provision yields Confirmed=false and the callback parks the user on
+// /welcome (see TestFederationCallback_UnconfirmedRedirectsToWelcome).
+func seedConfirmedIdentity(h *fedTestHarness) {
+	const acctID int32 = 777
+	h.q.accountByIDResults[acctID] = db.Account{
+		ID: acctID, Username: "alice", DisplayName: "Alice Example",
+	}
+	h.q.identityErr = nil
+	h.q.identityResult = db.AccountIdentity{
+		ID:            555,
+		AccountID:     acctID,
+		UpstreamIdpID: h.idp.ID,
+		UpstreamIss:   h.opTS.URL,
+		UpstreamSub:   "sub-1",
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+}
+
 func TestFederationCallback_HappyPath(t *testing.T) {
 	h := newFederationTestServer(t)
+	seedConfirmedIdentity(h)
 
 	loc, resp := h.driveLogin(t, "mockop", "/me")
 	if resp.StatusCode != http.StatusFound {
@@ -554,12 +584,13 @@ func TestFederationCallback_HappyPath(t *testing.T) {
 		t.Fatal("session cookie value empty")
 	}
 
-	// One inserted account + one inserted identity row.
-	if len(h.q.insertedAccounts) != 1 {
-		t.Errorf("accounts inserted: want 1, got %d", len(h.q.insertedAccounts))
+	// Re-login of a confirmed identity inserts NOTHING (no account, no identity);
+	// it issues a session directly.
+	if len(h.q.insertedAccounts) != 0 {
+		t.Errorf("accounts inserted: want 0 (re-login), got %d", len(h.q.insertedAccounts))
 	}
-	if len(h.q.insertIdentitys) != 1 {
-		t.Errorf("identities inserted: want 1, got %d", len(h.q.insertIdentitys))
+	if len(h.q.insertIdentitys) != 0 {
+		t.Errorf("identities inserted: want 0 (re-login), got %d", len(h.q.insertIdentitys))
 	}
 	if len(h.q.sessions) != 1 {
 		t.Errorf("sessions inserted: want 1, got %d", len(h.q.sessions))
@@ -578,6 +609,7 @@ func TestFederationCallback_HappyPath(t *testing.T) {
 // OP can later surface a "federated" discriminator in id_token claims.
 func TestFederationCallback_PersistsUpstreamIdpID(t *testing.T) {
 	h := newFederationTestServer(t)
+	seedConfirmedIdentity(h)
 
 	loc, resp := h.driveLogin(t, "mockop", "/me")
 	if resp.StatusCode != http.StatusFound {
@@ -608,6 +640,7 @@ func TestFederationCallback_PersistsUpstreamIdpID(t *testing.T) {
 
 func TestFederationCallback_BackfillsAMRWhenUpstreamOmits(t *testing.T) {
 	h := newFederationTestServer(t)
+	seedConfirmedIdentity(h)
 	// Upstream omits the amr claim entirely. The handler must backfill
 	// ["federated"] (RFC 8176) so the session row's amr is non-empty —
 	// otherwise pkg/session.Issue would reject and surface a 500.

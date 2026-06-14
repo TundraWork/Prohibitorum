@@ -529,6 +529,13 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 		return nil, authn.ErrBadCredentials()
 	}
 
+	// Kick off the upstream avatar inherit for BOTH confirmed and unconfirmed
+	// outcomes: when the identity is unconfirmed the HTTP layer parks the user on
+	// /welcome, and we want the avatar fetched (so /welcome can preview it) by the
+	// time they accept. kickoffAvatarInherit no-ops when the user owns their
+	// avatar and dedupes concurrent runs via SetNX; the goroutine is detached.
+	f.kickoffAvatarInherit(ctx, client, idp, tokens, outcome.AccountID)
+
 	return &CallbackResult{
 		AccountID:  outcome.AccountID,
 		AMR:        tokens.AMR,
@@ -762,12 +769,91 @@ func (f *Federator) SudoCallback(ctx context.Context, stateToken, code, issParam
 // kickoffAvatarInherit launches the background avatar-inherit job unless the user
 // owns their avatar. Non-blocking; safe on every federated login. client is the
 // already-built RP client (reused for the UserInfo fallback).
-func (f *Federator) kickoffAvatarInherit(client *Client, idp db.UpstreamIdp, tokens *Tokens, accountID int32) {
-	if acct, err := f.q.GetAccountByID(context.Background(), accountID); err == nil &&
+//
+// ctx is used ONLY for the cheap pre-flight GetAccountByID (so the request's
+// deadline/cancellation bounds the skip check). The spawned goroutine runs on a
+// fresh context.Background() — the request ctx is cancelled when the HTTP
+// response is written, which would otherwise abort the detached fetch+store.
+func (f *Federator) kickoffAvatarInherit(ctx context.Context, client *Client, idp db.UpstreamIdp, tokens *Tokens, accountID int32) {
+	if acct, err := f.q.GetAccountByID(ctx, accountID); err == nil &&
 		acct.AvatarSource.Valid && acct.AvatarSource.String == "user" {
 		return
 	}
 	go f.runAvatarInherit(context.Background(), client, idp, tokens, accountID)
+}
+
+// CreateConfirmGrant stashes a confirmation grant in KV and returns the KV token
+// plus the raw anti-forgery value the HTTP layer must set as the fed-state
+// cookie (its hash is bound into the grant). Mirrors the BeginLogin anti-forgery
+// pattern: only the hash is persisted, so a KV read never yields the cookie
+// value, and the grant is bound to the browser that began the flow.
+// amr is the upstream AMR list from the callback result; it is carried through
+// so the confirm POST can issue the session with the correct AMR instead of
+// always falling back to the generic ["federated"] value.
+func (f *Federator) CreateConfirmGrant(ctx context.Context, accountID int32, identityID, idpID int64, idpSlug, returnTo string, amr []string) (token, antiForgery string, err error) {
+	token, err = randB64URL(32)
+	if err != nil {
+		return "", "", err
+	}
+	antiForgery, err = randB64URL(32)
+	if err != nil {
+		return "", "", err
+	}
+	grant := ConfirmGrant{
+		AccountID:      accountID,
+		IdentityID:     identityID,
+		IDPID:          idpID,
+		IDPSlug:        idpSlug,
+		ReturnTo:       returnTo,
+		BrowserBinding: hashAntiForgery(antiForgery),
+		AMR:            amr,
+	}
+	enc, err := grant.Encode()
+	if err != nil {
+		return "", "", err
+	}
+	if err := f.kvStore.SetEx(ctx, ConfirmKey(token), enc, 15*time.Minute); err != nil {
+		return "", "", fmt.Errorf("federation/oidc: store confirm grant: %w", err)
+	}
+	return token, antiForgery, nil
+}
+
+// PopConfirmGrant single-use-consumes a grant and validates the browser binding.
+// Every failure mode (missing token, decode failure, binding mismatch) collapses
+// onto ErrFederationStateInvalid to avoid a state-probing side channel.
+func (f *Federator) PopConfirmGrant(ctx context.Context, token, antiForgery string) (*ConfirmGrant, error) {
+	raw, err := f.kvStore.Pop(ctx, ConfirmKey(token))
+	if err != nil {
+		return nil, authn.ErrFederationStateInvalid()
+	}
+	g, err := DecodeConfirmGrant(raw)
+	if err != nil || !browserBindingOK(g.BrowserBinding, antiForgery) {
+		return nil, authn.ErrFederationStateInvalid()
+	}
+	return g, nil
+}
+
+// PeekConfirmGrant reads (without consuming) a grant for the confirm GET, so the
+// /welcome page can render the pending identity before the user accepts. Same
+// generic-error and browser-binding semantics as PopConfirmGrant.
+func (f *Federator) PeekConfirmGrant(ctx context.Context, token, antiForgery string) (*ConfirmGrant, error) {
+	raw, err := f.kvStore.Get(ctx, ConfirmKey(token))
+	if err != nil {
+		return nil, authn.ErrFederationStateInvalid()
+	}
+	g, err := DecodeConfirmGrant(raw)
+	if err != nil || !browserBindingOK(g.BrowserBinding, antiForgery) {
+		return nil, authn.ErrFederationStateInvalid()
+	}
+	return g, nil
+}
+
+// AvatarPending reports whether a background avatar fetch is in flight for
+// accountID (presence of the AvatarFetchKey marker). Used by the confirm GET so
+// /welcome can show a spinner instead of the (not-yet-stored) avatar.
+func (f *Federator) AvatarPending(ctx context.Context, accountID int32) bool {
+	_, err := f.kvStore.Get(ctx, AvatarFetchKey(accountID))
+	return err == nil
 }
 
 // runAvatarInherit resolves the upstream picture (id_token claim, else UserInfo),

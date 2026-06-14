@@ -374,6 +374,21 @@ type FederationProvider struct {
 	DisplayName string `json:"displayName"`
 }
 
+// FederationConfirmView is the /welcome confirmation-step projection returned by
+// GET /api/prohibitorum/auth/federation/confirm. It surfaces the pending
+// identity (resolved via a single-use, browser-bound confirmation grant) so the
+// user can confirm or decline a first-time federated sign-in. AvatarURL is the
+// already-stored avatar (nil while still fetching); AvatarPending reports
+// whether the background upstream-avatar inherit is still in flight.
+type FederationConfirmView struct {
+	IDPDisplayName string  `json:"idpDisplayName"`
+	DisplayName    string  `json:"displayName"`
+	Username       string  `json:"username"`
+	Email          string  `json:"email"`
+	AvatarURL      *string `json:"avatarUrl,omitempty"`
+	AvatarPending  bool    `json:"avatarPending"`
+}
+
 // SigningKeyView is the admin-facing projection of a signing_key row.
 // Private key material is NEVER included — only the public JWK and lifecycle
 // timestamps are returned to callers.
