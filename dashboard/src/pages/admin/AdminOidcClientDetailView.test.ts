@@ -59,10 +59,12 @@ describe('AdminOidcClientDetailView', () => {
     const w = mountView(); await flushPromises()
     const btn = w.find('[data-test="disable-toggle"]')
     expect(btn.text()).toBe(en.admin.oidc.disable)
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.oidc.active) // green "Active"
     await btn.trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/set-disabled', { clientId: 'web', disabled: true })
     expect(put).not.toHaveBeenCalled() // independent of the config Save
     expect(w.find('[data-test="disable-toggle"]').text()).toBe(en.admin.oidc.enable) // flipped to "Enable"
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.oidc.disabled) // now "Disabled"
   })
   it('not found', async () => {
     get.mockRejectedValue({ code: 'client_not_found', message: 'zh' })

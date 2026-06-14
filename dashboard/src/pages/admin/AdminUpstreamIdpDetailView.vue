@@ -17,6 +17,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import RadioCardGroup from '@/components/custom/RadioCardGroup.vue'
 import ComboboxTokenInput from '@/components/custom/ComboboxTokenInput.vue'
 import ListInput from '@/components/custom/ListInput.vue'
+import StatusBadge from '@/components/custom/StatusBadge.vue'
 import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
@@ -185,7 +186,12 @@ onMounted(load)
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.upstream.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
-            <p class="text-sm font-medium text-ink">{{ disabled ? t('admin.upstream.disabled') : t('admin.upstream.active') }}</p>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-ink">{{ t('admin.upstream.statusLabel') }}</span>
+              <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
+                {{ disabled ? t('admin.upstream.disabled') : t('admin.upstream.active') }}
+              </StatusBadge>
+            </div>
             <p class="text-xs text-muted">{{ t('admin.upstream.disabledDesc') }}</p>
             <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="disable-toggle" @click="toggleDisabled">
               {{ disabled ? t('admin.upstream.enable') : t('admin.upstream.disable') }}

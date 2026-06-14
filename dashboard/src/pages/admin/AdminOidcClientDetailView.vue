@@ -22,6 +22,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
+import StatusBadge from '@/components/custom/StatusBadge.vue'
 
 interface OidcApplication {
   clientId: string
@@ -208,7 +209,12 @@ onMounted(load)
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.oidc.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
-            <p class="text-sm font-medium text-ink">{{ disabled ? t('admin.oidc.disabled') : t('admin.oidc.active') }}</p>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-ink">{{ t('admin.oidc.statusLabel') }}</span>
+              <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
+                {{ disabled ? t('admin.oidc.disabled') : t('admin.oidc.active') }}
+              </StatusBadge>
+            </div>
             <p class="text-xs text-muted">{{ t('admin.oidc.disabledDesc') }}</p>
             <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="disable-toggle" @click="toggleDisabled">
               {{ disabled ? t('admin.oidc.enable') : t('admin.oidc.disable') }}

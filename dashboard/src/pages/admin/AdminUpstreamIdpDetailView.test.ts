@@ -64,10 +64,12 @@ describe('AdminUpstreamIdpDetailView', () => {
     const w = mountView(); await flushPromises()
     const btn = w.find('[data-test="disable-toggle"]')
     expect(btn.text()).toBe(en.admin.upstream.disable)
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.upstream.active) // green "Active"
     await btn.trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/set-disabled', { slug: 'okta', disabled: true })
     expect(put).not.toHaveBeenCalled() // independent of the config Save
     expect(w.find('[data-test="disable-toggle"]').text()).toBe(en.admin.upstream.enable) // flipped to "Enable"
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.upstream.disabled) // now "Disabled"
   })
   it('includes pictureClaim in save payload and renders the input', async () => {
     get.mockResolvedValue(IDP); put.mockResolvedValue({ ...IDP, pictureClaim: 'avatar_url' })
