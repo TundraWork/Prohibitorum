@@ -14,8 +14,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import RadioCardGroup from '@/components/custom/RadioCardGroup.vue'
-import TagInput from '@/components/custom/TagInput.vue'
+import ComboboxTokenInput from '@/components/custom/ComboboxTokenInput.vue'
 import ListInput from '@/components/custom/ListInput.vue'
+import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
 
@@ -45,6 +46,8 @@ const errorText = computed(() => {
 })
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
+
+const scopeSuggestions = computed(() => UPSTREAM_SCOPE_SUGGESTIONS.map((s) => ({ value: s.value, description: t(s.descKey) })))
 
 async function load(): Promise<void> {
   const i = await run(() => api.get<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`))
@@ -125,7 +128,7 @@ onMounted(load)
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
-            <TagInput input-id="scopes" v-model="scopes" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
+            <ComboboxTokenInput input-id="scopes" v-model="scopes" :suggestions="scopeSuggestions" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
             <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">

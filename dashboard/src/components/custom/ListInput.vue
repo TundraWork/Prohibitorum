@@ -3,7 +3,7 @@
  * ListInput — edit a list of free-form values as one full-width input per row (with an
  * Add button and per-row remove + inline validation). For long/structured values like
  * redirect URLs and domains where the whole value must stay visible and editable —
- * unlike TagInput's chips, which suit short tokens. modelValue is string[].
+ * unlike a chip/token input, which suits short tokens. modelValue is string[].
  */
 import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

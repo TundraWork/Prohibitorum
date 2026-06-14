@@ -15,8 +15,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import RadioCardGroup from '@/components/custom/RadioCardGroup.vue'
-import TagInput from '@/components/custom/TagInput.vue'
+import ComboboxTokenInput from '@/components/custom/ComboboxTokenInput.vue'
 import ListInput from '@/components/custom/ListInput.vue'
+import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 
@@ -43,6 +44,8 @@ const usernameClaim = ref('preferred_username'); const displayNameClaim = ref('n
 const requireVerifiedEmail = ref(false)
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
+
+const scopeSuggestions = computed(() => UPSTREAM_SCOPE_SUGGESTIONS.map((s) => ({ value: s.value, description: t(s.descKey) })))
 
 const errorText = computed(() => {
   const e = error.value
@@ -122,7 +125,7 @@ onMounted(load)
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
-            <TagInput input-id="scopes" v-model="scopes" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
+            <ComboboxTokenInput input-id="scopes" v-model="scopes" :suggestions="scopeSuggestions" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
             <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
           </div>
         </FormSection>
