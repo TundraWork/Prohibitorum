@@ -1,0 +1,82 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-14-federated-avatar-and-identity-confirmation.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Migration numbering fix + schema migration + sqlc queries",
+      "status": "pending",
+      "description": "**Goal:** Renumber 002→011 (IF NOT EXISTS), add 012 (avatar_source, picture_claim, confirmed_at + backfills), source-aware avatar meta queries + ConfirmAccountIdentity + picture_claim on upstream_idp CRUD; regenerate pkg/db.\n\n```json:metadata\n{\"files\":[\"db/migrations/011_avatar.sql\",\"db/migrations/012_federation_confirm_avatar.sql\",\"db/queries/account.sql\",\"db/queries/account_identity.sql\",\"db/queries/upstream_idp.sql\",\"pkg/db\"],\"verifyCommand\":\"podman compose up -d && mise db:up && mise exec -- sqlc generate && CGO_ENABLED=0 go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"migrations 011/012 apply cleanly with backfills\",\"sqlc generate + go build pass with new methods/columns\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Claim plumbing — picture hoist + Client.UserInfo",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Hoist id_token picture into Tokens.Raw; add Client.UserInfo(ctx, accessToken) returning a claims map (picture hoisted) via the hardened RP client.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/client.go\",\"pkg/federation/oidc/client_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run 'Picture|UserInfo' -v\",\"acceptanceCriteria\":[\"Tokens.Raw['picture'] carries id_token picture\",\"Client.UserInfo returns claims map with picture hoisted\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: SSRF-guarded avatar fetch",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** fetchUpstreamAvatar — https-only, image/* only, 5 MiB cap, reusing screenDialControl; parameterize hardenedHTTPClient(allowPrivate, maxBytes).\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/avatar_fetch.go\",\"pkg/federation/oidc/avatar_fetch_test.go\",\"pkg/federation/oidc/httpclient.go\",\"pkg/federation/oidc/client.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run AvatarFetch -v\",\"acceptanceCriteria\":[\"rejects non-https, non-image, oversized\",\"shares dial-screen with federation client\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Background avatar-inherit job + KV status",
+      "status": "pending",
+      "blockedBy": [1, 2, 3],
+      "description": "**Goal:** Detached goroutine: SetNX-deduped status key, resolve picture (id_token→UserInfo), fetch→Process→store (source='upstream'), skip when avatar_source='user' or etag unchanged; AvatarFetchKey helper; avatarFetch seam.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/federation.go\",\"pkg/federation/oidc/state.go\",\"pkg/federation/oidc/federation_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run AvatarInherit -v\",\"acceptanceCriteria\":[\"stores upstream avatar for fresh account\",\"no-op on source=user or unchanged etag\",\"SetNX dedup; status key cleared always\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: ResolveOutcome + invite auto-confirm + re-login confirmed",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Resolve/applyAutoProvision/applyInviteOnly return ResolveOutcome{AccountID,IdentityID,IsNew,Confirmed}; auto-provision Confirmed=false; invite confirms in-tx; existing identity Confirmed from confirmed_at. Update HandleCallback + CallbackResult.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/modes.go\",\"pkg/federation/oidc/federation.go\",\"pkg/federation/oidc/modes_test.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run 'Resolve|Provision|Invite' -v\",\"acceptanceCriteria\":[\"ResolveOutcome confirmed semantics correct across new/existing/invite\",\"invite calls ConfirmAccountIdentity in-tx\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Confirmation grant + callback branch + confirm HTTP endpoints",
+      "status": "pending",
+      "blockedBy": [4, 5],
+      "description": "**Goal:** ConfirmGrant/ConfirmKey + Create/Pop/Peek ConfirmGrant + AvatarPending on Federator; HandleCallback withholds session for Confirmed=false (grant+cookie→/welcome) + kicks off avatar job both branches; confirm GET/POST/decline; FederationConfirmView; routes.\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/state.go\",\"pkg/federation/oidc/federation.go\",\"pkg/server/handle_federation.go\",\"pkg/server/handle_federation_confirm.go\",\"pkg/server/handle_federation_confirm_test.go\",\"pkg/server/server.go\",\"pkg/contract/auth.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run FederationConfirm -v && go test ./pkg/federation/...\",\"acceptanceCriteria\":[\"unconfirmed → no session cookie, fed-state cookie, redirect /welcome\",\"confirm GET returns identity+avatar status (401 on bad grant)\",\"confirm POST issues session + sets confirmed_at; decline pops grant\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Avatar source on self-service + status endpoint + /me avatarPending",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** PUT/DELETE /me/avatar set avatar_source='user'; GET /me/avatar/status (authed) {pending}; SessionView.AvatarPending in /me.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_avatar.go\",\"pkg/server/handle_me.go\",\"pkg/server/server.go\",\"pkg/contract/auth.go\",\"pkg/server/handle_avatar_test.go\",\"pkg/server/handle_me_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run 'Avatar|Me' -v\",\"acceptanceCriteria\":[\"upload/remove set avatar_source='user'\",\"/me/avatar/status + /me avatarPending reflect KV key\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Frontend — WelcomeView interstitial + route + i18n",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** /welcome standalone page: fetch confirm view, render identity+avatar, spinner+poll while avatarPending, gate Continue (settled or ~30s cap), confirm POST→redirect, decline→/login. Route + i18n.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/WelcomeView.vue\",\"dashboard/src/pages/WelcomeView.test.ts\",\"dashboard/src/router\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/pages/WelcomeView.test.ts && npx vue-tsc -b\",\"acceptanceCriteria\":[\"renders identity; Continue gated until avatar settles/cap\",\"confirm POST navigates to redirect; decline → /login\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Frontend — dashboard avatar spinner (returning users)",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** UserAvatar loading overlay; NavUser polls /me/avatar/status when me.avatarPending and auth.reload() on clear; auth store pollAvatarUntilSettled helper.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/UserAvatar.vue\",\"dashboard/src/components/custom/NavUser.vue\",\"dashboard/src/stores/auth.ts\",\"dashboard/src/components/custom/UserAvatar.test.ts\",\"dashboard/src/components/custom/NavUser.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/UserAvatar.test.ts src/components/custom/NavUser.test.ts && npx vue-tsc -b\",\"acceptanceCriteria\":[\"UserAvatar shows spinner when loading\",\"NavUser polls + reloads when avatarPending clears\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Admin + CLI pictureClaim",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Expose per-IdP picture_claim (default 'picture') in contract, admin handler + form/detail, CLI upstream-idp (--picture-claim), dev-seed.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_admin_upstream_idps.go\",\"pkg/server/handle_admin_upstream_idps_test.go\",\"cmd/prohibitorum/main.go\",\"cmd/prohibitorum/dev_seed.go\",\"dashboard/src/pages/admin\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"go test ./pkg/server/ -run UpstreamIDP -v && CGO_ENABLED=0 go build -tags nodynamic ./... && cd dashboard && npx vue-tsc -b\",\"acceptanceCriteria\":[\"create/update accept pictureClaim (default picture)\",\"admin form + CLI flag present\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Smoke coverage + done-gate",
+      "status": "pending",
+      "blockedBy": [8, 9, 10],
+      "description": "**Goal:** Smoke: federated auto-provision → /welcome (no session cookie) → confirm GET identity → poll avatarPending → confirm POST → session + GET /avatar/{sub} 200 webp + picture claim; no-clobber case. Full gate + rebuild/commit dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm run test && npm run build\",\"acceptanceCriteria\":[\"smoke federated confirm→avatar round-trip + no-clobber, SMOKE_EXIT=0\",\"full gate green; dist rebuilt+committed\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-14T00:00:00Z"
+}
