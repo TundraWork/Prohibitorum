@@ -53,6 +53,25 @@ func (s *Server) sessionView(a *db.Account) contract.SessionView {
 	if u := avatar.AccountURL(*a, origin); u != "" {
 		v.AvatarURL = &u
 	}
+	if a.AvatarSource.Valid {
+		src := a.AvatarSource.String
+		v.AvatarSource = &src
+	}
+	if origin != "" {
+		// avatarSourceUrls is best-effort: a failed list read degrades gracefully
+		// (the field is simply omitted) rather than failing the whole /me response.
+		if rows, lerr := s.avatarQ().ListAvatarSourcesByAccount(context.Background(), a.ID); lerr == nil && len(rows) > 0 {
+			urls := make(map[string]string, len(rows))
+			for _, row := range rows {
+				if u := avatar.SourceURL(a.OidcSubject.String(), row.Source, row.Etag.String, origin); u != "" {
+					urls[row.Source] = u
+				}
+			}
+			if len(urls) > 0 {
+				v.AvatarSourceUrls = urls
+			}
+		}
+	}
 	return v
 }
 

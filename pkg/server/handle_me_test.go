@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/errorx"
 	fedoidc "prohibitorum/pkg/federation/oidc"
@@ -416,5 +417,121 @@ func TestHandleGetMe_AvatarPendingNilFederator(t *testing.T) {
 	}
 	if out.Body.AvatarPending {
 		t.Error("avatarPending: want false when federator nil, got true")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GET /me avatarSource + avatarSourceUrls
+// ---------------------------------------------------------------------------
+
+// TestHandleGetMe_AvatarSourceAndUrls verifies that /me returns avatarSource (the
+// active pointer) and avatarSourceUrls (one entry per existing source row) when the
+// account has both an upstream and a user avatar row and active is set to "user".
+func TestHandleGetMe_AvatarSourceAndUrls(t *testing.T) {
+	const acctID int32 = 60
+	const sub = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+	// Seed both source rows in the fake.
+	q := newFakeAvatarQ()
+	q.store[sourceKey{acctID, "upstream"}] = avatarRow{
+		bytes:       []byte("fake-upstream-webp"),
+		etag:        pgtype.Text{String: "upstream-etag-0001", Valid: true},
+		contentType: pgtype.Text{String: "image/webp", Valid: true},
+	}
+	q.store[sourceKey{acctID, "user"}] = avatarRow{
+		bytes:       []byte("fake-user-webp"),
+		etag:        pgtype.Text{String: "user-etag-0002", Valid: true},
+		contentType: pgtype.Text{String: "image/webp", Valid: true},
+	}
+
+	// Build a server with the fake avatarQ and a config that provides an origin.
+	s := &Server{
+		avatarQueriesOverride: q,
+		config: &configx.Config{
+			PublicOrigins: []string{"https://example.com"},
+		},
+	}
+
+	// Build a session whose account has AvatarSource=user and OidcSubject set.
+	var subUUID pgtype.UUID
+	if err := subUUID.Scan(sub); err != nil {
+		t.Fatalf("scan UUID: %v", err)
+	}
+	acct := &db.Account{
+		ID:          acctID,
+		Username:    "testme",
+		DisplayName: "Test Me",
+		Role:        "user",
+		OidcSubject: subUUID,
+		AvatarSource: pgtype.Text{String: "user", Valid: true},
+		AvatarEtag:   pgtype.Text{String: "user-etag-0002", Valid: true},
+	}
+	sess := &authn.Session{Account: acct}
+	ctx := authn.WithSession(context.Background(), sess)
+
+	out, err := s.handleGetMe(ctx, nil)
+	if err != nil {
+		t.Fatalf("handleGetMe: %v", err)
+	}
+	v := out.Body
+
+	// avatarSource must be "user".
+	if v.AvatarSource == nil {
+		t.Fatal("avatarSource: want non-nil pointer to \"user\", got nil")
+	}
+	if *v.AvatarSource != "user" {
+		t.Errorf("avatarSource: want \"user\", got %q", *v.AvatarSource)
+	}
+
+	// avatarSourceUrls must contain both "upstream" and "user" keys.
+	if v.AvatarSourceUrls == nil {
+		t.Fatal("avatarSourceUrls: want non-nil map, got nil")
+	}
+	for _, src := range []string{"upstream", "user"} {
+		u, ok := v.AvatarSourceUrls[src]
+		if !ok {
+			t.Errorf("avatarSourceUrls[%q]: key missing", src)
+		} else if u == "" {
+			t.Errorf("avatarSourceUrls[%q]: URL must be non-empty", src)
+		}
+	}
+	if len(v.AvatarSourceUrls) != 2 {
+		t.Errorf("avatarSourceUrls: want 2 entries, got %d: %v", len(v.AvatarSourceUrls), v.AvatarSourceUrls)
+	}
+}
+
+// A NULL active source (an upstream avatar inherited-but-not-yet-activated) must
+// omit avatarSource from /me while still exposing the source's preview URL.
+func TestHandleGetMe_AvatarSourceNullStillListsUrls(t *testing.T) {
+	const acctID int32 = 61
+	const sub = "11111111-2222-3333-4444-555555555555"
+
+	q := newFakeAvatarQ()
+	q.store[sourceKey{acctID, "upstream"}] = avatarRow{
+		bytes:       []byte("fake-upstream-webp"),
+		etag:        pgtype.Text{String: "upstream-etag-0003", Valid: true},
+		contentType: pgtype.Text{String: "image/webp", Valid: true},
+	}
+	s := &Server{
+		avatarQueriesOverride: q,
+		config:                &configx.Config{PublicOrigins: []string{"https://example.com"}},
+	}
+	var subUUID pgtype.UUID
+	if err := subUUID.Scan(sub); err != nil {
+		t.Fatalf("scan UUID: %v", err)
+	}
+	// AvatarSource is the zero pgtype.Text (Valid=false) -> never chosen / NULL.
+	acct := &db.Account{ID: acctID, Username: "nullsrc", DisplayName: "Null Src", Role: "user", OidcSubject: subUUID}
+	ctx := authn.WithSession(context.Background(), &authn.Session{Account: acct})
+
+	out, err := s.handleGetMe(ctx, nil)
+	if err != nil {
+		t.Fatalf("handleGetMe: %v", err)
+	}
+	if out.Body.AvatarSource != nil {
+		t.Errorf("avatarSource: want nil (omitted) for NULL active source, got %q", *out.Body.AvatarSource)
+	}
+	if u, ok := out.Body.AvatarSourceUrls["upstream"]; !ok || u == "" {
+		t.Errorf("avatarSourceUrls[upstream]: want non-empty even when active is NULL, got %q (present=%v)", u, ok)
 	}
 }
