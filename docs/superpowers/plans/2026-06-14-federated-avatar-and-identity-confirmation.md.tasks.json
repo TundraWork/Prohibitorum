@@ -4,7 +4,7 @@
     {
       "id": 1,
       "subject": "Task 1: Migration numbering fix + schema migration + sqlc queries",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Renumber 002→011 (IF NOT EXISTS), add 012 (avatar_source, picture_claim, confirmed_at + backfills), source-aware avatar meta queries + ConfirmAccountIdentity + picture_claim on upstream_idp CRUD; regenerate pkg/db.\n\n```json:metadata\n{\"files\":[\"db/migrations/011_avatar.sql\",\"db/migrations/012_federation_confirm_avatar.sql\",\"db/queries/account.sql\",\"db/queries/account_identity.sql\",\"db/queries/upstream_idp.sql\",\"pkg/db\"],\"verifyCommand\":\"podman compose up -d && mise db:up && mise exec -- sqlc generate && CGO_ENABLED=0 go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"migrations 011/012 apply cleanly with backfills\",\"sqlc generate + go build pass with new methods/columns\"]}\n```"
     },
     {
@@ -78,5 +78,5 @@
       "description": "**Goal:** Smoke: federated auto-provision → /welcome (no session cookie) → confirm GET identity → poll avatarPending → confirm POST → session + GET /avatar/{sub} 200 webp + picture claim; no-clobber case. Full gate + rebuild/commit dist.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\",\"pkg/webui/dist\"],\"verifyCommand\":\"CGO_ENABLED=0 go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm run test && npm run build\",\"acceptanceCriteria\":[\"smoke federated confirm→avatar round-trip + no-clobber, SMOKE_EXIT=0\",\"full gate green; dist rebuilt+committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-14T00:00:00Z"
+  "lastUpdated": "2026-06-14T18:10:00Z"
 }
