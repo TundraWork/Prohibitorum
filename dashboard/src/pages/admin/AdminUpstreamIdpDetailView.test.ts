@@ -45,14 +45,16 @@ describe('AdminUpstreamIdpDetailView', () => {
     expect(body).not.toHaveProperty('clientSecret')
     expect(w.text()).toContain(en.admin.upstream.saved)
   })
-  it('renders the disabled toggle inside its own Status card, not the Config card', async () => {
+  it('groups disable, rotate-secret and delete in the Danger zone card', async () => {
     get.mockResolvedValue(IDP)
     const w = mountView(); await flushPromises()
     const cards = w.findAll('[data-slot="card"]')
-    const statusCard = cards.find((c) => c.text().includes(en.admin.upstream.statusTitle))
-    expect(statusCard).toBeTruthy()
-    expect(statusCard!.find('[data-test="disabled"]').exists()).toBe(true)
-    // The toggle must have moved OUT of the Config card (the one holding Save).
+    // The Danger zone is the card holding Delete; it now also holds disable + rotate.
+    const dangerCard = cards.find((c) => c.find('[data-test="delete"]').exists())
+    expect(dangerCard).toBeTruthy()
+    expect(dangerCard!.find('[data-test="disabled"]').exists()).toBe(true)
+    expect(dangerCard!.find('[data-test="rotate"]').exists()).toBe(true)
+    // The toggle must NOT be in the Config card (the one holding Save).
     const configCard = cards.find((c) => c.find('[data-test="save"]').exists())
     expect(configCard!.find('[data-test="disabled"]').exists()).toBe(false)
   })

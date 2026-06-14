@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import RadioCardGroup from '@/components/custom/RadioCardGroup.vue'
 import ComboboxTokenInput from '@/components/custom/ComboboxTokenInput.vue'
@@ -167,19 +168,16 @@ onMounted(load)
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>{{ t('admin.upstream.statusTitle') }}</CardTitle></CardHeader>
+      <!-- Danger zone: sensitive operations (disable, rotate secret, delete) grouped together. -->
+      <Card class="border-destructive/30 bg-destructive/[0.02]">
+        <CardHeader><CardTitle class="text-destructive">{{ t('admin.upstream.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
           <SettingRow :label="t('admin.upstream.disabled')" :description="t('admin.upstream.disabledDesc')" for="disabled">
             <Switch id="disabled" v-model="disabled" data-test="disabled" />
           </SettingRow>
           <p class="text-xs text-muted">{{ t('admin.upstream.statusSavedHint') }}</p>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader><CardTitle>{{ t('admin.upstream.rotateTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-3">
+          <Separator />
           <p class="text-sm text-muted">{{ t('admin.upstream.rotateBody') }}</p>
           <div class="flex flex-col gap-1.5">
             <Label for="newSecret">{{ t('admin.upstream.clientSecret') }}</Label>
@@ -187,12 +185,8 @@ onMounted(load)
           </div>
           <span v-if="rotated" class="text-sm text-sage" role="status">{{ t('admin.upstream.rotated') }}</span>
           <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ t('admin.upstream.rotateConfirm') }}</Button>
-        </CardContent>
-      </Card>
 
-      <Card class="border-destructive/30 bg-destructive/[0.02]">
-        <CardHeader><CardTitle class="text-destructive">{{ t('admin.upstream.dangerTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-3">
+          <Separator />
           <p class="text-sm text-muted">{{ t('admin.upstream.deleteHelp') }}</p>
           <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.upstream.delete') }}</Button>
         </CardContent>

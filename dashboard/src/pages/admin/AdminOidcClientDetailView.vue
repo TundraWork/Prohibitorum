@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import ListInput from '@/components/custom/ListInput.vue'
@@ -186,19 +187,16 @@ onMounted(load)
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>{{ t('admin.oidc.statusTitle') }}</CardTitle></CardHeader>
+      <!-- Danger zone: sensitive operations (disable, rotate secret, delete) grouped together. -->
+      <Card class="border-destructive/30 bg-destructive/[0.02]">
+        <CardHeader><CardTitle class="text-destructive">{{ t('admin.oidc.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
           <SettingRow :label="t('admin.oidc.disabled')" :description="t('admin.oidc.disabledDesc')" for="disabled">
             <Switch id="disabled" v-model="disabled" data-test="disabled" />
           </SettingRow>
           <p class="text-xs text-muted">{{ t('admin.oidc.statusSavedHint') }}</p>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader><CardTitle>{{ t('admin.oidc.rotate') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-3">
+          <Separator />
           <template v-if="client.tokenEndpointAuthMethod !== 'none'">
             <p class="text-sm text-muted">{{ t('admin.oidc.rotateConfirmBody') }}</p>
             <template v-if="rotatedSecret">
@@ -208,12 +206,8 @@ onMounted(load)
             <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="rotate" @click="confirmRotate = true">{{ t('admin.oidc.rotate') }}</Button>
           </template>
           <p v-else class="text-sm text-muted">{{ t('admin.oidc.publicClient') }}</p>
-        </CardContent>
-      </Card>
 
-      <Card class="border-destructive/30 bg-destructive/[0.02]">
-        <CardHeader><CardTitle class="text-destructive">{{ t('admin.oidc.dangerTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-3">
+          <Separator />
           <p class="text-sm text-muted">{{ t('admin.oidc.deleteHelp') }}</p>
           <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.oidc.delete') }}</Button>
         </CardContent>
