@@ -17,7 +17,7 @@
     {
       "id": 3,
       "subject": "Task 3: SSRF-guarded avatar fetch",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** fetchUpstreamAvatar — https-only, image/* only, 5 MiB cap, reusing screenDialControl; parameterize hardenedHTTPClient(allowPrivate, maxBytes).\n\n```json:metadata\n{\"files\":[\"pkg/federation/oidc/avatar_fetch.go\",\"pkg/federation/oidc/avatar_fetch_test.go\",\"pkg/federation/oidc/httpclient.go\",\"pkg/federation/oidc/client.go\"],\"verifyCommand\":\"go test ./pkg/federation/oidc/ -run AvatarFetch -v\",\"acceptanceCriteria\":[\"rejects non-https, non-image, oversized\",\"shares dial-screen with federation client\"]}\n```"
     },
