@@ -58,7 +58,7 @@
     {
       "id": 11,
       "subject": "T11: SecurityView cards normalization + sudo foreshadow",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2
       ]
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T13:00:00Z"
+  "lastUpdated": "2026-06-15T13:30:00Z"
 }
