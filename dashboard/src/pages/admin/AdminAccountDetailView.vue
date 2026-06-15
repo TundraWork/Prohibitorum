@@ -319,7 +319,7 @@ onMounted(load)
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-ink">{{ t('admin.account.statusLabel') }}</span>
+              <h4 class="text-sm font-medium text-ink">{{ t('admin.account.statusLabel') }}</h4>
               <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
                 {{ disabled ? t('admin.account.statusDisabled') : t('admin.account.statusActive') }}
               </StatusBadge>
@@ -332,8 +332,11 @@ onMounted(load)
           </div>
 
           <Separator />
-          <p class="text-sm text-muted">{{ t('admin.account.deleteHelp') }}</p>
-          <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.account.delete') }}</Button>
+          <div class="flex flex-col gap-2">
+            <h4 class="text-sm font-medium text-ink">{{ t('admin.account.deleteTitle') }}</h4>
+            <p class="text-xs text-muted">{{ t('admin.account.deleteHelp') }}</p>
+            <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.account.delete') }}</Button>
+          </div>
         </CardContent>
       </Card>
     </template>

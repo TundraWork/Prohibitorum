@@ -182,7 +182,7 @@ onMounted(load)
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-ink">{{ t('admin.upstream.statusLabel') }}</span>
+              <h4 class="text-sm font-medium text-ink">{{ t('admin.upstream.statusLabel') }}</h4>
               <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
                 {{ disabled ? t('admin.upstream.disabled') : t('admin.upstream.active') }}
               </StatusBadge>
@@ -194,17 +194,23 @@ onMounted(load)
           </div>
 
           <Separator />
-          <div class="flex flex-col gap-1.5">
-            <Label for="newSecret">{{ t('admin.upstream.clientSecret') }}</Label>
-            <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
+          <div class="flex flex-col gap-2">
+            <h4 class="text-sm font-medium text-ink">{{ t('admin.upstream.rotateTitle') }}</h4>
             <p class="text-xs text-muted">{{ t('admin.upstream.rotateBody') }}</p>
+            <div class="flex flex-col gap-1.5">
+              <Label for="newSecret">{{ t('admin.upstream.clientSecret') }}</Label>
+              <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
+            </div>
+            <span v-if="rotated" class="text-sm text-sage" role="status">{{ t('admin.upstream.rotated') }}</span>
+            <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ t('admin.upstream.rotateConfirm') }}</Button>
           </div>
-          <span v-if="rotated" class="text-sm text-sage" role="status">{{ t('admin.upstream.rotated') }}</span>
-          <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ t('admin.upstream.rotateConfirm') }}</Button>
 
           <Separator />
-          <p class="text-sm text-muted">{{ t('admin.upstream.deleteHelp') }}</p>
-          <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.upstream.delete') }}</Button>
+          <div class="flex flex-col gap-2">
+            <h4 class="text-sm font-medium text-ink">{{ t('admin.upstream.deleteTitle') }}</h4>
+            <p class="text-xs text-muted">{{ t('admin.upstream.deleteHelp') }}</p>
+            <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.upstream.delete') }}</Button>
+          </div>
         </CardContent>
       </Card>
     </template>
