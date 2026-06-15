@@ -126,6 +126,14 @@ type listGroupMembersOut struct {
 }
 
 func (s *Server) handleListGroupMembers(ctx context.Context, in *listGroupMembersIn) (*listGroupMembersOut, error) {
+	// Pre-check: return 404 for a nonexistent group rather than 200 [].
+	if _, err := s.queries.GetGroup(ctx, in.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(authn.ErrGroupNotFound())
+		}
+		return nil, fmt.Errorf("handleListGroupMembers: existence check: %w", err)
+	}
+
 	rows, err := s.queries.ListGroupMembers(ctx, in.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleListGroupMembers: query: %w", err)
@@ -266,6 +274,10 @@ func (s *Server) handleUpdateGroupHTTP(w http.ResponseWriter, r *http.Request) {
 		ExposedToDownstream: exposed,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrGroupNotFound())
+			return
+		}
 		if isUniqueViolation(err) {
 			writeAuthErr(w, authn.ErrGroupSlugConflict())
 			return
@@ -356,6 +368,10 @@ func (s *Server) handleAddGroupMemberHTTP(w http.ResponseWriter, r *http.Request
 		GroupID:   groupID,
 		AccountID: body.AccountID,
 	}); err != nil {
+		if isForeignKeyViolation(err) {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
 		writeAuthErr(w, fmt.Errorf("handleAddGroupMember: insert: %w", err))
 		return
 	}

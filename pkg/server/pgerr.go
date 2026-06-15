@@ -25,3 +25,11 @@ func uniqueViolationConstraint(err error) string {
 	}
 	return pgErr.ConstraintName
 }
+
+// isForeignKeyViolation returns true iff err carries Postgres SQLSTATE 23503.
+// Use this to surface a 400 Bad Request when a FK-referenced row (e.g. an
+// account or group) does not exist.
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
+}

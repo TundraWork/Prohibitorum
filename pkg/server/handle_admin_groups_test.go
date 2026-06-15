@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
@@ -204,5 +205,47 @@ func TestAdminGroups_MemberViewMapping(t *testing.T) {
 	}
 	if view.DisplayName != "Alice Smith" {
 		t.Errorf("DisplayName: got %q, want Alice Smith", view.DisplayName)
+	}
+}
+
+// ----- Error constructor tests -------------------------------------------------------
+
+// TestAdminGroups_ErrGroupNotFound verifies that ErrGroupNotFound returns the
+// expected HTTP status and machine-readable error code.
+func TestAdminGroups_ErrGroupNotFound(t *testing.T) {
+	t.Parallel()
+
+	err := authn.ErrGroupNotFound()
+	if err == nil {
+		t.Fatal("ErrGroupNotFound: got nil")
+	}
+	if err.Status != 404 {
+		t.Errorf("Status: got %d, want 404", err.Status)
+	}
+	if err.Code != "group_not_found" {
+		t.Errorf("Code: got %q, want %q", err.Code, "group_not_found")
+	}
+	if err.Message == "" {
+		t.Error("Message: got empty string")
+	}
+}
+
+// TestAdminGroups_ErrGroupSlugConflict verifies that ErrGroupSlugConflict returns
+// the expected HTTP status and machine-readable error code.
+func TestAdminGroups_ErrGroupSlugConflict(t *testing.T) {
+	t.Parallel()
+
+	err := authn.ErrGroupSlugConflict()
+	if err == nil {
+		t.Fatal("ErrGroupSlugConflict: got nil")
+	}
+	if err.Status != 409 {
+		t.Errorf("Status: got %d, want 409", err.Status)
+	}
+	if err.Code != "group_slug_conflict" {
+		t.Errorf("Code: got %q, want %q", err.Code, "group_slug_conflict")
+	}
+	if err.Message == "" {
+		t.Error("Message: got empty string")
 	}
 }
