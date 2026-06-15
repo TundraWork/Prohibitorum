@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AddGroupMember(ctx context.Context, arg AddGroupMemberParams) error
 	//
 	// Atomic increment + lockout-from-just-incremented-count. The previous
 	// read-then-UPSERT path lost increments under K-way concurrency (K callers
@@ -45,6 +46,7 @@ type Querier interface {
 	// upstream IdP must still exist and be enabled. (ListAccountIdentitiesByAccount
 	// intentionally returns ALL links, incl. disabled-upstream, for display/unlink.)
 	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
+	CreateGroup(ctx context.Context, arg CreateGroupParams) (UserGroup, error)
 	DeleteAccountByID(ctx context.Context, id int32) error
 	// Returns the deleted row's id when one matched; pgx.ErrNoRows when the
 	// (id, account_id) pair matches nothing (foreign identity, already-
@@ -58,6 +60,7 @@ type Querier interface {
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
 	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
+	DeleteGroup(ctx context.Context, id int32) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
 	DeleteSAMLSP(ctx context.Context, id int64) (int64, error)
@@ -80,6 +83,8 @@ type Querier interface {
 	GetConsent(ctx context.Context, arg GetConsentParams) ([]string, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
+	GetGroup(ctx context.Context, id int32) (UserGroup, error)
+	GetGroupBySlug(ctx context.Context, slug string) (UserGroup, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
 	GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error)
 	GetPasswordCredential(ctx context.Context, accountID int32) (PasswordCredential, error)
@@ -91,6 +96,10 @@ type Querier interface {
 	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error)
 	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (UpstreamIdp, error)
+	GrantOIDCClientAccessAccount(ctx context.Context, arg GrantOIDCClientAccessAccountParams) error
+	GrantOIDCClientAccessGroup(ctx context.Context, arg GrantOIDCClientAccessGroupParams) error
+	GrantSAMLSPAccessAccount(ctx context.Context, arg GrantSAMLSPAccessAccountParams) error
+	GrantSAMLSPAccessGroup(ctx context.Context, arg GrantSAMLSPAccessGroupParams) error
 	HasAnyActiveAdmin(ctx context.Context) (bool, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
 	InsertAccountIdentity(ctx context.Context, arg InsertAccountIdentityParams) (AccountIdentity, error)
@@ -109,6 +118,8 @@ type Querier interface {
 	InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error)
 	InsertTOTPCredential(ctx context.Context, arg InsertTOTPCredentialParams) (TotpCredential, error)
 	InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPParams) (UpstreamIdp, error)
+	IsAccountAuthorizedForOIDCClient(ctx context.Context, arg IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error)
+	IsAccountAuthorizedForSAMLSP(ctx context.Context, arg IsAccountAuthorizedForSAMLSPParams) (pgtype.Bool, error)
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
@@ -119,15 +130,23 @@ type Querier interface {
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
+	ListExposedGroupSlugsByAccount(ctx context.Context, accountID int32) ([]string, error)
+	ListGroupMembers(ctx context.Context, groupID int32) ([]ListGroupMembersRow, error)
+	ListGroups(ctx context.Context) ([]ListGroupsRow, error)
+	ListGroupsForAccount(ctx context.Context, accountID int32) ([]UserGroup, error)
 	// The account's linked upstream IdPs that are currently enabled — the set
 	// offerable for OIDC sudo step-up. Mirrors CountUsableSignInFederation's
 	// enabled filter. Returns slug + display name for the sudo-method picker.
 	ListLinkedEnabledIdPs(ctx context.Context, accountID int32) ([]ListLinkedEnabledIdPsRow, error)
+	ListOIDCClientAccessAccounts(ctx context.Context, clientID string) ([]ListOIDCClientAccessAccountsRow, error)
+	ListOIDCClientAccessGroups(ctx context.Context, clientID string) ([]ListOIDCClientAccessGroupsRow, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
 	ListPublishableSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
 	ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]SamlSpAc, error)
+	ListSAMLSPAccessAccounts(ctx context.Context, samlSpID int64) ([]ListSAMLSPAccessAccountsRow, error)
+	ListSAMLSPAccessGroups(ctx context.Context, samlSpID int64) ([]ListSAMLSPAccessGroupsRow, error)
 	ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) ([]SamlSpKey, error)
 	ListSAMLSPs(ctx context.Context) ([]SamlSp, error)
 	ListSAMLSessionsByNameID(ctx context.Context, arg ListSAMLSessionsByNameIDParams) ([]SamlSession, error)
@@ -137,6 +156,7 @@ type Querier interface {
 	PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error)
 	PruneExpiredRevokedJTI(ctx context.Context) error
 	ReconcileRetiredSigningKeys(ctx context.Context) (int64, error)
+	RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error)
 	ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error
 	RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) (SigningKey, error)
 	RevokeAllSessionsByAccount(ctx context.Context, accountID int32) error
@@ -145,13 +165,19 @@ type Querier interface {
 	// Returns the row only if it was unconsumed AND of intent=invite; otherwise
 	// pgx.ErrNoRows surfaces and the handler maps to invitation_not_found.
 	RevokeInvitation(ctx context.Context, token string) (Enrollment, error)
+	RevokeOIDCClientAccessAccount(ctx context.Context, arg RevokeOIDCClientAccessAccountParams) (int64, error)
+	RevokeOIDCClientAccessGroup(ctx context.Context, arg RevokeOIDCClientAccessGroupParams) (int64, error)
+	RevokeSAMLSPAccessAccount(ctx context.Context, arg RevokeSAMLSPAccessAccountParams) (int64, error)
+	RevokeSAMLSPAccessGroup(ctx context.Context, arg RevokeSAMLSPAccessGroupParams) (int64, error)
 	RevokeSession(ctx context.Context, id string) error
 	SetAccountDisabled(ctx context.Context, arg SetAccountDisabledParams) (Account, error)
 	// source is forced non-null text (the column is nullable, but this query only
 	// ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
 	SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
+	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
+	SetSAMLSPAccessRestricted(ctx context.Context, arg SetSAMLSPAccessRestrictedParams) (SamlSp, error)
 	SetSAMLSPDisabled(ctx context.Context, arg SetSAMLSPDisabledParams) (SamlSp, error)
 	SetUpstreamIDPDisabled(ctx context.Context, arg SetUpstreamIDPDisabledParams) (UpstreamIdp, error)
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
@@ -161,6 +187,7 @@ type Querier interface {
 	UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmailParams) error
 	UpdateAccountIdentityEmail(ctx context.Context, arg UpdateAccountIdentityEmailParams) error
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
+	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (UserGroup, error)
 	// Owner-scoped update: only the account's own credential row is updated.
 	// Zero rows affected means the id doesn't match an owned credential; the
 	// handler then surfaces credential_not_found.

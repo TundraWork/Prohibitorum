@@ -81,6 +81,12 @@ type Enrollment struct {
 	ConsumedAt              pgtype.Timestamptz `json:"consumedAt"`
 }
 
+type GroupMember struct {
+	GroupID   int32              `json:"groupId"`
+	AccountID int32              `json:"accountId"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+}
+
 type OidcClient struct {
 	ClientID                    string             `json:"clientId"`
 	DisplayName                 string             `json:"displayName"`
@@ -98,6 +104,14 @@ type OidcClient struct {
 	Disabled                    bool               `json:"disabled"`
 	RequireConsent              bool               `json:"requireConsent"`
 	CreatedAt                   pgtype.Timestamptz `json:"createdAt"`
+	AccessRestricted            bool               `json:"accessRestricted"`
+}
+
+type OidcClientAccess struct {
+	ClientID  string             `json:"clientId"`
+	GroupID   pgtype.Int4        `json:"groupId"`
+	AccountID pgtype.Int4        `json:"accountId"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
 type OidcConsent struct {
@@ -158,6 +172,7 @@ type SamlSp struct {
 	MetadataFetchedAt         pgtype.Timestamptz `json:"metadataFetchedAt"`
 	CreatedAt                 pgtype.Timestamptz `json:"createdAt"`
 	Disabled                  bool               `json:"disabled"`
+	AccessRestricted          bool               `json:"accessRestricted"`
 }
 
 type SamlSpAc struct {
@@ -166,6 +181,13 @@ type SamlSpAc struct {
 	Binding   string `json:"binding"`
 	Location  string `json:"location"`
 	IsDefault bool   `json:"isDefault"`
+}
+
+type SamlSpAccess struct {
+	SamlSpID  int64              `json:"samlSpId"`
+	GroupID   pgtype.Int4        `json:"groupId"`
+	AccountID pgtype.Int4        `json:"accountId"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
 type SamlSpKey struct {
@@ -244,6 +266,16 @@ type UpstreamIdp struct {
 	CreatedAt            pgtype.Timestamptz `json:"createdAt"`
 	RequireVerifiedEmail bool               `json:"requireVerifiedEmail"`
 	PictureClaim         string             `json:"pictureClaim"`
+}
+
+type UserGroup struct {
+	ID                  int32              `json:"id"`
+	Slug                string             `json:"slug"`
+	DisplayName         string             `json:"displayName"`
+	Description         pgtype.Text        `json:"description"`
+	ExposedToDownstream bool               `json:"exposedToDownstream"`
+	CreatedAt           pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamptz `json:"updatedAt"`
 }
 
 type WebauthnCredential struct {

@@ -31,7 +31,7 @@ RETURNING *;
 
 -- name: ListOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,
-       token_endpoint_auth_method, disabled, created_at
+       token_endpoint_auth_method, disabled, access_restricted, created_at
 FROM oidc_client ORDER BY created_at DESC;
 
 -- name: GetAccountByOIDCSubject :one

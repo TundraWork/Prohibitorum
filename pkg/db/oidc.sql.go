@@ -87,7 +87,7 @@ func (q *Queries) GetActiveSigningKey(ctx context.Context) (SigningKey, error) {
 }
 
 const getOIDCClient = `-- name: GetOIDCClient :one
-SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at FROM oidc_client WHERE client_id = $1 AND disabled = false
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted FROM oidc_client WHERE client_id = $1 AND disabled = false
 `
 
 func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error) {
@@ -110,12 +110,13 @@ func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClien
 		&i.Disabled,
 		&i.RequireConsent,
 		&i.CreatedAt,
+		&i.AccessRestricted,
 	)
 	return i, err
 }
 
 const getOIDCClientAny = `-- name: GetOIDCClientAny :one
-SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at FROM oidc_client WHERE client_id = $1
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted FROM oidc_client WHERE client_id = $1
 `
 
 func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error) {
@@ -138,6 +139,7 @@ func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcCl
 		&i.Disabled,
 		&i.RequireConsent,
 		&i.CreatedAt,
+		&i.AccessRestricted,
 	)
 	return i, err
 }
@@ -174,7 +176,7 @@ INSERT INTO oidc_client (
   allowed_code_challenge_methods, token_endpoint_auth_method,
   subject_type, require_consent
 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted
 `
 
 type InsertOIDCClientParams struct {
@@ -223,6 +225,7 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 		&i.Disabled,
 		&i.RequireConsent,
 		&i.CreatedAt,
+		&i.AccessRestricted,
 	)
 	return i, err
 }
@@ -339,7 +342,7 @@ func (q *Queries) ListAllSigningKeys(ctx context.Context) ([]SigningKey, error) 
 
 const listOIDCClients = `-- name: ListOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,
-       token_endpoint_auth_method, disabled, created_at
+       token_endpoint_auth_method, disabled, access_restricted, created_at
 FROM oidc_client ORDER BY created_at DESC
 `
 
@@ -350,6 +353,7 @@ type ListOIDCClientsRow struct {
 	AllowedScopes           []string           `json:"allowedScopes"`
 	TokenEndpointAuthMethod string             `json:"tokenEndpointAuthMethod"`
 	Disabled                bool               `json:"disabled"`
+	AccessRestricted        bool               `json:"accessRestricted"`
 	CreatedAt               pgtype.Timestamptz `json:"createdAt"`
 }
 
@@ -369,6 +373,7 @@ func (q *Queries) ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, er
 			&i.AllowedScopes,
 			&i.TokenEndpointAuthMethod,
 			&i.Disabled,
+			&i.AccessRestricted,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -507,7 +512,7 @@ func (q *Queries) RetireSigningKey(ctx context.Context, arg RetireSigningKeyPara
 }
 
 const setOIDCClientDisabled = `-- name: SetOIDCClientDisabled :one
-UPDATE oidc_client SET disabled = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
+UPDATE oidc_client SET disabled = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted
 `
 
 type SetOIDCClientDisabledParams struct {
@@ -535,6 +540,7 @@ func (q *Queries) SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDi
 		&i.Disabled,
 		&i.RequireConsent,
 		&i.CreatedAt,
+		&i.AccessRestricted,
 	)
 	return i, err
 }
@@ -544,7 +550,7 @@ UPDATE oidc_client SET
   display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,
   allowed_scopes = $5, require_consent = $6, disabled = $7
 WHERE client_id = $1
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted
 `
 
 type UpdateOIDCClientParams struct {
@@ -585,6 +591,7 @@ func (q *Queries) UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientPara
 		&i.Disabled,
 		&i.RequireConsent,
 		&i.CreatedAt,
+		&i.AccessRestricted,
 	)
 	return i, err
 }
