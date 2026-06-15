@@ -99,6 +99,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'admin/identity-providers/:slug', name: 'admin-identity-provider-detail', component: () => import('../pages/admin/AdminUpstreamIdpDetailView.vue'), meta: { requiresAdmin: true } },
       { path: 'admin/signing-keys', name: 'admin-signing-keys', component: () => import('../pages/admin/AdminSigningKeysView.vue'), meta: { requiresAdmin: true } },
       { path: 'admin/audit', name: 'admin-audit', component: () => import('../pages/admin/AdminAuditView.vue'), meta: { requiresAdmin: true } },
+      { path: 'admin/groups', name: 'admin-groups', component: () => import('../pages/admin/AdminGroupsView.vue'), meta: { requiresAdmin: true } },
+      { path: 'admin/groups/:id', name: 'admin-group-detail', component: () => import('../pages/admin/AdminGroupDetailView.vue'), meta: { requiresAdmin: true } },
     ],
   },
   // Catch-all → /error

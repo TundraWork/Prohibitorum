@@ -130,7 +130,7 @@ export default {
   },
 
   admin: {
-    nav: { title: 'Admin', accounts: 'Accounts', invitations: 'Invitations', oidcApplications: 'OIDC applications', samlApplications: 'SAML applications', identityProviders: 'Identity providers', signingKeys: 'Signing keys', audit: 'Audit log', federation: 'Federation', applications: 'Applications' },
+    nav: { title: 'Admin', accounts: 'Accounts', invitations: 'Invitations', groups: 'Groups', oidcApplications: 'OIDC applications', samlApplications: 'SAML applications', identityProviders: 'Identity providers', signingKeys: 'Signing keys', audit: 'Audit log', federation: 'Federation', applications: 'Applications' },
     accounts: {
       title: 'Accounts',
       invite: 'Invite',
@@ -419,6 +419,45 @@ export default {
       activeFilters: 'Active filters',
       clearFilter: 'Remove filter',
     },
+    groups: {
+      title: 'Groups',
+      create: 'Create group',
+      createTitle: 'New group',
+      created: 'Group created.',
+      back: 'Back to groups',
+      notFound: 'That group no longer exists.',
+      empty: 'No groups yet.',
+      sectionBasics: 'Basics',
+      sectionOptions: 'Options',
+      slug: 'Slug',
+      slugInvalid: 'Slug must be lowercase letters and numbers separated by single hyphens.',
+      slugChangeWarning: 'Changing the slug updates the groups claim value sent to downstream applications.',
+      displayName: 'Display name',
+      description: 'Description',
+      exposed: 'Expose to downstream apps',
+      exposedHint: 'Include this group in the groups claim sent to OIDC and SAML applications.',
+      exposedYes: 'Exposed',
+      exposedNo: 'Internal',
+      colName: 'Group',
+      colMembers: 'Members',
+      colExposed: 'Exposed',
+      configTitle: 'Group settings',
+      save: 'Save changes',
+      saved: 'Saved.',
+      members: 'Members',
+      membersEmpty: 'No members yet.',
+      addMember: 'Add member',
+      addMemberPlaceholder: 'Select an account',
+      removeMember: 'Remove',
+      removeMemberConfirmTitle: 'Remove from group?',
+      removeMemberConfirmBody: 'Remove {name} from this group?',
+      dangerTitle: 'Danger zone',
+      deleteTitle: 'Delete group',
+      deleteHelp: 'Permanently delete this group and remove all its members.',
+      delete: 'Delete group',
+      deleteConfirmTitle: 'Delete this group?',
+      deleteConfirmBody: 'This permanently removes the group. This cannot be undone.',
+    },
   },
 
   login: {
@@ -666,6 +705,8 @@ export default {
     // Sudo federation re-auth
     sudo_identity_mismatch: "That sign-in didn't match this account. Try again.",
     sudo_reauth_stale: "Your provider didn't confirm a fresh sign-in. Please try again.",
+    group_not_found: 'That group no longer exists.',
+    group_slug_conflict: 'A group with that slug already exists.',
   },
 
   security: {
