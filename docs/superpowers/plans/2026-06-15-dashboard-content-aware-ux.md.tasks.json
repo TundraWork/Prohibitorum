@@ -38,7 +38,7 @@
     {
       "id": 7,
       "subject": "T7: signing-key JWK panel + lifecycle",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 8,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T11:00:00Z"
+  "lastUpdated": "2026-06-15T11:30:00Z"
 }
