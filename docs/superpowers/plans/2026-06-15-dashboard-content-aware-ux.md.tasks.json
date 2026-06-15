@@ -14,7 +14,7 @@
     {
       "id": 3,
       "subject": "T3: admin list cleanup (dup CTA + titles + filter)",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 4,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T09:00:00Z"
+  "lastUpdated": "2026-06-15T09:30:00Z"
 }
