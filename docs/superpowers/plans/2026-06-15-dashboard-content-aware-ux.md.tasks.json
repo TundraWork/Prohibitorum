@@ -74,7 +74,7 @@
     {
       "id": 13,
       "subject": "T13: threshold screens (Welcome/Consent/Login/Enroll/Pair)",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 14,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T14:00:00Z"
+  "lastUpdated": "2026-06-15T15:00:00Z"
 }
