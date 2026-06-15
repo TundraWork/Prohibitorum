@@ -72,6 +72,7 @@ watch(() => sudoState.value.open, async (isOpen) => {
 })
 
 function switchToPassword() { netError.value = null; waError.value = null; showPwForm.value = true }
+function switchToPasskey() { netError.value = null; waError.value = null; showPwForm.value = false }
 
 async function doPasskey(): Promise<void> {
   const options = await run(() =>
@@ -124,7 +125,7 @@ async function reauthFederation(slug: string): Promise<void> {
           <ShieldCheck class="size-5" aria-hidden="true" />
         </span>
         <DialogTitle>{{ t('sudo.title') }}</DialogTitle>
-        <DialogDescription>{{ t('sudo.prompt') }}</DialogDescription>
+        <DialogDescription>{{ sudoState.reason || t('sudo.body') }}</DialogDescription>
       </DialogHeader>
 
       <p v-if="methods === null" class="text-sm text-muted">{{ t('common.loading') }}</p>
@@ -158,10 +159,18 @@ async function reauthFederation(slug: string): Promise<void> {
                    autocomplete="one-time-code" required />
           </div>
           <Button type="submit" class="w-full" :disabled="busy">{{ t('sudo.verify') }}</Button>
+          <button
+            v-if="hasPasskey"
+            type="button"
+            class="cursor-pointer rounded-sm text-sm text-tide-strong underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            @click="switchToPasskey"
+          >
+            {{ t('sudo.usePasskeyInstead') }}
+          </button>
         </form>
 
         <div v-if="federationProviders.length" class="flex flex-col gap-2">
-          <p class="text-sm text-muted-foreground">{{ t('sudo.reauthHint') }}</p>
+          <p class="text-sm text-muted">{{ t('sudo.reauthHint') }}</p>
           <Button
             v-for="p in federationProviders"
             :key="p.slug"

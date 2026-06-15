@@ -9,13 +9,14 @@ import { ref } from 'vue'
 export interface SudoState {
   open: boolean
   resolve: ((ok: boolean) => void) | null
+  reason?: string
 }
 export const sudoState = ref<SudoState>({ open: false, resolve: null })
 
 /** Open the step-up modal; resolves true (elevated) / false (cancelled). */
-export function ensureSudo(): Promise<boolean> {
+export function ensureSudo(reason?: string): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
-    sudoState.value = { open: true, resolve }
+    sudoState.value = { open: true, resolve, reason }
   })
 }
 
@@ -27,12 +28,12 @@ export function _resolveSudo(ok: boolean): void {
 }
 
 /** Run fn(); if it fails with sudo_required, step up and retry once. */
-export async function withSudo<T>(fn: () => Promise<T>): Promise<T> {
+export async function withSudo<T>(fn: () => Promise<T>, reason?: string): Promise<T> {
   try {
     return await fn()
   } catch (e: unknown) {
     if ((e as { code?: string })?.code !== 'sudo_required') throw e
-    const ok = await ensureSudo()
+    const ok = await ensureSudo(reason)
     if (!ok) throw e
     return await fn()
   }

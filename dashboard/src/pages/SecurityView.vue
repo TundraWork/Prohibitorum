@@ -45,7 +45,7 @@ async function revoke(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/me/auth/revoke-password-totp')
     return true as const
-  }))
+  }, t('sudo.reason.revokeFactors')))
   confirmOpen.value = false
   if (ok) { triggerDone(); await loadFactors() }
 }

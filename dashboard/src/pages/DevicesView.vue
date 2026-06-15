@@ -49,7 +49,7 @@ async function approve(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/me/devices/pair/approve', { code: c })
     return true as const
-  }))
+  }, t('sudo.reason.approveDevice')))
   if (ok) { approved.value = true; found.value = null; code.value = '' }
 }
 async function cancel(): Promise<void> {

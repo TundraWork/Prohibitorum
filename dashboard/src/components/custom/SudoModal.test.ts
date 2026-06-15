@@ -100,6 +100,65 @@ describe('SudoModal', () => {
     expect(resolve).toHaveBeenCalledWith(true)
   })
 
+  it('renders a custom reason in the description when provided', async () => {
+    get.mockResolvedValue({ methods: ['webauthn'] })
+    mountModal()
+    sudoState.value = { open: true, resolve: vi.fn(), reason: 'Confirm to remove this passkey.' }
+    await flushPromises()
+    expect(document.body.textContent).toContain('Confirm to remove this passkey.')
+  })
+
+  it('falls back to generic body copy when no reason is provided', async () => {
+    get.mockResolvedValue({ methods: ['webauthn'] })
+    mountModal()
+    sudoState.value = { open: true, resolve: vi.fn() }
+    await flushPromises()
+    expect(document.body.textContent).toContain(en.sudo.body)
+  })
+
+  it('"use passkey instead" button appears in password form when passkey available and returns to passkey view', async () => {
+    get.mockResolvedValue({ methods: ['webauthn', 'password_totp'] })
+    mountModal()
+    sudoState.value = { open: true, resolve: vi.fn() }
+    await flushPromises()
+
+    // Switch to password form
+    const switchBtn = Array.from(document.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === en.sudo.usePassword)
+    expect(switchBtn).toBeTruthy()
+    switchBtn!.click()
+    await flushPromises()
+
+    // Password form is now shown
+    expect(document.querySelector('input[name=current_password]')).toBeTruthy()
+
+    // "Use a passkey instead" button should appear
+    const backBtn = Array.from(document.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === en.sudo.usePasskeyInstead)
+    expect(backBtn).toBeTruthy()
+
+    // Click it — should return to passkey view
+    backBtn!.click()
+    await flushPromises()
+    expect(document.querySelector('input[name=current_password]')).toBeNull()
+    const passkeyBtn = Array.from(document.querySelectorAll('button'))
+      .find(b => b.textContent?.includes(en.sudo.passkeyButton))
+    expect(passkeyBtn).toBeTruthy()
+  })
+
+  it('"use passkey instead" does not appear when no passkey method available', async () => {
+    get.mockResolvedValue({ methods: ['password_totp'] })
+    mountModal()
+    sudoState.value = { open: true, resolve: vi.fn() }
+    await flushPromises()
+
+    // Already on pw form (auto-shown since no passkey)
+    expect(document.querySelector('input[name=current_password]')).toBeTruthy()
+    const backBtn = Array.from(document.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === en.sudo.usePasskeyInstead)
+    expect(backBtn).toBeFalsy()
+  })
+
   it('renders a provider button for each federation provider and redirects on click', async () => {
     get.mockResolvedValue({
       methods: ['federation_oidc'],

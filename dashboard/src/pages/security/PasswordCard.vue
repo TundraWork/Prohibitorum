@@ -38,7 +38,7 @@ async function submit(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/me/password/set', { password: pw.value })
     return true as const
-  }))
+  }, t('sudo.reason.setPassword')))
   if (ok) { triggerDone(); pw.value = ''; confirm.value = ''; emit('changed') }
 }
 </script>

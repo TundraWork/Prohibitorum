@@ -59,12 +59,12 @@ async function confirmUnlink(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post(`/api/prohibitorum/me/identities/${id}/unlink`)
     return true as const
-  }))
+  }, t('sudo.reason.unlinkIdentity')))
   confirmId.value = null
   if (ok) await loadIdentities()
 }
 async function link(slug: string): Promise<void> {
-  const elevated = await ensureSudo()
+  const elevated = await ensureSudo(t('sudo.reason.linkIdentity'))
   if (!elevated) return
   hardRedirect(
     `/api/prohibitorum/me/identities/link/${encodeURIComponent(slug)}/begin?return_to=${encodeURIComponent('/connected')}`)

@@ -60,7 +60,8 @@ async function load(): Promise<void> {
 
 async function add(): Promise<void> {
   const options = await run(() => withSudo(() =>
-    api.post<PublicKeyCredentialCreationOptionsJSON>('/api/prohibitorum/me/credentials/register/begin')))
+    api.post<PublicKeyCredentialCreationOptionsJSON>('/api/prohibitorum/me/credentials/register/begin'),
+    t('sudo.reason.addPasskey')))
   if (!options) return
   const attestation = await register(options)
   if (!attestation) return
@@ -83,10 +84,10 @@ async function saveRename(id: number): Promise<void> {
 async function confirmDelete(): Promise<void> {
   const id = confirmId.value
   if (id == null) return
-  const ok = await run(async () => {
+  const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/me/credentials/delete', { id })
     return true as const
-  })
+  }, t('sudo.reason.removePasskey')))
   confirmId.value = null
   if (ok) await load()
 }

@@ -98,13 +98,14 @@ async function save(): Promise<void> {
     allowedScopes: scopes.value,
     requireConsent: requireConsent.value,
     disabled: disabled.value,
-  })))
+  }), t('sudo.reason.saveChanges')))
   if (updated) { client.value = updated; triggerSaved() }
 }
 
 async function rotateSecret(): Promise<void> {
   const res = await run(() => withSudo(() =>
-    api.post<{ clientId: string; secret: string }>('/api/prohibitorum/oidc-applications/rotate-secret', { clientId })))
+    api.post<{ clientId: string; secret: string }>('/api/prohibitorum/oidc-applications/rotate-secret', { clientId }),
+    t('sudo.reason.rotateSecret')))
   confirmRotate.value = false
   if (res) rotatedSecret.value = res.secret
 }
@@ -115,7 +116,8 @@ async function toggleDisabled(): Promise<void> {
   rotatedSecret.value = ''
   const next = !disabled.value
   const updated = await run(() => withSudo(() =>
-    api.post<OidcApplication>('/api/prohibitorum/oidc-applications/set-disabled', { clientId, disabled: next })))
+    api.post<OidcApplication>('/api/prohibitorum/oidc-applications/set-disabled', { clientId, disabled: next }),
+    t('sudo.reason.disableApp')))
   if (updated) { client.value = updated; disabled.value = updated.disabled }
 }
 
@@ -124,7 +126,7 @@ async function destroy(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/oidc-applications/delete', { clientId })
     return true as const
-  }))
+  }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
   if (ok) router.push('/admin/oidc-applications')
 }

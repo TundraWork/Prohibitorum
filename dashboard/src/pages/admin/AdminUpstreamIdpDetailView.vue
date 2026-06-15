@@ -63,7 +63,7 @@ async function save(): Promise<void> {
     scopes: scopes.value, allowedDomains: allowedDomains.value, usernameClaim: usernameClaim.value,
     displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value, pictureClaim: pictureClaim.value,
     requireVerifiedEmail: requireVerifiedEmail.value, disabled: disabled.value,
-  })))
+  }), t('sudo.reason.saveChanges')))
   if (updated) { idp.value = updated; triggerSaved() }
 }
 
@@ -71,7 +71,7 @@ async function rotate(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/identity-providers/rotate-secret', { slug, clientSecret: newSecret.value })
     return true as const
-  }))
+  }, t('sudo.reason.rotateSecret')))
   if (ok) { triggerRotated(); newSecret.value = '' }
 }
 
@@ -80,7 +80,8 @@ async function rotate(): Promise<void> {
 async function toggleDisabled(): Promise<void> {
   const next = !disabled.value
   const updated = await run(() => withSudo(() =>
-    api.post<IdentityProvider>('/api/prohibitorum/identity-providers/set-disabled', { slug, disabled: next })))
+    api.post<IdentityProvider>('/api/prohibitorum/identity-providers/set-disabled', { slug, disabled: next }),
+    t('sudo.reason.disableApp')))
   if (updated) { idp.value = updated; disabled.value = updated.disabled }
 }
 
@@ -88,7 +89,7 @@ async function destroy(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/identity-providers/delete', { slug })
     return true as const
-  }))
+  }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
   if (ok) router.push('/admin/identity-providers')
 }

@@ -32,7 +32,8 @@ const enabled = ref(false)
 
 async function setup(): Promise<void> {
   const r = await run(() => withSudo(() =>
-    api.post<{ secret_base32: string; otpauth_uri: string }>('/api/prohibitorum/me/totp/begin')))
+    api.post<{ secret_base32: string; otpauth_uri: string }>('/api/prohibitorum/me/totp/begin'),
+    t('sudo.reason.setupTotp')))
   if (!r) return
   secret.value = r.secret_base32
   otpauth.value = r.otpauth_uri
@@ -42,7 +43,8 @@ async function setup(): Promise<void> {
 
 async function verify(): Promise<void> {
   const r = await run(() => withSudo(() =>
-    api.post<{ recovery_codes?: string[] } | undefined>('/api/prohibitorum/me/totp/verify', { code: code.value })))
+    api.post<{ recovery_codes?: string[] } | undefined>('/api/prohibitorum/me/totp/verify', { code: code.value }),
+    t('sudo.reason.setupTotp')))
   // 204 (re-enroll) → undefined; first enrollment → { recovery_codes }
   if (error.value) return
   enabled.value = true

@@ -116,7 +116,7 @@ async function save(): Promise<void> {
     requireSignedAuthnRequest: requireSignedAuthnRequest.value,
     allowIdpInitiated: allowIdpInitiated.value,
     ...(secs !== '' ? { sessionLifetimeSecs: Number(secs) } : {}),
-  })))
+  }), t('sudo.reason.saveChanges')))
   if (updated) { sp.value = updated; seedForm(updated); triggerSaved() }
 }
 
@@ -124,7 +124,8 @@ async function reingest(): Promise<void> {
   localError.value = ''
   reingestDone.value = false
   const res = await run(() => withSudo(() =>
-    api.post<SamlApplication>(`/api/prohibitorum/saml-applications/${id}/reingest-metadata`, { metadataXml: reingestXml.value })))
+    api.post<SamlApplication>(`/api/prohibitorum/saml-applications/${id}/reingest-metadata`, { metadataXml: reingestXml.value }),
+    t('sudo.reason.saveChanges')))
   if (res) { sp.value = res; seedForm(res); reingestDone.value = true }
 }
 
@@ -135,7 +136,8 @@ async function toggleDisabled(): Promise<void> {
   reingestDone.value = false
   const next = !disabled.value
   const updated = await run(() => withSudo(() =>
-    api.post<SamlApplication>('/api/prohibitorum/saml-applications/set-disabled', { id, disabled: next })))
+    api.post<SamlApplication>('/api/prohibitorum/saml-applications/set-disabled', { id, disabled: next }),
+    t('sudo.reason.disableApp')))
   if (updated) { sp.value = updated; disabled.value = updated.disabled }
 }
 
@@ -145,7 +147,7 @@ async function destroy(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/saml-applications/delete', { id })
     return true as const
-  }))
+  }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
   if (ok) router.push('/admin/saml-applications')
 }

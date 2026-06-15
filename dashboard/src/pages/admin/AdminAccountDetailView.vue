@@ -136,7 +136,7 @@ async function save(): Promise<void> {
     disabled: disabled.value,
     attributes: buildAttrs(),
     ...(emailChanged ? { email: trimmedEmail } : {}),
-  })))
+  }), t('sudo.reason.saveChanges')))
   if (updated) { account.value = updated; displayName.value = updated.displayName; email.value = updated.email ?? ''; seedAttrs(updated.attributes); triggerSaved() }
 }
 async function forceRevoke(): Promise<void> {
@@ -145,7 +145,7 @@ async function forceRevoke(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/accounts/credentials/delete', { accountId: id, credentialId })
     return true as const
-  }))
+  }, t('sudo.reason.forceRevokePasskey')))
   revokeCredId.value = null
   if (ok) await loadCredentials()
 }
@@ -153,18 +153,20 @@ async function revokeSession(sessionId: string): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post(`/api/prohibitorum/accounts/${id}/sessions/revoke`, { sessionId })
     return true as const
-  }))
+  }, t('sudo.reason.revokeSession')))
   if (ok) await loadSessions()
 }
 async function revokeAllSessions(): Promise<void> {
   const res = await run(() => withSudo(() =>
-    api.post<{ revoked: number }>('/api/prohibitorum/accounts/revoke-sessions', { id })))
+    api.post<{ revoked: number }>('/api/prohibitorum/accounts/revoke-sessions', { id }),
+    t('sudo.reason.revokeSession')))
   confirmRevokeAll.value = false
   if (res) { revokedCount.value = res.revoked; await loadSessions() }
 }
 async function reissue(): Promise<void> {
   const res = await run(() => withSudo(() =>
-    api.post<{ url: string; expiresAt: string }>('/api/prohibitorum/accounts/reissue-enrollment', { id })))
+    api.post<{ url: string; expiresAt: string }>('/api/prohibitorum/accounts/reissue-enrollment', { id }),
+    t('sudo.reason.reissueEnrollment')))
   if (res) { reissueUrl.value = res.url; reissueExpires.value = res.expiresAt }
 }
 // Flip the disabled flag on its own (independent of the identity-form Save), via
@@ -174,7 +176,8 @@ async function reissue(): Promise<void> {
 async function toggleDisabled(): Promise<void> {
   const next = !disabled.value
   const updated = await run(() => withSudo(() =>
-    api.post<Account>('/api/prohibitorum/accounts/set-disabled', { id, disabled: next })))
+    api.post<Account>('/api/prohibitorum/accounts/set-disabled', { id, disabled: next }),
+    t('sudo.reason.disableApp')))
   if (updated) { account.value = updated; disabled.value = updated.disabled }
 }
 // Use the SAVED role (account.role), not the unsaved form `role` ref: an admin
@@ -185,7 +188,7 @@ async function destroy(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/accounts/delete', { id })
     return true as const
-  }))
+  }, t('sudo.reason.deleteAccount')))
   confirmDelete.value = false
   if (ok) router.push('/admin/accounts')
 }

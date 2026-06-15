@@ -28,7 +28,8 @@ const errorText = computed(() => {
 
 async function regenerate(): Promise<void> {
   const r = await run(() => withSudo(() =>
-    api.post<{ recovery_codes: string[] }>('/api/prohibitorum/me/recovery-codes/regenerate')))
+    api.post<{ recovery_codes: string[] }>('/api/prohibitorum/me/recovery-codes/regenerate'),
+    t('sudo.reason.regenerateCodes')))
   if (r) { codes.value = r.recovery_codes ?? []; emit('changed') }
 }
 </script>
