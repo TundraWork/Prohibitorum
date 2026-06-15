@@ -4,7 +4,7 @@
     {
       "id": 1,
       "subject": "T1: formatUserAgent + relative-time",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 2,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T08:00:00Z"
+  "lastUpdated": "2026-06-15T08:30:00Z"
 }
