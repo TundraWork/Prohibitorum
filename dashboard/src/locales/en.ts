@@ -63,6 +63,11 @@ export default {
     unsavedName: 'Unsaved name',
   },
 
+  userAgent: {
+    toggle: 'Show device details',
+    hide: 'Hide device details',
+  },
+
   sessions: {
     title: 'Active sessions',
     current: 'This device',

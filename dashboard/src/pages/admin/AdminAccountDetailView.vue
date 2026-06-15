@@ -16,7 +16,6 @@ import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
-import { formatUserAgent } from '@/lib/userAgent'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +30,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
+import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
@@ -293,7 +293,7 @@ onMounted(load)
               <TableRow v-for="s in sessions" :key="s.id" :data-test="`session-row-${s.id}`">
                 <TableCell class="text-sm text-ink">{{ formatDateTime(s.issuedAt) }}</TableCell>
                 <TableCell class="text-sm text-ink">{{ s.lastSeenIp }}</TableCell>
-                <TableCell class="max-w-xs truncate text-sm text-muted" :title="s.userAgent || undefined">{{ formatUserAgent(s.userAgent) }}</TableCell>
+                <TableCell class="max-w-xs text-sm text-muted"><UserAgentDisplay :ua="s.userAgent" /></TableCell>
                 <TableCell>
                   <Button type="button" variant="outline" size="sm" :disabled="busy" :data-test="`session-revoke-${s.id}`" @click="confirmRevokeSessionId = s.id">{{ t('admin.account.sessions.revoke') }}</Button>
                 </TableCell>

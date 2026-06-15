@@ -9,11 +9,11 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { relativeTime, formatDateTime } from '@/lib/time'
-import { formatUserAgent } from '@/lib/userAgent'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
@@ -63,7 +63,7 @@ onMounted(load)
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
             <div class="flex min-w-0 items-center gap-2">
-              <span class="min-w-0 truncate text-ink" :title="r.userAgent || r.lastSeenIp">{{ formatUserAgent(r.userAgent) }}</span>
+              <UserAgentDisplay :ua="r.userAgent" class="min-w-0 text-ink" />
               <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
             </div>
             <span class="truncate text-muted">{{ t('sessions.ipAddress') }}: <span class="font-mono">{{ r.lastSeenIp }}</span></span>

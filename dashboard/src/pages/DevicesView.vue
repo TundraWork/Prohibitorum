@@ -11,13 +11,13 @@ import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
-import { formatUserAgent } from '@/lib/userAgent'
 import { MonitorSmartphone } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import CodeField from '@/components/custom/CodeField.vue'
+import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 
 interface Lookup {
   pairingId: string
@@ -99,7 +99,7 @@ async function cancel(): Promise<void> {
       <CardContent class="flex flex-col gap-3 text-sm">
         <CodeField :value="found.displayCode" />
         <div class="flex min-w-0 flex-col gap-1">
-          <span class="truncate text-ink font-medium" :title="found.initiatorUa">{{ formatUserAgent(found.initiatorUa) }}</span>
+          <UserAgentDisplay :ua="found.initiatorUa" class="font-medium text-ink" />
           <span class="truncate text-muted">{{ t('devices.ipAddress') }}: {{ found.initiatorIp }}</span>
           <span v-if="found.createdAt" class="truncate text-muted">{{ t('devices.started') }}: {{ relativeTime(found.createdAt) }}</span>
           <span v-if="found.expiresAt" class="truncate text-muted">{{ t('devices.expires') }}: {{ formatDateTime(found.expiresAt) }}</span>
