@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
@@ -57,6 +56,8 @@ const groupId = Number(route.params.id)
 const { busy, error, run, errorText } = useApi()
 // Separate composable for member operations so errors surface independently
 const memberApi = useApi()
+// Separate composable for accounts list — must NOT share memberApi (busy-guard race in Promise.all)
+const accountsApi = useApi()
 
 const group = ref<GroupView | null>(null)
 const notFound = ref(false)
@@ -108,7 +109,7 @@ async function loadMembers(): Promise<void> {
 }
 
 async function loadAccounts(): Promise<void> {
-  const res = await memberApi.run(() => api.get<Account[]>('/api/prohibitorum/accounts'))
+  const res = await accountsApi.run(() => api.get<Account[]>('/api/prohibitorum/accounts'))
   if (res) allAccounts.value = res
 }
 
@@ -250,7 +251,6 @@ onMounted(async () => {
       <Card class="border-destructive/30 bg-destructive/[0.02]">
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.groups.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
-          <Separator />
           <div class="flex flex-col gap-2">
             <h4 class="text-sm font-medium text-ink">{{ t('admin.groups.deleteTitle') }}</h4>
             <p class="text-xs text-muted">{{ t('admin.groups.deleteHelp') }}</p>
