@@ -13,6 +13,7 @@ import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
 import { withSudo } from '@/lib/sudo'
+import { relativeTime } from '@/lib/time'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,7 +51,6 @@ const draftName = ref('')
 const confirmId = ref<number | null>(null)
 const nameInput = useTemplateRef<{ $el?: HTMLElement }>('nameInput')
 
-const fmt = (d?: string) => { if (!d) return ''; const n = Date.parse(d); return Number.isNaN(n) ? '' : new Date(n).toLocaleDateString() }
 const displayName = (c: CredentialView) => c.nickname || `${t('security.passkeys.defaultName')} ····${c.credentialIdSuffix}`
 
 async function load(): Promise<void> {
@@ -124,8 +124,8 @@ onMounted(load)
             </template>
           </div>
           <span class="text-xs text-muted">
-            {{ t('security.passkeys.created') }}: {{ fmt(c.createdAt) }}
-            <template v-if="fmt(c.lastUsedAt)"> · {{ t('security.passkeys.lastUsed') }}: {{ fmt(c.lastUsedAt) }}</template>
+            {{ t('security.passkeys.created') }}: {{ relativeTime(c.createdAt) }}
+            <template v-if="c.lastUsedAt"> · {{ t('security.passkeys.lastUsed') }}: {{ relativeTime(c.lastUsedAt) }}</template>
           </span>
         </div>
         <div class="flex shrink-0 items-center gap-1">

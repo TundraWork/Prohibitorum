@@ -10,6 +10,8 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
+import { relativeTime, formatDateTime } from '@/lib/time'
+import { formatUserAgent } from '@/lib/userAgent'
 import { MonitorSmartphone } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -33,8 +35,6 @@ const { busy, run, errorText } = useApi()
 const code = ref('')
 const found = ref<Lookup | null>(null)
 const approved = ref(false)
-
-const fmt = (d: string) => { const ms = Date.parse(d); return Number.isNaN(ms) ? '' : new Date(ms).toLocaleString() }
 
 async function lookup(): Promise<void> {
   approved.value = false
@@ -99,10 +99,10 @@ async function cancel(): Promise<void> {
       <CardContent class="flex flex-col gap-3 text-sm">
         <CodeField :value="found.displayCode" />
         <div class="flex min-w-0 flex-col gap-1">
-          <span class="truncate text-muted" :title="found.initiatorUa">{{ t('devices.requestedFrom') }}: {{ found.initiatorUa }}</span>
+          <span class="truncate text-muted" :title="found.initiatorUa">{{ t('devices.requestedFrom') }}: {{ formatUserAgent(found.initiatorUa) }}</span>
           <span class="truncate text-muted">{{ t('devices.ipAddress') }}: {{ found.initiatorIp }}</span>
-          <span v-if="fmt(found.createdAt)" class="truncate text-muted">{{ t('devices.started') }}: {{ fmt(found.createdAt) }}</span>
-          <span v-if="fmt(found.expiresAt)" class="truncate text-muted">{{ t('devices.expires') }}: {{ fmt(found.expiresAt) }}</span>
+          <span v-if="found.createdAt" class="truncate text-muted">{{ t('devices.started') }}: {{ relativeTime(found.createdAt) }}</span>
+          <span v-if="found.expiresAt" class="truncate text-muted">{{ t('devices.expires') }}: {{ formatDateTime(found.expiresAt) }}</span>
         </div>
         <p v-if="found.alreadyBound" class="text-sm text-sage" role="status">{{ t('devices.alreadyBound') }}</p>
         <div class="flex gap-2">

@@ -8,6 +8,8 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { relativeTime, formatDateTime } from '@/lib/time'
+import { formatUserAgent } from '@/lib/userAgent'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -28,8 +30,6 @@ interface SessionListItem {
 
 const { t } = useI18n()
 const { busy, run, errorText } = useApi()
-
-const fmt = (d: string) => { const t = Date.parse(d); return Number.isNaN(t) ? '' : new Date(t).toLocaleString() }
 
 const rows = ref<SessionListItem[]>([])
 const confirmRevokeId = ref<string | null>(null)
@@ -63,12 +63,12 @@ onMounted(load)
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
             <div class="flex min-w-0 items-center gap-2">
-              <span class="min-w-0 truncate text-ink" :title="r.userAgent || r.lastSeenIp">{{ r.userAgent || r.lastSeenIp }}</span>
+              <span class="min-w-0 truncate text-ink" :title="r.userAgent || r.lastSeenIp">{{ formatUserAgent(r.userAgent) }}</span>
               <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
             </div>
             <span class="truncate text-muted">{{ t('sessions.lastSeen') }}: <span class="font-mono">{{ r.lastSeenIp }}</span></span>
-            <span v-if="fmt(r.issuedAt)" class="truncate text-muted">{{ t('sessions.issued') }}: {{ fmt(r.issuedAt) }}</span>
-            <span v-if="fmt(r.expiresAt)" class="truncate text-muted">{{ t('sessions.expires') }}: {{ fmt(r.expiresAt) }}</span>
+            <span v-if="r.issuedAt" class="truncate text-muted">{{ t('sessions.issued') }}: {{ relativeTime(r.issuedAt) }}</span>
+            <span v-if="r.expiresAt" class="truncate text-muted">{{ t('sessions.expires') }}: {{ formatDateTime(r.expiresAt) }}</span>
           </div>
           <Button v-if="!r.isCurrent" variant="outline" size="sm" class="shrink-0" :disabled="busy"
                   data-test="revoke" @click="confirmRevokeId = r.id">

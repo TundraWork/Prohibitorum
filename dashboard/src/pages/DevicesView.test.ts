@@ -15,7 +15,9 @@ const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en
 const mountView = () => mount(DevicesView, { global: { plugins: [i18n()] }, attachTo: document.body })
 
 const LOOKUP = {
-  pairingId: 'p1', displayCode: 'AB12-CD34', initiatorUa: 'Chrome on Mac', initiatorIp: '10.0.0.9',
+  pairingId: 'p1', displayCode: 'AB12-CD34',
+  initiatorUa: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  initiatorIp: '10.0.0.9',
   createdAt: '2026-01-01T00:00:00Z', expiresAt: '2026-01-01T00:10:00Z', alreadyBound: false,
 }
 beforeEach(() => { get.mockReset(); post.mockReset() })
@@ -32,7 +34,7 @@ describe('DevicesView', () => {
     const w = mountView()
     await enterCodeAndLookup(w)
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/devices/pair/lookup?code=AB12-CD34')
-    expect(w.text()).toContain('Chrome on Mac')
+    expect(w.text()).toContain('Chrome on macOS')
     expect(w.text()).toContain('10.0.0.9')
     expect(w.text()).toContain('AB12-CD34')
     expect(w.find('[data-test="approve"]').exists()).toBe(true)

@@ -11,6 +11,7 @@ import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo, ensureSudo } from '@/lib/sudo'
 import { hardRedirect } from '@/lib/navigate'
+import { relativeTime } from '@/lib/time'
 import { Link2 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,7 +38,6 @@ const providers = ref<Provider[]>([])
 const providersLoaded = ref(false)
 const confirmId = ref<number | null>(null)
 
-const fmt = (d: string) => { const ms = Date.parse(d); return Number.isNaN(ms) ? '' : new Date(ms).toLocaleDateString() }
 const linkedSlugs = computed(() => new Set(identities.value.map((i) => i.idpSlug)))
 
 async function loadIdentities(): Promise<void> {
@@ -92,7 +92,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
               <StatusBadge variant="success" class="shrink-0">{{ t('connected.linked') }}</StatusBadge>
             </div>
             <span v-if="ident.upstreamEmail" class="min-w-0 truncate text-muted">{{ ident.upstreamEmail }}</span>
-            <span v-if="fmt(ident.linkedAt)" class="truncate text-muted">{{ t('connected.linked') }}: {{ fmt(ident.linkedAt) }}</span>
+            <span v-if="ident.linkedAt" class="truncate text-muted">{{ t('connected.linked') }}: {{ relativeTime(ident.linkedAt) }}</span>
           </div>
           <Button variant="outline" size="sm" class="shrink-0" :disabled="busy"
                   :data-test="`unlink-${ident.id}`" @click="confirmId = ident.id">

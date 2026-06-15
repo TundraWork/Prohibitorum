@@ -16,6 +16,7 @@ import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
+import { formatUserAgent } from '@/lib/userAgent'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -288,7 +289,7 @@ onMounted(load)
               <TableRow v-for="s in sessions" :key="s.id" :data-test="`session-row-${s.id}`">
                 <TableCell class="text-sm text-ink">{{ formatDateTime(s.issuedAt) }}</TableCell>
                 <TableCell class="text-sm text-ink">{{ s.lastSeenIp }}</TableCell>
-                <TableCell class="max-w-xs truncate text-sm text-muted">{{ s.userAgent || '—' }}</TableCell>
+                <TableCell class="max-w-xs truncate text-sm text-muted" :title="s.userAgent || undefined">{{ formatUserAgent(s.userAgent) }}</TableCell>
                 <TableCell>
                   <Button type="button" variant="outline" size="sm" :disabled="busy" :data-test="`session-revoke-${s.id}`" @click="revokeSession(s.id)">{{ t('admin.account.sessions.revoke') }}</Button>
                 </TableCell>
