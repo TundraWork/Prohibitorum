@@ -64,6 +64,12 @@ async function verifyReenroll(): Promise<void> {
         <Input id="recovery-code" name="recovery-code" v-model="recoveryCode" autocomplete="one-time-code" @keydown.enter.prevent="verifyCode" />
         <p class="text-sm text-muted">{{ t('recovery.codeHint') }}</p>
       </div>
+      <Alert role="status">
+        <AlertDescription class="flex flex-col gap-1.5">
+          <p class="text-xs">{{ t('recovery.codeWarning') }}</p>
+          <p class="text-xs">{{ t('recovery.reenrollHeadsUp') }}</p>
+        </AlertDescription>
+      </Alert>
       <Button type="button" class="w-full" :disabled="busy || !recoveryCode" :aria-busy="busy" data-test="verify-code" @click="verifyCode">{{ t('recovery.verify') }}</Button>
     </template>
 

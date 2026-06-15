@@ -17,15 +17,19 @@ const { t } = useI18n()
 
 const copied = ref(false)
 const copying = ref(false)
+const copyFailed = ref(false)
 const saved = ref(false)
 
 async function copyAll(): Promise<void> {
   copying.value = true
+  copyFailed.value = false
   try {
     await navigator.clipboard.writeText(props.codes.join('\n'))
     copied.value = true
     setTimeout(() => { copied.value = false }, 1500)
-  } catch { /* no-op */ } finally {
+  } catch {
+    copyFailed.value = true
+  } finally {
     copying.value = false
   }
 }
@@ -68,6 +72,7 @@ function download(): void {
         <span>{{ t('recoveryCodes.download') }}</span>
       </Button>
     </div>
+    <p v-if="copyFailed" class="text-xs text-destructive" role="alert">{{ t('recoveryCodes.copyFailed') }}</p>
 
     <p class="text-xs text-muted">{{ t('recoveryCodes.storage') }}</p>
 

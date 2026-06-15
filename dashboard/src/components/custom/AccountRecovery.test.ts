@@ -34,6 +34,11 @@ describe('AccountRecovery', () => {
     await w.find('[data-test="done"]').trigger('click'); await flushPromises()
     expect(w.emitted('success')).toBeTruthy()
   })
+  it('shows codeWarning and reenrollHeadsUp notes in the code phase', () => {
+    const w = mountC()
+    expect(w.text()).toContain(en.recovery.codeWarning)
+    expect(w.text()).toContain(en.recovery.reenrollHeadsUp)
+  })
   it('emits restart when the recovery code is rejected', async () => {
     post.mockRejectedValue({ code: 'bad_credentials', message: 'zh' })
     const w = mountC()

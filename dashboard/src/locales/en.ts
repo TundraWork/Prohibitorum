@@ -428,13 +428,15 @@ export default {
     noBootstrap: 'No accounts yet — run `prohibitorum enroll-admin` to get started.',
     pairDevice: 'New device? Pair it',
     lostAuthenticator: 'Lost your authenticator?',
-    recoveryRestart: 'We couldn’t verify that recovery code. Please sign in again to try another.',
+    recoveryRestart: 'That recovery code could not be used — it may be incorrect or already spent. For security, this sign-in was reset. Please sign in again from the start.',
   },
 
   recovery: {
     title: 'Recover your account',
     codeLabel: 'Recovery code',
     codeHint: 'Enter one of the backup codes you saved when you set up your authenticator.',
+    codeWarning: 'Each recovery code works only once. If the code is incorrect, this sign-in attempt ends immediately and you will be sent back to the start — enter it carefully.',
+    reenrollHeadsUp: 'Using a recovery code sets up a brand-new authenticator and issues a new set of recovery codes. Your old codes stop working.',
     verify: 'Verify code',
     reenrollTitle: 'Set up a new authenticator',
     reenrollHint: 'Scan this with your authenticator app (or enter the key), then enter the 6-digit code.',
@@ -464,7 +466,7 @@ export default {
 
   logout: {
     title: 'Signed out',
-    message: 'You have been successfully signed out.',
+    message: 'You have been signed out of this identity provider. Applications you signed in to separately may stay active until their own sessions expire.',
     signInAgain: 'Sign in again',
   },
 
@@ -518,6 +520,7 @@ export default {
     download: 'Download .txt',
     savedConfirm: 'I’ve saved my recovery codes',
     done: 'Done',
+    copyFailed: 'Copy did not work. Select the codes and copy them manually, or use Download.',
   },
 
   sudo: {

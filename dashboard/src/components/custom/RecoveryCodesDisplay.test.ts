@@ -38,4 +38,24 @@ describe('RecoveryCodesDisplay', () => {
     const w = mount(RecoveryCodesDisplay, { props: { codes: CODES, regenerated: true }, global: { plugins: [i18n()] } })
     expect(w.text()).toContain(en.recoveryCodes.regeneratedWarning)
   })
+
+  it('shows copy-failed message when clipboard rejects', async () => {
+    writeText.mockRejectedValueOnce(new Error('not allowed'))
+    const w = mount(RecoveryCodesDisplay, { props: { codes: CODES }, global: { plugins: [i18n()] } })
+    expect(w.find('[role="alert"]').exists()).toBe(false)
+    await w.findAll('button')[0].trigger('click')
+    await new Promise(r => setTimeout(r, 0)) // flush microtasks
+    expect(w.find('[role="alert"]').text()).toContain(en.recoveryCodes.copyFailed)
+  })
+
+  it('clears copy-failed on next copy attempt', async () => {
+    writeText.mockRejectedValueOnce(new Error('not allowed')).mockResolvedValueOnce(undefined)
+    const w = mount(RecoveryCodesDisplay, { props: { codes: CODES }, global: { plugins: [i18n()] } })
+    await w.findAll('button')[0].trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+    expect(w.find('[role="alert"]').exists()).toBe(true)
+    await w.findAll('button')[0].trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+    expect(w.find('[role="alert"]').exists()).toBe(false)
+  })
 })
