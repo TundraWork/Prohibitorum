@@ -19,7 +19,7 @@
     {
       "id": 4,
       "subject": "T4: shared OIDC scope picker + descriptions",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 5,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T09:30:00Z"
+  "lastUpdated": "2026-06-15T10:00:00Z"
 }
