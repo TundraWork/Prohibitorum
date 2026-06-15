@@ -4,13 +4,13 @@
     {
       "id": 0,
       "subject": "Task 1: Migration + sqlc queries (schema foundation)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Create user_group/group_member/oidc_client_access/saml_sp_access tables + access_restricted columns; rbac.sql queries (CRUD, predicate, exposed slugs); regenerate sqlc.\n\n```json:metadata\n{\"files\":[\"db/migrations/015_rbac.sql\",\"db/queries/rbac.sql\",\"db/queries/oidc.sql\",\"db/queries/saml_sp.sql\",\"pkg/db\"],\"verifyCommand\":\"mise db:up && mise exec -- sqlc generate && go build ./...\",\"acceptanceCriteria\":[\"015 applies cleanly; existing apps stay open\",\"sqlc generates predicate + CRUD + access_restricted on views\",\"go build/vet clean\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 2: Groups admin API (CRUD + membership)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Admin HTTP for groups: list/create/get/update/delete + member add/remove/list, via registerOp (GET) + registerSudoOpHTTP (mutations); audit FactorGroup.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_groups.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\",\"pkg/audit/event.go\",\"pkg/server/handle_admin_groups_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run \\\"Group|Sudo|RoutePolicy\\\" -v\",\"acceptanceCriteria\":[\"GET /groups lists with member counts\",\"mutations admin+sudo, GETs admin-only\",\"bad slug 400; dup slug conflict\",\"audit on CRUD+membership\"]}\n```"
     },
@@ -78,5 +78,5 @@
       "description": "**Goal:** Smoke RBAC arc (group->member->restrict->deny/allow->groups claim); docs (README box, api.md, ARCHITECTURE, STATUS); rebuild+commit pkg/webui/dist; full green gate.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\",\"README.md\",\"api.md\",\"ARCHITECTURE.md\",\"STATUS.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke arc green incl groups claim\",\"docs updated; README RBAC box checked\",\"full gate GREEN + dist rebuilt/committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-16"
+  "lastUpdated": "2026-06-16T00:00:02Z"
 }
