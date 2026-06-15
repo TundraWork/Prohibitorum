@@ -9,7 +9,7 @@
     {
       "id": 2,
       "subject": "T2: sudo foreshadowing (reason + reversible)",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 3,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T08:30:00Z"
+  "lastUpdated": "2026-06-15T09:00:00Z"
 }
