@@ -65,30 +65,34 @@ describe('AdminSamlProviderDetailView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/set-disabled', { id: 5, disabled: true })
     expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.saml.disabled)
   })
-  it('seeds attributeMap from the loaded provider', async () => {
+  it('seeds attributeMap rows from the loaded provider', async () => {
     get.mockResolvedValue(SP)
     const w = mountView(); await flushPromises()
-    const mapTextarea = w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]')
-    expect(JSON.parse(mapTextarea.element.value)).toEqual(SP.attributeMap)
+    // Row editor renders one row for the single entry in SP.attributeMap
+    expect(w.find('[data-test="attr-row-0"]').exists()).toBe(true)
+    const nameInput = w.find<HTMLInputElement>('[data-test="attr-name-0"]')
+    expect(nameInput.element.value).toBe('USERNAME')
+    const sourceInput = w.find<HTMLInputElement>('[data-test="attr-source-0"]')
+    expect(sourceInput.element.value).toBe('username')
   })
-  it('sends attributeMap (parsed) in PUT body alongside other fields', async () => {
-    get.mockResolvedValue(SP); put.mockResolvedValue({ ...SP, attributeMap: [] })
+  it('sends attributeMap as an array in PUT body alongside other fields', async () => {
+    get.mockResolvedValue(SP); put.mockResolvedValue({ ...SP, attributeMap: SP.attributeMap })
     const w = mountView(); await flushPromises()
-    await w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]').setValue('[]')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5', expect.objectContaining({
-      attributeMap: [],
+      attributeMap: SP.attributeMap,
       displayName: 'GHES',
       allowIdpInitiated: true,
     }))
     expect(w.text()).toContain(en.admin.saml.saved)
   })
-  it('shows inline error and does not call PUT when attributeMap is invalid JSON', async () => {
-    get.mockResolvedValue(SP)
+  it('removes an attributeMap row and sends the shorter array on save', async () => {
+    get.mockResolvedValue(SP); put.mockResolvedValue({ ...SP, attributeMap: [] })
     const w = mountView(); await flushPromises()
-    await w.find<HTMLTextAreaElement>('[data-test="saml-attributeMap"]').setValue('{bad json')
+    await w.find('[data-test="attr-remove-0"]').trigger('click')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
-    expect(put).not.toHaveBeenCalled()
-    expect(w.find('[data-test="saml-attributeMap-error"]').text()).toBe(en.admin.saml.attributeMapInvalid)
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5', expect.objectContaining({
+      attributeMap: [],
+    }))
   })
 })

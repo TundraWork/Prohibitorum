@@ -21,6 +21,7 @@ import ListInput from '@/components/custom/ListInput.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
 import SettingRow from '@/components/custom/SettingRow.vue'
+import FormSection from '@/components/custom/FormSection.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
@@ -109,66 +110,72 @@ onMounted(load)
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.upstream.configTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <Label>{{ t('admin.upstream.slug') }}</Label>
-            <p class="font-mono text-sm text-muted" data-test="idp-slug">{{ idp.slug }}</p>
-            <p class="text-xs text-muted">{{ t('admin.upstream.slugDesc') }}</p>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="displayName">{{ t('admin.upstream.displayName') }}</Label>
-            <Input id="displayName" name="displayName" v-model="displayName" autocomplete="off" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
-            <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.issuerUrlDesc') }}</p>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
-            <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label>{{ t('admin.upstream.mode') }}</Label>
-            <RadioCardGroup v-model="mode" :aria-label="t('admin.upstream.mode')" :options="[
-              {value:'auto_provision',title:t('admin.upstream.modeAutoProvision'),description:t('admin.upstream.modeAutoProvisionDesc')},
-              {value:'invite_only',title:t('admin.upstream.modeInviteOnly'),description:t('admin.upstream.modeInviteOnlyDesc')},
-              {value:'link_only',title:t('admin.upstream.modeLinkOnly'),description:t('admin.upstream.modeLinkOnlyDesc')}]" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
-            <ComboboxTokenInput input-id="scopes" v-model="scopes" :suggestions="scopeSuggestions" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label>{{ t('admin.upstream.allowedDomains') }}</Label>
-            <ListInput v-model="allowedDomains" name="allowedDomains"
-              :add-label="t('admin.upstream.addDomain')" :placeholder="t('admin.upstream.domainPlaceholder')" :validate="validateDomain" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.domainsHint') }}</p>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
-            <Input id="usernameClaim" name="usernameClaim" v-model="usernameClaim" autocomplete="off" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.usernameClaimDesc') }}</p>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="displayNameClaim">{{ t('admin.upstream.displayNameClaim') }}</Label>
-            <Input id="displayNameClaim" name="displayNameClaim" v-model="displayNameClaim" autocomplete="off" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.displayNameClaimDesc') }}</p>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
-            <Input id="emailClaim" name="emailClaim" v-model="emailClaim" autocomplete="off" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.emailClaimDesc') }}</p>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="pictureClaim">{{ t('admin.upstream.pictureClaim') }}</Label>
-            <Input id="pictureClaim" name="pictureClaim" v-model="pictureClaim" autocomplete="off" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.pictureClaimDesc') }}</p>
-          </div>
-          <SettingRow :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
-            <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />
-          </SettingRow>
+        <CardContent class="flex flex-col gap-5 py-4">
+          <FormSection :title="t('admin.upstream.sectionConnection')">
+            <div class="flex flex-col gap-1.5">
+              <Label>{{ t('admin.upstream.slug') }}</Label>
+              <p class="font-mono text-sm text-muted" data-test="idp-slug">{{ idp.slug }}</p>
+              <p class="text-xs text-muted">{{ t('admin.upstream.slugDesc') }}</p>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="displayName">{{ t('admin.upstream.displayName') }}</Label>
+              <Input id="displayName" name="displayName" v-model="displayName" autocomplete="off" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
+              <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.issuerUrlDesc') }}</p>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
+              <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
+              <ComboboxTokenInput input-id="scopes" v-model="scopes" :suggestions="scopeSuggestions" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
+            </div>
+          </FormSection>
+          <FormSection :title="t('admin.upstream.sectionProvisioning')">
+            <div class="flex flex-col gap-1.5">
+              <Label>{{ t('admin.upstream.mode') }}</Label>
+              <RadioCardGroup v-model="mode" :aria-label="t('admin.upstream.mode')" :options="[
+                {value:'auto_provision',title:t('admin.upstream.modeAutoProvision'),description:t('admin.upstream.modeAutoProvisionDesc')},
+                {value:'invite_only',title:t('admin.upstream.modeInviteOnly'),description:t('admin.upstream.modeInviteOnlyDesc')},
+                {value:'link_only',title:t('admin.upstream.modeLinkOnly'),description:t('admin.upstream.modeLinkOnlyDesc')}]" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label>{{ t('admin.upstream.allowedDomains') }}</Label>
+              <ListInput v-model="allowedDomains" name="allowedDomains"
+                :add-label="t('admin.upstream.addDomain')" :placeholder="t('admin.upstream.domainPlaceholder')" :validate="validateDomain" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.domainsHint') }}</p>
+            </div>
+            <SettingRow :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
+              <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />
+            </SettingRow>
+          </FormSection>
+          <FormSection :title="t('admin.upstream.sectionClaims')">
+            <div class="flex flex-col gap-1.5">
+              <Label for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
+              <Input id="usernameClaim" name="usernameClaim" v-model="usernameClaim" autocomplete="off" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.usernameClaimDesc') }}</p>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="displayNameClaim">{{ t('admin.upstream.displayNameClaim') }}</Label>
+              <Input id="displayNameClaim" name="displayNameClaim" v-model="displayNameClaim" autocomplete="off" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.displayNameClaimDesc') }}</p>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
+              <Input id="emailClaim" name="emailClaim" v-model="emailClaim" autocomplete="off" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.emailClaimDesc') }}</p>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="pictureClaim">{{ t('admin.upstream.pictureClaim') }}</Label>
+              <Input id="pictureClaim" name="pictureClaim" v-model="pictureClaim" autocomplete="off" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.pictureClaimDesc') }}</p>
+            </div>
+          </FormSection>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.upstream.save') }}</Button>
             <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.upstream.saved') }}</span>

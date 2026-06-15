@@ -22,9 +22,11 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
+import FormSection from '@/components/custom/FormSection.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import BackLink from '@/components/custom/BackLink.vue'
+import AttributeMapEditor, { type AttributeMapEntry } from '@/components/custom/AttributeMapEditor.vue'
 
 interface AcsEndpoint {
   binding: string
@@ -43,7 +45,7 @@ interface SamlApplication {
   entityId: string
   displayName: string
   nameIdFormat: string
-  attributeMap: unknown
+  attributeMap: AttributeMapEntry[]
   requireSignedAuthnRequest: boolean
   allowIdpInitiated: boolean
   disabled: boolean
@@ -65,8 +67,7 @@ const localError = ref('')
 
 const displayName = ref('')
 const nameIdFormat = ref('')
-const attributeMapText = ref('[]')
-const attributeMapError = ref('')
+const attributeMap = ref<AttributeMapEntry[]>([])
 const requireSignedAuthnRequest = ref(false)
 const allowIdpInitiated = ref(false)
 const disabled = ref(false)
@@ -81,8 +82,7 @@ const confirmDelete = ref(false)
 function seedForm(data: SamlApplication): void {
   displayName.value = data.displayName
   nameIdFormat.value = data.nameIdFormat
-  attributeMapText.value = JSON.stringify(data.attributeMap ?? [], null, 2)
-  attributeMapError.value = ''
+  attributeMap.value = Array.isArray(data.attributeMap) ? [...data.attributeMap] : []
   requireSignedAuthnRequest.value = data.requireSignedAuthnRequest
   allowIdpInitiated.value = data.allowIdpInitiated
   disabled.value = data.disabled
@@ -98,21 +98,13 @@ async function load(): Promise<void> {
 
 async function save(): Promise<void> {
   localError.value = ''
-  attributeMapError.value = ''
   reingestDone.value = false
   const secs = sessionLifetimeSecs.value.trim()
   if (secs !== '' && !/^\d+$/.test(secs)) { localError.value = t('admin.saml.sessionLifetimeInvalid'); return }
-  let parsedAttributeMap: unknown
-  try {
-    parsedAttributeMap = JSON.parse(attributeMapText.value)
-  } catch {
-    attributeMapError.value = t('admin.saml.attributeMapInvalid')
-    return
-  }
   const updated = await run(() => withSudo(() => api.put<SamlApplication>(`/api/prohibitorum/saml-applications/${id}`, {
     displayName: displayName.value,
     nameIdFormat: nameIdFormat.value,
-    attributeMap: parsedAttributeMap,
+    attributeMap: attributeMap.value,
     requireSignedAuthnRequest: requireSignedAuthnRequest.value,
     allowIdpInitiated: allowIdpInitiated.value,
     ...(secs !== '' ? { sessionLifetimeSecs: Number(secs) } : {}),
@@ -191,20 +183,18 @@ onMounted(load)
             <p class="text-xs text-muted">{{ t('admin.saml.nameIdFormatDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
-            <Label for="attributeMap">{{ t('admin.saml.attributeMap') }}</Label>
+            <Label>{{ t('admin.saml.attributeMap') }}</Label>
             <p class="text-xs text-muted">{{ t('admin.saml.attributeMapPurpose') }}</p>
-            <Textarea id="attributeMap" name="attributeMap" v-model="attributeMapText" :rows="8" data-test="saml-attributeMap" />
-            <p class="text-xs text-muted">{{ t('admin.saml.attributeMapHint') }}</p>
-            <p v-if="attributeMapError" class="text-xs text-destructive" data-test="saml-attributeMap-error">{{ attributeMapError }}</p>
+            <AttributeMapEditor v-model="attributeMap" data-test="saml-attributeMap" />
           </div>
-          <div class="flex flex-col gap-3">
+          <FormSection :title="t('admin.saml.securityTitle')">
             <SettingRow :label="t('admin.saml.requireSignedAuthn')" :description="t('admin.saml.requireSignedAuthnDesc')" for="requireSignedAuthnRequest">
               <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
             </SettingRow>
             <SettingRow :label="t('admin.saml.allowIdpInitiated')" :description="t('admin.saml.allowIdpInitiatedDesc')" for="allowIdpInitiated">
               <Switch id="allowIdpInitiated" v-model="allowIdpInitiated" />
             </SettingRow>
-          </div>
+          </FormSection>
           <div class="flex flex-col gap-1.5">
             <Label for="sessionLifetimeSecs">{{ t('admin.saml.sessionLifetime') }}</Label>
             <Input id="sessionLifetimeSecs" name="sessionLifetimeSecs" v-model="sessionLifetimeSecs" inputmode="numeric" />
@@ -223,7 +213,7 @@ onMounted(load)
         <CardContent class="flex flex-col gap-3">
           <p v-if="!sp.acs.length" class="text-sm text-muted">—</p>
           <div v-for="(row, i) in sp.acs" :key="i" class="flex min-w-0 flex-col gap-0.5 text-sm">
-            <span class="break-all font-mono text-ink">{{ row.location }}</span>
+            <span class="truncate font-mono text-sm text-ink" :title="row.location">{{ row.location }}</span>
             <span class="text-muted">{{ bindingLabel(row.binding) }} · index {{ row.index }}<template v-if="row.isDefault"> · default</template></span>
           </div>
         </CardContent>
