@@ -138,6 +138,8 @@ describe('AdminAccountDetailView', () => {
     const w = mountView(); await flushPromises()
     const getSessionsBefore = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
     await w.find('[data-test="session-revoke-sess-bbb"]').trigger('click'); await flushPromises()
+    // confirm dialog must now appear — click the destructive confirm button
+    clickConfirm(en.admin.account.sessions.revoke); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/7/sessions/revoke', { sessionId: 'sess-bbb' })
     const getSessionsAfter = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
     expect(getSessionsAfter).toBe(getSessionsBefore + 1)
@@ -147,6 +149,7 @@ describe('AdminAccountDetailView', () => {
     post.mockRejectedValue({ code: 'session_not_found', message: 'some-zh-text' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="session-revoke-sess-bbb"]').trigger('click'); await flushPromises()
+    clickConfirm(en.admin.account.sessions.revoke); await flushPromises()
     expect(w.text()).toContain(en.errors.session_not_found)
   })
   it('shows empty state when sessions list is empty', async () => {

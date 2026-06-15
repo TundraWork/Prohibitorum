@@ -95,6 +95,7 @@ function addAttrRow(): void { attrRows.value.push({ uid: attrUid++, key: '', val
 function removeAttrRow(i: number): void { attrRows.value.splice(i, 1) }
 
 const revokeCredId = ref<number | null>(null)
+const confirmRevokeSessionId = ref<string | null>(null)
 const confirmRevokeAll = ref(false)
 const confirmDelete = ref(false)
 const revokedCount = ref<number | null>(null)
@@ -177,7 +178,7 @@ async function toggleDisabled(): Promise<void> {
   const next = !disabled.value
   const updated = await run(() => withSudo(() =>
     api.post<Account>('/api/prohibitorum/accounts/set-disabled', { id, disabled: next }),
-    t('sudo.reason.disableApp')))
+    t('sudo.reason.disableAccount')))
   if (updated) { account.value = updated; disabled.value = updated.disabled }
 }
 // Use the SAVED role (account.role), not the unsaved form `role` ref: an admin
@@ -266,7 +267,7 @@ onMounted(load)
           <div v-for="c in credentials" :key="c.id" class="flex items-center justify-between gap-4">
             <div class="flex min-w-0 flex-col text-sm">
               <span class="truncate text-ink">{{ c.nickname || ('····' + c.credentialIdSuffix) }}</span>
-              <span class="truncate text-muted">{{ t('admin.account.created') }} {{ relativeTime(c.createdAt) }} · {{ t('admin.account.lastUsed') }} {{ relativeTime(c.lastUsedAt) }}</span>
+              <span class="truncate text-muted">{{ t('admin.account.created') }} {{ relativeTime(c.createdAt) }} · {{ c.lastUsedAt ? t('admin.account.lastUsed') + ' ' + relativeTime(c.lastUsedAt) : t('admin.account.neverUsed') }}</span>
             </div>
             <Button type="button" variant="outline" size="sm" class="shrink-0" :disabled="busy" :data-test="`revoke-cred-${c.id}`" @click="revokeCredId = c.id">{{ t('admin.account.forceRevoke') }}</Button>
           </div>
@@ -294,7 +295,7 @@ onMounted(load)
                 <TableCell class="text-sm text-ink">{{ s.lastSeenIp }}</TableCell>
                 <TableCell class="max-w-xs truncate text-sm text-muted" :title="s.userAgent || undefined">{{ formatUserAgent(s.userAgent) }}</TableCell>
                 <TableCell>
-                  <Button type="button" variant="outline" size="sm" :disabled="busy" :data-test="`session-revoke-${s.id}`" @click="revokeSession(s.id)">{{ t('admin.account.sessions.revoke') }}</Button>
+                  <Button type="button" variant="outline" size="sm" :disabled="busy" :data-test="`session-revoke-${s.id}`" @click="confirmRevokeSessionId = s.id">{{ t('admin.account.sessions.revoke') }}</Button>
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -344,6 +345,10 @@ onMounted(load)
     <ConfirmDialog :open="revokeCredId !== null" :title="t('admin.account.forceRevokeConfirmTitle')" :confirm-label="t('admin.account.forceRevoke')" :busy="busy"
       @update:open="(v) => { if (!v) revokeCredId = null }" @cancel="revokeCredId = null" @confirm="forceRevoke">
       {{ t('admin.account.forceRevokeConfirmBody') }}
+    </ConfirmDialog>
+    <ConfirmDialog :open="confirmRevokeSessionId !== null" :title="t('admin.account.sessions.revokeConfirmTitle')" :confirm-label="t('admin.account.sessions.revoke')" :busy="busy"
+      @update:open="(v) => { if (!v) confirmRevokeSessionId = null }" @cancel="confirmRevokeSessionId = null" @confirm="async () => { if (confirmRevokeSessionId) { await revokeSession(confirmRevokeSessionId); confirmRevokeSessionId = null } }">
+      {{ t('admin.account.sessions.revokeConfirmBody') }}
     </ConfirmDialog>
     <ConfirmDialog :open="confirmRevokeAll" :title="t('admin.account.revokeAllConfirmTitle')" :confirm-label="t('admin.account.revokeAllSessions')" :busy="busy"
       @update:open="(v) => { if (!v) confirmRevokeAll = false }" @cancel="confirmRevokeAll = false" @confirm="revokeAllSessions">
