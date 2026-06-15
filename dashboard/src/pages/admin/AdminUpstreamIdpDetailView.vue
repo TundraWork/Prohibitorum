@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import RadioCardGroup from '@/components/custom/RadioCardGroup.vue'
-import ComboboxTokenInput from '@/components/custom/ComboboxTokenInput.vue'
+import ScopeSelector from '@/components/custom/ScopeSelector.vue'
 import ListInput from '@/components/custom/ListInput.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import { UPSTREAM_SCOPE_SUGGESTIONS } from '@/lib/scopes'
@@ -46,7 +46,7 @@ const confirmDelete = ref(false)
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
 
-const scopeSuggestions = computed(() => UPSTREAM_SCOPE_SUGGESTIONS.map((s) => ({ value: s.value, description: t(s.descKey) })))
+const upstreamScopesKnown = computed(() => UPSTREAM_SCOPE_SUGGESTIONS.map((s) => ({ value: s.value, description: t(s.descKey) })))
 
 async function load(): Promise<void> {
   const i = await run(() => api.get<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`))
@@ -132,7 +132,7 @@ onMounted(load)
             </div>
             <div class="flex flex-col gap-1.5">
               <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
-              <ComboboxTokenInput input-id="scopes" v-model="scopes" :suggestions="scopeSuggestions" :placeholder="t('admin.upstream.scopesHint')" :aria-label="t('admin.upstream.scopes')" />
+              <ScopeSelector :known="upstreamScopesKnown" :allow-custom="true" v-model="scopes" />
               <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
             </div>
           </FormSection>

@@ -19,7 +19,7 @@ export const UPSTREAM_SCOPE_SUGGESTIONS: ScopeSuggestion[] = [
 ]
 
 /**
- * Fixed OIDC scope set for the OidcScopePicker component.
+ * Fixed OIDC scope set for the ScopeSelector component (OIDC mode).
  * openid is always required; the rest are optional.
  * Descriptions reuse the upstream.scopeSuggestions keys (same scope set, same text).
  */

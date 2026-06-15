@@ -23,6 +23,12 @@ export default {
     copy: 'Copy',
     copied: 'Copied',
     remove: 'Remove',
+    add: 'Add',
+  },
+
+  scopeSelector: {
+    customLabel: 'Custom scopes',
+    customPlaceholder: 'Type a scope and press Enter',
   },
 
   nav: {

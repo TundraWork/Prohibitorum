@@ -4,7 +4,7 @@
  * Edit config (PUT with allowedScopes); rotate secret (reveal-once CodeField);
  * delete. All mutations go through withSudo.
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
@@ -17,7 +17,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
-import OidcScopePicker from '@/components/custom/OidcScopePicker.vue'
+import ScopeSelector from '@/components/custom/ScopeSelector.vue'
+import { OIDC_SCOPES } from '@/lib/scopes'
 import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
@@ -42,6 +43,8 @@ interface OidcApplication {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+
+const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
 const { busy, error, run, errorText } = useApi()
 
 const clientId = String(route.params.clientId)
@@ -164,7 +167,7 @@ onMounted(load)
           </div>
           <div class="flex flex-col gap-1.5">
             <span class="text-sm font-medium text-ink">{{ t('admin.oidc.scopes') }}</span>
-            <OidcScopePicker v-model="scopes" />
+            <ScopeSelector :known="oidcScopesDescribed" :allow-custom="false" v-model="scopes" />
             <p class="text-xs text-muted">{{ t('admin.oidc.scopesNote') }}</p>
           </div>
           <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">

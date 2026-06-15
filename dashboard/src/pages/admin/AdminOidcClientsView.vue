@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** AdminOidcClientsView (/admin/oidc-applications) — table of OIDC clients; inline create with reveal-once secret. */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
@@ -14,7 +14,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
-import OidcScopePicker from '@/components/custom/OidcScopePicker.vue'
+import ScopeSelector from '@/components/custom/ScopeSelector.vue'
+import { OIDC_SCOPES } from '@/lib/scopes'
 import CodeField from '@/components/custom/CodeField.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import ListInput from '@/components/custom/ListInput.vue'
@@ -37,6 +38,8 @@ interface OidcApplication {
 
 const { t } = useI18n()
 const router = useRouter()
+
+const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
 const { busy, run, errorText } = useApi()
 
 const rows = ref<OidcApplication[]>([])
@@ -147,7 +150,7 @@ onMounted(load)
           </div>
         </FormSection>
         <FormSection :title="t('admin.oidc.sectionScopes')">
-          <OidcScopePicker v-model="scopes" />
+          <ScopeSelector :known="oidcScopesDescribed" :allow-custom="false" v-model="scopes" />
           <p class="text-xs text-muted">{{ t('admin.oidc.scopesNote') }}</p>
         </FormSection>
         <FormSection :title="t('admin.oidc.sectionOptions')">
