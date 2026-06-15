@@ -1,0 +1,82 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-16-rbac-app-authorization.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Migration + sqlc queries (schema foundation)",
+      "status": "pending",
+      "description": "**Goal:** Create user_group/group_member/oidc_client_access/saml_sp_access tables + access_restricted columns; rbac.sql queries (CRUD, predicate, exposed slugs); regenerate sqlc.\n\n```json:metadata\n{\"files\":[\"db/migrations/015_rbac.sql\",\"db/queries/rbac.sql\",\"db/queries/oidc.sql\",\"db/queries/saml_sp.sql\",\"pkg/db\"],\"verifyCommand\":\"mise db:up && mise exec -- sqlc generate && go build ./...\",\"acceptanceCriteria\":[\"015 applies cleanly; existing apps stay open\",\"sqlc generates predicate + CRUD + access_restricted on views\",\"go build/vet clean\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Groups admin API (CRUD + membership)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Admin HTTP for groups: list/create/get/update/delete + member add/remove/list, via registerOp (GET) + registerSudoOpHTTP (mutations); audit FactorGroup.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_groups.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\",\"pkg/audit/event.go\",\"pkg/server/handle_admin_groups_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run \\\"Group|Sudo|RoutePolicy\\\" -v\",\"acceptanceCriteria\":[\"GET /groups lists with member counts\",\"mutations admin+sudo, GETs admin-only\",\"bad slug 400; dup slug conflict\",\"audit on CRUD+membership\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Groups admin SPA (list + detail/members)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** /admin/groups list + /admin/groups/:id detail (edit + exposed toggle + member mgmt); router + sidebar nav + i18n.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/AdminGroupsView.vue\",\"dashboard/src/pages/admin/AdminGroupDetailView.vue\",\"dashboard/src/router/index.ts\",\"dashboard/src/components/custom/AppSidebar.vue\",\"dashboard/src/locales/en.ts\",\"dashboard/src/pages/admin/AdminGroupsView.test.ts\"],\"verifyCommand\":\"cd dashboard && npm test && npm run build\",\"acceptanceCriteria\":[\"list with skeleton/empty + create dialog\",\"detail edits + exposed toggle + member add/remove\",\"sidebar Groups link admin-only\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Account-detail group membership",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** GET /accounts/{id}/groups + a Groups card on AdminAccountDetailView (add/remove via /groups/{id}/members endpoints).\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_accounts.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\",\"dashboard/src/pages/admin/AdminAccountDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"go test ./pkg/server/ -run Account -v && cd dashboard && npm run build\",\"acceptanceCriteria\":[\"GET /accounts/{id}/groups (admin)\",\"account detail Groups card add/remove\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: App access admin API (restrict + grants)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** GET .../access + set-restricted/grant/revoke for OIDC & SAML; accessRestricted in app views; audit EventAccess* consts.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_app_access.go\",\"pkg/server/handle_admin_oidc_clients.go\",\"pkg/server/handle_admin_saml_sps.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\",\"pkg/audit/event.go\",\"pkg/server/handle_admin_app_access_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run \\\"AppAccess|Sudo|RoutePolicy\\\"\",\"acceptanceCriteria\":[\"GET access returns restricted+groups+accounts\",\"set-restricted/grant/revoke admin+sudo+audit\",\"accessRestricted in OIDC/SAML views\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: App access SPA (Access card)",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Reusable AppAccessCard (kind oidc|saml) mounted on both app detail pages: restrict toggle + grant list add/remove; i18n.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/AppAccessCard.vue\",\"dashboard/src/components/custom/AppAccessCard.test.ts\",\"dashboard/src/pages/admin/AdminOidcClientDetailView.vue\",\"dashboard/src/pages/admin/AdminSamlProviderDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npm test && npm run build\",\"acceptanceCriteria\":[\"restrict Switch -> set-restricted\",\"groups+accounts add/remove when restricted; inactive hint when open\",\"works for both protocols via props\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: Enforcement (OIDC authorize+refresh, SAML SSO) + denied UX",
+      "status": "pending",
+      "blockedBy": [0, 4],
+      "description": "**Goal:** Gate issuance on predicate; deny interactive via IdP /error, prompt=none via access_denied, SAML passive via RequestDenied; refresh re-check revokes family; audit EventAccessDenied; ErrorView app_access_denied.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/access.go\",\"pkg/protocol/oidc/authorize.go\",\"pkg/protocol/oidc/token.go\",\"pkg/protocol/oidc/refresh.go\",\"pkg/protocol/saml/sso.go\",\"dashboard/src/pages/ErrorView.vue\",\"dashboard/src/locales/en.ts\",\"pkg/protocol/oidc/authorize_test.go\",\"pkg/protocol/saml/sso_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/...\",\"acceptanceCriteria\":[\"restricted+non-member denied (interactive /error; prompt=none access_denied)\",\"refresh re-check -> invalid_grant + family revoked\",\"SAML passive -> RequestDenied; interactive -> /error\",\"denials audited\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: OIDC groups scope + claim",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Add groups scope (discovery + supportedOIDCScopes); emit sorted exposed-only groups claim in id_token + userinfo via threaded slugs, scope-gated; present-but-empty [].\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/claims.go\",\"pkg/protocol/oidc/oidc.go\",\"pkg/protocol/oidc/token.go\",\"pkg/protocol/oidc/userinfo.go\",\"pkg/server/handle_admin_oidc_clients.go\",\"pkg/protocol/oidc/claims_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/\",\"acceptanceCriteria\":[\"groups in scopes_supported + supportedOIDCScopes\",\"id_token+userinfo groups claim when scope granted; [] when none; absent otherwise\",\"non-exposed groups excluded\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 9: SAML groups attribute source",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** \"groups\" attribute-map source emitting exposed slugs (multi); thread slugs into projectAttributes + sso + idp-initiated; AttributeMapEditor offers groups.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/attributes.go\",\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/idp_initiated.go\",\"dashboard/src/components/custom/AttributeMapEditor.vue\",\"dashboard/src/locales/en.ts\",\"pkg/protocol/saml/attributes_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/saml/ && cd dashboard && npm test\",\"acceptanceCriteria\":[\"source:groups -> exposed slugs (multi); none -> omitted\",\"editor lists groups source\",\"all projectAttributes call sites updated\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 10: CLI parity (group verb + access flags)",
+      "status": "pending",
+      "blockedBy": [1, 4],
+      "description": "**Goal:** group create/list/update/delete/add-member/remove-member; --access-restricted + grant/revoke flags on oidc-client/saml-sp.\n\n```json:metadata\n{\"files\":[\"cmd/prohibitorum\"],\"verifyCommand\":\"go build ./...\",\"acceptanceCriteria\":[\"group subcommands work vs dev DB\",\"oidc-client/saml-sp access flags persist\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 11: Smoke arc, docs, rebuild dist, final gate",
+      "status": "pending",
+      "blockedBy": [2, 3, 5, 6, 7, 8, 9],
+      "description": "**Goal:** Smoke RBAC arc (group->member->restrict->deny/allow->groups claim); docs (README box, api.md, ARCHITECTURE, STATUS); rebuild+commit pkg/webui/dist; full green gate.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\",\"README.md\",\"api.md\",\"ARCHITECTURE.md\",\"STATUS.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke arc green incl groups claim\",\"docs updated; README RBAC box checked\",\"full gate GREEN + dist rebuilt/committed\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-16"
+}
