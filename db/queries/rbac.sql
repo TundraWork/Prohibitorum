@@ -53,14 +53,12 @@ WHERE m.account_id = $1 AND g.exposed_to_downstream
 ORDER BY g.slug;
 
 -- name: GrantOIDCClientAccessGroup :exec
-INSERT INTO oidc_client_access (client_id, group_id)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM oidc_client_access WHERE client_id = $1 AND group_id = $2);
+INSERT INTO oidc_client_access (client_id, group_id) VALUES ($1, $2)
+ON CONFLICT (client_id, group_id) WHERE group_id IS NOT NULL DO NOTHING;
 
 -- name: GrantOIDCClientAccessAccount :exec
-INSERT INTO oidc_client_access (client_id, account_id)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM oidc_client_access WHERE client_id = $1 AND account_id = $2);
+INSERT INTO oidc_client_access (client_id, account_id) VALUES ($1, $2)
+ON CONFLICT (client_id, account_id) WHERE account_id IS NOT NULL DO NOTHING;
 
 -- name: RevokeOIDCClientAccessGroup :execrows
 DELETE FROM oidc_client_access WHERE client_id = $1 AND group_id = $2;
@@ -79,14 +77,12 @@ FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
 WHERE a.client_id = $1 ORDER BY acc.username;
 
 -- name: GrantSAMLSPAccessGroup :exec
-INSERT INTO saml_sp_access (saml_sp_id, group_id)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM saml_sp_access WHERE saml_sp_id = $1 AND group_id = $2);
+INSERT INTO saml_sp_access (saml_sp_id, group_id) VALUES ($1, $2)
+ON CONFLICT (saml_sp_id, group_id) WHERE group_id IS NOT NULL DO NOTHING;
 
 -- name: GrantSAMLSPAccessAccount :exec
-INSERT INTO saml_sp_access (saml_sp_id, account_id)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM saml_sp_access WHERE saml_sp_id = $1 AND account_id = $2);
+INSERT INTO saml_sp_access (saml_sp_id, account_id) VALUES ($1, $2)
+ON CONFLICT (saml_sp_id, account_id) WHERE account_id IS NOT NULL DO NOTHING;
 
 -- name: RevokeSAMLSPAccessGroup :execrows
 DELETE FROM saml_sp_access WHERE saml_sp_id = $1 AND group_id = $2;

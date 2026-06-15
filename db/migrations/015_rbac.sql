@@ -29,6 +29,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS oidc_client_access_group_uq
   ON oidc_client_access(client_id, group_id) WHERE group_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS oidc_client_access_account_uq
   ON oidc_client_access(client_id, account_id) WHERE account_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS oidc_client_access_group_id_idx ON oidc_client_access(group_id) WHERE group_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS saml_sp_access (
   saml_sp_id bigint  NOT NULL REFERENCES saml_sp(id)    ON DELETE CASCADE,
@@ -41,6 +42,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS saml_sp_access_group_uq
   ON saml_sp_access(saml_sp_id, group_id) WHERE group_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS saml_sp_access_account_uq
   ON saml_sp_access(saml_sp_id, account_id) WHERE account_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS saml_sp_access_group_id_idx ON saml_sp_access(group_id) WHERE group_id IS NOT NULL;
 
 ALTER TABLE oidc_client ADD COLUMN IF NOT EXISTS access_restricted boolean NOT NULL DEFAULT false;
 ALTER TABLE saml_sp      ADD COLUMN IF NOT EXISTS access_restricted boolean NOT NULL DEFAULT false;

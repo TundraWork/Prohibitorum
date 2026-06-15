@@ -111,9 +111,8 @@ func (q *Queries) GetGroupBySlug(ctx context.Context, slug string) (UserGroup, e
 }
 
 const grantOIDCClientAccessAccount = `-- name: GrantOIDCClientAccessAccount :exec
-INSERT INTO oidc_client_access (client_id, account_id)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM oidc_client_access WHERE client_id = $1 AND account_id = $2)
+INSERT INTO oidc_client_access (client_id, account_id) VALUES ($1, $2)
+ON CONFLICT (client_id, account_id) WHERE account_id IS NOT NULL DO NOTHING
 `
 
 type GrantOIDCClientAccessAccountParams struct {
@@ -127,9 +126,8 @@ func (q *Queries) GrantOIDCClientAccessAccount(ctx context.Context, arg GrantOID
 }
 
 const grantOIDCClientAccessGroup = `-- name: GrantOIDCClientAccessGroup :exec
-INSERT INTO oidc_client_access (client_id, group_id)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM oidc_client_access WHERE client_id = $1 AND group_id = $2)
+INSERT INTO oidc_client_access (client_id, group_id) VALUES ($1, $2)
+ON CONFLICT (client_id, group_id) WHERE group_id IS NOT NULL DO NOTHING
 `
 
 type GrantOIDCClientAccessGroupParams struct {
@@ -143,9 +141,8 @@ func (q *Queries) GrantOIDCClientAccessGroup(ctx context.Context, arg GrantOIDCC
 }
 
 const grantSAMLSPAccessAccount = `-- name: GrantSAMLSPAccessAccount :exec
-INSERT INTO saml_sp_access (saml_sp_id, account_id)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM saml_sp_access WHERE saml_sp_id = $1 AND account_id = $2)
+INSERT INTO saml_sp_access (saml_sp_id, account_id) VALUES ($1, $2)
+ON CONFLICT (saml_sp_id, account_id) WHERE account_id IS NOT NULL DO NOTHING
 `
 
 type GrantSAMLSPAccessAccountParams struct {
@@ -159,9 +156,8 @@ func (q *Queries) GrantSAMLSPAccessAccount(ctx context.Context, arg GrantSAMLSPA
 }
 
 const grantSAMLSPAccessGroup = `-- name: GrantSAMLSPAccessGroup :exec
-INSERT INTO saml_sp_access (saml_sp_id, group_id)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM saml_sp_access WHERE saml_sp_id = $1 AND group_id = $2)
+INSERT INTO saml_sp_access (saml_sp_id, group_id) VALUES ($1, $2)
+ON CONFLICT (saml_sp_id, group_id) WHERE group_id IS NOT NULL DO NOTHING
 `
 
 type GrantSAMLSPAccessGroupParams struct {
