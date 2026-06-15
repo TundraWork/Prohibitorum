@@ -143,7 +143,7 @@
 ---
 
 ## Review follow-ups (tracked during execution)
-- **[T2 review → do in T6]** `AdminAccountDetailView.toggleDisabled` passes `sudo.reason.disableApp` ("...application status") but it toggles an ACCOUNT. Add `sudo.reason.disableAccount` ("Confirm to change this account status.") and use it there.
+- ~~[T2→T6] account-scoped sudo reason~~ DONE in T6.
 
 ## Done-gate
 `go build -tags nodynamic ./...`/`vet`/`go test ./...` (0), `vitest` green, `vue-tsc -b` (0), live smoke `SMOKE_EXIT=0`, rebuild+commit `pkg/webui/dist`.

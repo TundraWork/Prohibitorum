@@ -29,7 +29,7 @@
     {
       "id": 6,
       "subject": "T6: account-detail Save scope + session revoke confirm",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1,
         5
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T10:30:00Z"
+  "lastUpdated": "2026-06-15T11:00:00Z"
 }
