@@ -27,10 +27,24 @@ describe('PasskeysCard', () => {
     expect(w.text()).toContain('····cd34')
   })
 
+  it('shows configured badge in header after load', async () => {
+    get.mockResolvedValue(CREDS)
+    const w = mountCard(); await flushPromises()
+    // Badge shows count; "2 configured"
+    expect(w.text()).toContain('2 configured')
+  })
+
+  it('shows not-configured badge in header when no passkeys', async () => {
+    get.mockResolvedValue([])
+    const w = mountCard(); await flushPromises()
+    expect(w.text()).toContain(en.security.passkeys.notConfigured)
+  })
+
   it('adds a passkey (begin → register → complete) then reloads', async () => {
     get.mockResolvedValue(CREDS)
     post.mockImplementation(async (p: string) => p.endsWith('/register/begin') ? { challenge: 'c' } : undefined)
     const w = mountCard(); await flushPromises()
+    // Add button is now in the card body
     const addBtn = w.findAll('button').find((b) => b.text().includes(en.security.passkeys.add))!
     await addBtn.trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/credentials/register/begin')

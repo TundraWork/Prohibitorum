@@ -4,6 +4,7 @@ import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 import SecurityView from './SecurityView.vue'
 import PasswordCard from './security/PasswordCard.vue'
+import RecoveryCodesCard from './security/RecoveryCodesCard.vue'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(async () => null), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
@@ -88,6 +89,26 @@ describe('SecurityView', () => {
     expect(w.text()).toContain(en.security.factorsLoadError)
     // Cards should still render
     expect(w.text()).toContain(en.security.passkeys.title)
+  })
+
+  it('passes totpEnabled=false to RecoveryCodesCard when TOTP is not enrolled', async () => {
+    get.mockResolvedValue(FACTORS_UNSET) // totpEnrolled: false
+    const w = mount(SecurityView, { global: { plugins: [i18n()] }, attachTo: document.body })
+    await flushPromises()
+    const recoveryCard = w.findComponent(RecoveryCodesCard)
+    expect(recoveryCard.props('totpEnabled')).toBe(false)
+    // The Regenerate button should be absent — guard prevents the dead-end
+    expect(recoveryCard.find('button').exists()).toBe(false)
+    expect(recoveryCard.find('[data-test="recovery-no-totp-hint"]').exists()).toBe(true)
+  })
+
+  it('passes totpEnabled=true to RecoveryCodesCard when TOTP is enrolled', async () => {
+    get.mockResolvedValue(FACTORS_SET) // totpEnrolled: true
+    const w = mount(SecurityView, { global: { plugins: [i18n()] }, attachTo: document.body })
+    await flushPromises()
+    const recoveryCard = w.findComponent(RecoveryCodesCard)
+    expect(recoveryCard.props('totpEnabled')).toBe(true)
+    expect(recoveryCard.find('button').exists()).toBe(true)
   })
 
   it('@changed from PasswordCard triggers re-fetch and updates badge', async () => {

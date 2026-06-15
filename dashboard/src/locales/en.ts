@@ -651,7 +651,10 @@ export default {
     factorsLoadError: 'Could not load your security status. Some indicators may be missing.',
     passkeys: {
       title: 'Passkeys',
+      help: 'Sign in with a passkey stored on your device or password manager.',
       add: 'Add passkey',
+      configured: '{n} configured',
+      notConfigured: 'Not configured',
       rename: 'Rename',
       save: 'Save',
       remove: 'Remove',

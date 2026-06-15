@@ -3,6 +3,15 @@
  * TotpCard — enroll a TOTP authenticator. begin (sudo-gated when re-enrolling)
  * returns secret+otpauth; the backend persists only on verify. First
  * enrollment returns recovery codes.
+ *
+ * Sudo hoisting: withSudo is called only on `begin` (the "Set up authenticator"
+ * button), NOT on `verify`. This prevents the sudo modal from interrupting the
+ * user mid-code-entry (TOTP codes expire in 30 s). Once `begin` succeeds the
+ * server-side session is already elevated; `verify` runs within that same
+ * elevated window without re-prompting. If the elevation expires between begin
+ * and verify the server will reject with 401/sudo_required — the error banner
+ * shows and the user can restart setup; this edge case is far better than the
+ * modal popping while the user is typing a one-time code.
  */
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -31,6 +40,8 @@ const recovery = ref<string[]>([])
 const enabled = ref(false)
 
 async function setup(): Promise<void> {
+  // Sudo elevation happens here at setup start, before the QR is shown, so the
+  // sudo modal cannot appear mid-code-entry.
   const r = await run(() => withSudo(() =>
     api.post<{ secret_base32: string; otpauth_uri: string }>('/api/prohibitorum/me/totp/begin'),
     t('sudo.reason.setupTotp')))
@@ -42,9 +53,11 @@ async function setup(): Promise<void> {
 }
 
 async function verify(): Promise<void> {
-  const r = await run(() => withSudo(() =>
-    api.post<{ recovery_codes?: string[] } | undefined>('/api/prohibitorum/me/totp/verify', { code: code.value }),
-    t('sudo.reason.setupTotp')))
+  // No withSudo here — elevation was acquired at setup. Running verify directly
+  // within the elevated session window. If elevation has lapsed the server
+  // returns 401 and the error banner prompts the user to restart.
+  const r = await run(() =>
+    api.post<{ recovery_codes?: string[] } | undefined>('/api/prohibitorum/me/totp/verify', { code: code.value }))
   // 204 (re-enroll) → undefined; first enrollment → { recovery_codes }
   if (error.value) return
   enabled.value = true
@@ -61,14 +74,12 @@ function cancelSetup(): void {
 
 <template>
   <Card>
-    <CardHeader>
-      <CardTitle class="flex items-center gap-2">
-        {{ t('security.totp.title') }}
-        <StatusBadge v-if="props.enrolled === undefined" variant="neutral">—</StatusBadge>
-        <StatusBadge v-else :variant="props.enrolled ? 'success' : 'neutral'">
-          {{ props.enrolled ? t('security.factors.totpActive') : t('security.factors.totpInactive') }}
-        </StatusBadge>
-      </CardTitle>
+    <CardHeader class="flex flex-row items-center gap-2">
+      <CardTitle>{{ t('security.totp.title') }}</CardTitle>
+      <StatusBadge v-if="props.enrolled === undefined" variant="neutral">—</StatusBadge>
+      <StatusBadge v-else :variant="props.enrolled ? 'success' : 'neutral'">
+        {{ props.enrolled ? t('security.factors.totpActive') : t('security.factors.totpInactive') }}
+      </StatusBadge>
     </CardHeader>
     <CardContent class="flex flex-col gap-4">
       <p class="text-sm text-muted">{{ t('security.totp.help') }}</p>

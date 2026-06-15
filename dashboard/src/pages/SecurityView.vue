@@ -60,7 +60,7 @@ async function revoke(): Promise<void> {
     <PasskeysCard />
     <PasswordCard :set="factors?.passwordSet" @changed="loadFactors" />
     <TotpCard :enrolled="factors?.totpEnrolled" @changed="loadFactors" />
-    <RecoveryCodesCard :remaining="factors?.recoveryCodesRemaining" @changed="loadFactors" />
+    <RecoveryCodesCard :remaining="factors?.recoveryCodesRemaining" :totp-enabled="factors?.totpEnrolled" @changed="loadFactors" />
 
     <Card class="border-destructive/30 bg-destructive/[0.02]">
       <CardHeader>

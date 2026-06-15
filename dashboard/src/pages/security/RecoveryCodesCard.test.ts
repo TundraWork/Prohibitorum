@@ -10,7 +10,10 @@ vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => unknown) => fn(), ensureSudo
 const post = vi.mocked(api.post)
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 beforeEach(() => { post.mockReset(); Object.assign(navigator, { clipboard: { writeText: vi.fn(async () => {}) } }) })
-const mountCard = () => mount(RecoveryCodesCard, { global: { plugins: [i18n()] } })
+
+// Helper that mounts with totpEnabled=true by default (the normal "button visible" path)
+const mountCard = (props: { remaining?: number; totpEnabled?: boolean } = { totpEnabled: true }) =>
+  mount(RecoveryCodesCard, { global: { plugins: [i18n()] }, props })
 
 describe('RecoveryCodesCard', () => {
   it('regenerates and displays codes', async () => {
@@ -26,5 +29,22 @@ describe('RecoveryCodesCard', () => {
     const w = mountCard()
     await w.find('button').trigger('click'); await flushPromises()
     expect(w.text()).toContain(en.security.recovery.needTotp)
+  })
+
+  it('hides the Regenerate button and shows hint when totpEnabled is false', async () => {
+    const w = mountCard({ totpEnabled: false })
+    await flushPromises()
+    // No button — preventive guard before user can click into an error
+    expect(w.find('button').exists()).toBe(false)
+    expect(w.find('[data-test="recovery-no-totp-hint"]').exists()).toBe(true)
+    expect(w.text()).toContain(en.security.recovery.needTotp)
+  })
+
+  it('shows the Regenerate button when totpEnabled is undefined (loading)', async () => {
+    // When factors haven't loaded yet, default to showing the button (not false = not blocked)
+    const w = mount(RecoveryCodesCard, { global: { plugins: [i18n()] } })
+    await flushPromises()
+    expect(w.find('button').exists()).toBe(true)
+    expect(w.find('[data-test="recovery-no-totp-hint"]').exists()).toBe(false)
   })
 })

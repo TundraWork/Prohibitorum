@@ -45,14 +45,12 @@ async function submit(): Promise<void> {
 
 <template>
   <Card>
-    <CardHeader>
-      <CardTitle class="flex items-center gap-2">
-        {{ t('security.password.title') }}
-        <StatusBadge v-if="props.set === undefined" variant="neutral">—</StatusBadge>
-        <StatusBadge v-else :variant="props.set ? 'success' : 'neutral'">
-          {{ props.set ? t('security.factors.passwordSet') : t('security.factors.passwordUnset') }}
-        </StatusBadge>
-      </CardTitle>
+    <CardHeader class="flex flex-row items-center gap-2">
+      <CardTitle>{{ t('security.password.title') }}</CardTitle>
+      <StatusBadge v-if="props.set === undefined" variant="neutral">—</StatusBadge>
+      <StatusBadge v-else :variant="props.set ? 'success' : 'neutral'">
+        {{ props.set ? t('security.factors.passwordSet') : t('security.factors.passwordUnset') }}
+      </StatusBadge>
     </CardHeader>
     <CardContent>
       <form class="flex max-w-sm flex-col gap-4" @submit.prevent="submit">

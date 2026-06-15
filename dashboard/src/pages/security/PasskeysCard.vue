@@ -46,6 +46,7 @@ const errorText = computed(() => {
 })
 
 const rows = ref<CredentialView[]>([])
+const loaded = ref(false)
 const editingId = ref<number | null>(null)
 const draftName = ref('')
 const confirmId = ref<number | null>(null)
@@ -55,7 +56,7 @@ const displayName = (c: CredentialView) => c.nickname || `${t('security.passkeys
 
 async function load(): Promise<void> {
   const res = await run(() => api.get<CredentialView[]>('/api/prohibitorum/me/credentials'))
-  if (res) rows.value = res
+  if (res) { rows.value = res; loaded.value = true }
 }
 
 async function add(): Promise<void> {
@@ -98,17 +99,22 @@ onMounted(load)
 <template>
   <Card>
     <CardHeader class="flex flex-row items-center justify-between gap-2">
-      <CardTitle>{{ t('security.passkeys.title') }}</CardTitle>
-      <Button type="button" size="sm" :disabled="busy" @click="add">
-        <Plus class="size-4" aria-hidden="true" /><span>{{ t('security.passkeys.add') }}</span>
-      </Button>
+      <div class="flex items-center gap-2">
+        <CardTitle>{{ t('security.passkeys.title') }}</CardTitle>
+        <StatusBadge v-if="!loaded" variant="neutral">—</StatusBadge>
+        <StatusBadge v-else :variant="rows.length > 0 ? 'success' : 'neutral'">
+          {{ rows.length > 0 ? t('security.passkeys.configured', { n: rows.length }) : t('security.passkeys.notConfigured') }}
+        </StatusBadge>
+      </div>
     </CardHeader>
     <CardContent class="flex flex-col gap-3">
+      <p class="text-sm text-muted">{{ t('security.passkeys.help') }}</p>
+
       <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
         <AlertDescription>{{ errorText }}</AlertDescription>
       </Alert>
 
-      <p v-if="!busy && rows.length === 0 && !errorText" class="text-sm text-muted">{{ t('security.passkeys.empty') }}</p>
+      <p v-if="loaded && rows.length === 0 && !errorText" class="text-sm text-muted">{{ t('security.passkeys.empty') }}</p>
 
       <div v-for="c in rows" :key="c.id" class="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
         <div class="flex min-w-0 flex-col gap-1">
@@ -136,6 +142,10 @@ onMounted(load)
           </Button>
         </div>
       </div>
+
+      <Button type="button" size="sm" class="w-fit" :disabled="busy" @click="add">
+        <Plus class="size-4" aria-hidden="true" /><span>{{ t('security.passkeys.add') }}</span>
+      </Button>
     </CardContent>
   </Card>
 

@@ -1,5 +1,9 @@
 <script setup lang="ts">
-/** RecoveryCodesCard — regenerate recovery codes (sudo-gated; needs confirmed TOTP). */
+/**
+ * RecoveryCodesCard — regenerate recovery codes (sudo-gated; needs confirmed TOTP).
+ * When totpEnabled is false the Regenerate button is replaced with a hint so the
+ * user cannot click into a server-side bad_request dead-end.
+ */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
@@ -11,7 +15,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import RecoveryCodesDisplay from '@/components/custom/RecoveryCodesDisplay.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 
-const props = defineProps<{ remaining?: number }>()
+const props = withDefaults(defineProps<{
+  remaining?: number
+  /** Whether a TOTP authenticator is enrolled. When explicitly false, the
+   *  Regenerate button is hidden — the server requires TOTP before issuing
+   *  recovery codes. undefined = factors not yet loaded (show button).
+   *  withDefaults preserves undefined to avoid Vue boolean-prop coercion. */
+  totpEnabled?: boolean
+}>(), { totpEnabled: undefined })
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t, te } = useI18n()
@@ -36,22 +47,34 @@ async function regenerate(): Promise<void> {
 
 <template>
   <Card>
-    <CardHeader>
-      <CardTitle class="flex items-center gap-2">
-        {{ t('security.recovery.title') }}
-        <StatusBadge
-          v-if="props.remaining !== undefined"
-          :variant="props.remaining > 4 ? 'success' : props.remaining > 0 ? 'caution' : 'danger'"
-        >
-          {{ t('security.factors.recoveryRemaining', { n: props.remaining }) }}
-        </StatusBadge>
-      </CardTitle>
+    <CardHeader class="flex flex-row items-center gap-2">
+      <CardTitle>{{ t('security.recovery.title') }}</CardTitle>
+      <StatusBadge
+        v-if="props.remaining !== undefined"
+        :variant="props.remaining > 4 ? 'success' : props.remaining > 0 ? 'caution' : 'danger'"
+      >
+        {{ t('security.factors.recoveryRemaining', { n: props.remaining }) }}
+      </StatusBadge>
     </CardHeader>
     <CardContent class="flex flex-col gap-4">
       <RecoveryCodesDisplay v-if="codes.length" :codes="codes" regenerated @confirmed="codes = []" />
       <template v-else>
         <p class="text-sm text-muted">{{ t('security.recovery.help') }}</p>
-        <Button type="button" variant="outline" class="w-fit" :disabled="busy" @click="regenerate">
+        <!-- Guard: server rejects regeneration without a confirmed TOTP; show a
+             non-clickable hint instead of an enabled button that leads to an error. -->
+        <p
+          v-if="props.totpEnabled === false"
+          class="text-sm text-muted"
+          data-test="recovery-no-totp-hint"
+        >{{ t('security.recovery.needTotp') }}</p>
+        <Button
+          v-if="props.totpEnabled !== false"
+          type="button"
+          variant="outline"
+          class="w-fit"
+          :disabled="busy"
+          @click="regenerate"
+        >
           {{ t('security.recovery.regenerate') }}
         </Button>
       </template>
