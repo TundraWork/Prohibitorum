@@ -79,6 +79,17 @@ describe('AdminUpstreamIdpDetailView', () => {
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', expect.objectContaining({ pictureClaim: 'avatar_url' }))
   })
+  it('renders claim inputs as a compact grid with default-value placeholders', async () => {
+    get.mockResolvedValue(IDP)
+    const w = mountView(); await flushPromises()
+    expect(w.find('[data-test="claim-username"]').attributes('placeholder')).toBe('preferred_username')
+    expect(w.find('[data-test="claim-displayName"]').attributes('placeholder')).toBe('name')
+    expect(w.find('[data-test="claim-email"]').attributes('placeholder')).toBe('email')
+    expect(w.find('[data-test="claim-avatar"]').attributes('placeholder')).toBe('picture')
+    // All four inputs still bound to correct v-models (values round-trip from IDP fixture)
+    expect((w.find('input[name="usernameClaim"]').element as HTMLInputElement).value).toBe('preferred_username')
+    expect((w.find('input[name="emailClaim"]').element as HTMLInputElement).value).toBe('email')
+  })
   it('rotates the secret without revealing a value', async () => {
     get.mockResolvedValue(IDP); post.mockResolvedValue(undefined)
     const w = mountView(); await flushPromises()

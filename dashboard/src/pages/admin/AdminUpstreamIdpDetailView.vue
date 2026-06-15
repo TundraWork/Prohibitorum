@@ -155,26 +155,17 @@ onMounted(load)
             </SettingRow>
           </FormSection>
           <FormSection :title="t('admin.upstream.sectionClaims')">
-            <div class="flex flex-col gap-1.5">
-              <Label for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
-              <Input id="usernameClaim" name="usernameClaim" v-model="usernameClaim" autocomplete="off" />
-              <p class="text-xs text-muted">{{ t('admin.upstream.usernameClaimDesc') }}</p>
+            <div class="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-3 gap-y-2">
+              <Label class="text-sm" for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
+              <Input id="usernameClaim" name="usernameClaim" class="h-8" v-model="usernameClaim" placeholder="preferred_username" autocomplete="off" data-test="claim-username" />
+              <Label class="text-sm" for="displayNameClaim">{{ t('admin.upstream.displayNameClaim') }}</Label>
+              <Input id="displayNameClaim" name="displayNameClaim" class="h-8" v-model="displayNameClaim" placeholder="name" autocomplete="off" data-test="claim-displayName" />
+              <Label class="text-sm" for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
+              <Input id="emailClaim" name="emailClaim" class="h-8" v-model="emailClaim" placeholder="email" autocomplete="off" data-test="claim-email" />
+              <Label class="text-sm" for="pictureClaim">{{ t('admin.upstream.pictureClaim') }}</Label>
+              <Input id="pictureClaim" name="pictureClaim" class="h-8" v-model="pictureClaim" placeholder="picture" autocomplete="off" data-test="claim-avatar" />
             </div>
-            <div class="flex flex-col gap-1.5">
-              <Label for="displayNameClaim">{{ t('admin.upstream.displayNameClaim') }}</Label>
-              <Input id="displayNameClaim" name="displayNameClaim" v-model="displayNameClaim" autocomplete="off" />
-              <p class="text-xs text-muted">{{ t('admin.upstream.displayNameClaimDesc') }}</p>
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <Label for="emailClaim">{{ t('admin.upstream.emailClaim') }}</Label>
-              <Input id="emailClaim" name="emailClaim" v-model="emailClaim" autocomplete="off" />
-              <p class="text-xs text-muted">{{ t('admin.upstream.emailClaimDesc') }}</p>
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <Label for="pictureClaim">{{ t('admin.upstream.pictureClaim') }}</Label>
-              <Input id="pictureClaim" name="pictureClaim" v-model="pictureClaim" autocomplete="off" />
-              <p class="text-xs text-muted">{{ t('admin.upstream.pictureClaimDesc') }}</p>
-            </div>
+            <p class="text-xs text-muted">{{ t('admin.upstream.claimsHint') }}</p>
           </FormSection>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.upstream.save') }}</Button>

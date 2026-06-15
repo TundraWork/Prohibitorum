@@ -77,6 +77,20 @@ describe('AdminUpstreamIdpsView', () => {
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({ pictureClaim: 'avatar' }))
   })
+  it('renders claim inputs as a compact grid with default-value placeholders and pre-filled defaults', async () => {
+    get.mockResolvedValue([])
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    expect(w.find('[data-test="claim-username"]').attributes('placeholder')).toBe('preferred_username')
+    expect(w.find('[data-test="claim-displayName"]').attributes('placeholder')).toBe('name')
+    expect(w.find('[data-test="claim-email"]').attributes('placeholder')).toBe('email')
+    expect(w.find('[data-test="claim-avatar"]').attributes('placeholder')).toBe('picture')
+    // Create form pre-fills the schema defaults
+    expect((w.find('input[name="usernameClaim"]').element as HTMLInputElement).value).toBe('preferred_username')
+    expect((w.find('input[name="displayNameClaim"]').element as HTMLInputElement).value).toBe('name')
+    expect((w.find('input[name="emailClaim"]').element as HTMLInputElement).value).toBe('email')
+    expect((w.find('input[name="pictureClaim"]').element as HTMLInputElement).value).toBe('picture')
+  })
   it('surfaces upstream_idp_already_exists', async () => {
     get.mockResolvedValue([])
     post.mockRejectedValue({ code: 'upstream_idp_already_exists', message: 'zh' })
