@@ -293,6 +293,13 @@ var OperationListAccountSessions = huma.Operation{
 	Summary:     "List an account's active sessions (admin only).",
 }
 
+var OperationListAccountGroups = huma.Operation{
+	OperationID: "listAccountGroups",
+	Method:      http.MethodGet,
+	Path:        "/accounts/{id}/groups",
+	Summary:     "List the groups an account belongs to (admin only).",
+}
+
 var OperationRevokeAccountSessions = huma.Operation{
 	OperationID: "revokeAccountSessions",
 	Method:      http.MethodPost,

@@ -249,3 +249,49 @@ func TestAdminGroups_ErrGroupSlugConflict(t *testing.T) {
 		t.Error("Message: got empty string")
 	}
 }
+
+// ----- handleListAccountGroups projection tests --------------------------------------
+
+// TestHandleListAccountGroups_ViewProjection verifies that the groupView
+// function — the same one used by handleListAccountGroups — correctly projects
+// a db.UserGroup row into contract.GroupView with memberCount=0 (which omitempty
+// serialises away, the expected behaviour for the account-groups endpoint).
+//
+// The full handler path (account existence check + DB query) requires a live DB
+// and is covered by integration / smoke tests.  These unit tests focus on the
+// projection invariants that can be verified without a DB.
+func TestHandleListAccountGroups_ViewProjectionZeroCount(t *testing.T) {
+	t.Parallel()
+
+	row := db.UserGroup{
+		ID:                  55,
+		Slug:                "platform",
+		DisplayName:         "Platform",
+		Description:         pgtype.Text{String: "Platform team", Valid: true},
+		ExposedToDownstream: true,
+		CreatedAt:           pgtype.Timestamptz{Time: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), Valid: true},
+	}
+
+	// handleListAccountGroups always passes memberCount=0 (member count not
+	// needed on the account-detail view).
+	view := groupView(row, 0)
+
+	if view.ID != 55 {
+		t.Errorf("ID: got %d, want 55", view.ID)
+	}
+	if view.Slug != "platform" {
+		t.Errorf("Slug: got %q, want platform", view.Slug)
+	}
+	if view.DisplayName != "Platform" {
+		t.Errorf("DisplayName: got %q, want Platform", view.DisplayName)
+	}
+	if view.MemberCount != 0 {
+		t.Errorf("MemberCount: got %d, want 0 (omitted on account-groups endpoint)", view.MemberCount)
+	}
+	if view.Description != "Platform team" {
+		t.Errorf("Description: got %q, want Platform team", view.Description)
+	}
+	if !view.ExposedToDownstream {
+		t.Error("ExposedToDownstream: got false, want true")
+	}
+}

@@ -908,6 +908,30 @@ func (s *Server) handleListAccountSessions(ctx context.Context, in *getAccountIn
 	return &accountSessionsOut{Body: items}, nil
 }
 
+// ----- GET /accounts/{id}/groups --------------------------------------------
+
+type accountGroupsOut struct {
+	Body []contract.GroupView
+}
+
+func (s *Server) handleListAccountGroups(ctx context.Context, in *getAccountIn) (*accountGroupsOut, error) {
+	if _, err := s.queries.GetAccountByID(ctx, in.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleListAccountGroups: load: %w", err)
+	}
+	groups, err := s.queries.ListGroupsForAccount(ctx, in.ID)
+	if err != nil {
+		return nil, fmt.Errorf("handleListAccountGroups: list: %w", err)
+	}
+	views := make([]contract.GroupView, 0, len(groups))
+	for _, g := range groups {
+		views = append(views, groupView(g, 0))
+	}
+	return &accountGroupsOut{Body: views}, nil
+}
+
 // ----- POST /accounts/{id}/sessions/revoke (raw sudo) ------------------------
 
 func (s *Server) handleRevokeAccountSessionHTTP(w http.ResponseWriter, r *http.Request) {

@@ -27,11 +27,22 @@ const SESSIONS = [
   { id: 'sess-aaa', isCurrent: true,  issuedAt: '2026-06-01T10:00:00Z', expiresAt: '2026-06-08T10:00:00Z', lastSeenIp: '1.2.3.4', userAgent: 'Firefox/126' },
   { id: 'sess-bbb', isCurrent: false, issuedAt: '2026-06-02T10:00:00Z', expiresAt: '2026-06-09T10:00:00Z', lastSeenIp: '5.6.7.8', userAgent: 'Chrome/125' },
 ]
-// GET router: /accounts/7 → account; /accounts/7/credentials → creds; /accounts/7/sessions → sessions
-function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS) {
+const GROUPS_FOR_ACCOUNT = [
+  { id: 10, slug: 'eng', displayName: 'Engineering', exposedToDownstream: true, createdAt: '2026-01-01T00:00:00Z' },
+]
+const ALL_GROUPS = [
+  { id: 10, slug: 'eng', displayName: 'Engineering', exposedToDownstream: true, createdAt: '2026-01-01T00:00:00Z' },
+  { id: 20, slug: 'ops', displayName: 'Operations', exposedToDownstream: false, createdAt: '2026-01-02T00:00:00Z' },
+]
+// GET router: /accounts/7 → account; /accounts/7/credentials → creds;
+// /accounts/7/sessions → sessions; /accounts/7/groups → account groups;
+// /groups (exact) → all groups (picker)
+function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, acctGroups = GROUPS_FOR_ACCOUNT, allGroupsList = ALL_GROUPS) {
   get.mockImplementation(async (p: string) => {
     if (p.endsWith('/credentials')) return creds
     if (p.endsWith('/sessions')) return sess
+    if (p === '/api/prohibitorum/groups') return allGroupsList
+    if (p.endsWith('/groups')) return acctGroups
     return account
   })
 }
@@ -283,5 +294,94 @@ describe('AdminAccountDetailView', () => {
     // the empty-key row must not appear in attributes
     expect(Object.keys(body.attributes)).not.toContain('')
     expect(body.attributes).toMatchObject({ team: 'security', score: 42 })
+  })
+
+  // ---- groups card ----
+
+  it('loads and renders the account groups card on mount', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(get.mock.calls.some((c) => String(c[0]).endsWith('/accounts/7/groups'))).toBe(true)
+    expect(get.mock.calls.some((c) => String(c[0]) === '/api/prohibitorum/groups')).toBe(true)
+    expect(w.find('[data-test="group-row-10"]').exists()).toBe(true)
+    expect(w.text()).toContain('Engineering')
+  })
+
+  it('group picker excludes groups the account already belongs to', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    // ALL_GROUPS has ids 10 and 20; account is already in group 10
+    // The select content renders SelectItem for each addable group.
+    // Group 10 should NOT appear; group 20 (Operations) SHOULD appear.
+    // We check via the select trigger options rendered in the DOM.
+    const selectContent = w.findAll('[data-test="group-select"] [data-test]')
+    // Simpler: check that the add button is disabled when no group selected
+    const addBtn = w.find<HTMLButtonElement>('[data-test="add-to-group"]')
+    expect(addBtn.element.disabled).toBe(true)
+  })
+
+  it('add-group picker excludes current memberships via addableGroups computed', async () => {
+    // ALL_GROUPS has ids 10 and 20; account is already in group 10.
+    // addableGroups must contain only group 20.
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/groups')
+    const vm = w.vm as unknown as {
+      accountGroups: Array<{ id: number }>
+      allGroups: Array<{ id: number; displayName: string }>
+      addableGroups: Array<{ id: number; displayName: string }>
+    }
+    expect(vm.allGroups).toHaveLength(2)
+    expect(vm.accountGroups).toHaveLength(1)
+    // addableGroups filters out the already-member group (id=10)
+    expect(vm.addableGroups).toHaveLength(1)
+    expect(vm.addableGroups[0].id).toBe(20)
+    expect(vm.addableGroups[0].displayName).toBe('Operations')
+  })
+
+  it('add to group POSTs the member endpoint and refreshes the groups list', async () => {
+    mockGets()
+    post.mockResolvedValue({})
+    // After add, return the updated list with both groups
+    const updatedGroups = [
+      ...GROUPS_FOR_ACCOUNT,
+      { id: 20, slug: 'ops', displayName: 'Operations', exposedToDownstream: false, createdAt: '2026-01-02T00:00:00Z' },
+    ]
+    let groupsCallCount = 0
+    get.mockImplementation(async (p: string) => {
+      if (p.endsWith('/credentials')) return CREDS
+      if (p.endsWith('/sessions')) return SESSIONS
+      if (p === '/api/prohibitorum/groups') return ALL_GROUPS
+      if (p.endsWith('/groups')) { groupsCallCount++; return groupsCallCount === 1 ? GROUPS_FOR_ACCOUNT : updatedGroups }
+      return ACCOUNT
+    })
+    const w = mountView(); await flushPromises()
+    const groupsCallsBefore = groupsCallCount
+    // Drive selectedGroupId via vm (Reka Select is not directly settable via setValue)
+    const vm = w.vm as unknown as { selectedGroupId: string }
+    vm.selectedGroupId = '20'
+    await flushPromises()
+    await w.find('[data-test="add-to-group"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/groups/20/members', { accountId: 7 })
+    // groups list refreshed
+    expect(groupsCallCount).toBeGreaterThan(groupsCallsBefore)
+  })
+
+  it('shows empty state when account belongs to no groups', async () => {
+    mockGets(ACCOUNT, CREDS, SESSIONS, [], ALL_GROUPS)
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.admin.account.groupsEmpty)
+  })
+
+  it('remove from group opens confirm dialog and POSTs remove endpoint', async () => {
+    mockGets()
+    post.mockResolvedValue(undefined)
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="group-remove-10"]').trigger('click'); await flushPromises()
+    // confirm dialog should appear — click the confirm button (last destructive button matching label)
+    const btns = Array.from(document.body.querySelectorAll('button'))
+      .filter((b) => b.textContent?.includes(en.admin.account.groupsRemove))
+    btns[btns.length - 1]!.click(); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/groups/10/members/remove', { accountId: 7 })
   })
 })

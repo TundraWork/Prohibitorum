@@ -418,6 +418,7 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/credentials/delete", admin, s.handleDeleteAccountCredentialHTTP)
 	registerOp(mgmt, contract.OperationListAccountCredentials, s.handleListAccountCredentials, admin)
 	registerOp(mgmt, contract.OperationListAccountSessions, s.handleListAccountSessions, admin)
+	registerOp(mgmt, contract.OperationListAccountGroups, s.handleListAccountGroups, admin)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/{id}/sessions/revoke", admin, s.handleRevokeAccountSessionHTTP)
 	registerSudoOp(s, mgmt, contract.OperationRevokeAccountSessions, s.handleRevokeAccountSessions, admin)
 	registerSudoOp(s, mgmt, contract.OperationReissueEnrollment, s.handleReissueEnrollment, admin)

@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import SegmentedControl from '@/components/custom/SegmentedControl.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
@@ -31,6 +32,7 @@ import UserAvatar from '@/components/custom/UserAvatar.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
+import EmptyState from '@/components/custom/EmptyState.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
@@ -46,16 +48,28 @@ interface SessionListItem {
   id: string; isCurrent: boolean; issuedAt: string; expiresAt: string
   lastSeenIp: string; userAgent?: string
 }
+interface GroupView {
+  id: number; slug: string; displayName: string; description?: string
+  exposedToDownstream: boolean; createdAt: string
+}
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const { busy, error, run, errorText } = useApi()
+// Separate composable for group membership operations — avoid busy-guard race.
+const groupsApi = useApi()
+// Separate composable for the all-groups list used in the picker.
+const allGroupsApi = useApi()
 
 const id = Number(route.params.id)
 const account = ref<Account | null>(null)
 const credentials = ref<Credential[]>([])
 const sessions = ref<SessionListItem[]>([])
+const accountGroups = ref<GroupView[]>([])
+const allGroups = ref<GroupView[]>([])
+const selectedGroupId = ref<string>('')
+const confirmRemoveGroupId = ref<number | null>(null)
 const notFound = ref(false)
 
 const displayName = ref('')
@@ -112,6 +126,14 @@ async function loadSessions(): Promise<void> {
   const res = await run(() => api.get<SessionListItem[]>(`/api/prohibitorum/accounts/${id}/sessions`))
   if (res) sessions.value = res
 }
+async function loadAccountGroups(): Promise<void> {
+  const res = await groupsApi.run(() => api.get<GroupView[]>(`/api/prohibitorum/accounts/${id}/groups`))
+  if (res) accountGroups.value = res
+}
+async function loadAllGroups(): Promise<void> {
+  const res = await allGroupsApi.run(() => api.get<GroupView[]>('/api/prohibitorum/groups'))
+  if (res) allGroups.value = res
+}
 async function load(): Promise<void> {
   const acc = await run(() => api.get<Account>(`/api/prohibitorum/accounts/${id}`))
   if (!acc) { if (error.value?.code === 'account_not_found') notFound.value = true; return }
@@ -123,6 +145,32 @@ async function load(): Promise<void> {
   seedAttrs(acc.attributes)
   await loadCredentials()
   await loadSessions()
+}
+
+// Groups computed: groups the account is not yet in — used by the add-picker.
+const addableGroups = computed(() => {
+  const memberIds = new Set(accountGroups.value.map((g) => g.id))
+  return allGroups.value.filter((g) => !memberIds.has(g.id))
+})
+const groupToRemove = computed(() => accountGroups.value.find((g) => g.id === confirmRemoveGroupId.value))
+
+async function addToGroup(): Promise<void> {
+  if (!selectedGroupId.value) return
+  const groupId = Number(selectedGroupId.value)
+  const accountId = id
+  const ok = await groupsApi.run(() => withSudo(() => api.post<object>(`/api/prohibitorum/groups/${groupId}/members`, { accountId })))
+  if (ok !== undefined) {
+    selectedGroupId.value = ''
+    await loadAccountGroups()
+  }
+}
+async function removeFromGroup(): Promise<void> {
+  if (confirmRemoveGroupId.value === null) return
+  const groupId = confirmRemoveGroupId.value
+  const accountId = id
+  const ok = await groupsApi.run(() => withSudo(() => api.post<object>(`/api/prohibitorum/groups/${groupId}/members/remove`, { accountId })))
+  confirmRemoveGroupId.value = null
+  if (ok !== undefined) await loadAccountGroups()
 }
 async function save(): Promise<void> {
   // Send email ONLY when it changed: any explicit email value resets
@@ -193,7 +241,12 @@ async function destroy(): Promise<void> {
   confirmDelete.value = false
   if (ok) router.push('/admin/accounts')
 }
-onMounted(load)
+onMounted(async () => {
+  await load()
+  if (!notFound.value) {
+    await Promise.all([loadAccountGroups(), loadAllGroups()])
+  }
+})
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
@@ -306,6 +359,48 @@ onMounted(load)
       </Card>
 
       <Card>
+        <CardHeader><CardTitle>{{ t('admin.account.groupsTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-4">
+          <Alert v-if="groupsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
+            <AlertDescription>{{ groupsApi.errorText.value }}</AlertDescription>
+          </Alert>
+          <!-- Add to group row -->
+          <div class="flex items-center gap-2">
+            <Select v-model="selectedGroupId" data-test="group-select">
+              <SelectTrigger class="flex-1">
+                <SelectValue :placeholder="t('admin.account.groupsAddPlaceholder')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="g in addableGroups" :key="g.id" :value="String(g.id)">
+                  {{ g.displayName }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="button" :disabled="groupsApi.busy.value || !selectedGroupId" data-test="add-to-group" @click="addToGroup">
+              {{ t('admin.account.groupsAdd') }}
+            </Button>
+          </div>
+          <!-- Group membership list -->
+          <div v-if="accountGroups.length" class="flex flex-col gap-2">
+            <div v-for="g in accountGroups" :key="g.id"
+                 class="flex items-center justify-between rounded-md border border-border px-3 py-2"
+                 :data-test="`group-row-${g.id}`">
+              <div class="flex min-w-0 flex-col">
+                <span class="truncate font-medium text-ink">{{ g.displayName }}</span>
+                <span class="truncate text-xs text-muted font-mono">{{ g.slug }}</span>
+              </div>
+              <Button type="button" variant="outline" size="sm"
+                      :data-test="`group-remove-${g.id}`"
+                      @click="confirmRemoveGroupId = g.id">
+                {{ t('admin.account.groupsRemove') }}
+              </Button>
+            </div>
+          </div>
+          <EmptyState v-else :title="t('admin.account.groupsEmpty')" />
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle>{{ t('admin.account.resetTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-3">
           <p class="text-sm text-muted">{{ t('admin.account.resetHelp') }}</p>
@@ -357,6 +452,10 @@ onMounted(load)
     <ConfirmDialog :open="confirmDelete" :title="t('admin.account.deleteConfirmTitle')" :confirm-label="t('admin.account.delete')" :busy="busy"
       @update:open="(v) => { if (!v) confirmDelete = false }" @cancel="confirmDelete = false" @confirm="destroy">
       {{ t('admin.account.deleteConfirmBody') }}
+    </ConfirmDialog>
+    <ConfirmDialog :open="confirmRemoveGroupId !== null" :title="t('admin.account.groupsRemoveConfirmTitle')" :confirm-label="t('admin.account.groupsRemove')" :busy="groupsApi.busy.value"
+      @update:open="(v) => { if (!v) confirmRemoveGroupId = null }" @cancel="confirmRemoveGroupId = null" @confirm="removeFromGroup">
+      {{ t('admin.account.groupsRemoveConfirmBody', { name: groupToRemove?.displayName ?? '' }) }}
     </ConfirmDialog>
   </div>
 </template>

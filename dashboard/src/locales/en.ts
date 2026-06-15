@@ -192,6 +192,13 @@ export default {
       delete: 'Delete account',
       deleteConfirmTitle: 'Delete this account?',
       deleteConfirmBody: 'This permanently removes the account and everything attached to it. This cannot be undone.',
+      groupsTitle: 'Groups',
+      groupsEmpty: 'This account is not a member of any groups.',
+      groupsAddPlaceholder: 'Select a group',
+      groupsAdd: 'Add to group',
+      groupsRemove: 'Remove',
+      groupsRemoveConfirmTitle: 'Remove from group?',
+      groupsRemoveConfirmBody: 'Remove this account from {name}?',
     },
     invitations: {
       title: 'Invitations',
