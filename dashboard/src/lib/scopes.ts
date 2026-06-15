@@ -17,3 +17,21 @@ export const UPSTREAM_SCOPE_SUGGESTIONS: ScopeSuggestion[] = [
   { value: 'phone', descKey: 'admin.upstream.scopeSuggestions.phone' },
   { value: 'groups', descKey: 'admin.upstream.scopeSuggestions.groups' },
 ]
+
+/**
+ * Fixed OIDC scope set for the OidcScopePicker component.
+ * openid is always required; the rest are optional.
+ * Descriptions reuse the upstream.scopeSuggestions keys (same scope set, same text).
+ */
+export interface OidcScope {
+  value: string
+  required: boolean
+  descKey: string
+}
+
+export const OIDC_SCOPES: OidcScope[] = [
+  { value: 'openid',         required: true,  descKey: 'admin.upstream.scopeSuggestions.openid' },
+  { value: 'profile',        required: false, descKey: 'admin.upstream.scopeSuggestions.profile' },
+  { value: 'email',          required: false, descKey: 'admin.upstream.scopeSuggestions.email' },
+  { value: 'offline_access', required: false, descKey: 'admin.upstream.scopeSuggestions.offline_access' },
+]

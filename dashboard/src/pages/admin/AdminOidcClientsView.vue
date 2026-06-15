@@ -12,9 +12,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import OidcScopePicker from '@/components/custom/OidcScopePicker.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import ListInput from '@/components/custom/ListInput.vue'
@@ -68,14 +68,6 @@ async function load(): Promise<void> {
 }
 
 function go(id: string): void { router.push(`/admin/oidc-applications/${id}`) }
-
-function toggleScope(scope: string, checked: boolean): void {
-  if (checked && !scopes.value.includes(scope)) {
-    scopes.value = [...scopes.value, scope]
-  } else if (!checked) {
-    scopes.value = scopes.value.filter((s) => s !== scope)
-  }
-}
 
 async function create(): Promise<void> {
   created.value = false
@@ -155,24 +147,7 @@ onMounted(load)
           </div>
         </FormSection>
         <FormSection :title="t('admin.oidc.sectionScopes')">
-          <div class="flex flex-col gap-1">
-            <label class="flex items-center gap-2 text-sm text-ink">
-              <Checkbox :model-value="scopes.includes('openid')" disabled />
-              openid
-            </label>
-            <label class="flex items-center gap-2 text-sm text-ink">
-              <Checkbox :model-value="scopes.includes('profile')" @update:model-value="(c) => toggleScope('profile', c === true)" />
-              profile
-            </label>
-            <label class="flex items-center gap-2 text-sm text-ink">
-              <Checkbox :model-value="scopes.includes('email')" @update:model-value="(c) => toggleScope('email', c === true)" />
-              email
-            </label>
-            <label class="flex items-center gap-2 text-sm text-ink">
-              <Checkbox :model-value="scopes.includes('offline_access')" @update:model-value="(c) => toggleScope('offline_access', c === true)" />
-              offline_access
-            </label>
-          </div>
+          <OidcScopePicker v-model="scopes" />
           <p class="text-xs text-muted">{{ t('admin.oidc.scopesNote') }}</p>
         </FormSection>
         <FormSection :title="t('admin.oidc.sectionOptions')">

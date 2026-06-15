@@ -16,8 +16,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
+import OidcScopePicker from '@/components/custom/OidcScopePicker.vue'
 import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
@@ -69,14 +69,6 @@ function validateUri(s: string): string | null {
   }
 }
 
-function toggleScope(scope: string, checked: boolean): void {
-  if (checked && !scopes.value.includes(scope)) {
-    scopes.value = [...scopes.value, scope]
-  } else if (!checked) {
-    scopes.value = scopes.value.filter((s) => s !== scope)
-  }
-}
-
 async function load(): Promise<void> {
   const c = await run(() => api.get<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}`))
   if (!c) { if (error.value?.code === 'client_not_found') notFound.value = true; return }
@@ -84,7 +76,9 @@ async function load(): Promise<void> {
   displayName.value = c.displayName
   redirectUris.value = [...c.redirectUris]
   postLogoutUris.value = [...c.postLogoutRedirectUris]
-  scopes.value = [...c.allowedScopes]
+  // openid is mandatory; defend against a payload that somehow lacks it so the
+  // (disabled) checkbox can't strand the form in an openid-less state.
+  scopes.value = c.allowedScopes.includes('openid') ? [...c.allowedScopes] : ['openid', ...c.allowedScopes]
   requireConsent.value = c.requireConsent
   disabled.value = c.disabled
 }
@@ -170,24 +164,7 @@ onMounted(load)
           </div>
           <div class="flex flex-col gap-1.5">
             <span class="text-sm font-medium text-ink">{{ t('admin.oidc.scopes') }}</span>
-            <div class="flex flex-col gap-1">
-              <label class="flex items-center gap-2 text-sm text-ink">
-                <Checkbox :model-value="scopes.includes('openid')" disabled />
-                openid
-              </label>
-              <label class="flex items-center gap-2 text-sm text-ink">
-                <Checkbox :model-value="scopes.includes('profile')" @update:model-value="(c) => toggleScope('profile', c === true)" />
-                profile
-              </label>
-              <label class="flex items-center gap-2 text-sm text-ink">
-                <Checkbox :model-value="scopes.includes('email')" @update:model-value="(c) => toggleScope('email', c === true)" />
-                email
-              </label>
-              <label class="flex items-center gap-2 text-sm text-ink">
-                <Checkbox :model-value="scopes.includes('offline_access')" @update:model-value="(c) => toggleScope('offline_access', c === true)" />
-                offline_access
-              </label>
-            </div>
+            <OidcScopePicker v-model="scopes" />
             <p class="text-xs text-muted">{{ t('admin.oidc.scopesNote') }}</p>
           </div>
           <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">
