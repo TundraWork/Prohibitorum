@@ -24,7 +24,7 @@
     {
       "id": 5,
       "subject": "T5: danger-zone 3-row consistency",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 6,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T10:00:00Z"
+  "lastUpdated": "2026-06-15T10:30:00Z"
 }
