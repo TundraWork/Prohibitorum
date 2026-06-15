@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** AdminSigningKeysView (/admin/signing-keys) — list + lifecycle (generate/activate/retire). */
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -8,6 +8,7 @@ import { withSudo } from '@/lib/sudo'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
@@ -26,10 +27,16 @@ const { t } = useI18n()
 const { busy, run, errorText } = useApi()
 
 const rows = ref<SigningKey[]>([])
-const expanded = ref<Record<string, boolean>>({})
+const viewJwkKid = ref<string | null>(null)
 const confirmGenerate = ref(false)
 const confirmActivate = ref('')
 const confirmRetire = ref('')
+
+const viewJwkKey = computed(() => rows.value.find((k) => k.kid === viewJwkKid.value) ?? null)
+const viewJwkOpen = computed({
+  get: () => viewJwkKid.value !== null,
+  set: (v: boolean) => { if (!v) viewJwkKid.value = null },
+})
 
 const STATUS_VARIANT: Record<string, Variant> = { pending: 'neutral', active: 'success', decommissioning: 'caution', retired: 'neutral' }
 function statusVariant(s: string): Variant { return STATUS_VARIANT[s] ?? 'neutral' }
@@ -40,7 +47,6 @@ function statusLabel(s: string): string {
   if (s === 'retired') return t('admin.signingKeys.statusRetired')
   return s
 }
-function toggle(kid: string): void { expanded.value = { ...expanded.value, [kid]: !expanded.value[kid] } }
 function jwk(k: SigningKey): string { return JSON.stringify(k.publicJwk, null, 2) }
 
 async function load(): Promise<void> {
@@ -72,7 +78,10 @@ onMounted(load)
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
     <div class="flex items-center justify-between gap-4">
-      <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.signingKeys.title') }}</h1>
+      <div class="flex flex-col gap-1">
+        <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.signingKeys.title') }}</h1>
+        <p class="text-xs text-muted">{{ t('admin.signingKeys.lifecycleHelp') }}</p>
+      </div>
       <Button type="button" data-test="generate" @click="confirmGenerate = true">{{ t('admin.signingKeys.generate') }}</Button>
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
@@ -89,29 +98,34 @@ onMounted(load)
         </TableRow>
       </TableHeader>
       <TableBody>
-        <template v-for="k in rows" :key="k.kid">
-          <TableRow>
-            <TableCell><button type="button" class="max-w-[18rem] cursor-pointer truncate rounded-sm font-mono text-sm text-ink underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring" :data-test="`expand-${k.kid}`" :aria-expanded="!!expanded[k.kid]" @click="toggle(k.kid)">{{ k.kid }}</button></TableCell>
-            <TableCell class="text-sm text-muted">{{ k.algorithm }} · {{ k.use }}</TableCell>
-            <TableCell><StatusBadge :variant="statusVariant(k.status)">{{ statusLabel(k.status) }}</StatusBadge></TableCell>
-            <TableCell class="text-sm text-muted">{{ formatDateTime(k.activatedAt) }}</TableCell>
-            <TableCell>
-              <div class="flex justify-end gap-2">
-                <Button v-if="k.status === 'pending'" type="button" variant="outline" size="sm" :disabled="busy" :data-test="`activate-${k.kid}`" @click="confirmActivate = k.kid">{{ t('admin.signingKeys.activate') }}</Button>
-                <Button v-if="k.status === 'decommissioning'" type="button" variant="outline" size="sm" :disabled="busy" :data-test="`retire-${k.kid}`" @click="confirmRetire = k.kid">{{ t('admin.signingKeys.retire') }}</Button>
-              </div>
-            </TableCell>
-          </TableRow>
-          <TableRow v-if="expanded[k.kid]">
-            <TableCell colspan="5">
-              <span class="text-xs text-muted">{{ t('admin.signingKeys.publicJwk') }}</span>
-              <pre class="mt-1 overflow-x-auto rounded-md bg-sunken p-3 font-mono text-xs text-ink">{{ jwk(k) }}</pre>
-            </TableCell>
-          </TableRow>
-        </template>
+        <TableRow v-for="k in rows" :key="k.kid">
+          <TableCell class="max-w-[18rem] truncate font-mono text-sm" :title="k.kid">{{ k.kid }}</TableCell>
+          <TableCell class="text-sm text-muted">{{ k.algorithm }} · {{ k.use }}</TableCell>
+          <TableCell><StatusBadge :variant="statusVariant(k.status)">{{ statusLabel(k.status) }}</StatusBadge></TableCell>
+          <TableCell class="text-sm text-muted">{{ formatDateTime(k.activatedAt) }}</TableCell>
+          <TableCell>
+            <div class="flex justify-end gap-2">
+              <Button type="button" variant="ghost" size="sm" :data-test="`view-jwk-${k.kid}`" :aria-label="t('admin.signingKeys.viewJwk')" @click="viewJwkKid = k.kid">{{ t('admin.signingKeys.viewJwk') }}</Button>
+              <Button v-if="k.status === 'pending'" type="button" variant="outline" size="sm" :disabled="busy" :data-test="`activate-${k.kid}`" @click="confirmActivate = k.kid">{{ t('admin.signingKeys.activate') }}</Button>
+              <Button v-if="k.status === 'decommissioning'" type="button" variant="outline" size="sm" :disabled="busy" :data-test="`retire-${k.kid}`" @click="confirmRetire = k.kid">{{ t('admin.signingKeys.retire') }}</Button>
+            </div>
+          </TableCell>
+        </TableRow>
       </TableBody>
     </Table>
     <EmptyState v-else-if="!errorText" :icon="KeyRound" :title="t('admin.signingKeys.empty')" />
+
+    <Dialog v-model:open="viewJwkOpen">
+      <DialogContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{{ t('admin.signingKeys.jwkTitle') }}</DialogTitle>
+          <p v-if="viewJwkKey" class="truncate font-mono text-xs text-muted" :title="viewJwkKey.kid">{{ viewJwkKey.kid }}</p>
+        </DialogHeader>
+        <div v-if="viewJwkKey" class="max-h-[60vh] overflow-auto rounded-md bg-sunken p-3">
+          <pre class="whitespace-pre-wrap break-all font-mono text-xs text-ink">{{ jwk(viewJwkKey) }}</pre>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     <ConfirmDialog :open="confirmGenerate" :title="t('admin.signingKeys.generateTitle')" :confirm-label="t('admin.signingKeys.generateConfirm')" :busy="busy"
       @update:open="closeGenerate" @cancel="confirmGenerate = false" @confirm="generate">

@@ -61,11 +61,12 @@ describe('AdminSigningKeysView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/signing-keys/k-decom/retire')
     expect(w.text()).toContain(en.errors.active_key_no_replacement)
   })
-  it('expands a row to show the public JWK', async () => {
+  it('opens a dialog to show the public JWK', async () => {
     get.mockResolvedValue(KEYS)
     const w = mountView(); await flushPromises()
-    await w.find('[data-test="expand-k-active"]').trigger('click')
-    expect(w.text()).toContain('"kty": "RSA"')
+    await w.find('[data-test="view-jwk-k-active"]').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('"kty": "RSA"')
   })
   it('shows empty-state when no keys', async () => {
     get.mockResolvedValue([])
