@@ -13,7 +13,6 @@ import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
 import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
-import CodeField from '@/components/custom/CodeField.vue'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -128,7 +127,11 @@ onUnmounted(() => { mounted = false; stopTimer() })
       <template v-if="phase === 'pending'">
         <p class="text-center text-sm text-muted">{{ t('pair.intro') }}</p>
         <Skeleton v-if="busy && !displayCode" class="h-10 w-40 rounded-md self-center" />
-        <CodeField v-else-if="displayCode" :value="displayCode" />
+        <p
+          v-else-if="displayCode"
+          class="text-center font-mono text-3xl font-semibold tracking-[0.3em] text-ink"
+          data-test="display-code"
+        >{{ displayCode }}</p>
         <p class="text-center text-sm text-muted" role="status">
           {{ t('pair.waiting') }}
           <span v-if="secondsLeft > 0"> · {{ t('pair.expiresIn', { seconds: secondsLeft }) }}</span>
@@ -152,6 +155,7 @@ onUnmounted(() => { mounted = false; stopTimer() })
           <Button type="button" variant="ghost" class="w-full" data-test="skip" @click="skip">
             {{ t('pair.skip') }}
           </Button>
+          <p class="text-center text-xs text-muted">{{ t('pair.skipSafe') }}</p>
         </div>
       </template>
     </div>

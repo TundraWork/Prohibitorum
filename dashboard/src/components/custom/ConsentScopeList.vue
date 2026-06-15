@@ -21,7 +21,10 @@ const isKnown = (scope: string) => te(`consent.scopes.${scope}`)
     <li v-for="scope in scopes" :key="scope" class="flex items-start gap-2 text-sm text-ink">
       <Check class="mt-0.5 size-4 shrink-0 text-tide" aria-hidden="true" />
       <span v-if="isKnown(scope)">{{ t(`consent.scopes.${scope}`) }}</span>
-      <code v-else class="font-mono text-muted">{{ scope }}</code>
+      <span v-else class="flex flex-col gap-0.5">
+        <code class="font-mono text-muted">{{ scope }}</code>
+        <span class="text-xs text-muted">{{ t('consent.customScope') }}</span>
+      </span>
     </li>
   </ul>
 </template>

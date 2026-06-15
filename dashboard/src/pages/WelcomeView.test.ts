@@ -32,7 +32,7 @@ afterEach(() => {
 })
 
 describe('WelcomeView', () => {
-  it('renders the identity and gates Continue until the avatar settles', async () => {
+  it('renders the identity and shows Continue enabled even while avatar is pending', async () => {
     get.mockResolvedValueOnce({ idpDisplayName: 'Google', displayName: 'Jane Doe', username: 'jane', email: 'jane@x.com', avatarPending: true })
        .mockResolvedValueOnce({ idpDisplayName: 'Google', displayName: 'Jane Doe', username: 'jane', email: 'jane@x.com', avatarUrl: '/avatar/x?v=ab', avatarPending: false })
     const w = mountView()
@@ -40,12 +40,27 @@ describe('WelcomeView', () => {
     expect(w.text()).toContain('Jane Doe')
     expect(w.text()).toContain('jane@x.com')
     const cont = w.find('[data-test="welcome-continue"]')
-    expect((cont.element as HTMLButtonElement).disabled).toBe(true)
+    // Continue must NOT be disabled while avatar is still pending (avatar is a background nicety)
+    expect((cont.element as HTMLButtonElement).disabled).toBe(false)
+    // Body always shows the description (not the fetching message)
+    expect(w.text()).toContain('Confirm this is the account you want to connect.')
     // Advance fake timers past the poll interval so the second GET fires
     await vi.advanceTimersByTimeAsync(20)
     await flushPromises()
     expect(get).toHaveBeenCalledTimes(2)
     expect((cont.element as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('does not show the fetching-avatar text in the body (only on spinner overlay)', async () => {
+    get.mockResolvedValue({ idpDisplayName: 'Google', displayName: 'Jane', username: 'jane', email: 'j@x.com', avatarPending: true })
+    const w = mountView()
+    await flushPromises()
+    // The description should always be shown
+    expect(w.text()).toContain('Confirm this is the account you want to connect.')
+    // The fetching text may appear in aria-label on the overlay but should not
+    // duplicate in the body aria-live region
+    const bodyLive = w.find('[aria-live="polite"]')
+    expect(bodyLive.text()).toBe('Confirm this is the account you want to connect.')
   })
 
   it('confirms and navigates on Continue', async () => {
@@ -93,20 +108,26 @@ describe('WelcomeView', () => {
     expect((cont.element as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('settles Continue after cap is exhausted with avatarPending always true', async () => {
+  it('stops polling after cap is exhausted with avatarPending always true', async () => {
     // Always returns avatarPending:true so the poll never naturally settles
     get.mockResolvedValue({ idpDisplayName: 'Google', displayName: 'Jane', username: 'jane', email: 'j@x.com', avatarPending: true })
     // pollMs=20, capMs=40: after two polls (40ms elapsed) the cap is hit
     const w = mountView(20, 40)
     await flushPromises()
     const cont = w.find('[data-test="welcome-continue"]')
-    expect((cont.element as HTMLButtonElement).disabled).toBe(true)
+    // Continue is enabled immediately (avatar pending does not block it)
+    expect((cont.element as HTMLButtonElement).disabled).toBe(false)
     // First poll fires at 20ms (elapsed becomes 20, schedules next)
     await vi.advanceTimersByTimeAsync(20)
     await flushPromises()
-    // Second poll fires at 40ms (elapsed becomes 40, >= capMs, settled)
+    const callsAfterFirst = get.mock.calls.length
+    // Second poll fires at 40ms (elapsed becomes 40, >= capMs, no more polls)
     await vi.advanceTimersByTimeAsync(20)
     await flushPromises()
+    await vi.advanceTimersByTimeAsync(100)
+    await flushPromises()
+    // No more polls after cap — call count should have stopped growing
+    expect(get.mock.calls.length).toBe(callsAfterFirst + 1)
     expect((cont.element as HTMLButtonElement).disabled).toBe(false)
   })
 })

@@ -26,13 +26,20 @@ beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset(); vi.useFa
 afterEach(() => { vi.useRealTimers() })
 
 describe('PairDeviceView', () => {
-  it('begins on mount and shows the display code', async () => {
+  it('begins on mount and shows the display code as large mono display', async () => {
     post.mockResolvedValue(BEGIN)
     get.mockResolvedValue({ status: 'pending' })
     const w = mountView(); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/devices/pair/begin')
     expect(w.text()).toContain('AB12-CD34')
     expect(w.text()).toContain(en.pair.waiting)
+    // Code renders as the large display element, not a CodeField copy widget
+    const displayEl = w.find('[data-test="display-code"]')
+    expect(displayEl.exists()).toBe(true)
+    expect(displayEl.text()).toBe('AB12-CD34')
+    // No copy button should be present for the display code
+    const copyBtns = w.findAll('button').filter((b) => b.text() === en.common.copy || b.attributes('aria-label')?.includes('opy'))
+    expect(copyBtns).toHaveLength(0)
   })
 
   it('polls; on approved it completes and shows success', async () => {
@@ -68,6 +75,15 @@ describe('PairDeviceView', () => {
     await vi.advanceTimersByTimeAsync(2600); await flushPromises()
     await w.find('[data-test="skip"]').trigger('click'); await flushPromises()
     expect(push).toHaveBeenCalledWith('/')
+  })
+
+  it('shows skip-safe note in the success phase', async () => {
+    post.mockImplementation(async (p: string) =>
+      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' } })
+    get.mockResolvedValue({ status: 'approved' })
+    const w = mountView(); await flushPromises()
+    await vi.advanceTimersByTimeAsync(2600); await flushPromises()
+    expect(w.text()).toContain(en.pair.skipSafe)
   })
 
   it('add-passkey registers then navigates to dashboard', async () => {

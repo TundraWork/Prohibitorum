@@ -130,4 +130,20 @@ describe('LoginView', () => {
 
     expect(w.find('a[href="/pair"]').text()).toBe(en.login.pairDevice)
   })
+
+  it('renders exactly one OrDivider when federation providers are present', async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path === '/api/prohibitorum/auth/status') return { bootstrapped: true }
+      if (path === '/api/prohibitorum/auth/federation') return [{ slug: 'google', displayName: 'Google' }]
+      throw new Error(`unexpected GET ${path}`)
+    })
+    const w = mountView()
+    await flushPromises()
+    // OrDivider renders with aria-hidden="true" on its root div — use that as the selector.
+    // There should be exactly one (the passkey/password divider); FederationButtons no longer adds its own.
+    const dividers = w.findAll('[aria-hidden="true"]').filter((el) =>
+      el.element.tagName === 'DIV' && el.classes().includes('flex') && el.classes().includes('items-center'),
+    )
+    expect(dividers).toHaveLength(1)
+  })
 })

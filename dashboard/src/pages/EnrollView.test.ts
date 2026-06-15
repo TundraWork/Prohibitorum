@@ -100,7 +100,7 @@ describe('EnrollView', () => {
     expect(hardRedirect).toHaveBeenCalledWith('/')
   })
 
-  it('routes a federation-bound invite to start-federation, not the passkey path', async () => {
+  it('shows federation interstitial when begin returns enrollment_federation_required', async () => {
     get.mockResolvedValue({ intent: 'invite', expiresAt: '2099-01-01T00:00:00Z' })
     post.mockRejectedValue({ code: 'enrollment_federation_required', message: '须联合注册' })
     const wrapper = await mountView(await makeRouter())
@@ -110,14 +110,58 @@ describe('EnrollView', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(hardRedirect).toHaveBeenCalledWith(
-      `/api/prohibitorum/enrollments/${TOKEN}/start-federation?return_to=${encodeURIComponent('/')}`,
-    )
+    // Must NOT redirect immediately — show the interstitial instead.
+    expect(hardRedirect).not.toHaveBeenCalled()
+    // The interstitial continue button should be present.
+    const continueBtn = wrapper.find('[data-test="federation-continue"]')
+    expect(continueBtn.exists()).toBe(true)
+    // The form should no longer be visible.
+    expect(wrapper.find('input[name=username]').exists()).toBe(false)
     // The passkey complete must NOT have been attempted.
     expect(post).not.toHaveBeenCalledWith(
       expect.stringContaining('/register/complete'),
       expect.anything(),
     )
+  })
+
+  it('continues to the federation URL when the interstitial button is clicked', async () => {
+    get.mockResolvedValue({ intent: 'invite', expiresAt: '2099-01-01T00:00:00Z' })
+    post.mockRejectedValue({ code: 'enrollment_federation_required', message: '须联合注册' })
+    const wrapper = await mountView(await makeRouter())
+
+    await wrapper.find('input[name=username]').setValue('alex')
+    await wrapper.find('input[name=displayName]').setValue('Alex Smith')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    await wrapper.find('[data-test="federation-continue"]').trigger('click')
+    await flushPromises()
+
+    expect(hardRedirect).toHaveBeenCalledWith(
+      `/api/prohibitorum/enrollments/${TOKEN}/start-federation?return_to=${encodeURIComponent('/')}`,
+    )
+  })
+
+  it('reset target renders as plain mono text, not a CodeField', async () => {
+    get.mockResolvedValue({
+      intent: 'reset',
+      target: { username: 'alex', displayName: 'Alex' },
+      expiresAt: '2099-01-01T00:00:00Z',
+    })
+    const wrapper = await mountView(await makeRouter())
+
+    // Username shown as plain text
+    expect(wrapper.text()).toContain('alex')
+    // No copy button (CodeField would have one)
+    const copyBtn = wrapper.findAll('button').find((b) => b.text().includes('Copy') || b.attributes('aria-label')?.includes('copy'))
+    expect(copyBtn).toBeUndefined()
+  })
+
+  it('shows passkey foreshadow line on the enrollment form', async () => {
+    get.mockResolvedValue({ intent: 'invite', expiresAt: '2099-01-01T00:00:00Z' })
+    const wrapper = await mountView(await makeRouter())
+
+    expect(wrapper.text()).toContain('your device will ask you to create a passkey')
   })
 
   it('routes to /error when the preview fails', async () => {

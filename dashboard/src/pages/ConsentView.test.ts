@@ -60,9 +60,74 @@ describe('ConsentView', () => {
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/consent?ticket=tkt_1')
     expect(wrapper.text()).toContain('Demo App')
     expect(wrapper.text()).toContain('Alex Smith')
-    // known scope → described; unknown scope → raw in <code>.
+    // known scope → described; unknown scope → raw in <code> with custom-scope sub-label.
     expect(wrapper.text()).toContain(en.consent.scopes.openid)
     expect(wrapper.find('code').text()).toBe('custom:thing')
+    expect(wrapper.text()).toContain(en.consent.customScope)
+  })
+
+  it('renders logo when logoUri is present', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'app', displayName: 'Demo App', logoUri: 'https://app.example/logo.png' },
+      account: { displayName: 'Alex' },
+      scopes: ['openid'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    const img = wrapper.find('img')
+    expect(img.exists()).toBe(true)
+    expect(img.attributes('src')).toBe('https://app.example/logo.png')
+    expect(img.attributes('alt')).toBe('Demo App')
+  })
+
+  it('does not render logo when logoUri is absent', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'app', displayName: 'Demo App' },
+      account: { displayName: 'Alex' },
+      scopes: ['openid'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    expect(wrapper.find('img').exists()).toBe(false)
+  })
+
+  it('renders policy and ToS links when present', async () => {
+    get.mockResolvedValue({
+      client: {
+        clientId: 'app', displayName: 'Demo App',
+        policyUri: 'https://app.example/privacy',
+        tosUri: 'https://app.example/terms',
+      },
+      account: { displayName: 'Alex' },
+      scopes: ['openid'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    const links = wrapper.findAll('a[target="_blank"]')
+    const hrefs = links.map((l) => l.attributes('href'))
+    expect(hrefs).toContain('https://app.example/privacy')
+    expect(hrefs).toContain('https://app.example/terms')
+    expect(wrapper.text()).toContain(en.consent.privacyPolicy)
+    expect(wrapper.text()).toContain(en.consent.termsOfService)
+  })
+
+  it('does not render policy/ToS section when both are absent', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'app', displayName: 'Demo App' },
+      account: { displayName: 'Alex' },
+      scopes: ['openid'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    expect(wrapper.find('a[target="_blank"]').exists()).toBe(false)
+  })
+
+  it('approve button shows the scope count', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'app', displayName: 'Demo App' },
+      account: { displayName: 'Alex' },
+      scopes: ['openid', 'profile', 'email'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    const approveBtn = wrapper.findAll('button').find((b) => b.text().includes('Allow access'))
+    expect(approveBtn).toBeTruthy()
+    expect(approveBtn!.text()).toContain('3')
   })
 
   it('approve posts the decision with return_to and follows the server redirect', async () => {
@@ -74,7 +139,7 @@ describe('ConsentView', () => {
     post.mockResolvedValue({ redirect: AUTHORIZE_URL })
     const wrapper = await mountView(await makeRouter())
 
-    const approve = wrapper.findAll('button').find((b) => b.text() === en.consent.approve)!
+    const approve = wrapper.findAll('button').find((b) => b.text().includes('Allow access'))!
     await approve.trigger('click')
     await flushPromises()
 

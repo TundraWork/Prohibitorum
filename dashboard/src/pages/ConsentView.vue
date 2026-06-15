@@ -97,7 +97,13 @@ async function decide(decision: 'approve' | 'deny'): Promise<void> {
     <CardSkeleton v-if="loading" :lines="3" />
 
     <div v-else-if="ctx" class="flex flex-col gap-6">
-      <div class="flex flex-col gap-1 text-center">
+      <div class="flex flex-col items-center gap-2 text-center">
+        <img
+          v-if="ctx.client.logoUri"
+          :src="ctx.client.logoUri"
+          :alt="ctx.client.displayName"
+          class="size-12 rounded-md object-contain"
+        />
         <p class="text-ink">{{ t('consent.requestingAccess', { client: ctx.client.displayName }) }}</p>
         <p class="text-sm text-muted">
           {{ t('consent.yourAccount', { displayName: ctx.account.displayName }) }}
@@ -118,9 +124,27 @@ async function decide(decision: 'approve' | 'deny'): Promise<void> {
           {{ t('consent.deny') }}
         </Button>
         <Button class="flex-1" :disabled="busy" @click="decide('approve')">
-          {{ t('consent.approve') }}
+          {{ t('consent.approveCount', { count: ctx.scopes.length }) }}
         </Button>
       </div>
+
+      <p v-if="ctx.client.policyUri || ctx.client.tosUri" class="text-center text-xs text-muted">
+        <a
+          v-if="ctx.client.policyUri"
+          :href="ctx.client.policyUri"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="underline-offset-4 hover:underline"
+        >{{ t('consent.privacyPolicy') }}</a>
+        <span v-if="ctx.client.policyUri && ctx.client.tosUri"> &middot; </span>
+        <a
+          v-if="ctx.client.tosUri"
+          :href="ctx.client.tosUri"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="underline-offset-4 hover:underline"
+        >{{ t('consent.termsOfService') }}</a>
+      </p>
     </div>
   </CenteredLayout>
 </template>

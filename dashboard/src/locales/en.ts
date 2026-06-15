@@ -106,7 +106,7 @@ export default {
 
   pair: {
     title: 'Pair this device',
-    intro: 'On a device where you’re already signed in, open Devices and enter this code.',
+    intro: 'On a device where you are already signed in, open Devices and enter this code.',
     waiting: 'Waiting for approval…',
     expiresIn: 'Expires in {seconds}s',
     expired: 'This code has expired.',
@@ -115,6 +115,7 @@ export default {
     addPasskey: 'Add a passkey to this device',
     addPasskeyHelp: 'So you can sign in directly next time, without pairing.',
     skip: 'Continue to dashboard',
+    skipSafe: 'You are already signed in on this device. You can add a passkey later from Security settings.',
   },
 
   admin: {
@@ -448,7 +449,11 @@ export default {
     yourAccount: 'You are signed in as {displayName}.',
     scopesHeading: 'This application will be able to:',
     approve: 'Allow',
+    approveCount: 'Allow access ({count})',
     deny: 'Deny',
+    privacyPolicy: 'Privacy policy',
+    termsOfService: 'Terms of service',
+    customScope: 'Custom permission requested by this application',
     scopes: {
       openid: 'Confirm your identity',
       profile: 'Read your display name',
@@ -485,6 +490,9 @@ export default {
     expired: 'This invitation has expired.',
     invalid: 'This invitation link is invalid or has already been used.',
     federationRedirect: 'Redirecting to your identity provider…',
+    federationBody: 'This invitation is linked to an external identity provider. Continue to sign in there. The name you entered is not used — your identity comes from the provider.',
+    federationContinue: 'Continue to provider',
+    passkeyForeshadow: 'When you continue, your device will ask you to create a passkey using your fingerprint, face, or a security key.',
   },
 
   welcome: {

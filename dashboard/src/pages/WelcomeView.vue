@@ -128,7 +128,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
       </div>
 
       <p class="text-sm text-muted" aria-live="polite">
-        {{ settled ? t('welcome.description') : t('welcome.fetchingAvatar') }}
+        {{ t('welcome.description') }}
       </p>
 
       <!-- Actions -->
@@ -144,7 +144,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
         </Button>
         <Button
           class="flex-1"
-          :disabled="busy || !settled"
+          :disabled="busy"
           data-test="welcome-continue"
           @click="confirm"
         >

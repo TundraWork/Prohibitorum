@@ -42,7 +42,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import CodeField from '@/components/custom/CodeField.vue'
 
 interface EnrollmentTarget {
   username: string
@@ -71,6 +70,7 @@ const error = computed<ApiError | null>(() => netError.value ?? waError.value)
 
 const preview = ref<EnrollmentPreview | null>(null)
 const loading = ref(true)
+const federationRedirectUrl = ref('')
 
 // bootstrap/invite collect these; reset leaves them untouched.
 const username = ref('')
@@ -128,9 +128,9 @@ async function enroll(): Promise<void> {
     api.post(`/api/prohibitorum/enrollments/${encodeURIComponent(token)}/register/begin`, body),
   )
   if (!options) {
-    // Federation-bound invite → hand off to the upstream IdP instead of passkey.
+    // Federation-bound invite → show an interstitial instead of an instant bounce.
     if (netError.value?.code === 'enrollment_federation_required') {
-      hardRedirect(startFederationURL())
+      federationRedirectUrl.value = startFederationURL()
     }
     return // other errors render via errorText
   }
@@ -163,6 +163,20 @@ async function enroll(): Promise<void> {
 
     <p v-if="loading" class="text-center text-sm text-muted">{{ t('common.loading') }}</p>
 
+    <!-- Federation interstitial: shown when begin returns enrollment_federation_required -->
+    <div v-else-if="federationRedirectUrl" class="flex flex-col gap-4">
+      <p class="text-sm text-muted">{{ t('enroll.federationBody') }}</p>
+      <Button
+        type="button"
+        size="lg"
+        class="w-full"
+        data-test="federation-continue"
+        @click="hardRedirect(federationRedirectUrl)"
+      >
+        {{ t('enroll.federationContinue') }}
+      </Button>
+    </div>
+
     <form v-else-if="preview" class="flex flex-col gap-4" @submit.prevent="enroll">
       <!-- bootstrap / invite: choose identity -->
       <template v-if="collectsIdentity">
@@ -194,17 +208,19 @@ async function enroll(): Promise<void> {
         </div>
       </template>
 
-      <!-- reset: identity is fixed, show the target as a read-only identifier -->
+      <!-- reset: identity is fixed, show the target as plain read-only text -->
       <template v-else-if="preview.target">
         <div class="flex flex-col gap-1.5">
           <Label>{{ t('enroll.targetAccountLabel') }}</Label>
-          <CodeField :value="t('enroll.targetAccount', { username: preview.target.username })" />
+          <p class="font-mono text-sm text-ink">{{ preview.target.username }}</p>
         </div>
       </template>
 
       <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
         <AlertDescription>{{ errorText }}</AlertDescription>
       </Alert>
+
+      <p class="text-xs text-muted">{{ t('enroll.passkeyForeshadow') }}</p>
 
       <Button type="submit" size="lg" class="w-full" :disabled="busy">
         {{ t('enroll.registerButton') }}
