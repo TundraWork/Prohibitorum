@@ -70,6 +70,13 @@ var sudoGatedRoutes = []sudoRoute{
 	// Per-account session revoke (admin, sudo-gated)
 	{method: "POST", path: "/api/prohibitorum/accounts/1/sessions/revoke", body: `{"sessionId":"abc"}`},
 
+	// Group CRUD + membership management
+	{method: "POST", path: "/api/prohibitorum/groups", body: `{"slug":"g","displayName":"G"}`},
+	{method: "PUT", path: "/api/prohibitorum/groups/1", body: `{"slug":"g","displayName":"G"}`},
+	{method: "POST", path: "/api/prohibitorum/groups/delete", body: `{"id":1}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/members", body: `{"accountId":1}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/members/remove", body: `{"accountId":1}`},
+
 	// Account/invitation lifecycle mutations — fresh-sudo via registerSudoOp
 	// (typed Huma ops). UpdateAccount can escalate user→admin, so step-up matters.
 	{method: "PUT", path: "/api/prohibitorum/accounts/1", body: `{"displayName":"x","role":"user"}`},

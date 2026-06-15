@@ -549,3 +549,60 @@ var OperationListAuditEvents = huma.Operation{
 	Path:        "/audit-events",
 	Summary:     "List credential/admin audit events, newest first, with filters and keyset pagination (admin only).",
 }
+
+// GroupView is the admin-facing projection of a user_group row.
+// MemberCount is included on the list endpoint; it is omitted (zero) on
+// the single-get endpoint (which can be fetched separately via the members list).
+type GroupView struct {
+	ID                  int32     `json:"id"`
+	Slug                string    `json:"slug"`
+	DisplayName         string    `json:"displayName"`
+	Description         string    `json:"description,omitempty"`
+	ExposedToDownstream bool      `json:"exposedToDownstream"`
+	MemberCount         int64     `json:"memberCount,omitempty"`
+	CreatedAt           time.Time `json:"createdAt"`
+}
+
+// GroupMemberView is a single row in GET /groups/{id}/members.
+type GroupMemberView struct {
+	ID          int32  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+}
+
+// GroupRef is a compact reference to a group, reused by access-control and
+// downstream-claims tasks.
+type GroupRef struct {
+	ID          int32  `json:"id"`
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+}
+
+// AccountRef is a compact reference to an account, reused by access-control
+// and membership tasks.
+type AccountRef struct {
+	ID          int32  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+}
+
+var OperationListGroups = huma.Operation{
+	OperationID: "listGroups",
+	Method:      http.MethodGet,
+	Path:        "/groups",
+	Summary:     "List all groups with member counts (admin only).",
+}
+
+var OperationGetGroup = huma.Operation{
+	OperationID: "getGroup",
+	Method:      http.MethodGet,
+	Path:        "/groups/{id}",
+	Summary:     "Get one group by id (admin only).",
+}
+
+var OperationListGroupMembers = huma.Operation{
+	OperationID: "listGroupMembers",
+	Method:      http.MethodGet,
+	Path:        "/groups/{id}/members",
+	Summary:     "List members of a group (admin only).",
+}

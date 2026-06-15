@@ -458,6 +458,16 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/set-disabled", admin, s.handleSetSAMLApplicationDisabledHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/delete", admin, s.handleDeleteSAMLApplicationHTTP)
 
+	// Admin: group CRUD + membership management
+	registerOp(mgmt, contract.OperationListGroups, s.handleListGroups, admin)
+	registerOp(mgmt, contract.OperationGetGroup, s.handleGetGroup, admin)
+	registerOp(mgmt, contract.OperationListGroupMembers, s.handleListGroupMembers, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/groups", admin, s.handleCreateGroupHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/groups/{id}", admin, s.handleUpdateGroupHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/groups/delete", admin, s.handleDeleteGroupHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/groups/{id}/members", admin, s.handleAddGroupMemberHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/groups/{id}/members/remove", admin, s.handleRemoveGroupMemberHTTP)
+
 	// OIDC OP — v0.4 full surface. Discovery and JWKS are public. Authorize
 	// benefits from the global LoadSession middleware (already installed on
 	// the router) so that authn.SessionFromContext works inside the handler.

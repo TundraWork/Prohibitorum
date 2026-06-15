@@ -31,6 +31,8 @@ const (
 	// issue/revoke are visible in the audit viewer (not just the structured log).
 	FactorAccount    Factor = "account"
 	FactorInvitation Factor = "invitation"
+	// FactorGroup covers admin group CRUD and membership mutations.
+	FactorGroup Factor = "group"
 )
 
 const (
