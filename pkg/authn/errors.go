@@ -425,6 +425,18 @@ func ErrSAMLApplicationAlreadyExists() *AuthError {
 	return newErr(http.StatusConflict, "saml_application_already_exists", "A SAML application with this entity_id already exists.")
 }
 
+// ErrGroupNotFound is returned when a group lookup by ID yields no row.
+// Status 404.
+func ErrGroupNotFound() *AuthError {
+	return newErr(http.StatusNotFound, "group_not_found", "Group not found.")
+}
+
+// ErrGroupSlugConflict is returned when a group insert or update violates the
+// unique constraint on slug. Status 409.
+func ErrGroupSlugConflict() *AuthError {
+	return newErr(http.StatusConflict, "group_slug_conflict", "A group with this slug already exists.")
+}
+
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,
 // or nil otherwise. Useful for handler error mapping.
 func AsAuthError(err error) *AuthError {

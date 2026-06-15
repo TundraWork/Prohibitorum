@@ -108,7 +108,7 @@ func (s *Server) handleGetGroup(ctx context.Context, in *getGroupIn) (*getGroupO
 	g, err := s.queries.GetGroup(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrAccountNotFound())
+			return nil, authErrToHuma(authn.ErrGroupNotFound())
 		}
 		return nil, fmt.Errorf("handleGetGroup: query: %w", err)
 	}
@@ -180,7 +180,7 @@ func (s *Server) handleCreateGroupHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			writeAuthErr(w, authn.ErrUsernameCollision())
+			writeAuthErr(w, authn.ErrGroupSlugConflict())
 			return
 		}
 		writeAuthErr(w, fmt.Errorf("handleCreateGroup: insert: %w", err))
@@ -210,7 +210,7 @@ type updateGroupBody struct {
 	Slug                string `json:"slug"`
 	DisplayName         string `json:"displayName"`
 	Description         string `json:"description"`
-	ExposedToDownstream bool   `json:"exposedToDownstream"`
+	ExposedToDownstream *bool  `json:"exposedToDownstream"`
 }
 
 func (s *Server) handleUpdateGroupHTTP(w http.ResponseWriter, r *http.Request) {
@@ -236,6 +236,23 @@ func (s *Server) handleUpdateGroupHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read the current row to verify existence and to preserve ExposedToDownstream
+	// when the caller omits the field (nil pointer = "not provided").
+	current, err := s.queries.GetGroup(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrGroupNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleUpdateGroup: get: %w", err))
+		return
+	}
+
+	exposed := current.ExposedToDownstream
+	if body.ExposedToDownstream != nil {
+		exposed = *body.ExposedToDownstream
+	}
+
 	var desc pgtype.Text
 	if body.Description != "" {
 		desc = pgtype.Text{String: body.Description, Valid: true}
@@ -246,15 +263,11 @@ func (s *Server) handleUpdateGroupHTTP(w http.ResponseWriter, r *http.Request) {
 		Slug:                body.Slug,
 		DisplayName:         body.DisplayName,
 		Description:         desc,
-		ExposedToDownstream: body.ExposedToDownstream,
+		ExposedToDownstream: exposed,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			writeAuthErr(w, authn.ErrAccountNotFound())
-			return
-		}
 		if isUniqueViolation(err) {
-			writeAuthErr(w, authn.ErrUsernameCollision())
+			writeAuthErr(w, authn.ErrGroupSlugConflict())
 			return
 		}
 		writeAuthErr(w, fmt.Errorf("handleUpdateGroup: update: %w", err))
@@ -295,7 +308,7 @@ func (s *Server) handleDeleteGroupHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if rows == 0 {
-		writeAuthErr(w, authn.ErrAccountNotFound())
+		writeAuthErr(w, authn.ErrGroupNotFound())
 		return
 	}
 
@@ -387,7 +400,7 @@ func (s *Server) handleRemoveGroupMemberHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	_, err = s.queries.RemoveGroupMember(r.Context(), db.RemoveGroupMemberParams{
+	rows, err := s.queries.RemoveGroupMember(r.Context(), db.RemoveGroupMemberParams{
 		GroupID:   groupID,
 		AccountID: body.AccountID,
 	})
@@ -396,17 +409,22 @@ func (s *Server) handleRemoveGroupMemberHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	sess := authn.SessionFromContext(r.Context())
-	var actorID *int32
-	if sess != nil {
-		actorID = &sess.Account.ID
+	// Only write an audit record when a membership row was actually deleted;
+	// skip on the no-op path (membership didn't exist) to avoid misleading audit
+	// entries. The 204 response is returned regardless — removal is idempotent.
+	if rows > 0 {
+		sess := authn.SessionFromContext(r.Context())
+		var actorID *int32
+		if sess != nil {
+			actorID = &sess.Account.ID
+		}
+		_ = s.Audit.Record(r.Context(), audit.Record{
+			AccountID: actorID,
+			Factor:    audit.FactorGroup,
+			Event:     audit.EventUnlink,
+			Detail:    map[string]any{"group_id": groupID, "account_id": body.AccountID},
+		})
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
-		AccountID: actorID,
-		Factor:    audit.FactorGroup,
-		Event:     audit.EventUnlink,
-		Detail:    map[string]any{"group_id": groupID, "account_id": body.AccountID},
-	})
 
 	w.WriteHeader(http.StatusNoContent)
 }
