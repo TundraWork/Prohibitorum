@@ -79,12 +79,12 @@
     {
       "id": 14,
       "subject": "T14: misc copy + P3 polish",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 15,
       "subject": "T15: done-gate (verify+smoke+dist)",
-      "status": "pending",
+      "status": "in_progress",
       "blockedBy": [
         1,
         2,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T15:00:00Z"
+  "lastUpdated": "2026-06-15T16:00:00Z"
 }
