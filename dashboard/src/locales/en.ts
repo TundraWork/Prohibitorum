@@ -51,6 +51,10 @@ export default {
     avatarUploaded: 'Uploaded',
     avatarNone: 'No avatar',
     avatarSourceHint: 'Choose which picture to show.',
+    avatarRemoveHint: 'Deletes your uploaded image.',
+    saveName: 'Save name',
+    displayNameSection: 'Display name',
+    unsavedName: 'Unsaved name',
   },
 
   sessions: {

@@ -6,6 +6,10 @@
  * Client validation mirrors the server (1-128, no control chars, NO trim) for
  * the disabled state; the server stays the source of truth and its error
  * surfaces inline. Sudo-free.
+ *
+ * Two zones, two effect models:
+ *   - Avatar zone: changes apply immediately via their own endpoints.
+ *   - Display name zone: changes only persist on "Save name".
  */
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -18,8 +22,9 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
+// Label is intentionally omitted — section headings use plain <p> elements.
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import AvatarCropper from '@/components/custom/AvatarCropper.vue'
 
@@ -35,6 +40,13 @@ const inputRef = ref<{ $el?: HTMLElement }>()
 const fileRef = ref<HTMLInputElement>()
 const cropSrc = ref<string | null>(null)
 
+// Per-card pending source: the source key currently being switched to, or null.
+const pendingSource = ref<string | null>(null)
+
+// Track which zone the last error came from so it surfaces in the right place.
+// 'avatar' = upload/remove/selection error; 'name' = PUT /me error.
+const errorZone = ref<'avatar' | 'name' | null>(null)
+
 // Reset the draft to the current value each time the dialog opens - no stale
 // carry-over - and focus the input (layered on top of reka's focus trap, as
 // ConfirmDialog does) so the user can start typing immediately.
@@ -42,6 +54,7 @@ watch(() => props.open, (o) => {
   if (o) {
     draft.value = auth.me?.displayName ?? ''
     error.value = null
+    errorZone.value = null
     void nextTick(() => inputRef.value?.$el?.focus())
   }
 }, { immediate: true })
@@ -60,6 +73,7 @@ function onOpenChange(v: boolean): void { emit('update:open', v) }
 
 async function save(): Promise<void> {
   if (!canSave.value) return
+  errorZone.value = 'name'
   const result = await run(() =>
     api.put<SessionView>('/api/prohibitorum/me', { displayName: draft.value }),
   )
@@ -80,6 +94,7 @@ function loadImageSize(url: string): Promise<{ w: number; h: number } | null> {
 }
 
 async function uploadAvatar(body: Blob): Promise<void> {
+  errorZone.value = 'avatar'
   await run(() => api.upload('/api/prohibitorum/me/avatar', body))
   if (!error.value) await auth.reload()
 }
@@ -89,6 +104,7 @@ async function onFile(e: Event): Promise<void> {
   if (fileRef.value) fileRef.value.value = ''
   if (!f) return
   if (f.size > 5 * 1024 * 1024) {
+    errorZone.value = 'avatar'
     error.value = { code: 'avatar_too_large_client', message: t('accountMenu.avatarTooLargeClient') }
     return
   }
@@ -117,12 +133,16 @@ async function onCropped(blob: Blob): Promise<void> {
 }
 
 async function removeAvatar(): Promise<void> {
+  errorZone.value = 'avatar'
   await run(() => api.del('/api/prohibitorum/me/avatar'))
   if (!error.value) await auth.reload()
 }
 
 async function selectSource(source: 'upstream' | 'user' | 'none'): Promise<void> {
+  pendingSource.value = source
+  errorZone.value = 'avatar'
   await run(() => api.put('/api/prohibitorum/me/avatar/selection', { source }))
+  pendingSource.value = null
   if (!error.value) await auth.reload()
 }
 
@@ -152,17 +172,26 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
         <DialogDescription>{{ t('accountMenu.editDescription') }}</DialogDescription>
       </DialogHeader>
       <AvatarCropper v-if="cropSrc" :src="cropSrc" @crop="onCropped" @cancel="closeCrop" />
-      <form v-else class="flex flex-col gap-3" @submit.prevent="save">
+      <form v-else class="flex flex-col gap-4" @submit.prevent="save">
+
+        <!-- ── Avatar zone (changes apply immediately) ─────────────────── -->
         <div class="flex flex-col gap-2">
-          <span id="avatar-picker-label" class="text-sm text-muted">{{ t('accountMenu.avatarLabel') }}</span>
+          <p class="text-sm font-medium text-foreground">{{ t('accountMenu.avatarLabel') }}</p>
+
           <!-- Source picker: one card per stored source + always-present None -->
-          <div role="group" aria-labelledby="avatar-picker-label" class="flex flex-wrap gap-2">
+          <div
+            id="avatar-picker-label"
+            role="group"
+            aria-labelledby="avatar-picker-label"
+            class="flex flex-wrap gap-2"
+          >
             <button
               v-for="[key, url] in sourceEntries"
               :key="key"
               type="button"
               :data-test="`avatar-source-${key}`"
               :aria-pressed="activeSource === key"
+              :aria-busy="pendingSource === key"
               :disabled="busy"
               :class="[
                 'flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition-colors',
@@ -170,17 +199,19 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
                   ? 'border-primary bg-primary/10 font-semibold'
                   : 'border-border hover:bg-muted/50',
                 busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+                pendingSource === key ? 'ring-2 ring-primary/40' : '',
               ]"
               @click="selectSource(key as 'upstream' | 'user')"
             >
               <UserAvatar :display-name="auth.me?.displayName" :username="auth.me?.username" :src="url" class="size-10" />
               <span>{{ sourceLabel(key) }}</span>
             </button>
-            <!-- None option — always shown -->
+            <!-- None option — always shown; shows no picture (does not delete the upload) -->
             <button
               type="button"
               data-test="avatar-source-none"
               :aria-pressed="activeSource === 'none'"
+              :aria-busy="pendingSource === 'none'"
               :disabled="busy"
               :class="[
                 'flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition-colors',
@@ -188,6 +219,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
                   ? 'border-primary bg-primary/10 font-semibold'
                   : 'border-border hover:bg-muted/50',
                 busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+                pendingSource === 'none' ? 'ring-2 ring-primary/40' : '',
               ]"
               @click="selectSource('none')"
             >
@@ -195,17 +227,44 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
               <span>{{ t('accountMenu.avatarNone') }}</span>
             </button>
           </div>
-          <span class="text-xs text-muted">{{ t('accountMenu.avatarSourceHint') }}</span>
+          <span class="text-xs text-muted-foreground">{{ t('accountMenu.avatarSourceHint') }}</span>
+
           <!-- Upload / Remove row -->
-          <div class="flex gap-2">
-            <input ref="fileRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" aria-hidden="true" data-test="avatar-file" @change="onFile" />
-            <Button type="button" size="sm" variant="outline" :disabled="busy" data-test="avatar-upload" @click="fileRef?.click()">{{ t('accountMenu.avatarUpload') }}</Button>
-            <Button v-if="auth.me?.avatarSourceUrls?.user" type="button" size="sm" variant="ghost" :disabled="busy" data-test="avatar-remove" @click="removeAvatar">{{ t('accountMenu.avatarRemove') }}</Button>
+          <div class="flex gap-2 items-start flex-col">
+            <div class="flex gap-2">
+              <input ref="fileRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" aria-hidden="true" data-test="avatar-file" @change="onFile" />
+              <Button type="button" size="sm" variant="outline" :disabled="busy" data-test="avatar-upload" @click="fileRef?.click()">{{ t('accountMenu.avatarUpload') }}</Button>
+              <!-- Remove deletes the stored upload; distinct from "No avatar" which only changes the display selection -->
+              <Button
+                v-if="auth.me?.avatarSourceUrls?.user"
+                type="button"
+                size="sm"
+                variant="ghost"
+                :disabled="busy"
+                data-test="avatar-remove"
+                :title="t('accountMenu.avatarRemoveHint')"
+                @click="removeAvatar"
+              >{{ t('accountMenu.avatarRemove') }}</Button>
+            </div>
+            <!-- Format hint lives directly under the Upload button -->
+            <span class="text-xs text-muted-foreground">{{ t('accountMenu.avatarHint') }}</span>
+            <!-- Remove disambiguation hint shown when the Remove button is visible -->
+            <span v-if="auth.me?.avatarSourceUrls?.user" class="text-xs text-muted-foreground">
+              {{ t('accountMenu.avatarRemoveHint') }}
+            </span>
           </div>
-          <span class="text-xs text-muted">{{ t('accountMenu.avatarHint') }}</span>
+
+          <!-- Avatar-zone error (selection/upload/remove errors surface here) -->
+          <Alert v-if="errorText && errorZone === 'avatar'" variant="destructive" aria-live="polite" data-test="avatar-error">
+            <AlertDescription>{{ errorText }}</AlertDescription>
+          </Alert>
         </div>
+
+        <Separator />
+
+        <!-- ── Display name zone (persists only on Save name) ──────────── -->
         <div class="flex flex-col gap-1.5">
-          <Label for="edit-displayName">{{ t('accountMenu.displayNameLabel') }}</Label>
+          <p class="text-sm font-medium text-foreground">{{ t('accountMenu.displayNameSection') }}</p>
           <Input
             id="edit-displayName"
             ref="inputRef"
@@ -215,16 +274,26 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
             :aria-invalid="errorText ? true : undefined"
             :aria-describedby="errorText ? 'edit-displayName-error' : undefined"
           />
+          <!-- Unsaved-name hint when the user has typed but not yet saved -->
+          <span v-if="dirty" class="text-xs text-muted-foreground" data-test="unsaved-name-hint">
+            {{ t('accountMenu.unsavedName') }}
+          </span>
         </div>
-        <Alert v-if="errorText" id="edit-displayName-error" variant="destructive" aria-live="polite">
+
+        <!-- Name-field error (PUT /me errors surface here) -->
+        <Alert v-if="errorText && errorZone === 'name'" id="edit-displayName-error" variant="destructive" aria-live="polite">
           <AlertDescription>{{ errorText }}</AlertDescription>
         </Alert>
+
         <DialogFooter class="gap-2">
-          <Button type="button" variant="ghost" :disabled="busy" data-test="edit-cancel" @click="onOpenChange(false)">
-            {{ t('common.cancel') }}
+          <!-- "Close" replaces "Cancel": avatar changes are already applied,
+               closing only discards the unsaved display name. -->
+          <Button type="button" variant="ghost" :disabled="busy" data-test="edit-close" @click="onOpenChange(false)">
+            {{ t('common.close') }}
           </Button>
+          <!-- Save name: scoped to the display name field only. -->
           <Button type="submit" :disabled="!canSave" data-test="edit-save">
-            {{ t('common.save') }}
+            {{ t('accountMenu.saveName') }}
           </Button>
         </DialogFooter>
       </form>

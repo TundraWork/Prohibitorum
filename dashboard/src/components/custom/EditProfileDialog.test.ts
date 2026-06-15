@@ -7,6 +7,11 @@ import en from '@/locales/en'
 import EditProfileDialog from './EditProfileDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 
+// ---------------------------------------------------------------------------
+// NOTE: "Cancel" has been replaced by "Close" (data-test="edit-close").
+// "Save" has been relabelled "Save name" (data-test="edit-save" unchanged).
+// ---------------------------------------------------------------------------
+
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), upload: vi.fn(), del: vi.fn() } }))
 import { api } from '@/lib/api'
 const put = vi.mocked(api.put)
@@ -99,6 +104,42 @@ function saveBtn() {
 }
 
 beforeEach(() => { setActivePinia(createPinia()); put.mockReset(); upload.mockReset(); del.mockReset(); vi.mocked(api.get).mockReset(); document.body.innerHTML = ''; setImageSize(200, 100) })
+
+describe('EditProfileDialog — layout and zone division', () => {
+  it('renders a Separator between the avatar zone and the display name zone', async () => {
+    seedUser(); mountOpen(); await flushPromises()
+    // shadcn Separator wraps reka-ui; decorative mode renders role="none" with data-slot="separator"
+    const sep = document.body.querySelector('[data-slot="separator"]')
+    expect(sep).not.toBeNull()
+  })
+
+  it('footer shows "Save name" (not "Save") and "Close" (not "Cancel")', async () => {
+    seedUser(); mountOpen(); await flushPromises()
+    const saveEl = document.body.querySelector('[data-test="edit-save"]') as HTMLButtonElement
+    const closeEl = document.body.querySelector('[data-test="edit-close"]') as HTMLButtonElement
+    expect(saveEl).not.toBeNull()
+    expect(closeEl).not.toBeNull()
+    expect(saveEl.textContent?.trim()).toBe(en.accountMenu.saveName)
+    expect(closeEl.textContent?.trim()).toBe(en.common.close)
+    // Old "Cancel" data-test must not exist
+    expect(document.body.querySelector('[data-test="edit-cancel"]')).toBeNull()
+  })
+
+  it('Close button emits update:open false', async () => {
+    seedUser()
+    const w = mountOpen(); await flushPromises()
+    const closeEl = document.body.querySelector('[data-test="edit-close"]') as HTMLButtonElement
+    closeEl.click(); await flushPromises()
+    expect(w.emitted('update:open')?.some((e) => e[0] === false)).toBe(true)
+  })
+
+  it('shows an unsaved-name hint when the name field is dirty', async () => {
+    seedUser('Alex Smith'); mountOpen(); await flushPromises()
+    expect(document.body.querySelector('[data-test="unsaved-name-hint"]')).toBeNull()
+    setInput('Changed'); await flushPromises()
+    expect(document.body.querySelector('[data-test="unsaved-name-hint"]')).not.toBeNull()
+  })
+})
 
 describe('EditProfileDialog — display name', () => {
   it('prefills the input with the current displayName', async () => {
@@ -320,5 +361,32 @@ describe('EditProfileDialog — avatar source picker', () => {
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'upstream' })
     expect(document.body.textContent).toContain(en.errors.avatar_source_unavailable)
     expect(vi.mocked(api.get)).not.toHaveBeenCalled()
+    // Error must appear in the avatar zone (data-test="avatar-error"), not only in some shared area
+    const avatarError = document.body.querySelector('[data-test="avatar-error"]')
+    expect(avatarError).not.toBeNull()
+    expect(avatarError?.textContent).toContain(en.errors.avatar_source_unavailable)
+  })
+
+  it('marks the clicked source card with aria-busy during the pending selection', async () => {
+    seedUserWithSources()
+    // Do NOT resolve immediately so we can inspect the pending state
+    let resolveCall!: (v: unknown) => void
+    put.mockReturnValue(new Promise((res) => { resolveCall = res }))
+    // Mock get so auth.reload() after resolution keeps sourceEntries populated
+    vi.mocked(api.get).mockResolvedValue({
+      id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user',
+      avatarSource: 'upstream',
+      avatarSourceUrls: { upstream: '/avatar/x?source=upstream&v=ab', user: '/avatar/x?source=user&v=cd' },
+    })
+    mountOpen(); await flushPromises()
+    upstreamOption().click()
+    await flushPromises()
+    // While the PUT is still in-flight the card must carry aria-busy="true"
+    expect(upstreamOption().getAttribute('aria-busy')).toBe('true')
+    // Resolve the PUT — selectSource clears pendingSource before calling reload
+    resolveCall({})
+    await flushPromises()
+    // After resolution the card's aria-busy must be cleared
+    expect(upstreamOption().getAttribute('aria-busy')).toBe('false')
   })
 })
