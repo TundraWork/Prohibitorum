@@ -111,9 +111,7 @@ onMounted(load)
         </template>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText" :icon="KeyRound" :title="t('admin.signingKeys.empty')">
-      <Button type="button" variant="outline" @click="confirmGenerate = true">{{ t('admin.signingKeys.generate') }}</Button>
-    </EmptyState>
+    <EmptyState v-else-if="!errorText" :icon="KeyRound" :title="t('admin.signingKeys.empty')" />
 
     <ConfirmDialog :open="confirmGenerate" :title="t('admin.signingKeys.generateTitle')" :confirm-label="t('admin.signingKeys.generateConfirm')" :busy="busy"
       @update:open="closeGenerate" @cancel="confirmGenerate = false" @confirm="generate">

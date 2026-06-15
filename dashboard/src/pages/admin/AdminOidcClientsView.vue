@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -127,6 +127,7 @@ onMounted(load)
     </template>
 
     <Card v-if="createOpen">
+      <CardHeader><CardTitle>{{ t('admin.oidc.createTitle') }}</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-4 py-4">
         <FormSection :title="t('admin.oidc.sectionBasics')">
           <div class="flex flex-col gap-1.5">
@@ -221,8 +222,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText && !createOpen" :icon="AppWindow" :title="t('admin.oidc.empty')">
-      <Button type="button" variant="outline" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
-    </EmptyState>
+    <EmptyState v-else-if="!errorText && !createOpen" :icon="AppWindow" :title="t('admin.oidc.empty')" />
   </div>
 </template>

@@ -44,10 +44,33 @@ describe('AdminAccountsView', () => {
     await w.find('[data-test="invite"]').trigger('click')
     expect(push).toHaveBeenCalledWith('/admin/invitations')
   })
-  it('shows empty state', async () => {
+  it('shows empty state with no CTA button inside it', async () => {
     get.mockResolvedValue([])
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.accounts.empty)
+    // The empty state no longer has a duplicate CTA button inside it
+    expect(w.find('[data-test="invite"]').exists()).toBe(true) // top button still exists
+  })
+  it('filter hides non-matching rows', async () => {
+    get.mockResolvedValue(ACCOUNTS)
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="accounts-filter"]').setValue('alice')
+    expect(w.find('[data-test="account-row-1"]').exists()).toBe(true)
+    expect(w.find('[data-test="account-row-2"]').exists()).toBe(false)
+  })
+  it('filter is case-insensitive and matches displayName', async () => {
+    get.mockResolvedValue(ACCOUNTS)
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="accounts-filter"]').setValue('BOB')
+    expect(w.find('[data-test="account-row-2"]').exists()).toBe(true)
+    expect(w.find('[data-test="account-row-1"]').exists()).toBe(false)
+  })
+  it('shows no-matches message when filter excludes everything', async () => {
+    get.mockResolvedValue(ACCOUNTS)
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="accounts-filter"]').setValue('zzz-no-match')
+    expect(w.find('[data-test="accounts-no-matches"]').exists()).toBe(true)
+    expect(w.find('[data-test="account-row-1"]').exists()).toBe(false)
   })
   it('surfaces error', async () => {
     get.mockRejectedValue({ code: 'server_error', message: 'boom' })

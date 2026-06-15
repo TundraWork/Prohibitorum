@@ -7,7 +7,7 @@ import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -95,6 +95,7 @@ onMounted(load)
     <p v-if="created" class="text-sm text-sage" role="status">{{ t('admin.upstream.created') }}</p>
 
     <Card v-if="createOpen">
+      <CardHeader><CardTitle>{{ t('admin.upstream.createTitle') }}</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-5 py-4">
         <FormSection :title="t('admin.upstream.sectionConnection')">
           <div class="flex flex-col gap-1.5">
@@ -200,8 +201,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText && !createOpen" :icon="Link2" :title="t('admin.upstream.empty')">
-      <Button type="button" variant="outline" @click="openCreate">{{ t('admin.upstream.create') }}</Button>
-    </EmptyState>
+    <EmptyState v-else-if="!errorText && !createOpen" :icon="Link2" :title="t('admin.upstream.empty')" />
   </div>
 </template>

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /** AdminAccountsView (/admin/accounts) — table of accounts; row → detail. */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { relativeTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
@@ -23,6 +24,16 @@ const { t } = useI18n()
 const router = useRouter()
 const { busy, run, errorText } = useApi()
 const rows = ref<Account[]>([])
+const filter = ref('')
+
+const filteredRows = computed(() => {
+  const q = filter.value.trim().toLowerCase()
+  if (!q) return rows.value
+  return rows.value.filter((a) =>
+    a.username.toLowerCase().includes(q) || a.displayName.toLowerCase().includes(q)
+  )
+})
+
 async function load(): Promise<void> {
   const res = await run(() => api.get<Account[]>('/api/prohibitorum/accounts'))
   if (res) rows.value = res
@@ -37,37 +48,40 @@ onMounted(load)
       <Button type="button" data-test="invite" @click="router.push('/admin/invitations')">{{ t('admin.accounts.invite') }}</Button>
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <Input v-if="!busy || rows.length" v-model="filter" type="search" data-test="accounts-filter"
+           :placeholder="t('admin.accounts.filterPlaceholder')" class="max-w-xs" />
     <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="4" />
-    <Table v-else-if="rows.length">
-      <TableHeader>
-        <TableRow>
-          <TableHead>{{ t('admin.accounts.colUser') }} · {{ t('admin.accounts.colUsername') }}</TableHead>
-          <TableHead>{{ t('admin.accounts.colRole') }}</TableHead>
-          <TableHead>{{ t('admin.accounts.colState') }}</TableHead>
-          <TableHead>{{ t('admin.accounts.colLastSeen') }}</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        <TableRow v-for="a in rows" :key="a.id" class="cursor-pointer" tabindex="0"
-                  :data-test="`account-row-${a.id}`"
-                  @click="go(a.id)" @keydown.enter="go(a.id)" @keydown.space.prevent="go(a.id)">
-          <TableCell>
-            <div class="flex min-w-0 items-center gap-2">
-              <UserAvatar :display-name="a.displayName" :username="a.username" :src="a.avatarUrl" size="sm" />
-              <div class="flex min-w-0 flex-col">
-                <span class="truncate font-medium text-ink">{{ a.displayName }}</span>
-                <span class="truncate text-muted">@{{ a.username }}</span>
+    <template v-else-if="rows.length">
+      <Table v-if="filteredRows.length">
+        <TableHeader>
+          <TableRow>
+            <TableHead>{{ t('admin.accounts.colUser') }} · {{ t('admin.accounts.colUsername') }}</TableHead>
+            <TableHead>{{ t('admin.accounts.colRole') }}</TableHead>
+            <TableHead>{{ t('admin.accounts.colState') }}</TableHead>
+            <TableHead>{{ t('admin.accounts.colLastSeen') }}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow v-for="a in filteredRows" :key="a.id" class="cursor-pointer" tabindex="0"
+                    :data-test="`account-row-${a.id}`"
+                    @click="go(a.id)" @keydown.enter="go(a.id)" @keydown.space.prevent="go(a.id)">
+            <TableCell>
+              <div class="flex min-w-0 items-center gap-2">
+                <UserAvatar :display-name="a.displayName" :username="a.username" :src="a.avatarUrl" size="sm" />
+                <div class="flex min-w-0 flex-col">
+                  <span class="truncate font-medium text-ink">{{ a.displayName }}</span>
+                  <span class="truncate text-muted">@{{ a.username }}</span>
+                </div>
               </div>
-            </div>
-          </TableCell>
-          <TableCell><StatusBadge :variant="a.role === 'admin' ? 'caution' : 'neutral'">{{ a.role === 'admin' ? t('admin.account.roleAdmin') : t('admin.account.roleUser') }}</StatusBadge></TableCell>
-          <TableCell><StatusBadge :variant="a.disabled ? 'danger' : 'success'">{{ a.disabled ? t('admin.accounts.disabled') : t('admin.accounts.active') }}</StatusBadge></TableCell>
-          <TableCell class="text-muted">{{ relativeTime(a.lastSignInAt) }}</TableCell>
-        </TableRow>
-      </TableBody>
-    </Table>
-    <EmptyState v-else-if="!errorText" :icon="Users" :title="t('admin.accounts.empty')">
-      <Button type="button" variant="outline" @click="router.push('/admin/invitations')">{{ t('admin.accounts.invite') }}</Button>
-    </EmptyState>
+            </TableCell>
+            <TableCell><StatusBadge :variant="a.role === 'admin' ? 'caution' : 'neutral'">{{ a.role === 'admin' ? t('admin.account.roleAdmin') : t('admin.account.roleUser') }}</StatusBadge></TableCell>
+            <TableCell><StatusBadge :variant="a.disabled ? 'danger' : 'success'">{{ a.disabled ? t('admin.accounts.disabled') : t('admin.accounts.active') }}</StatusBadge></TableCell>
+            <TableCell class="text-muted">{{ relativeTime(a.lastSignInAt) }}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+      <p v-else class="text-sm text-muted" data-test="accounts-no-matches">{{ t('admin.accounts.noMatches') }}</p>
+    </template>
+    <EmptyState v-else-if="!errorText" :icon="Users" :title="t('admin.accounts.empty')" />
   </div>
 </template>

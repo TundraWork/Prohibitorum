@@ -118,6 +118,8 @@ export default {
       colUser: 'User', colUsername: 'Username', colRole: 'Role', colState: 'State', colLastSeen: 'Last seen',
       active: 'Active', disabled: 'Disabled',
       empty: 'No accounts yet.',
+      filterPlaceholder: 'Search by name or username',
+      noMatches: 'No accounts match your search.',
     },
     account: {
       back: 'Back to accounts',
@@ -172,6 +174,7 @@ export default {
     invitations: {
       title: 'Invitations',
       create: 'Create invitation',
+      createTitle: 'New invitation',
       role: 'Role', roleAdmin: 'Admin', roleUser: 'User',
       roleDesc: 'The role the new account will have once enrolled.',
       requireMethodDesc: 'Bind the invitation to a provider so the invitee must sign up through it. Any method lets them register a passkey directly.',
@@ -184,7 +187,7 @@ export default {
       requireMethod: 'Require sign-up via', anyMethod: 'Any method', colMethod: 'Method',
     },
     oidc: {
-      title: 'OIDC applications', create: 'Register application',
+      title: 'OIDC applications', create: 'Register application', createTitle: 'New OIDC application',
       colClient: 'Application', colType: 'Type', colState: 'State',
       confidential: 'Confidential', public: 'Public', active: 'Active', disabled: 'Disabled', created: 'Application registered.',
       empty: 'No OIDC applications registered.',
@@ -217,7 +220,7 @@ export default {
       deleteConfirmBody: 'This permanently removes the application. This cannot be undone.',
     },
     saml: {
-      title: 'SAML applications', create: 'Register application', created: 'Application registered.',
+      title: 'SAML applications', create: 'Register application', createTitle: 'New SAML application', created: 'Application registered.',
       colEntity: 'Entity ID', colName: 'Name', colIdpInit: 'IdP-initiated', colState: 'State',
       yes: 'Yes', no: 'No', active: 'Active', disabled: 'Disabled', empty: 'No SAML applications registered.',
       statusLabel: 'Application status', enable: 'Enable', disable: 'Disable',
@@ -253,6 +256,7 @@ export default {
     upstream: {
       title: 'Identity providers',
       create: 'Add provider',
+      createTitle: 'New identity provider',
       created: 'Provider added.',
       back: 'Back to identity providers',
       notFound: 'That provider no longer exists.',

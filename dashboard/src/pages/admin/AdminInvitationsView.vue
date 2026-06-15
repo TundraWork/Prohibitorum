@@ -11,7 +11,7 @@ import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -87,6 +87,7 @@ onMounted(load)
     <p v-if="created" class="text-sm text-sage" role="status">{{ t('admin.invitations.created') }}</p>
 
     <Card v-if="createOpen">
+      <CardHeader><CardTitle>{{ t('admin.invitations.createTitle') }}</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-3 py-4">
         <div class="flex flex-col gap-1.5">
           <Label>{{ t('admin.invitations.role') }}</Label>
@@ -135,9 +136,7 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText" :icon="Mail" :title="t('admin.invitations.empty')">
-      <Button type="button" variant="outline" @click="createOpen = true">{{ t('admin.invitations.create') }}</Button>
-    </EmptyState>
+    <EmptyState v-else-if="!errorText" :icon="Mail" :title="t('admin.invitations.empty')" />
 
     <ConfirmDialog :open="revokeToken !== null" :title="t('admin.invitations.revokeConfirmTitle')" :confirm-label="t('admin.invitations.revoke')" :busy="busy"
       @update:open="(v) => { if (!v) revokeToken = null }" @cancel="revokeToken = null" @confirm="revoke">
