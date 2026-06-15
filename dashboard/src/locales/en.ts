@@ -134,7 +134,7 @@ export default {
       notFound: 'That account no longer exists.',
       identityTitle: 'Identity & role',
       username: 'Username', usernameDesc: 'The immutable account handle.', displayName: 'Display name', role: 'Role',
-      email: 'Email', emailPlaceholder: 'name@example.com',
+      email: 'Email', emailPlaceholder: "name{'@'}example.com",
       emailVerified: 'Verified', emailUnverified: 'Unverified',
       emailDesc: 'Used for the OIDC email scope. Setting it here marks it unverified; a verified address comes from an upstream identity provider.',
       roleAdmin: 'Admin', roleUser: 'User',
