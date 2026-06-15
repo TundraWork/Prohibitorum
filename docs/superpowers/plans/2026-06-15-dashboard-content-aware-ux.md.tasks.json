@@ -53,7 +53,7 @@
     {
       "id": 10,
       "subject": "T10: EditProfileDialog division + Close",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": 11,
@@ -103,5 +103,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-06-15T12:30:00Z"
+  "lastUpdated": "2026-06-15T13:00:00Z"
 }
