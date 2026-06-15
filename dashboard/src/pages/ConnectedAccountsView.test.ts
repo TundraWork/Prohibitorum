@@ -62,6 +62,13 @@ describe('ConnectedAccountsView', () => {
     expect(w.text()).toContain('Azure AD')
   })
 
+  it('shows Connected badge (not Linked) and redirect note', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.connected.linked)
+    expect(w.text()).toContain(en.connected.linkRedirectNote)
+  })
+
   it('shows empty state when no identities are linked', async () => {
     mockGets([], PROVIDERS)
     const w = mountView(); await flushPromises()

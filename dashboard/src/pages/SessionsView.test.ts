@@ -36,6 +36,14 @@ describe('SessionsView', () => {
     expect(wrapper.findAll('[data-test=revoke]')).toHaveLength(1)
   })
 
+  it('per-row action is labelled Revoke (not Sign out) and shows IP address label', async () => {
+    get.mockResolvedValue(SESSIONS)
+    const wrapper = mount(SessionsView, { global: { plugins: [makeI18n()] } })
+    await flushPromises()
+    expect(wrapper.find('[data-test=revoke]').text()).toBe(en.sessions.revoke)
+    expect(wrapper.text()).toContain(en.sessions.ipAddress)
+  })
+
   it('revoke is gated behind a confirm dialog (no post until confirmed)', async () => {
     get.mockResolvedValue(SESSIONS)
     post.mockResolvedValue(undefined)

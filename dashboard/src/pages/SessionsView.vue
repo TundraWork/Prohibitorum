@@ -66,7 +66,7 @@ onMounted(load)
               <span class="min-w-0 truncate text-ink" :title="r.userAgent || r.lastSeenIp">{{ formatUserAgent(r.userAgent) }}</span>
               <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
             </div>
-            <span class="truncate text-muted">{{ t('sessions.lastSeen') }}: <span class="font-mono">{{ r.lastSeenIp }}</span></span>
+            <span class="truncate text-muted">{{ t('sessions.ipAddress') }}: <span class="font-mono">{{ r.lastSeenIp }}</span></span>
             <span v-if="r.issuedAt" class="truncate text-muted">{{ t('sessions.issued') }}: {{ relativeTime(r.issuedAt) }}</span>
             <span v-if="r.expiresAt" class="truncate text-muted">{{ t('sessions.expires') }}: {{ formatDateTime(r.expiresAt) }}</span>
           </div>

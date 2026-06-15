@@ -71,11 +71,26 @@ describe('DevicesView', () => {
     expect(w.text()).toContain(en.errors.pairing_state)
   })
 
-  it('shows an already-approved note with no approve button', async () => {
+  it('shows an already-approved note with no approve button and no cancel', async () => {
     get.mockResolvedValue({ ...LOOKUP, alreadyBound: true })
     const w = mountView()
     await enterCodeAndLookup(w)
     expect(w.text()).toContain(en.devices.alreadyBound)
+    expect(w.find('[data-test="approve"]').exists()).toBe(false)
+    expect(w.find('[data-test="cancel"]').exists()).toBe(false)
+    expect(w.find('[data-test="done"]').exists()).toBe(true)
+  })
+
+  it('alreadyBound Done button resets to idle lookup state', async () => {
+    get.mockResolvedValue({ ...LOOKUP, alreadyBound: true })
+    const w = mountView()
+    await enterCodeAndLookup(w)
+    expect(w.find('[data-test="done"]').exists()).toBe(true)
+    await w.find('[data-test="done"]').trigger('click')
+    await flushPromises()
+    // Should return to entry card (code input visible, confirm card gone)
+    expect(w.find('input[name="code"]').exists()).toBe(true)
+    expect(w.find('[data-test="done"]').exists()).toBe(false)
     expect(w.find('[data-test="approve"]').exists()).toBe(false)
   })
 

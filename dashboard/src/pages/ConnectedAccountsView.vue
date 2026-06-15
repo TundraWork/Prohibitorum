@@ -92,7 +92,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
               <StatusBadge variant="success" class="shrink-0">{{ t('connected.linked') }}</StatusBadge>
             </div>
             <span v-if="ident.upstreamEmail" class="min-w-0 truncate text-muted">{{ ident.upstreamEmail }}</span>
-            <span v-if="ident.linkedAt" class="truncate text-muted">{{ t('connected.linked') }}: {{ relativeTime(ident.linkedAt) }}</span>
+            <span v-if="ident.linkedAt" class="truncate text-muted">{{ t('connected.connectedOn', { date: relativeTime(ident.linkedAt) }) }}</span>
           </div>
           <Button variant="outline" size="sm" class="shrink-0" :disabled="busy"
                   :data-test="`unlink-${ident.id}`" @click="confirmId = ident.id">
@@ -113,6 +113,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
       </CardHeader>
       <CardContent class="flex flex-col gap-3">
         <p class="text-sm text-muted">{{ t('connected.linkHelp') }}</p>
+        <p class="text-sm text-muted">{{ t('connected.linkRedirectNote') }}</p>
         <p v-if="providersLoaded && providers.length === 0" class="text-sm text-muted">{{ t('connected.noProviders') }}</p>
         <div v-else-if="providers.length > 0" class="flex flex-col gap-2">
           <Button v-for="p in providers" :key="p.slug" type="button" variant="outline" class="w-full justify-between"

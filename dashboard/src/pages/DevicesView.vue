@@ -99,7 +99,7 @@ async function cancel(): Promise<void> {
       <CardContent class="flex flex-col gap-3 text-sm">
         <CodeField :value="found.displayCode" />
         <div class="flex min-w-0 flex-col gap-1">
-          <span class="truncate text-muted" :title="found.initiatorUa">{{ t('devices.requestedFrom') }}: {{ formatUserAgent(found.initiatorUa) }}</span>
+          <span class="truncate text-ink font-medium" :title="found.initiatorUa">{{ formatUserAgent(found.initiatorUa) }}</span>
           <span class="truncate text-muted">{{ t('devices.ipAddress') }}: {{ found.initiatorIp }}</span>
           <span v-if="found.createdAt" class="truncate text-muted">{{ t('devices.started') }}: {{ relativeTime(found.createdAt) }}</span>
           <span v-if="found.expiresAt" class="truncate text-muted">{{ t('devices.expires') }}: {{ formatDateTime(found.expiresAt) }}</span>
@@ -109,8 +109,12 @@ async function cancel(): Promise<void> {
           <Button v-if="!found.alreadyBound" type="button" :disabled="busy" data-test="approve" @click="approve">
             {{ t('devices.approve') }}
           </Button>
-          <Button type="button" variant="outline" :disabled="busy" data-test="cancel" @click="cancel">
-            {{ t('devices.cancel') }}
+          <Button v-if="found.alreadyBound" type="button" variant="outline" :disabled="busy" data-test="done"
+                  @click="found = null; code = ''">
+            {{ t('devices.done') }}
+          </Button>
+          <Button v-if="!found.alreadyBound" type="button" variant="outline" :disabled="busy" data-test="cancel" @click="cancel">
+            {{ t('devices.cancelPairing') }}
           </Button>
         </div>
       </CardContent>
