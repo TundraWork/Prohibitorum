@@ -3719,8 +3719,227 @@ func main() {
 		log.Printf("  userinfo.picture=%q (picture claim present, prefix OK) ✓", pic)
 	}
 
+	// =========================================================================
+	// RBAC end-to-end arc (Task 11): per-app access gate + OIDC groups claim.
+	//
+	// Reuses the bootstrap smoke-admin (account id == me2.ID, set at step 10).
+	// A fresh restricted OIDC client is created, then:
+	//   deny  — the admin (NOT yet granted) drives an interactive authorize →
+	//           302 to <issuer>/error?reason=app_access_denied, NO code.
+	//   grant — a group is created, the admin is added as a member, and access is
+	//           granted to that GROUP (exercising the via-group path).
+	//   allow — the admin re-drives authorize (scope "openid groups") → a code;
+	//           the code is exchanged; the id_token AND /userinfo both carry a
+	//           groups claim containing the group slug.
+	//
+	// Pre-condition: c holds a live webauthn session (avatar 4/4 above drove
+	// freshAuthorizeCode(c, …) successfully — that requires a live session).
+	// Every admin mutation is sudo-gated; each is preceded by a fresh
+	// sudoWebAuthn (one-shot, re-asserted before EACH mutation) exactly as the
+	// admin arc (steps 114–121) does. rpRedirectURI shape + issuer reused from
+	// the v0.4 block. The group is created exposedToDownstream:true so its slug
+	// surfaces in the groups claim (ListExposedGroupSlugsByAccount).
+	// =========================================================================
+	{
+		const rbacGroupSlug = "smoke-rbac-team"
+		const rbacClientID = "smoke-rbac-rp"
+		rbacRedirectURI := *baseURL + "/rbac-rp/callback"
+
+		step("rbac 1/7 — create exposed group {slug:smoke-rbac-team} (sudo)")
+		var rbacGroupID int32
+		{
+			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+				log.Fatalf("rbac: sudo (pre group create): %v", err)
+			}
+			var created struct {
+				ID                  int32  `json:"id"`
+				Slug                string `json:"slug"`
+				ExposedToDownstream bool   `json:"exposedToDownstream"`
+			}
+			if err := c.postJSON("/api/prohibitorum/groups", map[string]any{
+				"slug":                rbacGroupSlug,
+				"displayName":         "Smoke RBAC Team",
+				"exposedToDownstream": true,
+			}, &created); err != nil {
+				log.Fatalf("rbac: POST /groups: %v", err)
+			}
+			if created.ID == 0 {
+				log.Fatalf("rbac: POST /groups returned id=0")
+			}
+			if created.Slug != rbacGroupSlug {
+				log.Fatalf("rbac: group slug: want %q, got %q", rbacGroupSlug, created.Slug)
+			}
+			if !created.ExposedToDownstream {
+				log.Fatalf("rbac: group exposedToDownstream must be true (groups claim depends on it)")
+			}
+			rbacGroupID = created.ID
+			log.Printf("  group id=%d slug=%s exposedToDownstream=true created ✓", rbacGroupID, rbacGroupSlug)
+		}
+
+		step("rbac 2/7 — add the smoke-admin as a group member (sudo)")
+		{
+			// The admin's account id is me2.ID (the smoke already fetched /me at
+			// step 10; me2.ID never changes across the run).
+			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+				log.Fatalf("rbac: sudo (pre member add): %v", err)
+			}
+			memberPath := fmt.Sprintf("/api/prohibitorum/groups/%d/members", rbacGroupID)
+			if err := c.postJSON(memberPath, map[string]any{"accountId": me2.ID}, nil); err != nil {
+				log.Fatalf("rbac: POST %s: %v", memberPath, err)
+			}
+			log.Printf("  added account id=%d as a member of group id=%d ✓", me2.ID, rbacGroupID)
+		}
+
+		step("rbac 3/7 — oidc-client create (confidential, scopes openid+profile+groups)")
+		// allowed_scopes must include "groups" or the authorize would reject the
+		// requested scope with invalid_scope before the access gate is reached.
+		rbacSecret, err := createOIDCClient(*baseURL, rbacClientID, rbacRedirectURI, rbacRedirectURI,
+			[]string{"openid", "profile", "groups"})
+		if err != nil {
+			log.Fatalf("rbac: oidc-client create: %v", err)
+		}
+		if rbacSecret == "" {
+			log.Fatalf("rbac: oidc-client create: empty client secret parsed from CLI output")
+		}
+		log.Printf("  client %q registered (scopes openid+profile+groups); secret len=%d ✓", rbacClientID, len(rbacSecret))
+
+		step("rbac 4/7 — mark the client restricted (sudo)")
+		{
+			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+				log.Fatalf("rbac: sudo (pre set-restricted): %v", err)
+			}
+			restrictPath := "/api/prohibitorum/oidc-applications/" + url.PathEscape(rbacClientID) + "/access/set-restricted"
+			if err := c.postJSON(restrictPath, map[string]any{"restricted": true}, nil); err != nil {
+				log.Fatalf("rbac: POST %s: %v", restrictPath, err)
+			}
+			log.Printf("  client %q access_restricted=true ✓", rbacClientID)
+		}
+
+		step("rbac 5/7 — DENY: authorize as the not-yet-granted admin → 302 /error?reason=app_access_denied (no code)")
+		{
+			// Build an interactive authorize (NOT prompt=none) so the denial lands on
+			// the IdP's own /error page rather than an RP error redirect.
+			_, challenge := genPKCE()
+			state := randState()
+			denyAuthz := fmt.Sprintf(
+				"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+				url.QueryEscape(rbacClientID),
+				url.QueryEscape(rbacRedirectURI),
+				url.QueryEscape("openid groups"),
+				url.QueryEscape(state),
+				url.QueryEscape(randState()),
+				url.QueryEscape(challenge),
+			)
+			loc, err := authorizeRaw(c, denyAuthz)
+			if err != nil {
+				log.Fatalf("rbac: deny authorize: %v", err)
+			}
+			// The denial must NOT redirect to the RP redirect_uri with a code.
+			if strings.HasPrefix(loc, rbacRedirectURI) {
+				log.Fatalf("rbac: deny authorize redirected to the RP redirect_uri (no denial enforced): %q", loc)
+			}
+			u, perr := url.Parse(loc)
+			if perr != nil {
+				log.Fatalf("rbac: deny authorize parse Location %q: %v", loc, perr)
+			}
+			if u.Path != "/error" {
+				log.Fatalf("rbac: deny authorize: want a bounce to %s/error, got path %q (loc=%q)", issuer, u.Path, loc)
+			}
+			if u.Query().Get("reason") != "app_access_denied" {
+				log.Fatalf("rbac: deny authorize: want reason=app_access_denied, got %q (loc=%q)", u.Query().Get("reason"), loc)
+			}
+			// No authorization code may be issued on the denial path.
+			if u.Query().Get("code") != "" {
+				log.Fatalf("rbac: deny authorize issued a code despite the access denial: %q", loc)
+			}
+			log.Printf("  not-yet-granted admin → 302 %s/error?reason=app_access_denied (no code) ✓", issuer)
+		}
+
+		step("rbac 6/7 — GRANT access to the group the admin belongs to (via-group path, sudo)")
+		{
+			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+				log.Fatalf("rbac: sudo (pre grant): %v", err)
+			}
+			grantPath := "/api/prohibitorum/oidc-applications/" + url.PathEscape(rbacClientID) + "/access/grant"
+			if err := c.postJSON(grantPath, map[string]any{
+				"principalKind": "group",
+				"principalId":   rbacGroupID,
+			}, nil); err != nil {
+				log.Fatalf("rbac: POST %s: %v", grantPath, err)
+			}
+			log.Printf("  granted group id=%d access to client %q (admin is a member) ✓", rbacGroupID, rbacClientID)
+		}
+
+		step("rbac 7/7 — ALLOW: authorize (openid groups) → code → token; id_token + /userinfo carry groups claim incl. the slug")
+		{
+			// Drive a fresh interactive authorize; the via-group grant now satisfies
+			// the access gate, so a code is issued.
+			verifier, challenge := genPKCE()
+			state := randState()
+			nonce := randState()
+			allowAuthz := fmt.Sprintf(
+				"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+				url.QueryEscape(rbacClientID),
+				url.QueryEscape(rbacRedirectURI),
+				url.QueryEscape("openid groups"),
+				url.QueryEscape(state),
+				url.QueryEscape(nonce),
+				url.QueryEscape(challenge),
+			)
+			loc, err := authorizeWithSession(c, allowAuthz)
+			if err != nil {
+				log.Fatalf("rbac: allow authorize: %v", err)
+			}
+			code, err := parseAuthorizeRedirect(loc, rbacRedirectURI, state, issuer)
+			if err != nil {
+				log.Fatalf("rbac: allow authorize redirect: %v", err)
+			}
+			log.Printf("  granted admin → 302 to redirect_uri with code (len=%d) ✓", len(code))
+
+			tok, err := tokenExchange(*baseURL, rbacClientID, rbacSecret, url.Values{
+				"grant_type":    {"authorization_code"},
+				"code":          {code},
+				"redirect_uri":  {rbacRedirectURI},
+				"code_verifier": {verifier},
+			})
+			if err != nil {
+				log.Fatalf("rbac: token exchange: %v", err)
+			}
+			if tok.IDToken == "" || tok.AccessToken == "" {
+				log.Fatalf("rbac: token response missing id_token or access_token")
+			}
+
+			// id_token must carry a groups claim that includes the group slug.
+			idClaims, err := verifyIDToken(*baseURL, tok.IDToken)
+			if err != nil {
+				log.Fatalf("rbac: verify id_token: %v", err)
+			}
+			if !groupsClaimContains(idClaims["groups"], rbacGroupSlug) {
+				log.Fatalf("rbac: id_token groups claim does not contain %q (got %v)", rbacGroupSlug, idClaims["groups"])
+			}
+			log.Printf("  id_token.groups contains %q ✓", rbacGroupSlug)
+
+			// /userinfo (Bearer access token) must carry the same groups claim.
+			ui, err := fetchUserinfo(*baseURL, tok.AccessToken)
+			if err != nil {
+				log.Fatalf("rbac: GET /oauth/userinfo: %v", err)
+			}
+			if !groupsClaimContains(ui["groups"], rbacGroupSlug) {
+				log.Fatalf("rbac: userinfo groups claim does not contain %q (got %v)", rbacGroupSlug, ui["groups"])
+			}
+			log.Printf("  userinfo.groups contains %q ✓ (per-app gate + groups claim proven via-group)", rbacGroupSlug)
+		}
+	}
+
+	// SAML RBAC arc intentionally SKIPPED: the per-app access gate also covers
+	// SAML SPs, but adding a SAML restrict→deny→grant→allow check would be scope
+	// creep here — the SAML SSO steps (88–99) drive a require_signed GHES SP and
+	// asserting the denial would need a fresh restricted SP + its own verifier.
+	// The OIDC arc above fully exercises the gate (deny non-member + via-group
+	// grant) and the groups claim, which is the contract under test.
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed 1-4 (federated first-login confirm gate at /welcome → upstream picture inherited via background job, no-clobber of a user upload on re-login, UserInfo-fallback inherit, dual-source selection switch upstream/user/none + ?source previews + avatar_source_unavailable negative) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + fed-sudo 1-7 (federated OIDC sudo step-up: methods+provider list → /me/sudo/begin → upstream re-auth → sudo callback → 200 gated action → one-shot re-gate) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed 1-4 (federated first-login confirm gate at /welcome → upstream picture inherited via background job, no-clobber of a user upload on re-login, UserInfo-fallback inherit, dual-source selection switch upstream/user/none + ?source previews + avatar_source_unavailable negative) + rbac 1-7 (per-app access gate + OIDC groups claim: create exposed group, add admin member, restricted client, DENY not-yet-granted admin → /error?reason=app_access_denied no code, grant via-group, ALLOW → code → id_token + userinfo groups claim incl. slug) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -5467,6 +5686,23 @@ type oidcTokenResponse struct {
 func str(v any) string {
 	s, _ := v.(string)
 	return s
+}
+
+// groupsClaimContains reports whether a decoded JSON "groups" claim (a
+// []any of strings, as json.Unmarshal produces for a JSON string array)
+// contains want. Used by the RBAC arc to assert the group slug surfaces in the
+// id_token and /userinfo groups claim.
+func groupsClaimContains(v any, want string) bool {
+	arr, ok := v.([]any)
+	if !ok {
+		return false
+	}
+	for _, e := range arr {
+		if s, ok := e.(string); ok && s == want {
+			return true
+		}
+	}
+	return false
 }
 
 // mintSigningKey shells out to `prohibitorum signing-key generate` and parses
