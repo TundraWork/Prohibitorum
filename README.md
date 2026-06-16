@@ -51,31 +51,37 @@ pairwise `sub`), smaller hardening items, and explicit non-goals are tracked in
 
 ## Quickstart
 
-Requires Postgres 14+ and a Redis-compatible KV (or the in-process memory
-driver). The toolchain is pinned in `mise.toml`.
+Run the IdP against **your own** Postgres + config — the get-it-running / deploy
+path. (For the local development loop — hot reload, a throwaway DB, seeded data —
+see [Development](#development).) Requires Postgres 14+ and a Redis-compatible KV
+(or the in-process `memory` driver); the toolchain is pinned in `mise.toml`.
 
 ```bash
-# 1. Toolchain (go, node/npm, sqlc, goose, prebuilt Postgres) — all pinned + locked
+# 1. Install the pinned toolchain.
 mise install
 
-# 2. Required config: a data-encryption key (boot fails without one) + origin.
+# 2. Required config — your real values (boot fails without the encryption key).
+#    No Postgres handy? `mise run db:start` spins up a local one (see Development).
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="https://auth.example.com"
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum?sslmode=disable"
 
-# 3. Migrations (optional — the server and DB-backed CLI commands auto-apply on boot).
-mise run db:up
-
-# 4. Mint an OIDC signing key — /oauth/jwks and signed tokens need one.
+# 3. Mint an OIDC signing key — /oauth/jwks and signed tokens need one.
 go run ./cmd/prohibitorum signing-key generate
 
-# 5. Bootstrap the first admin. Prints an enrollment URL; open it in a browser
+# 4. Bootstrap the first admin. Prints an enrollment URL; open it in a browser
 #    to run the passkey-enrollment ceremony.
 go run ./cmd/prohibitorum enroll-admin
 
-# 6. Run the server (defaults to :8080; see PROHIBITORUM_HOST / _PORT).
-mise run dev:run
+# 5. Run the server (auto-applies migrations on boot; defaults to :8080).
+go run ./cmd/prohibitorum
 ```
+
+Every command here uses **your** exported env — no dev defaults, no `dev:*`/`db:*`
+tasks. For a real deployment, ship the compiled artifact instead of `go run`:
+`mise run prod:build` produces `./prohibitorum` (SPA embedded), or pull the signed
+multi-arch OCI image the release pipeline publishes to
+`ghcr.io/tundrawork/prohibitorum` (see [`TOOLING.md`](./TOOLING.md)).
 
 What gets mounted (all on one origin):
 
@@ -92,6 +98,10 @@ See [`api.md`](./api.md) for the full HTTP surface and [`INTEGRATION.md`](./INTE
 for relying-party integration patterns.
 
 ## Development
+
+The local development loop — hot reload, a throwaway database, dev defaults, and
+seeded data, all via `mise run dev:*` / `db:*` tasks. (To run the server against
+your own config — the deploy path — see [Quickstart](#quickstart).)
 
 **Prerequisites:** just [`mise`](https://mise.jdx.dev). `mise install` provides
 the whole toolchain — Go, Node/npm, sqlc, goose, **and prebuilt Postgres 18
@@ -112,7 +122,7 @@ API, the OIDC OP, the SAML IdP, and the embedded dashboard SPA on a single origi
 `go run ./cmd/prohibitorum` runs the same server without building a binary.
 
 The dev database runs either in a container (`compose.yaml`, via Podman/Docker)
-or as a podman-free local cluster (`mise db:start`); the rest runs on the host
+or as a podman-free local cluster (`mise run db:start`); the rest runs on the host
 via `mise`.
 
 ### Local development
