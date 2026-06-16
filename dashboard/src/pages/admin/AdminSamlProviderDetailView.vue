@@ -27,6 +27,7 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import AttributeMapEditor, { type AttributeMapEntry } from '@/components/custom/AttributeMapEditor.vue'
+import AppAccessCard from '@/components/custom/AppAccessCard.vue'
 
 interface AcsEndpoint {
   binding: string
@@ -269,6 +270,8 @@ onMounted(load)
           </div>
         </CardContent>
       </Card>
+
+      <AppAccessCard kind="saml" :app-id="String(id)" />
     </template>
 
     <ConfirmDialog :open="confirmDelete" :title="t('admin.saml.deleteConfirmTitle')" :confirm-label="t('admin.saml.delete')" :busy="busy"

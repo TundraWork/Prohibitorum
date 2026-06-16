@@ -465,6 +465,23 @@ export default {
       deleteConfirmTitle: 'Delete this group?',
       deleteConfirmBody: 'This permanently removes the group. This cannot be undone.',
     },
+    access: {
+      title: 'App access',
+      restrictedLabel: 'Restrict access',
+      restrictedHint: 'When enabled, only explicitly assigned groups and accounts may sign in to this application.',
+      inactiveHint: 'Access is unrestricted — all users may sign in. Turn on the toggle above to limit access to the assigned groups and accounts.',
+      saved: 'Saved.',
+      groups: 'Assigned groups',
+      accounts: 'Assigned accounts',
+      addGroup: 'Add group',
+      addAccount: 'Add account',
+      remove: 'Remove',
+      empty: 'None assigned.',
+      removeGroupConfirmTitle: 'Remove group?',
+      removeGroupConfirmBody: 'Remove {name} from the allowed groups?',
+      removeAccountConfirmTitle: 'Remove account?',
+      removeAccountConfirmBody: 'Remove {name} from the allowed accounts?',
+    },
   },
 
   login: {

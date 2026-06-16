@@ -27,6 +27,7 @@ import SettingRow from '@/components/custom/SettingRow.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
+import AppAccessCard from '@/components/custom/AppAccessCard.vue'
 
 interface OidcApplication {
   clientId: string
@@ -219,6 +220,8 @@ onMounted(load)
           </div>
         </CardContent>
       </Card>
+
+      <AppAccessCard kind="oidc" :app-id="clientId" />
     </template>
 
     <ConfirmDialog :open="confirmRotate" :title="t('admin.oidc.rotateConfirmTitle')" :confirm-label="t('admin.oidc.rotate')" :busy="busy"
