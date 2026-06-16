@@ -4,9 +4,10 @@ node = "24"
 pnpm = "10"
 sqlc = "1.30.0"
 "aqua:pressly/goose" = "3.27.0"
-# The Postgres SERVER runs in a container (see compose.yaml); this pin is only
-# for the psql / pg_isready CLIENT used by the end-to-end smoke (cmd/smoke).
-postgres = "18.4"
+# No Postgres pin: the dev server runs in a container (compose.yaml) and the
+# end-to-end smoke (cmd/smoke) talks to the DB via the in-module pgx driver — so
+# no host-side psql/pg_isready client is needed. (Building postgres from source
+# via mise also fails on macOS without pkg-config/ICU.)
 
 [tasks.server]
 description = "Run the Go server (serves the committed embedded SPA; no npm needed)."

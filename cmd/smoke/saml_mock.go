@@ -762,7 +762,7 @@ func samlAttrNames(a *crewjam.Assertion) []string {
 }
 
 // =========================================================================
-// v0.5 SAML DB assertions (psql shell-out, reusing the smoke's psqlScalar)
+// v0.5 SAML DB assertions (reusing the smoke's dbScalar pgx helper)
 // =========================================================================
 
 // verifySAMLSubjectStable asserts there is EXACTLY one saml_subject_id row for
@@ -773,7 +773,7 @@ func verifySAMLSubjectStable(accountID int32, wantNameID string) error {
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
 	}
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT name_id FROM saml_subject_id WHERE account_id=%d", accountID))
 	if err != nil {
 		return err
@@ -794,7 +794,7 @@ func verifySAMLSubjectStable(accountID int32, wantNameID string) error {
 // session belonging to the account (joined via session.account_id).
 func verifySAMLSessionCount(accountID int32, minRows int) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT count(*)::text FROM saml_session ss "+
 			"JOIN session s ON s.id = ss.session_id WHERE s.account_id=%d", accountID))
 	if err != nil {
@@ -822,7 +822,7 @@ func verifyV05SAMLAuditEvents() error {
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
 	}
-	rows, err := psqlScalar(dburl,
+	rows, err := dbScalar(dburl,
 		"SELECT event || ':' || COALESCE(detail->>'reason','') || ':' || count(*)::text "+
 			"FROM credential_event WHERE factor='saml_sp' "+
 			"GROUP BY event, COALESCE(detail->>'reason','') "+

@@ -17,6 +17,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -24,7 +25,6 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -50,6 +50,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/jackc/pgx/v5"
 
 	"prohibitorum/cmd/smoke/mockop"
 	totppkg "prohibitorum/pkg/credential/totp"
@@ -3032,7 +3033,7 @@ func main() {
 		// Sealed at rest: the new key's private material is DEK-encrypted
 		// (private_pem_enc populated) — there is no plaintext column.
 		if dburl := os.Getenv("PROHIBITORUM_DATABASE_URL"); dburl != "" {
-			sealed, err := psqlScalar(dburl, fmt.Sprintf(
+			sealed, err := dbScalar(dburl, fmt.Sprintf(
 				"SELECT (private_pem_enc IS NOT NULL)::text FROM signing_key WHERE kid = '%s'", newKID))
 			if err != nil {
 				log.Fatalf("generate: query sealed-at-rest state: %v", err)
@@ -4464,7 +4465,7 @@ func verifyDB(accountID int32) error {
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set; cannot verify DB state")
 	}
-	algs, err := psqlScalar(dburl,
+	algs, err := dbScalar(dburl,
 		fmt.Sprintf("SELECT cose_alg FROM webauthn_credential WHERE account_id=%d ORDER BY id", accountID))
 	if err != nil {
 		return fmt.Errorf("query cose_alg: %w", err)
@@ -4484,7 +4485,7 @@ func verifyDB(accountID int32) error {
 	}
 	log.Printf("  webauthn_credential.cose_alg = -7 for all %d rows ✓", len(algs))
 
-	sessRows, err := psqlScalar(dburl,
+	sessRows, err := dbScalar(dburl,
 		fmt.Sprintf("SELECT amr[1] || ':' || (revoked_at IS NOT NULL)::text FROM session WHERE account_id=%d ORDER BY auth_time", accountID))
 	if err != nil {
 		return fmt.Errorf("query session: %w", err)
@@ -4514,16 +4515,54 @@ func verifyDB(accountID int32) error {
 	return nil
 }
 
-func psqlScalar(dburl, query string) ([]string, error) {
-	out, err := exec.Command("psql", dburl, "-At", "-c", query).CombinedOutput()
+// dbScalar runs a read-only query against the smoke database (via pgx — the
+// module's Postgres driver, so no external `psql` client is needed) and returns
+// one string per row. Multi-column rows are joined with "|" and NULLs render as
+// "", matching the `psql -At` output the callers were originally written
+// against (most queries select a single text/`::text` column).
+func dbScalar(dburl, query string) ([]string, error) {
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dburl)
 	if err != nil {
-		return nil, fmt.Errorf("psql: %v: %s", err, string(out))
+		return nil, fmt.Errorf("pgx connect: %w", err)
 	}
-	s := strings.TrimSpace(string(out))
-	if s == "" {
-		return nil, nil
+	defer conn.Close(ctx)
+	rows, err := conn.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
 	}
-	return strings.Split(s, "\n"), nil
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		vals, err := rows.Values()
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+		cols := make([]string, len(vals))
+		for i, v := range vals {
+			cols[i] = fmtSQLVal(v)
+		}
+		out = append(out, strings.Join(cols, "|"))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+	return out, nil
+}
+
+// fmtSQLVal renders a decoded SQL value the way `psql -At` would: NULL → "",
+// bytes/text verbatim, everything else via fmt's default formatting.
+func fmtSQLVal(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case []byte:
+		return string(x)
+	case string:
+		return x
+	default:
+		return fmt.Sprintf("%v", x)
+	}
 }
 
 // =========================================================================
@@ -4764,11 +4803,16 @@ func resetThrottle(accountID int32, factor string) error {
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
 	}
-	out, err := exec.Command("psql", dburl, "-c",
-		fmt.Sprintf("DELETE FROM auth_throttle WHERE account_id=%d AND factor='%s'",
-			accountID, factor)).CombinedOutput()
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dburl)
 	if err != nil {
-		return fmt.Errorf("psql delete: %v: %s", err, string(out))
+		return fmt.Errorf("pgx connect: %w", err)
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx,
+		"DELETE FROM auth_throttle WHERE account_id=$1 AND factor=$2",
+		accountID, factor); err != nil {
+		return fmt.Errorf("delete throttle: %w", err)
 	}
 	return nil
 }
@@ -4777,7 +4821,7 @@ func resetThrottle(accountID int32, factor string) error {
 
 func verifyPasswordCredential(accountID int32) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl,
+	rows, err := dbScalar(dburl,
 		fmt.Sprintf("SELECT hash FROM password_credential WHERE account_id=%d", accountID))
 	if err != nil {
 		return err
@@ -4794,7 +4838,7 @@ func verifyPasswordCredential(accountID int32) error {
 
 func verifyTOTPConfirmed(accountID int32) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT (confirmed_at IS NOT NULL)::text FROM totp_credential WHERE account_id=%d",
 		accountID))
 	if err != nil {
@@ -4806,7 +4850,7 @@ func verifyTOTPConfirmed(accountID int32) error {
 	if rows[0] != "t" && rows[0] != "true" {
 		return fmt.Errorf("totp_credential.confirmed_at is null (got %q)", rows[0])
 	}
-	codes, err := psqlScalar(dburl, fmt.Sprintf(
+	codes, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT count(*)::text FROM recovery_code WHERE account_id=%d", accountID))
 	if err != nil {
 		return err
@@ -4825,7 +4869,7 @@ func verifyTOTPConfirmed(accountID int32) error {
 // codes too eagerly at /begin and bricking the user's retry path.
 func verifyTOTPUnconfirmedAndRecoveryCount(accountID int32, wantRecovery int) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	confirmed, err := psqlScalar(dburl, fmt.Sprintf(
+	confirmed, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT (confirmed_at IS NOT NULL)::text FROM totp_credential WHERE account_id=%d",
 		accountID))
 	if err != nil {
@@ -4837,7 +4881,7 @@ func verifyTOTPUnconfirmedAndRecoveryCount(accountID int32, wantRecovery int) er
 	if confirmed[0] == "t" || confirmed[0] == "true" {
 		return fmt.Errorf("totp_credential.confirmed_at should be NULL after /recovery/totp/begin; got %q", confirmed[0])
 	}
-	codes, err := psqlScalar(dburl, fmt.Sprintf(
+	codes, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT count(*)::text FROM recovery_code WHERE account_id=%d AND used_at IS NULL", accountID))
 	if err != nil {
 		return err
@@ -4854,7 +4898,7 @@ func verifyTOTPUnconfirmedAndRecoveryCount(accountID int32, wantRecovery int) er
 // requires that the row at ordinal expectIdx (ordered by id ASC) is used.
 func verifyRecoveryCodeUsed(accountID int32, minUsed int, expectIdx int) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT (used_at IS NOT NULL)::text FROM recovery_code WHERE account_id=%d ORDER BY id ASC",
 		accountID))
 	if err != nil {
@@ -4884,7 +4928,7 @@ func verifyRecoveryCodeUsed(accountID int32, minUsed int, expectIdx int) error {
 
 func verifyThrottleLocked(accountID int32, factor string) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT failed_attempts::text || ':' || (locked_until > now())::text "+
 			"FROM auth_throttle WHERE account_id=%d AND factor='%s'",
 		accountID, factor))
@@ -4916,7 +4960,7 @@ func verifyThrottleLocked(accountID int32, factor string) error {
 func verifyFactorsEmpty(accountID int32) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	for _, tbl := range []string{"password_credential", "totp_credential", "recovery_code"} {
-		rows, err := psqlScalar(dburl, fmt.Sprintf(
+		rows, err := dbScalar(dburl, fmt.Sprintf(
 			"SELECT count(*)::text FROM %s WHERE account_id=%d", tbl, accountID))
 		if err != nil {
 			return err
@@ -4936,7 +4980,7 @@ func verifyFactorsEmpty(accountID int32) error {
 // minimum (e.g. sudo_granted fires once per /me/sudo/complete).
 func verifyV02AuditEvents(accountID int32) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT factor || ':' || event || ':' || count(*)::text "+
 			"FROM credential_event WHERE account_id=%d GROUP BY factor, event ORDER BY 1",
 		accountID))
@@ -5311,76 +5355,47 @@ func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecr
 	if dburl == "" {
 		return 0, errors.New("PROHIBITORUM_DATABASE_URL not set")
 	}
-	// First DELETE any prior row with this slug so re-running the smoke is
-	// idempotent. Cascades to account_identity rows.
-	if _, err := exec.Command("psql", dburl, "-c",
-		fmt.Sprintf("DELETE FROM upstream_idp WHERE slug='%s'", slug)).CombinedOutput(); err != nil {
-		return 0, fmt.Errorf("psql delete prior: %w", err)
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dburl)
+	if err != nil {
+		return 0, fmt.Errorf("pgx connect: %w", err)
 	}
-	// Cast text[] literals explicitly so the smoke doesn't depend on
-	// libpq's array-input heuristics. Use $tag$…$tag$ dollar-quoting on
-	// values that might contain quotes; here the values are tightly
-	// controlled so single-quote wrap is fine.
-	allowedSQL := "ARRAY[" + sqlStringArray(allowedDomains) + "]::text[]"
-	insertSQL := fmt.Sprintf(`INSERT INTO upstream_idp
+	defer conn.Close(ctx)
+	// DELETE any prior row with this slug so re-running the smoke is idempotent
+	// (cascades to account_identity rows).
+	if _, err := conn.Exec(ctx, "DELETE FROM upstream_idp WHERE slug=$1", slug); err != nil {
+		return 0, fmt.Errorf("delete prior: %w", err)
+	}
+	if allowedDomains == nil {
+		allowedDomains = []string{}
+	}
+	// Insert with placeholder secret bytes; the real ciphertext is written by the
+	// UPDATE below, once we know the row id (the AAD binds the ciphertext to it).
+	// pgx binds Go values natively (text[] from []string, bytea from []byte), so
+	// no hand-built ARRAY[…]::text[] / E'\\x…' SQL literals are needed.
+	var id int64
+	if err := conn.QueryRow(ctx, `INSERT INTO upstream_idp
 		(slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce,
 		 key_version, scopes, mode, allowed_domains, username_claim, display_name_claim,
 		 email_claim, require_verified_email)
-		VALUES ('%s', '%s', '%s', '%s', E'\\x00', E'\\x00', 1,
-		  ARRAY['openid','profile','email']::text[],
-		  '%s', %s,
-		  'preferred_username', 'name', 'email', %t)
+		VALUES ($1, $2, $3, $4, $5, $6, 1,
+		  ARRAY['openid','profile','email']::text[], $7, $8,
+		  'preferred_username', 'name', 'email', $9)
 		RETURNING id`,
-		slug, displayName, issuer, clientID, mode, allowedSQL, requireVerifiedEmail)
-	// -q suppresses the trailing "INSERT 0 1" status line so -At -c with
-	// RETURNING gives us just the id (without -q, psql 18 emits both the
-	// returned row and the command tag, separated by a newline).
-	out, err := exec.Command("psql", dburl, "-At", "-q", "-c", insertSQL).CombinedOutput()
-	if err != nil {
-		return 0, fmt.Errorf("psql insert: %v: %s", err, string(out))
-	}
-	// Defensive: even with -q some psql versions still print the command
-	// tag. Take just the first non-empty line.
-	idStr := ""
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasPrefix(line, "INSERT") {
-			idStr = line
-			break
-		}
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parse RETURNING id %q (raw=%q): %w", idStr, string(out), err)
+		slug, displayName, issuer, clientID, []byte{0}, []byte{0},
+		mode, allowedDomains, requireVerifiedEmail).Scan(&id); err != nil {
+		return 0, fmt.Errorf("insert: %w", err)
 	}
 	ct, nonce, err := fedoidc.EncryptClientSecret(dek, []byte(clientSecret), id, 1)
 	if err != nil {
 		return 0, fmt.Errorf("EncryptClientSecret: %w", err)
 	}
-	// bytea hex literal: '\xDEADBEEF'. Need single quotes around the
-	// '\\xHEX' form so psql -c parses it as a bytea value.
-	updateSQL := fmt.Sprintf(`UPDATE upstream_idp
-		SET client_secret_enc = E'\\x%s'::bytea,
-		    secret_nonce       = E'\\x%s'::bytea
-		WHERE id = %d`, hex.EncodeToString(ct), hex.EncodeToString(nonce), id)
-	if outU, err := exec.Command("psql", dburl, "-c", updateSQL).CombinedOutput(); err != nil {
-		return 0, fmt.Errorf("psql update secret: %v: %s", err, string(outU))
+	if _, err := conn.Exec(ctx,
+		"UPDATE upstream_idp SET client_secret_enc=$1, secret_nonce=$2 WHERE id=$3",
+		ct, nonce, id); err != nil {
+		return 0, fmt.Errorf("update secret: %w", err)
 	}
 	return id, nil
-}
-
-// sqlStringArray produces the inside of a SQL ARRAY[…] literal: each
-// element single-quoted, comma-separated. Empty input → empty string.
-// No quote-escaping because the smoke controls every value here.
-func sqlStringArray(xs []string) string {
-	if len(xs) == 0 {
-		return ""
-	}
-	out := make([]string, 0, len(xs))
-	for _, x := range xs {
-		out = append(out, "'"+x+"'")
-	}
-	return strings.Join(out, ",")
 }
 
 // verifyFederatedIdentityCreated asserts an account_identity row exists for
@@ -5388,7 +5403,7 @@ func sqlStringArray(xs []string) string {
 // confirms credential_event has a federation_oidc/register row.
 func verifyFederatedIdentityCreated(accountID int32, upstreamSub string, idpID int64) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT account_id::text || ':' || upstream_idp_id::text "+
 			"FROM account_identity WHERE upstream_sub='%s'", upstreamSub))
 	if err != nil {
@@ -5411,7 +5426,7 @@ func verifyFederatedIdentityCreated(accountID int32, upstreamSub string, idpID i
 // (accountID, upstreamSub). Used after unlink.
 func verifyFederatedIdentityGone(accountID int32, upstreamSub string) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT count(*)::text FROM account_identity "+
 			"WHERE account_id=%d AND upstream_sub='%s'", accountID, upstreamSub))
 	if err != nil {
@@ -5429,7 +5444,7 @@ func verifyFederatedIdentityGone(accountID int32, upstreamSub string) error {
 // avatar smoke steps use it to poll for the inherited image.
 func getOIDCSubject(accountID int32) (string, error) {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT oidc_subject::text FROM account WHERE id=%d", accountID))
 	if err != nil {
 		return "", err
@@ -5445,7 +5460,7 @@ func getOIDCSubject(accountID int32) (string, error) {
 // re-login. NULL columns come back as empty strings.
 func getAvatarSourceEtag(accountID int32) (source, etag string, err error) {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT coalesce(avatar_source,'') || '|' || coalesce(avatar_etag,'') "+
 			"FROM account WHERE id=%d", accountID))
 	if err != nil {
@@ -5494,7 +5509,7 @@ func pollAvatarInherited(baseURL, subject string, timeout time.Duration) (int, s
 // don't differentiate at the wire layer.
 func verifyV03FederationAuditEvents() error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
-	rows, err := psqlScalar(dburl,
+	rows, err := dbScalar(dburl,
 		"SELECT factor || ':' || event || ':' || count(*)::text "+
 			"FROM credential_event WHERE factor='federation_oidc' GROUP BY factor, event ORDER BY 1")
 	if err != nil {
@@ -5552,21 +5567,25 @@ func seedInviteEnrollment(token, templateUsername, templateDisplayName, template
 	// account_identity references account (not enrollment), and the prior
 	// invite — if successfully redeemed — has its consumed_at set; deleting
 	// it has no effect on the minted account.
-	if _, err := exec.Command("psql", dburl, "-c",
-		fmt.Sprintf("DELETE FROM enrollment WHERE token='%s'", token)).CombinedOutput(); err != nil {
-		return fmt.Errorf("psql delete prior invite: %w", err)
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dburl)
+	if err != nil {
+		return fmt.Errorf("pgx connect: %w", err)
 	}
-	insertSQL := fmt.Sprintf(`INSERT INTO enrollment (
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "DELETE FROM enrollment WHERE token=$1", token); err != nil {
+		return fmt.Errorf("delete prior invite: %w", err)
+	}
+	if _, err := conn.Exec(ctx, `INSERT INTO enrollment (
 		token, intent, expires_at,
 		template_username, template_display_name, template_role,
 		expected_upstream_idp_slug
 	) VALUES (
-		'%s', 'invite', now() + interval '%s',
-		'%s', '%s', '%s',
-		'%s'
-	)`, token, expiresOffset, templateUsername, templateDisplayName, templateRole, expectedSlug)
-	if out, err := exec.Command("psql", dburl, "-c", insertSQL).CombinedOutput(); err != nil {
-		return fmt.Errorf("psql insert invite enrollment: %v: %s", err, string(out))
+		$1, 'invite', now() + $2::interval,
+		$3, $4, $5,
+		$6
+	)`, token, expiresOffset, templateUsername, templateDisplayName, templateRole, expectedSlug); err != nil {
+		return fmt.Errorf("insert invite enrollment: %w", err)
 	}
 	return nil
 }
@@ -5585,7 +5604,7 @@ func verifyInviteOnlyRedemption(token, username, upstreamSub string, idpID int64
 	// 1) consumed_at NOT NULL on the enrollment row. Cast to bool::text
 	//    yields psql's "true"/"false" representation (not the "t"/"f"
 	//    short form used by ::char output).
-	consumed, err := psqlScalar(dburl, fmt.Sprintf(
+	consumed, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT (consumed_at IS NOT NULL)::text FROM enrollment WHERE token='%s'", token))
 	if err != nil {
 		return err
@@ -5596,7 +5615,7 @@ func verifyInviteOnlyRedemption(token, username, upstreamSub string, idpID int64
 	log.Printf("  enrollment[%s].consumed_at IS NOT NULL ✓", token)
 
 	// 2) account row exists with the template username.
-	accIDs, err := psqlScalar(dburl, fmt.Sprintf(
+	accIDs, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT id::text FROM account WHERE username='%s'", username))
 	if err != nil {
 		return err
@@ -5611,7 +5630,7 @@ func verifyInviteOnlyRedemption(token, username, upstreamSub string, idpID int64
 	log.Printf("  account[username=%s] id=%d ✓", username, accID)
 
 	// 3) account_identity row links that account to the upstream sub + idp.
-	idents, err := psqlScalar(dburl, fmt.Sprintf(
+	idents, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT account_id::text || ':' || upstream_idp_id::text "+
 			"FROM account_identity WHERE upstream_sub='%s'", upstreamSub))
 	if err != nil {
@@ -5625,7 +5644,7 @@ func verifyInviteOnlyRedemption(token, username, upstreamSub string, idpID int64
 
 	// 4) credential_event has a federation_oidc/register row with
 	//    detail->>'reason' = 'invite_only_redemption' for this account.
-	regs, err := psqlScalar(dburl, fmt.Sprintf(
+	regs, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT count(*)::text FROM credential_event "+
 			"WHERE factor='federation_oidc' AND event='register' "+
 			"AND account_id=%d AND detail->>'reason'='invite_only_redemption'", accID))
@@ -6256,7 +6275,7 @@ func verifyV06SAMLAuditEvents() error {
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
 	}
-	rows, err := psqlScalar(dburl,
+	rows, err := dbScalar(dburl,
 		"SELECT event || ':' || COALESCE(detail->>'reason','') || ':' || count(*)::text "+
 			"FROM credential_event WHERE factor='saml_sp' "+
 			"GROUP BY event, COALESCE(detail->>'reason','') "+
@@ -6513,7 +6532,7 @@ func verifyRevokedJTI(jti string) error {
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
 	}
-	rows, err := psqlScalar(dburl, fmt.Sprintf(
+	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT count(*)::text FROM revoked_jti WHERE jti='%s'", jti))
 	if err != nil {
 		return err
@@ -6543,7 +6562,7 @@ func verifyV04OIDCAuditEvents() error {
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
 	}
-	rows, err := psqlScalar(dburl,
+	rows, err := dbScalar(dburl,
 		"SELECT event || ':' || COALESCE(detail->>'reason','') || ':' || count(*)::text "+
 			"FROM credential_event WHERE factor='oidc_client' "+
 			"GROUP BY event, COALESCE(detail->>'reason','') "+
