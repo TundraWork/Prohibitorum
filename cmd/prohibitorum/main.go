@@ -773,6 +773,10 @@ modified here.`,
 
 	cli.Root().AddCommand(samlSPCmd)
 
+	addGroupCommands(cli.Root())
+	addOIDCClientAccessCommands(oidcClientCmd)
+	addSAMLSPAccessCommands(samlSPCmd)
+
 	addUpstreamIDPCommands(cli.Root())
 
 	addDevSeedCmd(cli.Root())
@@ -1151,4 +1155,542 @@ func fetchMetadata(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("metadata url returned status %d", resp.StatusCode)
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+}
+
+// addGroupCommands registers the `group` command group:
+// create | list | update | delete | add-member | remove-member.
+func addGroupCommands(root *cobra.Command) {
+	groupCmd := &cobra.Command{
+		Use:   "group",
+		Short: "Manage user groups",
+	}
+
+	// group create
+	var (
+		gcSlug        string
+		gcDisplayName string
+		gcDescription string
+		gcNoExpose    bool
+	)
+	createGroupCmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a new user group",
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			if gcSlug == "" {
+				log.Fatalf("--slug is required")
+			}
+			if gcDisplayName == "" {
+				log.Fatalf("--display-name is required")
+			}
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			var desc pgtype.Text
+			if gcDescription != "" {
+				desc = pgtype.Text{String: gcDescription, Valid: true}
+			}
+			g, err := q.CreateGroup(ctx, db.CreateGroupParams{
+				Slug:                gcSlug,
+				DisplayName:         gcDisplayName,
+				Description:         desc,
+				ExposedToDownstream: !gcNoExpose,
+			})
+			if err != nil {
+				log.Fatalf("group create: %v", err)
+			}
+			fmt.Printf("Created group %q (id=%d, slug=%q, exposed=%t)\n", g.DisplayName, g.ID, g.Slug, g.ExposedToDownstream)
+		},
+	}
+	createGroupCmd.Flags().StringVar(&gcSlug, "slug", "", "Stable slug identifier (required).")
+	createGroupCmd.Flags().StringVar(&gcDisplayName, "display-name", "", "Human-readable group name (required).")
+	createGroupCmd.Flags().StringVar(&gcDescription, "description", "", "Optional description.")
+	createGroupCmd.Flags().BoolVar(&gcNoExpose, "no-expose", false, "Do not expose this group to downstream apps (default: expose).")
+	groupCmd.AddCommand(createGroupCmd)
+
+	// group list
+	listGroupCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List user groups",
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			groups, err := q.ListGroups(ctx)
+			if err != nil {
+				log.Fatalf("group list: %v", err)
+			}
+			if len(groups) == 0 {
+				fmt.Println("No groups found.")
+				return
+			}
+			fmt.Printf("%-32s %-32s %-8s %s\n", "SLUG", "DISPLAY_NAME", "MEMBERS", "EXPOSED")
+			for _, g := range groups {
+				fmt.Printf("%-32s %-32s %-8d %t\n", g.Slug, g.DisplayName, g.MemberCount, g.ExposedToDownstream)
+			}
+		},
+	}
+	groupCmd.AddCommand(listGroupCmd)
+
+	// group update
+	var (
+		guSlug        string
+		guDisplayName string
+		guDescription string
+		guExpose      string // "true"/"false"/""
+	)
+	updateGroupCmd := &cobra.Command{
+		Use:   "update",
+		Short: "Update a user group's fields (unspecified fields are preserved)",
+		Run: func(cmd *cobra.Command, _ []string) {
+			ctx := context.Background()
+			if guSlug == "" {
+				log.Fatalf("--slug is required")
+			}
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			g, err := q.GetGroupBySlug(ctx, guSlug)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					log.Fatalf("group update: group %q not found", guSlug)
+				}
+				log.Fatalf("group update: lookup: %v", err)
+			}
+
+			// Preserve unspecified fields from the loaded row.
+			slug := guSlug
+			displayName := g.DisplayName
+			if cmd.Flags().Changed("display-name") {
+				displayName = guDisplayName
+			}
+			description := g.Description
+			if cmd.Flags().Changed("description") {
+				description = pgtype.Text{String: guDescription, Valid: true}
+			}
+			exposed := g.ExposedToDownstream
+			if cmd.Flags().Changed("expose") {
+				switch guExpose {
+				case "true":
+					exposed = true
+				case "false":
+					exposed = false
+				default:
+					log.Fatalf("--expose must be true or false")
+				}
+			}
+
+			updated, err := q.UpdateGroup(ctx, db.UpdateGroupParams{
+				ID:                  g.ID,
+				Slug:                slug,
+				DisplayName:         displayName,
+				Description:         description,
+				ExposedToDownstream: exposed,
+			})
+			if err != nil {
+				log.Fatalf("group update: %v", err)
+			}
+			fmt.Printf("Updated group %q (slug=%q, exposed=%t)\n", updated.DisplayName, updated.Slug, updated.ExposedToDownstream)
+		},
+	}
+	updateGroupCmd.Flags().StringVar(&guSlug, "slug", "", "Slug of the group to update (required).")
+	updateGroupCmd.Flags().StringVar(&guDisplayName, "display-name", "", "New human-readable group name.")
+	updateGroupCmd.Flags().StringVar(&guDescription, "description", "", "New description.")
+	updateGroupCmd.Flags().StringVar(&guExpose, "expose", "", "Expose to downstream apps: true or false.")
+	groupCmd.AddCommand(updateGroupCmd)
+
+	// group delete
+	var (
+		gdSlug string
+		gdYes  bool
+	)
+	deleteGroupCmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Hard-delete a user group (requires --yes)",
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			if gdSlug == "" {
+				log.Fatalf("--slug is required")
+			}
+			if !gdYes {
+				log.Fatalf("refusing to delete group %q without --yes", gdSlug)
+			}
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			g, err := q.GetGroupBySlug(ctx, gdSlug)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					log.Fatalf("group delete: group %q not found", gdSlug)
+				}
+				log.Fatalf("group delete: lookup: %v", err)
+			}
+			rows, err := q.DeleteGroup(ctx, g.ID)
+			if err != nil {
+				log.Fatalf("group delete: %v", err)
+			}
+			if rows == 0 {
+				log.Fatalf("group delete: group %q not found", gdSlug)
+			}
+			fmt.Printf("Deleted group %q (id=%d)\n", gdSlug, g.ID)
+		},
+	}
+	deleteGroupCmd.Flags().StringVar(&gdSlug, "slug", "", "Slug of the group to delete (required).")
+	deleteGroupCmd.Flags().BoolVar(&gdYes, "yes", false, "Confirm the destructive delete.")
+	groupCmd.AddCommand(deleteGroupCmd)
+
+	// group add-member
+	var (
+		gamSlug     string
+		gamUsername string
+	)
+	addMemberCmd := &cobra.Command{
+		Use:   "add-member",
+		Short: "Add an account to a group",
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			if gamSlug == "" {
+				log.Fatalf("--slug is required")
+			}
+			if gamUsername == "" {
+				log.Fatalf("--username is required")
+			}
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			g, err := q.GetGroupBySlug(ctx, gamSlug)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					log.Fatalf("group add-member: group %q not found", gamSlug)
+				}
+				log.Fatalf("group add-member: group lookup: %v", err)
+			}
+			a, err := q.GetAccountByUsername(ctx, gamUsername)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					log.Fatalf("group add-member: account %q not found", gamUsername)
+				}
+				log.Fatalf("group add-member: account lookup: %v", err)
+			}
+			if err := q.AddGroupMember(ctx, db.AddGroupMemberParams{
+				GroupID:   g.ID,
+				AccountID: a.ID,
+			}); err != nil {
+				log.Fatalf("group add-member: %v", err)
+			}
+			fmt.Printf("Added %q to group %q\n", gamUsername, gamSlug)
+		},
+	}
+	addMemberCmd.Flags().StringVar(&gamSlug, "slug", "", "Group slug (required).")
+	addMemberCmd.Flags().StringVar(&gamUsername, "username", "", "Account username to add (required).")
+	groupCmd.AddCommand(addMemberCmd)
+
+	// group remove-member
+	var (
+		grmSlug     string
+		grmUsername string
+	)
+	removeMemberCmd := &cobra.Command{
+		Use:   "remove-member",
+		Short: "Remove an account from a group",
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			if grmSlug == "" {
+				log.Fatalf("--slug is required")
+			}
+			if grmUsername == "" {
+				log.Fatalf("--username is required")
+			}
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			g, err := q.GetGroupBySlug(ctx, grmSlug)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					log.Fatalf("group remove-member: group %q not found", grmSlug)
+				}
+				log.Fatalf("group remove-member: group lookup: %v", err)
+			}
+			a, err := q.GetAccountByUsername(ctx, grmUsername)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					log.Fatalf("group remove-member: account %q not found", grmUsername)
+				}
+				log.Fatalf("group remove-member: account lookup: %v", err)
+			}
+			rows, err := q.RemoveGroupMember(ctx, db.RemoveGroupMemberParams{
+				GroupID:   g.ID,
+				AccountID: a.ID,
+			})
+			if err != nil {
+				log.Fatalf("group remove-member: %v", err)
+			}
+			if rows == 0 {
+				log.Fatalf("group remove-member: %q is not a member of group %q", grmUsername, grmSlug)
+			}
+			fmt.Printf("Removed %q from group %q\n", grmUsername, grmSlug)
+		},
+	}
+	removeMemberCmd.Flags().StringVar(&grmSlug, "slug", "", "Group slug (required).")
+	removeMemberCmd.Flags().StringVar(&grmUsername, "username", "", "Account username to remove (required).")
+	groupCmd.AddCommand(removeMemberCmd)
+
+	root.AddCommand(groupCmd)
+}
+
+// addOIDCClientAccessCommands registers `oidc-client access` subcommand with
+// --access-restricted, --grant-group, --revoke-group, --grant-account,
+// --revoke-account flags. Only flags explicitly set by the caller are acted on.
+func addOIDCClientAccessCommands(parent *cobra.Command) {
+	var (
+		acClientID      string
+		acRestricted    bool
+		acGrantGroup    string
+		acRevokeGroup   string
+		acGrantAccount  string
+		acRevokeAccount string
+	)
+	accessCmd := &cobra.Command{
+		Use:   "access",
+		Short: "Manage per-app access controls for an OIDC client",
+		Long: `Set access-restricted mode and grant/revoke group or account access for an
+OIDC client. Only the flags you pass are acted on.`,
+		Run: func(cmd *cobra.Command, _ []string) {
+			ctx := context.Background()
+			if acClientID == "" {
+				log.Fatalf("--client-id is required")
+			}
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			if cmd.Flags().Changed("access-restricted") {
+				updated, err := q.SetOIDCClientAccessRestricted(ctx, db.SetOIDCClientAccessRestrictedParams{
+					ClientID:         acClientID,
+					AccessRestricted: acRestricted,
+				})
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("oidc-client access: client %q not found", acClientID)
+					}
+					log.Fatalf("oidc-client access: set-restricted: %v", err)
+				}
+				fmt.Printf("OIDC client %q access_restricted=%t\n", updated.ClientID, updated.AccessRestricted)
+			}
+
+			if cmd.Flags().Changed("grant-group") {
+				g, err := q.GetGroupBySlug(ctx, acGrantGroup)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("oidc-client access: group %q not found", acGrantGroup)
+					}
+					log.Fatalf("oidc-client access: group lookup: %v", err)
+				}
+				if err := q.GrantOIDCClientAccessGroup(ctx, db.GrantOIDCClientAccessGroupParams{
+					ClientID: acClientID,
+					GroupID:  pgtype.Int4{Int32: g.ID, Valid: true},
+				}); err != nil {
+					log.Fatalf("oidc-client access: grant-group: %v", err)
+				}
+				fmt.Printf("Granted group %q access to OIDC client %q\n", acGrantGroup, acClientID)
+			}
+
+			if cmd.Flags().Changed("revoke-group") {
+				g, err := q.GetGroupBySlug(ctx, acRevokeGroup)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("oidc-client access: group %q not found", acRevokeGroup)
+					}
+					log.Fatalf("oidc-client access: group lookup: %v", err)
+				}
+				rows, err := q.RevokeOIDCClientAccessGroup(ctx, db.RevokeOIDCClientAccessGroupParams{
+					ClientID: acClientID,
+					GroupID:  pgtype.Int4{Int32: g.ID, Valid: true},
+				})
+				if err != nil {
+					log.Fatalf("oidc-client access: revoke-group: %v", err)
+				}
+				if rows == 0 {
+					log.Fatalf("oidc-client access: group %q had no access to client %q", acRevokeGroup, acClientID)
+				}
+				fmt.Printf("Revoked group %q access from OIDC client %q\n", acRevokeGroup, acClientID)
+			}
+
+			if cmd.Flags().Changed("grant-account") {
+				a, err := q.GetAccountByUsername(ctx, acGrantAccount)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("oidc-client access: account %q not found", acGrantAccount)
+					}
+					log.Fatalf("oidc-client access: account lookup: %v", err)
+				}
+				if err := q.GrantOIDCClientAccessAccount(ctx, db.GrantOIDCClientAccessAccountParams{
+					ClientID:  acClientID,
+					AccountID: pgtype.Int4{Int32: a.ID, Valid: true},
+				}); err != nil {
+					log.Fatalf("oidc-client access: grant-account: %v", err)
+				}
+				fmt.Printf("Granted account %q access to OIDC client %q\n", acGrantAccount, acClientID)
+			}
+
+			if cmd.Flags().Changed("revoke-account") {
+				a, err := q.GetAccountByUsername(ctx, acRevokeAccount)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("oidc-client access: account %q not found", acRevokeAccount)
+					}
+					log.Fatalf("oidc-client access: account lookup: %v", err)
+				}
+				rows, err := q.RevokeOIDCClientAccessAccount(ctx, db.RevokeOIDCClientAccessAccountParams{
+					ClientID:  acClientID,
+					AccountID: pgtype.Int4{Int32: a.ID, Valid: true},
+				})
+				if err != nil {
+					log.Fatalf("oidc-client access: revoke-account: %v", err)
+				}
+				if rows == 0 {
+					log.Fatalf("oidc-client access: account %q had no access to client %q", acRevokeAccount, acClientID)
+				}
+				fmt.Printf("Revoked account %q access from OIDC client %q\n", acRevokeAccount, acClientID)
+			}
+		},
+	}
+	accessCmd.Flags().StringVar(&acClientID, "client-id", "", "OIDC client identifier (required).")
+	accessCmd.Flags().BoolVar(&acRestricted, "access-restricted", false, "Set access_restricted (true/false).")
+	accessCmd.Flags().StringVar(&acGrantGroup, "grant-group", "", "Group slug to grant access.")
+	accessCmd.Flags().StringVar(&acRevokeGroup, "revoke-group", "", "Group slug to revoke access.")
+	accessCmd.Flags().StringVar(&acGrantAccount, "grant-account", "", "Account username to grant access.")
+	accessCmd.Flags().StringVar(&acRevokeAccount, "revoke-account", "", "Account username to revoke access.")
+	parent.AddCommand(accessCmd)
+}
+
+// addSAMLSPAccessCommands registers `saml-sp access` subcommand with
+// --access-restricted, --grant-group, --revoke-group, --grant-account,
+// --revoke-account flags. The SP is identified by --entity-id (resolved to
+// the numeric id). Only flags explicitly set by the caller are acted on.
+func addSAMLSPAccessCommands(parent *cobra.Command) {
+	var (
+		asEntityID      string
+		asRestricted    bool
+		asGrantGroup    string
+		asRevokeGroup   string
+		asGrantAccount  string
+		asRevokeAccount string
+	)
+	accessCmd := &cobra.Command{
+		Use:   "access",
+		Short: "Manage per-app access controls for a SAML SP",
+		Long: `Set access-restricted mode and grant/revoke group or account access for a
+SAML service provider. Only the flags you pass are acted on.`,
+		Run: func(cmd *cobra.Command, _ []string) {
+			ctx := context.Background()
+			if asEntityID == "" {
+				log.Fatalf("--entity-id is required")
+			}
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			sp, err := q.GetSAMLSPByEntityID(ctx, asEntityID)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					log.Fatalf("saml-sp access: SP %q not found", asEntityID)
+				}
+				log.Fatalf("saml-sp access: lookup: %v", err)
+			}
+
+			if cmd.Flags().Changed("access-restricted") {
+				updated, err := q.SetSAMLSPAccessRestricted(ctx, db.SetSAMLSPAccessRestrictedParams{
+					ID:               sp.ID,
+					AccessRestricted: asRestricted,
+				})
+				if err != nil {
+					log.Fatalf("saml-sp access: set-restricted: %v", err)
+				}
+				fmt.Printf("SAML SP %q access_restricted=%t\n", updated.EntityID, updated.AccessRestricted)
+			}
+
+			if cmd.Flags().Changed("grant-group") {
+				g, err := q.GetGroupBySlug(ctx, asGrantGroup)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("saml-sp access: group %q not found", asGrantGroup)
+					}
+					log.Fatalf("saml-sp access: group lookup: %v", err)
+				}
+				if err := q.GrantSAMLSPAccessGroup(ctx, db.GrantSAMLSPAccessGroupParams{
+					SamlSpID: sp.ID,
+					GroupID:  pgtype.Int4{Int32: g.ID, Valid: true},
+				}); err != nil {
+					log.Fatalf("saml-sp access: grant-group: %v", err)
+				}
+				fmt.Printf("Granted group %q access to SAML SP %q\n", asGrantGroup, asEntityID)
+			}
+
+			if cmd.Flags().Changed("revoke-group") {
+				g, err := q.GetGroupBySlug(ctx, asRevokeGroup)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("saml-sp access: group %q not found", asRevokeGroup)
+					}
+					log.Fatalf("saml-sp access: group lookup: %v", err)
+				}
+				rows, err := q.RevokeSAMLSPAccessGroup(ctx, db.RevokeSAMLSPAccessGroupParams{
+					SamlSpID: sp.ID,
+					GroupID:  pgtype.Int4{Int32: g.ID, Valid: true},
+				})
+				if err != nil {
+					log.Fatalf("saml-sp access: revoke-group: %v", err)
+				}
+				if rows == 0 {
+					log.Fatalf("saml-sp access: group %q had no access to SP %q", asRevokeGroup, asEntityID)
+				}
+				fmt.Printf("Revoked group %q access from SAML SP %q\n", asRevokeGroup, asEntityID)
+			}
+
+			if cmd.Flags().Changed("grant-account") {
+				a, err := q.GetAccountByUsername(ctx, asGrantAccount)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("saml-sp access: account %q not found", asGrantAccount)
+					}
+					log.Fatalf("saml-sp access: account lookup: %v", err)
+				}
+				if err := q.GrantSAMLSPAccessAccount(ctx, db.GrantSAMLSPAccessAccountParams{
+					SamlSpID:  sp.ID,
+					AccountID: pgtype.Int4{Int32: a.ID, Valid: true},
+				}); err != nil {
+					log.Fatalf("saml-sp access: grant-account: %v", err)
+				}
+				fmt.Printf("Granted account %q access to SAML SP %q\n", asGrantAccount, asEntityID)
+			}
+
+			if cmd.Flags().Changed("revoke-account") {
+				a, err := q.GetAccountByUsername(ctx, asRevokeAccount)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						log.Fatalf("saml-sp access: account %q not found", asRevokeAccount)
+					}
+					log.Fatalf("saml-sp access: account lookup: %v", err)
+				}
+				rows, err := q.RevokeSAMLSPAccessAccount(ctx, db.RevokeSAMLSPAccessAccountParams{
+					SamlSpID:  sp.ID,
+					AccountID: pgtype.Int4{Int32: a.ID, Valid: true},
+				})
+				if err != nil {
+					log.Fatalf("saml-sp access: revoke-account: %v", err)
+				}
+				if rows == 0 {
+					log.Fatalf("saml-sp access: account %q had no access to SP %q", asRevokeAccount, asEntityID)
+				}
+				fmt.Printf("Revoked account %q access from SAML SP %q\n", asRevokeAccount, asEntityID)
+			}
+		},
+	}
+	accessCmd.Flags().StringVar(&asEntityID, "entity-id", "", "SAML SP entity ID (required).")
+	accessCmd.Flags().BoolVar(&asRestricted, "access-restricted", false, "Set access_restricted (true/false).")
+	accessCmd.Flags().StringVar(&asGrantGroup, "grant-group", "", "Group slug to grant access.")
+	accessCmd.Flags().StringVar(&asRevokeGroup, "revoke-group", "", "Group slug to revoke access.")
+	accessCmd.Flags().StringVar(&asGrantAccount, "grant-account", "", "Account username to grant access.")
+	accessCmd.Flags().StringVar(&asRevokeAccount, "revoke-account", "", "Account username to revoke access.")
+	parent.AddCommand(accessCmd)
 }
