@@ -82,6 +82,7 @@ type idTokenInput struct {
 	AMR          []string // authentication methods, e.g. ["webauthn"]
 	AccessToken  string   // to compute at_hash; at_hash omitted if ""
 	Scope        []string // granted scopes; gates the profile block
+	Groups       []string // exposed group slugs; emitted only when "groups" scope granted
 	IssuedAt     time.Time
 	Expiry       time.Time
 	AuthTime     time.Time
@@ -127,16 +128,21 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 			c[k] = v
 		}
 	}
+	if hasScope(in.Scope, "groups") {
+		c["groups"] = nonNilSlugs(in.Groups)
+	}
 
 	return c
 }
 
 // userinfoClaims projects an account into the /userinfo response: always
-// `sub`, plus the profile block iff `profile` was granted and the email block
-// iff `email` was granted. origin is the public origin where the avatar
-// endpoint is served (cfg.PublicOrigins[0]); it is forwarded to profileClaims
-// to build the picture URL.
-func userinfoClaims(a db.Account, scope []string, origin string) map[string]any {
+// `sub`, plus the profile block iff `profile` was granted, the email block
+// iff `email` was granted, and the groups block iff `groups` was granted.
+// origin is the public origin where the avatar endpoint is served
+// (cfg.PublicOrigins[0]); it is forwarded to profileClaims to build the
+// picture URL. groups is the caller-supplied list of exposed group slugs
+// (nil when the groups scope was not granted).
+func userinfoClaims(a db.Account, scope []string, origin string, groups []string) map[string]any {
 	c := map[string]any{
 		"sub": subjectOf(a),
 	}
@@ -150,7 +156,18 @@ func userinfoClaims(a db.Account, scope []string, origin string) map[string]any 
 			c[k] = v
 		}
 	}
+	if hasScope(scope, "groups") {
+		c["groups"] = nonNilSlugs(groups)
+	}
 	return c
+}
+
+// nonNilSlugs returns a non-nil empty slice so the claim serializes as [] not null.
+func nonNilSlugs(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // emailClaims returns the OIDC `email` / `email_verified` claim block (Core

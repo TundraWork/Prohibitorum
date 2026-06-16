@@ -147,11 +147,21 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		scope = strings.Fields(s)
 	}
 
+	var groups []string
+	if hasScope(scope, "groups") {
+		gs, gerr := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
+		if gerr != nil {
+			writeBearerError(w, http.StatusInternalServerError, "could not load groups")
+			return
+		}
+		groups = gs
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	avatarOrigin := p.cfg.OIDC.Issuer
 	if len(p.cfg.PublicOrigins) > 0 {
 		avatarOrigin = p.cfg.PublicOrigins[0]
 	}
-	_ = json.NewEncoder(w).Encode(userinfoClaims(acct, scope, avatarOrigin))
+	_ = json.NewEncoder(w).Encode(userinfoClaims(acct, scope, avatarOrigin, groups))
 }

@@ -129,7 +129,7 @@ func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 		"revocation_endpoint":    issuer + "/oauth/revoke",
 		"end_session_endpoint":   issuer + "/oidc/logout",
 
-		"scopes_supported":                      []string{"openid", "profile", "email", "offline_access"},
+		"scopes_supported":                      []string{"openid", "profile", "email", "offline_access", "groups"},
 		"response_types_supported":              []string{"code"},
 		"grant_types_supported":                 []string{"authorization_code", "refresh_token"},
 		"id_token_signing_alg_values_supported": []string{"RS256"},

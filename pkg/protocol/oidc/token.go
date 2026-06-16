@@ -293,6 +293,15 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 		return "", "", err
 	}
 
+	var groups []string
+	if hasScope(scope, "groups") {
+		gs, gerr := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
+		if gerr != nil {
+			return "", "", gerr
+		}
+		groups = gs
+	}
+
 	avatarOrigin := issuer
 	if len(p.cfg.PublicOrigins) > 0 {
 		avatarOrigin = p.cfg.PublicOrigins[0]
@@ -307,6 +316,7 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 		AMR:          amr,
 		AccessToken:  accessToken,
 		Scope:        scope,
+		Groups:       groups,
 		IssuedAt:     now,
 		Expiry:       now.Add(p.idTokenTTL()),
 		AuthTime:     authTime,

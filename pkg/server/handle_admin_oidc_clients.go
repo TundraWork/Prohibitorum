@@ -50,6 +50,7 @@ var supportedOIDCScopes = map[string]bool{
 	"profile":        true,
 	"email":          true,
 	"offline_access": true,
+	"groups":         true,
 }
 
 // validateOIDCScopes rejects any allowed_scopes value the OP does not support.

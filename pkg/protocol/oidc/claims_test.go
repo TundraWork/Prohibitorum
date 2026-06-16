@@ -134,11 +134,11 @@ func TestClaimsEmailScope(t *testing.T) {
 	}
 
 	// userinfo parity.
-	u := userinfoClaims(a, []string{"openid", "email"}, "")
+	u := userinfoClaims(a, []string{"openid", "email"}, "", nil)
 	if u["email"] != "alice@example.com" || u["email_verified"] != true {
 		t.Errorf("userinfo email block = %v/%v, want alice@example.com/true", u["email"], u["email_verified"])
 	}
-	if _, ok := userinfoClaims(a, []string{"openid"}, "")["email"]; ok {
+	if _, ok := userinfoClaims(a, []string{"openid"}, "", nil)["email"]; ok {
 		t.Error("userinfo leaked email without the email scope")
 	}
 }
@@ -264,7 +264,7 @@ func TestClaimsIDTokenOmitsAttributesWhenEmpty(t *testing.T) {
 
 func TestClaimsUserinfoWithProfile(t *testing.T) {
 	a := testAccount(t)
-	c := userinfoClaims(a, []string{"openid", "profile"}, "")
+	c := userinfoClaims(a, []string{"openid", "profile"}, "", nil)
 
 	if c["sub"] != subjectOf(a) {
 		t.Fatalf("sub = %v, want %v", c["sub"], subjectOf(a))
@@ -292,7 +292,7 @@ func TestClaimsUserinfoWithProfile(t *testing.T) {
 
 func TestClaimsUserinfoWithoutProfile(t *testing.T) {
 	a := testAccount(t)
-	c := userinfoClaims(a, []string{"openid"}, "")
+	c := userinfoClaims(a, []string{"openid"}, "", nil)
 
 	if c["sub"] != subjectOf(a) {
 		t.Fatalf("sub = %v, want %v", c["sub"], subjectOf(a))
@@ -319,6 +319,92 @@ func TestProfileClaims_Picture(t *testing.T) {
 	a.AvatarEtag = pgtype.Text{}
 	if _, ok := profileClaims(a, "https://auth.example.com")["picture"]; ok {
 		t.Fatal("picture must be absent without an avatar")
+	}
+}
+
+// TestClaimsGroupsScope guards Task 8: the `groups` claim is emitted in both
+// id_token and userinfo only when the `groups` scope is granted; it is a
+// non-nil []string (serializes as []) when granted but the user has no groups.
+func TestClaimsGroupsScope(t *testing.T) {
+	a := testAccount(t)
+
+	// --- id_token ---
+
+	// groups scope + non-empty Groups → claim present with the slugs.
+	in := baseInput()
+	in.Scope = []string{"openid", "groups"}
+	in.Groups = []string{"alpha", "beta"}
+	c := idTokenClaims(a, in)
+	gs, ok := c["groups"].([]string)
+	if !ok {
+		t.Fatalf("groups claim type = %T, want []string", c["groups"])
+	}
+	if len(gs) != 2 || gs[0] != "alpha" || gs[1] != "beta" {
+		t.Errorf("groups = %v, want [alpha beta]", gs)
+	}
+
+	// groups scope + nil Groups → claim present as non-nil empty slice ([] not null).
+	in.Groups = nil
+	c = idTokenClaims(a, in)
+	gs, ok = c["groups"].([]string)
+	if !ok {
+		t.Fatalf("groups claim (nil input) type = %T, want []string", c["groups"])
+	}
+	if gs == nil {
+		t.Fatal("groups claim is nil, want non-nil empty slice")
+	}
+	if len(gs) != 0 {
+		t.Errorf("groups len = %d, want 0", len(gs))
+	}
+
+	// groups scope + empty (non-nil) Groups → same non-nil empty slice.
+	in.Groups = []string{}
+	c = idTokenClaims(a, in)
+	gs, ok = c["groups"].([]string)
+	if !ok {
+		t.Fatalf("groups claim (empty input) type = %T, want []string", c["groups"])
+	}
+	if gs == nil {
+		t.Fatal("groups claim is nil, want non-nil empty slice")
+	}
+
+	// no groups scope → claim entirely absent.
+	in.Scope = []string{"openid", "profile"}
+	in.Groups = []string{"alpha"}
+	c = idTokenClaims(a, in)
+	if _, ok := c["groups"]; ok {
+		t.Error("groups claim present without the groups scope")
+	}
+
+	// --- userinfo ---
+
+	// groups scope + non-empty → present.
+	u := userinfoClaims(a, []string{"openid", "groups"}, "", []string{"gamma"})
+	ugs, ok := u["groups"].([]string)
+	if !ok {
+		t.Fatalf("userinfo groups type = %T, want []string", u["groups"])
+	}
+	if len(ugs) != 1 || ugs[0] != "gamma" {
+		t.Errorf("userinfo groups = %v, want [gamma]", ugs)
+	}
+
+	// groups scope + nil → non-nil empty slice.
+	u = userinfoClaims(a, []string{"openid", "groups"}, "", nil)
+	ugs, ok = u["groups"].([]string)
+	if !ok {
+		t.Fatalf("userinfo groups (nil) type = %T, want []string", u["groups"])
+	}
+	if ugs == nil {
+		t.Fatal("userinfo groups is nil, want non-nil empty slice")
+	}
+	if len(ugs) != 0 {
+		t.Errorf("userinfo groups len = %d, want 0", len(ugs))
+	}
+
+	// no groups scope → absent.
+	u = userinfoClaims(a, []string{"openid", "profile"}, "", []string{"gamma"})
+	if _, ok := u["groups"]; ok {
+		t.Error("userinfo groups present without the groups scope")
 	}
 }
 
