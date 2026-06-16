@@ -310,12 +310,11 @@ describe('AdminAccountDetailView', () => {
   it('group picker excludes groups the account already belongs to', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    // ALL_GROUPS has ids 10 and 20; account is already in group 10
-    // The select content renders SelectItem for each addable group.
-    // Group 10 should NOT appear; group 20 (Operations) SHOULD appear.
-    // We check via the select trigger options rendered in the DOM.
-    const selectContent = w.findAll('[data-test="group-select"] [data-test]')
-    // Simpler: check that the add button is disabled when no group selected
+    // ALL_GROUPS has ids 10 and 20; account is already in group 10.
+    // The add-picker is fed by addableGroups, which must exclude group 10.
+    const vm = w.vm as unknown as { addableGroups: Array<{ id: number }> }
+    expect(vm.addableGroups.some((g) => g.id === 10)).toBe(false)
+    // And the add button is disabled until a group is selected.
     const addBtn = w.find<HTMLButtonElement>('[data-test="add-to-group"]')
     expect(addBtn.element.disabled).toBe(true)
   })
@@ -378,10 +377,8 @@ describe('AdminAccountDetailView', () => {
     post.mockResolvedValue(undefined)
     const w = mountView(); await flushPromises()
     await w.find('[data-test="group-remove-10"]').trigger('click'); await flushPromises()
-    // confirm dialog should appear — click the confirm button (last destructive button matching label)
-    const btns = Array.from(document.body.querySelectorAll('button'))
-      .filter((b) => b.textContent?.includes(en.admin.account.groupsRemove))
-    btns[btns.length - 1]!.click(); await flushPromises()
+    // confirm dialog should appear — click its destructive confirm button
+    clickConfirm(en.admin.account.groupsRemove); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/groups/10/members/remove', { accountId: 7 })
   })
 })
