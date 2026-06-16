@@ -38,7 +38,7 @@
     {
       "id": 5,
       "subject": "Task 6: App access SPA (Access card)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Reusable AppAccessCard (kind oidc|saml) mounted on both app detail pages: restrict toggle + grant list add/remove; i18n.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/AppAccessCard.vue\",\"dashboard/src/components/custom/AppAccessCard.test.ts\",\"dashboard/src/pages/admin/AdminOidcClientDetailView.vue\",\"dashboard/src/pages/admin/AdminSamlProviderDetailView.vue\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npm test && npm run build\",\"acceptanceCriteria\":[\"restrict Switch -> set-restricted\",\"groups+accounts add/remove when restricted; inactive hint when open\",\"works for both protocols via props\"]}\n```"
     },
@@ -78,5 +78,5 @@
       "description": "**Goal:** Smoke RBAC arc (group->member->restrict->deny/allow->groups claim); docs (README box, api.md, ARCHITECTURE, STATUS); rebuild+commit pkg/webui/dist; full green gate.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\",\"README.md\",\"api.md\",\"ARCHITECTURE.md\",\"STATUS.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke arc green incl groups claim\",\"docs updated; README RBAC box checked\",\"full gate GREEN + dist rebuilt/committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-16T03:30:00Z"
+  "lastUpdated": "2026-06-16T04:10:00Z"
 }
