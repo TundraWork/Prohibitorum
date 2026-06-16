@@ -41,6 +41,18 @@ run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITOR
 description = "Show migration status for the dev database (override by exporting PROHIBITORUM_DATABASE_URL)."
 run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITORUM_DATABASE_URL\" status"
 
+[tasks."db:start"]
+description = "Start a podman-free local Postgres for dev (self-contained cluster in .dev/pgdata; a drop-in for `podman compose up -d`, same port/role/db as scripts/dev-env.sh). Use this on macOS / any host without a container runtime. Needs the Postgres tools on PATH (brew install postgresql@18)."
+run = "scripts/dev-db.sh start"
+
+[tasks."db:stop"]
+description = "Stop the local dev Postgres started by `mise db:start`."
+run = "scripts/dev-db.sh stop"
+
+[tasks."db:reset"]
+description = "Stop and WIPE the local dev Postgres data dir (.dev/pgdata), so the next `mise db:start` is a fresh database."
+run = "scripts/dev-db.sh reset"
+
 [tasks.build]
 description = "Build the SPA into pkg/webui/dist, then compile the ./prohibitorum binary (which embeds the dist). Run it directly, e.g. with the dev env: `. ./scripts/dev-env.sh && ./prohibitorum`."
 run = """
@@ -54,7 +66,7 @@ echo "built ./prohibitorum"
 """
 
 [tasks.dev-server]
-description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults (see scripts/dev-env.sh): the prohibitorum_dev database from `podman compose up -d` and a stable .dev/encryption-key. The server auto-migrates on boot. Bootstrap an admin with `mise enroll-admin -- --new` in another shell."
+description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults (see scripts/dev-env.sh): the prohibitorum_dev database (start it first with `podman compose up -d`, or `mise db:start` for a podman-free local cluster on macOS) and a stable .dev/encryption-key. The server auto-migrates on boot. Bootstrap an admin with `mise enroll-admin -- --new` in another shell."
 run = """
 set -e
 . ./scripts/dev-env.sh

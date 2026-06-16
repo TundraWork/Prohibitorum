@@ -93,10 +93,13 @@ for relying-party integration patterns.
 
 ## Development
 
-**Prerequisites:** [`mise`](https://mise.jdx.dev) and [Podman](https://podman.io)
-(for the dev database). `mise install` provides the rest of the toolchain — Go,
-Node, pnpm, sqlc, goose, and the `psql` client. The dashboard's npm dependencies
-install automatically on the first `mise dev-server` / `mise build` / `mise web`.
+**Prerequisites:** [`mise`](https://mise.jdx.dev), plus a Postgres for the dev
+database — either [Podman](https://podman.io)/Docker (`compose.yaml`) or, on
+macOS / any host without a container runtime, a podman-free local cluster via
+`mise db:start` (needs the Postgres tools, e.g. `brew install postgresql@18`).
+`mise install` provides the rest of the toolchain — Go, Node, pnpm, sqlc, goose.
+The dashboard's npm dependencies install automatically on the first
+`mise dev-server` / `mise build` / `mise web`.
 
 ### Runtime
 
@@ -108,14 +111,15 @@ applies any pending migrations, then listens on `:8080`, serving the upstream-au
 API, the OIDC OP, the SAML IdP, and the embedded dashboard SPA on a single origin.
 `go run ./cmd/prohibitorum` runs the same server without building a binary.
 
-The dev database runs in a container (`compose.yaml`); the rest runs on the host
+The dev database runs either in a container (`compose.yaml`, via Podman/Docker)
+or as a podman-free local cluster (`mise db:start`); the rest runs on the host
 via `mise`.
 
 ### Local development
 
 ```bash
-mise install                  # toolchain: Go, Node, pnpm, sqlc, goose, psql client
-podman compose up -d          # Postgres on localhost:5432 (see compose.yaml)
+mise install                  # toolchain: Go, Node, pnpm, sqlc, goose
+mise db:start                 # podman-free Postgres on :5432 (or: podman compose up -d)
 mise dev-server               # build the SPA and run the server on :8080 (auto-migrates)
 mise enroll-admin -- --new    # create an admin; prints an /enroll/<token> URL
 # open http://localhost:8080
@@ -129,8 +133,8 @@ explicitly to target a different database.
 
 ```bash
 mise dev-seed                 # optional: seed example providers/accounts/invitations
-podman compose down           # stop the database (data persists in the volume)
-podman compose down -v        # stop and wipe the database
+mise db:stop                  # stop the local cluster, data persists (or: podman compose down)
+mise db:reset                 # stop and wipe the local cluster (or: podman compose down -v)
 ```
 
 **Frontend.** `dashboard/` is a Vue 3 + Vite + Tailwind v4 + shadcn-vue/Reka UI
@@ -159,7 +163,7 @@ smoke's federation arc runs an in-process mock OP on loopback, the server must
 opt the outbound federation client out of the SSRF dial-screen:
 
 ```bash
-podman compose up -d                                          # if not already running
+mise db:start                                                 # podman-free Postgres (or: podman compose up -d)
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/postgres?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
@@ -170,14 +174,14 @@ go run ./cmd/smoke --base-url http://localhost:8080
 
 ## mise tasks
 
-Run as `mise <task>` (or `mise run <task>`). The dev database is **not** a mise
-task — start it with `podman compose up -d` (see `compose.yaml`). Tasks marked
-**dev** source `scripts/dev-env.sh` and target the `prohibitorum_dev` database it
-provides (override by exporting `PROHIBITORUM_DATABASE_URL`).
+Run as `mise <task>` (or `mise run <task>`). Start the dev database with `mise
+db:start` (podman-free local cluster) or `podman compose up -d` (container, see
+`compose.yaml`). Tasks marked **dev** source `scripts/dev-env.sh` and target the
+`prohibitorum_dev` database (override by exporting `PROHIBITORUM_DATABASE_URL`).
 
 | Task | What it does |
 |------|--------------|
-| `mise install` | Install the pinned toolchain (go 1.26, node 24, pnpm 10, sqlc 1.30.0, goose 3.27.0, and the `psql` client). |
+| `mise install` | Install the pinned toolchain (go 1.26, node 24, pnpm 10, sqlc 1.30.0, goose 3.27.0). |
 | `mise server` | Run the Go server (`go run ./cmd/prohibitorum`) using your current env. |
 | `mise web` | Dashboard dev server with hot reload (`npm run dev`; installs deps on first run). |
 | `mise frontend-build` | Install + build the SPA into `dashboard/dist` (`npm ci && npm run build`). |
@@ -185,7 +189,10 @@ provides (override by exporting `PROHIBITORUM_DATABASE_URL`).
 | `mise openapi` | Regenerate `openapi.yaml` from the running humacli. |
 | `mise db:up` | **dev** — apply goose migrations to `prohibitorum_dev` (or to `$PROHIBITORUM_DATABASE_URL` if you export one). |
 | `mise db:status` | **dev** — show migration status for the dev database. |
-| `mise dev-server` | **dev** — build the SPA + run the embedded server on `:8080` against the compose `prohibitorum_dev` DB + stable `.dev/encryption-key`. Auto-migrates on boot. |
+| `mise db:start` | Start a podman-free local Postgres (self-contained cluster in `.dev/pgdata`, port 5432) — a drop-in for `podman compose up -d` on macOS / hosts without a container runtime. |
+| `mise db:stop` | Stop the local dev Postgres started by `mise db:start`. |
+| `mise db:reset` | Stop and wipe the local dev Postgres data dir (`.dev/pgdata`) for a fresh database. |
+| `mise dev-server` | **dev** — build the SPA + run the embedded server on `:8080` against the `prohibitorum_dev` DB + stable `.dev/encryption-key`. Auto-migrates on boot. |
 | `mise enroll-admin [-- FLAGS]` | **dev** — issue an admin enrollment URL against the dev DB. Pass flags after `--`, e.g. `-- --new` or `-- --reset --username alice`. |
 | `mise dev-seed` | **dev** — seed `prohibitorum_dev` with example providers/accounts/invitations (idempotent, loopback-only). |
 

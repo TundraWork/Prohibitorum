@@ -3,10 +3,11 @@
 # SOURCE this — it only exports vars, it execs nothing:
 #   . ./scripts/dev-env.sh
 #
-# Assumes the dev Postgres is running (see compose.yaml):
-#   podman compose up -d
-# which exposes Postgres on localhost:5432 with user/password prohibitorum and
-# a prohibitorum_dev database.
+# Assumes the dev Postgres is running on localhost:5432 with user prohibitorum
+# and a prohibitorum_dev database. Start it either way:
+#   podman compose up -d        # container (see compose.yaml; needs a runtime)
+#   ./scripts/dev-db.sh start   # podman-free local cluster (mise db:start) — macOS
+# Both expose the same port/role/database, so this file is unchanged for both.
 #
 # Exports:
 # - PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 — generated once into .dev/encryption-key
