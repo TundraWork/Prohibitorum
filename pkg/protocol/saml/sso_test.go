@@ -56,6 +56,10 @@ type fakeSSOQueries struct {
 	// (fail-closed → 500).
 	denied   bool
 	authzErr error
+
+	// groupSlugs is the list of exposed group slugs returned for any account.
+	// Zero-value (nil) means the account has no exposed group memberships.
+	groupSlugs []string
 }
 
 // IsAccountAuthorizedForSAMLSP backs the RBAC per-app access gate. Default
@@ -126,6 +130,10 @@ func (f *fakeSSOQueries) InsertSAMLSession(_ context.Context, arg db.InsertSAMLS
 	defer f.mu.Unlock()
 	f.insertedSession = append(f.insertedSession, arg)
 	return db.SamlSession{SessionID: arg.SessionID, SpID: arg.SpID, NameID: arg.NameID, SessionIndex: arg.SessionIndex}, nil
+}
+
+func (f *fakeSSOQueries) ListExposedGroupSlugsByAccount(_ context.Context, _ int32) ([]string, error) {
+	return f.groupSlugs, nil
 }
 
 func (f *fakeSSOQueries) sessions() []db.InsertSAMLSessionParams {

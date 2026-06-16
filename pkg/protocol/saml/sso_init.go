@@ -171,8 +171,15 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch the account's exposed group slugs (for the "groups" source).
+	groupSlugs, gerr := i.queries.ListExposedGroupSlugsByAccount(ctx, account.ID)
+	if gerr != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	// Project the account into SAML attributes per the SP's map.
-	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL())
+	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL(), groupSlugs)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

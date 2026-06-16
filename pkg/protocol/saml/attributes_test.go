@@ -39,7 +39,7 @@ func TestAttributesGHESAdminAccount(t *testing.T) {
 		}),
 	}
 
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "")
+	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "", nil)
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestAttributesNonAdminOmitsAdministrator(t *testing.T) {
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"bob@x.test"}}),
 	}
 
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "")
+	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "", nil)
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestAttributesAdministratorTruthyViaAttribute(t *testing.T) {
 				Role:       "user",
 				Attributes: mustAttrJSON(t, map[string]any{"administrator": tc.val}),
 			}
-			attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "")
+			attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "", nil)
 			if err != nil {
 				t.Fatalf("projectAttributes: %v", err)
 			}
@@ -179,7 +179,7 @@ func TestAttributesAdministratorViaRoleOnly(t *testing.T) {
 		Role:       "admin",
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"b@x.test"}}),
 	}
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "")
+	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "", nil)
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestAttributesMalformedAccountAttributes(t *testing.T) {
 		t.Fatalf("marshal map: %v", err)
 	}
 	acct := db.Account{Username: "x", Attributes: []byte("{not json")}
-	if _, err := projectAttributes(acct, mapJSON, ""); err == nil {
+	if _, err := projectAttributes(acct, mapJSON, "", nil); err == nil {
 		t.Error("expected error for malformed account Attributes, got nil")
 	}
 }
@@ -220,14 +220,14 @@ func TestAttributesNameFormatURIsExact(t *testing.T) {
 
 func TestAttributesMalformedMap(t *testing.T) {
 	acct := db.Account{Username: "alice"}
-	if _, err := projectAttributes(acct, []byte("{not an array}"), ""); err == nil {
+	if _, err := projectAttributes(acct, []byte("{not an array}"), "", nil); err == nil {
 		t.Error("expected error for malformed mapJSON, got nil")
 	}
 }
 
 func TestAttributesEmptyMap(t *testing.T) {
 	acct := db.Account{Username: "alice"}
-	attrs, err := projectAttributes(acct, nil, "")
+	attrs, err := projectAttributes(acct, nil, "", nil)
 	if err != nil {
 		t.Errorf("unexpected error for nil mapJSON: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestAttributesMultiValueOrderAndSingleFromArray(t *testing.T) {
 		Username:   "dave",
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"first@x.test", "second@x.test"}}),
 	}
-	attrs, err := projectAttributes(acct, mapJSON, "")
+	attrs, err := projectAttributes(acct, mapJSON, "", nil)
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -273,4 +273,104 @@ func TestResolveSource_AvatarURL(t *testing.T) {
 	if resolveSource(a, nil, "avatar_url", false, "https://auth.example.com") != nil {
 		t.Fatal("want nil without avatar")
 	}
+}
+
+func TestAttributesGroupsSource(t *testing.T) {
+	acct := db.Account{Username: "grace"}
+
+	// Multi:true + two slugs -> attribute with both values in given order.
+	t.Run("multi emits all slugs", func(t *testing.T) {
+		mapJSON, err := json.Marshal([]attrMapEntry{
+			{Name: "groups", NameFormat: nameFormatBasic, Source: "groups", Multi: true},
+		})
+		if err != nil {
+			t.Fatalf("marshal map: %v", err)
+		}
+		attrs, err := projectAttributes(acct, mapJSON, "", []string{"eng", "ops"})
+		if err != nil {
+			t.Fatalf("projectAttributes: %v", err)
+		}
+		g, ok := findAttr(attrs, "groups")
+		if !ok {
+			t.Fatal("groups attribute missing")
+		}
+		if len(g.Values) != 2 || g.Values[0] != "eng" || g.Values[1] != "ops" {
+			t.Errorf("groups values = %v, want [eng ops]", g.Values)
+		}
+	})
+
+	// Empty slugs (nil) -> attribute is OMITTED entirely.
+	t.Run("nil slugs omits attribute", func(t *testing.T) {
+		mapJSON, err := json.Marshal([]attrMapEntry{
+			{Name: "groups", NameFormat: nameFormatBasic, Source: "groups", Multi: true},
+		})
+		if err != nil {
+			t.Fatalf("marshal map: %v", err)
+		}
+		attrs, err := projectAttributes(acct, mapJSON, "", nil)
+		if err != nil {
+			t.Fatalf("projectAttributes: %v", err)
+		}
+		if _, ok := findAttr(attrs, "groups"); ok {
+			t.Error("groups attribute should be omitted when slugs are nil")
+		}
+	})
+
+	// Empty slice of slugs -> attribute is OMITTED entirely.
+	t.Run("empty slugs omits attribute", func(t *testing.T) {
+		mapJSON, err := json.Marshal([]attrMapEntry{
+			{Name: "groups", NameFormat: nameFormatBasic, Source: "groups", Multi: true},
+		})
+		if err != nil {
+			t.Fatalf("marshal map: %v", err)
+		}
+		attrs, err := projectAttributes(acct, mapJSON, "", []string{})
+		if err != nil {
+			t.Fatalf("projectAttributes: %v", err)
+		}
+		if _, ok := findAttr(attrs, "groups"); ok {
+			t.Error("groups attribute should be omitted when slugs are empty")
+		}
+	})
+
+	// Multi:false + two slugs -> only the first value.
+	t.Run("single takes first slug", func(t *testing.T) {
+		mapJSON, err := json.Marshal([]attrMapEntry{
+			{Name: "groups", NameFormat: nameFormatBasic, Source: "groups", Multi: false},
+		})
+		if err != nil {
+			t.Fatalf("marshal map: %v", err)
+		}
+		attrs, err := projectAttributes(acct, mapJSON, "", []string{"eng", "ops"})
+		if err != nil {
+			t.Fatalf("projectAttributes: %v", err)
+		}
+		g, ok := findAttr(attrs, "groups")
+		if !ok {
+			t.Fatal("groups attribute missing")
+		}
+		if len(g.Values) != 1 || g.Values[0] != "eng" {
+			t.Errorf("groups values = %v, want [eng]", g.Values)
+		}
+	})
+
+	// Map without a groups entry + non-nil slugs -> no groups attribute, existing attrs intact.
+	t.Run("no groups entry leaves other attrs intact", func(t *testing.T) {
+		mapJSON, err := json.Marshal([]attrMapEntry{
+			{Name: "USERNAME", NameFormat: nameFormatBasic, Source: "username", Multi: false},
+		})
+		if err != nil {
+			t.Fatalf("marshal map: %v", err)
+		}
+		attrs, err := projectAttributes(acct, mapJSON, "", []string{"eng", "ops"})
+		if err != nil {
+			t.Fatalf("projectAttributes: %v", err)
+		}
+		if _, ok := findAttr(attrs, "groups"); ok {
+			t.Error("groups attribute should not appear when not in the map")
+		}
+		if _, ok := findAttr(attrs, "USERNAME"); !ok {
+			t.Error("USERNAME attribute should still be present")
+		}
+	})
 }

@@ -57,7 +57,7 @@ type samlAttr struct {
 //
 // A nil/empty mapJSON yields an empty slice and no error. An error is returned
 // only when mapJSON is not a valid JSON array.
-func projectAttributes(a db.Account, mapJSON []byte, origin string) ([]samlAttr, error) {
+func projectAttributes(a db.Account, mapJSON []byte, origin string, groups []string) ([]samlAttr, error) {
 	if len(mapJSON) == 0 {
 		return nil, nil
 	}
@@ -88,6 +88,20 @@ func projectAttributes(a db.Account, mapJSON []byte, origin string) ([]samlAttr,
 				})
 			}
 			// Not an admin and not truthy -> omit entirely.
+			continue
+		}
+
+		// groups special rule: emit the caller-supplied exposed group slugs.
+		// When groups is nil/empty, the attribute is omitted entirely (matches
+		// the SAML behaviour: no empty <Attribute> is ever emitted).
+		if e.Source == "groups" {
+			vals := groups
+			if !e.Multi && len(vals) > 0 {
+				vals = vals[:1]
+			}
+			if len(vals) > 0 {
+				out = append(out, samlAttr{Name: e.Name, NameFormat: e.NameFormat, FriendlyName: e.FriendlyName, Values: vals})
+			}
 			continue
 		}
 
