@@ -459,6 +459,18 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/set-disabled", admin, s.handleSetSAMLApplicationDisabledHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/delete", admin, s.handleDeleteSAMLApplicationHTTP)
 
+	// Admin: app-access management (restrict + grants) — OIDC
+	registerOp(mgmt, contract.OperationGetOIDCClientAccess, s.handleGetOIDCClientAccess, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/access/set-restricted", admin, s.handleSetOIDCClientAccessRestrictedHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/access/grant", admin, s.handleGrantOIDCClientAccessHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/access/revoke", admin, s.handleRevokeOIDCClientAccessHTTP)
+
+	// Admin: app-access management (restrict + grants) — SAML
+	registerOp(mgmt, contract.OperationGetSAMLSPAccess, s.handleGetSAMLSPAccess, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/access/set-restricted", admin, s.handleSetSAMLSPAccessRestrictedHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/access/grant", admin, s.handleGrantSAMLSPAccessHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/access/revoke", admin, s.handleRevokeSAMLSPAccessHTTP)
+
 	// Admin: group CRUD + membership management
 	registerOp(mgmt, contract.OperationListGroups, s.handleListGroups, admin)
 	registerOp(mgmt, contract.OperationGetGroup, s.handleGetGroup, admin)

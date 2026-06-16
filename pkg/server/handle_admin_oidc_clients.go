@@ -76,6 +76,7 @@ func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
 		TokenEndpointAuthMethod: c.TokenEndpointAuthMethod,
 		RequireConsent:          c.RequireConsent,
 		Disabled:                c.Disabled,
+		AccessRestricted:        c.AccessRestricted,
 	}
 	if c.CreatedAt.Valid {
 		v.CreatedAt = c.CreatedAt.Time

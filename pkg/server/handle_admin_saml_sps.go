@@ -59,6 +59,7 @@ func samlApplicationView(sp db.SamlSp, acs []db.SamlSpAc, keys []db.SamlSpKey) c
 		RequireSignedAuthnRequest: sp.RequireSignedAuthnRequest,
 		AllowIdpInitiated:         sp.AllowIdpInitiated,
 		Disabled:                  sp.Disabled,
+		AccessRestricted:          sp.AccessRestricted,
 		ACS:                       make([]contract.SAMLACSView, 0, len(acs)),
 		Keys:                      make([]contract.SAMLKeyView, 0, len(keys)),
 	}

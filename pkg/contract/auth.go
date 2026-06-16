@@ -432,6 +432,7 @@ type OIDCApplicationView struct {
 	TokenEndpointAuthMethod string    `json:"tokenEndpointAuthMethod"`
 	RequireConsent          bool      `json:"requireConsent"`
 	Disabled                bool      `json:"disabled"`
+	AccessRestricted        bool      `json:"accessRestricted"`
 	CreatedAt               time.Time `json:"createdAt"`
 }
 
@@ -479,6 +480,7 @@ type SAMLApplicationView struct {
 	RequireSignedAuthnRequest bool            `json:"requireSignedAuthnRequest"`
 	AllowIdpInitiated         bool            `json:"allowIdpInitiated"`
 	Disabled                  bool            `json:"disabled"`
+	AccessRestricted          bool            `json:"accessRestricted"`
 	SessionLifetimeSecs       *int64          `json:"sessionLifetimeSecs,omitempty"`
 	ACS                       []SAMLACSView   `json:"acs"`
 	Keys                      []SAMLKeyView   `json:"keys"`
@@ -612,4 +614,27 @@ var OperationListGroupMembers = huma.Operation{
 	Method:      http.MethodGet,
 	Path:        "/groups/{id}/members",
 	Summary:     "List members of a group (admin only).",
+}
+
+// AppAccessView is the response body for the GET …/access endpoints. It
+// combines the access_restricted flag with the lists of groups and accounts
+// that have been explicitly granted access to the application.
+type AppAccessView struct {
+	AccessRestricted bool         `json:"accessRestricted"`
+	Groups           []GroupRef   `json:"groups"`
+	Accounts         []AccountRef `json:"accounts"`
+}
+
+var OperationGetOIDCClientAccess = huma.Operation{
+	OperationID: "getOIDCClientAccess",
+	Method:      http.MethodGet,
+	Path:        "/oidc-applications/{clientId}/access",
+	Summary:     "Get access restriction status and granted principals for an OIDC application (admin only).",
+}
+
+var OperationGetSAMLSPAccess = huma.Operation{
+	OperationID: "getSAMLSPAccess",
+	Method:      http.MethodGet,
+	Path:        "/saml-applications/{id}/access",
+	Summary:     "Get access restriction status and granted principals for a SAML application (admin only).",
 }

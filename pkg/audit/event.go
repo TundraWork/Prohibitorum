@@ -56,6 +56,11 @@ const (
 	EventFactorLocked = "factor_locked"
 	EventUpdate       = "update"
 	EventRotate       = "rotate"
+
+	EventAccessGranted       = "access_granted"
+	EventAccessRevoked       = "access_revoked"
+	EventAccessRestrictedSet = "access_restricted_set"
+	EventAccessDenied        = "access_denied"
 )
 
 type Record struct {

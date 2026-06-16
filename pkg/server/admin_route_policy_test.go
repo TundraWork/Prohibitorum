@@ -85,6 +85,16 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
 	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
 	{method: "POST", path: "/api/prohibitorum/invitations/revoke", body: `{"token":"x"}`},
+
+	// App-access management — OIDC
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/set-restricted", body: `{"restricted":true}`},
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/grant", body: `{"principalKind":"group","principalId":1}`},
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/revoke", body: `{"principalKind":"group","principalId":1}`},
+
+	// App-access management — SAML
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/set-restricted", body: `{"restricted":true}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/grant", body: `{"principalKind":"group","principalId":1}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/revoke", body: `{"principalKind":"group","principalId":1}`},
 }
 
 // TestAdminMutationRoutesRequireSudo builds the REAL router via registerOperations()
