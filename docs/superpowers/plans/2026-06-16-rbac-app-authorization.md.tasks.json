@@ -52,7 +52,7 @@
     {
       "id": 7,
       "subject": "Task 8: OIDC groups scope + claim",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Add groups scope (discovery + supportedOIDCScopes); emit sorted exposed-only groups claim in id_token + userinfo via threaded slugs, scope-gated; present-but-empty [].\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/claims.go\",\"pkg/protocol/oidc/oidc.go\",\"pkg/protocol/oidc/token.go\",\"pkg/protocol/oidc/userinfo.go\",\"pkg/server/handle_admin_oidc_clients.go\",\"pkg/protocol/oidc/claims_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/\",\"acceptanceCriteria\":[\"groups in scopes_supported + supportedOIDCScopes\",\"id_token+userinfo groups claim when scope granted; [] when none; absent otherwise\",\"non-exposed groups excluded\"]}\n```"
     },
@@ -78,5 +78,5 @@
       "description": "**Goal:** Smoke RBAC arc (group->member->restrict->deny/allow->groups claim); docs (README box, api.md, ARCHITECTURE, STATUS); rebuild+commit pkg/webui/dist; full green gate.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\",\"README.md\",\"api.md\",\"ARCHITECTURE.md\",\"STATUS.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke arc green incl groups claim\",\"docs updated; README RBAC box checked\",\"full gate GREEN + dist rebuilt/committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-16T04:55:00Z"
+  "lastUpdated": "2026-06-16T05:20:00Z"
 }
