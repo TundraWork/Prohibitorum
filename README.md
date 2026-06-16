@@ -38,7 +38,7 @@ planned:
 - [x] Admin console — accounts, apps, providers, signing keys, audit log
 - [x] End-user self-service — credentials, sessions, devices, linked accounts
 - [ ] End-user app launchpad — launch authorized apps and self-manage access
-- [ ] RBAC — control which users each app is authorized for
+- [x] RBAC — control which users each app is authorized for
 
 **Keys & operations**
 - [x] Signing-key lifecycle — rotation, grace windows, sealed at rest

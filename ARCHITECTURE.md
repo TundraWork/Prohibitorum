@@ -28,7 +28,12 @@ identity assertions to downstream apps via OIDC OP or SAML 2.0 IdP.
   configured a provisioning mode.
 - An authorization policy engine (no OPA/Rego). Prohibitorum carries
   a free-form `attributes` map per account into ID-token claims and
-  SAML AttributeStatement; RPs enforce policy from those claims.
+  SAML AttributeStatement; RPs enforce policy from those claims. The
+  RBAC feature (v0.7) adds a *coarse per-app access gate* — whether a
+  user may obtain a token/assertion for an app at all — but the RP still
+  governs what you can do **inside** the app from claims (including the
+  new `groups` claim). The two layers are distinct: IdP gates app
+  access; RP gates in-app policy.
 
 ## Architecture — three-layer (Approach A)
 
@@ -175,7 +180,9 @@ published. RS256 signing (key store unified with SAML; see
   `auth_time`, `amr`, `acr`, `azp` (when `aud` is multi-valued or
   differs from authorized party), `at_hash`, plus `username`,
   `displayName`, `role`, and `attributes` carried verbatim from the
-  account.
+  account. With the `groups` scope granted, a sorted `groups` array of
+  the user's `exposed_to_downstream` group slugs (present-but-empty `[]`;
+  emitted in both the ID token and `/userinfo`).
 - **Access token (RFC 9068):** `typ: at+jwt`. Required claims `iss`,
   `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`;
   `auth_time` / `amr` / `acr` carried when available.
@@ -221,6 +228,39 @@ per-SP opt-in). `crewjam/saml` does the protocol heavy lifting.
   across rotation (a decommissioning key lingers until its `retire_after`
   grace, default 7d, elapses).
 
+### Per-app access gate (RBAC, v0.7)
+
+A coarse access gate on top of the downstream protocols. New tables
+`user_group` + `group_member` (first-class groups and membership) and
+`oidc_client_access` / `saml_sp_access` (grants pointing at **either** a
+group or an account, `CHECK num_nonnulls(group_id, account_id) = 1`),
+plus an `access_restricted boolean NOT NULL DEFAULT false` column on
+`oidc_client` and `saml_sp`. A single sqlc predicate per protocol
+(`IsAccountAuthorizedFor{OIDCClient,SAMLSP}`) decides:
+
+> **authorized** = `NOT access_restricted` **OR** a direct `(app, account)`
+> grant exists **OR** the account is a member of any group granted to the
+> app.
+
+No admin bypass — `role='admin'` is not special-cased. The predicate is
+evaluated after the session is validated and `account.disabled` enforced,
+before anything is issued: at OIDC `/oauth/authorize`, **again at the
+refresh-token grant** (so de-provisioning cuts existing sessions within
+the access-token TTL — the refresh family is revoked), and at SAML SSO
+(SP- and IdP-initiated). Denied **interactive** users are redirected to
+the IdP's own `/error?reason=app_access_denied` page; OIDC `prompt=none`
+gets a protocol-native `access_denied` at the `redirect_uri`; SAML passive
+(`IsPassive`) gets a `Responder` / `RequestDenied` status Response. Every
+denial writes an `access_denied` `credential_event`.
+
+**Group exposure to downstreams** is a two-level opt-in: a group with
+`exposed_to_downstream = true` (default true) flows to apps that ask —
+an OIDC client with the `groups` scope (claim above) or a SAML SP whose
+`attribute_map` has a `source: "groups"` entry (emits the exposed slugs,
+multi-valued). Neither leaks unless both the group flag and the per-app
+opt-in are set. The authorization predicate is also the query a future
+end-user launchpad ("which apps may I launch?") will reuse.
+
 ## Admin management API
 
 All routes are under `/api/prohibitorum`, admin-role gated. Mutations are
@@ -244,6 +284,16 @@ check). See `api.md` for the full route table and gate notation.
 - `PUT /saml-providers/{id}` — update (🔐)
 - `POST /saml-providers/{id}/reingest-metadata` — re-parse fresh SP metadata (🔐)
 - `POST /saml-providers/delete` — hard-delete (🔐)
+
+### Groups & per-app access (RBAC)
+
+- `GET /groups`, `GET /groups/{id}`, `GET /groups/{id}/members`, `GET /accounts/{id}/groups` — read (🔓)
+- `POST /groups`, `PUT /groups/{id}`, `POST /groups/delete` — group CRUD (🔐); slug validated `^[a-z0-9](-?[a-z0-9])*$`
+- `POST /groups/{id}/members`, `POST /groups/{id}/members/remove` — membership (🔐)
+- `GET /oidc-applications/{clientId}/access`, `GET /saml-applications/{id}/access` — read the restricted flag + grants (🔓)
+- `POST …/access/set-restricted`, `…/access/grant`, `…/access/revoke` — toggle the gate and grant/revoke group/account access (🔐)
+
+CLI parity: a `group` verb (`create|list|update|delete|add-member|remove-member`) and `access` subcommands on `oidc-client`/`saml-sp` (`--access-restricted`, `--grant-group`/`--grant-account`, `--revoke-*`). The SPA surfaces a groups admin section, a reusable per-app **Access** card, and a group-membership card on the account-detail page.
 
 ### Upstream IdPs
 

@@ -1573,6 +1573,78 @@ See `api.md` for the authoritative route table. Summary:
   the legacy `signing_key` columns (`active`/`not_before`/`retired_at`) and
   the plaintext `private_pem` — signing keys are sealed-only.
 
+## v0.7 — RBAC app authorization (done)
+
+A coarse per-app access gate plus first-class groups. An admin marks an
+OIDC client / SAML SP `access_restricted` and controls who may sign in via
+**groups** and/or **individual accounts**; exposed groups additionally flow
+downstream as an OIDC `groups` claim / SAML `groups` attribute. No admin
+bypass. This evolves — does not replace — the model: the IdP gates whether
+you may obtain a token/assertion at all; the RP still gates in-app policy
+from claims.
+
+### What shipped
+
+- **Schema** (`015_rbac.sql`, folded into the consolidated migration set):
+  `user_group`, `group_member`, `oidc_client_access`, `saml_sp_access`
+  (grant points at exactly one of group/account, enforced by
+  `CHECK num_nonnulls(...) = 1` + partial unique indexes), and an
+  `access_restricted boolean NOT NULL DEFAULT false` column on `oidc_client`
+  and `saml_sp` (every existing app stays open). Applies cleanly on a
+  populated DB.
+- **Authorization predicate** — one sqlc query per protocol
+  (`IsAccountAuthorizedFor{OIDCClient,SAMLSP}`): `NOT access_restricted OR
+  direct grant OR via-group grant`.
+- **Admin API** — groups CRUD + membership; per-app `set-restricted` /
+  `grant` / `revoke` + a combined `GET …/access`; `accessRestricted` surfaced
+  in the app detail views. GETs are 🔓, all mutations 🔐 (sudo) + audited
+  (`group` factor; `access_granted`/`access_revoked`/`access_restricted_set`).
+- **SPA** — `/admin/groups` list + detail (edit, exposed toggle, member mgmt),
+  a reusable per-app **Access** card (restrict toggle + group/account grants)
+  on both app detail pages, and a group-membership card on the account-detail
+  page.
+- **Enforcement** — gate at OIDC `/authorize`, re-checked at the refresh-token
+  grant (denial revokes the refresh family → `invalid_grant`), and at SAML SSO
+  (SP- + IdP-initiated). Denied interactive → IdP `/error?reason=app_access_denied`;
+  OIDC `prompt=none` → `access_denied` to the RP; SAML passive → `RequestDenied`.
+  Denials write an `access_denied` `credential_event`.
+- **Group exposure** — two-level opt-in: `exposed_to_downstream` (default true)
+  on the group **and** a per-app ask — the OIDC `groups` scope (sorted claim in
+  id_token + `/userinfo`, present-but-empty `[]`) or a SAML attribute-map
+  `source: "groups"` entry (multi-valued, omitted when empty).
+- **CLI** — `group create|list|update|delete|add-member|remove-member`; `access`
+  subcommands on `oidc-client`/`saml-sp` (`--access-restricted`, grant/revoke).
+
+### Endpoints introduced in v0.7
+
+See `api.md` → *Groups (RBAC)* and *Per-app access (RBAC)*. Group CRUD +
+membership under `/groups`, per-app access under
+`/{oidc-applications,saml-applications}/{id}/access{,/set-restricted,/grant,/revoke}`,
+and `GET /accounts/{id}/groups`. The `groups` scope is advertised in OIDC
+discovery `scopes_supported`.
+
+### Smoke-covered runtime paths
+
+`cmd/smoke` RBAC arc (rbac 1–7, green at `SMOKE_EXIT=0`): create an exposed
+group → add the admin as a member → create a confidential client
+(`openid profile groups`) → mark it restricted → authorize as a not-yet-granted
+user and assert a **302 to `/error?reason=app_access_denied` with no code** →
+grant the group (via-group path) → authorize again and assert a **code**, then
+exchange it and assert the `groups` claim (incl. the slug) in **both** the
+id_token and `/userinfo`.
+
+### Notes / acknowledged gaps
+
+- The DB-level predicate matrix is exercised end-to-end by the smoke + the
+  protocol handler tests (fake-`Querier`), rather than a dedicated `pkg/db`
+  integration test (the package has no DB-test harness convention).
+- The smoke covers the OIDC restrict→deny→grant→allow + groups-claim arc; the
+  symmetric SAML restrict→deny→grant arc is enforced and unit-tested
+  (`sso_test.go` interactive `/error`, passive `RequestDenied`) but not added to
+  the smoke (would need a dedicated assertion verifier — scope creep).
+- End-user app launchpad remains out of scope; the authorization predicate is
+  the query it will reuse.
+
 ## Optional hardening & known gaps (unscheduled)
 
 The full IdP shipped through v0.6. What remains is not a milestone — it is

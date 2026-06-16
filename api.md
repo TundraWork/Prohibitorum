@@ -55,6 +55,45 @@ names (`oidc-client`, `saml-sp`, `upstream-idp`).
 
 ---
 
+## Groups (RBAC)
+
+First-class user groups. Membership gates per-app sign-in (see *Per-app access* below); a group flagged `exposedToDownstream` additionally flows to apps that opt in (OIDC `groups` scope / SAML `groups` attribute source).
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/groups` | 🔓 | List groups with member counts. |
+| GET | `/api/prohibitorum/groups/{id}` | 🔓 | Get one group. |
+| GET | `/api/prohibitorum/groups/{id}/members` | 🔓 | List a group's members (`id`, `username`, `displayName`). |
+| GET | `/api/prohibitorum/accounts/{id}/groups` | 🔓 | List the groups an account belongs to (also editable from the admin account-detail page). |
+| POST | `/api/prohibitorum/groups` | 🔐 | Create a group. Body `{slug, displayName, description?, exposedToDownstream?}` (`exposedToDownstream` defaults `true`). `slug` must match `^[a-z0-9](-?[a-z0-9])*$` — invalid → 400, duplicate → 409. |
+| PUT | `/api/prohibitorum/groups/{id}` | 🔐 | Update display name / description / `exposedToDownstream` / slug. Renaming the slug changes the value RPs receive in the `groups` claim/attribute (the admin UI warns on slug change). |
+| POST | `/api/prohibitorum/groups/delete` | 🔐 | Body: `{"id": <int>}`. Deletes the group; `ON DELETE CASCADE` removes its memberships and access grants. |
+| POST | `/api/prohibitorum/groups/{id}/members` | 🔐 | Body: `{"accountId": <int>}`. Add an account to the group (idempotent). |
+| POST | `/api/prohibitorum/groups/{id}/members/remove` | 🔐 | Body: `{"accountId": <int>}`. Remove an account; 0 rows affected → 404. |
+
+---
+
+## Per-app access (RBAC)
+
+A coarse per-app access gate layered on top of the "RP enforces policy" model. An app (OIDC client or SAML SP) with `access_restricted = true` admits only users with a **direct grant** or a grant to a **group they belong to**; while `false` (the default — existing apps are untouched) any enrolled user may sign in. There is **no admin bypass** — admins are assigned like anyone else.
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/oidc-applications/{clientId}/access` | 🔓 | `{accessRestricted, groups:[{id,slug,displayName}], accounts:[{id,username,displayName}]}`. |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/set-restricted` | 🔐 | Body: `{"restricted": <bool>}`. Toggles the gate (mirrors the `set-disabled` split — not part of the config-form PUT). |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/grant` | 🔐 | Body: `{"principalKind": "group"\|"account", "principalId": <int>}`. |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/revoke` | 🔐 | Same body; 0 rows affected → 404. |
+| GET | `/api/prohibitorum/saml-applications/{id}/access` | 🔓 | Same shape, keyed by numeric SP id. |
+| POST | `/api/prohibitorum/saml-applications/{id}/access/set-restricted` | 🔐 | Body: `{"restricted": <bool>}`. |
+| POST | `/api/prohibitorum/saml-applications/{id}/access/grant` | 🔐 | Body: `{"principalKind": "group"\|"account", "principalId": <int>}`. |
+| POST | `/api/prohibitorum/saml-applications/{id}/access/revoke` | 🔐 | Same body; 0 rows affected → 404. |
+
+**Enforcement.** The gate runs after the session is validated and `account.disabled` is enforced, before anything is issued: at OIDC `/oauth/authorize` (and **re-checked at the refresh-token grant** — de-provisioning cuts existing sessions within the access-token TTL, revoking the refresh family) and at SAML SSO (both SP-initiated and IdP-initiated). A denied **interactive** user is redirected to the IdP's own `/error?reason=app_access_denied&app=<name>` page; an OIDC `prompt=none` request gets a protocol-native `access_denied` at the `redirect_uri`; a SAML passive (`IsPassive`) request gets a `Responder` / `RequestDenied` status Response. Every denial writes an `access_denied` audit event.
+
+**Group exposure to downstreams** (two-level opt-in — nothing leaves the IdP unless both are true): the group has `exposedToDownstream = true`, **and** the app asks for it — an OIDC client whose `allowed_scopes` include `groups` (emits a sorted `groups` claim in the id_token + `/userinfo`, present-but-empty `[]`), or a SAML SP whose attribute map has a `source: "groups"` entry (emits the exposed slugs, multi-valued; omitted when empty).
+
+---
+
 ## Identity providers (upstream OIDC federation)
 
 | Method | Path | Gate | Notes |
@@ -119,8 +158,9 @@ already-non-signing key lingers in JWKS slightly longer than its
 
 Audit coverage for admin mutations: every 🔐 admin mutation writes a
 `credential_event` row with:
-- `factor` ∈ `oidc_client`, `saml_sp`, `upstream_idp`, `signing_key`
-- `event` ∈ `register` (create), `update`, `rotate` (secret/key rotation), `revoke` (delete/force-revoke)
+- `factor` ∈ `oidc_client`, `saml_sp`, `upstream_idp`, `signing_key`, `group`
+- `event` ∈ `register` (create), `update`, `rotate` (secret/key rotation), `revoke` (delete/force-revoke), `link`/`unlink` (group membership add/remove), `access_granted`/`access_revoked`/`access_restricted_set` (per-app access grants on factor `oidc_client`/`saml_sp`)
+- `access_denied` (factor `oidc_client`/`saml_sp`) is additionally written at enforcement time — not an admin mutation — when an authenticated user is turned away from a restricted app at OIDC authorize/refresh or SAML SSO
 - `account_id` = the admin account performing the action
 - `credential_ref` = the target resource ID (client_id, SP ID, slug, kid)
 - `detail` = redacted summary (e.g. `{"client_id":"...","display_name":"..."}`) — **no** secret, hash, or private key material
