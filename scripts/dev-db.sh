@@ -10,9 +10,12 @@
 # dev-seed`, and `cmd/smoke` — expect. Nothing else changes; the DATABASE_URL is
 # identical to the containerised one.
 #
-# Requires the Postgres binaries on PATH (macOS: `brew install postgresql@18`,
-# matching compose's postgres:18 image). Data persists across start/stop in
-# .dev/pgdata (gitignored), like the compose named volume; use `reset` to wipe.
+# The Postgres binaries come from mise (`github:theseus-rs/postgresql-binaries`
+# in mise.toml, prebuilt — not the source-building default), so `mise db:start`
+# runs this with initdb/pg_ctl on PATH on any platform, no system Postgres
+# install needed. (Run it directly, outside mise, only if initdb/pg_ctl are
+# already on your PATH.) Data persists across start/stop in .dev/pgdata
+# (gitignored), like the compose named volume; use `reset` to wipe.
 # Local connections use trust auth (no password) — fine for a localhost dev DB;
 # the password in the dev-env.sh URL is simply ignored.
 #
@@ -31,7 +34,7 @@ LOG="$PGDATA/server.log"
 
 need() {
 	command -v "$1" >/dev/null 2>&1 || {
-		echo "error: '$1' not found on PATH — install the Postgres tools (macOS: brew install postgresql@18)" >&2
+		echo "error: '$1' not on PATH — run via 'mise db:start' (mise provides Postgres), or put initdb/pg_ctl on your PATH" >&2
 		exit 1
 	}
 }

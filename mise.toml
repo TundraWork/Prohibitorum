@@ -4,10 +4,16 @@ node = "24"
 pnpm = "10"
 sqlc = "1.30.0"
 "aqua:pressly/goose" = "3.27.0"
-# No Postgres pin: the dev server runs in a container (compose.yaml) and the
-# end-to-end smoke (cmd/smoke) talks to the DB via the in-module pgx driver — so
-# no host-side psql/pg_isready client is needed. (Building postgres from source
-# via mise also fails on macOS without pkg-config/ICU.)
+# Postgres via PREBUILT binaries (theseus-rs), NOT mise's default source-building
+# vfox-postgres backend — that one compiles from source and fails on macOS
+# without pkg-config/ICU. The github backend downloads a pinned, per-platform
+# binary (checksum + SLSA provenance verified by mise), so Postgres stays
+# one-stop under `mise install`, reproducible, and cross-platform with no
+# container runtime. `mise db:start` (scripts/dev-db.sh) runs a local dev/test
+# cluster from these binaries (initdb/pg_ctl/postgres); compose.yaml remains an
+# option for those who prefer a container. CI may set GITHUB_TOKEN to avoid the
+# GitHub API rate limit on first install.
+"github:theseus-rs/postgresql-binaries" = "18.3.0"
 
 [tasks.server]
 description = "Run the Go server (serves the committed embedded SPA; no npm needed)."
