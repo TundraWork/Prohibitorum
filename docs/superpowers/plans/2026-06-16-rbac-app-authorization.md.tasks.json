@@ -45,7 +45,7 @@
     {
       "id": 6,
       "subject": "Task 7: Enforcement (OIDC authorize+refresh, SAML SSO) + denied UX",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 4],
       "description": "**Goal:** Gate issuance on predicate; deny interactive via IdP /error, prompt=none via access_denied, SAML passive via RequestDenied; refresh re-check revokes family; audit EventAccessDenied; ErrorView app_access_denied.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/access.go\",\"pkg/protocol/oidc/authorize.go\",\"pkg/protocol/oidc/token.go\",\"pkg/protocol/oidc/refresh.go\",\"pkg/protocol/saml/sso.go\",\"dashboard/src/pages/ErrorView.vue\",\"dashboard/src/locales/en.ts\",\"pkg/protocol/oidc/authorize_test.go\",\"pkg/protocol/saml/sso_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/...\",\"acceptanceCriteria\":[\"restricted+non-member denied (interactive /error; prompt=none access_denied)\",\"refresh re-check -> invalid_grant + family revoked\",\"SAML passive -> RequestDenied; interactive -> /error\",\"denials audited\"]}\n```"
     },
@@ -78,5 +78,5 @@
       "description": "**Goal:** Smoke RBAC arc (group->member->restrict->deny/allow->groups claim); docs (README box, api.md, ARCHITECTURE, STATUS); rebuild+commit pkg/webui/dist; full green gate.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\",\"README.md\",\"api.md\",\"ARCHITECTURE.md\",\"STATUS.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke arc green incl groups claim\",\"docs updated; README RBAC box checked\",\"full gate GREEN + dist rebuilt/committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-16T04:10:00Z"
+  "lastUpdated": "2026-06-16T04:55:00Z"
 }
