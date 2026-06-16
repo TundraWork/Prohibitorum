@@ -59,7 +59,7 @@
     {
       "id": 8,
       "subject": "Task 9: SAML groups attribute source",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** \"groups\" attribute-map source emitting exposed slugs (multi); thread slugs into projectAttributes + sso + idp-initiated; AttributeMapEditor offers groups.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/attributes.go\",\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/idp_initiated.go\",\"dashboard/src/components/custom/AttributeMapEditor.vue\",\"dashboard/src/locales/en.ts\",\"pkg/protocol/saml/attributes_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/saml/ && cd dashboard && npm test\",\"acceptanceCriteria\":[\"source:groups -> exposed slugs (multi); none -> omitted\",\"editor lists groups source\",\"all projectAttributes call sites updated\"]}\n```"
     },
@@ -78,5 +78,5 @@
       "description": "**Goal:** Smoke RBAC arc (group->member->restrict->deny/allow->groups claim); docs (README box, api.md, ARCHITECTURE, STATUS); rebuild+commit pkg/webui/dist; full green gate.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\",\"README.md\",\"api.md\",\"ARCHITECTURE.md\",\"STATUS.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke arc green incl groups claim\",\"docs updated; README RBAC box checked\",\"full gate GREEN + dist rebuilt/committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-16T05:20:00Z"
+  "lastUpdated": "2026-06-16T05:50:00Z"
 }
