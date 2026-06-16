@@ -31,7 +31,7 @@
     {
       "id": 4,
       "subject": "Task 5: App access admin API (restrict + grants)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** GET .../access + set-restricted/grant/revoke for OIDC & SAML; accessRestricted in app views; audit EventAccess* consts.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_app_access.go\",\"pkg/server/handle_admin_oidc_clients.go\",\"pkg/server/handle_admin_saml_sps.go\",\"pkg/contract/auth.go\",\"pkg/server/server.go\",\"pkg/audit/event.go\",\"pkg/server/handle_admin_app_access_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run \\\"AppAccess|Sudo|RoutePolicy\\\"\",\"acceptanceCriteria\":[\"GET access returns restricted+groups+accounts\",\"set-restricted/grant/revoke admin+sudo+audit\",\"accessRestricted in OIDC/SAML views\"]}\n```"
     },
@@ -78,5 +78,5 @@
       "description": "**Goal:** Smoke RBAC arc (group->member->restrict->deny/allow->groups claim); docs (README box, api.md, ARCHITECTURE, STATUS); rebuild+commit pkg/webui/dist; full green gate.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\",\"README.md\",\"api.md\",\"ARCHITECTURE.md\",\"STATUS.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke arc green incl groups claim\",\"docs updated; README RBAC box checked\",\"full gate GREEN + dist rebuilt/committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-16T02:55:00Z"
+  "lastUpdated": "2026-06-16T03:30:00Z"
 }
