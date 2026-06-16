@@ -261,6 +261,7 @@ RPs don't see how the user signed in, only the resulting claims.
 - [`STATUS.md`](./STATUS.md) — what's done per version and what's coming.
 - [`api.md`](./api.md) — the HTTP surface (runtime protocol endpoints + admin API).
 - [`CONFIG.md`](./CONFIG.md) — environment-variable reference + deployment hardening.
+- [`TOOLING.md`](./TOOLING.md) — tooling & dependency architecture (mise, lockfile, dev/CI/prod build).
 - [`INTEGRATION.md`](./INTEGRATION.md) — three integration patterns for relying
   parties (OIDC Code+PKCE, cookie+introspect, SAML SP).
 - [`DESIGN.md`](./DESIGN.md) / [`PRODUCT.md`](./PRODUCT.md) — design tokens and

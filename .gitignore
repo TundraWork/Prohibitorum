@@ -10,6 +10,8 @@
 *.swp
 .DS_Store
 /smoke
+# goenv artifact — Go is managed by mise (see TOOLING.md), not goenv
+/.go-version
 
 # Brainstorm visual-companion artifacts
 .superpowers/

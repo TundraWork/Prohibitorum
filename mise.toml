@@ -1,7 +1,6 @@
 [tools]
 go = "1.26"
 node = "24"
-pnpm = "10"
 sqlc = "1.30.0"
 "aqua:pressly/goose" = "3.27.0"
 # Postgres via PREBUILT binaries (theseus-rs), NOT mise's default source-building
@@ -14,6 +13,18 @@ sqlc = "1.30.0"
 # option for those who prefer a container. CI may set GITHUB_TOKEN to avoid the
 # GitHub API rate limit on first install.
 "github:theseus-rs/postgresql-binaries" = "18.3.0"
+
+[settings]
+# Pin exact tool versions + checksums + provenance in mise.lock (committed), so
+# `mise install` is reproducible and hermetic — no live GitHub/registry API
+# calls at install time (which also avoids the prebuilt-postgres rate limit).
+lockfile = true
+
+[env]
+# mise is the single Go source of truth (no goenv). Forbid Go's transparent
+# toolchain auto-download so it can't fetch a different compiler behind mise's
+# back — `go.mod`'s `go 1.26` stays the language floor. See TOOLING.md.
+GOTOOLCHAIN = "local"
 
 [tasks.server]
 description = "Run the Go server (serves the committed embedded SPA; no npm needed)."
