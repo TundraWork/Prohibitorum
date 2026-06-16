@@ -12,6 +12,8 @@
 /smoke
 # goenv artifact — Go is managed by mise (see TOOLING.md), not goenv
 /.go-version
+# GoReleaser build output (`mise run release` / `goreleaser build`)
+/dist/
 
 # Brainstorm visual-companion artifacts
 .superpowers/

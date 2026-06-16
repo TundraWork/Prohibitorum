@@ -1,0 +1,102 @@
+# GoReleaser + ko — prod packaging (see TOOLING.md §Prod).
+# Builds the SPA, then a reproducible static Go binary that embeds it, then
+# multi-arch OCI images via ko, plus SBOMs, checksums, and cosign signatures.
+# Run on a git tag by .github/workflows/release.yml; dry-run locally with:
+#   goreleaser release --snapshot --clean
+version: 2
+
+project_name: prohibitorum
+
+before:
+  hooks:
+    # Build the dashboard into pkg/webui/dist so the Go build embeds a fresh
+    # bundle (the binary serves the SPA via go:embed).
+    - mise run frontend-build
+
+builds:
+  - id: prohibitorum
+    main: ./cmd/prohibitorum
+    binary: prohibitorum
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -tags=nodynamic
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+# Multi-arch OCI images via ko (built in to GoReleaser; no separate ko install).
+kos:
+  - id: prohibitorum
+    build: prohibitorum
+    base_image: cgr.dev/chainguard/static:latest # distroless, nonroot, CVE-minimal
+    repositories:
+      - ghcr.io/tundrawork/prohibitorum
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    tags:
+      - "{{ .Version }}"
+      - latest
+    bare: true
+    preserve_import_paths: false
+    sbom: spdx
+    labels:
+      org.opencontainers.image.source: "https://github.com/TundraWork/Prohibitorum"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+
+archives:
+  - id: prohibitorum
+    ids:
+      - prohibitorum
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+sboms:
+  - id: archive
+    artifacts: archive
+
+# Keyless cosign signatures (CI provides the OIDC token via id-token: write).
+signs:
+  - id: checksums
+    cmd: cosign
+    args:
+      - sign-blob
+      - "--yes"
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      - "${artifact}"
+    artifacts: checksum
+    certificate: "${artifact}.pem"
+    output: true
+
+docker_signs:
+  - id: images
+    cmd: cosign
+    args:
+      - sign
+      - "--yes"
+      - "${artifact}"
+    artifacts: all
+    output: true
+
+release:
+  github:
+    owner: TundraWork
+    name: Prohibitorum
+  prerelease: auto
+
+changelog:
+  use: github
+  sort: asc

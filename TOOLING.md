@@ -78,7 +78,7 @@ pnpm's advantages are monorepo-shaped (<https://blog.openreplay.com/switch-npm-p
 - Env: `scripts/dev-env.sh` exports the dev `PROHIBITORUM_*` vars + a stable
   `.dev/encryption-key`. (Could later move the static vars into mise `[env]`.)
 
-### Prod — OCI image via GoReleaser + ko (planned)
+### Prod — OCI image via GoReleaser + ko
 
 The server is a single Go binary with the SPA embedded via `go:embed`
 (`pkg/webui/dist`), so the runtime image is **just the binary**. Build it with
@@ -86,35 +86,37 @@ The server is a single Go binary with the SPA embedded via `go:embed`
 images, SBOMs, checksums, and signed artifacts from one config — fitting for an
 IdP's supply-chain posture.
 
-Planned `.goreleaser.yaml` shape:
+`.goreleaser.yaml` (committed) shape:
 - `before.hooks`: build the SPA (`mise run frontend-build` → `pkg/webui/dist`)
   so ko's Go build embeds a fresh bundle.
 - `builds`: `env: [CGO_ENABLED=0]`, `flags: [-trimpath, -tags=nodynamic]`,
-  `ldflags: [-s -w -X main.version={{.Version}}]`, `goos: [linux]`,
+  `ldflags: [-s -w]`, `mod_timestamp: {{.CommitTimestamp}}`, `goos: [linux]`,
   `goarch: [amd64, arm64]`.
 - `kos`: `repositories: [ghcr.io/tundrawork/prohibitorum]`, `bare: true`,
   `platforms: [linux/amd64, linux/arm64]`, `sbom: spdx`, base image
   distroless/static (ko default) `:nonroot`.
-- Image signing + checksums via cosign.
+- Image signing + checksums via cosign (keyless, CI OIDC).
 
-Triggered on tag by a `release` GitHub Actions workflow (deferred with CI).
+Triggered on tag by `.github/workflows/release.yml`, which runs
+`mise run release` after a GHCR login; cosign signing uses CI's OIDC
+(`id-token: write`). goreleaser 2.16.0 + cosign 3.1.1 are pinned in mise.
+Dry-run locally with `goreleaser release --snapshot --clean`.
 
-### CI — GitHub Actions running `mise run ci` (planned)
+### CI — GitHub Actions running `mise run ci`
 
 The unifier: CI runs the **same** tasks humans run, via
-[`jdx/mise-action`](https://github.com/jdx/mise-action) (or the
+[`jdx/mise-action@v3`](https://github.com/jdx/mise-action) (or the
 [step-security hardened fork](https://github.com/step-security/mise-action)).
 With `mise.lock` present the action auto-applies `--locked` (hermetic, no rate
-limits). Planned:
+limits). `.github/workflows/ci.yml` has two jobs:
 
-- `mise run ci` (a TOML task) = `gofmt -l` guard → `go vet ./...` →
-  `go build -tags nodynamic ./...` → `go test ./...` → `npm ci` → `npm test`
-  (vitest) → `npx vue-tsc -b` → **dist-freshness guard** (rebuild the SPA, fail
-  if `pkg/webui/dist` differs from the committed bundle — would have caught the
-  stale dist this audit found).
-- A DB-backed job (`mise db:start` + the `cmd/smoke` arc) — the smoke talks to
-  the DB via pgx, so it runs on CI with no extra services.
-- `release.yml` on tag → GoReleaser + ko (needs `ghcr` login + cosign).
+- **gate** runs `mise run ci` = `mise run ci:go` (`go vet ./...` →
+  `go build -tags nodynamic ./...` → `go test ./...`) + `mise run ci:frontend`
+  (`npm ci` → `npm test` → `npm run build` → **dist-freshness guard**: fails if
+  `pkg/webui/dist` drifts from the committed bundle — would have caught the
+  stale dist this audit found). (No `gofmt` gate yet — see deferred.)
+- **smoke** runs `mise run smoke` (`db:start` → server → `cmd/smoke`); the smoke
+  talks to the DB via pgx, so it needs no extra services.
 
 ### Embedded `dist` drift
 
@@ -124,18 +126,27 @@ node), and CI's dist-freshness guard prevents it going stale. Locally, mise task
 
 ## Implementation status
 
-**Done (this change):**
-- `mise.lock` added + `[settings] lockfile = true`.
-- `pnpm` pin removed.
-- `GOTOOLCHAIN = "local"` in mise `[env]`.
-- goenv `.go-version` deleted + gitignored.
-- `packageManager` + `engines` added to `dashboard/package.json`.
+**Done:**
+- One tool source of truth: `mise.lock` (all-platform pins) + `[settings]
+  lockfile = true`; `pnpm` pin removed; `packageManager` + `engines` in
+  `dashboard/package.json`; `GOTOOLCHAIN = "local"`; goenv `.go-version` deleted
+  + gitignored.
+- Tasks: `mise run ci` (`ci:go` + `ci:frontend` w/ dist guard) and `mise run smoke`.
+- CI: `.github/workflows/ci.yml` (gate + smoke jobs, `jdx/mise-action@v3`).
+- Prod: `.goreleaser.yaml` + `mise run release` + `.github/workflows/release.yml`
+  (GoReleaser + ko → multi-arch OCI on GHCR + SBOMs + checksums + cosign);
+  goreleaser 2.16.0 + cosign 3.1.1 pinned in mise.
 
-**Deferred (follow-ups, by design):**
-- GitHub Actions `ci.yml` running `mise run ci` (+ the `ci` task + dist guard).
-- `release.yml` + `.goreleaser.yaml` (GoReleaser + ko prod image).
-- Optional: fold `dev-env.sh` static vars into mise `[env]`; add a Go/FE
-  formatter-check task.
+**Validated locally:** `mise install` (locked), `GOTOOLCHAIN=local`, `mise run
+ci` green, `mise run smoke` green (clean teardown), `goreleaser check` +
+`goreleaser build --snapshot` green. The ko image build + cosign signing run
+only in CI/release (they need a container runtime + OIDC).
+
+**Deferred (optional):**
+- A formatting gate (`gofmt`/strict `vue-tsc`) — needs a one-time
+  `gofmt -w ./...` first, since the existing tree isn't gofmt-clean.
+- Fold `dev-env.sh` static vars into mise `[env]`.
+- Switch to the step-security `mise-action` fork for a hardened CI action.
 
 ## Quick reference
 

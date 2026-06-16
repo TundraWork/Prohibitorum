@@ -1,0 +1,36 @@
+name: release
+
+# Tag-driven release: GoReleaser + ko build the binaries + multi-arch OCI images
+# (ghcr.io/tundrawork/prohibitorum), SBOMs, checksums, and cosign signatures.
+# See TOOLING.md §Prod.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the GitHub Release
+  packages: write # push images to GHCR
+  id-token: write # cosign keyless signing (OIDC)
+
+env:
+  MISE_EXPERIMENTAL: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # GoReleaser needs full history + tags
+      - uses: jdx/mise-action@v3 # toolchain (go, node, goreleaser, cosign) from mise.lock
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Release (GoReleaser + ko)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mise run release

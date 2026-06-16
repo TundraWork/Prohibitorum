@@ -13,6 +13,11 @@ sqlc = "1.30.0"
 # option for those who prefer a container. CI may set GITHUB_TOKEN to avoid the
 # GitHub API rate limit on first install.
 "github:theseus-rs/postgresql-binaries" = "18.3.0"
+# Release tooling (used by `mise run release` and the release workflow):
+# GoReleaser drives the build + multi-arch OCI images via its built-in ko
+# integration + SBOMs; cosign signs the artifacts. See TOOLING.md.
+"aqua:goreleaser/goreleaser" = "2.16.0"
+"aqua:sigstore/cosign" = "3.1.1"
 
 [settings]
 # Pin exact tool versions + checksums + provenance in mise.lock (committed), so
@@ -43,7 +48,7 @@ exec npm run dev
 """
 
 [tasks.frontend-build]
-description = "Install + build the dashboard SPA into dashboard/dist"
+description = "Install deps + build the dashboard SPA into pkg/webui/dist (vite outDir — this is the bundle the Go binary embeds)."
 run = "cd dashboard && npm ci && npm run build"
 
 [tasks.openapi]
@@ -59,7 +64,7 @@ description = "Show migration status for the dev database (override by exporting
 run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITORUM_DATABASE_URL\" status"
 
 [tasks."db:start"]
-description = "Start a podman-free local Postgres for dev (self-contained cluster in .dev/pgdata; a drop-in for `podman compose up -d`, same port/role/db as scripts/dev-env.sh). Use this on macOS / any host without a container runtime. Needs the Postgres tools on PATH (brew install postgresql@18)."
+description = "Start a podman-free local Postgres for dev (self-contained cluster in .dev/pgdata; a drop-in for `podman compose up -d`, same port/role/db as scripts/dev-env.sh). The cross-platform default; Postgres binaries come from mise (no system install needed)."
 run = "scripts/dev-db.sh start"
 
 [tasks."db:stop"]
@@ -109,3 +114,60 @@ set -e
 . ./scripts/dev-env.sh
 exec go run ./cmd/prohibitorum dev-seed
 """
+
+# ---- CI / release (run the same tasks locally and in GitHub Actions; see TOOLING.md) ----
+
+[tasks."ci:go"]
+description = "CI: Go vet + build (-tags nodynamic) + full test suite — the project's backend gate."
+run = """
+set -e
+go vet ./...
+go build -tags nodynamic ./...
+go test ./...
+"""
+
+[tasks."ci:frontend"]
+description = "CI: dashboard install + unit tests + typecheck (via build), then assert the committed pkg/webui/dist matches a fresh build (no stale-dist drift)."
+run = """
+set -e
+cd dashboard
+npm ci
+npm test
+npm run build
+cd ..
+if ! git diff --quiet -- pkg/webui/dist; then
+  echo 'ERROR: pkg/webui/dist is stale — run `mise run build` and commit the rebuilt bundle.' >&2
+  git --no-pager diff --stat -- pkg/webui/dist >&2
+  exit 1
+fi
+"""
+
+[tasks.ci]
+description = "Run the full CI gate (Go + frontend) — the same task GitHub Actions runs."
+depends = ["ci:go", "ci:frontend"]
+
+[tasks.smoke]
+description = "End-to-end smoke: start a local Postgres + the server and run cmd/smoke against it (expects exit 0). Used by the CI smoke job."
+depends = ["db:start"]
+run = """
+set -e
+export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum@localhost:5432/postgres?sslmode=disable"
+export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
+export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
+export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"
+# Build once and run the binary directly so the trap kills the real server
+# (backgrounding `go run` leaves its compiled child orphaned, holding :8080).
+BIN="$(mktemp -d)/prohibitorum"
+go build -tags nodynamic -o "$BIN" ./cmd/prohibitorum
+"$BIN" & SERVER_PID=$!
+trap 'kill "$SERVER_PID" 2>/dev/null || true; rm -rf "$(dirname "$BIN")"' EXIT
+for _ in $(seq 1 60); do
+  curl -sf http://localhost:8080/.well-known/openid-configuration >/dev/null 2>&1 && break
+  sleep 1
+done
+go run ./cmd/smoke --base-url http://localhost:8080
+"""
+
+[tasks.release]
+description = "Build + publish a release: binaries + multi-arch OCI images (GoReleaser + ko) + SBOMs + checksums + cosign signatures. Runs on a git tag in the release workflow; dry-run locally with `goreleaser release --snapshot --clean`."
+run = "goreleaser release --clean"
