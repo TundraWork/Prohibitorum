@@ -51,37 +51,49 @@ pairwise `sub`), smaller hardening items, and explicit non-goals are tracked in
 
 ## Quickstart
 
-Run the IdP against **your own** Postgres + config — the get-it-running / deploy
-path. (For the local development loop — hot reload, a throwaway DB, seeded data —
-see [Development](#development).) Requires Postgres 14+ and a Redis-compatible KV
-(or the in-process `memory` driver); the toolchain is pinned in `mise.toml`.
+Deploy the IdP as a single self-contained artifact — the SPA is embedded in the
+binary, so there's nothing to host separately. Use the signed multi-arch **OCI
+image** the release pipeline publishes (the binary is the image entrypoint, so
+the same image runs the server *and* the bootstrap subcommands), or a release
+binary. (For the local dev loop — hot reload, a throwaway DB, seeded data — see
+[Development](#development).)
+
+Requires Postgres 14+ and a Redis-compatible KV (or the in-process `memory`
+driver). Config comes from the environment:
 
 ```bash
-# 1. Install the pinned toolchain.
-mise install
-
-# 2. Required config — your real values (boot fails without the encryption key).
-#    No Postgres handy? `mise run db:start` spins up a local one (see Development).
-export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
+export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"  # keep it stable; boot fails without it
 export PROHIBITORUM_PUBLIC_ORIGIN="https://auth.example.com"
-export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum?sslmode=disable"
-
-# 3. Mint an OIDC signing key — /oauth/jwks and signed tokens need one.
-go run ./cmd/prohibitorum signing-key generate
-
-# 4. Bootstrap the first admin. Prints an enrollment URL; open it in a browser
-#    to run the passkey-enrollment ceremony.
-go run ./cmd/prohibitorum enroll-admin
-
-# 5. Run the server (auto-applies migrations on boot; defaults to :8080).
-go run ./cmd/prohibitorum
+export PROHIBITORUM_DATABASE_URL="postgres://user:pass@db:5432/prohibitorum?sslmode=disable"
 ```
 
-Every command here uses **your** exported env — no dev defaults, no `dev:*`/`db:*`
-tasks. For a real deployment, ship the compiled artifact instead of `go run`:
-`mise run prod:build` produces `./prohibitorum` (SPA embedded), or pull the signed
-multi-arch OCI image the release pipeline publishes to
-`ghcr.io/tundrawork/prohibitorum` (see [`TOOLING.md`](./TOOLING.md)).
+**Run the image** (`docker` or `podman`):
+
+```bash
+IMG=ghcr.io/tundrawork/prohibitorum:0.7.0           # release version (git tag v0.7.0 → image :0.7.0); or :latest
+
+# (optional) verify the keyless cosign signature before running
+cosign verify "$IMG" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/TundraWork/Prohibitorum/[.]github/workflows/release[.]yml@'
+
+# one-time bootstrap: mint a signing key + the first admin (prints an enrollment URL)
+docker run --rm -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 "$IMG" signing-key generate
+docker run --rm -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 -e PROHIBITORUM_PUBLIC_ORIGIN "$IMG" enroll-admin
+
+# run the server (auto-applies migrations on boot; listens on :8080)
+docker run -p 8080:8080 \
+  -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 -e PROHIBITORUM_PUBLIC_ORIGIN \
+  "$IMG"
+```
+
+**Or a binary** — download a release archive from GitHub Releases, or build one
+from source with `mise install && mise run prod:build` (→ `./prohibitorum`, SPA
+embedded). Then `./prohibitorum signing-key generate`, `./prohibitorum
+enroll-admin`, and `./prohibitorum` to serve.
+
+Releases (image + binaries + SBOMs + checksums + signatures) are produced by the
+GoReleaser + ko pipeline on a git tag — see [`TOOLING.md`](./TOOLING.md).
 
 What gets mounted (all on one origin):
 
