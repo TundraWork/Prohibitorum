@@ -103,6 +103,38 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// The session carries the live db.Account row.
 	account := *sess.Account
 
+	// Per-app access gate (RBAC). The user is authenticated and enabled; a
+	// restricted SP requires a direct or via-group grant. NO admin bypass.
+	// IdP-initiated SSO is ALWAYS interactive (there is no IsPassive), so a denial
+	// goes ONLY to the IdP's own /error page — never a terminal SAML Response.
+	// Fail CLOSED: a predicate error is a direct 500. Placed before the
+	// rate-limit / build / persist so nothing is issued for an unauthorized user.
+	authzed, aerr := i.queries.IsAccountAuthorizedForSAMLSP(ctx, db.IsAccountAuthorizedForSAMLSPParams{
+		AccountID: pgtype.Int4{Int32: account.ID, Valid: true},
+		SpID:      sp.ID,
+	})
+	if aerr != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !authzed.Bool {
+		acctID := account.ID
+		_ = i.audit.Record(ctx, audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorSAMLSP,
+			Event:     audit.EventAccessDenied,
+			IP:        audit.ParseIPOrNil(r.RemoteAddr),
+			UserAgent: r.UserAgent(),
+			Detail: map[string]any{
+				"reason": "app_access_denied",
+				"sp":     sp.EntityID,
+			},
+		})
+		u := i.baseURL() + "/error?reason=app_access_denied&app=" + url.QueryEscape(sp.DisplayName)
+		http.Redirect(w, r, u, http.StatusFound)
+		return
+	}
+
 	// Per-account + per-SP rate limit. This is an unsolicited-assertion emitter
 	// (signed Response + InsertSAMLSession row per call), so it MUST be bounded
 	// exactly like the SP-initiated HandleSSO: same max/window, distinct

@@ -39,6 +39,12 @@ const (
 	// requests a concrete NameIDPolicy/@Format this IdP cannot produce for it
 	// (D8). Paired under statusRequester, matching Shibboleth/ADFS/Entra.
 	statusInvalidNameIDPolicy = "urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy"
+	// statusRequestDenied is the second-level status for an authenticated user
+	// who is NOT authorized for this SP (RBAC per-app access). Paired under
+	// statusResponder — the failure is on the IdP side (a policy decision), not a
+	// malformed request — and returned only on the passive (IsPassive) terminal
+	// path; interactive denials go to the IdP's own /error page instead.
+	statusRequestDenied = "urn:oasis:names:tc:SAML:2.0:status:RequestDenied"
 )
 
 // autoPostFormTmpl renders a self-submitting HTML form that POSTs a SAMLResponse
@@ -135,6 +141,58 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		fullSSOURL := i.baseURL() + r.URL.RequestURI()
 		loginURL := i.baseURL() + "/login?return_to=" + url.QueryEscape(fullSSOURL)
 		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
+	}
+
+	// (5b) Per-app access gate (RBAC). The user is authenticated and enabled; a
+	// restricted SP requires a direct or via-group grant. NO admin bypass. Placed
+	// right after the session gate (before rate-limit / replay-consume / build) so
+	// an unauthorized user neither spends rate budget nor consumes the single-use
+	// AuthnRequest ID. Fail CLOSED: a predicate error is a direct 500.
+	authzed, aerr := i.queries.IsAccountAuthorizedForSAMLSP(ctx, db.IsAccountAuthorizedForSAMLSPParams{
+		AccountID: pgtype.Int4{Int32: sess.Data.AccountID, Valid: true},
+		SpID:      sp.ID,
+	})
+	if aerr != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !authzed.Bool {
+		acctID := sess.Data.AccountID
+		_ = i.audit.Record(ctx, audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorSAMLSP,
+			Event:     audit.EventAccessDenied,
+			IP:        audit.ParseIPOrNil(r.RemoteAddr),
+			UserAgent: r.UserAgent(),
+			Detail: map[string]any{
+				"reason": "app_access_denied",
+				"sp":     sp.EntityID,
+			},
+		})
+		if req.IsPassive {
+			// The SP forbade an interactive bounce. This is a terminal answer, so
+			// consume the single-use AuthnRequest ID here (mirroring the NoPassive
+			// path), then auto-POST a terminal Responder/RequestDenied Response.
+			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
+				if errors.Is(cerr, ErrReplayedRequest) {
+					http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
+				} else {
+					http.Error(w, "internal error", http.StatusInternalServerError)
+				}
+				return
+			}
+			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusRequestDenied)
+			if berr != nil {
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
+			return
+		}
+		// Interactive: send the user to the IdP's own /error page.
+		u := i.baseURL() + "/error?reason=app_access_denied&app=" + url.QueryEscape(sp.DisplayName)
+		http.Redirect(w, r, u, http.StatusFound)
 		return
 	}
 

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -306,6 +308,32 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	if acct.Disabled {
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
+		return
+	}
+
+	// Re-check per-app access on every refresh (RBAC): a grant that was revoked
+	// — directly, via the user's removal from an authorized group, or by the
+	// client being newly restricted — must NOT keep minting tokens off a
+	// long-lived refresh family. No admin bypass. Fail CLOSED on a predicate
+	// error (server_error, family preserved — we make no authorization claim).
+	// On denial: durably revoke the whole rotating family so the cut survives
+	// even though no new token is issued, then refuse with invalid_grant.
+	authzed, aerr := p.queries.IsAccountAuthorizedForOIDCClient(ctx, db.IsAccountAuthorizedForOIDCClientParams{
+		AccountID: pgtype.Int4{Int32: fam.AccountID, Valid: true},
+		ClientID:  client.ClientID,
+	})
+	if aerr != nil {
+		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not evaluate access")
+		return
+	}
+	if !authzed.Bool {
+		_ = revokeFamily(ctx, p.kv, fam.FamilyID) // durable cut: kill the rotating family
+		acctID := acct.ID
+		p.auditTokenEvent(ctx, r, audit.EventAccessDenied, &acctID, map[string]any{
+			"reason":    "app_access_denied",
+			"client_id": client.ClientID,
+		})
+		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "not authorized for this application")
 		return
 	}
 

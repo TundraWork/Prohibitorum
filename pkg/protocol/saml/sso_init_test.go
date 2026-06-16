@@ -10,6 +10,7 @@ import (
 
 	crewjam "github.com/crewjam/saml"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 )
 
@@ -27,6 +28,57 @@ func idpInitRequest(sp, relayState string, sess *authn.Session) *http.Request {
 		req = req.WithContext(authn.WithSession(req.Context(), sess))
 	}
 	return req
+}
+
+// TestSSOInitAppAccessDenied verifies the RBAC gate on the IdP-initiated path:
+// a user not authorized for a restricted SP is 302-redirected to the IdP's OWN
+// /error page (IdP-initiated is always interactive, so there is never a terminal
+// SAML Response), no assertion is issued, and the denial is audited.
+func TestSSOInitAppAccessDenied(t *testing.T) {
+	sp := ssoSP()
+	sp.AllowIdpInitiated = true
+	sp.DisplayName = "Acme Cloud"
+	h := newSSOHarness(t, sp)
+	h.q.denied = true
+
+	req := idpInitRequest(testSPEntityID, "deep", liveSession(testAccount()))
+	rec := httptest.NewRecorder()
+	h.idp.HandleIdPInitiated(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error redirect; body=%s", rec.Code, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	wantPrefix := testIdPOrigin + "/error?reason=app_access_denied"
+	if !strings.HasPrefix(loc, wantPrefix) {
+		t.Fatalf("Location = %q, want prefix %q", loc, wantPrefix)
+	}
+	u, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("parse Location: %v", err)
+	}
+	if got := u.Query().Get("app"); got != "Acme Cloud" {
+		t.Fatalf("error page app= should be the SP display name, got %q", got)
+	}
+	// No assertion issued.
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (denial issues no assertion)", len(rows))
+	}
+	if samlResponseRe.MatchString(rec.Body.String()) {
+		t.Error("denial must not issue a SAMLResponse")
+	}
+
+	// The denial must be audited (saml_sp / access_denied / account 42).
+	recs := h.auditW.all()
+	if len(recs) != 1 {
+		t.Fatalf("audit records = %d, want 1", len(recs))
+	}
+	if recs[0].Factor != audit.FactorSAMLSP || recs[0].Event != audit.EventAccessDenied {
+		t.Errorf("audit = factor %q event %q, want %q/%q", recs[0].Factor, recs[0].Event, audit.FactorSAMLSP, audit.EventAccessDenied)
+	}
+	if recs[0].Detail["reason"] != "app_access_denied" {
+		t.Errorf("audit reason = %v, want app_access_denied", recs[0].Detail["reason"])
+	}
 }
 
 func TestSSOInitOptInIssuesUnsolicited(t *testing.T) {

@@ -28,7 +28,23 @@ const description = computed(() => {
   return typeof d === 'string' ? d : ''
 })
 
+// reason is our own routed signal (distinct from the OIDC `error` code). The
+// per-app access denial (?reason=app_access_denied&app=…) is sent here by the
+// OIDC authorize and SAML SSO handlers when an authenticated user is not
+// authorized for a restricted application.
+const reason = computed(() => String(route.query.reason ?? ''))
+const app = computed(() => {
+  const a = route.query.app
+  return typeof a === 'string' ? a : ''
+})
+const appAccessDenied = computed(() => reason.value === 'app_access_denied')
+
+const title = computed(() =>
+  appAccessDenied.value ? t('error.appAccessDeniedTitle') : t('error.title'),
+)
+
 const message = computed(() => {
+  if (appAccessDenied.value) return t('error.appAccessDenied', { app: app.value })
   const key = `errors.${code.value}`
   if (code.value && te(key)) return t(key)
   if (description.value) return description.value
@@ -39,7 +55,7 @@ const message = computed(() => {
 <template>
   <CenteredLayout>
     <template #title>
-      <h1 class="text-xl font-semibold tracking-tight text-ink">{{ t('error.title') }}</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-ink">{{ title }}</h1>
     </template>
 
     <div class="flex flex-col items-center gap-6 text-center">

@@ -35,6 +35,21 @@ type fakeTokenQueries struct {
 	// an id present here resolves to pgx.ErrNoRows (revoked/absent). Empty by
 	// default so every session reads as live and existing tests are unaffected.
 	revokedSessions map[string]bool
+	// deniedClients holds client IDs the bound account is NOT authorized for, used
+	// to exercise the RBAC re-check at refresh. Empty by default → authorized, so
+	// existing refresh tests keep passing. authzErr forces a predicate error.
+	deniedClients map[string]bool
+	authzErr      error
+}
+
+// IsAccountAuthorizedForOIDCClient backs the RBAC re-check on the refresh grant.
+// Default (no deniedClients, no authzErr) → authorized=true so existing tests
+// are unaffected.
+func (f *fakeTokenQueries) IsAccountAuthorizedForOIDCClient(_ context.Context, arg db.IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error) {
+	if f.authzErr != nil {
+		return pgtype.Bool{}, f.authzErr
+	}
+	return pgtype.Bool{Bool: !f.deniedClients[arg.ClientID], Valid: true}, nil
 }
 
 // GetSession mirrors the real query: returns the row only when not revoked.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -122,6 +123,39 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		fullAuthorizeURL := p.cfg.OIDC.Issuer + r.URL.RequestURI()
 		loginURL := p.cfg.OIDC.Issuer + "/login?return_to=" + url.QueryEscape(fullAuthorizeURL)
 		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
+	}
+
+	// (4b) Per-app access gate (RBAC). The user is authenticated and enabled; a
+	// restricted client requires a direct or via-group grant. There is NO admin
+	// bypass — an admin who is not granted access is denied like any other user.
+	// Placed immediately after the session/disabled gate and BEFORE any
+	// prompt/re-auth/consent handling so an unauthorized user never reaches those
+	// flows. Fail CLOSED: a predicate error denies (surfaced as server_error).
+	authzed, aerr := p.queries.IsAccountAuthorizedForOIDCClient(r.Context(), db.IsAccountAuthorizedForOIDCClientParams{
+		AccountID: pgtype.Int4{Int32: sess.Data.AccountID, Valid: true},
+		ClientID:  clientID,
+	})
+	if aerr != nil || !authzed.Bool {
+		if aerr != nil {
+			// Fail closed, but surface as server_error (not access_denied): we
+			// could not evaluate the predicate, so we make no authorization claim.
+			redirectError(w, r, redirectURI, errCodeServerError, "could not evaluate access", state, p.cfg.OIDC.Issuer)
+			return
+		}
+		acctID := sess.Data.AccountID
+		_ = p.audit.Record(r.Context(), audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorOIDCClient,
+			Event:     audit.EventAccessDenied,
+			IP:        audit.ParseIPOrNil(r.RemoteAddr),
+			UserAgent: r.UserAgent(),
+			Detail: map[string]any{
+				"reason":    "app_access_denied",
+				"client_id": clientID,
+			},
+		})
+		p.appAccessDenied(w, r, redirectURI, client.DisplayName, state, prompt == "none")
 		return
 	}
 

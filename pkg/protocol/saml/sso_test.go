@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/xml"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -48,7 +49,28 @@ type fakeSSOQueries struct {
 	mu              sync.Mutex
 	insertedSession []db.InsertSAMLSessionParams
 	mintedSubject   map[int64]string // spID -> minted NameID (persisted across calls)
+
+	// denied inverts the RBAC per-app access predicate: zero-value (false) means
+	// the account IS authorized, so every pre-RBAC test keeps passing untouched.
+	// Set true to exercise the denial path. authzErr forces a predicate error
+	// (fail-closed → 500).
+	denied   bool
+	authzErr error
 }
+
+// IsAccountAuthorizedForSAMLSP backs the RBAC per-app access gate. Default
+// (denied=false, authzErr=nil) → authorized=true so existing SSO tests are
+// unaffected.
+func (f *fakeSSOQueries) IsAccountAuthorizedForSAMLSP(_ context.Context, _ db.IsAccountAuthorizedForSAMLSPParams) (pgtype.Bool, error) {
+	if f.authzErr != nil {
+		return pgtype.Bool{}, f.authzErr
+	}
+	return pgtype.Bool{Bool: !f.denied, Valid: true}, nil
+}
+
+// errStubPredicate is injected via fakeSSOQueries.authzErr to exercise the
+// fail-closed path of the RBAC access gate.
+var errStubPredicate = errors.New("saml: injected predicate error")
 
 func (f *fakeSSOQueries) GetSAMLSPByEntityID(_ context.Context, entityID string) (db.SamlSp, error) {
 	if entityID == f.sp.EntityID {
@@ -698,6 +720,138 @@ func TestSSOReplayRejected(t *testing.T) {
 	// And no second saml_session row should have been persisted.
 	if rows := h.q.sessions(); len(rows) != 1 {
 		t.Errorf("saml_session rows = %d after replay, want 1", len(rows))
+	}
+}
+
+// ── per-app access gate (RBAC, Task 7) ───────────────────────────────────────
+
+// TestSSOAppAccessDeniedInteractive verifies an authenticated user who is not
+// authorized for a restricted SP is 302-redirected to the IdP's OWN /error page
+// (reason=app_access_denied + the SP display name), issues no assertion, and the
+// denial is audited with EventAccessDenied.
+func TestSSOAppAccessDeniedInteractive(t *testing.T) {
+	sp := ssoSP()
+	sp.DisplayName = "Acme Cloud"
+	h := newSSOHarness(t, sp)
+	h.q.denied = true
+
+	req := h.request(t, "_sso-denied", liveSession(testAccount()))
+	rec := httptest.NewRecorder()
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error redirect; body=%s", rec.Code, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	wantPrefix := testIdPOrigin + "/error?reason=app_access_denied"
+	if !strings.HasPrefix(loc, wantPrefix) {
+		t.Fatalf("Location = %q, want prefix %q", loc, wantPrefix)
+	}
+	u, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("parse Location: %v", err)
+	}
+	if got := u.Query().Get("app"); got != "Acme Cloud" {
+		t.Fatalf("error page app= should be the SP display name, got %q", got)
+	}
+	// No assertion issued → no saml_session row, no SAMLResponse.
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (denial issues no assertion)", len(rows))
+	}
+	if samlResponseRe.MatchString(rec.Body.String()) {
+		t.Error("denial must not issue a SAMLResponse")
+	}
+
+	// A denial audit record (saml_sp / access_denied / account 42) must be emitted.
+	recs := h.auditW.all()
+	if len(recs) != 1 {
+		t.Fatalf("audit records = %d, want 1", len(recs))
+	}
+	if recs[0].Factor != audit.FactorSAMLSP || recs[0].Event != audit.EventAccessDenied {
+		t.Errorf("audit = factor %q event %q, want %q/%q", recs[0].Factor, recs[0].Event, audit.FactorSAMLSP, audit.EventAccessDenied)
+	}
+	if recs[0].AccountID == nil || *recs[0].AccountID != testAccount().ID {
+		t.Errorf("audit AccountID = %v, want %d", recs[0].AccountID, testAccount().ID)
+	}
+	if recs[0].Detail["reason"] != "app_access_denied" {
+		t.Errorf("audit reason = %v, want app_access_denied", recs[0].Detail["reason"])
+	}
+}
+
+// TestSSOAppAccessDeniedPassive verifies a denied user on a passive (IsPassive)
+// AuthnRequest receives a terminal Responder/RequestDenied Response auto-POSTed
+// to the ACS — never the /error redirect — and no assertion is issued.
+func TestSSOAppAccessDeniedPassive(t *testing.T) {
+	h := newSSOHarness(t, ssoSP())
+	h.q.denied = true
+
+	req := h.request(t, "_sso-denied-passive", liveSession(testAccount()), func(o *authnReqOpts) {
+		o.isPassive = true
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 RequestDenied POST; body=%s", rec.Code, rec.Body.String())
+	}
+	action, respXML := decodeAutoPost(t, rec.Body.String())
+	if action != testACSURL {
+		t.Errorf("form action = %q, want ACS %q", action, testACSURL)
+	}
+
+	// The RequestDenied Response goes through buildStatusResponse→signElement, so
+	// it must be signed and carry Responder/RequestDenied with no Assertion.
+	doc, err := parseXMLSecure(respXML)
+	if err != nil {
+		t.Fatalf("parseXMLSecure(respXML): %v", err)
+	}
+	responseEl := doc.Root()
+	if responseEl == nil || responseEl.Tag != "Response" {
+		t.Fatalf("root element is not Response: %+v", responseEl)
+	}
+	if err := verifyElementSignature(responseEl, h.idpCert); err != nil {
+		t.Errorf("RequestDenied Response signature did not verify: %v", err)
+	}
+
+	var resp crewjam.Response
+	if err := xml.Unmarshal(respXML, &resp); err != nil {
+		t.Fatalf("unmarshal RequestDenied Response: %v", err)
+	}
+	if resp.Assertion != nil {
+		t.Error("RequestDenied Response must NOT carry an Assertion")
+	}
+	if resp.Status.StatusCode.Value != statusResponder {
+		t.Errorf("top StatusCode = %q, want %q", resp.Status.StatusCode.Value, statusResponder)
+	}
+	if resp.Status.StatusCode.StatusCode == nil || resp.Status.StatusCode.StatusCode.Value != statusRequestDenied {
+		t.Errorf("sub StatusCode = %+v, want %q", resp.Status.StatusCode.StatusCode, statusRequestDenied)
+	}
+	if resp.InResponseTo != "_sso-denied-passive" {
+		t.Errorf("InResponseTo = %q, want _sso-denied-passive", resp.InResponseTo)
+	}
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (RequestDenied issues no assertion)", len(rows))
+	}
+}
+
+// TestSSOAppAccessPredicateError verifies the SAML gate fails CLOSED: a predicate
+// evaluation error is a direct 500 with no assertion issued.
+func TestSSOAppAccessPredicateError(t *testing.T) {
+	h := newSSOHarness(t, ssoSP())
+	h.q.authzErr = errStubPredicate
+
+	req := h.request(t, "_sso-predicate-err", liveSession(testAccount()))
+	rec := httptest.NewRecorder()
+	h.idp.HandleSSO(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 (fail closed); body=%s", rec.Code, rec.Body.String())
+	}
+	if rows := h.q.sessions(); len(rows) != 0 {
+		t.Errorf("saml_session rows = %d, want 0 (predicate error issues nothing)", len(rows))
+	}
+	if samlResponseRe.MatchString(rec.Body.String()) {
+		t.Error("predicate error must not issue a SAMLResponse")
 	}
 }
 

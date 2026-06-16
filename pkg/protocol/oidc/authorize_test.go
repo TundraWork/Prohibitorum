@@ -33,6 +33,22 @@ type fakeAuthzQueries struct {
 	sessionErr error
 	granted    []string
 	grantedErr error
+	// denied inverts the per-app access predicate: zero-value (false) means the
+	// account IS authorized, so every existing test keeps passing untouched. Set
+	// true to exercise the RBAC denial path. authzErr forces a predicate error
+	// (fail-closed → server_error).
+	denied   bool
+	authzErr error
+}
+
+// IsAccountAuthorizedForOIDCClient backs the RBAC per-app access gate. Default
+// (denied=false, authzErr=nil) → authorized=true so pre-RBAC tests are
+// unaffected.
+func (f *fakeAuthzQueries) IsAccountAuthorizedForOIDCClient(_ context.Context, _ db.IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error) {
+	if f.authzErr != nil {
+		return pgtype.Bool{}, f.authzErr
+	}
+	return pgtype.Bool{Bool: !f.denied, Valid: true}, nil
 }
 
 func (f *fakeAuthzQueries) GetOIDCClient(ctx context.Context, id string) (db.OidcClient, error) {
@@ -699,6 +715,120 @@ func TestAuthorize_InvalidMaxAge_RedirectInvalidRequest(t *testing.T) {
 	loc := rec.Result().Header.Get("Location")
 	if !strings.HasPrefix(loc, "https://rp.example.com/callback") {
 		t.Fatalf("invalid max_age must redirect to the RP, got %q", loc)
+	}
+}
+
+// ── per-app access gate (RBAC, Task 7) ───────────────────────────────────────
+
+// TestAuthorize_AppAccessDenied_Interactive verifies an authenticated user who
+// is not authorized for a restricted client is 302-redirected to the IdP's OWN
+// /error page (reason=app_access_denied + the client display name), NOT to the
+// RP, and that the denial is audited with EventAccessDenied.
+func TestAuthorize_AppAccessDenied_Interactive(t *testing.T) {
+	c := validClient()
+	c.DisplayName = "Acme Console"
+	q := &fakeAuthzQueries{client: c, session: validSession(), denied: true}
+	ra := &recordingAudit{}
+	p := newProvider(q, ra)
+
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(baseParams()))
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d", rec.Code)
+	}
+	loc := rec.Result().Header.Get("Location")
+	wantPrefix := testIssuer + "/error?reason=app_access_denied"
+	if !strings.HasPrefix(loc, wantPrefix) {
+		t.Fatalf("denied user must go to the IdP /error page, got %q", loc)
+	}
+	// The app display name must round-trip in the app= param.
+	u, _ := url.Parse(loc)
+	if got := u.Query().Get("app"); got != "Acme Console" {
+		t.Fatalf("error page app= should be the client display name, got %q", got)
+	}
+	// Must NOT have minted a code or redirected to the RP.
+	if strings.HasPrefix(loc, "https://rp.example.com/callback") {
+		t.Fatalf("denial must not redirect to the RP, got %q", loc)
+	}
+
+	// A denial audit record (oidc_client / access_denied / account 42) is emitted.
+	if len(ra.records) != 1 {
+		t.Fatalf("want 1 audit record, got %d", len(ra.records))
+	}
+	r0 := ra.records[0]
+	if r0.Factor != audit.FactorOIDCClient || r0.Event != audit.EventAccessDenied {
+		t.Fatalf("want %s/%s, got %s/%s", audit.FactorOIDCClient, audit.EventAccessDenied, r0.Factor, r0.Event)
+	}
+	if r0.AccountID == nil || *r0.AccountID != 42 {
+		t.Fatalf("denial audit AccountID should be 42, got %v", r0.AccountID)
+	}
+	if r0.Detail["reason"] != "app_access_denied" {
+		t.Fatalf("denial audit reason should be app_access_denied, got %v", r0.Detail["reason"])
+	}
+}
+
+// TestAuthorize_AppAccessDenied_PromptNone verifies that a denied user whose RP
+// forbade interactive UI (prompt=none) gets the protocol-native access_denied
+// redirected to the RP's redirect_uri — NOT the /error page.
+func TestAuthorize_AppAccessDenied_PromptNone(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: validSession(), denied: true}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Set("prompt", "none")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	gotQ := redirectQuery(t, rec)
+	if got := gotQ.Get("error"); got != errCodeAccessDenied {
+		t.Fatalf("want error=%s, got %q", errCodeAccessDenied, got)
+	}
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "https://rp.example.com/callback") {
+		t.Fatalf("prompt=none denial must go to the RP redirect_uri, got %q", loc)
+	}
+	// state must be echoed back to the RP.
+	if got := gotQ.Get("state"); got != "xyz-state" {
+		t.Fatalf("state should be echoed, got %q", got)
+	}
+}
+
+// TestAuthorize_AppAccessAllowed_IssuesCode verifies the gate is non-blocking
+// for an authorized account (the explicit positive case alongside the existing
+// happy path, which also runs with the default authorized predicate).
+func TestAuthorize_AppAccessAllowed_IssuesCode(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: validSession()} // denied=false
+	p := newProvider(q, &recordingAudit{})
+
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(baseParams()))
+
+	gotQ := redirectQuery(t, rec)
+	if gotQ.Get("code") == "" {
+		t.Fatalf("authorized account must receive a code, got %v", gotQ)
+	}
+	if gotQ.Get("error") != "" {
+		t.Fatalf("authorized account must not carry an error, got %q", gotQ.Get("error"))
+	}
+}
+
+// TestAuthorize_AppAccessPredicateError_ServerError verifies the gate fails
+// CLOSED: a predicate evaluation error denies and surfaces server_error to the
+// RP (never fail-open, never access_denied since we make no authz claim).
+func TestAuthorize_AppAccessPredicateError_ServerError(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: validSession(), authzErr: errors.New("db down")}
+	p := newProvider(q, &recordingAudit{})
+
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(baseParams()))
+
+	gotQ := redirectQuery(t, rec)
+	if got := gotQ.Get("error"); got != errCodeServerError {
+		t.Fatalf("want error=%s (fail closed), got %q", errCodeServerError, got)
+	}
+	if gotQ.Get("code") != "" {
+		t.Fatalf("predicate error must not issue a code, got %q", gotQ.Get("code"))
 	}
 }
 

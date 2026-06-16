@@ -508,6 +508,77 @@ func TestTokenRefreshDisabledAccount(t *testing.T) {
 	}
 }
 
+// TestTokenRefreshAppAccessDenied verifies the RBAC re-check at refresh: a user
+// who is no longer authorized for the bound client (e.g. removed from an
+// authorized group, or the client newly restricted) gets invalid_grant AND the
+// rotating family is durably revoked, so no further refresh can succeed. The
+// denial is audited with EventAccessDenied.
+func TestTokenRefreshAppAccessDenied(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+
+	// The account is no longer authorized for testClientID.
+	h.p.queries.(*fakeTokenQueries).deniedClients = map[string]bool{testClientID: true}
+
+	presented, _, err := issueRefresh(ctx, h.p.kv, grantFamily(), RefreshTokenTTL)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
+	}
+
+	// The family must be durably revoked: the presented token (rotated inside
+	// grantRefreshToken before the gate fired) no longer resolves to a live family.
+	if _, ok := lookupRefresh(ctx, h.p.kv, presented); ok {
+		t.Fatal("denied account's family must be revoked (durable cut)")
+	}
+
+	// A denial audit record (access_denied / account 42) must be emitted.
+	var sawDenied bool
+	for _, r := range h.audit.records {
+		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventAccessDenied && r.Detail["reason"] == "app_access_denied" {
+			sawDenied = true
+			if r.AccountID == nil || *r.AccountID != 42 {
+				t.Fatalf("access_denied AccountID = %v, want 42", r.AccountID)
+			}
+		}
+	}
+	if !sawDenied {
+		t.Fatal("expected an app_access_denied audit record on refresh denial")
+	}
+}
+
+// TestTokenRefreshAppAccessPredicateError verifies the refresh re-check fails
+// CLOSED on a predicate error: server_error, no new token, and the family is
+// preserved (we make no authorization claim, so we do not cut the family).
+func TestTokenRefreshAppAccessPredicateError(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+
+	h.p.queries.(*fakeTokenQueries).authzErr = errors.New("db down")
+
+	presented, _, err := issueRefresh(ctx, h.p.kv, grantFamily(), RefreshTokenTTL)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500 (fail closed), got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeServerError {
+		t.Fatalf("want %s, got %s", errCodeServerError, got)
+	}
+}
+
 func TestTokenRefreshUnknownToken(t *testing.T) {
 	h := newTokenHarness(t)
 

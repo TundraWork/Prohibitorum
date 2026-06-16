@@ -545,6 +545,8 @@ export default {
     title: 'Something went wrong',
     defaultMessage: 'An unexpected error occurred. Please try again.',
     returnToLogin: 'Return to sign in',
+    appAccessDeniedTitle: 'Access not allowed',
+    appAccessDenied: "You don't have access to {app}. Contact your administrator if you think this is a mistake.",
   },
 
   enroll: {
