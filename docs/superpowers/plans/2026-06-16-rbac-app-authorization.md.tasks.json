@@ -73,10 +73,10 @@
     {
       "id": 10,
       "subject": "Task 11: Smoke arc, docs, rebuild dist, final gate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 3, 5, 6, 7, 8, 9],
       "description": "**Goal:** Smoke RBAC arc (group->member->restrict->deny/allow->groups claim); docs (README box, api.md, ARCHITECTURE, STATUS); rebuild+commit pkg/webui/dist; full green gate.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\",\"README.md\",\"api.md\",\"ARCHITECTURE.md\",\"STATUS.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"smoke arc green incl groups claim\",\"docs updated; README RBAC box checked\",\"full gate GREEN + dist rebuilt/committed\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-16T06:20:00Z"
+  "lastUpdated": "2026-06-16T07:10:00Z"
 }

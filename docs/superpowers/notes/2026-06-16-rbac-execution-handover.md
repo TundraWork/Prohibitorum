@@ -84,3 +84,25 @@ T11 also: live smoke (`SMOKE_EXIT=0`, see README "End-to-end smoke" — needs `P
 ## Working-tree state at handover
 
 Clean except the `.tasks.json` sync edit (committed alongside this handover). Committed dist is stale (reflects T3) — that's fine; T11 rebuilds authoritatively.
+
+---
+
+## COMPLETION — 2026-06-16 (all 11 tasks done)
+
+The continuing agent finished **T4 → T11**. Every task ran the full subagent loop (implementer → spec review → code-quality review → fixes → re-verify → sync). Final state: **all 11 plan tasks `completed`** in `.tasks.json`.
+
+**Per-task outcome (commits on top of `origin/master`):**
+- **T4** finalize: code-quality review CLEAN; applied 2 test nits (`b295ec9`).
+- **T5** app-access API (`d0ba20b`): quality CLEAN. Spec reviewer flagged "no handler round-trip test" — **accepted as house convention** (the template `handle_admin_oidc_clients_test.go` / `handle_admin_groups_test.go` are *also* DB-free unit tests; admin handlers use a concrete `*db.Queries`, not a fakeable interface; round-trip is covered by the T11 smoke).
+- **T6** Access card (`861eb0d`): PASS+CLEAN; `useApi` race avoided (3 separate instances), populate-asserting tests. (Found+fixed an unrelated stale `node_modules`: `vue-advanced-cropper` was missing — `npm install` restored it; suite is 439 tests.)
+- **T7** enforcement (`9ad88f2`): spec PASS + adversarial quality CLEAN (no fail-open / bypass / identity-confusion; durable refresh-family revoke; full audit). Predicate returns `pgtype.Bool` (use `.Bool`); account ids are `pgtype.Int4`. Known accepted NIT: OIDC gate uses `prompt == "none"` exact-match (a malformed `prompt=none login` denial routes to interactive `/error` instead of RP `access_denied` — still denied; both reviewers OK to leave).
+- **T8** OIDC groups claim (`4140b35`): PASS+CLEAN; present-but-empty `[]` vs absent verified; `userinfoClaims` signature changed + all callers updated; fixed `TestValidateOIDCScopes` (groups now valid).
+- **T9** SAML groups attr (`06698a5`): PASS; removed a dead `attrSourceGroups` i18n key (amended). Accepted: the SAML SSO groups fetch is **unconditional** (cold path; matches plan's simplicity choice) rather than gated like OIDC's `hasScope`.
+- **T10** CLI (`2d06379`): PASS; all 8 grant/revoke wirings verified correct; **live-validated** the `group` verb against a throwaway DB; fixed a gofmt-only nit (amended).
+- **T11** smoke + docs + dist (`3291a64`, `14fb428`, `0ab1ebf`): smoke arc rbac 1–7 appended; docs (README box ticked, api.md, ARCHITECTURE, STATUS v0.7); dist rebuilt + committed.
+
+**Final gate — GREEN:** `go build -tags nodynamic ./...` ✓ · `go vet ./...` ✓ · `go test ./...` ✓ (16 pkgs) · `cd dashboard && npm test` ✓ (439) · `npm run build` ✓ · **live smoke `SMOKE_EXIT=0`** including the RBAC arc (deny non-member → `/error?reason=app_access_denied` no code; via-group grant → code → `groups` claim in id_token + userinfo).
+
+**Environment note for future live smokes here:** podman/docker are unavailable, but the Homebrew `postgres` 18.4 binary is — spin a throwaway cluster with `initdb`/`pg_ctl` on a spare port (e.g. 55432, trust auth, user `prohibitorum`), point `PROHIBITORUM_DATABASE_URL` at it. The smoke shells out via `mise exec`, and `mise.toml` pins `postgres = "18.4"` which fails to build from source (no pkg-config/ICU) — run the smoke with **`MISE_DISABLE_TOOLS=postgres`** so mise skips it (the smoke uses the system `psql`, not mise's postgres).
+
+**Note on push state:** at completion `origin/master` was at `313772e` (the T1–T4 + handover commits had been pushed); T5–T11 are local commits on top. Per the firm rule, nothing was pushed — leave that to the user.
