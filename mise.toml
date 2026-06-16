@@ -8,12 +8,12 @@ sqlc = "1.30.0"
 # without pkg-config/ICU. The github backend downloads a pinned, per-platform
 # binary (checksum + SLSA provenance verified by mise), so Postgres stays
 # one-stop under `mise install`, reproducible, and cross-platform with no
-# container runtime. `mise db:start` (scripts/dev-db.sh) runs a local dev/test
-# cluster from these binaries (initdb/pg_ctl/postgres); compose.yaml remains an
-# option for those who prefer a container. CI may set GITHUB_TOKEN to avoid the
-# GitHub API rate limit on first install.
+# container runtime. `mise run db:start` (scripts/dev-db.sh) runs a local
+# dev/test cluster from these binaries (initdb/pg_ctl/postgres); compose.yaml
+# remains an option for those who prefer a container. CI may set GITHUB_TOKEN to
+# avoid the GitHub API rate limit on first install.
 "github:theseus-rs/postgresql-binaries" = "18.3.0"
-# Release tooling (used by `mise run release` and the release workflow):
+# Release tooling (used by `mise run prod:release` and the release workflow):
 # GoReleaser drives the build + multi-arch OCI images via its built-in ko
 # integration + SBOMs; cosign signs the artifacts. See TOOLING.md.
 "aqua:goreleaser/goreleaser" = "2.16.0"
@@ -31,64 +31,22 @@ lockfile = true
 # back — `go.mod`'s `go 1.26` stays the language floor. See TOOLING.md.
 GOTOOLCHAIN = "local"
 
-[tasks.server]
-description = "Run the Go server (serves the committed embedded SPA; no npm needed)."
-# Build the whole package, not just main.go — addDevSeedCmd etc. live in
-# sibling files (cmd/prohibitorum/dev_seed.go). `go run .../main.go` compiles
-# only that one file and fails with "undefined: addDevSeedCmd".
-run = "go run ./cmd/prohibitorum"
+# =============================================================================
+# Tasks — namespaced by CONTEXT so dev and prod commands can't be mixed up.
+# Run with `mise run <task>`, e.g. `mise run dev:server`. (`mise tasks` lists
+# them grouped by namespace.) See TOOLING.md for the full picture.
+#
+#   dev:*    local development — run the app, hot reload, seed, enroll an admin
+#   db:*     local Postgres lifecycle — used by dev + the smoke; never prod
+#   build:*  build artifacts shared by dev and prod (the SPA bundle, openapi)
+#   ci:*     the checks GitHub Actions runs (also runnable locally)
+#   prod:*   PRODUCTION build + release (release binary, OCI images) — ship path
+# =============================================================================
 
-[tasks.web]
-description = "Run the dashboard dev server (hot reload). Installs npm deps on first run."
-run = """
-set -e
-cd dashboard
-[ -d node_modules ] || npm ci
-exec npm run dev
-"""
+# ---- dev: local development -------------------------------------------------
 
-[tasks.frontend-build]
-description = "Install deps + build the dashboard SPA into pkg/webui/dist (vite outDir — this is the bundle the Go binary embeds)."
-run = "cd dashboard && npm ci && npm run build"
-
-[tasks.openapi]
-description = "Regenerate openapi.yaml from the running humacli"
-run = "go run ./cmd/prohibitorum openapi > openapi.yaml"
-
-[tasks."db:up"]
-description = "Apply DB migrations to the dev database (override by exporting PROHIBITORUM_DATABASE_URL)."
-run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITORUM_DATABASE_URL\" up"
-
-[tasks."db:status"]
-description = "Show migration status for the dev database (override by exporting PROHIBITORUM_DATABASE_URL)."
-run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITORUM_DATABASE_URL\" status"
-
-[tasks."db:start"]
-description = "Start a podman-free local Postgres for dev (self-contained cluster in .dev/pgdata; a drop-in for `podman compose up -d`, same port/role/db as scripts/dev-env.sh). The cross-platform default; Postgres binaries come from mise (no system install needed)."
-run = "scripts/dev-db.sh start"
-
-[tasks."db:stop"]
-description = "Stop the local dev Postgres started by `mise db:start`."
-run = "scripts/dev-db.sh stop"
-
-[tasks."db:reset"]
-description = "Stop and WIPE the local dev Postgres data dir (.dev/pgdata), so the next `mise db:start` is a fresh database."
-run = "scripts/dev-db.sh reset"
-
-[tasks.build]
-description = "Build the SPA into pkg/webui/dist, then compile the ./prohibitorum binary (which embeds the dist). Run it directly, e.g. with the dev env: `. ./scripts/dev-env.sh && ./prohibitorum`."
-run = """
-set -e
-cd dashboard
-[ -d node_modules ] || npm ci
-npm run build
-cd ..
-go build -o prohibitorum ./cmd/prohibitorum
-echo "built ./prohibitorum"
-"""
-
-[tasks.dev-server]
-description = "Build the SPA into pkg/webui/dist, then run the embedded server at http://localhost:8080 with dev defaults (see scripts/dev-env.sh): the prohibitorum_dev database (start it first with `podman compose up -d`, or `mise db:start` for a podman-free local cluster on macOS) and a stable .dev/encryption-key. The server auto-migrates on boot. Bootstrap an admin with `mise enroll-admin -- --new` in another shell."
+[tasks."dev:server"]
+description = "DEV: build the SPA + run the server at http://localhost:8080 with dev defaults (scripts/dev-env.sh: prohibitorum_dev DB + a stable .dev/encryption-key; auto-migrates on boot). Start the DB first with `mise run db:start`; bootstrap an admin with `mise run dev:enroll-admin -- --new`."
 run = """
 set -e
 . ./scripts/dev-env.sh
@@ -99,26 +57,78 @@ cd ..
 exec go run ./cmd/prohibitorum
 """
 
-[tasks.enroll-admin]
-description = "Issue an admin passkey-enrollment URL against the dev database (same key/DB as dev-server), then open the printed http://localhost:8080/enroll/<token> in a browser. Default errors if an admin already exists; pass flags after --, e.g. `mise enroll-admin -- --new` or `mise enroll-admin -- --reset --username alice`."
+[tasks."dev:web"]
+description = "DEV: dashboard dev server with hot reload (npm run dev), against a running backend (`mise run dev:server` or `mise run dev:run`). Installs npm deps on first run."
+run = """
+set -e
+cd dashboard
+[ -d node_modules ] || npm ci
+exec npm run dev
+"""
+
+[tasks."dev:run"]
+description = "DEV: run the Go server against your CURRENT env using the committed embedded SPA (no SPA rebuild, no npm). For the full dev experience use `mise run dev:server`."
+# Build the whole package, not just main.go — addDevSeedCmd etc. live in
+# sibling files (cmd/prohibitorum/dev_seed.go). `go run .../main.go` compiles
+# only that one file and fails with "undefined: addDevSeedCmd".
+run = "go run ./cmd/prohibitorum"
+
+[tasks."dev:enroll-admin"]
+description = "DEV: issue an admin passkey-enrollment URL against the dev DB (same key/DB as dev:server); open the printed http://localhost:8080/enroll/<token>. Errors if an admin exists; pass flags after --, e.g. `mise run dev:enroll-admin -- --new` or `... -- --reset --username alice`."
 run = """
 set -e
 . ./scripts/dev-env.sh
 exec go run ./cmd/prohibitorum enroll-admin "$@"
 """
 
-[tasks.dev-seed]
-description = "Seed the dev database (prohibitorum_dev) with example providers/accounts/invitations so the dashboard's data-driven elements render. Idempotent, refuses non-localhost."
+[tasks."dev:seed"]
+description = "DEV: seed the dev database with example providers/accounts/invitations so the dashboard's data-driven views render. Idempotent; refuses non-localhost."
 run = """
 set -e
 . ./scripts/dev-env.sh
 exec go run ./cmd/prohibitorum dev-seed
 """
 
-# ---- CI / release (run the same tasks locally and in GitHub Actions; see TOOLING.md) ----
+# ---- db: local Postgres lifecycle (dev + smoke; never prod) -----------------
+
+[tasks."db:start"]
+description = "DB: start a local Postgres for dev/test (self-contained cluster in .dev/pgdata; same port/role/db as scripts/dev-env.sh). Binaries come from mise — no container runtime, no system install. A drop-in for `podman compose up -d`."
+run = "scripts/dev-db.sh start"
+
+[tasks."db:stop"]
+description = "DB: stop the local Postgres started by `mise run db:start`."
+run = "scripts/dev-db.sh stop"
+
+[tasks."db:reset"]
+description = "DB: stop and WIPE the local Postgres data dir (.dev/pgdata) for a fresh database."
+run = "scripts/dev-db.sh reset"
+
+[tasks."db:up"]
+description = "DB: apply goose migrations to the dev database (override the target via PROHIBITORUM_DATABASE_URL)."
+run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITORUM_DATABASE_URL\" up"
+
+[tasks."db:status"]
+description = "DB: show goose migration status for the dev database (override via PROHIBITORUM_DATABASE_URL)."
+run = ". ./scripts/dev-env.sh && goose -dir db/migrations postgres \"$PROHIBITORUM_DATABASE_URL\" status"
+
+# ---- build: artifacts shared by dev and prod -------------------------------
+
+[tasks."build:web"]
+description = "BUILD: compile the dashboard SPA into pkg/webui/dist (vite outDir — the bundle the Go binary embeds via go:embed). Shared by dev:server, prod:build, and the release."
+run = "cd dashboard && npm ci && npm run build"
+
+[tasks."build:openapi"]
+description = "BUILD: regenerate openapi.yaml from the running humacli."
+run = "go run ./cmd/prohibitorum openapi > openapi.yaml"
+
+# ---- ci: the checks GitHub Actions runs (also runnable locally) -------------
+
+[tasks.ci]
+description = "CI: the full fast gate (ci:go + ci:frontend) — the same task the CI `gate` job runs."
+depends = ["ci:go", "ci:frontend"]
 
 [tasks."ci:go"]
-description = "CI: Go vet + build (-tags nodynamic) + full test suite — the project's backend gate."
+description = "CI: Go vet + build (-tags nodynamic) + full test suite — the backend gate."
 run = """
 set -e
 go vet ./...
@@ -136,18 +146,14 @@ npm test
 npm run build
 cd ..
 if ! git diff --quiet -- pkg/webui/dist; then
-  echo 'ERROR: pkg/webui/dist is stale — run `mise run build` and commit the rebuilt bundle.' >&2
+  echo 'ERROR: pkg/webui/dist is stale — run `mise run prod:build` (or `mise run build:web`) and commit the rebuilt bundle.' >&2
   git --no-pager diff --stat -- pkg/webui/dist >&2
   exit 1
 fi
 """
 
-[tasks.ci]
-description = "Run the full CI gate (Go + frontend) — the same task GitHub Actions runs."
-depends = ["ci:go", "ci:frontend"]
-
-[tasks.smoke]
-description = "End-to-end smoke: start a local Postgres + the server and run cmd/smoke against it (expects exit 0). Used by the CI smoke job."
+[tasks."ci:smoke"]
+description = "CI: end-to-end smoke — start a local Postgres + the server and run cmd/smoke against it (expects exit 0). The CI `smoke` job; also runnable locally."
 depends = ["db:start"]
 run = """
 set -e
@@ -168,6 +174,20 @@ done
 go run ./cmd/smoke --base-url http://localhost:8080
 """
 
-[tasks.release]
-description = "Build + publish a release: binaries + multi-arch OCI images (GoReleaser + ko) + SBOMs + checksums + cosign signatures. Runs on a git tag in the release workflow; dry-run locally with `goreleaser release --snapshot --clean`."
+# ---- prod: production build + release (the ship path) -----------------------
+
+[tasks."prod:build"]
+description = "PROD: build the SPA + compile the ./prohibitorum release binary (-tags nodynamic, embeds the SPA), matching the released artifact. Run it with `. ./scripts/dev-env.sh && ./prohibitorum` or set PROHIBITORUM_* yourself."
+run = """
+set -e
+cd dashboard
+[ -d node_modules ] || npm ci
+npm run build
+cd ..
+go build -tags nodynamic -o prohibitorum ./cmd/prohibitorum
+echo "built ./prohibitorum"
+"""
+
+[tasks."prod:release"]
+description = "PROD: build + publish a release — binaries + multi-arch OCI images (GoReleaser + ko) + SBOMs + checksums + cosign signatures. Runs on a git tag in the release workflow; dry-run locally with `goreleaser release --snapshot --clean`."
 run = "goreleaser release --clean"

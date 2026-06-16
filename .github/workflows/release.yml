@@ -33,4 +33,4 @@ jobs:
       - name: Release (GoReleaser + ko)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mise run release
+        run: mise run prod:release

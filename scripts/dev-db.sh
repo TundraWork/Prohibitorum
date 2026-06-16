@@ -6,8 +6,8 @@
 # Manages a self-contained cluster under .dev/pgdata that is a DROP-IN
 # REPLACEMENT for the compose.yaml container: same port (5432), superuser role
 # (prohibitorum) and database (prohibitorum_dev) that scripts/dev-env.sh — and
-# therefore `mise db:up`, `mise dev-server`, `mise enroll-admin`, `mise
-# dev-seed`, and `cmd/smoke` — expect. Nothing else changes; the DATABASE_URL is
+# therefore `mise run db:up`, `mise run dev:server`, `mise run dev:enroll-admin`,
+# `mise run dev:seed`, and `cmd/smoke` — expect. Nothing else changes; the DATABASE_URL is
 # identical to the containerised one.
 #
 # The Postgres binaries come from mise (`github:theseus-rs/postgresql-binaries`

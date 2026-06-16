@@ -11,7 +11,7 @@ before:
   hooks:
     # Build the dashboard into pkg/webui/dist so the Go build embeds a fresh
     # bundle (the binary serves the SPA via go:embed).
-    - mise run frontend-build
+    - mise run build:web
 
 builds:
   - id: prohibitorum

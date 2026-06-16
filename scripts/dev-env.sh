@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared dev environment for the `mise dev-*` and `mise db:*` tasks.
+# Shared dev environment sourced by the `mise run dev:*` and `mise run db:*` tasks.
 # SOURCE this — it only exports vars, it execs nothing:
 #   . ./scripts/dev-env.sh
 #
