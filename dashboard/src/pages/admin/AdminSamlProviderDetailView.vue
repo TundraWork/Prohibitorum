@@ -245,7 +245,9 @@ onMounted(load)
         </CardContent>
       </Card>
 
-      <!-- Danger zone card -->
+      <AppAccessCard kind="saml" :app-id="String(id)" />
+
+      <!-- Danger zone card (kept LAST — destructive actions belong at the bottom). -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.saml.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
@@ -270,8 +272,6 @@ onMounted(load)
           </div>
         </CardContent>
       </Card>
-
-      <AppAccessCard kind="saml" :app-id="String(id)" />
     </template>
 
     <ConfirmDialog :open="confirmDelete" :title="t('admin.saml.deleteConfirmTitle')" :confirm-label="t('admin.saml.delete')" :busy="busy"
