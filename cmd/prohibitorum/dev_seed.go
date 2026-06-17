@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/url"
 
 	"prohibitorum/db/migrations"
@@ -29,6 +30,38 @@ var loopbackHosts = map[string]bool{
 	"localhost": true,
 	"127.0.0.1": true,
 	"::1":       true,
+}
+
+// isLoopbackOrigin reports whether origin is dev-safe: its host is a known
+// loopback name, a loopback IP literal, or a DNS name that resolves *entirely*
+// to loopback addresses. Fail-closed: malformed input, a resolution error, or
+// any non-loopback resolved IP returns false. This lets dev harnesses use real
+// DNS names pinned to 127.0.0.1 while still refusing genuine public origins.
+func isLoopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "" {
+		return false
+	}
+	if loopbackHosts[host] {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil || len(ips) == 0 {
+		return false
+	}
+	for _, ip := range ips {
+		if !ip.IsLoopback() {
+			return false
+		}
+	}
+	return true
 }
 
 func init() {
@@ -74,11 +107,10 @@ func runDevSeed(_ *cobra.Command, _ []string) {
 		log.Fatalf("PROHIBITORUM_PUBLIC_ORIGIN is not set")
 	}
 
-	// Dev guard: only loopback origins allowed.
+	// Dev guard: only loopback origins allowed (incl. DNS names pinned to loopback).
 	origin := config.PublicOrigins[0]
-	u, err := url.Parse(origin)
-	if err != nil || !loopbackHosts[u.Hostname()] {
-		log.Fatalf("dev-seed refuses to run against a non-localhost origin (%s); set PROHIBITORUM_PUBLIC_ORIGIN to http://localhost:…", origin)
+	if !isLoopbackOrigin(origin) {
+		log.Fatalf("dev-seed refuses to run against a non-loopback origin (%s); set PROHIBITORUM_PUBLIC_ORIGIN to a loopback host", origin)
 	}
 
 	if _, err := migrations.UpWithResult(config.DatabaseURL); err != nil {
