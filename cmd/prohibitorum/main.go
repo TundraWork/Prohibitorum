@@ -780,6 +780,7 @@ modified here.`,
 	addUpstreamIDPCommands(cli.Root())
 
 	addDevSeedCmd(cli.Root())
+	addDevFederationCmd(cli.Root())
 
 	cli.Run()
 }
