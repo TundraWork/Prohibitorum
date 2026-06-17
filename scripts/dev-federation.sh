@@ -93,6 +93,9 @@ ensure_db prohibitorum_downstream
 
 # --- 3. build once (matches smoke/release) ---------------------------------
 BIN_DIR="$(mktemp -d)"
+# Arm cleanup of the tempdir immediately (a build failure aborts before the
+# full trap below is set); extended to also kill the backends once they start.
+trap 'rm -rf "$BIN_DIR"' EXIT
 BIN="$BIN_DIR/prohibitorum"
 echo "building prohibitorum (-tags nodynamic) ..."
 go build -tags nodynamic -o "$BIN" ./cmd/prohibitorum
@@ -185,9 +188,20 @@ cleanup() { kill "$UP_PID" "$DOWN_PID" ${TAIL_PID:+"$TAIL_PID"} 2>/dev/null || t
 trap cleanup INT TERM EXIT
 
 # --- 8. wait for backends, probe nginx, banner -----------------------------
+# Track liveness per backend: if one never answers (port clash, bad DSN, crash),
+# surface its log tail and abort rather than print a misleading "UP" banner.
 for url in "http://127.0.0.1:$UP_PORT/.well-known/openid-configuration" \
 	"http://127.0.0.1:$DOWN_PORT/.well-known/openid-configuration"; do
-	for _ in $(seq 1 60); do curl -sf "$url" >/dev/null 2>&1 && break; sleep 1; done
+	ok=0
+	for _ in $(seq 1 60); do
+		curl -sf "$url" >/dev/null 2>&1 && { ok=1; break; }
+		sleep 1
+	done
+	if [ "$ok" != 1 ]; then
+		echo "ERROR: backend $url never came up. Last log lines:" >&2
+		tail -n 25 "$UP_LOG" "$DOWN_LOG" >&2
+		exit 1
+	fi
 done
 if curl -sf "$UP_ORIGIN/.well-known/openid-configuration" >/dev/null 2>&1; then
 	NGINX_NOTE="nginx is routing $UP_ORIGIN"
