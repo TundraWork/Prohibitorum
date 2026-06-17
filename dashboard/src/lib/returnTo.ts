@@ -2,32 +2,39 @@
  * safeReturnTo — same-origin return-URL guard.
  *
  * Accepts a string (or undefined) from untrusted input (query params, API
- * responses) and returns a safe, relative path on the current origin.
- * Any value that could redirect the user off-origin is rejected in favour of '/'.
+ * responses) and returns a safe, same-origin path to navigate to. Any value
+ * that could redirect the user off-origin is rejected in favour of '/'.
  *
- * Rules:
- *  - Must start with exactly one '/' (not '//' which is protocol-relative).
- *  - Must not contain a scheme character sequence (i.e. must not match /^[a-z][a-z0-9+\-.]*:/i).
- *  - When resolved via new URL(raw, origin) the resulting origin must equal window.location.origin.
+ * Accepts both a relative path (`/oauth/authorize?…`, set by the SPA's auth
+ * guard) AND a same-origin absolute URL (`https://idp.example/oauth/authorize?…`,
+ * which the server emits when bouncing an unauthenticated user to /login) —
+ * both resolve to the current origin. The result is always a relative path so
+ * the caller's navigation can never be read as protocol-relative.
+ *
+ * Rejects:
+ *  - protocol-relative `//evil.com`;
+ *  - cross-origin absolute URLs (origin ≠ current origin);
+ *  - non-http(s) schemes like `javascript:` / `data:` (opaque "null" origin);
+ *  - anything that resolves to a `//…` path (e.g. the `/\evil.com` trick).
  */
 export function safeReturnTo(raw: string | undefined): string {
   if (!raw) return '/'
 
-  // Reject anything that doesn't start with a single '/'
-  // (catches absolute URLs, protocol-relative '//', scheme URLs like 'javascript:')
-  if (!raw.startsWith('/') || raw.startsWith('//')) return '/'
+  // Protocol-relative ('//evil.com') would navigate off-origin — reject outright.
+  if (raw.startsWith('//')) return '/'
 
-  // Belt-and-suspenders: reject if there's a scheme-like pattern before the path
-  // (catches any encoding tricks that might slip through the slash check)
-  if (/^[a-z][a-z0-9+\-.]*:/i.test(raw)) return '/'
-
-  // Resolve against current origin and verify the result stays on-origin.
-  // In jsdom/vitest the origin is 'http://localhost', which is fine for tests.
   try {
+    // Resolve relative paths and absolute URLs alike against the current origin.
+    // Same-origin is the security boundary: cross-origin values and non-http
+    // schemes (javascript:/data:, whose origin is the opaque "null") fail here.
     const resolved = new URL(raw, window.location.origin)
     if (resolved.origin !== window.location.origin) return '/'
-    // Return the path + search + hash (no origin prefix)
-    return resolved.pathname + resolved.search + resolved.hash
+
+    const path = resolved.pathname + resolved.search + resolved.hash
+    // Never emit a value that could be read as protocol-relative: a "/\evil.com"
+    // input can stay on-origin but resolve to a "//evil.com" path.
+    if (path.startsWith('//')) return '/'
+    return path
   } catch {
     return '/'
   }

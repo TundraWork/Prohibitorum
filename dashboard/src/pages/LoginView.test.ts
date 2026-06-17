@@ -24,6 +24,11 @@ vi.mock('@/composables/useReturnTo', () => ({
   useReturnTo: () => ({ returnTo: { value: '/me' }, goReturnTo }),
 }))
 
+// Auth store: `me` is preset per test; `ensureLoaded` is a no-op (the real one
+// fetches /me). Default = unauthenticated, so the login methods render.
+const authState = vi.hoisted(() => ({ me: null as null | { id: number; username: string }, ensureLoaded: vi.fn(async () => {}) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
+
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
 
@@ -44,6 +49,8 @@ beforeEach(() => {
   get.mockReset()
   post.mockReset()
   goReturnTo.mockReset()
+  authState.me = null
+  authState.ensureLoaded.mockClear()
 })
 
 describe('LoginView', () => {
@@ -55,7 +62,9 @@ describe('LoginView', () => {
       return Promise.reject(new Error(`unexpected GET ${path}`))
     })
     const wrapper = mountView()
-    // Before status resolves: skeleton visible, passkey button absent.
+    // Let the auth-store session check resolve so the /auth/status GET fires
+    // (its promise stays pending). Status in flight: skeleton up, passkey absent.
+    await flushPromises()
     const skeletonBefore = wrapper.find('[role="status"][aria-busy="true"]')
     expect(skeletonBefore.exists(), 'skeleton present while checking').toBe(true)
     expect(
@@ -101,6 +110,23 @@ describe('LoginView', () => {
       expect.objectContaining({ id: 'assert' }),
     )
     expect(goReturnTo).toHaveBeenCalledOnce()
+  })
+
+  it('redirects via return_to when a session already exists (no login form, no status check)', async () => {
+    authState.me = { id: 1, username: 'alex' }
+    get.mockImplementation(async (path: string) => {
+      if (path === '/api/prohibitorum/auth/federation') return []
+      throw new Error(`unexpected GET ${path}`)
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(goReturnTo).toHaveBeenCalledOnce()
+    // No /auth/status call (we short-circuited) and no sign-in methods rendered.
+    expect(get).not.toHaveBeenCalledWith('/api/prohibitorum/auth/status')
+    expect(
+      wrapper.findAll('button').find((b) => b.text().includes(en.login.passkeyButton)),
+    ).toBeFalsy()
   })
 
   it('shows the enroll-admin hint when no admin exists yet', async () => {

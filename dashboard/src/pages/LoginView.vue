@@ -14,6 +14,7 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
 import { useReturnTo } from '@/composables/useReturnTo'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import PasskeyButton from '@/components/custom/PasskeyButton.vue'
@@ -23,6 +24,7 @@ import OrDivider from '@/components/custom/OrDivider.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 
 const { t } = useI18n()
+const auth = useAuthStore()
 const { goReturnTo } = useReturnTo()
 
 // Default to bootstrapped (show the sign-in methods); flip to the instruction
@@ -33,6 +35,20 @@ const bootstrapped = ref(true)
 const checking = ref(true)
 
 onMounted(async () => {
+  // Already signed in? Don't show the login form — resume the return_to (e.g.
+  // the OIDC /oauth/authorize that bounced an unauthenticated user here) or land
+  // on the dashboard. Leaves `checking` true so the skeleton shows during the
+  // redirect rather than a flash of the sign-in methods.
+  try {
+    await auth.ensureLoaded()
+    if (auth.me) {
+      goReturnTo()
+      return
+    }
+  } catch {
+    // /me unreachable — fall through to the sign-in methods.
+  }
+
   try {
     const status = await api.get<{ bootstrapped: boolean }>('/api/prohibitorum/auth/status')
     bootstrapped.value = status.bootstrapped
