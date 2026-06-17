@@ -825,6 +825,9 @@ func TestValidateFederationReturnTo(t *testing.T) {
 		{"http://evil.example.com/", "", true},
 		{"javascript:alert(1)", "", true},
 		{"evil", "", true},
+		// Normalization: the returned path is built from parsed components, not
+		// returned verbatim — raw whitespace in the path is percent-encoded.
+		{"/path with space", "/path%20with%20space", false},
 	}
 	for _, c := range cases {
 		got, err := s.validateFederationReturnTo(c.in)

@@ -1,9 +1,10 @@
 // Package server — handle_consent_test.go
 //
-// Unit tests for the pure helpers sameOriginAsIssuer and unionScopes in
-// handle_consent.go. These are exercised here because the smoke tests only
-// cover the happy-path browser flow and will not exercise the open-redirect
-// negative cases or scope-deduplication edge cases.
+// Unit tests for the pure helper unionScopes in handle_consent.go, and the
+// cfg() helper shared with returnto_test.go. Open-redirect cases previously
+// covered by TestSameOriginAsIssuer are now covered by TestValidateReturnTo
+// in returnto_test.go (sameOriginAsIssuer was deleted; validateReturnTo is
+// the shared successor).
 
 package server
 
@@ -18,72 +19,6 @@ func cfg(issuer string) *configx.Config {
 	return &configx.Config{OIDC: configx.OIDCConfig{Issuer: issuer}}
 }
 
-func TestSameOriginAsIssuer(t *testing.T) {
-	const issuer = "https://idp.example"
-
-	cases := []struct {
-		name string
-		raw  string
-		want bool
-	}{
-		{
-			name: "same origin with path and query",
-			raw:  "https://idp.example/oauth/authorize?x=1",
-			want: true,
-		},
-		{
-			name: "bare issuer",
-			raw:  "https://idp.example",
-			want: true,
-		},
-		{
-			name: "different port",
-			raw:  "https://idp.example:8443/x",
-			want: false,
-		},
-		{
-			name: "scheme mismatch (http vs https)",
-			raw:  "http://idp.example/x",
-			want: false,
-		},
-		{
-			name: "different host",
-			raw:  "https://evil.com/x",
-			want: false,
-		},
-		{
-			name: "scheme-relative URL",
-			raw:  "//evil.com/x",
-			want: false,
-		},
-		{
-			name: "userinfo trick (host is evil.com)",
-			raw:  "https://idp.example@evil.com/x",
-			want: false,
-		},
-		{
-			name: "empty string",
-			raw:  "",
-			want: false,
-		},
-		{
-			name: "relative URL (no scheme or host)",
-			raw:  "/oauth/authorize",
-			want: false,
-		},
-	}
-
-	c := cfg(issuer)
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := sameOriginAsIssuer(tc.raw, c)
-			if got != tc.want {
-				t.Errorf("sameOriginAsIssuer(%q, cfg{issuer=%q}) = %v; want %v",
-					tc.raw, issuer, got, tc.want)
-			}
-		})
-	}
-}
 
 func TestUnionScopes(t *testing.T) {
 	cases := []struct {

@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
@@ -76,11 +75,7 @@ func (s *Server) handleConsentDecisionHTTP(w http.ResponseWriter, r *http.Reques
 	var redirect string
 	switch in.Decision {
 	case "approve":
-		rt := r.URL.Query().Get("return_to")
-		if !sameOriginAsIssuer(rt, s.config) {
-			writeAuthErr(w, authn.ErrBadRequest())
-			return
-		}
+		rt := validateReturnTo(r.URL.Query().Get("return_to"), s.config)
 		granted, gerr := s.queries.GetConsent(r.Context(), db.GetConsentParams{
 			AccountID: sess.Data.AccountID, ClientID: ticket.ClientID,
 		})
@@ -142,22 +137,3 @@ func unionScopes(a, b []string) []string {
 	return out
 }
 
-// sameOriginAsIssuer is an intentional EXACT-match (scheme + host + port),
-// fail-closed, absolute-URL guard. A relative URL or any origin deviation
-// is rejected. Consent uses this check because return_to is always the
-// absolute authorize URL; federation login uses the separate relative-path
-// guard validateFederationReturnTo instead.
-func sameOriginAsIssuer(raw string, cfg *configx.Config) bool {
-	if raw == "" {
-		return false
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return false
-	}
-	iss, err := url.Parse(cfg.OIDC.Issuer)
-	if err != nil {
-		return false
-	}
-	return u.Scheme == iss.Scheme && u.Host == iss.Host
-}

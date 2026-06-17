@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -194,17 +193,19 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 	writeJSON(w, out)
 }
 
-// validateFederationReturnTo allows only relative URLs starting with "/" (and
-// not "//", which would be a protocol-relative scheme injection). v0.3 design
-// decision D6: federation callbacks land in this Prohibitorum origin only.
-// Empty input defaults to "/". The Server receiver is forward-looking — a
-// future task may extend this to read s.config.PublicOrigins.
+// validateFederationReturnTo is the fail-closed return_to policy for
+// federation handlers. It delegates to resolveReturnTo (the shared same-origin
+// core) and returns the safe relative path, or ErrInvalidReturnTo on any
+// unsafe/off-origin input. Empty input → "/". Also accepts a same-origin
+// absolute URL (normalised to relative), in addition to the original
+// path-absolute relative ref. With a nil config, absolute URLs are rejected
+// and relative paths pass — preserving the nil-config test behaviour. The
+// returned path is built from parsed URL components (EscapedPath + RawQuery),
+// not returned verbatim, so raw input is normalized (e.g. "/path with space"
+// → "/path%20with%20space").
 func (s *Server) validateFederationReturnTo(rt string) (string, error) {
-	if rt == "" {
-		return "/", nil
-	}
-	if strings.HasPrefix(rt, "/") && !strings.HasPrefix(rt, "//") {
-		return rt, nil
+	if p, ok := resolveReturnTo(rt, s.config); ok {
+		return p, nil
 	}
 	return "", authn.ErrInvalidReturnTo()
 }
