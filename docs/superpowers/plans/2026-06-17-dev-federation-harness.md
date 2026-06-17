@@ -594,7 +594,10 @@ done
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(cat .dev/encryption-key)"
 
 # --- DB: ensure the two federation databases on the dev cluster ------------
-export PGHOST=localhost PGPORT=5432 PGUSER=prohibitorum
+# PGPASSWORD matches the dev credential (compose.yaml / dev-env.sh). The
+# podman-free dev-db.sh cluster uses trust auth and ignores it; the compose
+# Postgres requires it — setting it works for both.
+export PGHOST=localhost PGPORT=5432 PGUSER=prohibitorum PGPASSWORD=prohibitorum
 UP_DB="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_upstream?sslmode=disable"
 DOWN_DB="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_downstream?sslmode=disable"
 
