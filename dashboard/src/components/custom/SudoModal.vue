@@ -119,7 +119,10 @@ async function reauthFederation(slug: string): Promise<void> {
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent>
+    <!-- z-[60] (above the default z-50 dialogs): sudo is a step-up that can be
+         summoned ON TOP of a destructive ConfirmDialog (e.g. unlink, delete),
+         so it must layer above any other open dialog to stay operable. -->
+    <DialogContent class="z-[60]" overlay-class="z-[60]">
       <DialogHeader>
         <span class="inline-flex size-10 items-center justify-center rounded-full bg-tide/10 text-tide-strong">
           <ShieldCheck class="size-5" aria-hidden="true" />
