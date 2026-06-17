@@ -2720,7 +2720,10 @@ func main() {
 		}
 		log.Printf("  GET /consent → client=%s account=%q scopes=%v ✓", ctx.Client.ClientID, ctx.Account.DisplayName, ctx.Scopes)
 
-		// (3) POST approve → {redirect} == return_to.
+		// (3) POST approve → {redirect}. The OP validates return_to server-side
+		// (validateReturnTo) and returns the same-origin RELATIVE path (the
+		// absolute issuer authorize URL normalised to path+query); the SPA
+		// hardRedirects it. Assert that validated relative form.
 		var res1 struct {
 			Redirect string `json:"redirect"`
 		}
@@ -2728,16 +2731,18 @@ func main() {
 			map[string]string{"ticket": ticket1, "decision": "approve"}, &res1); err != nil {
 			log.Fatalf("POST /consent approve: %v", err)
 		}
-		if res1.Redirect != returnTo1 {
-			log.Fatalf("consent approve redirect: want %q, got %q", returnTo1, res1.Redirect)
-		}
-		log.Printf("  POST approve → redirect == return_to ✓ (grant stored)")
-
-		// (4) Re-drive authorize on the return_to → now issues a code.
+		// retryPath is the validated relative form of return_to — it doubles as
+		// the expected approve redirect and the path we re-drive authorize on.
 		retryPath, err := pathQueryOf(returnTo1)
 		if err != nil {
-			log.Fatalf("consent retry parse return_to: %v", err)
+			log.Fatalf("consent approve parse return_to: %v", err)
 		}
+		if res1.Redirect != retryPath {
+			log.Fatalf("consent approve redirect: want %q (validated relative), got %q", retryPath, res1.Redirect)
+		}
+		log.Printf("  POST approve → redirect == validated return_to (relative) ✓ (grant stored)")
+
+		// (4) Re-drive authorize on the return_to → now issues a code.
 		loc4, err := authorizeWithSession(c, retryPath)
 		if err != nil {
 			log.Fatalf("consent re-authorize: %v", err)

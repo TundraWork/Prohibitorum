@@ -13,11 +13,12 @@
  * redirects the browser here). return_to is a POST *query* param, not body.
  *
  * Redirect handling — deliberately NOT guarded by safeReturnTo: the server
- * returns either the absolute issuer authorize URL (approve, validated
- * same-origin-as-issuer server-side) or the cross-origin RP redirect_uri with
- * error=access_denied (deny, built from the registered redirect_uri). Both are
- * server-validated; safeReturnTo only permits same-origin RELATIVE paths and
- * would wrongly reject both. We hand off to the server's value verbatim.
+ * returns either a server-validated same-origin RELATIVE path (approve —
+ * validateReturnTo normalises the issuer authorize URL to path+query) or the
+ * cross-origin RP redirect_uri with error=access_denied (deny, built from the
+ * registered redirect_uri). Both are server-validated; the deny value is
+ * cross-origin, so safeReturnTo would wrongly reject it. We hand off to the
+ * server's value verbatim.
  */
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
