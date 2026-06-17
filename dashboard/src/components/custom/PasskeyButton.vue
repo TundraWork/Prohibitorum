@@ -5,8 +5,8 @@
  * Flow:
  *   POST /auth/login/begin        → publicKey request options (+ ceremony cookie)
  *   passkeyGet(options)           → assertion (navigator.credentials.get)
- *   POST /auth/login/complete     → SessionView (+ session cookie)
- *   → emit('success')
+ *   POST /auth/login/complete     → { redirect } (+ session cookie)
+ *   → emit('success', redirect)
  *
  * User-cancel (NotAllowedError) is swallowed inside useWebauthn — no error
  * banner for a deliberate dismissal. Network/ceremony errors render via
@@ -23,7 +23,10 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Fingerprint } from 'lucide-vue-next'
 
-const emit = defineEmits<{ success: [] }>()
+// Raw return_to passthrough — forwarded to the server, which is the
+// authoritative validator (validateReturnTo). Not guarded client-side here.
+const props = defineProps<{ returnTo?: string }>()
+const emit = defineEmits<{ success: [redirect: string] }>()
 
 const { t, te } = useI18n()
 const { busy: netBusy, error: netError, run } = useApi()
@@ -50,13 +53,17 @@ async function signIn(): Promise<void> {
   const assertion = await authenticate(options)
   if (!assertion) return
 
-  // 3) complete — verify the assertion and issue the session.
-  const session = await run(() =>
-    api.post('/api/prohibitorum/auth/login/complete', assertion),
+  // 3) complete — verify the assertion, issue the session; the server returns
+  //    the validated redirect to follow.
+  const res = await run(() =>
+    api.post<{ redirect: string }>(
+      `/api/prohibitorum/auth/login/complete?return_to=${encodeURIComponent(props.returnTo ?? '')}`,
+      assertion,
+    ),
   )
-  if (!session) return
+  if (!res) return
 
-  emit('success')
+  emit('success', res.redirect ?? '/')
 }
 </script>
 

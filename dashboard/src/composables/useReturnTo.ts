@@ -10,8 +10,10 @@
  * as the old dashboard and required for the OIDC consent redirect.
  *
  * Usage:
- *   const { returnTo, goReturnTo } = useReturnTo()
- *   // After successful login:
+ *   const { returnTo, rawReturnTo, goReturnTo } = useReturnTo()
+ *   // After successful login (server returns validated redirect):
+ *   hardRedirect(rawReturnTo.value)   // or use the server's res.redirect
+ *   // Fallback (client-side guard):
  *   goReturnTo()
  */
 
@@ -27,9 +29,17 @@ export function useReturnTo() {
     return safeReturnTo(typeof raw === 'string' ? raw : undefined)
   })
 
+  // rawReturnTo is the unsanitized query value forwarded to the server, which is
+  // the authoritative return_to validator (validateReturnTo); use returnTo/goReturnTo
+  // for client-side navigation.
+  const rawReturnTo = computed<string>(() => {
+    const raw = route.query.return_to
+    return typeof raw === 'string' ? raw : ''
+  })
+
   function goReturnTo(): void {
     window.location.assign(returnTo.value)
   }
 
-  return { returnTo, goReturnTo }
+  return { returnTo, rawReturnTo, goReturnTo }
 }

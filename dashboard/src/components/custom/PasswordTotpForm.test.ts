@@ -17,7 +17,7 @@ function makeI18n() {
 }
 
 function mountForm() {
-  return mount(PasswordTotpForm, { global: { plugins: [makeI18n()] } })
+  return mount(PasswordTotpForm, { global: { plugins: [makeI18n()] }, props: { returnTo: '/me/security' } })
 }
 
 beforeEach(() => {
@@ -45,7 +45,7 @@ describe('PasswordTotpForm', () => {
 
   it('phase 2 posts totp/verify with the partial token and emits success', async () => {
     post.mockResolvedValueOnce({ partial_session_token: 'pt_123' }) // begin
-    post.mockResolvedValueOnce(undefined) // totp/verify → 204 No Content
+    post.mockResolvedValueOnce({ redirect: '/me/security' }) // totp/verify → 200 { redirect }
     const wrapper = mountForm()
 
     await wrapper.find('input[name=username]').setValue('alex')
@@ -57,11 +57,12 @@ describe('PasswordTotpForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(post).toHaveBeenLastCalledWith('/api/prohibitorum/auth/totp/verify', {
+    expect(post).toHaveBeenLastCalledWith('/api/prohibitorum/auth/totp/verify?return_to=%2Fme%2Fsecurity', {
       partial_session_token: 'pt_123',
       code: '123456',
     })
     expect(wrapper.emitted('success')).toBeTruthy()
+    expect(wrapper.emitted('success')![0]).toEqual(['/me/security'])
   })
 
   it('renders a mapped error message and does not advance on a failed begin', async () => {

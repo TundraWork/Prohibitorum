@@ -16,6 +16,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { useReturnTo } from '@/composables/useReturnTo'
+import { hardRedirect } from '@/lib/navigate'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import PasskeyButton from '@/components/custom/PasskeyButton.vue'
 import PasswordTotpForm from '@/components/custom/PasswordTotpForm.vue'
@@ -25,7 +26,7 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
-const { goReturnTo } = useReturnTo()
+const { rawReturnTo, goReturnTo } = useReturnTo()
 
 // Default to bootstrapped (show the sign-in methods); flip to the instruction
 // only when /auth/status explicitly says no admin exists.
@@ -60,8 +61,17 @@ onMounted(async () => {
   }
 })
 
-function onSuccess(): void {
-  goReturnTo()
+function onSuccess(redirect?: string): void {
+  // The login ceremony returns a server-validated redirect — follow it
+  // verbatim (mirrors ConsentView; the server is the authoritative validator).
+  // The recovery sub-flow has no server redirect → fall back to the client
+  // goReturnTo (safeReturnTo defense-in-depth), as does the already-signed-in
+  // on-mount branch below.
+  if (redirect) {
+    hardRedirect(redirect)
+  } else {
+    goReturnTo()
+  }
 }
 </script>
 
@@ -76,11 +86,11 @@ function onSuccess(): void {
         <CardSkeleton :lines="3" />
       </template>
       <template v-else-if="bootstrapped">
-        <PasskeyButton @success="onSuccess" />
+        <PasskeyButton :return-to="rawReturnTo" @success="onSuccess" />
 
         <OrDivider :label="t('login.orDivider')" />
 
-        <PasswordTotpForm @success="onSuccess" />
+        <PasswordTotpForm :return-to="rawReturnTo" @success="onSuccess" />
       </template>
 
       <p v-else class="rounded-md bg-sunken px-4 py-3 text-center text-sm text-muted">

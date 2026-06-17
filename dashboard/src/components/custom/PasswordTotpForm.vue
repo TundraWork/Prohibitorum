@@ -8,12 +8,11 @@
  *     → advance to phase 'totp'
  *   phase 'totp': {code}
  *     → POST /auth/totp/verify { partial_session_token, code }
- *     → 204 + session cookie → emit('success')
+ *     → 200 { redirect } → emit('success', redirect)
  *
- * Note on the 204: /auth/totp/verify returns No Content on success, so the
- * api call resolves to undefined either way. The run() callback therefore
- * returns an explicit `true` sentinel so success is distinguishable from the
- * error path (where run() returns undefined).
+ * Note: /auth/totp/verify returns { redirect } — the server-validated
+ * destination to navigate to. The account-recovery sub-flow emits success
+ * with no redirect argument; LoginView falls back to goReturnTo() in that case.
  *
  * Errors render via errors.<code> (fallback to the raw message) in a
  * role="alert" aria-live="polite" region; busy guards re-entrancy.
@@ -28,7 +27,10 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import AccountRecovery from '@/components/custom/AccountRecovery.vue'
 
-const emit = defineEmits<{ success: [] }>()
+// Raw return_to passthrough — forwarded to the server, which is the
+// authoritative validator (validateReturnTo). Not guarded client-side here.
+const props = defineProps<{ returnTo?: string }>()
+const emit = defineEmits<{ success: [redirect?: string] }>()
 
 const { t } = useI18n()
 const { busy, run, errorText } = useApi()
@@ -67,15 +69,13 @@ async function submitPassword(): Promise<void> {
 }
 
 async function submitTotp(): Promise<void> {
-  const ok = await run(async () => {
-    // 204 No Content on success → resolve an explicit sentinel.
-    await api.post('/api/prohibitorum/auth/totp/verify', {
-      partial_session_token: partialToken.value,
-      code: code.value,
-    })
-    return true as const
-  })
-  if (ok) emit('success')
+  const res = await run(() =>
+    api.post<{ redirect: string }>(
+      `/api/prohibitorum/auth/totp/verify?return_to=${encodeURIComponent(props.returnTo ?? '')}`,
+      { partial_session_token: partialToken.value, code: code.value },
+    ),
+  )
+  if (res) emit('success', res.redirect ?? '/')
 }
 </script>
 

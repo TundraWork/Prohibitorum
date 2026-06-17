@@ -17,12 +17,19 @@ vi.mock('@/lib/webauthn', () => ({
   isUserCancel: () => false,
 }))
 
+// Navigate seam: hardRedirect is used after the server returns a validated redirect.
+const { hardRedirect } = vi.hoisted(() => ({ hardRedirect: vi.fn() }))
+vi.mock('@/lib/navigate', () => ({ hardRedirect }))
+
 // Return-to navigation: assert the guarded redirect fires (safeReturnTo itself
 // is covered by returnTo.test.ts; here we only assert LoginView invokes it).
 const { goReturnTo } = vi.hoisted(() => ({ goReturnTo: vi.fn() }))
-vi.mock('@/composables/useReturnTo', () => ({
-  useReturnTo: () => ({ returnTo: { value: '/me' }, goReturnTo }),
-}))
+vi.mock('@/composables/useReturnTo', async () => {
+  const { ref } = await import('vue')
+  return {
+    useReturnTo: () => ({ returnTo: ref('/me'), rawReturnTo: ref('/me'), goReturnTo }),
+  }
+})
 
 // Auth store: `me` is preset per test; `ensureLoaded` is a no-op (the real one
 // fetches /me). Default = unauthenticated, so the login methods render.
@@ -49,6 +56,7 @@ beforeEach(() => {
   get.mockReset()
   post.mockReset()
   goReturnTo.mockReset()
+  hardRedirect.mockReset()
   authState.me = null
   authState.ensureLoaded.mockClear()
 })
@@ -82,7 +90,7 @@ describe('LoginView', () => {
     ).toBeTruthy()
   })
 
-  it('completes a passkey login and navigates to the guarded return_to', async () => {
+  it('completes a passkey login and navigates to the server-validated redirect', async () => {
     get.mockImplementation(async (path: string) => {
       if (path === '/api/prohibitorum/auth/status') return { bootstrapped: true }
       if (path === '/api/prohibitorum/auth/federation') return []
@@ -90,7 +98,7 @@ describe('LoginView', () => {
     })
     post.mockImplementation(async (path: string) => {
       if (path === '/api/prohibitorum/auth/login/begin') return { challenge: 'abc' }
-      if (path === '/api/prohibitorum/auth/login/complete') return { id: 1, username: 'alex' }
+      if (path.startsWith('/api/prohibitorum/auth/login/complete')) return { redirect: '/resume-here' }
       throw new Error(`unexpected POST ${path}`)
     })
 
@@ -106,10 +114,10 @@ describe('LoginView', () => {
 
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/login/begin')
     expect(post).toHaveBeenCalledWith(
-      '/api/prohibitorum/auth/login/complete',
+      expect.stringContaining('/api/prohibitorum/auth/login/complete'),
       expect.objectContaining({ id: 'assert' }),
     )
-    expect(goReturnTo).toHaveBeenCalledOnce()
+    expect(hardRedirect).toHaveBeenCalledWith('/resume-here')
   })
 
   it('redirects via return_to when a session already exists (no login form, no status check)', async () => {
