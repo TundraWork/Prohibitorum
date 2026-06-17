@@ -1,0 +1,47 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-17-dev-federation-harness.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Shared loopback-origin guard",
+      "status": "pending",
+      "description": "**Goal:** Replace dev_seed.go's localhost-only guard with a shared `isLoopbackOrigin` helper that also accepts hostnames resolving entirely to loopback; hermetic unit test.\n\n**Files:** Modify cmd/prohibitorum/dev_seed.go (add `net` import, isLoopbackOrigin, use in runDevSeed); Test cmd/prohibitorum/dev_seed_test.go (create).\n\n**Verify:** `go test ./cmd/prohibitorum/ -run TestIsLoopbackOrigin -v` -> PASS\n\n```json:metadata\n{\"files\": [\"cmd/prohibitorum/dev_seed.go\", \"cmd/prohibitorum/dev_seed_test.go\"], \"verifyCommand\": \"go test ./cmd/prohibitorum/ -run TestIsLoopbackOrigin -v && go build -tags nodynamic ./...\", \"acceptanceCriteria\": [\"isLoopbackOrigin handles loopback names/IP-literals/malformed/empty\", \"runDevSeed uses helper\", \"build+test pass\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: dev-federation wiring command",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** New idempotent dev-only `dev-federation` subcommand that connects to both DBs and wires the full federation setup + prints summary/PKCE recipe.\n\n**Files:** Create cmd/prohibitorum/dev_federation.go; Modify cmd/prohibitorum/main.go:782 (register via addDevFederationCmd).\n\n**Verify:** `go build -tags nodynamic ./... && go vet ./...` clean (full behavior live in T6).\n\n```json:metadata\n{\"files\": [\"cmd/prohibitorum/dev_federation.go\", \"cmd/prohibitorum/main.go\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go vet ./...\", \"acceptanceCriteria\": [\"4 flags required + loopback guard\", \"signing keys/fed client/idp rows/test-rp/invite all wired idempotently\", \"summary+PKCE recipe printed\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: dev-federation orchestrator script",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** scripts/dev-federation.sh — foreground lifecycle: source local config, ensure 2 DBs, build once, per-instance dev-seed+enroll-admin, wire, generate nginx vhost, launch 2 loopback-http backends, banner, Ctrl-C cleanup. No real infra in the file.\n\n**Files:** Create scripts/dev-federation.sh (chmod +x).\n\n**Verify:** `shellcheck scripts/dev-federation.sh`; first-run writes template + exits 1.\n\n```json:metadata\n{\"files\": [\"scripts/dev-federation.sh\"], \"verifyCommand\": \"shellcheck scripts/dev-federation.sh\", \"acceptanceCriteria\": [\"template-on-first-run + exit 1\", \"ensures DBs/build/seed/enroll/wire/nginx/launch\", \"shellcheck clean\", \"no real infra hardcoded\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: mise dev:federation task",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Expose the orchestrator as `mise run dev:federation` (args passthrough for --fresh).\n\n**Files:** Modify mise.toml (add [tasks.\"dev:federation\"] after dev:seed).\n\n**Verify:** `mise tasks 2>/dev/null | grep -q 'dev:federation' && echo OK`\n\n```json:metadata\n{\"files\": [\"mise.toml\"], \"verifyCommand\": \"mise tasks 2>/dev/null | grep dev:federation\", \"acceptanceCriteria\": [\"task registered\", \"args passthrough\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Docs (TOOLING.md + README)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Document the harness with placeholder domains only.\n\n**Files:** Modify TOOLING.md (### dev:federation subsection); Modify README.md (one-line pointer).\n\n**Verify:** `grep -q 'dev:federation' TOOLING.md README.md && echo OK`\n\n```json:metadata\n{\"files\": [\"TOOLING.md\", \"README.md\"], \"verifyCommand\": \"grep -q 'dev:federation' TOOLING.md && grep -q 'dev:federation' README.md && echo OK\", \"acceptanceCriteria\": [\"TOOLING.md section w/ placeholders\", \"README pointer\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Verification gate (build/test + live run + no-leak)",
+      "status": "pending",
+      "blockedBy": [1, 2, 3, 4, 5],
+      "description": "**Goal:** Prove end-to-end + no real-infra leak into git.\n\n**Files:** none (verification only).\n\n**Verify:** go gate; live `mise run dev:federation -- --fresh` (keys+discovery+summary); idempotent re-run (1 active key each); git grep no real domain; `git status --porcelain .dev` empty.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"go build -tags nodynamic ./... && go vet ./... && go test ./...\", \"acceptanceCriteria\": [\"go gate green\", \"live run: keys+discovery+summary\", \"idempotent re-run clean\", \"no real domain in tracked files\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-17"
+}
