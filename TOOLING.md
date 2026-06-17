@@ -176,3 +176,38 @@ mise lock                          # refresh mise.lock after changing [tools]
 
 > Run tasks with `mise run <task>` (not the `mise <task>` shorthand) — the
 > shorthand can be shadowed by future mise subcommands.
+
+### `mise run dev:federation` — two-instance OIDC federation harness
+
+Brings up two local instances for manual end-to-end testing: an **upstream** OP
+(`https://idp-a.example.test`) and a **downstream** RP
+(`https://idp-b.example.test`) that federates to it. Distinct hostnames give
+each its own cookie jar (independent sessions); nginx terminates TLS and proxies
+each to a loopback http backend (`127.0.0.1:18080` / `:18081`); the two
+databases (`prohibitorum_upstream` / `prohibitorum_downstream`) are separate
+from your `prohibitorum_dev`.
+
+**Local config (never committed).** Real hostnames + cert paths live in the
+gitignored `.dev/dev-federation.env`. First run writes a commented template
+(`example.test` placeholders) and exits — fill in your real values (DNS names
+pinned to `127.0.0.1`, plus the wildcard cert nginx serves) and re-run.
+
+**Setup:**
+
+1. `mise run db:start` (the dev Postgres).
+2. `mise run dev:federation` — first run writes `.dev/dev-federation.env`; edit it.
+3. `mise run dev:federation` again — it seeds, wires, generates
+   `.dev/nginx/prohibitorum-federation.conf`, and prints a one-time
+   `sudo cp … && sudo nginx -t && sudo systemctl reload nginx` command. Run it.
+4. Open the printed admin-enrollment URLs to register a passkey on each.
+
+**Manual-test paths** (see the spec for detail):
+
+- Federated login (auto_provision): open the downstream → **Upstream** →
+  consent on the upstream → `/welcome` confirm → session.
+- Invite-gated (invite_only): open the federation-bound invite URL the harness
+  prints → **Upstream (invite)** → invite redeemed + identity linked.
+- Direct OP test: paste the printed `test-rp` authorize URL → consent → read the
+  `code` from the address bar → run the printed token + userinfo `curl`s.
+
+Re-runnable; `mise run dev:federation -- --fresh` wipes both DBs first.

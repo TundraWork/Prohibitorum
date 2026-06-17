@@ -196,6 +196,7 @@ can't be confused — `mise tasks` lists them grouped:
 | `mise run dev:run` | Run the server against your current env using the committed SPA (no rebuild). |
 | `mise run dev:enroll-admin [-- FLAGS]` | Issue an admin enrollment URL against the dev DB (e.g. `-- --new`, `-- --reset --username alice`). |
 | `mise run dev:seed` | Seed the dev DB with example data (idempotent, loopback-only). |
+| `mise run dev:federation` | Two wired instances (upstream OP + downstream RP) for manual OIDC/enrollment/consent testing (see TOOLING.md). |
 | `mise run db:start` / `db:stop` / `db:reset` | Start / stop / wipe the local Postgres cluster (`.dev/pgdata`, port 5432). |
 | `mise run db:up` / `db:status` | Apply / show goose migrations on the dev DB. |
 | `mise run build:web` | Build the SPA into `pkg/webui/dist` (the embedded bundle). |
