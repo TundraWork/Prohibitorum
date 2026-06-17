@@ -199,7 +199,8 @@ pinned to `127.0.0.1`, plus the wildcard cert nginx serves) and re-run.
 3. `mise run dev:federation` again — it seeds, wires, generates
    `.dev/nginx/prohibitorum-federation.conf`, and prints a one-time
    `sudo cp … && sudo nginx -t && sudo systemctl reload nginx` command. Run it.
-4. Open the printed admin-enrollment URLs to register a passkey on each.
+4. Open the printed admin-enrollment URLs (shown in the final banner) to
+   register a passkey on each.
 
 **Manual-test paths** (see the spec for detail):
 
@@ -210,4 +211,6 @@ pinned to `127.0.0.1`, plus the wildcard cert nginx serves) and re-run.
 - Direct OP test: paste the printed `test-rp` authorize URL → consent → read the
   `code` from the address bar → run the printed token + userinfo `curl`s.
 
-Re-runnable; `mise run dev:federation -- --fresh` wipes both DBs first.
+**Every run starts from a clean slate** — both DBs are dropped + recreated and a
+fresh admin enroll link is printed for each instance (so enrolled passkeys do
+not persist across runs; that is intentional for repeatable manual testing).

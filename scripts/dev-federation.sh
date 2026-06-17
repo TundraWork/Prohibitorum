@@ -7,14 +7,13 @@
 # docs/superpowers/specs/2026-06-17-dev-federation-harness-design.md
 #
 #   mise run dev:federation            # bring it up (Ctrl-C stops both)
-#   mise run dev:federation -- --fresh # wipe + recreate both DBs first
+#
+# Every run starts from a CLEAN SLATE: both databases are dropped + recreated
+# and a fresh admin enrollment link is issued for each instance.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-
-FRESH=0
-[ "${1:-}" = "--fresh" ] && FRESH=1
 
 LOCAL_ENV=".dev/dev-federation.env"
 mkdir -p .dev/nginx .dev/logs
@@ -78,18 +77,16 @@ if ! psql -d postgres -tAc 'SELECT 1' >/dev/null 2>&1; then
 	echo "ERROR: Postgres not reachable on localhost:5432 — run 'mise run db:start'." >&2
 	exit 1
 fi
-ensure_db() {
+# Every run starts clean: drop + recreate both databases. WITH (FORCE)
+# terminates any lingering connections (e.g. a backend from a previous run).
+recreate_db() {
 	local name="$1"
-	if [ "$FRESH" = "1" ]; then
-		psql -d postgres -c "DROP DATABASE IF EXISTS $name WITH (FORCE)" >/dev/null
-	fi
-	if ! psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$name'" | grep -q 1; then
-		createdb "$name"
-		echo "created database $name"
-	fi
+	psql -d postgres -c "DROP DATABASE IF EXISTS $name WITH (FORCE)" >/dev/null
+	createdb "$name"
+	echo "recreated database $name (clean slate)"
 }
-ensure_db prohibitorum_upstream
-ensure_db prohibitorum_downstream
+recreate_db prohibitorum_upstream
+recreate_db prohibitorum_downstream
 
 # --- 3. build once (matches smoke/release) ---------------------------------
 BIN_DIR="$(mktemp -d)"
@@ -101,17 +98,27 @@ echo "building prohibitorum (-tags nodynamic) ..."
 go build -tags nodynamic -o "$BIN" ./cmd/prohibitorum
 
 # --- 4. per-instance seed + admin enrollment -------------------------------
+# DBs were just recreated, so no admin exists: enroll-admin always issues a
+# fresh bootstrap link. Capture each into the named output var for the banner.
+UP_ENROLL_URL=""
+DOWN_ENROLL_URL=""
 setup_instance() {
-	local origin="$1" dburl="$2" label="$3"
+	local origin="$1" dburl="$2" label="$3" outvar="$4"
 	echo "==> [$label] dev-seed"
 	PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" dev-seed
 	echo "==> [$label] enroll-admin"
-	if ! PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" enroll-admin; then
-		echo "    [$label] admin already enrolled — sign in at $origin"
+	local out
+	if out="$(PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" enroll-admin 2>&1)"; then
+		echo "$out"
+		printf -v "$outvar" '%s' "$(printf '%s\n' "$out" | grep -oE 'https?://[^ ]+/enroll/[A-Za-z0-9._-]+' | head -1)"
+	else
+		echo "$out" >&2
+		echo "ERROR: [$label] enroll-admin failed against a freshly recreated DB" >&2
+		exit 1
 	fi
 }
-setup_instance "$UP_ORIGIN" "$UP_DB" upstream
-setup_instance "$DOWN_ORIGIN" "$DOWN_DB" downstream
+setup_instance "$UP_ORIGIN" "$UP_DB" upstream UP_ENROLL_URL
+setup_instance "$DOWN_ORIGIN" "$DOWN_DB" downstream DOWN_ENROLL_URL
 
 # --- 5. wire federation ----------------------------------------------------
 echo "==> wiring federation"
@@ -211,10 +218,15 @@ fi
 cat <<EOF
 
 ============================================================
-  prohibitorum dev federation harness is UP
+  prohibitorum dev federation harness is UP (clean slate; both DBs recreated)
   Upstream  (OP): $UP_ORIGIN   (backend 127.0.0.1:$UP_PORT)
   Downstream(RP): $DOWN_ORIGIN (backend 127.0.0.1:$DOWN_PORT)
   $NGINX_NOTE
+
+  Admin enrollment — open in a browser to register a passkey:
+    upstream:   ${UP_ENROLL_URL:-<see enroll-admin output above>}
+    downstream: ${DOWN_ENROLL_URL:-<see enroll-admin output above>}
+
   Test: open $DOWN_ORIGIN and click "Upstream".
   Logs: $UP_LOG / $DOWN_LOG   |   Ctrl-C stops both.
 ============================================================

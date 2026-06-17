@@ -90,7 +90,7 @@ exec go run ./cmd/prohibitorum dev-seed
 """
 
 [tasks."dev:federation"]
-description = "DEV: bring up two prohibitorum instances (upstream + downstream IdP) wired for OIDC federation behind nginx TLS, for manual end-to-end testing. Reads local hostnames/cert from .dev/dev-federation.env (a template is written on first run). Start the DB first with `mise run db:start`; pass -- --fresh to wipe both DBs."
+description = "DEV: bring up two prohibitorum instances (upstream + downstream IdP) wired for OIDC federation behind nginx TLS, for manual end-to-end testing. Reads local hostnames/cert from .dev/dev-federation.env (a template is written on first run). Start the DB first with `mise run db:start`. Every run starts clean: both DBs are dropped + recreated and a fresh admin enroll link is printed for each instance."
 run = "exec scripts/dev-federation.sh \"$@\""
 
 # ---- db: local Postgres lifecycle (dev + smoke; never prod) -----------------
