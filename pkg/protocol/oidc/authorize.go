@@ -80,7 +80,11 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, s := range scopes {
-		if !slices.Contains(client.AllowedScopes, s) {
+		// Must be both allowed for this client AND in the OP's closed
+		// vocabulary. The supported-set check is defense in depth: config-time
+		// validation keeps allowed_scopes inside SupportedScopes, but this also
+		// rejects any scope a legacy/CLI-written client may still carry.
+		if !slices.Contains(client.AllowedScopes, s) || !IsSupportedScope(s) {
 			redirectError(w, r, redirectURI, errCodeInvalidScope, "requested scope is not allowed for this client", state, p.cfg.OIDC.Issuer)
 			return
 		}

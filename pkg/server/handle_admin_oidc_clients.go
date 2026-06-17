@@ -40,24 +40,14 @@ import (
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
-// supportedOIDCScopes is the set the OP actually honors (matches discovery's
-// scopes_supported). allowed_scopes outside this set are rejected at create /
-// update so a dead or typo'd scope can't be stored, requested, and consented
-// while delivering nothing (T3.2). `email` is now real (email/email_verified
-// claims); `offline_access` gates refresh tokens.
-var supportedOIDCScopes = map[string]bool{
-	"openid":         true,
-	"profile":        true,
-	"email":          true,
-	"offline_access": true,
-	"groups":         true,
-}
-
-// validateOIDCScopes rejects any allowed_scopes value the OP does not support.
-// Empty is allowed — the caller defaults it.
+// validateOIDCScopes rejects any allowed_scopes value the OP does not support,
+// mapping it to a 400. The supported set is the single source of truth in
+// pkg/protocol/oidc (oidc.SupportedScopes), shared with discovery, the CLI and
+// /authorize — so a dead or typo'd scope can't be stored, requested, and
+// consented while delivering nothing. Empty is allowed — the caller defaults it.
 func validateOIDCScopes(scopes []string) error {
 	for _, sc := range scopes {
-		if !supportedOIDCScopes[sc] {
+		if !oidc.IsSupportedScope(sc) {
 			return authn.ErrBadRequest()
 		}
 	}

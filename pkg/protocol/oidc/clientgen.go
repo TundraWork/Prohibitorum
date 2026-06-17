@@ -41,6 +41,12 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 	if len(scopes) == 0 {
 		scopes = []string{"openid", "profile"}
 	}
+	// Downstream allowed_scopes must stay inside the OP's closed vocabulary —
+	// a scope the OP has no handling logic for is meaningless. This covers both
+	// the admin API and the CLI create path (the admin handler also pre-checks).
+	if err := ValidateAllowedScopes(scopes); err != nil {
+		return db.InsertOIDCClientParams{}, "", err
+	}
 
 	// Default post_logout_redirect_uris to an empty slice. A nil slice marshals
 	// to SQL NULL via pgx, which violates the post_logout_redirect_uris NOT NULL

@@ -381,6 +381,9 @@ At least one --redirect-uri is required. The client secret is not affected.`,
 			if len(scopes) == 0 {
 				scopes = []string{"openid", "profile"}
 			}
+			if err := oidc.ValidateAllowedScopes(scopes); err != nil {
+				log.Fatalf("oidc-client update: %v", err)
+			}
 			updated, err := q.UpdateOIDCClient(ctx, db.UpdateOIDCClientParams{
 				ClientID:               updClientID,
 				DisplayName:            updClientDisplayName,
