@@ -1,22 +1,19 @@
 # Prohibitorum
 
-> Index Librorum Prohibitorum
+> *Index Librorum Prohibitorum*
 
-Prohibitorum is a homegrown identity provider for small orgs. Single-tenant, first-party,
-no email channel; admin-issued enrollment is the only recovery path.
+[![ci](https://github.com/TundraWork/Prohibitorum/actions/workflows/ci.yml/badge.svg)](https://github.com/TundraWork/Prohibitorum/actions/workflows/ci.yml)
+![go](https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white)
+![deploy](https://img.shields.io/badge/deploy-single%20binary-blue)
 
-- **Upstream auth methods:** WebAuthn (preferred, phishing-resistant),
-  Password + TOTP (fallback for users without passkey-capable devices),
-  upstream OIDC federation (Google / Entra / Keycloak / any OIDC IdP).
-- **Downstream protocols:** OIDC OP (for modern apps), SAML IdP (for
-  GitHub Enterprise Server and other legacy SaaS).
-- **Authorization model:** opaque `attributes` map per account that
-  flows verbatim into ID-token claims and SAML AttributeStatement.
-  Relying parties enforce policy; Prohibitorum just answers "who is
-  this and what do you know about them?"
+**A self-hosted, single-binary identity provider for small orgs.** Single-tenant,
+first-party, no email channel — admin-issued enrollment is the only recovery path.
+The dashboard SPA is embedded in the binary, so one `./prohibitorum` process is the
+entire IdP plus its admin UI.
 
-The dashboard SPA (`/`, `/admin/*`) is embedded into the server binary, so a
-single `./prohibitorum` process serves the whole IdP plus its admin UI.
+- **Sign-in** — WebAuthn passkeys (phishing-resistant, preferred), Password + TOTP fallback, or federation to any upstream OIDC IdP (Google, Entra, Keycloak).
+- **Downstream** — OIDC provider for modern apps; SAML 2.0 IdP for GitHub Enterprise Server and other legacy SaaS.
+- **Authorization** — a per-account `attributes` map flows verbatim into ID-token claims and SAML attributes. RPs enforce policy; Prohibitorum answers *who is this, and what do we know about them?*
 
 ## Status
 
@@ -111,31 +108,14 @@ for relying-party integration patterns.
 
 ## Development
 
-The local development loop — hot reload, a throwaway database, dev defaults, and
-seeded data, all via `mise run dev:*` / `db:*` tasks. (To run the server against
-your own config — the deploy path — see [Quickstart](#quickstart).)
+The local dev loop — hot reload, a throwaway DB, dev defaults, seeded data — via
+`mise run dev:*` / `db:*`. (To deploy against your own config, see the
+[Quickstart](#quickstart).)
 
-**Prerequisites:** just [`mise`](https://mise.jdx.dev). `mise install` provides
-the whole toolchain — Go, Node/npm, sqlc, goose, **and prebuilt Postgres 18
-binaries** — so no container runtime and no system Postgres install are needed.
-Start the dev database with `mise run db:start` (a self-contained local cluster
-from those binaries), or `podman compose up -d` (`compose.yaml`) if you prefer a
-container. The dashboard's npm dependencies install automatically on the first
-`mise run dev:server` / `mise run prod:build` / `mise run dev:web`.
-
-### Runtime
-
-`./prohibitorum` is a single Go binary. It requires a Postgres database
-(`PROHIBITORUM_DATABASE_URL`), a data-encryption key
-(`PROHIBITORUM_DATA_ENCRYPTION_KEY_V1`; the server refuses to start without it),
-and a KV store (Redis, or the default in-process `memory` driver). On startup it
-applies any pending migrations, then listens on `:8080`, serving the upstream-auth
-API, the OIDC OP, the SAML IdP, and the embedded dashboard SPA on a single origin.
-`go run ./cmd/prohibitorum` runs the same server without building a binary.
-
-The dev database runs either in a container (`compose.yaml`, via Podman/Docker)
-or as a podman-free local cluster (`mise run db:start`); the rest runs on the host
-via `mise`.
+The only prerequisite is [`mise`](https://mise.jdx.dev): `mise install` pins and
+installs the whole toolchain — Go, Node/npm, sqlc, goose, **and prebuilt Postgres
+18** — so no container runtime and no system Postgres are needed. The dashboard's
+npm deps install on first run.
 
 ### Local development
 
@@ -147,11 +127,9 @@ mise run dev:enroll-admin -- --new # create an admin; prints an /enroll/<token> 
 # open http://localhost:8080
 ```
 
-The `dev:server`, `dev:enroll-admin`, and `dev:seed` tasks source
-`scripts/dev-env.sh`, which generates a stable `.dev/encryption-key` (gitignored)
-and sets `PROHIBITORUM_DATABASE_URL` to the dev database
-(`postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_dev`). Set it
-explicitly to target a different database.
+The `dev:*` tasks source `scripts/dev-env.sh` — a stable `.dev/encryption-key`
+(gitignored) and `PROHIBITORUM_DATABASE_URL` pointed at the local
+`prohibitorum_dev`. Export your own to override.
 
 ```bash
 mise run dev:seed                  # optional: seed example providers/accounts/invitations
@@ -160,10 +138,9 @@ mise run db:reset                  # stop and wipe the local cluster (or: podman
 ```
 
 **Frontend.** `dashboard/` is a Vue 3 + Vite + Tailwind v4 + shadcn-vue/Reka UI
-SPA. Use `mise run dev:web` for a hot-reloading dev server against the
-running backend. The shipped UI is embedded via `go:embed` from the **committed**
-`pkg/webui/dist`, so after any change that should land in the binary, rebuild and
-commit the bundle:
+SPA; `mise run dev:web` runs it with hot reload against the backend. The shipped
+UI is embedded via `go:embed` from the **committed** `pkg/webui/dist`, so rebuild
+and commit the bundle after any change that should ship in the binary:
 
 ```bash
 mise run build:web         # rebuild the SPA into pkg/webui/dist
