@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -485,10 +486,12 @@ func TestTOTPVerify_Success(t *testing.T) {
 	token := mustToken(t)
 	stashPartialSession(t, s, token, accountID)
 
-	// Advance time enough to be in a fresh step (the seed Verify consumed
-	// the current step). 31 seconds is enough.
-	at := time.Now().Add(31 * time.Second)
-	code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, *f.totpRow, accountID), at.Unix(), 6)
+	// Center the code 15s into the step AFTER the one the seed's confirm-Verify
+	// consumed: always within the handler's ±1-step drift window and never on a
+	// 30s boundary (a +31s offset can cross two steps at the tail of a window,
+	// landing outside drift → a flaky 401).
+	at := (time.Now().Unix()/30+1)*30 + 15
+	code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, *f.totpRow, accountID), at, 6)
 
 	bodyJSON := fmt.Sprintf(`{"partial_session_token":%q,"code":%q}`, token, code)
 	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/totp/verify",
@@ -498,8 +501,19 @@ func TestTOTPVerify_Success(t *testing.T) {
 
 	s.handleTOTPVerifyHTTP(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("status: want 204, got %d (body=%s)", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	// Body must be a LoginResult with redirect == "/" (no return_to supplied).
+	var result struct {
+		Redirect string `json:"redirect"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+		t.Fatalf("decode LoginResult: %v", err)
+	}
+	if result.Redirect != "/" {
+		t.Errorf("redirect: want %q, got %q", "/", result.Redirect)
 	}
 
 	// Session cookie should be present.
@@ -530,6 +544,71 @@ func TestTOTPVerify_Success(t *testing.T) {
 	// Partial-session token must be gone from KV.
 	if _, err := s.kvStore.Get(context.Background(), partialSessionKey(token)); err == nil {
 		t.Error("partial-session token should be consumed on success")
+	}
+}
+
+// TestTOTPVerify_RedirectValidation proves that validateReturnTo runs at
+// completion: a same-origin relative path is kept verbatim, and a
+// cross-origin URL is collapsed to "/". Cases are issuer-independent so
+// they do not depend on the test config's OIDC issuer. Each case spins up
+// its own Server so that each has independent TOTP state (LastStep) and
+// computes its code one step after its own seed step (see the timing note
+// below) without hitting replay rejection.
+func TestTOTPVerify_RedirectValidation(t *testing.T) {
+	cases := []struct {
+		name         string
+		returnTo     string
+		wantRedirect string
+	}{
+		{
+			name:         "same-origin relative kept",
+			returnTo:     "/me/security",
+			wantRedirect: "/me/security",
+		},
+		{
+			name:         "cross-origin rejected to safe default",
+			returnTo:     "https://evil.test/x",
+			wantRedirect: "/",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f, dek := newTestServer(t)
+			const accountID int32 = 99
+			_ = seedConfirmedTOTP(t, s, f, dek, accountID)
+
+			token := mustToken(t)
+			stashPartialSession(t, s, token, accountID)
+
+			// Center the code 15s into the step AFTER the one the seed's confirm-Verify
+			// consumed: always within the handler's ±1-step drift window and never on a
+			// 30s boundary (a +31s offset can cross two steps at the tail of a window,
+			// landing outside drift → a flaky 401).
+			at := (time.Now().Unix()/30+1)*30 + 15
+			code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, *f.totpRow, accountID), at, 6)
+
+			bodyJSON := fmt.Sprintf(`{"partial_session_token":%q,"code":%q}`, token, code)
+			target := "/api/prohibitorum/auth/totp/verify?return_to=" + url.QueryEscape(tc.returnTo)
+			req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(bodyJSON))
+			req.RemoteAddr = "127.0.0.1:5555"
+			w := httptest.NewRecorder()
+
+			s.handleTOTPVerifyHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+			}
+			var result struct {
+				Redirect string `json:"redirect"`
+			}
+			if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+				t.Fatalf("decode LoginResult: %v", err)
+			}
+			if result.Redirect != tc.wantRedirect {
+				t.Errorf("redirect: want %q, got %q", tc.wantRedirect, result.Redirect)
+			}
+		})
 	}
 }
 

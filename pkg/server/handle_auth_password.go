@@ -34,6 +34,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/password"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -297,6 +298,11 @@ func (s *Server) accountLookupQ() accountLookupQueries {
 	return s.queries
 }
 
+// issueSessionAndSetCookie issues a real session, sets the session cookie, and
+// responds with a server-validated LoginResult{Redirect} body (mirroring
+// consent), so the SPA navigates to a server-owned redirect rather than a
+// client-supplied one. The redirect is validated from the "return_to" query
+// parameter via validateReturnTo; unsafe or absent values fall back to "/".
 func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request, accountID int32, amr []string) {
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	ua := r.UserAgent()
@@ -306,5 +312,8 @@ func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request
 		return
 	}
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, accountID, token, s.config.SessionTTL))
-	w.WriteHeader(http.StatusNoContent)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(contract.LoginResult{
+		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
+	})
 }

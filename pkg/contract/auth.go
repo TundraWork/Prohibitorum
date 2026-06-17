@@ -378,6 +378,11 @@ type ConsentResult struct {
 	Redirect string `json:"redirect"`
 }
 
+// LoginResult tells the SPA where to navigate after a successful login.
+type LoginResult struct {
+	Redirect string `json:"redirect"`
+}
+
 // FederationProvider is one entry in GET /api/prohibitorum/auth/federation.
 type FederationProvider struct {
 	Slug        string `json:"slug"`

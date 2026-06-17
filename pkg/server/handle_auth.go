@@ -312,7 +312,9 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	}).Info("auth")
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(s.sessionView(&resolvedAccount))
+	_ = json.NewEncoder(w).Encode(contract.LoginResult{
+		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
+	})
 }
 
 // ----- POST /auth/logout (raw chi) -----------------------------------------
