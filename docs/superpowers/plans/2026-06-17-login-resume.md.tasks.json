@@ -4,30 +4,30 @@
     {
       "id": 0,
       "subject": "Task 1: Shared validateReturnTo + converge consent/federation",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** One server-side validator accepting a same-origin relative path OR absolute URL, normalising to a safe relative path; consent + federation use it.\n\n**Files:** Create pkg/server/returnto.go + returnto_test.go; Modify pkg/server/handle_consent.go (replace sameOriginAsIssuer ~:80, delete helper :150), pkg/server/handle_federation.go (:61,:202).\n\n```json:metadata\n{\"files\":[\"pkg/server/returnto.go\",\"pkg/server/returnto_test.go\",\"pkg/server/handle_consent.go\",\"pkg/server/handle_federation.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run \\\"ReturnTo|Consent|Federation\\\" -count=1\",\"acceptanceCriteria\":[\"validateReturnTo returns same-origin relative path or /\",\"test matrix mirrors returnTo.test.ts\",\"consent+federation converge and tests pass\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 2: login/complete returns server-validated redirect (LoginResult)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** WebAuthn login/complete + password completion read return_to, validate via validateReturnTo, return LoginResult{Redirect}.\n\n**Files:** Modify pkg/contract/auth.go (add LoginResult), pkg/server/handle_auth.go (~:314), pkg/server/handle_auth_password.go (~:303).\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_auth.go\",\"pkg/server/handle_auth_password.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run \\\"Login|Password|Totp\\\" -count=1\",\"acceptanceCriteria\":[\"LoginResult contract type added\",\"webauthn + password completion return server-validated redirect\",\"return_to read from request query\",\"login tests updated green\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 3: SPA follows the server redirect (mirror ConsentView)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Login ceremony sends return_to and navigates to the server's redirect; success path stops using client safeReturnTo.\n\n**Files:** Modify dashboard/src/components/custom/PasskeyButton.vue, PasswordTotpForm.vue, dashboard/src/pages/LoginView.vue; tests.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/PasskeyButton.vue\",\"dashboard/src/components/custom/PasswordTotpForm.vue\",\"dashboard/src/pages/LoginView.vue\"],\"verifyCommand\":\"cd dashboard && npm test && npx vue-tsc -b\",\"acceptanceCriteria\":[\"ceremony sends return_to + emits server redirect\",\"LoginView hardRedirects the server-blessed value\",\"already-authenticated branch unchanged\",\"FE tests + typecheck green\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 4: Verify end-to-end + rebuild dist",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Full gate green and the two-instance federation flow works through a real passkey login.\n\n**Files:** Modify pkg/webui/dist (rebuilt + committed).\n\n```json:metadata\n{\"files\":[\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"full Go + FE gate green\",\"dist rebuilt+committed\",\"federation lab resumes to /oauth/authorize after login\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-17T00:00:00Z"
+  "lastUpdated": "2026-06-17T04:00:00Z"
 }
