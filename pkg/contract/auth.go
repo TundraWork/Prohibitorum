@@ -34,10 +34,13 @@ type SessionView struct {
 	DisplayName   string         `json:"displayName"`
 	Role          string         `json:"role"`
 	Attributes    map[string]any `json:"attributes,omitempty"`
-	AvatarURL        *string           `json:"avatarUrl,omitempty"`
-	AvatarPending    bool              `json:"avatarPending,omitempty"`
-	AvatarSource     *string           `json:"avatarSource,omitempty"`
-	AvatarSourceUrls map[string]string `json:"avatarSourceUrls,omitempty"`
+	AvatarURL          *string           `json:"avatarUrl,omitempty"`
+	AvatarPending      bool              `json:"avatarPending,omitempty"`
+	AvatarSource       *string           `json:"avatarSource,omitempty"`
+	AvatarSourceUrls   map[string]string `json:"avatarSourceUrls,omitempty"`
+	// AvatarSourceLabels maps a source key to a human label (the upstream IdP
+	// display name for "upstream:<slug>" sources); 'user' has no label.
+	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
 }
 
 // AccountView is admin-facing; lastSignInAt is derived from the account's credentials.

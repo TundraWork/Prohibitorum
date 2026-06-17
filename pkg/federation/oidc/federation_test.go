@@ -158,9 +158,9 @@ func (f *fakeFederatorQueries) seedUpstreamRow(accountID int32, etag string) {
 	if f.upsertedSources[accountID] == nil {
 		f.upsertedSources[accountID] = map[string]db.UpsertAvatarSourceParams{}
 	}
-	f.upsertedSources[accountID]["upstream"] = db.UpsertAvatarSourceParams{
+	f.upsertedSources[accountID][avTestSource] = db.UpsertAvatarSourceParams{
 		AccountID: accountID,
-		Source:    "upstream",
+		Source:    avTestSource,
 		Etag:      pgtype.Text{String: etag, Valid: true},
 	}
 }
@@ -1576,7 +1576,17 @@ func avatarFetchTokens() *federationoidc.Tokens {
 	}
 }
 
-// runInherit is a shorthand to drive the job synchronously with the test PNG.
+// Per-upstream avatar test fixtures: inherited avatars are now keyed
+// "upstream:<slug>" and the dedup key is per-(account, idp).
+const (
+	avTestSlug         = "mockop"
+	avTestIDPID  int64 = 1
+)
+
+const avTestSource = "upstream:" + avTestSlug
+
+// runInherit is a shorthand to drive the job synchronously with the test PNG,
+// for the default test upstream (slug avTestSlug / id avTestIDPID).
 func runInherit(t *testing.T, fx *fixtureFederator, pngBytes []byte, accountID int32) {
 	t.Helper()
 	federationoidc.SetAvatarFetchForTest(fx.f, func(_ context.Context, _ string, _ bool) ([]byte, error) {
@@ -1584,7 +1594,7 @@ func runInherit(t *testing.T, fx *fixtureFederator, pngBytes []byte, accountID i
 	})
 	federationoidc.RunAvatarInheritForTest(
 		fx.f, context.Background(), nil,
-		db.UpstreamIdp{PictureClaim: "picture"}, avatarFetchTokens(), accountID,
+		db.UpstreamIdp{Slug: avTestSlug, ID: avTestIDPID, PictureClaim: "picture"}, avatarFetchTokens(), accountID,
 	)
 }
 
@@ -1615,11 +1625,11 @@ func TestAvatarInherit_FreshNullSource(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("want SetActiveAvatar called (active was NULL)")
 	}
-	if calls[0].Source != "upstream" || calls[0].AccountID != 7 {
-		t.Errorf("SetActiveAvatar call = %+v, want {upstream 7}", calls[0])
+	if calls[0].Source != avTestSource || calls[0].AccountID != 7 {
+		t.Errorf("SetActiveAvatar call = %+v, want {avTestSource 7}", calls[0])
 	}
 	// Status key cleared on completion.
-	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err == nil {
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7, avTestIDPID)); err == nil {
 		t.Error("status key should be cleared after the job completes")
 	}
 }
@@ -1648,7 +1658,7 @@ func TestAvatarInherit_ActiveUser(t *testing.T) {
 		t.Fatalf("must NOT call SetActiveAvatar when active='user'; got %d call(s)", len(calls))
 	}
 	// Status key cleared.
-	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err == nil {
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7, avTestIDPID)); err == nil {
 		t.Error("status key should be cleared")
 	}
 }
@@ -1677,7 +1687,7 @@ func TestAvatarInherit_ActiveNone(t *testing.T) {
 		t.Fatalf("must NOT call SetActiveAvatar when active='none'; got %d call(s)", len(calls))
 	}
 	// Status key cleared.
-	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err == nil {
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7, avTestIDPID)); err == nil {
 		t.Error("status key should be cleared")
 	}
 }
@@ -1689,7 +1699,7 @@ func TestAvatarInherit_ActiveUpstreamChanged(t *testing.T) {
 	fx := newFixture(t, federationoidc.ModeAutoProvision)
 	fx.q.accountByIDResults[7] = db.Account{
 		ID:           7,
-		AvatarSource: pgtype.Text{String: "upstream", Valid: true},
+		AvatarSource: pgtype.Text{String: avTestSource, Valid: true},
 		AvatarEtag:   pgtype.Text{String: "old-etag", Valid: true},
 	}
 	// Seed a prior upstream row with a different etag.
@@ -1709,11 +1719,11 @@ func TestAvatarInherit_ActiveUpstreamChanged(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("want SetActiveAvatar when active='upstream' and etag changed")
 	}
-	if calls[0].Source != "upstream" || calls[0].AccountID != 7 {
-		t.Errorf("SetActiveAvatar call = %+v, want {upstream 7}", calls[0])
+	if calls[0].Source != avTestSource || calls[0].AccountID != 7 {
+		t.Errorf("SetActiveAvatar call = %+v, want {avTestSource 7}", calls[0])
 	}
 	// Status key cleared.
-	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err == nil {
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7, avTestIDPID)); err == nil {
 		t.Error("status key should be cleared")
 	}
 }
@@ -1731,7 +1741,7 @@ func TestAvatarInherit_UnchangedEtag(t *testing.T) {
 	// Seed account 7 with active='upstream' and the same etag the fetch will produce.
 	fx.q.accountByIDResults[7] = db.Account{
 		ID:           7,
-		AvatarSource: pgtype.Text{String: "upstream", Valid: true},
+		AvatarSource: pgtype.Text{String: avTestSource, Valid: true},
 		AvatarEtag:   pgtype.Text{String: etag, Valid: true},
 	}
 	// Seed the upstream row with the same etag so ListAvatarSourcesByAccount returns it.
@@ -1751,7 +1761,7 @@ func TestAvatarInherit_UnchangedEtag(t *testing.T) {
 		t.Fatalf("must NOT call SetActiveAvatar when etag unchanged; got %d call(s)", len(calls))
 	}
 	// Status key cleared.
-	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err == nil {
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7, avTestIDPID)); err == nil {
 		t.Error("status key should be cleared after the unchanged-etag no-op")
 	}
 }
@@ -1764,7 +1774,7 @@ func TestAvatarInherit_DedupesViaSetNX(t *testing.T) {
 
 	// Simulate a concurrent run already in flight: pre-set the status key so the
 	// SetNX inside runAvatarInherit fails and the second run exits immediately.
-	ok, err := fx.kvm.SetNX(context.Background(), federationoidc.AvatarFetchKey(7), "1", time.Minute)
+	ok, err := fx.kvm.SetNX(context.Background(), federationoidc.AvatarFetchKey(7, avTestIDPID), "1", time.Minute)
 	if err != nil || !ok {
 		t.Fatalf("seed SetNX: ok=%v err=%v", ok, err)
 	}
@@ -1777,7 +1787,7 @@ func TestAvatarInherit_DedupesViaSetNX(t *testing.T) {
 
 	federationoidc.RunAvatarInheritForTest(
 		fx.f, context.Background(), nil,
-		db.UpstreamIdp{PictureClaim: "picture"}, avatarFetchTokens(), 7,
+		db.UpstreamIdp{Slug: avTestSlug, ID: avTestIDPID, PictureClaim: "picture"}, avatarFetchTokens(), 7,
 	)
 
 	if called {
@@ -1788,7 +1798,42 @@ func TestAvatarInherit_DedupesViaSetNX(t *testing.T) {
 	}
 	// The deduped run must NOT delete the key it never acquired (the in-flight
 	// run owns it).
-	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7)); err != nil {
+	if _, err := fx.kvm.Get(context.Background(), federationoidc.AvatarFetchKey(7, avTestIDPID)); err != nil {
 		t.Errorf("deduped run must leave the in-flight key intact, got %v", err)
+	}
+}
+
+// TestAvatarInherit_SecondUpstreamDoesNotStealActive: a user already showing one
+// upstream's avatar logs in via a DIFFERENT upstream. The second avatar is
+// stored, but it must NOT steal the active selection — the user keeps the first
+// (and can switch in the picker). This is the core per-upstream guarantee.
+func TestAvatarInherit_SecondUpstreamDoesNotStealActive(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+	// Active = the FIRST upstream's source.
+	fx.q.accountByIDResults[7] = db.Account{
+		ID:           7,
+		AvatarSource: pgtype.Text{String: avTestSource, Valid: true},
+	}
+
+	pngBytes := validPNG(t)
+	federationoidc.SetAvatarFetchForTest(fx.f, func(_ context.Context, _ string, _ bool) ([]byte, error) {
+		return pngBytes, nil
+	})
+	// Inherit from a SECOND, different upstream (slug "other", id 2).
+	federationoidc.RunAvatarInheritForTest(
+		fx.f, context.Background(), nil,
+		db.UpstreamIdp{Slug: "other", ID: 2, PictureClaim: "picture"}, avatarFetchTokens(), 7,
+	)
+
+	// The second upstream's avatar row must be stored.
+	if _, ok := fx.q.upsertedAvatar[7]; !ok {
+		t.Fatal("want UpsertAvatarSource for the second upstream")
+	}
+	// But it must NOT activate — the first upstream stays active.
+	fx.q.mu.Lock()
+	calls := fx.q.setActiveAvatarCalls
+	fx.q.mu.Unlock()
+	if len(calls) != 0 {
+		t.Fatalf("must NOT call SetActiveAvatar when a different upstream is already active; got %d call(s)", len(calls))
 	}
 }

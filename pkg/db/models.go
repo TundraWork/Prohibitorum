@@ -34,6 +34,7 @@ type AccountAvatar struct {
 	Source      string      `json:"source"`
 	ContentType pgtype.Text `json:"contentType"`
 	Etag        pgtype.Text `json:"etag"`
+	IdpID       *int64      `json:"idpId"`
 }
 
 type AccountIdentity struct {

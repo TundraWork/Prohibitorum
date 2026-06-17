@@ -274,7 +274,7 @@ func seedUserAvatar(t *testing.T, s *Server, q *fakeAvatarQueries, sess *authn.S
 
 // seedUpstreamAvatar directly injects an upstream row in the fake store.
 func seedUpstreamAvatar(q *fakeAvatarQueries, accountID int32, etag string) {
-	q.store[sourceKey{accountID, "upstream"}] = avatarRow{
+	q.store[sourceKey{accountID, "upstream:mockop"}] = avatarRow{
 		bytes:       []byte("fake-upstream-webp"),
 		etag:        pgtype.Text{String: etag, Valid: true},
 		contentType: pgtype.Text{String: "image/webp", Valid: true},
@@ -403,7 +403,7 @@ func TestPutAvatar_NoSession_401(t *testing.T) {
 // PUT /me/avatar/selection tests
 // ---------------------------------------------------------------------------
 
-// TestPutAvatarSelection_SwitchToUpstream_204 verifies that selecting "upstream"
+// TestPutAvatarSelection_SwitchToUpstream_204 verifies that selecting "upstream:mockop"
 // when an upstream row exists returns 204 and sets active=upstream.
 func TestPutAvatarSelection_SwitchToUpstream_204(t *testing.T) {
 	q := newFakeAvatarQ()
@@ -414,22 +414,22 @@ func TestPutAvatarSelection_SwitchToUpstream_204(t *testing.T) {
 	// Also inject an upstream row.
 	seedUpstreamAvatar(q, testAccountID, "upstream-etag-abcdef")
 
-	r := putSelectionReq(t, "upstream", sess)
+	r := putSelectionReq(t, "upstream:mockop", sess)
 	w := httptest.NewRecorder()
 	s.handlePutAvatarSelectionHTTP(w, r)
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status: want 204, got %d; body=%s", w.Code, w.Body.String())
 	}
-	if q.activeSource[testAccountID] != "upstream" {
+	if q.activeSource[testAccountID] != "upstream:mockop" {
 		t.Errorf("active source: want upstream, got %q", q.activeSource[testAccountID])
 	}
-	if sess.Account.AvatarSource.String != "upstream" {
+	if sess.Account.AvatarSource.String != "upstream:mockop" {
 		t.Errorf("sess AvatarSource: want upstream, got %q", sess.Account.AvatarSource.String)
 	}
 }
 
-// TestPutAvatarSelection_UpstreamMissing_400 verifies that selecting "upstream"
+// TestPutAvatarSelection_UpstreamMissing_400 verifies that selecting "upstream:mockop"
 // when NO upstream row exists returns 400 avatar_source_unavailable.
 func TestPutAvatarSelection_UpstreamMissing_400(t *testing.T) {
 	q := newFakeAvatarQ()
@@ -438,7 +438,28 @@ func TestPutAvatarSelection_UpstreamMissing_400(t *testing.T) {
 	// Only user row exists — no upstream.
 	seedUserAvatar(t, s, q, sess)
 
-	r := putSelectionReq(t, "upstream", sess)
+	r := putSelectionReq(t, "upstream:mockop", sess)
+	w := httptest.NewRecorder()
+	s.handlePutAvatarSelectionHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d; body=%s", w.Code, w.Body.String())
+	}
+	if code := decodeAvatarErrCode(t, w.Body.String()); code != "avatar_source_unavailable" {
+		t.Errorf("code: want avatar_source_unavailable, got %q", code)
+	}
+}
+
+// TestPutAvatarSelection_BogusSource_400 verifies that a source that is neither
+// "user", "none", nor an "upstream:<slug>" is rejected by the shape check
+// (before any DB lookup).
+func TestPutAvatarSelection_BogusSource_400(t *testing.T) {
+	q := newFakeAvatarQ()
+	s := newAvatarServer(t, q)
+	sess := avatarSession(testSubject)
+	seedUserAvatar(t, s, q, sess)
+
+	r := putSelectionReq(t, "garbage", sess)
 	w := httptest.NewRecorder()
 	s.handlePutAvatarSelectionHTTP(w, r)
 
@@ -535,10 +556,10 @@ func TestDeleteAvatar_WithUpstreamFallback_204(t *testing.T) {
 		t.Error("user row must be deleted")
 	}
 	// Active must fall back to upstream.
-	if q.activeSource[testAccountID] != "upstream" {
+	if q.activeSource[testAccountID] != "upstream:mockop" {
 		t.Errorf("active source: want upstream, got %q", q.activeSource[testAccountID])
 	}
-	if sess.Account.AvatarSource.String != "upstream" {
+	if sess.Account.AvatarSource.String != "upstream:mockop" {
 		t.Errorf("sess AvatarSource: want upstream after fallback, got %q", sess.Account.AvatarSource.String)
 	}
 }
@@ -721,7 +742,7 @@ func TestGetAvatar_SourceQuery_Upstream(t *testing.T) {
 	q.subjectMap[testSubject] = testAccountID
 	seedUpstreamAvatar(q, testAccountID, "upstreamet")
 
-	r := getAvatarReq(t, testSubject, "", "upstream")
+	r := getAvatarReq(t, testSubject, "", "upstream:mockop")
 	w := httptest.NewRecorder()
 	s.handleGetAvatarHTTP(w, r)
 
@@ -741,7 +762,7 @@ func TestGetAvatar_SourceQuery_404_Missing(t *testing.T) {
 	q.subjectMap[testSubject] = testAccountID
 	// No upstream row.
 
-	r := getAvatarReq(t, testSubject, "", "upstream")
+	r := getAvatarReq(t, testSubject, "", "upstream:mockop")
 	w := httptest.NewRecorder()
 	s.handleGetAvatarHTTP(w, r)
 
@@ -775,8 +796,8 @@ func TestDeleteAvatar_ThenGet_404(t *testing.T) {
 }
 
 // TestDeleteAvatar_UpstreamActive_DeleteUser_StaysUpstream verifies that when
-// active was "upstream" (not "user"), deleting the user upload does NOT change
-// the active pointer: the active source remains "upstream" and a subsequent
+// active was "upstream:mockop" (not "user"), deleting the user upload does NOT change
+// the active pointer: the active source remains "upstream:mockop" and a subsequent
 // GET /avatar/{subject} still serves the upstream image (200).
 func TestDeleteAvatar_UpstreamActive_DeleteUser_StaysUpstream(t *testing.T) {
 	q := newFakeAvatarQ()
@@ -788,9 +809,9 @@ func TestDeleteAvatar_UpstreamActive_DeleteUser_StaysUpstream(t *testing.T) {
 	// Inject an upstream row.
 	seedUpstreamAvatar(q, testAccountID, "upstream-etag-sticky")
 	q.subjectMap[testSubject] = testAccountID
-	// Manually set active to "upstream" (simulating prior selection).
-	q.activeSource[testAccountID] = "upstream"
-	sess.Account.AvatarSource = pgtype.Text{String: "upstream", Valid: true}
+	// Manually set active to "upstream:mockop" (simulating prior selection).
+	q.activeSource[testAccountID] = "upstream:mockop"
+	sess.Account.AvatarSource = pgtype.Text{String: "upstream:mockop", Valid: true}
 	sess.Account.AvatarEtag = pgtype.Text{String: "upstream-etag-sticky", Valid: true}
 	sess.Account.AvatarContentType = pgtype.Text{String: "image/webp", Valid: true}
 
@@ -806,12 +827,12 @@ func TestDeleteAvatar_UpstreamActive_DeleteUser_StaysUpstream(t *testing.T) {
 	if _, ok := q.store[sourceKey{testAccountID, "user"}]; ok {
 		t.Error("user row must be deleted")
 	}
-	// Active source in DB must remain "upstream".
-	if q.activeSource[testAccountID] != "upstream" {
+	// Active source in DB must remain "upstream:mockop".
+	if q.activeSource[testAccountID] != "upstream:mockop" {
 		t.Errorf("active source: want upstream (unchanged), got %q", q.activeSource[testAccountID])
 	}
 	// Session must not have been clobbered.
-	if sess.Account.AvatarSource.String != "upstream" {
+	if sess.Account.AvatarSource.String != "upstream:mockop" {
 		t.Errorf("sess AvatarSource: want upstream (unchanged), got %q", sess.Account.AvatarSource.String)
 	}
 	if !sess.Account.AvatarEtag.Valid || sess.Account.AvatarEtag.String != "upstream-etag-sticky" {
@@ -880,7 +901,7 @@ func TestAvatarStatus_PendingTrue(t *testing.T) {
 	s, kvStore := newAvatarStatusTestServer(t)
 	sess := avatarSession(testSubject)
 
-	if err := kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(testAccountID), "1", time.Minute); err != nil {
+	if err := kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(testAccountID, 1), "1", time.Minute); err != nil {
 		t.Fatalf("seed KV key: %v", err)
 	}
 

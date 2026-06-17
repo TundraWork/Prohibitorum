@@ -862,8 +862,24 @@ func (f *Federator) PeekConfirmGrant(ctx context.Context, token, antiForgery str
 // accountID (presence of the AvatarFetchKey marker). Used by the confirm GET so
 // /welcome can show a spinner instead of the (not-yet-stored) avatar.
 func (f *Federator) AvatarPending(ctx context.Context, accountID int32) bool {
-	_, err := f.kvStore.Get(ctx, AvatarFetchKey(accountID))
-	return err == nil
+	// The fetch marker is now per-(account, upstream), so scan for any key under
+	// this account's prefix. Page through the cursor (Redis SCAN returns partial
+	// pages; the in-memory store returns a single page with NextCursor 0).
+	pattern := AvatarFetchPattern(accountID)
+	var cursor uint64
+	for {
+		res, err := f.kvStore.ScanEntries(ctx, pattern, cursor, 64)
+		if err != nil {
+			return false
+		}
+		if len(res.Entries) > 0 {
+			return true
+		}
+		if res.NextCursor == 0 {
+			return false
+		}
+		cursor = res.NextCursor
+	}
 }
 
 // runAvatarInherit resolves the upstream picture (id_token claim, else UserInfo),
@@ -877,11 +893,16 @@ func (f *Federator) runAvatarInherit(parent context.Context, client *Client, idp
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 
-	key := AvatarFetchKey(accountID)
+	// One avatar row per (account, upstream): the source string carries the slug
+	// so the (account_id, source) PK yields a distinct latest avatar per upstream.
+	thisSource := "upstream:" + idp.Slug
+
+	key := AvatarFetchKey(accountID, idp.ID)
 	ok, err := f.kvStore.SetNX(ctx, key, "1", 60*time.Second)
 	if err != nil || !ok {
-		// Another login for this account is already inheriting (or the KV is
-		// unavailable); a concurrent run owns the key, so exit without touching it.
+		// Another login for this (account, upstream) is already inheriting (or the
+		// KV is unavailable); a concurrent run owns the key, so exit without
+		// touching it. Different upstreams use different keys and proceed.
 		return
 	}
 	defer func() { _ = f.kvStore.Del(ctx, key) }()
@@ -927,30 +948,35 @@ func (f *Federator) runAvatarInherit(parent context.Context, client *Client, idp
 	}
 	var upstreamEtag string
 	for _, s := range srcs {
-		if s.Source == "upstream" && s.Etag.Valid {
+		if s.Source == thisSource && s.Etag.Valid {
 			upstreamEtag = s.Etag.String
 		}
 	}
 	changed := upstreamEtag != etag
 	if changed {
+		idpID := idp.ID
 		if err := f.q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
 			AccountID:   accountID,
-			Source:      "upstream",
+			Source:      thisSource,
 			Bytes:       out,
 			ContentType: pgtype.Text{String: "image/webp", Valid: true},
 			Etag:        pgtype.Text{String: etag, Valid: true},
+			IdpID:       &idpID,
 		}); err != nil {
 			slog.WarnContext(ctx, "federation: store upstream avatar failed", "account_id", accountID, "err", err)
 			return
 		}
 	}
-	// Activate upstream ONLY when the user hasn't chosen otherwise: NULL (never
-	// chosen) or already 'upstream'. Never override 'none' or 'user'. Re-activate
+	// Activate THIS upstream ONLY when the user hasn't chosen otherwise: NULL
+	// (never chosen) or already this upstream's source. Never override 'none',
+	// 'user', or a DIFFERENT upstream the user is already on — so the first
+	// linked upstream auto-activates, and later upstreams store their avatar
+	// without stealing the active selection (the user picks the rest). Re-activate
 	// when the bytes changed (refresh the denormalized active etag cache) or when
 	// nothing was active yet.
-	activeUpstreamOK := !acct.AvatarSource.Valid || acct.AvatarSource.String == "upstream"
+	activeUpstreamOK := !acct.AvatarSource.Valid || acct.AvatarSource.String == thisSource
 	if activeUpstreamOK && (changed || !acct.AvatarSource.Valid) {
-		if err := f.q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: "upstream", AccountID: accountID}); err != nil {
+		if err := f.q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: thisSource, AccountID: accountID}); err != nil {
 			slog.WarnContext(ctx, "federation: activate upstream avatar failed", "account_id", accountID, "err", err)
 		}
 	}

@@ -52,10 +52,13 @@ SELECT COUNT(*) FROM account WHERE role = 'admin' AND NOT disabled FOR UPDATE;
 UPDATE account SET display_name = $2, updated_at = now() WHERE id = $1;
 
 -- name: UpsertAvatarSource :exec
-INSERT INTO account_avatar (account_id, source, bytes, content_type, etag)
-VALUES ($1, $2, $3, $4, $5)
+-- idp_id records the source upstream for an inherited avatar (NULL for a user
+-- upload); source carries the upstream slug ("upstream:<slug>") so the
+-- (account_id, source) PK yields one row per (account, upstream).
+INSERT INTO account_avatar (account_id, source, bytes, content_type, etag, idp_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (account_id, source) DO UPDATE
-  SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, etag = EXCLUDED.etag;
+  SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, etag = EXCLUDED.etag, idp_id = EXCLUDED.idp_id;
 
 -- name: SetActiveAvatar :exec
 -- source is forced non-null text (the column is nullable, but this query only
@@ -85,4 +88,10 @@ FROM account a JOIN account_avatar av ON av.account_id = a.id
 WHERE a.oidc_subject = $1 AND av.source = sqlc.arg(source);
 
 -- name: ListAvatarSourcesByAccount :many
-SELECT source, etag FROM account_avatar WHERE account_id = $1;
+-- LEFT JOIN so the 'user' row (NULL idp_id) is kept with an empty label; the
+-- join is by id (unconditional) so even a disabled upstream's inherited avatar
+-- still resolves its display name.
+SELECT av.source, av.etag, COALESCE(i.display_name, '') AS idp_display_name
+FROM account_avatar av
+LEFT JOIN upstream_idp i ON i.id = av.idp_id
+WHERE av.account_id = $1;

@@ -62,13 +62,22 @@ func (s *Server) sessionView(a *db.Account) contract.SessionView {
 		// (the field is simply omitted) rather than failing the whole /me response.
 		if rows, lerr := s.avatarQ().ListAvatarSourcesByAccount(context.Background(), a.ID); lerr == nil && len(rows) > 0 {
 			urls := make(map[string]string, len(rows))
+			labels := make(map[string]string, len(rows))
 			for _, row := range rows {
 				if u := avatar.SourceURL(a.OidcSubject.String(), row.Source, row.Etag.String, origin); u != "" {
 					urls[row.Source] = u
+					// Label upstream sources with their IdP display name so the
+					// picker shows "Google" etc. instead of "upstream:google".
+					if row.IdpDisplayName != "" {
+						labels[row.Source] = row.IdpDisplayName
+					}
 				}
 			}
 			if len(urls) > 0 {
 				v.AvatarSourceUrls = urls
+			}
+			if len(labels) > 0 {
+				v.AvatarSourceLabels = labels
 			}
 		}
 	}

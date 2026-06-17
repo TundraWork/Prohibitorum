@@ -349,14 +349,21 @@ func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
 }
 
 const listAvatarSourcesByAccount = `-- name: ListAvatarSourcesByAccount :many
-SELECT source, etag FROM account_avatar WHERE account_id = $1
+SELECT av.source, av.etag, COALESCE(i.display_name, '') AS idp_display_name
+FROM account_avatar av
+LEFT JOIN upstream_idp i ON i.id = av.idp_id
+WHERE av.account_id = $1
 `
 
 type ListAvatarSourcesByAccountRow struct {
-	Source string      `json:"source"`
-	Etag   pgtype.Text `json:"etag"`
+	Source         string      `json:"source"`
+	Etag           pgtype.Text `json:"etag"`
+	IdpDisplayName string      `json:"idpDisplayName"`
 }
 
+// LEFT JOIN so the 'user' row (NULL idp_id) is kept with an empty label; the
+// join is by id (unconditional) so even a disabled upstream's inherited avatar
+// still resolves its display name.
 func (q *Queries) ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error) {
 	rows, err := q.db.Query(ctx, listAvatarSourcesByAccount, accountID)
 	if err != nil {
@@ -366,7 +373,7 @@ func (q *Queries) ListAvatarSourcesByAccount(ctx context.Context, accountID int3
 	var items []ListAvatarSourcesByAccountRow
 	for rows.Next() {
 		var i ListAvatarSourcesByAccountRow
-		if err := rows.Scan(&i.Source, &i.Etag); err != nil {
+		if err := rows.Scan(&i.Source, &i.Etag, &i.IdpDisplayName); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -512,10 +519,10 @@ func (q *Queries) UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmail
 }
 
 const upsertAvatarSource = `-- name: UpsertAvatarSource :exec
-INSERT INTO account_avatar (account_id, source, bytes, content_type, etag)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO account_avatar (account_id, source, bytes, content_type, etag, idp_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (account_id, source) DO UPDATE
-  SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, etag = EXCLUDED.etag
+  SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, etag = EXCLUDED.etag, idp_id = EXCLUDED.idp_id
 `
 
 type UpsertAvatarSourceParams struct {
@@ -524,8 +531,12 @@ type UpsertAvatarSourceParams struct {
 	Bytes       []byte      `json:"bytes"`
 	ContentType pgtype.Text `json:"contentType"`
 	Etag        pgtype.Text `json:"etag"`
+	IdpID       *int64      `json:"idpId"`
 }
 
+// idp_id records the source upstream for an inherited avatar (NULL for a user
+// upload); source carries the upstream slug ("upstream:<slug>") so the
+// (account_id, source) PK yields one row per (account, upstream).
 func (q *Queries) UpsertAvatarSource(ctx context.Context, arg UpsertAvatarSourceParams) error {
 	_, err := q.db.Exec(ctx, upsertAvatarSource,
 		arg.AccountID,
@@ -533,6 +544,7 @@ func (q *Queries) UpsertAvatarSource(ctx context.Context, arg UpsertAvatarSource
 		arg.Bytes,
 		arg.ContentType,
 		arg.Etag,
+		arg.IdpID,
 	)
 	return err
 }

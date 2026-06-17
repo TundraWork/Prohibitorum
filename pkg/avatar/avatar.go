@@ -15,6 +15,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"net/url"
 
 	"github.com/gen2brain/webp"
 	"golang.org/x/image/draw"
@@ -118,5 +119,8 @@ func SourceURL(subject, source, etag, origin string) string {
 	if len(v) > 8 {
 		v = v[:8]
 	}
-	return origin + "/avatar/" + subject + "?source=" + source + "&v=" + v
+	// Escape the source: it carries an upstream slug ("upstream:<slug>") and the
+	// slug column has no charset CHECK, so don't assume URL-safety. The browser
+	// decodes it back before the serve handler reads ?source=.
+	return origin + "/avatar/" + subject + "?source=" + url.QueryEscape(source) + "&v=" + v
 }

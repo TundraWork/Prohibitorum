@@ -24,6 +24,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -173,7 +174,10 @@ func (s *Server) handlePutAvatarSelectionHTTP(w http.ResponseWriter, r *http.Req
 	}
 
 	src := body.Source
-	if src != "upstream" && src != "user" && src != "none" {
+	// Accept the user upload, the "none" sentinel, or any per-upstream source
+	// ("upstream:<slug>"). Shape is validated here; actual existence is proven
+	// by the GetAvatarSourceBySubject lookup below (the "none" branch needs none).
+	if src != "user" && src != "none" && !strings.HasPrefix(src, "upstream:") {
 		writeAvatarErr(w, "avatar_source_unavailable", "unknown source")
 		return
 	}
@@ -329,25 +333,27 @@ func (s *Server) applyDeleteFallback(
 	sess *authn.Session,
 ) error {
 	if priorActive.Valid && priorActive.String == "user" {
-		// Look for an upstream fallback.
+		// Look for an inherited upstream fallback. With multiple linked upstreams
+		// there may be several "upstream:<slug>" rows; pick the first one found
+		// (order is unspecified — the picker is the real re-selection surface).
 		srcs, err := q.ListAvatarSourcesByAccount(ctx, acctID)
 		if err != nil {
 			return err
 		}
-		hasUpstream := false
+		var upstreamSource string
 		var upstreamEtag pgtype.Text
 		for _, row := range srcs {
-			if row.Source == "upstream" {
-				hasUpstream = true
+			if strings.HasPrefix(row.Source, "upstream:") {
+				upstreamSource = row.Source
 				upstreamEtag = row.Etag
 				break
 			}
 		}
-		if hasUpstream {
-			if err := q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: "upstream", AccountID: acctID}); err != nil {
+		if upstreamSource != "" {
+			if err := q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: upstreamSource, AccountID: acctID}); err != nil {
 				return err
 			}
-			sess.Account.AvatarSource = pgtype.Text{String: "upstream", Valid: true}
+			sess.Account.AvatarSource = pgtype.Text{String: upstreamSource, Valid: true}
 			sess.Account.AvatarEtag = upstreamEtag
 			sess.Account.AvatarContentType = pgtype.Text{String: "image/webp", Valid: true}
 		} else {

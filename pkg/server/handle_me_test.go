@@ -372,7 +372,7 @@ func TestHandleGetMe_AvatarPendingTrue(t *testing.T) {
 	s, kvStore := newAvatarStatusTestServer(t)
 
 	// Seed the KV marker.
-	if err := kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(acctID), "1", time.Minute); err != nil {
+	if err := kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(acctID, 1), "1", time.Minute); err != nil {
 		t.Fatalf("seed KV key: %v", err)
 	}
 

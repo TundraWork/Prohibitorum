@@ -153,7 +153,7 @@ func TestFederationConfirmGet_ValidGrant(t *testing.T) {
 	h := newFederationTestServer(t)
 	fx := seedConfirmGrant(t, h)
 	// Mark the avatar fetch in flight so avatarPending must be true.
-	if err := h.s.kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(fx.accountID), "1", time.Minute); err != nil {
+	if err := h.s.kvStore.SetEx(context.Background(), fedoidc.AvatarFetchKey(fx.accountID, 1), "1", time.Minute); err != nil {
 		t.Fatalf("seed avatar key: %v", err)
 	}
 

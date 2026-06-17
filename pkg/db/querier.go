@@ -125,6 +125,9 @@ type Querier interface {
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
 	ListAllSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListAllUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
+	// LEFT JOIN so the 'user' row (NULL idp_id) is kept with an empty label; the
+	// join is by id (unconditional) so even a disabled upstream's inherited avatar
+	// still resolves its display name.
 	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error)
 	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]CredentialEvent, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
@@ -210,6 +213,9 @@ type Querier interface {
 	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
 	UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error)
 	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) error
+	// idp_id records the source upstream for an inherited avatar (NULL for a user
+	// upload); source carries the upstream slug ("upstream:<slug>") so the
+	// (account_id, source) PK yields one row per (account, upstream).
 	UpsertAvatarSource(ctx context.Context, arg UpsertAvatarSourceParams) error
 	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error

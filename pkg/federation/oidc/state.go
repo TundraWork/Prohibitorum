@@ -127,11 +127,20 @@ func SudoKey(token string) string {
 	return "oidc:fed:sudo:" + token
 }
 
-// AvatarFetchKey is the KV key marking an in-flight upstream avatar fetch for an
-// account. Presence = "pending"; value unused. Short TTL backstops a dead
-// goroutine; SetNX on this key dedupes concurrent logins.
-func AvatarFetchKey(accountID int32) string {
-	return "oidc:fed:avatar:" + strconv.Itoa(int(accountID))
+// AvatarFetchKey is the KV key marking an in-flight upstream avatar fetch for a
+// given (account, upstream) pair. Presence = "pending"; value unused. Short TTL
+// backstops a dead goroutine; SetNX on this key dedupes concurrent logins.
+// Keyed per-(account, idp) so inherits from different upstreams of the same
+// account run independently instead of one silently skipping the other.
+func AvatarFetchKey(accountID int32, idpID int64) string {
+	return "oidc:fed:avatar:" + strconv.Itoa(int(accountID)) + ":" + strconv.FormatInt(idpID, 10)
+}
+
+// AvatarFetchPattern matches every in-flight avatar-fetch key for an account
+// (across all of its upstreams) — used by AvatarPending to report whether ANY
+// upstream fetch is still running.
+func AvatarFetchPattern(accountID int32) string {
+	return "oidc:fed:avatar:" + strconv.Itoa(int(accountID)) + ":*"
 }
 
 // ConfirmGrant is the short-lived, single-use, browser-bound context for the
