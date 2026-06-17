@@ -1183,14 +1183,20 @@ func main() {
 		if _, ok := dsMe.AvatarSourceUrls["user"]; !ok {
 			log.Fatalf("avatar-fed dual: /me.avatarSourceUrls missing 'user' key (got %v)", dsMe.AvatarSourceUrls)
 		}
-		if _, ok := dsMe.AvatarSourceUrls["upstream"]; !ok {
-			log.Fatalf("avatar-fed dual: /me.avatarSourceUrls missing 'upstream' key — coexistence not proven (got %v)", dsMe.AvatarSourceUrls)
+		if _, ok := dsMe.AvatarSourceUrls["upstream:mockop"]; !ok {
+			log.Fatalf("avatar-fed dual: /me.avatarSourceUrls missing 'upstream:mockop' key — coexistence not proven (got %v)", dsMe.AvatarSourceUrls)
 		}
-		log.Printf("  /me.avatarSource=%q avatarSourceUrls has both user+upstream keys ✓", *dsMe.AvatarSource)
+		// The per-upstream source must be labeled with the IdP display name
+		// (exercises the live LEFT JOIN account_avatar→upstream_idp end-to-end).
+		if dsMe.AvatarSourceLabels["upstream:mockop"] != "Mock OP" {
+			log.Fatalf("avatar-fed dual: /me.avatarSourceLabels['upstream:mockop'] want 'Mock OP', got %q (labels=%v)",
+				dsMe.AvatarSourceLabels["upstream:mockop"], dsMe.AvatarSourceLabels)
+		}
+		log.Printf("  /me.avatarSource=%q avatarSourceUrls has user+upstream:mockop keys; label='Mock OP' ✓", *dsMe.AvatarSource)
 
 		// (b) ?source previews both resolve to a non-empty image/webp regardless of
 		// which source is active (a 200 carrying a JSON error envelope would be a bug).
-		for _, src := range []string{"upstream", "user"} {
+		for _, src := range []string{"upstream:mockop", "user"} {
 			resp, err := avClient.getRaw("/avatar/" + avSubject + "?source=" + src)
 			if err != nil {
 				log.Fatalf("avatar-fed dual: GET ?source=%s: %v", src, err)
@@ -1210,7 +1216,7 @@ func main() {
 		}
 
 		// (c) Switch active → upstream. 204 No Content; DB pointer flips; active GET 200.
-		if resp, err := avClient.putJSONRaw(selPath, map[string]string{"source": "upstream"}); err != nil {
+		if resp, err := avClient.putJSONRaw(selPath, map[string]string{"source": "upstream:mockop"}); err != nil {
 			log.Fatalf("avatar-fed dual: PUT selection upstream: %v", err)
 		} else {
 			body, _ := io.ReadAll(resp.Body)
@@ -1221,8 +1227,8 @@ func main() {
 		}
 		if src, _, err := getAvatarSourceEtag(avMe.ID); err != nil {
 			log.Fatalf("avatar-fed dual: read source post-upstream: %v", err)
-		} else if src != "upstream" {
-			log.Fatalf("avatar-fed dual: avatar_source after switch want 'upstream', got %q", src)
+		} else if src != "upstream:mockop" {
+			log.Fatalf("avatar-fed dual: avatar_source after switch want 'upstream:mockop', got %q", src)
 		}
 		if resp, err := avClient.getRaw("/avatar/" + avSubject); err != nil {
 			log.Fatalf("avatar-fed dual: active GET post-upstream: %v", err)
@@ -1232,7 +1238,7 @@ func main() {
 				log.Fatalf("avatar-fed dual: active GET post-upstream want 200, got %d", resp.StatusCode)
 			}
 		}
-		log.Printf("  selection→upstream: 204, avatar_source='upstream', active GET 200 ✓")
+		log.Printf("  selection→upstream: 204, avatar_source='upstream:mockop', active GET 200 ✓")
 
 		// (d) Switch active → none. 204; pointer='none'; active GET 404; /me.avatarUrl nil.
 		if resp, err := avClient.putJSONRaw(selPath, map[string]string{"source": "none"}); err != nil {
@@ -4312,9 +4318,10 @@ type meResponse struct {
 	Username         string            `json:"username"`
 	DisplayName      string            `json:"displayName"`
 	Role             string            `json:"role"`
-	AvatarURL        *string           `json:"avatarUrl,omitempty"`
-	AvatarSource     *string           `json:"avatarSource,omitempty"`
-	AvatarSourceUrls map[string]string `json:"avatarSourceUrls,omitempty"`
+	AvatarURL          *string           `json:"avatarUrl,omitempty"`
+	AvatarSource       *string           `json:"avatarSource,omitempty"`
+	AvatarSourceUrls   map[string]string `json:"avatarSourceUrls,omitempty"`
+	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
 }
 
 func (c *client) beginEnrollment(token, username, display, nickname string) (*creationOptions, error) {
