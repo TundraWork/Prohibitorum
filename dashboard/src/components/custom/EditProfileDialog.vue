@@ -138,7 +138,9 @@ async function removeAvatar(): Promise<void> {
   if (!error.value) await auth.reload()
 }
 
-async function selectSource(source: 'upstream' | 'user' | 'none'): Promise<void> {
+// source is any stored source key: 'user', 'none', or a per-upstream
+// 'upstream:<slug>'. The server validates + proves existence.
+async function selectSource(source: string): Promise<void> {
   pendingSource.value = source
   errorZone.value = 'avatar'
   await run(() => api.put('/api/prohibitorum/me/avatar/selection', { source }))
@@ -147,15 +149,19 @@ async function selectSource(source: 'upstream' | 'user' | 'none'): Promise<void>
 }
 
 // The set of sources that have a stored image, derived from avatarSourceUrls.
-// Keys present: 'upstream' and/or 'user'. Always show 'none'.
+// Keys present: 'user' and/or per-upstream 'upstream:<slug>'. Always show 'none'.
 const sourceEntries = computed(() => {
   const urls = auth.me?.avatarSourceUrls ?? {}
   return Object.entries(urls) as [string, string][]
 })
 
 function sourceLabel(key: string): string {
-  if (key === 'upstream') return t('accountMenu.avatarInherited')
+  // Prefer the server-supplied label (the upstream IdP display name); fall back
+  // to the generic strings so the picker still reads sensibly without it.
+  const serverLabel = auth.me?.avatarSourceLabels?.[key]
+  if (serverLabel) return serverLabel
   if (key === 'user') return t('accountMenu.avatarUploaded')
+  if (key === 'upstream' || key.startsWith('upstream:')) return t('accountMenu.avatarInherited')
   return key
 }
 
@@ -201,7 +207,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
                 busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
                 pendingSource === key ? 'ring-2 ring-primary/40' : '',
               ]"
-              @click="selectSource(key as 'upstream' | 'user')"
+              @click="selectSource(key)"
             >
               <UserAvatar :display-name="auth.me?.displayName" :username="auth.me?.username" :src="url" class="size-10" />
               <span>{{ sourceLabel(key) }}</span>

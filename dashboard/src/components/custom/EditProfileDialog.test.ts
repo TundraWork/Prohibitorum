@@ -389,4 +389,30 @@ describe('EditProfileDialog — avatar source picker', () => {
     // After resolution the card's aria-busy must be cleared
     expect(upstreamOption().getAttribute('aria-busy')).toBe('false')
   })
+
+  it('labels a per-upstream source with its IdP display name and selects the slugged source', async () => {
+    const auth = useAuthStore()
+    auth.me = {
+      id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user',
+      avatarSource: 'user',
+      avatarSourceUrls: {
+        'upstream:mockop': '/avatar/x?source=upstream%3Amockop&v=ab',
+        user: '/avatar/x?source=user&v=cd',
+      },
+      avatarSourceLabels: { 'upstream:mockop': 'Mock OP' },
+    }
+    put.mockResolvedValue({})
+    vi.mocked(api.get).mockResolvedValue(auth.me)
+    mountOpen(); await flushPromises()
+
+    const opt = document.body.querySelector('[data-test="avatar-source-upstream:mockop"]') as HTMLButtonElement
+    expect(opt).not.toBeNull()
+    // The label is the server-supplied IdP display name, not the raw source key.
+    expect(opt.textContent).toContain('Mock OP')
+    expect(opt.textContent).not.toContain('upstream:mockop')
+
+    opt.click()
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'upstream:mockop' })
+  })
 })
