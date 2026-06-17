@@ -532,6 +532,7 @@ export default {
       profile: 'Read your display name',
       email: 'Read your email address',
       offline_access: 'Stay signed in when you are not using the app',
+      groups: 'Read your group memberships',
     },
   },
 
