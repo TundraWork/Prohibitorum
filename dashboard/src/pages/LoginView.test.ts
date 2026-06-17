@@ -114,7 +114,7 @@ describe('LoginView', () => {
 
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/login/begin')
     expect(post).toHaveBeenCalledWith(
-      expect.stringContaining('/api/prohibitorum/auth/login/complete'),
+      expect.stringContaining('/api/prohibitorum/auth/login/complete?return_to='),
       expect.objectContaining({ id: 'assert' }),
     )
     expect(hardRedirect).toHaveBeenCalledWith('/resume-here')

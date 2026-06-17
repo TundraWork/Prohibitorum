@@ -45,6 +45,11 @@ onMounted(async () => {
 })
 
 function startFederation(slug: string): void {
+  // Forward the client-sanitized returnTo (safeReturnTo): the federation login
+  // handler is fail-CLOSED (validateFederationReturnTo → 400 on a bad value),
+  // so pre-sanitizing here keeps a same-origin-absolute bounce from tripping
+  // that error branch. (The login ceremony, by contrast, forwards the raw value
+  // to its fail-soft handler.) Either way the server re-validates server-side.
   const url =
     `/api/prohibitorum/auth/federation/${encodeURIComponent(slug)}/login` +
     `?return_to=${encodeURIComponent(returnTo.value)}`

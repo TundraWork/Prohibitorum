@@ -11,10 +11,13 @@
  *
  * Usage:
  *   const { returnTo, rawReturnTo, goReturnTo } = useReturnTo()
- *   // After successful login (server returns validated redirect):
- *   hardRedirect(rawReturnTo.value)   // or use the server's res.redirect
- *   // Fallback (client-side guard):
- *   goReturnTo()
+ *   // Login ceremony: forward the RAW value to the server (the authoritative
+ *   // validator) and hardRedirect ONLY the server's blessed response — never
+ *   // hardRedirect(rawReturnTo.value) directly (that would be an open redirect):
+ *   const res = await api.post(`/auth/login/complete?return_to=${encodeURIComponent(rawReturnTo.value)}`, …)
+ *   hardRedirect(res.redirect)
+ *   // Fallback when there is no server redirect (recovery / already signed in):
+ *   goReturnTo()   // client-side safeReturnTo guard
  */
 
 import { computed } from 'vue'
