@@ -34,4 +34,5 @@ export const OIDC_SCOPES: OidcScope[] = [
   { value: 'profile',        required: false, descKey: 'admin.upstream.scopeSuggestions.profile' },
   { value: 'email',          required: false, descKey: 'admin.upstream.scopeSuggestions.email' },
   { value: 'offline_access', required: false, descKey: 'admin.upstream.scopeSuggestions.offline_access' },
+  { value: 'groups',         required: false, descKey: 'admin.upstream.scopeSuggestions.groups' },
 ]
