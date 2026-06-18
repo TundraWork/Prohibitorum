@@ -674,7 +674,7 @@ export default {
     enrollment_expired: '此邀请链接已过期。',
     enrollment_consumed: '此邀请链接已被使用。',
     enrollment_federation_required:
-      '此邀请需要通过身份提供商完成注册。',
+      '此邀请需要通过你的身份提供商完成注册。',
     invite_required: '创建账户需要邀请码。',
     username_taken: '该用户名已被占用。',
     username_collision: '该用户名已被占用。',
@@ -695,7 +695,7 @@ export default {
     not_found: '找不到请求的页面。',
 
     // Passkey management
-    last_passkey: '无法移除唯一的通行密钥，请先添加另一个。',
+    last_passkey: '无法移除最后一个通行密钥，请先添加另一个。',
 
     // Connected accounts
     last_sign_in_method: '无法移除最后一种登录方式，请先添加另一种。',
@@ -721,7 +721,7 @@ export default {
     saml_application_already_exists: '已存在使用该 Entity ID 的应用。',
     upstream_idp_not_found: '该身份提供商已不存在。',
     upstream_idp_already_exists: '已存在使用该 slug 的身份提供商。',
-    active_key_no_replacement: '请先激活替代密钥，再停用当前活动密钥。',
+    active_key_no_replacement: '请先激活替代密钥，再退役当前活动密钥。',
 
     // Avatar upload
     avatar_too_large: '该图片过大。',

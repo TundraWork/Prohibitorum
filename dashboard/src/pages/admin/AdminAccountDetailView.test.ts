@@ -109,7 +109,7 @@ describe('AdminAccountDetailView', () => {
     await w.find('[data-test="revoke-all"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.account.revokeAllSessions); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/revoke-sessions', { id: 7 })
-    expect(w.text()).toContain('Revoked 3')
+    expect(w.text()).toContain('Sessions revoked: 3')
   })
   it('reissues an enrollment link and reveals the URL', async () => {
     mockGets(); post.mockResolvedValue({ url: 'https://x/enroll/tok', expiresAt: '2026-06-09T00:00:00Z' })

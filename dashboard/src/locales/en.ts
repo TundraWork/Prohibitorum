@@ -1,6 +1,7 @@
 /**
  * English locale — source of truth for all copy.
- * zh added in a later pass (i18n infra is ready; zh strings are deferred).
+ * zh is now fully authored and key-parallel (enforced by locales.parity.test.ts
+ * and locales.params.test.ts); en is the canonical reference for all new keys.
  *
  * `errors.*` keys map known backend error codes to plain-language messages
  * (per PRODUCT.md: no jargon, no stack traces). Fallback: err.message.
@@ -188,7 +189,7 @@ export default {
       revokeAllSessions: 'Revoke all sessions',
       revokeAllConfirmTitle: 'Revoke all sessions?',
       revokeAllConfirmBody: 'This signs the account out of every device immediately.',
-      sessionsRevoked: 'Revoked {count} sessions.',
+      sessionsRevoked: 'Sessions revoked: {count}.',
       resetTitle: 'Reset access',
       resetHelp: 'Issue a fresh enrollment link. The account re-enrolls its passkeys; existing credentials keep working until then.',
       reissue: 'Reissue enrollment link',
