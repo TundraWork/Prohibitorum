@@ -3210,7 +3210,7 @@ func main() {
 		log.Printf("  audit-events: oidc_client register(%q) + signing_key mutation(newKID) present; no secret in any detail ✓", adminClientID)
 	}
 
-	step(fmt.Sprintf("step 121/%d — admin: GET /accounts/{id}/credentials lists passkey(s) w/ 4-char suffix only; force-revoke endpoint is sudo-gated", totalAdmin))
+	step(fmt.Sprintf("step 121/%d — admin: GET /accounts/{id}/credentials lists passkey(s) w/ 4-char suffix only; force-revoke succeeds under the active sudo window (gate-deny covered by admin_route_policy_test)", totalAdmin))
 	{
 		me, err := c.getMe()
 		if err != nil {
@@ -3425,8 +3425,8 @@ func main() {
 		}
 
 		// sudo is required for PUT /saml-providers/{id} (registerSudoOpHTTP).
-		// The admin arc (steps 114–121) consumed the per-session sudo budget;
-		// log out and back in to reset it before the sudo call.
+		// Log out and back in to start a fresh recent-auth window (new IssuedAt)
+		// before the sudo call; the previous window was issued during the admin arc.
 		if err := c.logout(); err != nil {
 			log.Fatalf("Tier-1 d: logout pre-SAML-PUT: %v", err)
 		}
@@ -3646,8 +3646,9 @@ func main() {
 	// freshAuthorizeCode(c, …) successfully — that requires a live session).
 	// Every admin mutation is sudo-gated; each is preceded by a fresh
 	// sudoWebAuthn (multi-use window, re-asserted before each mutation for
-	// test isolation) exactly as the admin arc (steps 114–121) does. rpRedirectURI shape + issuer reused from
-	// the v0.4 block. The group is created exposedToDownstream:true so its slug
+	// test isolation) exactly as the admin arc (steps 114–121) does.
+	// rpRedirectURI shape + issuer reused from the v0.4 block. The group is
+	// created exposedToDownstream:true so its slug
 	// surfaces in the groups claim (ListExposedGroupSlugsByAccount).
 	// =========================================================================
 	{
