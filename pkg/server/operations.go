@@ -126,13 +126,16 @@ const maxAdminBody = 64 << 10 // 64 KiB
 // withFreshSudo wraps a raw handler so the fresh-sudo gate runs as route
 // policy, not the handler's first line. Single chokepoint for admin mutations.
 //
-// Ordering: content-type + body-size checks run BEFORE requireFreshSudo so a
-// malformed request never touches the sudo gate. This is safe: the
-// content-type check reveals nothing about grant state (a 400 is no more
-// informative than the 401 that requireFreshSudo would have emitted).
+// Ordering: the content-type check runs BEFORE the sudo gate and short-circuits
+// on a bad type, so a wrong-content-type request never reaches hasFreshSudo.
+// The body-size limit (MaxBytesReader) is also installed before the gate, but
+// it is enforced lazily on read inside the handler — an oversized but
+// correctly-typed request still passes through the gate. This is safe: the
+// content-type 400 reveals nothing about grant state (no more informative than
+// the 401 hasFreshSudo would have emitted).
 func (s *Server) withFreshSudo(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Baseline body checks first — do not consume the sudo grant on a
+		// Content-type check first — short-circuit before the sudo gate on a
 		// clearly malformed request.
 		if r.Method != http.MethodGet && r.ContentLength != 0 {
 			ct := r.Header.Get("Content-Type")

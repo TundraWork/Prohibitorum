@@ -5,7 +5,7 @@ package server
 // raw-HTTP registerSudoOpHTTP or the typed-Huma registerSudoOp — returns HTTP
 // 401 with body containing "sudo_required" when served with an admin session
 // that carries no fresh sudo grant, confirming the sudo gate fires BEFORE any
-// handler logic. Both styles route through the same consumeFreshSudo chokepoint.
+// handler logic. Both styles route through the same hasFreshSudo chokepoint.
 //
 // GUARD: every route registered via s.registerSudoOpHTTP OR registerSudoOp MUST
 // appear in sudoGatedRoutes below. Adding a 🔐 admin mutation without adding it

@@ -37,7 +37,7 @@ func TestMePasswordSet_RequiresSudo(t *testing.T) {
 	_, sess := issueSudoTestSession(t, s, accountID)
 	// Backdate IssuedAt so the recent-auth window doesn't apply; no SudoUntil
 	// set, so the gate must deny with sudo_required.
-	sess.Data.IssuedAt = time.Now().Add(-30 * time.Minute)
+	sess.Data.IssuedAt = time.Now().Add(-(s.config.Auth.SudoTTL + time.Minute))
 
 	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password/set", `{"password":"correct-horse-battery"}`)
 	w := httptest.NewRecorder()
