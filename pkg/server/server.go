@@ -409,9 +409,11 @@ func (s *Server) registerOperations() {
 	// Admin: accounts + invitations
 	registerOp(mgmt, contract.OperationListAccounts, s.handleListAccounts, admin)
 	registerOp(mgmt, contract.OperationGetAccount, s.handleGetAccount, admin)
-	// Account/invitation MUTATIONS are fresh-sudo gated via registerSudoOp
-	// (typed Huma + sudo) — UpdateAccount can escalate user→admin, so step-up
-	// is required, matching every other admin mutation.
+	// UpdateAccount, DeleteAccount, set-disabled, credential delete,
+	// reissue-enrollment, and invitation CREATE remain fresh-sudo gated:
+	// UpdateAccount can escalate user→admin, the others are destructive or
+	// mint credentials/enrollment. Session-revoke, all-sessions-revoke, and
+	// invitation REVOKE are reversible operational actions — admin auth only.
 	registerSudoOp(s, mgmt, contract.OperationUpdateAccount, s.handleUpdateAccount, admin)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/set-disabled", admin, s.handleSetAccountDisabledHTTP)
 	registerSudoOp(s, mgmt, contract.OperationDeleteAccount, s.handleDeleteAccount, admin)

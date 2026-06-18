@@ -65,6 +65,7 @@ var sudoGatedRoutes = []sudoRoute{
 	// (typed Huma ops). UpdateAccount can escalate user→admin, so step-up matters.
 	{method: "PUT", path: "/api/prohibitorum/accounts/1", body: `{"displayName":"x","role":"user"}`},
 	{method: "POST", path: "/api/prohibitorum/accounts/delete", body: `{"id":1}`},
+	{method: "POST", path: "/api/prohibitorum/accounts/set-disabled", body: `{"id":1,"disabled":true}`},
 	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
 	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
 }
