@@ -19,6 +19,7 @@ import {
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import EditProfileDialog from '@/components/custom/EditProfileDialog.vue'
+import ThemeToggle from '@/components/custom/ThemeToggle.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -90,6 +91,10 @@ defineExpose({ openEdit, signOut, editOpen })
             <Pencil />
             <span>{{ t('accountMenu.editProfile') }}</span>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <div class="px-1 py-1" @pointerdown.stop @keydown.stop>
+            <ThemeToggle />
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem data-test="account-signout" @select="signOut">
             <LogOut />
