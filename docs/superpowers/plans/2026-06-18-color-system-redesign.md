@@ -698,10 +698,12 @@ git commit -m "feat(webui): useTheme composable (light/dark/auto via useColorMod
 
 **Acceptance Criteria:**
 - [ ] Renders three controls (Light, System, Dark) with icons and accessible labels.
-- [ ] The active mode has `aria-pressed="true"`; clicking another sets that mode.
+- [ ] Implemented as a `role="radiogroup"` of `role="radio"` buttons (mutually exclusive) with a roving tabindex and Left/Right/Up/Down arrow navigation (keyboard-first, WCAG 2.2 AA); the active option has `aria-checked="true"`; clicking or arrowing to another sets that mode.
 - [ ] Labels come from `t('theme.*')`.
 
 **Verify:** `cd dashboard && npx vitest run src/components/custom/ThemeToggle.test.ts` → all pass.
+
+> **Post-Task-4 corrections (applied at dispatch):** (1) the component binds the active state to `stored` (the persisted selection from `useTheme`, which can be `'auto'`), NOT `mode` (the resolved value) — otherwise the System button never reads active. (2) The test must use the project's real i18n setup (`createI18n({ legacy: false, ... messages: { en } })` via `global.plugins`, mirroring `NavUser.test.ts`) plus a `window.matchMedia` shim, since the component calls `useI18n()` and `useColorMode` reads `prefers-color-scheme`. The `t`-mock sketch below is superseded.
 
 **Steps:**
 
@@ -978,6 +980,10 @@ Update the `colors:` front-matter block and §2 to the new token values (canvas 
 After editing, grep-verify no curly quotes/apostrophe damage:
 Run: `rg -n "[‘’]" DESIGN.md` → expected: no output (straight quotes only).
 
+Also apply three carried-over `main.css` hygiene tweaks from the Task 2 review (cosmetic, no behavior change): (a) restore a one-line comment at `--color-muted` noting its dual role (brand secondary TEXT vs the shadcn `--muted` background surface); (b) add a one-line comment above the neutral `0→950` ramp noting it is a light-reference scale and components should prefer the dark-aware semantic tokens (`bg-surface`/`bg-sunken`/`text-ink`/`text-muted`); (c) fix the missing space in `--color-border-strong:oklch(...)` → `--color-border-strong: oklch(...)`.
+
+Carried from the Task 3 review (also cosmetic/non-breaking): (d) add a one-line comment above the `StatusBadge.test.ts` amber guard explaining the `/\btext-amber(?!-)\b/` negative-lookahead (so it isn't simplified back into the false-positive bug); (e) in `dashboard/src/pages/admin/AdminSigningKeysView.vue`, add `'info'` to the local `type Variant = 'neutral' | 'success' | 'caution' | 'danger'` union now that `StatusBadge` supports it (no current caller uses it, so this is forward-correctness only); (f) add a brief comment on the `NavUser.vue` ThemeToggle wrapper `<div>` explaining why it stops `pointerdown`/`keydown` (keeps the menu open + prevents the menu hijacking the radiogroup's arrow keys; Escape still closes via Reka's window-level listener).
+
 - [ ] **Step 2: Rebuild the embedded SPA**
 
 Run: `cd dashboard && npm run build`
@@ -1031,3 +1037,14 @@ git commit -m "docs(design)+build(webui): document Cool Slate system, rebuild em
 - No worktree: per project convention this work happens on `master` (the repo carries an unpushed range there).
 - Commits omit any `Co-Authored-By` trailer (standing user rule).
 - Flaky `pkg/server` Go suite is unrelated to this FE work; the gate here is `go build`/`go vet` + vitest + the contrast script, not the full Go test suite.
+
+---
+
+## Review follow-ups (non-blocking; final whole-implementation review = SHIP-WITH-FOLLOWUPS)
+
+The 8 tasks landed and the final Opus review approved with these deferred items. The one **Important** finding (the `info` StatusBadge stayed light in dark mode because the Tide ramp's `-50/-700` lack `.dark` overrides) was **fixed in-cycle** — the variant now uses the dark-aware, gate-tested `bg-info text-info-foreground` (commit after Task 8). Remaining, intentionally deferred:
+
+- **F-1 (Minor) — back-compat brand/state aliases are stuck at their light values in dark mode.** The un-numbered aliases `--color-sage / -amber / -rose / -tide / -tide-strong / -ember` are defined only in `@theme`, not re-declared in `.dark`. Components still using `text-sage` (status "Saved/Created" lines, ~20 files), `text-amber`, `text-tide`/`-strong`, and `text-ember`/`bg-ember` brand marks (~25 sites total) therefore do NOT lighten in dark mode. All currently **pass WCAG AA** stuck-at-light (computed: `text-sage` 5.20:1, `text-amber` 8.17:1, `text-ember` ~6.3:1), so this is a visual-consistency gap, not a contrast failure. The one borderline is `SudoModal.vue`'s `text-tide-strong` glyph on a `bg-tide/10` circle at ~2.98:1 vs the 3:1 non-text bar (decorative icon beside a text title). **Fix when ready:** add `.dark` overrides lightening those six aliases (~`sage 0.80 / amber 0.84 / rose 0.76 / tide & tide-strong 0.80 / ember 0.78`), and FIRST audit each `bg-{ember,tide,...}` solid-fill usage so a fill+label pair doesn't lose contrast; then add the corresponding dark text pairs to `check-contrast.mjs` so the gate covers what ships.
+- **F-2 (Minor) — first-paint flash for dark-mode users.** CSP is `script-src 'self'`, so there is no inline pre-paint script; the `.dark` class is applied during Vue bootstrap (`App.vue` → `useTheme()`). A dark-preferring user may see a brief light flash. Accepted tradeoff (documented in `useTheme.ts`); avoiding it cleanly would need a nonce'd inline script.
+- **F-3 (Minor, pre-existing) — `EditProfileDialog.vue` `hover:bg-muted/50`** uses the `--color-muted` text token as a hover background rather than the intended `--muted`/sunken surface. Works in both themes; semantically loose. Tidy opportunistically.
+- **Pending (human):** the live in-browser visual pass across every surface in BOTH themes (`/welcome`, login/enroll/consent threshold pages, account + admin views, dialogs, the account-menu theme toggle). This is the only acceptance step a subagent could not perform.

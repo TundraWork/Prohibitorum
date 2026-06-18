@@ -4,57 +4,57 @@
     {
       "id": 7,
       "subject": "Task 1: Contrast verification gate",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Dependency-free script proving every critical fg/bg pair clears WCAG 2.2 AA in both themes.\n\n```json:metadata\n{\"files\":[\"dashboard/scripts/check-contrast.mjs\"],\"verifyCommand\":\"cd dashboard && node scripts/check-contrast.mjs\",\"acceptanceCriteria\":[\"OKLCH->sRGB->luminance->ratio\",\"all light+dark pairs asserted\",\"exits non-zero on failure\"]}\n```"
     },
     {
       "id": 8,
       "subject": "Task 2: Rewrite token system in main.css",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "**Goal:** Replace main.css tokens with the full Cool Slate system: ramps, canvas/card inversion, three-plane neutrals, state steps, info + border-strong, complete .dark block.\n\n```json:metadata\n{\"files\":[\"dashboard/src/assets/main.css\"],\"verifyCommand\":\"cd dashboard && npm run build && node scripts/check-contrast.mjs\",\"acceptanceCriteria\":[\"existing utilities revalued not removed\",\"new ramp utilities exist\",\"--background=canvas, --card=white\",\"dark block + @theme inline intact\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 3: AA-correct StatusBadge + info variant",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "**Goal:** Re-base StatusBadge variants on -50 tint + -700 text (fixes amber-on-tint AA bug); add info variant.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/StatusBadge.vue\",\"dashboard/src/components/custom/StatusBadge.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/StatusBadge.test.ts\",\"acceptanceCriteria\":[\"-50/-700 variants\",\"caution not text-amber\",\"info variant teal\",\"neutral unchanged\"]}\n```"
     },
     {
       "id": 10,
       "subject": "Task 4: useTheme composable",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Composable wrapping useColorMode: persists light/dark/auto to localStorage['theme'], toggles dark class on <html>.\n\n```json:metadata\n{\"files\":[\"dashboard/src/composables/useTheme.ts\",\"dashboard/src/composables/useTheme.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/composables/useTheme.test.ts\",\"acceptanceCriteria\":[\"mode + setMode exposed\",\"dark class toggles on html\",\"persists to localStorage theme\"]}\n```"
     },
     {
       "id": 11,
       "subject": "Task 5: ThemeToggle control + i18n",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "**Goal:** Compact 3-way Light/System/Dark control bound to useTheme, labelled + keyboard-operable.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/ThemeToggle.vue\",\"dashboard/src/components/custom/ThemeToggle.test.ts\",\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/ThemeToggle.test.ts\",\"acceptanceCriteria\":[\"three labelled options\",\"aria-pressed on active, click sets mode\",\"theme.* i18n, no curly quotes\"]}\n```"
     },
     {
       "id": 12,
       "subject": "Task 6: Global theme init + wire into NavUser",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [11],
       "description": "**Goal:** Apply persisted theme on every route (App.vue); surface toggle in account dropdown without closing the menu.\n\n```json:metadata\n{\"files\":[\"dashboard/src/App.vue\",\"dashboard/src/components/custom/NavUser.vue\",\"dashboard/src/components/custom/NavUser.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/components/custom/NavUser.test.ts && npm run build\",\"acceptanceCriteria\":[\"useTheme() in App.vue setup\",\"ThemeToggle in non-item wrapper, stops propagation\",\"NavUser test asserts toggle\"]}\n```"
     },
     {
       "id": 13,
       "subject": "Task 7: Surface sweep + dark-mode review",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 12],
       "description": "**Goal:** Confirm no surface hard-assumes pure-white under the inversion; visually verify both themes.\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"cd dashboard && npm run dev\",\"acceptanceCriteria\":[\"stray surfaces read correctly\",\"spinners legible\",\"AuthBackdrop untouched\",\"no CSP change\"]}\n```"
     },
     {
       "id": 14,
       "subject": "Task 8: Update DESIGN.md + rebuild dist (done-gate)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9, 13],
       "description": "**Goal:** Align DESIGN.md with implemented tokens/rules, rebuild embedded SPA, run full gate.\n\n```json:metadata\n{\"files\":[\"DESIGN.md\",\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npm run build && npx vitest run && node scripts/check-contrast.mjs && cd .. && go build -tags nodynamic ./... && go vet ./...\",\"acceptanceCriteria\":[\"DESIGN.md sections updated\",\"dark values pinned\",\"dist rebuilt+committed\",\"full gate green\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-18T00:00:00Z"
+  "lastUpdated": "2026-06-19T05:00:00Z"
 }
