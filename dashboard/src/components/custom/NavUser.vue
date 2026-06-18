@@ -19,7 +19,6 @@ import {
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import EditProfileDialog from '@/components/custom/EditProfileDialog.vue'
-import ThemeToggle from '@/components/custom/ThemeToggle.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -91,13 +90,6 @@ defineExpose({ openEdit, signOut, editOpen })
             <Pencil />
             <span>{{ t('accountMenu.editProfile') }}</span>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <!-- Plain div (not a DropdownMenuItem) so interacting with the toggle keeps the menu
-               open: @pointerdown.stop blocks Reka's item-select; @keydown.stop stops the menu
-               hijacking the radiogroup's arrow keys. Escape still closes (Reka listens on window). -->
-          <div class="px-1 py-1" @pointerdown.stop @keydown.stop>
-            <ThemeToggle />
-          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem data-test="account-signout" @select="signOut">
             <LogOut />

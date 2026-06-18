@@ -32,35 +32,36 @@ function move(e: KeyboardEvent, delta: number): void {
 </script>
 
 <template>
-  <div class="flex items-center justify-between gap-2 px-1 py-1">
-    <span class="text-xs font-medium text-muted">{{ t('theme.label') }}</span>
-    <div
-      role="radiogroup"
-      :aria-label="t('theme.label')"
-      class="inline-flex rounded-md bg-sunken p-0.5"
-      @keydown.right.prevent="move($event, 1)"
-      @keydown.down.prevent="move($event, 1)"
-      @keydown.left.prevent="move($event, -1)"
-      @keydown.up.prevent="move($event, -1)"
+  <!-- Compact, label-less radiogroup sized for the sidebar footer. The per-button
+       aria-label + the group aria-label carry the accessible naming (no visible
+       text label needed beside three self-evident icons). Track uses the sidebar
+       tone + border so the active bg-card pill reads against the sunken footer. -->
+  <div
+    role="radiogroup"
+    :aria-label="t('theme.label')"
+    class="inline-flex rounded-md border border-sidebar-border bg-sidebar p-0.5"
+    @keydown.right.prevent="move($event, 1)"
+    @keydown.down.prevent="move($event, 1)"
+    @keydown.left.prevent="move($event, -1)"
+    @keydown.up.prevent="move($event, -1)"
+  >
+    <button
+      v-for="o in options"
+      :key="o.value"
+      type="button"
+      role="radio"
+      :data-test="o.test"
+      :aria-label="o.label"
+      :aria-checked="stored === o.value"
+      :tabindex="stored === o.value ? 0 : -1"
+      :class="cn(
+        'inline-flex size-7 cursor-pointer items-center justify-center rounded-[7px] outline-none transition-colors',
+        'focus-visible:ring-2 focus-visible:ring-ring',
+        stored === o.value ? 'bg-card text-ink shadow-raised' : 'text-muted hover:text-ink',
+      )"
+      @click="setMode(o.value)"
     >
-      <button
-        v-for="o in options"
-        :key="o.value"
-        type="button"
-        role="radio"
-        :data-test="o.test"
-        :aria-label="o.label"
-        :aria-checked="stored === o.value"
-        :tabindex="stored === o.value ? 0 : -1"
-        :class="cn(
-          'inline-flex size-7 cursor-pointer items-center justify-center rounded-[7px] outline-none transition-colors',
-          'focus-visible:ring-2 focus-visible:ring-ring',
-          stored === o.value ? 'bg-card text-ink shadow-raised' : 'text-muted hover:text-ink',
-        )"
-        @click="setMode(o.value)"
-      >
-        <component :is="o.icon" class="size-4" aria-hidden="true" />
-      </button>
-    </div>
+      <component :is="o.icon" class="size-4" aria-hidden="true" />
+    </button>
   </div>
 </template>

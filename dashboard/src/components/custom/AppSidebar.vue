@@ -11,6 +11,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound } from 'lucide-vue-next'
 import NavUser from '@/components/custom/NavUser.vue'
+import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
+import ThemeToggle from '@/components/custom/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
@@ -125,6 +127,11 @@ const applicationItems = computed(() => [
     </SidebarContent>
 
     <SidebarFooter class="border-t border-sidebar-border">
+      <!-- Standalone utility controls, stacked above the user component. -->
+      <div class="flex flex-col items-start gap-1.5 px-2 pt-0.5">
+        <LocaleSwitcher />
+        <ThemeToggle />
+      </div>
       <NavUser />
     </SidebarFooter>
   </Sidebar>

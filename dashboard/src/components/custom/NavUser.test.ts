@@ -76,22 +76,6 @@ describe('NavUser', () => {
     expect(document.body.querySelector('[data-test="edit-displayname-input"]')).not.toBeNull()
   })
 
-  it('renders ThemeToggle inside the account dropdown when the menu is open', async () => {
-    const auth = useAuthStore()
-    auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
-    const w = await mountHost(makeRouter())
-
-    // Open the Reka dropdown via keyboard Enter on the trigger (works in jsdom;
-    // click/pointerdown triggers a Teleport insertBefore error in this environment).
-    const trigger = w.get('[data-test="account-trigger"]')
-    await trigger.trigger('keydown', { key: 'Enter' })
-    await flushPromises()
-    await nextTick()
-
-    // Reka teleports the DropdownMenuContent to document.body; the ThemeToggle
-    // renders a role="radiogroup" — assert it is present in the teleported DOM.
-    expect(document.body.querySelector('[role="radiogroup"]')).not.toBeNull()
-  })
 
   describe('pollAvatarUntilSettled', () => {
     beforeEach(() => { vi.useFakeTimers() })
