@@ -46,55 +46,27 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/signing-keys/abc/activate", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/signing-keys/abc/retire", body: `{}`},
 
-	// OIDC application management
+	// OIDC application management (create/update/rotate-secret/delete — NOT set-disabled)
 	{method: "POST", path: "/api/prohibitorum/oidc-applications", body: `{"clientId":"x"}`},
 	{method: "PUT", path: "/api/prohibitorum/oidc-applications/x", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/rotate-secret", body: `{"clientId":"x"}`},
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/delete", body: `{"clientId":"x"}`},
 
-	// SAML application management
-	{method: "POST", path: "/api/prohibitorum/saml-applications", body: `{}`},
-	{method: "PUT", path: "/api/prohibitorum/saml-applications/1", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/reingest-metadata", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/saml-applications/delete", body: `{"id":1}`},
-
-	// Identity provider management
+	// Identity provider management (create/update/rotate-secret/delete — NOT set-disabled)
 	{method: "POST", path: "/api/prohibitorum/identity-providers", body: `{}`},
 	{method: "PUT", path: "/api/prohibitorum/identity-providers/x", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/identity-providers/rotate-secret", body: `{"slug":"x"}`},
 	{method: "POST", path: "/api/prohibitorum/identity-providers/delete", body: `{"slug":"x"}`},
 
-	// Account credential revoke — promoted to sudo (Task 9)
+	// Account credential revoke — high-impact, sudo-gated
 	{method: "POST", path: "/api/prohibitorum/accounts/credentials/delete", body: `{"accountId":1,"credentialId":1}`},
-
-	// Per-account session revoke (admin, sudo-gated)
-	{method: "POST", path: "/api/prohibitorum/accounts/1/sessions/revoke", body: `{"sessionId":"abc"}`},
-
-	// Group CRUD + membership management
-	{method: "POST", path: "/api/prohibitorum/groups", body: `{"slug":"g","displayName":"G"}`},
-	{method: "PUT", path: "/api/prohibitorum/groups/1", body: `{"slug":"g","displayName":"G"}`},
-	{method: "POST", path: "/api/prohibitorum/groups/delete", body: `{"id":1}`},
-	{method: "POST", path: "/api/prohibitorum/groups/1/members", body: `{"accountId":1}`},
-	{method: "POST", path: "/api/prohibitorum/groups/1/members/remove", body: `{"accountId":1}`},
 
 	// Account/invitation lifecycle mutations — fresh-sudo via registerSudoOp
 	// (typed Huma ops). UpdateAccount can escalate user→admin, so step-up matters.
 	{method: "PUT", path: "/api/prohibitorum/accounts/1", body: `{"displayName":"x","role":"user"}`},
 	{method: "POST", path: "/api/prohibitorum/accounts/delete", body: `{"id":1}`},
-	{method: "POST", path: "/api/prohibitorum/accounts/revoke-sessions", body: `{"id":1}`},
 	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
 	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
-	{method: "POST", path: "/api/prohibitorum/invitations/revoke", body: `{"token":"x"}`},
-
-	// App-access management — OIDC
-	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/set-restricted", body: `{"restricted":true}`},
-	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/grant", body: `{"principalKind":"group","principalId":1}`},
-	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/revoke", body: `{"principalKind":"group","principalId":1}`},
-
-	// App-access management — SAML
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/set-restricted", body: `{"restricted":true}`},
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/grant", body: `{"principalKind":"group","principalId":1}`},
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/revoke", body: `{"principalKind":"group","principalId":1}`},
 }
 
 // TestAdminMutationRoutesRequireSudo builds the REAL router via registerOperations()
