@@ -76,13 +76,14 @@ func (s *Server) handleSudoMethodsHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"methods": methods})
 }
 
-// availableSudoMethods returns the elevation methods enrolled for the
+// availableSudoMethods returns the LOCAL elevation methods enrolled for the
 // account, in priority order: webauthn, password_totp.
-// Always returns a non-nil slice (empty means no enrolled factors).
+// Always returns a non-nil slice (empty means no enrolled local factors).
 //
-// recovery_code is intentionally excluded — see package-doc. Recovery
-// codes redeem at /auth/recovery-code/verify and route through the
-// dedicated re-enrollment ceremony, not the sudo gate.
+// Sudo is strictly local-factor only. federation_oidc is intentionally
+// excluded: upstream re-authentication for federated accounts happens on the
+// login screen, not in the step-up modal, and handleSudoBeginHTTP has no
+// federation dispatch case. recovery_code is also excluded — see package-doc.
 func (s *Server) availableSudoMethods(ctx context.Context, accountID int32) []string {
 	out := []string{}
 	q := s.sudoFlowQ()
@@ -91,6 +92,11 @@ func (s *Server) availableSudoMethods(ctx context.Context, accountID int32) []st
 		logx.WithContext(ctx).WithError(err).Warn("sudo: AvailableMethods")
 	}
 	for _, m := range methods {
+		// federation_oidc is no longer a sudo factor — upstream-only sessions
+		// re-authenticate on the login screen, not in the step-up modal.
+		if m == authn.MethodFederationOIDC {
+			continue
+		}
 		out = append(out, string(m))
 	}
 	return out
@@ -333,7 +339,7 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 // applySudoGrant writes SudoUntil = now + Auth.SudoTTL onto the live session,
 // clears any KV ceremony state for this session, and emits the sudo_granted
 // audit record + log. It does NOT write an HTTP success response — the caller
-// owns the transport (204 for /complete, 302 for the federation callback).
+// owns the transport (204 for /complete).
 //
 // On session load/save failure it writes the error response via writeAuthErr
 // and returns the error so the caller can bail without double-writing. On

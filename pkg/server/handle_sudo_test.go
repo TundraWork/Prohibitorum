@@ -54,6 +54,12 @@ type fakeSudoQueries struct {
 	totpRow      *db.TotpCredential
 	recoveryRows []db.RecoveryCode
 
+	// fedCount is the value returned by CountUsableSignInFederation.
+	// Defaults to 0 (no federation identities); set to a positive value in
+	// tests that want AvailableMethods to include federation_oidc so we can
+	// verify that availableSudoMethods still filters it out.
+	fedCount int64
+
 	nextRecID int32
 	throttle  map[string]db.AuthThrottle
 	events    []db.InsertCredentialEventParams
@@ -187,9 +193,11 @@ func (f *fakeSudoQueries) ListAccountIdentitiesByAccount(_ context.Context, _ in
 	return nil, nil
 }
 
-// CountUsableSignInFederation returns 0 — no federation identities in sudo tests.
+// CountUsableSignInFederation returns f.fedCount (default 0). Tests that want
+// AvailableMethods to surface federation_oidc can set fedCount > 0 to
+// exercise the availableSudoMethods filter.
 func (f *fakeSudoQueries) CountUsableSignInFederation(_ context.Context, _ int32) (int64, error) {
-	return 0, nil
+	return f.fedCount, nil
 }
 
 func (f *fakeSudoQueries) DeleteAllRecoveryCodesByAccount(_ context.Context, accountID int32) error {
@@ -505,6 +513,36 @@ func TestSudoMethods_None(t *testing.T) {
 	got := methodsFromBody(t, w.Body.Bytes())
 	if len(got) != 0 {
 		t.Errorf("methods: want empty, got %v", got)
+	}
+}
+
+// TestSudoMethods_FederationExcluded: even when AvailableMethods would include
+// federation_oidc (because the account has a usable upstream identity),
+// /me/sudo/methods must NOT list federation_oidc — sudo accepts local factors
+// only (webauthn, password_totp). Upstream re-authentication happens on the
+// login screen, not in the step-up modal.
+func TestSudoMethods_FederationExcluded(t *testing.T) {
+	s, f, _ := newSudoTestServer(t)
+	const accountID int32 = 42
+
+	// Give the account a passkey AND a usable federation identity.
+	// AvailableMethods will return [webauthn, federation_oidc].
+	f.webauthnRows = []db.WebauthnCredential{{ID: 1, AccountID: accountID, Nickname: pgtype.Text{String: "yk1", Valid: true}}}
+	f.fedCount = 1
+
+	_, sess := issueSudoTestSession(t, s, accountID)
+	r := sudoReq(t, sess, http.MethodGet, "/api/prohibitorum/me/sudo/methods", "")
+	w := httptest.NewRecorder()
+	s.handleSudoMethodsHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	got := methodsFromBody(t, w.Body.Bytes())
+	if slices.Contains(got, "federation_oidc") {
+		t.Errorf("federation_oidc must not appear in sudo methods, got %v", got)
+	}
+	if !slices.Contains(got, "webauthn") {
+		t.Errorf("webauthn should still appear in sudo methods, got %v", got)
 	}
 }
 

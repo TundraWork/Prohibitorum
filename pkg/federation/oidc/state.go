@@ -153,7 +153,7 @@ func DecodeConfirmGrant(raw string) (*ConfirmGrant, error) {
 }
 
 // ConfirmKey namespaces the confirmation-grant token, distinct from the
-// login/link/sudo flow namespaces so a token minted for one purpose cannot be
+// login/link flow namespaces so a token minted for one purpose cannot be
 // Pop'd by the handler for another (same cross-purpose-token-reuse defense).
 func ConfirmKey(token string) string {
 	return "oidc:fed:confirm:" + token

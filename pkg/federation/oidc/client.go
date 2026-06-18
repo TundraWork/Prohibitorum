@@ -66,10 +66,8 @@ type Tokens struct {
 	Name              string
 	AMR               []string
 	// AuthTime is the time at which the end-user was last authenticated by
-	// the upstream OP, as reported in the id_token auth_time claim (RFC 6749 /
-	// OIDC Core §2). Zero if the OP did not include auth_time. The sudo
-	// callback uses this to reject step-up tokens whose auth_time predates
-	// the sudo request.
+	// the upstream OP, as reported in the id_token auth_time claim (OIDC
+	// Core §2). Zero if the OP did not include auth_time in the id_token.
 	AuthTime time.Time
 	Raw      map[string]any
 }
