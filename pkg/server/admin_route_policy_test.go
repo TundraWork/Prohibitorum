@@ -11,6 +11,11 @@ package server
 // appear in sudoGatedRoutes below. Adding a 🔐 admin mutation without adding it
 // here is a security bug — the test will not catch an un-gated route it doesn't
 // know about.
+//
+// TestTrimmedAdminRoutesAreAdminOnlyNotSudo complements the above by asserting
+// that a representative sample of routes that were REMOVED from the sudo tier
+// (now admin-only 🔓) do NOT return sudo_required — confirming the gate was
+// genuinely removed and not just accidentally absent from sudoGatedRoutes.
 
 import (
 	"net/http/httptest"
@@ -68,6 +73,61 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/accounts/set-disabled", body: `{"id":1,"disabled":true}`},
 	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
 	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
+}
+
+// droppedSudoRoutes is a representative sample of routes that were removed from
+// the sudo tier (now admin-only 🔓). Each entry must NOT return sudo_required
+// when called with a valid admin session that has no fresh sudo grant.
+var droppedSudoRoutes = []sudoRoute{
+	// Groups CRUD — admin-only, no step-up
+	{method: "POST", path: "/api/prohibitorum/groups", body: `{"slug":"test","displayName":"Test"}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/members", body: `{"accountId":1}`},
+	// SAML application CRUD — admin-only, no step-up
+	{method: "POST", path: "/api/prohibitorum/saml-applications", body: `{}`},
+}
+
+// TestTrimmedAdminRoutesAreAdminOnlyNotSudo builds the REAL router and asserts
+// that each route in droppedSudoRoutes does NOT return 401 sudo_required when
+// served with an admin session that has zero fresh sudo. The route handlers will
+// proceed past the (absent) sudo gate and reach actual handler logic; because
+// s.queries is nil they will panic or error — this is expected and caught with a
+// deferred recover. The key invariant is: if a response IS produced, it must not
+// be 401-with-"sudo_required". A recovered panic also satisfies the invariant
+// (the gate was absent; the handler ran and crashed on nil deps).
+func TestTrimmedAdminRoutesAreAdminOnlyNotSudo(t *testing.T) {
+	router := chi.NewMux()
+	s := &Server{
+		router: router,
+		api:    humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")),
+	}
+	registerSecurityScheme(s.api, sessstore.SessionCookieName)
+	s.registerOperations()
+
+	sess := adminSession(time.Time{}) // zero SudoUntil = no fresh sudo
+
+	for _, sr := range droppedSudoRoutes {
+		sr := sr
+		t.Run(sr.method+" "+sr.path, func(t *testing.T) {
+			// Recover from any panic caused by nil s.queries — that means the sudo
+			// gate was absent and the handler ran (satisfying the invariant).
+			defer func() {
+				if rec := recover(); rec != nil {
+					// Panic from handler logic = gate was absent. Pass.
+					t.Logf("handler panicked (nil deps, expected): %v — sudo gate is absent", rec)
+				}
+			}()
+
+			rr := httptest.NewRecorder()
+			req := reqWithSession(sr.method, sr.path, sr.body, "", sess)
+			router.ServeHTTP(rr, req)
+
+			// If a response was produced, it must NOT be 401 sudo_required.
+			if rr.Code == 401 && strings.Contains(rr.Body.String(), "sudo_required") {
+				t.Errorf("%s %s: got sudo_required (401) — sudo gate was not removed; body: %s",
+					sr.method, sr.path, rr.Body.String())
+			}
+		})
+	}
 }
 
 // TestAdminMutationRoutesRequireSudo builds the REAL router via registerOperations()

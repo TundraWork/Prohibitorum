@@ -11,16 +11,10 @@ Route-to-source cross-reference:
 
 **Gate notation:**
 - 🔓 = admin session required (`account.role = 'admin'`)
-- 🔐 = admin session + **fresh sudo grant** (one-shot; consumed per call)
-- `registerSudoOpHTTP` centralises the triple gate (admin auth + content-type check + body-size limit 64 KiB + fresh-sudo verify-and-consume) so it cannot drift per-handler.
+- 🔐 = admin session + **fresh sudo grant** (recent-auth window; granted at login, valid for the configured `sudo_ttl` (default 15 min), covers multiple gated actions until expiry — not consumed per call)
+- `registerSudoOpHTTP` centralises the triple gate (admin auth + content-type check + body-size limit 64 KiB + fresh-sudo window check) so it cannot drift per-handler.
 
-**Sudo-gating model.** Reads and cosmetic edits are 🔓 only. Every
-mutation that releases a secret, changes trust configuration, or
-destroys credentials is 🔐. This is enforced centrally: all 🔐 routes
-are registered via `s.registerSudoOpHTTP`, and a route-policy test
-serves the real `registerOperations()` route table and asserts that
-each mutation returns `sudo_required` (HTTP 401) when the session
-carries no fresh sudo grant.
+**Sudo-gating model.** Reads are 🔓 only. Admin mutations are split into two tiers: high-impact operations that release secrets, change PKI/trust configuration, modify account credentials, or perform irreversible destructive actions are 🔐 (require a fresh sudo window); lower-impact reversible operations (group membership, app access grants, SAML app CRUD, session/invitation revoke) are 🔓 (admin auth only, no step-up). The 🔐 tier is enforced centrally: all 🔐 routes are registered via `s.registerSudoOpHTTP`, and a route-policy test serves the real `registerOperations()` route table and asserts that each mutation returns `sudo_required` (HTTP 401) when the session carries no fresh sudo grant.
 
 All admin routes share the `/api/prohibitorum` prefix. The admin HTTP API uses
 role-oriented resource names (`oidc-applications`, `saml-applications`,
@@ -48,10 +42,10 @@ names (`oidc-client`, `saml-sp`, `upstream-idp`).
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/saml-applications` | 🔓 | List all registered SPs. |
 | GET | `/api/prohibitorum/saml-applications/{id}` | 🔓 | Get one SP by numeric ID. |
-| POST | `/api/prohibitorum/saml-applications` | 🔐 | Register a new SP. Optionally accepts raw SAML metadata XML in `metadataXml` for ACS + cert ingestion (same path as the `saml-sp create --metadata-file` CLI). |
-| PUT | `/api/prohibitorum/saml-applications/{id}` | 🔐 | Update SP config (display name, attribute map, session lifetime, etc). |
-| POST | `/api/prohibitorum/saml-applications/{id}/reingest-metadata` | 🔐 | Re-parse fresh SAML metadata XML for an existing SP (updates ACS endpoints + signing certs). |
-| POST | `/api/prohibitorum/saml-applications/delete` | 🔐 | Body: `{"id": <int>}`. Hard-deletes the SP row and child rows (`saml_sp_acs`, `saml_sp_key`). |
+| POST | `/api/prohibitorum/saml-applications` | 🔓 | Register a new SP. Optionally accepts raw SAML metadata XML in `metadataXml` for ACS + cert ingestion (same path as the `saml-sp create --metadata-file` CLI). |
+| PUT | `/api/prohibitorum/saml-applications/{id}` | 🔓 | Update SP config (display name, attribute map, session lifetime, etc). |
+| POST | `/api/prohibitorum/saml-applications/{id}/reingest-metadata` | 🔓 | Re-parse fresh SAML metadata XML for an existing SP (updates ACS endpoints + signing certs). |
+| POST | `/api/prohibitorum/saml-applications/delete` | 🔓 | Body: `{"id": <int>}`. Hard-deletes the SP row and child rows (`saml_sp_acs`, `saml_sp_key`). |
 
 ---
 
@@ -65,11 +59,11 @@ First-class user groups. Membership gates per-app sign-in (see *Per-app access* 
 | GET | `/api/prohibitorum/groups/{id}` | 🔓 | Get one group. |
 | GET | `/api/prohibitorum/groups/{id}/members` | 🔓 | List a group's members (`id`, `username`, `displayName`). |
 | GET | `/api/prohibitorum/accounts/{id}/groups` | 🔓 | List the groups an account belongs to (also editable from the admin account-detail page). |
-| POST | `/api/prohibitorum/groups` | 🔐 | Create a group. Body `{slug, displayName, description?, exposedToDownstream?}` (`exposedToDownstream` defaults `true`). `slug` must match `^[a-z0-9](-?[a-z0-9])*$` — invalid → 400, duplicate → 409. |
-| PUT | `/api/prohibitorum/groups/{id}` | 🔐 | Update display name / description / `exposedToDownstream` / slug. Renaming the slug changes the value RPs receive in the `groups` claim/attribute (the admin UI warns on slug change). |
-| POST | `/api/prohibitorum/groups/delete` | 🔐 | Body: `{"id": <int>}`. Deletes the group; `ON DELETE CASCADE` removes its memberships and access grants. |
-| POST | `/api/prohibitorum/groups/{id}/members` | 🔐 | Body: `{"accountId": <int>}`. Add an account to the group (idempotent). |
-| POST | `/api/prohibitorum/groups/{id}/members/remove` | 🔐 | Body: `{"accountId": <int>}`. Remove an account; 0 rows affected → 404. |
+| POST | `/api/prohibitorum/groups` | 🔓 | Create a group. Body `{slug, displayName, description?, exposedToDownstream?}` (`exposedToDownstream` defaults `true`). `slug` must match `^[a-z0-9](-?[a-z0-9])*$` — invalid → 400, duplicate → 409. |
+| PUT | `/api/prohibitorum/groups/{id}` | 🔓 | Update display name / description / `exposedToDownstream` / slug. Renaming the slug changes the value RPs receive in the `groups` claim/attribute (the admin UI warns on slug change). |
+| POST | `/api/prohibitorum/groups/delete` | 🔓 | Body: `{"id": <int>}`. Deletes the group; `ON DELETE CASCADE` removes its memberships and access grants. |
+| POST | `/api/prohibitorum/groups/{id}/members` | 🔓 | Body: `{"accountId": <int>}`. Add an account to the group (idempotent). |
+| POST | `/api/prohibitorum/groups/{id}/members/remove` | 🔓 | Body: `{"accountId": <int>}`. Remove an account; 0 rows affected → 404. |
 
 ---
 
@@ -80,13 +74,13 @@ A coarse per-app access gate layered on top of the "RP enforces policy" model. A
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/oidc-applications/{clientId}/access` | 🔓 | `{accessRestricted, groups:[{id,slug,displayName}], accounts:[{id,username,displayName}]}`. |
-| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/set-restricted` | 🔐 | Body: `{"restricted": <bool>}`. Toggles the gate (mirrors the `set-disabled` split — not part of the config-form PUT). |
-| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/grant` | 🔐 | Body: `{"principalKind": "group"\|"account", "principalId": <int>}`. |
-| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/revoke` | 🔐 | Same body; 0 rows affected → 404. |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/set-restricted` | 🔓 | Body: `{"restricted": <bool>}`. Toggles the gate (mirrors the `set-disabled` split — not part of the config-form PUT). |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/grant` | 🔓 | Body: `{"principalKind": "group"\|"account", "principalId": <int>}`. |
+| POST | `/api/prohibitorum/oidc-applications/{clientId}/access/revoke` | 🔓 | Same body; 0 rows affected → 404. |
 | GET | `/api/prohibitorum/saml-applications/{id}/access` | 🔓 | Same shape, keyed by numeric SP id. |
-| POST | `/api/prohibitorum/saml-applications/{id}/access/set-restricted` | 🔐 | Body: `{"restricted": <bool>}`. |
-| POST | `/api/prohibitorum/saml-applications/{id}/access/grant` | 🔐 | Body: `{"principalKind": "group"\|"account", "principalId": <int>}`. |
-| POST | `/api/prohibitorum/saml-applications/{id}/access/revoke` | 🔐 | Same body; 0 rows affected → 404. |
+| POST | `/api/prohibitorum/saml-applications/{id}/access/set-restricted` | 🔓 | Body: `{"restricted": <bool>}`. |
+| POST | `/api/prohibitorum/saml-applications/{id}/access/grant` | 🔓 | Body: `{"principalKind": "group"\|"account", "principalId": <int>}`. |
+| POST | `/api/prohibitorum/saml-applications/{id}/access/revoke` | 🔓 | Same body; 0 rows affected → 404. |
 
 **Enforcement.** The gate runs after the session is validated and `account.disabled` is enforced, before anything is issued: at OIDC `/oauth/authorize` (and **re-checked at the refresh-token grant** — de-provisioning cuts existing sessions within the access-token TTL, revoking the refresh family) and at SAML SSO (both SP-initiated and IdP-initiated). A denied **interactive** user is redirected to the IdP's own `/error?reason=app_access_denied&app=<name>` page; an OIDC `prompt=none` request gets a protocol-native `access_denied` at the `redirect_uri`; a SAML passive (`IsPassive`) request gets a `Responder` / `RequestDenied` status Response. Every denial writes an `access_denied` audit event.
 
@@ -156,7 +150,7 @@ already-non-signing key lingers in JWKS slightly longer than its
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/audit-events` | 🔓 | Query `credential_event` rows. Filterable by `factor`, `event`, `accountId`, `since`, `until`. Keyset pagination via `cursor` + `limit`. Passes `detail` JSONB through verbatim — no secret material should appear there (write-site invariant). |
 
-Audit coverage for admin mutations: every 🔐 admin mutation writes a
+Audit coverage for admin mutations: every admin mutation (🔐 and 🔓) writes a
 `credential_event` row with:
 - `factor` ∈ `oidc_client`, `saml_sp`, `upstream_idp`, `signing_key`, `group`
 - `event` ∈ `register` (create), `update`, `rotate` (secret/key rotation), `revoke` (delete/force-revoke), `link`/`unlink` (group membership add/remove), `access_granted`/`access_revoked`/`access_restricted_set` (per-app access grants on factor `oidc_client`/`saml_sp`)

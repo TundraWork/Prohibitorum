@@ -794,43 +794,6 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/complete \
 # 204 No Content; session.sudo_until extended
 ```
 
-### Sudo via federated OIDC re-authentication
-
-For a user with a linked upstream IdP (notably a federated-only user with no
-passkey/password), sudo is satisfied by a **forced re-authentication** to that
-upstream. Unlike the two methods above this is a browser REDIRECT ceremony, not
-an in-page XHR — `begin` returns a URL, the browser visits the upstream (which
-is sent `prompt=login` + `max_age=0` to force a fresh credential prompt), and
-the upstream redirects back to a server callback that stamps sudo.
-
-```bash
-# begin returns the upstream authorize URL (and sets the fed-state cookie):
-curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
-  -H 'Content-Type: application/json' -b cookies.txt -c cookies.txt \
-  -d '{"method":"federation_oidc","slug":"google","returnTo":"/security"}'
-# 200 OK — { "redirect": "https://accounts.google.com/o/oauth2/v2/auth?...prompt=login&max_age=0..." }
-
-# The browser is sent to {redirect}; after the user re-authenticates the upstream
-# 302s back to:
-#   GET /api/prohibitorum/me/sudo/federation/callback?code=...&state=...&iss=...
-# which verifies (a) the same authenticated session, (b) the re-auth resolved to
-# the SAME linked upstream subject, and (c) a fresh auth_time (<= 120s) — then
-# stamps sudo and 302s to returnTo (here /security). On any failure it 302s to
-# /?sudo=failed and grants nothing. Errors: sudo_identity_mismatch (re-auth as a
-# different upstream account), sudo_reauth_stale (upstream did not confirm a fresh
-# sign-in / ignored prompt=login — fail closed).
-```
-
-> **Operator requirement.** Each upstream IdP must allow **THREE** Prohibitorum
-> redirect_uris, not two — register all of them in the upstream's OAuth client:
-> - `…/api/prohibitorum/auth/federation/{slug}/callback`        (sign-in)
-> - `…/api/prohibitorum/me/identities/link/{slug}/callback`     (account linking)
-> - `…/api/prohibitorum/me/sudo/federation/callback`            (sudo step-up — NEW; note: no `{slug}`)
->
-> If the sudo callback is not registered, OIDC sudo fails at the upstream with a
-> `redirect_uri` mismatch — re-locking out exactly the federated-only users this
-> method is meant to serve.
-
 `/me/sudo/begin` is rate-limited to 10 requests per minute per session;
 `/me/sudo/complete` runs through the relevant credential's
 `auth_throttle` row, so wrong codes burn the exponential-backoff curve
@@ -856,11 +819,10 @@ Register an upstream IdP via the admin dashboard (Identity Providers) or
 raw SQL. The client secret must be sealed with the helper in
 `pkg/federation/oidc/secret.go` — do not paste plaintext into the DB.
 
-> **At the upstream**, register all THREE Prohibitorum redirect_uris in the
-> upstream's OAuth client (sign-in, account-linking, and sudo step-up) — see
-> the "Operator requirement" note under **Sudo step-up → Sudo via federated
-> OIDC re-authentication** above. Omitting the sudo callback breaks OIDC sudo
-> for federated users.
+> **At the upstream**, register both Prohibitorum redirect_uris in the
+> upstream's OAuth client:
+> - `…/api/prohibitorum/auth/federation/{slug}/callback`    (sign-in)
+> - `…/api/prohibitorum/me/identities/link/{slug}/callback` (account linking)
 
 ```sql
 -- Pseudocode: the sealed (enc, nonce, key_version) triple comes from

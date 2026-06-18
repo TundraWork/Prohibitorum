@@ -147,7 +147,6 @@ func fedRedirectURIs(downstreamOrigin string) []string {
 		b + "/api/prohibitorum/auth/federation/" + slugInvite + "/callback",
 		b + "/api/prohibitorum/me/identities/link/" + slugAuto + "/callback",
 		b + "/api/prohibitorum/me/identities/link/" + slugInvite + "/callback",
-		b + "/api/prohibitorum/me/sudo/federation/callback",
 	}
 }
 
