@@ -122,8 +122,9 @@ type AuthConfig struct {
 	// last entry once the attempt count exceeds the schedule length. A zero
 	// duration means "no lockout for this attempt".
 	ThrottleSchedule []time.Duration `mapstructure:"throttle_schedule"`
-	// SudoTTL is the window during which sensitive endpoints accept a
-	// previously-elevated session without re-verifying a factor.
+	// SudoTTL is the recent-auth window: how long after a full authentication
+	// (or an explicit step-up) sensitive endpoints accept the session without a
+	// fresh step-up.
 	SudoTTL time.Duration `mapstructure:"sudo_ttl"`
 	// PartialSessionTTL bounds how long a password-only session may sit
 	// before it must complete the TOTP step.
@@ -214,9 +215,11 @@ func Parse() (*Config, error) {
 	// Cross-factor auth defaults. Schedule is the canonical OWASP-style
 	// exponential ladder: two free attempts, then 1s, 2s, 4s, 8s, 16s, 32s,
 	// 1m, 2m, 4m, 8m, 15m — the last entry clamps for all further failures.
-	// SudoTTL/PartialSessionTTL are both five minutes: short enough to bound
-	// post-compromise blast radius, long enough that the user can complete
-	// a follow-up step without re-authenticating.
+	// PartialSessionTTL is five minutes: short enough to bound post-compromise
+	// blast radius, long enough that the user can complete a follow-up step
+	// without re-authenticating. SudoTTL (the recent-auth / step-up window) is
+	// longer — 15m — because it is now granted at login and is multi-use, so a
+	// 5m window would re-prompt a user still actively managing settings.
 	viper.SetDefault("auth.throttle_schedule", []time.Duration{
 		0, 0,
 		time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second,
@@ -224,7 +227,7 @@ func Parse() (*Config, error) {
 		time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute,
 		15 * time.Minute,
 	})
-	viper.SetDefault("auth.sudo_ttl", 5*time.Minute)
+	viper.SetDefault("auth.sudo_ttl", 15*time.Minute)
 	viper.SetDefault("auth.partial_session_ttl", 5*time.Minute)
 
 	// SAML defaults — persistent NameID per OASIS SAML 2.0 Core §8.3.7,

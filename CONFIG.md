@@ -71,7 +71,7 @@ fails without one).
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `PROHIBITORUM_AUTH_SUDO_TTL` | `5m` | Window a step-up (sudo) grant stays valid. |
+| `PROHIBITORUM_AUTH_SUDO_TTL` | `15m` | Recent-auth window: how long after a full sign-in (or an explicit step-up) sensitive actions are allowed without re-verifying. |
 | `PROHIBITORUM_AUTH_PARTIAL_SESSION_TTL` | `5m` | Window a password-only partial session has to complete the TOTP step. |
 | `PROHIBITORUM_AUTH_THROTTLE_SCHEDULE` | `0,0,1s,2s,4s,8s,16s,32s,1m,2m,4m,8m,15m` | Per-failure lockout ladder (last entry clamps). List value — prefer `config.yaml`. |
 
