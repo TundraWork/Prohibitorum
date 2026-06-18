@@ -11,12 +11,14 @@ colors:
   amber: "oklch(0.76 0.140 75)"          # caution / pending / expiring
   rose: "oklch(0.58 0.180 22)"           # danger / revoked / failed / clone-warning
   # Neutral (light mode)
-  bg: "oklch(1 0 0)"                     # pure white — the surface carries no warmth
-  surface: "oklch(0.985 0.005 205)"      # cards, panels
-  sunken: "oklch(0.965 0.006 205)"       # sidebar / toolbar (the second neutral layer)
-  border: "oklch(0.920 0.006 205)"       # hairline dividers, input strokes
-  ink: "oklch(0.22 0.015 230)"           # body text (~12:1 on bg)
-  muted: "oklch(0.50 0.012 230)"         # secondary text (~4.5:1 on bg — AA, not the 3.5 floor)
+  bg: "oklch(0.985 0.005 235)"           # canvas/page; a faint cool gray, no longer pure white
+  surface: "oklch(1 0 0)"               # cards — the white that lifts off the canvas
+  sunken: "oklch(0.965 0.008 235)"       # sidebar / toolbar / well
+  border: "oklch(0.910 0.010 235)"       # hairline dividers, input strokes
+  border-strong: "oklch(0.850 0.011 235)" # stronger weight for dividers on tinted surfaces
+  ink: "oklch(0.22 0.015 240)"           # body text (~12:1 on canvas)
+  muted: "oklch(0.48 0.013 240)"         # secondary text (>=4.5:1 on canvas)
+  info: "oklch(0.95 0.030 205)"          # informational callout background (teal-family)
 typography:
   display:
     fontFamily: "Hanken Grotesk, ui-sans-serif, system-ui, -apple-system, sans-serif"
@@ -144,22 +146,30 @@ A calm teal foundation with one warm human accent over a clean white surface; ch
 - **Sage** (`oklch(0.62 0.130 150)`): success, confirmed, session-active, passkey verified.
 - **Amber** (`oklch(0.76 0.140 75)`): caution, pending, expiring (an invitation about to lapse, a password+TOTP fallback still active).
 - **Rose** (`oklch(0.58 0.180 22)`): danger, revoked, failed verification, clone-warning on a suspect authenticator.
+- **Info** (teal-family): informational callouts use a teal wash (`bg oklch(0.95 0.030 205)`, `tide-700` text, `tide-600` icon), distinct from the fainter `tide-50` selection wash. Info is brand-toned, not a credential state.
 
-### Neutral
-- **Ink** (`oklch(0.22 0.015 230)`): body text and headings. ~12:1 on white.
-- **Muted** (`oklch(0.50 0.012 230)`): secondary text, captions, placeholders. ~4.5:1 on white, deliberately AA-readable, not the elegant-but-illegible light gray.
-- **Border** (`oklch(0.920 0.006 205)`): hairline dividers and input strokes.
-- **Surface** (`oklch(0.985 0.005 205)`) / **Sunken** (`oklch(0.965 0.006 205)`): cards/panels, and the cooler second layer for the sidebar and toolbars.
-- **Background** (`oklch(1 0 0)`): pure white.
+### Neutral (Cool Slate — three layered planes, hue ~235–240)
+- **Canvas / Background** (`oklch(0.985 0.005 235)`): the page behind everything — a faint *cool* gray, no longer pure white, so cards lift off it by tone.
+- **Surface / Card** (`oklch(1 0 0)`): cards, panels, popovers, dialogs, inputs — the white layer that lifts.
+- **Sunken** (`oklch(0.965 0.008 235)`): the recessed second layer — sidebar, toolbars, table headers, code/well fields.
+- **Border** (`oklch(0.910 0.010 235)`) / **Border-Strong** (`oklch(0.850 0.011 235)`): hairline stroke, plus a stronger weight for dividers on tinted surfaces.
+- **Ink** (`oklch(0.22 0.015 240)`, ~12:1 on canvas) / **Ink-Strong** (`oklch(0.16 0.012 240)`): body/heading text and a max-contrast tone.
+- **Muted** (`oklch(0.48 0.013 240)`): secondary text, captions, placeholders — >=4.5:1 on the cool canvas (not the elegant-but-illegible light gray).
 
-> Dark mode mirrors these roles on a cool near-black (`bg ≈ oklch(0.16 0.008 230)`, `ink ≈ oklch(0.95 0.005 230)`), with Tide and Ember lightened ~0.12–0.15 L to hold contrast. Exact dark tokens are pinned once they're implemented in the theme.
+Each chromatic and neutral role is backed by a full tonal ramp (Tide 50–950, Sage/Amber/Rose 50–700, Neutral 0–950) so components draw consistent steps; the named tokens above are the semantic mapping the UI references.
+
+> **Dark mode ("Cool Slate, dark").** A cool near-black with the surface logic inverted: canvas `oklch(0.170 0.012 240)`, cards lift lighter to `oklch(0.205 0.013 240)`, the sidebar recesses to `oklch(0.145 0.011 240)`; ink `oklch(0.950 0.005 240)`, muted `oklch(0.680 0.010 240)`, border `oklch(0.300 0.012 240)`. Tide and the state hues lighten to hold contrast (links -> Tide L~0.80; success/caution/danger text at L~0.80/0.84/0.76 over low-L tints). Primary and destructive buttons flip to a dark label on a brighter fill (primary `oklch(0.72 0.120 200)`, destructive `oklch(0.64 0.175 22)`), since white-on-fill cannot clear AA on a dark canvas at a vivid teal/rose. Driven by `prefers-color-scheme` + a user toggle (account menu), persisted to `localStorage['theme']`; threshold pages follow the OS. Exact tokens live in `src/assets/main.css` (the `.dark` block).
 
 ### Named Rules
-**The Warm-Word, Cool-Hand Rule.** Warmth is carried by the Ember accent, the copy, and the spacing. Never by tinting the background. The surface is pure white (`oklch(1 0 0)`); a warm-cream body background is forbidden.
+**The Warm-Word, Cool-Hand Rule.** Warmth is carried by the Ember accent, the copy, and the spacing — never by tinting the background. Cards are pure white (`oklch(1 0 0)`); the page canvas is a faint *cool* gray (`oklch(0.985 0.005 235)`), so cards lift off it by tone alone. A warm-cream body background is forbidden; the system tints cool (toward the brand hue), never warm.
 
 **The Scarce Accent Rule.** Ember appears on no more than a couple of elements per screen. Its rarity is the point. Tide carries the work; Ember marks the human moment. An Ember used for decoration is a bug.
 
-**The State-Has-a-Color Rule.** Sage, Amber, and Rose are reserved for real credential/session states. They are never decorative, and color is never the only signal, always pair with text, an icon, or shape (color-blind users, and the WCAG 2.2 AA bar).
+**The State-Has-a-Color Rule.** Sage, Amber, and Rose are reserved for real credential/session states (confirmed, pending, revoked). Tide carries the brand *and* informational notices; Ember is brand-only. State is never signalled by color alone — always pair with text, an icon, or shape (color-blind users; WCAG 2.2 AA).
+
+**The -500/-700 Rule.** Every chromatic role ships a tonal ramp where `-500` is the fill/icon tone (always paired with adjacent text) and `-700` is the text-weight tone that clears 4.5:1 on its own. Amber text MUST use `amber-700`; the `-500` amber (`oklch(0.76 ...)`) is icon-only. A contrast script (`dashboard/scripts/check-contrast.mjs`) gates every text/background pair in both themes.
+
+**The Layered-Surface Rule.** Canvas, card, and sunken are three distinct neutral planes — canvas behind everything, white cards lifting off it, the sunken sidebar/well recessed. Cards separate by tone, not by a resting shadow, so the Flat-Until-It-Acts Rule still holds: depth appears only on hover, focus, or float.
 
 **The Threshold Exception (scoped Drenched override).** The shared centered auth surfaces (login, enroll, consent, logout, error) carry a full-bleed painted scenery background behind a soft, near-opaque card, a deliberate, *Drenched* exception to the pure-white rule above. It applies ONLY to those threshold pages; the authenticated app stays pure white. Legibility is non-negotiable: a contrast scrim guarantees the card and header hold WCAG 2.2 AA over any image. The painting supplies warmth; the card keeps the restrained system (Tide controls, Tide focus ring, Ember used only in the brand mark). Implemented via `components/AuthBackdrop.vue` (drop a real `src/assets/auth-scene.*` to replace the painterly CSS placeholder).
 
@@ -189,8 +199,10 @@ A fixed rem scale (product UI views at consistent DPI; fluid headings shrink bad
 Flat by default. Surfaces sit directly on the background separated by the Border hairline and the Sunken/Surface tonal step, not by resting shadows. Depth is a *response to state*: it appears when an element lifts (hover on an interactive card), gains focus, or floats above the page (dialog, popover, dropdown, toast). This keeps the resting interface calm and makes motion meaningful when it happens.
 
 ### Shadow Vocabulary
-- **Raised** (`box-shadow: 0 1px 2px oklch(0.22 0.015 230 / 0.06), 0 2px 8px oklch(0.22 0.015 230 / 0.06)`): hover/active on interactive surfaces.
-- **Overlay** (`box-shadow: 0 8px 32px oklch(0.22 0.015 230 / 0.14)`): dialogs, popovers, command menus, anything floating above the page.
+- **Raised** (`box-shadow: 0 1px 2px oklch(0.22 0.015 240 / 0.06), 0 2px 8px oklch(0.22 0.015 240 / 0.07)`): hover/active on interactive surfaces.
+- **Overlay** (`box-shadow: 0 8px 32px oklch(0.16 0.012 240 / 0.18)`): dialogs, popovers, command menus, anything floating above the page.
+
+In dark mode, elevation reads through the lighter card surface and the border hairline rather than heavy shadows. The overlay shadow switches to `oklch(0 0 0 / 0.5)` to remain perceptible against the dark canvas without over-darkening content.
 
 ### Named Rules
 **The Flat-Until-It-Acts Rule.** A surface at rest has no shadow. The moment it becomes interactive (hover), focused, or floating, it earns elevation. If a card has a resting drop-shadow for "depth," the shadow is wrong.

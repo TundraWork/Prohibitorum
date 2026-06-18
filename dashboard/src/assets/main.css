@@ -57,7 +57,9 @@
   --color-info-icon:       oklch(0.47 0.130 205);   /* = tide-600 */
   --color-info-foreground: oklch(0.40 0.128 205);   /* = tide-700 */
 
-  /* --- Neutral ramp (cool, hue ~235-240) --- */
+  /* --- Neutral ramp (cool, hue ~235-240). Light-reference scale: components should
+     prefer the dark-aware semantic tokens (bg-surface / bg-sunken / text-ink / text-muted),
+     NOT raw neutral-* steps, which are not overridden per-step in .dark. --- */
   --color-neutral-0:   oklch(1 0 0);
   --color-neutral-25:  oklch(0.985 0.005 235);
   --color-neutral-50:  oklch(0.975 0.006 235);
@@ -78,10 +80,10 @@
   --color-surface:      oklch(1 0 0);            /* CARD — the white that lifts (was 0.985) */
   --color-sunken:       oklch(0.965 0.008 235);  /* sidebar / toolbar / well */
   --color-border:       oklch(0.910 0.010 235);
-  --color-border-strong:oklch(0.850 0.011 235);
+  --color-border-strong: oklch(0.850 0.011 235);
   --color-ink:          oklch(0.220 0.015 240);  /* body text (~12:1 on canvas) */
   --color-ink-strong:   oklch(0.160 0.012 240);
-  --color-muted:        oklch(0.480 0.013 240);  /* secondary text (>=4.5:1 on canvas) */
+  --color-muted:        oklch(0.480 0.013 240);  /* brand secondary TEXT (text-muted). NOTE: distinct from the shadcn --muted background, which maps to --color-sunken. */
 
   /* --- Typography --- */
   --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;

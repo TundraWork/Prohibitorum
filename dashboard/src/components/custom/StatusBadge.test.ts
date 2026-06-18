@@ -18,6 +18,7 @@ describe('StatusBadge', () => {
     const c = cls('caution')
     expect(c).toContain('bg-amber-50')
     expect(c).toContain('text-amber-700')
+    // Negative lookahead rejects the bare text-amber (L0.76) alias but allows text-amber-700.
     expect(c).not.toMatch(/\btext-amber(?!-)\b/)
   })
   it('danger uses the -50/-700 pair', () => {

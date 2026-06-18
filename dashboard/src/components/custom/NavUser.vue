@@ -92,6 +92,9 @@ defineExpose({ openEdit, signOut, editOpen })
             <span>{{ t('accountMenu.editProfile') }}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <!-- Plain div (not a DropdownMenuItem) so interacting with the toggle keeps the menu
+               open: @pointerdown.stop blocks Reka's item-select; @keydown.stop stops the menu
+               hijacking the radiogroup's arrow keys. Escape still closes (Reka listens on window). -->
           <div class="px-1 py-1" @pointerdown.stop @keydown.stop>
             <ThemeToggle />
           </div>

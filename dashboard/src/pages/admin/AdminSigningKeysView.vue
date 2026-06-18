@@ -21,7 +21,7 @@ interface SigningKey {
   publicJwk: Record<string, unknown>
   notBefore?: string; activatedAt?: string; decommissionedAt?: string; retireAfter?: string
 }
-type Variant = 'neutral' | 'success' | 'caution' | 'danger'
+type Variant = 'neutral' | 'success' | 'caution' | 'danger' | 'info'
 
 const { t } = useI18n()
 const { busy, run, errorText } = useApi()
