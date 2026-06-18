@@ -82,7 +82,9 @@ func TestMeTOTPBegin_ConfirmedRequiresSudo(t *testing.T) {
 	const accountID int32 = 42
 	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
 	_, sess := issueSudoTestSession(t, s, accountID)
-	// No sudo grant — re-enroll must fail.
+	// Backdate IssuedAt so the recent-auth window doesn't apply; no SudoUntil
+	// set — re-enroll must fail.
+	sess.Data.IssuedAt = time.Now().Add(-30 * time.Minute)
 
 	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/totp/begin", "")
 	w := httptest.NewRecorder()
@@ -249,6 +251,9 @@ func TestMeRegenerateRecoveryCodes_RequiresSudo(t *testing.T) {
 	const accountID int32 = 42
 	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
 	_, sess := issueSudoTestSession(t, s, accountID)
+	// Backdate IssuedAt so the recent-auth window doesn't apply; no SudoUntil
+	// set, so the gate must deny with sudo_required.
+	sess.Data.IssuedAt = time.Now().Add(-30 * time.Minute)
 
 	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/recovery-codes/regenerate", "")
 	w := httptest.NewRecorder()

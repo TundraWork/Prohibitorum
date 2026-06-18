@@ -50,7 +50,7 @@ func registerOp[I, O any](
 // raw-HTTP rewrite to reach registerSudoOpHTTP — this keeps their typed I/O +
 // OpenAPI docs while still requiring step-up auth. The sudo check runs as an
 // operation middleware AFTER the auth check and routes through
-// s.consumeFreshSudo (the single chokepoint shared with the raw withFreshSudo
+// s.hasFreshSudo (the single chokepoint shared with the raw withFreshSudo
 // path), writing ErrSudoRequired via huma on absence. It is a free function
 // (not a method) because Go methods cannot be generic; pass the Server.
 func registerSudoOp[I, O any](
@@ -72,7 +72,7 @@ func registerSudoOp[I, O any](
 			_ = huma.WriteErr(api, ctx, ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
 			return
 		}
-		if !s.consumeFreshSudo(ctx.Context(), sess) {
+		if !s.hasFreshSudo(sess) {
 			ae := authn.ErrSudoRequired()
 			_ = huma.WriteErr(api, ctx, ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
 			return
@@ -127,8 +127,8 @@ const maxAdminBody = 64 << 10 // 64 KiB
 // policy, not the handler's first line. Single chokepoint for admin mutations.
 //
 // Ordering: content-type + body-size checks run BEFORE requireFreshSudo so a
-// malformed request never burns the user's one-shot sudo grant. This is safe:
-// the content-type check reveals nothing about grant state (a 400 is no more
+// malformed request never touches the sudo gate. This is safe: the
+// content-type check reveals nothing about grant state (a 400 is no more
 // informative than the 401 that requireFreshSudo would have emitted).
 func (s *Server) withFreshSudo(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -144,7 +144,7 @@ func (s *Server) withFreshSudo(h http.HandlerFunc) http.HandlerFunc {
 		if r.Body != nil {
 			r.Body = http.MaxBytesReader(w, r.Body, maxAdminBody)
 		}
-		// Sudo gate: verify fresh grant and consume it (one-shot).
+		// Sudo gate: verify fresh grant (pure read — multi-use).
 		sess := authn.SessionFromContext(r.Context())
 		if s.requireFreshSudo(r.Context(), w, sess) {
 			return

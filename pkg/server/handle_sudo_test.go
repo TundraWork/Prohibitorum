@@ -86,36 +86,6 @@ func (f *fakeSudoFederator) SudoCallback(_ context.Context, stateToken, code, is
 	return f.cbReturnTo, nil
 }
 
-// failingSaveKV wraps a kv.Store but errors on SetEx, simulating a transient KV
-// write failure during the sudo one-shot clear (audit SESS-1).
-type failingSaveKV struct{ kv.Store }
-
-func (failingSaveKV) SetEx(context.Context, string, string, time.Duration) error {
-	return fmt.Errorf("kv unavailable")
-}
-
-// TestConsumeFreshSudoFailsClosedOnSaveError: when the cleared SudoUntil cannot
-// be persisted, consumeFreshSudo must DENY (return false). Returning true would
-// leave the future SudoUntil live in KV — and since every request re-reads it,
-// the one-shot grant would silently become "every gated action for the rest of
-// the TTL window" (audit SESS-1).
-func TestConsumeFreshSudoFailsClosedOnSaveError(t *testing.T) {
-	store := sessstore.NewSessionStore(failingSaveKV{kv.NewMemoryStore()}, nil, time.Hour)
-	s := &Server{config: &configx.Config{SessionTTL: time.Hour}, sessionStore: store}
-	sess := &authn.Session{
-		Token:   "tok",
-		Account: &db.Account{ID: 1},
-		Data: &authn.SessionData{
-			SessionID: "sid",
-			ExpiresAt: time.Now().Add(time.Hour),
-			SudoUntil: time.Now().Add(2 * time.Minute),
-		},
-	}
-	if s.consumeFreshSudo(context.Background(), sess) {
-		t.Fatal("consumeFreshSudo returned true despite Save failure; want false (fail closed)")
-	}
-}
-
 // fakeSudoQueries satisfies db.Querier for every surface the sudo handlers
 // (and the password.Store / totp.Store / session.SessionStore they reach
 // through) touch.
@@ -1080,5 +1050,37 @@ func TestSudoFederationCallback_FailureRedirectsAndDoesNotStamp(t *testing.T) {
 	}
 	if current.SudoUntil.After(time.Now()) {
 		t.Errorf("SudoUntil = %v, want NOT stamped on failure", current.SudoUntil)
+	}
+}
+
+func TestHasFreshSudo_RecentAuthWindow(t *testing.T) {
+	s := &Server{config: &configx.Config{}}
+	s.config.Auth.SudoTTL = 15 * time.Minute
+
+	// Recently issued, no explicit SudoUntil → elevated by the window.
+	fresh := &authn.Session{Data: &authn.SessionData{IssuedAt: time.Now()}}
+	if !s.hasFreshSudo(fresh) {
+		t.Fatal("recently-issued session should satisfy the gate (recent-auth window)")
+	}
+
+	// Issued longer ago than the window, zero SudoUntil → denied.
+	stale := &authn.Session{Data: &authn.SessionData{IssuedAt: time.Now().Add(-30 * time.Minute)}}
+	if s.hasFreshSudo(stale) {
+		t.Fatal("stale session with no step-up should NOT satisfy the gate")
+	}
+
+	// Stale issue but an explicit step-up still in its window → elevated.
+	stepped := &authn.Session{Data: &authn.SessionData{
+		IssuedAt:  time.Now().Add(-30 * time.Minute),
+		SudoUntil: time.Now().Add(5 * time.Minute),
+	}}
+	if !s.hasFreshSudo(stepped) {
+		t.Fatal("explicit step-up window should satisfy the gate")
+	}
+
+	// Zero-config (TTL=0): window inert, falls back to SudoUntil only.
+	zero := &Server{config: &configx.Config{}}
+	if zero.hasFreshSudo(fresh) {
+		t.Fatal("with SudoTTL=0 the recent-auth window must be inert")
 	}
 }

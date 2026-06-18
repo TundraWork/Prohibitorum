@@ -27,6 +27,9 @@ func TestMeRevokePwdTOTP_RequiresSudo(t *testing.T) {
 	s, _, _ := newSudoTestServer(t)
 	const accountID int32 = 42
 	_, sess := issueSudoTestSession(t, s, accountID)
+	// Backdate IssuedAt so the recent-auth window doesn't apply; no SudoUntil
+	// set, so the gate must deny with sudo_required.
+	sess.Data.IssuedAt = time.Now().Add(-30 * time.Minute)
 
 	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/auth/revoke-password-totp", "")
 	w := httptest.NewRecorder()
@@ -106,22 +109,13 @@ func TestMeRevokePwdTOTP_Idempotent(t *testing.T) {
 		t.Fatalf("first call: want 204, got %d (body=%s)", w.Code, w.Body.String())
 	}
 
-	// Re-grant sudo (the first call consumed it) and call again — same 204.
-	grantFreshSudo(t, s, accountID, token)
-	// Reload session data so the in-memory sess sees the fresh SudoUntil
-	// (the first handler call cleared the in-memory copy via
-	// requireFreshSudo's one-shot consume).
-	loaded, _, err := s.sessionStore.Load(context.Background(), accountID, token, "127.0.0.1", "ua/test")
-	if err != nil {
-		t.Fatalf("reload: %v", err)
-	}
-	sess.Data = loaded
-
+	// Second call with the same session — gate is multi-use (time-windowed),
+	// so no re-grant is needed. SudoUntil was not cleared by the first call.
 	r2 := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/auth/revoke-password-totp", "")
 	w2 := httptest.NewRecorder()
 	s.handleMeRevokePwdTOTPHTTP(w2, r2)
 	if w2.Code != http.StatusNoContent {
-		t.Fatalf("second call: want 204, got %d (body=%s)", w2.Code, w2.Body.String())
+		t.Fatalf("second call: want 204 (multi-use gate), got %d (body=%s)", w2.Code, w2.Body.String())
 	}
 }
 

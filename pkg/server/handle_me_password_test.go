@@ -35,6 +35,9 @@ func TestMePasswordSet_RequiresSudo(t *testing.T) {
 	s, _, _ := newSudoTestServer(t)
 	const accountID int32 = 42
 	_, sess := issueSudoTestSession(t, s, accountID)
+	// Backdate IssuedAt so the recent-auth window doesn't apply; no SudoUntil
+	// set, so the gate must deny with sudo_required.
+	sess.Data.IssuedAt = time.Now().Add(-30 * time.Minute)
 
 	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password/set", `{"password":"correct-horse-battery"}`)
 	w := httptest.NewRecorder()
@@ -120,23 +123,14 @@ func TestMePasswordSet_Success(t *testing.T) {
 		t.Errorf("password row has empty hash")
 	}
 
-	// Second password/set in the same session must require a fresh sudo —
-	// the gate is one-shot. This also exercises requireFreshSudo's clear-
-	// after-pass behaviour.
+	// Second password/set in the same session must also succeed — the gate is
+	// multi-use (time-windowed), not one-shot. SudoUntil is not cleared by the
+	// first call, so the same elevation covers back-to-back gated actions.
 	r2 := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/password/set",
 		`{"password":"another-strong-passphrase"}`)
-	// Re-read the session from KV: requireFreshSudo cleared SudoUntil
-	// during the first call, but our sess in-memory copy still holds the
-	// stale value. The handler reads from sess.Data, so reflect the cleared
-	// state here.
-	loaded, _, err := s.sessionStore.Load(context.Background(), accountID, token, "127.0.0.1", "ua/test")
-	if err != nil {
-		t.Fatalf("reload: %v", err)
-	}
-	sess.Data = loaded
 	w2 := httptest.NewRecorder()
 	s.handleMePasswordSetHTTP(w2, r2)
-	if w2.Code != http.StatusUnauthorized {
-		t.Errorf("second set without re-sudo: want 401, got %d (body=%s)", w2.Code, w2.Body.String())
+	if w2.Code != http.StatusNoContent {
+		t.Errorf("second set within sudo window: want 204 (multi-use gate), got %d (body=%s)", w2.Code, w2.Body.String())
 	}
 }

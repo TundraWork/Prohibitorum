@@ -24,10 +24,12 @@ type SessionData struct {
 	ExpiresAt  time.Time `json:"expires_at"`
 	LastSeenIP string    `json:"last_seen_ip"`
 	UserAgent  string    `json:"user_agent,omitempty"`
-	// SudoUntil is the deadline for the elevated "fresh WebAuthn assertion"
-	// state required by sensitive actions (currently /me/devices/pair/approve).
-	// Zero or past means no sudo; future means the gate is satisfied. Set by
-	// POST /me/sudo/complete and consumed inline by the gated handlers.
+	// SudoUntil is the deadline for an EXPLICIT step-up grant (POST
+	// /me/sudo/complete). The gate is also satisfied for SudoTTL after IssuedAt
+	// (the recent-auth window), so SudoUntil stays zero for sessions that never
+	// needed an explicit step-up. Zero or past means no explicit grant; future
+	// means the step-up gate is satisfied. The window check lives in the server
+	// gate (hasFreshSudo), which has the configured SudoTTL.
 	SudoUntil time.Time `json:"sudo_until,omitempty"`
 }
 

@@ -508,38 +508,45 @@ func sudoStashKey(sessionID string) string {
 	return "webauthn_ceremony:sudo:" + sessionID
 }
 
-// consumeFreshSudo reports whether sess holds a fresh sudo grant, consuming it
-// (one-shot) when present. It writes NOTHING — the caller renders the
-// sudo_required error in its transport's idiom (writeAuthErr for raw HTTP,
-// huma.WriteErr for typed ops). This is THE single chokepoint for the fresh-sudo
-// gate: both the raw-HTTP withFreshSudo path (registerSudoOpHTTP) and the typed
-// Huma registerSudoOp path route through it, so the policy can't drift between
-// the two registration styles.
-func (s *Server) consumeFreshSudo(ctx context.Context, sess *authn.Session) bool {
-	if sess == nil || sess.Data == nil || !sess.Data.HasFreshSudo() {
+// hasFreshSudo reports whether the session is currently elevated. Two ways
+// satisfy it, and BOTH are time-windowed (multi-use — nothing is consumed):
+//
+//  1. Recent full authentication: the session was issued within SudoTTL. Every
+//     login Issues a session with IssuedAt=now (stable across refreshes), so a
+//     user who just signed in can perform gated actions without a separate
+//     step-up. This is the recent-auth window.
+//  2. Explicit step-up: POST /me/sudo/complete stamped SudoUntil = now+SudoTTL
+//     (see applySudoGrant), used when the login is older than the window.
+//
+// It writes NOTHING and consumes nothing — a single elevation covers every gated
+// action until the window expires by time. This is THE single chokepoint for the
+// fresh-sudo gate: both the raw-HTTP requireFreshSudo path (registerSudoOpHTTP)
+// and the typed Huma registerSudoOp path route through it, so the policy can't
+// drift between the two registration styles.
+//
+// With SudoTTL == 0 (the zero-config &Server{} used by unit tests) the
+// recent-auth clause is always false, so the gate falls back to SudoUntil only —
+// preserving the existing "no fresh sudo → deny" test semantics.
+func (s *Server) hasFreshSudo(sess *authn.Session) bool {
+	if sess == nil || sess.Data == nil {
 		return false
 	}
-	// One-shot: a single sudo elevation covers a single gated action; the user
-	// re-asserts for the next one. Shrinks the stolen-cookie window further, and
-	// the user already had to bio-unlock once.
-	sess.Data.SudoUntil = time.Time{}
-	if err := s.sessionStore.Save(ctx, sess.Account.ID, sess.Token, sess.Data); err != nil {
-		// Fail CLOSED: every request re-reads SudoUntil from KV, so if the
-		// cleared value did not persist the future SudoUntil keeps satisfying
-		// the gate — turning the one-shot grant into "every gated action for the
-		// rest of the TTL window". Deny this action rather than authorize on an
-		// un-persisted clear (audit SESS-1).
-		logx.WithContext(ctx).WithError(err).Warn("sudo: clear failed — denying gated action")
+	if sess.Data.HasFreshSudo() {
+		return true
+	}
+	if s.config == nil {
 		return false
 	}
-	return true
+	ttl := s.config.Auth.SudoTTL
+	return ttl > 0 && time.Since(sess.Data.IssuedAt) < ttl
 }
 
-// requireFreshSudo is the raw-HTTP fresh-sudo gate: it consumes the grant via
-// consumeFreshSudo and, on absence, writes ErrSudoRequired (401) and returns
-// true so the caller returns immediately. False means satisfied — proceed.
-func (s *Server) requireFreshSudo(ctx context.Context, w http.ResponseWriter, sess *authn.Session) bool {
-	if !s.consumeFreshSudo(ctx, sess) {
+// requireFreshSudo is the raw-HTTP fresh-sudo gate: on absence of a fresh grant
+// it writes ErrSudoRequired (401) and returns true so the caller returns
+// immediately. False means satisfied — proceed. ctx is retained for call-site
+// compatibility; the gate is now a pure read (no KV write).
+func (s *Server) requireFreshSudo(_ context.Context, w http.ResponseWriter, sess *authn.Session) bool {
+	if !s.hasFreshSudo(sess) {
 		writeAuthErr(w, authn.ErrSudoRequired())
 		return true
 	}

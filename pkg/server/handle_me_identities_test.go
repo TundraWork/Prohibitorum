@@ -375,6 +375,9 @@ func TestMeIdentities_Unlink_SudoGated(t *testing.T) {
 	// pass — that way a 401 here can only be the sudo gate firing.
 	q.webauthnRows = []db.WebauthnCredential{{ID: 1, AccountID: accountID}}
 	_, sess := issueIdentitiesTestSession(t, s, accountID)
+	// Backdate IssuedAt so the recent-auth window doesn't apply; no SudoUntil
+	// set, so the gate must deny with sudo_required.
+	sess.Data.IssuedAt = time.Now().Add(-30 * time.Minute)
 
 	r := identitiesReq(t, sess, http.MethodPost, "/api/prohibitorum/me/identities/1/unlink", "")
 	r = withRouteParam(r, "id", "1")
