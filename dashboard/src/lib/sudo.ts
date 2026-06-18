@@ -4,7 +4,9 @@ import { ref } from 'vue'
  * Sudo step-up gate (singleton). The SudoModal — mounted once in
  * DashboardLayout — watches `sudoState`; withSudo()/ensureSudo() open it and
  * await the user's ceremony. Backend contract: sensitive /me actions return
- * {code:'sudo_required'} until the session has a fresh (one-shot) sudo grant.
+ * {code:'sudo_required'} until the session is within the recent-auth window
+ * (granted at login) or holds a fresh step-up grant. The grant is multi-use
+ * until it expires.
  */
 export interface SudoState {
   open: boolean

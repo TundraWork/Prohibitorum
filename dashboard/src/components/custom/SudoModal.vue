@@ -1,9 +1,17 @@
 <script setup lang="ts">
 /**
- * SudoModal — the sudo step-up ceremony. Mounted ONCE in DashboardLayout;
- * watches the lib/sudo singleton. Opening fetches the account's elevation
- * methods; the user re-proves a factor (passkey, or password + TOTP); a 204
- * from /me/sudo/complete resolves the pending withSudo()/ensureSudo() promise.
+ * SudoModal — the sudo step-up ceremony, mounted ONCE in DashboardLayout;
+ * watches the lib/sudo singleton. Opening fetches the account's LOCAL elevation
+ * methods and mirrors the login screen's local section: passkey primary, an OR
+ * divider, then the password+TOTP form inline. A 204 from /me/sudo/complete
+ * resolves the pending withSudo()/ensureSudo() promise.
+ *
+ * Upstream-login-only accounts have no local factor to re-prove in a modal, so
+ * when neither local method is available we redirect to the real /login (which
+ * re-runs the upstream flow and re-grants the recent-auth window), returning to
+ * the current route. Federation is NOT a step-up factor here — it lives only on
+ * the login screen. Reachable only on a stale session: a recent login already
+ * satisfies the gate without opening the modal.
  */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -22,6 +30,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import OrDivider from '@/components/custom/OrDivider.vue'
 
 const { t, te } = useI18n()
 const { busy: netBusy, error: netError, run } = useApi()
@@ -33,11 +42,9 @@ const open = computed({
   set: (v) => { if (!v) _resolveSudo(false) },
 })
 
-type SudoMethodsResponse = { methods: string[]; federationProviders?: { slug: string; displayName: string }[] }
+type SudoMethodsResponse = { methods: string[] }
 
 const methods = ref<string[] | null>(null)
-const federationProviders = ref<{ slug: string; displayName: string }[]>([])
-const showPwForm = ref(false)
 const password = ref('')
 const code = ref('')
 
@@ -55,24 +62,25 @@ const hasPwTotp = computed(() => methods.value?.includes('password_totp') ?? fal
 watch(() => sudoState.value.open, async (isOpen) => {
   if (!isOpen) return
   methods.value = null
-  federationProviders.value = []
-  showPwForm.value = false
   password.value = ''
   code.value = ''
   netError.value = null
   waError.value = null
+  let available: string[] = []
   try {
     const res = await api.get<SudoMethodsResponse>('/api/prohibitorum/me/sudo/methods')
-    methods.value = res.methods ?? []
-    federationProviders.value = res.federationProviders ?? []
-    showPwForm.value = !hasPasskey.value && hasPwTotp.value
+    available = res.methods ?? []
   } catch {
-    methods.value = []
+    available = []
   }
+  // Upstream-login-only (no local factor): bounce to the real /login, which
+  // re-runs the user's auth and re-grants the recent-auth window, then returns.
+  if (!available.includes('webauthn') && !available.includes('password_totp')) {
+    hardRedirect(`/login?return_to=${encodeURIComponent(route.fullPath)}`)
+    return
+  }
+  methods.value = available
 })
-
-function switchToPassword() { netError.value = null; waError.value = null; showPwForm.value = true }
-function switchToPasskey() { netError.value = null; waError.value = null; showPwForm.value = false }
 
 async function doPasskey(): Promise<void> {
   const options = await run(() =>
@@ -103,18 +111,6 @@ async function doPasswordTotp(): Promise<void> {
   })
   if (ok) _resolveSudo(true)
 }
-
-async function reauthFederation(slug: string): Promise<void> {
-  const res = await run(() =>
-    api.post<{ redirect: string }>('/api/prohibitorum/me/sudo/begin', {
-      method: 'federation_oidc',
-      slug,
-      returnTo: route.fullPath,
-    }),
-  )
-  if (!res) return
-  hardRedirect(res.redirect)
-}
 </script>
 
 <template>
@@ -133,24 +129,15 @@ async function reauthFederation(slug: string): Promise<void> {
 
       <p v-if="methods === null" class="text-sm text-muted">{{ t('common.loading') }}</p>
 
-      <p v-else-if="methods.length === 0" class="text-sm text-muted">{{ t('sudo.noMethod') }}</p>
-
       <div v-else class="flex flex-col gap-4">
-        <Button v-if="hasPasskey && !showPwForm" size="lg" class="w-full" :disabled="busy" @click="doPasskey">
+        <Button v-if="hasPasskey" size="lg" class="w-full" :disabled="busy" @click="doPasskey">
           <Fingerprint aria-hidden="true" />
           {{ t('sudo.passkeyButton') }}
         </Button>
 
-        <button
-          v-if="hasPasskey && hasPwTotp && !showPwForm"
-          type="button"
-          class="cursor-pointer rounded-sm text-sm text-tide-strong underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-          @click="switchToPassword"
-        >
-          {{ t('sudo.usePassword') }}
-        </button>
+        <OrDivider v-if="hasPasskey && hasPwTotp" :label="t('login.orDivider')" />
 
-        <form v-if="showPwForm" class="flex flex-col gap-3" @submit.prevent="doPasswordTotp">
+        <form v-if="hasPwTotp" class="flex flex-col gap-3" @submit.prevent="doPasswordTotp">
           <div class="flex flex-col gap-1.5">
             <Label for="sudo-password">{{ t('sudo.passwordLabel') }}</Label>
             <Input id="sudo-password" v-model="password" name="current_password" type="password"
@@ -162,28 +149,7 @@ async function reauthFederation(slug: string): Promise<void> {
                    autocomplete="one-time-code" required />
           </div>
           <Button type="submit" class="w-full" :disabled="busy">{{ t('sudo.verify') }}</Button>
-          <button
-            v-if="hasPasskey"
-            type="button"
-            class="cursor-pointer rounded-sm text-sm text-tide-strong underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-            @click="switchToPasskey"
-          >
-            {{ t('sudo.usePasskeyInstead') }}
-          </button>
         </form>
-
-        <div v-if="federationProviders.length" class="flex flex-col gap-2">
-          <p class="text-sm text-muted">{{ t('sudo.reauthHint') }}</p>
-          <Button
-            v-for="p in federationProviders"
-            :key="p.slug"
-            variant="outline"
-            size="lg"
-            class="w-full"
-            :disabled="busy"
-            @click="reauthFederation(p.slug)"
-          >{{ t('sudo.reauthWith', { provider: p.displayName }) }}</Button>
-        </div>
 
         <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ errorText }}</AlertDescription>

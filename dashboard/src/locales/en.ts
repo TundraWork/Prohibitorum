@@ -600,15 +600,10 @@ export default {
   sudo: {
     title: "Confirm it's you",
     passkeyButton: 'Verify with passkey',
-    usePassword: 'Use password and code instead',
-    usePasskeyInstead: 'Use a passkey instead',
     passwordLabel: 'Current password',
     codeLabel: 'One-time code',
     verify: 'Verify',
     cancel: 'Cancel',
-    noMethod: 'No verification method is available on this account. Contact an administrator.',
-    reauthWith: 'Re-authenticate with {provider}',
-    reauthHint: 'You will be sent to your provider to sign in again, then brought back.',
     body: 'For your security, re-verify before making this change.',
     reason: {
       addPasskey: 'Confirm to add a new passkey.',
@@ -729,9 +724,6 @@ export default {
     avatar_invalid_image: 'That file is not a supported image.',
     avatar_source_unavailable: 'That avatar is not available.',
 
-    // Sudo federation re-auth
-    sudo_identity_mismatch: "That sign-in didn't match this account. Try again.",
-    sudo_reauth_stale: "Your provider didn't confirm a fresh sign-in. Please try again.",
     group_not_found: 'That group no longer exists.',
     group_slug_conflict: 'A group with that slug already exists.',
   },
