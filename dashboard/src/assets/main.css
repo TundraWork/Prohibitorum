@@ -3,28 +3,85 @@
 @import "@fontsource/ibm-plex-mono";
 
 /* =============================================================================
-   Welcoming Vault Design System — Tailwind v4 @theme
-   Source of truth: DESIGN.md §2 (colors), §3 (type), §4 (elevation), §rounded
+   Cool Slate Design System — Tailwind v4 @theme
+   Source of truth: docs/superpowers/specs/2026-06-18-color-system-redesign-design.md
+   Token values mirror dashboard/scripts/check-contrast.mjs (AA gate).
    ============================================================================= */
 
 @theme {
-  /* --- Colors: Brand --- */
-  --color-tide:        oklch(0.55 0.118 205);   /* primary teal: fills, selection, focus */
-  --color-tide-strong: oklch(0.47 0.130 205);   /* text-weight primary: links, hover/active, AA on white */
-  --color-ember:       oklch(0.70 0.150 42);    /* warm accent: brand/human moments, used scarcely */
+  /* --- Tide (teal) ramp — hue 205, the sole brand anchor --- */
+  --color-tide-50:  oklch(0.97 0.018 205);
+  --color-tide-100: oklch(0.93 0.038 205);
+  --color-tide-200: oklch(0.87 0.065 205);
+  --color-tide-300: oklch(0.78 0.090 205);
+  --color-tide-400: oklch(0.67 0.110 205);
+  --color-tide-500: oklch(0.55 0.118 205);   /* fills, focus-ring tone, large text */
+  --color-tide-600: oklch(0.47 0.130 205);   /* primary fill w/ white label, links, AA text */
+  --color-tide-700: oklch(0.40 0.128 205);   /* hover/active, info text */
+  --color-tide-800: oklch(0.33 0.105 205);
+  --color-tide-900: oklch(0.26 0.075 205);
+  --color-tide-950: oklch(0.20 0.052 205);
+  /* Back-compat aliases (existing utilities text-tide / bg-tide-strong etc.) */
+  --color-tide:        oklch(0.55 0.118 205);
+  --color-tide-strong: oklch(0.47 0.130 205);
 
-  /* --- Colors: State --- */
-  --color-sage:        oklch(0.62 0.130 150);   /* success / confirmed / session-active */
-  --color-amber:       oklch(0.76 0.140 75);    /* caution / pending / expiring */
-  --color-rose:        oklch(0.58 0.180 22);    /* danger / revoked / failed */
+  /* --- Ember (scarce warm brand accent) — hue 42 --- */
+  --color-ember:     oklch(0.70 0.150 42);
+  --color-ember-600: oklch(0.58 0.140 42);
 
-  /* --- Colors: Neutral (light mode) --- */
-  --color-bg:          oklch(1 0 0);             /* pure white — surface carries no warmth */
-  --color-surface:     oklch(0.985 0.005 205);  /* cards, panels */
-  --color-sunken:      oklch(0.965 0.006 205);  /* sidebar / toolbar (second neutral layer) */
-  --color-border:      oklch(0.920 0.006 205);  /* hairline dividers, input strokes */
-  --color-ink:         oklch(0.22 0.015 230);   /* body text (~12:1 on bg) */
-  --color-muted:       oklch(0.50 0.012 230);   /* secondary text (~4.5:1 on bg — AA) */
+  /* --- State: Sage / Amber / Rose. -500 = fill/icon, -700 = AA text --- */
+  --color-sage-50:  oklch(0.95 0.035 150);
+  --color-sage-100: oklch(0.90 0.060 150);
+  --color-sage-500: oklch(0.62 0.130 150);
+  --color-sage-600: oklch(0.52 0.120 150);
+  --color-sage-700: oklch(0.45 0.105 150);
+  --color-sage:     oklch(0.62 0.130 150);   /* back-compat alias */
+
+  --color-amber-50:  oklch(0.96 0.045 80);
+  --color-amber-100: oklch(0.92 0.075 80);
+  --color-amber-500: oklch(0.76 0.140 75);
+  --color-amber-600: oklch(0.62 0.110 70);
+  --color-amber-700: oklch(0.50 0.090 65);
+  --color-amber:     oklch(0.76 0.140 75);   /* back-compat alias */
+
+  --color-rose-50:  oklch(0.95 0.035 20);
+  --color-rose-100: oklch(0.90 0.060 20);
+  --color-rose-500: oklch(0.58 0.180 22);
+  --color-rose-600: oklch(0.51 0.175 22);    /* destructive fill (white label, AA) */
+  --color-rose-700: oklch(0.46 0.165 22);
+  --color-rose:     oklch(0.58 0.180 22);    /* back-compat alias */
+
+  /* --- Info (teal-family, distinct from the tide-50 selection wash) --- */
+  --color-info:            oklch(0.95 0.030 205);   /* callout bg */
+  --color-info-border:     oklch(0.87 0.065 205);   /* = tide-200 */
+  --color-info-icon:       oklch(0.47 0.130 205);   /* = tide-600 */
+  --color-info-foreground: oklch(0.40 0.128 205);   /* = tide-700 */
+
+  /* --- Neutral ramp (cool, hue ~235-240) --- */
+  --color-neutral-0:   oklch(1 0 0);
+  --color-neutral-25:  oklch(0.985 0.005 235);
+  --color-neutral-50:  oklch(0.975 0.006 235);
+  --color-neutral-100: oklch(0.965 0.008 235);
+  --color-neutral-150: oklch(0.945 0.010 235);
+  --color-neutral-200: oklch(0.910 0.010 235);
+  --color-neutral-300: oklch(0.850 0.011 235);
+  --color-neutral-400: oklch(0.720 0.012 238);
+  --color-neutral-500: oklch(0.620 0.012 240);
+  --color-neutral-600: oklch(0.480 0.013 240);
+  --color-neutral-700: oklch(0.400 0.014 240);
+  --color-neutral-800: oklch(0.300 0.015 240);
+  --color-neutral-900: oklch(0.220 0.015 240);
+  --color-neutral-950: oklch(0.160 0.012 240);
+
+  /* --- Semantic neutrals (back-compat names, revalued) --- */
+  --color-bg:           oklch(0.985 0.005 235);  /* CANVAS — the page (was pure white) */
+  --color-surface:      oklch(1 0 0);            /* CARD — the white that lifts (was 0.985) */
+  --color-sunken:       oklch(0.965 0.008 235);  /* sidebar / toolbar / well */
+  --color-border:       oklch(0.910 0.010 235);
+  --color-border-strong:oklch(0.850 0.011 235);
+  --color-ink:          oklch(0.220 0.015 240);  /* body text (~12:1 on canvas) */
+  --color-ink-strong:   oklch(0.160 0.012 240);
+  --color-muted:        oklch(0.480 0.013 240);  /* secondary text (>=4.5:1 on canvas) */
 
   /* --- Typography --- */
   --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -36,107 +93,130 @@
   --radius-lg:   14px;
   --radius-full: 9999px;
 
-  /* --- Elevation (DESIGN.md §4: flat at rest; depth only on state) --- */
-  /* Raised: hover/active on interactive surfaces */
-  --shadow-raised:  0 1px 2px oklch(0.22 0.015 230 / 0.06), 0 2px 8px oklch(0.22 0.015 230 / 0.06);
-  /* Overlay: dialogs, popovers, command menus, anything floating above the page */
-  --shadow-overlay: 0 8px 32px oklch(0.22 0.015 230 / 0.14);
+  /* --- Elevation (flat at rest; depth only on state) --- */
+  --shadow-raised:  0 1px 2px oklch(0.22 0.015 240 / 0.06), 0 2px 8px oklch(0.22 0.015 240 / 0.07);
+  --shadow-overlay: 0 8px 32px oklch(0.16 0.012 240 / 0.18);
 }
 
 /* =============================================================================
-   shadcn-vue semantic CSS variable aliases mapped onto Welcoming Vault tokens.
-   These variable names are what shadcn-vue/new-york vendored ui/ primitives
-   read at runtime — mapping them here lets the ui/ kit inherit the design
-   without any hand-edits to the primitives themselves.
+   shadcn-vue semantic variable aliases mapped onto Cool Slate tokens (LIGHT).
    ============================================================================= */
-
 :root {
-  /* Page chrome */
-  --background:            var(--color-bg);
+  --background:            var(--color-bg);        /* canvas */
   --foreground:            var(--color-ink);
 
-  /* Cards & panels */
-  --card:                  var(--color-surface);
+  --card:                  var(--color-surface);   /* white, lifts off canvas */
   --card-foreground:       var(--color-ink);
-
-  /* Popovers / dropdowns (same neutral surface as cards) */
   --popover:               var(--color-surface);
   --popover-foreground:    var(--color-ink);
 
-  /* Primary action — Tide Strong (passes 4.5:1 AA on white; Tide 0.55 is large-text only) */
-  --primary:               var(--color-tide-strong);
-  --primary-foreground:    var(--color-bg);        /* white label on Tide fill */
+  --primary:               var(--color-tide-600);
+  --primary-foreground:    oklch(1 0 0);
 
-  /* Secondary / muted surfaces — Sunken tonal step */
   --secondary:             var(--color-sunken);
   --secondary-foreground:  var(--color-ink);
-
-  /* Muted: used for de-emphasised backgrounds and text */
   --muted:                 var(--color-sunken);
   --muted-foreground:      var(--color-muted);
 
-  /* Accent — NEUTRAL TINT (NOT Ember).
-     shadcn-vue maps --accent to hover backgrounds on ghost buttons, outline buttons,
-     command/menu items, etc. Mapping this to --color-ember would violate DESIGN.md's
-     Scarce Accent Rule (Ember = brand mark only; never a hover state).
-     Decision: map --accent to the Sunken neutral tint (barely-off-white with a teal
-     cast) and --accent-foreground to Ink, so ghost/outline hover backgrounds are
-     a calm, barely-visible tint — not a warm ember burst.
-     Ember is injected manually as a one-off class only in brand-mark elements. */
-  --accent:                var(--color-sunken);
+  /* Ghost/outline hover background — neutral hover-well, NOT Ember. */
+  --accent:                var(--color-neutral-150);
   --accent-foreground:     var(--color-ink);
 
-  /* Destructive — Rose (danger: revoke, delete, failed) */
-  --destructive:           var(--color-rose);
-  --destructive-foreground: var(--color-bg);       /* white label on Rose fill */
+  --destructive:           var(--color-rose-600);  /* white label passes AA */
+  --destructive-foreground: oklch(1 0 0);
 
-  /* Structural */
   --border:                var(--color-border);
-  --input:                 var(--color-border);    /* input stroke: same hairline as dividers */
-  --ring:                  var(--color-tide);      /* focus ring: Tide (the 0.55 fill tone) */
+  --input:                 var(--color-border);
+  --ring:                  var(--color-tide-500);
 
-  /* Radius: md = 10px for controls; cards use --radius-lg (14px) directly */
   --radius:                10px;
 
-  /* Data-viz series — the five Welcoming Vault hues, in case a future component
-     charts anything. Tide first (primary), then the warm accent + the states. */
-  --chart-1:               var(--color-tide);
+  --chart-1:               var(--color-tide-500);
   --chart-2:               var(--color-ember);
-  --chart-3:               var(--color-sage);
-  --chart-4:               var(--color-amber);
-  --chart-5:               var(--color-rose);
+  --chart-3:               var(--color-sage-500);
+  --chart-4:               var(--color-amber-500);
+  --chart-5:               var(--color-rose-500);
 
-  /* Sidebar (shadcn-vue Sidebar primitive) — mapped onto Welcoming Vault tokens.
-     The sidebar is the Sunken second neutral layer; active item = Tide. */
   --sidebar:                    var(--color-sunken);
   --sidebar-foreground:         var(--color-ink);
-  --sidebar-primary:            var(--color-tide-strong);
-  --sidebar-primary-foreground: var(--color-bg);
-  /* Hover/active nav items wash with a calm Tide tint + Tide-strong label
-     (DESIGN.md: Tide carries current-selection), not the old faint gray. */
-  --sidebar-accent:             oklch(0.955 0.028 205);
-  --sidebar-accent-foreground:  var(--color-tide-strong);
+  --sidebar-primary:            var(--color-tide-600);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent:             var(--color-tide-50);
+  --sidebar-accent-foreground:  var(--color-tide-700);
   --sidebar-border:             var(--color-border);
-  --sidebar-ring:               var(--color-tide);
+  --sidebar-ring:               var(--color-tide-500);
 }
 
 /* =============================================================================
-   Bridge the shadcn-vue semantic vars (defined in :root above) into Tailwind v4
-   theme tokens, so the background, text, border and ring utilities the vendored
-   ui/ primitives reference are actually GENERATED. Without this, classes like
-   bg-primary, bg-popover, bg-card, text-primary-foreground, ring-ring do not
-   exist and the components render unstyled (no fills, transparent dialogs).
-   The "inline" keyword keeps each as a var() reference, so a future .dark block
-   recolors the whole kit by overriding :root alone.
+   Dark mode — "Cool Slate, dark". Inverted surface logic: canvas mid-dark,
+   cards lift lighter, sidebar recesses darker. Brand/state hues lightened.
+   Primary + destructive flip to a DARK label on a brighter fill.
+   ============================================================================= */
+.dark {
+  --background:            oklch(0.170 0.012 240);
+  --foreground:            oklch(0.950 0.005 240);
 
-   This is the COMPLETE shadcn token set (incl. chart-1..5), so any standard
-   shadcn-vue component added later inherits the design with no edits here. To
-   add a new token: define it in :root (and .dark), then map one line below.
+  --card:                  oklch(0.205 0.013 240);
+  --card-foreground:       oklch(0.950 0.005 240);
+  --popover:               oklch(0.205 0.013 240);
+  --popover-foreground:    oklch(0.950 0.005 240);
 
-   NOTE: the brand --color-muted (secondary TEXT, 0.50 ink) is deliberately left
-   in the @theme block above and NOT redefined here. Nothing uses bg-muted, and
-   text-muted must stay the ink tone; the shadcn muted TEXT is exposed as
-   --color-muted-foreground.
+  --primary:               oklch(0.72 0.120 200);
+  --primary-foreground:    oklch(0.170 0.012 240);
+
+  --secondary:             oklch(0.245 0.013 240);
+  --secondary-foreground:  oklch(0.950 0.005 240);
+  --muted:                 oklch(0.245 0.013 240);
+  --muted-foreground:      oklch(0.680 0.010 240);
+
+  --accent:                oklch(0.255 0.014 240);
+  --accent-foreground:     oklch(0.950 0.005 240);
+
+  --destructive:           oklch(0.64 0.175 22);
+  --destructive-foreground: oklch(0.160 0.010 22);
+
+  --border:                oklch(0.300 0.012 240);
+  --input:                 oklch(0.300 0.012 240);
+  --ring:                  oklch(0.72 0.110 205);
+
+  /* Brand text tokens used directly by components (text-ink/text-muted/...) */
+  --color-ink:             oklch(0.950 0.005 240);
+  --color-ink-strong:      oklch(0.985 0.003 240);
+  --color-muted:           oklch(0.680 0.010 240);
+  --color-bg:              oklch(0.170 0.012 240);
+  --color-surface:         oklch(0.205 0.013 240);
+  --color-sunken:          oklch(0.145 0.011 240);
+  --color-border:          oklch(0.300 0.012 240);
+  --color-border-strong:   oklch(0.370 0.012 240);
+
+  /* State + info: lightened text tones and low-L tint backgrounds for dark. */
+  --color-sage-50:  oklch(0.27 0.050 150);
+  --color-sage-700: oklch(0.80 0.100 150);
+  --color-amber-50: oklch(0.29 0.050 70);
+  --color-amber-700: oklch(0.84 0.110 80);
+  --color-rose-50:  oklch(0.28 0.070 20);
+  --color-rose-700: oklch(0.76 0.140 22);
+  --color-info:            oklch(0.27 0.050 205);
+  --color-info-border:     oklch(0.35 0.060 205);
+  --color-info-icon:       oklch(0.80 0.090 205);
+  --color-info-foreground: oklch(0.80 0.090 205);
+
+  --shadow-overlay: 0 8px 32px oklch(0 0 0 / 0.5);
+
+  --sidebar:                    oklch(0.145 0.011 240);
+  --sidebar-foreground:         oklch(0.950 0.005 240);
+  --sidebar-primary:            oklch(0.72 0.120 200);
+  --sidebar-primary-foreground: oklch(0.170 0.012 240);
+  --sidebar-accent:             oklch(0.27 0.050 205);
+  --sidebar-accent-foreground:  oklch(0.85 0.080 205);
+  --sidebar-border:             oklch(0.300 0.012 240);
+  --sidebar-ring:               oklch(0.72 0.110 205);
+}
+
+/* =============================================================================
+   Bridge shadcn-vue semantic vars into Tailwind v4 theme tokens so utilities
+   (bg-primary, bg-card, ring-ring, bg-info, ...) are generated. "inline" keeps
+   each as a var() reference, so the .dark overrides above recolor the whole kit.
    ============================================================================= */
 @theme inline {
   --color-background:             var(--background);
@@ -172,32 +252,9 @@
 }
 
 /* =============================================================================
-   Dark mode — RESERVED. Values land in a later polish pass.
-   DESIGN.md §2: bg ≈ oklch(0.16 0.008 230), ink ≈ oklch(0.95 0.005 230),
-   tide/ember lightened ~0.12–0.15 L to hold contrast.
-   Not in scope for Spec 1 / Task 2.
+   Base layer.
    ============================================================================= */
-.dark {
-  /* TODO(dark): wire dark-mode token overrides here.
-     Sketch values from DESIGN.md (exact values deferred to scan pass):
-       --background:  oklch(0.16 0.008 230);
-       --foreground:  oklch(0.95 0.005 230);
-       --color-tide:        oklch(~0.67 0.118 205);  lightened ~0.12 L
-       --color-tide-strong: oklch(~0.59 0.130 205);
-       --color-ember:       oklch(~0.82 0.150 42);
-       (all other neutrals inverted to the cool-near-black ramp)
-  */
-}
-
-/* =============================================================================
-   Base layer — apply tokens to the document root.
-   ============================================================================= */
-
 @layer base {
-  /* Tailwind v4 defaults plain `border`/`outline` to currentColor; shadcn-vue
-     components rely on the hairline token instead. Default them to our border +
-     Tide ring so vendored primitives (cards, inputs, dialogs) get the right
-     strokes without per-component overrides. */
   *,
   ::after,
   ::before {
@@ -208,7 +265,7 @@
     background-color: var(--color-bg);
     color:            var(--color-ink);
     font-family:      var(--font-sans);
-    line-height:      1.55;  /* DESIGN.md body line-height */
+    line-height:      1.55;
     -webkit-font-smoothing:  antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -217,7 +274,6 @@
     font-family: var(--font-mono);
   }
 
-  /* Tide-tinted text selection — a small, on-brand richness touch. */
   ::selection {
     background-color: oklch(0.55 0.118 205 / 0.20);
     color: var(--color-ink);
@@ -225,9 +281,7 @@
 }
 
 /* =============================================================================
-   Reduced motion — honored project-wide (PRODUCT.md Accessibility). Any
-   transition/animation collapses to ~instant; reveals still land in their
-   final state.
+   Reduced motion — honored project-wide.
    ============================================================================= */
 @media (prefers-reduced-motion: reduce) {
   *,
