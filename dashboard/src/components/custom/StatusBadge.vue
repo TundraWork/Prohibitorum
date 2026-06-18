@@ -13,7 +13,7 @@ const badge = cva(
         success: 'bg-sage-50 text-sage-700',
         caution: 'bg-amber-50 text-amber-700',
         danger: 'bg-rose-50 text-rose-700',
-        info: 'bg-tide-50 text-tide-700',
+        info: 'bg-info text-info-foreground',
       },
     },
     defaultVariants: { variant: 'neutral' },

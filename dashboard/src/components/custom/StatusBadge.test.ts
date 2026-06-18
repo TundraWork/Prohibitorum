@@ -25,8 +25,8 @@ describe('StatusBadge', () => {
     expect(cls('danger')).toContain('bg-rose-50')
     expect(cls('danger')).toContain('text-rose-700')
   })
-  it('info uses the teal family', () => {
-    expect(cls('info')).toContain('bg-tide-50')
-    expect(cls('info')).toContain('text-tide-700')
+  it('info uses the dark-aware info tokens', () => {
+    expect(cls('info')).toContain('bg-info')
+    expect(cls('info')).toContain('text-info-foreground')
   })
 })

@@ -109,9 +109,9 @@ Calm, exact, welcoming.
 The color system encodes that split. A calm teal ("Tide") carries every
 action, selection, and focus state. A single warm accent ("Ember") is the
 human moment: the brand mark, a welcome on the enrollment screen, the rare
-note of personality. The surface itself stays pure white and carries no
+note of personality. White cards sit on a faint cool canvas, and neither carries
 warmth at all, because warmth that lives in the background is the AI-cream
-cliché; here warmth lives in the accent, the copy, and the breathing room.
+cliche; here warmth lives in the accent, the copy, and the breathing room.
 Three state colors (Sage, Amber, Rose) are reserved for things that are
 literally true about a credential or session: confirmed, pending, revoked.
 
@@ -124,7 +124,7 @@ fintech navy-and-gold reflex and the AI-purple-on-white attractor, which is
 why the brand color is a fresh teal rather than the obvious indigo.
 
 **Key Characteristics:**
-- Pure-white surface; warmth carried by accent + copy + space, never by the background.
+- White cards on a faint cool canvas; warmth carried by accent + copy + space, never by the background.
 - One calm primary (Tide) for all actions; one scarce warm accent (Ember) for human moments.
 - A deliberate, semantic palette: every chromatic role maps to a real state, none is decorative.
 - Single humanist sans for everything; mono reserved for things you read or copy verbatim.
