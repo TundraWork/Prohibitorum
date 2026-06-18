@@ -22,31 +22,31 @@
     {
       "id": 4,
       "subject": "Task 4: Remove federation_oidc step-up (backend)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 3],
       "description": "**Goal:** Delete the federation step-up surface without touching primary federation login.\n\n**Files:** pkg/server/handle_sudo.go, pkg/server/server.go, pkg/federation/oidc/federation.go, state.go, client.go, pkg/authn/errors.go, db/queries/account_identity.sql (+ sqlc generate → pkg/db/account_identity.sql.go, pkg/db/querier.go), handle_sudo_test.go, federation_test.go. KEEP authn.MethodFederationOIDC, validateFederationReturnTo, ListAccountIdentitiesByAccount, CountUsableSignInFederation.\n\n**Verify:** go build -tags nodynamic ./... && go vet ./... && go test ./pkg/server/... ./pkg/federation/... ./pkg/authn/... ./pkg/db/... -v\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_sudo.go\", \"pkg/server/server.go\", \"pkg/federation/oidc/federation.go\", \"pkg/federation/oidc/state.go\", \"pkg/federation/oidc/client.go\", \"pkg/authn/errors.go\", \"db/queries/account_identity.sql\", \"pkg/db/account_identity.sql.go\", \"pkg/db/querier.go\", \"pkg/server/handle_sudo_test.go\", \"pkg/federation/oidc/federation_test.go\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go vet ./... && go test ./pkg/server/... ./pkg/federation/... ./pkg/authn/... ./pkg/db/... -v\", \"acceptanceCriteria\": [\"no federation-sudo symbol refs remain\", \"methods returns {methods} only\", \"primary federation login passes\", \"build+vet clean\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Login-aligned local-only SudoModal + bounce",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Restyle SudoModal.vue to mirror login's local section (passkey → OR → inline password+TOTP), remove federation UI, bounce upstream-only to /login.\n\n**Files:** dashboard/src/components/custom/SudoModal.vue (rewrite), dashboard/src/lib/sudo.ts (doc), dashboard/src/locales/en.ts (remove federation/toggle/noMethod keys + 2 error codes), dashboard/src/components/custom/SudoModal.test.ts (remove federation/toggle/noMethod tests; add bounce + both-methods)\n\n**Verify:** cd dashboard && npm run test && npm run build\n\n```json:metadata\n{\"files\": [\"dashboard/src/components/custom/SudoModal.vue\", \"dashboard/src/lib/sudo.ts\", \"dashboard/src/locales/en.ts\", \"dashboard/src/components/custom/SudoModal.test.ts\"], \"verifyCommand\": \"cd dashboard && npm run test && npm run build\", \"acceptanceCriteria\": [\"no federation UI\", \"passkey+OR+inline form when both\", \"bounce to /login when no local factor\", \"vitest+tsc pass\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Update smoke test for new step-up",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 3, 4, 5],
       "description": "**Goal:** Remove federation-sudo smoke section; flip one-shot assertions to multi-use.\n\n**Files:** cmd/smoke/main.go (delete fed-sudo 1-7; flip verifySudoGrantIsOneShot→multi-use; fix banner + audit counts)\n\n**Verify:** throwaway Postgres (memory: live-smoke-without-podman), then go run ./cmd/smoke → smoke OK\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\"], \"verifyCommand\": \"go run ./cmd/smoke\", \"acceptanceCriteria\": [\"no federation sudo in smoke\", \"multi-use asserted\", \"banner+counts updated\", \"smoke OK\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: Rebuild embedded SPA + full verification",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 6],
       "description": "**Goal:** Regenerate committed pkg/webui/dist; run full CI gates.\n\n**Files:** pkg/webui/dist/** (build artifact)\n\n**Verify:** mise run ci:go && mise run ci:frontend (ci:frontend asserts committed dist matches fresh build)\n\n```json:metadata\n{\"files\": [\"pkg/webui/dist\"], \"verifyCommand\": \"mise run ci:go && mise run ci:frontend\", \"acceptanceCriteria\": [\"dist fresh-built\", \"ci:go passes\", \"ci:frontend passes incl dist-drift check\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-06-18T00:00:00Z"
+  "lastUpdated": "2026-06-18T23:59:00Z"
 }
