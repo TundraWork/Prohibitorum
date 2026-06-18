@@ -30,7 +30,7 @@ function mountModal() {
   return mount(SudoModal, { global: { plugins: [makeI18n()] }, attachTo: document.body })
 }
 
-beforeEach(() => { get.mockReset(); post.mockReset(); sudoState.value = { open: false, resolve: null } })
+beforeEach(() => { get.mockReset(); post.mockReset(); hardRedirect.mockReset(); sudoState.value = { open: false, resolve: null } })
 
 describe('SudoModal', () => {
   it('completes the passkey path and resolves true', async () => {
@@ -109,7 +109,6 @@ describe('SudoModal', () => {
 
   it('bounces upstream-only sessions to /login when no local factor', async () => {
     get.mockResolvedValue({ methods: [] })
-    hardRedirect.mockReset()
     mountModal()
     sudoState.value = { open: true, resolve: vi.fn() }
     await flushPromises()
@@ -126,5 +125,14 @@ describe('SudoModal', () => {
     expect(passkeyBtn).toBeTruthy()
     expect(document.querySelector('input[name=current_password]')).toBeTruthy()
     expect(document.querySelector('input[name=totp_code]')).toBeTruthy()
+    expect(document.body.textContent?.toLowerCase()).toContain(en.login.orDivider.toLowerCase())
+  })
+
+  it('bounces to /login when the methods fetch fails', async () => {
+    get.mockRejectedValue(new Error('network'))
+    mountModal()
+    sudoState.value = { open: true, resolve: vi.fn() }
+    await flushPromises()
+    expect(hardRedirect).toHaveBeenCalledWith('/login?return_to=%2Fdashboard')
   })
 })
