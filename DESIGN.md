@@ -241,7 +241,7 @@ The one place this app diverges from a generic dashboard. TOTP codes, recovery-c
 ## 6. Do's and Don'ts
 
 ### Do:
-- **Do** keep the page background pure white (`oklch(1 0 0)`); carry warmth through Ember, copy, and spacing.
+- **Do** keep cards and surfaces pure white (`oklch(1 0 0)`) and the page canvas the faint cool gray (`oklch(0.985 0.005 235)`); carry warmth through Ember, copy, and spacing — never a warm-tinted background.
 - **Do** reserve Ember for human/brand moments, no more than a couple per screen (The Scarce Accent Rule).
 - **Do** use Tide-Strong (`oklch(0.47 0.130 205)`) for any teal that carries text (links, primary labels); reserve Tide 0.55 for fills and large text.
 - **Do** set every verbatim code/token/ID in IBM Plex Mono (The Code-Gets-Mono Rule).
@@ -257,5 +257,5 @@ The one place this app diverges from a generic dashboard. TOTP codes, recovery-c
 - **Don't** use consumer-login playful gradients, mascots, or gradient text. Warmth here is space and tone, not decoration.
 - **Don't** drift back to the obvious hues: navy-and-gold fintech, AI-purple-on-white, or a generic UI-kit green. The brand is Tide teal on purpose.
 - **Don't** use a colored `border-left`/`border-right` stripe on cards, alerts, or list items. Full border, background tint, or icon instead.
-- **Don't** use light-gray body or placeholder text "for elegance." Muted is `oklch(0.50 0.012 230)` and holds 4.5:1.
+- **Don't** use light-gray body or placeholder text "for elegance." Muted is `oklch(0.48 0.013 240)` and holds 4.5:1.
 - **Don't** put a resting drop-shadow on a card for "depth" (The Flat-Until-It-Acts Rule).
