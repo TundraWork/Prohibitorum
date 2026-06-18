@@ -10,9 +10,10 @@ const badge = cva(
     variants: {
       variant: {
         neutral: 'bg-sunken text-muted',
-        success: 'bg-sage/12 text-sage',
-        caution: 'bg-amber/15 text-amber',
-        danger: 'bg-rose/12 text-rose',
+        success: 'bg-sage-50 text-sage-700',
+        caution: 'bg-amber-50 text-amber-700',
+        danger: 'bg-rose-50 text-rose-700',
+        info: 'bg-tide-50 text-tide-700',
       },
     },
     defaultVariants: { variant: 'neutral' },
