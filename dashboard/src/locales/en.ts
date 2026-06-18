@@ -63,6 +63,13 @@ export default {
     unsavedName: 'Unsaved name',
   },
 
+  theme: {
+    label: 'Theme',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
+  },
+
   userAgent: {
     toggle: 'Show device details',
     hide: 'Hide device details',
