@@ -41,25 +41,9 @@ import (
 	"prohibitorum/pkg/authn"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
 	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
 )
-
-// sudoFederator is the narrow federation surface the federation_oidc sudo
-// branch needs. Production uses the concrete *fedoidc.Federator (s.federator);
-// tests inject a fake via s.sudoFederatorOverride.
-type sudoFederator interface {
-	SudoBegin(ctx context.Context, accountID int32, idpSlug, returnTo string) (*fedoidc.LoginRequest, error)
-	SudoCallback(ctx context.Context, stateToken, code, issParam, browserToken string, currentAccountID int32) (string, error)
-}
-
-func (s *Server) sudoFed() sudoFederator {
-	if s.sudoFederatorOverride != nil {
-		return s.sudoFederatorOverride
-	}
-	return s.federator
-}
 
 // sudoIntent is the JSON payload stashed at /begin so /complete knows which
 // verification path to take and (eventually) can enforce time limits beyond
@@ -72,23 +56,14 @@ type sudoIntent struct {
 func sudoIntentKey(sessionID string) string { return "sudo_intent:" + sessionID }
 
 // sudoFlowQueries is the narrow query surface /me/sudo/methods needs:
-// AvailableMethods (via authn.FlowQueries) and the linked-IdP listing used
-// to populate the federationProviders field of the methods response.
-// Recovery codes are no longer a sudo factor (see package-doc rationale),
-// so ListRecoveryCodesByAccount is not part of this interface — but we keep
-// recovery-code listing in the embedded surface as an unused method via
-// authn.FlowQueries so existing fakes can satisfy this contract without churn.
+// AvailableMethods (via authn.FlowQueries). Recovery codes are no longer a
+// sudo factor (see package-doc rationale), so ListRecoveryCodesByAccount is
+// not part of this interface — but we keep recovery-code listing in the
+// embedded surface as an unused method via authn.FlowQueries so existing
+// fakes can satisfy this contract without churn.
 type sudoFlowQueries interface {
 	authn.FlowQueries
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]db.RecoveryCode, error)
-	ListLinkedEnabledIdPs(ctx context.Context, accountID int32) ([]db.ListLinkedEnabledIdPsRow, error)
-}
-
-// sudoFederationProvider is the per-provider entry in the /me/sudo/methods
-// federationProviders list.
-type sudoFederationProvider struct {
-	Slug        string `json:"slug"`
-	DisplayName string `json:"displayName"`
 }
 
 // ----- GET /me/sudo/methods ----------------------------------------------
@@ -97,34 +72,17 @@ func (s *Server) handleSudoMethodsHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
 	methods := s.availableSudoMethods(r.Context(), sess.Account.ID)
 
-	providers := []sudoFederationProvider{}
-	rows, err := s.sudoFlowQ().ListLinkedEnabledIdPs(r.Context(), sess.Account.ID)
-	if err != nil {
-		logx.WithContext(r.Context()).WithError(err).Warn("sudo: list linked idps")
-	} else {
-		for _, row := range rows {
-			providers = append(providers, sudoFederationProvider{Slug: row.Slug, DisplayName: row.DisplayName})
-		}
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"methods": methods, "federationProviders": providers})
+	_ = json.NewEncoder(w).Encode(map[string]any{"methods": methods})
 }
 
 // availableSudoMethods returns the elevation methods enrolled for the
-// account, in priority order: webauthn, password_totp, federation_oidc.
+// account, in priority order: webauthn, password_totp.
 // Always returns a non-nil slice (empty means no enrolled factors).
 //
 // recovery_code is intentionally excluded — see package-doc. Recovery
 // codes redeem at /auth/recovery-code/verify and route through the
 // dedicated re-enrollment ceremony, not the sudo gate.
-//
-// federation_oidc IS a valid sudo factor: OIDC sudo forces a fresh
-// re-authentication (prompt=login, max_age=0) and verifies auth_time in the
-// callback, so possession of the upstream identity is re-proven each time.
-// AvailableMethods surfaces federation_oidc only when the account has at
-// least one enabled linked upstream provider (via CountUsableSignInFederation),
-// so the method list is already enabled-correct.
 func (s *Server) availableSudoMethods(ctx context.Context, accountID int32) []string {
 	out := []string{}
 	q := s.sudoFlowQ()
@@ -171,20 +129,16 @@ func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The sudo_intent stash is only consumed by /me/sudo/complete (webauthn /
-	// password_totp). The federation_oidc branch finishes at the dedicated
-	// authenticated callback route, never /complete — so don't stash for it.
-	if body.Method != string(authn.MethodFederationOIDC) {
-		intent := sudoIntent{Method: body.Method, IssuedAt: time.Now().UTC()}
-		payload, err := json.Marshal(intent)
-		if err != nil {
-			writeAuthErr(w, fmt.Errorf("sudo/begin: marshal intent: %w", err))
-			return
-		}
-		if err := s.kvStore.SetEx(r.Context(), sudoIntentKey(sess.Data.SessionID), string(payload), 5*time.Minute); err != nil {
-			writeAuthErr(w, fmt.Errorf("sudo/begin: setex intent: %w", err))
-			return
-		}
+	// Stash the chosen method so /complete dispatches the right verifier.
+	intent := sudoIntent{Method: body.Method, IssuedAt: time.Now().UTC()}
+	payload, err := json.Marshal(intent)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("sudo/begin: marshal intent: %w", err))
+		return
+	}
+	if err := s.kvStore.SetEx(r.Context(), sudoIntentKey(sess.Data.SessionID), string(payload), 5*time.Minute); err != nil {
+		writeAuthErr(w, fmt.Errorf("sudo/begin: setex intent: %w", err))
+		return
 	}
 
 	switch body.Method {
@@ -193,25 +147,6 @@ func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	case string(authn.MethodPasswordTOTP):
 		// No challenge — client submits credentials directly at /complete.
 		w.WriteHeader(http.StatusNoContent)
-	case string(authn.MethodFederationOIDC):
-		// Re-auth via the upstream OP (prompt=login, max_age=0). validate the
-		// returnTo; on a bad value fall back to "/" rather than reject the
-		// whole step-up.
-		returnTo, rerr := s.validateFederationReturnTo(body.ReturnTo)
-		if rerr != nil {
-			returnTo = "/"
-		}
-		req, err := s.sudoFed().SudoBegin(r.Context(), sess.Account.ID, body.Slug, returnTo)
-		if err != nil {
-			writeAuthErr(w, err)
-			return
-		}
-		// Bind the flow to this browser — the anti-forgery cookie must come
-		// back on the authenticated callback, matched against the state's
-		// BrowserBinding.
-		http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.AntiForgeryToken))
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"redirect": req.AuthorizeURL})
 	default:
 		// Defensive: availableSudoMethods would have rejected this, but
 		// keep the surface narrow.
@@ -453,55 +388,6 @@ func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *au
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// ----- GET /me/sudo/federation/callback ----------------------------------
-
-// handleSudoFederationCallbackHTTP is the authenticated landing for the
-// federation_oidc sudo step-up. The user's session must already be live (this
-// route is sessionReq); SudoCallback verifies the fresh upstream re-auth
-// (prompt=login, max_age=0, auth_time freshness) and that the upstream
-// identity still maps to the current account. On success we stamp sudo and
-// 302 to the original returnTo; on failure we audit auth.sudo_failed, stamp
-// nothing, and 302 to /?sudo=failed.
-func (s *Server) handleSudoFederationCallbackHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := authn.SessionFromContext(r.Context())
-	q := r.URL.Query()
-
-	browserToken := ""
-	if c, cerr := r.Cookie(sessstore.FedStateCookieName); cerr == nil {
-		browserToken = c.Value
-	}
-
-	returnTo, err := s.sudoFed().SudoCallback(r.Context(), q.Get("state"), q.Get("code"), q.Get("iss"), browserToken, sess.Account.ID)
-	if err != nil {
-		reason := "sudo_callback_failed"
-		if ae := authn.AsAuthError(err); ae != nil {
-			reason = ae.Code
-		}
-		if s.Audit != nil {
-			accountID := sess.Account.ID
-			_ = s.Audit.Record(r.Context(), audit.Record{
-				AccountID: &accountID,
-				Factor:    audit.FactorSession,
-				Event:     "sudo_failed",
-				IP:        audit.ParseIPOrNil(sessstore.ClientIP(r, s.config.TrustProxy)),
-				UserAgent: r.UserAgent(),
-				Detail:    map[string]any{"method": string(authn.MethodFederationOIDC), "reason": reason},
-			})
-		}
-		http.Redirect(w, r, "/?sudo=failed", http.StatusFound)
-		return
-	}
-
-	if grantErr := s.applySudoGrant(r.Context(), w, r, sess, string(authn.MethodFederationOIDC)); grantErr != nil {
-		// applySudoGrant already wrote the error response.
-		return
-	}
-	if returnTo == "" {
-		returnTo = "/"
-	}
-	http.Redirect(w, r, returnTo, http.StatusFound)
 }
 
 func sudoStashKey(sessionID string) string {

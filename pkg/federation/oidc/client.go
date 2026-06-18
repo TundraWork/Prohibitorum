@@ -192,8 +192,7 @@ func (c *Client) TokenEndpoint() string {
 //
 // extra accepts additional oauth2.AuthCodeOption values appended after
 // the base parameters. Callers that pass no extras get identical URLs as
-// before (backward-compatible). Use StepUpAuthOptions() to force a
-// fresh upstream re-authentication for the sudo step-up flow.
+// before (backward-compatible).
 func (c *Client) AuthURL(state, nonce, codeChallenge string, extra ...oauth2.AuthCodeOption) string {
 	opts := make([]rp.AuthURLOpt, 0, 2+len(extra))
 	opts = append(opts, rp.WithCodeChallenge(codeChallenge))
@@ -202,17 +201,6 @@ func (c *Client) AuthURL(state, nonce, codeChallenge string, extra ...oauth2.Aut
 		opts = append(opts, authURLOpt(o))
 	}
 	return rp.AuthURL(state, c.rp, opts...)
-}
-
-// StepUpAuthOptions returns the oauth2.AuthCodeOption slice that forces a
-// fresh upstream re-authentication. prompt=login re-challenges the user
-// unconditionally; max_age=0 obliges a conformant OP to both re-auth AND
-// return a fresh auth_time claim (verified by the sudo callback).
-func StepUpAuthOptions() []oauth2.AuthCodeOption {
-	return []oauth2.AuthCodeOption{
-		oauth2.SetAuthURLParam("prompt", "login"),
-		oauth2.SetAuthURLParam("max_age", "0"),
-	}
 }
 
 // authURLOpt is a convenience adapter so we can drop a single

@@ -66,26 +66,23 @@ import (
 // Audit finding H2-sch.
 const clientCacheTTL = 15 * time.Minute
 
-// fedFlow distinguishes the three federation flows that each need their own
-// redirect_uri (and therefore their own cached *Client): login, link, and the
-// sudo step-up. The flow is threaded through buildClient → redirectURI so the
-// value baked into the *Client matches the route the HTTP layer registered.
+// fedFlow distinguishes the two federation flows that each need their own
+// redirect_uri (and therefore their own cached *Client): login and link.
+// The flow is threaded through buildClient → redirectURI so the value baked
+// into the *Client matches the route the HTTP layer registered.
 type fedFlow int
 
 const (
 	flowLogin fedFlow = iota
 	flowLink
-	flowSudo
 )
 
-// label maps a fedFlow to the token used in the client-cache key, so login,
-// link, and sudo clients cache under distinct keys.
+// label maps a fedFlow to the token used in the client-cache key, so login
+// and link clients cache under distinct keys.
 func (f fedFlow) label() string {
 	switch f {
 	case flowLink:
 		return "link"
-	case flowSudo:
-		return "sudo"
 	default:
 		return "login"
 	}
@@ -233,7 +230,7 @@ func NewFederator(
 // BeginLogin starts a federated login flow. Caller is the unauthenticated
 // /api/prohibitorum/auth/federation/{slug}/start handler (Task 7).
 func (f *Federator) BeginLogin(ctx context.Context, idpSlug, returnTo string) (*LoginRequest, error) {
-	return f.begin(ctx, idpSlug, returnTo, nil, "", nil, "")
+	return f.begin(ctx, idpSlug, returnTo, nil, "")
 }
 
 // LinkBegin starts a link flow for an already-authenticated account. The
@@ -241,41 +238,7 @@ func (f *Federator) BeginLogin(ctx context.Context, idpSlug, returnTo string) (*
 // identity to a different account if the session changes mid-flow.
 func (f *Federator) LinkBegin(ctx context.Context, accountID int32, idpSlug, returnTo string) (*LoginRequest, error) {
 	id := accountID
-	return f.begin(ctx, idpSlug, returnTo, &id, "", nil, "")
-}
-
-// SudoBegin starts a forced-re-auth federation flow for the sudo step-up. The
-// account must already have a linked identity at an enabled idpSlug; the
-// callback (Task 3) requires the re-auth to resolve back to that same subject
-// (ExpectedSub), so re-authenticating as a different upstream user can't
-// satisfy the gate. Unlike LinkBegin, the sudo flow carries the anti-forgery
-// browser-binding cookie (linkingAccountID stays nil), and the authorize URL
-// forces a fresh credential prompt via StepUpAuthOptions (prompt=login,
-// max_age=0).
-func (f *Federator) SudoBegin(ctx context.Context, accountID int32, idpSlug, returnTo string) (*LoginRequest, error) {
-	if _, err := f.q.GetUpstreamIDPBySlug(ctx, idpSlug); err != nil {
-		// Collapse "no row", "disabled", and "DB error" — the query excludes
-		// disabled rows, so a disabled provider takes the same not-found path.
-		return nil, ErrUnknownIDP
-	}
-	idents, err := f.q.ListAccountIdentitiesByAccount(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: list identities: %w", err)
-	}
-	var expectedSub string
-	for _, id := range idents {
-		if id.IdpSlug == idpSlug {
-			expectedSub = id.UpstreamSub
-			break
-		}
-	}
-	if expectedSub == "" {
-		// Account has no linked identity at this provider — there's no subject
-		// to re-verify against, so this method is unavailable for the caller.
-		return nil, authn.ErrSudoMethodUnavailable()
-	}
-	acct := accountID
-	return f.begin(ctx, idpSlug, returnTo, nil, "", &acct, expectedSub)
+	return f.begin(ctx, idpSlug, returnTo, &id, "")
 }
 
 // BeginInviteRedemption starts an invite-bound federated login flow. The
@@ -314,19 +277,15 @@ func (f *Federator) BeginInviteRedemption(ctx context.Context, token, returnTo s
 		return nil, authn.ErrInviteRequired()
 	}
 
-	return f.begin(ctx, enr.ExpectedUpstreamIdpSlug.String, returnTo, nil, token, nil, "")
+	return f.begin(ctx, enr.ExpectedUpstreamIdpSlug.String, returnTo, nil, token)
 }
 
-// begin is the shared BeginLogin / LinkBegin / BeginInviteRedemption /
-// SudoBegin body.
+// begin is the shared BeginLogin / LinkBegin / BeginInviteRedemption body.
 // linkingAccountID!=nil signals link flow (LinkKey + link-callback template);
 // enrollmentToken!="" signals invite flow (LoginKey, EnrollmentToken stashed
-// in FedState for HandleCallback to dispatch on); sudoAccountID!=nil signals
-// sudo step-up (SudoKey, SudoAccountID+ExpectedSub stashed, and the authorize
-// URL forces a fresh credential prompt via StepUpAuthOptions). These signals
-// are mutually exclusive — invite flow never has a current account, and sudo
-// keeps linkingAccountID nil so it still earns the browser-binding cookie.
-func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linkingAccountID *int32, enrollmentToken string, sudoAccountID *int32, expectedSub string) (*LoginRequest, error) {
+// in FedState for HandleCallback to dispatch on). These signals are mutually
+// exclusive — invite flow never has a current account.
+func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linkingAccountID *int32, enrollmentToken string) (*LoginRequest, error) {
 	idp, err := f.q.GetUpstreamIDPBySlug(ctx, idpSlug)
 	if err != nil {
 		// Collapse "no row", "disabled", and "DB error" into one code.
@@ -336,10 +295,7 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 	}
 
 	flow := flowLogin
-	switch {
-	case sudoAccountID != nil:
-		flow = flowSudo
-	case linkingAccountID != nil:
+	if linkingAccountID != nil {
 		flow = flowLink
 	}
 	client, err := f.buildClient(ctx, &idp, flow)
@@ -389,8 +345,6 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		ReturnTo:              returnTo,
 		LinkingAccountID:      linkingAccountID,
 		EnrollmentToken:       enrollmentToken,
-		SudoAccountID:         sudoAccountID,
-		ExpectedSub:           expectedSub,
 		BrowserBinding:        browserBinding,
 	}
 	blob, err := state.Encode()
@@ -402,20 +356,11 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 	if linkingAccountID != nil {
 		key = LinkKey(stateToken)
 	}
-	if sudoAccountID != nil {
-		key = SudoKey(stateToken)
-	}
 	if err := f.kvStore.SetEx(ctx, key, blob, f.cfg.StateTTL); err != nil {
 		return nil, fmt.Errorf("federation/oidc: stash state: %w", err)
 	}
 
-	// The sudo step-up forces a fresh credential prompt at the OP so a stale
-	// upstream session can't silently satisfy the gate (prompt=login,
-	// max_age=0). Other flows use the OP's normal session behavior.
 	authorizeURL := client.AuthURL(stateToken, nonce, challenge)
-	if sudoAccountID != nil {
-		authorizeURL = client.AuthURL(stateToken, nonce, challenge, StepUpAuthOptions()...)
-	}
 
 	return &LoginRequest{
 		AuthorizeURL:     authorizeURL,
@@ -694,91 +639,6 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 	}, nil
 }
 
-// maxStepUpAuthAge bounds how recent the upstream's id_token auth_time must be
-// for a sudo step-up to count. The federation sudo flow forces a fresh
-// credential prompt (prompt=login, max_age=0); the OP is expected to return an
-// auth_time within seconds of the callback. A generous 120s window absorbs
-// clock skew + the user's typing latency at the OP without admitting a stale
-// session. SudoCallback fails closed on a zero or older auth_time.
-const maxStepUpAuthAge = 120 * time.Second
-
-// SudoCallback consumes the sudo step-up KV state, verifies the forced re-auth,
-// and authorizes the elevation. It is the security core of the OIDC sudo flow:
-// it enforces same-account (the session that began the flow owns it),
-// same-upstream-identity (the re-auth resolved back to the linked subject), and
-// freshness (the upstream returned a recent auth_time, proving it honored the
-// forced prompt). On success it returns the stashed ReturnTo.
-//
-// Unlike HandleCallback, SudoCallback grants no session and provisions no
-// account — it only attests that a fresh re-auth occurred. Audit of the
-// success/failure is owned by the HTTP handler (Task 5), so SudoCallback
-// returns typed errors only and does not call failNoAccount (login semantics
-// would be wrong here). Every "flow is invalid" branch collapses onto
-// ErrFederationStateInvalid; the two terminal security failures get distinct
-// codes (sudo_identity_mismatch, sudo_reauth_stale) the dashboard can surface.
-func (f *Federator) SudoCallback(ctx context.Context, stateToken, code, issParam, browserToken string, currentAccountID int32) (returnTo string, err error) {
-	blob, err := f.kvStore.Pop(ctx, SudoKey(stateToken))
-	if err != nil {
-		return "", authn.ErrFederationStateInvalid()
-	}
-	state, err := DecodeFedState(blob)
-	if err != nil {
-		return "", authn.ErrFederationStateInvalid()
-	}
-
-	// Account match FIRST (fail fast, before any upstream call): the session
-	// presenting this callback must own the flow that minted the state. A nil
-	// SudoAccountID means the token belongs to a non-sudo flow.
-	if state.SudoAccountID == nil || *state.SudoAccountID != currentAccountID {
-		return "", authn.ErrFederationStateInvalid()
-	}
-
-	if !browserBindingOK(state.BrowserBinding, browserToken) {
-		return "", authn.ErrFederationStateInvalid()
-	}
-
-	if issParam != "" && issParam != state.ExpectedIss {
-		return "", authn.ErrFederationStateInvalid()
-	}
-
-	idp, err := f.q.GetUpstreamIDPBySlug(ctx, state.IDPSlug)
-	if err != nil {
-		// IdP disabled or deleted mid-flow (the query filters disabled rows).
-		return "", authn.ErrFederationStateInvalid()
-	}
-
-	client, err := f.buildClient(ctx, &idp, flowSudo)
-	if err != nil {
-		return "", authn.ErrFederationStateInvalid()
-	}
-
-	// RFC 9700 mix-up defense: the snapshotted token_endpoint must still match.
-	if client.TokenEndpoint() != state.ExpectedTokenEndpoint {
-		return "", authn.ErrFederationStateInvalid()
-	}
-
-	tokens, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
-	if err != nil {
-		return "", authn.ErrFederationStateInvalid()
-	}
-
-	// Identity match: the re-auth must resolve to the SAME upstream subject the
-	// account linked at SudoBegin time. A different subject means the user
-	// re-authenticated as someone else upstream — must NOT grant sudo.
-	if tokens.Subject != state.ExpectedSub {
-		return "", authn.ErrSudoIdentityMismatch()
-	}
-
-	// Freshness: fail closed. A zero auth_time (OP omitted the claim) or one
-	// older than the step-up window means the OP did not honor prompt=login /
-	// max_age=0 and may have silently reused a stale session.
-	if tokens.AuthTime.IsZero() || time.Since(tokens.AuthTime) > maxStepUpAuthAge {
-		return "", authn.ErrSudoReauthStale()
-	}
-
-	return state.ReturnTo, nil
-}
-
 // kickoffAvatarInherit always launches the background avatar-inherit job.
 // Non-blocking; safe on every federated login. The job keeps the upstream avatar
 // row fresh regardless of the user's active-source preference, and only promotes
@@ -1001,9 +861,8 @@ func (f *Federator) decryptSecret(idp *db.UpstreamIdp) ([]byte, error) {
 }
 
 // buildClient does the decrypt+NewClient dance shared by begin, HandleCallback,
-// LinkCallback, and SudoCallback. flow picks the login-, link-, or sudo-flavored
-// redirect URI so the token endpoint sees the exact value the OP recorded at
-// /authorize.
+// and LinkCallback. flow picks the login- or link-flavored redirect URI so the
+// token endpoint sees the exact value the OP recorded at /authorize.
 //
 // Results are memoized in f.clientCache for clientCacheTTL. A DEK rotation that
 // bumps key_version is reflected in the cache key and naturally invalidates
@@ -1050,30 +909,21 @@ func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, flow f
 
 // clientCacheKey builds the composite key for clientCache. KeyVersion is
 // included so a DEK rotation forces a fresh client (the decrypted secret may
-// change); flow is included because login, link, and sudo flows use different
+// change); flow is included because login and link flows use different
 // redirect_uri values, which are baked into the *Client.
 func clientCacheKey(slug string, keyVersion int32, flow fedFlow) string {
 	return slug + ":" + strconv.Itoa(int(keyVersion)) + ":flow=" + flow.label()
 }
 
 // redirectURI builds the upstream-facing redirect_uri for the given flow,
-// picking the login, link, or sudo callback. Must produce identical strings at
+// picking the login or link callback. Must produce identical strings at
 // begin() and the matching callback handler — the upstream OP records the value
 // and compares it byte-for-byte at code-exchange time.
-//
-// The sudo callback is registered WITHOUT a {slug} path param (the state carries
-// IDPSlug), so its template has no substitution. Operators must register this
-// exact sudo callback URI — /api/prohibitorum/me/sudo/federation/callback — as
-// an allowed redirect_uri at EACH upstream IdP, in addition to the per-slug
-// login (/api/prohibitorum/auth/federation/{slug}/callback) and link
-// (/api/prohibitorum/me/identities/link/{slug}/callback) callbacks.
 func (f *Federator) redirectURI(slug string, flow fedFlow) string {
 	var template string
 	switch flow {
 	case flowLink:
 		template = "/api/prohibitorum/me/identities/link/{slug}/callback"
-	case flowSudo:
-		template = "/api/prohibitorum/me/sudo/federation/callback"
 	default:
 		template = "/api/prohibitorum/auth/federation/{slug}/callback"
 	}

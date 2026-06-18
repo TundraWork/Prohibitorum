@@ -137,10 +137,6 @@ type Querier interface {
 	ListGroupMembers(ctx context.Context, groupID int32) ([]ListGroupMembersRow, error)
 	ListGroups(ctx context.Context) ([]ListGroupsRow, error)
 	ListGroupsForAccount(ctx context.Context, accountID int32) ([]UserGroup, error)
-	// The account's linked upstream IdPs that are currently enabled — the set
-	// offerable for OIDC sudo step-up. Mirrors CountUsableSignInFederation's
-	// enabled filter. Returns slug + display name for the sudo-method picker.
-	ListLinkedEnabledIdPs(ctx context.Context, accountID int32) ([]ListLinkedEnabledIdPsRow, error)
 	ListOIDCClientAccessAccounts(ctx context.Context, clientID string) ([]ListOIDCClientAccessAccountsRow, error)
 	ListOIDCClientAccessGroups(ctx context.Context, clientID string) ([]ListOIDCClientAccessGroupsRow, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)

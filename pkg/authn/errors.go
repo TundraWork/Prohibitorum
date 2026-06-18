@@ -288,24 +288,6 @@ func ErrSudoMethodUnavailable() *AuthError {
 	return newErr(http.StatusBadRequest, "sudo_method_unavailable", "当前账户未启用所请求的二次验证方式")
 }
 
-// ErrSudoIdentityMismatch is returned by the federation sudo step-up callback
-// when the forced re-auth resolved to a different upstream subject than the
-// one linked to the current account. The re-auth proved control of SOME
-// upstream account, but not the one bound to this session — granting sudo
-// would let an attacker who controls a different upstream identity elevate.
-func ErrSudoIdentityMismatch() *AuthError {
-	return newErr(http.StatusUnauthorized, "sudo_identity_mismatch", "重新验证的身份与当前账户不匹配")
-}
-
-// ErrSudoReauthStale is returned by the federation sudo step-up callback when
-// the upstream did not return a fresh auth_time (zero, or older than the
-// step-up window). The OP may have ignored prompt=login / max_age=0 and
-// silently reused a stale session — fail closed rather than grant sudo on an
-// unproven re-auth.
-func ErrSudoReauthStale() *AuthError {
-	return newErr(http.StatusUnauthorized, "sudo_reauth_stale", "上游未确认本次重新验证，请重试")
-}
-
 func ErrSessionNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "session_not_found", "会话不存在或已过期")
 }
