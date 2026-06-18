@@ -1,0 +1,75 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-19-cn-i18n.md",
+  "tasks": [
+    {
+      "id": 20,
+      "subject": "Task 1: Normalize en.ts",
+      "status": "pending",
+      "description": "**Goal:** Make English copy internally consistent (no wording changes) before translating.\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/en.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/locales/en.compile.test.ts && rg -n '[curly]' src/locales/en.ts\",\"acceptanceCriteria\":[\"no curly quotes\",\"ellipsis + plural fixed\",\"no wording changes, @ escape intact\"]}\n```"
+    },
+    {
+      "id": 21,
+      "subject": "Task 2: Scaffold zh.ts + register + dual-locale compile & parity guards",
+      "status": "pending",
+      "blockedBy": [20],
+      "description": "**Goal:** Key-complete zh.ts (English-valued placeholder), registered, with compile guard + key-parity guard over both locales.\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/zh.ts\",\"dashboard/src/i18n.ts\",\"dashboard/src/locales/locales.compile.test.ts\",\"dashboard/src/locales/locales.parity.test.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/locales/ && npx vue-tsc -b\",\"acceptanceCriteria\":[\"zh scaffold = en copy\",\"i18n registers en+zh\",\"compile guard both locales\",\"parity test\"]}\n```"
+    },
+    {
+      "id": 22,
+      "subject": "Task 3: useLocale composable + App.vue init",
+      "status": "pending",
+      "blockedBy": [21],
+      "description": "**Goal:** Persist locale to localStorage + detect navigator.language on first load; apply app-wide.\n\n```json:metadata\n{\"files\":[\"dashboard/src/composables/useLocale.ts\",\"dashboard/src/composables/useLocale.test.ts\",\"dashboard/src/App.vue\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/composables/useLocale.test.ts && npx vitest run\",\"acceptanceCriteria\":[\"stored wins, else detect zh/en\",\"persists on change\",\"ignores unregistered\",\"App.vue init\"]}\n```"
+    },
+    {
+      "id": 23,
+      "subject": "Task 4: Translate zh — chrome/shared namespaces",
+      "status": "pending",
+      "blockedBy": [21],
+      "description": "**Goal:** Translate common, scopeSelector, nav, accountMenu, theme, userAgent, confirm (full translations provided in the plan as the style exemplar).\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/locales/ && npx vue-tsc -b\",\"acceptanceCriteria\":[\"chrome namespaces Chinese\",\"params preserved\",\"compile+parity green\"]}\n```"
+    },
+    {
+      "id": 24,
+      "subject": "Task 5: Translate zh — account self-service namespaces",
+      "status": "pending",
+      "blockedBy": [23],
+      "description": "**Goal:** Translate sessions, connected, devices, pair, security (+nested) per Style Guide & Glossary.\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/locales/ && npx vue-tsc -b\",\"acceptanceCriteria\":[\"self-service namespaces Chinese\",\"glossary terms applied\",\"params preserved\"]}\n```"
+    },
+    {
+      "id": 25,
+      "subject": "Task 6: Translate zh — auth/threshold namespaces",
+      "status": "pending",
+      "blockedBy": [24],
+      "description": "**Goal:** Translate login, recovery, consent, logout, error, enroll, welcome, recoveryCodes, sudo (+nested).\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/locales/ && npx vue-tsc -b\",\"acceptanceCriteria\":[\"auth namespaces Chinese\",\"CLI cmd verbatim\",\"params preserved\"]}\n```"
+    },
+    {
+      "id": 26,
+      "subject": "Task 7: Translate zh — errors map",
+      "status": "pending",
+      "blockedBy": [25],
+      "description": "**Goal:** Translate the errors.* code→message map (what happened + what to do, no jargon/blame).\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/locales/ && npx vue-tsc -b\",\"acceptanceCriteria\":[\"errors map Chinese\",\"CLI cmd verbatim\",\"calm actionable tone\"]}\n```"
+    },
+    {
+      "id": 27,
+      "subject": "Task 8: Translate zh — admin directory namespaces",
+      "status": "pending",
+      "blockedBy": [26],
+      "description": "**Goal:** Translate admin.nav, accounts, account (+nested sessions), invitations, groups, access.\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/locales/ && npx vue-tsc -b\",\"acceptanceCriteria\":[\"admin directory Chinese\",\"emailPlaceholder @ escape intact\",\"params preserved\"]}\n```"
+    },
+    {
+      "id": 28,
+      "subject": "Task 9: Translate zh — admin protocol namespaces",
+      "status": "pending",
+      "blockedBy": [27],
+      "description": "**Goal:** Translate admin.oidc, saml, upstream (+scopeSuggestions), signingKeys, audit. Keep protocol identifiers English.\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npx vitest run src/locales/ && npx vue-tsc -b\",\"acceptanceCriteria\":[\"admin protocol prose Chinese\",\"protocol terms English\",\"attributeMapHint escapes/JSON intact\"]}\n```"
+    },
+    {
+      "id": 29,
+      "subject": "Task 10: Consistency pass + done-gate",
+      "status": "pending",
+      "blockedBy": [22, 28],
+      "description": "**Goal:** Whole-file zh consistency sweep, refresh deferral comments, full gate, rebuild+commit dist.\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/zh.ts\",\"dashboard/src/locales/en.ts\",\"dashboard/src/i18n.ts\",\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npx vitest run && npx vue-tsc -b && npm run build && cd .. && go build -tags nodynamic ./... && go vet ./...\",\"acceptanceCriteria\":[\"glossary/param consistency\",\"deferral comments dropped\",\"full gate green\",\"dist rebuilt\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-19T06:00:00Z"
+}
