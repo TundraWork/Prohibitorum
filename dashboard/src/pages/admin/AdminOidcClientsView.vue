@@ -114,10 +114,10 @@ onMounted(load)
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
-    <p v-if="created && !revealedSecret" class="text-sm text-sage" role="status">{{ t('admin.oidc.created') }}</p>
+    <p v-if="created && !revealedSecret" class="text-sm text-sage-700" role="status">{{ t('admin.oidc.created') }}</p>
 
     <template v-if="created && revealedSecret">
-      <p class="text-sm text-sage" role="status">{{ t('admin.oidc.secretReveal') }}</p>
+      <p class="text-sm text-sage-700" role="status">{{ t('admin.oidc.secretReveal') }}</p>
       <CodeField :value="revealedSecret" />
     </template>
 

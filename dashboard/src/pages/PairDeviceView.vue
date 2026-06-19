@@ -146,7 +146,7 @@ onUnmounted(() => { mounted = false; stopTimer() })
       </template>
 
       <template v-else>
-        <p class="text-center text-sm text-sage" role="status">{{ t('pair.success') }}</p>
+        <p class="text-center text-sm text-sage-700" role="status">{{ t('pair.success') }}</p>
         <div class="flex flex-col gap-2">
           <Button type="button" class="w-full" :disabled="busy" data-test="add-passkey" @click="addPasskey">
             {{ t('pair.addPasskey') }}

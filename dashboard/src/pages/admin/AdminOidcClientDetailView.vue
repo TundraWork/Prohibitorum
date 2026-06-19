@@ -176,7 +176,7 @@ onMounted(load)
           </SettingRow>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.oidc.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.oidc.saved') }}</span>
+            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.oidc.saved') }}</span>
           </div>
         </CardContent>
       </Card>
@@ -206,7 +206,7 @@ onMounted(load)
             <template v-if="client.tokenEndpointAuthMethod !== 'none'">
               <p class="text-xs text-muted">{{ t('admin.oidc.rotateConfirmBody') }}</p>
               <template v-if="rotatedSecret">
-                <p class="text-sm text-sage" role="status">{{ t('admin.oidc.secretReveal') }}</p>
+                <p class="text-sm text-sage-700" role="status">{{ t('admin.oidc.secretReveal') }}</p>
                 <CodeField :value="rotatedSecret" />
               </template>
               <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="rotate" @click="confirmRotate = true">{{ t('admin.oidc.rotate') }}</Button>

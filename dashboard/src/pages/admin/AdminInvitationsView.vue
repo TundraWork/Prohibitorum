@@ -84,7 +84,7 @@ onMounted(load)
       <Button type="button" data-test="create" @click="createOpen = true">{{ t('admin.invitations.create') }}</Button>
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
-    <p v-if="created" class="text-sm text-sage" role="status">{{ t('admin.invitations.created') }}</p>
+    <p v-if="created" class="text-sm text-sage-700" role="status">{{ t('admin.invitations.created') }}</p>
 
     <Card v-if="createOpen">
       <CardHeader><CardTitle>{{ t('admin.invitations.createTitle') }}</CardTitle></CardHeader>

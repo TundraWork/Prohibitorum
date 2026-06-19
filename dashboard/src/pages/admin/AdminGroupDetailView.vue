@@ -196,7 +196,7 @@ onMounted(async () => {
           </SettingRow>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.groups.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.groups.saved') }}</span>
+            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.groups.saved') }}</span>
           </div>
         </CardContent>
       </Card>

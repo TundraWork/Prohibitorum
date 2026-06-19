@@ -169,7 +169,7 @@ onMounted(load)
           </FormSection>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.upstream.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.upstream.saved') }}</span>
+            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.upstream.saved') }}</span>
           </div>
         </CardContent>
       </Card>
@@ -199,7 +199,7 @@ onMounted(load)
               <Label for="newSecret">{{ t('admin.upstream.clientSecret') }}</Label>
               <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
             </div>
-            <span v-if="rotated" class="text-sm text-sage" role="status">{{ t('admin.upstream.rotated') }}</span>
+            <span v-if="rotated" class="text-sm text-sage-700" role="status">{{ t('admin.upstream.rotated') }}</span>
             <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ t('admin.upstream.rotateConfirm') }}</Button>
           </div>
 

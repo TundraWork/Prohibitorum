@@ -21,7 +21,10 @@
   --color-tide-800: oklch(0.33 0.105 205);
   --color-tide-900: oklch(0.26 0.075 205);
   --color-tide-950: oklch(0.20 0.052 205);
-  /* Back-compat aliases (existing utilities text-tide / bg-tide-strong etc.) */
+  /* In-use chromatic aliases. These carry fills/icons/brand-marks (bg-tide/*,
+     text-tide, text-tide-strong, bg-ember/*, text-ember) and ARE overridden in
+     .dark below. State text aliases (sage/amber/rose) were removed: status text
+     uses the AA-rated -700 tokens by name (DESIGN.md -500/-700 rule). */
   --color-tide:        oklch(0.55 0.118 205);
   --color-tide-strong: oklch(0.47 0.130 205);
 
@@ -35,21 +38,18 @@
   --color-sage-500: oklch(0.62 0.130 150);
   --color-sage-600: oklch(0.52 0.120 150);
   --color-sage-700: oklch(0.45 0.105 150);
-  --color-sage:     oklch(0.62 0.130 150);   /* back-compat alias */
 
   --color-amber-50:  oklch(0.96 0.045 80);
   --color-amber-100: oklch(0.92 0.075 80);
   --color-amber-500: oklch(0.76 0.140 75);
   --color-amber-600: oklch(0.62 0.110 70);
   --color-amber-700: oklch(0.50 0.090 65);
-  --color-amber:     oklch(0.76 0.140 75);   /* back-compat alias */
 
   --color-rose-50:  oklch(0.95 0.035 20);
   --color-rose-100: oklch(0.90 0.060 20);
   --color-rose-500: oklch(0.58 0.180 22);
   --color-rose-600: oklch(0.51 0.175 22);    /* destructive fill (white label, AA) */
   --color-rose-700: oklch(0.46 0.165 22);
-  --color-rose:     oklch(0.58 0.180 22);    /* back-compat alias */
 
   /* --- Info (teal-family, distinct from the tide-50 selection wash) --- */
   --color-info:            oklch(0.95 0.030 205);   /* callout bg */
@@ -190,6 +190,13 @@
   --color-sunken:          oklch(0.145 0.011 240);
   --color-border:          oklch(0.300 0.012 240);
   --color-border-strong:   oklch(0.370 0.012 240);
+
+  /* In-use chromatic aliases lightened for dark surfaces (icon/fill/brand-mark
+     tones). The light values stay tuned for white; on the dark canvas they must
+     lift to read. State text aliases were removed (status text uses -700). */
+  --color-tide:        oklch(0.72 0.120 200);   /* = --primary dark; bg-tide/* wash + text-tide icons */
+  --color-tide-strong: oklch(0.80 0.090 205);   /* SudoModal lock glyph over the tide wash */
+  --color-ember:       oklch(0.78 0.130 45);    /* brand mark on dark */
 
   /* State + info: lightened text tones and low-L tint backgrounds for dark. */
   --color-sage-50:  oklch(0.27 0.050 150);

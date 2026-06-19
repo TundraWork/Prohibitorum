@@ -41,6 +41,11 @@ const PAIRS = [
   ['L rose-700 / rose-50',        [0.46, 0.165, 22],  [0.95, 0.035, 20],   4.5],
   ['L info tide-700 / info-bg',   [0.40, 0.128, 205], [0.95, 0.030, 205],  4.5],
   ['L focus tide-500 / canvas',   [0.55, 0.118, 205], [0.985, 0.005, 235], 3.0],
+  // status text + alias icons on their REAL (non-tint) backgrounds — the gap
+  // that let bare text-sage / text-amber ship as low-contrast body text.
+  ['L sage-700 / canvas',         [0.45, 0.105, 150], [0.985, 0.005, 235], 4.5],
+  ['L amber-700 / canvas',        [0.50, 0.090, 65],  [0.985, 0.005, 235], 4.5],
+  ['L tide icon / card',          [0.55, 0.118, 205], [1, 0, 0],           3.0],
   // --- dark ---
   ['D ink / canvas',              [0.95, 0.005, 240], [0.17, 0.012, 240],  4.5],
   ['D muted / canvas',            [0.68, 0.010, 240], [0.17, 0.012, 240],  4.5],
@@ -52,6 +57,13 @@ const PAIRS = [
   ['D amber text / tint',         [0.84, 0.110, 80],  [0.29, 0.050, 70],   4.5],
   ['D rose text / tint',          [0.76, 0.140, 22],  [0.28, 0.070, 20],   4.5],
   ['D info text / tint',          [0.80, 0.090, 205], [0.27, 0.050, 205],  4.5],
+  // status text on the dark CARD (real bg, not the tint) + the lightened in-use
+  // chromatic aliases (icons / brand mark) on dark surfaces.
+  ['D sage-700 / card',           [0.80, 0.100, 150], [0.205, 0.013, 240], 4.5],
+  ['D amber-700 / card',          [0.84, 0.110, 80],  [0.205, 0.013, 240], 4.5],
+  ['D tide icon / card',          [0.72, 0.120, 200], [0.205, 0.013, 240], 3.0],
+  ['D tide-strong icon / card',   [0.80, 0.090, 205], [0.205, 0.013, 240], 3.0],
+  ['D ember mark / card',         [0.78, 0.130, 45],  [0.205, 0.013, 240], 3.0],
   ['D focus / card',              [0.72, 0.110, 205], [0.205, 0.013, 240], 3.0],
 ]
 

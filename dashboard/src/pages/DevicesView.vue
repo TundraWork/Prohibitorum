@@ -71,7 +71,7 @@ async function cancel(): Promise<void> {
       <AlertDescription>{{ errorText }}</AlertDescription>
     </Alert>
 
-    <p v-if="approved" class="text-sm text-sage" role="status">{{ t('devices.approved') }}</p>
+    <p v-if="approved" class="text-sm text-sage-700" role="status">{{ t('devices.approved') }}</p>
 
     <!-- Entry -->
     <Card v-if="!found">
@@ -104,7 +104,7 @@ async function cancel(): Promise<void> {
           <span v-if="found.createdAt" class="truncate text-muted">{{ t('devices.started') }}: {{ relativeTime(found.createdAt) }}</span>
           <span v-if="found.expiresAt" class="truncate text-muted">{{ t('devices.expires') }}: {{ formatDateTime(found.expiresAt) }}</span>
         </div>
-        <p v-if="found.alreadyBound" class="text-sm text-sage" role="status">{{ t('devices.alreadyBound') }}</p>
+        <p v-if="found.alreadyBound" class="text-sm text-sage-700" role="status">{{ t('devices.alreadyBound') }}</p>
         <div class="flex gap-2">
           <Button v-if="!found.alreadyBound" type="button" :disabled="busy" data-test="approve" @click="approve">
             {{ t('devices.approve') }}

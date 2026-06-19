@@ -66,7 +66,7 @@ async function submit(): Promise<void> {
         <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ errorText }}</AlertDescription>
         </Alert>
-        <p v-if="done" class="text-sm text-sage" role="status">{{ t('security.password.saved') }}</p>
+        <p v-if="done" class="text-sm text-sage-700" role="status">{{ t('security.password.saved') }}</p>
         <Button type="submit" :disabled="busy">{{ t('security.password.submit') }}</Button>
       </form>
     </CardContent>

@@ -203,7 +203,7 @@ onMounted(load)
           </div>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.saml.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.saml.saved') }}</span>
+            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.saml.saved') }}</span>
           </div>
         </CardContent>
       </Card>
@@ -240,7 +240,7 @@ onMounted(load)
           <Textarea id="reingestXml" name="reingestXml" v-model="reingestXml" :placeholder="t('admin.saml.metadataHint')" />
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy || !reingestXml" data-test="reingest" @click="reingest">{{ t('admin.saml.reingest') }}</Button>
-            <span v-if="reingestDone" class="text-sm text-sage" role="status">{{ t('admin.saml.reingestDone') }}</span>
+            <span v-if="reingestDone" class="text-sm text-sage-700" role="status">{{ t('admin.saml.reingestDone') }}</span>
           </div>
         </CardContent>
       </Card>

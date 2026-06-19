@@ -308,7 +308,7 @@ onMounted(async () => {
           </div>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.account.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.account.saved') }}</span>
+            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.account.saved') }}</span>
           </div>
         </CardContent>
       </Card>
@@ -353,7 +353,7 @@ onMounted(async () => {
               </TableRow>
             </TableBody>
           </Table>
-          <p v-if="revokedCount !== null" class="text-sm text-sage" role="status">{{ t('admin.account.sessionsRevoked', { count: revokedCount }) }}</p>
+          <p v-if="revokedCount !== null" class="text-sm text-sage-700" role="status">{{ t('admin.account.sessionsRevoked', { count: revokedCount }) }}</p>
           <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="revoke-all" @click="confirmRevokeAll = true">{{ t('admin.account.revokeAllSessions') }}</Button>
         </CardContent>
       </Card>
@@ -421,7 +421,7 @@ onMounted(async () => {
               </StatusBadge>
             </div>
             <p class="text-xs text-muted">{{ t('admin.account.disabledDesc') }}</p>
-            <p v-if="isPersistedAdmin && !disabled" class="text-xs text-amber" data-test="disable-admin-hint">{{ t('admin.account.disableAdminHint') }}</p>
+            <p v-if="isPersistedAdmin && !disabled" class="text-xs text-amber-700" data-test="disable-admin-hint">{{ t('admin.account.disableAdminHint') }}</p>
             <Button type="button" variant="outline" class="w-fit" :disabled="busy || (isPersistedAdmin && !disabled)" data-test="disable-toggle" @click="toggleDisabled">
               {{ disabled ? t('admin.account.enable') : t('admin.account.disable') }}
             </Button>

@@ -92,7 +92,7 @@ onMounted(load)
     </div>
     <p class="text-sm text-muted">{{ t('admin.upstream.poweredNote') }}</p>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
-    <p v-if="created" class="text-sm text-sage" role="status">{{ t('admin.upstream.created') }}</p>
+    <p v-if="created" class="text-sm text-sage-700" role="status">{{ t('admin.upstream.created') }}</p>
 
     <Card v-if="createOpen">
       <CardHeader><CardTitle>{{ t('admin.upstream.createTitle') }}</CardTitle></CardHeader>

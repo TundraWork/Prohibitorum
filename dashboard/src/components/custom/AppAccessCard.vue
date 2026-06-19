@@ -215,7 +215,7 @@ onMounted(async () => {
           />
         </SettingRow>
 
-        <span v-if="saved" class="text-sm text-sage" role="status">{{ t('admin.access.saved') }}</span>
+        <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.access.saved') }}</span>
 
         <p v-if="!accessRestricted" class="text-sm text-muted" data-test="access-inactive-hint">
           {{ t('admin.access.inactiveHint') }}

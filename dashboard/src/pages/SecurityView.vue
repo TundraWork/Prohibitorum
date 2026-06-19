@@ -74,7 +74,7 @@ async function revoke(): Promise<void> {
         <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ errorText }}</AlertDescription>
         </Alert>
-        <p v-if="done" class="text-sm text-sage" role="status">{{ t('security.revoke.done') }}</p>
+        <p v-if="done" class="text-sm text-sage-700" role="status">{{ t('security.revoke.done') }}</p>
         <Button type="button" variant="destructive" class="w-fit" :disabled="busy" @click="confirmOpen = true">
           {{ t('security.revoke.button') }}
         </Button>
