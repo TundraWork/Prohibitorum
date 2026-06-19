@@ -203,7 +203,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
                 'flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition-colors',
                 activeSource === key
                   ? 'border-primary bg-primary/10 font-semibold'
-                  : 'border-border hover:bg-muted/50',
+                  : 'border-border hover:bg-accent',
                 busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
                 pendingSource === key ? 'ring-2 ring-primary/40' : '',
               ]"
@@ -223,7 +223,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
                 'flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition-colors',
                 activeSource === 'none'
                   ? 'border-primary bg-primary/10 font-semibold'
-                  : 'border-border hover:bg-muted/50',
+                  : 'border-border hover:bg-accent',
                 busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
                 pendingSource === 'none' ? 'ring-2 ring-primary/40' : '',
               ]"

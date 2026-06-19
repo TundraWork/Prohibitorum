@@ -16,7 +16,6 @@
   "dependencies": {
     "@fontsource-variable/hanken-grotesk": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.2.7",
-    "@lucide/vue": "^1.17.0",
     "@simplewebauthn/browser": "^13",
     "@vueuse/core": "^11.3.0",
     "class-variance-authority": "^0.7",

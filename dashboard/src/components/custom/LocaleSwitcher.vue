@@ -27,8 +27,8 @@ const options = computed(() =>
 
 <template>
   <label
-    class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface/90 px-2 py-1
-           text-sm text-ink shadow-sm backdrop-blur-sm
+    class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1
+           text-sm text-ink shadow-sm
            focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0"
   >
     <Languages class="size-4 text-muted" aria-hidden="true" />
