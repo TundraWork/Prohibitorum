@@ -6,6 +6,7 @@
  */
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -84,7 +85,7 @@ onMounted(load)
       <Button type="button" data-test="create" @click="createOpen = true">{{ t('admin.invitations.create') }}</Button>
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
-    <p v-if="created" class="text-sm text-sage-700" role="status">{{ t('admin.invitations.created') }}</p>
+    <StatusMessage :show="created">{{ t('admin.invitations.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
       <CardHeader><CardTitle>{{ t('admin.invitations.createTitle') }}</CardTitle></CardHeader>

@@ -7,6 +7,7 @@
  */
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
@@ -71,7 +72,7 @@ async function cancel(): Promise<void> {
       <AlertDescription>{{ errorText }}</AlertDescription>
     </Alert>
 
-    <p v-if="approved" class="text-sm text-sage-700" role="status">{{ t('devices.approved') }}</p>
+    <StatusMessage :show="approved">{{ t('devices.approved') }}</StatusMessage>
 
     <!-- Entry -->
     <Card v-if="!found">
@@ -104,7 +105,7 @@ async function cancel(): Promise<void> {
           <span v-if="found.createdAt" class="truncate text-muted">{{ t('devices.started') }}: {{ relativeTime(found.createdAt) }}</span>
           <span v-if="found.expiresAt" class="truncate text-muted">{{ t('devices.expires') }}: {{ formatDateTime(found.expiresAt) }}</span>
         </div>
-        <p v-if="found.alreadyBound" class="text-sm text-sage-700" role="status">{{ t('devices.alreadyBound') }}</p>
+        <StatusMessage :show="found.alreadyBound">{{ t('devices.alreadyBound') }}</StatusMessage>
         <div class="flex gap-2">
           <Button v-if="!found.alreadyBound" type="button" :disabled="busy" data-test="approve" @click="approve">
             {{ t('devices.approve') }}

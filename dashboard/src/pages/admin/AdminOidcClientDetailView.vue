@@ -6,6 +6,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -177,7 +178,7 @@ onMounted(load)
           </SettingRow>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.oidc.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.oidc.saved') }}</span>
+            <StatusMessage :show="saved">{{ t('admin.oidc.saved') }}</StatusMessage>
           </div>
         </CardContent>
       </Card>

@@ -2,6 +2,7 @@
 /** AdminUpstreamIdpDetailView (/admin/identity-providers/:slug) — edit, rotate secret, delete. */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -170,7 +171,7 @@ onMounted(load)
           </FormSection>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.upstream.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.upstream.saved') }}</span>
+            <StatusMessage :show="saved">{{ t('admin.upstream.saved') }}</StatusMessage>
           </div>
         </CardContent>
       </Card>
@@ -200,7 +201,7 @@ onMounted(load)
               <Label for="newSecret">{{ t('admin.upstream.clientSecret') }}</Label>
               <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
             </div>
-            <span v-if="rotated" class="text-sm text-sage-700" role="status">{{ t('admin.upstream.rotated') }}</span>
+            <StatusMessage :show="rotated">{{ t('admin.upstream.rotated') }}</StatusMessage>
             <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ t('admin.upstream.rotateConfirm') }}</Button>
           </div>
 

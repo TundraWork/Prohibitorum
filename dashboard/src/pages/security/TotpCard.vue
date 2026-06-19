@@ -15,6 +15,7 @@
  */
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
@@ -87,7 +88,7 @@ function cancelSetup(): void {
       <RecoveryCodesDisplay v-if="recovery.length" :codes="recovery" @confirmed="recovery = []" />
 
       <template v-else-if="!secret">
-        <p v-if="enabled" class="text-sm text-sage-700" role="status">{{ t('security.totp.enabled') }}</p>
+        <StatusMessage :show="enabled">{{ t('security.totp.enabled') }}</StatusMessage>
         <Button type="button" class="w-fit" :disabled="busy" @click="setup">{{ t('security.totp.setup') }}</Button>
       </template>
 

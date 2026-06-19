@@ -10,6 +10,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -309,7 +310,7 @@ onMounted(async () => {
           </div>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.account.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.account.saved') }}</span>
+            <StatusMessage :show="saved">{{ t('admin.account.saved') }}</StatusMessage>
           </div>
         </CardContent>
       </Card>
@@ -354,7 +355,7 @@ onMounted(async () => {
               </TableRow>
             </TableBody>
           </Table>
-          <p v-if="revokedCount !== null" class="text-sm text-sage-700" role="status">{{ t('admin.account.sessionsRevoked', { count: revokedCount }) }}</p>
+          <StatusMessage :show="revokedCount !== null">{{ t('admin.account.sessionsRevoked', { count: revokedCount }) }}</StatusMessage>
           <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="revoke-all" @click="confirmRevokeAll = true">{{ t('admin.account.revokeAllSessions') }}</Button>
         </CardContent>
       </Card>

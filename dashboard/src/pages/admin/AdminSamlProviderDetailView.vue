@@ -6,6 +6,7 @@
  */
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -204,7 +205,7 @@ onMounted(load)
           </div>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.saml.save') }}</Button>
-            <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.saml.saved') }}</span>
+            <StatusMessage :show="saved">{{ t('admin.saml.saved') }}</StatusMessage>
           </div>
         </CardContent>
       </Card>
@@ -241,7 +242,7 @@ onMounted(load)
           <Textarea id="reingestXml" name="reingestXml" v-model="reingestXml" :placeholder="t('admin.saml.metadataHint')" />
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy || !reingestXml" data-test="reingest" @click="reingest">{{ t('admin.saml.reingest') }}</Button>
-            <span v-if="reingestDone" class="text-sm text-sage-700" role="status">{{ t('admin.saml.reingestDone') }}</span>
+            <StatusMessage :show="reingestDone">{{ t('admin.saml.reingestDone') }}</StatusMessage>
           </div>
         </CardContent>
       </Card>

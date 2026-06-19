@@ -263,10 +263,20 @@ onMounted(reload)
       </TableHeader>
       <TableBody>
         <template v-for="e in rows" :key="e.id">
-          <TableRow class="cursor-pointer" tabindex="0" :data-test="`expand-${e.id}`"
-                    role="button" :aria-expanded="!!expanded[e.id]" :aria-label="t('admin.audit.expand')"
-                    @click="toggle(e.id)" @keydown.enter="toggle(e.id)" @keydown.space.prevent="toggle(e.id)">
-            <TableCell class="text-sm text-muted">{{ formatDateTime(e.at) }}</TableCell>
+          <!-- Row click is a mouse convenience; the real disclosure control is the
+               button in the first cell (a <tr> can't carry role=button without losing
+               its row semantics). -->
+          <TableRow class="cursor-pointer" @click="toggle(e.id)">
+            <TableCell class="text-sm text-muted">
+              <button
+                type="button"
+                :data-test="`expand-${e.id}`"
+                :aria-expanded="!!expanded[e.id]"
+                :aria-label="t('admin.audit.expand')"
+                class="flex items-center gap-1 text-left rounded-sm cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                @click.stop="toggle(e.id)"
+              >{{ formatDateTime(e.at) }}</button>
+            </TableCell>
             <TableCell class="text-sm text-ink">{{ e.factor }}</TableCell>
             <TableCell class="text-sm text-ink">{{ e.event }}</TableCell>
             <TableCell class="text-sm text-muted">{{ e.accountId ?? '—' }}</TableCell>

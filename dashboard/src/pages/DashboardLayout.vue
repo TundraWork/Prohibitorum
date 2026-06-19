@@ -5,7 +5,7 @@
  * routed page. SudoModal is mounted ONCE here so any page's withSudo() can
  * drive it.
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -44,6 +44,13 @@ const pageTitle = computed(() => {
   const key = ROUTE_TITLE_KEYS[name]
   return key ? t(key) : ''
 })
+
+// Move focus to the page content on client-side navigation so keyboard and
+// screen-reader users land at the new content rather than a stale control
+// (WCAG 2.4.3). The watch is lazy, so it does not fire — or steal focus — on
+// the initial load, only on subsequent route changes.
+const contentRef = ref<HTMLElement | null>(null)
+watch(() => route.path, () => { contentRef.value?.focus() })
 </script>
 
 <template>
@@ -52,10 +59,11 @@ const pageTitle = computed(() => {
     <SidebarInset>
       <header class="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-border bg-background px-4">
         <SidebarTrigger />
-        <h1 v-if="pageTitle" class="text-sm font-medium text-ink">{{ pageTitle }}</h1>
+        <!-- Orientation label, not a heading: each routed page renders its own <h1>. -->
+        <p v-if="pageTitle" class="text-sm font-medium text-ink">{{ pageTitle }}</p>
       </header>
       <!-- SidebarInset already renders the page's <main> landmark; this is a plain content wrapper. -->
-      <div class="flex-1 p-6 sm:p-8">
+      <div ref="contentRef" tabindex="-1" class="flex-1 p-6 sm:p-8 outline-none">
         <RouterView />
       </div>
     </SidebarInset>

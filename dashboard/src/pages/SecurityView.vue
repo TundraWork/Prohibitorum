@@ -2,6 +2,7 @@
 /** SecurityView (/security) — stacks the factor cards + the coarse revoke action. */
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -74,7 +75,7 @@ async function revoke(): Promise<void> {
         <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ errorText }}</AlertDescription>
         </Alert>
-        <p v-if="done" class="text-sm text-sage-700" role="status">{{ t('security.revoke.done') }}</p>
+        <StatusMessage :show="done">{{ t('security.revoke.done') }}</StatusMessage>
         <Button type="button" variant="destructive" class="w-fit" :disabled="busy" @click="confirmOpen = true">
           {{ t('security.revoke.button') }}
         </Button>

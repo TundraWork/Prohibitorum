@@ -2,6 +2,7 @@
 /** AdminGroupsView (/admin/groups) — table of groups; inline create; row → detail. */
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -100,7 +101,7 @@ onMounted(load)
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.groups.create') }}</Button>
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
-    <p v-if="created" class="text-sm text-sage-700" role="status">{{ t('admin.groups.created') }}</p>
+    <StatusMessage :show="created">{{ t('admin.groups.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
       <CardHeader><CardTitle>{{ t('admin.groups.createTitle') }}</CardTitle></CardHeader>

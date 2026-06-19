@@ -63,7 +63,7 @@ const applicationItems = computed(() => [
       </div>
     </SidebarHeader>
 
-    <SidebarContent>
+    <SidebarContent role="navigation" :aria-label="t('nav.primaryLabel')">
       <SidebarGroup>
         <SidebarGroupLabel>{{ t('nav.account') }}</SidebarGroupLabel>
         <SidebarGroupContent>

@@ -2,6 +2,7 @@
 /** AdminOidcClientsView (/admin/oidc-applications) — table of OIDC clients; inline create with reveal-once secret. */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -114,7 +115,7 @@ onMounted(load)
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
-    <p v-if="created && !revealedSecret" class="text-sm text-sage-700" role="status">{{ t('admin.oidc.created') }}</p>
+    <StatusMessage :show="created && !revealedSecret">{{ t('admin.oidc.created') }}</StatusMessage>
 
     <template v-if="created && revealedSecret">
       <p class="text-sm text-sage-700" role="status">{{ t('admin.oidc.secretReveal') }}</p>

@@ -33,6 +33,7 @@ export default {
   },
 
   nav: {
+    primaryLabel: 'Navigation',
     account: 'Account',
     security: 'Security',
     sessions: 'Sessions',

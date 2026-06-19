@@ -160,6 +160,7 @@ function dedupe(arr: string[]): string[] {
         <input
           v-model="draft"
           data-test="custom-scope-input"
+          :aria-label="t('scopeSelector.customPlaceholder')"
           :placeholder="t('scopeSelector.customPlaceholder')"
           class="h-8 min-w-0 flex-1 rounded-md border border-input bg-sunken px-2 text-sm text-ink outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50"
           @keydown="onDraftKeydown"

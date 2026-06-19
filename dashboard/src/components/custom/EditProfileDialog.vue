@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 // Label is intentionally omitted — section headings use plain <p> elements.
@@ -182,11 +183,10 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
 
         <!-- ── Avatar zone (changes apply immediately) ─────────────────── -->
         <div class="flex flex-col gap-2">
-          <p class="text-sm font-medium text-ink">{{ t('accountMenu.avatarLabel') }}</p>
+          <p id="avatar-picker-label" class="text-sm font-medium text-ink">{{ t('accountMenu.avatarLabel') }}</p>
 
           <!-- Source picker: one card per stored source + always-present None -->
           <div
-            id="avatar-picker-label"
             role="group"
             aria-labelledby="avatar-picker-label"
             class="flex flex-wrap gap-2"
@@ -270,7 +270,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
 
         <!-- ── Display name zone (persists only on Save name) ──────────── -->
         <div class="flex flex-col gap-1.5">
-          <p class="text-sm font-medium text-ink">{{ t('accountMenu.displayNameSection') }}</p>
+          <Label for="edit-displayName" class="text-ink">{{ t('accountMenu.displayNameSection') }}</Label>
           <Input
             id="edit-displayName"
             ref="inputRef"

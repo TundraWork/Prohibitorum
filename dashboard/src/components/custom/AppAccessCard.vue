@@ -19,6 +19,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -215,7 +216,7 @@ onMounted(async () => {
           />
         </SettingRow>
 
-        <span v-if="saved" class="text-sm text-sage-700" role="status">{{ t('admin.access.saved') }}</span>
+        <StatusMessage :show="saved">{{ t('admin.access.saved') }}</StatusMessage>
 
         <p v-if="!accessRestricted" class="text-sm text-muted" data-test="access-inactive-hint">
           {{ t('admin.access.inactiveHint') }}

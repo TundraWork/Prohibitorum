@@ -29,6 +29,7 @@ export default {
   },
 
   nav: {
+    primaryLabel: '导航',
     account: '账户',
     security: '安全',
     sessions: '会话',

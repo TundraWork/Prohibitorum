@@ -2,6 +2,7 @@
 /** PasswordCard — set/replace the password (always sudo-gated server-side). */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -66,7 +67,7 @@ async function submit(): Promise<void> {
         <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ errorText }}</AlertDescription>
         </Alert>
-        <p v-if="done" class="text-sm text-sage-700" role="status">{{ t('security.password.saved') }}</p>
+        <StatusMessage :show="done">{{ t('security.password.saved') }}</StatusMessage>
         <Button type="submit" :disabled="busy">{{ t('security.password.submit') }}</Button>
       </form>
     </CardContent>

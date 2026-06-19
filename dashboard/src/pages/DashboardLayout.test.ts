@@ -51,31 +51,31 @@ function mountLayout(name: string) {
 describe('DashboardLayout — header page title', () => {
   it('shows the Security title for the security route', () => {
     const w = mountLayout('security')
-    expect(w.find('header h1').text()).toBe(en.nav.security)
+    expect(w.find('header p').text()).toBe(en.nav.security)
   })
 
   it('shows the Sessions title for the sessions route', () => {
     const w = mountLayout('sessions')
-    expect(w.find('header h1').text()).toBe(en.nav.sessions)
+    expect(w.find('header p').text()).toBe(en.nav.sessions)
   })
 
   it('shows the Accounts title for admin-accounts route', () => {
     const w = mountLayout('admin-accounts')
-    expect(w.find('header h1').text()).toBe(en.admin.nav.accounts)
+    expect(w.find('header p').text()).toBe(en.admin.nav.accounts)
   })
 
   it('shows the Accounts title for admin-account-detail (falls back to parent section)', () => {
     const w = mountLayout('admin-account-detail')
-    expect(w.find('header h1').text()).toBe(en.admin.nav.accounts)
+    expect(w.find('header p').text()).toBe(en.admin.nav.accounts)
   })
 
   it('shows the Audit log title for admin-audit route', () => {
     const w = mountLayout('admin-audit')
-    expect(w.find('header h1').text()).toBe(en.admin.nav.audit)
+    expect(w.find('header p').text()).toBe(en.admin.nav.audit)
   })
 
   it('renders no h1 for an unmapped route', () => {
     const w = mountLayout('unknown-route')
-    expect(w.find('header h1').exists()).toBe(false)
+    expect(w.find('header p').exists()).toBe(false)
   })
 })
