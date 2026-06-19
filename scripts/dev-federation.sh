@@ -7,13 +7,34 @@
 # docs/superpowers/specs/2026-06-17-dev-federation-harness-design.md
 #
 #   mise run dev:federation            # bring it up (Ctrl-C stops both)
+#   mise run dev:federation -- --fresh # wipe + reseed both DBs first
 #
-# Every run starts from a CLEAN SLATE: both databases are dropped + recreated
-# and a fresh admin enrollment link is issued for each instance.
+# By DEFAULT this is idempotent: a database that already exists and is set up is
+# REUSED as-is — no drop, no reseed — so manual test state (accounts, passkeys,
+# config) survives across runs. Only a missing or un-migrated database is created
+# clean and seeded. Pass --fresh to force the old clean-slate behavior (drop +
+# recreate + reseed + re-enroll both instances). Federation wiring (idempotent)
+# runs every time and re-applies any pending migrations.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+
+# --- 0. args ---------------------------------------------------------------
+FRESH=0
+for arg in "$@"; do
+	case "$arg" in
+	--fresh | --clean) FRESH=1 ;;
+	-h | --help)
+		sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+		exit 0
+		;;
+	*)
+		echo "unknown argument: $arg (try --fresh or --help)" >&2
+		exit 1
+		;;
+	esac
+done
 
 LOCAL_ENV=".dev/dev-federation.env"
 mkdir -p .dev/nginx .dev/logs
@@ -77,16 +98,57 @@ if ! psql -d postgres -tAc 'SELECT 1' >/dev/null 2>&1; then
 	echo "ERROR: Postgres not reachable on localhost:5432 — run 'mise run db:start'." >&2
 	exit 1
 fi
-# Every run starts clean: drop + recreate both databases. WITH (FORCE)
-# terminates any lingering connections (e.g. a backend from a previous run).
+
+# db_is_seeded NAME — true if the database exists AND is migrated (has the
+# `account` table). A bare createdb'd-but-empty DB (e.g. a previous run that
+# crashed mid-setup) reports false so it gets recreated clean rather than reused.
+db_is_seeded() {
+	local name="$1" reg
+	psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$name'" 2>/dev/null | grep -q 1 || return 1
+	reg="$(psql -d "$name" -tAc "SELECT to_regclass('public.account') IS NOT NULL" 2>/dev/null || true)"
+	[ "$(printf '%s' "$reg" | tr -d '[:space:]')" = "t" ]
+}
+
+# db_has_admin NAME — true if an active admin account already exists (mirrors the
+# backend's HasAnyActiveAdmin). Gates enroll-admin so reuse doesn't abort on the
+# "an admin already exists" error.
+db_has_admin() {
+	local name="$1" out
+	out="$(psql -d "$name" -tAc "SELECT EXISTS(SELECT 1 FROM account WHERE role = 'admin' AND NOT disabled)" 2>/dev/null || true)"
+	[ "$(printf '%s' "$out" | tr -d '[:space:]')" = "t" ]
+}
+
+# recreate_db NAME — destructive clean slate. WITH (FORCE) terminates any
+# lingering connections (e.g. a backend from a previous run).
 recreate_db() {
 	local name="$1"
 	psql -d postgres -c "DROP DATABASE IF EXISTS $name WITH (FORCE)" >/dev/null
 	createdb "$name"
 	echo "recreated database $name (clean slate)"
 }
-recreate_db prohibitorum_upstream
-recreate_db prohibitorum_downstream
+
+# ensure_db NAME — idempotent unless --fresh. Sets DB_MODE to fresh|reuse so the
+# caller knows whether to seed + enroll. Reuse preserves all existing data.
+DB_MODE=""
+ensure_db() {
+	local name="$1"
+	if [ "$FRESH" = 1 ]; then
+		recreate_db "$name"
+		DB_MODE=fresh
+		return
+	fi
+	if db_is_seeded "$name"; then
+		echo "reusing existing database $name (data preserved; pass --fresh to wipe)"
+		DB_MODE=reuse
+	else
+		recreate_db "$name"
+		DB_MODE=fresh
+	fi
+}
+ensure_db prohibitorum_upstream
+UP_MODE="$DB_MODE"
+ensure_db prohibitorum_downstream
+DOWN_MODE="$DB_MODE"
 
 # --- 3. build once (matches smoke/release) ---------------------------------
 BIN_DIR="$(mktemp -d)"
@@ -98,14 +160,25 @@ echo "building prohibitorum (-tags nodynamic) ..."
 go build -tags nodynamic -o "$BIN" ./cmd/prohibitorum
 
 # --- 4. per-instance seed + admin enrollment -------------------------------
-# DBs were just recreated, so no admin exists: enroll-admin always issues a
-# fresh bootstrap link. Capture each into the named output var for the banner.
+# Fresh DBs are seeded and get a bootstrap enroll link. Reused DBs keep their
+# data: dev-seed is skipped, and enroll-admin only runs if no admin exists yet
+# (so a reused instance whose admin is already registered isn't disturbed).
+# The enroll URL (when issued) is captured into the named output var for the banner.
 UP_ENROLL_URL=""
 DOWN_ENROLL_URL=""
 setup_instance() {
-	local origin="$1" dburl="$2" label="$3" outvar="$4"
-	echo "==> [$label] dev-seed"
-	PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" dev-seed
+	local origin="$1" dburl="$2" dbname="$3" label="$4" outvar="$5" mode="$6"
+	if [ "$mode" = fresh ]; then
+		echo "==> [$label] dev-seed"
+		PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" dev-seed
+	else
+		echo "==> [$label] reusing existing data — skipping dev-seed"
+	fi
+	if db_has_admin "$dbname"; then
+		echo "==> [$label] admin already enrolled — skipping enroll-admin (re-issue with 'enroll-admin --reset --username NAME', or run with --fresh)"
+		printf -v "$outvar" '%s' ""
+		return
+	fi
 	echo "==> [$label] enroll-admin"
 	local out
 	if out="$(PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" enroll-admin 2>&1)"; then
@@ -113,12 +186,12 @@ setup_instance() {
 		printf -v "$outvar" '%s' "$(printf '%s\n' "$out" | grep -oE 'https?://[^ ]+/enroll/[A-Za-z0-9._-]+' | head -1)"
 	else
 		echo "$out" >&2
-		echo "ERROR: [$label] enroll-admin failed against a freshly recreated DB" >&2
+		echo "ERROR: [$label] enroll-admin failed" >&2
 		exit 1
 	fi
 }
-setup_instance "$UP_ORIGIN" "$UP_DB" upstream UP_ENROLL_URL
-setup_instance "$DOWN_ORIGIN" "$DOWN_DB" downstream DOWN_ENROLL_URL
+setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL "$UP_MODE"
+setup_instance "$DOWN_ORIGIN" "$DOWN_DB" prohibitorum_downstream downstream DOWN_ENROLL_URL "$DOWN_MODE"
 
 # --- 5. wire federation ----------------------------------------------------
 echo "==> wiring federation"
@@ -215,17 +288,24 @@ if curl -sf "$UP_ORIGIN/.well-known/openid-configuration" >/dev/null 2>&1; then
 else
 	NGINX_NOTE="NOTE: $UP_ORIGIN not reachable — install the nginx vhost (command above) + reload"
 fi
+if [ "$UP_MODE" = fresh ] && [ "$DOWN_MODE" = fresh ]; then
+	SLATE_NOTE="clean slate; both DBs recreated"
+elif [ "$UP_MODE" = reuse ] && [ "$DOWN_MODE" = reuse ]; then
+	SLATE_NOTE="reusing existing data on both DBs; pass --fresh to wipe"
+else
+	SLATE_NOTE="upstream=$UP_MODE, downstream=$DOWN_MODE"
+fi
 cat <<EOF
 
 ============================================================
-  prohibitorum dev federation harness is UP (clean slate; both DBs recreated)
+  prohibitorum dev federation harness is UP ($SLATE_NOTE)
   Upstream  (OP): $UP_ORIGIN   (backend 127.0.0.1:$UP_PORT)
   Downstream(RP): $DOWN_ORIGIN (backend 127.0.0.1:$DOWN_PORT)
   $NGINX_NOTE
 
   Admin enrollment — open in a browser to register a passkey:
-    upstream:   ${UP_ENROLL_URL:-<see enroll-admin output above>}
-    downstream: ${DOWN_ENROLL_URL:-<see enroll-admin output above>}
+    upstream:   ${UP_ENROLL_URL:-already enrolled (pass --fresh to reset)}
+    downstream: ${DOWN_ENROLL_URL:-already enrolled (pass --fresh to reset)}
 
   Test: open $DOWN_ORIGIN and click "Upstream".
   Logs: $UP_LOG / $DOWN_LOG   |   Ctrl-C stops both.
