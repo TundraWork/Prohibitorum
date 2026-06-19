@@ -3,7 +3,14 @@
 **Date:** 2026-06-19
 **Source:** `/impeccable audit` (4 parallel read-only audit agents + synthesis)
 **Health score at audit time:** **12/20 — Acceptable (significant work needed)**
-**Status:** documented, NOT fixed. Execute in a fresh session (recommended order below).
+**Status:** **Steps 1–3 (the P1 root causes) DONE — 2026-06-19, commits `5bcc4ee`→`47b79eb`** (colorize source, typeset source, harden source, dist rebuild). Steps 4–6 (responsive/touch-targets, spacing, polish) + a full independent re-audit + the human visual pass in both themes REMAIN. Per-fix gate green throughout: vitest 475/475, vue-tsc 0, `check-contrast` 31/31 (was 23/23 — folded in the missing status-text-on-card/canvas + dark-alias-icon pairs), `npm run build` clean, `go build -tags nodynamic ./...` + `go vet` 0.
+
+**What Steps 1–3 delivered (verified):**
+- **Step 1 (colorize):** migrated 23 status-text sites `text-sage`/`text-amber` → AA `-700` tokens; deleted the now-unused sage/amber/rose aliases (footgun removed); added `.dark` overrides for the 3 in-use aliases (tide/tide-strong/ember); hardened `check-contrast.mjs` with the previously-missing pairs (`sage-700`/`amber-700` on canvas+card, both themes; dark alias icons). The 3.44:1 / 2.5:1 fails are now 6.79:1 / 5.88:1.
+- **Step 2 (typeset):** new `SectionTitle` component (16px/600 title tier); promoted the 11 danger-zone `<h4 text-sm>` sub-headings, the SAML create-form section spans, and `RecoveryCodesDisplay`'s off-scale `<h3 text-sm>` to it; fixed `text-foreground`→`text-ink` drift in `EditProfileDialog`.
+- **Step 3 (harden):** `TableRow` focus-visible outline ring (6 list pages); demoted the redundant header `<h1>`→`<p>` + focus-to-content on navigation; new `StatusMessage` persistent `role=status` live region (19 confirmations migrated); replaced the invalid `role=button` on `<tr>` in AdminAudit with a real `<button>`; `<Label for>` on the display-name input + `aria-label` on the ScopeSelector custom input + fixed the self-referencing `aria-labelledby`; sidebar `<nav aria-label>` landmark (`nav.primaryLabel`, en+zh).
+
+**RESUME POINT:** execute **Steps 4–6** below (adapt → layout → polish), per-fix gate + rebuild dist, then run a full independent `/impeccable audit` to confirm the climb, then `git push` and the human visual + Chinese review. The original execution-order notes follow.
 
 | Dimension | Score | Headline |
 |---|---|---|
