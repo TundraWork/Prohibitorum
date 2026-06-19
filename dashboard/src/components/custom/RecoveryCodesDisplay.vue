@@ -10,6 +10,7 @@ import { Copy, Check, Download } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
+import SectionTitle from '@/components/custom/SectionTitle.vue'
 
 const props = defineProps<{ codes: string[]; regenerated?: boolean }>()
 const emit = defineEmits<{ confirmed: [] }>()
@@ -50,7 +51,7 @@ function download(): void {
 <template>
   <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-1">
-      <h3 class="text-sm font-semibold text-ink">{{ t('recoveryCodes.heading') }}</h3>
+      <SectionTitle>{{ t('recoveryCodes.heading') }}</SectionTitle>
       <p class="text-sm text-muted">{{ t('recoveryCodes.intro') }}</p>
     </div>
 

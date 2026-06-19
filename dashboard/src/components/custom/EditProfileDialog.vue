@@ -182,7 +182,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
 
         <!-- ── Avatar zone (changes apply immediately) ─────────────────── -->
         <div class="flex flex-col gap-2">
-          <p class="text-sm font-medium text-foreground">{{ t('accountMenu.avatarLabel') }}</p>
+          <p class="text-sm font-medium text-ink">{{ t('accountMenu.avatarLabel') }}</p>
 
           <!-- Source picker: one card per stored source + always-present None -->
           <div
@@ -270,7 +270,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
 
         <!-- ── Display name zone (persists only on Save name) ──────────── -->
         <div class="flex flex-col gap-1.5">
-          <p class="text-sm font-medium text-foreground">{{ t('accountMenu.displayNameSection') }}</p>
+          <p class="text-sm font-medium text-ink">{{ t('accountMenu.displayNameSection') }}</p>
           <Input
             id="edit-displayName"
             ref="inputRef"

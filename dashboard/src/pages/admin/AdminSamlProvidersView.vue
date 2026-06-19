@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import SectionTitle from '@/components/custom/SectionTitle.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import SegmentedControl from '@/components/custom/SegmentedControl.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
@@ -201,7 +202,7 @@ onMounted(load)
 
             <!-- ACS rows -->
             <div class="flex flex-col gap-2">
-              <span class="text-sm font-medium text-ink">{{ t('admin.saml.acs') }}</span>
+              <SectionTitle as="h4">{{ t('admin.saml.acs') }}</SectionTitle>
               <RadioGroup :model-value="defaultAcsKey" class="gap-2" @update:model-value="onDefaultChange">
                 <div v-for="(row, i) in acsRows" :key="row.id" class="flex flex-wrap items-end gap-3 rounded-md border p-2">
                   <div class="flex flex-col gap-1">
@@ -231,7 +232,7 @@ onMounted(load)
 
         <!-- Shared flags -->
         <div class="flex flex-col gap-3 border-t pt-3">
-          <span class="text-sm font-medium text-ink">{{ t('admin.saml.securityTitle') }}</span>
+          <SectionTitle as="h4">{{ t('admin.saml.securityTitle') }}</SectionTitle>
           <SettingRow :label="t('admin.saml.requireSignedAuthn')" :description="t('admin.saml.requireSignedAuthnDesc')" for="requireSignedAuthnRequest">
             <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
           </SettingRow>

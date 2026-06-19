@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import SectionTitle from '@/components/custom/SectionTitle.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
@@ -252,7 +253,7 @@ onMounted(async () => {
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.groups.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
-            <h4 class="text-sm font-medium text-ink">{{ t('admin.groups.deleteTitle') }}</h4>
+            <SectionTitle as="h4">{{ t('admin.groups.deleteTitle') }}</SectionTitle>
             <p class="text-xs text-muted">{{ t('admin.groups.deleteHelp') }}</p>
             <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDeleteGroup = true">
               {{ t('admin.groups.delete') }}

@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import SectionTitle from '@/components/custom/SectionTitle.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
@@ -253,7 +254,7 @@ onMounted(load)
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <h4 class="text-sm font-medium text-ink">{{ t('admin.saml.statusLabel') }}</h4>
+              <SectionTitle as="h4">{{ t('admin.saml.statusLabel') }}</SectionTitle>
               <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
                 {{ disabled ? t('admin.saml.disabled') : t('admin.saml.active') }}
               </StatusBadge>
@@ -266,7 +267,7 @@ onMounted(load)
 
           <Separator />
           <div class="flex flex-col gap-2">
-            <h4 class="text-sm font-medium text-ink">{{ t('admin.saml.deleteTitle') }}</h4>
+            <SectionTitle as="h4">{{ t('admin.saml.deleteTitle') }}</SectionTitle>
             <p class="text-xs text-muted">{{ t('admin.saml.deleteHelp') }}</p>
             <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.saml.delete') }}</Button>
           </div>
