@@ -110,7 +110,7 @@ onMounted(load)
 
       <Card>
         <CardHeader><CardTitle>{{ t('admin.upstream.configTitle') }}</CardTitle></CardHeader>
-        <CardContent class="flex flex-col gap-5 py-4">
+        <CardContent class="flex flex-col gap-5">
           <FormSection :title="t('admin.upstream.sectionConnection')">
             <div class="flex flex-col gap-1.5">
               <Label>{{ t('admin.upstream.slug') }}</Label>
