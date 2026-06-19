@@ -170,7 +170,7 @@ onMounted(reload)
         :data-test="`preset-${p.value}`"
         :aria-pressed="preset === p.value"
         :class="[
-          'inline-flex items-center rounded-full px-3 py-1 text-sm font-medium transition-colors outline-none',
+          'inline-flex items-center rounded-full px-3 py-1 text-sm font-medium transition-colors outline-none cursor-pointer',
           'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
           preset === p.value
             ? 'bg-ink text-bg'
@@ -240,7 +240,7 @@ onMounted(reload)
         {{ f.label }}
         <button
           type="button"
-          class="ml-0.5 rounded-full p-0.5 text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          class="ml-0.5 rounded-full p-0.5 cursor-pointer text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           :aria-label="t('admin.audit.clearFilter')"
           :data-test="`filter-pill-${f.key}-clear`"
           @click="f.clear()"

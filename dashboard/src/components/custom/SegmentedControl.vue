@@ -43,7 +43,7 @@ defineEmits<{ (e: 'update:modelValue', value: string): void }>()
       <button
         type="button"
         :class="cn(
-          'inline-flex flex-1 items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap text-muted transition-[color,box-shadow] outline-none',
+          'inline-flex flex-1 items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap text-muted transition-[color,box-shadow] outline-none cursor-pointer',
           'hover:text-ink',
           'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
           'data-[state=checked]:bg-bg data-[state=checked]:text-ink data-[state=checked]:shadow-sm',

@@ -19,4 +19,13 @@ describe('SegmentedControl', () => {
     await w.find('[data-test="segment-admin"]').trigger('click')
     expect(w.emitted('update:modelValue')?.[0]).toEqual(['admin'])
   })
+
+  // Regression: the segments must signal clickability (cursor:hand), matching the
+  // visually-identical TabsTrigger / role/binding toggles. Was missing — caught in review.
+  it('each segment carries cursor-pointer', () => {
+    const w = mount(SegmentedControl, { props: { modelValue: 'user', options: OPTS }, attachTo: document.body })
+    for (const o of OPTS) {
+      expect(w.find(`[data-test="segment-${o.value}"]`).classes()).toContain('cursor-pointer')
+    }
+  })
 })
