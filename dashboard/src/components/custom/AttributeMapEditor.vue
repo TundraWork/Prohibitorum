@@ -93,8 +93,8 @@ function onMultiChange(i: number, checked: boolean | 'indeterminate'): void {
 <template>
   <div class="flex flex-col gap-3" data-test="attr-map-editor">
     <div v-if="rows.length" ref="listEl" class="flex flex-col gap-3">
-      <!-- Column headers -->
-      <div class="grid grid-cols-[1fr_1fr_1fr_3rem_2rem] gap-2 text-xs font-medium text-muted">
+      <!-- Column headers: grid layout only. Below sm each field is labelled inline. -->
+      <div class="hidden grid-cols-[1fr_1fr_1fr_3rem_2rem] gap-2 text-xs font-medium text-muted sm:grid">
         <span>{{ t('admin.saml.attrColName') }}</span>
         <span>{{ t('admin.saml.attrColFormat') }}</span>
         <span>{{ t('admin.saml.attrColSource') }}</span>
@@ -102,14 +102,16 @@ function onMultiChange(i: number, checked: boolean | 'indeterminate'): void {
         <span />
       </div>
 
+      <!-- Below sm: a labelled card per row. From sm: the 5-column grid. -->
       <div
         v-for="(row, i) in rows"
         :key="row._id"
-        class="grid grid-cols-[1fr_1fr_1fr_3rem_2rem] items-start gap-2"
+        class="grid grid-cols-1 gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_1fr_1fr_3rem_2rem] sm:items-start sm:gap-2 sm:rounded-none sm:border-0 sm:p-0"
         :data-test="`attr-row-${i}`"
       >
         <!-- Name -->
         <div class="flex flex-col gap-1">
+          <span class="text-xs font-medium text-muted sm:hidden">{{ t('admin.saml.attrColName') }}</span>
           <Input
             :model-value="row.name"
             :placeholder="t('admin.saml.attrNamePlaceholder')"
@@ -123,16 +125,20 @@ function onMultiChange(i: number, checked: boolean | 'indeterminate'): void {
         </div>
 
         <!-- Name format -->
-        <Input
-          :model-value="row.name_format"
-          :placeholder="t('admin.saml.attrFormatPlaceholder')"
-          :aria-label="t('admin.saml.attrColFormat')"
-          :data-test="`attr-format-${i}`"
-          @update:model-value="(v) => onFormatInput(i, v)"
-        />
+        <div class="flex flex-col gap-1">
+          <span class="text-xs font-medium text-muted sm:hidden">{{ t('admin.saml.attrColFormat') }}</span>
+          <Input
+            :model-value="row.name_format"
+            :placeholder="t('admin.saml.attrFormatPlaceholder')"
+            :aria-label="t('admin.saml.attrColFormat')"
+            :data-test="`attr-format-${i}`"
+            @update:model-value="(v) => onFormatInput(i, v)"
+          />
+        </div>
 
         <!-- Source -->
         <div class="flex flex-col gap-1">
+          <span class="text-xs font-medium text-muted sm:hidden">{{ t('admin.saml.attrColSource') }}</span>
           <Input
             :model-value="row.source"
             :placeholder="t('admin.saml.attrSourcePlaceholder')"
@@ -145,7 +151,7 @@ function onMultiChange(i: number, checked: boolean | 'indeterminate'): void {
         </div>
 
         <!-- Multi checkbox -->
-        <div class="flex justify-center pt-2">
+        <div class="flex items-center gap-2 sm:justify-center sm:pt-2">
           <Checkbox
             :id="`attr-multi-${row._id}`"
             :checked="row.multi"
@@ -153,20 +159,23 @@ function onMultiChange(i: number, checked: boolean | 'indeterminate'): void {
             :data-test="`attr-multi-${i}`"
             @update:checked="(v: boolean | 'indeterminate') => onMultiChange(i, v)"
           />
+          <span class="text-xs text-muted sm:hidden">{{ t('admin.saml.attrColMulti') }}</span>
         </div>
 
         <!-- Remove -->
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          class="mt-0.5 shrink-0 text-muted hover:text-ink"
-          :aria-label="t('common.remove')"
-          :data-test="`attr-remove-${i}`"
-          @click="removeRow(i)"
-        >
-          <X class="size-4" aria-hidden="true" />
-        </Button>
+        <div class="flex justify-end sm:block">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            class="shrink-0 text-muted hover:text-ink sm:mt-0.5"
+            :aria-label="t('common.remove')"
+            :data-test="`attr-remove-${i}`"
+            @click="removeRow(i)"
+          >
+            <X class="size-4" aria-hidden="true" />
+          </Button>
+        </div>
       </div>
     </div>
 

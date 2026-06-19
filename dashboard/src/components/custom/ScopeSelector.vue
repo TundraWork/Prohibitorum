@@ -146,7 +146,7 @@ function dedupe(arr: string[]): string[] {
           <button
             type="button"
             :data-test="`custom-chip-remove-${s}`"
-            class="shrink-0 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+            class="inline-flex size-6 shrink-0 items-center justify-center rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
             :aria-label="t('common.remove') + ': ' + s"
             @click.stop="removeCustom(s)"
           >

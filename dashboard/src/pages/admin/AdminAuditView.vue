@@ -173,7 +173,7 @@ onMounted(reload)
           'inline-flex items-center rounded-full px-3 py-1 text-sm font-medium transition-colors outline-none cursor-pointer',
           'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
           preset === p.value
-            ? 'bg-ink text-bg'
+            ? 'bg-primary text-primary-foreground'
             : 'bg-sunken text-muted hover:text-ink hover:bg-sunken/80',
         ]"
         @click="applyPreset(p.value)"
@@ -240,8 +240,8 @@ onMounted(reload)
         {{ f.label }}
         <button
           type="button"
-          class="ml-0.5 rounded-full p-0.5 cursor-pointer text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          :aria-label="t('admin.audit.clearFilter')"
+          class="ml-0.5 inline-flex size-6 items-center justify-center rounded-full cursor-pointer text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          :aria-label="t('admin.audit.clearFilter') + ': ' + f.label"
           :data-test="`filter-pill-${f.key}-clear`"
           @click="f.clear()"
         >

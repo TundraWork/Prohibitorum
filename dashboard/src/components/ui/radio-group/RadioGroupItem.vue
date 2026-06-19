@@ -16,22 +16,30 @@ const forwarded = useForwardProps(delegatedProps)
 </script>
 
 <template>
+  <!--
+    The Root is a 24px-square hit target (WCAG 2.5.8); the visible 16px circle is an
+    inner element styled off the Root's data-state via group-* variants.
+  -->
   <RadioGroupItem
     data-slot="radio-group-item"
     v-bind="forwarded"
     :class="cn(
-      'border-input text-primary aspect-square size-4 shrink-0 rounded-full border bg-bg shadow-xs transition-shadow outline-none',
-      'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-      'data-[state=checked]:border-primary',
+      'group peer inline-flex size-6 shrink-0 items-center justify-center outline-none',
       'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50',
       props.class,
     )"
   >
-    <RadioGroupIndicator
-      data-slot="radio-group-indicator"
-      class="relative flex items-center justify-center"
+    <span
+      class="flex aspect-square size-4 items-center justify-center rounded-full border border-input bg-bg text-primary shadow-xs transition-shadow
+        group-focus-visible:border-ring group-focus-visible:ring-ring/50 group-focus-visible:ring-[3px]
+        group-data-[state=checked]:border-primary"
     >
-      <Circle class="size-2 fill-primary text-primary" />
-    </RadioGroupIndicator>
+      <RadioGroupIndicator
+        data-slot="radio-group-indicator"
+        class="relative flex items-center justify-center"
+      >
+        <Circle class="size-2 fill-primary text-primary" />
+      </RadioGroupIndicator>
+    </span>
   </RadioGroupItem>
 </template>
