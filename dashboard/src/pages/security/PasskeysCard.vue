@@ -16,6 +16,7 @@ import { withSudo } from '@/lib/sudo'
 import { relativeTime } from '@/lib/time'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import EmptyState from '@/components/custom/EmptyState.vue'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
@@ -114,7 +115,7 @@ onMounted(load)
         <AlertDescription>{{ errorText }}</AlertDescription>
       </Alert>
 
-      <p v-if="loaded && rows.length === 0 && !errorText" class="text-sm text-muted">{{ t('security.passkeys.empty') }}</p>
+      <EmptyState v-if="loaded && rows.length === 0 && !errorText" :title="t('security.passkeys.empty')" />
 
       <div v-for="c in rows" :key="c.id" class="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
         <div class="flex min-w-0 flex-col gap-1">

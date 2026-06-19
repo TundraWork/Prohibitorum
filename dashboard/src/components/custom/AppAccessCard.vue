@@ -331,7 +331,7 @@ onMounted(async () => {
           >
             <div class="flex min-w-0 flex-col">
               <span class="truncate font-medium text-ink">{{ a.displayName }}</span>
-              <span class="truncate text-xs text-muted">{{ a.username }}</span>
+              <span class="truncate font-mono text-xs text-muted">{{ a.username }}</span>
             </div>
             <Button
               type="button"
