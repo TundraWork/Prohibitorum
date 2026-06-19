@@ -214,7 +214,7 @@ onMounted(async () => {
           <!-- Add member row -->
           <div class="flex items-center gap-2">
             <Select v-model="selectedAccountId" data-test="member-select">
-              <SelectTrigger class="flex-1">
+              <SelectTrigger class="flex-1" :aria-label="t('admin.groups.addMemberPlaceholder')">
                 <SelectValue :placeholder="t('admin.groups.addMemberPlaceholder')" />
               </SelectTrigger>
               <SelectContent>
@@ -254,7 +254,7 @@ onMounted(async () => {
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.groups.dangerTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
-            <SectionTitle as="h4">{{ t('admin.groups.deleteTitle') }}</SectionTitle>
+            <SectionTitle as="h3">{{ t('admin.groups.deleteTitle') }}</SectionTitle>
             <p class="text-xs text-muted">{{ t('admin.groups.deleteHelp') }}</p>
             <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDeleteGroup = true">
               {{ t('admin.groups.delete') }}

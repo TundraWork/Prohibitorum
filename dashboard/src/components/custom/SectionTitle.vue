@@ -7,7 +7,7 @@
  * caught). Mirrors the inner heading of FormSection.
  *
  * Pass `as` to set the heading level for a correct document outline — e.g.
- * `as="h4"` for a sub-section nested under a CardTitle (which renders an h3).
+ * `as="h3"` for a sub-section nested under a CardTitle (which renders an h2).
  */
 import type { HTMLAttributes } from 'vue'
 import { cn } from '@/lib/utils'

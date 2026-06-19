@@ -197,7 +197,7 @@ onMounted(reload)
       <div class="flex flex-col gap-1.5">
         <Label for="factor-select">{{ t('admin.audit.filterFactor') }}</Label>
         <Select :model-value="factor" @update:model-value="(v) => { factor = v === '__any__' ? '' : v }">
-          <SelectTrigger id="factor-select" data-test="factor-select">
+          <SelectTrigger id="factor-select" data-test="factor-select" :aria-label="t('admin.audit.filterFactor')">
             <SelectValue :placeholder="t('admin.audit.filterAny')" />
           </SelectTrigger>
           <SelectContent>
@@ -209,7 +209,7 @@ onMounted(reload)
       <div class="flex flex-col gap-1.5">
         <Label for="event-select">{{ t('admin.audit.filterEvent') }}</Label>
         <Select :model-value="event" @update:model-value="(v) => { event = v === '__any__' ? '' : v }">
-          <SelectTrigger id="event-select" data-test="event-select">
+          <SelectTrigger id="event-select" data-test="event-select" :aria-label="t('admin.audit.filterEvent')">
             <SelectValue :placeholder="t('admin.audit.filterAny')" />
           </SelectTrigger>
           <SelectContent>

@@ -99,7 +99,7 @@ onMounted(load)
         <div class="flex flex-col gap-1.5">
           <Label for="newIdp">{{ t('admin.invitations.requireMethod') }}</Label>
           <Select v-model="newIdp">
-            <SelectTrigger id="newIdp" name="idp" data-test="idp" class="w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="newIdp" name="idp" data-test="idp" class="w-full" :aria-label="t('admin.invitations.requireMethod')"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem :value="IDP_NONE">{{ t('admin.invitations.anyMethod') }}</SelectItem>
               <SelectItem v-for="idp in idps" :key="idp.slug" :value="idp.slug">{{ idp.displayName }}</SelectItem>

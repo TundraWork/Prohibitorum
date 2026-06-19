@@ -203,7 +203,7 @@ onMounted(load)
 
             <!-- ACS rows -->
             <div class="flex flex-col gap-2">
-              <SectionTitle as="h4">{{ t('admin.saml.acs') }}</SectionTitle>
+              <SectionTitle as="h3">{{ t('admin.saml.acs') }}</SectionTitle>
               <RadioGroup :model-value="defaultAcsKey" class="gap-2" @update:model-value="onDefaultChange">
                 <div v-for="(row, i) in acsRows" :key="row.id" class="flex flex-wrap items-end gap-3 rounded-md border p-2">
                   <div class="flex flex-col gap-1">
@@ -233,7 +233,7 @@ onMounted(load)
 
         <!-- Shared flags -->
         <div class="flex flex-col gap-3 border-t pt-3">
-          <SectionTitle as="h4">{{ t('admin.saml.securityTitle') }}</SectionTitle>
+          <SectionTitle as="h3">{{ t('admin.saml.securityTitle') }}</SectionTitle>
           <SettingRow :label="t('admin.saml.requireSignedAuthn')" :description="t('admin.saml.requireSignedAuthnDesc')" for="requireSignedAuthnRequest">
             <Switch id="requireSignedAuthnRequest" v-model="requireSignedAuthnRequest" />
           </SettingRow>

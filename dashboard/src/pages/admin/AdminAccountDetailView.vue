@@ -296,8 +296,8 @@ onMounted(async () => {
             <Label>{{ t('admin.account.attributes') }}</Label>
             <p v-if="attrRows.length === 0 && !hasComplexAttrs" class="text-sm text-muted">{{ t('admin.account.attributesEmpty') }}</p>
             <div v-for="(row, i) in attrRows" :key="row.uid" class="flex items-center gap-2" :data-test="`attr-row-${i}`">
-              <Input :placeholder="t('admin.account.attributesKey')" v-model="row.key" class="flex-1" :data-test="`attr-key-${i}`" />
-              <Input :placeholder="t('admin.account.attributesValue')" v-model="row.value" class="flex-1" :data-test="`attr-value-${i}`" />
+              <Input :placeholder="t('admin.account.attributesKey')" :aria-label="t('admin.account.attributesKey')" v-model="row.key" class="flex-1" :data-test="`attr-key-${i}`" />
+              <Input :placeholder="t('admin.account.attributesValue')" :aria-label="t('admin.account.attributesValue')" v-model="row.value" class="flex-1" :data-test="`attr-value-${i}`" />
               <Button type="button" variant="outline" size="sm" class="shrink-0" :data-test="`attr-remove-${i}`" @click="removeAttrRow(i)">{{ t('admin.account.attributesRemove') }}</Button>
             </div>
             <div v-if="hasComplexAttrs" class="flex flex-col gap-1">
@@ -369,7 +369,7 @@ onMounted(async () => {
           <!-- Add to group row -->
           <div class="flex items-center gap-2">
             <Select v-model="selectedGroupId" data-test="group-select">
-              <SelectTrigger class="flex-1">
+              <SelectTrigger class="flex-1" :aria-label="t('admin.account.groupsAddPlaceholder')">
                 <SelectValue :placeholder="t('admin.account.groupsAddPlaceholder')" />
               </SelectTrigger>
               <SelectContent>
@@ -417,7 +417,7 @@ onMounted(async () => {
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <SectionTitle as="h4">{{ t('admin.account.statusLabel') }}</SectionTitle>
+              <SectionTitle as="h3">{{ t('admin.account.statusLabel') }}</SectionTitle>
               <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
                 {{ disabled ? t('admin.account.statusDisabled') : t('admin.account.statusActive') }}
               </StatusBadge>
@@ -431,7 +431,7 @@ onMounted(async () => {
 
           <Separator />
           <div class="flex flex-col gap-2">
-            <SectionTitle as="h4">{{ t('admin.account.deleteTitle') }}</SectionTitle>
+            <SectionTitle as="h3">{{ t('admin.account.deleteTitle') }}</SectionTitle>
             <p class="text-xs text-muted">{{ t('admin.account.deleteHelp') }}</p>
             <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.account.delete') }}</Button>
           </div>

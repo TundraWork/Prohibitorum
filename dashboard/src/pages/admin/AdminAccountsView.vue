@@ -49,6 +49,7 @@ onMounted(load)
     </div>
     <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
     <Input v-if="!busy || rows.length" v-model="filter" type="search" data-test="accounts-filter"
+           :aria-label="t('admin.accounts.filterPlaceholder')"
            :placeholder="t('admin.accounts.filterPlaceholder')" class="max-w-xs" />
     <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="4" />
     <template v-else-if="rows.length">

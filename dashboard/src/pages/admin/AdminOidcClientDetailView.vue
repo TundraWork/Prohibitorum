@@ -191,7 +191,7 @@ onMounted(load)
         <CardContent class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <SectionTitle as="h4">{{ t('admin.oidc.statusLabel') }}</SectionTitle>
+              <SectionTitle as="h3">{{ t('admin.oidc.statusLabel') }}</SectionTitle>
               <StatusBadge :variant="disabled ? 'danger' : 'success'" data-test="status-badge">
                 {{ disabled ? t('admin.oidc.disabled') : t('admin.oidc.active') }}
               </StatusBadge>
@@ -204,7 +204,7 @@ onMounted(load)
 
           <Separator />
           <div class="flex flex-col gap-2">
-            <SectionTitle as="h4">{{ t('admin.oidc.rotateTitle') }}</SectionTitle>
+            <SectionTitle as="h3">{{ t('admin.oidc.rotateTitle') }}</SectionTitle>
             <template v-if="client.tokenEndpointAuthMethod !== 'none'">
               <p class="text-xs text-muted">{{ t('admin.oidc.rotateConfirmBody') }}</p>
               <template v-if="rotatedSecret">
@@ -218,7 +218,7 @@ onMounted(load)
 
           <Separator />
           <div class="flex flex-col gap-2">
-            <SectionTitle as="h4">{{ t('admin.oidc.deleteTitle') }}</SectionTitle>
+            <SectionTitle as="h3">{{ t('admin.oidc.deleteTitle') }}</SectionTitle>
             <p class="text-xs text-muted">{{ t('admin.oidc.deleteHelp') }}</p>
             <Button type="button" variant="destructive" class="w-fit" :disabled="busy" data-test="delete" @click="confirmDelete = true">{{ t('admin.oidc.delete') }}</Button>
           </div>
