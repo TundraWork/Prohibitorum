@@ -12,7 +12,7 @@ defineProps<{
 <template>
   <section class="flex flex-col gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0">
     <div class="flex flex-col gap-0.5">
-      <h3 class="text-sm font-medium text-ink">{{ title }}</h3>
+      <h3 class="text-base font-semibold text-ink">{{ title }}</h3>
       <p v-if="description" class="text-sm text-muted">{{ description }}</p>
     </div>
     <slot />
