@@ -240,7 +240,7 @@ onMounted(reload)
         {{ f.label }}
         <button
           type="button"
-          class="ml-0.5 inline-flex size-6 items-center justify-center rounded-full cursor-pointer text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          class="ml-0.5 inline-flex size-6 items-center justify-center rounded-full cursor-pointer text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
           :aria-label="t('admin.audit.clearFilter') + ': ' + f.label"
           :data-test="`filter-pill-${f.key}-clear`"
           @click="f.clear()"
@@ -273,7 +273,7 @@ onMounted(reload)
                 :data-test="`expand-${e.id}`"
                 :aria-expanded="!!expanded[e.id]"
                 :aria-label="t('admin.audit.expand')"
-                class="flex items-center gap-1 text-left rounded-sm cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                class="flex items-center gap-1 text-left rounded-sm cursor-pointer focus-visible:outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                 @click.stop="toggle(e.id)"
               >{{ formatDateTime(e.at) }}</button>
             </TableCell>

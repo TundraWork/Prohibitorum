@@ -99,7 +99,7 @@ function onSuccess(redirect?: string): void {
 
       <FederationButtons />
 
-      <RouterLink to="/pair" class="cursor-pointer text-center text-sm text-muted underline-offset-4 hover:underline">
+      <RouterLink to="/pair" class="cursor-pointer text-center text-sm text-muted underline underline-offset-4">
         {{ t('login.pairDevice') }}
       </RouterLink>
     </div>

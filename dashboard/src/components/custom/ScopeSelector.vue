@@ -17,6 +17,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { X } from 'lucide-vue-next'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
 
 export interface KnownScope {
   value: string
@@ -166,14 +167,9 @@ function dedupe(arr: string[]): string[] {
           @keydown="onDraftKeydown"
           @blur="onDraftBlur"
         />
-        <button
-          type="button"
-          data-test="custom-scope-add"
-          class="shrink-0 rounded-md border border-input bg-bg px-3 py-1.5 text-sm text-ink transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-          @click="commitDraft"
-        >
+        <Button type="button" variant="outline" size="sm" data-test="custom-scope-add" @click="commitDraft">
           {{ t('common.add') }}
-        </button>
+        </Button>
       </div>
     </template>
   </div>

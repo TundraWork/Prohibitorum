@@ -37,7 +37,7 @@ const sizeClass = computed(() => (props.size === 'sm' ? 'size-6 text-[0.625rem]'
     aria-hidden="true"
     :class="cn('relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent font-medium text-sidebar-accent-foreground', sizeClass)"
   >
-    <img v-if="showImg" :src="src!" alt="" class="size-full object-cover" @error="failed = true" />
+    <img v-if="showImg" :src="src!" alt="" loading="lazy" class="size-full object-cover" @error="failed = true" />
     <template v-else-if="initials">{{ initials }}</template>
     <User v-else class="size-4" />
     <span v-if="loading" data-test="avatar-spinner" class="absolute inset-0 flex items-center justify-center bg-black/40">
