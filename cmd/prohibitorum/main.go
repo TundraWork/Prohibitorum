@@ -781,6 +781,7 @@ modified here.`,
 	addSAMLSPAccessCommands(samlSPCmd)
 
 	addUpstreamIDPCommands(cli.Root())
+	addForwardAuthAppCommands(cli.Root())
 
 	addDevSeedCmd(cli.Root())
 	addDevFederationCmd(cli.Root())
@@ -1697,4 +1698,87 @@ SAML service provider. Only the flags you pass are acted on.`,
 	accessCmd.Flags().StringVar(&asGrantAccount, "grant-account", "", "Account username to grant access.")
 	accessCmd.Flags().StringVar(&asRevokeAccount, "revoke-account", "", "Account username to revoke access.")
 	parent.AddCommand(accessCmd)
+}
+
+// addForwardAuthAppCommands registers the `forward-auth-app` command group.
+// Currently exposes a single `create` subcommand that provisions a backing
+// OIDC client for Traefik ForwardAuth and marks it with SetForwardAuthConfig.
+func addForwardAuthAppCommands(root *cobra.Command) {
+	faAppCmd := &cobra.Command{
+		Use:   "forward-auth-app",
+		Short: "Manage Traefik ForwardAuth applications (backing OIDC clients)",
+	}
+
+	var (
+		faClientID    string
+		faHost        string
+		faDisplayName string
+	)
+	createFACmd := &cobra.Command{
+		Use:   "create",
+		Short: "Register a new ForwardAuth application (public PKCE client + forward-auth flag)",
+		Long: `Register a new Traefik ForwardAuth application.
+
+This command:
+  1. Creates a public (PKCE, no secret) OIDC client with require_consent=false
+     and a redirect URI of https://<host>/.prohibitorum-forward-auth/callback.
+  2. Marks it as a forward-auth application via SetForwardAuthConfig.
+
+After creation, grant access with:
+  prohibitorum oidc-client access --client-id <id> [--grant-group ...]
+
+Then configure Traefik ForwardAuth per docs/forward-auth.md.`,
+		Run: func(_ *cobra.Command, _ []string) {
+			ctx := context.Background()
+			if faClientID == "" {
+				log.Fatalf("--client-id is required")
+			}
+			if faHost == "" {
+				log.Fatalf("--host is required")
+			}
+
+			redirectURI := "https://" + faHost + oidc.ForwardAuthPathPrefix + "/callback"
+
+			q, conn := mustOpenDB(ctx)
+			defer conn.Close()
+
+			params, _, err := oidc.BuildClientParams(oidc.ClientOptions{
+				ClientID:               faClientID,
+				DisplayName:            faDisplayName,
+				RedirectURIs:           []string{redirectURI},
+				PostLogoutRedirectURIs: []string{},
+				Scopes:                 []string{"openid", "email", "groups"},
+				Public:                 true,
+				RequireConsent:         false,
+			})
+			if err != nil {
+				log.Fatalf("forward-auth-app create: build client params: %v", err)
+			}
+
+			if _, err := q.InsertOIDCClient(ctx, params); err != nil {
+				log.Fatalf("forward-auth-app create: insert oidc client: %v", err)
+			}
+
+			if err := q.SetForwardAuthConfig(ctx, db.SetForwardAuthConfigParams{
+				ClientID:           faClientID,
+				ForwardAuthEnabled: true,
+				ForwardAuthHost:    pgtype.Text{String: faHost, Valid: true},
+			}); err != nil {
+				log.Fatalf("forward-auth-app create: set forward-auth config: %v", err)
+			}
+
+			fmt.Printf("Registered ForwardAuth application %q\n", faClientID)
+			fmt.Printf("  Redirect URI:  %s\n", redirectURI)
+			fmt.Printf("  Host:          %s\n", faHost)
+			fmt.Printf("\nNext steps:\n")
+			fmt.Printf("  1. Grant access:  prohibitorum oidc-client access --client-id %s --grant-group <slug>\n", faClientID)
+			fmt.Printf("  2. Configure Traefik ForwardAuth per docs/forward-auth.md\n")
+		},
+	}
+	createFACmd.Flags().StringVar(&faClientID, "client-id", "", "Stable client identifier (required).")
+	createFACmd.Flags().StringVar(&faHost, "host", "", "Protected application hostname, e.g. app.acme.io (required).")
+	createFACmd.Flags().StringVar(&faDisplayName, "display-name", "", "Human-readable application name.")
+	faAppCmd.AddCommand(createFACmd)
+
+	root.AddCommand(faAppCmd)
 }
