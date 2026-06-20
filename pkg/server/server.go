@@ -212,7 +212,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		branding:      brandingResolver,
 	}
 	s.registerOperations()
-	s.router.NotFound(webui.Handler().ServeHTTP)
+	s.router.NotFound(webui.Handler(s.config.Branding.InstanceName).ServeHTTP)
 	logx.WithContext(ctx).Info("registered operations")
 	return s, nil
 }

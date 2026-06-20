@@ -3,7 +3,9 @@
 package webui
 
 import (
+	"bytes"
 	"embed"
+	"html"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -16,7 +18,7 @@ var embedded embed.FS
 // to index.html for any path that does not match a built file (client-side
 // routing). Intended as the chi router's NotFound handler, so it is only reached
 // for paths no registered route matched.
-func Handler() http.Handler {
+func Handler(instanceName string) http.Handler {
 	sub, err := fs.Sub(embedded, "dist")
 	if err != nil {
 		panic("webui: dist not embedded: " + err.Error())
@@ -26,6 +28,10 @@ func Handler() http.Handler {
 	if err != nil {
 		panic("webui: dist/index.html missing — run the frontend build first")
 	}
+	if instanceName == "" {
+		instanceName = "Prohibitorum"
+	}
+	index = bytes.ReplaceAll(index, []byte("__INSTANCE_NAME__"), []byte(html.EscapeString(instanceName)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		setSecurityHeaders(w)
 		// If the path maps to an existing embedded FILE, serve it; a directory
