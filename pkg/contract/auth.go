@@ -29,15 +29,15 @@ type AuthRequirement struct {
 
 // SessionView is the response body of GET /me — the public face of the current session.
 type SessionView struct {
-	ID            int32          `json:"id"`
-	Username      string         `json:"username"`
-	DisplayName   string         `json:"displayName"`
-	Role          string         `json:"role"`
-	Attributes    map[string]any `json:"attributes,omitempty"`
-	AvatarURL          *string           `json:"avatarUrl,omitempty"`
-	AvatarPending      bool              `json:"avatarPending,omitempty"`
-	AvatarSource       *string           `json:"avatarSource,omitempty"`
-	AvatarSourceUrls   map[string]string `json:"avatarSourceUrls,omitempty"`
+	ID               int32             `json:"id"`
+	Username         string            `json:"username"`
+	DisplayName      string            `json:"displayName"`
+	Role             string            `json:"role"`
+	Attributes       map[string]any    `json:"attributes,omitempty"`
+	AvatarURL        *string           `json:"avatarUrl,omitempty"`
+	AvatarPending    bool              `json:"avatarPending,omitempty"`
+	AvatarSource     *string           `json:"avatarSource,omitempty"`
+	AvatarSourceUrls map[string]string `json:"avatarSourceUrls,omitempty"`
 	// AvatarSourceLabels maps a source key to a human label (the upstream IdP
 	// display name for "upstream:<slug>" sources); 'user' has no label.
 	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
@@ -105,6 +105,14 @@ type EnrollmentPreview struct {
 // instruction.
 type AuthStatus struct {
 	Bootstrapped bool `json:"bootstrapped"`
+}
+
+// PublicConfig is the unauthenticated branding payload the SPA loads at boot.
+type PublicConfig struct {
+	InstanceName  string `json:"instanceName"`
+	HasCustomIcon bool   `json:"hasCustomIcon"`
+	IconURL       string `json:"iconUrl"`
+	IconEtag      string `json:"iconEtag"`
 }
 
 // EnrollmentURLResponse is returned by reissue-enrollment. Reveal-once: the URL

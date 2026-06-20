@@ -21,6 +21,7 @@ import (
 	"prohibitorum/db/migrations"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/branding"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/pairing"
@@ -103,6 +104,10 @@ type Server struct {
 	// /welcome federation confirm endpoints without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
 	confirmFedOverride confirmFedQueries
+	// branding resolves the effective instance name and icon with DB-override →
+	// config → built-in precedence. Admin mutation handlers call Invalidate()
+	// after writes so changes propagate immediately.
+	branding *branding.Resolver
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -180,6 +185,12 @@ func NewServer(ctx context.Context) (*Server, error) {
 
 	rateLimiter := authn.NewRateLimiter()
 
+	brandingResolver, berr := branding.New(config.Branding.InstanceName, config.Branding.IconPath, branding.NewPGStore(conn))
+	if berr != nil {
+		logx.WithContext(ctx).WithError(berr).Warn("branding: config icon_path unusable; using built-in default")
+		brandingResolver, _ = branding.New(config.Branding.InstanceName, "", branding.NewPGStore(conn))
+	}
+
 	s := &Server{
 		queries:       queries,
 		dbPool:        conn,
@@ -198,6 +209,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		throttle:      throttle,
 		federator:     federator,
 		Audit:         auditWriter,
+		branding:      brandingResolver,
 	}
 	s.registerOperations()
 	s.router.NotFound(webui.Handler().ServeHTTP)
@@ -368,6 +380,10 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/methods", sessionReq, s.handleSudoMethodsHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/begin", sessionReq, s.handleSudoBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/sudo/complete", sessionReq, s.handleSudoCompleteHTTP)
+
+	// Public branding: SPA boot config + icon image.
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/config", publicReq, s.handleGetPublicConfigHTTP)
+	registerOpHTTP(s.router, "GET", "/branding/icon", publicReq, s.handleGetBrandingIconHTTP)
 
 	// Avatar upload/delete (self), source selection, status, and public fetch.
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/me/avatar", sessionReq, s.handlePutAvatarHTTP)
