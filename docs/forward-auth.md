@@ -38,8 +38,8 @@ the service to specific groups/accounts, mark it access-restricted and grant
 access using the existing OIDC-client access commands, e.g.:
 
 ```bash
-prohibitorum oidc-client access --client-id app-acme --restrict
-prohibitorum oidc-client access --client-id app-acme --grant-group staff
+# Restrict to granted principals, then grant a group (and/or --grant-account):
+prohibitorum oidc-client access --client-id app-acme --access-restricted=true --grant-group staff
 ```
 
 Access is re-evaluated **live on every request**, so revoking a group or
