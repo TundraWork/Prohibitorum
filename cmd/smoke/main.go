@@ -736,10 +736,10 @@ func main() {
 	negClient1, _ := newFederationClient(*baseURL)
 	opSrv.SetClaims("ext-user-99", "ext99@example.com", false, "extuser99", "Ext 99")
 	if err := expectFederationCallbackError(negClient1, *baseURL, "mockop",
-		http.StatusForbidden, "email_not_verified"); err != nil {
+		"email_not_verified"); err != nil {
 		log.Fatalf("negative email_not_verified: %v", err)
 	}
-	log.Printf("  /callback → 403 email_not_verified ✓")
+	log.Printf("  /callback → 302 /error?error=email_not_verified ✓")
 
 	step(fmt.Sprintf("step 54/%d — negative: username_collision", totalV03))
 	negClient2, _ := newFederationClient(*baseURL)
@@ -747,31 +747,36 @@ func main() {
 	// a new account with that name; existing local account wins).
 	opSrv.SetClaims("ext-collide-1", "collide@example.com", true, *username, "Collider")
 	if err := expectFederationCallbackError(negClient2, *baseURL, "mockop",
-		http.StatusForbidden, "username_collision"); err != nil {
+		"username_collision"); err != nil {
 		log.Fatalf("negative username_collision: %v", err)
 	}
-	log.Printf("  /callback → 403 username_collision ✓")
+	log.Printf("  /callback → 302 /error?error=username_collision ✓")
 
 	step(fmt.Sprintf("step 55/%d — negative: invalid_return_to", totalV03))
 	negClient3, _ := newFederationClient(*baseURL)
-	resp, err := negClient3.getRaw("/api/prohibitorum/auth/federation/mockop/login?return_to=https://evil.example.com")
+	// /login with an off-origin return_to now 302-redirects to /error (not 400).
+	resp55, err := negClient3.getRaw("/api/prohibitorum/auth/federation/mockop/login?return_to=https://evil.example.com")
 	if err != nil {
 		log.Fatalf("negative invalid_return_to: %v", err)
 	}
-	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusBadRequest {
-		log.Fatalf("negative invalid_return_to: want 400, got %d", resp.StatusCode)
+	resp55body, _ := io.ReadAll(resp55.Body)
+	_ = resp55.Body.Close()
+	if resp55.StatusCode != http.StatusFound {
+		log.Fatalf("negative invalid_return_to: want 302, got %d (body=%s)", resp55.StatusCode, string(resp55body))
 	}
-	log.Printf("  /login?return_to=https://evil… → 400 ✓")
+	if loc55 := resp55.Header.Get("Location"); !strings.HasPrefix(loc55, "/error?error=invalid_return_to") {
+		log.Fatalf("negative invalid_return_to: Location want prefix /error?error=invalid_return_to, got %q", loc55)
+	}
+	log.Printf("  /login?return_to=https://evil… → 302 /error?error=invalid_return_to ✓")
 
 	step(fmt.Sprintf("step 56/%d — negative: upstream_error (access_denied)", totalV03))
 	negClient4, _ := newFederationClient(*baseURL)
 	opSrv.FailWithError("access_denied", "user denied")
 	if err := expectFederationCallbackError(negClient4, *baseURL, "mockop",
-		http.StatusBadRequest, "upstream_error"); err != nil {
+		"upstream_error"); err != nil {
 		log.Fatalf("negative upstream_error: %v", err)
 	}
-	log.Printf("  /callback → 400 upstream_error ✓")
+	log.Printf("  /callback → 302 /error?error=upstream_error ✓")
 
 	step(fmt.Sprintf("step 57/%d — GET /me/identities (as federated user)", totalV03))
 	// Restore valid claims and re-login as ext-user-1.
@@ -797,14 +802,14 @@ func main() {
 	}
 	log.Printf("  upstream_idp id=%d slug=mockop-link mode=link_only", linkIDPID)
 
-	step(fmt.Sprintf("step 59/%d — link_only refuses unknown sub (403 link_required)", totalV03))
+	step(fmt.Sprintf("step 59/%d — link_only refuses unknown sub (302 /error?error=link_required)", totalV03))
 	negClient5, _ := newFederationClient(*baseURL)
 	opSrv.SetClaims("ext-unknown-9", "unknown@example.com", true, "extuser-unknown", "Unknown")
 	if err := expectFederationCallbackError(negClient5, *baseURL, "mockop-link",
-		http.StatusForbidden, "link_required"); err != nil {
+		"link_required"); err != nil {
 		log.Fatalf("negative link_required: %v", err)
 	}
-	log.Printf("  link_only /callback → 403 link_required ✓")
+	log.Printf("  link_only /callback → 302 /error?error=link_required ✓")
 
 	// --- Self-service link from smoke-admin (with sudo) ---------------------
 
@@ -987,17 +992,17 @@ func main() {
 		log.Fatalf("invite redemption DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("step 67/%d — negative: consumed token rejected with 403 invite_required", totalV03))
+	step(fmt.Sprintf("step 67/%d — negative: consumed token rejected → 302 /error?error=invite_required", totalV03))
 	// Reuse the now-consumed token; the federator's BeginInviteRedemption
 	// must reject before any upstream hop. Fresh client (no cookies).
 	negInvite1, _ := newFederationClient(*baseURL)
 	if err := expectInviteStartFederationError(negInvite1, *baseURL, inviteToken,
-		http.StatusForbidden, "invite_required"); err != nil {
+		"invite_required"); err != nil {
 		log.Fatalf("negative consumed-token: %v", err)
 	}
-	log.Printf("  /start-federation consumed → 403 invite_required ✓")
+	log.Printf("  /start-federation consumed → 302 /error?error=invite_required ✓")
 
-	step(fmt.Sprintf("step 68/%d — negative: expired token rejected with 403 invite_required", totalV03))
+	step(fmt.Sprintf("step 68/%d — negative: expired token rejected → 302 /error?error=invite_required", totalV03))
 	const expiredToken = "invite-token-smoke-expired-001"
 	// Seed a NEW enrollment that's already past expires_at (1 second in the
 	// past). BeginInviteRedemption checks enr.ExpiresAt.After(time.Now()).
@@ -1006,10 +1011,10 @@ func main() {
 	}
 	negInvite2, _ := newFederationClient(*baseURL)
 	if err := expectInviteStartFederationError(negInvite2, *baseURL, expiredToken,
-		http.StatusForbidden, "invite_required"); err != nil {
+		"invite_required"); err != nil {
 		log.Fatalf("negative expired-token: %v", err)
 	}
-	log.Printf("  /start-federation expired → 403 invite_required ✓")
+	log.Printf("  /start-federation expired → 302 /error?error=invite_required ✓")
 
 	step(fmt.Sprintf("step 69/%d — DB assert: credential_event covers v0.3 federation lifecycle", totalV03))
 	if err := verifyV03FederationAuditEvents(); err != nil {
@@ -1693,12 +1698,12 @@ func main() {
 	}
 	log.Printf("  introspect revoked access token → active=false ✓")
 
-	step(fmt.Sprintf("step 81/%d — v0.4: negative — unregistered redirect_uri is a DIRECT error (no redirect)", totalV04))
+	step(fmt.Sprintf("step 81/%d — v0.4: negative — unregistered redirect_uri never sends browser to bad URI", totalV04))
 	if err := authorizeExpectDirectError(c, *baseURL, rpClientID,
 		*baseURL+"/rp/UNREGISTERED-callback", issuer); err != nil {
 		log.Fatalf("negative unregistered redirect_uri: %v", err)
 	}
-	log.Printf("  /authorize with bad redirect_uri → direct 400 invalid_request (no Location to the bad URI) ✓")
+	log.Printf("  /authorize with bad redirect_uri → 302 /error?error=invalid_request (no Location to the bad URI) ✓")
 
 	step(fmt.Sprintf("step 82/%d — v0.4: negative — PKCE mismatch at /token → invalid_grant", totalV04))
 	vGood, codeBad := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
@@ -2558,7 +2563,7 @@ func main() {
 		log.Printf("  metadata <ds:Signature> verifies against embedded cert; validUntil=%s (future) ✓", ed.ValidUntil.Format(time.RFC3339))
 	}
 
-	step(fmt.Sprintf("step 110/%d — v0.6: SAML IdP-initiated SSO — opted-in SP gets an unsolicited Response (RelayState echoed); v0.5 SP without the flag → 403", totalV06))
+	step(fmt.Sprintf("step 110/%d — v0.6: SAML IdP-initiated SSO — opted-in SP gets an unsolicited Response (RelayState echoed); v0.5 SP without the flag → 302 /error", totalV06))
 	{
 		// Register a SECOND SP that opts into IdP-initiated SSO. Its mock SP
 		// carries a distinct entityID + ACS but reuses the mock signing key
@@ -2612,15 +2617,35 @@ func main() {
 		}
 		log.Printf("  /saml/sso/init (opted-in SP) → unsolicited Response (no InResponseTo), RelayState=deep echoed, assertion accepted ✓")
 
-		// The v0.5 SP did NOT opt in → 403.
-		status403, body403, err := ssoInit(c, mockSPEntityID, "")
-		if err != nil {
-			log.Fatalf("/saml/sso/init (no opt-in): %v", err)
+		// The v0.5 SP did NOT opt in → 302 /error?error=saml_idp_init_disabled.
+		// ssoInit returns (status, body, err) but not the Location header. Use a
+		// non-following client directly to capture the redirect target.
+		{
+			q302 := url.Values{"sp": {mockSPEntityID}}
+			req302, _ := http.NewRequest(http.MethodGet, c.base+"/saml/sso/init?"+q302.Encode(), nil)
+			hcNF := &http.Client{
+				Jar:     c.jar,
+				Timeout: 10 * time.Second,
+				CheckRedirect: func(*http.Request, []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			}
+			resp302, err302 := hcNF.Do(req302)
+			if err302 != nil {
+				log.Fatalf("/saml/sso/init (no opt-in): %v", err302)
+			}
+			body302, _ := io.ReadAll(resp302.Body)
+			_ = resp302.Body.Close()
+			if resp302.StatusCode != http.StatusFound {
+				log.Fatalf("/saml/sso/init for an SP without --allow-idp-initiated: want 302, got %d (body=%s)",
+					resp302.StatusCode, firstN(string(body302), 200))
+			}
+			loc302 := resp302.Header.Get("Location")
+			if !strings.HasPrefix(loc302, "/error?error=saml_idp_init_disabled") {
+				log.Fatalf("/saml/sso/init (no opt-in): Location want /error?error=saml_idp_init_disabled prefix, got %q", loc302)
+			}
+			log.Printf("  /saml/sso/init for the v0.5 SP (no opt-in) → 302 %s ✓", loc302)
 		}
-		if status403 != http.StatusForbidden {
-			log.Fatalf("/saml/sso/init for an SP without --allow-idp-initiated: want 403, got %d (body=%s)", status403, firstN(body403, 200))
-		}
-		log.Printf("  /saml/sso/init for the v0.5 SP (no opt-in) → 403 ✓")
 	}
 
 	step(fmt.Sprintf("step 111/%d — v0.6: DB assert — credential_event covers the v0.6 SAML re-auth/idp-initiated lifecycle", totalV06))
@@ -3849,8 +3874,63 @@ func main() {
 	// The OIDC arc above fully exercises the gate (deny non-member + via-group
 	// grant) and the groups claim, which is the contract under test.
 
+	// noFollow is a one-off HTTP client that does NOT follow redirects so we
+	// can assert 302 Location headers on browser-navigated error paths.
+	noFollow := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	step("error-redirect 1/2 — federation callback ?error=access_denied → 302 /error?error=upstream_error")
+	{
+		req, err := http.NewRequest(http.MethodGet,
+			*baseURL+"/api/prohibitorum/auth/federation/mockop/callback?error=access_denied&error_description=nope",
+			nil)
+		if err != nil {
+			log.Fatalf("error-redirect 1: build request: %v", err)
+		}
+		resp, err := noFollow.Do(req)
+		if err != nil {
+			log.Fatalf("error-redirect 1: GET /callback: %v", err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusFound {
+			log.Fatalf("error-redirect 1: want 302, got %d", resp.StatusCode)
+		}
+		loc := resp.Header.Get("Location")
+		if !strings.HasPrefix(loc, "/error?error=upstream_error") {
+			log.Fatalf("error-redirect 1: Location want prefix /error?error=upstream_error, got %q", loc)
+		}
+		log.Printf("  federation callback access_denied → 302 %s ✓", loc)
+	}
+
+	step("error-redirect 2/2 — SAML malformed SAMLRequest → 302 /error?error=saml_request_invalid")
+	{
+		req, err := http.NewRequest(http.MethodGet,
+			*baseURL+"/saml/sso?SAMLRequest=not-base64",
+			nil)
+		if err != nil {
+			log.Fatalf("error-redirect 2: build request: %v", err)
+		}
+		resp, err := noFollow.Do(req)
+		if err != nil {
+			log.Fatalf("error-redirect 2: GET /saml/sso: %v", err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusFound {
+			log.Fatalf("error-redirect 2: want 302, got %d", resp.StatusCode)
+		}
+		loc := resp.Header.Get("Location")
+		if !strings.HasPrefix(loc, "/error?error=saml_request_invalid") {
+			log.Fatalf("error-redirect 2: Location want prefix /error?error=saml_request_invalid, got %q", loc)
+		}
+		log.Printf("  SAML malformed SAMLRequest → 302 %s ✓", loc)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse 1-2 (multi-use sudo window: single elevation covers multiple gated actions until expiry) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed 1-4 (federated first-login confirm gate at /welcome → upstream picture inherited via background job, no-clobber of a user upload on re-login, UserInfo-fallback inherit, dual-source selection switch upstream/user/none + ?source previews + avatar_source_unavailable negative) + rbac 1-7 (per-app access gate + OIDC groups claim: create exposed group, add admin member, restricted client, DENY not-yet-granted admin → /error?reason=app_access_denied no code, grant via-group, ALLOW → code → id_token + userinfo groups claim incl. slug) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse 1-2 (multi-use sudo window: single elevation covers multiple gated actions until expiry) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed 1-4 (federated first-login confirm gate at /welcome → upstream picture inherited via background job, no-clobber of a user upload on re-login, UserInfo-fallback inherit, dual-source selection switch upstream/user/none + ?source previews + avatar_source_unavailable negative) + rbac 1-7 (per-app access gate + OIDC groups claim: create exposed group, add admin member, restricted client, DENY not-yet-granted admin → /error?reason=app_access_denied no code, grant via-group, ALLOW → code → id_token + userinfo groups claim incl. slug) + error-redirect 1-2 (federation callback access_denied + SAML malformed request → 302 /error) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -4213,10 +4293,10 @@ func clientDataJSON(typ string, challenge []byte, origin string) []byte {
 // ---------- Prohibitorum REST shapes ----------
 
 type meResponse struct {
-	ID               int32             `json:"id"`
-	Username         string            `json:"username"`
-	DisplayName      string            `json:"displayName"`
-	Role             string            `json:"role"`
+	ID                 int32             `json:"id"`
+	Username           string            `json:"username"`
+	DisplayName        string            `json:"displayName"`
+	Role               string            `json:"role"`
 	AvatarURL          *string           `json:"avatarUrl,omitempty"`
 	AvatarSource       *string           `json:"avatarSource,omitempty"`
 	AvatarSourceUrls   map[string]string `json:"avatarSourceUrls,omitempty"`
@@ -5126,9 +5206,12 @@ func driveFederationLogin(c *client, baseURL, slug, returnTo string) error {
 }
 
 // expectFederationCallbackError drives /login → /authorize → /callback and
-// asserts the RP /callback response is the given status + JSON error code.
+// asserts the RP /callback responds 302 to /error?error=<wantCode>.
+// The backend now redirects browser-navigated error paths to the SPA /error
+// page instead of returning a JSON body, so we use a non-following client
+// to observe the 302 + Location header directly.
 // On success returns nil; on any divergence, returns a descriptive error.
-func expectFederationCallbackError(c *client, baseURL, slug string, wantStatus int, wantCode string) error {
+func expectFederationCallbackError(c *client, baseURL, slug string, wantCode string) error {
 	loginPath := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", slug)
 	authorizeURL, err := c.getRedirect(loginPath)
 	if err != nil {
@@ -5138,27 +5221,32 @@ func expectFederationCallbackError(c *client, baseURL, slug string, wantStatus i
 	if err != nil {
 		return fmt.Errorf("authorize: %w", err)
 	}
-	// Issue the callback request against the RP. We don't use
-	// c.getRedirectAbs because we expect an error body, not a 302.
+	// Issue the callback request with a non-following client to capture the
+	// 302 Location header (the error redirect to /error?error=<code>).
+	noFollow := &http.Client{
+		Jar:     c.jar,
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	req, err := http.NewRequest(http.MethodGet, callbackURL, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := c.hc.Do(req)
+	resp, err := noFollow.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != wantStatus {
-		return fmt.Errorf("/callback status: want %d, got %d (body=%s)", wantStatus, resp.StatusCode, string(body))
+	if resp.StatusCode != http.StatusFound {
+		return fmt.Errorf("/callback status: want 302, got %d (body=%s)", resp.StatusCode, string(body))
 	}
-	var ae struct {
-		Code string `json:"code"`
-	}
-	_ = json.Unmarshal(body, &ae)
-	if ae.Code != wantCode {
-		return fmt.Errorf("/callback error code: want %q, got %q (body=%s)", wantCode, ae.Code, string(body))
+	loc := resp.Header.Get("Location")
+	wantPrefix := "/error?error=" + wantCode
+	if !strings.HasPrefix(loc, wantPrefix) {
+		return fmt.Errorf("/callback Location: want prefix %q, got %q", wantPrefix, loc)
 	}
 	return nil
 }
@@ -5571,26 +5659,36 @@ func verifyInviteOnlyRedemption(token, username, upstreamSub string, idpID int64
 
 // expectInviteStartFederationError drives
 // GET /api/prohibitorum/enrollments/{token}/start-federation and asserts the
-// response is the given HTTP status + JSON error code. Used for the two
-// invite_only negative cases (consumed token + expired token), where the
-// federator's BeginInviteRedemption rejects before any upstream hop.
-func expectInviteStartFederationError(c *client, baseURL, token string, wantStatus int, wantCode string) error {
+// response is 302 to /error?error=<wantCode>. The backend now redirects
+// browser-navigated error paths to the SPA /error page instead of returning
+// a JSON body. Used for the invite_only negative cases (consumed/expired
+// token) where BeginInviteRedemption rejects before any upstream hop.
+func expectInviteStartFederationError(c *client, baseURL, token string, wantCode string) error {
 	path := fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", token)
-	resp, err := c.getRaw(path)
+	req, err := http.NewRequest(http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return fmt.Errorf("start-federation: build request: %w", err)
+	}
+	noFollow := &http.Client{
+		Jar:     c.jar,
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := noFollow.Do(req)
 	if err != nil {
 		return fmt.Errorf("start-federation: %w", err)
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != wantStatus {
-		return fmt.Errorf("/start-federation status: want %d, got %d (body=%s)", wantStatus, resp.StatusCode, string(body))
+	if resp.StatusCode != http.StatusFound {
+		return fmt.Errorf("/start-federation status: want 302, got %d (body=%s)", resp.StatusCode, string(body))
 	}
-	var ae struct {
-		Code string `json:"code"`
-	}
-	_ = json.Unmarshal(body, &ae)
-	if ae.Code != wantCode {
-		return fmt.Errorf("/start-federation error code: want %q, got %q (body=%s)", wantCode, ae.Code, string(body))
+	loc := resp.Header.Get("Location")
+	wantPrefix := "/error?error=" + wantCode
+	if !strings.HasPrefix(loc, wantPrefix) {
+		return fmt.Errorf("/start-federation Location: want prefix %q, got %q", wantPrefix, loc)
 	}
 	return nil
 }
@@ -6305,14 +6403,21 @@ func authorizeExpectDirectError(c *client, baseURL, clientID, badRedirectURI, is
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	loc := resp.Header.Get("Location")
+	// The critical security property: never redirect to the untrusted URI.
+	if strings.Contains(loc, badRedirectURI) {
+		return fmt.Errorf("response Location leaks the bad redirect_uri: %q", loc)
+	}
+	// The backend now 302-redirects to the SPA /error page (same-origin, so
+	// no open-redirect risk) rather than returning a raw 400 JSON body.
 	if resp.StatusCode == http.StatusFound {
-		return fmt.Errorf("bad redirect_uri produced a 302 (open redirect!): Location=%q", resp.Header.Get("Location"))
+		if !strings.HasPrefix(loc, "/error?error=invalid_request") {
+			return fmt.Errorf("bad redirect_uri: 302 Location want /error?error=invalid_request prefix, got %q", loc)
+		}
+		return nil
 	}
 	if resp.StatusCode != http.StatusBadRequest {
-		return fmt.Errorf("status: want 400, got %d (body=%s)", resp.StatusCode, body)
-	}
-	if loc := resp.Header.Get("Location"); strings.Contains(loc, badRedirectURI) {
-		return fmt.Errorf("response Location leaks the bad redirect_uri: %q", loc)
+		return fmt.Errorf("status: want 302 or 400, got %d (body=%s)", resp.StatusCode, body)
 	}
 	var ae struct {
 		Error string `json:"error"`
