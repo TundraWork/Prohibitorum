@@ -4,13 +4,13 @@
     {
       "id": 1,
       "subject": "SK Task 1: ensureActiveSigningKey helper + call site + unit test",
-      "status": "pending",
+      "status": "completed",
       "description": "Boot helper provisioning+activating an initial OIDC signing key when none active, wired into NewServer; pure currentDEK unit test.\n\n```json:metadata\n{\"files\":[\"pkg/server/signing_key_bootstrap.go\",\"pkg/server/signing_key_bootstrap_test.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go test ./pkg/server/ -run SigningKeyBootstrap -count=1\",\"acceptanceCriteria\":[\"no-op when active; ErrNoRows→provision+log; other err→warn\",\"empty DEK→warn+return\",\"insert/activate err→warn (not fatal)\",\"NewServer calls after queries:=db.New(conn)\",\"currentDEK highest version + ok=false; unit-tested\"]}\n```"
     },
     {
       "id": 2,
       "subject": "SK Task 2: Runtime verification (fresh keyset boots functional)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "Full gate + subagent runtime: empty signing_key → boot → auto-provisioned log + one active key + JWKS exposes it + forward-auth verify→302 authorize; re-boot no-op.\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"go vet ./... && go build -tags nodynamic ./... && go test ./...\",\"acceptanceCriteria\":[\"empty signing_key→boot logs auto-provisioned\",\"1 active key + JWKS one key\",\"forward-auth verify 302 reaches /oauth/authorize\",\"re-boot no-op\",\"gate green\"]}\n```"
     }
