@@ -56,37 +56,37 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes (N7). It is echoed
 	// verbatim (HTML-escaped) into the auto-POST form, so bound it up front.
 	if len(r.URL.Query().Get("RelayState")) > maxRelayStateBytes {
-		http.Error(w, "RelayState too large", http.StatusBadRequest)
+		i.errorPage(w, r, "saml_request_invalid")
 		return
 	}
 
 	// SP lookup. The sp param is on the UNTRUSTED side of the open-redirect
-	// guard (until we resolve a registered ACS), so an empty/unknown sp is a
-	// DIRECT 400 and is NEVER redirected anywhere.
+	// guard (until we resolve a registered ACS), so an empty/unknown sp dead-ends
+	// at the IdP's OWN SPA /error page and is NEVER redirected to an SP URL.
 	spParam := r.URL.Query().Get("sp")
 	if spParam == "" {
-		http.Error(w, "missing sp parameter", http.StatusBadRequest)
+		i.errorPage(w, r, "saml_request_invalid")
 		return
 	}
 	sp, err := i.queries.GetSAMLSPByEntityID(ctx, spParam)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			http.Error(w, "unknown SP", http.StatusBadRequest)
+			i.errorPage(w, r, "saml_sp_unknown")
 			return
 		}
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	// A disabled SP is treated as if it were unregistered — the flow is denied.
 	if sp.Disabled {
-		http.Error(w, "unknown SP", http.StatusBadRequest)
+		i.errorPage(w, r, "saml_sp_unknown")
 		return
 	}
 
 	// Per-SP opt-in guard. Emitting an unsolicited assertion to an SP that did
 	// not ask for IdP-initiated SSO is refused outright (GHES posture).
 	if !sp.AllowIdpInitiated {
-		http.Error(w, "IdP-initiated SSO is not enabled for this SP", http.StatusForbidden)
+		i.errorPage(w, r, "saml_idp_init_disabled")
 		return
 	}
 
@@ -96,7 +96,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// ErrInvalidACS → 500 (a registration error, not a client error).
 	acsURL, err := i.resolveACS(ctx, sp.ID, "", "")
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -114,7 +114,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 		SpID:      sp.ID,
 	})
 	if aerr != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	if !authzed.Bool {
@@ -150,7 +150,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 			if ra := i.rl.RetryAfter(key); ra > 0 {
 				w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 			}
-			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+			i.errorPage(w, r, "rate_limited")
 			return
 		}
 	}
@@ -159,7 +159,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// session-expiry horizon (same source HandleSSO uses).
 	row, err := i.queries.GetSession(ctx, sess.Data.SessionID)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	authTime := row.AuthTime.Time
@@ -167,21 +167,21 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// Stable, opaque, per-(account,sp) NameID.
 	nameID, err := i.subjectID(ctx, account.ID, sp.ID, sp.NameIDFormat)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
 	// Fetch the account's exposed group slugs (for the "groups" source).
 	groupSlugs, gerr := i.queries.ListExposedGroupSlugsByAccount(ctx, account.ID)
 	if gerr != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
 	// Project the account into SAML attributes per the SP's map.
 	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL(), groupSlugs)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -193,7 +193,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// an SP expects for IdP-initiated SSO.
 	respXML, err := i.buildResponse(ctx, sp, acsURL, "", nameID, attrs, authTime, sessionIndex)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -208,7 +208,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 		SessionIndex: sessionIndex,
 		NotOnOrAfter: pgtype.Timestamptz{Time: sessionExpiry, Valid: true},
 	}); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 

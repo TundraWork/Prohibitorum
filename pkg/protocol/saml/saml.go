@@ -2,6 +2,8 @@ package saml
 
 import (
 	"errors"
+	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/session"
+	"prohibitorum/pkg/weberr"
 )
 
 var (
@@ -55,6 +58,18 @@ func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions 
 // instead of lagging by up to keyCacheTTL.
 func (i *IdP) InvalidateKeyCache() {
 	i.keys.invalidate()
+}
+
+// errorPage sends a browser-navigated SAML dead-end to the SPA /error page.
+// Use ONLY when the IdP cannot safely produce a SAML response for the SP
+// (malformed request, unknown/untrusted/disabled SP, replay, internal error).
+// SP-binding responses (auto-POST success, passive/denied <StatusCode>, SLO
+// responses) and the app-access-denied /error redirect must NOT route here.
+// Logs code/ref/path only — never query values, NameID, tokens, or assertions.
+func (i *IdP) errorPage(w http.ResponseWriter, r *http.Request, code string) {
+	ref := weberr.NewRef()
+	slog.Warn("saml browser-facing flow error", "code", code, "ref", ref, "path", r.URL.Path)
+	weberr.RedirectToError(w, r, code, ref)
 }
 
 // entityID is the IdP's SAML EntityID — the stable identifier SPs key trust on.

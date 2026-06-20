@@ -718,12 +718,17 @@ func TestSSOReplayRejected(t *testing.T) {
 		t.Fatalf("first SSO status = %d, want 200; body=%s", rec1.Code, rec1.Body.String())
 	}
 
-	// Re-presenting the SAME request ID (shared KV) is rejected at consume.
+	// Re-presenting the SAME request ID (shared KV) is rejected at consume. A
+	// replayed AuthnRequest is a browser-navigated dead-end (the IdP cannot safely
+	// produce a SAML response), so it 302-redirects to the SPA /error page.
 	req2 := h.request(t, "_sso-replay", liveSession(acct))
 	rec2 := httptest.NewRecorder()
 	h.idp.HandleSSO(rec2, req2)
-	if rec2.Code != http.StatusBadRequest {
-		t.Fatalf("replay status = %d, want 400; body=%s", rec2.Code, rec2.Body.String())
+	if rec2.Code != http.StatusFound {
+		t.Fatalf("replay status = %d, want 302 /error; body=%s", rec2.Code, rec2.Body.String())
+	}
+	if loc := rec2.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_replayed&ref=") {
+		t.Fatalf("replay Location = %q, want /error?error=saml_replayed prefix", loc)
 	}
 	// And no second saml_session row should have been persisted.
 	if rows := h.q.sessions(); len(rows) != 1 {
@@ -843,7 +848,9 @@ func TestSSOAppAccessDeniedPassive(t *testing.T) {
 }
 
 // TestSSOAppAccessPredicateError verifies the SAML gate fails CLOSED: a predicate
-// evaluation error is a direct 500 with no assertion issued.
+// evaluation error is an internal error. The IdP cannot safely produce a SAML
+// response, so it 302-redirects to the SPA /error page (server_error) with no
+// assertion issued.
 func TestSSOAppAccessPredicateError(t *testing.T) {
 	h := newSSOHarness(t, ssoSP())
 	h.q.authzErr = errStubPredicate
@@ -852,8 +859,11 @@ func TestSSOAppAccessPredicateError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSSO(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want 500 (fail closed); body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error (fail closed); body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=server_error&ref=") {
+		t.Fatalf("Location = %q, want /error?error=server_error prefix", loc)
 	}
 	if rows := h.q.sessions(); len(rows) != 0 {
 		t.Errorf("saml_session rows = %d, want 0 (predicate error issues nothing)", len(rows))
@@ -872,11 +882,20 @@ func TestSSOUnknownSPDirectError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSSO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 direct error; body=%s", rec.Code, rec.Body.String())
+	// The unknown SP surfaces during parse (parseAuthnRequest → ErrUnknownSP), on
+	// the untrusted side of the open-redirect guard. ssoParseError maps the whole
+	// parse/validation class to saml_request_invalid and dead-ends at the SPA
+	// /error page — it MUST NOT redirect to any SP-supplied URL.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
 	}
-	if loc := rec.Header().Get("Location"); loc != "" {
-		t.Errorf("unknown-SP error must NOT redirect; got Location=%q", loc)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
+	}
+	// Must dead-end at our OWN /error page, never an SP ACS.
+	if strings.Contains(loc, "sp.example.test") || strings.Contains(loc, "someone-else.example") {
+		t.Errorf("unknown-SP error must NOT redirect to any SP; got Location=%q", loc)
 	}
 }
 
@@ -994,10 +1013,11 @@ func TestSSONameIDPolicyUnspecifiedIssues(t *testing.T) {
 
 // TestSSOPostUnsignedRejected drives HandleSSO with a POST-binding UNSIGNED
 // AuthnRequest for an SP that requires signed requests. The enveloped-signature
-// gate surfaces errNoSignature, which ssoParseError must map to a 400 (NOT the
-// default 500), and no SAMLResponse/assertion may be issued. This exercises the
-// full handler→ssoParseError mapping, regression-guarding the bug where the
-// POST-reachable signature/XML sentinels fell through to the 500 branch.
+// gate surfaces errNoSignature, which ssoParseError must map to the client-class
+// saml_request_invalid /error redirect (NOT the server_error branch), and no
+// SAMLResponse/assertion may be issued. This exercises the full
+// handler→ssoParseError mapping, regression-guarding the bug where the
+// POST-reachable signature/XML sentinels fell through to the internal branch.
 func TestSSOPostUnsignedRejected(t *testing.T) {
 	h := newSSOHarness(t, ssoSP()) // ssoSP() has RequireSignedAuthnRequest=true
 	// Build an UNSIGNED POST AuthnRequest (sign:false → signCertDER unused).
@@ -1016,8 +1036,11 @@ func TestSSOPostUnsignedRejected(t *testing.T) {
 
 	h.idp.HandleSSO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (unsigned POST rejected at signature gate); body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error (unsigned POST rejected at signature gate); body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
 	}
 	if body := rec.Body.String(); samlResponseRe.MatchString(body) {
 		t.Errorf("rejected request must not issue a SAMLResponse; body=%s", body)
@@ -1029,8 +1052,9 @@ func TestSSOPostUnsignedRejected(t *testing.T) {
 
 // TestSSOPostDoctypeRejected drives HandleSSO with a POST-binding body whose XML
 // carries a DOCTYPE. parseXMLSecure (run during decode, before the signature
-// gate) surfaces errXMLDTD, which ssoParseError must map to a 400 rather than the
-// default 500. Guards the XXE/DTD-rejection sentinel on the POST intake path.
+// gate) surfaces errXMLDTD, which ssoParseError must map to the client-class
+// saml_request_invalid /error redirect rather than the server_error branch.
+// Guards the XXE/DTD-rejection sentinel on the POST intake path.
 func TestSSOPostDoctypeRejected(t *testing.T) {
 	h := newSSOHarness(t, ssoSP())
 	doctypeXML := `<?xml version="1.0"?><!DOCTYPE AuthnRequest [<!ENTITY x "y">]>` +
@@ -1045,8 +1069,11 @@ func TestSSOPostDoctypeRejected(t *testing.T) {
 
 	h.idp.HandleSSO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (DOCTYPE body rejected); body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error (DOCTYPE body rejected); body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
 	}
 	if body := rec.Body.String(); samlResponseRe.MatchString(body) {
 		t.Errorf("rejected request must not issue a SAMLResponse; body=%s", body)

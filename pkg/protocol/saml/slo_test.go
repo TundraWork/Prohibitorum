@@ -583,8 +583,14 @@ func TestSLOBadSignatureLeavesSessionUntouched(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSLO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	// A bad signature is a malformed/untrusted request the IdP cannot answer; it
+	// dead-ends at the SPA /error page (saml_request_invalid). The session MUST
+	// remain untouched (the security property this test guards).
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
 	}
 	if !h.sessionAlive(t, 42, sid) {
 		t.Error("session was revoked on a bad signature; MUST remain untouched")
@@ -611,8 +617,13 @@ func TestSLOAbsentSignatureRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSLO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	// An absent signature is rejected on the untrusted side; it dead-ends at the
+	// SPA /error page (saml_request_invalid) with the session left untouched.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
 	}
 	if !h.sessionAlive(t, 42, sid) {
 		t.Error("session revoked despite absent signature; MUST remain untouched")
@@ -698,8 +709,13 @@ func TestSLODestinationMismatchRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSLO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	// A bad Destination is rejected before the revoke step; it dead-ends at the
+	// SPA /error page (saml_request_invalid) with the session left untouched.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
 	}
 	if !h.sessionAlive(t, 42, sid) {
 		t.Error("session revoked despite bad Destination; MUST remain untouched")
@@ -724,8 +740,13 @@ func TestSLOBadVersionRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSLO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	// A bad Version is malformed (Core §3.2.1); it dead-ends at the SPA /error
+	// page (saml_request_invalid) with the session left untouched.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
 	}
 	if !h.sessionAlive(t, 42, sid) {
 		t.Error("session revoked despite bad Version; MUST remain untouched")
@@ -749,8 +770,13 @@ func TestSLOExpiredNotOnOrAfterRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSLO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	// An expired NotOnOrAfter is rejected before the revoke step; it dead-ends at
+	// the SPA /error page (saml_request_invalid) with the session left untouched.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
 	}
 	if !h.sessionAlive(t, 42, sid) {
 		t.Error("session revoked despite expired NotOnOrAfter; MUST remain untouched")
@@ -771,11 +797,18 @@ func TestSLOUnknownSPDirectError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSLO(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	// An unknown SP is on the untrusted side of the open-redirect guard: it
+	// dead-ends at the SPA /error page (saml_sp_unknown) and MUST NOT redirect to
+	// any SP-supplied URL.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
 	}
-	if loc := rec.Header().Get("Location"); loc != "" {
-		t.Errorf("unknown-SP must NOT redirect; got Location=%q", loc)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=saml_sp_unknown&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_sp_unknown prefix", loc)
+	}
+	if strings.Contains(loc, "sp.example.test") || strings.Contains(loc, "someone-else.example") {
+		t.Errorf("unknown-SP must NOT redirect to any SP; got Location=%q", loc)
 	}
 }
 
@@ -811,9 +844,12 @@ func TestSLOSessionIndexFilter(t *testing.T) {
 	}
 }
 
-// TestSLONoMetadataFallback confirms an SP registered WITHOUT metadata still gets
-// its session revoked and receives the signed LogoutResponse XML directly.
-func TestSLONoMetadataFallback(t *testing.T) {
+// TestSLONoMetadataFallbackRedirectsToErrorPage confirms an SP registered WITHOUT
+// metadata still gets its session revoked, but because the IdP has no SP binding
+// to deliver the signed LogoutResponse over, the browser-navigated request
+// dead-ends at the SPA /error page (server_error) instead of dumping raw XML at
+// the user. The session teardown (the security-relevant action) still happens.
+func TestSLONoMetadataFallbackRedirectsToErrorPage(t *testing.T) {
 	sp := sloSP()
 	sp.MetadataXml = pgtype.Text{Valid: false}
 	h := newSLOHarness(t, sp)
@@ -830,14 +866,18 @@ func TestSLONoMetadataFallback(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleSLO(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 direct XML; body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
 	}
-	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/xml") {
-		t.Errorf("Content-Type = %q, want text/xml", ct)
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=server_error&ref=") {
+		t.Fatalf("Location = %q, want /error?error=server_error prefix", loc)
 	}
+	// The session teardown must still have happened despite the undeliverable
+	// response: the revoke precedes the delivery step.
 	if h.sessionAlive(t, 42, sid) {
-		t.Error("session still alive in no-metadata fallback")
+		t.Error("session still alive in no-metadata fallback; revoke must still happen")
 	}
-	assertLogoutResponseValid(t, h, rec.Body.Bytes(), "_slo-nometa")
+	if del := h.q.deletedRows(); len(del) != 1 || del[0] != sid {
+		t.Errorf("deleted rows = %v, want [%s] (binding cleaned even when undeliverable)", del, sid)
+	}
 }

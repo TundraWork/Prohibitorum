@@ -198,8 +198,9 @@ func TestSSOInitOptInIssuesUnsolicited(t *testing.T) {
 }
 
 // TestSSOInitRejectsOversizeRelayState guards N7: a RelayState longer than the
-// spec's 80-byte limit is rejected with a 400 before any assertion is issued,
-// even for an opted-in SP with a live session.
+// spec's 80-byte limit is rejected before any assertion is issued, even for an
+// opted-in SP with a live session. The oversize RelayState is a malformed
+// request the IdP cannot safely answer, so it dead-ends at the SPA /error page.
 func TestSSOInitRejectsOversizeRelayState(t *testing.T) {
 	sp := ssoSP()
 	sp.AllowIdpInitiated = true
@@ -211,8 +212,11 @@ func TestSSOInitRejectsOversizeRelayState(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleIdPInitiated(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 for oversize RelayState; body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error for oversize RelayState; body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
 	}
 }
 
@@ -225,8 +229,14 @@ func TestSSOInitOptOutForbidden(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleIdPInitiated(rec, req)
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403 (SP not opted in); body=%s", rec.Code, rec.Body.String())
+	// An SP that did not opt into IdP-initiated SSO is a human-facing dead-end
+	// (the IdP refuses to emit an unsolicited assertion), so it 302-redirects to
+	// the SPA /error page rather than returning a 403 plaintext.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error (SP not opted in); body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_idp_init_disabled&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_idp_init_disabled prefix", loc)
 	}
 	if body := rec.Body.String(); samlResponseRe.MatchString(body) {
 		t.Errorf("opt-out SP must not get a SAMLResponse; body=%s", body)
@@ -267,11 +277,18 @@ func TestSSOInitUnknownSPDirect400(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleIdPInitiated(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (unknown sp); body=%s", rec.Code, rec.Body.String())
+	// An unknown sp is on the untrusted side of the open-redirect guard: it
+	// dead-ends at the SPA /error page (saml_sp_unknown) and MUST NOT redirect to
+	// any SP-supplied URL.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error (unknown sp); body=%s", rec.Code, rec.Body.String())
 	}
-	if loc := rec.Header().Get("Location"); loc != "" {
-		t.Errorf("unknown-SP error must NOT redirect; got Location=%q", loc)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=saml_sp_unknown&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_sp_unknown prefix", loc)
+	}
+	if strings.Contains(loc, "stranger.example") || strings.Contains(loc, "sp.example.test") {
+		t.Errorf("unknown-SP error must NOT redirect to any SP; got Location=%q", loc)
 	}
 }
 
@@ -286,11 +303,17 @@ func TestSSOInitEmptySPParamDirect400(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.idp.HandleIdPInitiated(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (empty sp param); body=%s", rec.Code, rec.Body.String())
+	// An empty sp param is a malformed launcher request the IdP cannot answer; it
+	// dead-ends at the SPA /error page (saml_request_invalid), never an SP URL.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error (empty sp param); body=%s", rec.Code, rec.Body.String())
 	}
-	if loc := rec.Header().Get("Location"); loc != "" {
-		t.Errorf("empty-sp error must NOT redirect; got Location=%q", loc)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
+	}
+	if strings.Contains(loc, "sp.example.test") {
+		t.Errorf("empty-sp error must NOT redirect to any SP; got Location=%q", loc)
 	}
 }
 
@@ -366,13 +389,18 @@ func TestSSOInitRateLimited(t *testing.T) {
 
 	sessionsBefore := len(h.q.sessions())
 
-	// The (max+1)th request trips the limit.
+	// The (max+1)th request trips the limit. Over-limit is a browser-navigated
+	// dead-end (no SAML response can be safely issued), so it 302-redirects to the
+	// SPA /error page (rate_limited) while still setting Retry-After.
 	req := idpInitRequest(testSPEntityID, "", liveSession(acct))
 	rec := httptest.NewRecorder()
 	h.idp.HandleIdPInitiated(rec, req)
 
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("over-limit status = %d, want 429; body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusFound {
+		t.Fatalf("over-limit status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=rate_limited&ref=") {
+		t.Fatalf("Location = %q, want /error?error=rate_limited prefix", loc)
 	}
 	if ra := rec.Header().Get("Retry-After"); ra == "" {
 		t.Errorf("over-limit response missing Retry-After header")

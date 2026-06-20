@@ -84,9 +84,9 @@ type autoPostData struct {
 //
 // SECURITY — error-channel ordering: until the AuthnRequest is parsed and its
 // SP + ACS are DB-validated, the request target is UNTRUSTED, so EVERY parse
-// failure is rendered as a DIRECT http.Error and NEVER redirected to an
-// SP-supplied URL (open-redirect / assertion-exfiltration guard, mirroring the
-// OIDC authorize handler).
+// failure dead-ends at the IdP's OWN SPA /error page (via ssoParseError →
+// errorPage) and is NEVER redirected to an SP-supplied URL (open-redirect /
+// assertion-exfiltration guard, mirroring the OIDC authorize handler).
 func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -102,7 +102,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// (e.g. DB) error maps to 500.
 	req, err := i.parseAuthnRequest(ctx, r)
 	if err != nil {
-		i.ssoParseError(w, err)
+		i.ssoParseError(w, r, err)
 		return
 	}
 	sp := req.SP
@@ -121,15 +121,15 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// too — a NoPassive answer counts as the single use of this ID.
 			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
-					http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
+					i.errorPage(w, r, "saml_replayed")
 				} else {
-					http.Error(w, "internal error", http.StatusInternalServerError)
+					i.errorPage(w, r, "server_error")
 				}
 				return
 			}
 			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusNoPassive)
 			if berr != nil {
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				i.errorPage(w, r, "server_error")
 				return
 			}
 			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
@@ -154,7 +154,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		SpID:      sp.ID,
 	})
 	if aerr != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	if !authzed.Bool {
@@ -176,15 +176,15 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// path), then auto-POST a terminal Responder/RequestDenied Response.
 			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
-					http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
+					i.errorPage(w, r, "saml_replayed")
 				} else {
-					http.Error(w, "internal error", http.StatusInternalServerError)
+					i.errorPage(w, r, "server_error")
 				}
 				return
 			}
 			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusRequestDenied)
 			if berr != nil {
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				i.errorPage(w, r, "server_error")
 				return
 			}
 			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
@@ -205,7 +205,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			if ra := i.rl.RetryAfter(key); ra > 0 {
 				w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 			}
-			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+			i.errorPage(w, r, "rate_limited")
 			return
 		}
 	}
@@ -221,7 +221,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Uniform body (mirrors the OIDC authorize handler) so the HTTP response
 		// never leaks which backend step failed; the specific cause stays in err.
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	authTime := row.AuthTime.Time
@@ -240,15 +240,15 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// here is also a single use, so consume it now.
 			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
-					http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
+					i.errorPage(w, r, "saml_replayed")
 				} else {
-					http.Error(w, "internal error", http.StatusInternalServerError)
+					i.errorPage(w, r, "server_error")
 				}
 				return
 			}
 			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusNoPassive)
 			if berr != nil {
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				i.errorPage(w, r, "server_error")
 				return
 			}
 			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
@@ -259,7 +259,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		if reauthNonce != "" {
 			ok, cerr := authn.ConsumeReauth(ctx, i.kv, "saml:reauth:", reauthNonce, sess.Data.AccountID, authTime)
 			if cerr != nil {
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				i.errorPage(w, r, "server_error")
 				return
 			}
 			satisfied = ok
@@ -267,7 +267,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		if !satisfied {
 			nonce, derr := authn.DemandReauth(ctx, i.kv, "saml:reauth:", sess.Data.AccountID)
 			if derr != nil {
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				i.errorPage(w, r, "server_error")
 				return
 			}
 			// Preserve the SP-signed raw query EXACTLY (the redirect-binding
@@ -294,9 +294,9 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// replayed ID is a client error → 400; any other KV error → 500.
 	if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 		if errors.Is(cerr, ErrReplayedRequest) {
-			http.Error(w, "AuthnRequest replayed", http.StatusBadRequest)
+			i.errorPage(w, r, "saml_replayed")
 		} else {
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			i.errorPage(w, r, "server_error")
 		}
 		return
 	}
@@ -315,7 +315,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	if f := req.NameIDFormat; f != "" && f != nameIDUnspecified && f != sp.NameIDFormat {
 		respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusRequester, statusInvalidNameIDPolicy)
 		if berr != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			i.errorPage(w, r, "server_error")
 			return
 		}
 		i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
@@ -328,21 +328,21 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// (6) Stable, opaque, per-(account,sp) NameID.
 	nameID, err := i.subjectID(ctx, account.ID, sp.ID, sp.NameIDFormat)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
 	// (7-attrs) Fetch the account's exposed group slugs (for the "groups" source).
 	groupSlugs, gerr := i.queries.ListExposedGroupSlugsByAccount(ctx, account.ID)
 	if gerr != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
 	// Project the account into SAML attributes per the SP's map.
 	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL(), groupSlugs)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -351,7 +351,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// (7) Build + sign the Response (which carries a signed bearer Assertion).
 	respXML, err := i.buildResponse(ctx, sp, req.ACSURL, req.RequestID, nameID, attrs, authTime, sessionIndex)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -368,7 +368,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		SessionIndex: sessionIndex,
 		NotOnOrAfter: pgtype.Timestamptz{Time: sessionExpiry, Valid: true},
 	}); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -390,11 +390,13 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
 }
 
-// ssoParseError maps a parseAuthnRequest error to a DIRECT HTTP error. Every
-// case is on the untrusted side of the open-redirect guard, so none redirect.
-// Client-class errors (decode/SP/signature/ACS/Destination/malformed/oversize)
-// collapse to 400; anything else (e.g. a DB failure during SP lookup) is 500.
-func (i *IdP) ssoParseError(w http.ResponseWriter, err error) {
+// ssoParseError maps a parseAuthnRequest error to a browser-navigated /error
+// redirect. Every case is on the untrusted side of the open-redirect guard, so
+// none routes back to an SP-supplied URL — they all dead-end at the SPA /error
+// page. Client-class errors (decode/SP/signature/ACS/Destination/malformed/
+// oversize) map to saml_request_invalid; anything else (e.g. a DB failure during
+// SP lookup) maps to server_error.
+func (i *IdP) ssoParseError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrUnknownSP),
 		errors.Is(err, ErrInvalidACS),
@@ -410,11 +412,11 @@ func (i *IdP) ssoParseError(w http.ResponseWriter, err error) {
 		errors.Is(err, errSigRefMismatch),
 		errors.Is(err, errXMLDTD),
 		errors.Is(err, errDuplicateID):
-		http.Error(w, "invalid SAML AuthnRequest", http.StatusBadRequest)
+		i.errorPage(w, r, "saml_request_invalid")
 	default:
 		// Unexpected (e.g. DB unavailable, decompression-internal, XML library
 		// error). Fail closed with a server error.
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 	}
 }
 

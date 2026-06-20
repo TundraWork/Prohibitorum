@@ -66,7 +66,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		binding = crewjam.HTTPRedirectBinding
 		el, err := decodeRedirectLogoutRequest(r, &req)
 		if err != nil {
-			i.sloParseError(w, err)
+			i.sloParseError(w, r, err)
 			return
 		}
 		reqEl = el
@@ -74,34 +74,34 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		binding = crewjam.HTTPPostBinding
 		el, err := decodePostLogoutRequest(r, &req)
 		if err != nil {
-			i.sloParseError(w, err)
+			i.sloParseError(w, r, err)
 			return
 		}
 		reqEl = el
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		i.errorPage(w, r, "saml_request_invalid")
 		return
 	}
 
 	if req.Issuer == nil || req.Issuer.Value == "" {
-		http.Error(w, "invalid SAML LogoutRequest", http.StatusBadRequest)
+		i.errorPage(w, r, "saml_request_invalid")
 		return
 	}
 
-	// (3) Resolve the SP. Unknown SP → direct error (no redirect, no session
-	// touched).
+	// (3) Resolve the SP. Unknown SP → SPA /error dead-end (never an SP URL, no
+	// session touched).
 	sp, err := i.queries.GetSAMLSPByEntityID(ctx, req.Issuer.Value)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			i.sloParseError(w, ErrUnknownSP)
+			i.sloParseError(w, r, ErrUnknownSP)
 			return
 		}
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	// A disabled SP is treated as if it were unregistered — the flow is denied.
 	if sp.Disabled {
-		i.sloParseError(w, ErrUnknownSP)
+		i.sloParseError(w, r, ErrUnknownSP)
 		return
 	}
 
@@ -114,28 +114,28 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		// and verifies against the SP's "signing" certs. Absent signature →
 		// ErrMissingSignature.
 		if verr := i.verifyRedirectSignature(ctx, r, sp); verr != nil {
-			i.sloParseError(w, verr)
+			i.sloParseError(w, r, verr)
 			return
 		}
 	case crewjam.HTTPPostBinding:
 		if verr := i.verifyPostLogoutSignature(ctx, reqEl, sp); verr != nil {
-			i.sloParseError(w, verr)
+			i.sloParseError(w, r, verr)
 			return
 		}
 	}
 
 	// (5) Destination (if present) must name this IdP's SLO endpoint.
 	if req.Destination != "" && req.Destination != i.sloURL() {
-		i.sloParseError(w, ErrSLOBadDestination)
+		i.sloParseError(w, r, ErrSLOBadDestination)
 		return
 	}
 	// NotOnOrAfter (if present) must be in the future.
 	if req.NotOnOrAfter != nil && !req.NotOnOrAfter.After(time.Now()) {
-		i.sloParseError(w, ErrSLOExpired)
+		i.sloParseError(w, r, ErrSLOExpired)
 		return
 	}
 	if req.NameID == nil {
-		http.Error(w, "invalid SAML LogoutRequest", http.StatusBadRequest)
+		i.errorPage(w, r, "saml_request_invalid")
 		return
 	}
 	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes — reject before any
@@ -145,7 +145,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		relayStateLen = len(r.FormValue("RelayState"))
 	}
 	if relayStateLen > maxRelayStateBytes {
-		i.sloParseError(w, ErrMalformedRequest)
+		i.sloParseError(w, r, ErrMalformedRequest)
 		return
 	}
 
@@ -157,7 +157,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		NameID: req.NameID.Value,
 	})
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	if req.SessionIndex != nil && req.SessionIndex.Value != "" {
@@ -249,7 +249,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	respLocation, haveLocation := i.parseSPSLOResponseTarget(sp, binding)
 	respXML, err := i.buildLogoutResponse(ctx, req.ID, respLocation)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -268,12 +268,13 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 
 	// (10) Deliver the LogoutResponse.
 	if !haveLocation {
-		// v0.5 fallback: the SP was registered WITHOUT metadata, so we cannot
-		// derive an SLO-response endpoint. The IdP session is already revoked;
-		// only the response delivery is degraded. Emit the signed XML directly.
-		w.Header().Set("Content-Type", "text/xml; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		_, _ = w.Write(respXML)
+		// The SP was registered WITHOUT metadata, so we cannot derive an
+		// SLO-response endpoint and have no SP binding to deliver the signed
+		// LogoutResponse over. The IdP session is already revoked; only the
+		// response delivery is impossible. This is a browser-navigated dead-end
+		// (we cannot return a SAML response to the SP), so send the user to the
+		// SPA /error page rather than dumping raw XML at them.
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -510,16 +511,16 @@ func (i *IdP) writeRedirectLogoutResponse(w http.ResponseWriter, r *http.Request
 	var deflated bytes.Buffer
 	fw, err := flate.NewWriter(&deflated, flate.DefaultCompression)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	if _, err := fw.Write(respXML); err != nil {
 		_ = fw.Close()
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	if err := fw.Close(); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	encoded := base64.StdEncoding.EncodeToString(deflated.Bytes())
@@ -528,12 +529,12 @@ func (i *IdP) writeRedirectLogoutResponse(w http.ResponseWriter, r *http.Request
 	// verifiable after DEFLATE+base64, so a strict SP relies on this).
 	priv, _, _, ok := i.keys.signingKey(r.Context())
 	if !ok {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 	signedQuery, err := signedRedirectQuery(encoded, relayState, priv)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 		return
 	}
 
@@ -545,16 +546,19 @@ func (i *IdP) writeRedirectLogoutResponse(w http.ResponseWriter, r *http.Request
 	http.Redirect(w, r, location+sep+signedQuery, http.StatusFound)
 }
 
-// sloParseError maps an SLO parse/validation/signature error to a DIRECT HTTP
-// error. The shared invariant across every case (including ErrSLOBadDestination
-// and ErrSLOExpired, which are raised AFTER the signature gate) is that NONE of
-// these paths redirect to an SP-supplied URL and NONE have mutated a session:
-// they all terminate before the revoke step. Client-class errors collapse to
-// 400; anything else (e.g. a DB failure) is 500.
-func (i *IdP) sloParseError(w http.ResponseWriter, err error) {
+// sloParseError maps an SLO parse/validation/signature error to a browser-
+// navigated /error redirect. The shared invariant across every case (including
+// ErrSLOBadDestination and ErrSLOExpired, which are raised AFTER the signature
+// gate) is that NONE of these paths redirect to an SP-supplied URL and NONE have
+// mutated a session: they all terminate before the revoke step, so they dead-end
+// at the SPA /error page. Client-class errors map to saml_request_invalid (an
+// unknown SP maps to saml_sp_unknown); anything else (e.g. a DB failure) maps to
+// server_error.
+func (i *IdP) sloParseError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, ErrUnknownSP),
-		errors.Is(err, ErrMalformedRequest),
+	case errors.Is(err, ErrUnknownSP):
+		i.errorPage(w, r, "saml_sp_unknown")
+	case errors.Is(err, ErrMalformedRequest),
 		errors.Is(err, ErrOversizeRequest),
 		errors.Is(err, ErrMissingSAMLRequest),
 		errors.Is(err, ErrMissingSignature),
@@ -567,8 +571,8 @@ func (i *IdP) sloParseError(w http.ResponseWriter, err error) {
 		errors.Is(err, errDuplicateID),
 		errors.Is(err, ErrSLOBadDestination),
 		errors.Is(err, ErrSLOExpired):
-		http.Error(w, "invalid SAML LogoutRequest", http.StatusBadRequest)
+		i.errorPage(w, r, "saml_request_invalid")
 	default:
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		i.errorPage(w, r, "server_error")
 	}
 }
