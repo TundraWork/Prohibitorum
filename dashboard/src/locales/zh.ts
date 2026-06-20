@@ -505,6 +505,12 @@ export default {
     pairDevice: '新设备？配对',
     lostAuthenticator: '丢失了身份验证器？',
     recoveryRestart: '该恢复码无法使用——可能已输入有误或已被使用。为了账户安全，本次登录已重置，请重新开始登录。',
+    sessionExpired: '你的会话已过期，请重新登录。',
+  },
+
+  sessionExpiry: {
+    message: '你的会话已过期。',
+    signInAgain: '重新登录',
   },
 
   recovery: {
@@ -553,6 +559,8 @@ export default {
     returnToLogin: '返回登录',
     appAccessDeniedTitle: '无访问权限',
     appAccessDenied: '你没有访问 {app} 的权限。如认为有误，请联系管理员。',
+    reference: '参考编号：{ref}',
+    backToDashboard: '返回控制台',
   },
 
   enroll: {
@@ -690,6 +698,17 @@ export default {
     email_not_verified: '身份提供商尚未验证你的邮箱地址。',
     federation_state_invalid: '登录尝试已超时，请重试。',
     invalid_return_to: '返回地址无效。',
+
+    // OIDC authorize / logout (browser-facing protocol errors)
+    invalid_request: '登录请求无效或不完整，请从应用重新发起。',
+    invalid_client: '无法识别该应用，请联系应用所有者。',
+    invalid_redirect_uri: '该应用配置有误（返回地址未注册），请联系应用所有者。',
+    // SAML (browser-facing protocol errors)
+    saml_request_invalid: '单点登录请求无效，请从应用重新发起。',
+    saml_sp_unknown: '该应用尚未在此配置单点登录，请联系管理员。',
+    saml_sp_disabled: '该应用的单点登录当前已停用，请联系管理员。',
+    saml_idp_init_disabled: '该应用不支持从这里发起登录，请改为从应用打开。',
+    saml_replayed: '该登录请求已被使用，请从应用重新发起。',
 
     // Generic / client-synthesized
     server_error: '我们这边出了点问题，请重试。',

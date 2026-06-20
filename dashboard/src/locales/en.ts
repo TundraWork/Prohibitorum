@@ -509,6 +509,12 @@ export default {
     pairDevice: 'New device? Pair it',
     lostAuthenticator: 'Lost your authenticator?',
     recoveryRestart: 'That recovery code could not be used — it may be incorrect or already spent. For security, this sign-in was reset. Please sign in again from the start.',
+    sessionExpired: 'Your session expired. Please sign in again.',
+  },
+
+  sessionExpiry: {
+    message: 'Your session expired.',
+    signInAgain: 'Sign in again',
   },
 
   recovery: {
@@ -557,6 +563,8 @@ export default {
     returnToLogin: 'Return to sign in',
     appAccessDeniedTitle: 'Access not allowed',
     appAccessDenied: "You don't have access to {app}. Contact your administrator if you think this is a mistake.",
+    reference: 'Reference: {ref}',
+    backToDashboard: 'Back to dashboard',
   },
 
   enroll: {
@@ -694,6 +702,17 @@ export default {
     email_not_verified: 'Your identity provider has not verified your email address.',
     federation_state_invalid: 'The sign-in attempt expired. Please try again.',
     invalid_return_to: 'The return address was invalid.',
+
+    // OIDC authorize / logout (browser-facing protocol errors)
+    invalid_request: 'That sign-in request was invalid or incomplete. Please start again from the application.',
+    invalid_client: 'That application is not recognized. Please contact the application owner.',
+    invalid_redirect_uri: 'That application is misconfigured (unrecognized return address). Please contact the application owner.',
+    // SAML (browser-facing protocol errors)
+    saml_request_invalid: 'That single sign-on request was invalid. Please start again from the application.',
+    saml_sp_unknown: 'That application is not configured for single sign-on here. Please contact your administrator.',
+    saml_sp_disabled: 'Single sign-on for that application is currently disabled. Please contact your administrator.',
+    saml_idp_init_disabled: 'That application does not support starting sign-in from here. Please open it from the application instead.',
+    saml_replayed: 'That sign-in request was already used. Please start again from the application.',
 
     // Generic / client-synthesized
     server_error: 'Something went wrong on our end. Please try again.',
