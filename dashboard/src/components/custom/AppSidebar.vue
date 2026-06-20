@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound } from 'lucide-vue-next'
+import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound, Settings } from 'lucide-vue-next'
 import NavUser from '@/components/custom/NavUser.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/custom/ThemeToggle.vue'
@@ -42,6 +42,7 @@ const adminItems = computed(() => [
   { to: '/admin/groups', label: t('admin.nav.groups'), icon: UsersRound },
   { to: '/admin/signing-keys', label: t('admin.nav.signingKeys'), icon: KeySquare },
   { to: '/admin/audit', label: t('admin.nav.audit'), icon: ScrollText },
+  { to: '/admin/settings', label: t('admin.nav.settings'), icon: Settings },
 ])
 
 const federationItems = computed(() => [

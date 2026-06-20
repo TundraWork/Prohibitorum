@@ -135,7 +135,7 @@ export default {
   },
 
   admin: {
-    nav: { title: '管理', accounts: '账户', invitations: '邀请', groups: '用户组', oidcApplications: 'OIDC 应用', samlApplications: 'SAML 应用', identityProviders: '身份提供商', signingKeys: '签名密钥', audit: '审计日志', federation: '联合认证', applications: '应用' },
+    nav: { title: '管理', accounts: '账户', invitations: '邀请', groups: '用户组', oidcApplications: 'OIDC 应用', samlApplications: 'SAML 应用', identityProviders: '身份提供商', signingKeys: '签名密钥', audit: '审计日志', federation: '联合认证', applications: '应用', settings: '设置' },
     accounts: {
       title: '账户',
       invite: '邀请',
@@ -469,6 +469,19 @@ export default {
       delete: '删除用户组',
       deleteConfirmTitle: '删除此用户组？',
       deleteConfirmBody: '这将永久删除该用户组，此操作无法撤销。',
+    },
+    settings: {
+      title: '实例设置',
+      help: '自定义本实例的名称与品牌标识。',
+      nameLabel: '实例名称',
+      nameHint: '显示在侧边栏、登录页、浏览器标签页和页面标题中。',
+      save: '保存',
+      saved: '已保存',
+      iconLabel: '图标',
+      iconHint: '正方形图片（PNG、JPEG 或 WebP），用于浏览器标签页和应用内标识。',
+      upload: '上传图标',
+      remove: '移除图标',
+      uploadError: '无法使用该图片，请换一张正方形 PNG 或 JPEG。',
     },
     access: {
       title: '应用访问控制',

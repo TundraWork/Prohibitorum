@@ -139,7 +139,7 @@ export default {
   },
 
   admin: {
-    nav: { title: 'Admin', accounts: 'Accounts', invitations: 'Invitations', groups: 'Groups', oidcApplications: 'OIDC applications', samlApplications: 'SAML applications', identityProviders: 'Identity providers', signingKeys: 'Signing keys', audit: 'Audit log', federation: 'Federation', applications: 'Applications' },
+    nav: { title: 'Admin', accounts: 'Accounts', invitations: 'Invitations', groups: 'Groups', oidcApplications: 'OIDC applications', samlApplications: 'SAML applications', identityProviders: 'Identity providers', signingKeys: 'Signing keys', audit: 'Audit log', federation: 'Federation', applications: 'Applications', settings: 'Settings' },
     accounts: {
       title: 'Accounts',
       invite: 'Invite',
@@ -473,6 +473,19 @@ export default {
       delete: 'Delete group',
       deleteConfirmTitle: 'Delete this group?',
       deleteConfirmBody: 'This permanently removes the group. This cannot be undone.',
+    },
+    settings: {
+      title: 'Instance settings',
+      help: 'Customize how this instance is named and branded.',
+      nameLabel: 'Instance name',
+      nameHint: 'Shown in the sidebar, the sign-in page, browser tabs, and page titles.',
+      save: 'Save',
+      saved: 'Saved',
+      iconLabel: 'Icon',
+      iconHint: 'A square image (PNG, JPEG, or WebP). Used for the browser tab and the in-app mark.',
+      upload: 'Upload icon',
+      remove: 'Remove icon',
+      uploadError: 'That image could not be used. Try a different square PNG or JPEG.',
     },
     access: {
       title: 'App access',
