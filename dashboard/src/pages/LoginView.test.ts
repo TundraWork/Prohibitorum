@@ -3,12 +3,19 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 import LoginView from './LoginView.vue'
+import { useSessionExpiry } from '@/composables/useSessionExpiry'
 
 // --- Mocks ----------------------------------------------------------------
 vi.mock('@/lib/api', () => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn() },
 }))
 import { api } from '@/lib/api'
+
+// vue-router — expose a mutable query so tests can inject route params.
+let _routeQuery: Record<string, string> = {}
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: _routeQuery }),
+}))
 
 // WebAuthn ceremony: passkeyGet resolves a dummy assertion; never user-cancel.
 vi.mock('@/lib/webauthn', () => ({
@@ -59,6 +66,8 @@ beforeEach(() => {
   hardRedirect.mockReset()
   authState.me = null
   authState.ensureLoaded.mockClear()
+  _routeQuery = {}
+  useSessionExpiry().reset()
 })
 
 describe('LoginView', () => {
@@ -179,5 +188,42 @@ describe('LoginView', () => {
       el.element.tagName === 'DIV' && el.classes().includes('flex') && el.classes().includes('items-center'),
     )
     expect(dividers).toHaveLength(1)
+  })
+
+  it('shows the session-expired notice when reason=session_expired is in the query', async () => {
+    _routeQuery = { reason: 'session_expired' }
+    get.mockImplementation(async (path: string) => {
+      if (path === '/api/prohibitorum/auth/status') return { bootstrapped: true }
+      if (path === '/api/prohibitorum/auth/federation') return []
+      throw new Error(`unexpected GET ${path}`)
+    })
+    const w = mountView()
+    await flushPromises()
+    expect(w.text()).toContain(en.login.sessionExpired)
+  })
+
+  it('does not show the session-expired notice when the query param is absent', async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path === '/api/prohibitorum/auth/status') return { bootstrapped: true }
+      if (path === '/api/prohibitorum/auth/federation') return []
+      throw new Error(`unexpected GET ${path}`)
+    })
+    const w = mountView()
+    await flushPromises()
+    expect(w.text()).not.toContain(en.login.sessionExpired)
+  })
+
+  it('calls useSessionExpiry().reset() on mount to clear the global banner flag', async () => {
+    // Trigger the banner flag first, then mount the login view — it should reset it.
+    useSessionExpiry().trigger()
+    expect(useSessionExpiry().expired.value).toBe(true)
+    get.mockImplementation(async (path: string) => {
+      if (path === '/api/prohibitorum/auth/status') return { bootstrapped: true }
+      if (path === '/api/prohibitorum/auth/federation') return []
+      throw new Error(`unexpected GET ${path}`)
+    })
+    mountView()
+    await flushPromises()
+    expect(useSessionExpiry().expired.value).toBe(false)
   })
 })

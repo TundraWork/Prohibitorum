@@ -11,11 +11,13 @@
  * so we replace those with the enroll-admin instruction (federation, if any
  * upstream is configured, stays available since it can bootstrap via invite).
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { useReturnTo } from '@/composables/useReturnTo'
+import { useSessionExpiry } from '@/composables/useSessionExpiry'
 import { hardRedirect } from '@/lib/navigate'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import PasskeyButton from '@/components/custom/PasskeyButton.vue'
@@ -23,10 +25,13 @@ import PasswordTotpForm from '@/components/custom/PasswordTotpForm.vue'
 import FederationButtons from '@/components/custom/FederationButtons.vue'
 import OrDivider from '@/components/custom/OrDivider.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const { t } = useI18n()
+const route = useRoute()
 const auth = useAuthStore()
 const { rawReturnTo, goReturnTo } = useReturnTo()
+const sessionExpired = computed(() => route.query.reason === 'session_expired')
 
 // Default to bootstrapped (show the sign-in methods); flip to the instruction
 // only when /auth/status explicitly says no admin exists.
@@ -36,6 +41,10 @@ const bootstrapped = ref(true)
 const checking = ref(true)
 
 onMounted(async () => {
+  // Clear the global session-expired banner flag now that the user is on the
+  // login page — the reason query param carries the context forward instead.
+  useSessionExpiry().reset()
+
   // Already signed in? Don't show the login form — resume the return_to (e.g.
   // the OIDC /oauth/authorize that bounced an unauthenticated user here) or land
   // on the dashboard. Leaves `checking` true so the skeleton shows during the
@@ -82,6 +91,10 @@ function onSuccess(redirect?: string): void {
     </template>
 
     <div class="flex flex-col gap-6">
+      <Alert v-if="sessionExpired" role="status" aria-live="polite">
+        <AlertDescription>{{ t('login.sessionExpired') }}</AlertDescription>
+      </Alert>
+
       <template v-if="checking">
         <CardSkeleton :lines="3" />
       </template>
