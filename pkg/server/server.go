@@ -138,6 +138,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 
 	queries := db.New(conn)
 
+	// First-boot: ensure an active OIDC signing key exists (no-op if one does).
+	ensureActiveSigningKey(ctx, conn, queries, config)
+
 	kvStore, err := kv.New(config.KV.Driver,
 		kv.WithRedisURL(config.KV.RedisURL),
 		kv.WithRedisUsername(config.KV.RedisUsername),
