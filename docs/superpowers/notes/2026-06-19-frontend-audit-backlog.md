@@ -10,7 +10,22 @@
 - **Step 2 (typeset):** new `SectionTitle` component (16px/600 title tier); promoted the 11 danger-zone `<h4 text-sm>` sub-headings, the SAML create-form section spans, and `RecoveryCodesDisplay`'s off-scale `<h3 text-sm>` to it; fixed `text-foreground`→`text-ink` drift in `EditProfileDialog`.
 - **Step 3 (harden):** `TableRow` focus-visible outline ring (6 list pages); demoted the redundant header `<h1>`→`<p>` + focus-to-content on navigation; new `StatusMessage` persistent `role=status` live region (19 confirmations migrated); replaced the invalid `role=button` on `<tr>` in AdminAudit with a real `<button>`; `<Label for>` on the display-name input + `aria-label` on the ScopeSelector custom input + fixed the self-referencing `aria-labelledby`; sidebar `<nav aria-label>` landmark (`nav.primaryLabel`, en+zh).
 
-**RESUME POINT:** execute **Steps 4–6** below (adapt → layout → polish), per-fix gate + rebuild dist, then run a full independent `/impeccable audit` to confirm the climb, then `git push` and the human visual + Chinese review. The original execution-order notes follow.
+**Re-audit + Steps 4–6 (all 5 recommendations) DONE — 2026-06-19/20, commits `90c873c`→`89cb803`.** A fresh independent re-audit (4 parallel auditors + the augmented component-consistency/affordance lens) scored **15/20** (up from 12) and surfaced new consistency findings the dimension-only scan had missed (bespoke audit pills, AppAccessCard label drift, focus-ring idiom split). High-severity/contested findings were **runtime-verified in chromium**, which caught **3 agent false positives** (documented below). All 5 recommendation groups then executed + per-fix gate:
+- **adapt (rec 1):** AttributeMapEditor stacks card-per-row below `sm` (verified 1-col@360/5-col@800); Checkbox/Radio/Switch restructured to a 24px clickable Root with the visible control at 16/20px (verified hit-box 24×24 / visual 16×16, corner-margin click registers); ScopeSelector + AdminAudit ×-buttons → real `size-6` boxes; AdminAudit preset-pill active `bg-ink`→`bg-primary` (Tide selection language).
+- **harden (rec 2):** `CardTitle`→`<h2>` (fixes the systemic h1→h3 skip; 13 SectionTitles cascade h4→h3; FormSection gains `as`); Select-trigger/`<input>` label associations via `aria-label` (`<label for>` doesn't bind a Reka button trigger).
+- **layout+optimize (rec 3):** dropped the dual icon lib (`@lucide/vue` → `lucide-vue-next`, removed from package.json); `hover:bg-muted`→`bg-accent`; `::selection` tokenized (color-mix on `--color-tide`, theme-tracking); LocaleSwitcher glassmorphism (`backdrop-blur`) removed.
+- **typeset+distill (rec 4):** AppAccessCard username→`font-mono` (matches the slug; same-component drift); PasskeysCard ad-hoc empty → `EmptyState`.
+- **polish (rec 5):** AdminAudit focus-ring idioms unified to `ring-[3px]`; ScopeSelector Add button → `<Button variant=outline>`; LoginView link underlined at rest; UserAvatar `loading="lazy"`.
+
+**3 agent false positives caught by runtime verification (the audit's own quality check):**
+1. "Keyboard-focusable rows have no focus ring" — FALSE; `cn()` merges TableRow's outline ring and Playwright confirmed `outline: solid 2px` renders on a focused `<tr>` (with a screenshot).
+2. "~30 Alert sites have conflicting role=alert+aria-live" — overstated; `Alert.vue` bakes in `role=alert`, the call-site `role` is harmless redundancy and `aria-live=polite` is an intentional override (P3 cleanup, not P1).
+3. "Invitations table overflows the page" — FALSE; `Table.vue` already wraps every table in `overflow-x-auto`.
+4. (Process note) the `::before` hit-area technique was attempted then DISCARDED — `elementFromPoint` proved an overflowing empty pseudo does NOT extend the hit region; the real fix is the 24px Root restructure.
+
+**Deliberately left (judgment, documented in commits):** sidebar `width`-collapse animation (vendored, user-initiated, marginal); broad list-vs-detail `font-mono` split (intentional convention); destructive-action variant treatment (quiet-trigger + red-confirm is coherent); ErrorView centered message (page content, calm per brand — a red Alert would be louder); contextual secret-reveal/pair-success notes (not transient flags); redundant call-site `role=alert` (harmless, 30-file churn).
+
+**RESUME POINT:** `git push` the unpushed range (~49 ahead) + the still-pending **human visual pass in both themes (en + zh)**. Optionally re-run a full `/impeccable audit` to confirm the climb past 15 (evidence-based estimate ~17/20: Responsive 2→3, Accessibility/Theming/Perf each +~0.5, Anti-Patterns held at 4). The original execution-order notes follow (now all addressed).
 
 | Dimension | Score | Headline |
 |---|---|---|
