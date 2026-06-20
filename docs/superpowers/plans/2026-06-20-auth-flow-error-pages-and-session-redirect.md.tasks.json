@@ -1,0 +1,80 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-20-auth-flow-error-pages-and-session-redirect.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: pkg/weberr redirect helper",
+      "status": "pending",
+      "description": "**Goal:** Leaf package that mints a correlation ref and 302-redirects a browser to /error?error=<code>&ref=<id>.\n\n**Files:** Create pkg/weberr/weberr.go + pkg/weberr/weberr_test.go\n\n**Verify:** go test ./pkg/weberr/...\n\n```json:metadata\n{\"files\":[\"pkg/weberr/weberr.go\",\"pkg/weberr/weberr_test.go\"],\"verifyCommand\":\"go test ./pkg/weberr/...\",\"acceptanceCriteria\":[\"NewRef returns 8 hex chars, varies\",\"RedirectToError writes 302 Location /error?error&ref + Cache-Control no-store\",\"stdlib-only imports\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Federation/invite/link handlers -> /error",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Convert federation login/callback, invite start-federation, identity-link begin/callback browser-facing writeAuthErr (JSON) to /error redirect + ref; preserve audit rows (stamped with ref); leave the federation-providers XHR list as JSON.\n\n**Files:** Modify pkg/server/handle_auth.go (add redirectAuthErrToError), handle_federation.go, handle_invite_federation.go, handle_me_identities.go; Test handle_federation_error_redirect_test.go\n\n**Verify:** go test ./pkg/server/ -run Federation\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_auth.go\",\"pkg/server/handle_federation.go\",\"pkg/server/handle_invite_federation.go\",\"pkg/server/handle_me_identities.go\",\"pkg/server/handle_federation_error_redirect_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run Federation\",\"acceptanceCriteria\":[\"fed login bad return_to -> 302 /error?error=invalid_return_to\",\"fed callback upstream error -> 302 /error?error=upstream_error + audit ref\",\"link callback upstream error -> 302 + audit ref\",\"invite empty token -> 302 /error?error=invite_required\",\"providers list endpoint unchanged JSON\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: OIDC authorize(pre-validation)+logout -> /error",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Convert OIDC authorize errors before a trusted redirect_uri and ALL logout errors from writeOIDCError (JSON) to /error redirect; preserve every post-validation redirectError-to-RP path.\n\n**Files:** Modify pkg/protocol/oidc/errors.go (add redirectToErrorPage), authorize.go (pre-validation), logout.go; Test error_redirect_test.go\n\n**Verify:** go test ./pkg/protocol/oidc/...\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/errors.go\",\"pkg/protocol/oidc/authorize.go\",\"pkg/protocol/oidc/logout.go\",\"pkg/protocol/oidc/error_redirect_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/...\",\"acceptanceCriteria\":[\"unknown client -> 302 /error?error=invalid_request\",\"bad redirect_uri -> 302 /error\",\"post-validation errors STILL redirect to RP\",\"invalid id_token_hint -> 302 /error\",\"unregistered post_logout_redirect_uri -> 302 /error (not the URI)\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: SAML SSO/IdP-init/SLO dead-ends -> /error",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Replace plaintext http.Error on SAML cannot-respond-to-SP dead-ends (parse, unknown/disabled SP, idp-init-disabled, replay, rate-limit, internal, raw-XML fallback) with /error redirect + mapped code + ref; PRESERVE all SP-binding responses (success auto-POST, passive/denied StatusCode, SLO responses, app-access-denied). Never redirect to untrusted ACS.\n\n**Files:** Modify pkg/protocol/saml/saml.go (add errorPage), sso.go (ssoParseError sig + sites), sso_init.go, slo.go (sloParseError sig + sites); Test error_redirect_test.go\n\n**Verify:** go test ./pkg/protocol/saml/...\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/saml.go\",\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/sso_init.go\",\"pkg/protocol/saml/slo.go\",\"pkg/protocol/saml/error_redirect_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/saml/...\",\"acceptanceCriteria\":[\"malformed AuthnRequest -> 302 /error?error=saml_request_invalid\",\"idp-init unknown sp -> saml_sp_unknown\",\"idp-init disabled -> saml_idp_init_disabled\",\"internal -> server_error\",\"rate-limit -> rate_limited\",\"SUCCESS still auto-POST HTML (regression)\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: i18n new codes + UI copy (en + zh)",
+      "status": "pending",
+      "description": "**Goal:** Add friendly copy for new error codes (invalid_request/invalid_client/invalid_redirect_uri/saml_*) and UI strings (login.sessionExpired, error.reference, error.backToDashboard, sessionExpiry.*) to BOTH en.ts and zh.ts; keep parity/params/compile tests green; no curly apostrophe in en.ts.\n\n**Files:** Modify dashboard/src/locales/en.ts, zh.ts\n\n**Verify:** cd dashboard && npm run test -- locales\n\n```json:metadata\n{\"files\":[\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- locales\",\"acceptanceCriteria\":[\"8 new errors.* keys in both files\",\"login.sessionExpired + error.reference + error.backToDashboard + sessionExpiry.* in both\",\"parity/params/compile tests pass\",\"no U+2019 in en.ts\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: API client 401 no_session seam",
+      "status": "pending",
+      "description": "**Goal:** lib/api.ts invokes a registerable handler on 401 with code==no_session, passing the method; call still rejects. Non-no_session 401 / 403 / 500 do not trigger it. upload() too.\n\n**Files:** Modify dashboard/src/lib/api.ts, api.test.ts\n\n**Verify:** cd dashboard && npm run test -- api\n\n```json:metadata\n{\"files\":[\"dashboard/src/lib/api.ts\",\"dashboard/src/lib/api.test.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- api\",\"acceptanceCriteria\":[\"registerUnauthorizedHandler(fn|null)\",\"401 no_session -> handler({method}) + still rejects\",\"sudo_required/403/500 -> not called\",\"upload triggers seam (PUT)\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Session-expiry handler + composable + main.ts",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Testable handler factory: no-op on public routes; authed GET -> clearAuth + router.replace(/login?return_to&reason=session_expired); authed mutation -> clearAuth + setExpiredFlag (no nav); idempotent. useSessionExpiry composable (shared flag). Wire in main.ts.\n\n**Files:** Create dashboard/src/composables/useSessionExpiry.ts, lib/sessionExpiry.ts, lib/sessionExpiry.test.ts; Modify main.ts\n\n**Verify:** cd dashboard && npm run test -- sessionExpiry\n\n```json:metadata\n{\"files\":[\"dashboard/src/composables/useSessionExpiry.ts\",\"dashboard/src/lib/sessionExpiry.ts\",\"dashboard/src/lib/sessionExpiry.test.ts\",\"dashboard/src/main.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- sessionExpiry\",\"acceptanceCriteria\":[\"public route -> no-op\",\"authed GET -> clearAuth + replace login w/ return_to+reason\",\"authed mutation -> flag, no nav\",\"idempotent\",\"useSessionExpiry shared ref + trigger/reset\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: SessionExpiredBanner global prompt",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Persistent non-dismissable top banner shown when the mutation expiry flag is set; 'Sign in again' -> router.push(/login?return_to=current&reason=session_expired) + reset flag. Mounted in App.vue.\n\n**Files:** Create dashboard/src/components/custom/SessionExpiredBanner.vue + .test.ts; Modify App.vue\n\n**Verify:** cd dashboard && npm run test -- SessionExpiredBanner\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/SessionExpiredBanner.vue\",\"dashboard/src/components/custom/SessionExpiredBanner.test.ts\",\"dashboard/src/App.vue\"],\"verifyCommand\":\"cd dashboard && npm run test -- SessionExpiredBanner\",\"acceptanceCriteria\":[\"nothing when not expired\",\"role=alert banner + button when expired\",\"click -> push login w/ return_to+reason, reset flag\",\"mounted once in App.vue\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: LoginView session-expired notice",
+      "status": "pending",
+      "blockedBy": [5, 7],
+      "description": "**Goal:** When ?reason=session_expired, LoginView shows a notice (login.sessionExpired); on mount calls useSessionExpiry().reset().\n\n**Files:** Modify dashboard/src/pages/LoginView.vue, LoginView.test.ts\n\n**Verify:** cd dashboard && npm run test -- LoginView\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/LoginView.vue\",\"dashboard/src/pages/LoginView.test.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- LoginView\",\"acceptanceCriteria\":[\"reason=session_expired -> notice renders\",\"no reason -> no notice\",\"onMounted resets the banner flag\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: ErrorView reference + auth-aware button",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** ErrorView shows ?ref as 'Reference: <ref>'; return button is auth-aware (me set -> Back to dashboard /security; else -> Return to sign in /login).\n\n**Files:** Modify dashboard/src/pages/ErrorView.vue; create/extend ErrorView.test.ts\n\n**Verify:** cd dashboard && npm run test -- ErrorView\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/ErrorView.vue\",\"dashboard/src/pages/ErrorView.test.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- ErrorView\",\"acceptanceCriteria\":[\"?error=upstream_error&ref=abc -> message + Reference: abc\",\"no ref -> no reference line\",\"authed -> /security backToDashboard; else /login returnToLogin\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Smoke + runtime verify + gate + dist",
+      "status": "pending",
+      "blockedBy": [2, 3, 4, 5, 6, 7, 8, 9, 10],
+      "description": "**Goal:** Smoke asserts federation-callback-error and SAML bad-request -> 302 /error. Runtime chromium verification of session-expiry redirect+notice, mutation banner, and a styled /error page. Full gate green; rebuild + commit pkg/webui/dist.\n\n**Files:** Modify smoke script; rebuild pkg/webui/dist\n\n**Verify:** smoke SMOKE_EXIT=0; go build -tags nodynamic ./... && go test ./...; cd dashboard && npm run test && npx vue-tsc -b && node scripts/check-contrast.mjs\n\n```json:metadata\n{\"files\":[\"pkg/webui/dist\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go test ./... && cd dashboard && npm run test && npx vue-tsc -b\",\"acceptanceCriteria\":[\"smoke: fed callback error -> 302 /error?error=upstream_error\",\"smoke: malformed SAML -> 302 /error?error=saml_request_invalid\",\"chromium: expiry -> /login + notice; mutation -> banner; /error styled not JSON\",\"full gate green; dist rebuilt+committed\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-20"
+}
