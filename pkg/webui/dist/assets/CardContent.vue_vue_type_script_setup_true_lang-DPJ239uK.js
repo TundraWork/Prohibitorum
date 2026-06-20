@@ -1,0 +1,1 @@
+import{d as n,b as t,A as o,f as r,S as c,E as l,o as p}from"./index-Ce2-Kl5w.js";const f=n({__name:"CardContent",props:{class:{type:[Boolean,null,String,Object,Array]}},setup(s){const a=s;return(e,d)=>(p(),t("div",{"data-slot":"card-content",class:o(r(c)("px-6",a.class))},[l(e.$slots,"default")],2))}});export{f as _};

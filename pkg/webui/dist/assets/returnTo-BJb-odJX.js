@@ -1,0 +1,1 @@
+function i(n){if(!n||n.startsWith("//"))return"/";try{const t=new URL(n,window.location.origin);if(t.origin!==window.location.origin)return"/";const r=t.pathname+t.search+t.hash;return r.startsWith("//")?"/":r}catch{return"/"}}export{i as s};
