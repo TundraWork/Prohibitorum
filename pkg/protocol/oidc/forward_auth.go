@@ -7,9 +7,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 )
 
@@ -153,4 +157,73 @@ func writeIdentityHeaders(w http.ResponseWriter, user, name, email string, group
 		w.Header().Set("Remote-Email", email)
 	}
 	w.Header().Set("Remote-Groups", strings.Join(groups, ","))
+}
+
+// HandleForwardAuthVerify is the Traefik ForwardAuth target. Traefik forwards
+// X-Forwarded-* + the original (protected-domain) cookies. 200 = allow (+
+// identity headers); 302 = bootstrap auth via /oauth/authorize; 403 = the host
+// is not a registered forward-auth app.
+func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	host := r.Header.Get("X-Forwarded-Host")
+	proto := r.Header.Get("X-Forwarded-Proto")
+	if proto == "" {
+		proto = "https"
+	}
+	client, err := p.queries.GetForwardAuthClientByHost(ctx, pgtype.Text{String: host, Valid: host != ""})
+	if err != nil || client.Disabled {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	secure := proto == "https"
+
+	if c, cerr := r.Cookie(faCookieName(secure)); cerr == nil {
+		if sess := loadFASession(ctx, p.kv, c.Value); sess != nil && sess.ClientID == client.ClientID {
+			ok, aerr := p.queries.IsAccountAuthorizedForOIDCClient(ctx, db.IsAccountAuthorizedForOIDCClientParams{
+				AccountID: pgtype.Int4{Int32: sess.AccountID, Valid: true}, ClientID: client.ClientID,
+			})
+			if aerr == nil && ok.Bool {
+				if acct, gerr := p.queries.GetAccountByID(ctx, sess.AccountID); gerr == nil && !acct.Disabled {
+					groups, _ := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
+					writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups)
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+			}
+		}
+	}
+
+	original := proto + "://" + host + r.Header.Get("X-Forwarded-Uri")
+	verifier, verr := faRandToken()
+	if verr != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	stateID, serr := mintFAState(ctx, p.kv, faState{
+		OriginalURL: original, ClientID: client.ClientID, Verifier: verifier,
+	}, 5*time.Minute)
+	if serr != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	redirectURI := proto + "://" + host + ForwardAuthPathPrefix + "/callback"
+	q := url.Values{}
+	q.Set("client_id", client.ClientID)
+	q.Set("redirect_uri", redirectURI)
+	q.Set("response_type", "code")
+	q.Set("scope", "openid email groups")
+	q.Set("code_challenge", pkceChallengeS256(verifier))
+	q.Set("code_challenge_method", "S256")
+	q.Set("state", stateID)
+	http.Redirect(w, r, p.cfg.OIDC.Issuer+"/oauth/authorize?"+q.Encode(), http.StatusFound)
+}
+
+// accountEmail returns the account email string if set and valid, else "".
+// db.Account.Email is pgtype.Text (confirmed from pkg/protocol/oidc/claims.go
+// emailClaims, which reads a.Email.String and a.Email.Valid).
+func accountEmail(a db.Account) string {
+	if a.Email.Valid {
+		return a.Email.String
+	}
+	return ""
 }
