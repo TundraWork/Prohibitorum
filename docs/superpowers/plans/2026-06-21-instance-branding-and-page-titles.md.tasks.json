@@ -1,0 +1,61 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-21-instance-branding-and-page-titles.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: pkg/branding foundation",
+      "status": "pending",
+      "description": "configx.Branding + migration 017 (instance_settings singleton) + pkg/branding resolver (DB→config→default for name+icon, cache, Invalidate) + ProcessIcon (PNG 256) + embedded default icon. Export Store/Settings + New/NewWithStore.\n\n```json:metadata\n{\"files\":[\"pkg/configx/configx.go\",\"db/migrations/017_instance_settings.sql\",\"pkg/branding/branding.go\",\"pkg/branding/store_pg.go\",\"pkg/branding/default_icon.go\",\"pkg/branding/default_icon.png\",\"pkg/branding/branding_test.go\"],\"verifyCommand\":\"go test ./pkg/branding/... && go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"Branding.InstanceName defaults Prohibitorum\",\"migration 017 single-row instance_settings\",\"InstanceName precedence DB→config→default\",\"Icon precedence + HasCustomIcon\",\"ProcessIcon square 256 PNG + etag; rejects >5MiB/garbage\",\"Invalidate reloads\",\"Store/Settings exported + NewWithStore\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Server wiring + public /config + /branding/icon",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Construct s.branding in NewServer; public GET /api/prohibitorum/config (PublicConfig JSON) + GET /branding/icon (PNG + ETag/304 + Cache-Control); register AuthPublic.\n\n```json:metadata\n{\"files\":[\"pkg/server/server.go\",\"pkg/server/handle_branding.go\",\"pkg/server/handle_branding_test.go\",\"pkg/contract/auth.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run Branding -count=1\",\"acceptanceCriteria\":[\"/config returns {instanceName,hasCustomIcon,iconUrl,iconEtag}\",\"/branding/icon image/png + ETag + 304\",\"default serves embedded PNG etag=default\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Admin settings endpoints (name + icon)",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "PUT /admin/settings {instanceName} (sudo wrapper, 1-64), PUT /admin/settings/icon (registerOpHTTP admin + in-handler requireFreshSudo + 5MiB raw body), DELETE /admin/settings/icon (sudo wrapper); audit + branding.Invalidate.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_settings.go\",\"pkg/server/handle_admin_settings_test.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run 'AdminSettings|AdminMutationRoutesRequireSudo' -count=1\",\"acceptanceCriteria\":[\"PUT name sets DB (empty reverts)+audit+invalidate; >64→400\",\"PUT icon admin+manual sudo+5MiB; bad→400\",\"DELETE icon clears+audit\",\"name PUT+icon DELETE in sudo-routes guard; icon PUT sudo in-handler\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: webui title templating",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "index.html <title>__INSTANCE_NAME__</title>; webui.Handler(instanceName) escapes+replaces; server.go passes config name; webui_test; hand-edit committed dist/index.html title pre-rebuild.\n\n```json:metadata\n{\"files\":[\"dashboard/index.html\",\"pkg/webui/webui.go\",\"pkg/server/server.go\",\"pkg/webui/webui_test.go\",\"pkg/webui/dist/index.html\"],\"verifyCommand\":\"go test ./pkg/webui/... -count=1\",\"acceptanceCriteria\":[\"index.html title placeholder\",\"Handler(name) replaces escaped name\",\"server.go passes config.Branding.InstanceName\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: SPA branding store + brand marks + favicon",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "stores/branding.ts (load /config; instanceName/hasCustomIcon/iconSrc), App.vue loads on boot, AppSidebar+CenteredLayout render name + ShieldCheck-or-<img>, index.html favicon → /branding/icon.\n\n```json:metadata\n{\"files\":[\"dashboard/src/stores/branding.ts\",\"dashboard/src/stores/branding.test.ts\",\"dashboard/src/App.vue\",\"dashboard/src/components/custom/AppSidebar.vue\",\"dashboard/src/pages/CenteredLayout.vue\",\"dashboard/index.html\"],\"verifyCommand\":\"cd dashboard && npm run test -- branding AppSidebar CenteredLayout\",\"acceptanceCriteria\":[\"store defaults Prohibitorum + load() + cache-busted iconSrc\",\"sidebar+login show name; img when hasCustomIcon else ShieldCheck\",\"favicon href /branding/icon\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Dynamic page titles",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "lib/pageTitle.buildTitle + meta.titleKey on every route + router afterEach sets document.title via branding store + i18n; title.* keys en+zh.\n\n```json:metadata\n{\"files\":[\"dashboard/src/lib/pageTitle.ts\",\"dashboard/src/lib/pageTitle.test.ts\",\"dashboard/src/router/index.ts\",\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- pageTitle locales\",\"acceptanceCriteria\":[\"buildTitle page+instance / instance-alone\",\"every route meta.titleKey; afterEach sets title\",\"title.* en+zh parity; no U+2019 in en.ts\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Admin SettingsView",
+      "status": "pending",
+      "blockedBy": [3, 5],
+      "description": "/admin/settings SettingsView (name edit→withSudo PUT; icon upload→withSudo PUT file; remove→withSudo DELETE when hasCustomIcon; refresh branding store) + route + sidebar Settings item + admin.settings.*/admin.nav.settings i18n en+zh.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/admin/SettingsView.vue\",\"dashboard/src/pages/admin/SettingsView.test.ts\",\"dashboard/src/router/index.ts\",\"dashboard/src/components/custom/AppSidebar.vue\",\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- SettingsView locales\",\"acceptanceCriteria\":[\"name save→withSudo PUT + branding.load()\",\"icon upload→withSudo PUT file; remove→DELETE when custom\",\"sidebar Settings item admin-gated\",\"admin.settings.* en+zh parity\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Gate + runtime + dist rebuild",
+      "status": "pending",
+      "blockedBy": [1, 2, 3, 4, 5, 6, 7],
+      "description": "Full gate green; rebuild+commit pkg/webui/dist (placeholder present); runtime-verify via SUBAGENT server (chromium --dump-dom per-page titles, /config, /branding/icon PNG, custom name live); optional smoke /config+/branding/icon.\n\n```json:metadata\n{\"files\":[\"pkg/webui/dist\",\"cmd/smoke/main.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go test ./... && cd dashboard && npm run test && npx vue-tsc -b\",\"acceptanceCriteria\":[\"backend+frontend gate green; migration 017 applies\",\"dist rebuilt+committed; drift passes; title placeholder in dist\",\"chromium: per-page titles + /config + /branding/icon + custom name live\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-21T00:00:00+10:00"
+}
