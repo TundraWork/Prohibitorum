@@ -73,6 +73,10 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/accounts/set-disabled", body: `{"id":1,"disabled":true}`},
 	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
 	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
+
+	// Instance-branding settings (name PUT + icon DELETE — sudo-gated)
+	{method: "PUT", path: "/api/prohibitorum/admin/settings", body: `{"instanceName":"x"}`},
+	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
 }
 
 // droppedSudoRoutes is a representative sample of routes that were removed from

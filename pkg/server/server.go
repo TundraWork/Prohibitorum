@@ -439,6 +439,11 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListInvitations, s.handleListInvitations, admin)
 	registerOp(mgmt, contract.OperationRevokeInvitation, s.handleRevokeInvitation, admin)
 
+	// Admin: instance-branding settings (name + icon)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings", admin, s.handlePutInstanceNameHTTP)
+	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/icon", admin, s.handlePutInstanceIconHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/icon", admin, s.handleDeleteInstanceIconHTTP)
+
 	// Admin: signing-key lifecycle management
 	registerOp(mgmt, contract.OperationListSigningKeys, s.handleListSigningKeys, admin)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/signing-keys/generate", admin, s.handleGenerateSigningKeyHTTP)
