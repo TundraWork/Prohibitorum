@@ -645,6 +645,34 @@ export default {
     },
   },
 
+  title: {
+    login: 'Sign in',
+    consent: 'Authorize',
+    logout: 'Signed out',
+    error: 'Error',
+    enroll: 'Set up your account',
+    pair: 'Pair a device',
+    welcome: 'Welcome',
+    security: 'Security',
+    sessions: 'Sessions',
+    connected: 'Connected accounts',
+    devices: 'Devices',
+    adminAccounts: 'Accounts',
+    adminAccountDetail: 'Account',
+    adminInvitations: 'Invitations',
+    adminOidcApplications: 'OIDC applications',
+    adminOidcApplicationDetail: 'OIDC application',
+    adminSamlApplications: 'SAML applications',
+    adminSamlApplicationDetail: 'SAML application',
+    adminIdentityProviders: 'Identity providers',
+    adminIdentityProviderDetail: 'Identity provider',
+    adminSigningKeys: 'Signing keys',
+    adminAudit: 'Audit log',
+    adminGroups: 'Groups',
+    adminGroupDetail: 'Group',
+    adminSettings: 'Settings',
+  },
+
   /**
    * errors.* — map backend error codes to user-facing English messages.
    * Usage: te('errors.'+code) ? t('errors.'+code) : err.message

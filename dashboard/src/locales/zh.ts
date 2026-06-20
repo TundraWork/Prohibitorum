@@ -641,6 +641,34 @@ export default {
     },
   },
 
+  title: {
+    login: '登录',
+    consent: '授权',
+    logout: '已退出登录',
+    error: '错误',
+    enroll: '设置账户',
+    pair: '配对设备',
+    welcome: '欢迎',
+    security: '安全',
+    sessions: '会话',
+    connected: '已关联账户',
+    devices: '设备',
+    adminAccounts: '账户',
+    adminAccountDetail: '账户',
+    adminInvitations: '邀请',
+    adminOidcApplications: 'OIDC 应用',
+    adminOidcApplicationDetail: 'OIDC 应用',
+    adminSamlApplications: 'SAML 应用',
+    adminSamlApplicationDetail: 'SAML 应用',
+    adminIdentityProviders: '身份提供商',
+    adminIdentityProviderDetail: '身份提供商',
+    adminSigningKeys: '签名密钥',
+    adminAudit: '审计日志',
+    adminGroups: '用户组',
+    adminGroupDetail: '用户组',
+    adminSettings: '设置',
+  },
+
   /**
    * errors.* — map backend error codes to user-facing English messages.
    * Usage: te('errors.'+code) ? t('errors.'+code) : err.message

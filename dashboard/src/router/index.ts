@@ -12,6 +12,7 @@
  */
 
 import { createRouter, createWebHistory, type Router, type RouteRecordRaw } from 'vue-router'
+import { buildTitle } from '@/lib/pageTitle'
 
 // ---------------------------------------------------------------------------
 // Extend vue-router's RouteMeta with our custom guard meta fields.
@@ -27,6 +28,8 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     /** Requires admin role (Spec 3 admin routes). */
     requiresAdmin?: boolean
+    /** i18n key for the page title (title.*). Absent on the root redirect. */
+    titleKey?: string
   }
 }
 
@@ -38,43 +41,43 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'login',
     component: () => import('../pages/LoginView.vue'),
-    meta: { public: true },
+    meta: { public: true, titleKey: 'title.login' },
   },
   {
     path: '/consent',
     name: 'consent',
     component: () => import('../pages/ConsentView.vue'),
-    meta: { public: true },
+    meta: { public: true, titleKey: 'title.consent' },
   },
   {
     path: '/logout',
     name: 'logout',
     component: () => import('../pages/LogoutView.vue'),
-    meta: { public: true },
+    meta: { public: true, titleKey: 'title.logout' },
   },
   {
     path: '/error',
     name: 'error',
     component: () => import('../pages/ErrorView.vue'),
-    meta: { public: true },
+    meta: { public: true, titleKey: 'title.error' },
   },
   {
     path: '/enroll/:token',
     name: 'enroll',
     component: () => import('../pages/EnrollView.vue'),
-    meta: { public: true },
+    meta: { public: true, titleKey: 'title.enroll' },
   },
   {
     path: '/pair',
     name: 'pair',
     component: () => import('../pages/PairDeviceView.vue'),
-    meta: { public: true },
+    meta: { public: true, titleKey: 'title.pair' },
   },
   {
     path: '/welcome',
     name: 'welcome',
     component: () => import('../pages/WelcomeView.vue'),
-    meta: { public: true },
+    meta: { public: true, titleKey: 'title.welcome' },
   },
   // Authenticated dashboard shell (Spec 2a). requiresAuth → installGuard
   // redirects to /login?return_to= when not signed in.
@@ -84,23 +87,23 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
     children: [
       { path: '', redirect: { name: 'security' } },
-      { path: 'sessions', name: 'sessions', component: () => import('../pages/SessionsView.vue') },
-      { path: 'security', name: 'security', component: () => import('../pages/SecurityView.vue') },
-      { path: 'connected', name: 'connected', component: () => import('../pages/ConnectedAccountsView.vue') },
-      { path: 'devices', name: 'devices', component: () => import('../pages/DevicesView.vue') },
-      { path: 'admin/accounts', name: 'admin-accounts', component: () => import('../pages/admin/AdminAccountsView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/accounts/:id', name: 'admin-account-detail', component: () => import('../pages/admin/AdminAccountDetailView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/invitations', name: 'admin-invitations', component: () => import('../pages/admin/AdminInvitationsView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/oidc-applications', name: 'admin-oidc-applications', component: () => import('../pages/admin/AdminOidcClientsView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/oidc-applications/:clientId', name: 'admin-oidc-application-detail', component: () => import('../pages/admin/AdminOidcClientDetailView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/saml-applications', name: 'admin-saml-applications', component: () => import('../pages/admin/AdminSamlProvidersView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/saml-applications/:id', name: 'admin-saml-application-detail', component: () => import('../pages/admin/AdminSamlProviderDetailView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/identity-providers', name: 'admin-identity-providers', component: () => import('../pages/admin/AdminUpstreamIdpsView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/identity-providers/:slug', name: 'admin-identity-provider-detail', component: () => import('../pages/admin/AdminUpstreamIdpDetailView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/signing-keys', name: 'admin-signing-keys', component: () => import('../pages/admin/AdminSigningKeysView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/audit', name: 'admin-audit', component: () => import('../pages/admin/AdminAuditView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/groups', name: 'admin-groups', component: () => import('../pages/admin/AdminGroupsView.vue'), meta: { requiresAdmin: true } },
-      { path: 'admin/groups/:id', name: 'admin-group-detail', component: () => import('../pages/admin/AdminGroupDetailView.vue'), meta: { requiresAdmin: true } },
+      { path: 'sessions', name: 'sessions', component: () => import('../pages/SessionsView.vue'), meta: { titleKey: 'title.sessions' } },
+      { path: 'security', name: 'security', component: () => import('../pages/SecurityView.vue'), meta: { titleKey: 'title.security' } },
+      { path: 'connected', name: 'connected', component: () => import('../pages/ConnectedAccountsView.vue'), meta: { titleKey: 'title.connected' } },
+      { path: 'devices', name: 'devices', component: () => import('../pages/DevicesView.vue'), meta: { titleKey: 'title.devices' } },
+      { path: 'admin/accounts', name: 'admin-accounts', component: () => import('../pages/admin/AdminAccountsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminAccounts' } },
+      { path: 'admin/accounts/:id', name: 'admin-account-detail', component: () => import('../pages/admin/AdminAccountDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminAccountDetail' } },
+      { path: 'admin/invitations', name: 'admin-invitations', component: () => import('../pages/admin/AdminInvitationsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminInvitations' } },
+      { path: 'admin/oidc-applications', name: 'admin-oidc-applications', component: () => import('../pages/admin/AdminOidcClientsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminOidcApplications' } },
+      { path: 'admin/oidc-applications/:clientId', name: 'admin-oidc-application-detail', component: () => import('../pages/admin/AdminOidcClientDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminOidcApplicationDetail' } },
+      { path: 'admin/saml-applications', name: 'admin-saml-applications', component: () => import('../pages/admin/AdminSamlProvidersView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminSamlApplications' } },
+      { path: 'admin/saml-applications/:id', name: 'admin-saml-application-detail', component: () => import('../pages/admin/AdminSamlProviderDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminSamlApplicationDetail' } },
+      { path: 'admin/identity-providers', name: 'admin-identity-providers', component: () => import('../pages/admin/AdminUpstreamIdpsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminIdentityProviders' } },
+      { path: 'admin/identity-providers/:slug', name: 'admin-identity-provider-detail', component: () => import('../pages/admin/AdminUpstreamIdpDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminIdentityProviderDetail' } },
+      { path: 'admin/signing-keys', name: 'admin-signing-keys', component: () => import('../pages/admin/AdminSigningKeysView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminSigningKeys' } },
+      { path: 'admin/audit', name: 'admin-audit', component: () => import('../pages/admin/AdminAuditView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminAudit' } },
+      { path: 'admin/groups', name: 'admin-groups', component: () => import('../pages/admin/AdminGroupsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminGroups' } },
+      { path: 'admin/groups/:id', name: 'admin-group-detail', component: () => import('../pages/admin/AdminGroupDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminGroupDetail' } },
     ],
   },
   // Catch-all → /error
@@ -161,5 +164,18 @@ const router = createRouter({
 })
 
 installGuard(router)
+
+router.afterEach((to) => {
+  void (async () => {
+    const { useBrandingStore } = await import('@/stores/branding')
+    const { i18n } = await import('@/i18n')
+    const { getActivePinia } = await import('pinia')
+    const pinia = getActivePinia()
+    const name = pinia ? useBrandingStore(pinia).instanceName : 'Prohibitorum'
+    const key = to.meta.titleKey
+    const page = key ? i18n.global.t(key as string) : ''
+    document.title = buildTitle(page, name)
+  })()
+})
 
 export default router
