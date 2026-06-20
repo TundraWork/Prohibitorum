@@ -25,6 +25,24 @@ function isApiError(v: unknown): v is ApiError {
   )
 }
 
+export type UnauthorizedHandler = (ctx: { method: string }) => void
+let unauthorizedHandler: UnauthorizedHandler | null = null
+
+/**
+ * Register a handler invoked when a request returns 401 with code
+ * "no_session" (a fully-absent session). Wired in main.ts to redirect reads to
+ * /login and surface a banner for mutations. Pass null to clear (tests).
+ */
+export function registerUnauthorizedHandler(fn: UnauthorizedHandler | null): void {
+  unauthorizedHandler = fn
+}
+
+function maybeSignalUnauthorized(status: number, err: ApiError, method: string): void {
+  if (status === 401 && err.code === 'no_session' && unauthorizedHandler) {
+    unauthorizedHandler({ method })
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {}
   if (body !== undefined) {
@@ -55,6 +73,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     const err: ApiError = isApiError(data)
       ? data
       : { code: 'server_error', message: text || res.statusText }
+    maybeSignalUnauthorized(res.status, err, method)
     throw err
   }
 
@@ -72,7 +91,9 @@ async function upload<T>(path: string, body: Blob): Promise<T> {
     try { data = JSON.parse(text) } catch { /* non-JSON body */ }
   }
   if (!res.ok) {
-    throw isApiError(data) ? data : { code: 'server_error', message: text || res.statusText }
+    const err: ApiError = isApiError(data) ? data : { code: 'server_error', message: text || res.statusText }
+    maybeSignalUnauthorized(res.status, err, 'PUT')
+    throw err
   }
   return (data ?? {}) as T
 }

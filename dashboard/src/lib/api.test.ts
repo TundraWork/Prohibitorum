@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { api } from './api'
+import { api, registerUnauthorizedHandler } from './api'
 import type { ApiError } from './api'
 
 // Helper to build a mock Response
@@ -86,5 +86,48 @@ describe('api', () => {
     await api.put('/api/test', { x: 1 })
     const [, opts] = vi.mocked(fetch).mock.calls[0]
     expect((opts as RequestInit).method).toBe('PUT')
+  })
+})
+
+describe('401 no_session seam', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    registerUnauthorizedHandler(null)
+  })
+
+  it('invokes the handler with the method on 401 no_session and still rejects', async () => {
+    const spy = vi.fn()
+    registerUnauthorizedHandler(spy)
+    vi.mocked(fetch).mockResolvedValue(mockResponse(401, JSON.stringify({ code: 'no_session', message: 'x' })))
+    await expect(api.get('/api/x')).rejects.toMatchObject({ code: 'no_session' })
+    expect(spy).toHaveBeenCalledWith({ method: 'GET' })
+  })
+
+  it('passes PUT for an upload 401 no_session', async () => {
+    const spy = vi.fn()
+    registerUnauthorizedHandler(spy)
+    vi.mocked(fetch).mockResolvedValue(mockResponse(401, JSON.stringify({ code: 'no_session', message: 'x' })))
+    await expect(api.upload('/api/x', new Blob(['z']))).rejects.toMatchObject({ code: 'no_session' })
+    expect(spy).toHaveBeenCalledWith({ method: 'PUT' })
+  })
+
+  it('does NOT invoke the handler on a non-no_session 401', async () => {
+    const spy = vi.fn()
+    registerUnauthorizedHandler(spy)
+    vi.mocked(fetch).mockResolvedValue(mockResponse(401, JSON.stringify({ code: 'sudo_required', message: 'x' })))
+    await expect(api.post('/api/x')).rejects.toMatchObject({ code: 'sudo_required' })
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('does NOT invoke the handler on 403/500', async () => {
+    const spy = vi.fn()
+    registerUnauthorizedHandler(spy)
+    vi.mocked(fetch).mockResolvedValue(mockResponse(403, JSON.stringify({ code: 'forbidden', message: 'x' })))
+    await expect(api.get('/api/x')).rejects.toMatchObject({ code: 'forbidden' })
+    expect(spy).not.toHaveBeenCalled()
   })
 })
