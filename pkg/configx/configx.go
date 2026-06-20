@@ -38,6 +38,7 @@ type Config struct {
 	PasswordHashParams PasswordHashParams `mapstructure:"password_hash"`
 	Auth               AuthConfig         `mapstructure:"auth"`
 	Branding           BrandingConfig     `mapstructure:"branding"`
+	ForwardAuth        ForwardAuthConfig  `mapstructure:"forward_auth"`
 
 	// DataEncryptionKeys is the versioned AES-256 key set used to encrypt
 	// sensitive credential material (TOTP secrets in v0.2, additional fields
@@ -161,6 +162,12 @@ type SAMLConfig struct {
 	SessionLifetime       time.Duration `mapstructure:"session_lifetime"`
 	MetadataRotationGrace time.Duration `mapstructure:"metadata_rotation_grace"`
 	MetadataValidity      time.Duration `mapstructure:"metadata_validity"`
+}
+
+// ForwardAuthConfig configures the native Traefik ForwardAuth provider.
+// SessionTTL bounds the per-domain forward-auth cookie/session lifetime.
+type ForwardAuthConfig struct {
+	SessionTTL time.Duration `mapstructure:"session_ttl"`
 }
 
 // PasswordHashParams parameterises argon2id. The cryptographic invariants
@@ -305,6 +312,10 @@ func Parse() (*Config, error) {
 
 	if config.Branding.InstanceName == "" {
 		config.Branding.InstanceName = "Prohibitorum"
+	}
+
+	if config.ForwardAuth.SessionTTL <= 0 {
+		config.ForwardAuth.SessionTTL = time.Hour
 	}
 
 	keys, err := loadDataEncryptionKeys(os.Environ())

@@ -88,6 +88,14 @@ type GroupMember struct {
 	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
+type InstanceSetting struct {
+	ID           int16              `json:"id"`
+	InstanceName pgtype.Text        `json:"instanceName"`
+	IconPng      []byte             `json:"iconPng"`
+	IconEtag     pgtype.Text        `json:"iconEtag"`
+	UpdatedAt    pgtype.Timestamptz `json:"updatedAt"`
+}
+
 type OidcClient struct {
 	ClientID                    string             `json:"clientId"`
 	DisplayName                 string             `json:"displayName"`
@@ -106,6 +114,8 @@ type OidcClient struct {
 	RequireConsent              bool               `json:"requireConsent"`
 	CreatedAt                   pgtype.Timestamptz `json:"createdAt"`
 	AccessRestricted            bool               `json:"accessRestricted"`
+	ForwardAuthEnabled          bool               `json:"forwardAuthEnabled"`
+	ForwardAuthHost             pgtype.Text        `json:"forwardAuthHost"`
 }
 
 type OidcClientAccess struct {

@@ -83,6 +83,7 @@ type Querier interface {
 	GetConsent(ctx context.Context, arg GetConsentParams) ([]string, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
+	GetForwardAuthClientByHost(ctx context.Context, forwardAuthHost pgtype.Text) (GetForwardAuthClientByHostRow, error)
 	GetGroup(ctx context.Context, id int32) (UserGroup, error)
 	GetGroupBySlug(ctx context.Context, slug string) (UserGroup, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
@@ -174,6 +175,7 @@ type Querier interface {
 	// ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
 	SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
+	SetForwardAuthConfig(ctx context.Context, arg SetForwardAuthConfigParams) error
 	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
 	SetSAMLSPAccessRestricted(ctx context.Context, arg SetSAMLSPAccessRestrictedParams) (SamlSp, error)

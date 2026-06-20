@@ -88,3 +88,13 @@ SELECT EXISTS (SELECT 1 FROM revoked_jti WHERE jti = $1);
 
 -- name: PruneExpiredRevokedJTI :exec
 DELETE FROM revoked_jti WHERE expires_at < now();
+
+-- name: GetForwardAuthClientByHost :one
+SELECT client_id, display_name, access_restricted, disabled
+FROM oidc_client
+WHERE forward_auth_enabled = true AND forward_auth_host = $1;
+
+-- name: SetForwardAuthConfig :exec
+UPDATE oidc_client
+SET forward_auth_enabled = $2, forward_auth_host = $3
+WHERE client_id = $1;
