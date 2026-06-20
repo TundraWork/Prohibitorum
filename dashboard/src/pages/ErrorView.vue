@@ -13,14 +13,16 @@
  * the router guard). error_description is shown only as a fallback because
  * upstream descriptions are sometimes terse/technical.
  */
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import { Button } from '@/components/ui/button'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const { t, te } = useI18n()
+const auth = useAuthStore()
 
 const code = computed(() => String(route.query.error ?? ''))
 const description = computed(() => {
@@ -50,6 +52,15 @@ const message = computed(() => {
   if (description.value) return description.value
   return t('error.defaultMessage')
 })
+
+const reference = computed(() => String(route.query.ref ?? ''))
+const hasSession = ref(false)
+
+onMounted(async () => {
+  // Public route — a 401 here is fine; the global handler no-ops on /error.
+  try { await auth.ensureLoaded() } catch { /* ignore */ }
+  hasSession.value = !!auth.me
+})
 </script>
 
 <template>
@@ -60,8 +71,10 @@ const message = computed(() => {
 
     <div class="flex flex-col items-center gap-6 text-center">
       <p role="alert" class="text-sm text-ink">{{ message }}</p>
+      <p v-if="reference" class="text-xs text-muted">{{ t('error.reference', { ref: reference }) }}</p>
       <Button as-child variant="outline" class="w-full">
-        <RouterLink to="/login">{{ t('error.returnToLogin') }}</RouterLink>
+        <RouterLink v-if="hasSession" to="/security">{{ t('error.backToDashboard') }}</RouterLink>
+        <RouterLink v-else to="/login">{{ t('error.returnToLogin') }}</RouterLink>
       </Button>
     </div>
   </CenteredLayout>
