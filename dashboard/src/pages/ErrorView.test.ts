@@ -91,6 +91,48 @@ describe('ErrorView', () => {
     expect(link.text()).toBe(en.error.returnToLogin)
   })
 
+  it('uses a forwarded same-origin return_to for the go-back link', async () => {
+    _routeQuery = { error: 'server_error', ref: 'abc123', return_to: '/connected' }
+    const wrapper = mountView()
+    await flushPromises()
+
+    const link = wrapper.find('a')
+    expect(link.attributes('href')).toBe('/connected')
+    expect(link.text()).toBe(en.error.goBack)
+  })
+
+  it('return_to takes precedence over the authenticated default', async () => {
+    authState.me = { id: 1, username: 'alex' }
+    _routeQuery = { error: 'server_error', return_to: '/connected' }
+    const wrapper = mountView()
+    await flushPromises()
+
+    const link = wrapper.find('a')
+    expect(link.attributes('href')).toBe('/connected')
+    expect(link.text()).toBe(en.error.goBack)
+  })
+
+  it('ignores a cross-origin return_to and falls back to the default', async () => {
+    _routeQuery = { error: 'server_error', return_to: 'https://evil.example/x' }
+    const wrapper = mountView()
+    await flushPromises()
+
+    const link = wrapper.find('a')
+    expect(link.attributes('href')).toBe('/login')
+    expect(link.text()).toBe(en.error.returnToLogin)
+  })
+
+  it('ignores a bare-root return_to (treats it as no useful target)', async () => {
+    authState.me = { id: 1, username: 'alex' }
+    _routeQuery = { error: 'server_error', return_to: '/' }
+    const wrapper = mountView()
+    await flushPromises()
+
+    const link = wrapper.find('a')
+    expect(link.attributes('href')).toBe('/security')
+    expect(link.text()).toBe(en.error.backToDashboard)
+  })
+
   it('ignores ensureLoaded errors and treats user as unauthenticated', async () => {
     authState.ensureLoaded.mockRejectedValue(new Error('network error'))
     authState.me = null

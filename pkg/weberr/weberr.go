@@ -29,7 +29,20 @@ func NewRef() string {
 // code is a stable, non-technical code the SPA maps to copy; ref comes from
 // NewRef. Caller is responsible for logging/auditing the failure with ref.
 func RedirectToError(w http.ResponseWriter, r *http.Request, code, ref string) {
+	RedirectToErrorWithReturn(w, r, code, ref, "")
+}
+
+// RedirectToErrorWithReturn is RedirectToError plus a return_to hint the SPA's
+// error page uses for its "go back" link, so a user who hit a dead-end mid-flow
+// (e.g. linking an identity from /connected) can return where they came from.
+// returnTo MUST already be a server-validated, same-origin value (the SPA also
+// re-guards it through safeReturnTo); pass "" when there is no safe origin. An
+// empty returnTo omits the param entirely, matching RedirectToError.
+func RedirectToErrorWithReturn(w http.ResponseWriter, r *http.Request, code, ref, returnTo string) {
 	w.Header().Set("Cache-Control", "no-store")
 	u := "/error?error=" + url.QueryEscape(code) + "&ref=" + url.QueryEscape(ref)
+	if returnTo != "" {
+		u += "&return_to=" + url.QueryEscape(returnTo)
+	}
 	http.Redirect(w, r, u, http.StatusFound)
 }

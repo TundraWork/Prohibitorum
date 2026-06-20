@@ -19,6 +19,7 @@ import { useI18n } from 'vue-i18n'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth'
+import { safeReturnTo } from '@/lib/returnTo'
 
 const route = useRoute()
 const { t, te } = useI18n()
@@ -56,6 +57,17 @@ const message = computed(() => {
 const reference = computed(() => String(route.query.ref ?? ''))
 const hasSession = ref(false)
 
+// When the failing flow forwarded a server-validated return_to (e.g. an
+// identity-link begin from /connected), the "go back" link returns the user
+// there. Re-guarded through safeReturnTo (defense in depth); a root/invalid
+// value falls through to the auth-aware default below.
+const backTarget = computed(() => {
+  const raw = route.query.return_to
+  if (typeof raw !== 'string' || !raw) return ''
+  const safe = safeReturnTo(raw)
+  return safe !== '/' ? safe : ''
+})
+
 onMounted(async () => {
   // Public route — a 401 here is fine; the global handler no-ops on /error.
   try { await auth.ensureLoaded() } catch { /* ignore */ }
@@ -73,7 +85,8 @@ onMounted(async () => {
       <p role="alert" class="text-sm text-ink">{{ message }}</p>
       <p v-if="reference" class="text-xs text-muted">{{ t('error.reference', { ref: reference }) }}</p>
       <Button as-child variant="outline" class="w-full">
-        <RouterLink v-if="hasSession" to="/security">{{ t('error.backToDashboard') }}</RouterLink>
+        <RouterLink v-if="backTarget" :to="backTarget">{{ t('error.goBack') }}</RouterLink>
+        <RouterLink v-else-if="hasSession" to="/security">{{ t('error.backToDashboard') }}</RouterLink>
         <RouterLink v-else to="/login">{{ t('error.returnToLogin') }}</RouterLink>
       </Button>
     </div>

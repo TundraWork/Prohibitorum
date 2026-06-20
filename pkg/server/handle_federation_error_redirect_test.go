@@ -52,6 +52,26 @@ func TestFederationLogin_BadReturnTo_RedirectsToErrorPage(t *testing.T) {
 	}
 }
 
+// TestFederationLogin_BeginError_ForwardsReturnTo: when BeginLogin fails but the
+// same-origin return_to was validated, it must be forwarded to /error so the
+// page's "go back" link can resume where the user started. An unknown slug
+// drives BeginLogin into ErrUnknownIDP (collapsed to federation_state_invalid).
+func TestFederationLogin_BeginError_ForwardsReturnTo(t *testing.T) {
+	h := newFederationTestServer(t)
+
+	_, resp := h.driveLogin(t, "no-such-idp", "/connected")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=") {
+		t.Fatalf("want an /error redirect, got %q", loc)
+	}
+	if !strings.Contains(loc, "return_to=%2Fconnected") {
+		t.Errorf("Location must forward return_to=%%2Fconnected, got %q", loc)
+	}
+}
+
 // TestFederationCallback_UpstreamError_RedirectsToErrorPage: ?error=access_denied
 // must 302 to /error?error=upstream_error&ref=…; the audit row must include a
 // non-empty "ref" field in its Detail map, and the ref in the Location must

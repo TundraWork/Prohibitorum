@@ -32,3 +32,24 @@ func TestRedirectToError(t *testing.T) {
 		t.Fatalf("Cache-Control = %q", rec.Header().Get("Cache-Control"))
 	}
 }
+
+func TestRedirectToErrorWithReturn(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/x", nil)
+	RedirectToErrorWithReturn(rec, req, "server_error", "deadbeef", "/connected")
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
+	}
+	if got, want := rec.Header().Get("Location"), "/error?error=server_error&ref=deadbeef&return_to=%2Fconnected"; got != want {
+		t.Fatalf("Location = %q, want %q", got, want)
+	}
+}
+
+func TestRedirectToErrorWithReturn_EmptyOmitsParam(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/x", nil)
+	RedirectToErrorWithReturn(rec, req, "server_error", "deadbeef", "")
+	if got, want := rec.Header().Get("Location"), "/error?error=server_error&ref=deadbeef"; got != want {
+		t.Fatalf("Location = %q, want %q (return_to must be omitted when empty)", got, want)
+	}
+}

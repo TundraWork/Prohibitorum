@@ -257,14 +257,16 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 
 	req, err := s.federator.LinkBegin(r.Context(), sess.Account.ID, slug, returnTo)
 	if err != nil {
+		// returnTo is validated + same-origin (e.g. /connected) — forward it so
+		// the /error "go back" link returns the user to where they started.
 		if errors.Is(err, fedoidc.ErrUnknownIDP) {
 			// Collapse "no such slug" onto the generic state-invalid code —
 			// mirrors handleFederationLoginHTTP so admins can't enumerate
 			// configured IdPs via the link surface either.
-			redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
+			redirectAuthErrToErrorReturn(w, r, authn.ErrFederationStateInvalid(), returnTo)
 			return
 		}
-		redirectAuthErrToError(w, r, err)
+		redirectAuthErrToErrorReturn(w, r, err, returnTo)
 		return
 	}
 

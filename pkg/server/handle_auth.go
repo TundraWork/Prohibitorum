@@ -118,12 +118,21 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 // AuthError code drives the SPA message; a fresh ref is returned so the caller
 // can stamp it onto an existing audit row. Falls back to "server_error".
 func redirectAuthErrToError(w http.ResponseWriter, r *http.Request, err error) string {
+	return redirectAuthErrToErrorReturn(w, r, err, "")
+}
+
+// redirectAuthErrToErrorReturn is redirectAuthErrToError with a return_to hint
+// so the /error page's "go back" link can send the user where they started
+// (e.g. /connected for an identity-link begin). Pass only a server-validated,
+// same-origin returnTo (e.g. the value from validateFederationReturnTo); "" to
+// omit it.
+func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err error, returnTo string) string {
 	code := "server_error"
 	if ae := authn.AsAuthError(err); ae != nil {
 		code = ae.Code
 	}
 	ref := weberr.NewRef()
-	weberr.RedirectToError(w, r, code, ref)
+	weberr.RedirectToErrorWithReturn(w, r, code, ref, returnTo)
 	return ref
 }
 

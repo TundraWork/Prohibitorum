@@ -66,13 +66,15 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 
 	req, err := s.federator.BeginLogin(r.Context(), slug, returnTo)
 	if err != nil {
+		// returnTo is validated + same-origin — forward it so the /error
+		// "go back" link can resume where the user started.
 		if errors.Is(err, fedoidc.ErrUnknownIDP) {
 			// Collapse "no such slug" onto the generic state-invalid code so
 			// callers can't enumerate configured upstream IdP slugs.
-			redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
+			redirectAuthErrToErrorReturn(w, r, authn.ErrFederationStateInvalid(), returnTo)
 			return
 		}
-		redirectAuthErrToError(w, r, err)
+		redirectAuthErrToErrorReturn(w, r, err, returnTo)
 		return
 	}
 

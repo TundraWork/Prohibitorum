@@ -565,6 +565,7 @@ export default {
     appAccessDenied: "You don't have access to {app}. Contact your administrator if you think this is a mistake.",
     reference: 'Reference: {ref}',
     backToDashboard: 'Back to dashboard',
+    goBack: 'Go back',
   },
 
   enroll: {

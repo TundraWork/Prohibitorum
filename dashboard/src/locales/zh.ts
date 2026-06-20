@@ -561,6 +561,7 @@ export default {
     appAccessDenied: '你没有访问 {app} 的权限。如认为有误，请联系管理员。',
     reference: '参考编号：{ref}',
     backToDashboard: '返回控制台',
+    goBack: '返回上一页',
   },
 
   enroll: {
