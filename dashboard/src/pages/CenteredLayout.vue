@@ -22,6 +22,8 @@ import { ShieldCheck } from 'lucide-vue-next'
 import AuthBackdrop from '@/components/custom/AuthBackdrop.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import { Card } from '@/components/ui/card'
+import { useBrandingStore } from '@/stores/branding'
+const branding = useBrandingStore()
 </script>
 
 <template>
@@ -42,12 +44,13 @@ import { Card } from '@/components/ui/card'
           <!-- Brand mark: the single Ember moment on the threshold. -->
           <header class="flex flex-col items-center gap-2 text-center">
             <span
-              class="inline-flex size-10 items-center justify-center rounded-md bg-ember/10 text-ember"
+              class="inline-flex size-10 items-center justify-center overflow-hidden rounded-md bg-ember/10 text-ember"
             >
-              <ShieldCheck class="size-6" aria-hidden="true" />
+              <img v-if="branding.hasCustomIcon" :src="branding.iconSrc" :alt="branding.instanceName" class="size-full object-cover" />
+              <ShieldCheck v-else class="size-6" aria-hidden="true" />
             </span>
             <slot name="title">
-              <span class="text-lg font-semibold tracking-tight text-ink">Prohibitorum</span>
+              <span class="text-lg font-semibold tracking-tight text-ink">{{ branding.instanceName }}</span>
             </slot>
           </header>
 

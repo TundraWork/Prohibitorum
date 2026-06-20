@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { defineComponent } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import ConsentView from './ConsentView.vue'
 
@@ -43,6 +44,7 @@ async function mountView(router: Router) {
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   get.mockReset()
   post.mockReset()
   hardRedirect.mockReset()

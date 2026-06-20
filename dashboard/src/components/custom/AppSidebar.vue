@@ -14,6 +14,7 @@ import NavUser from '@/components/custom/NavUser.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/custom/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useBrandingStore } from '@/stores/branding'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
   SidebarGroup, SidebarGroupLabel, SidebarGroupContent,
@@ -22,6 +23,7 @@ import {
 
 const { t } = useI18n()
 const auth = useAuthStore()
+const branding = useBrandingStore()
 const route = useRoute()
 
 const isActive = (to: string) =>
@@ -56,10 +58,11 @@ const applicationItems = computed(() => [
   <Sidebar>
     <SidebarHeader>
       <div class="flex items-center gap-2.5 px-2 py-1.5">
-        <span class="inline-flex size-8 items-center justify-center rounded-md bg-ember/12 text-ember ring-1 ring-inset ring-ember/15">
-          <ShieldCheck class="size-5" aria-hidden="true" />
+        <span class="inline-flex size-8 items-center justify-center overflow-hidden rounded-md bg-ember/12 text-ember ring-1 ring-inset ring-ember/15">
+          <img v-if="branding.hasCustomIcon" :src="branding.iconSrc" :alt="branding.instanceName" class="size-full object-cover" />
+          <ShieldCheck v-else class="size-5" aria-hidden="true" />
         </span>
-        <span class="text-base font-semibold tracking-tight text-ink">Prohibitorum</span>
+        <span class="text-base font-semibold tracking-tight text-ink">{{ branding.instanceName }}</span>
       </div>
     </SidebarHeader>
 

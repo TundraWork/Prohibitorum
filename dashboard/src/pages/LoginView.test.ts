@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import LoginView from './LoginView.vue'
 import { useSessionExpiry } from '@/composables/useSessionExpiry'
@@ -60,6 +61,7 @@ function mountView() {
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   get.mockReset()
   post.mockReset()
   goReturnTo.mockReset()

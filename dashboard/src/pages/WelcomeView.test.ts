@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import WelcomeView from './WelcomeView.vue'
 
@@ -21,6 +22,7 @@ function mountView(pollMs = 20, capMs?: number) {
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   get.mockReset()
   post.mockReset()
   assignSpy.mockReset()

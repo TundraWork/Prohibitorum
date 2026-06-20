@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
@@ -22,7 +23,7 @@ const mountView = () => mount(PairDeviceView, { global: { plugins: [i18n()] }, a
 
 const BEGIN = { pairingId: 'p1', code: 'AB12CD34', displayCode: 'AB12-CD34', expiresAt: '2999-01-01T00:00:00Z' }
 
-beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset(); vi.useFakeTimers() })
+beforeEach(() => { setActivePinia(createPinia()); get.mockReset(); post.mockReset(); push.mockReset(); vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers() })
 
 describe('PairDeviceView', () => {
