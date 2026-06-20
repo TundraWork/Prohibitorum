@@ -385,6 +385,12 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/config", publicReq, s.handleGetPublicConfigHTTP)
 	registerOpHTTP(s.router, "GET", "/branding/icon", publicReq, s.handleGetBrandingIconHTTP)
 
+	// Native Traefik ForwardAuth (see docs/forward-auth.md). The verify endpoint
+	// is the middleware target; the callback is routed by the operator on each
+	// protected domain to plant the per-domain forward-auth cookie. Both public.
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth/verify", publicReq, s.oidcOP.HandleForwardAuthVerify)
+	s.router.Get(oidcop.ForwardAuthPathPrefix+"/callback", s.oidcOP.HandleForwardAuthCallback)
+
 	// Avatar upload/delete (self), source selection, status, and public fetch.
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/me/avatar", sessionReq, s.handlePutAvatarHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/me/avatar/selection", sessionReq, s.handlePutAvatarSelectionHTTP)
