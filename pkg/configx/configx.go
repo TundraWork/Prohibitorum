@@ -37,6 +37,7 @@ type Config struct {
 	SAML               SAMLConfig         `mapstructure:"saml"`
 	PasswordHashParams PasswordHashParams `mapstructure:"password_hash"`
 	Auth               AuthConfig         `mapstructure:"auth"`
+	Branding           BrandingConfig     `mapstructure:"branding"`
 
 	// DataEncryptionKeys is the versioned AES-256 key set used to encrypt
 	// sensitive credential material (TOTP secrets in v0.2, additional fields
@@ -54,6 +55,17 @@ type WebAuthnConfig struct {
 	RPID          string   `mapstructure:"rp_id"`
 	RPDisplayName string   `mapstructure:"rp_display_name"`
 	RPOrigins     []string `mapstructure:"rp_origins"`
+}
+
+// BrandingConfig holds the deploy-time instance identity. These are DEFAULTS;
+// an admin can override the name + icon at runtime (instance_settings table).
+// InstanceName is purely cosmetic — it does NOT change the WebAuthn RPDisplayName,
+// the OIDC Issuer, or the TOTP issuer.
+type BrandingConfig struct {
+	InstanceName string `mapstructure:"instance_name"`
+	// IconPath is an optional path to a PNG/JPEG/WebP the operator drops at
+	// deploy. Empty = no config icon (fall back to the built-in default).
+	IconPath string `mapstructure:"icon_path"`
 }
 
 type KVConfig struct {
@@ -253,6 +265,11 @@ func Parse() (*Config, error) {
 	viper.SetDefault("webauthn.rp_display_name", "Prohibitorum")
 	viper.SetDefault("webauthn.rp_id", "")
 
+	// Branding defaults — InstanceName falls back to the built-in product name;
+	// IconPath is empty (operator drops a file if desired).
+	viper.SetDefault("branding.instance_name", "")
+	viper.SetDefault("branding.icon_path", "")
+
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	bindEnvs(Config{})
 	_ = viper.Unmarshal(&config)
@@ -284,6 +301,10 @@ func Parse() (*Config, error) {
 	// an explicit totp.issuer override still wins over the fallback.
 	if config.TOTP.Issuer == "" {
 		config.TOTP.Issuer = config.WebAuthn.RPDisplayName
+	}
+
+	if config.Branding.InstanceName == "" {
+		config.Branding.InstanceName = "Prohibitorum"
 	}
 
 	keys, err := loadDataEncryptionKeys(os.Environ())
