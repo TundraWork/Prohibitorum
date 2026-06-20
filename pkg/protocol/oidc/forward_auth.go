@@ -218,6 +218,62 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, p.cfg.OIDC.Issuer+"/oauth/authorize?"+q.Encode(), http.StatusFound)
 }
 
+// HandleForwardAuthCallback is reached on the protected domain via the
+// operator-routed ForwardAuthPathPrefix. It redeems the OIDC code IN-PROCESS
+// (consumeCode — no token round-trip), verifies PKCE + the flow binding, mints
+// the per-domain forward-auth session, sets the host-only cookie, and 302s to
+// the original URL carried in the single-use state.
+func (p *Provider) HandleForwardAuthCallback(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	code := r.URL.Query().Get("code")
+	stateID := r.URL.Query().Get("state")
+
+	st := popFAState(ctx, p.kv, stateID)
+	if st == nil || code == "" {
+		p.redirectToErrorPage(w, r, errCodeServerError)
+		return
+	}
+	ac, err := consumeCode(ctx, p.kv, code)
+	if err != nil {
+		p.redirectToErrorPage(w, r, errCodeServerError)
+		return
+	}
+	expectedRedirect := schemeOf(r) + "://" + hostOf(r) + ForwardAuthPathPrefix + "/callback"
+	if ac.ClientID != st.ClientID || !verifyPKCE(st.Verifier, ac.CodeChallenge) || ac.RedirectURI != expectedRedirect {
+		p.redirectToErrorPage(w, r, errCodeServerError)
+		return
+	}
+
+	tok, mErr := mintFASession(ctx, p.kv, faSession{AccountID: ac.AccountID, ClientID: ac.ClientID}, p.cfg.ForwardAuth.SessionTTL)
+	if mErr != nil {
+		p.redirectToErrorPage(w, r, errCodeServerError)
+		return
+	}
+	http.SetCookie(w, faCookie(schemeOf(r) == "https", tok))
+	http.Redirect(w, r, st.OriginalURL, http.StatusFound)
+}
+
+// schemeOf returns the request scheme, preferring the X-Forwarded-Proto header
+// (set by Traefik) over TLS detection, falling back to "http".
+func schemeOf(r *http.Request) string {
+	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
+		return p
+	}
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+// hostOf returns the request host, preferring the X-Forwarded-Host header
+// (set by Traefik) over r.Host.
+func hostOf(r *http.Request) string {
+	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
+		return h
+	}
+	return r.Host
+}
+
 // accountEmail returns the account email string if set and valid, else "".
 // db.Account.Email is pgtype.Text (confirmed from pkg/protocol/oidc/claims.go
 // emailClaims, which reads a.Email.String and a.Email.Valid).

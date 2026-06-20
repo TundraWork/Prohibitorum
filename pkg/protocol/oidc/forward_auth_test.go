@@ -285,3 +285,347 @@ func TestForwardAuthVerify_RevokedAccess_Redirects(t *testing.T) {
 		t.Fatalf("want 302, got %d", rec.Code)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// HandleForwardAuthCallback tests
+// ---------------------------------------------------------------------------
+
+// newFACallbackRequest builds a GET request to the callback URL on the protected
+// domain with X-Forwarded-* headers set.
+func newFACallbackRequest(proto, host, code, stateID string) *http.Request {
+	u := proto + "://" + host + ForwardAuthPathPrefix + "/callback?code=" + code + "&state=" + stateID
+	req := httptest.NewRequest(http.MethodGet, u, nil)
+	req.Header.Set("X-Forwarded-Host", host)
+	req.Header.Set("X-Forwarded-Proto", proto)
+	return req
+}
+
+// hasFACookie returns the value of the forward-auth cookie (with or without
+// __Host- prefix) from rec, or "" if absent.
+func hasFACookie(rec *httptest.ResponseRecorder, secure bool) string {
+	name := faCookieName(secure)
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == name {
+			return c.Value
+		}
+	}
+	return ""
+}
+
+func TestForwardAuthCallback_Success(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	p.cfg.ForwardAuth.SessionTTL = time.Hour
+
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	stateID, err := mintFAState(ctx, store, faState{
+		OriginalURL: "https://app.acme.io/foo",
+		ClientID:    "svc",
+		Verifier:    verifier,
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintFAState: %v", err)
+	}
+	code, err := mintCode(ctx, store, authCode{
+		ClientID:            "svc",
+		AccountID:           42,
+		RedirectURI:         "https://app.acme.io" + ForwardAuthPathPrefix + "/callback",
+		CodeChallenge:       pkceChallengeS256(verifier),
+		CodeChallengeMethod: "S256",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintCode: %v", err)
+	}
+
+	req := newFACallbackRequest("https", "app.acme.io", code, stateID)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status=%d want 302; body=%s", rec.Code, rec.Body.String())
+	}
+	loc, _ := rec.Result().Location()
+	if loc == nil || loc.String() != "https://app.acme.io/foo" {
+		t.Fatalf("location=%v", loc)
+	}
+	val := hasFACookie(rec, true)
+	if val == "" {
+		t.Fatal("forward-auth cookie not set")
+	}
+	sess := loadFASession(ctx, store, val)
+	if sess == nil || sess.AccountID != 42 || sess.ClientID != "svc" {
+		t.Fatalf("fa-session = %+v", sess)
+	}
+}
+
+func TestForwardAuthCallback_PKCEMismatch_Rejected(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	p.cfg.ForwardAuth.SessionTTL = time.Hour
+
+	// state.Verifier="wrong" but code carries challenge for "right"
+	stateID, err := mintFAState(ctx, store, faState{
+		OriginalURL: "https://app.acme.io/foo",
+		ClientID:    "svc",
+		Verifier:    "wrong-verifier",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintFAState: %v", err)
+	}
+	code, err := mintCode(ctx, store, authCode{
+		ClientID:            "svc",
+		AccountID:           42,
+		RedirectURI:         "https://app.acme.io" + ForwardAuthPathPrefix + "/callback",
+		CodeChallenge:       pkceChallengeS256("right-verifier"),
+		CodeChallengeMethod: "S256",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintCode: %v", err)
+	}
+
+	req := newFACallbackRequest("https", "app.acme.io", code, stateID)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec, req)
+
+	// Should redirect to error page, not OriginalURL
+	loc, _ := rec.Result().Location()
+	if loc != nil && loc.String() == "https://app.acme.io/foo" {
+		t.Fatal("PKCE mismatch must NOT redirect to OriginalURL")
+	}
+	if hasFACookie(rec, true) != "" {
+		t.Fatal("PKCE mismatch must not set fa cookie")
+	}
+}
+
+func TestForwardAuthCallback_ClientMismatch_Rejected(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	p.cfg.ForwardAuth.SessionTTL = time.Hour
+
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	// state says client "svc" but code carries "other-client"
+	stateID, err := mintFAState(ctx, store, faState{
+		OriginalURL: "https://app.acme.io/foo",
+		ClientID:    "svc",
+		Verifier:    verifier,
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintFAState: %v", err)
+	}
+	code, err := mintCode(ctx, store, authCode{
+		ClientID:            "other-client",
+		AccountID:           42,
+		RedirectURI:         "https://app.acme.io" + ForwardAuthPathPrefix + "/callback",
+		CodeChallenge:       pkceChallengeS256(verifier),
+		CodeChallengeMethod: "S256",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintCode: %v", err)
+	}
+
+	req := newFACallbackRequest("https", "app.acme.io", code, stateID)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec, req)
+
+	loc, _ := rec.Result().Location()
+	if loc != nil && loc.String() == "https://app.acme.io/foo" {
+		t.Fatal("client mismatch must NOT redirect to OriginalURL")
+	}
+	if hasFACookie(rec, true) != "" {
+		t.Fatal("client mismatch must not set fa cookie")
+	}
+}
+
+func TestForwardAuthCallback_RedirectURIMismatch_Rejected(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	p.cfg.ForwardAuth.SessionTTL = time.Hour
+
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	stateID, err := mintFAState(ctx, store, faState{
+		OriginalURL: "https://app.acme.io/foo",
+		ClientID:    "svc",
+		Verifier:    verifier,
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintFAState: %v", err)
+	}
+	// RedirectURI points to a different host
+	code, err := mintCode(ctx, store, authCode{
+		ClientID:            "svc",
+		AccountID:           42,
+		RedirectURI:         "https://evil.example.com" + ForwardAuthPathPrefix + "/callback",
+		CodeChallenge:       pkceChallengeS256(verifier),
+		CodeChallengeMethod: "S256",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintCode: %v", err)
+	}
+
+	req := newFACallbackRequest("https", "app.acme.io", code, stateID)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec, req)
+
+	loc, _ := rec.Result().Location()
+	if loc != nil && loc.String() == "https://app.acme.io/foo" {
+		t.Fatal("redirect_uri mismatch must NOT redirect to OriginalURL")
+	}
+	if hasFACookie(rec, true) != "" {
+		t.Fatal("redirect_uri mismatch must not set fa cookie")
+	}
+}
+
+func TestForwardAuthCallback_UsedState_Rejected(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	p.cfg.ForwardAuth.SessionTTL = time.Hour
+
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	stateID, err := mintFAState(ctx, store, faState{
+		OriginalURL: "https://app.acme.io/foo",
+		ClientID:    "svc",
+		Verifier:    verifier,
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintFAState: %v", err)
+	}
+	// Consume the state once (simulating a completed or replayed flow)
+	popFAState(ctx, store, stateID)
+
+	code, err := mintCode(ctx, store, authCode{
+		ClientID:            "svc",
+		AccountID:           42,
+		RedirectURI:         "https://app.acme.io" + ForwardAuthPathPrefix + "/callback",
+		CodeChallenge:       pkceChallengeS256(verifier),
+		CodeChallengeMethod: "S256",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintCode: %v", err)
+	}
+
+	req := newFACallbackRequest("https", "app.acme.io", code, stateID)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec, req)
+
+	loc, _ := rec.Result().Location()
+	if loc != nil && loc.String() == "https://app.acme.io/foo" {
+		t.Fatal("used state must NOT redirect to OriginalURL")
+	}
+	if hasFACookie(rec, true) != "" {
+		t.Fatal("used state must not set fa cookie")
+	}
+}
+
+func TestForwardAuthCallback_UsedCode_Rejected(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	p.cfg.ForwardAuth.SessionTTL = time.Hour
+
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+	mintAndConsume := func() (string, string) {
+		stateID, err := mintFAState(ctx, store, faState{
+			OriginalURL: "https://app.acme.io/foo",
+			ClientID:    "svc",
+			Verifier:    verifier,
+		}, 5*time.Minute)
+		if err != nil {
+			t.Fatalf("mintFAState: %v", err)
+		}
+		code, err := mintCode(ctx, store, authCode{
+			ClientID:            "svc",
+			AccountID:           42,
+			RedirectURI:         "https://app.acme.io" + ForwardAuthPathPrefix + "/callback",
+			CodeChallenge:       pkceChallengeS256(verifier),
+			CodeChallengeMethod: "S256",
+		}, 5*time.Minute)
+		if err != nil {
+			t.Fatalf("mintCode: %v", err)
+		}
+		return stateID, code
+	}
+
+	// First call: succeeds and consumes both state + code
+	stateID1, code1 := mintAndConsume()
+	rec1 := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec1, newFACallbackRequest("https", "app.acme.io", code1, stateID1))
+	if rec1.Code != http.StatusFound {
+		t.Fatalf("first call should succeed, got %d", rec1.Code)
+	}
+
+	// Second call: same code, fresh state — consumeCode must reject the used code
+	stateID2, _ := mintFAState(ctx, store, faState{
+		OriginalURL: "https://app.acme.io/foo",
+		ClientID:    "svc",
+		Verifier:    verifier,
+	}, 5*time.Minute)
+	rec2 := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec2, newFACallbackRequest("https", "app.acme.io", code1, stateID2))
+
+	loc, _ := rec2.Result().Location()
+	if loc != nil && loc.String() == "https://app.acme.io/foo" {
+		t.Fatal("used code must NOT redirect to OriginalURL")
+	}
+	if hasFACookie(rec2, true) != "" {
+		t.Fatal("used code must not set fa cookie")
+	}
+}
+
+func TestForwardAuthCallback_MissingCode_Rejected(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	p.cfg.ForwardAuth.SessionTTL = time.Hour
+
+	stateID, err := mintFAState(ctx, store, faState{
+		OriginalURL: "https://app.acme.io/foo",
+		ClientID:    "svc",
+		Verifier:    "v",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintFAState: %v", err)
+	}
+
+	// No code parameter
+	req := newFACallbackRequest("https", "app.acme.io", "", stateID)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec, req)
+
+	loc, _ := rec.Result().Location()
+	if loc != nil && loc.String() == "https://app.acme.io/foo" {
+		t.Fatal("missing code must NOT redirect to OriginalURL")
+	}
+	if hasFACookie(rec, true) != "" {
+		t.Fatal("missing code must not set fa cookie")
+	}
+}
+
+func TestForwardAuthCallback_MissingState_Rejected(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	p.cfg.ForwardAuth.SessionTTL = time.Hour
+
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	code, err := mintCode(ctx, store, authCode{
+		ClientID:            "svc",
+		AccountID:           42,
+		RedirectURI:         "https://app.acme.io" + ForwardAuthPathPrefix + "/callback",
+		CodeChallenge:       pkceChallengeS256(verifier),
+		CodeChallengeMethod: "S256",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintCode: %v", err)
+	}
+
+	// No state parameter
+	req := newFACallbackRequest("https", "app.acme.io", code, "")
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec, req)
+
+	loc, _ := rec.Result().Location()
+	if loc != nil && loc.String() == "https://app.acme.io/foo" {
+		t.Fatal("missing state must NOT redirect to OriginalURL")
+	}
+	if hasFACookie(rec, true) != "" {
+		t.Fatal("missing state must not set fa cookie")
+	}
+}
