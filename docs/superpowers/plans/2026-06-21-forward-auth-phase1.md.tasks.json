@@ -1,0 +1,61 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-21-forward-auth-phase1.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Schema + DB layer + config",
+      "status": "pending",
+      "description": "migration 018 (oidc_client forward_auth_enabled/host + partial unique index) + 2 sqlc queries (GetForwardAuthClientByHost, SetForwardAuthConfig) + sqlc generate + configx.ForwardAuth{SessionTTL default 1h}.\n\n```json:metadata\n{\"files\":[\"db/migrations/018_forward_auth.sql\",\"db/queries/oidc.sql\",\"pkg/db\",\"pkg/configx/configx.go\"],\"verifyCommand\":\"go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"migration 018 cols + partial unique index\",\"GetForwardAuthClientByHost\",\"SetForwardAuthConfig\",\"ForwardAuth.SessionTTL default 1h\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: forward-auth building blocks",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "forward_auth.go blocks: KV faSession, single-use faState, PKCE S256, host-only faCookie, writeIdentityHeaders, ForwardAuthPathPrefix, randToken. Unit tests.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/forward_auth.go\",\"pkg/protocol/oidc/forward_auth_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/ -run ForwardAuth -count=1\",\"acceptanceCriteria\":[\"faSession round-trips\",\"faState single-use\",\"PKCE RFC7636 vector\",\"faCookie host-only\",\"identity headers; empty email omitted\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: HandleForwardAuthVerify",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "verify: resolve client by X-Forwarded-Host (unknown→403); valid cookie+live RBAC+enabled→200+headers; else 302 to /oauth/authorize (client_id+exact redirect_uri+S256+state). Tests.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/forward_auth.go\",\"pkg/protocol/oidc/forward_auth_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/ -run ForwardAuth -count=1\",\"acceptanceCriteria\":[\"valid→200+Remote-*\",\"no cookie→302 authorize w/ params\",\"revoked→302\",\"unknown host→403\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: HandleForwardAuthCallback",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "callback: popFAState + consumeCode in-process → verify PKCE+client+redirect → mint faSession + host-only cookie + 302 to OriginalURL. Reject bad/used state, PKCE/client/redirect mismatch, used code. Tests.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/forward_auth.go\",\"pkg/protocol/oidc/forward_auth_test.go\"],\"verifyCommand\":\"go test ./pkg/protocol/oidc/ -run ForwardAuth -count=1\",\"acceptanceCriteria\":[\"success→fa-session+cookie+302 OriginalURL\",\"bad/used state→/error no cookie\",\"PKCE/client/redirect mismatch→reject\",\"used code→reject\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Route registration",
+      "status": "pending",
+      "blockedBy": [3, 4],
+      "description": "register GET /api/prohibitorum/forward-auth/verify (AuthPublic) + root GET /.prohibitorum-forward-auth/callback in server.go. Confirm oidcop alias.\n\n```json:metadata\n{\"files\":[\"pkg/server/server.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go test ./pkg/server/ -run 'Route|Operations|Sudo' -count=1\",\"acceptanceCriteria\":[\"verify route public\",\"callback root route\",\"build 0; route tests pass\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: forward-auth-app CLI",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "cobra forward-auth-app create --client-id --host: BuildClientParams (public+PKCE, no consent, callback redirect_uri, openid email groups) → InsertOIDCClient → SetForwardAuthConfig(true,host) + guidance.\n\n```json:metadata\n{\"files\":[\"cmd/prohibitorum/main.go\"],\"verifyCommand\":\"go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"create makes public+PKCE client + callback redirect_uri + no consent\",\"SetForwardAuthConfig(true,host)\",\"prints guidance\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Traefik integration docs",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "docs/forward-auth.md: register app+grant; ForwardAuth middleware→verify; per-domain router→Prohibitorum; authResponseHeaders Remote-*; EntryPoint trustedIPs+trustForwardHeader; HTTPS-only; sole-ingress/strip Remote-* note.\n\n```json:metadata\n{\"files\":[\"docs/forward-auth.md\"],\"verifyCommand\":\"test -f docs/forward-auth.md\",\"acceptanceCriteria\":[\"middleware+router+authResponseHeaders\",\"trustedIPs+trustForwardHeader\",\"HTTPS+sole-ingress security note\",\"registration steps\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Gate + runtime verification",
+      "status": "pending",
+      "blockedBy": [1, 2, 3, 4, 5, 6, 7],
+      "description": "backend gate (vet/build -tags nodynamic/go test ./...; migration 018 applies); runtime via SUBAGENT server (curl unknown host→403; registered no-cookie→302 authorize). No SPA/dist change. Optional smoke.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\"],\"verifyCommand\":\"go vet ./... && go build -tags nodynamic ./... && go test ./...\",\"acceptanceCriteria\":[\"backend gate green; migration 018 applies\",\"runtime unknown→403; registered no-cookie→302 authorize w/ params\",\"no dist change\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-21T02:00:00+10:00"
+}
