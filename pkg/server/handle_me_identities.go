@@ -35,6 +35,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/weberr"
 )
 
 // meIdentitiesQueries is the narrow query surface the /me/identities
@@ -250,7 +251,7 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 	slug := chi.URLParam(r, "slug")
 	returnTo, err := s.validateFederationReturnTo(r.URL.Query().Get("return_to"))
 	if err != nil {
-		writeAuthErr(w, err)
+		redirectAuthErrToError(w, r, err)
 		return
 	}
 
@@ -260,10 +261,10 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 			// Collapse "no such slug" onto the generic state-invalid code —
 			// mirrors handleFederationLoginHTTP so admins can't enumerate
 			// configured IdPs via the link surface either.
-			writeAuthErr(w, authn.ErrFederationStateInvalid())
+			redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 			return
 		}
-		writeAuthErr(w, err)
+		redirectAuthErrToError(w, r, err)
 		return
 	}
 
@@ -286,8 +287,9 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 
 	if upstreamErr != "" {
 		// The user is already authenticated, so we know the account_id —
-		// embed it in the audit row (unlike the unauthenticated login
-		// callback, where we have no account context at this point).
+		// embed it in the audit row. Generate a ref first so both the audit
+		// Detail and the /error redirect carry the same correlation token.
+		ref := weberr.NewRef()
 		acct := sess.Account.ID
 		_ = s.Audit.Record(r.Context(), audit.Record{
 			AccountID: &acct,
@@ -297,9 +299,10 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 				"reason":               "upstream_error",
 				"upstream_code":        upstreamErr,
 				"upstream_description": upstreamDesc,
+				"ref":                  ref,
 			},
 		})
-		writeAuthErr(w, authn.ErrUpstreamError(upstreamErr, upstreamDesc))
+		weberr.RedirectToError(w, r, authn.ErrUpstreamError(upstreamErr, upstreamDesc).Code, ref)
 		return
 	}
 
@@ -307,7 +310,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		// Stray / replayed callback. Federator's LinkCallback would also
 		// reject this on the KV Pop, but short-circuiting here keeps the
 		// audit log clean of accidental hits.
-		writeAuthErr(w, authn.ErrFederationStateInvalid())
+		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 		return
 	}
 
@@ -316,9 +319,8 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		// Federator already emitted a fail audit row for each structured
 		// failure mode (state_invalid, session_swap, iss_mismatch_callback,
 		// code_exchange_failed, link_insert_failed, link_conflict).
-		// writeAuthErr collapses every expected variant onto
-		// federation_state_invalid via authn.AuthError.
-		writeAuthErr(w, err)
+		// Redirect to /error — this is a full-page browser-navigated flow.
+		redirectAuthErrToError(w, r, err)
 		return
 	}
 

@@ -69,11 +69,11 @@ type fakeFedQueries struct {
 	identityErr    error
 
 	// account
-	accountByIDResults  map[int32]db.Account
-	accountByUsername   map[string]db.Account
-	usernameErr         error
-	nextAccountID       int32
-	insertedAccounts    []db.Account
+	accountByIDResults map[int32]db.Account
+	accountByUsername  map[string]db.Account
+	usernameErr        error
+	nextAccountID      int32
+	insertedAccounts   []db.Account
 
 	// account_identity inserts
 	nextIdentityID  int64
@@ -215,8 +215,8 @@ func (f *fakeFedQueries) InsertSession(_ context.Context, arg db.InsertSessionPa
 	return row, nil
 }
 
-func (f *fakeFedQueries) RevokeSession(_ context.Context, _ string) error              { return nil }
-func (f *fakeFedQueries) RevokeAllSessionsByAccount(_ context.Context, _ int32) error  { return nil }
+func (f *fakeFedQueries) RevokeSession(_ context.Context, _ string) error             { return nil }
+func (f *fakeFedQueries) RevokeAllSessionsByAccount(_ context.Context, _ int32) error { return nil }
 
 func (f *fakeFedQueries) InsertCredentialEvent(_ context.Context, arg db.InsertCredentialEventParams) error {
 	f.mu.Lock()
@@ -480,12 +480,12 @@ func TestFederationLogin_InvalidReturnTo(t *testing.T) {
 	h := newFederationTestServer(t)
 
 	_, resp := h.driveLogin(t, "mockop", "https://evil.example.com/")
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "invalid_return_to" {
-		t.Errorf("code: want invalid_return_to, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_return_to&ref=") {
+		t.Errorf("Location: want /error?error=invalid_return_to&ref=…, got %q", loc)
 	}
 }
 
@@ -515,12 +515,12 @@ func TestFederationLogin_UnknownSlugReturnsStateInvalid(t *testing.T) {
 	h := newFederationTestServer(t)
 
 	_, resp := h.driveLogin(t, "no-such-idp", "/me")
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status: want 401, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "federation_state_invalid" {
-		t.Errorf("code: want federation_state_invalid, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
+		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", loc)
 	}
 }
 
@@ -695,15 +695,13 @@ func TestFederationCallback_UpstreamError(t *testing.T) {
 	q.Set("code", "")
 	resp := h.hitCallback(t, "mockop", q)
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d", resp.StatusCode)
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "upstream_error" {
-		t.Errorf("code: want upstream_error, got %q", body.Code)
-	}
-	if !strings.Contains(body.Message, "access_denied") {
-		t.Errorf("message should embed upstream code; got %q", body.Message)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=upstream_error&ref=") {
+		t.Errorf("Location: want /error?error=upstream_error&ref=…, got %q", loc)
 	}
 
 	// Audit row emitted with reason=upstream_error.
@@ -734,12 +732,13 @@ func TestFederationCallback_MissingStateOrCode(t *testing.T) {
 	q.Set("code", "abc")
 	resp := h.hitCallback(t, "mockop", q)
 
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status: want 401, got %d", resp.StatusCode)
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "federation_state_invalid" {
-		t.Errorf("code: want federation_state_invalid, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
+		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", loc)
 	}
 	// No audit row — stray browser hits must not flood the log.
 	for _, ev := range h.q.events {
@@ -751,7 +750,7 @@ func TestFederationCallback_MissingStateOrCode(t *testing.T) {
 
 func TestFederationCallback_EmailNotVerifiedRejected(t *testing.T) {
 	h := newFederationTestServer(t)
-	// Upstream returns email_verified=false; require_verified_email=true → 403.
+	// Upstream returns email_verified=false; require_verified_email=true → /error redirect.
 	h.op.SetClaims("sub-1", "alice@example.com", false, "alice", "Alice Example")
 
 	loc, resp := h.driveLogin(t, "mockop", "/me")
@@ -765,13 +764,14 @@ func TestFederationCallback_EmailNotVerifiedRejected(t *testing.T) {
 	q.Set("iss", iss)
 	resp = h.hitCallback(t, "mockop", q)
 
-	if resp.StatusCode != http.StatusForbidden {
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
 		body, _ := readAll(resp.Body)
-		t.Fatalf("status: want 403, got %d (body=%s)", resp.StatusCode, body)
+		t.Fatalf("status: want 302, got %d (body=%s)", resp.StatusCode, body)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "email_not_verified" {
-		t.Errorf("code: want email_not_verified, got %q", body.Code)
+	callbackLoc := resp.Header.Get("Location")
+	if !strings.HasPrefix(callbackLoc, "/error?error=email_not_verified&ref=") {
+		t.Errorf("Location: want /error?error=email_not_verified&ref=…, got %q", callbackLoc)
 	}
 	if len(h.q.sessions) != 0 {
 		t.Errorf("sessions: want 0 on email-not-verified rejection, got %d", len(h.q.sessions))
@@ -799,22 +799,23 @@ func TestFederationCallback_UsernameCollision(t *testing.T) {
 	q.Set("iss", iss)
 	resp = h.hitCallback(t, "mockop", q)
 
-	if resp.StatusCode != http.StatusForbidden {
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
 		body, _ := readAll(resp.Body)
-		t.Fatalf("status: want 403, got %d (body=%s)", resp.StatusCode, body)
+		t.Fatalf("status: want 302, got %d (body=%s)", resp.StatusCode, body)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "username_collision" {
-		t.Errorf("code: want username_collision, got %q", body.Code)
+	callbackLoc := resp.Header.Get("Location")
+	if !strings.HasPrefix(callbackLoc, "/error?error=username_collision&ref=") {
+		t.Errorf("Location: want /error?error=username_collision&ref=…, got %q", callbackLoc)
 	}
 }
 
 func TestValidateFederationReturnTo(t *testing.T) {
 	s := &Server{}
 	cases := []struct {
-		in       string
-		want     string
-		wantErr  bool
+		in      string
+		want    string
+		wantErr bool
 	}{
 		{"", "/", false},
 		{"/", "/", false},

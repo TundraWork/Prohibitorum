@@ -18,10 +18,11 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/contract"
-	"prohibitorum/pkg/db"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
+	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
+	"prohibitorum/pkg/weberr"
 )
 
 // ceremonyTTL is how long a /begin's KV stash survives before /complete must claim it.
@@ -109,6 +110,21 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 		"code":    ae.Code,
 		"details": []string{},
 	})
+}
+
+// redirectAuthErrToError sends a browser-navigated flow error to the SPA
+// /error page instead of writing JSON. Use ONLY on full-page (redirect-target)
+// handlers — federation login/callback, identity link, invite start. The
+// AuthError code drives the SPA message; a fresh ref is returned so the caller
+// can stamp it onto an existing audit row. Falls back to "server_error".
+func redirectAuthErrToError(w http.ResponseWriter, r *http.Request, err error) string {
+	code := "server_error"
+	if ae := authn.AsAuthError(err); ae != nil {
+		code = ae.Code
+	}
+	ref := weberr.NewRef()
+	weberr.RedirectToError(w, r, code, ref)
+	return ref
 }
 
 // matchCredentialRowID finds the db.WebauthnCredential row whose CredentialID
@@ -299,7 +315,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		_ = s.queries.UpdateCredentialUsage(r.Context(), db.UpdateCredentialUsageParams{
 			ID:        credRowID,
 			AccountID: resolvedAccount.ID,
-			SignCount:  newCount,
+			SignCount: newCount,
 		})
 	}
 	// Ceremony stash was Popped atomically above; no Del needed here.

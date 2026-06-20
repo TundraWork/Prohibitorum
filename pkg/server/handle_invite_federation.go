@@ -34,19 +34,19 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 		// Collapse onto the same opaque code BeginInviteRedemption uses for
 		// every other "no good" branch — don't reveal that empty token is
 		// rejected at a different layer than unknown token.
-		writeAuthErr(w, authn.ErrInviteRequired())
+		redirectAuthErrToError(w, r, authn.ErrInviteRequired())
 		return
 	}
 
 	returnTo, rterr := s.validateFederationReturnTo(r.URL.Query().Get("return_to"))
 	if rterr != nil {
-		writeAuthErr(w, rterr)
+		redirectAuthErrToError(w, r, rterr)
 		return
 	}
 
 	req, err := s.federator.BeginInviteRedemption(r.Context(), token, returnTo)
 	if err != nil {
-		writeAuthErr(w, err)
+		redirectAuthErrToError(w, r, err)
 		return
 	}
 

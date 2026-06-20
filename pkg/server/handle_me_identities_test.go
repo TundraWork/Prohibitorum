@@ -827,12 +827,13 @@ func TestMeIdentities_LinkBegin_InvalidReturnTo(t *testing.T) {
 	h.grantSudoOnSession(t)
 
 	_, resp := h.driveLinkBegin(t, "mockop", "https://evil.example.com/")
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d", resp.StatusCode)
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "invalid_return_to" {
-		t.Errorf("code: want invalid_return_to, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_return_to&ref=") {
+		t.Errorf("Location: want /error?error=invalid_return_to&ref=…, got %q", loc)
 	}
 }
 
@@ -929,13 +930,14 @@ func TestMeIdentities_LinkCallback_SessionSwap(t *testing.T) {
 	q.Set("iss", iss)
 	resp = h.hitLinkCallback(t, "mockop", q)
 
-	if resp.StatusCode != http.StatusUnauthorized {
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
 		body, _ := readAll(resp.Body)
-		t.Fatalf("callback: want 401, got %d (body=%s)", resp.StatusCode, body)
+		t.Fatalf("callback: want 302, got %d (body=%s)", resp.StatusCode, body)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "federation_state_invalid" {
-		t.Errorf("code: want federation_state_invalid, got %q", body.Code)
+	callbackLoc := resp.Header.Get("Location")
+	if !strings.HasPrefix(callbackLoc, "/error?error=federation_state_invalid&ref=") {
+		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", callbackLoc)
 	}
 	// Federator emits a fail audit row with reason=session_swap.
 	found := false
@@ -966,12 +968,13 @@ func TestMeIdentities_LinkCallback_MissingState(t *testing.T) {
 	q.Set("state", "")
 	q.Set("code", "abc")
 	resp := h.hitLinkCallback(t, "mockop", q)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status: want 401, got %d", resp.StatusCode)
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "federation_state_invalid" {
-		t.Errorf("code: want federation_state_invalid, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
+		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", loc)
 	}
 }
 
@@ -982,12 +985,13 @@ func TestMeIdentities_LinkCallback_UpstreamError(t *testing.T) {
 	q.Set("error", "access_denied")
 	q.Set("error_description", "user denied consent")
 	resp := h.hitLinkCallback(t, "mockop", q)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d", resp.StatusCode)
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "upstream_error" {
-		t.Errorf("code: want upstream_error, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=upstream_error&ref=") {
+		t.Errorf("Location: want /error?error=upstream_error&ref=…, got %q", loc)
 	}
 	// Audit row carries account_id (we have a session).
 	found := false

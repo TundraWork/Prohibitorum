@@ -36,6 +36,7 @@ import (
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation/oidc"
 	sessstore "prohibitorum/pkg/session"
+	"prohibitorum/pkg/weberr"
 )
 
 // listFedQueries is the narrow query surface for handleListFederationProvidersHTTP.
@@ -59,7 +60,7 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 
 	returnTo, err := s.validateFederationReturnTo(r.URL.Query().Get("return_to"))
 	if err != nil {
-		writeAuthErr(w, err)
+		redirectAuthErrToError(w, r, err)
 		return
 	}
 
@@ -68,10 +69,10 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 		if errors.Is(err, fedoidc.ErrUnknownIDP) {
 			// Collapse "no such slug" onto the generic state-invalid code so
 			// callers can't enumerate configured upstream IdP slugs.
-			writeAuthErr(w, authn.ErrFederationStateInvalid())
+			redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 			return
 		}
-		writeAuthErr(w, err)
+		redirectAuthErrToError(w, r, err)
 		return
 	}
 
@@ -93,10 +94,10 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	iss := q.Get("iss")
 
 	if upstreamErr != "" {
-		// Upstream OP refused the user. Surface the upstream code + description
-		// in the wire response so admins debugging "I can't log in via X" have
-		// something actionable, and emit an audit row (no account_id — we
-		// never reached the resolve step).
+		// Upstream OP refused the user. Emit an audit row (no account_id — we
+		// never reached the resolve step), stamp a correlation ref, then
+		// redirect to the SPA /error page.
+		ref := weberr.NewRef()
 		_ = s.Audit.Record(r.Context(), audit.Record{
 			Factor: audit.FactorFederationOIDC,
 			Event:  audit.EventFail,
@@ -104,9 +105,10 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 				"reason":               "upstream_error",
 				"upstream_code":        upstreamErr,
 				"upstream_description": upstreamDesc,
+				"ref":                  ref,
 			},
 		})
-		writeAuthErr(w, authn.ErrUpstreamError(upstreamErr, upstreamDesc))
+		weberr.RedirectToError(w, r, authn.ErrUpstreamError(upstreamErr, upstreamDesc).Code, ref)
 		return
 	}
 
@@ -114,7 +116,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		// Stray browser request or someone pasting the callback URL out of
 		// context. No audit — this fires on benign hits (back-button replay,
 		// link previews) and would flood the log.
-		writeAuthErr(w, authn.ErrFederationStateInvalid())
+		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 		return
 	}
 
@@ -129,10 +131,9 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		// HandleCallback returns structured *authn.AuthError for every
 		// expected failure (federation_state_invalid, bad_credentials,
-		// email_not_verified, username_collision, …). Forward them straight
-		// through — writeAuthErr maps to the right status code. Wrapped
-		// non-AuthError values surface as 500 via writeAuthErr's fallback.
-		writeAuthErr(w, err)
+		// email_not_verified, username_collision, …). Redirect to /error
+		// instead of JSON — this is a full-page browser-navigated flow.
+		redirectAuthErrToError(w, r, err)
 		return
 	}
 
@@ -144,7 +145,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		// "<grant-token>.<anti-forgery>"; only the anti-forgery hash is in KV.
 		token, antiForgery, gerr := s.federator.CreateConfirmGrant(r.Context(), result.AccountID, result.IdentityID, result.IDPID, result.IDPSlug, result.ReturnTo, result.AMR)
 		if gerr != nil {
-			writeAuthErr(w, gerr)
+			redirectAuthErrToError(w, r, gerr)
 			return
 		}
 		http.SetCookie(w, sessstore.FedStateCookie(s.config, r, token+"."+antiForgery))
@@ -170,7 +171,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	idpID := result.IDPID
 	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, ua, amr, &idpID)
 	if err != nil {
-		writeAuthErr(w, err)
+		redirectAuthErrToError(w, r, err)
 		return
 	}
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, result.AccountID, token, s.config.SessionTTL))

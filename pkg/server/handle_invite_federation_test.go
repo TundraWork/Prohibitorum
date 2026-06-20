@@ -193,12 +193,13 @@ func TestEnrollmentStartFederation_UnknownToken(t *testing.T) {
 	// No enrollment seeded.
 
 	_, resp := h.driveStartFederation(t, "no-such-token", "/me")
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("status: want 403, got %d", resp.StatusCode)
+	// Browser-navigated error path now redirects to SPA /error page.
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "invite_required" {
-		t.Errorf("code: want invite_required, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
+		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
 	}
 }
 
@@ -209,12 +210,12 @@ func TestEnrollmentStartFederation_ConsumedToken(t *testing.T) {
 	h.q.seedEnrollment(enr)
 
 	_, resp := h.driveStartFederation(t, "tok-consumed", "/me")
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("status: want 403, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "invite_required" {
-		t.Errorf("code: want invite_required, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
+		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
 	}
 }
 
@@ -225,12 +226,12 @@ func TestEnrollmentStartFederation_ExpiredToken(t *testing.T) {
 	h.q.seedEnrollment(enr)
 
 	_, resp := h.driveStartFederation(t, "tok-expired", "/me")
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("status: want 403, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "invite_required" {
-		t.Errorf("code: want invite_required, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
+		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
 	}
 }
 
@@ -241,12 +242,12 @@ func TestEnrollmentStartFederation_NonFederationIntent(t *testing.T) {
 	h.q.seedEnrollment(enr)
 
 	_, resp := h.driveStartFederation(t, "tok-bootstrap", "/me")
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("status: want 403, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "invite_required" {
-		t.Errorf("code: want invite_required, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
+		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
 	}
 }
 
@@ -257,12 +258,12 @@ func TestEnrollmentStartFederation_NoSlugBinding(t *testing.T) {
 	h.q.seedEnrollment(enr)
 
 	_, resp := h.driveStartFederation(t, "tok-no-slug", "/me")
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("status: want 403, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "invite_required" {
-		t.Errorf("code: want invite_required, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
+		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
 	}
 }
 
@@ -271,12 +272,12 @@ func TestEnrollmentStartFederation_InvalidReturnTo(t *testing.T) {
 	h.q.seedEnrollment(validInvite("tok-rt", h.idp.Slug, "alice"))
 
 	_, resp := h.driveStartFederation(t, "tok-rt", "https://evil.example.com")
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
 	}
-	body := decodeErrBody(t, resp)
-	if body.Code != "invalid_return_to" {
-		t.Errorf("code: want invalid_return_to, got %q", body.Code)
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_return_to&ref=") {
+		t.Errorf("Location: want /error?error=invalid_return_to&ref=…, got %q", loc)
 	}
 }
 
