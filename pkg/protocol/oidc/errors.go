@@ -2,8 +2,11 @@ package oidc
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
+
+	"prohibitorum/pkg/weberr"
 )
 
 // OAuth 2.0 / OIDC error codes — the string values that populate the
@@ -49,6 +52,17 @@ func writeInvalidClient(w http.ResponseWriter, r *http.Request, desc string) {
 		w.Header().Set("WWW-Authenticate", `Basic realm="oidc"`)
 	}
 	writeOIDCError(w, http.StatusUnauthorized, errCodeInvalidClient, desc)
+}
+
+// redirectToErrorPage sends a browser-navigated authorize/logout error to the
+// SPA /error page (relative redirect, same origin). Use ONLY on the DIRECT-
+// error side of the open-redirect guard (before a trusted redirect_uri exists)
+// and for end_session errors — never instead of redirectError, which is the
+// RFC-mandated RP error channel once redirect_uri is trusted.
+func (p *Provider) redirectToErrorPage(w http.ResponseWriter, r *http.Request, code string) {
+	ref := weberr.NewRef()
+	slog.Warn("oidc browser-facing flow error", "code", code, "ref", ref, "path", r.URL.Path)
+	weberr.RedirectToError(w, r, code, ref)
 }
 
 // redirectError 302-redirects to the client's redirect_uri with the OAuth

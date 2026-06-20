@@ -44,17 +44,17 @@ func (p *Provider) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		// logout commonly happens after the ID token has expired.
 		claims, typ, err := p.verifyJWT(ctx, hint)
 		if err != nil {
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "invalid id_token_hint")
+			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 			return
 		}
 		if typ == "at+jwt" {
 			// An access token is not a valid logout hint; an ID token carries
 			// JOSE typ "JWT" (or empty for some signers).
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "id_token_hint must be an ID token")
+			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 			return
 		}
 		if iss, _ := claims["iss"].(string); iss != p.cfg.OIDC.Issuer {
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "id_token_hint not issued here")
+			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 			return
 		}
 
@@ -80,22 +80,22 @@ func (p *Provider) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		// the client whose allowlist we check. Without it we cannot safely
 		// validate the URI, so this is a direct error rather than a redirect.
 		if clientID == "" {
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "post_logout_redirect_uri requires id_token_hint")
+			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 			return
 		}
 		client, err := loadClient(ctx, p.queries, clientID)
 		if err != nil {
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "unknown client")
+			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 			return
 		}
 		if !slices.Contains(client.PostLogoutRedirectUris, postLogout) {
-			// DIRECT error — never redirect to an unregistered URI.
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "post_logout_redirect_uri not registered")
+			// Never redirect to an unregistered URI — send the user to /error.
+			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 			return
 		}
 		u, err := url.Parse(postLogout)
 		if err != nil {
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "post_logout_redirect_uri not registered")
+			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 			return
 		}
 		q := u.Query()

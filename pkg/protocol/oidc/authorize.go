@@ -53,9 +53,9 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	client, err := loadClient(r.Context(), p.queries, clientID)
 	if err != nil {
 		if errors.Is(err, errInvalidClient) {
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "invalid client")
+			p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 		} else {
-			writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "internal error")
+			p.redirectToErrorPage(w, r, errCodeServerError)
 		}
 		return
 	}
@@ -63,7 +63,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	// redirect_uri MUST be present and an EXACT match against the registered
 	// list. Still on the DIRECT-error side of the open-redirect guard.
 	if redirectURI == "" || !slices.Contains(client.RedirectUris, redirectURI) {
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "invalid redirect_uri")
+		p.redirectToErrorPage(w, r, errCodeInvalidRequest)
 		return
 	}
 

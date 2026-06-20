@@ -142,11 +142,13 @@ func TestAuthorize_UnknownClient_DirectError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	p.HandleAuthorize(rec, authedReq(baseParams()))
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
+	// Unknown client → /error page redirect (not JSON, not RP redirect).
+	if rec.Code != http.StatusFound {
+		t.Fatalf("want 302 to /error, got %d", rec.Code)
 	}
-	if loc := rec.Result().Header.Get("Location"); loc != "" {
-		t.Fatalf("unknown client must not redirect; got Location=%q", loc)
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_request&ref=") {
+		t.Fatalf("unknown client must redirect to /error; got Location=%q", loc)
 	}
 }
 
@@ -159,11 +161,16 @@ func TestAuthorize_BadRedirectURI_DirectError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	p.HandleAuthorize(rec, authedReq(v))
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
+	// Bad redirect_uri → /error page redirect (must NOT redirect to the attacker URI).
+	if rec.Code != http.StatusFound {
+		t.Fatalf("want 302 to /error, got %d", rec.Code)
 	}
-	if loc := rec.Result().Header.Get("Location"); loc != "" {
-		t.Fatalf("non-matching redirect_uri must not redirect; got Location=%q", loc)
+	loc := rec.Result().Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_request&ref=") {
+		t.Fatalf("bad redirect_uri must redirect to /error; got Location=%q", loc)
+	}
+	if strings.Contains(loc, "attacker.example.com") {
+		t.Fatalf("must not redirect to attacker URI; got Location=%q", loc)
 	}
 }
 

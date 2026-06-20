@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -167,14 +168,16 @@ func TestLogoutUnregisteredPostLogoutIsDirectError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.p.HandleLogout(rec, logoutReq(q))
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("unregistered post_logout_redirect_uri must be a direct 400, got %d", rec.Code)
+	// Unregistered post_logout_redirect_uri → /error page redirect, NOT to the evil URI.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("unregistered post_logout_redirect_uri must redirect to /error (302), got %d", rec.Code)
 	}
-	if loc := rec.Header().Get("Location"); loc != "" {
-		t.Fatalf("must NOT redirect on mismatch; got Location %q", loc)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_request&ref=") {
+		t.Fatalf("must redirect to /error; got Location %q", loc)
 	}
-	if got := decodeError(t, rec); got != errCodeInvalidRequest {
-		t.Fatalf("error = %q, want %q", got, errCodeInvalidRequest)
+	if strings.Contains(loc, "evil.example.com") {
+		t.Fatalf("must not redirect to evil URI; got Location %q", loc)
 	}
 }
 
@@ -199,11 +202,13 @@ func TestLogoutPostLogoutWithoutHintIsError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.p.HandleLogout(rec, logoutReq(q))
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("post_logout_redirect_uri without a hint must be a 400, got %d", rec.Code)
+	// Without a hint we can't validate the URI — redirect to /error.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("post_logout_redirect_uri without a hint must redirect to /error (302), got %d", rec.Code)
 	}
-	if loc := rec.Header().Get("Location"); loc != "" {
-		t.Fatalf("must NOT redirect; got Location %q", loc)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_request&ref=") {
+		t.Fatalf("must redirect to /error; got Location %q", loc)
 	}
 }
 
@@ -234,11 +239,12 @@ func TestLogoutInvalidSignatureRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.p.HandleLogout(rec, logoutReq(q))
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("tampered hint must be rejected with 400, got %d", rec.Code)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("tampered hint must redirect to /error (302), got %d", rec.Code)
 	}
-	if got := decodeError(t, rec); got != errCodeInvalidRequest {
-		t.Fatalf("error = %q, want %q", got, errCodeInvalidRequest)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_request&ref=") {
+		t.Fatalf("tampered hint must redirect to /error; got Location %q", loc)
 	}
 	if !h.sessionLive(t, sid) {
 		t.Fatal("session must NOT be revoked on an invalid hint")
@@ -265,11 +271,12 @@ func TestLogoutWrongIssuerRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.p.HandleLogout(rec, logoutReq(q))
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("hint with wrong iss must be rejected, got %d", rec.Code)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("hint with wrong iss must redirect to /error (302), got %d", rec.Code)
 	}
-	if got := decodeError(t, rec); got != errCodeInvalidRequest {
-		t.Fatalf("error = %q, want %q", got, errCodeInvalidRequest)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invalid_request&ref=") {
+		t.Fatalf("wrong iss must redirect to /error; got Location %q", loc)
 	}
 	if !h.sessionLive(t, sid) {
 		t.Fatal("session must NOT be revoked when iss mismatches")
