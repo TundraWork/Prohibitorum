@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import LocaleSwitcher from './LocaleSwitcher.vue'
+import { Select } from '@/components/ui/select'
 
 /**
  * A two-locale i18n instance so the switch *mechanism* can be exercised even
- * though only `en` ships in Spec 1 (the production instance has one locale).
+ * though only `en` ships by default. The control is the vendored Reka Select,
+ * so we drive it via the root Select's v-model (its menu is portaled and only
+ * renders when open — see reka primitive idioms).
  */
 function makeI18n() {
   return createI18n({
@@ -26,24 +29,25 @@ function mountSwitcher(i18n = makeI18n()) {
 describe('LocaleSwitcher', () => {
   it('lists every available locale', () => {
     const { wrapper } = mountSwitcher()
-    const values = wrapper.findAll('option').map((o) => o.attributes('value'))
-    expect(values).toEqual(['en', 'zh'])
+    const vm = wrapper.vm as unknown as { options: { value: string }[] }
+    expect(vm.options.map((o) => o.value)).toEqual(['en', 'zh'])
   })
 
-  it('shows the current locale as selected', () => {
+  it('binds the current locale to the Select', () => {
     const { wrapper } = mountSwitcher()
-    expect((wrapper.find('select').element as HTMLSelectElement).value).toBe('en')
+    expect(wrapper.findComponent(Select).props('modelValue')).toBe('en')
   })
 
   it('switches the global locale on selection', async () => {
     const { i18n, wrapper } = mountSwitcher()
-    await wrapper.find('select').setValue('zh')
+    wrapper.findComponent(Select).vm.$emit('update:modelValue', 'zh')
+    await wrapper.vm.$nextTick()
     // legacy:false → global.locale is a ref.
     expect((i18n.global.locale as unknown as { value: string }).value).toBe('zh')
   })
 
   it('labels the control for assistive tech', () => {
     const { wrapper } = mountSwitcher()
-    expect(wrapper.find('select').attributes('aria-label')).toBe('Language')
+    expect(wrapper.find('[data-test="locale-trigger"]').attributes('aria-label')).toBe('Language')
   })
 })

@@ -132,8 +132,8 @@ const applicationItems = computed(() => [
     </SidebarContent>
 
     <SidebarFooter class="border-t border-sidebar-border">
-      <!-- Standalone utility controls, stacked above the user component. -->
-      <div class="flex flex-col items-start gap-1.5 px-2 pt-0.5">
+      <!-- Utility controls on one line: language (left) + theme (right). -->
+      <div class="flex items-center justify-between gap-2 px-2 pt-0.5">
         <LocaleSwitcher />
         <ThemeToggle />
       </div>

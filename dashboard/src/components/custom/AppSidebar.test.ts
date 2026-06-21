@@ -84,8 +84,8 @@ describe('AppSidebar', () => {
     auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
     const router = makeRouter(); router.push('/security'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
-    // LocaleSwitcher renders a <select>; ThemeToggle renders a role="radiogroup".
-    expect(wrapper.find('select').exists()).toBe(true)
+    // LocaleSwitcher renders the vendored Select trigger; ThemeToggle a role="radiogroup".
+    expect(wrapper.find('[data-test="locale-trigger"]').exists()).toBe(true)
     expect(wrapper.find('[role="radiogroup"]').exists()).toBe(true)
   })
 })
