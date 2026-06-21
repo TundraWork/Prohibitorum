@@ -44,6 +44,7 @@ import (
 // s.queries.
 type listFedQueries interface {
 	ListUpstreamIDPs(ctx context.Context) ([]db.UpstreamIdp, error)
+	ListEntityIconEtags(ctx context.Context, ownerKind string) ([]db.ListEntityIconEtagsRow, error)
 }
 
 func (s *Server) listFedQ() listFedQueries {
@@ -189,9 +190,18 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 		writeAuthErr(w, fmt.Errorf("list federation providers: %w", err))
 		return
 	}
+	icons, _ := s.listFedQ().ListEntityIconEtags(r.Context(), "upstream_idp")
+	etagBySlug := make(map[string]string, len(icons))
+	for _, ic := range icons {
+		etagBySlug[ic.OwnerID] = ic.Etag
+	}
 	out := make([]contract.FederationProvider, 0, len(idps))
 	for _, idp := range idps {
-		out = append(out, contract.FederationProvider{Slug: idp.Slug, DisplayName: idp.DisplayName})
+		out = append(out, contract.FederationProvider{
+			Slug:        idp.Slug,
+			DisplayName: idp.DisplayName,
+			IconURL:     entityIconURLPtr("upstream_idp", idp.Slug, etagBySlug[idp.Slug]),
+		})
 	}
 	writeJSON(w, out)
 }

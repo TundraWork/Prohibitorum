@@ -97,6 +97,9 @@ type fakeFedQueries struct {
 	// listIDPs is used by fakeFedQueries.ListUpstreamIDPs (see below).
 	listIDPs    []db.UpstreamIdp
 	listIDPsErr error
+
+	// iconEtags is used by fakeFedQueries.ListEntityIconEtags (see below).
+	iconEtags []db.ListEntityIconEtagsRow
 }
 
 func newFakeFedQueries() *fakeFedQueries {
@@ -229,6 +232,12 @@ func (f *fakeFedQueries) ListUpstreamIDPs(_ context.Context) ([]db.UpstreamIdp, 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.listIDPs, f.listIDPsErr
+}
+
+func (f *fakeFedQueries) ListEntityIconEtags(_ context.Context, _ string) ([]db.ListEntityIconEtagsRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.iconEtags, nil
 }
 
 // Compile-time guard: must satisfy the federator's query surface.
@@ -950,6 +959,53 @@ func TestListFederationProviders_QueryError(t *testing.T) {
 	if resp.StatusCode != http.StatusInternalServerError {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("status: want 500, got %d (body=%s)", resp.StatusCode, body)
+	}
+}
+
+func TestListFederationProviders_IconURL(t *testing.T) {
+	q := newFakeFedQueries()
+	q.listIDPs = []db.UpstreamIdp{
+		{Slug: "google", DisplayName: "Google"},
+		{Slug: "github", DisplayName: "GitHub"},
+	}
+	// Only google has an icon etag.
+	q.iconEtags = []db.ListEntityIconEtagsRow{
+		{OwnerID: "google", Etag: "abc12345"},
+	}
+
+	s := newListFedServer(q)
+	req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/auth/federation", nil)
+	w := httptest.NewRecorder()
+	s.handleListFederationProvidersHTTP(w, req)
+
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", resp.StatusCode)
+	}
+
+	var out []contract.FederationProvider
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("providers: want 2, got %d", len(out))
+	}
+
+	for _, p := range out {
+		switch p.Slug {
+		case "google":
+			if p.IconURL == nil {
+				t.Errorf("google: IconURL should be non-nil (icon exists)")
+			} else if !strings.Contains(*p.IconURL, "/icon/upstream_idp/google") {
+				t.Errorf("google: IconURL %q does not contain expected path", *p.IconURL)
+			}
+		case "github":
+			if p.IconURL != nil {
+				t.Errorf("github: IconURL should be nil (no icon), got %q", *p.IconURL)
+			}
+		default:
+			t.Errorf("unexpected provider slug %q", p.Slug)
+		}
 	}
 }
 

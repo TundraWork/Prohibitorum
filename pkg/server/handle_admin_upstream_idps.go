@@ -144,7 +144,9 @@ func (s *Server) handleGetIdentityProvider(ctx context.Context, in *getIdentityP
 		}
 		return nil, fmt.Errorf("handleGetIdentityProvider: query: %w", err)
 	}
-	return &identityProviderOut{Body: identityProviderView(r)}, nil
+	view := identityProviderView(r)
+	view.IconURL = entityIconURLPtr("upstream_idp", r.Slug, s.lookupEntityIconEtag(ctx, "upstream_idp", r.Slug))
+	return &identityProviderOut{Body: view}, nil
 }
 
 // ----- POST /identity-providers (raw, sudo-gated) ------------------------------------

@@ -142,7 +142,9 @@ func (s *Server) handleGetSAMLApplication(ctx context.Context, in *getSAMLApplic
 	if err != nil {
 		return nil, fmt.Errorf("handleGetSAMLApplication: keys: %w", err)
 	}
-	return &getSAMLApplicationOut{Body: samlApplicationView(sp, acs, keys)}, nil
+	view := samlApplicationView(sp, acs, keys)
+	view.IconURL = entityIconURLPtr("saml_sp", strconv.FormatInt(sp.ID, 10), s.lookupEntityIconEtag(ctx, "saml_sp", strconv.FormatInt(sp.ID, 10)))
+	return &getSAMLApplicationOut{Body: view}, nil
 }
 
 // ----- POST /saml-applications (raw, sudo-gated) --------------------------------

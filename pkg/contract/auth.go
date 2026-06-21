@@ -396,8 +396,9 @@ type LoginResult struct {
 
 // FederationProvider is one entry in GET /api/prohibitorum/auth/federation.
 type FederationProvider struct {
-	Slug        string `json:"slug"`
-	DisplayName string `json:"displayName"`
+	Slug        string  `json:"slug"`
+	DisplayName string  `json:"displayName"`
+	IconURL     *string `json:"iconUrl,omitempty"`
 }
 
 // FederationConfirmView is the /welcome confirmation-step projection returned by
@@ -442,6 +443,7 @@ var OperationListSigningKeys = huma.Operation{
 type OIDCApplicationView struct {
 	ClientID                string    `json:"clientId"`
 	DisplayName             string    `json:"displayName"`
+	IconURL                 *string   `json:"iconUrl,omitempty"`
 	RedirectURIs            []string  `json:"redirectUris"`
 	PostLogoutRedirectURIs  []string  `json:"postLogoutRedirectUris"`
 	AllowedScopes           []string  `json:"allowedScopes"`
@@ -473,6 +475,7 @@ var OperationGetOIDCApplication = huma.Operation{
 type ForwardAuthAppView struct {
 	ClientID         string    `json:"clientId"`
 	DisplayName      string    `json:"displayName"`
+	IconURL          *string   `json:"iconUrl,omitempty"`
 	ForwardAuthHost  string    `json:"forwardAuthHost"`
 	AccessRestricted bool      `json:"accessRestricted"`
 	Disabled         bool      `json:"disabled"`
@@ -517,6 +520,7 @@ type SAMLApplicationView struct {
 	ID                        int64           `json:"id"`
 	EntityID                  string          `json:"entityId"`
 	DisplayName               string          `json:"displayName"`
+	IconURL                   *string         `json:"iconUrl,omitempty"`
 	Kind                      string          `json:"kind,omitempty"`
 	NameIDFormat              string          `json:"nameIdFormat"`
 	AttributeMap              json.RawMessage `json:"attributeMap"`
@@ -536,6 +540,7 @@ type SAMLApplicationView struct {
 type IdentityProviderView struct {
 	Slug                 string    `json:"slug"`
 	DisplayName          string    `json:"displayName"`
+	IconURL              *string   `json:"iconUrl,omitempty"`
 	IssuerUrl            string    `json:"issuerUrl"`
 	ClientID             string    `json:"clientId"`
 	Scopes               []string  `json:"scopes"`

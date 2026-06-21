@@ -89,7 +89,9 @@ func (s *Server) handleGetForwardAuthApp(ctx context.Context, in *getForwardAuth
 		}
 		return nil, fmt.Errorf("handleGetForwardAuthApp: %w", err)
 	}
-	return &forwardAuthAppOut{Body: forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.AccessRestricted, r.Disabled, r.CreatedAt)}, nil
+	view := forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.AccessRestricted, r.Disabled, r.CreatedAt)
+	view.IconURL = entityIconURLPtr("oidc_client", r.ClientID, s.lookupEntityIconEtag(ctx, "oidc_client", r.ClientID))
+	return &forwardAuthAppOut{Body: view}, nil
 }
 
 // ----- POST /forward-auth-apps (raw, sudo-gated) -----------------------------

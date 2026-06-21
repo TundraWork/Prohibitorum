@@ -128,7 +128,9 @@ func (s *Server) handleGetOIDCApplication(ctx context.Context, in *getOIDCApplic
 		// Forward-auth apps are managed only via /forward-auth-apps.
 		return nil, authErrToHuma(authn.ErrClientNotFound())
 	}
-	return &oidcApplicationOut{Body: oidcApplicationView(c)}, nil
+	view := oidcApplicationView(c)
+	view.IconURL = entityIconURLPtr("oidc_client", c.ClientID, s.lookupEntityIconEtag(ctx, "oidc_client", c.ClientID))
+	return &oidcApplicationOut{Body: view}, nil
 }
 
 // ----- POST /oidc-applications (raw, sudo-gated) -----------------------------------
