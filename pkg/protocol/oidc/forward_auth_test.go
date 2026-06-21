@@ -747,3 +747,13 @@ func TestValidatedForwardAuthReturnURL(t *testing.T) {
 		})
 	}
 }
+
+func TestValidatedForwardAuthReturnURL_RejectsDisabledHost(t *testing.T) {
+	q := &fakeFAQueries{
+		knownHost: "app.example.test",
+		faClient:  db.GetForwardAuthClientByHostRow{ClientID: "fa", Disabled: true},
+	}
+	if _, ok := ValidatedForwardAuthReturnURL(context.Background(), q, "https://app.example.test/"); ok {
+		t.Error("expected a disabled forward-auth host to be rejected")
+	}
+}

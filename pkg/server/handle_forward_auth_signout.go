@@ -10,6 +10,9 @@ package server
 import (
 	"net/http"
 
+	"github.com/sirupsen/logrus"
+
+	"prohibitorum/pkg/logx"
 	oidc "prohibitorum/pkg/protocol/oidc"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -19,6 +22,12 @@ func (s *Server) handleForwardAuthSSOLogoutHTTP(w http.ResponseWriter, r *http.R
 	if c, err := r.Cookie(sessstore.SessionCookieNameFor(s.config)); err == nil && c.Value != "" {
 		if id, tok, ok := sessstore.ParseCookieValue(c.Value); ok {
 			_ = s.sessionStore.Revoke(r.Context(), id, tok)
+			logx.WithContext(r.Context()).WithFields(logrus.Fields{
+				"event":      "auth.logout",
+				"account_id": id,
+				"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
+				"via":        "forward_auth",
+			}).Info("auth")
 		}
 	}
 	http.SetCookie(w, sessstore.ClearedSessionCookie(s.config, r))

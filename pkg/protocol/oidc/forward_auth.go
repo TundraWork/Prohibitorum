@@ -326,9 +326,10 @@ func (p *Provider) HandleForwardAuthSignOut(w http.ResponseWriter, r *http.Reque
 }
 
 // ValidatedForwardAuthReturnURL parses rd and returns it only when its host is a
-// registered forward-auth host — a fail-closed open-redirect guard mirroring the
-// verify host check. Returns ("", false) otherwise. The host is matched on the
-// full authority (host[:port]) to mirror verify's X-Forwarded-Host match.
+// registered AND enabled forward-auth host — a fail-closed open-redirect guard
+// mirroring the verify host check (which rejects both unregistered and disabled
+// hosts). Returns ("", false) otherwise. The host is matched on the full
+// authority (host[:port]) to mirror verify's X-Forwarded-Host match.
 func ValidatedForwardAuthReturnURL(ctx context.Context, q db.Querier, rd string) (string, bool) {
 	if rd == "" {
 		return "", false
@@ -337,7 +338,8 @@ func ValidatedForwardAuthReturnURL(ctx context.Context, q db.Querier, rd string)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 		return "", false
 	}
-	if _, err := q.GetForwardAuthClientByHost(ctx, pgtype.Text{String: u.Host, Valid: true}); err != nil {
+	client, err := q.GetForwardAuthClientByHost(ctx, pgtype.Text{String: u.Host, Valid: true})
+	if err != nil || client.Disabled {
 		return "", false
 	}
 	return rd, true
