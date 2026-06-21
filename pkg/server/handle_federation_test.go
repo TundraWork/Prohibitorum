@@ -998,6 +998,8 @@ func TestListFederationProviders_IconURL(t *testing.T) {
 				t.Errorf("google: IconURL should be non-nil (icon exists)")
 			} else if !strings.Contains(*p.IconURL, "/icon/upstream_idp/google") {
 				t.Errorf("google: IconURL %q does not contain expected path", *p.IconURL)
+			} else if !strings.Contains(*p.IconURL, "?v=abc12345") {
+				t.Errorf("google: IconURL %q does not contain expected cache-bust param ?v=abc12345", *p.IconURL)
 			}
 		case "github":
 			if p.IconURL != nil {

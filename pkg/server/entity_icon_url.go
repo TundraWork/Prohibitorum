@@ -4,9 +4,13 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/url"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/sirupsen/logrus"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/logx"
 )
 
 // entityIconKinds is the fixed allowlist of icon owner kinds.
@@ -28,6 +32,14 @@ func entityIconURLPtr(kind, id, etag string) *string {
 func (s *Server) lookupEntityIconEtag(ctx context.Context, kind, id string) string {
 	etag, err := s.queries.GetEntityIconEtag(ctx, db.GetEntityIconEtagParams{OwnerKind: kind, OwnerID: id})
 	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			logx.WithContext(ctx).WithFields(logrus.Fields{
+				"event":      "entity_icon.lookup_error",
+				"owner_kind": kind,
+				"owner_id":   id,
+				"error":      err.Error(),
+			}).Warn("entity icon etag lookup failed")
+		}
 		return ""
 	}
 	return etag

@@ -190,6 +190,8 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 		writeAuthErr(w, fmt.Errorf("list federation providers: %w", err))
 		return
 	}
+	// Best-effort: icon metadata is decorative — a lookup failure must not fail
+	// the provider list (the buttons just fall back to the initial).
 	icons, _ := s.listFedQ().ListEntityIconEtags(r.Context(), "upstream_idp")
 	etagBySlug := make(map[string]string, len(icons))
 	for _, ic := range icons {
