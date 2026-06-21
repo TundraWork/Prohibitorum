@@ -502,6 +502,16 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/set-disabled", admin, s.handleSetSAMLApplicationDisabledHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/delete", admin, s.handleDeleteSAMLApplicationHTTP)
 
+	// Admin: per-entity icon upload/remove (app & provider icons). PUT is raw
+	// image + in-handler fresh sudo (the sudo wrapper rejects non-JSON bodies);
+	// DELETE is sudo-gated via the wrapper. Mirrors the instance-icon pattern.
+	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/oidc-applications/{clientId}/icon", admin, s.handlePutOIDCAppIconHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/oidc-applications/{clientId}/icon", admin, s.handleDeleteOIDCAppIconHTTP)
+	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/saml-applications/{id}/icon", admin, s.handlePutSAMLAppIconHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/saml-applications/{id}/icon", admin, s.handleDeleteSAMLAppIconHTTP)
+	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/identity-providers/{slug}/icon", admin, s.handlePutIdentityProviderIconHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/identity-providers/{slug}/icon", admin, s.handleDeleteIdentityProviderIconHTTP)
+
 	// Admin: app-access management (restrict + grants) — OIDC
 	registerOp(mgmt, contract.OperationGetOIDCClientAccess, s.handleGetOIDCClientAccess, admin)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/access/set-restricted", admin, s.handleSetOIDCClientAccessRestrictedHTTP)

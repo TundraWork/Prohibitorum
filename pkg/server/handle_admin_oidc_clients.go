@@ -434,6 +434,12 @@ func (s *Server) handleDeleteOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Remove the entity icon row if one was uploaded. Errors are silently
+	// ignored — the icon is orphaned data, not a consistency risk.
+	_ = s.queries.DeleteEntityIcon(r.Context(), db.DeleteEntityIconParams{
+		OwnerKind: "oidc_client", OwnerID: body.ClientID,
+	})
+
 	sess := authn.SessionFromContext(r.Context())
 	var actorID *int32
 	if sess != nil {

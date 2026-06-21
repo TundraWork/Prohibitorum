@@ -529,6 +529,12 @@ func (s *Server) handleDeleteSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Remove the entity icon row if one was uploaded. Errors are silently
+	// ignored — the icon is orphaned data, not a consistency risk.
+	_ = s.queries.DeleteEntityIcon(r.Context(), db.DeleteEntityIconParams{
+		OwnerKind: "saml_sp", OwnerID: strconv.FormatInt(body.ID, 10),
+	})
+
 	sess := authn.SessionFromContext(r.Context())
 	var actorID *int32
 	if sess != nil {
