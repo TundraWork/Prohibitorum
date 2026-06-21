@@ -157,6 +157,18 @@ obligations, not optional hardening:
 
 ---
 
+## Local dev harness
+
+To exercise the full browser flow locally — app → verify → authorize → callback → 200 with `Remote-*` headers — use the built-in dev harness:
+
+```bash
+mise run dev:forward-auth
+```
+
+On first run it writes a template to `.dev/dev-forward-auth.env` (gitignored) with `example.test` placeholder hostnames and cert paths. Fill in your real values (both hostnames must resolve to `127.0.0.1`), then re-run. The harness builds the binary, seeds a dev database, registers the forward-auth app client, starts a tiny `forward-auth-whoami` server that echoes the injected `Remote-*` headers, and generates an nginx vhost at `.dev/nginx/prohibitorum-forward-auth.conf` that wires the forward-auth check. Open the protected app URL in a browser; after logging in you should see the identity headers echoed as plain text.
+
+---
+
 ## How it works
 
 ```

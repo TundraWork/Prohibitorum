@@ -93,6 +93,10 @@ exec go run ./cmd/prohibitorum dev-seed
 description = "DEV: bring up two prohibitorum instances (upstream + downstream IdP) wired for OIDC federation behind nginx TLS, for manual end-to-end testing. Reads local hostnames/cert from .dev/dev-federation.env (a template is written on first run). Start the DB first with `mise run db:start`. Idempotent by default: an already-set-up DB is REUSED (no wipe, no reseed) so manual test state survives across runs; a missing DB is created clean + seeded + gets a fresh admin enroll link. Pass `-- --fresh` to force a clean slate (drop + recreate + reseed + re-enroll both)."
 run = "exec scripts/dev-federation.sh \"$@\""
 
+[tasks."dev:forward-auth"]
+description = "DEV: bring up a protected whoami app behind a TLS front wired to Prohibitorum forward-auth, for manual end-to-end testing. Reads local hostnames/cert from .dev/dev-forward-auth.env (a template is written on first run). Start the DB first with the podman Postgres on :5432. Idempotent by default: an already-set-up DB is REUSED; pass `-- --fresh` to force a clean slate."
+run = "exec scripts/dev-forward-auth.sh \"$@\""
+
 # ---- db: local Postgres lifecycle (dev + smoke; never prod) -----------------
 
 [tasks."db:start"]

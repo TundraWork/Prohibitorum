@@ -785,6 +785,7 @@ modified here.`,
 
 	addDevSeedCmd(cli.Root())
 	addDevFederationCmd(cli.Root())
+	addDevForwardAuthWhoamiCmd(cli.Root())
 
 	cli.Run()
 }
