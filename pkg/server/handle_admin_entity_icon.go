@@ -11,11 +11,13 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -95,7 +97,11 @@ func (s *Server) auditEntityIcon(r *http.Request, factor audit.Factor, kind, id,
 func (s *Server) handlePutOIDCAppIconHTTP(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "clientId")
 	if _, err := s.queries.GetOIDCClientAny(r.Context(), id); err != nil {
-		writeAuthErr(w, authn.ErrClientNotFound())
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrClientNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handlePutOIDCAppIcon: lookup: %w", err))
 		return
 	}
 	s.putEntityIcon(w, r, "oidc_client", id, audit.FactorOIDCClient)
@@ -119,7 +125,11 @@ func (s *Server) handlePutSAMLAppIconHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if _, err := s.queries.GetSAMLSPByID(r.Context(), id); err != nil {
-		writeAuthErr(w, samlSPNotFound())
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, samlSPNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handlePutSAMLAppIcon: lookup: %w", err))
 		return
 	}
 	s.putEntityIcon(w, r, "saml_sp", idStr, audit.FactorSAMLSP)
@@ -138,7 +148,11 @@ func (s *Server) handleDeleteSAMLAppIconHTTP(w http.ResponseWriter, r *http.Requ
 func (s *Server) handlePutIdentityProviderIconHTTP(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if _, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), slug); err != nil {
-		writeAuthErr(w, authn.ErrUpstreamIDPNotFound())
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrUpstreamIDPNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handlePutIdentityProviderIcon: lookup: %w", err))
 		return
 	}
 	s.putEntityIcon(w, r, "upstream_idp", slug, audit.FactorUpstreamIDP)
