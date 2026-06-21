@@ -52,4 +52,16 @@ describe('EntityIconUpload', () => {
     expect(del).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/my-app/icon')
     expect(w.emitted('changed')).toBeTruthy()
   })
+
+  it('shows an error alert and does not emit changed when upload fails', async () => {
+    upload.mockRejectedValue(new Error('upload failed'))
+    const w = mountComp()
+    const file = new File(['img'], 'icon.png', { type: 'image/png' })
+    const input = w.find<HTMLInputElement>('[data-test="icon-input"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    expect(w.find('[role="alert"]').exists()).toBe(true)
+    expect(w.emitted('changed')).toBeFalsy()
+  })
 })

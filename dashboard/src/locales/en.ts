@@ -823,7 +823,7 @@ export default {
 
   entityIcon: {
     title: 'Icon',
-    hint: 'Shown on the launchpad and the sign-in buttons. A square PNG, JPEG, or WebP; centered and resized to 256x256.',
+    hint: 'Shown on the launchpad and the sign-in buttons. A square PNG, JPEG, or WebP; centered and resized to 256×256.',
     upload: 'Upload',
     remove: 'Remove',
   },
