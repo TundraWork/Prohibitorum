@@ -393,6 +393,11 @@ func (s *Server) registerOperations() {
 	// protected domain to plant the per-domain forward-auth cookie. Both public.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth/verify", publicReq, s.oidcOP.HandleForwardAuthVerify)
 	s.router.Get(oidcop.ForwardAuthPathPrefix+"/callback", s.oidcOP.HandleForwardAuthCallback)
+	// Sign-out: the protected-domain sign_out clears the per-domain cookie + KV
+	// session, then bounces to the IdP-domain sso-logout (which terminates the
+	// SSO session and redirects back only to a validated forward-auth host).
+	s.router.Get(oidcop.ForwardAuthPathPrefix+"/sign_out", s.oidcOP.HandleForwardAuthSignOut)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth/sso-logout", publicReq, s.handleForwardAuthSSOLogoutHTTP)
 
 	// Avatar upload/delete (self), source selection, status, and public fetch.
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/me/avatar", sessionReq, s.handlePutAvatarHTTP)

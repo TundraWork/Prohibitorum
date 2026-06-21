@@ -298,6 +298,51 @@ func (p *Provider) HandleForwardAuthCallback(w http.ResponseWriter, r *http.Requ
 	http.Redirect(w, r, st.OriginalURL, http.StatusFound)
 }
 
+// faClearCookie returns a forward-auth cookie set to expire immediately,
+// removing the per-domain session cookie on the protected host.
+func faClearCookie(secure bool) *http.Cookie {
+	c := faCookie(secure, "")
+	c.MaxAge = -1
+	return c
+}
+
+// HandleForwardAuthSignOut is reached on the protected domain via the routed
+// ForwardAuthPathPrefix. It removes the per-domain forward-auth session (KV +
+// cookie), then 302s to the IdP-domain sso-logout endpoint to terminate the
+// Prohibitorum SSO session. The rd host is the trusted X-Forwarded-Host; the
+// sso-logout endpoint re-validates it against the registered FA hosts.
+func (p *Provider) HandleForwardAuthSignOut(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	secure := schemeOf(r) == "https"
+	if c, err := r.Cookie(faCookieName(secure)); err == nil && c.Value != "" {
+		_, _ = p.kv.Pop(ctx, faSessionKey(c.Value)) // best-effort single-use removal
+	}
+	http.SetCookie(w, faClearCookie(secure))
+
+	rd := schemeOf(r) + "://" + hostOf(r) + "/"
+	q := url.Values{}
+	q.Set("rd", rd)
+	http.Redirect(w, r, p.cfg.OIDC.Issuer+"/api/prohibitorum/forward-auth/sso-logout?"+q.Encode(), http.StatusFound)
+}
+
+// ValidatedForwardAuthReturnURL parses rd and returns it only when its host is a
+// registered forward-auth host — a fail-closed open-redirect guard mirroring the
+// verify host check. Returns ("", false) otherwise. The host is matched on the
+// full authority (host[:port]) to mirror verify's X-Forwarded-Host match.
+func ValidatedForwardAuthReturnURL(ctx context.Context, q db.Querier, rd string) (string, bool) {
+	if rd == "" {
+		return "", false
+	}
+	u, err := url.Parse(rd)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return "", false
+	}
+	if _, err := q.GetForwardAuthClientByHost(ctx, pgtype.Text{String: u.Host, Valid: true}); err != nil {
+		return "", false
+	}
+	return rd, true
+}
+
 // schemeOf returns the request scheme, preferring the X-Forwarded-Proto header
 // (set by Traefik) over TLS detection, falling back to "http".
 func schemeOf(r *http.Request) string {

@@ -101,6 +101,8 @@ type fakeFAQueries struct {
 	// faClient is returned for any host lookup when faClientErr is nil.
 	faClient    db.GetForwardAuthClientByHostRow
 	faClientErr error
+	// knownHost, when set, restricts GetForwardAuthClientByHost to that host.
+	knownHost string
 	// authorized controls IsAccountAuthorizedForOIDCClient.
 	authorized bool
 	authzErr   error
@@ -114,9 +116,12 @@ type fakeFAQueries struct {
 	faConfigParams *db.SetForwardAuthConfigParams
 }
 
-func (f *fakeFAQueries) GetForwardAuthClientByHost(_ context.Context, _ pgtype.Text) (db.GetForwardAuthClientByHostRow, error) {
+func (f *fakeFAQueries) GetForwardAuthClientByHost(_ context.Context, host pgtype.Text) (db.GetForwardAuthClientByHostRow, error) {
 	if f.faClientErr != nil {
 		return db.GetForwardAuthClientByHostRow{}, f.faClientErr
+	}
+	if f.knownHost != "" && host.String != f.knownHost {
+		return db.GetForwardAuthClientByHostRow{}, pgx.ErrNoRows
 	}
 	return f.faClient, nil
 }
@@ -673,5 +678,72 @@ func TestRegisterForwardAuthApp_BuildsPublicPKCEClient(t *testing.T) {
 	wantScopes := []string{"openid", "email", "groups"}
 	if !slices.Equal(f.insertParams.AllowedScopes, wantScopes) {
 		t.Errorf("allowed_scopes = %v, want %v", f.insertParams.AllowedScopes, wantScopes)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// HandleForwardAuthSignOut + ValidatedForwardAuthReturnURL tests
+// ---------------------------------------------------------------------------
+
+func TestHandleForwardAuthSignOut_ClearsSessionAndRedirects(t *testing.T) {
+	p, store := newFAProvider(&fakeFAQueries{})
+	// Seed a per-domain session keyed by the cookie token.
+	const tok = "tok-123"
+	if err := store.SetEx(context.Background(), faSessionKey(tok), `{"account_id":1,"client_id":"fa"}`, time.Hour); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	req := faRequest("https", "app.example.test", "/", &http.Cookie{Name: faCookieName(true), Value: tok})
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthSignOut(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, testIssuer+"/api/prohibitorum/forward-auth/sso-logout?") {
+		t.Errorf("Location = %q, want sso-logout on issuer", loc)
+	}
+	if !strings.Contains(loc, "rd=https%3A%2F%2Fapp.example.test%2F") {
+		t.Errorf("Location missing rd=app host: %q", loc)
+	}
+	// KV session is gone.
+	if v, _ := store.Get(context.Background(), faSessionKey(tok)); v != "" {
+		t.Error("expected fa:session to be deleted")
+	}
+	// Cookie cleared (MaxAge<0).
+	cleared := false
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == faCookieName(true) && c.MaxAge < 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Error("expected cleared forward-auth cookie")
+	}
+}
+
+func TestValidatedForwardAuthReturnURL(t *testing.T) {
+	q := &fakeFAQueries{knownHost: "app.example.test"}
+	cases := []struct {
+		name string
+		rd   string
+		want bool
+	}{
+		{"registered host", "https://app.example.test/foo", true},
+		{"unregistered host", "https://evil.example.com/", false},
+		{"empty", "", false},
+		{"non-http scheme", "javascript:alert(1)", false},
+		{"garbage", "://nope", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := ValidatedForwardAuthReturnURL(context.Background(), q, c.rd)
+			if ok != c.want {
+				t.Fatalf("ok = %v, want %v (rd=%q)", ok, c.want, c.rd)
+			}
+			if ok && got != c.rd {
+				t.Errorf("dest = %q, want %q", got, c.rd)
+			}
+		})
 	}
 }

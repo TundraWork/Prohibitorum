@@ -105,6 +105,25 @@ for the `PathPrefix(/.prohibitorum-forward-auth/)` → the Prohibitorum service.
 The backend reads identity from the `Remote-*` request headers (only present on
 an allowed request).
 
+### Sign out
+
+The forward-auth prefix also serves a sign-out endpoint. Link users to:
+
+    https://<protected-host>/.prohibitorum-forward-auth/sign_out
+
+It clears the per-domain forward-auth cookie + session, then bounces to
+Prohibitorum to terminate the SSO session and returns the browser to the app
+(now unauthenticated, so the next request triggers a fresh login). Note:
+forward-auth sessions already established on *other* protected domains remain
+valid until they expire (`forward_auth.session_ttl`, default 1h) or the next
+live authorization check denies them — signing out is immediate for the
+dashboard and this app, and prevents silent re-login elsewhere, but does not
+retroactively revoke other domains' per-domain cookies.
+
+> The `sign_out` path is served by Prohibitorum, so the same forward-auth
+> `PathPrefix(/.prohibitorum-forward-auth/)` router that handles `/callback`
+> already covers it — no extra Traefik config is needed.
+
 ---
 
 ## 3. Security requirements (read this)
@@ -160,3 +179,7 @@ The endpoints:
 - **`/.prohibitorum-forward-auth/callback`** — routed by you on each protected
   domain to Prohibitorum; completes the OIDC exchange and sets the per-domain
   cookie.
+- **`/.prohibitorum-forward-auth/sign_out`** — routed the same way; clears the
+  per-domain cookie + session and 302s to the IdP-domain
+  **`GET /api/prohibitorum/forward-auth/sso-logout`**, which terminates the SSO
+  session and redirects back only to a validated forward-auth host.
