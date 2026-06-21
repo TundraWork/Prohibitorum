@@ -387,6 +387,7 @@ func (s *Server) registerOperations() {
 	// Public branding: SPA boot config + icon image.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/config", publicReq, s.handleGetPublicConfigHTTP)
 	registerOpHTTP(s.router, "GET", "/branding/icon", publicReq, s.handleGetBrandingIconHTTP)
+	registerOpHTTP(s.router, "GET", "/icon/{kind}/{id}", publicReq, s.handleGetEntityIconHTTP)
 
 	// Native Traefik ForwardAuth (see docs/forward-auth.md). The verify endpoint
 	// is the middleware target; the callback is routed by the operator on each
