@@ -468,6 +468,17 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/set-disabled", admin, s.handleSetOIDCApplicationDisabledHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/delete", admin, s.handleDeleteOIDCApplicationHTTP)
 
+	// Admin: forward-auth application management (Phase 2). A forward-auth app
+	// is an oidc_client with forward_auth_enabled=true; presented as its own
+	// section and excluded from the OIDC-applications list. RBAC reuses the OIDC
+	// app-access endpoints (/oidc-applications/{clientId}/access/*).
+	registerOp(mgmt, contract.OperationListForwardAuthApps, s.handleListForwardAuthApps, admin)
+	registerOp(mgmt, contract.OperationGetForwardAuthApp, s.handleGetForwardAuthApp, admin)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps", admin, s.handleCreateForwardAuthAppHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/forward-auth-apps/{clientId}", admin, s.handleUpdateForwardAuthAppHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/set-disabled", admin, s.handleSetForwardAuthAppDisabledHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/delete", admin, s.handleDeleteForwardAuthAppHTTP)
+
 	// Admin: identity provider management
 	registerOp(mgmt, contract.OperationListIdentityProviders, s.handleListIdentityProviders, admin)
 	registerOp(mgmt, contract.OperationGetIdentityProvider, s.handleGetIdentityProvider, admin)

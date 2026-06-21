@@ -57,6 +57,11 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/rotate-secret", body: `{"clientId":"x"}`},
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/delete", body: `{"clientId":"x"}`},
 
+	// Forward-auth application lifecycle (Phase 2)
+	{method: "POST", path: "/api/prohibitorum/forward-auth-apps", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/forward-auth-apps/test-client", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/delete", body: `{}`},
+
 	// Identity provider management (create/update/rotate-secret/delete — NOT set-disabled)
 	{method: "POST", path: "/api/prohibitorum/identity-providers", body: `{}`},
 	{method: "PUT", path: "/api/prohibitorum/identity-providers/x", body: `{}`},

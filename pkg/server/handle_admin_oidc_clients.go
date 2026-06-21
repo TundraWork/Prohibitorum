@@ -82,13 +82,13 @@ type listOIDCApplicationsOut struct {
 }
 
 func (s *Server) handleListOIDCApplications(ctx context.Context, _ *struct{}) (*listOIDCApplicationsOut, error) {
-	rows, err := s.queries.ListOIDCClients(ctx)
+	rows, err := s.queries.ListNonForwardAuthOIDCClients(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("handler: listOIDCApplications: %w", err)
 	}
 	views := make([]contract.OIDCApplicationView, 0, len(rows))
 	for _, r := range rows {
-		// ListOIDCClients returns a summary row — project the subset fields.
+		// ListNonForwardAuthOIDCClients returns a summary row — project the subset fields.
 		v := contract.OIDCApplicationView{
 			ClientID:                r.ClientID,
 			DisplayName:             r.DisplayName,
@@ -123,6 +123,10 @@ func (s *Server) handleGetOIDCApplication(ctx context.Context, in *getOIDCApplic
 			return nil, authErrToHuma(authn.ErrClientNotFound())
 		}
 		return nil, fmt.Errorf("handleGetOIDCApplication: query: %w", err)
+	}
+	if c.ForwardAuthEnabled {
+		// Forward-auth apps are managed only via /forward-auth-apps.
+		return nil, authErrToHuma(authn.ErrClientNotFound())
 	}
 	return &oidcApplicationOut{Body: oidcApplicationView(c)}, nil
 }
@@ -218,6 +222,10 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	clientID := chi.URLParam(r, "clientId")
 	if clientID == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if existing, err := s.queries.GetOIDCClientAny(r.Context(), clientID); err == nil && existing.ForwardAuthEnabled {
+		writeAuthErr(w, authn.ErrClientNotFound())
 		return
 	}
 
@@ -351,13 +359,18 @@ func (s *Server) handleRotateOIDCApplicationSecretHTTP(w http.ResponseWriter, r 
 		return
 	}
 
-	// Verify the client exists before rotating.
-	if _, err := s.queries.GetOIDCClientAny(r.Context(), body.ClientID); err != nil {
+	// Verify the client exists and is not a forward-auth app before rotating.
+	existing, err := s.queries.GetOIDCClientAny(r.Context(), body.ClientID)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeAuthErr(w, authn.ErrClientNotFound())
 			return
 		}
 		writeAuthErr(w, fmt.Errorf("handleRotateOIDCApplicationSecret: lookup: %w", err))
+		return
+	}
+	if existing.ForwardAuthEnabled {
+		writeAuthErr(w, authn.ErrClientNotFound())
 		return
 	}
 
