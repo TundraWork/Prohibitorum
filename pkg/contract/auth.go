@@ -466,6 +466,33 @@ var OperationGetOIDCApplication = huma.Operation{
 	Summary:     "Get one OIDC application by client_id (admin only). Secret material is never returned.",
 }
 
+// ForwardAuthAppView is the admin-facing projection of a forward-auth
+// application (an oidc_client with forward_auth_enabled=true). Forward-auth
+// clients are public (PKCE) and carry no secret, so there is no secret material
+// to leak.
+type ForwardAuthAppView struct {
+	ClientID         string    `json:"clientId"`
+	DisplayName      string    `json:"displayName"`
+	ForwardAuthHost  string    `json:"forwardAuthHost"`
+	AccessRestricted bool      `json:"accessRestricted"`
+	Disabled         bool      `json:"disabled"`
+	CreatedAt        time.Time `json:"createdAt"`
+}
+
+var OperationListForwardAuthApps = huma.Operation{
+	OperationID: "listForwardAuthApps",
+	Method:      http.MethodGet,
+	Path:        "/forward-auth-apps",
+	Summary:     "List all forward-auth applications (admin only).",
+}
+
+var OperationGetForwardAuthApp = huma.Operation{
+	OperationID: "getForwardAuthApp",
+	Method:      http.MethodGet,
+	Path:        "/forward-auth-apps/{clientId}",
+	Summary:     "Get one forward-auth application by client_id (admin only).",
+}
+
 // SAMLACSView is the wire representation of a single AssertionConsumerService
 // endpoint registered for a SAML SP.
 type SAMLACSView struct {

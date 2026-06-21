@@ -83,6 +83,7 @@ type Querier interface {
 	GetConsent(ctx context.Context, arg GetConsentParams) ([]string, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
+	GetForwardAuthAppByID(ctx context.Context, clientID string) (GetForwardAuthAppByIDRow, error)
 	GetForwardAuthClientByHost(ctx context.Context, forwardAuthHost pgtype.Text) (GetForwardAuthClientByHostRow, error)
 	GetGroup(ctx context.Context, id int32) (UserGroup, error)
 	GetGroupBySlug(ctx context.Context, slug string) (UserGroup, error)
@@ -135,9 +136,11 @@ type Querier interface {
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
 	ListExposedGroupSlugsByAccount(ctx context.Context, accountID int32) ([]string, error)
+	ListForwardAuthClients(ctx context.Context) ([]ListForwardAuthClientsRow, error)
 	ListGroupMembers(ctx context.Context, groupID int32) ([]ListGroupMembersRow, error)
 	ListGroups(ctx context.Context) ([]ListGroupsRow, error)
 	ListGroupsForAccount(ctx context.Context, accountID int32) ([]UserGroup, error)
+	ListNonForwardAuthOIDCClients(ctx context.Context) ([]ListNonForwardAuthOIDCClientsRow, error)
 	ListOIDCClientAccessAccounts(ctx context.Context, clientID string) ([]ListOIDCClientAccessAccountsRow, error)
 	ListOIDCClientAccessGroups(ctx context.Context, clientID string) ([]ListOIDCClientAccessGroupsRow, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
@@ -188,6 +191,7 @@ type Querier interface {
 	UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmailParams) error
 	UpdateAccountIdentityEmail(ctx context.Context, arg UpdateAccountIdentityEmailParams) error
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
+	UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAuthAppParams) (UpdateForwardAuthAppRow, error)
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (UserGroup, error)
 	// Owner-scoped update: only the account's own credential row is updated.
 	// Zero rows affected means the id doesn't match an owned credential; the

@@ -115,6 +115,48 @@ func faRandToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf[:]), nil
 }
 
+// ForwardAuthCallbackURI returns the fixed callback redirect_uri for a
+// forward-auth app on host. The /oauth/authorize exact-match guard depends on
+// this exact value, so it is derived in one place and reused by create + edit.
+func ForwardAuthCallbackURI(host string) string {
+	return "https://" + host + ForwardAuthPathPrefix + "/callback"
+}
+
+// RegisterForwardAuthApp provisions the backing OIDC client for a Traefik
+// ForwardAuth application: a public (PKCE, no secret) client with
+// require_consent=false, scopes "openid email groups", and the fixed
+// forward-auth callback redirect_uri, then flags it as forward-auth + host.
+// Shared by the `forward-auth-app create` CLI and the admin HTTP handler so the
+// FA client shape has a single source of truth. Returns the inserted client row
+// (before the forward-auth flag/host are set — callers that need the FA columns
+// should re-read or build the view from the known host).
+func RegisterForwardAuthApp(ctx context.Context, q db.Querier, clientID, host, displayName string) (db.OidcClient, error) {
+	params, _, err := BuildClientParams(ClientOptions{
+		ClientID:               clientID,
+		DisplayName:            displayName,
+		RedirectURIs:           []string{ForwardAuthCallbackURI(host)},
+		PostLogoutRedirectURIs: []string{},
+		Scopes:                 []string{"openid", "email", "groups"},
+		Public:                 true,
+		RequireConsent:         false,
+	})
+	if err != nil {
+		return db.OidcClient{}, err
+	}
+	c, err := q.InsertOIDCClient(ctx, params)
+	if err != nil {
+		return db.OidcClient{}, err
+	}
+	if err := q.SetForwardAuthConfig(ctx, db.SetForwardAuthConfigParams{
+		ClientID:           clientID,
+		ForwardAuthEnabled: true,
+		ForwardAuthHost:    pgtype.Text{String: host, Valid: true},
+	}); err != nil {
+		return db.OidcClient{}, err
+	}
+	return c, nil
+}
+
 // pkceChallengeS256 computes the RFC 7636 S256 code challenge for a verifier.
 // The vector in Appendix B:
 //

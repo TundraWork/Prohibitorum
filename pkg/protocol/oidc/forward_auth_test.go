@@ -108,6 +108,9 @@ type fakeFAQueries struct {
 	acctErr error
 	// groups is returned by ListExposedGroupSlugsByAccount.
 	groups []string
+	// Captured params for RegisterForwardAuthApp tests.
+	insertParams   *db.InsertOIDCClientParams
+	faConfigParams *db.SetForwardAuthConfigParams
 }
 
 func (f *fakeFAQueries) GetForwardAuthClientByHost(_ context.Context, _ pgtype.Text) (db.GetForwardAuthClientByHostRow, error) {
@@ -133,6 +136,17 @@ func (f *fakeFAQueries) GetAccountByID(_ context.Context, _ int32) (db.Account, 
 
 func (f *fakeFAQueries) ListExposedGroupSlugsByAccount(_ context.Context, _ int32) ([]string, error) {
 	return f.groups, nil
+}
+
+// Capture fields for RegisterForwardAuthApp tests.
+func (f *fakeFAQueries) InsertOIDCClient(_ context.Context, p db.InsertOIDCClientParams) (db.OidcClient, error) {
+	f.insertParams = &p
+	return db.OidcClient{ClientID: p.ClientID, DisplayName: p.DisplayName}, nil
+}
+
+func (f *fakeFAQueries) SetForwardAuthConfig(_ context.Context, p db.SetForwardAuthConfigParams) error {
+	f.faConfigParams = &p
+	return nil
 }
 
 // newFAProvider builds a Provider for forward-auth tests backed by the given
@@ -627,5 +641,32 @@ func TestForwardAuthCallback_MissingState_Rejected(t *testing.T) {
 	}
 	if hasFACookie(rec, true) != "" {
 		t.Fatal("missing state must not set fa cookie")
+	}
+}
+
+func TestRegisterForwardAuthApp_BuildsPublicPKCEClient(t *testing.T) {
+	f := &fakeFAQueries{}
+	_, err := RegisterForwardAuthApp(context.Background(), f, "fa-client", "app.example.test", "App")
+	if err != nil {
+		t.Fatalf("RegisterForwardAuthApp: %v", err)
+	}
+	if f.insertParams == nil || f.faConfigParams == nil {
+		t.Fatal("expected InsertOIDCClient and SetForwardAuthConfig to be called")
+	}
+	if got := f.insertParams.TokenEndpointAuthMethod; got != "none" {
+		t.Errorf("token_endpoint_auth_method = %q, want \"none\" (public)", got)
+	}
+	if f.insertParams.RequireConsent {
+		t.Error("require_consent must be false")
+	}
+	wantURI := "https://app.example.test/.prohibitorum-forward-auth/callback"
+	if len(f.insertParams.RedirectUris) != 1 || f.insertParams.RedirectUris[0] != wantURI {
+		t.Errorf("redirect_uris = %v, want [%q]", f.insertParams.RedirectUris, wantURI)
+	}
+	if !f.faConfigParams.ForwardAuthEnabled {
+		t.Error("forward_auth_enabled must be true")
+	}
+	if f.faConfigParams.ForwardAuthHost.String != "app.example.test" {
+		t.Errorf("forward_auth_host = %q", f.faConfigParams.ForwardAuthHost.String)
 	}
 }

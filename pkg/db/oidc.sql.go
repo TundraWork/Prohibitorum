@@ -86,6 +86,35 @@ func (q *Queries) GetActiveSigningKey(ctx context.Context) (SigningKey, error) {
 	return i, err
 }
 
+const getForwardAuthAppByID = `-- name: GetForwardAuthAppByID :one
+SELECT client_id, display_name, forward_auth_host, access_restricted, disabled, created_at
+FROM oidc_client
+WHERE client_id = $1 AND forward_auth_enabled = true
+`
+
+type GetForwardAuthAppByIDRow struct {
+	ClientID         string             `json:"clientId"`
+	DisplayName      string             `json:"displayName"`
+	ForwardAuthHost  pgtype.Text        `json:"forwardAuthHost"`
+	AccessRestricted bool               `json:"accessRestricted"`
+	Disabled         bool               `json:"disabled"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
+}
+
+func (q *Queries) GetForwardAuthAppByID(ctx context.Context, clientID string) (GetForwardAuthAppByIDRow, error) {
+	row := q.db.QueryRow(ctx, getForwardAuthAppByID, clientID)
+	var i GetForwardAuthAppByIDRow
+	err := row.Scan(
+		&i.ClientID,
+		&i.DisplayName,
+		&i.ForwardAuthHost,
+		&i.AccessRestricted,
+		&i.Disabled,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getForwardAuthClientByHost = `-- name: GetForwardAuthClientByHost :one
 SELECT client_id, display_name, access_restricted, disabled
 FROM oidc_client
@@ -371,6 +400,97 @@ func (q *Queries) ListAllSigningKeys(ctx context.Context) ([]SigningKey, error) 
 	return items, nil
 }
 
+const listForwardAuthClients = `-- name: ListForwardAuthClients :many
+SELECT client_id, display_name, forward_auth_host, access_restricted, disabled, created_at
+FROM oidc_client
+WHERE forward_auth_enabled = true
+ORDER BY created_at DESC
+`
+
+type ListForwardAuthClientsRow struct {
+	ClientID         string             `json:"clientId"`
+	DisplayName      string             `json:"displayName"`
+	ForwardAuthHost  pgtype.Text        `json:"forwardAuthHost"`
+	AccessRestricted bool               `json:"accessRestricted"`
+	Disabled         bool               `json:"disabled"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
+}
+
+func (q *Queries) ListForwardAuthClients(ctx context.Context) ([]ListForwardAuthClientsRow, error) {
+	rows, err := q.db.Query(ctx, listForwardAuthClients)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListForwardAuthClientsRow
+	for rows.Next() {
+		var i ListForwardAuthClientsRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.ForwardAuthHost,
+			&i.AccessRestricted,
+			&i.Disabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNonForwardAuthOIDCClients = `-- name: ListNonForwardAuthOIDCClients :many
+SELECT client_id, display_name, redirect_uris, allowed_scopes,
+       token_endpoint_auth_method, disabled, access_restricted, created_at
+FROM oidc_client
+WHERE forward_auth_enabled = false
+ORDER BY created_at DESC
+`
+
+type ListNonForwardAuthOIDCClientsRow struct {
+	ClientID                string             `json:"clientId"`
+	DisplayName             string             `json:"displayName"`
+	RedirectUris            []string           `json:"redirectUris"`
+	AllowedScopes           []string           `json:"allowedScopes"`
+	TokenEndpointAuthMethod string             `json:"tokenEndpointAuthMethod"`
+	Disabled                bool               `json:"disabled"`
+	AccessRestricted        bool               `json:"accessRestricted"`
+	CreatedAt               pgtype.Timestamptz `json:"createdAt"`
+}
+
+func (q *Queries) ListNonForwardAuthOIDCClients(ctx context.Context) ([]ListNonForwardAuthOIDCClientsRow, error) {
+	rows, err := q.db.Query(ctx, listNonForwardAuthOIDCClients)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNonForwardAuthOIDCClientsRow
+	for rows.Next() {
+		var i ListNonForwardAuthOIDCClientsRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.RedirectUris,
+			&i.AllowedScopes,
+			&i.TokenEndpointAuthMethod,
+			&i.Disabled,
+			&i.AccessRestricted,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOIDCClients = `-- name: ListOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,
        token_endpoint_auth_method, disabled, access_restricted, created_at
@@ -591,6 +711,48 @@ func (q *Queries) SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDi
 		&i.AccessRestricted,
 		&i.ForwardAuthEnabled,
 		&i.ForwardAuthHost,
+	)
+	return i, err
+}
+
+const updateForwardAuthApp = `-- name: UpdateForwardAuthApp :one
+UPDATE oidc_client
+SET display_name = $2, redirect_uris = $3, forward_auth_host = $4
+WHERE client_id = $1 AND forward_auth_enabled = true
+RETURNING client_id, display_name, forward_auth_host, access_restricted, disabled, created_at
+`
+
+type UpdateForwardAuthAppParams struct {
+	ClientID        string      `json:"clientId"`
+	DisplayName     string      `json:"displayName"`
+	RedirectUris    []string    `json:"redirectUris"`
+	ForwardAuthHost pgtype.Text `json:"forwardAuthHost"`
+}
+
+type UpdateForwardAuthAppRow struct {
+	ClientID         string             `json:"clientId"`
+	DisplayName      string             `json:"displayName"`
+	ForwardAuthHost  pgtype.Text        `json:"forwardAuthHost"`
+	AccessRestricted bool               `json:"accessRestricted"`
+	Disabled         bool               `json:"disabled"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
+}
+
+func (q *Queries) UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAuthAppParams) (UpdateForwardAuthAppRow, error) {
+	row := q.db.QueryRow(ctx, updateForwardAuthApp,
+		arg.ClientID,
+		arg.DisplayName,
+		arg.RedirectUris,
+		arg.ForwardAuthHost,
+	)
+	var i UpdateForwardAuthAppRow
+	err := row.Scan(
+		&i.ClientID,
+		&i.DisplayName,
+		&i.ForwardAuthHost,
+		&i.AccessRestricted,
+		&i.Disabled,
+		&i.CreatedAt,
 	)
 	return i, err
 }

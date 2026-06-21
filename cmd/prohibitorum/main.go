@@ -1737,34 +1737,13 @@ Then configure Traefik ForwardAuth per docs/forward-auth.md.`,
 				log.Fatalf("--host is required")
 			}
 
-			redirectURI := "https://" + faHost + oidc.ForwardAuthPathPrefix + "/callback"
+			redirectURI := oidc.ForwardAuthCallbackURI(faHost)
 
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
 
-			params, _, err := oidc.BuildClientParams(oidc.ClientOptions{
-				ClientID:               faClientID,
-				DisplayName:            faDisplayName,
-				RedirectURIs:           []string{redirectURI},
-				PostLogoutRedirectURIs: []string{},
-				Scopes:                 []string{"openid", "email", "groups"},
-				Public:                 true,
-				RequireConsent:         false,
-			})
-			if err != nil {
-				log.Fatalf("forward-auth-app create: build client params: %v", err)
-			}
-
-			if _, err := q.InsertOIDCClient(ctx, params); err != nil {
-				log.Fatalf("forward-auth-app create: insert oidc client: %v", err)
-			}
-
-			if err := q.SetForwardAuthConfig(ctx, db.SetForwardAuthConfigParams{
-				ClientID:           faClientID,
-				ForwardAuthEnabled: true,
-				ForwardAuthHost:    pgtype.Text{String: faHost, Valid: true},
-			}); err != nil {
-				log.Fatalf("forward-auth-app create: set forward-auth config: %v", err)
+			if _, err := oidc.RegisterForwardAuthApp(ctx, q, faClientID, faHost, faDisplayName); err != nil {
+				log.Fatalf("forward-auth-app create: %v", err)
 			}
 
 			fmt.Printf("Registered ForwardAuth application %q\n", faClientID)
