@@ -30,6 +30,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import AttributeMapEditor, { type AttributeMapEntry } from '@/components/custom/AttributeMapEditor.vue'
 import AppAccessCard from '@/components/custom/AppAccessCard.vue'
+import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 
 interface AcsEndpoint {
   binding: string
@@ -56,6 +57,7 @@ interface SamlApplication {
   acs: AcsEndpoint[]
   keys: SamlKey[]
   createdAt: string
+  iconUrl?: string | null
 }
 
 const { t } = useI18n()
@@ -246,6 +248,13 @@ onMounted(load)
           </div>
         </CardContent>
       </Card>
+
+      <EntityIconUpload
+        :base-path="`/api/prohibitorum/saml-applications/${id}`"
+        :name="sp?.displayName ?? String(id)"
+        :icon-url="sp?.iconUrl"
+        @changed="load"
+      />
 
       <AppAccessCard kind="saml" :app-id="String(id)" />
 

@@ -821,6 +821,13 @@ export default {
     group_slug_conflict: 'A group with that slug already exists.',
   },
 
+  entityIcon: {
+    title: 'Icon',
+    hint: 'Shown on the launchpad and the sign-in buttons. A square PNG, JPEG, or WebP; centered and resized to 256x256.',
+    upload: 'Upload',
+    remove: 'Remove',
+  },
+
   security: {
     title: 'Security',
     factorsLoadError: 'Could not load your security status. Some indicators may be missing.',

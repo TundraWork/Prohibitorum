@@ -30,6 +30,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import AppAccessCard from '@/components/custom/AppAccessCard.vue'
+import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 
 interface OidcApplication {
   clientId: string
@@ -41,6 +42,7 @@ interface OidcApplication {
   requireConsent: boolean
   disabled: boolean
   createdAt: string
+  iconUrl?: string | null
 }
 
 const { t } = useI18n()
@@ -182,6 +184,13 @@ onMounted(load)
           </div>
         </CardContent>
       </Card>
+
+      <EntityIconUpload
+        :base-path="`/api/prohibitorum/oidc-applications/${clientId}`"
+        :name="client?.displayName ?? clientId"
+        :icon-url="client?.iconUrl"
+        @changed="load"
+      />
 
       <AppAccessCard kind="oidc" :app-id="clientId" />
 

@@ -26,6 +26,7 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import CodeBlock from '@/components/custom/CodeBlock.vue'
 import AppAccessCard from '@/components/custom/AppAccessCard.vue'
+import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 
 interface ForwardAuthApp {
   clientId: string
@@ -34,6 +35,7 @@ interface ForwardAuthApp {
   accessRestricted: boolean
   disabled: boolean
   createdAt: string
+  iconUrl?: string | null
 }
 
 const { t } = useI18n()
@@ -156,6 +158,13 @@ onMounted(load)
           <CodeBlock :value="traefikSnippet" />
         </CardContent>
       </Card>
+
+      <EntityIconUpload
+        :base-path="`/api/prohibitorum/oidc-applications/${clientId}`"
+        :name="app?.displayName ?? clientId"
+        :icon-url="app?.iconUrl"
+        @changed="load"
+      />
 
       <AppAccessCard kind="oidc" :app-id="clientId" />
 

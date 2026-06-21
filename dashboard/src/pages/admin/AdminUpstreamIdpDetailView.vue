@@ -26,6 +26,7 @@ import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
+import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
 
 const { t } = useI18n()
@@ -175,6 +176,13 @@ onMounted(load)
           </div>
         </CardContent>
       </Card>
+
+      <EntityIconUpload
+        :base-path="`/api/prohibitorum/identity-providers/${slug}`"
+        :name="idp?.displayName ?? slug"
+        :icon-url="idp?.iconUrl"
+        @changed="load"
+      />
 
       <!-- Danger zone: sensitive operations (disable, rotate secret, delete) grouped together. -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">

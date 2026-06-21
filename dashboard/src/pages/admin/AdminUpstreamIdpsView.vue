@@ -31,6 +31,7 @@ export interface IdentityProvider {
   scopes: string[]; mode: 'auto_provision' | 'invite_only' | 'link_only'; allowedDomains: string[]
   usernameClaim: string; displayNameClaim: string; emailClaim: string; pictureClaim: string
   requireVerifiedEmail: boolean; disabled: boolean; createdAt: string
+  iconUrl?: string | null
 }
 
 const { t } = useI18n()

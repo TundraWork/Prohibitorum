@@ -817,6 +817,13 @@ export default {
     group_slug_conflict: '已存在使用该 slug 的用户组。',
   },
 
+  entityIcon: {
+    title: '图标',
+    hint: '显示在应用面板和登录按钮上。支持方形 PNG、JPEG 或 WebP；会居中裁剪并缩放为 256x256。',
+    upload: '上传',
+    remove: '移除',
+  },
+
   security: {
     title: '安全',
     factorsLoadError: '无法加载安全状态，部分指标可能缺失。',
