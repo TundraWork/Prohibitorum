@@ -89,7 +89,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
             <div class="flex min-w-0 items-center gap-2">
-              <AppIcon :src="`/icon/upstream_idp/${ident.idpSlug}`" :name="ident.idpDisplayName" size="sm" />
+              <AppIcon :src="`/icon/upstream_idp/${encodeURIComponent(ident.idpSlug)}`" :name="ident.idpDisplayName" size="sm" />
               <span class="min-w-0 truncate font-medium text-ink">{{ ident.idpDisplayName }}</span>
               <StatusBadge variant="success" class="shrink-0">{{ t('connected.linked') }}</StatusBadge>
             </div>

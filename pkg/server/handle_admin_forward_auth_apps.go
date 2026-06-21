@@ -279,6 +279,12 @@ func (s *Server) handleDeleteForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Remove the entity icon row if one was uploaded. Errors are silently
+	// ignored — the icon is orphaned data, not a consistency risk.
+	_ = s.queries.DeleteEntityIcon(r.Context(), db.DeleteEntityIconParams{
+		OwnerKind: "oidc_client", OwnerID: body.ClientID,
+	})
+
 	_ = s.Audit.Record(r.Context(), audit.Record{
 		AccountID: faActorID(r.Context()),
 		Factor:    audit.FactorOIDCClient,
