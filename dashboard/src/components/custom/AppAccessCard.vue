@@ -29,7 +29,9 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import SectionTitle from '@/components/custom/SectionTitle.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 
@@ -193,11 +195,13 @@ onMounted(async () => {
 })
 </script>
 <template>
-  <div class="flex flex-col gap-4">
-    <!-- Restrict toggle card -->
-    <Card>
-      <CardHeader><CardTitle>{{ t('admin.access.title') }}</CardTitle></CardHeader>
-      <CardContent class="flex flex-col gap-4">
+  <!-- One "App access" card: the restrict toggle plus Groups and Accounts -->
+  <!-- subsections — access control for an app is a single concern. -->
+  <Card>
+    <CardHeader><CardTitle>{{ t('admin.access.title') }}</CardTitle></CardHeader>
+    <CardContent class="flex flex-col gap-5">
+      <!-- Restrict toggle -->
+      <div class="flex flex-col gap-4">
         <Alert v-if="accessApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ accessApi.errorText.value }}</AlertDescription>
         </Alert>
@@ -221,13 +225,13 @@ onMounted(async () => {
         <p v-if="!accessRestricted" class="text-sm text-muted" data-test="access-inactive-hint">
           {{ t('admin.access.inactiveHint') }}
         </p>
-      </CardContent>
-    </Card>
+      </div>
 
-    <!-- Groups assignment card -->
-    <Card>
-      <CardHeader><CardTitle>{{ t('admin.access.groups') }}</CardTitle></CardHeader>
-      <CardContent class="flex flex-col gap-4">
+      <Separator />
+
+      <!-- Groups subsection -->
+      <div class="flex flex-col gap-4">
+        <SectionTitle as="h3">{{ t('admin.access.groups') }}</SectionTitle>
         <Alert v-if="groupsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ groupsApi.errorText.value }}</AlertDescription>
         </Alert>
@@ -283,13 +287,13 @@ onMounted(async () => {
           </div>
         </div>
         <EmptyState v-else :title="t('admin.access.empty')" />
-      </CardContent>
-    </Card>
+      </div>
 
-    <!-- Accounts assignment card -->
-    <Card>
-      <CardHeader><CardTitle>{{ t('admin.access.accounts') }}</CardTitle></CardHeader>
-      <CardContent class="flex flex-col gap-4">
+      <Separator />
+
+      <!-- Accounts subsection -->
+      <div class="flex flex-col gap-4">
+        <SectionTitle as="h3">{{ t('admin.access.accounts') }}</SectionTitle>
         <Alert v-if="accountsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ accountsApi.errorText.value }}</AlertDescription>
         </Alert>
@@ -345,33 +349,33 @@ onMounted(async () => {
           </div>
         </div>
         <EmptyState v-else :title="t('admin.access.empty')" />
-      </CardContent>
-    </Card>
+      </div>
+    </CardContent>
+  </Card>
 
-    <!-- Remove group confirm -->
-    <ConfirmDialog
-      :open="confirmRemoveGroupId !== null"
-      :title="t('admin.access.removeGroupConfirmTitle')"
-      :confirm-label="t('admin.access.remove')"
-      :busy="accessApi.busy.value"
-      @update:open="(v) => { if (!v) confirmRemoveGroupId = null }"
-      @cancel="confirmRemoveGroupId = null"
-      @confirm="revokeGroup"
-    >
-      {{ t('admin.access.removeGroupConfirmBody', { name: groupToRemove?.displayName ?? '' }) }}
-    </ConfirmDialog>
+  <!-- Remove group confirm -->
+  <ConfirmDialog
+    :open="confirmRemoveGroupId !== null"
+    :title="t('admin.access.removeGroupConfirmTitle')"
+    :confirm-label="t('admin.access.remove')"
+    :busy="accessApi.busy.value"
+    @update:open="(v) => { if (!v) confirmRemoveGroupId = null }"
+    @cancel="confirmRemoveGroupId = null"
+    @confirm="revokeGroup"
+  >
+    {{ t('admin.access.removeGroupConfirmBody', { name: groupToRemove?.displayName ?? '' }) }}
+  </ConfirmDialog>
 
-    <!-- Remove account confirm -->
-    <ConfirmDialog
-      :open="confirmRemoveAccountId !== null"
-      :title="t('admin.access.removeAccountConfirmTitle')"
-      :confirm-label="t('admin.access.remove')"
-      :busy="accessApi.busy.value"
-      @update:open="(v) => { if (!v) confirmRemoveAccountId = null }"
-      @cancel="confirmRemoveAccountId = null"
-      @confirm="revokeAccount"
-    >
-      {{ t('admin.access.removeAccountConfirmBody', { name: accountToRemove?.displayName ?? '' }) }}
-    </ConfirmDialog>
-  </div>
+  <!-- Remove account confirm -->
+  <ConfirmDialog
+    :open="confirmRemoveAccountId !== null"
+    :title="t('admin.access.removeAccountConfirmTitle')"
+    :confirm-label="t('admin.access.remove')"
+    :busy="accessApi.busy.value"
+    @update:open="(v) => { if (!v) confirmRemoveAccountId = null }"
+    @cancel="confirmRemoveAccountId = null"
+    @confirm="revokeAccount"
+  >
+    {{ t('admin.access.removeAccountConfirmBody', { name: accountToRemove?.displayName ?? '' }) }}
+  </ConfirmDialog>
 </template>
