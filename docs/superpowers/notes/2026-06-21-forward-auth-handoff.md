@@ -1,7 +1,68 @@
-# Forward-Auth — Handoff (Phase 1 DONE → Phase 2 to finish)
+# Forward-Auth — Handoff (Phase 1 DONE, Phase 2 DONE)
 
 Date: 2026-06-21
-Status: **Phase 1 shipped on `master` (gate-green, runtime-verified). Phase 2 not started.**
+Status: **Phase 1 + Phase 2 shipped on `master` (gate-green, runtime-verified). COMPLETE.**
+
+---
+
+## Phase 2 — DONE (2026-06-21)
+
+Commit range: `8a6233b..e38dabe` (6 implementation commits + final-gate dist/doc commits).
+
+### 2A — Admin UI
+
+**Backend** (`pkg/server/handle_admin_forward_auth_apps.go`, new sqlc queries in `db/queries/oidc.sql`):
+- `GET /api/prohibitorum/forward-auth-apps` — list (filters `oidc_client WHERE forward_auth_enabled`; returns `clientId`, `displayName`, `forwardAuthHost`, `accessRestricted`, `disabled`, `lastAccessedAt`).
+- `GET /api/prohibitorum/forward-auth-apps/{clientId}` — detail.
+- `POST /api/prohibitorum/forward-auth-apps` (admin+sudo) — create.
+- `PUT /api/prohibitorum/forward-auth-apps/{clientId}` (admin+sudo) — edit (keeps `redirect_uri` in sync with host).
+- `POST /api/prohibitorum/forward-auth-apps/delete` (admin+sudo) — delete.
+- Existing `oidc-applications/{clientId}/access/…` RBAC endpoints reused unchanged.
+- `GET /api/prohibitorum/oidc-applications` list now **excludes** forward-auth apps (guard added to `ListOIDCClients` query + handler).
+- Shared `RegisterForwardAuthApp(ctx, qtx, q, host, displayName)` helper (used by both HTTP handler and the CLI `forward-auth-app create` subcommand).
+
+**Frontend** (`dashboard/src/pages/admin/AdminForwardAuthAppsView.vue` + `AdminForwardAuthAppDetailView.vue`):
+- List view: table with display name, host, restricted badge, disabled badge; inline "New app" sheet (client-id, host, display-name).
+- Detail view: edit form + Traefik config snippet (host-substituted, copy button via `CodeField`) + RBAC access editor reused from OIDC detail + Danger Zone (disable/enable, delete).
+- Route: `/admin/forward-auth-apps` (+ `/:clientId`), `meta.requiresAdmin`.
+- Sidebar entry under the Applications group (`admin.nav.forwardAuthApps`).
+- Full `en.ts` + `zh.ts` i18n (`admin.forwardAuth.*`, `title.adminForwardAuthApps`, `title.adminForwardAuthAppDetail`).
+
+### 2C — Sign-out
+
+- `GET /.prohibitorum-forward-auth/sign_out` (per-app): clears `fa:session` KV entry + deletes the host-only cookie + redirects to the `return_to` URL (validated against the app's registered host) or the Prohibitorum post-logout page.
+- `GET /api/prohibitorum/forward-auth/sso-logout` (global SSO logout): signs out of all forward-auth apps in one request, then calls the OIDC end-session endpoint.
+- **Open-redirect guard** (`ValidatedForwardAuthReturnURL`): accepts only URLs whose host exactly matches a registered, **enabled** forward-auth app — rejects unknown hosts, disabled apps, non-HTTP(S) schemes, and garbage input. Also enforced on the SSO-logout `post_logout_redirect_uri`.
+- Sign-out flow documented in `docs/forward-auth.md`.
+
+### 2B — Dev harness
+
+- `mise dev:forward-auth` task (`scripts/dev-forward-auth.sh`): spins up a **Traefik** (v3) front (nginx was rejected — `auth_request` cannot forward the verify `302` redirect) + a `forward-auth-whoami` static app that echoes `Remote-*` headers.
+- Hidden `forward-auth-whoami` subcommand in `cmd/prohibitorum/main.go`: a minimal HTTP server that renders the identity headers as an HTML page; used by the dev harness as the dummy protected app.
+- Real hostnames and cert paths live only in gitignored `.dev/dev-forward-auth.env`; committed code uses `example.test` placeholders (consistent with the federation harness pattern).
+
+### Gate results (2026-06-21)
+
+| Check | Result |
+|---|---|
+| `go vet ./...` | PASS |
+| `go build -tags nodynamic ./...` | PASS |
+| `go test ./...` | PASS (all packages; `pkg/server` 37.4 s, clean, no flake) |
+| `go test ./pkg/protocol/oidc/ -run ForwardAuth` | PASS (20 tests) |
+| `go test ./pkg/server/ -run 'ForwardAuth\|AdminMutationRoutesRequireSudo'` | PASS |
+| `npx vue-tsc -b` | PASS |
+| `npm run test -- --run` | PASS (518/518) |
+| `node scripts/check-contrast.mjs` | PASS (31/31 pairs) |
+| `grep curly-apostrophes en.ts` | CLEAN |
+| `git status --porcelain pkg/webui/dist` (after rebuild) | EMPTY — dist already current |
+
+### Deferred follow-ups (non-blocking)
+
+1. **`withSudo` over-prompting:** `AdminForwardAuthAppDetailView.vue`, `AdminOidcClientDetailView.vue`, and `AdminUpstreamIdpDetailView.vue` all wrap `set-disabled` in `ensureSudo`/`withSudo`, but the backend `set-disabled` endpoints are not sudo-gated. This triggers an unnecessary sudo prompt. Fix in one cross-view cleanup.
+2. **Missing vitest specs:** `AdminForwardAuthAppDetailView` and `AdminOidcClientDetailView` have no component-level vitest specs (handler-level tests exist). Add in a future quality cycle.
+3. **`oidc-client list` CLI still includes FA apps:** the admin dashboard list correctly excludes them (via the updated query), but the `oidc-client list` CLI subcommand has not been updated. Fix in a future CLI cleanup.
+
+---
 
 This note is self-contained: a fresh session should be able to finish forward-auth
 (admin UI + dev harness + sign-out) from here without prior conversation context.
