@@ -82,6 +82,14 @@ type Enrollment struct {
 	ConsumedAt              pgtype.Timestamptz `json:"consumedAt"`
 }
 
+type EntityIcon struct {
+	OwnerKind string             `json:"ownerKind"`
+	OwnerID   string             `json:"ownerId"`
+	Png       []byte             `json:"png"`
+	Etag      string             `json:"etag"`
+	UpdatedAt pgtype.Timestamptz `json:"updatedAt"`
+}
+
 type GroupMember struct {
 	GroupID   int32              `json:"groupId"`
 	AccountID int32              `json:"accountId"`

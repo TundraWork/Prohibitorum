@@ -59,6 +59,7 @@ type Querier interface {
 	// Owner-scoped delete: zero rows affected means the id doesn't match an owned
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
+	DeleteEntityIcon(ctx context.Context, arg DeleteEntityIconParams) error
 	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
 	DeleteGroup(ctx context.Context, id int32) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
@@ -83,6 +84,8 @@ type Querier interface {
 	GetConsent(ctx context.Context, arg GetConsentParams) ([]string, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
+	GetEntityIcon(ctx context.Context, arg GetEntityIconParams) (GetEntityIconRow, error)
+	GetEntityIconEtag(ctx context.Context, arg GetEntityIconEtagParams) (string, error)
 	GetForwardAuthAppByID(ctx context.Context, clientID string) (GetForwardAuthAppByIDRow, error)
 	GetForwardAuthClientByHost(ctx context.Context, forwardAuthHost pgtype.Text) (GetForwardAuthClientByHostRow, error)
 	GetGroup(ctx context.Context, id int32) (UserGroup, error)
@@ -135,6 +138,7 @@ type Querier interface {
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
+	ListEntityIconEtags(ctx context.Context, ownerKind string) ([]ListEntityIconEtagsRow, error)
 	ListExposedGroupSlugsByAccount(ctx context.Context, accountID int32) ([]string, error)
 	ListForwardAuthClients(ctx context.Context) ([]ListForwardAuthClientsRow, error)
 	ListGroupMembers(ctx context.Context, groupID int32) ([]ListGroupMembersRow, error)
@@ -178,6 +182,7 @@ type Querier interface {
 	// ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
 	SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
+	SetEntityIcon(ctx context.Context, arg SetEntityIconParams) error
 	SetForwardAuthConfig(ctx context.Context, arg SetForwardAuthConfigParams) error
 	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
