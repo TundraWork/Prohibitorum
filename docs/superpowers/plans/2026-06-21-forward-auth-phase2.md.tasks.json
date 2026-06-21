@@ -1,0 +1,54 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-21-forward-auth-phase2.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: FA backend data layer",
+      "status": "pending",
+      "description": "**Goal:** Add SQL queries, wire-view + huma read Operations, and the shared RegisterForwardAuthApp helper; route the CLI create through it.\n\n**Files:** db/queries/oidc.sql (+regen pkg/db/), pkg/protocol/oidc/forward_auth.go, cmd/prohibitorum/main.go, pkg/contract/auth.go, pkg/protocol/oidc/forward_auth_test.go\n\n```json:metadata\n{\"files\":[\"db/queries/oidc.sql\",\"pkg/protocol/oidc/forward_auth.go\",\"cmd/prohibitorum/main.go\",\"pkg/contract/auth.go\",\"pkg/protocol/oidc/forward_auth_test.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go test ./pkg/protocol/oidc/ -run RegisterForwardAuth -v\",\"acceptanceCriteria\":[\"4 new queries generate cleanly\",\"RegisterForwardAuthApp builds public PKCE client w/ exact callback redirect_uri + flag/host\",\"CLI create uses the helper, output unchanged\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: FA admin HTTP endpoints + OIDC exclusion",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Add list/get/create/edit/set-disabled/delete handlers, register routes, exclude FA apps from the OIDC list/detail/edit/rotate, register the 3 sudo routes in the policy test.\n\n**Files:** pkg/server/handle_admin_forward_auth_apps.go (new), pkg/server/handle_admin_forward_auth_apps_test.go (new), pkg/server/server.go, pkg/server/handle_admin_oidc_clients.go, pkg/server/admin_route_policy_test.go\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_forward_auth_apps.go\",\"pkg/server/handle_admin_forward_auth_apps_test.go\",\"pkg/server/server.go\",\"pkg/server/handle_admin_oidc_clients.go\",\"pkg/server/admin_route_policy_test.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./pkg/server/ -run 'ForwardAuth|AdminMutationRoutesRequireSudo' -v\",\"acceptanceCriteria\":[\"FA list returns only FA apps; OIDC list excludes them\",\"OIDC GET/PUT/rotate 404 for FA client id\",\"create(409 on host conflict)/edit(redirect_uri re-derive)/set-disabled/delete work\",\"policy test passes with 3 new FA sudo routes\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: FA admin frontend",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** List + detail views (reuse AppAccessCard), multiline CodeBlock for the Traefik snippet, routes, sidebar item, en/zh i18n, dist rebuild.\n\n**Files:** dashboard/src/components/custom/CodeBlock.vue, dashboard/src/pages/admin/AdminForwardAuthAppsView.vue (+ .test.ts), AdminForwardAuthAppDetailView.vue, router/index.ts, router/guard.test.ts, components/custom/AppSidebar.vue, locales/en.ts, locales/zh.ts, pkg/webui/dist\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/CodeBlock.vue\",\"dashboard/src/pages/admin/AdminForwardAuthAppsView.vue\",\"dashboard/src/pages/admin/AdminForwardAuthAppDetailView.vue\",\"dashboard/src/pages/admin/AdminForwardAuthAppsView.test.ts\",\"dashboard/src/router/index.ts\",\"dashboard/src/router/guard.test.ts\",\"dashboard/src/components/custom/AppSidebar.vue\",\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\",\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npx vue-tsc -b && npm run test -- --run && node scripts/check-contrast.mjs\",\"acceptanceCriteria\":[\"list + inline create (client-id/host/display-name)\",\"detail edits name+host, host-substituted Traefik snippet, AppAccessCard, danger zone (no rotate)\",\"sidebar item in Applications group\",\"vue-tsc/vitest/contrast/en-zh parity pass; en.ts apostrophe grep clean; dist rebuilt\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Forward-auth sign-out",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Protected-domain sign_out (clear cookie+KV, bounce to IdP) + IdP-domain sso-logout (revoke session, validated redirect) with fail-closed open-redirect guard, tests, docs.\n\n**Files:** pkg/protocol/oidc/forward_auth.go, pkg/protocol/oidc/forward_auth_test.go, pkg/server/handle_forward_auth_signout.go (new), pkg/server/server.go, docs/forward-auth.md\n\n```json:metadata\n{\"files\":[\"pkg/protocol/oidc/forward_auth.go\",\"pkg/protocol/oidc/forward_auth_test.go\",\"pkg/server/handle_forward_auth_signout.go\",\"pkg/server/server.go\",\"docs/forward-auth.md\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go test ./pkg/protocol/oidc/ -run 'SignOut|ValidatedForwardAuthReturnURL' -v\",\"acceptanceCriteria\":[\"sign_out deletes KV fa:session, clears cookie, 302 to sso-logout?rd=\",\"sso-logout revokes session, redirects to rd only if host registered else /\",\"ValidatedForwardAuthReturnURL rejects unregistered host/non-http/garbage\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: End-to-end runtime verification (2A+2C)",
+      "status": "pending",
+      "blockedBy": [3, 4],
+      "description": "**Goal:** Prove admin UI + sign-out against a running server (subagent-launched). Register FA app via UI, confirm exclusivity, drive verify/sign_out/sso-logout via curl; chromium DOM check. Fix anything found.\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"manual curl + chromium --dump-dom against subagent server\",\"acceptanceCriteria\":[\"FA app present in /forward-auth-apps, absent from /oidc-applications\",\"GET /oidc-applications/{fa-id} = client_not_found\",\"verify unknown->403, registered no-cookie->302 authorize w/ code_challenge\",\"sign_out->302 sso-logout?rd; bogus rd->302 /\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Multi-domain dev harness",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** Local harness: protected whoami app behind TLS front wired to forward-auth. Modeled on dev:federation; real hostnames/certs gitignored, example.test placeholders committed.\n\n**Files:** scripts/dev-forward-auth.sh (new), cmd/prohibitorum/dev_forward_auth.go (new), cmd/prohibitorum/main.go, mise.toml, docs/forward-auth.md\n\n```json:metadata\n{\"files\":[\"scripts/dev-forward-auth.sh\",\"cmd/prohibitorum/dev_forward_auth.go\",\"cmd/prohibitorum/main.go\",\"mise.toml\",\"docs/forward-auth.md\"],\"verifyCommand\":\"go build -tags nodynamic ./... && shellcheck scripts/dev-forward-auth.sh\",\"acceptanceCriteria\":[\"whoami subcommand builds + echoes Remote-* headers\",\"dev-forward-auth.sh shellcheck-clean, example.test placeholders, env template\",\"mise dev:forward-auth registered\",\"no real hostnames in tracked files\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Final gate + dist re-verify + memory/handoff",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Full gate end-to-end, confirm committed dist current, update memory + handoff to Phase 2 complete.\n\n**Files:** pkg/webui/dist (if diff), memory project_current_state.md, docs/superpowers/notes/2026-06-21-forward-auth-handoff.md\n\n```json:metadata\n{\"files\":[\"pkg/webui/dist\",\"docs/superpowers/notes/2026-06-21-forward-auth-handoff.md\"],\"verifyCommand\":\"go vet ./... && go build -tags nodynamic ./... && go test ./... ; cd dashboard && npm run test -- --run && npx vue-tsc -b && node scripts/check-contrast.mjs && npm run build\",\"acceptanceCriteria\":[\"full backend+frontend gate green\",\"npm run build leaves no dist diff\",\"memory + handoff updated\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-21"
+}
