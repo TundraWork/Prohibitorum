@@ -1,0 +1,54 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-22-app-provider-icons.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: entity_icon storage + queries + URL helper",
+      "status": "pending",
+      "description": "**Goal:** entity_icon table + sqlc queries + pure entityIconURL helper.\n\n**Files:** db/migrations/019_entity_icon.sql, db/queries/entity_icon.sql (+regen pkg/db/), pkg/server/entity_icon_url.go (+_test.go)\n\n```json:metadata\n{\"files\":[\"db/migrations/019_entity_icon.sql\",\"db/queries/entity_icon.sql\",\"pkg/server/entity_icon_url.go\",\"pkg/server/entity_icon_url_test.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go test ./pkg/server/ -run EntityIconURL -v\",\"acceptanceCriteria\":[\"5 queries generate\",\"entityIconURL empty->\\\"\\\" else /icon/<kind>/<escaped id>?v=<etag8>\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Admin upload/delete icon endpoints + owner-delete cleanup",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Per-entity PUT/DELETE …/icon (reuse branding.ProcessIcon); delete icon row on owner delete.\n\n**Files:** pkg/server/handle_admin_entity_icon.go (new), server.go (6 routes), handle_admin_oidc_clients.go/handle_admin_saml_sps.go/handle_admin_upstream_idps.go (cleanup), admin_route_policy_test.go (3 DELETEs)\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_admin_entity_icon.go\",\"pkg/server/server.go\",\"pkg/server/handle_admin_oidc_clients.go\",\"pkg/server/handle_admin_saml_sps.go\",\"pkg/server/handle_admin_upstream_idps.go\",\"pkg/server/admin_route_policy_test.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./pkg/server/ -run AdminMutationRoutesRequireSudo -v -count=1\",\"acceptanceCriteria\":[\"PUT stores icon (admin+fresh sudo), 404 unknown owner\",\"3 DELETE sudo-gated remove row\",\"owner delete removes icon row\",\"policy test passes with 3 DELETEs\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Public icon serve GET /icon/{kind}/{id}",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Serve stored PNG publicly with ETag/304/404/400.\n\n**Files:** pkg/server/handle_entity_icon.go (new), server.go (public route)\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_entity_icon.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./...\",\"acceptanceCriteria\":[\"200 image/png+ETag+Cache-Control\",\"304 on If-None-Match\",\"404 no icon, 400 bad kind\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Expose iconUrl in contracts + builders",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** IconURL on FederationProvider (federation list join) + the 4 admin GET views.\n\n**Files:** pkg/contract/auth.go (5 views), pkg/server/entity_icon_url.go (ptr+lookup), handle_federation.go(+test), handle_admin_oidc_clients.go/forward_auth_apps.go/saml_sps.go/upstream_idps.go\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/entity_icon_url.go\",\"pkg/server/handle_federation.go\",\"pkg/server/handle_federation_test.go\",\"pkg/server/handle_admin_oidc_clients.go\",\"pkg/server/handle_admin_forward_auth_apps.go\",\"pkg/server/handle_admin_saml_sps.go\",\"pkg/server/handle_admin_upstream_idps.go\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./pkg/server/ -run FederationProviders -v\",\"acceptanceCriteria\":[\"/auth/federation returns iconUrl per provider\",\"each admin GET view returns iconUrl\",\"federation test asserts IconURL set/nil\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: AppIcon + EntityIconUpload + admin detail views + i18n",
+      "status": "pending",
+      "blockedBy": [2, 3, 4],
+      "description": "**Goal:** AppIcon + EntityIconUpload (mirror SettingsView icon block), wire into 4 admin detail views, en/zh, dist.\n\n**Files:** components/custom/AppIcon.vue(+test), EntityIconUpload.vue(+test), 4 Admin*DetailView.vue, locales/en.ts+zh.ts, pkg/webui/dist\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/AppIcon.vue\",\"dashboard/src/components/custom/AppIcon.test.ts\",\"dashboard/src/components/custom/EntityIconUpload.vue\",\"dashboard/src/components/custom/EntityIconUpload.test.ts\",\"dashboard/src/pages/admin/AdminOidcClientDetailView.vue\",\"dashboard/src/pages/admin/AdminSamlProviderDetailView.vue\",\"dashboard/src/pages/admin/AdminForwardAuthAppDetailView.vue\",\"dashboard/src/pages/admin/AdminUpstreamIdpDetailView.vue\",\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\",\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npx vue-tsc -b && npm run test -- --run && node scripts/check-contrast.mjs\",\"acceptanceCriteria\":[\"AppIcon img-or-initial\",\"EntityIconUpload upload/remove via withSudo; forward-auth uses oidc-applications base\",\"4 detail views show icon card\",\"FE gate + parity pass; en.ts apostrophe-clean; dist rebuilt\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Provider icons on login + connect buttons",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** Render AppIcon on /login FederationButtons and /connected connect buttons + linked rows.\n\n**Files:** components/custom/FederationButtons.vue(+test), pages/ConnectedAccountsView.vue, pkg/webui/dist\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/FederationButtons.vue\",\"dashboard/src/components/custom/FederationButtons.test.ts\",\"dashboard/src/pages/ConnectedAccountsView.vue\",\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npx vue-tsc -b && npm run test -- --run\",\"acceptanceCriteria\":[\"/login buttons show provider icon/fallback\",\"/connected connect buttons + linked rows show icon\",\"FE gate pass; dist rebuilt\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Runtime verify + final gate + memory",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Prove the icon flow on public /login, full gate, dist current, memory update.\n\n**Files:** none (verification); memory project_current_state.md\n\n```json:metadata\n{\"files\":[\"pkg/webui/dist\"],\"verifyCommand\":\"go vet ./... && go build -tags nodynamic ./... && go test ./... ; cd dashboard && npm run test -- --run && npx vue-tsc -b && node scripts/check-contrast.mjs && npm run build\",\"acceptanceCriteria\":[\"IdP icon shows on /login (chromium)\",\"/icon 200+ETag/304/404/400\",\"full gate green; no dist drift; memory updated\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-22T00:00:00Z"
+}
