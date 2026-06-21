@@ -132,15 +132,7 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 	// flag/host update is applied by RegisterForwardAuthApp's SetForwardAuthConfig
 	// call). Build the view from known create-time values: a fresh FA app is
 	// never access-restricted and is enabled.
-	view := contract.ForwardAuthAppView{
-		ClientID:        c.ClientID,
-		DisplayName:     c.DisplayName,
-		ForwardAuthHost: body.Host,
-		Disabled:        c.Disabled,
-	}
-	if c.CreatedAt.Valid {
-		view.CreatedAt = c.CreatedAt.Time
-	}
+	view := forwardAuthAppView(c.ClientID, c.DisplayName, pgtype.Text{String: body.Host, Valid: true}, false, c.Disabled, c.CreatedAt)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(view)

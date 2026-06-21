@@ -224,7 +224,16 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if existing, err := s.queries.GetOIDCClientAny(r.Context(), clientID); err == nil && existing.ForwardAuthEnabled {
+	existing, err := s.queries.GetOIDCClientAny(r.Context(), clientID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrClientNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleUpdateOIDCApplication: lookup: %w", err))
+		return
+	}
+	if existing.ForwardAuthEnabled {
 		writeAuthErr(w, authn.ErrClientNotFound())
 		return
 	}
