@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -668,5 +669,9 @@ func TestRegisterForwardAuthApp_BuildsPublicPKCEClient(t *testing.T) {
 	}
 	if f.faConfigParams.ForwardAuthHost.String != "app.example.test" {
 		t.Errorf("forward_auth_host = %q", f.faConfigParams.ForwardAuthHost.String)
+	}
+	wantScopes := []string{"openid", "email", "groups"}
+	if !slices.Equal(f.insertParams.AllowedScopes, wantScopes) {
+		t.Errorf("allowed_scopes = %v, want %v", f.insertParams.AllowedScopes, wantScopes)
 	}
 }

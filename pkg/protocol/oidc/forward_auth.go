@@ -130,6 +130,9 @@ func ForwardAuthCallbackURI(host string) string {
 // FA client shape has a single source of truth. Returns the inserted client row
 // (before the forward-auth flag/host are set — callers that need the FA columns
 // should re-read or build the view from the known host).
+// Note: this performs two writes (insert + flag/host) without a wrapping
+// transaction — a partial failure leaves a non-forward-auth client that the
+// admin can delete and recreate. Pass a tx-backed Querier if atomicity matters.
 func RegisterForwardAuthApp(ctx context.Context, q db.Querier, clientID, host, displayName string) (db.OidcClient, error) {
 	params, _, err := BuildClientParams(ClientOptions{
 		ClientID:               clientID,
@@ -248,7 +251,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	redirectURI := proto + "://" + host + ForwardAuthPathPrefix + "/callback"
+	redirectURI := ForwardAuthCallbackURI(host)
 	q := url.Values{}
 	q.Set("client_id", client.ClientID)
 	q.Set("redirect_uri", redirectURI)
