@@ -46,6 +46,8 @@ describe('3c admin routes require admin', () => {
     '/admin/identity-providers',
     '/admin/signing-keys',
     '/admin/audit',
+    '/admin/forward-auth-apps',
+    '/admin/forward-auth-apps/some-client',
   ])('%s is marked requiresAdmin', (path) => {
     const resolved = realRouter.resolve(path)
     expect(resolved.meta.requiresAdmin).toBe(true)

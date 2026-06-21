@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound, Settings } from 'lucide-vue-next'
+import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound, Settings, Waypoints } from 'lucide-vue-next'
 import NavUser from '@/components/custom/NavUser.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/custom/ThemeToggle.vue'
@@ -52,6 +52,7 @@ const federationItems = computed(() => [
 const applicationItems = computed(() => [
   { to: '/admin/oidc-applications', label: t('admin.nav.oidcApplications'), icon: AppWindow },
   { to: '/admin/saml-applications', label: t('admin.nav.samlApplications'), icon: Building2 },
+  { to: '/admin/forward-auth-apps', label: t('admin.nav.forwardAuthApps'), icon: Waypoints },
 ])
 </script>
 
