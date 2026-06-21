@@ -29,9 +29,8 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
-import SectionTitle from '@/components/custom/SectionTitle.vue'
+import FormSection from '@/components/custom/FormSection.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 
@@ -227,11 +226,8 @@ onMounted(async () => {
         </p>
       </div>
 
-      <Separator />
-
       <!-- Groups subsection -->
-      <div class="flex flex-col gap-4">
-        <SectionTitle as="h3">{{ t('admin.access.groups') }}</SectionTitle>
+      <FormSection :title="t('admin.access.groups')">
         <Alert v-if="groupsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ groupsApi.errorText.value }}</AlertDescription>
         </Alert>
@@ -287,13 +283,10 @@ onMounted(async () => {
           </div>
         </div>
         <EmptyState v-else :title="t('admin.access.empty')" />
-      </div>
-
-      <Separator />
+      </FormSection>
 
       <!-- Accounts subsection -->
-      <div class="flex flex-col gap-4">
-        <SectionTitle as="h3">{{ t('admin.access.accounts') }}</SectionTitle>
+      <FormSection :title="t('admin.access.accounts')">
         <Alert v-if="accountsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
           <AlertDescription>{{ accountsApi.errorText.value }}</AlertDescription>
         </Alert>
@@ -349,7 +342,7 @@ onMounted(async () => {
           </div>
         </div>
         <EmptyState v-else :title="t('admin.access.empty')" />
-      </div>
+      </FormSection>
     </CardContent>
   </Card>
 
