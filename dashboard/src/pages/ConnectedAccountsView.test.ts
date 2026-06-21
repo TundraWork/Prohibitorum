@@ -29,7 +29,7 @@ const IDENTITIES = [
 ]
 const PROVIDERS = [
   { slug: 'okta', displayName: 'Okta' },
-  { slug: 'google', displayName: 'Google' },
+  { slug: 'google', displayName: 'Google', iconUrl: '/icon/upstream_idp/google?v=abc12345' },
 ]
 
 function mockGets(identities = IDENTITIES, providers = PROVIDERS) {
@@ -125,5 +125,38 @@ describe('ConnectedAccountsView', () => {
     const w = mountView(); await flushPromises()
     await w.find('[data-test="link-google"]').trigger('click'); await flushPromises()
     expect(hardRedirect).not.toHaveBeenCalled()
+  })
+
+  // --- AppIcon / provider icon tests ---
+
+  it('connect button for provider WITH iconUrl renders an <img> whose src matches the iconUrl', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    const btn = w.find('[data-test="link-google"]')
+    expect(btn.find('img').exists()).toBe(true)
+    expect(btn.find('img').attributes('src')).toContain('/icon/upstream_idp/google')
+  })
+
+  it('connect button for provider WITHOUT iconUrl shows the initial letter, no <img>', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    const btn = w.find('[data-test="link-okta"]')
+    expect(btn.find('img').exists()).toBe(false)
+    expect(btn.text()).toContain('O')
+  })
+
+  it('linked-identity row renders an <img> whose src is built from the idpSlug', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    // Find the card that contains the unlink button for identity 1 (idpSlug='okta').
+    // The AppIcon is rendered inside the same CardContent — locate the img relative to
+    // the nearest ancestor that also holds the unlink button.
+    const unlinkBtn = w.find('[data-test="unlink-1"]')
+    const card = unlinkBtn.element.closest('.card, [class*="card"]') as Element | null
+    const imgEl = card
+      ? card.querySelector('img')
+      : w.find('[data-test="unlink-1"]').element.closest('div')!.querySelector('img')
+    expect(imgEl).not.toBeNull()
+    expect(imgEl!.getAttribute('src')).toContain('/icon/upstream_idp/okta')
   })
 })
