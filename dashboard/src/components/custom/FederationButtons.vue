@@ -21,10 +21,12 @@ import { api } from '@/lib/api'
 import { useReturnTo } from '@/composables/useReturnTo'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import AppIcon from '@/components/custom/AppIcon.vue'
 
 interface FederationProvider {
   slug: string
   displayName: string
+  iconUrl?: string | null
 }
 
 const { t } = useI18n()
@@ -72,10 +74,11 @@ function startFederation(slug: string): void {
         :key="p.slug"
         type="button"
         variant="outline"
-        class="w-full"
+        class="w-full justify-start gap-2"
         @click="startFederation(p.slug)"
       >
-        {{ p.displayName }}
+        <AppIcon :src="p.iconUrl" :name="p.displayName" size="sm" />
+        <span>{{ p.displayName }}</span>
       </Button>
     </div>
   </div>

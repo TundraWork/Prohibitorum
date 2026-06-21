@@ -20,6 +20,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import AppIcon from '@/components/custom/AppIcon.vue'
 
 interface Identity {
   id: number
@@ -28,7 +29,7 @@ interface Identity {
   upstreamEmail: string | null
   linkedAt: string
 }
-interface Provider { slug: string; displayName: string }
+interface Provider { slug: string; displayName: string; iconUrl?: string | null }
 
 const { t } = useI18n()
 const { busy, run, errorText } = useApi()
@@ -88,6 +89,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
             <div class="flex min-w-0 items-center gap-2">
+              <AppIcon :src="`/icon/upstream_idp/${ident.idpSlug}`" :name="ident.idpDisplayName" size="sm" />
               <span class="min-w-0 truncate font-medium text-ink">{{ ident.idpDisplayName }}</span>
               <StatusBadge variant="success" class="shrink-0">{{ t('connected.linked') }}</StatusBadge>
             </div>
@@ -118,7 +120,10 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
         <div v-else-if="providers.length > 0" class="flex flex-col gap-2">
           <Button v-for="p in providers" :key="p.slug" type="button" variant="outline" class="w-full justify-between"
                   :disabled="linkedSlugs.has(p.slug) || busy" :data-test="`link-${p.slug}`" @click="link(p.slug)">
-            <span>{{ p.displayName }}</span>
+            <span class="flex min-w-0 items-center gap-2">
+              <AppIcon :src="p.iconUrl" :name="p.displayName" size="sm" />
+              <span class="truncate">{{ p.displayName }}</span>
+            </span>
             <StatusBadge v-if="linkedSlugs.has(p.slug)" variant="success" class="shrink-0">{{ t('connected.alreadyLinked') }}</StatusBadge>
           </Button>
         </div>
