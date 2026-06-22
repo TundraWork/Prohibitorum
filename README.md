@@ -34,7 +34,7 @@ planned:
 **Dashboard**
 - [x] Admin console — accounts, apps, providers, signing keys, audit log
 - [x] End-user self-service — credentials, sessions, devices, linked accounts
-- [ ] End-user app launchpad — launch authorized apps and self-manage access
+- [x] End-user app launchpad — launch authorized apps and self-manage access
 - [x] RBAC — control which users each app is authorized for
 
 **Keys & operations**
