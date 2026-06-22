@@ -1401,11 +1401,12 @@ func main() {
 	rpRedirectURI := *baseURL + "/rp/callback"
 	rpPostLogout := *baseURL + "/rp/post-logout"
 
-	step(fmt.Sprintf("step 70/%d — v0.4: signing-key generate + GET /oauth/jwks (exactly 1 key)", totalV04))
-	signingKID, err := mintSigningKey(*baseURL)
-	if err != nil {
-		log.Fatalf("signing-key generate: %v", err)
-	}
+	step(fmt.Sprintf("step 70/%d — v0.4: GET /oauth/jwks → exactly 1 auto-provisioned signing key", totalV04))
+	// The server auto-provisions an active OIDC signing key on first boot
+	// (server.ensureActiveSigningKey), so the OP is signable out of the box with
+	// no manual `signing-key generate`. Assert that boot key is the sole
+	// publishable key — the single-key invariant the rotation arc (step 117)
+	// relies on. (A second `generate` here would add a pending key and break it.)
 	jwks, err := fetchJWKS(*baseURL)
 	if err != nil {
 		log.Fatalf("fetch jwks: %v", err)
@@ -1413,10 +1414,11 @@ func main() {
 	if len(jwks.Keys) != 1 {
 		log.Fatalf("jwks: want exactly 1 key, got %d", len(jwks.Keys))
 	}
-	if jwks.Keys[0].KeyID != signingKID {
-		log.Fatalf("jwks: key kid=%q, want minted kid=%q", jwks.Keys[0].KeyID, signingKID)
+	signingKID := jwks.Keys[0].KeyID
+	if signingKID == "" {
+		log.Fatalf("jwks: auto-provisioned key has empty kid")
 	}
-	log.Printf("  signing key kid=%s; /oauth/jwks has 1 key ✓", signingKID)
+	log.Printf("  auto-provisioned signing key kid=%s; /oauth/jwks has 1 key ✓", signingKID)
 
 	step(fmt.Sprintf("step 71/%d — v0.4: oidc-client create (confidential, openid+profile+offline_access)", totalV04))
 	rpSecret, err := createOIDCClient(*baseURL, rpClientID, rpRedirectURI, rpPostLogout,
@@ -5731,36 +5733,6 @@ func groupsClaimContains(v any, want string) bool {
 		}
 	}
 	return false
-}
-
-// mintSigningKey shells out to `prohibitorum signing-key generate` and parses
-// the printed kid. The CLI prints exactly:
-//
-//	Generated signing key <kid> (active)
-//
-// (or "(inactive)" when a key already exists and --activate was not passed).
-// We parse the 4th whitespace-separated field as the kid. DATABASE_URL and the
-// DEK are inherited from os.Environ(); PROHIBITORUM_PUBLIC_ORIGIN is set so the
-// CLI's config parse succeeds (issuer derivation).
-func mintSigningKey(baseURL string) (string, error) {
-	cmd := exec.Command("mise", "exec", "--", "go", "run", "./cmd/prohibitorum", "signing-key", "generate")
-	cmd.Env = append(os.Environ(), "PROHIBITORUM_PUBLIC_ORIGIN="+baseURL)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("signing-key generate: %v\n%s", err, out)
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "Generated signing key ") {
-			continue
-		}
-		fields := strings.Fields(line)
-		// "Generated" "signing" "key" "<kid>" "(active)"
-		if len(fields) >= 4 {
-			return fields[3], nil
-		}
-	}
-	return "", fmt.Errorf("no 'Generated signing key' line in output:\n%s", out)
 }
 
 // createOIDCClient shells out to `prohibitorum oidc-client create` for a
