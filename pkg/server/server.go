@@ -95,6 +95,10 @@ type Server struct {
 	// handleGetMyFactors without standing up *db.Queries. Nil in production —
 	// falls back to s.queries.
 	getMyFactorsOverride getMyFactorsQueries
+	// launchpadOverride lets tests inject a fake launchpadQueries for
+	// handleListMyApps / buildLaunchpad without standing up *db.Queries. Nil
+	// in production — falls back to s.queries.
+	launchpadOverride launchpadQueries
 	// avatarQueriesOverride lets tests inject a fake avatarQueries for the
 	// avatar handlers without standing up *db.Queries. Nil in production —
 	// handlers fall back to s.queries.
@@ -373,6 +377,7 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/complete", sessionReq, s.handleAddCredentialCompleteHTTP)
 	registerOp(mgmt, contract.OperationListMySessions, s.handleListMySessions, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeMySession, s.handleRevokeMySession, sessionReq)
+	registerOp(mgmt, contract.OperationListMyApps, s.handleListMyApps, sessionReq)
 
 	// Consent app API (OIDC consent UI context + decision).
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/consent", sessionReq, s.handleConsentContextHTTP)
