@@ -290,6 +290,36 @@
 }
 
 /* =============================================================================
+   App tile art — both keyed off a single deterministic hue (--app-h, set inline
+   per app; see lib/appColor.ts).
+
+   `.app-bg` is the soft tinted backdrop of the cover area: a real (often square,
+   often transparent) logo sits CENTERED and contained on it, so it is never
+   cropped and its transparency reads against a calm surface, not a hard colour.
+
+   `.app-cover` is the generated fallback ICON shown when there is no logo: a
+   dimensional duotone (radial highlight over a diagonal light→deep gradient, hue
+   nudged +30 across the diagonal) carrying a white monogram — crafted, not a
+   flat swatch. Both are theme-aware and clear contrast by construction.
+   ============================================================================= */
+.app-bg {
+  background-color: oklch(0.965 var(--app-c, 0.014) var(--app-h, 235));
+}
+.dark .app-bg {
+  background-color: oklch(0.255 var(--app-c, 0.020) var(--app-h, 235));
+}
+.app-cover {
+  background-image:
+    radial-gradient(circle at 30% 22%, oklch(0.82 0.10 var(--app-h, 235) / 0.55), transparent 58%),
+    linear-gradient(145deg, oklch(0.66 0.135 var(--app-h, 235)) 0%, oklch(0.50 0.15 calc(var(--app-h, 235) + 30)) 100%);
+}
+.dark .app-cover {
+  background-image:
+    radial-gradient(circle at 30% 22%, oklch(0.52 0.10 var(--app-h, 235) / 0.50), transparent 58%),
+    linear-gradient(145deg, oklch(0.44 0.12 var(--app-h, 235)) 0%, oklch(0.30 0.12 calc(var(--app-h, 235) + 30)) 100%);
+}
+
+/* =============================================================================
    Reduced motion — honored project-wide.
    ============================================================================= */
 @media (prefers-reduced-motion: reduce) {

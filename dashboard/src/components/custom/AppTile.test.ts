@@ -16,12 +16,13 @@ const APP: LaunchpadApp = {
 
 const CONSENT: ConsentInfo = { scopes: ['openid', 'profile'] }
 
+function mountTile(props: Record<string, unknown>) {
+  return mount(AppTile, { props: { app: APP, ...props }, global: { plugins: [i18n()] } })
+}
+
 describe('AppTile', () => {
-  it('launch anchor has correct href, target, and rel', () => {
-    const w = mount(AppTile, {
-      props: { app: APP },
-      global: { plugins: [i18n()] },
-    })
+  it('launch overlay has correct href, target, and rel', () => {
+    const w = mountTile({})
     const anchor = w.find(`[data-test="launch-${APP.id}"]`)
     expect(anchor.exists()).toBe(true)
     expect(anchor.attributes('href')).toBe(APP.launchUrl)
@@ -29,43 +30,20 @@ describe('AppTile', () => {
     expect(anchor.attributes('rel')).toContain('noopener')
   })
 
-  it('consent glyph is ABSENT when consent is not provided', () => {
-    const w = mount(AppTile, {
-      props: { app: APP },
-      global: { plugins: [i18n()] },
-    })
-    expect(w.find(`[data-test="consent-${APP.id}"]`).exists()).toBe(false)
+  it('renders the protocol badge for the app kind', () => {
+    const w = mountTile({})
+    expect(w.find(`[data-test="protocol-${APP.kind}"]`).exists()).toBe(true)
   })
 
-  it('consent glyph is PRESENT when consent is provided', () => {
-    const w = mount(AppTile, {
-      props: { app: APP, consent: CONSENT },
-      global: { plugins: [i18n()] },
-    })
-    expect(w.find(`[data-test="consent-${APP.id}"]`).exists()).toBe(true)
+  it('access-granted affordance follows consent', () => {
+    expect(mountTile({}).find(`[data-test="consent-${APP.id}"]`).exists()).toBe(false)
+    expect(mountTile({ consent: null }).find(`[data-test="consent-${APP.id}"]`).exists()).toBe(false)
+    expect(mountTile({ consent: CONSENT }).find(`[data-test="consent-${APP.id}"]`).exists()).toBe(true)
   })
 
-  it('consent glyph is ABSENT when consent is null', () => {
-    const w = mount(AppTile, {
-      props: { app: APP, consent: null },
-      global: { plugins: [i18n()] },
-    })
-    expect(w.find(`[data-test="consent-${APP.id}"]`).exists()).toBe(false)
-  })
-
-  it('kebab menu is ABSENT when consent is not provided', () => {
-    const w = mount(AppTile, {
-      props: { app: APP },
-      global: { plugins: [i18n()] },
-    })
-    expect(w.find(`[data-test="menu-${APP.id}"]`).exists()).toBe(false)
-  })
-
-  it('kebab menu is PRESENT when consent is provided', () => {
-    const w = mount(AppTile, {
-      props: { app: APP, consent: CONSENT },
-      global: { plugins: [i18n()] },
-    })
-    expect(w.find(`[data-test="menu-${APP.id}"]`).exists()).toBe(true)
+  it('actions menu trigger is ALWAYS present (every tile is manageable)', () => {
+    expect(mountTile({}).find(`[data-test="menu-${APP.id}"]`).exists()).toBe(true)
+    expect(mountTile({ consent: CONSENT }).find(`[data-test="menu-${APP.id}"]`).exists()).toBe(true)
+    expect(mountTile({ isAdmin: true }).find(`[data-test="menu-${APP.id}"]`).exists()).toBe(true)
   })
 })

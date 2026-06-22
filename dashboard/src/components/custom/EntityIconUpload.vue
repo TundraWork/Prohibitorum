@@ -51,7 +51,7 @@ async function remove(): Promise<void> {
       <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
       <div class="flex items-center gap-4">
         <span class="rounded-md ring-1 ring-inset ring-border">
-          <AppIcon :src="iconUrl" :name="name" />
+          <AppIcon :src="iconUrl" :name="name" size="lg" />
         </span>
         <div class="flex flex-col gap-2">
           <p class="text-xs text-muted">{{ t('entityIcon.hint') }}</p>

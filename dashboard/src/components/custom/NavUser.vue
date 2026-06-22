@@ -115,7 +115,7 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
           type="button"
           data-test="account-trigger"
           :aria-label="t('accountMenu.trigger')"
-          class="flex items-center gap-1 rounded-full p-0.5 outline-none transition hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-80"
+          class="flex cursor-pointer items-center gap-1 rounded-full p-0.5 outline-none transition hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-80"
         >
           <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" :loading="auth.me.avatarPending" />
           <ChevronDown class="size-4 text-muted" aria-hidden="true" />

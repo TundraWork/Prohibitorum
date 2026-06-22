@@ -834,12 +834,22 @@ export default {
     greeting: 'Welcome back, {name}',
     empty: 'No apps yet',
     emptyHelp: "When an admin grants you access to an app, it'll show up here.",
+    open: 'Open {name}',
     menu: 'App options',
+    copyLink: 'Copy link',
+    copied: 'Link copied to clipboard',
+    manage: 'Manage app',
     revoke: 'Revoke access',
+    accessGranted: 'Access granted',
     consentGranted: 'You have granted this app access',
     revokeConfirmTitle: 'Revoke access?',
     revokeConfirmBody: '{name} will ask for your consent again next time you sign in.',
-    type: { oidc: 'OIDC', forward_auth: 'Forward-auth', saml: 'SAML' },
+    type: { oidc: 'OIDC', forward_auth: 'Forward auth', saml: 'SAML' },
+    typeHint: {
+      oidc: 'Single sign-on via OpenID Connect',
+      forward_auth: 'Protected at the proxy by forward authentication',
+      saml: 'Single sign-on via SAML',
+    },
   },
 
   appAccess: {
@@ -855,7 +865,7 @@ export default {
 
   entityIcon: {
     title: 'Icon',
-    hint: 'Shown on the launchpad and the sign-in buttons. A square PNG, JPEG, or WebP; centered and resized to 256×256.',
+    hint: 'Shown on the launchpad and the sign-in buttons. A square PNG, JPEG, or WebP; centered and resized to 512×512.',
     upload: 'Upload',
     remove: 'Remove',
   },

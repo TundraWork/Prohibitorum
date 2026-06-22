@@ -830,12 +830,22 @@ export default {
     greeting: '欢迎回来，{name}',
     empty: '暂无应用',
     emptyHelp: '当管理员授予你某个应用的访问权限后，它将在此显示。',
+    open: '打开 {name}',
     menu: '应用选项',
+    copyLink: '复制链接',
+    copied: '链接已复制到剪贴板',
+    manage: '管理应用',
     revoke: '撤销授权',
+    accessGranted: '已授权',
     consentGranted: '你已向此应用授予访问权限',
     revokeConfirmTitle: '撤销授权？',
     revokeConfirmBody: '下次登录时，{name} 将重新向你请求授权。',
     type: { oidc: 'OIDC', forward_auth: '前向认证', saml: 'SAML' },
+    typeHint: {
+      oidc: '通过 OpenID Connect 单点登录',
+      forward_auth: '由反向代理的前向认证保护',
+      saml: '通过 SAML 单点登录',
+    },
   },
 
   appAccess: {
@@ -851,7 +861,7 @@ export default {
 
   entityIcon: {
     title: '图标',
-    hint: '显示在应用面板和登录按钮上。支持方形 PNG、JPEG 或 WebP；会居中裁剪并缩放为 256×256。',
+    hint: '显示在应用面板和登录按钮上。支持方形 PNG、JPEG 或 WebP；会居中裁剪并缩放为 512×512。',
     upload: '上传',
     remove: '移除',
   },

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 const props = withDefaults(defineProps<{
   src?: string | null
   name?: string | null
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
 }>(), { size: 'md' })
 
 const failed = ref(false)
@@ -18,7 +18,11 @@ const initial = computed(() => {
   return n ? n[0]!.toUpperCase() : '?'
 })
 
-const sizeClass = computed(() => (props.size === 'sm' ? 'size-6 text-xs' : 'size-10 text-base'))
+const sizeClass = computed(() => ({
+  sm: 'size-6 text-xs',
+  md: 'size-10 text-base',
+  lg: 'size-16 text-2xl',
+}[props.size]))
 </script>
 
 <template>
