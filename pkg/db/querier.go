@@ -186,6 +186,7 @@ type Querier interface {
 	SetForwardAuthConfig(ctx context.Context, arg SetForwardAuthConfigParams) error
 	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
+	SetOIDCClientLaunchURL(ctx context.Context, arg SetOIDCClientLaunchURLParams) error
 	SetSAMLSPAccessRestricted(ctx context.Context, arg SetSAMLSPAccessRestrictedParams) (SamlSp, error)
 	SetSAMLSPDisabled(ctx context.Context, arg SetSAMLSPDisabledParams) (SamlSp, error)
 	SetUpstreamIDPDisabled(ctx context.Context, arg SetUpstreamIDPDisabledParams) (UpstreamIdp, error)
