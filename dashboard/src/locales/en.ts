@@ -825,6 +825,19 @@ export default {
     group_slug_conflict: 'A group with that slug already exists.',
   },
 
+  myApps: {
+    title: 'My apps',
+    greeting: 'Welcome back, {name}',
+    empty: 'No apps yet',
+    emptyHelp: "When an admin grants you access to an app, it'll show up here.",
+    menu: 'App options',
+    revoke: 'Revoke access',
+    consentGranted: 'You have granted this app access',
+    revokeConfirmTitle: 'Revoke access?',
+    revokeConfirmBody: '{name} will ask for your consent again next time you sign in.',
+    type: { oidc: 'OIDC', forward_auth: 'Forward-auth', saml: 'SAML' },
+  },
+
   entityIcon: {
     title: 'Icon',
     hint: 'Shown on the launchpad and the sign-in buttons. A square PNG, JPEG, or WebP; centered and resized to 256×256.',
