@@ -22,6 +22,8 @@ const revokeTarget = ref<LaunchpadApp | null>(null)
 
 const firstName = computed(() => (auth.me?.displayName ?? '').split(' ')[0] || auth.me?.username || '')
 
+// Only OIDC apps can carry a consent record — forward-auth and SAML apps never
+// traverse the consent flow — so the `kind === 'oidc'` gate is intentional.
 function consentFor(app: LaunchpadApp): Consent | null {
   return app.kind === 'oidc' ? consents.value.get(app.id) ?? null : null
 }

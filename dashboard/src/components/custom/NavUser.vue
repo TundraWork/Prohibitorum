@@ -8,7 +8,7 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ChevronsUpDown, LogOut, Pencil } from 'lucide-vue-next'
+import { ChevronsUpDown, LogOut, Pencil, Settings, ShieldCheck } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -33,9 +33,11 @@ onUnmounted(() => { cancelPoll?.(); cancelPoll = null })
 // Open the dialog on the next tick so the menu finishes closing / restoring
 // focus to the trigger first - prevents Reka's lingering pointer-events:none.
 function openEdit(): void { void nextTick(() => { editOpen.value = true }) }
+function goSettings(): void { void router.push('/security') }
+function goAdmin(): void { void router.push('/admin/accounts') }
 function signOut(): void { void router.push('/logout') }
 
-defineExpose({ openEdit, signOut, editOpen })
+defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
 </script>
 
 <template>
@@ -89,6 +91,15 @@ defineExpose({ openEdit, signOut, editOpen })
           <DropdownMenuItem data-test="account-edit" @select="openEdit">
             <Pencil />
             <span>{{ t('accountMenu.editProfile') }}</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem data-test="account-settings" @select="goSettings">
+            <Settings />
+            <span>{{ t('nav.settings') }}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem v-if="auth.isAdmin" data-test="account-admin" @select="goAdmin">
+            <ShieldCheck />
+            <span>{{ t('nav.admin') }}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem data-test="account-signout" @select="signOut">

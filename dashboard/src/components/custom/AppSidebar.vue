@@ -60,13 +60,13 @@ const applicationItems = computed(() => [
 <template>
   <Sidebar>
     <SidebarHeader>
-      <div class="flex items-center gap-2.5 px-2 py-1.5">
+      <RouterLink to="/" class="flex items-center gap-2.5 px-2 py-1.5 hover:opacity-80 transition-opacity">
         <span class="inline-flex size-8 items-center justify-center overflow-hidden rounded-md bg-ember/12 text-ember ring-1 ring-inset ring-ember/15">
           <img v-if="branding.hasCustomIcon" :src="branding.iconSrc" :alt="branding.instanceName" class="size-full object-cover" />
           <ShieldCheck v-else class="size-5" aria-hidden="true" />
         </span>
         <span class="text-base font-semibold tracking-tight text-ink">{{ branding.instanceName }}</span>
-      </div>
+      </RouterLink>
     </SidebarHeader>
 
     <SidebarContent role="navigation" :aria-label="t('nav.primaryLabel')">
