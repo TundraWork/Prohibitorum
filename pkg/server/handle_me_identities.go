@@ -1,7 +1,7 @@
 // Package server — handle_me_identities.go
 //
 // /me/identities surface for managing federated identities bound to the
-// signed-in account (v0.3, Task 8):
+// signed-in account:
 //
 //	GET  /api/prohibitorum/me/identities                       — list rows
 //	POST /api/prohibitorum/me/identities/{id}/unlink           — sudo; delete row
@@ -131,7 +131,7 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 	// SELECT … FOR UPDATE on the account row up front. Two concurrent
 	// unlink requests against the same account_id serialize on this lock,
 	// so the second one sees the post-delete state and (correctly) rejects
-	// the now-last-method removal. Audited race: M3 in v0.3 audit.
+	// the now-last-method removal. Audited race: M3 in the federation audit.
 	//
 	// In tests, s.dbPool is nil and s.meIdentitiesQ() resolves to a fake
 	// that satisfies the surface without a real Postgres lock (we exercise

@@ -60,7 +60,7 @@ import (
 // BeginInviteRedemption would issue an upstream GET to
 // <issuer>/.well-known/openid-configuration — one request to us amplifies
 // into one request upstream, and steady-state federation latency carries an
-// extra round-trip. Spec D8 (v0.3 upstream OIDC federation design) accepts
+// extra round-trip. Spec D8 (upstream OIDC federation design) accepts
 // a fixed 15-minute window; if an admin edits client_id/scopes/issuer_url
 // without bumping key_version, the cache serves stale config until expiry.
 // Audit finding H2-sch.

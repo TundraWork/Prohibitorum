@@ -3,7 +3,7 @@
 // AES-256-GCM encryption for upstream_idp.client_secret_enc. AAD binds the
 // ciphertext to (idp_id, key_version) so copying a ciphertext between
 // upstream_idp rows fails decryption — defense against the row-swap class
-// of attacks documented in the v0.1 master spec.
+// of attacks documented in the master spec.
 //
 // Mirrors pkg/credential/totp/aead.go.
 

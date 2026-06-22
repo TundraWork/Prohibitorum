@@ -1,4 +1,4 @@
-// saml_mock.go — in-process mock SAML SP for the v0.5 smoke steps.
+// saml_mock.go — in-process mock SAML SP for the SAML smoke steps.
 //
 // The mock SP owns an RSA key + self-signed cert, generates its own
 // EntityDescriptor metadata (for `saml-sp create --metadata-file`), builds
@@ -54,7 +54,7 @@ const rsaSHA256SigAlgURI = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
 // LogoutRequest NameID.
 const persistentNameIDFormat11 = "urn:oasis:names:tc:SAML:1.1:nameid-format:persistent"
 
-// mockSP is an in-process SAML service provider used by the v0.5 smoke steps.
+// mockSP is an in-process SAML service provider used by the SAML smoke steps.
 type mockSP struct {
 	entityID string
 	acsURL   string
@@ -151,15 +151,15 @@ func (m *mockSP) metadataXML() ([]byte, error) {
 // destination is the IdP /saml/sso URL (pinned by the IdP's Destination check);
 // pass "" to omit Destination. Returns the request ID for replay/InResponseTo
 // assertions.
-// authnOpts carries the optional v0.6 AuthnRequest knobs (ForceAuthn, IsPassive,
-// NameIDPolicy/@Format). The zero value reproduces the v0.5 default request.
+// authnOpts carries the optional AuthnRequest knobs (ForceAuthn, IsPassive,
+// NameIDPolicy/@Format). The zero value reproduces the default request.
 type authnOpts struct {
 	forceAuthn   bool
 	isPassive    bool
 	nameIDFormat string // when non-empty, sets NameIDPolicy/@Format
 }
 
-// buildAuthnRequest constructs the crewjam AuthnRequest with the v0.6 options
+// buildAuthnRequest constructs the crewjam AuthnRequest with the optional knobs
 // applied. Shared by the redirect- and POST-binding builders.
 func (m *mockSP) buildAuthnRequest(requestID, destination, acsURL string, opts authnOpts) crewjam.AuthnRequest {
 	ar := crewjam.AuthnRequest{
@@ -191,7 +191,7 @@ func (m *mockSP) authnRequestRedirect(destination, acsURL string, sign bool) (qu
 	return m.authnRequestRedirectOpts(destination, acsURL, sign, authnOpts{})
 }
 
-// authnRequestRedirectOpts is authnRequestRedirect with the v0.6 option knobs.
+// authnRequestRedirectOpts is authnRequestRedirect with the optional knobs.
 func (m *mockSP) authnRequestRedirectOpts(destination, acsURL string, sign bool, opts authnOpts) (query, requestID string, err error) {
 	requestID, err = newMockSAMLID()
 	if err != nil {
@@ -599,7 +599,7 @@ func extractSAMLResponse(htmlBody string) ([]byte, error) {
 }
 
 // =========================================================================
-// v0.5 SAML smoke client helpers (live against the dev server)
+// SAML smoke client helpers (live against the dev server)
 // =========================================================================
 
 // fetchSAMLMetadata GETs the IdP's /saml/metadata document (root-mounted, no
@@ -762,7 +762,7 @@ func samlAttrNames(a *crewjam.Assertion) []string {
 }
 
 // =========================================================================
-// v0.5 SAML DB assertions (reusing the smoke's dbScalar pgx helper)
+// SAML DB assertions (reusing the smoke's dbScalar pgx helper)
 // =========================================================================
 
 // verifySAMLSubjectStable asserts there is EXACTLY one saml_subject_id row for
@@ -814,10 +814,10 @@ func verifySAMLSessionCount(accountID int32, minRows int) error {
 	return nil
 }
 
-// verifyV05SAMLAuditEvents asserts credential_event has lower-bound counts for
+// verifySAMLAuditEvents asserts credential_event has lower-bound counts for
 // the saml_sp factor: ≥1 use (sso) and ≥1 session_end (slo). The concrete reason
 // lives in detail->>'reason' ('sso' / 'slo').
-func verifyV05SAMLAuditEvents() error {
+func verifySAMLAuditEvents() error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
@@ -854,6 +854,6 @@ func verifyV05SAMLAuditEvents() error {
 				w.key, w.min, counts[w.key], counts)
 		}
 	}
-	log.Printf("  credential_event covers v0.5 SAML lifecycle (counts=%v)", counts)
+	log.Printf("  credential_event covers SAML lifecycle (counts=%v)", counts)
 	return nil
 }

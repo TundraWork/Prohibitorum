@@ -154,7 +154,7 @@ func (c *samlKeyCache) invalidate() {
 	c.mu.Unlock()
 }
 
-// parseRSAPrivatePEM is duplicated from the oidc package (per the v0.5 plan's
+// parseRSAPrivatePEM is duplicated from the oidc package (a deliberate
 // no-cross-package-coupling decision). It accepts PKCS#1 or PKCS#8 PEM.
 func parseRSAPrivatePEM(pemStr string) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(pemStr))

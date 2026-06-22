@@ -155,7 +155,7 @@ func (s *Store) Delete(ctx context.Context, accountID int32) error {
 // Eventually all active users succeed once, triggering the rehash, and
 // the variance disappears. Deployments that need strict equalization
 // across a params-upgrade window should run a one-shot rehash sweep over
-// password_credential rows; v0.2 does not ship that tool.
+// password_credential rows; no such tool ships yet.
 func (s *Store) VerifyAgainstDummy(_ context.Context, pw string) {
 	dummySalt := make([]byte, saltLength)
 	_ = argon2.IDKey(

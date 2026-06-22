@@ -930,7 +930,7 @@ func TestStore_VerifySuccessResetsThrottle(t *testing.T) {
 	}
 }
 
-// TestStore_VerifyFirstConfirmRollsBackOnMintFailure exercises the audit v0.2
+// TestStore_VerifyFirstConfirmRollsBackOnMintFailure exercises the audit
 // Medium #2 fix: ConfirmTOTPCredential + 10x InsertRecoveryCode must run in
 // a single transaction. A mid-loop insert failure must roll back the confirm,
 // leaving the row unconfirmed and zero recovery rows persisted. The next
@@ -1006,7 +1006,7 @@ func TestStore_VerifyFirstConfirmRollsBackOnMintFailure(t *testing.T) {
 }
 
 // TestStore_RegenerateRecoveryCodesRollsBackOnMintFailure exercises the same
-// audit v0.2 Medium #2 fix for the regenerate path. A mid-loop insert
+// audit Medium #2 fix for the regenerate path. A mid-loop insert
 // failure must roll back the delete, leaving the old codes intact.
 func TestStore_RegenerateRecoveryCodesRollsBackOnMintFailure(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0)
@@ -1048,7 +1048,7 @@ func TestStore_RegenerateRecoveryCodesRollsBackOnMintFailure(t *testing.T) {
 	}
 }
 
-// TestStore_RegenerateRecoveryCodesAuditsRevoke exercises the audit v0.2
+// TestStore_RegenerateRecoveryCodesAuditsRevoke exercises the audit
 // Medium #3 fix: the regenerate path must emit one recovery_code/revoke event
 // per deleted code AND one recovery_code/register event per new code, in
 // that order, so the audit trail is symmetric.
@@ -1106,7 +1106,7 @@ func TestStore_RegenerateRecoveryCodesAuditsRevoke(t *testing.T) {
 	}
 }
 
-// TestStore_BeginAuditsRevokeOfPriorMaterial exercises the audit v0.2 Medium
+// TestStore_BeginAuditsRevokeOfPriorMaterial exercises the audit Medium
 // #3 fix for the Begin re-enrollment path. When Begin wipes a confirmed TOTP
 // row and its recovery codes, it must emit one totp/revoke audit event for
 // the confirmed row plus one recovery_code/revoke per existing code.

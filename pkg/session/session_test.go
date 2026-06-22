@@ -15,7 +15,7 @@ import (
 
 // noopSessionQueries lets tests exercise the KV path without a live Postgres.
 // All methods succeed without persisting; the PG-session row's only consumer
-// is v0.4+ OIDC, which has no test coverage here yet.
+// is OIDC, which has no test coverage here yet.
 type noopSessionQueries struct{}
 
 func (noopSessionQueries) InsertSession(context.Context, db.InsertSessionParams) (db.Session, error) {

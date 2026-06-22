@@ -7,8 +7,8 @@
 //
 // Scope: TOTP-verify and recovery-code-verify success paths, the
 // partial-session-token-missing 401, and the consume-on-failure
-// guarantee. The /auth/password/begin handler is covered by the v0.2
-// smoke test because step 1 reaches into *db.Queries directly and
+// guarantee. The /auth/password/begin handler is covered by the
+// smoke test because it reaches into *db.Queries directly and
 // stubbing the sqlc-generated concrete type from here would require
 // invasive refactoring of unrelated handlers.
 
@@ -788,4 +788,3 @@ func equalAmr(a, b []string) bool {
 	}
 	return true
 }
-

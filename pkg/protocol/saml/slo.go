@@ -45,7 +45,7 @@ var ErrSLOExpired = errors.New("saml: LogoutRequest has expired (NotOnOrAfter)")
 //
 // SCOPE: IdP-LOCAL only. We revoke the IdP session bound to this SP+NameID and
 // delete the saml_session rows; we do NOT front-channel propagate the logout to
-// other SPs that may share the same IdP session (deferred past v0.5).
+// other SPs that may share the same IdP session (deferred).
 func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

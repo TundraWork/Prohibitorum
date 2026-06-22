@@ -1,6 +1,6 @@
 // Package server — handle_invite_federation.go
 //
-// Public HTTP entrypoint for the invite_only federation flow (v0.3, stage 2
+// Public HTTP entrypoint for the invite_only federation flow (stage 2
 // of the invite_only chunk).
 //
 //	GET /api/prohibitorum/enrollments/{token}/start-federation?return_to=…

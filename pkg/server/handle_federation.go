@@ -1,6 +1,6 @@
 // Package server — handle_federation.go
 //
-// Public HTTP entrypoints for upstream OIDC federation login (v0.3, Task 7).
+// Public HTTP entrypoints for upstream OIDC federation login.
 //
 //	GET /api/prohibitorum/auth/federation/{slug}/login?return_to=…
 //	    → 302 to the upstream OP's /authorize URL.
@@ -169,7 +169,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	if len(amr) == 0 {
 		amr = []string{"federated"}
 	}
-	// H1-sch: stamp the upstream IdP onto the session row so v0.4 OIDC OP can
+	// H1-sch: stamp the upstream IdP onto the session row so the OIDC OP can
 	// surface a "federated" discriminator in downstream id_token claims.
 	idpID := result.IDPID
 	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, ua, amr, &idpID)

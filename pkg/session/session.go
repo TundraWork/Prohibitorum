@@ -48,7 +48,7 @@ type SessionStore struct {
 // Sessions refresh themselves on Load when remaining time < ttl/4.
 //
 // q persists the immutable authentication facts (auth_time, amr, acr) per
-// session ID so v0.4+ OIDC ID tokens can carry sid/amr/acr claims and v0.5+
+// session ID so OIDC ID tokens can carry sid/amr/acr claims, and
 // SAML SLO can enumerate active SP sessions.
 func NewSessionStore(store kv.Store, q SessionQueries, ttl time.Duration) *SessionStore {
 	return &SessionStore{kv: store, q: q, ttl: ttl, refresh: ttl / 4}
@@ -110,12 +110,12 @@ func sessionKeyHashed(accountID int32, hashed string) string {
 //
 // amr must list the RFC 8176 method values that produced this session:
 //   - WebAuthn login or registration → ["hwk"]
-//   - Password + TOTP (v0.2) → ["pwd","otp","mfa"]
-//   - Upstream OIDC federation (v0.3) → ["federated"]
+//   - Password + TOTP → ["pwd","otp","mfa"]
+//   - Upstream OIDC federation → ["federated"]
 //
 // upstreamIDPID is non-nil only for sessions established by upstream OIDC
 // federation; it identifies the upstream_idp row whose IdP authenticated the
-// account. v0.4 OIDC OP work surfaces this as a "federated" discriminator in
+// account. The OIDC OP surfaces this as a "federated" discriminator in
 // downstream id_token claims. Local-auth callers pass nil.
 //
 // If the PG insert fails, the KV entry is rolled back so the two stores stay

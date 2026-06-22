@@ -614,7 +614,7 @@ func TestFederationCallback_HappyPath(t *testing.T) {
 }
 
 // TestFederationCallback_PersistsUpstreamIdpID guards H1-sch: the federation
-// callback must stamp the upstream IdP's id onto the session row so v0.4 OIDC
+// callback must stamp the upstream IdP's id onto the session row so the OIDC
 // OP can later surface a "federated" discriminator in id_token claims.
 func TestFederationCallback_PersistsUpstreamIdpID(t *testing.T) {
 	h := newFederationTestServer(t)

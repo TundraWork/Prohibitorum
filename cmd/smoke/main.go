@@ -2,14 +2,14 @@
 // running dev server using an in-process virtual WebAuthn authenticator plus
 // an RFC 6238 TOTP code generator. No browser required.
 //
-// v0.1.1 covered the WebAuthn ceremony, session table writes, and
-// multi-credential management. v0.2 extends the script with the
+// It exercises the WebAuthn ceremony, session table writes, and
+// multi-credential management, plus the
 // password + TOTP + recovery-code surface, sudo step-up via all three
 // methods, throttle observation, and the destructive
 // /me/auth/revoke-password-totp endpoint. Per
-// feedback_always_verify_fixes.md, this binary IS the v0.2 verification
-// gate — every endpoint mounted in pkg/server.registerOperations under
-// v0.2 must be exercised against the live DB before the version can be
+// feedback_always_verify_fixes.md, this binary IS the verification
+// gate — every endpoint mounted in pkg/server.registerOperations
+// must be exercised against the live DB before a change can be
 // considered done.
 //
 // Failure at any step prints a diagnostic and exits non-zero.
@@ -57,6 +57,19 @@ import (
 	fedoidc "prohibitorum/pkg/federation/oidc"
 )
 
+// Per-group step totals for the progress headers. Each arc numbers its own
+// steps locally (e.g. "oidc 1/18"); a local denominator stays correct when a
+// later arc is added, unlike a single global counter.
+const (
+	nCore       = 51
+	nFederation = 26
+	nOIDC       = 18
+	nSAML       = 12
+	nHardening  = 12
+	nConsent    = 2
+	nAdmin      = 8
+)
+
 func main() {
 	var (
 		baseURL  = flag.String("base-url", "http://localhost:8080", "Prohibitorum server base URL")
@@ -68,8 +81,8 @@ func main() {
 
 	log.SetFlags(0)
 
-	// v0.3 federation: bring up an in-process mock OIDC OP for use by the
-	// federation steps appended after the v0.2 surface. Started early so a
+	// federation: bring up an in-process mock OIDC OP for use by the
+	// federation steps appended after the core surface. Started early so a
 	// failed bind surfaces before any DB writes.
 	opSrv, err := mockop.New("")
 	if err != nil {
@@ -85,21 +98,21 @@ func main() {
 		log.Fatalf("smoke: %v", err)
 	}
 
-	step("step 1/45 — minting enrollment URL via enroll-admin")
+	step(fmt.Sprintf("core %d/%d — minting enrollment URL via enroll-admin", 1, nCore))
 	token, err := mintEnrollmentToken(*baseURL, *skipNew)
 	if err != nil {
 		log.Fatalf("enroll-admin: %v", err)
 	}
 	log.Printf("  token: %s…", token[:12])
 
-	step("step 2/45 — POST /enrollments/{token}/register/begin")
+	step(fmt.Sprintf("core %d/%d — POST /enrollments/{token}/register/begin", 2, nCore))
 	creation, err := c.beginEnrollment(token, *username, *display, "smoke-laptop")
 	if err != nil {
 		log.Fatalf("register/begin: %v", err)
 	}
 	log.Printf("  challenge len=%d rpId=%s userId len=%d", len(creation.Challenge), creation.RP.ID, len(creation.User.ID))
 
-	step("step 3/45 — building virtual authenticator credential")
+	step(fmt.Sprintf("core %d/%d — building virtual authenticator credential", 3, nCore))
 	auth, err := newAuthenticator(creation.RP.ID)
 	if err != nil {
 		log.Fatalf("authenticator: %v", err)
@@ -110,13 +123,13 @@ func main() {
 	}
 	log.Printf("  credentialId len=%d cose_alg=-7 (ES256)", len(auth.credentialID))
 
-	step("step 4/45 — POST /enrollments/{token}/register/complete")
+	step(fmt.Sprintf("core %d/%d — POST /enrollments/{token}/register/complete", 4, nCore))
 	if err := c.completeEnrollment(token, auth, attestation); err != nil {
 		log.Fatalf("register/complete: %v", err)
 	}
 	log.Printf("  session cookie set (have %d cookies)", len(c.cookies()))
 
-	step("step 5/45 — GET /me")
+	step(fmt.Sprintf("core %d/%d — GET /me", 5, nCore))
 	me1, err := c.getMe()
 	if err != nil {
 		log.Fatalf("get me: %v", err)
@@ -128,7 +141,7 @@ func main() {
 
 	// --- SPA shell routes: the new dashboard paths must serve index.html
 	// (id="app") via the NotFound fallback, not be shadowed by a backend route. ---
-	step("step 5b/45 — SPA shell served for dashboard routes")
+	step(fmt.Sprintf("core %d/%d — SPA shell served for dashboard routes", 6, nCore))
 	for _, p := range []string{"/", "/sessions", "/credentials", "/admin/accounts", "/enroll/" + token} {
 		resp, err := http.Get(*baseURL + p)
 		if err != nil {
@@ -145,7 +158,7 @@ func main() {
 	}
 	log.Printf("  /, /sessions, /credentials, /admin/accounts, /enroll/<token> all serve the SPA shell ✓")
 
-	step("step 6/45 — POST /auth/logout")
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout", 7, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout: %v", err)
 	}
@@ -154,27 +167,27 @@ func main() {
 	}
 	log.Printf("  session revoked; /me returns 401 as expected")
 
-	step("step 7/45 — POST /auth/login/begin")
+	step(fmt.Sprintf("core %d/%d — POST /auth/login/begin", 8, nCore))
 	assertion, err := c.beginLogin()
 	if err != nil {
 		log.Fatalf("login/begin: %v", err)
 	}
 	log.Printf("  challenge len=%d rpId=%s", len(assertion.Challenge), assertion.RPID)
 
-	step("step 8/45 — signing assertion with virtual authenticator")
+	step(fmt.Sprintf("core %d/%d — signing assertion with virtual authenticator", 9, nCore))
 	signed, err := auth.signAssertion(assertion.Challenge, *baseURL)
 	if err != nil {
 		log.Fatalf("sign assertion: %v", err)
 	}
 	log.Printf("  signature len=%d (ASN.1 DER)", len(signed.signature))
 
-	step("step 9/45 — POST /auth/login/complete")
+	step(fmt.Sprintf("core %d/%d — POST /auth/login/complete", 10, nCore))
 	if err := c.completeLogin(auth, signed); err != nil {
 		log.Fatalf("login/complete: %v", err)
 	}
 	log.Printf("  session cookie restored")
 
-	step("step 10/45 — GET /me (post-login)")
+	step(fmt.Sprintf("core %d/%d — GET /me (post-login)", 11, nCore))
 	me2, err := c.getMe()
 	if err != nil {
 		log.Fatalf("get me (post-login): %v", err)
@@ -189,7 +202,7 @@ func main() {
 
 	// --- Phase 2: RevokeBySessionID + add-second-credential coverage ---
 
-	step("step 11/45 — second client B begins login with the same authenticator")
+	step(fmt.Sprintf("core %d/%d — second client B begins login with the same authenticator", 12, nCore))
 	cB, err := newClient(*baseURL)
 	if err != nil {
 		log.Fatalf("client B: %v", err)
@@ -203,7 +216,7 @@ func main() {
 		log.Fatalf("B sign: %v", err)
 	}
 
-	step("step 12/45 — B completes login; both A and B now hold sessions")
+	step(fmt.Sprintf("core %d/%d — B completes login; both A and B now hold sessions", 13, nCore))
 	if err := cB.completeLogin(auth, signedB); err != nil {
 		log.Fatalf("B login/complete: %v", err)
 	}
@@ -216,7 +229,7 @@ func main() {
 	}
 	log.Printf("  B logged in as id=%d (same account as A)", meB.ID)
 
-	step("step 13/45 — A lists /me/sessions; expect 2 (current + B's)")
+	step(fmt.Sprintf("core %d/%d — A lists /me/sessions; expect 2 (current + B's)", 14, nCore))
 	sessions, err := c.listMySessions()
 	if err != nil {
 		log.Fatalf("list sessions: %v", err)
@@ -235,19 +248,19 @@ func main() {
 	}
 	log.Printf("  found B's session id=%s", otherID)
 
-	step("step 14/45 — A revokes B's session via /me/sessions/revoke")
+	step(fmt.Sprintf("core %d/%d — A revokes B's session via /me/sessions/revoke", 15, nCore))
 	if err := c.revokeSession(otherID); err != nil {
 		log.Fatalf("revoke session: %v", err)
 	}
 	log.Printf("  revoke succeeded")
 
-	step("step 15/45 — B's /me should now return 401")
+	step(fmt.Sprintf("core %d/%d — B's /me should now return 401", 16, nCore))
 	if _, err := cB.getMe(); err == nil {
 		log.Fatalf("B /me succeeded after revocation; expected 401")
 	}
 	log.Printf("  B is denied, RevokeBySessionID confirmed")
 
-	step("step 16/45 — A adds a second passkey via /me/credentials/register/{begin,complete}")
+	step(fmt.Sprintf("core %d/%d — A adds a second passkey via /me/credentials/register/{begin,complete}", 17, nCore))
 	// Adding a passkey is fresh-sudo gated; prime the sudo window first —
 	// /register/begin consumes a slot within the window, /complete then
 	// rides the ceremony stash. Without this the begin returns 401 sudo_required.
@@ -271,7 +284,7 @@ func main() {
 	}
 	log.Printf("  second credential registered (advertises ES256 -7)")
 
-	step("step 17/45 — A lists /me/credentials; expect 2")
+	step(fmt.Sprintf("core %d/%d — A lists /me/credentials; expect 2", 18, nCore))
 	creds, err := c.listMyCredentials()
 	if err != nil {
 		log.Fatalf("list credentials: %v", err)
@@ -289,34 +302,33 @@ func main() {
 	}
 
 	// =========================================================================
-	// v0.2 surface: password + TOTP + recovery codes + sudo (3 methods) +
-	// throttle observation + destructive revoke. Per Task 8 of the v0.2 plan;
-	// see docs/v0.2-spec.md "cmd/smoke v0.2 extension".
+	// core surface: password + TOTP + recovery codes + sudo (3 methods) +
+	// throttle observation + destructive revoke.
 	//
-	// Pre-condition: A is logged in with a fresh WebAuthn session (step 9).
+	// Pre-condition: A is logged in with a fresh WebAuthn session (core 10).
 	// =========================================================================
 
-	const password = "smoke-pw-v0.2-correct-horse-battery-staple"
+	const password = "smoke-pw-correct-horse-battery-staple"
 
-	step("step 18/45 — sudo via webauthn (prime SudoUntil for /me/password/set)")
+	step(fmt.Sprintf("core %d/%d — sudo via webauthn (prime SudoUntil for /me/password/set)", 19, nCore))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("sudo webauthn (pre password/set): %v", err)
 	}
 	log.Printf("  sudo grant acquired (webauthn)")
 
-	step("step 19/45 — POST /me/password/set")
+	step(fmt.Sprintf("core %d/%d — POST /me/password/set", 20, nCore))
 	if err := c.postJSON("/api/prohibitorum/me/password/set",
 		map[string]string{"password": password}, nil); err != nil {
 		log.Fatalf("password/set: %v", err)
 	}
 	log.Printf("  password set (204)")
 
-	step("step 20/45 — DB assert: password_credential row exists w/ argon2id hash")
+	step(fmt.Sprintf("core %d/%d — DB assert: password_credential row exists w/ argon2id hash", 21, nCore))
 	if err := verifyPasswordCredential(me2.ID); err != nil {
 		log.Fatalf("password DB assert: %v", err)
 	}
 
-	step("step 21/45 — POST /me/totp/begin (first enrollment; no sudo required)")
+	step(fmt.Sprintf("core %d/%d — POST /me/totp/begin (first enrollment; no sudo required)", 22, nCore))
 	var totpBegin struct {
 		SecretBase32 string `json:"secret_base32"`
 		OtpauthURI   string `json:"otpauth_uri"`
@@ -332,7 +344,7 @@ func main() {
 	}
 	log.Printf("  secret len=%d otpauth=%.40s…", len(secret), totpBegin.OtpauthURI)
 
-	step("step 22/45 — POST /me/totp/verify {current code}")
+	step(fmt.Sprintf("core %d/%d — POST /me/totp/verify {current code}", 23, nCore))
 	totpStep := time.Now().Unix() / 30
 	code := totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6)
 	var totpVerify struct {
@@ -348,26 +360,26 @@ func main() {
 	recoveryCodes := totpVerify.RecoveryCodes
 	log.Printf("  totp confirmed; %d recovery codes minted (step=%d)", len(recoveryCodes), totpStep)
 
-	step("step 23/45 — DB assert: totp_credential.confirmed_at IS NOT NULL + 10 recovery rows")
+	step(fmt.Sprintf("core %d/%d — DB assert: totp_credential.confirmed_at IS NOT NULL + 10 recovery rows", 24, nCore))
 	if err := verifyTOTPConfirmed(me2.ID); err != nil {
 		log.Fatalf("totp DB assert: %v", err)
 	}
 
-	step("step 24/45 — POST /auth/logout (drop A's webauthn session)")
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop A's webauthn session)", 25, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout pre-password-login: %v", err)
 	}
 	log.Printf("  logged out")
 
-	step("step 25/45 — POST /auth/password/begin {username, password}")
+	step(fmt.Sprintf("core %d/%d — POST /auth/password/begin {username, password}", 26, nCore))
 	partialToken, err := c.passwordBegin(*username, password)
 	if err != nil {
 		log.Fatalf("password/begin: %v", err)
 	}
 	log.Printf("  partial_session_token len=%d", len(partialToken))
 
-	step("step 26/45 — POST /auth/totp/verify {partial_session_token, current code}")
-	// RFC 6238 §5.2 replay protection: last_step from step 22 is still set, so
+	step(fmt.Sprintf("core %d/%d — POST /auth/totp/verify {partial_session_token, current code}", 27, nCore))
+	// RFC 6238 §5.2 replay protection: last_step from the earlier TOTP verify is still set, so
 	// wait across the period boundary before the next successful TOTP verify.
 	totpStep = waitForNextTOTPStep(totpStep)
 	totpCode := totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6)
@@ -376,7 +388,7 @@ func main() {
 	}
 	log.Printf("  session cookie issued via password+TOTP (step=%d)", totpStep)
 
-	step("step 27/45 — GET /me round-trips post-password+TOTP login")
+	step(fmt.Sprintf("core %d/%d — GET /me round-trips post-password+TOTP login", 28, nCore))
 	mePT, err := c.getMe()
 	if err != nil {
 		log.Fatalf("GET /me post-pwd+totp: %v", err)
@@ -386,7 +398,7 @@ func main() {
 	}
 	log.Printf("  /me id=%d (same account)", mePT.ID)
 
-	step("step 28/45 — POST /auth/logout (drop pwd+totp session)")
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop pwd+totp session)", 29, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout pre-recovery-ceremony: %v", err)
 	}
@@ -396,16 +408,16 @@ func main() {
 	// recovery_session_token that the user must redeem at
 	// /auth/recovery/totp/{begin,verify} to enroll a fresh TOTP and regain
 	// account access. recovery_code is no longer a sudo method (former
-	// step 39/40 dropped); the user re-proves possession of TOTP every time.
+	// these steps were dropped); the user re-proves possession of TOTP every time.
 
-	step("step 29/45 — POST /auth/password/begin (fresh partial token for recovery ceremony)")
+	step(fmt.Sprintf("core %d/%d — POST /auth/password/begin (fresh partial token for recovery ceremony)", 30, nCore))
 	partialToken2, err := c.passwordBegin(*username, password)
 	if err != nil {
 		log.Fatalf("password/begin 2: %v", err)
 	}
 	log.Printf("  partial_session_token len=%d", len(partialToken2))
 
-	step("step 30/45 — POST /auth/recovery-code/verify {recovery_codes[0]} → recovery_session_token")
+	step(fmt.Sprintf("core %d/%d — POST /auth/recovery-code/verify {recovery_codes[0]} → recovery_session_token", 31, nCore))
 	recoveryToken, err := c.recoveryCodeVerify(partialToken2, recoveryCodes[0])
 	if err != nil {
 		log.Fatalf("auth/recovery-code/verify: %v", err)
@@ -415,12 +427,12 @@ func main() {
 	}
 	log.Printf("  recovery_session_token len=%d (no session cookie yet)", len(recoveryToken))
 
-	step("step 31/45 — DB assert: recovery_codes[0].used_at IS NOT NULL (consumed by redeem)")
+	step(fmt.Sprintf("core %d/%d — DB assert: recovery_codes[0].used_at IS NOT NULL (consumed by redeem)", 32, nCore))
 	if err := verifyRecoveryCodeUsed(me2.ID, 1, 0); err != nil {
 		log.Fatalf("recovery code used_at DB assert: %v", err)
 	}
 
-	step("step 32a/45 — POST /auth/recovery/totp/begin {recovery_session_token}")
+	step(fmt.Sprintf("core %d/%d — POST /auth/recovery/totp/begin {recovery_session_token}", 33, nCore))
 	var recoveryBegin struct {
 		SecretBase32 string `json:"secret_base32"`
 		OtpauthURI   string `json:"otpauth_uri"`
@@ -436,12 +448,12 @@ func main() {
 	}
 	log.Printf("  new TOTP secret minted (len=%d); old TOTP wiped, recovery codes preserved", len(newSecret))
 
-	step("step 32b/45 — DB assert: TOTP unconfirmed; 9 recovery codes still present")
+	step(fmt.Sprintf("core %d/%d — DB assert: TOTP unconfirmed; 9 recovery codes still present", 34, nCore))
 	if err := verifyTOTPUnconfirmedAndRecoveryCount(me2.ID, 9); err != nil {
 		log.Fatalf("post-recovery-begin DB assert: %v", err)
 	}
 
-	step("step 32c/45 — wait next TOTP step + POST /auth/recovery/totp/verify {token, code}")
+	step(fmt.Sprintf("core %d/%d — wait next TOTP step + POST /auth/recovery/totp/verify {token, code}", 35, nCore))
 	totpStep = waitForNextTOTPStep(totpStep)
 	newCode := totppkg.ComputeCodeForTesting(newSecret, time.Now().Unix(), 6)
 	var recoveryVerify struct {
@@ -463,12 +475,12 @@ func main() {
 	recoveryCodes = recoveryVerify.RecoveryCodes
 	log.Printf("  session cookie issued; 10 fresh recovery codes minted (old 9 wiped)")
 
-	step("step 32d/45 — DB assert: new TOTP confirmed; exactly 10 recovery codes")
+	step(fmt.Sprintf("core %d/%d — DB assert: new TOTP confirmed; exactly 10 recovery codes", 36, nCore))
 	if err := verifyTOTPConfirmed(me2.ID); err != nil {
 		log.Fatalf("post-recovery-verify DB assert: %v", err)
 	}
 
-	step("step 32e/45 — GET /me round-trips post-recovery-ceremony")
+	step(fmt.Sprintf("core %d/%d — GET /me round-trips post-recovery-ceremony", 37, nCore))
 	mePT2, err := c.getMe()
 	if err != nil {
 		log.Fatalf("GET /me post-recovery: %v", err)
@@ -478,12 +490,12 @@ func main() {
 	}
 	log.Printf("  /me id=%d (account intact post-recovery)", mePT2.ID)
 
-	step("step 32f/45 — POST /auth/logout (drop recovery-ceremony session)")
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop recovery-ceremony session)", 38, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout post-recovery: %v", err)
 	}
 
-	step("step 33/45 — re-login via webauthn for the throttle observation phase")
+	step(fmt.Sprintf("core %d/%d — re-login via webauthn for the throttle observation phase", 39, nCore))
 	relogin, err := c.beginLogin()
 	if err != nil {
 		log.Fatalf("relogin/begin: %v", err)
@@ -497,7 +509,7 @@ func main() {
 	}
 	log.Printf("  webauthn session restored for sudo-throttle observation")
 
-	step("step 34/45 — drive wrong TOTP codes via /me/sudo password_totp until 429")
+	step(fmt.Sprintf("core %d/%d — drive wrong TOTP codes via /me/sudo password_totp until 429", 40, nCore))
 	attempts, retryAfter, err := driveTOTPLockout(c, password)
 	if err != nil {
 		log.Fatalf("drive totp lockout: %v", err)
@@ -505,12 +517,12 @@ func main() {
 	log.Printf("  observed 429 after %d wrong attempts; Retry-After=%s",
 		attempts, retryAfter)
 
-	step("step 35/45 — DB assert: auth_throttle row for (account, 'totp') failed_attempts>=3, locked")
+	step(fmt.Sprintf("core %d/%d — DB assert: auth_throttle row for (account, 'totp') failed_attempts>=3, locked", 41, nCore))
 	if err := verifyThrottleLocked(me2.ID, "totp"); err != nil {
 		log.Fatalf("throttle DB assert: %v", err)
 	}
 
-	step("step 36/45 — HARNESS ONLY: DELETE auth_throttle row + fresh login to reset per-session sudo rate limit")
+	step(fmt.Sprintf("core %d/%d — HARNESS ONLY: DELETE auth_throttle row + fresh login to reset per-session sudo rate limit", 42, nCore))
 	if err := resetThrottle(me2.ID, "totp"); err != nil {
 		log.Fatalf("reset throttle: %v", err)
 	}
@@ -533,8 +545,8 @@ func main() {
 	}
 	log.Printf("  auth_throttle reset + fresh webauthn session (sudo budget reset)")
 
-	step("step 37/45 — sudo via password_totp (/me/sudo/begin + /me/sudo/complete)")
-	// Wait past the period boundary from step 26's successful verify so the
+	step(fmt.Sprintf("core %d/%d — sudo via password_totp (/me/sudo/begin + /me/sudo/complete)", 43, nCore))
+	// Wait past the period boundary from the earlier successful TOTP verify so the
 	// next code we send hasn't been seen by last_step.
 	totpStep = waitForNextTOTPStep(totpStep)
 	if err := sudoPasswordTOTP(c, password, secret); err != nil {
@@ -542,7 +554,7 @@ func main() {
 	}
 	log.Printf("  sudo grant acquired (password_totp; step=%d)", totpStep)
 
-	step("step 38/45 — POST /me/recovery-codes/regenerate (consumes sudo, mints fresh codes)")
+	step(fmt.Sprintf("core %d/%d — POST /me/recovery-codes/regenerate (consumes sudo, mints fresh codes)", 44, nCore))
 	var regen struct {
 		RecoveryCodes []string `json:"recovery_codes"`
 	}
@@ -556,37 +568,37 @@ func main() {
 	recoveryCodes = regen.RecoveryCodes
 	log.Printf("  regenerated %d recovery codes (old set invalidated)", len(recoveryCodes))
 
-	step("step 39/45 — POST /me/sudo/methods (recovery_code must NOT appear post-hardening)")
+	step(fmt.Sprintf("core %d/%d — POST /me/sudo/methods (recovery_code must NOT appear post-hardening)", 45, nCore))
 	if err := verifySudoMethodsNoRecoveryCode(c); err != nil {
 		log.Fatalf("sudo methods invariant: %v", err)
 	}
 	log.Printf("  /me/sudo/methods correctly omits recovery_code")
 
-	step("step 40/45 — POST /me/sudo/begin {method:recovery_code} must 400 sudo_method_unavailable")
+	step(fmt.Sprintf("core %d/%d — POST /me/sudo/begin {method:recovery_code} must 400 sudo_method_unavailable", 46, nCore))
 	if err := verifySudoBeginRejectsRecoveryCode(c); err != nil {
 		log.Fatalf("sudo begin recovery_code rejection: %v", err)
 	}
 	log.Printf("  /me/sudo/begin rejects recovery_code with sudo_method_unavailable")
 
-	step("step 41/45 — sudo via webauthn (priming the destructive revoke)")
+	step(fmt.Sprintf("core %d/%d — sudo via webauthn (priming the destructive revoke)", 47, nCore))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("sudo webauthn (pre revoke): %v", err)
 	}
 	log.Printf("  sudo grant acquired (webauthn)")
 
-	step("step 42/45 — POST /me/auth/revoke-password-totp (destructive)")
+	step(fmt.Sprintf("core %d/%d — POST /me/auth/revoke-password-totp (destructive)", 48, nCore))
 	if err := c.postJSON("/api/prohibitorum/me/auth/revoke-password-totp",
 		map[string]any{}, nil); err != nil {
 		log.Fatalf("revoke-password-totp: %v", err)
 	}
 	log.Printf("  fallback factors revoked (204)")
 
-	step("step 43/45 — DB assert: password_credential / totp_credential / recovery_code all empty")
+	step(fmt.Sprintf("core %d/%d — DB assert: password_credential / totp_credential / recovery_code all empty", 49, nCore))
 	if err := verifyFactorsEmpty(me2.ID); err != nil {
 		log.Fatalf("post-revoke DB assert: %v", err)
 	}
 
-	step("step 44/45 — logout then POST /auth/password/begin must now 401")
+	step(fmt.Sprintf("core %d/%d — logout then POST /auth/password/begin must now 401", 50, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout post-revoke: %v", err)
 	}
@@ -595,28 +607,20 @@ func main() {
 	}
 	log.Printf("  /auth/password/begin returns 401 as expected")
 
-	step("step 45/45 — DB assert: credential_event covers v0.2 lifecycle")
-	if err := verifyV02AuditEvents(me2.ID); err != nil {
+	step(fmt.Sprintf("core %d/%d — DB assert: credential_event covers the credential lifecycle", 51, nCore))
+	if err := verifyCoreAuditEvents(me2.ID); err != nil {
 		log.Fatalf("audit DB assert: %v", err)
 	}
 
 	// =========================================================================
-	// v0.3 surface: upstream OIDC federation — login + callback drive against an
+	// federation surface: upstream OIDC federation — login + callback drive against an
 	// in-process mock OP, then negative paths (email_not_verified,
 	// username_collision, invalid_return_to, upstream_error), link_only mode,
-	// self-service link from the smoke-admin session, and unlink. Per Task 10
-	// of the v0.3 plan. The mock OP is the one started at main() entry.
+	// self-service link from the smoke-admin session, and unlink. The mock
+	// OP is the one started at main() entry.
 	// =========================================================================
 
-	// v0.3 numbering: 24 federation steps appended after the v0.2 block
-	// (steps 1–45). Existing v0.2 step labels keep their "/45" denominator
-	// to avoid a diff on every existing line. Steps 46–64 cover
-	// auto_provision + link_only + self-service link/unlink; steps 65–68
-	// cover invite_only (token-bearing redemption + consumed + expired
-	// negatives); step 69 is the final audit-table lower-bound assert.
-	const totalV03 = 69
-
-	step(fmt.Sprintf("step 46/%d — seed upstream_idp 'mockop' (auto_provision)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — seed upstream_idp 'mockop' (auto_provision)", 1, nFederation))
 	dek := loadDEK()
 	mockopIDPID, err := seedUpstreamIDP(dek, "mockop", "Mock OP", opTS.URL,
 		"test-client", "test-client-secret", "auto_provision",
@@ -626,7 +630,7 @@ func main() {
 	}
 	log.Printf("  upstream_idp id=%d slug=mockop issuer=%s", mockopIDPID, opTS.URL)
 
-	step(fmt.Sprintf("step 47/%d — happy-path /login → upstream /authorize", totalV03))
+	step(fmt.Sprintf("federation %d/%d — happy-path /login → upstream /authorize", 2, nFederation))
 	opSrv.SetClaims("ext-user-1", "ext@example.com", true, "extuser", "Ext User")
 	extClient, err := newFederationClient(*baseURL)
 	if err != nil {
@@ -641,7 +645,7 @@ func main() {
 	}
 	log.Printf("  302 to upstream /authorize (len=%d)", len(authorizeURL))
 
-	step(fmt.Sprintf("step 48/%d — follow /authorize → /callback (code+state+iss)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — follow /authorize → /callback (code+state+iss)", 3, nFederation))
 	callbackURL, err := followMockOPAuthorize(authorizeURL)
 	if err != nil {
 		log.Fatalf("mock OP /authorize: %v", err)
@@ -651,7 +655,7 @@ func main() {
 	}
 	log.Printf("  302 to RP /callback (with code, state, iss)")
 
-	step(fmt.Sprintf("step 49/%d — RP /callback (first login) → 302 /welcome, NO session", totalV03))
+	step(fmt.Sprintf("federation %d/%d — RP /callback (first login) → 302 /welcome, NO session", 4, nFederation))
 	// First-time federated identity is UNCONFIRMED: the callback withholds the
 	// durable session and parks the browser on /welcome with a fed-state
 	// confirmation-grant cookie. There must be no session yet.
@@ -665,7 +669,7 @@ func main() {
 	}
 	log.Printf("  302 to /welcome; no session cookie yet (post-callback /me 401) ✓")
 
-	step(fmt.Sprintf("step 49b/%d — GET /auth/federation/confirm → pending identity (grant-scoped)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — GET /auth/federation/confirm → pending identity (grant-scoped)", 5, nFederation))
 	view, err := extClient.confirmGet()
 	if err != nil {
 		log.Fatalf("federation/confirm GET: %v", err)
@@ -679,7 +683,7 @@ func main() {
 	log.Printf("  confirm GET: idp=%q username=%s displayName=%s avatarPending=%v ✓",
 		view.IDPDisplayName, view.Username, view.DisplayName, view.AvatarPending)
 
-	step(fmt.Sprintf("step 49c/%d — POST /auth/federation/confirm → {redirect:/me} + session", totalV03))
+	step(fmt.Sprintf("federation %d/%d — POST /auth/federation/confirm → {redirect:/me} + session", 6, nFederation))
 	if redirect, err := extClient.confirmPost(); err != nil {
 		log.Fatalf("federation/confirm POST: %v", err)
 	} else if redirect != "/me" {
@@ -693,7 +697,7 @@ func main() {
 	}
 	log.Printf("  confirm POST → /me; session cookie issued (verified via /me) ✓")
 
-	step(fmt.Sprintf("step 50/%d — GET /me as federated user", totalV03))
+	step(fmt.Sprintf("federation %d/%d — GET /me as federated user", 7, nFederation))
 	extMe, err := extClient.getMe()
 	if err != nil {
 		log.Fatalf("federated /me: %v", err)
@@ -706,12 +710,12 @@ func main() {
 	}
 	log.Printf("  /me id=%d username=%s displayName=%s", extMe.ID, extMe.Username, extMe.DisplayName)
 
-	step(fmt.Sprintf("step 51/%d — DB assert: account_identity + credential_event for ext-user-1", totalV03))
+	step(fmt.Sprintf("federation %d/%d — DB assert: account_identity + credential_event for ext-user-1", 8, nFederation))
 	if err := verifyFederatedIdentityCreated(extMe.ID, "ext-user-1", mockopIDPID); err != nil {
 		log.Fatalf("identity DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("step 52/%d — claim sync on re-login (display_name drift)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — claim sync on re-login (display_name drift)", 9, nFederation))
 	if err := extClient.logout(); err != nil {
 		log.Fatalf("ext logout pre-resync: %v", err)
 	}
@@ -729,7 +733,7 @@ func main() {
 	}
 	log.Printf("  /me.displayName = %q (synced from upstream)", extMe2.DisplayName)
 
-	step(fmt.Sprintf("step 53/%d — negative: email_not_verified", totalV03))
+	step(fmt.Sprintf("federation %d/%d — negative: email_not_verified", 10, nFederation))
 	if err := extClient.logout(); err != nil {
 		log.Fatalf("ext logout pre-neg: %v", err)
 	}
@@ -741,7 +745,7 @@ func main() {
 	}
 	log.Printf("  /callback → 302 /error?error=email_not_verified ✓")
 
-	step(fmt.Sprintf("step 54/%d — negative: username_collision", totalV03))
+	step(fmt.Sprintf("federation %d/%d — negative: username_collision", 11, nFederation))
 	negClient2, _ := newFederationClient(*baseURL)
 	// Collide on smoke-admin's username (auto_provision tries to create
 	// a new account with that name; existing local account wins).
@@ -752,7 +756,7 @@ func main() {
 	}
 	log.Printf("  /callback → 302 /error?error=username_collision ✓")
 
-	step(fmt.Sprintf("step 55/%d — negative: invalid_return_to", totalV03))
+	step(fmt.Sprintf("federation %d/%d — negative: invalid_return_to", 12, nFederation))
 	negClient3, _ := newFederationClient(*baseURL)
 	// /login with an off-origin return_to now 302-redirects to /error (not 400).
 	resp55, err := negClient3.getRaw("/api/prohibitorum/auth/federation/mockop/login?return_to=https://evil.example.com")
@@ -769,7 +773,7 @@ func main() {
 	}
 	log.Printf("  /login?return_to=https://evil… → 302 /error?error=invalid_return_to ✓")
 
-	step(fmt.Sprintf("step 56/%d — negative: upstream_error (access_denied)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — negative: upstream_error (access_denied)", 13, nFederation))
 	negClient4, _ := newFederationClient(*baseURL)
 	opSrv.FailWithError("access_denied", "user denied")
 	if err := expectFederationCallbackError(negClient4, *baseURL, "mockop",
@@ -778,7 +782,7 @@ func main() {
 	}
 	log.Printf("  /callback → 302 /error?error=upstream_error ✓")
 
-	step(fmt.Sprintf("step 57/%d — GET /me/identities (as federated user)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — GET /me/identities (as federated user)", 14, nFederation))
 	// Restore valid claims and re-login as ext-user-1.
 	opSrv.SetClaims("ext-user-1", "ext@example.com", true, "extuser", "Ext User v2")
 	if err := driveFederationLogin(extClient, *baseURL, "mockop", "/me"); err != nil {
@@ -793,7 +797,7 @@ func main() {
 	}
 	log.Printf("  /me/identities = [%s (%s)]", identities[0].IdpSlug, identities[0].IdpDisplayName)
 
-	step(fmt.Sprintf("step 58/%d — seed upstream_idp 'mockop-link' (link_only mode)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — seed upstream_idp 'mockop-link' (link_only mode)", 15, nFederation))
 	linkIDPID, err := seedUpstreamIDP(dek, "mockop-link", "Mock OP (link-only)", opTS.URL,
 		"test-client", "test-client-secret", "link_only",
 		[]string{"example.com"}, true)
@@ -802,7 +806,7 @@ func main() {
 	}
 	log.Printf("  upstream_idp id=%d slug=mockop-link mode=link_only", linkIDPID)
 
-	step(fmt.Sprintf("step 59/%d — link_only refuses unknown sub (302 /error?error=link_required)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — link_only refuses unknown sub (302 /error?error=link_required)", 16, nFederation))
 	negClient5, _ := newFederationClient(*baseURL)
 	opSrv.SetClaims("ext-unknown-9", "unknown@example.com", true, "extuser-unknown", "Unknown")
 	if err := expectFederationCallbackError(negClient5, *baseURL, "mockop-link",
@@ -813,7 +817,7 @@ func main() {
 
 	// --- Self-service link from smoke-admin (with sudo) ---------------------
 
-	step(fmt.Sprintf("step 60/%d — re-login as smoke-admin via webauthn for link/unlink", totalV03))
+	step(fmt.Sprintf("federation %d/%d — re-login as smoke-admin via webauthn for link/unlink", 17, nFederation))
 	if err := extClient.logout(); err != nil {
 		log.Printf("  (ext logout error ignored: %v)", err)
 	}
@@ -837,7 +841,7 @@ func main() {
 	}
 	log.Printf("  smoke-admin id=%d back in session", adminMe.ID)
 
-	step(fmt.Sprintf("step 61/%d — sudo (webauthn) + /me/identities/link/mockop/begin → /callback", totalV03))
+	step(fmt.Sprintf("federation %d/%d — sudo (webauthn) + /me/identities/link/mockop/begin → /callback", 18, nFederation))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("admin sudo webauthn pre-link: %v", err)
 	}
@@ -903,12 +907,12 @@ func main() {
 	}
 	log.Printf("  link/callback → 302 /me; session id unchanged (%s) ✓", preSessID)
 
-	step(fmt.Sprintf("step 62/%d — DB assert: account_identity for admin-link-1 owned by smoke-admin", totalV03))
+	step(fmt.Sprintf("federation %d/%d — DB assert: account_identity for admin-link-1 owned by smoke-admin", 19, nFederation))
 	if err := verifyFederatedIdentityCreated(adminMe.ID, "admin-link-1", mockopIDPID); err != nil {
 		log.Fatalf("link DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("step 63/%d — GET /me/identities (as smoke-admin)", totalV03))
+	step(fmt.Sprintf("federation %d/%d — GET /me/identities (as smoke-admin)", 20, nFederation))
 	adminIdentities, err := c.listMyIdentities()
 	if err != nil {
 		log.Fatalf("listMyIdentities admin: %v", err)
@@ -918,7 +922,7 @@ func main() {
 	}
 	log.Printf("  smoke-admin has 1 federated identity (id=%d)", adminIdentities[0].ID)
 
-	step(fmt.Sprintf("step 64/%d — sudo (webauthn) + POST /me/identities/{id}/unlink", totalV03))
+	step(fmt.Sprintf("federation %d/%d — sudo (webauthn) + POST /me/identities/{id}/unlink", 21, nFederation))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("admin sudo pre-unlink: %v", err)
 	}
@@ -941,7 +945,7 @@ func main() {
 	// dispatches on the FedState.EnrollmentToken regardless of the IdP's
 	// configured mode.
 
-	step(fmt.Sprintf("step 65/%d — seed invite enrollment + drive /enrollments/{token}/start-federation", totalV03))
+	step(fmt.Sprintf("federation %d/%d — seed invite enrollment + drive /enrollments/{token}/start-federation", 22, nFederation))
 	const inviteToken = "invite-token-smoke-001"
 	const inviteSub = "invite-redeemer-sub-001"
 	const inviteUsername = "invite-redeemer"
@@ -987,12 +991,12 @@ func main() {
 	}
 	log.Printf("  invite redeemed; /me id=%d username=%s displayName=%s", inviteMe.ID, inviteMe.Username, inviteMe.DisplayName)
 
-	step(fmt.Sprintf("step 66/%d — DB assert: invite consumed + account + account_identity + register audit", totalV03))
+	step(fmt.Sprintf("federation %d/%d — DB assert: invite consumed + account + account_identity + register audit", 23, nFederation))
 	if err := verifyInviteOnlyRedemption(inviteToken, inviteUsername, inviteSub, mockopIDPID); err != nil {
 		log.Fatalf("invite redemption DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("step 67/%d — negative: consumed token rejected → 302 /error?error=invite_required", totalV03))
+	step(fmt.Sprintf("federation %d/%d — negative: consumed token rejected → 302 /error?error=invite_required", 24, nFederation))
 	// Reuse the now-consumed token; the federator's BeginInviteRedemption
 	// must reject before any upstream hop. Fresh client (no cookies).
 	negInvite1, _ := newFederationClient(*baseURL)
@@ -1002,7 +1006,7 @@ func main() {
 	}
 	log.Printf("  /start-federation consumed → 302 /error?error=invite_required ✓")
 
-	step(fmt.Sprintf("step 68/%d — negative: expired token rejected → 302 /error?error=invite_required", totalV03))
+	step(fmt.Sprintf("federation %d/%d — negative: expired token rejected → 302 /error?error=invite_required", 25, nFederation))
 	const expiredToken = "invite-token-smoke-expired-001"
 	// Seed a NEW enrollment that's already past expires_at (1 second in the
 	// past). BeginInviteRedemption checks enr.ExpiresAt.After(time.Now()).
@@ -1016,16 +1020,16 @@ func main() {
 	}
 	log.Printf("  /start-federation expired → 302 /error?error=invite_required ✓")
 
-	step(fmt.Sprintf("step 69/%d — DB assert: credential_event covers v0.3 federation lifecycle", totalV03))
-	if err := verifyV03FederationAuditEvents(); err != nil {
-		log.Fatalf("v0.3 federation audit DB assert: %v", err)
+	step(fmt.Sprintf("federation %d/%d — DB assert: credential_event covers federation lifecycle", 26, nFederation))
+	if err := verifyFederationAuditEvents(); err != nil {
+		log.Fatalf("federation audit DB assert: %v", err)
 	}
 
 	// =========================================================================
 	// Upstream avatar inheritance over federation (Tasks 1–10): a first-time
 	// federated login now inherits the upstream `picture` into the account
 	// avatar via a BACKGROUND goroutine, unless the user uploaded their own.
-	// Three cases, all against the auto_provision `mockop` IdP seeded at step 46:
+	// Three cases, all against the auto_provision `mockop` IdP seeded earlier:
 	//
 	//   avatar-fed 1 — picture in the id_token → inherited (poll until stored).
 	//   avatar-fed 2 — no-clobber: a user upload survives an upstream re-login.
@@ -1369,10 +1373,10 @@ func main() {
 	}
 
 	// =========================================================================
-	// v0.4 surface: downstream OIDC OP — a mock relying party drives the full
+	// oidc surface: downstream OIDC OP — a mock relying party drives the full
 	// authorization-code + PKCE flow against the Prohibitorum OP, then exercises
 	// /userinfo, /introspect, refresh-token rotation + reuse detection, /revoke,
-	// and RP-initiated logout. Per Task 15 of the v0.4 plan.
+	// and RP-initiated logout.
 	//
 	// session-cookie scope: the OIDC OP routes are mounted at the server ROOT
 	// (/oauth/authorize, /oauth/token, …). The session cookie is now Path=/, so
@@ -1384,28 +1388,27 @@ func main() {
 	// the RP-initiated logout runs LAST because it revokes c's session via the
 	// id_token's sid. Each /authorize mints a fresh single-use code.
 	//
-	// Pre-condition: c holds a live webauthn session (re-established at step 60
-	// and never logged out since — steps 61–64 only touched non-session-killing
+	// Pre-condition: c holds a live webauthn session (re-established during the link/unlink re-login
+	// and never logged out since — the link/unlink steps only touched non-session-killing
 	// endpoints). The OP issuer == *baseURL (configx defaults OIDC.Issuer to the
 	// first public origin, which the dev server sets to *baseURL).
-	const totalV04 = 90
 
 	// Refresh c's /me to make sure the session is live and to capture the
 	// account id (the OP projects oidc_subject for this account into id_token.sub).
-	v04Me, err := c.getMe()
+	oidcMe, err := c.getMe()
 	if err != nil {
-		log.Fatalf("v0.4: c has no live session at start of OIDC OP steps: %v", err)
+		log.Fatalf("oidc: c has no live session at start of OIDC OP steps: %v", err)
 	}
 	issuer := *baseURL
 	const rpClientID = "smoke-rp"
 	rpRedirectURI := *baseURL + "/rp/callback"
 	rpPostLogout := *baseURL + "/rp/post-logout"
 
-	step(fmt.Sprintf("step 70/%d — v0.4: GET /oauth/jwks → exactly 1 auto-provisioned signing key", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — GET /oauth/jwks → exactly 1 auto-provisioned signing key", 1, nOIDC))
 	// The server auto-provisions an active OIDC signing key on first boot
 	// (server.ensureActiveSigningKey), so the OP is signable out of the box with
 	// no manual `signing-key generate`. Assert that boot key is the sole
-	// publishable key — the single-key invariant the rotation arc (step 117)
+	// publishable key — the single-key invariant the rotation arc (admin 4)
 	// relies on. (A second `generate` here would add a pending key and break it.)
 	jwks, err := fetchJWKS(*baseURL)
 	if err != nil {
@@ -1420,7 +1423,7 @@ func main() {
 	}
 	log.Printf("  auto-provisioned signing key kid=%s; /oauth/jwks has 1 key ✓", signingKID)
 
-	step(fmt.Sprintf("step 71/%d — v0.4: oidc-client create (confidential, openid+profile+offline_access)", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — oidc-client create (confidential, openid+profile+offline_access)", 2, nOIDC))
 	rpSecret, err := createOIDCClient(*baseURL, rpClientID, rpRedirectURI, rpPostLogout,
 		[]string{"openid", "profile", "offline_access"})
 	if err != nil {
@@ -1431,7 +1434,7 @@ func main() {
 	}
 	log.Printf("  client %q registered; secret len=%d", rpClientID, len(rpSecret))
 
-	step(fmt.Sprintf("step 72/%d — v0.4: GET /oauth/authorize (PKCE S256) → 302 with code+state+iss", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — GET /oauth/authorize (PKCE S256) → 302 with code+state+iss", 3, nOIDC))
 	verifier, challenge := genPKCE()
 	authState := randState()
 	authNonce := randState()
@@ -1455,7 +1458,7 @@ func main() {
 	}
 	log.Printf("  302 to redirect_uri with code (len=%d), state, iss ✓", len(authCode))
 
-	step(fmt.Sprintf("step 73/%d — v0.4: POST /oauth/token (authorization_code, Basic auth)", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — POST /oauth/token (authorization_code, Basic auth)", 4, nOIDC))
 	tok, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {authCode},
@@ -1526,7 +1529,7 @@ func main() {
 	log.Printf("  id_token sub=%s aud=%s nonce✓ at_hash✓ sid✓ auth_time✓ amr✓; access_token typ=at+jwt jti✓; refresh_token len=%d",
 		idSub, rpClientID, len(refreshToken))
 
-	step(fmt.Sprintf("step 74/%d — v0.4: GET /oauth/userinfo (Bearer access token)", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — GET /oauth/userinfo (Bearer access token)", 5, nOIDC))
 	userinfo, err := fetchUserinfo(*baseURL, accessToken)
 	if err != nil {
 		log.Fatalf("/oauth/userinfo: %v", err)
@@ -1534,8 +1537,8 @@ func main() {
 	if got := str(userinfo["sub"]); got != idSub {
 		log.Fatalf("userinfo sub: want %q (matching id_token), got %q", idSub, got)
 	}
-	if str(userinfo["username"]) != v04Me.Username {
-		log.Fatalf("userinfo username: want %q, got %q", v04Me.Username, str(userinfo["username"]))
+	if str(userinfo["username"]) != oidcMe.Username {
+		log.Fatalf("userinfo username: want %q, got %q", oidcMe.Username, str(userinfo["username"]))
 	}
 	if str(userinfo["displayName"]) == "" {
 		log.Fatalf("userinfo missing displayName (profile scope granted)")
@@ -1543,7 +1546,7 @@ func main() {
 	log.Printf("  userinfo sub matches id_token; username=%s displayName=%s ✓",
 		str(userinfo["username"]), str(userinfo["displayName"]))
 
-	step(fmt.Sprintf("step 75/%d — v0.4: POST /oauth/introspect (access token, Basic auth) → active", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — POST /oauth/introspect (access token, Basic auth) → active", 6, nOIDC))
 	intro, err := introspect(*baseURL, rpClientID, rpSecret, accessToken)
 	if err != nil {
 		log.Fatalf("/oauth/introspect: %v", err)
@@ -1562,7 +1565,7 @@ func main() {
 	}
 	log.Printf("  introspect active=true token_type=access_token client_id=%s sub✓", rpClientID)
 
-	step(fmt.Sprintf("step 76/%d — v0.4: POST /oauth/token (refresh_token rotation, Basic auth)", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — POST /oauth/token (refresh_token rotation, Basic auth)", 7, nOIDC))
 	refreshed, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {refreshToken},
@@ -1586,7 +1589,7 @@ func main() {
 	refreshToken = refreshed.RefreshToken
 	log.Printf("  refresh rotated (new != old); refreshed id_token verifies ✓")
 
-	step(fmt.Sprintf("step 77/%d — v0.4: refresh idempotency window + reuse detection", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — refresh idempotency window + reuse detection", 8, nOIDC))
 	// Refresh rotation carries a short previous-token idempotency window so a
 	// benign client double-submit / network retry of the JUST-rotated token
 	// returns the SAME successor instead of falsely tripping reuse and locking
@@ -1628,8 +1631,8 @@ func main() {
 	}
 	log.Printf("  idempotent replay → same successor; two-gen-old replay → 400 reuse ✓")
 
-	step(fmt.Sprintf("step 78/%d — v0.4: reuse detection revoked the whole family (current token now dead)", totalV04))
-	// The reuse trip in step 77 revoked the family, so the current (twice-rotated)
+	step(fmt.Sprintf("oidc %d/%d — reuse detection revoked the whole family (current token now dead)", 9, nOIDC))
+	// The earlier reuse trip revoked the family, so the current (twice-rotated)
 	// token must now also fail with invalid_grant.
 	if err := tokenExpectError(*baseURL, rpClientID, rpSecret, url.Values{
 		"grant_type":    {"refresh_token"},
@@ -1639,8 +1642,8 @@ func main() {
 	}
 	log.Printf("  current refresh_token also dead post-reuse (family revoked) ✓")
 
-	step(fmt.Sprintf("step 79/%d — v0.4: fresh authorize+token, then /oauth/revoke the refresh token", totalV04))
-	// The family was revoked at step 78; mint a fresh code → token to get a
+	step(fmt.Sprintf("oidc %d/%d — fresh authorize+token, then /oauth/revoke the refresh token", 10, nOIDC))
+	// The family was revoked by the reuse trip; mint a fresh code → token to get a
 	// live refresh token to revoke via RFC 7009.
 	v2, code2 := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
 	tok2, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
@@ -1667,7 +1670,7 @@ func main() {
 	}
 	log.Printf("  /oauth/revoke → 200; revoked refresh_token → invalid_grant ✓")
 
-	step(fmt.Sprintf("step 80/%d — v0.4: /oauth/revoke an access token → revoked_jti row", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — /oauth/revoke an access token → revoked_jti row", 11, nOIDC))
 	// Mint another fresh access token, revoke it, and confirm a revoked_jti row.
 	v3, code3 := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
 	tok3, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
@@ -1700,14 +1703,14 @@ func main() {
 	}
 	log.Printf("  introspect revoked access token → active=false ✓")
 
-	step(fmt.Sprintf("step 81/%d — v0.4: negative — unregistered redirect_uri never sends browser to bad URI", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — negative — unregistered redirect_uri never sends browser to bad URI", 12, nOIDC))
 	if err := authorizeExpectDirectError(c, *baseURL, rpClientID,
 		*baseURL+"/rp/UNREGISTERED-callback", issuer); err != nil {
 		log.Fatalf("negative unregistered redirect_uri: %v", err)
 	}
 	log.Printf("  /authorize with bad redirect_uri → 302 /error?error=invalid_request (no Location to the bad URI) ✓")
 
-	step(fmt.Sprintf("step 82/%d — v0.4: negative — PKCE mismatch at /token → invalid_grant", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — negative — PKCE mismatch at /token → invalid_grant", 13, nOIDC))
 	vGood, codeBad := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
 	_ = vGood // intentionally NOT used: send a wrong verifier.
 	wrongVerifier, _ := genPKCE()
@@ -1721,7 +1724,7 @@ func main() {
 	}
 	log.Printf("  /token with wrong code_verifier → 400 invalid_grant ✓")
 
-	step(fmt.Sprintf("step 83/%d — v0.4: negative — bad client secret at /token → invalid_client (401)", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — negative — bad client secret at /token → invalid_client (401)", 14, nOIDC))
 	vc, codec := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
 	if err := tokenExpectError(*baseURL, rpClientID, "WRONG-SECRET", url.Values{
 		"grant_type":    {"authorization_code"},
@@ -1733,7 +1736,7 @@ func main() {
 	}
 	log.Printf("  /token with wrong client secret → 401 invalid_client ✓")
 
-	step(fmt.Sprintf("step 84/%d — v0.4: GET /oidc/logout (id_token_hint + post_logout_redirect_uri)", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — GET /oidc/logout (id_token_hint + post_logout_redirect_uri)", 15, nOIDC))
 	// Capture the current session id so we can confirm logout revoked exactly it.
 	logoutState := randState()
 	logoutLoc, err := c.getRedirect(fmt.Sprintf("/oidc/logout?id_token_hint=%s&post_logout_redirect_uri=%s&state=%s",
@@ -1751,61 +1754,60 @@ func main() {
 	}
 	log.Printf("  302 to post_logout_redirect_uri with state echoed ✓")
 
-	step(fmt.Sprintf("step 85/%d — v0.4: logout revoked c's IdP session (the id_token's sid) → /me 401", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — logout revoked c's IdP session (the id_token's sid) → /me 401", 16, nOIDC))
 	if _, err := c.getMe(); err == nil {
 		log.Fatalf("/me succeeded after /oidc/logout; expected 401 (session sid should be revoked)")
 	}
 	log.Printf("  c's /me now 401 — logout revoked the id_token's sid session ✓")
 
-	step(fmt.Sprintf("step 86/%d — v0.4: DB assert — revoked_jti row for the revoked access token", totalV04))
+	step(fmt.Sprintf("oidc %d/%d — DB assert — revoked_jti row for the revoked access token", 17, nOIDC))
 	if err := verifyRevokedJTI(revokedJTI); err != nil {
 		log.Fatalf("revoked_jti DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("step 87/%d — v0.4: DB assert — credential_event (factor=oidc_client) lifecycle", totalV04))
-	if err := verifyV04OIDCAuditEvents(); err != nil {
-		log.Fatalf("v0.4 OIDC audit DB assert: %v", err)
+	step(fmt.Sprintf("oidc %d/%d — DB assert — credential_event (factor=oidc_client) lifecycle", 18, nOIDC))
+	if err := verifyOIDCAuditEvents(); err != nil {
+		log.Fatalf("oidc audit DB assert: %v", err)
 	}
 
 	// =========================================================================
-	// v0.5 surface: SAML IdP — an in-process mock SP drives the full SP-initiated
+	// saml surface: SAML IdP — an in-process mock SP drives the full SP-initiated
 	// Web Browser SSO profile against the Prohibitorum IdP, verifies the auto-
 	// POSTed SAMLResponse with crewjam ServiceProvider, asserts NameID stability
 	// across a second SSO, then exercises Single Logout (revoking exactly the
 	// bound IdP session), the require_signed / bad-ACS / replay negatives, and the
 	// DB-state asserts (saml_subject_id stability, saml_session rows,
-	// credential_event factor=saml_sp). Per Task 12 of the v0.5 plan.
+	// credential_event factor=saml_sp).
 	//
-	// The SAME signing_key minted at step 70 signs the SAML assertions — no new
+	// The SAME auto-provisioned signing_key signs the SAML assertions — no new
 	// key. The mock SP is registered with --kind ghes, which forces
 	// require_signed_authn_request=true (needed for the unsigned-AuthnRequest
 	// negative).
 	//
-	// Pre-condition: c's session was revoked at step 84 (/oidc/logout). We must
+	// Pre-condition: c's session was revoked by RP-initiated logout (/oidc/logout). We must
 	// re-establish a fresh webauthn session before the SSO steps.
-	const totalV05 = 99
 
-	step(fmt.Sprintf("step 88/%d — v0.5: re-login via webauthn (c's session was revoked by /oidc/logout)", totalV05))
+	step(fmt.Sprintf("saml %d/%d — re-login via webauthn (c's session was revoked by /oidc/logout)", 1, nSAML))
 	{
 		relogin, err := c.beginLogin()
 		if err != nil {
-			log.Fatalf("v0.5 relogin/begin: %v", err)
+			log.Fatalf("saml relogin/begin: %v", err)
 		}
 		signed, err := auth.signAssertion(relogin.Challenge, *baseURL)
 		if err != nil {
-			log.Fatalf("v0.5 relogin sign: %v", err)
+			log.Fatalf("saml relogin sign: %v", err)
 		}
 		if err := c.completeLogin(auth, signed); err != nil {
-			log.Fatalf("v0.5 relogin/complete: %v", err)
+			log.Fatalf("saml relogin/complete: %v", err)
 		}
 	}
-	v05Me, err := c.getMe()
+	samlMe, err := c.getMe()
 	if err != nil {
-		log.Fatalf("v0.5: c has no live session at start of SAML steps: %v", err)
+		log.Fatalf("saml: c has no live session at start of SAML steps: %v", err)
 	}
-	log.Printf("  smoke-admin id=%d back in session for SAML steps", v05Me.ID)
+	log.Printf("  smoke-admin id=%d back in session for SAML steps", samlMe.ID)
 
-	step(fmt.Sprintf("step 89/%d — v0.5: GET /saml/metadata → EntityDescriptor with ≥1 signing KeyDescriptor", totalV05))
+	step(fmt.Sprintf("saml %d/%d — GET /saml/metadata → EntityDescriptor with ≥1 signing KeyDescriptor", 2, nSAML))
 	idpMetaXML, err := fetchSAMLMetadata(*baseURL)
 	if err != nil {
 		log.Fatalf("fetch /saml/metadata: %v", err)
@@ -1830,7 +1832,7 @@ func main() {
 		log.Printf("  EntityDescriptor entityID=%s, %d signing KeyDescriptor(s) ✓", idpED.EntityID, signingKDs)
 	}
 
-	step(fmt.Sprintf("step 90/%d — v0.5: saml-sp create --kind ghes --metadata-file <mock SP metadata>", totalV05))
+	step(fmt.Sprintf("saml %d/%d — saml-sp create --kind ghes --metadata-file <mock SP metadata>", 3, nSAML))
 	const mockSPEntityID = "https://mock-sp.smoke.test"
 	const mockSPACSURL = "https://mock-sp.smoke.test/saml/consume"
 	sp, err := newMockSP(mockSPEntityID, mockSPACSURL)
@@ -1852,7 +1854,7 @@ func main() {
 		log.Fatalf("build SP verifier: %v", err)
 	}
 
-	step(fmt.Sprintf("step 91/%d — v0.5: signed AuthnRequest → /saml/sso → verify SAMLResponse + GHES attrs", totalV05))
+	step(fmt.Sprintf("saml %d/%d — signed AuthnRequest → /saml/sso → verify SAMLResponse + GHES attrs", 4, nSAML))
 	var stableNameID string
 	{
 		query, reqID, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
@@ -1883,8 +1885,8 @@ func main() {
 		if username == "" {
 			log.Fatalf("SAMLResponse missing GHES USERNAME attribute (attrs=%v)", samlAttrNames(assertion))
 		}
-		if username != v05Me.Username {
-			log.Fatalf("SAMLResponse USERNAME: want %q, got %q", v05Me.Username, username)
+		if username != samlMe.Username {
+			log.Fatalf("SAMLResponse USERNAME: want %q, got %q", samlMe.Username, username)
 		}
 		// crewjam already enforced Destination/Recipient==ACS and Audience==entityID
 		// during ParseXMLResponse (it rejects otherwise); assert NameID + USERNAME here.
@@ -1892,7 +1894,7 @@ func main() {
 			stableNameID, username)
 	}
 
-	step(fmt.Sprintf("step 92/%d — v0.5: second SSO (same account+SP) → NameID identical (stability)", totalV05))
+	step(fmt.Sprintf("saml %d/%d — second SSO (same account+SP) → NameID identical (stability)", 5, nSAML))
 	{
 		query, reqID, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
 		if err != nil {
@@ -1919,19 +1921,19 @@ func main() {
 		log.Printf("  NameID identical across both SSOs ✓ (re-SSO upserts the SAME saml_session row, not a duplicate — Fix C2 dedup)")
 	}
 
-	step(fmt.Sprintf("step 93/%d — v0.5: DB assert — saml_subject_id stable (1 row, same name_id) + ≥1 saml_session row", totalV05))
-	if err := verifySAMLSubjectStable(v05Me.ID, stableNameID); err != nil {
+	step(fmt.Sprintf("saml %d/%d — DB assert — saml_subject_id stable (1 row, same name_id) + ≥1 saml_session row", 6, nSAML))
+	if err := verifySAMLSubjectStable(samlMe.ID, stableNameID); err != nil {
 		log.Fatalf("saml_subject_id DB assert: %v", err)
 	}
 	// Steps 91+92 were two SSOs from the SAME session (client c) to the SAME SP.
 	// Post Fix C2 (UNIQUE (session_id, sp_id, session_index) + upsert), those
 	// collapse to ONE row (the second SSO refreshes not_on_or_after rather than
 	// duplicating). So the correct expectation here is exactly 1, not 2.
-	if err := verifySAMLSessionCount(v05Me.ID, 1); err != nil {
+	if err := verifySAMLSessionCount(samlMe.ID, 1); err != nil {
 		log.Fatalf("saml_session DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("step 94/%d — v0.5: SLO — drive a DEDICATED session's SSO, then sign a LogoutRequest targeting it", totalV05))
+	step(fmt.Sprintf("saml %d/%d — SLO — drive a DEDICATED session's SSO, then sign a LogoutRequest targeting it", 7, nSAML))
 	// SLO revokes the IdP session bound to the saml_session (sessionIndex = the
 	// session's ID). To avoid breaking c (needed for the replay negative below),
 	// drive the SSO that we will SLO from a SEPARATE client cSLO whose own login
@@ -1939,7 +1941,7 @@ func main() {
 	// passing its session ID as the LogoutRequest SessionIndex.
 	cSLO, err := newClient(*baseURL)
 	if err != nil {
-		log.Fatalf("v0.5 SLO client: %v", err)
+		log.Fatalf("saml SLO client: %v", err)
 	}
 	{
 		login, err := cSLO.beginLogin()
@@ -1997,7 +1999,7 @@ func main() {
 	}
 	log.Printf("  dedicated SLO session id=%s issued an SSO assertion ✓", sloSessionIndex)
 
-	step(fmt.Sprintf("step 95/%d — v0.5: signed LogoutRequest → signed LogoutResponse + bound session revoked", totalV05))
+	step(fmt.Sprintf("saml %d/%d — signed LogoutRequest → signed LogoutResponse + bound session revoked", 8, nSAML))
 	{
 		query, _, err := sp.logoutRequestRedirect(*baseURL+"/saml/slo", stableNameID, sloSessionIndex)
 		if err != nil {
@@ -2035,7 +2037,7 @@ func main() {
 	}
 	log.Printf("  c's session survived (SLO SessionIndex scoping confirmed) ✓")
 
-	step(fmt.Sprintf("step 96/%d — v0.5: negative — UNSIGNED AuthnRequest to require_signed GHES SP → rejected", totalV05))
+	step(fmt.Sprintf("saml %d/%d — negative — UNSIGNED AuthnRequest to require_signed GHES SP → rejected", 9, nSAML))
 	{
 		query, _, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, false) // sign=false
 		if err != nil {
@@ -2055,7 +2057,7 @@ func main() {
 		log.Printf("  unsigned AuthnRequest → %d, no SAMLResponse ✓", statusCode)
 	}
 
-	step(fmt.Sprintf("step 97/%d — v0.5: negative — AuthnRequest with bad/unregistered ACS URL → rejected", totalV05))
+	step(fmt.Sprintf("saml %d/%d — negative — AuthnRequest with bad/unregistered ACS URL → rejected", 10, nSAML))
 	{
 		query, _, err := sp.authnRequestRedirect(ssoURL, "https://mock-sp.smoke.test/EVIL-acs", true)
 		if err != nil {
@@ -2074,7 +2076,7 @@ func main() {
 		log.Printf("  unregistered ACS URL → %d, no SAMLResponse ✓", statusCode)
 	}
 
-	step(fmt.Sprintf("step 98/%d — v0.5: negative — replayed AuthnRequest ID (same request twice) → 2nd rejected", totalV05))
+	step(fmt.Sprintf("saml %d/%d — negative — replayed AuthnRequest ID (same request twice) → 2nd rejected", 11, nSAML))
 	{
 		query, _, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
 		if err != nil {
@@ -2102,25 +2104,23 @@ func main() {
 		log.Printf("  replayed AuthnRequest ID: 1st=200, 2nd=%d (no SAMLResponse) ✓", statusCode2)
 	}
 
-	step(fmt.Sprintf("step 99/%d — v0.5: DB assert — credential_event (factor=saml_sp) sso(use) + slo(session_end)", totalV05))
-	if err := verifyV05SAMLAuditEvents(); err != nil {
-		log.Fatalf("v0.5 SAML audit DB assert: %v", err)
+	step(fmt.Sprintf("saml %d/%d — DB assert — credential_event (factor=saml_sp) sso(use) + slo(session_end)", 12, nSAML))
+	if err := verifySAMLAuditEvents(); err != nil {
+		log.Fatalf("saml audit DB assert: %v", err)
 	}
 
 	// =========================================================================
-	// v0.6 surface: protocol-completeness gate. Forced re-authentication
+	// hardening surface: protocol-completeness gate. Forced re-authentication
 	// (OIDC prompt=login / max_age, SAML ForceAuthn), prompt=none + stale,
 	// PKCE method rejection, public-client introspection refusal, SAML
 	// NameIDPolicy mismatch, ForceAuthn+IsPassive NoPassive, POST-binding
-	// AuthnRequest intake, signed IdP metadata, and IdP-initiated SSO. Per
-	// Task 9 of the v0.6 plan. Steps 100..N continue the v0.5 counter.
+	// AuthnRequest intake, signed IdP metadata, and IdP-initiated SSO.
 	//
-	// Pre-condition: c holds a live webauthn session (re-login at step 88;
-	// steps 91–99 only drove SSO/SLO against OTHER clients or touched c's
-	// session non-destructively — confirmed alive at step 95). The v0.5 mock
+	// Pre-condition: c holds a live webauthn session (re-logged in during the saml
+	// arc; the SSO/SLO steps only drove OTHER clients or touched c's
+	// session non-destructively). The saml mock
 	// SP `sp` + its verifier `spProvider`, ssoURL, mockSPACSURL, and the
-	// signing key (step 70) are all still in scope and reused here.
-	const totalV06 = 111
+	// auto-provisioned signing key are all still in scope and reused here.
 
 	// freshLogin re-runs the WebAuthn login ceremony on c, minting a NEW
 	// session (fresh auth_time) on the cookie jar — the move that satisfies a
@@ -2128,27 +2128,27 @@ func main() {
 	freshLogin := func() {
 		lo, err := c.beginLogin()
 		if err != nil {
-			log.Fatalf("v0.6 fresh login/begin: %v", err)
+			log.Fatalf("hardening fresh login/begin: %v", err)
 		}
 		signed, err := auth.signAssertion(lo.Challenge, *baseURL)
 		if err != nil {
-			log.Fatalf("v0.6 fresh login sign: %v", err)
+			log.Fatalf("hardening fresh login sign: %v", err)
 		}
 		if err := c.completeLogin(auth, signed); err != nil {
-			log.Fatalf("v0.6 fresh login/complete: %v", err)
+			log.Fatalf("hardening fresh login/complete: %v", err)
 		}
 	}
 
-	v06Me, err := c.getMe()
+	hardeningMe, err := c.getMe()
 	if err != nil {
-		log.Fatalf("v0.6: c has no live session at start of v0.6 steps: %v", err)
+		log.Fatalf("hardening: c has no live session at start of hardening steps: %v", err)
 	}
-	_ = v06Me
+	_ = hardeningMe
 
 	// ---- OIDC forced re-auth + policy steps (reuse the step-71 confidential
 	// client `smoke-rp` + `rpRedirectURI`/`issuer`). ----
 
-	step(fmt.Sprintf("step 100/%d — v0.6: OIDC prompt=login bounces (stale session), then a fresh login + reauth nonce issues a code", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — OIDC prompt=login bounces (stale session), then a fresh login + reauth nonce issues a code", 1, nHardening))
 	{
 		_, challenge := genPKCE()
 		state := randState()
@@ -2202,10 +2202,10 @@ func main() {
 		log.Printf("  fresh login + &reauth=<nonce> → code (len=%d) ✓", len(code))
 	}
 
-	step(fmt.Sprintf("step 101/%d — v0.6: OIDC max_age=0 bounces; max_age=3600 issues a code", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — OIDC max_age=0 bounces; max_age=3600 issues a code", 2, nHardening))
 	{
 		// max_age=0 demands re-auth regardless of how recent the session is →
-		// a bounce to /login (the session just minted at step 100 still cannot
+		// a bounce to /login (the freshly minted session still cannot
 		// satisfy a zero max_age without a reauth nonce).
 		v, challenge := genPKCE()
 		_ = v
@@ -2251,7 +2251,7 @@ func main() {
 		log.Printf("  max_age=3600 → code (no bounce) ✓")
 	}
 
-	step(fmt.Sprintf("step 102/%d — v0.6: OIDC prompt=none + stale → redirect with error=login_required (no /login bounce)", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — OIDC prompt=none + stale → redirect with error=login_required (no /login bounce)", 3, nHardening))
 	{
 		_, challenge := genPKCE()
 		state := randState()
@@ -2284,7 +2284,7 @@ func main() {
 		log.Printf("  prompt=none + stale → 302 to RP with error=login_required (state echoed) ✓")
 	}
 
-	step(fmt.Sprintf("step 103/%d — v0.6: OIDC code_challenge_method=plain → redirect error=invalid_request", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — OIDC code_challenge_method=plain → redirect error=invalid_request", 4, nHardening))
 	{
 		_, challenge := genPKCE()
 		state := randState()
@@ -2317,7 +2317,7 @@ func main() {
 		log.Printf("  code_challenge_method=plain → 302 to RP with error=invalid_request (no code) ✓")
 	}
 
-	step(fmt.Sprintf("step 104/%d — v0.6: public OIDC client — introspect → invalid_client (401); confidential still works; public revoke OK", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — public OIDC client — introspect → invalid_client (401); confidential still works; public revoke OK", 5, nHardening))
 	{
 		const pubClientID = "smoke-rp-public"
 		pubRedirectURI := *baseURL + "/rp-public/callback"
@@ -2393,10 +2393,10 @@ func main() {
 	}
 
 	// ---- SAML forced re-auth + policy + binding + metadata + IdP-initiated. ----
-	// Reuses the v0.5 mock SP `sp`, verifier `spProvider`, ssoURL, mockSPACSURL.
-	// c is freshly logged-in (step 100/104 minted recent sessions).
+	// Reuses the saml mock SP `sp`, verifier `spProvider`, ssoURL, mockSPACSURL.
+	// c is freshly logged-in (the re-auth steps minted recent sessions).
 
-	step(fmt.Sprintf("step 105/%d — v0.6: SAML ForceAuthn bounces (stale session), then a fresh login + reauth nonce issues an assertion", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — SAML ForceAuthn bounces (stale session), then a fresh login + reauth nonce issues an assertion", 6, nHardening))
 	{
 		query, reqID, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true, authnOpts{forceAuthn: true})
 		if err != nil {
@@ -2456,7 +2456,7 @@ func main() {
 		log.Printf("  fresh login + &reauth=<nonce> → assertion issued ✓")
 	}
 
-	step(fmt.Sprintf("step 106/%d — v0.6: SAML ForceAuthn + IsPassive → NoPassive status Response (no assertion)", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — SAML ForceAuthn + IsPassive → NoPassive status Response (no assertion)", 7, nHardening))
 	{
 		query, _, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true,
 			authnOpts{forceAuthn: true, isPassive: true})
@@ -2487,7 +2487,7 @@ func main() {
 		log.Printf("  ForceAuthn+IsPassive → Response StatusCode=NoPassive, no assertion ✓")
 	}
 
-	step(fmt.Sprintf("step 107/%d — v0.6: SAML NameIDPolicy Format=emailAddress (≠ persistent) → InvalidNameIDPolicy", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — SAML NameIDPolicy Format=emailAddress (≠ persistent) → InvalidNameIDPolicy", 8, nHardening))
 	{
 		const emailFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 		query, _, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true,
@@ -2519,7 +2519,7 @@ func main() {
 		log.Printf("  NameIDPolicy Format=emailAddress → Response StatusCode=InvalidNameIDPolicy, no assertion ✓")
 	}
 
-	step(fmt.Sprintf("step 108/%d — v0.6: SAML POST-binding (enveloped-signed) AuthnRequest → assertion", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — SAML POST-binding (enveloped-signed) AuthnRequest → assertion", 9, nHardening))
 	{
 		samlReq, reqID, err := sp.authnRequestPostForm(ssoURL, mockSPACSURL, authnOpts{})
 		if err != nil {
@@ -2546,7 +2546,7 @@ func main() {
 		log.Printf("  POST-binding enveloped-signed AuthnRequest → assertion (NameID=%.16s…) ✓", assertion.Subject.NameID.Value)
 	}
 
-	step(fmt.Sprintf("step 109/%d — v0.6: SAML /saml/metadata is SIGNED, verifies against its own cert, validUntil is future", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — SAML /saml/metadata is SIGNED, verifies against its own cert, validUntil is future", 10, nHardening))
 	{
 		metaXML, err := fetchSAMLMetadata(*baseURL)
 		if err != nil {
@@ -2565,7 +2565,7 @@ func main() {
 		log.Printf("  metadata <ds:Signature> verifies against embedded cert; validUntil=%s (future) ✓", ed.ValidUntil.Format(time.RFC3339))
 	}
 
-	step(fmt.Sprintf("step 110/%d — v0.6: SAML IdP-initiated SSO — opted-in SP gets an unsolicited Response (RelayState echoed); v0.5 SP without the flag → 302 /error", totalV06))
+	step(fmt.Sprintf("hardening %d/%d — SAML IdP-initiated SSO — opted-in SP gets an unsolicited Response (RelayState echoed); the non-opted-in SP without the flag → 302 /error", 11, nHardening))
 	{
 		// Register a SECOND SP that opts into IdP-initiated SSO. Its mock SP
 		// carries a distinct entityID + ACS but reuses the mock signing key
@@ -2619,7 +2619,7 @@ func main() {
 		}
 		log.Printf("  /saml/sso/init (opted-in SP) → unsolicited Response (no InResponseTo), RelayState=deep echoed, assertion accepted ✓")
 
-		// The v0.5 SP did NOT opt in → 302 /error?error=saml_idp_init_disabled.
+		// The prior SP did NOT opt in → 302 /error?error=saml_idp_init_disabled.
 		// ssoInit returns (status, body, err) but not the Location header. Use a
 		// non-following client directly to capture the redirect target.
 		{
@@ -2646,13 +2646,13 @@ func main() {
 			if !strings.HasPrefix(loc302, "/error?error=saml_idp_init_disabled") {
 				log.Fatalf("/saml/sso/init (no opt-in): Location want /error?error=saml_idp_init_disabled prefix, got %q", loc302)
 			}
-			log.Printf("  /saml/sso/init for the v0.5 SP (no opt-in) → 302 %s ✓", loc302)
+			log.Printf("  /saml/sso/init for the prior SP (no opt-in) → 302 %s ✓", loc302)
 		}
 	}
 
-	step(fmt.Sprintf("step 111/%d — v0.6: DB assert — credential_event covers the v0.6 SAML re-auth/idp-initiated lifecycle", totalV06))
-	if err := verifyV06SAMLAuditEvents(); err != nil {
-		log.Fatalf("v0.6 SAML audit DB assert: %v", err)
+	step(fmt.Sprintf("hardening %d/%d — DB assert — credential_event covers the SAML re-auth/idp-initiated lifecycle", 12, nHardening))
+	if err := verifyHardeningSAMLAuditEvents(); err != nil {
+		log.Fatalf("hardening SAML audit DB assert: %v", err)
 	}
 
 	// =========================================================================
@@ -2669,9 +2669,8 @@ func main() {
 	// 100/104/105 re-logged in; steps 106–110 only drove SAML against c's
 	// session non-destructively, and 110 is read-only on c). The OP issuer ==
 	// *baseURL.
-	const totalUI = 113
 
-	step(fmt.Sprintf("step 112/%d — UI: consent flow (require-consent client) — bounce, context, approve, remember, prompt=consent, deny", totalUI))
+	step(fmt.Sprintf("consent %d/%d — UI: consent flow (require-consent client) — bounce, context, approve, remember, prompt=consent, deny", 1, nConsent))
 	{
 		const consentClientID = "smoke-consent-rp"
 		consentRedirectURI := *baseURL + "/consent-rp/callback"
@@ -2830,7 +2829,7 @@ func main() {
 		log.Printf("  POST deny → redirect carries error=access_denied ✓")
 	}
 
-	step(fmt.Sprintf("step 113/%d — UI: GET /api/prohibitorum/auth/federation → 200 JSON array incl. seeded slugs", totalUI))
+	step(fmt.Sprintf("consent %d/%d — UI: GET /api/prohibitorum/auth/federation → 200 JSON array incl. seeded slugs", 2, nConsent))
 	{
 		pubc, err := newClient(*baseURL) // no session needed (public endpoint)
 		if err != nil {
@@ -2867,19 +2866,18 @@ func main() {
 	// =========================================================================
 	// Admin Management API arc (steps 114–121) — Task 10 integration capstone.
 	//
-	// Runs LAST, while c still holds a live admin session (step 112 drove
+	// Runs LAST, while c still holds a live admin session (the consent arc drove
 	// /oauth/authorize and got codes, not /login bounces). Every 🔐 mutation is
 	// preceded by a fresh sudoWebAuthn; the multi-use sudo window means one
 	// elevation covers subsequent gated actions until expiry, but we re-assert
 	// before each mutation for test isolation.
 	//
 	// The signing-key sub-arc adds a 2nd key; this is safe because nothing after
-	// this arc depends on JWKS having exactly 1 key (step 70's "exactly 1 key"
+	// this arc depends on JWKS having exactly 1 key (oidc 1's "exactly 1 key"
 	// assertion ran far earlier, before any key was added here).
 	// =========================================================================
-	const totalAdmin = 121
 
-	step(fmt.Sprintf("step 114/%d — admin: POST /oidc-clients reveals secret ONCE; GET list/one never expose it", totalAdmin))
+	step(fmt.Sprintf("admin %d/%d — admin: POST /oidc-clients reveals secret ONCE; GET list/one never expose it", 1, nAdmin))
 	const adminClientID = "smoke-admin-rp"
 	var createdClientSecret string
 	{
@@ -2945,7 +2943,7 @@ func main() {
 		log.Printf("  created %q (secret len=%d, revealed once); list+get expose NO secret/hash ✓", adminClientID, len(createdClientSecret))
 	}
 
-	step(fmt.Sprintf("step 115/%d — admin: PUT /oidc-clients/{clientId} changes config; reflected on GET", totalAdmin))
+	step(fmt.Sprintf("admin %d/%d — admin: PUT /oidc-clients/{clientId} changes config; reflected on GET", 2, nAdmin))
 	const updatedDisplayName = "Smoke Admin RP (renamed)"
 	updatedRedirectURI := *baseURL + "/admin-rp/callback2"
 	{
@@ -2983,7 +2981,7 @@ func main() {
 		log.Printf("  PUT changed displayName→%q + redirect_uri; GET reflects both ✓", updatedDisplayName)
 	}
 
-	step(fmt.Sprintf("step 116/%d — admin: POST /oidc-clients/rotate-secret returns a NEW secret (≠ create secret)", totalAdmin))
+	step(fmt.Sprintf("admin %d/%d — admin: POST /oidc-clients/rotate-secret returns a NEW secret (≠ create secret)", 3, nAdmin))
 	{
 		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 			log.Fatalf("admin oidc-client rotate-secret: sudo: %v", err)
@@ -3005,7 +3003,7 @@ func main() {
 		log.Printf("  rotate-secret → new secret (len=%d) ≠ create secret ✓", len(rotated.Secret))
 	}
 
-	step(fmt.Sprintf("step 117/%d — admin: snapshot JWKS (1 active key=oldKID) + mint priorKeyToken under oldKID", totalAdmin))
+	step(fmt.Sprintf("admin %d/%d — admin: snapshot JWKS (1 active key=oldKID) + mint priorKeyToken under oldKID", 4, nAdmin))
 	var oldKID string
 	var priorKeyToken string
 	{
@@ -3049,7 +3047,7 @@ func main() {
 		log.Printf("  JWKS=1 key oldKID=%s; priorKeyToken signed by oldKID and verifies now ✓", oldKID)
 	}
 
-	step(fmt.Sprintf("step 118/%d — admin: POST /signing-keys/generate → newKID PENDING; JWKS publishes BOTH; oldKID still signs", totalAdmin))
+	step(fmt.Sprintf("admin %d/%d — admin: POST /signing-keys/generate → newKID PENDING; JWKS publishes BOTH; oldKID still signs", 5, nAdmin))
 	var newKID string
 	{
 		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
@@ -3114,7 +3112,7 @@ func main() {
 		log.Printf("  newKID=%s pending; JWKS=2 (oldKID active + newKID pending); oldKID still signs ✓", newKID)
 	}
 
-	step(fmt.Sprintf("step 119/%d — admin: POST /signing-keys/{newKID}/activate → newKID signs; oldKID decommissioning; both in JWKS; priorKeyToken STILL verifies", totalAdmin))
+	step(fmt.Sprintf("admin %d/%d — admin: POST /signing-keys/{newKID}/activate → newKID signs; oldKID decommissioning; both in JWKS; priorKeyToken STILL verifies", 6, nAdmin))
 	{
 		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 			log.Fatalf("admin signing-key activate: sudo: %v", err)
@@ -3192,7 +3190,7 @@ func main() {
 		log.Printf("  newKID=%s now SIGNS; GET /signing-keys: oldKID=decommissioning newKID=active; JWKS still publishes BOTH; priorKeyToken (oldKID) STILL verifies in grace ✓", newKID)
 	}
 
-	step(fmt.Sprintf("step 120/%d — admin: GET /audit-events?factor=oidc_client|signing_key shows the mutations; light redaction spot-check", totalAdmin))
+	step(fmt.Sprintf("admin %d/%d — admin: GET /audit-events?factor=oidc_client|signing_key shows the mutations; light redaction spot-check", 7, nAdmin))
 	{
 		var oidcEvents []contractAuditEvent
 		if err := c.get("/api/prohibitorum/audit-events?factor=oidc_client&limit=200", &oidcEvents); err != nil {
@@ -3237,7 +3235,7 @@ func main() {
 		log.Printf("  audit-events: oidc_client register(%q) + signing_key mutation(newKID) present; no secret in any detail ✓", adminClientID)
 	}
 
-	step(fmt.Sprintf("step 121/%d — admin: GET /accounts/{id}/credentials lists passkey(s) w/ 4-char suffix only; force-revoke succeeds under the active sudo window (gate-deny covered by admin_route_policy_test)", totalAdmin))
+	step(fmt.Sprintf("admin %d/%d — admin: GET /accounts/{id}/credentials lists passkey(s) w/ 4-char suffix only; force-revoke succeeds under the active sudo window (gate-deny covered by admin_route_policy_test)", 8, nAdmin))
 	{
 		me, err := c.getMe()
 		if err != nil {
@@ -3270,7 +3268,7 @@ func main() {
 
 		// Force-revoke is sudo-gated. Gate enforcement is covered by
 		// admin_route_policy_test.go (unit test). Here we verify the happy
-		// path: the sudo window from step 119 (activate signing key) is still
+		// path: the sudo window from the activate-signing-key step is still
 		// valid (multi-use, 15 min TTL), so a force-revoke call succeeds
 		// without a new explicit step-up. Credentials are returned ORDER BY
 		// created_at DESC, so creds[0] is the most recently added passkey
@@ -3287,24 +3285,24 @@ func main() {
 		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 			log.Fatalf("admin credentials: force-revoke WITH sudo must succeed (204/200), got %d (body=%s)", resp.StatusCode, body)
 		}
-		log.Printf("  /accounts/%d/credentials: %d passkey(s), 4-char suffix only, no full id; force-revoke (sudo window from step 119) → %d ✓", me.ID, len(creds), resp.StatusCode)
+		log.Printf("  /accounts/%d/credentials: %d passkey(s), 4-char suffix only, no full id; force-revoke (sudo window from the activate step) → %d ✓", me.ID, len(creds), resp.StatusCode)
 	}
 
 	// =========================================================================
 	// Tier-1 self-service + admin reads (steps appended after the existing 121).
 	//
-	// Pre-condition: c holds a live webauthn session (confirmed by step 121's
-	// c.getMe() success). Password+TOTP were revoked at step 42 and never
+	// Pre-condition: c holds a live webauthn session (confirmed by the admin arc's
+	// c.getMe() success). Password+TOTP were revoked by the destructive-revoke step and never
 	// restored; all assertions below are written accordingly.
-	// me2.ID is the smoke-admin's account id (set at step 10, never changes).
+	// me2.ID is the smoke-admin's account id (set during enrollment, never changes).
 	// =========================================================================
 
-	step("Tier-1 a — PUT /me round-trip (displayName rename + revert)")
+	step("Tier-1 1/4 — PUT /me round-trip (displayName rename + revert)")
 	{
 		// Capture current displayName.
 		before, err := c.getMe()
 		if err != nil {
-			log.Fatalf("Tier-1 a: getMe before: %v", err)
+			log.Fatalf("Tier-1 1/4: getMe before: %v", err)
 		}
 		originalName := before.DisplayName
 
@@ -3312,21 +3310,21 @@ func main() {
 		var renamed meResponse
 		if err := c.putJSON("/api/prohibitorum/me",
 			map[string]string{"displayName": "Smoke Renamed"}, &renamed); err != nil {
-			log.Fatalf("Tier-1 a: PUT /me (rename): %v", err)
+			log.Fatalf("Tier-1 1/4: PUT /me (rename): %v", err)
 		}
 		// Re-GET and assert.
 		after, err := c.getMe()
 		if err != nil {
-			log.Fatalf("Tier-1 a: getMe after rename: %v", err)
+			log.Fatalf("Tier-1 1/4: getMe after rename: %v", err)
 		}
 		if after.DisplayName != "Smoke Renamed" {
-			log.Fatalf("Tier-1 a: displayName after rename: want %q, got %q", "Smoke Renamed", after.DisplayName)
+			log.Fatalf("Tier-1 1/4: displayName after rename: want %q, got %q", "Smoke Renamed", after.DisplayName)
 		}
 		if after.Username != before.Username {
-			log.Fatalf("Tier-1 a: username changed across rename: was %q, now %q", before.Username, after.Username)
+			log.Fatalf("Tier-1 1/4: username changed across rename: was %q, now %q", before.Username, after.Username)
 		}
 		if after.Role != before.Role {
-			log.Fatalf("Tier-1 a: role changed across rename: was %q, now %q", before.Role, after.Role)
+			log.Fatalf("Tier-1 1/4: role changed across rename: was %q, now %q", before.Role, after.Role)
 		}
 		log.Printf("  displayName → %q (rename confirmed, username=%s role=%s)", after.DisplayName, after.Username, after.Role)
 
@@ -3334,19 +3332,19 @@ func main() {
 		var reverted meResponse
 		if err := c.putJSON("/api/prohibitorum/me",
 			map[string]string{"displayName": originalName}, &reverted); err != nil {
-			log.Fatalf("Tier-1 a: PUT /me (revert): %v", err)
+			log.Fatalf("Tier-1 1/4: PUT /me (revert): %v", err)
 		}
 		check, err := c.getMe()
 		if err != nil {
-			log.Fatalf("Tier-1 a: getMe after revert: %v", err)
+			log.Fatalf("Tier-1 1/4: getMe after revert: %v", err)
 		}
 		if check.DisplayName != originalName {
-			log.Fatalf("Tier-1 a: displayName after revert: want %q, got %q", originalName, check.DisplayName)
+			log.Fatalf("Tier-1 1/4: displayName after revert: want %q, got %q", originalName, check.DisplayName)
 		}
 		log.Printf("  displayName reverted to %q ✓", check.DisplayName)
 	}
 
-	step("Tier-1 b — GET /me/factors (passkey count >= 1; password+TOTP revoked at step 42)")
+	step("Tier-1 2/4 — GET /me/factors (passkey count >= 1; password+TOTP revoked earlier)")
 	{
 		var factors struct {
 			PasswordSet            bool `json:"passwordSet"`
@@ -3355,24 +3353,24 @@ func main() {
 			PasskeyCount           int  `json:"passkeyCount"`
 		}
 		if err := c.get("/api/prohibitorum/me/factors", &factors); err != nil {
-			log.Fatalf("Tier-1 b: GET /me/factors: %v", err)
+			log.Fatalf("Tier-1 2/4: GET /me/factors: %v", err)
 		}
 		log.Printf("  factors: passwordSet=%v totpEnrolled=%v recoveryCodesRemaining=%d passkeyCount=%d",
 			factors.PasswordSet, factors.TOTPEnrolled, factors.RecoveryCodesRemaining, factors.PasskeyCount)
 		if factors.PasswordSet {
-			log.Fatalf("Tier-1 b: passwordSet=true but password was revoked at step 42")
+			log.Fatalf("Tier-1 2/4: passwordSet=true but password was revoked by the destructive-revoke step")
 		}
 		if factors.TOTPEnrolled {
-			log.Fatalf("Tier-1 b: totpEnrolled=true but TOTP was revoked at step 42")
+			log.Fatalf("Tier-1 2/4: totpEnrolled=true but TOTP was revoked by the destructive-revoke step")
 		}
 		if factors.PasskeyCount < 1 {
-			log.Fatalf("Tier-1 b: passkeyCount=%d, want >=1", factors.PasskeyCount)
+			log.Fatalf("Tier-1 2/4: passkeyCount=%d, want >=1", factors.PasskeyCount)
 		}
 		log.Printf("  /me/factors: passwordSet=false totpEnrolled=false recoveryCodesRemaining=%d passkeyCount=%d ✓",
 			factors.RecoveryCodesRemaining, factors.PasskeyCount)
 	}
 
-	step("Tier-1 c — admin GET /accounts/{id}/sessions: len>=1, all isCurrent==false")
+	step("Tier-1 3/4 — admin GET /accounts/{id}/sessions: len>=1, all isCurrent==false")
 	{
 		var sessions []struct {
 			ID         string `json:"id"`
@@ -3384,20 +3382,20 @@ func main() {
 		}
 		path := fmt.Sprintf("/api/prohibitorum/accounts/%d/sessions", me2.ID)
 		if err := c.get(path, &sessions); err != nil {
-			log.Fatalf("Tier-1 c: GET %s: %v", path, err)
+			log.Fatalf("Tier-1 3/4: GET %s: %v", path, err)
 		}
 		if len(sessions) < 1 {
-			log.Fatalf("Tier-1 c: admin sessions: want >=1, got 0 for account %d", me2.ID)
+			log.Fatalf("Tier-1 3/4: admin sessions: want >=1, got 0 for account %d", me2.ID)
 		}
 		for _, s := range sessions {
 			if s.IsCurrent {
-				log.Fatalf("Tier-1 c: admin sessions: isCurrent=true for session %q — admin route must always return false", s.ID)
+				log.Fatalf("Tier-1 3/4: admin sessions: isCurrent=true for session %q — admin route must always return false", s.ID)
 			}
 		}
 		log.Printf("  /accounts/%d/sessions → %d session(s), all isCurrent=false ✓", me2.ID, len(sessions))
 	}
 
-	step("Tier-1 d — SAML provider PUT attr_map round-trip")
+	step("Tier-1 4/4 — SAML provider PUT attr_map round-trip")
 	{
 		// Find the mock SP (entityId == mockSPEntityID == "https://mock-sp.smoke.test")
 		// via the admin list endpoint, then GET the full record, PUT back with
@@ -3415,7 +3413,7 @@ func main() {
 		// List all SAML providers to find the mock SP's id.
 		var providers []samlProviderItem
 		if err := c.get("/api/prohibitorum/saml-applications", &providers); err != nil {
-			log.Fatalf("Tier-1 d: GET /saml-providers: %v", err)
+			log.Fatalf("Tier-1 4/4: GET /saml-providers: %v", err)
 		}
 		var spID int64
 		for _, p := range providers {
@@ -3425,14 +3423,14 @@ func main() {
 			}
 		}
 		if spID == 0 {
-			log.Fatalf("Tier-1 d: mock SP %q not found in /saml-providers list (%d providers)", mockSPEntityID, len(providers))
+			log.Fatalf("Tier-1 4/4: mock SP %q not found in /saml-providers list (%d providers)", mockSPEntityID, len(providers))
 		}
 		log.Printf("  mock SP id=%d found in list", spID)
 
 		// GET the full provider record to capture current required fields.
 		var current samlProviderItem
 		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), &current); err != nil {
-			log.Fatalf("Tier-1 d: GET /saml-providers/%d: %v", spID, err)
+			log.Fatalf("Tier-1 4/4: GET /saml-providers/%d: %v", spID, err)
 		}
 
 		// Build the attribute map entry to add.
@@ -3455,23 +3453,23 @@ func main() {
 		// Log out and back in to start a fresh recent-auth window (new IssuedAt)
 		// before the sudo call; the previous window was issued during the admin arc.
 		if err := c.logout(); err != nil {
-			log.Fatalf("Tier-1 d: logout pre-SAML-PUT: %v", err)
+			log.Fatalf("Tier-1 4/4: logout pre-SAML-PUT: %v", err)
 		}
 		{
 			lo, err := c.beginLogin()
 			if err != nil {
-				log.Fatalf("Tier-1 d: relogin/begin: %v", err)
+				log.Fatalf("Tier-1 4/4: relogin/begin: %v", err)
 			}
 			signed, err := auth.signAssertion(lo.Challenge, *baseURL)
 			if err != nil {
-				log.Fatalf("Tier-1 d: relogin sign: %v", err)
+				log.Fatalf("Tier-1 4/4: relogin sign: %v", err)
 			}
 			if err := c.completeLogin(auth, signed); err != nil {
-				log.Fatalf("Tier-1 d: relogin/complete: %v", err)
+				log.Fatalf("Tier-1 4/4: relogin/complete: %v", err)
 			}
 		}
 		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-			log.Fatalf("Tier-1 d: sudo webauthn (pre SAML PUT): %v", err)
+			log.Fatalf("Tier-1 4/4: sudo webauthn (pre SAML PUT): %v", err)
 		}
 
 		// displayName must not be empty (PUT handler rejects empty string).
@@ -3491,18 +3489,18 @@ func main() {
 		}
 		var putResp samlProviderItem
 		if err := c.putJSON(fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), putBody, &putResp); err != nil {
-			log.Fatalf("Tier-1 d: PUT /saml-providers/%d: %v", spID, err)
+			log.Fatalf("Tier-1 4/4: PUT /saml-providers/%d: %v", spID, err)
 		}
 
 		// Re-GET to confirm round-trip.
 		var updated samlProviderItem
 		if err := c.get(fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), &updated); err != nil {
-			log.Fatalf("Tier-1 d: GET /saml-providers/%d (post-PUT): %v", spID, err)
+			log.Fatalf("Tier-1 4/4: GET /saml-providers/%d (post-PUT): %v", spID, err)
 		}
 		// Decode the returned attributeMap and check for the EMAIL entry.
 		var gotAttrs []attrEntry
 		if err := json.Unmarshal(updated.AttributeMap, &gotAttrs); err != nil {
-			log.Fatalf("Tier-1 d: attributeMap decode: %v (raw=%s)", err, updated.AttributeMap)
+			log.Fatalf("Tier-1 4/4: attributeMap decode: %v (raw=%s)", err, updated.AttributeMap)
 		}
 		var foundEmail bool
 		for _, a := range gotAttrs {
@@ -3512,19 +3510,19 @@ func main() {
 			}
 		}
 		if !foundEmail {
-			log.Fatalf("Tier-1 d: attributeMap round-trip: EMAIL entry missing (got %+v)", gotAttrs)
+			log.Fatalf("Tier-1 4/4: attributeMap round-trip: EMAIL entry missing (got %+v)", gotAttrs)
 		}
 		log.Printf("  PUT /saml-providers/%d: attributeMap has EMAIL entry ✓", spID)
 	}
 
 	// =========================================================================
-	// Multi-use sudo window — verifies that a single elevation (from Tier-1 d's
+	// Multi-use sudo window — verifies that a single elevation (from Tier-1 4/4's
 	// sudoWebAuthn call above) covers MULTIPLE gated actions until the window
 	// expires. We call the same sudo-gated endpoint twice without a new step-up;
 	// both must succeed under the existing window (not one-shot).
 	// =========================================================================
 	{
-		step("sudo-multiuse 1/2 — first gated action succeeds under existing sudo window (from Tier-1 d)")
+		step("sudo-multiuse 1/2 — first gated action succeeds under existing sudo window (from Tier-1 4/4)")
 		resp1, err := c.postJSONRaw("/api/prohibitorum/me/credentials/register/begin", map[string]any{})
 		if err != nil {
 			log.Fatalf("sudo-multiuse: first register/begin: %v", err)
@@ -3534,7 +3532,7 @@ func main() {
 		if status1 != http.StatusOK {
 			log.Fatalf("sudo-multiuse: first register/begin: want 200, got %d", status1)
 		}
-		log.Printf("  first register/begin → 200 ✓ (sudo window from Tier-1 d still active)")
+		log.Printf("  first register/begin → 200 ✓ (sudo window from Tier-1 4/4 still active)")
 
 		step("sudo-multiuse 2/2 — second gated action within same window also succeeds (multi-use)")
 		resp2, err := c.postJSONRaw("/api/prohibitorum/me/credentials/register/begin", map[string]any{})
@@ -3556,7 +3554,7 @@ func main() {
 	//
 	// Pre-condition: c holds a live webauthn session. idSub (the smoke-admin's
 	// OIDC subject UUID) and rpClientID/rpSecret/rpRedirectURI/issuer are all
-	// still in scope from the v0.4 block.
+	// still in scope from the oidc block.
 	// =========================================================================
 
 	step("avatar 1/4 — PUT /me/avatar with a tiny 8×8 PNG (upload round-trip)")
@@ -3659,7 +3657,7 @@ func main() {
 	// =========================================================================
 	// RBAC end-to-end arc (Task 11): per-app access gate + OIDC groups claim.
 	//
-	// Reuses the bootstrap smoke-admin (account id == me2.ID, set at step 10).
+	// Reuses the bootstrap smoke-admin (account id == me2.ID, set during enrollment).
 	// A fresh restricted OIDC client is created, then:
 	//   deny  — the admin (NOT yet granted) drives an interactive authorize →
 	//           302 to <issuer>/error?reason=app_access_denied, NO code.
@@ -3674,7 +3672,7 @@ func main() {
 	// Every admin mutation is sudo-gated; each is preceded by a fresh
 	// sudoWebAuthn (multi-use window, re-asserted before each mutation for
 	// test isolation) exactly as the admin arc (steps 114–121) does.
-	// rpRedirectURI shape + issuer reused from the v0.4 block. The group is
+	// rpRedirectURI shape + issuer reused from the oidc block. The group is
 	// created exposedToDownstream:true so its slug
 	// surfaces in the groups claim (ListExposedGroupSlugsByAccount).
 	// =========================================================================
@@ -3717,7 +3715,7 @@ func main() {
 		step("rbac 2/7 — add the smoke-admin as a group member (sudo)")
 		{
 			// The admin's account id is me2.ID (the smoke already fetched /me at
-			// step 10; me2.ID never changes across the run).
+			// enrollment; me2.ID never changes across the run).
 			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 				log.Fatalf("rbac: sudo (pre member add): %v", err)
 			}
@@ -3932,7 +3930,7 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — 45/45 (v0.2) + 46–69/69 (v0.3 federation incl. invite_only) + 70–87 (v0.4 OIDC OP) + 88–99 (v0.5 SAML IdP) + 100–111 (v0.6 forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + 112–113 (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + 114–121 (admin API: OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 a-d (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse 1-2 (multi-use sudo window: single elevation covers multiple gated actions until expiry) + avatar 1-4 (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed 1-4 (federated first-login confirm gate at /welcome → upstream picture inherited via background job, no-clobber of a user upload on re-login, UserInfo-fallback inherit, dual-source selection switch upstream/user/none + ?source previews + avatar_source_unavailable negative) + rbac 1-7 (per-app access gate + OIDC groups claim: create exposed group, add admin member, restricted client, DENY not-yet-granted admin → /error?reason=app_access_denied no code, grant via-group, ALLOW → code → id_token + userinfo groups claim incl. slug) + error-redirect 1-2 (federation callback access_denied + SAML malformed request → 302 /error) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -4559,7 +4557,7 @@ func fmtSQLVal(v any) string {
 }
 
 // =========================================================================
-// v0.2 helpers
+// core helpers
 // =========================================================================
 
 // postJSONRaw is a postJSON variant that returns the raw *http.Response without
@@ -4810,7 +4808,7 @@ func resetThrottle(accountID int32, factor string) error {
 	return nil
 }
 
-// ---- v0.2 DB assertions ----------------------------------------------------
+// ---- core DB assertions ----------------------------------------------------
 
 func verifyPasswordCredential(accountID int32) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
@@ -4967,11 +4965,11 @@ func verifyFactorsEmpty(accountID int32) error {
 	return nil
 }
 
-// verifyV02AuditEvents checks credential_event for the union of (factor, event)
-// pairs the v0.2 surface is supposed to emit during this smoke run. Counts
+// verifyCoreAuditEvents checks credential_event for the union of (factor, event)
+// pairs the core surface is supposed to emit during this smoke run. Counts
 // are lower bounds — the underlying writers may emit more events than the
 // minimum (e.g. sudo_granted fires once per /me/sudo/complete).
-func verifyV02AuditEvents(accountID int32) error {
+func verifyCoreAuditEvents(accountID int32) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	rows, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT factor || ':' || event || ':' || count(*)::text "+
@@ -5023,7 +5021,7 @@ func verifyV02AuditEvents(accountID int32) error {
 				w.key, w.min, counts[w.key], counts)
 		}
 	}
-	log.Printf("  credential_event covers v0.2 lifecycle (counts=%v)", counts)
+	log.Printf("  credential_event covers the credential lifecycle (counts=%v)", counts)
 	return nil
 }
 
@@ -5035,7 +5033,7 @@ func firstN(s string, n int) string {
 }
 
 // =========================================================================
-// v0.3 federation helpers
+// federation helpers
 // =========================================================================
 
 // federationIdentity mirrors handle_me_identities.go's identityView JSON
@@ -5504,11 +5502,11 @@ func pollAvatarInherited(baseURL, subject string, timeout time.Duration) (int, s
 		subject, timeout, lastStatus, lastCT)
 }
 
-// verifyV03FederationAuditEvents asserts credential_event has lower-bound
+// verifyFederationAuditEvents asserts credential_event has lower-bound
 // counts for the federation_oidc surface this smoke exercises. Lower bounds
 // only — server-side handlers may emit additional events under variants we
 // don't differentiate at the wire layer.
-func verifyV03FederationAuditEvents() error {
+func verifyFederationAuditEvents() error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	rows, err := dbScalar(dburl,
 		"SELECT factor || ':' || event || ':' || count(*)::text "+
@@ -5550,7 +5548,7 @@ func verifyV03FederationAuditEvents() error {
 				w.key, w.min, counts[w.key], counts)
 		}
 	}
-	log.Printf("  credential_event covers v0.3 federation lifecycle (counts=%v)", counts)
+	log.Printf("  credential_event covers federation lifecycle (counts=%v)", counts)
 	return nil
 }
 
@@ -5696,7 +5694,7 @@ func expectInviteStartFederationError(c *client, baseURL, token string, wantCode
 }
 
 // =========================================================================
-// v0.4 OIDC OP helpers — mock relying party
+// OIDC OP helpers — mock relying party
 // =========================================================================
 
 // oidcTokenResponse mirrors pkg/protocol/oidc.tokenResponse (the RFC 6749 §5.1
@@ -5775,7 +5773,7 @@ func createOIDCClient(baseURL, clientID, redirectURI, postLogoutURI string, scop
 }
 
 // createConsentOIDCClient registers a CONFIDENTIAL client with
-// --require-consent so the Login+Consent UI backend consent steps (step 112) can drive the /consent bounce.
+// --require-consent so the Login+Consent UI backend consent steps (consent 1) can drive the /consent bounce.
 // Modeled on createOIDCClient; returns the parsed client secret.
 func createConsentOIDCClient(baseURL, clientID, redirectURI string, scopes []string) (string, error) {
 	args := []string{"exec", "--", "go", "run", "./cmd/prohibitorum", "oidc-client", "create",
@@ -6047,8 +6045,8 @@ func authorizeWithSession(c *client, path string) (string, error) {
 }
 
 // =========================================================================
-// v0.6 helpers — forced re-auth, public-client token/introspect/revoke,
-// SAML status-Response decode, and the v0.6 audit assert.
+// hardening helpers — forced re-auth, public-client token/introspect/revoke,
+// SAML status-Response decode, and the re-auth audit assert.
 // =========================================================================
 
 // authorizeRaw is authorizeWithSession under a name that signals the caller
@@ -6248,10 +6246,10 @@ func revokeTokenPublic(baseURL, clientID, token string) error {
 	return nil
 }
 
-// verifyV06SAMLAuditEvents asserts credential_event picked up the v0.6 SAML
+// verifyHardeningSAMLAuditEvents asserts credential_event picked up the re-auth SAML
 // surface: the ForceAuthn re-auth assertion + POST-binding assertion add to the
 // use/sso count, and the IdP-initiated SSO emits use with reason=idp_initiated.
-func verifyV06SAMLAuditEvents() error {
+func verifyHardeningSAMLAuditEvents() error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
@@ -6273,18 +6271,18 @@ func verifyV06SAMLAuditEvents() error {
 		n, _ := strconv.Atoi(parts[2])
 		counts[parts[0]+":"+parts[1]] = n
 	}
-	// idp_initiated reason must be present (step 110). sso reason count grew vs
-	// the v0.5 baseline (ForceAuthn retry @105 + POST-binding @108) — lower
-	// bound 5 keeps us safe (v0.5 alone already asserts >=3).
+	// idp_initiated reason must be present (hardening 11). sso reason count grew vs
+	// the saml baseline (ForceAuthn retry + POST-binding) — lower
+	// bound 5 keeps us safe (the saml arc alone already asserts >=3).
 	if counts["use:idp_initiated"] < 1 {
 		return fmt.Errorf("credential_event saml_sp use:idp_initiated: want >=1, got %d (full counts=%v)",
 			counts["use:idp_initiated"], counts)
 	}
 	if counts["use:sso"] < 5 {
-		return fmt.Errorf("credential_event saml_sp use:sso: want >=5 post-v0.6, got %d (full counts=%v)",
+		return fmt.Errorf("credential_event saml_sp use:sso: want >=5 after the re-auth arc, got %d (full counts=%v)",
 			counts["use:sso"], counts)
 	}
-	log.Printf("  credential_event covers v0.6 SAML lifecycle (counts=%v)", counts)
+	log.Printf("  credential_event covers SAML re-auth lifecycle (counts=%v)", counts)
 	return nil
 }
 
@@ -6532,7 +6530,7 @@ func verifyRevokedJTI(jti string) error {
 	return nil
 }
 
-// verifyV04OIDCAuditEvents asserts credential_event has lower-bound counts for
+// verifyOIDCAuditEvents asserts credential_event has lower-bound counts for
 // the oidc_client factor across this smoke run. The audit `event` column holds
 // the abstract verb (use/fail/revoke); the concrete reason lives in
 // detail->>'reason'. We assert on (event, reason) pairs so a regression that
@@ -6541,11 +6539,11 @@ func verifyRevokedJTI(jti string) error {
 // Expected reasons emitted by the handlers:
 //   - use/authorize        — every /oauth/authorize success (≥5: steps 72,79,80,82,83 + reruns)
 //   - use/token_issued     — every authorization_code grant (≥4: steps 73,79,80 + the negatives consume a code but the bad-secret/PKCE-mismatch ones FAIL before token_issued)
-//   - use/refresh_rotated  — the successful refresh (step 76) ≥1
-//   - use/logout           — RP-initiated logout (step 84) ≥1
-//   - fail/refresh_reuse   — the reuse replay (step 77) ≥1
+//   - use/refresh_rotated  — the successful refresh (oidc 7) ≥1
+//   - use/logout           — RP-initiated logout (oidc 15) ≥1
+//   - fail/refresh_reuse   — the reuse replay (oidc 8) ≥1
 //   - revoke/revoked       — /oauth/revoke (steps 79 refresh + 80 access) ≥2
-func verifyV04OIDCAuditEvents() error {
+func verifyOIDCAuditEvents() error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
@@ -6584,6 +6582,6 @@ func verifyV04OIDCAuditEvents() error {
 				w.key, w.min, counts[w.key], counts)
 		}
 	}
-	log.Printf("  credential_event covers v0.4 OIDC OP lifecycle (counts=%v)", counts)
+	log.Printf("  credential_event covers OIDC OP lifecycle (counts=%v)", counts)
 	return nil
 }
