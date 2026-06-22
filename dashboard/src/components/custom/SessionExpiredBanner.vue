@@ -28,7 +28,15 @@ function signInAgain(): void {
     class="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-4 px-4 py-3 text-sm shadow bg-destructive text-destructive-foreground"
   >
     <span>{{ t('sessionExpiry.message') }}</span>
-    <Button size="sm" variant="outline" @click="signInAgain">
+    <!-- Inverse CTA on the destructive bar: destructive-foreground fill + destructive
+         text. Both tokens flip together per theme (white/red light, near-black/red
+         dark) and are designed to clear AA on the destructive surface — unlike the
+         `outline` variant, which sets no text colour and inherited the bar's white. -->
+    <Button
+      size="sm"
+      class="border border-transparent bg-destructive-foreground text-destructive shadow-xs hover:bg-destructive-foreground/90"
+      @click="signInAgain"
+    >
       {{ t('sessionExpiry.signInAgain') }}
     </Button>
   </div>
