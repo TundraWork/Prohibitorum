@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -42,7 +43,10 @@ func (s *Server) putEntityIcon(w http.ResponseWriter, r *http.Request, kind, id 
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	png, etag, perr := branding.ProcessIcon(raw)
+	// One decode produces both the stored WebP and the backdrop accent. A
+	// fully-transparent icon yields no accent (left NULL → client falls back to a
+	// name-derived tint).
+	out, etag, accentHex, perr := branding.ProcessIconWithAccent(raw)
 	if perr != nil {
 		if errors.Is(perr, branding.ErrTooLarge) {
 			writeAvatarErr(w, "avatar_too_large", "icon: image exceeds 5 MiB")
@@ -51,8 +55,12 @@ func (s *Server) putEntityIcon(w http.ResponseWriter, r *http.Request, kind, id 
 		writeAvatarErr(w, "avatar_invalid_image", "icon: invalid or unsupported image format")
 		return
 	}
+	var accent pgtype.Text
+	if accentHex != "" {
+		accent = pgtype.Text{String: accentHex, Valid: true}
+	}
 	if err := s.queries.SetEntityIcon(r.Context(), db.SetEntityIconParams{
-		OwnerKind: kind, OwnerID: id, Png: png, Etag: etag,
+		OwnerKind: kind, OwnerID: id, Png: out, Etag: etag, AccentColor: accent,
 	}); err != nil {
 		writeAuthErr(w, err)
 		return

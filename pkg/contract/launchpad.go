@@ -17,6 +17,10 @@ type LaunchpadApp struct {
 	Name      string  `json:"name"`
 	IconURL   *string `json:"iconUrl,omitempty"`
 	LaunchURL string  `json:"launchUrl"`
+	// AccentColor is a representative "#rrggbb" extracted from the uploaded icon
+	// (server-side, at upload time) for tinting the tile backdrop. Nil when the
+	// app has no icon — the client then derives a tint from the name.
+	AccentColor *string `json:"accentColor,omitempty"`
 }
 
 // ConsentedApp is one app the account has granted OIDC consent to.

@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteEntityIcon = `-- name: DeleteEntityIcon :exec
@@ -60,6 +62,27 @@ func (q *Queries) GetEntityIconEtag(ctx context.Context, arg GetEntityIconEtagPa
 	return etag, err
 }
 
+const getEntityIconMeta = `-- name: GetEntityIconMeta :one
+SELECT etag, accent_color FROM entity_icon WHERE owner_kind = $1 AND owner_id = $2
+`
+
+type GetEntityIconMetaParams struct {
+	OwnerKind string `json:"ownerKind"`
+	OwnerID   string `json:"ownerId"`
+}
+
+type GetEntityIconMetaRow struct {
+	Etag        string      `json:"etag"`
+	AccentColor pgtype.Text `json:"accentColor"`
+}
+
+func (q *Queries) GetEntityIconMeta(ctx context.Context, arg GetEntityIconMetaParams) (GetEntityIconMetaRow, error) {
+	row := q.db.QueryRow(ctx, getEntityIconMeta, arg.OwnerKind, arg.OwnerID)
+	var i GetEntityIconMetaRow
+	err := row.Scan(&i.Etag, &i.AccentColor)
+	return i, err
+}
+
 const listEntityIconEtags = `-- name: ListEntityIconEtags :many
 SELECT owner_id, etag FROM entity_icon WHERE owner_kind = $1
 `
@@ -90,17 +113,18 @@ func (q *Queries) ListEntityIconEtags(ctx context.Context, ownerKind string) ([]
 }
 
 const setEntityIcon = `-- name: SetEntityIcon :exec
-INSERT INTO entity_icon (owner_kind, owner_id, png, etag, updated_at)
-VALUES ($1, $2, $3, $4, now())
+INSERT INTO entity_icon (owner_kind, owner_id, png, etag, accent_color, updated_at)
+VALUES ($1, $2, $3, $4, $5, now())
 ON CONFLICT (owner_kind, owner_id)
-DO UPDATE SET png = $3, etag = $4, updated_at = now()
+DO UPDATE SET png = $3, etag = $4, accent_color = $5, updated_at = now()
 `
 
 type SetEntityIconParams struct {
-	OwnerKind string `json:"ownerKind"`
-	OwnerID   string `json:"ownerId"`
-	Png       []byte `json:"png"`
-	Etag      string `json:"etag"`
+	OwnerKind   string      `json:"ownerKind"`
+	OwnerID     string      `json:"ownerId"`
+	Png         []byte      `json:"png"`
+	Etag        string      `json:"etag"`
+	AccentColor pgtype.Text `json:"accentColor"`
 }
 
 func (q *Queries) SetEntityIcon(ctx context.Context, arg SetEntityIconParams) error {
@@ -109,6 +133,22 @@ func (q *Queries) SetEntityIcon(ctx context.Context, arg SetEntityIconParams) er
 		arg.OwnerID,
 		arg.Png,
 		arg.Etag,
+		arg.AccentColor,
 	)
+	return err
+}
+
+const setEntityIconAccent = `-- name: SetEntityIconAccent :exec
+UPDATE entity_icon SET accent_color = $3 WHERE owner_kind = $1 AND owner_id = $2
+`
+
+type SetEntityIconAccentParams struct {
+	OwnerKind   string      `json:"ownerKind"`
+	OwnerID     string      `json:"ownerId"`
+	AccentColor pgtype.Text `json:"accentColor"`
+}
+
+func (q *Queries) SetEntityIconAccent(ctx context.Context, arg SetEntityIconAccentParams) error {
+	_, err := q.db.Exec(ctx, setEntityIconAccent, arg.OwnerKind, arg.OwnerID, arg.AccentColor)
 	return err
 }

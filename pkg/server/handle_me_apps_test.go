@@ -26,11 +26,11 @@ func (f *fakeLaunchpadQ) ListAuthorizedForwardAuthAppsForAccount(context.Context
 func (f *fakeLaunchpadQ) ListAuthorizedSAMLSPsForAccount(context.Context, pgtype.Int4) ([]db.ListAuthorizedSAMLSPsForAccountRow, error) {
 	return f.saml, nil
 }
-func (f *fakeLaunchpadQ) GetEntityIconEtag(_ context.Context, p db.GetEntityIconEtagParams) (string, error) {
+func (f *fakeLaunchpadQ) GetEntityIconMeta(_ context.Context, p db.GetEntityIconMetaParams) (db.GetEntityIconMetaRow, error) {
 	if e, ok := f.etags[p.OwnerKind+"/"+p.OwnerID]; ok {
-		return e, nil
+		return db.GetEntityIconMetaRow{Etag: e}, nil
 	}
-	return "", pgx.ErrNoRows
+	return db.GetEntityIconMetaRow{}, pgx.ErrNoRows
 }
 
 func TestHandleMyApps(t *testing.T) {

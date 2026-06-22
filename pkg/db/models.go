@@ -83,11 +83,12 @@ type Enrollment struct {
 }
 
 type EntityIcon struct {
-	OwnerKind string             `json:"ownerKind"`
-	OwnerID   string             `json:"ownerId"`
-	Png       []byte             `json:"png"`
-	Etag      string             `json:"etag"`
-	UpdatedAt pgtype.Timestamptz `json:"updatedAt"`
+	OwnerKind   string             `json:"ownerKind"`
+	OwnerID     string             `json:"ownerId"`
+	Png         []byte             `json:"png"`
+	Etag        string             `json:"etag"`
+	UpdatedAt   pgtype.Timestamptz `json:"updatedAt"`
+	AccentColor pgtype.Text        `json:"accentColor"`
 }
 
 type GroupMember struct {

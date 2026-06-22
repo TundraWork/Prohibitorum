@@ -5,32 +5,20 @@
 package branding
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	"image/png"
 	"os"
 	"sync"
 
-	_ "github.com/gen2brain/webp" // register WebP decoder for uploaded icons
-	"golang.org/x/image/draw"
+	"prohibitorum/pkg/imageutil"
 )
 
-const (
-	maxInputBytes = 5 << 20
-	maxInputDim   = 10000
-	iconSize      = 256
-	defaultName   = "Prohibitorum"
-)
+const defaultName = "Prohibitorum"
 
+// Errors are re-exported from imageutil so callers can keep matching on
+// branding.ErrTooLarge / branding.ErrInvalidImage.
 var (
-	ErrTooLarge     = errors.New("branding: input too large")
-	ErrInvalidImage = errors.New("branding: invalid or unsupported image")
+	ErrTooLarge     = imageutil.ErrTooLarge
+	ErrInvalidImage = imageutil.ErrInvalidImage
 )
 
 // Settings is the raw DB-override row (nil fields = no override). Exported so
@@ -179,55 +167,10 @@ func (r *Resolver) ClearIcon(ctx context.Context) error {
 	return nil
 }
 
-// ProcessIcon decodes raw image bytes, center-crops to square, resizes to
-// 256x256, and re-encodes as PNG. Returns the PNG + a sha256 etag.
+// ProcessIcon normalizes raw to a 512×512 WebP (quality 90) + sha256 etag,
+// sharing the exact pipeline with avatars via pkg/imageutil. Used where no
+// backdrop accent is needed (the instance icon). For app/entity icons use
+// ProcessIconWithAccent, which derives the accent from the same decode.
 func ProcessIcon(raw []byte) (out []byte, etag string, err error) {
-	if len(raw) > maxInputBytes {
-		return nil, "", ErrTooLarge
-	}
-	src, _, derr := image.Decode(bytes.NewReader(raw))
-	if derr != nil {
-		return nil, "", ErrInvalidImage
-	}
-	b := src.Bounds()
-	if b.Dx() <= 0 || b.Dy() <= 0 || b.Dx() > maxInputDim || b.Dy() > maxInputDim {
-		return nil, "", ErrInvalidImage
-	}
-	square := cropSquare(src)
-	dst := image.NewRGBA(image.Rect(0, 0, iconSize, iconSize))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), square, square.Bounds(), draw.Over, nil)
-
-	var buf bytes.Buffer
-	if eerr := png.Encode(&buf, dst); eerr != nil {
-		return nil, "", ErrInvalidImage
-	}
-	out = buf.Bytes()
-	sum := sha256.Sum256(out)
-	return out, hex.EncodeToString(sum[:]), nil
-}
-
-// cropSquare center-crops to the largest centered square (duplicated from
-// pkg/avatar deliberately — branding stays PNG-only and independent).
-func cropSquare(src image.Image) image.Image {
-	b := src.Bounds()
-	w, h := b.Dx(), b.Dy()
-	if w == h {
-		return src
-	}
-	edge := w
-	if h < w {
-		edge = h
-	}
-	x0 := b.Min.X + (w-edge)/2
-	y0 := b.Min.Y + (h-edge)/2
-	rect := image.Rect(x0, y0, x0+edge, y0+edge)
-	type subImager interface {
-		SubImage(r image.Rectangle) image.Image
-	}
-	if si, ok := src.(subImager); ok {
-		return si.SubImage(rect)
-	}
-	dst := image.NewRGBA(image.Rect(0, 0, edge, edge))
-	draw.Copy(dst, image.Point{}, src, rect, draw.Src, nil)
-	return dst
+	return imageutil.ProcessSquareWebP(raw)
 }

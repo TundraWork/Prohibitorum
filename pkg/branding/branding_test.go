@@ -62,7 +62,7 @@ func TestIcon_Precedence_And_HasCustom(t *testing.T) {
 	}
 }
 
-func TestProcessIcon_PNG256Square(t *testing.T) {
+func TestProcessIcon_WebP512Square(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 400, 200))
 	var buf bytes.Buffer
 	_ = png.Encode(&buf, src)
@@ -74,11 +74,11 @@ func TestProcessIcon_PNG256Square(t *testing.T) {
 		t.Fatal("empty etag")
 	}
 	img, format, derr := image.Decode(bytes.NewReader(out))
-	if derr != nil || format != "png" {
+	if derr != nil || format != "webp" {
 		t.Fatalf("decode: format=%q err=%v", format, derr)
 	}
-	if b := img.Bounds(); b.Dx() != 256 || b.Dy() != 256 {
-		t.Fatalf("size: %dx%d want 256x256", b.Dx(), b.Dy())
+	if b := img.Bounds(); b.Dx() != 512 || b.Dy() != 512 {
+		t.Fatalf("size: %dx%d want 512x512", b.Dx(), b.Dy())
 	}
 }
 

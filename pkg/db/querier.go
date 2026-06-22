@@ -86,6 +86,7 @@ type Querier interface {
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
 	GetEntityIcon(ctx context.Context, arg GetEntityIconParams) (GetEntityIconRow, error)
 	GetEntityIconEtag(ctx context.Context, arg GetEntityIconEtagParams) (string, error)
+	GetEntityIconMeta(ctx context.Context, arg GetEntityIconMetaParams) (GetEntityIconMetaRow, error)
 	GetForwardAuthAppByID(ctx context.Context, clientID string) (GetForwardAuthAppByIDRow, error)
 	GetForwardAuthClientByHost(ctx context.Context, forwardAuthHost pgtype.Text) (GetForwardAuthClientByHostRow, error)
 	GetGroup(ctx context.Context, id int32) (UserGroup, error)
@@ -187,6 +188,7 @@ type Querier interface {
 	SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error
 	SetCredentialCloneWarning(ctx context.Context, id int32) error
 	SetEntityIcon(ctx context.Context, arg SetEntityIconParams) error
+	SetEntityIconAccent(ctx context.Context, arg SetEntityIconAccentParams) error
 	SetForwardAuthConfig(ctx context.Context, arg SetForwardAuthConfigParams) error
 	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)

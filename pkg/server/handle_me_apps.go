@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/branding"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
@@ -20,7 +21,7 @@ type launchpadQueries interface {
 	ListAuthorizedOIDCClientsForAccount(ctx context.Context, accountID pgtype.Int4) ([]db.ListAuthorizedOIDCClientsForAccountRow, error)
 	ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, accountID pgtype.Int4) ([]db.ListAuthorizedForwardAuthAppsForAccountRow, error)
 	ListAuthorizedSAMLSPsForAccount(ctx context.Context, accountID pgtype.Int4) ([]db.ListAuthorizedSAMLSPsForAccountRow, error)
-	GetEntityIconEtag(ctx context.Context, arg db.GetEntityIconEtagParams) (string, error)
+	GetEntityIconMeta(ctx context.Context, arg db.GetEntityIconMetaParams) (db.GetEntityIconMetaRow, error)
 }
 
 func (s *Server) getLaunchpadQueries() launchpadQueries {
@@ -52,12 +53,31 @@ func (s *Server) buildLaunchpad(ctx context.Context, accountID int32) ([]contrac
 	acct := pgtype.Int4{Int32: accountID, Valid: true}
 	out := make([]contract.LaunchpadApp, 0, 16)
 
-	icon := func(kind, id string) *string {
-		etag, err := q.GetEntityIconEtag(ctx, db.GetEntityIconEtagParams{OwnerKind: kind, OwnerID: id})
+	// iconMeta returns the icon URL and the stored backdrop accent for an entity.
+	// When a row exists but has no accent yet (legacy icon uploaded before this
+	// feature), the accent is computed once from the stored PNG and persisted —
+	// best-effort, production only (s.queries is nil under the test stub).
+	iconMeta := func(kind, id string) (url *string, accent *string) {
+		m, err := q.GetEntityIconMeta(ctx, db.GetEntityIconMetaParams{OwnerKind: kind, OwnerID: id})
 		if err != nil {
-			return nil // no icon (or lookup error — best-effort)
+			return nil, nil // no icon (or lookup error — best-effort)
 		}
-		return entityIconURLPtr(kind, id, etag)
+		url = entityIconURLPtr(kind, id, m.Etag)
+		if m.AccentColor.Valid && m.AccentColor.String != "" {
+			a := m.AccentColor.String
+			return url, &a
+		}
+		if s.queries != nil {
+			if ic, e := s.queries.GetEntityIcon(ctx, db.GetEntityIconParams{OwnerKind: kind, OwnerID: id}); e == nil {
+				if hex, e2 := branding.AccentColorBytes(ic.Png); e2 == nil {
+					_ = s.queries.SetEntityIconAccent(ctx, db.SetEntityIconAccentParams{
+						OwnerKind: kind, OwnerID: id, AccentColor: pgtype.Text{String: hex, Valid: true},
+					})
+					return url, &hex
+				}
+			}
+		}
+		return url, nil
 	}
 
 	oidc, err := q.ListAuthorizedOIDCClientsForAccount(ctx, acct)
@@ -69,9 +89,10 @@ func (s *Server) buildLaunchpad(ctx context.Context, accountID int32) ([]contrac
 		if launch == "" {
 			continue
 		}
+		iconURL, accent := iconMeta("oidc_client", c.ClientID)
 		out = append(out, contract.LaunchpadApp{
 			Kind: "oidc", ID: c.ClientID, Name: c.DisplayName,
-			IconURL: icon("oidc_client", c.ClientID), LaunchURL: launch,
+			IconURL: iconURL, AccentColor: accent, LaunchURL: launch,
 		})
 	}
 
@@ -83,9 +104,10 @@ func (s *Server) buildLaunchpad(ctx context.Context, accountID int32) ([]contrac
 		if !c.ForwardAuthHost.Valid || c.ForwardAuthHost.String == "" {
 			continue
 		}
+		iconURL, accent := iconMeta("oidc_client", c.ClientID)
 		out = append(out, contract.LaunchpadApp{
 			Kind: "forward_auth", ID: c.ClientID, Name: c.DisplayName,
-			IconURL: icon("oidc_client", c.ClientID), LaunchURL: "https://" + c.ForwardAuthHost.String + "/",
+			IconURL: iconURL, AccentColor: accent, LaunchURL: "https://" + c.ForwardAuthHost.String + "/",
 		})
 	}
 
@@ -95,9 +117,11 @@ func (s *Server) buildLaunchpad(ctx context.Context, accountID int32) ([]contrac
 	}
 	for _, sp := range saml {
 		id := strconv.FormatInt(sp.ID, 10)
+		iconURL, accent := iconMeta("saml_sp", id)
 		out = append(out, contract.LaunchpadApp{
 			Kind: "saml", ID: id, Name: sp.DisplayName,
-			IconURL:   icon("saml_sp", id),
+			IconURL:   iconURL,
+			AccentColor: accent,
 			LaunchURL: "/saml/sso/init?sp=" + url.QueryEscape(sp.EntityID),
 		})
 	}
