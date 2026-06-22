@@ -3867,6 +3867,75 @@ func main() {
 		}
 	}
 
+	// =========================================================================
+	// launchpad: the end-user "My apps" surface — GET /me/apps lists authorized
+	// launchable apps (RBAC predicate reused), and /me/consent lists + revokes
+	// the apps the account has granted access to. Restricted+ungranted omission
+	// is covered by the Go unit test TestHandleMyApps.
+	// =========================================================================
+	{
+		const nLaunchpad = 2
+		step(fmt.Sprintf("launchpad %d/%d — GET /me/apps lists authorized launchable apps (open + restricted-granted-via-group)", 1, nLaunchpad))
+		type launchpadApp struct {
+			Kind      string  `json:"kind"`
+			ID        string  `json:"id"`
+			Name      string  `json:"name"`
+			LaunchURL string  `json:"launchUrl"`
+			IconURL   *string `json:"iconUrl"`
+		}
+		var apps []launchpadApp
+		if err := c.get("/api/prohibitorum/me/apps", &apps); err != nil {
+			log.Fatalf("launchpad: GET /me/apps: %v", err)
+		}
+		idx := map[string]launchpadApp{}
+		for _, a := range apps {
+			idx[a.ID] = a
+		}
+		rp, ok := idx[rpClientID]
+		if !ok || rp.Kind != "oidc" || rp.LaunchURL == "" {
+			log.Fatalf("launchpad: /me/apps missing open client %q with a launch URL; got %+v", rpClientID, apps)
+		}
+		if _, ok := idx["smoke-rbac-rp"]; !ok {
+			log.Fatalf("launchpad: /me/apps missing restricted-but-granted client smoke-rbac-rp (via-group grant must be authorized); got %+v", apps)
+		}
+		log.Printf("  /me/apps lists %d app(s) incl. %s (launch=%s) + smoke-rbac-rp ✓", len(apps), rpClientID, rp.LaunchURL)
+
+		step(fmt.Sprintf("launchpad %d/%d — GET /me/consent lists a granted app; POST /me/consent/revoke removes it", 2, nLaunchpad))
+		if err := seedConsent(me2.ID, rpClientID, []string{"openid", "profile"}); err != nil {
+			log.Fatalf("launchpad: seed consent: %v", err)
+		}
+		type consentedApp struct {
+			ClientID string   `json:"clientId"`
+			Scopes   []string `json:"scopes"`
+		}
+		var consents []consentedApp
+		if err := c.get("/api/prohibitorum/me/consent", &consents); err != nil {
+			log.Fatalf("launchpad: GET /me/consent: %v", err)
+		}
+		listed := false
+		for _, x := range consents {
+			if x.ClientID == rpClientID {
+				listed = true
+			}
+		}
+		if !listed {
+			log.Fatalf("launchpad: /me/consent missing seeded consent for %q; got %+v", rpClientID, consents)
+		}
+		if err := c.postJSON("/api/prohibitorum/me/consent/revoke", map[string]any{"clientId": rpClientID}, nil); err != nil {
+			log.Fatalf("launchpad: POST /me/consent/revoke: %v", err)
+		}
+		var afterRevoke []consentedApp
+		if err := c.get("/api/prohibitorum/me/consent", &afterRevoke); err != nil {
+			log.Fatalf("launchpad: GET /me/consent (post-revoke): %v", err)
+		}
+		for _, x := range afterRevoke {
+			if x.ClientID == rpClientID {
+				log.Fatalf("launchpad: consent for %q still present after revoke", rpClientID)
+			}
+		}
+		log.Printf("  /me/consent listed %q then revoke removed it ✓", rpClientID)
+	}
+
 	// SAML RBAC arc intentionally SKIPPED: the per-app access gate also covers
 	// SAML SPs, but adding a SAML restrict→deny→grant→allow check would be scope
 	// creep here — the SAML SSO steps (88–99) drive a require_signed GHES SP and
@@ -3930,7 +3999,7 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -4784,6 +4853,29 @@ func driveTOTPLockout(c *client, password string) (int, string, error) {
 		}
 	}
 	return maxAttempts, "", fmt.Errorf("no 429 observed after %d attempts", maxAttempts)
+}
+
+// seedConsent inserts/updates an oidc_consent row so the launchpad arc can
+// deterministically test the consent list + revoke without driving the full
+// authorize+consent UI flow.
+func seedConsent(accountID int32, clientID string, scopes []string) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, err := pgx.Connect(ctx, dburl)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+	_, err = conn.Exec(ctx,
+		`INSERT INTO oidc_consent (account_id, client_id, granted_scopes, created_at, updated_at)
+		 VALUES ($1, $2, $3, now(), now())
+		 ON CONFLICT (account_id, client_id) DO UPDATE SET granted_scopes = $3, updated_at = now()`,
+		accountID, clientID, scopes)
+	return err
 }
 
 // resetThrottle is a HARNESS-ONLY shortcut to clear a throttle lockout the
