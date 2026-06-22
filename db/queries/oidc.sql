@@ -122,3 +122,6 @@ SELECT client_id, display_name, redirect_uris, allowed_scopes,
 FROM oidc_client
 WHERE forward_auth_enabled = false
 ORDER BY created_at DESC;
+
+-- name: SetOIDCClientLaunchURL :exec
+UPDATE oidc_client SET launch_url = $2 WHERE client_id = $1;

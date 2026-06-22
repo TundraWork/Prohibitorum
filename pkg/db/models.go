@@ -124,6 +124,7 @@ type OidcClient struct {
 	AccessRestricted            bool               `json:"accessRestricted"`
 	ForwardAuthEnabled          bool               `json:"forwardAuthEnabled"`
 	ForwardAuthHost             pgtype.Text        `json:"forwardAuthHost"`
+	LaunchUrl                   pgtype.Text        `json:"launchUrl"`
 }
 
 type OidcClientAccess struct {
