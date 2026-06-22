@@ -1,1 +1,0 @@
-import{f as r}from"./useForwardExpose-Dh1vVwLv.js";import{c as i,r as l}from"./index-D7uOhns5.js";function c(){const e=l(),m=i(()=>{var t,n;return["#text","#comment"].includes((t=e.value)==null?void 0:t.$el.nodeName)?(n=e.value)==null?void 0:n.$el.nextElementSibling:r(e)});return{primitiveElement:e,currentElement:m}}export{c as u};
