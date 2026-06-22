@@ -218,6 +218,139 @@ func (q *Queries) IsAccountAuthorizedForSAMLSP(ctx context.Context, arg IsAccoun
 	return column_1, err
 }
 
+const listAuthorizedForwardAuthAppsForAccount = `-- name: ListAuthorizedForwardAuthAppsForAccount :many
+SELECT c.client_id, c.display_name, c.forward_auth_host
+FROM oidc_client c
+WHERE c.disabled = false
+  AND c.forward_auth_enabled = true
+  AND c.forward_auth_host IS NOT NULL
+  AND (
+    NOT c.access_restricted
+    OR EXISTS (SELECT 1 FROM oidc_client_access a
+               WHERE a.client_id = c.client_id AND a.account_id = $1)
+    OR EXISTS (SELECT 1 FROM oidc_client_access a
+               JOIN group_member m ON m.group_id = a.group_id
+               WHERE a.client_id = c.client_id AND m.account_id = $1)
+  )
+ORDER BY c.display_name
+`
+
+type ListAuthorizedForwardAuthAppsForAccountRow struct {
+	ClientID        string      `json:"clientId"`
+	DisplayName     string      `json:"displayName"`
+	ForwardAuthHost pgtype.Text `json:"forwardAuthHost"`
+}
+
+func (q *Queries) ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedForwardAuthAppsForAccountRow, error) {
+	rows, err := q.db.Query(ctx, listAuthorizedForwardAuthAppsForAccount, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAuthorizedForwardAuthAppsForAccountRow
+	for rows.Next() {
+		var i ListAuthorizedForwardAuthAppsForAccountRow
+		if err := rows.Scan(&i.ClientID, &i.DisplayName, &i.ForwardAuthHost); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuthorizedOIDCClientsForAccount = `-- name: ListAuthorizedOIDCClientsForAccount :many
+SELECT c.client_id, c.display_name, c.launch_url, c.redirect_uris
+FROM oidc_client c
+WHERE c.disabled = false
+  AND c.forward_auth_enabled = false
+  AND (
+    NOT c.access_restricted
+    OR EXISTS (SELECT 1 FROM oidc_client_access a
+               WHERE a.client_id = c.client_id AND a.account_id = $1)
+    OR EXISTS (SELECT 1 FROM oidc_client_access a
+               JOIN group_member m ON m.group_id = a.group_id
+               WHERE a.client_id = c.client_id AND m.account_id = $1)
+  )
+ORDER BY c.display_name
+`
+
+type ListAuthorizedOIDCClientsForAccountRow struct {
+	ClientID     string      `json:"clientId"`
+	DisplayName  string      `json:"displayName"`
+	LaunchUrl    pgtype.Text `json:"launchUrl"`
+	RedirectUris []string    `json:"redirectUris"`
+}
+
+func (q *Queries) ListAuthorizedOIDCClientsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedOIDCClientsForAccountRow, error) {
+	rows, err := q.db.Query(ctx, listAuthorizedOIDCClientsForAccount, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAuthorizedOIDCClientsForAccountRow
+	for rows.Next() {
+		var i ListAuthorizedOIDCClientsForAccountRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.LaunchUrl,
+			&i.RedirectUris,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuthorizedSAMLSPsForAccount = `-- name: ListAuthorizedSAMLSPsForAccount :many
+SELECT s.id, s.entity_id, s.display_name
+FROM saml_sp s
+WHERE s.disabled = false
+  AND s.allow_idp_initiated = true
+  AND (
+    NOT s.access_restricted
+    OR EXISTS (SELECT 1 FROM saml_sp_access a
+               WHERE a.saml_sp_id = s.id AND a.account_id = $1)
+    OR EXISTS (SELECT 1 FROM saml_sp_access a
+               JOIN group_member m ON m.group_id = a.group_id
+               WHERE a.saml_sp_id = s.id AND m.account_id = $1)
+  )
+ORDER BY s.display_name
+`
+
+type ListAuthorizedSAMLSPsForAccountRow struct {
+	ID          int64  `json:"id"`
+	EntityID    string `json:"entityId"`
+	DisplayName string `json:"displayName"`
+}
+
+func (q *Queries) ListAuthorizedSAMLSPsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedSAMLSPsForAccountRow, error) {
+	rows, err := q.db.Query(ctx, listAuthorizedSAMLSPsForAccount, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAuthorizedSAMLSPsForAccountRow
+	for rows.Next() {
+		var i ListAuthorizedSAMLSPsForAccountRow
+		if err := rows.Scan(&i.ID, &i.EntityID, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExposedGroupSlugsByAccount = `-- name: ListExposedGroupSlugsByAccount :many
 SELECT g.slug
 FROM group_member m

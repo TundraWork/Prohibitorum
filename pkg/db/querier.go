@@ -130,10 +130,14 @@ type Querier interface {
 	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
 	ListAllSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListAllUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
+	ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedForwardAuthAppsForAccountRow, error)
+	ListAuthorizedOIDCClientsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedOIDCClientsForAccountRow, error)
+	ListAuthorizedSAMLSPsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedSAMLSPsForAccountRow, error)
 	// LEFT JOIN so the 'user' row (NULL idp_id) is kept with an empty label; the
 	// join is by id (unconditional) so even a disabled upstream's inherited avatar
 	// still resolves its display name.
 	ListAvatarSourcesByAccount(ctx context.Context, accountID int32) ([]ListAvatarSourcesByAccountRow, error)
+	ListConsentsByAccount(ctx context.Context, accountID int32) ([]ListConsentsByAccountRow, error)
 	ListCredentialEvents(ctx context.Context, arg ListCredentialEventsParams) ([]CredentialEvent, error)
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
