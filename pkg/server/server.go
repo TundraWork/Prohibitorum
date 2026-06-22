@@ -99,6 +99,10 @@ type Server struct {
 	// handleListMyApps / buildLaunchpad without standing up *db.Queries. Nil
 	// in production — falls back to s.queries.
 	launchpadOverride launchpadQueries
+	// consentMgmtOverride lets tests inject a fake consentMgmtQueries for
+	// handleListMyConsent / handleRevokeMyConsent without standing up *db.Queries.
+	// Nil in production — handlers fall back to s.queries.
+	consentMgmtOverride consentMgmtQueries
 	// avatarQueriesOverride lets tests inject a fake avatarQueries for the
 	// avatar handlers without standing up *db.Queries. Nil in production —
 	// handlers fall back to s.queries.
@@ -378,6 +382,8 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListMySessions, s.handleListMySessions, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeMySession, s.handleRevokeMySession, sessionReq)
 	registerOp(mgmt, contract.OperationListMyApps, s.handleListMyApps, sessionReq)
+	registerOp(mgmt, contract.OperationListMyConsent, s.handleListMyConsent, sessionReq)
+	registerOp(mgmt, contract.OperationRevokeConsent, s.handleRevokeMyConsent, sessionReq)
 
 	// Consent app API (OIDC consent UI context + decision).
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/consent", sessionReq, s.handleConsentContextHTTP)
