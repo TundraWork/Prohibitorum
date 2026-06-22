@@ -34,6 +34,7 @@ const accountItems = computed(() => [
   { to: '/sessions', label: t('nav.sessions'), icon: MonitorSmartphone },
   { to: '/connected', label: t('nav.connected'), icon: Link2 },
   { to: '/devices', label: t('nav.devices'), icon: TabletSmartphone },
+  { to: '/app-access', label: t('nav.appAccess'), icon: ShieldCheck },
 ])
 
 const adminItems = computed(() => [

@@ -39,6 +39,7 @@ export default {
     sessions: 'Sessions',
     connected: 'Connected',
     devices: 'Devices',
+    appAccess: 'App access',
     signOut: 'Sign out',
   },
 
@@ -836,6 +837,17 @@ export default {
     revokeConfirmTitle: 'Revoke access?',
     revokeConfirmBody: '{name} will ask for your consent again next time you sign in.',
     type: { oidc: 'OIDC', forward_auth: 'Forward-auth', saml: 'SAML' },
+  },
+
+  appAccess: {
+    title: 'Apps with access to your account',
+    help: 'Apps you have approved can use your account until you revoke them.',
+    empty: "Apps you've approved will appear here.",
+    scopes: 'Scopes',
+    grantedOn: 'Granted {date}',
+    revoke: 'Revoke',
+    revokeConfirmTitle: 'Revoke access?',
+    revokeConfirmBody: '{name} will ask for your consent again next time you sign in.',
   },
 
   entityIcon: {

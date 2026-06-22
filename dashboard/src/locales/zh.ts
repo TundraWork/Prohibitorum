@@ -35,6 +35,7 @@ export default {
     sessions: '会话',
     connected: '关联账户',
     devices: '设备',
+    appAccess: '应用访问',
     signOut: '退出登录',
   },
 
@@ -832,6 +833,17 @@ export default {
     revokeConfirmTitle: '撤销授权？',
     revokeConfirmBody: '下次登录时，{name} 将重新向你请求授权。',
     type: { oidc: 'OIDC', forward_auth: '前向认证', saml: 'SAML' },
+  },
+
+  appAccess: {
+    title: '已授权访问你账户的应用',
+    help: '你批准的应用可使用你的账户，直到你撤销授权为止。',
+    empty: '你批准的应用将显示在此处。',
+    scopes: '权限范围',
+    grantedOn: '于 {date} 授权',
+    revoke: '撤销',
+    revokeConfirmTitle: '撤销访问权限？',
+    revokeConfirmBody: '下次登录时，{name} 将重新向你请求授权。',
   },
 
   entityIcon: {
