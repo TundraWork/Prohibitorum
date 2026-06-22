@@ -22,7 +22,7 @@ const stub = defineComponent({ template: '<div/>' })
 function makeRouter(): Router {
   return createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/logout', component: stub }],
+    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/admin/accounts', component: stub }, { path: '/logout', component: stub }],
   })
 }
 const Host = defineComponent({
@@ -76,6 +76,24 @@ describe('NavUser', () => {
     expect(document.body.querySelector('[data-test="edit-displayname-input"]')).not.toBeNull()
   })
 
+
+  it('topbar variant mounts WITHOUT a SidebarProvider and navigates to settings/admin', async () => {
+    const auth = useAuthStore()
+    auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'admin' }
+    const router = makeRouter()
+    router.push('/'); await router.isReady()
+    const push = vi.spyOn(router, 'push')
+    // No SidebarProvider host here — proves the topbar variant is decoupled from
+    // the sidebar primitives (the launcher top bar has no sidebar context).
+    const w = mount(NavUser, { props: { variant: 'topbar' }, attachTo: document.body, global: { plugins: [router, i18n()] } })
+    await flushPromises()
+    expect(w.find('[data-test="account-trigger"]').exists()).toBe(true)
+    const nav = w.vm as unknown as { goSettings: () => void; goAdmin: () => void }
+    nav.goSettings()
+    expect(push).toHaveBeenCalledWith('/security')
+    nav.goAdmin()
+    expect(push).toHaveBeenCalledWith('/admin/accounts')
+  })
 
   describe('pollAvatarUntilSettled', () => {
     beforeEach(() => { vi.useFakeTimers() })

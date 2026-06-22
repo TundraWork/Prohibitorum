@@ -1,14 +1,20 @@
 <script setup lang="ts">
 /**
- * NavUser - sidebar footer account control. A dropdown over the vendored
- * DropdownMenu: identity header, edit-display-name, sign out. The edit dialog
- * is a SIBLING (not nested in the menu) and opens on nextTick after select,
- * avoiding Reka's menu->dialog focus / lingering-pointer-events bug.
+ * NavUser — account control with two variants:
+ *  - 'sidebar' (default): the dashboard sidebar footer row (SidebarMenuButton).
+ *    Menu = Edit profile · Sign out. Settings/admin are reached via the sidebar
+ *    nav itself, so they are NOT duplicated here.
+ *  - 'topbar': a compact avatar + caret control for the launcher top bar (no
+ *    sidebar primitives). Menu adds Settings (→/security) and Admin (admins →
+ *    /admin/accounts) so the launcher home can reach the secondary settings/admin
+ *    area.
+ * The edit dialog is a SIBLING (not nested in the menu) and opens on nextTick
+ * after select, avoiding Reka's menu->dialog focus / lingering-pointer-events bug.
  */
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ChevronsUpDown, LogOut, Pencil, Settings, ShieldCheck } from 'lucide-vue-next'
+import { ChevronDown, ChevronsUpDown, LogOut, Pencil, Settings, ShieldCheck } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -19,6 +25,8 @@ import {
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import EditProfileDialog from '@/components/custom/EditProfileDialog.vue'
+
+withDefaults(defineProps<{ variant?: 'sidebar' | 'topbar' }>(), { variant: 'sidebar' })
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -41,7 +49,8 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
 </script>
 
 <template>
-  <SidebarMenu>
+  <!-- Sidebar footer variant: Edit profile · Sign out (settings/admin live in the sidebar nav). -->
+  <SidebarMenu v-if="variant === 'sidebar'">
     <SidebarMenuItem>
       <div v-if="!auth.me" class="flex items-center gap-2 p-2">
         <Skeleton class="size-8 rounded-md" />
@@ -68,15 +77,9 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
           </SidebarMenuButton>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent
-          class="min-w-56"
-          side="top"
-          align="start"
-          :side-offset="4"
-        >
+        <DropdownMenuContent class="min-w-56" side="top" align="start" :side-offset="4">
           <DropdownMenuLabel class="font-normal">
             <div class="flex items-center gap-2">
-              <!-- No :loading here intentionally — the spinner is only on the always-visible trigger avatar, not the dropdown header -->
               <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" />
               <div class="grid flex-1 text-left text-sm leading-tight">
                 <span class="truncate font-medium text-ink">{{ auth.me.displayName }}</span>
@@ -93,15 +96,6 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
             <span>{{ t('accountMenu.editProfile') }}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem data-test="account-settings" @select="goSettings">
-            <Settings />
-            <span>{{ t('nav.settings') }}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem v-if="auth.isAdmin" data-test="account-admin" @select="goAdmin">
-            <ShieldCheck />
-            <span>{{ t('nav.admin') }}</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem data-test="account-signout" @select="signOut">
             <LogOut />
             <span>{{ t('nav.signOut') }}</span>
@@ -110,6 +104,59 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
       </DropdownMenu>
     </SidebarMenuItem>
   </SidebarMenu>
+
+  <!-- Top-bar variant (launcher): compact avatar + caret; adds Settings / Admin. -->
+  <div v-else>
+    <Skeleton v-if="!auth.me" class="size-9 rounded-full" />
+
+    <DropdownMenu v-else>
+      <DropdownMenuTrigger as-child>
+        <button
+          type="button"
+          data-test="account-trigger"
+          :aria-label="t('accountMenu.trigger')"
+          class="flex items-center gap-1 rounded-full p-0.5 outline-none transition hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-80"
+        >
+          <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" :loading="auth.me.avatarPending" />
+          <ChevronDown class="size-4 text-muted" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent class="min-w-56" side="bottom" align="end" :side-offset="6">
+        <DropdownMenuLabel class="font-normal">
+          <div class="flex items-center gap-2">
+            <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" />
+            <div class="grid flex-1 text-left text-sm leading-tight">
+              <span class="truncate font-medium text-ink">{{ auth.me.displayName }}</span>
+              <span class="truncate text-xs text-muted">@{{ auth.me.username }}</span>
+            </div>
+            <StatusBadge :variant="auth.me.role === 'admin' ? 'caution' : 'neutral'" class="capitalize">
+              {{ auth.me.role }}
+            </StatusBadge>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem data-test="account-edit" @select="openEdit">
+          <Pencil />
+          <span>{{ t('accountMenu.editProfile') }}</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem data-test="account-settings" @select="goSettings">
+          <Settings />
+          <span>{{ t('nav.settings') }}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem v-if="auth.isAdmin" data-test="account-admin" @select="goAdmin">
+          <ShieldCheck />
+          <span>{{ t('nav.admin') }}</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem data-test="account-signout" @select="signOut">
+          <LogOut />
+          <span>{{ t('nav.signOut') }}</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </div>
 
   <EditProfileDialog v-model:open="editOpen" />
 </template>

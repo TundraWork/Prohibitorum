@@ -30,6 +30,7 @@ export default {
 
   nav: {
     primaryLabel: '导航',
+    apps: '应用',
     account: '账户',
     security: '安全',
     sessions: '会话',

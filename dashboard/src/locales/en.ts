@@ -34,6 +34,7 @@ export default {
 
   nav: {
     primaryLabel: 'Navigation',
+    apps: 'Apps',
     account: 'Account',
     security: 'Security',
     sessions: 'Sessions',
