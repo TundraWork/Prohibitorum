@@ -682,6 +682,8 @@ export default {
   },
 
   title: {
+    myApps: 'My apps',
+    appAccess: 'App access',
     login: 'Sign in',
     consent: 'Authorize',
     logout: 'Signed out',

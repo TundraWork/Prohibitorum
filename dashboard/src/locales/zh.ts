@@ -678,6 +678,8 @@ export default {
   },
 
   title: {
+    myApps: '我的应用',
+    appAccess: '应用访问',
     login: '登录',
     consent: '授权',
     logout: '已退出登录',
