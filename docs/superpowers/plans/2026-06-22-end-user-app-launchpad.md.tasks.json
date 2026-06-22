@@ -1,0 +1,86 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-22-end-user-app-launchpad.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: launch_url migration + setter",
+      "status": "pending",
+      "description": "**Goal:** Add nullable oidc_client.launch_url + SetOIDCClientLaunchURL.\n\n```json:metadata\n{\"files\":[\"db/migrations/020_oidc_launch_url.sql\",\"db/queries/oidc.sql\",\"pkg/db\"],\"verifyCommand\":\"mise run db:up && mise exec -- sqlc generate && go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"launch_url column exists\",\"SetOIDCClientLaunchURL generated\",\"build passes\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: authorized-apps + consent list queries",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** ListAuthorized{OIDCClients,ForwardAuthApps,SAMLSPs}ForAccount + ListConsentsByAccount; embed RBAC predicate; exclude disabled.\n\n```json:metadata\n{\"files\":[\"db/queries/rbac.sql\",\"db/queries/oidc_consent.sql\",\"pkg/db\"],\"verifyCommand\":\"mise exec -- sqlc generate && go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"3 authorized list queries\",\"ListConsentsByAccount\",\"predicate + disabled filter\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: launch-URL resolution helper (TDD)",
+      "status": "pending",
+      "description": "**Goal:** Pure resolveOIDCLaunchURL(launch, redirectURIs).\n\n```json:metadata\n{\"files\":[\"pkg/server/launchpad_url.go\",\"pkg/server/launchpad_url_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestResolveOIDCLaunchURL -v\",\"acceptanceCriteria\":[\"explicit wins\",\"derive origin from first redirect\",\"none->empty\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: launchpad + consent contracts/operations",
+      "status": "pending",
+      "description": "**Goal:** LaunchpadApp, ConsentedApp, RevokeConsentInput + 3 huma operations.\n\n```json:metadata\n{\"files\":[\"pkg/contract/launchpad.go\"],\"verifyCommand\":\"go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"DTOs camelCase\",\"3 operations\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: GET /me/apps handler + tests",
+      "status": "pending",
+      "blockedBy": [2, 3, 4],
+      "description": "**Goal:** Merge 3 sources -> sorted launchable list; omit unlaunchable OIDC; launchpadQueries override for tests.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_me_apps.go\",\"pkg/server/handle_me_apps_test.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestHandleMyApps -v\",\"acceptanceCriteria\":[\"3 kinds merged\",\"unlaunchable omitted\",\"icon URLs\",\"unit test with stub\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: /me/consent list + revoke + tests",
+      "status": "pending",
+      "blockedBy": [2, 4],
+      "description": "**Goal:** GET /me/consent + POST /me/consent/revoke (caller-scoped, no sudo); consentMgmtQueries override.\n\n```json:metadata\n{\"files\":[\"pkg/server/handle_me_consent.go\",\"pkg/server/handle_me_consent_test.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run TestHandleMyConsent -v\",\"acceptanceCriteria\":[\"list scopes\",\"revoke scoped to caller\",\"idempotent\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: admin OIDC Launch URL field",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Admin sets launch_url: contract field + SetOIDCClientLaunchURL + detail form input.\n\n```json:metadata\n{\"files\":[\"pkg/server\",\"pkg/contract\",\"dashboard/src/pages/admin/AdminOidcClientDetailView.vue\",\"dashboard/src/locales\"],\"verifyCommand\":\"go build -tags nodynamic ./... && cd dashboard && npm run build\",\"acceptanceCriteria\":[\"update accepts launchUrl\",\"persisted\",\"form field\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: smoke launchpad arc",
+      "status": "pending",
+      "blockedBy": [5, 6, 7],
+      "description": "**Goal:** launchpad arc: authorized in /me/apps, denied absent; consent listed then revoked; SMOKE_EXIT=0.\n\n```json:metadata\n{\"files\":[\"cmd/smoke/main.go\"],\"verifyCommand\":\"mise run ci:smoke\",\"acceptanceCriteria\":[\"authorized listed/denied absent\",\"consent listed then revoked\",\"SMOKE_EXIT=0\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: LauncherLayout + router restructure",
+      "status": "pending",
+      "description": "**Goal:** / = LauncherLayout->MyAppsView; settings/admin behind absolute child paths (URLs unchanged); add /app-access.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/LauncherLayout.vue\",\"dashboard/src/router/index.ts\"],\"verifyCommand\":\"cd dashboard && npm run build\",\"acceptanceCriteria\":[\"/ = launcher\",\"existing URLs unchanged\",\"typecheck\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: MyAppsView + AppTile + vitest",
+      "status": "pending",
+      "blockedBy": [5, 9],
+      "description": "**Goal:** Tile grid (/me/apps + /me/consent); AppTile launch new tab + type chip + consent glyph + kebab revoke; empty state.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/MyAppsView.vue\",\"dashboard/src/components/custom/AppTile.vue\",\"dashboard/src/components/custom/AppTile.test.ts\"],\"verifyCommand\":\"cd dashboard && npm test -- AppTile && npm run build\",\"acceptanceCriteria\":[\"new-tab launch\",\"type chip\",\"consent glyph gated\",\"revoke gated\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: App access page + nav + i18n",
+      "status": "pending",
+      "blockedBy": [6, 9],
+      "description": "**Goal:** /app-access consent list + revoke (no sudo); sidebar entry; launcher account menu; en+zh parity.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/AppAccessView.vue\",\"dashboard/src/pages/AppAccessView.test.ts\",\"dashboard/src/components/custom/AppSidebar.vue\",\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npm test && npm run build\",\"acceptanceCriteria\":[\"list+revoke\",\"nav entry\",\"locale parity\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: bundle, README, full gate",
+      "status": "pending",
+      "blockedBy": [7, 8, 10, 11],
+      "description": "**Goal:** Dev sanity; rebuild+commit pkg/webui/dist; tick README; full gate + smoke.\n\n```json:metadata\n{\"files\":[\"pkg/webui/dist\",\"README.md\"],\"verifyCommand\":\"go build -tags nodynamic ./... && go vet ./... && go test ./... && cd dashboard && npm test && npm run build && cd .. && mise run ci:smoke\",\"acceptanceCriteria\":[\"dev sanity\",\"bundle committed\",\"README ticked\",\"full gate + SMOKE_EXIT=0\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-22"
+}
