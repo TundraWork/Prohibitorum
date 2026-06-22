@@ -1,6 +1,6 @@
 // Package server — handle_sudo_test.go
 //
-// Unit-level tests for the v0.2 three-method sudo flow:
+// Unit-level tests for the three-method sudo flow:
 //   GET  /me/sudo/methods           — discovery
 //   POST /me/sudo/begin             — method intent stash
 //   POST /me/sudo/complete          — verify + stamp SudoUntil
@@ -188,7 +188,7 @@ func (f *fakeSudoQueries) ConsumeRecoveryCode(_ context.Context, arg db.ConsumeR
 
 // ListAccountIdentitiesByAccount returns no rows in the sudo tests — none of
 // these scenarios seed federation identities, so the sudo handler sees the
-// account as webauthn/password+TOTP only. Required by authn.FlowQueries (v0.3).
+// account as webauthn/password+TOTP only. Required by authn.FlowQueries.
 func (f *fakeSudoQueries) ListAccountIdentitiesByAccount(_ context.Context, _ int32) ([]db.ListAccountIdentitiesByAccountRow, error) {
 	return nil, nil
 }
@@ -276,7 +276,7 @@ func (f *fakeSudoQueries) RevokeAllSessionsByAccount(_ context.Context, _ int32)
 
 // --- Server scaffolding ----------------------------------------------------
 
-// newSudoTestServer builds a Server with enough wiring to exercise the v0.2
+// newSudoTestServer builds a Server with enough wiring to exercise the
 // three-method sudo flow without spinning up the production constructor.
 // queries (the concrete *db.Queries) is left nil; tests that need DB reads
 // go through s.sudoFlowOverride (the narrow methods-interface) and through

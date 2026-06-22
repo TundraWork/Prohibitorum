@@ -55,7 +55,7 @@ const recoverySessionTTL = 10 * time.Minute
 // recoverySession is the JSON payload stashed under recovery_session:<token>.
 // account_id is the only state the ceremony needs; issued_at is recorded for
 // audit / future expiry-tightening but isn't read by the current handlers.
-// A `phase` field is intentionally omitted — the v0.2.2 ceremony only does
+// A `phase` field is intentionally omitted — the recovery ceremony only does
 // TOTP recovery. A future passkey-recovery variant would add `phase: "totp"`
 // vs `phase: "webauthn"` to discriminate at /begin.
 type recoverySession struct {
@@ -159,7 +159,7 @@ func (s *Server) handleAuthRecoveryTOTPBeginHTTP(w http.ResponseWriter, r *http.
 // ALREADY consumed (Pop above) — the user must restart from
 // /auth/password/begin. This is intentional: keeping the token live for
 // retry would require either a re-stash on failure (atomicity hazard) or
-// a separate "verify but don't consume" path. The v0.2.2 design picks
+// a separate "verify but don't consume" path. The recovery design picks
 // "single-use, restart on failure" for simplicity. The harsher UX is
 // documented; see docs/superpowers/specs/2026-05-27-recovery-ceremony-design.md.
 func (s *Server) handleAuthRecoveryTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {

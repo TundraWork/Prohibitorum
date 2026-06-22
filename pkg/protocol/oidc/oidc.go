@@ -1,6 +1,6 @@
 // Package oidc implements Prohibitorum's OpenID Connect Provider surface.
 //
-// v0.4 STATUS: the downstream OP is implemented across the package's files —
+// STATUS: the downstream OP is implemented across the package's files —
 // discovery and JWKS here; client load/auth (client.go), claim projection
 // (claims.go), authorization-code and refresh-token stores (codes.go,
 // refresh.go), JWT sign/verify and the signing-key cache (jwt.go, keys.go).
@@ -107,7 +107,7 @@ func (p *Provider) jwksCacheControl() string {
 
 // HandleDiscovery serves the OP metadata document — RFC 8414 / OIDC
 // Discovery 1.0 — at /.well-known/openid-configuration. It advertises the
-// full v0.4 surface (token introspection/revocation, RFC 9207 iss param).
+// full OP surface (token introspection/revocation, RFC 9207 iss param).
 func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 	issuer := p.cfg.OIDC.Issuer
 	if issuer == "" {

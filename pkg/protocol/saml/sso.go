@@ -75,7 +75,7 @@ type autoPostData struct {
 }
 
 // HandleSSO implements the SP-initiated Web Browser SSO profile at
-// GET /saml/sso. It orchestrates the full flow described in the v0.5 design
+// GET /saml/sso. It orchestrates the full flow described in the SAML design
 // (§Data flow steps 2–9): parse + validate the inbound AuthnRequest, gate on a
 // live IdP session (bouncing unauthenticated users to /login), rate-limit,
 // enforce single-use replay, resolve the NameID + attributes, build + sign the
@@ -111,7 +111,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// (non-nil Session with Data == nil, attached by LoadSession when an
 	// account is disabled), or an explicitly-disabled account all count as
 	// "not authenticated". Widening this guard also keeps the sess.Data deref
-	// below safe (the v0.4 deep-audit lesson). Mirrors OIDC HandleAuthorize.
+	// below safe (the OIDC deep-audit lesson). Mirrors OIDC HandleAuthorize.
 	sess := authn.SessionFromContext(ctx)
 	if sess == nil || sess.Data == nil || (sess.Account != nil && sess.Account.Disabled) {
 		if req.IsPassive {

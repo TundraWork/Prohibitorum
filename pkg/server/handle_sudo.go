@@ -11,8 +11,8 @@
 // password+TOTP — for each elevation window. Cookie theft alone no longer
 // suffices for the gated actions.
 //
-// v0.2 extends the v0.1 webauthn-only flow to two methods so password+TOTP
-// accounts (which the v0.1 flow excluded entirely) can also elevate. The
+// The sudo flow extends the original webauthn-only flow to two methods so password+TOTP
+// accounts (which the webauthn-only flow excluded entirely) can also elevate. The
 // chosen method is stashed at /begin in `sudo_intent:<session_id>` (5-min
 // TTL) and read at /complete to dispatch the verification.
 //
@@ -160,7 +160,7 @@ func (s *Server) handleSudoBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// beginSudoWebAuthn runs the v0.1 WebAuthn assertion-challenge ceremony. The
+// beginSudoWebAuthn runs the WebAuthn assertion-challenge ceremony. The
 // resulting SessionData is stashed under `webauthn_ceremony:sudo:<sid>`
 // alongside the method intent so /complete can pick the right verifier.
 func (s *Server) beginSudoWebAuthn(w http.ResponseWriter, r *http.Request, sess *authn.Session) {
@@ -175,7 +175,7 @@ func (s *Server) beginSudoWebAuthn(w http.ResponseWriter, r *http.Request, sess 
 	if len(creds) == 0 {
 		// availableSudoMethods would normally prevent this, but tolerate a
 		// race (admin revoked the credential between methods-check and
-		// begin) by failing the same way v0.1 did.
+		// begin) by failing the same way the webauthn-only flow did.
 		writeAuthErr(w, authn.ErrSudoRequired())
 		return
 	}
@@ -239,7 +239,7 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// completeSudoWebAuthn is the v0.1 sudo-finish path: FinishLogin against the
+// completeSudoWebAuthn is the sudo-finish path: FinishLogin against the
 // stashed assertion state, refresh sign-count, stamp SudoUntil, audit.
 func (s *Server) completeSudoWebAuthn(w http.ResponseWriter, r *http.Request, sess *authn.Session) {
 	// Pop atomically: single-use webauthn assertion. Two parallel /complete

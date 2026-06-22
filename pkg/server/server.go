@@ -59,8 +59,7 @@ type Server struct {
 	// (Task 8) reach through it. Construction lives in NewServer wiring —
 	// Task 9 owns that; this field is nil until Task 9 lands.
 	federator *fedoidc.Federator
-	// Audit records credential lifecycle events. Wired in v0.1; handlers
-	// begin calling Record() in v0.2.
+	// Audit records credential lifecycle events.
 	Audit audit.Writer
 	// sudoFlowOverride lets tests inject a fake sudoFlowQueries for the
 	// /me/sudo/methods computation without standing up *db.Queries. Nil in
@@ -348,7 +347,7 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery/totp/begin", publicReq, s.handleAuthRecoveryTOTPBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery/totp/verify", publicReq, s.handleAuthRecoveryTOTPVerifyHTTP)
 
-	// v0.3 federation: upstream OIDC login + /me/identities management
+	// federation: upstream OIDC login + /me/identities management
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/login", publicReq, s.handleFederationLoginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/callback", publicReq, s.handleFederationCallbackHTTP)
@@ -414,7 +413,7 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/recovery-codes/regenerate", sessionReq, s.handleMeRegenerateRecoveryCodesHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/auth/revoke-password-totp", sessionReq, s.handleMeRevokePwdTOTPHTTP)
 
-	// /me/identities — upstream OIDC identity linkage (v0.3). Sudo gating
+	// /me/identities — upstream OIDC identity linkage. Sudo gating
 	// lives inside the handlers, not at the route layer.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities", sessionReq, s.handleMeIdentitiesListHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/identities/{id}/unlink", sessionReq, s.handleMeIdentitiesUnlinkHTTP)
@@ -535,7 +534,7 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/groups/{id}/members", admin, s.handleAddGroupMemberHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/groups/{id}/members/remove", admin, s.handleRemoveGroupMemberHTTP)
 
-	// OIDC OP — v0.4 full surface. Discovery and JWKS are public. Authorize
+	// OIDC OP — full surface. Discovery and JWKS are public. Authorize
 	// benefits from the global LoadSession middleware (already installed on
 	// the router) so that authn.SessionFromContext works inside the handler.
 	// Token, userinfo (GET+POST per OIDC spec), introspect, revoke, and

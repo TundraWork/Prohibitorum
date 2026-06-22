@@ -41,7 +41,7 @@ type Config struct {
 	ForwardAuth        ForwardAuthConfig  `mapstructure:"forward_auth"`
 
 	// DataEncryptionKeys is the versioned AES-256 key set used to encrypt
-	// sensitive credential material (TOTP secrets in v0.2, additional fields
+	// sensitive credential material (TOTP secrets today, additional fields
 	// in later versions). Loaded from PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>
 	// env vars and keyed by version. New writes use the highest version;
 	// older versions remain available for decryption.

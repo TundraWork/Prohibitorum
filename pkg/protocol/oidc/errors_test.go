@@ -107,7 +107,7 @@ func TestErrorsRedirectErrorBadURI(t *testing.T) {
 	}
 }
 
-func TestDiscoveryV04Surface(t *testing.T) {
+func TestDiscoverySurface(t *testing.T) {
 	cfg := &configx.Config{}
 	cfg.OIDC.Issuer = "https://idp.example"
 	p := &Provider{cfg: cfg}

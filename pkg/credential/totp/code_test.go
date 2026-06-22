@@ -8,7 +8,7 @@ import "testing"
 // Google Authenticator / Authy / 1Password / etc.
 //
 // Note: RFC 6238 Appendix B publishes vectors for SHA-1 (20-byte key),
-// SHA-256 (32-byte), and SHA-512 (64-byte). v0.2 only supports SHA-1, so we
+// SHA-256 (32-byte), and SHA-512 (64-byte). Only SHA-1 is supported, so we
 // only assert that subset. The SHA-256 column for these timestamps uses a
 // different 32-byte key per the RFC, not the SHA-1 key repeated.
 func TestRFC6238_AppendixB(t *testing.T) {

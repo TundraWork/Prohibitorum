@@ -2,8 +2,8 @@
 //
 // /me/password/set is always sudo-gated. The endpoint sets or replaces the
 // account's password_credential row, going through the password.Store so
-// argon2id parameters and audit emission stay consistent with the v0.2
-// login path. v0.2 has no /me/password/delete — full revocation of the
+// argon2id parameters and audit emission stay consistent with the
+// login path. There is no /me/password/delete — full revocation of the
 // non-WebAuthn fallback factors goes through /me/auth/revoke-password-totp,
 // which deletes password + TOTP + recovery codes atomically.
 

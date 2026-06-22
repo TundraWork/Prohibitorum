@@ -75,7 +75,7 @@ type TOTPQueries interface {
 // TOTPQueries handle bound to that transaction. If fn returns a non-nil error
 // the transaction is rolled back; otherwise it is committed. The Store uses
 // this to make recovery-code mints atomic with the credential row write that
-// gates them (audit v0.2 Medium #2 / #3).
+// gates them (audit Medium #2 / #3).
 //
 // Production wires this to a *pgxpool.Pool — see NewPoolTxRunner. Tests inject
 // an in-memory implementation that snapshots/restores the fake's state on
@@ -187,7 +187,7 @@ func (s *Store) begin(ctx context.Context, accountID int32, username string, wip
 	// the new enrollment. Caller is responsible for sudo gating; this
 	// Store reset is unconditional once begin is reached.
 	//
-	// Audit-revoke pre-existing material BEFORE delete (audit v0.2 Medium #3).
+	// Audit-revoke pre-existing material BEFORE delete (audit Medium #3).
 	// Without this, the credential_event log shows registers without matching
 	// revokes — investigators can't see when a batch was wiped. Best-effort
 	// emit: a record failure does not block re-enrollment.
@@ -350,7 +350,7 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 	_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorTOTP, Event: audit.EventUse})
 
 	if !row.ConfirmedAt.Valid {
-		// Atomic confirm + recovery-code mint (audit v0.2 Medium #2). Prior
+		// Atomic confirm + recovery-code mint (audit Medium #2). Prior
 		// implementation called ConfirmTOTPCredential then looped 10x over
 		// InsertRecoveryCode with no transaction. A failure on insert #5 left
 		// the row confirmed but the caller saw an error and never received the
@@ -475,12 +475,12 @@ func (s *Store) VerifyRecoveryCode(ctx context.Context, accountID int32, code, s
 func (s *Store) RegenerateRecoveryCodes(ctx context.Context, accountID int32) ([]string, error) {
 	// Snapshot the pre-existing batch so we can emit one revoke audit event
 	// per deleted code — symmetric with mintRecoveryCodes emitting one
-	// register per code (audit v0.2 Medium #3). List BEFORE the tx so a
+	// register per code (audit Medium #3). List BEFORE the tx so a
 	// list error is reported but does not block the delete: audit is
 	// best-effort.
 	existing, _ := s.q.ListRecoveryCodesByAccount(ctx, accountID)
 
-	// Atomic delete + mint (audit v0.2 Medium #2). The prior implementation
+	// Atomic delete + mint (audit Medium #2). The prior implementation
 	// deleted then minted with no transaction — an error mid-mint left the
 	// caller with zero codes and an error, after their old codes had already
 	// been wiped.

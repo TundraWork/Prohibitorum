@@ -339,7 +339,7 @@ func applyAutoProvision(
 //
 // Skips require_verified_email + allowed_domains by design: the admin
 // minted this invite specifically for this user, which IS the
-// authorization decision. See the v0.3 design spec D11 for rationale.
+// authorization decision. See the federation design spec D11 for rationale.
 func applyInviteOnly(
 	ctx context.Context,
 	q ModesQueries,
@@ -493,7 +493,7 @@ func applyInviteOnly(
 		// uncommitted account row (different connection, MVCC snapshot
 		// doesn't yet see the InsertAccount above) and fail silently.
 		// The original `_ = w.Record(...)` swallowed that FK error, which
-		// surfaced as missing audit rows in the v0.3 smoke (step 66
+		// surfaced as missing audit rows in the federation smoke (the
 		// register-with-invite_only_redemption assertion). runInviteTx
 		// hands us txAudit bound to the same tx as InsertAccount; on
 		// rollback the audit rows revert too, which is the correct

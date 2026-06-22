@@ -1,7 +1,7 @@
 // Package authn — flow.go
 //
 // AvailableMethods resolves "which sign-in methods does this account have?"
-// Used by the /me/sudo/methods endpoint (Task 6) and the login UI (v0.6) to
+// Used by the /me/sudo/methods endpoint (Task 6) and the login UI to
 // render the credential management surface.
 //
 // DisableNonWebAuthnFallbacks clears password + TOTP + recovery codes for an
@@ -106,7 +106,7 @@ func AvailableMethods(ctx context.Context, q FlowQueries, accountID int32) ([]Me
 // alive and consumable" — strictly safer because TOTP still requires the
 // authenticator and the password.
 //
-// v0.3+ wraps these in a Postgres transaction with a SELECT ... FOR UPDATE
+// The flow wraps these in a Postgres transaction with a SELECT ... FOR UPDATE
 // on the account row (handler level) to prevent concurrent race conditions.
 func DisableNonWebAuthnFallbacks(ctx context.Context, q FlowQueries, w audit.Writer, accountID int32) error {
 	creds, err := q.ListCredentialsByAccount(ctx, accountID)
