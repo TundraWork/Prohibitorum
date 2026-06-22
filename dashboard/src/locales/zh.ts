@@ -821,6 +821,19 @@ export default {
     group_slug_conflict: '已存在使用该 slug 的用户组。',
   },
 
+  myApps: {
+    title: '我的应用',
+    greeting: '欢迎回来，{name}',
+    empty: '暂无应用',
+    emptyHelp: '当管理员授予你某个应用的访问权限后，它将在此显示。',
+    menu: '应用选项',
+    revoke: '撤销授权',
+    consentGranted: '你已向此应用授予访问权限',
+    revokeConfirmTitle: '撤销授权？',
+    revokeConfirmBody: '下次登录时，{name} 将重新向你请求授权。',
+    type: { oidc: 'OIDC', forward_auth: '前向认证', saml: 'SAML' },
+  },
+
   entityIcon: {
     title: '图标',
     hint: '显示在应用面板和登录按钮上。支持方形 PNG、JPEG 或 WebP；会居中裁剪并缩放为 256×256。',
