@@ -444,6 +444,7 @@ type OIDCApplicationView struct {
 	ClientID                string    `json:"clientId"`
 	DisplayName             string    `json:"displayName"`
 	IconURL                 *string   `json:"iconUrl,omitempty"`
+	LaunchURL               *string   `json:"launchUrl,omitempty"`
 	RedirectURIs            []string  `json:"redirectUris"`
 	PostLogoutRedirectURIs  []string  `json:"postLogoutRedirectUris"`
 	AllowedScopes           []string  `json:"allowedScopes"`

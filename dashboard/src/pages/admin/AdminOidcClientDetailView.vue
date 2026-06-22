@@ -43,6 +43,7 @@ interface OidcApplication {
   disabled: boolean
   createdAt: string
   iconUrl?: string | null
+  launchUrl?: string | null
 }
 
 const { t } = useI18n()
@@ -57,6 +58,7 @@ const client = ref<OidcApplication | null>(null)
 const notFound = ref(false)
 
 const displayName = ref('')
+const launchUrl = ref('')
 const redirectUris = ref<string[]>([])
 const postLogoutUris = ref<string[]>([])
 const scopes = ref<string[]>(['openid'])
@@ -82,6 +84,7 @@ async function load(): Promise<void> {
   if (!c) { if (error.value?.code === 'client_not_found') notFound.value = true; return }
   client.value = c
   displayName.value = c.displayName
+  launchUrl.value = c.launchUrl ?? ''
   redirectUris.value = [...c.redirectUris]
   postLogoutUris.value = [...c.postLogoutRedirectUris]
   // openid is mandatory; defend against a payload that somehow lacks it so the
@@ -95,6 +98,7 @@ async function save(): Promise<void> {
   rotatedSecret.value = ''
   const updated = await run(() => withSudo(() => api.put<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}`, {
     displayName: displayName.value,
+    launchUrl: launchUrl.value,
     redirectUris: redirectUris.value,
     postLogoutRedirectUris: postLogoutUris.value,
     allowedScopes: scopes.value,
@@ -157,6 +161,10 @@ onMounted(load)
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.oidc.displayName') }}</Label>
             <Input id="displayName" name="displayName" v-model="displayName" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="launchUrl">{{ t('admin.oidc.launchUrl') }}</Label>
+            <Input id="launchUrl" name="launchUrl" v-model="launchUrl" inputmode="url" :placeholder="t('admin.oidc.launchUrlPlaceholder')" />
           </div>
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.oidc.redirectUris') }}</Label>

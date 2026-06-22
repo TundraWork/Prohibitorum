@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -71,6 +72,9 @@ func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
 	}
 	if c.CreatedAt.Valid {
 		v.CreatedAt = c.CreatedAt.Time
+	}
+	if c.LaunchUrl.Valid {
+		v.LaunchURL = &c.LaunchUrl.String
 	}
 	return v
 }
@@ -218,6 +222,7 @@ type updateOIDCApplicationBody struct {
 	AllowedScopes          []string `json:"allowedScopes"`
 	RequireConsent         bool     `json:"requireConsent"`
 	Disabled               bool     `json:"disabled"`
+	LaunchURL              *string  `json:"launchUrl"`
 }
 
 func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.Request) {
@@ -284,6 +289,18 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, fmt.Errorf("handleUpdateOIDCApplication: update: %w", err))
 		return
 	}
+
+	var launchURL pgtype.Text
+	if body.LaunchURL != nil && strings.TrimSpace(*body.LaunchURL) != "" {
+		launchURL = pgtype.Text{String: strings.TrimSpace(*body.LaunchURL), Valid: true}
+	}
+	if err := s.queries.SetOIDCClientLaunchURL(r.Context(), db.SetOIDCClientLaunchURLParams{
+		ClientID: clientID, LaunchUrl: launchURL,
+	}); err != nil {
+		writeAuthErr(w, fmt.Errorf("handleUpdateOIDCApplication: set launch url: %w", err))
+		return
+	}
+	c.LaunchUrl = launchURL // reflect in the response view
 
 	sess := authn.SessionFromContext(r.Context())
 	var actorID *int32

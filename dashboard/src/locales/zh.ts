@@ -254,6 +254,8 @@ export default {
       dangerTitle: '危险操作', deleteHelp: '永久删除此应用。使用该应用的客户端将停止工作。',
       delete: '删除应用', deleteConfirmTitle: '删除此应用？',
       deleteConfirmBody: '这将永久删除该应用，此操作无法撤销。',
+      launchUrl: '启动 URL',
+      launchUrlPlaceholder: '默认使用第一个重定向 URI 的源',
     },
     forwardAuth: {
       title: '前向认证', create: '注册服务', createTitle: '新建前向认证服务',
