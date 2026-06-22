@@ -31,7 +31,7 @@ const Host = defineComponent({ components: { SidebarProvider, AppSidebar },
 beforeEach(() => setActivePinia(createPinia()))
 
 describe('AppSidebar', () => {
-  it('renders the built Account links and the account control (no Profile, no footer sign-out link)', async () => {
+  it('renders the built Account links, the Apps return link, and the account control (no footer sign-out link)', async () => {
     const auth = useAuthStore()
     auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
     const router = makeRouter(); router.push('/security'); await router.isReady()
@@ -41,7 +41,8 @@ describe('AppSidebar', () => {
     expect(links).toContain('/sessions')
     expect(links).toContain('/connected')
     expect(links).toContain('/devices')
-    expect(links).not.toContain('/')        // Profile link removed
+    // The launcher home is reachable from the sidebar via the "Apps" return item.
+    expect(wrapper.find('[data-test="nav-apps"]').attributes('href')).toBe('/')
     expect(links).not.toContain('/logout')  // sign-out is now inside the account menu
     expect(wrapper.text()).toContain('Alex Smith') // NavUser trigger shows displayName
   })

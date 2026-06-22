@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound, Settings, Waypoints } from 'lucide-vue-next'
+import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound, Settings, Waypoints, LayoutGrid } from 'lucide-vue-next'
 import NavUser from '@/components/custom/NavUser.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/custom/ThemeToggle.vue'
@@ -70,6 +70,20 @@ const applicationItems = computed(() => [
     </SidebarHeader>
 
     <SidebarContent role="navigation" :aria-label="t('nav.primaryLabel')">
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton as-child :tooltip="t('nav.apps')" :is-active="isActive('/')">
+                <RouterLink to="/" data-test="nav-apps">
+                  <LayoutGrid aria-hidden="true" />
+                  <span>{{ t('nav.apps') }}</span>
+                </RouterLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
       <SidebarGroup>
         <SidebarGroupLabel>{{ t('nav.account') }}</SidebarGroupLabel>
         <SidebarGroupContent>
