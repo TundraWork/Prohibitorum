@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -291,8 +292,15 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	}
 
 	var launchURL pgtype.Text
-	if body.LaunchURL != nil && strings.TrimSpace(*body.LaunchURL) != "" {
-		launchURL = pgtype.Text{String: strings.TrimSpace(*body.LaunchURL), Valid: true}
+	if body.LaunchURL != nil {
+		if t := strings.TrimSpace(*body.LaunchURL); t != "" {
+			u, perr := url.Parse(t)
+			if perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				writeAuthErr(w, authn.ErrBadRequest())
+				return
+			}
+			launchURL = pgtype.Text{String: t, Valid: true}
+		}
 	}
 	if err := s.queries.SetOIDCClientLaunchURL(r.Context(), db.SetOIDCClientLaunchURLParams{
 		ClientID: clientID, LaunchUrl: launchURL,

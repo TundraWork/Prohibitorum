@@ -36,6 +36,8 @@ export default {
     connected: '关联账户',
     devices: '设备',
     appAccess: '应用访问',
+    settings: '设置',
+    admin: '管理',
     signOut: '退出登录',
   },
 

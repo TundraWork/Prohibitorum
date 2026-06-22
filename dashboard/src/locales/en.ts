@@ -40,6 +40,8 @@ export default {
     connected: 'Connected',
     devices: 'Devices',
     appAccess: 'App access',
+    settings: 'Settings',
+    admin: 'Admin',
     signOut: 'Sign out',
   },
 
