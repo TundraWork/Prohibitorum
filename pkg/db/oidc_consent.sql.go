@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteConsent = `-- name: DeleteConsent :exec
@@ -38,6 +40,46 @@ func (q *Queries) GetConsent(ctx context.Context, arg GetConsentParams) ([]strin
 	var granted_scopes []string
 	err := row.Scan(&granted_scopes)
 	return granted_scopes, err
+}
+
+const listConsentsByAccount = `-- name: ListConsentsByAccount :many
+SELECT c.client_id, oc.display_name, c.granted_scopes, c.updated_at
+FROM oidc_consent c
+JOIN oidc_client oc ON oc.client_id = c.client_id
+WHERE c.account_id = $1
+ORDER BY oc.display_name
+`
+
+type ListConsentsByAccountRow struct {
+	ClientID      string             `json:"clientId"`
+	DisplayName   string             `json:"displayName"`
+	GrantedScopes []string           `json:"grantedScopes"`
+	UpdatedAt     pgtype.Timestamptz `json:"updatedAt"`
+}
+
+func (q *Queries) ListConsentsByAccount(ctx context.Context, accountID int32) ([]ListConsentsByAccountRow, error) {
+	rows, err := q.db.Query(ctx, listConsentsByAccount, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListConsentsByAccountRow
+	for rows.Next() {
+		var i ListConsentsByAccountRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.GrantedScopes,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertConsent = `-- name: UpsertConsent :exec

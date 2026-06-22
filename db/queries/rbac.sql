@@ -127,3 +127,49 @@ SELECT
              WHERE a.saml_sp_id = s.id AND m.account_id = sqlc.arg(account_id))
 FROM saml_sp s
 WHERE s.id = sqlc.arg(sp_id);
+
+-- name: ListAuthorizedOIDCClientsForAccount :many
+SELECT c.client_id, c.display_name, c.launch_url, c.redirect_uris
+FROM oidc_client c
+WHERE c.disabled = false
+  AND c.forward_auth_enabled = false
+  AND (
+    NOT c.access_restricted
+    OR EXISTS (SELECT 1 FROM oidc_client_access a
+               WHERE a.client_id = c.client_id AND a.account_id = sqlc.arg(account_id))
+    OR EXISTS (SELECT 1 FROM oidc_client_access a
+               JOIN group_member m ON m.group_id = a.group_id
+               WHERE a.client_id = c.client_id AND m.account_id = sqlc.arg(account_id))
+  )
+ORDER BY c.display_name;
+
+-- name: ListAuthorizedForwardAuthAppsForAccount :many
+SELECT c.client_id, c.display_name, c.forward_auth_host
+FROM oidc_client c
+WHERE c.disabled = false
+  AND c.forward_auth_enabled = true
+  AND c.forward_auth_host IS NOT NULL
+  AND (
+    NOT c.access_restricted
+    OR EXISTS (SELECT 1 FROM oidc_client_access a
+               WHERE a.client_id = c.client_id AND a.account_id = sqlc.arg(account_id))
+    OR EXISTS (SELECT 1 FROM oidc_client_access a
+               JOIN group_member m ON m.group_id = a.group_id
+               WHERE a.client_id = c.client_id AND m.account_id = sqlc.arg(account_id))
+  )
+ORDER BY c.display_name;
+
+-- name: ListAuthorizedSAMLSPsForAccount :many
+SELECT s.id, s.entity_id, s.display_name
+FROM saml_sp s
+WHERE s.disabled = false
+  AND s.allow_idp_initiated = true
+  AND (
+    NOT s.access_restricted
+    OR EXISTS (SELECT 1 FROM saml_sp_access a
+               WHERE a.saml_sp_id = s.id AND a.account_id = sqlc.arg(account_id))
+    OR EXISTS (SELECT 1 FROM saml_sp_access a
+               JOIN group_member m ON m.group_id = a.group_id
+               WHERE a.saml_sp_id = s.id AND m.account_id = sqlc.arg(account_id))
+  )
+ORDER BY s.display_name;
