@@ -258,6 +258,8 @@ export default {
       dangerTitle: 'Danger zone', deleteHelp: 'Permanently delete this application. Apps using it will stop working.',
       delete: 'Delete application', deleteConfirmTitle: 'Delete this application?',
       deleteConfirmBody: 'This permanently removes the application. This cannot be undone.',
+      launchUrl: 'Launch URL',
+      launchUrlPlaceholder: "Defaults to the first redirect URI's origin",
     },
     forwardAuth: {
       title: 'Forward auth', create: 'Register service', createTitle: 'New forward-auth service',
