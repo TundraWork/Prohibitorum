@@ -5,7 +5,7 @@
       "id": 7,
       "subject": "Task 1: saml_consent table + sqlc queries",
       "status": "pending",
-      "description": "**Goal:** Persist per-(account,SP) advisory ack; expose sqlc accessors.\n\n**Files:** Create db/migrations/022_saml_consent.sql, db/queries/saml_consent.sql; regenerate pkg/db.\n\n```json:metadata\n{\"files\":[\"db/migrations/022_saml_consent.sql\",\"db/queries/saml_consent.sql\",\"pkg/db/saml_consent.sql.go\"],\"verifyCommand\":\"sqlc generate && go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"sqlc generates 4 query methods on db.Querier\",\"go build passes\",\"migration auto-discovered\"]}\n```"
+      "description": "**Goal:** Persist per-(account,SP) advisory ack; expose sqlc accessors.\n\n**Files:** Create db/migrations/022_saml_consent.sql, db/queries/saml_consent.sql; modify sqlc.yaml (int32/int64 overrides); regenerate pkg/db. sqlc NOT installed — use `go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate`.\n\n```json:metadata\n{\"files\":[\"db/migrations/022_saml_consent.sql\",\"db/queries/saml_consent.sql\",\"sqlc.yaml\",\"pkg/db/saml_consent.sql.go\"],\"verifyCommand\":\"go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate && go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"4 query methods on db.Querier\",\"params use int32/int64 via sqlc.yaml overrides\",\"go build passes\",\"migration auto-discovered\"]}\n```"
     },
     {
       "id": 8,

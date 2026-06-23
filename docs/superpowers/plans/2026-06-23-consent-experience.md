@@ -47,15 +47,19 @@
 **Files:**
 - Create: `db/migrations/022_saml_consent.sql`
 - Create: `db/queries/saml_consent.sql`
+- Modify: `sqlc.yaml` (add `int32`/`int64` overrides for the two new columns)
 - Modify (generated): `pkg/db/saml_consent.sql.go`, `pkg/db/querier.go`, `pkg/db/models.go`
 - Test: `pkg/db` builds; query exercised by later tasks (no standalone DB unit test here — the repo tests queries through handlers/smoke).
 
 **Acceptance Criteria:**
-- [ ] `sqlc generate` produces `HasSAMLConsent`, `UpsertSAMLConsent`, `DeleteSAMLConsent`, `ListSAMLConsentsByAccount` on `db.Querier`.
+- [ ] sqlc produces `HasSAMLConsent`, `UpsertSAMLConsent`, `DeleteSAMLConsent`, `ListSAMLConsentsByAccount` on `db.Querier`.
+- [ ] The generated params use `AccountID int32` / `SpID int64` (not `pgtype.Int4/Int8`) — i.e. the `sqlc.yaml` overrides are present.
 - [ ] `go build -tags nodynamic ./...` passes.
-- [ ] The migration is picked up by `db/migrations/migrations.go` (embed glob).
+- [ ] The migration is picked up by `db/migrations/migrations.go` (`//go:embed *.sql`).
 
-**Verify:** `sqlc generate && go build -tags nodynamic ./...` → no errors; `git grep -l HasSAMLConsent pkg/db` shows the generated file.
+**Verify:** `go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate && go build -tags nodynamic ./...` → no errors; `git grep -l HasSAMLConsent pkg/db` shows the generated file.
+
+> Tooling note: `sqlc` is NOT installed (the goenv shim is empty). Regenerate with the pinned version via `go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate` (verified working). The schema header pins `sqlc v1.30.0`.
 
 **Steps:**
 
@@ -109,15 +113,28 @@ WHERE sc.account_id = $1
 ORDER BY sp.display_name;
 ```
 
-- [ ] **Step 4: Regenerate sqlc and build**
+- [ ] **Step 4: Add sqlc type overrides**
 
-Run: `sqlc generate && go build -tags nodynamic ./...`
-Expected: PASS. `HasSAMLConsentParams{AccountID int32; SpID int64}`, `UpsertSAMLConsentParams`, `DeleteSAMLConsentParams`, and `ListSAMLConsentsByAccountRow{SpID int64; EntityID string; DisplayName string; UpdatedAt pgtype.Timestamptz}` now exist.
+The repo maps every integer/bigint PK/FK explicitly because sqlc's pgx/v5 default for these is `pgtype.Int4`/`pgtype.Int8`, not `int32`/`int64`. Add to the `overrides:` list in `sqlc.yaml` (alongside the existing `oidc_consent.account_id` / `saml_sp.id` entries):
 
-- [ ] **Step 5: Commit**
+```yaml
+          - column: "saml_consent.account_id"
+            go_type: "int32"
+          - column: "saml_consent.sp_id"
+            go_type: "int64"
+```
+
+- [ ] **Step 5: Regenerate sqlc and build**
+
+`sqlc` is not installed locally; run the pinned version via `go run`.
+
+Run: `go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate && go build -tags nodynamic ./...`
+Expected: PASS. `HasSAMLConsentParams{AccountID int32; SpID int64}`, `UpsertSAMLConsentParams`, `DeleteSAMLConsentParams`, and `ListSAMLConsentsByAccountRow{SpID int64; EntityID string; DisplayName string; UpdatedAt pgtype.Timestamptz}` now exist. (If `AccountID`/`SpID` came out as `pgtype.Int4/Int8`, the Step-4 overrides are missing — add them and regenerate.)
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrations/022_saml_consent.sql db/queries/saml_consent.sql pkg/db/
+git add db/migrations/022_saml_consent.sql db/queries/saml_consent.sql sqlc.yaml pkg/db/
 git commit -m "feat(saml): saml_consent table + sqlc queries"
 ```
 
