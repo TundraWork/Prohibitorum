@@ -111,6 +111,10 @@ type Server struct {
 	// /welcome federation confirm endpoints without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
 	confirmFedOverride confirmFedQueries
+	// samlConsentOverride lets tests inject a fake samlConsentQueries for the
+	// /api/prohibitorum/saml-consent handlers without standing up *db.Queries.
+	// Nil in production — handlers fall back to s.queries.
+	samlConsentOverride samlConsentQueries
 	// branding resolves the effective instance name and icon with DB-override →
 	// config → built-in precedence. Admin mutation handlers call Invalidate()
 	// after writes so changes propagate immediately.
@@ -388,6 +392,10 @@ func (s *Server) registerOperations() {
 	// Consent app API (OIDC consent UI context + decision).
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/consent", sessionReq, s.handleConsentContextHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/consent", sessionReq, s.handleConsentDecisionHTTP)
+
+	// SAML advisory consent (UI context + decision), mirroring the OIDC pair.
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/saml-consent", sessionReq, s.handleSAMLConsentContextHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/saml-consent", sessionReq, s.handleSAMLConsentDecisionHTTP)
 
 	// Sudo
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/sudo/methods", sessionReq, s.handleSudoMethodsHTTP)
