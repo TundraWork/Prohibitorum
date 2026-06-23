@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,6 +14,21 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
+
+// oidcConsentQueries is the narrow DB surface the OIDC consent handlers need.
+// Declared here so tests can stub it without constructing *db.Queries.
+// Production wiring leaves oidcConsentOverride nil; handlers fall back to s.queries.
+type oidcConsentQueries interface {
+	GetOIDCClient(ctx context.Context, clientID string) (db.OidcClient, error)
+	GetConsent(ctx context.Context, arg db.GetConsentParams) ([]string, error)
+}
+
+func (s *Server) getOIDCConsentQueries() oidcConsentQueries {
+	if s.oidcConsentOverride != nil {
+		return s.oidcConsentOverride
+	}
+	return s.queries
+}
 
 // GET /api/prohibitorum/consent?ticket=
 func (s *Server) handleConsentContextHTTP(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +46,8 @@ func (s *Server) handleConsentContextHTTP(w http.ResponseWriter, r *http.Request
 		writeAuthErr(w, authn.ErrInvalidConsentTicket())
 		return
 	}
-	client, err := s.queries.GetOIDCClient(r.Context(), ticket.ClientID)
+	q := s.getOIDCConsentQueries()
+	client, err := q.GetOIDCClient(r.Context(), ticket.ClientID)
 	if err != nil {
 		writeAuthErr(w, authn.ErrInvalidConsentTicket())
 		return
@@ -45,6 +62,27 @@ func (s *Server) handleConsentContextHTTP(w http.ResponseWriter, r *http.Request
 		},
 		Account: contract.ConsentUser{DisplayName: sess.Account.DisplayName},
 		Scopes:  ticket.Scopes,
+	}
+	granted, gerr := q.GetConsent(r.Context(), db.GetConsentParams{
+		AccountID: sess.Data.AccountID, ClientID: ticket.ClientID,
+	})
+	if gerr != nil && !errors.Is(gerr, pgx.ErrNoRows) {
+		writeAuthErr(w, gerr)
+		return
+	}
+	// Report only the REQUESTED scopes the user has already granted (the
+	// contract's "subset of Scopes"), in requested order, so the UI can mark the
+	// genuinely new ones. nil on a first-time consent (ErrNoRows → granted nil).
+	if len(granted) > 0 {
+		have := make(map[string]struct{}, len(granted))
+		for _, s := range granted {
+			have[s] = struct{}{}
+		}
+		for _, s := range ticket.Scopes {
+			if _, ok := have[s]; ok {
+				out.AlreadyGranted = append(out.AlreadyGranted, s)
+			}
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)

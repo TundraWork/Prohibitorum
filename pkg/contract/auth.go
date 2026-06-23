@@ -364,6 +364,10 @@ type ConsentContext struct {
 	Client  ConsentClient `json:"client"`
 	Account ConsentUser   `json:"account"`
 	Scopes  []string      `json:"scopes"`
+	// AlreadyGranted is the subset of Scopes the account has previously consented
+	// to (so the UI can mark the NEW scopes on an incremental re-consent). Empty
+	// on a first-time consent.
+	AlreadyGranted []string `json:"alreadyGranted,omitempty"`
 }
 
 type ConsentClient struct {

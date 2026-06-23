@@ -115,6 +115,10 @@ type Server struct {
 	// /api/prohibitorum/saml-consent handlers without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
 	samlConsentOverride samlConsentQueries
+	// oidcConsentOverride lets tests inject a fake oidcConsentQueries for the
+	// /api/prohibitorum/consent handlers without standing up *db.Queries.
+	// Nil in production — handlers fall back to s.queries.
+	oidcConsentOverride oidcConsentQueries
 	// branding resolves the effective instance name and icon with DB-override →
 	// config → built-in precedence. Admin mutation handlers call Invalidate()
 	// after writes so changes propagate immediately.
