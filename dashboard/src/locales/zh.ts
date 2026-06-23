@@ -567,6 +567,16 @@ export default {
     confirm: '确认',
   },
 
+  samlConsent: {
+    title: '登录到 {sp}',
+    intro: '{sp} 将使用你的账户为你登录。',
+    receives: '{sp} 将获得：',
+    genericAttributes: '你的个人资料信息',
+    remembered: '你只需确认一次 —— 下次将自动登录，除非你在 设置 → 应用访问 中撤销。',
+    continue: '继续',
+    decline: '暂不',
+  },
+
   consent: {
     title: '授权访问',
     requestingAccess: '{client} 请求访问你的账户。',
@@ -690,6 +700,7 @@ export default {
     appAccess: '应用访问',
     login: '登录',
     consent: '授权',
+    samlConsent: '登录',
     logout: '已退出登录',
     error: '错误',
     enroll: '设置账户',

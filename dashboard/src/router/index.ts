@@ -50,6 +50,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true, titleKey: 'title.consent' },
   },
   {
+    path: '/saml-consent',
+    name: 'saml-consent',
+    component: () => import('../pages/SamlConsentView.vue'),
+    meta: { public: true, titleKey: 'title.samlConsent' },
+  },
+  {
     path: '/logout',
     name: 'logout',
     component: () => import('../pages/LogoutView.vue'),

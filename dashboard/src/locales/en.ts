@@ -571,6 +571,16 @@ export default {
     confirm: 'Confirm',
   },
 
+  samlConsent: {
+    title: 'Sign in to {sp}',
+    intro: '{sp} will use your account to sign you in.',
+    receives: '{sp} will receive:',
+    genericAttributes: 'your profile information',
+    remembered: "You're acknowledging this once — next time you'll be signed in automatically, unless you revoke it in Settings → App access.",
+    continue: 'Continue',
+    decline: 'Not now',
+  },
+
   consent: {
     title: 'Approve access',
     requestingAccess: '{client} is requesting access to your account.',
@@ -694,6 +704,7 @@ export default {
     appAccess: 'App access',
     login: 'Sign in',
     consent: 'Authorize',
+    samlConsent: 'Sign in',
     logout: 'Signed out',
     error: 'Error',
     enroll: 'Set up your account',
