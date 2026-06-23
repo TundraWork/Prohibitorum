@@ -64,7 +64,7 @@ const (
 	nCore       = 51
 	nFederation = 26
 	nOIDC       = 18
-	nSAML       = 12
+	nSAML       = 14
 	nHardening  = 12
 	nConsent    = 2
 	nAdmin      = 8
@@ -1854,47 +1854,130 @@ func main() {
 		log.Fatalf("build SP verifier: %v", err)
 	}
 
-	step(fmt.Sprintf("saml %d/%d — signed AuthnRequest → /saml/sso → verify SAMLResponse + GHES attrs", 4, nSAML))
+	// samlSPID is the numeric SP id as a string — used for the /me/consent list
+	// assertion and the revoke call. Extracted lazily from the saml-applications
+	// list after the SP is registered.
+	var samlSPID string
+	{
+		type samlApp struct {
+			ID       int64  `json:"id"`
+			EntityID string `json:"entityId"`
+		}
+		var apps []samlApp
+		if err := c.get("/api/prohibitorum/saml-applications", &apps); err != nil {
+			log.Fatalf("saml: GET /saml-applications to find SP id: %v", err)
+		}
+		for _, a := range apps {
+			if a.EntityID == mockSPEntityID {
+				samlSPID = fmt.Sprintf("%d", a.ID)
+				break
+			}
+		}
+		if samlSPID == "" {
+			log.Fatalf("saml: mock SP %q not found in /saml-applications list", mockSPEntityID)
+		}
+		log.Printf("  mock SP numeric id = %s", samlSPID)
+	}
+
+	// Step 4: full advisory-consent flow via POST-binding (first SSO for this
+	// account+SP hits the gate and MUST 302 to /saml-consent, not issue).
+	step(fmt.Sprintf("saml %d/%d — POST-binding AuthnRequest → consent gate fires (302) → context+approve → resume → SAMLResponse", 4, nSAML))
 	var stableNameID string
 	{
-		query, reqID, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
+		samlReq, reqID, err := sp.authnRequestPostForm(ssoURL, mockSPACSURL, authnOpts{})
 		if err != nil {
-			log.Fatalf("build signed AuthnRequest: %v", err)
+			log.Fatalf("build POST-binding AuthnRequest: %v", err)
 		}
-		statusCode, body, err := ssoWithSession(c, query)
+		// Drive the first POST-binding SSO — expect 302 to /saml-consent.
+		statusCode, consentLoc, body, err := ssoPostFormWithLocation(c, samlReq, "")
 		if err != nil {
-			log.Fatalf("/saml/sso: %v", err)
+			log.Fatalf("saml consent step — POST /saml/sso: %v", err)
 		}
-		if statusCode != http.StatusOK {
-			log.Fatalf("/saml/sso: want 200 auto-POST, got %d (body=%s)", statusCode, firstN(body, 400))
+		if statusCode != http.StatusFound {
+			log.Fatalf("saml consent step — POST /saml/sso: want 302 to consent gate, got %d (body=%s)", statusCode, firstN(body, 400))
 		}
-		respXML, err := extractSAMLResponse(body)
+		if !strings.Contains(consentLoc, "/saml-consent?ticket=") {
+			log.Fatalf("saml consent step — POST /saml/sso: Location want /saml-consent?ticket=…, got %q", consentLoc)
+		}
+		// Extract the ticket nonce from the Location query.
+		consentLocU, err := url.Parse(consentLoc)
 		if err != nil {
-			log.Fatalf("extract SAMLResponse: %v", err)
+			log.Fatalf("saml consent step — parse Location %q: %v", consentLoc, err)
+		}
+		ticket := consentLocU.Query().Get("ticket")
+		if ticket == "" {
+			log.Fatalf("saml consent step — empty ticket in Location %q", consentLoc)
+		}
+		log.Printf("  consent gate fired ✓ — ticket=%.12s…", ticket)
+
+		// GET /api/prohibitorum/saml-consent?ticket= → context JSON.
+		var consentCtx struct {
+			SP struct {
+				ID          string `json:"id"`
+				DisplayName string `json:"displayName"`
+			} `json:"sp"`
+			Account    struct{} `json:"account"`
+			Attributes []string `json:"attributes"`
+		}
+		if err := c.get("/api/prohibitorum/saml-consent?ticket="+url.QueryEscape(ticket), &consentCtx); err != nil {
+			log.Fatalf("saml consent step — GET /api/prohibitorum/saml-consent: %v", err)
+		}
+		if consentCtx.SP.ID == "" {
+			log.Fatalf("saml consent step — consent context has empty SP id")
+		}
+		if len(consentCtx.Attributes) == 0 {
+			log.Fatalf("saml consent step — consent context has no attributes (want ≥1 for GHES SP)")
+		}
+		log.Printf("  consent context ✓ — SP id=%s displayName=%q attrs=%v", consentCtx.SP.ID, consentCtx.SP.DisplayName, consentCtx.Attributes)
+
+		// POST /api/prohibitorum/saml-consent {ticket, decision:"approve"} → {redirect}.
+		var consentResult struct {
+			Redirect string `json:"redirect"`
+		}
+		if err := c.postJSON("/api/prohibitorum/saml-consent", map[string]string{
+			"ticket":   ticket,
+			"decision": "approve",
+		}, &consentResult); err != nil {
+			log.Fatalf("saml consent step — POST /api/prohibitorum/saml-consent: %v", err)
+		}
+		wantRedirect := "/saml/sso/resume?ticket=" + ticket
+		if consentResult.Redirect != wantRedirect {
+			log.Fatalf("saml consent step — approve redirect: want %q, got %q", wantRedirect, consentResult.Redirect)
+		}
+		log.Printf("  approve decision ✓ — redirect=%s", consentResult.Redirect)
+
+		// GET /saml/sso/resume?ticket= → 200 auto-POST with SAMLResponse.
+		resumeStatusCode, resumeBody, err := ssoResumeGet(c, ticket)
+		if err != nil {
+			log.Fatalf("saml consent step — GET /saml/sso/resume: %v", err)
+		}
+		if resumeStatusCode != http.StatusOK {
+			log.Fatalf("saml consent step — GET /saml/sso/resume: want 200 auto-POST, got %d (body=%s)", resumeStatusCode, firstN(resumeBody, 400))
+		}
+		respXML, err := extractSAMLResponse(resumeBody)
+		if err != nil {
+			log.Fatalf("saml consent step — extract SAMLResponse from resume: %v", err)
 		}
 		assertion, err := spProvider.parse(respXML, reqID)
 		if err != nil {
-			log.Fatalf("crewjam ParseXMLResponse rejected the SAMLResponse: %v", err)
+			log.Fatalf("saml consent step — crewjam ParseXMLResponse rejected resume SAMLResponse: %v", err)
 		}
 		if assertion.Subject == nil || assertion.Subject.NameID == nil || assertion.Subject.NameID.Value == "" {
-			log.Fatalf("SAMLResponse assertion has no NameID")
+			log.Fatalf("saml consent step — resume SAMLResponse has no NameID")
 		}
 		stableNameID = assertion.Subject.NameID.Value
-		// GHES attribute profile: USERNAME at least must be present and match.
 		username := samlAttrValue(assertion, "USERNAME")
 		if username == "" {
-			log.Fatalf("SAMLResponse missing GHES USERNAME attribute (attrs=%v)", samlAttrNames(assertion))
+			log.Fatalf("saml consent step — resume SAMLResponse missing GHES USERNAME (attrs=%v)", samlAttrNames(assertion))
 		}
 		if username != samlMe.Username {
-			log.Fatalf("SAMLResponse USERNAME: want %q, got %q", samlMe.Username, username)
+			log.Fatalf("saml consent step — resume SAMLResponse USERNAME: want %q, got %q", samlMe.Username, username)
 		}
-		// crewjam already enforced Destination/Recipient==ACS and Audience==entityID
-		// during ParseXMLResponse (it rejects otherwise); assert NameID + USERNAME here.
-		log.Printf("  SAMLResponse verified: NameID=%.16s… USERNAME=%s; Destination/Recipient/Audience enforced by ParseXMLResponse ✓",
-			stableNameID, username)
+		log.Printf("  resume SAMLResponse verified: NameID=%.16s… USERNAME=%s ✓", stableNameID, username)
 	}
 
-	step(fmt.Sprintf("saml %d/%d — second SSO (same account+SP) → NameID identical (stability)", 5, nSAML))
+	// Step 5: second SSO — ack is now stored, so no consent gate fires.
+	step(fmt.Sprintf("saml %d/%d — second SSO (same account+SP, ack stored) → direct 200 + NameID identical (stability)", 5, nSAML))
 	{
 		query, reqID, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
 		if err != nil {
@@ -1925,7 +2008,7 @@ func main() {
 	if err := verifySAMLSubjectStable(samlMe.ID, stableNameID); err != nil {
 		log.Fatalf("saml_subject_id DB assert: %v", err)
 	}
-	// Steps 91+92 were two SSOs from the SAME session (client c) to the SAME SP.
+	// Steps 4+5 were two SSOs from the SAME session (client c) to the SAME SP.
 	// Post Fix C2 (UNIQUE (session_id, sp_id, session_index) + upsert), those
 	// collapse to ONE row (the second SSO refreshes not_on_or_after rather than
 	// duplicating). So the correct expectation here is exactly 1, not 2.
@@ -1933,7 +2016,73 @@ func main() {
 		log.Fatalf("saml_session DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("saml %d/%d — SLO — drive a DEDICATED session's SSO, then sign a LogoutRequest targeting it", 7, nSAML))
+	step(fmt.Sprintf("saml %d/%d — GET /me/consent → SAML entry present (kind=saml, clientId=SP numeric id)", 7, nSAML))
+	{
+		var consentList []struct {
+			Kind     string `json:"kind"`
+			ClientID string `json:"clientId"`
+		}
+		if err := c.get("/api/prohibitorum/me/consent", &consentList); err != nil {
+			log.Fatalf("saml consent — GET /me/consent: %v", err)
+		}
+		found := false
+		for _, e := range consentList {
+			if e.Kind == "saml" && e.ClientID == samlSPID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Fatalf("saml consent — /me/consent has no saml entry for SP id=%s (list=%+v)", samlSPID, consentList)
+		}
+		log.Printf("  /me/consent contains saml entry clientId=%s ✓", samlSPID)
+	}
+
+	step(fmt.Sprintf("saml %d/%d — revoke ack + re-prompt: POST /me/consent/revoke → POST /saml/sso → 302 /saml-consent (gate re-fires)", 8, nSAML))
+	{
+		// Revoke the advisory ack.
+		if err := c.postJSON("/api/prohibitorum/me/consent/revoke", map[string]string{
+			"kind":     "saml",
+			"clientId": samlSPID,
+		}, nil); err != nil {
+			log.Fatalf("saml consent — POST /me/consent/revoke: %v", err)
+		}
+		log.Printf("  revoked SAML ack for SP id=%s ✓", samlSPID)
+		// Drive a new SSO — gate must fire again (no ack).
+		samlReq2, _, err := sp.authnRequestPostForm(ssoURL, mockSPACSURL, authnOpts{})
+		if err != nil {
+			log.Fatalf("saml consent — build re-prompt AuthnRequest: %v", err)
+		}
+		statusCode2, reproLoc, body2, err := ssoPostFormWithLocation(c, samlReq2, "")
+		if err != nil {
+			log.Fatalf("saml consent — re-prompt POST /saml/sso: %v", err)
+		}
+		if statusCode2 != http.StatusFound {
+			log.Fatalf("saml consent — re-prompt: want 302 (gate re-fires), got %d (body=%s)", statusCode2, firstN(body2, 400))
+		}
+		if !strings.Contains(reproLoc, "/saml-consent?ticket=") {
+			log.Fatalf("saml consent — re-prompt: Location want /saml-consent?ticket=…, got %q", reproLoc)
+		}
+		log.Printf("  re-prompt gate fired again ✓ — Location=%s", reproLoc)
+		// Re-approve so subsequent steps (SLO, negatives) keep working.
+		reproLocU, err := url.Parse(reproLoc)
+		if err != nil {
+			log.Fatalf("saml consent — re-prompt: parse Location: %v", err)
+		}
+		ticket2 := reproLocU.Query().Get("ticket")
+		var cr struct{ Redirect string `json:"redirect"` }
+		if err := c.postJSON("/api/prohibitorum/saml-consent", map[string]string{
+			"ticket": ticket2, "decision": "approve",
+		}, &cr); err != nil {
+			log.Fatalf("saml consent — re-prompt re-approve: %v", err)
+		}
+		if _, _, err := ssoResumeGet(c, ticket2); err != nil {
+			log.Fatalf("saml consent — re-prompt resume: %v", err)
+		}
+		log.Printf("  re-approved after revoke ✓ (ack restored for subsequent steps)")
+	}
+
+	step(fmt.Sprintf("saml %d/%d — SLO — drive a DEDICATED session's SSO, then sign a LogoutRequest targeting it", 9, nSAML))
 	// SLO revokes the IdP session bound to the saml_session (sessionIndex = the
 	// session's ID). To avoid breaking c (needed for the replay negative below),
 	// drive the SSO that we will SLO from a SEPARATE client cSLO whose own login
@@ -1977,6 +2126,11 @@ func main() {
 		}
 	}
 	// Drive the SSO on cSLO so a saml_session row binds NameID→sloSessionIndex.
+	// NOTE: advisory consent is per-ACCOUNT, not per-session. cSLO logs in as the
+	// SAME account (smoke-admin), whose (account, mockSP) ack was re-recorded in
+	// step 8, so the consent gate does NOT fire here and this SSO issues directly.
+	// If this is ever re-pointed at a different account, add a consent approval
+	// first or this 200 expectation will regress to a 302.
 	{
 		query, reqID, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
 		if err != nil {
@@ -1999,7 +2153,7 @@ func main() {
 	}
 	log.Printf("  dedicated SLO session id=%s issued an SSO assertion ✓", sloSessionIndex)
 
-	step(fmt.Sprintf("saml %d/%d — signed LogoutRequest → signed LogoutResponse + bound session revoked", 8, nSAML))
+	step(fmt.Sprintf("saml %d/%d — signed LogoutRequest → signed LogoutResponse + bound session revoked", 10, nSAML))
 	{
 		query, _, err := sp.logoutRequestRedirect(*baseURL+"/saml/slo", stableNameID, sloSessionIndex)
 		if err != nil {
@@ -2037,7 +2191,7 @@ func main() {
 	}
 	log.Printf("  c's session survived (SLO SessionIndex scoping confirmed) ✓")
 
-	step(fmt.Sprintf("saml %d/%d — negative — UNSIGNED AuthnRequest to require_signed GHES SP → rejected", 9, nSAML))
+	step(fmt.Sprintf("saml %d/%d — negative — UNSIGNED AuthnRequest to require_signed GHES SP → rejected", 11, nSAML))
 	{
 		query, _, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, false) // sign=false
 		if err != nil {
@@ -2057,7 +2211,7 @@ func main() {
 		log.Printf("  unsigned AuthnRequest → %d, no SAMLResponse ✓", statusCode)
 	}
 
-	step(fmt.Sprintf("saml %d/%d — negative — AuthnRequest with bad/unregistered ACS URL → rejected", 10, nSAML))
+	step(fmt.Sprintf("saml %d/%d — negative — AuthnRequest with bad/unregistered ACS URL → rejected", 12, nSAML))
 	{
 		query, _, err := sp.authnRequestRedirect(ssoURL, "https://mock-sp.smoke.test/EVIL-acs", true)
 		if err != nil {
@@ -2076,7 +2230,7 @@ func main() {
 		log.Printf("  unregistered ACS URL → %d, no SAMLResponse ✓", statusCode)
 	}
 
-	step(fmt.Sprintf("saml %d/%d — negative — replayed AuthnRequest ID (same request twice) → 2nd rejected", 11, nSAML))
+	step(fmt.Sprintf("saml %d/%d — negative — replayed AuthnRequest ID (same request twice) → 2nd rejected", 13, nSAML))
 	{
 		query, _, err := sp.authnRequestRedirect(ssoURL, mockSPACSURL, true)
 		if err != nil {
@@ -2104,7 +2258,7 @@ func main() {
 		log.Printf("  replayed AuthnRequest ID: 1st=200, 2nd=%d (no SAMLResponse) ✓", statusCode2)
 	}
 
-	step(fmt.Sprintf("saml %d/%d — DB assert — credential_event (factor=saml_sp) sso(use) + slo(session_end)", 12, nSAML))
+	step(fmt.Sprintf("saml %d/%d — DB assert — credential_event (factor=saml_sp) sso(use) + slo(session_end)", 14, nSAML))
 	if err := verifySAMLAuditEvents(); err != nil {
 		log.Fatalf("saml audit DB assert: %v", err)
 	}
@@ -2590,6 +2744,35 @@ func main() {
 		initVerifier, err := spInit.serviceProviderOpts(idpMetaXML, true)
 		if err != nil {
 			log.Fatalf("build IdP-initiated verifier: %v", err)
+		}
+
+		// The init SP is new for this account: the consent gate fires on first
+		// access. Pre-approve consent via /saml/sso/init → 302 → context/approve/resume
+		// so the second call below (the actual assertion step) sees the stored ack.
+		{
+			initStatus302, initLoc302, initBody302, err := ssoInitWithLocation(c, initEntityID, "")
+			if err != nil {
+				log.Fatalf("/saml/sso/init (pre-consent): %v", err)
+			}
+			if initStatus302 != http.StatusFound || !strings.Contains(initLoc302, "/saml-consent?ticket=") {
+				log.Fatalf("/saml/sso/init (pre-consent): want 302 to /saml-consent, got %d loc=%q body=%s",
+					initStatus302, initLoc302, firstN(initBody302, 200))
+			}
+			initConsentLocU, perr := url.Parse(initLoc302)
+			if perr != nil {
+				log.Fatalf("/saml/sso/init (pre-consent): parse Location: %v", perr)
+			}
+			initTicket := initConsentLocU.Query().Get("ticket")
+			var initCR struct{ Redirect string `json:"redirect"` }
+			if err := c.postJSON("/api/prohibitorum/saml-consent", map[string]string{
+				"ticket": initTicket, "decision": "approve",
+			}, &initCR); err != nil {
+				log.Fatalf("/saml/sso/init (pre-consent approve): %v", err)
+			}
+			if _, _, err := ssoResumeGet(c, initTicket); err != nil {
+				log.Fatalf("/saml/sso/init (pre-consent resume): %v", err)
+			}
+			log.Printf("  pre-approved consent for init SP ✓")
 		}
 
 		status, body, err := ssoInit(c, initEntityID, "deep")
@@ -6215,6 +6398,89 @@ func ssoLocation(c *client, query string) (string, error) {
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return resp.Header.Get("Location"), nil
+}
+
+// ssoPostFormWithLocation POSTs a base64 SAMLRequest (HTTP-POST binding) to
+// /saml/sso and returns (status, Location, body, err). Mirrors ssoPostForm from
+// saml_mock.go but also returns the Location header — needed for the consent gate
+// which responds with a 302 rather than a 200.
+func ssoPostFormWithLocation(c *client, samlRequest, relayState string) (status int, location, body string, err error) {
+	form := url.Values{"SAMLRequest": {samlRequest}}
+	if relayState != "" {
+		form.Set("RelayState", relayState)
+	}
+	req, err := http.NewRequest(http.MethodPost, c.base+"/saml/sso", strings.NewReader(form.Encode()))
+	if err != nil {
+		return 0, "", "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	hc := &http.Client{
+		Jar:     c.jar,
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return 0, "", "", err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, resp.Header.Get("Location"), string(b), nil
+}
+
+// ssoInitWithLocation drives GET /saml/sso/init?sp=<entityID>[&RelayState=…] with
+// c's authenticated session and returns (status, Location, body, err). Mirrors
+// ssoInit from saml_mock.go but also exposes the Location header — needed when the
+// consent gate fires and responds with a 302 to /saml-consent rather than a 200.
+func ssoInitWithLocation(c *client, spEntityID, relayState string) (status int, location, body string, err error) {
+	q := url.Values{"sp": {spEntityID}}
+	if relayState != "" {
+		q.Set("RelayState", relayState)
+	}
+	req, err := http.NewRequest(http.MethodGet, c.base+"/saml/sso/init?"+q.Encode(), nil)
+	if err != nil {
+		return 0, "", "", err
+	}
+	hc := &http.Client{
+		Jar:     c.jar,
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return 0, "", "", err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, resp.Header.Get("Location"), string(b), nil
+}
+
+// ssoResumeGet drives GET /saml/sso/resume?ticket=<nonce> with c's authenticated
+// session (the consent resume endpoint). Returns (status, body, err); a 200
+// carries the auto-POST HTML with the SAMLResponse.
+func ssoResumeGet(c *client, ticket string) (status int, body string, err error) {
+	req, err := http.NewRequest(http.MethodGet, c.base+"/saml/sso/resume?ticket="+url.QueryEscape(ticket), nil)
+	if err != nil {
+		return 0, "", err
+	}
+	hc := &http.Client{
+		Jar:     c.jar,
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b), nil
 }
 
 // decodeStatusResponse unmarshals a SAML Response and returns its top-level and
