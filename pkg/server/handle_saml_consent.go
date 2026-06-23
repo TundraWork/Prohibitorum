@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"prohibitorum/pkg/authn"
@@ -16,7 +17,6 @@ import (
 // Production wiring leaves samlConsentOverride nil; handlers fall back to s.queries.
 type samlConsentQueries interface {
 	GetEntityIconEtag(ctx context.Context, arg db.GetEntityIconEtagParams) (string, error)
-	UpsertSAMLConsent(ctx context.Context, arg db.UpsertSAMLConsentParams) error
 }
 
 func (s *Server) getSAMLConsentQueries() samlConsentQueries {
@@ -71,29 +71,32 @@ func (s *Server) handleSAMLConsentDecisionHTTP(w http.ResponseWriter, r *http.Re
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	ticket, ok, err := authn.ConsumeSAMLConsent(r.Context(), s.kvStore, in.Ticket, sess.Data.AccountID)
-	if err != nil {
-		writeAuthErr(w, err)
-		return
-	}
-	if !ok {
-		writeAuthErr(w, authn.ErrInvalidConsentTicket())
-		return
-	}
 
+	// The ticket is consumed ONLY on decline; on approve it is merely peeked
+	// (validated, not popped) and the SAML resume endpoint records the ack and
+	// issues the assertion — that endpoint owns the single use of the nonce.
 	var redirect string
 	switch in.Decision {
 	case "approve":
-		if uerr := s.getSAMLConsentQueries().UpsertSAMLConsent(r.Context(), db.UpsertSAMLConsentParams{
-			AccountID: sess.Data.AccountID, SpID: ticket.SPID,
-		}); uerr != nil {
-			writeAuthErr(w, uerr)
+		// Validate the ticket still belongs to this session, then hand off to the
+		// SAML resume endpoint, which records the ack and issues the assertion.
+		if _, ok, perr := authn.PeekSAMLConsent(r.Context(), s.kvStore, in.Ticket, sess.Data.AccountID); perr != nil {
+			writeAuthErr(w, perr)
+			return
+		} else if !ok {
+			writeAuthErr(w, authn.ErrInvalidConsentTicket())
 			return
 		}
-		// ReturnTo is server-minted (our own origin, exact SSO URL) — trusted.
-		redirect = ticket.ReturnTo
+		redirect = "/saml/sso/resume?ticket=" + url.QueryEscape(in.Ticket)
 	case "decline":
 		// The user stays signed in to the IdP; they just don't enter the app.
+		if _, ok, cerr := authn.ConsumeSAMLConsent(r.Context(), s.kvStore, in.Ticket, sess.Data.AccountID); cerr != nil {
+			writeAuthErr(w, cerr)
+			return
+		} else if !ok {
+			writeAuthErr(w, authn.ErrInvalidConsentTicket())
+			return
+		}
 		redirect = "/"
 	default:
 		writeAuthErr(w, authn.ErrBadRequest())

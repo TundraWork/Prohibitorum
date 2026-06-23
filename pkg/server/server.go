@@ -582,6 +582,10 @@ func (s *Server) registerOperations() {
 	// unsolicited Response to the SP's default ACS, gated by the per-SP
 	// allow_idp_initiated opt-in.
 	s.router.Get("/saml/sso/init", s.samlIdP.HandleIdPInitiated)
+	// Consent resume: completes a login after the advisory consent screen is
+	// approved, emitting the assertion from the stashed (gate-validated) issue
+	// context — works for every binding, including POST-binding SP-initiated SSO.
+	s.router.Get("/saml/sso/resume", s.samlIdP.HandleConsentResume)
 	s.router.Get("/saml/slo", s.samlIdP.HandleSLO)
 	s.router.Post("/saml/slo", s.samlIdP.HandleSLO)
 }

@@ -48,7 +48,8 @@ type fakeSSOQueries struct {
 
 	mu              sync.Mutex
 	insertedSession []db.InsertSAMLSessionParams
-	mintedSubject   map[int64]string // spID -> minted NameID (persisted across calls)
+	upsertedConsent []db.UpsertSAMLConsentParams // ack rows written by the resume path
+	mintedSubject   map[int64]string             // spID -> minted NameID (persisted across calls)
 
 	// denied inverts the RBAC per-app access predicate: zero-value (false) means
 	// the account IS authorized, so every pre-RBAC test keeps passing untouched.
@@ -88,6 +89,35 @@ func (f *fakeSSOQueries) GetSAMLSPByEntityID(_ context.Context, entityID string)
 		return f.sp, nil
 	}
 	return db.SamlSp{}, pgx.ErrNoRows
+}
+
+// GetSAMLSPByID backs the consent-resume path (HandleConsentResume looks the SP
+// up by the stashed SPID). Returns the harness SP when the id matches, else
+// pgx.ErrNoRows.
+func (f *fakeSSOQueries) GetSAMLSPByID(_ context.Context, id int64) (db.SamlSp, error) {
+	if id == f.sp.ID {
+		return f.sp, nil
+	}
+	return db.SamlSp{}, pgx.ErrNoRows
+}
+
+// HasSAMLConsent default reports "consented" so pre-existing issuance tests are
+// unaffected; noConsent=true exercises the gate (see consent_saml_test.go for the
+// shared definition — it lives there alongside the gate tests).
+
+// UpsertSAMLConsent records the advisory acknowledgement written by the
+// consent-resume path.
+func (f *fakeSSOQueries) UpsertSAMLConsent(_ context.Context, arg db.UpsertSAMLConsentParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.upsertedConsent = append(f.upsertedConsent, arg)
+	return nil
+}
+
+func (f *fakeSSOQueries) consents() []db.UpsertSAMLConsentParams {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]db.UpsertSAMLConsentParams(nil), f.upsertedConsent...)
 }
 
 func (f *fakeSSOQueries) ListSAMLSPACSEndpoints(_ context.Context, spID int64) ([]db.SamlSpAc, error) {

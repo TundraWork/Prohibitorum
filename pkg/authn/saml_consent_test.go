@@ -10,7 +10,7 @@ import (
 func TestSAMLConsentTicketRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	store := kv.NewMemoryStore()
-	tk := SAMLConsentTicket{AccountID: 7, SPID: 42, EntityID: "https://sp.example/meta", DisplayName: "Salesforce", Attributes: []string{"Email"}, ReturnTo: "https://idp.example/saml/sso?x=1"}
+	tk := SAMLConsentTicket{AccountID: 7, SPID: 42, EntityID: "https://sp.example/meta", DisplayName: "Salesforce", Attributes: []string{"Email"}, ACSURL: "https://sp.example/acs", InResponseTo: "_req123", RelayState: "deep"}
 
 	nonce, err := DemandSAMLConsent(ctx, store, tk)
 	if err != nil || nonce == "" {
@@ -20,7 +20,7 @@ func TestSAMLConsentTicketRoundTrip(t *testing.T) {
 		t.Fatal("peek returned a ticket bound to a different account")
 	}
 	got, ok, err := PeekSAMLConsent(ctx, store, nonce, 7)
-	if err != nil || !ok || got.SPID != 42 || got.ReturnTo != tk.ReturnTo {
+	if err != nil || !ok || got.SPID != 42 || got.ACSURL != tk.ACSURL || got.InResponseTo != tk.InResponseTo || got.RelayState != tk.RelayState {
 		t.Fatalf("peek: %v ok=%v got=%+v", err, ok, got)
 	}
 	if _, ok, _ := ConsumeSAMLConsent(ctx, store, nonce, 7); !ok {

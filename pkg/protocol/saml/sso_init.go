@@ -138,7 +138,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// Advisory consent gate. IdP-initiated SSO is always interactive (no
 	// IsPassive), so always honor it. Placed after RBAC and before the rate
 	// limit / build / persist so nothing is issued for an un-acknowledged SP.
-	if redirected, cerr := i.maybeDemandSAMLConsent(w, r, account.ID, sp); cerr != nil {
+	if redirected, cerr := i.maybeDemandSAMLConsent(w, r, account, sp, acsURL, "", r.URL.Query().Get("RelayState")); cerr != nil {
 		i.errorPage(w, r, "server_error")
 		return
 	} else if redirected {

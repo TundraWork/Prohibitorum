@@ -290,22 +290,13 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Advisory consent gate — interactive only. A passive request cannot render
-	// the screen, so silent SSO proceeds without collecting the (advisory) ack.
-	// Placed after the re-auth gate and BEFORE the single-use replay consume so
-	// the consent bounce can return and re-run without tripping replay (same
-	// reason the replay consume sits below the re-auth bounce).
-	if !req.IsPassive {
-		if redirected, cerr := i.maybeDemandSAMLConsent(w, r, sess.Data.AccountID, sp); cerr != nil {
-			i.errorPage(w, r, "server_error")
-			return
-		} else if redirected {
-			return
-		}
-	}
-
 	// (4-replay) Single-use replay enforcement on the terminal/issue path. A
-	// replayed ID is a client error → 400; any other KV error → 500.
+	// replayed ID is a client error → 400; any other KV error → 500. Placed
+	// BEFORE the advisory-consent gate (below): a replayed AuthnRequest during the
+	// consent window is rejected, and because the consent resume issues from the
+	// stashed (gate-time-validated) context — NOT by re-running HandleSSO — the
+	// single-use ID is correctly spent exactly once. (Declining/expiry means the
+	// SP must send a fresh AuthnRequest, which is acceptable.)
 	if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 		if errors.Is(cerr, ErrReplayedRequest) {
 			i.errorPage(w, r, "saml_replayed")
@@ -334,6 +325,22 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		}
 		i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
 		return
+	}
+
+	// Advisory consent gate — interactive only. A passive request cannot render
+	// the screen, so silent SSO proceeds without collecting the (advisory) ack.
+	// Placed AFTER the single-use replay consume (above) and right before issuance:
+	// the gate stashes the already-validated issue context (ACS, InResponseTo,
+	// RelayState) in the ticket, and the /saml/sso/resume endpoint emits the
+	// assertion from that stash — so this works for every binding, including
+	// POST-binding SP-initiated SSO whose request body the browser cannot replay.
+	if !req.IsPassive {
+		if redirected, cerr := i.maybeDemandSAMLConsent(w, r, *sess.Account, sp, req.ACSURL, req.RequestID, req.RelayState); cerr != nil {
+			i.errorPage(w, r, "server_error")
+			return
+		} else if redirected {
+			return
+		}
 	}
 
 	// (6–9) Issue the assertion (shared with IdP-initiated + consent-resume).

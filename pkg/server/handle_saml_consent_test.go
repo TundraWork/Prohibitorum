@@ -6,9 +6,9 @@
 //	POST /api/prohibitorum/saml-consent          (decision)
 //
 // The harness mirrors the sudo test pattern: a kv.MemoryStore holds the consent
-// ticket, a fakeSAMLConsentQ stubs the DB surface (GetEntityIconEtag,
-// UpsertSAMLConsent), and sessions are injected via authn.WithSession — no real
-// Postgres or HTTP middleware required.
+// ticket, a fakeSAMLConsentQ stubs the DB surface (GetEntityIconEtag), and
+// sessions are injected via authn.WithSession — no real Postgres or HTTP
+// middleware required.
 
 package server
 
@@ -31,18 +31,10 @@ import (
 
 // --- fake DB ------------------------------------------------------------------
 
-type fakeSAMLConsentQ struct {
-	// upserted records AccountID+SpID pairs that were approved.
-	upserted []db.UpsertSAMLConsentParams
-}
+type fakeSAMLConsentQ struct{}
 
 func (f *fakeSAMLConsentQ) GetEntityIconEtag(_ context.Context, _ db.GetEntityIconEtagParams) (string, error) {
 	return "", pgx.ErrNoRows
-}
-
-func (f *fakeSAMLConsentQ) UpsertSAMLConsent(_ context.Context, arg db.UpsertSAMLConsentParams) error {
-	f.upserted = append(f.upserted, arg)
-	return nil
 }
 
 // --- test helpers -------------------------------------------------------------
@@ -118,7 +110,7 @@ func TestSAMLConsentContext_HappyPath(t *testing.T) {
 		EntityID:    "https://sf.example/meta",
 		DisplayName: "Salesforce",
 		Attributes:  []string{"Email", "Groups"},
-		ReturnTo:    "https://idp.example/saml/sso?x=1",
+		ACSURL:      "https://sf.example/acs",
 	})
 
 	sess := newSAMLConsentSession(accountID)
@@ -168,7 +160,7 @@ func TestSAMLConsentContext_WrongAccount(t *testing.T) {
 	s, _, kvStore := newSAMLConsentTestServer(t)
 
 	nonce := mintTicket(t, kvStore, authn.SAMLConsentTicket{
-		AccountID: 7, SPID: 42, DisplayName: "Salesforce", ReturnTo: "/",
+		AccountID: 7, SPID: 42, DisplayName: "Salesforce",
 	})
 
 	sess := newSAMLConsentSession(99) // different account
@@ -187,16 +179,16 @@ func TestSAMLConsentContext_WrongAccount(t *testing.T) {
 
 // --- Decision (POST) tests ----------------------------------------------------
 
-// TestSAMLConsentDecision_Approve: consume ticket with "approve" → row upserted,
-// redirect == ReturnTo.
+// TestSAMLConsentDecision_Approve: "approve" PEEKS the ticket (does NOT consume,
+// does NOT write the ack) and hands off to the SAML resume endpoint via the
+// redirect — that endpoint owns recording the ack and issuing the assertion.
 func TestSAMLConsentDecision_Approve(t *testing.T) {
-	s, fq, kvStore := newSAMLConsentTestServer(t)
+	s, _, kvStore := newSAMLConsentTestServer(t)
 	const accountID int32 = 7
 	const spID int64 = 42
-	const returnTo = "https://idp.example/saml/sso?x=1"
 
 	nonce := mintTicket(t, kvStore, authn.SAMLConsentTicket{
-		AccountID: accountID, SPID: spID, DisplayName: "Salesforce", ReturnTo: returnTo,
+		AccountID: accountID, SPID: spID, DisplayName: "Salesforce", ACSURL: "https://sf.example/acs",
 	})
 
 	sess := newSAMLConsentSession(accountID)
@@ -213,26 +205,25 @@ func TestSAMLConsentDecision_Approve(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if out.Redirect != returnTo {
-		t.Errorf("redirect: want %q, got %q", returnTo, out.Redirect)
+	if want := "/saml/sso/resume?ticket=" + nonce; out.Redirect != want {
+		t.Errorf("redirect: want %q, got %q", want, out.Redirect)
 	}
 
-	// Verify UpsertSAMLConsent was called with the right params.
-	if len(fq.upserted) != 1 {
-		t.Fatalf("upserted: want 1 row, got %d", len(fq.upserted))
-	}
-	if fq.upserted[0].AccountID != accountID || fq.upserted[0].SpID != spID {
-		t.Errorf("upserted params: want {%d %d}, got %+v", accountID, spID, fq.upserted[0])
+	// Approve only PEEKS, so the ticket must still be present for the resume
+	// endpoint to consume.
+	if _, ok, _ := authn.PeekSAMLConsent(context.Background(), kvStore, nonce, accountID); !ok {
+		t.Error("approve must NOT consume the ticket — resume needs it")
 	}
 }
 
-// TestSAMLConsentDecision_Decline: "decline" → redirect == "/", no row written.
+// TestSAMLConsentDecision_Decline: "decline" → redirect == "/" and the ticket is
+// consumed (the user stays signed in but does not enter the app).
 func TestSAMLConsentDecision_Decline(t *testing.T) {
-	s, fq, kvStore := newSAMLConsentTestServer(t)
+	s, _, kvStore := newSAMLConsentTestServer(t)
 	const accountID int32 = 7
 
 	nonce := mintTicket(t, kvStore, authn.SAMLConsentTicket{
-		AccountID: accountID, SPID: 42, DisplayName: "Salesforce", ReturnTo: "https://idp.example/sso",
+		AccountID: accountID, SPID: 42, DisplayName: "Salesforce", ACSURL: "https://sf.example/acs",
 	})
 
 	sess := newSAMLConsentSession(accountID)
@@ -252,26 +243,28 @@ func TestSAMLConsentDecision_Decline(t *testing.T) {
 	if out.Redirect != "/" {
 		t.Errorf("redirect: want /, got %q", out.Redirect)
 	}
-	if len(fq.upserted) != 0 {
-		t.Errorf("upserted: want 0 rows on decline, got %d", len(fq.upserted))
+	// Decline consumes the ticket: a second use must find it gone.
+	if _, ok, _ := authn.PeekSAMLConsent(context.Background(), kvStore, nonce, accountID); ok {
+		t.Error("decline must consume the ticket")
 	}
 }
 
-// TestSAMLConsentDecision_SingleUse: the same nonce cannot be used twice.
-// The second POST must return invalid_consent_ticket because ConsumeSAMLConsent
-// pops the key.
-func TestSAMLConsentDecision_SingleUse(t *testing.T) {
+// TestSAMLConsentDecision_DeclineSingleUse: a declined nonce is consumed, so a
+// second decision on it must return invalid_consent_ticket. (Approve only PEEKS;
+// the single-use of the nonce is owned by the resume endpoint, exercised in the
+// saml package's HandleConsentResume tests.)
+func TestSAMLConsentDecision_DeclineSingleUse(t *testing.T) {
 	s, _, kvStore := newSAMLConsentTestServer(t)
 	const accountID int32 = 7
 
 	nonce := mintTicket(t, kvStore, authn.SAMLConsentTicket{
-		AccountID: accountID, SPID: 42, DisplayName: "Salesforce", ReturnTo: "/",
+		AccountID: accountID, SPID: 42, DisplayName: "Salesforce", ACSURL: "https://sf.example/acs",
 	})
 
 	sess := newSAMLConsentSession(accountID)
-	body, _ := json.Marshal(contract.SAMLConsentDecision{Ticket: nonce, Decision: "approve"})
+	body, _ := json.Marshal(contract.SAMLConsentDecision{Ticket: nonce, Decision: "decline"})
 
-	// First use — should succeed.
+	// First use — should succeed (and consume the ticket).
 	r1 := samlConsentPOSTReq(t, sess, string(body))
 	w1 := httptest.NewRecorder()
 	s.handleSAMLConsentDecisionHTTP(w1, r1)
@@ -293,12 +286,13 @@ func TestSAMLConsentDecision_SingleUse(t *testing.T) {
 }
 
 // TestSAMLConsentDecision_CrossAccount: ticket minted for account 7, POST with
-// session for account 99 → invalid_consent_ticket, no row written.
+// session for account 99 → invalid_consent_ticket (approve PEEK rejects the
+// mismatched binding), and the ticket is NOT consumed.
 func TestSAMLConsentDecision_CrossAccount(t *testing.T) {
-	s, fq, kvStore := newSAMLConsentTestServer(t)
+	s, _, kvStore := newSAMLConsentTestServer(t)
 
 	nonce := mintTicket(t, kvStore, authn.SAMLConsentTicket{
-		AccountID: 7, SPID: 42, DisplayName: "Salesforce", ReturnTo: "/",
+		AccountID: 7, SPID: 42, DisplayName: "Salesforce", ACSURL: "https://sf.example/acs",
 	})
 
 	sess := newSAMLConsentSession(99) // wrong account
@@ -314,8 +308,9 @@ func TestSAMLConsentDecision_CrossAccount(t *testing.T) {
 	if m["code"] != "invalid_consent_ticket" {
 		t.Errorf("code: want invalid_consent_ticket, got %v", m["code"])
 	}
-	if len(fq.upserted) != 0 {
-		t.Errorf("upserted: want 0 rows on cross-account attempt, got %d", len(fq.upserted))
+	// The mismatched-account PEEK must NOT pop the (rightful owner's) ticket.
+	if _, ok, _ := authn.PeekSAMLConsent(context.Background(), kvStore, nonce, 7); !ok {
+		t.Error("cross-account attempt must not consume the rightful owner's ticket")
 	}
 }
 
@@ -325,7 +320,7 @@ func TestSAMLConsentDecision_BadDecision(t *testing.T) {
 	const accountID int32 = 7
 
 	nonce := mintTicket(t, kvStore, authn.SAMLConsentTicket{
-		AccountID: accountID, SPID: 42, DisplayName: "Salesforce", ReturnTo: "/",
+		AccountID: accountID, SPID: 42, DisplayName: "Salesforce", ACSURL: "https://sf.example/acs",
 	})
 
 	sess := newSAMLConsentSession(accountID)

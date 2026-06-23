@@ -14,15 +14,19 @@ const samlConsentKeyPrefix = "saml:consent:"
 
 // SAMLConsentTicket is the server-minted record of a pending SAML advisory
 // acknowledgement. Stored in KV under a single-use nonce; the browser only ever
-// carries the opaque nonce. ReturnTo is the exact inbound SSO URL (signed raw
-// query preserved) so the assertion flow resumes verbatim after the ack.
+// carries the opaque nonce.
 type SAMLConsentTicket struct {
 	AccountID   int32    `json:"account_id"`
 	SPID        int64    `json:"sp_id"`
 	EntityID    string   `json:"entity_id"`
 	DisplayName string   `json:"display_name"`
 	Attributes  []string `json:"attributes"`
-	ReturnTo    string   `json:"return_to"`
+	// Issue context (validated at gate time) so the resume path can emit the
+	// assertion without the browser re-sending the original AuthnRequest — this
+	// is what makes POST-binding SP-initiated consent work.
+	ACSURL       string `json:"acs_url"`
+	InResponseTo string `json:"in_response_to"`
+	RelayState   string `json:"relay_state"`
 }
 
 // DemandSAMLConsent mints a single-use nonce and stores the ticket (reuses the
