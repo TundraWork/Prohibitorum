@@ -1,0 +1,80 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-23-consent-experience.md",
+  "tasks": [
+    {
+      "id": 7,
+      "subject": "Task 1: saml_consent table + sqlc queries",
+      "status": "pending",
+      "description": "**Goal:** Persist per-(account,SP) advisory ack; expose sqlc accessors.\n\n**Files:** Create db/migrations/022_saml_consent.sql, db/queries/saml_consent.sql; regenerate pkg/db.\n\n```json:metadata\n{\"files\":[\"db/migrations/022_saml_consent.sql\",\"db/queries/saml_consent.sql\",\"pkg/db/saml_consent.sql.go\"],\"verifyCommand\":\"sqlc generate && go build -tags nodynamic ./...\",\"acceptanceCriteria\":[\"sqlc generates 4 query methods on db.Querier\",\"go build passes\",\"migration auto-discovered\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 2: SAML consent KV ticket helpers",
+      "status": "pending",
+      "description": "**Goal:** Single-use account-bound 10-min KV ticket mirroring consent.go.\n\n**Files:** pkg/authn/saml_consent.go (+ _test.go).\n\n```json:metadata\n{\"files\":[\"pkg/authn/saml_consent.go\",\"pkg/authn/saml_consent_test.go\"],\"verifyCommand\":\"go test ./pkg/authn/ -run SAMLConsent -v\",\"acceptanceCriteria\":[\"mint→peek→consume round-trips\",\"wrong account not found\",\"consume single-use\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 3: SAML consent gate + interposition",
+      "status": "pending",
+      "blockedBy": [7, 8],
+      "description": "**Goal:** attributeLabels + maybeDemandSAMLConsent; interpose in HandleSSO (skip IsPassive) + HandleIdPInitiated.\n\n**Files:** pkg/protocol/saml/consent_saml.go (+ _test.go), sso.go, sso_init.go.\n\n```json:metadata\n{\"files\":[\"pkg/protocol/saml/consent_saml.go\",\"pkg/protocol/saml/consent_saml_test.go\",\"pkg/protocol/saml/sso.go\",\"pkg/protocol/saml/sso_init.go\"],\"verifyCommand\":\"go test ./pkg/protocol/saml/ -run 'AttributeLabels|Consent' -v\",\"acceptanceCriteria\":[\"attributeLabels dedups; empty on malformed\",\"no ack→302 both flows\",\"ack→issues\",\"IsPassive skips\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 4: SAML consent endpoints (context + decision)",
+      "status": "pending",
+      "blockedBy": [7, 8],
+      "description": "**Goal:** GET context + POST decision; approve writes ack→ReturnTo, decline→'/'.\n\n**Files:** pkg/contract/saml_consent.go, pkg/server/handle_saml_consent.go (+ _test.go), server.go.\n\n```json:metadata\n{\"files\":[\"pkg/contract/saml_consent.go\",\"pkg/server/handle_saml_consent.go\",\"pkg/server/handle_saml_consent_test.go\",\"pkg/server/server.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run SAMLConsent -v\",\"acceptanceCriteria\":[\"GET returns sp+account+attributes\",\"approve upserts+redirect=ReturnTo\",\"decline→'/'\",\"single-use; cross-account rejected\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 5: OIDC consent already-granted context",
+      "status": "pending",
+      "description": "**Goal:** GET /consent returns alreadyGranted subset.\n\n**Files:** pkg/contract/auth.go, pkg/server/handle_consent.go, handle_consent_test.go.\n\n```json:metadata\n{\"files\":[\"pkg/contract/auth.go\",\"pkg/server/handle_consent.go\",\"pkg/server/handle_consent_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run Consent -v\",\"acceptanceCriteria\":[\"alreadyGranted=granted∩requested\",\"empty on first-time\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 6: Unify /me/consent + revoke by kind",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Merge OIDC consents + SAML acks (kind), sorted; revoke routes by kind.\n\n**Files:** pkg/contract/launchpad.go, pkg/server/handle_me_consent.go (+ _test.go).\n\n```json:metadata\n{\"files\":[\"pkg/contract/launchpad.go\",\"pkg/server/handle_me_consent.go\",\"pkg/server/handle_me_consent_test.go\"],\"verifyCommand\":\"go test ./pkg/server/ -run 'MyConsent|Consent' -v\",\"acceptanceCriteria\":[\"list oidc+saml tagged kind, sorted\",\"revoke kind:saml deletes ack\",\"default deletes oidc\",\"idempotent\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 7: Frontend ConsentCard + OIDC screen maturity",
+      "status": "pending",
+      "blockedBy": [11],
+      "description": "**Goal:** Shared ConsentCard; reassurance + incremental highlight + new badge; en/zh.\n\n**Files:** ConsentCard.vue, ConsentView.vue, ConsentScopeList.vue, en.ts, zh.ts, ConsentView.test.ts.\n\n```json:metadata\n{\"files\":[\"dashboard/src/components/custom/ConsentCard.vue\",\"dashboard/src/pages/ConsentView.vue\",\"dashboard/src/components/custom/ConsentScopeList.vue\",\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\",\"dashboard/src/pages/ConsentView.test.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- ConsentView locales\",\"acceptanceCriteria\":[\"first-time: standard + reassurance\",\"incremental: additional-access title + new badge\",\"en/zh parity\"]}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 8: Frontend SAML advisory consent screen",
+      "status": "pending",
+      "blockedBy": [10, 13],
+      "description": "**Goal:** /saml-consent page (reuses ConsentCard): attributes/fallback, reassurance, Continue/Not now.\n\n**Files:** SamlConsentView.vue (+ test), router/index.ts, en.ts, zh.ts.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/SamlConsentView.vue\",\"dashboard/src/pages/SamlConsentView.test.ts\",\"dashboard/src/router/index.ts\",\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- SamlConsentView locales\",\"acceptanceCriteria\":[\"renders sp+attributes or fallback\",\"Continue→approve; Not now→decline; hardRedirect\",\"en/zh parity\"]}\n```"
+    },
+    {
+      "id": 15,
+      "subject": "Task 9: Frontend App access — both kinds",
+      "status": "pending",
+      "blockedBy": [12],
+      "description": "**Goal:** AppAccessView lists/revokes OIDC+SAML; saml shows descriptor; revoke {kind,clientId}; key kind:id.\n\n**Files:** AppAccessView.vue, en.ts, zh.ts, AppAccessView.test.ts.\n\n```json:metadata\n{\"files\":[\"dashboard/src/pages/AppAccessView.vue\",\"dashboard/src/locales/en.ts\",\"dashboard/src/locales/zh.ts\",\"dashboard/src/pages/AppAccessView.test.ts\"],\"verifyCommand\":\"cd dashboard && npm run test -- AppAccessView locales\",\"acceptanceCriteria\":[\"both kinds render; saml descriptor not scopes\",\"revoke posts {kind,clientId}\",\"en/zh parity\"]}\n```"
+    },
+    {
+      "id": 16,
+      "subject": "Task 10: Smoke arc — SAML advisory consent",
+      "status": "pending",
+      "blockedBy": [9, 10, 12],
+      "description": "**Goal:** E2E: first SSO→302 /saml-consent→context→approve→issue→/me/consent kind:saml→revoke→re-prompt.\n\n**Files:** cmd/smoke/.\n\n```json:metadata\n{\"files\":[\"cmd/smoke\"],\"verifyCommand\":\"throwaway-cluster smoke per memory; SMOKE_EXIT=0\",\"acceptanceCriteria\":[\"saml-consent arc green end-to-end\"]}\n```"
+    },
+    {
+      "id": 17,
+      "subject": "Task 11: Rebuild SPA bundle + full green gate",
+      "status": "pending",
+      "blockedBy": [13, 14, 15, 16],
+      "description": "**Goal:** Build embedded bundle; prove full gate green.\n\n**Files:** pkg/webui/dist.\n\n```json:metadata\n{\"files\":[\"pkg/webui/dist\"],\"verifyCommand\":\"cd dashboard && npm test && npm run build && cd .. && go build -tags nodynamic ./... && go vet ./... && go test ./...\",\"acceptanceCriteria\":[\"frontend tests+tsc+build pass\",\"go build/vet/test pass\",\"live smoke SMOKE_EXIT=0\",\"bundle committed\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-23"
+}
