@@ -23,8 +23,9 @@ type LaunchpadApp struct {
 	AccentColor *string `json:"accentColor,omitempty"`
 }
 
-// ConsentedApp is one app the account has granted OIDC consent to.
+// ConsentedApp is one app the account has granted OIDC consent or SAML ack to.
 type ConsentedApp struct {
+	Kind      string    `json:"kind"` // "oidc" | "saml"
 	ClientID  string    `json:"clientId"`
 	Name      string    `json:"name"`
 	IconURL   *string   `json:"iconUrl,omitempty"`
@@ -34,6 +35,7 @@ type ConsentedApp struct {
 
 // RevokeConsentInput is the body of POST /me/consent/revoke.
 type RevokeConsentInput struct {
+	Kind     string `json:"kind,omitempty"` // "oidc" (default) | "saml"
 	ClientID string `json:"clientId"`
 }
 
