@@ -290,6 +290,20 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Advisory consent gate — interactive only. A passive request cannot render
+	// the screen, so silent SSO proceeds without collecting the (advisory) ack.
+	// Placed after the re-auth gate and BEFORE the single-use replay consume so
+	// the consent bounce can return and re-run without tripping replay (same
+	// reason the replay consume sits below the re-auth bounce).
+	if !req.IsPassive {
+		if redirected, cerr := i.maybeDemandSAMLConsent(w, r, sess.Data.AccountID, sp); cerr != nil {
+			i.errorPage(w, r, "server_error")
+			return
+		} else if redirected {
+			return
+		}
+	}
+
 	// (4-replay) Single-use replay enforcement on the terminal/issue path. A
 	// replayed ID is a client error → 400; any other KV error → 500.
 	if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {

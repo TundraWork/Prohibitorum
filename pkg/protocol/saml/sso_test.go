@@ -60,6 +60,13 @@ type fakeSSOQueries struct {
 	// groupSlugs is the list of exposed group slugs returned for any account.
 	// Zero-value (nil) means the account has no exposed group memberships.
 	groupSlugs []string
+
+	// noConsent, when true, makes HasSAMLConsent report no advisory SAML ack so
+	// the consent gate redirects. Zero-value (false) → "consented", so every
+	// pre-existing issuance test is unaffected by the gate. consentErr forces a
+	// HasSAMLConsent error (fail-closed → 500).
+	noConsent  bool
+	consentErr error
 }
 
 // IsAccountAuthorizedForSAMLSP backs the RBAC per-app access gate. Default
