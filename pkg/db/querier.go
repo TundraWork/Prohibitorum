@@ -64,6 +64,7 @@ type Querier interface {
 	DeleteGroup(ctx context.Context, id int32) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
 	DeletePasswordCredential(ctx context.Context, accountID int32) error
+	DeleteSAMLConsent(ctx context.Context, arg DeleteSAMLConsentParams) error
 	DeleteSAMLSP(ctx context.Context, id int64) (int64, error)
 	DeleteSAMLSPACSByID(ctx context.Context, spID int64) error
 	DeleteSAMLSPKeysByID(ctx context.Context, spID int64) error
@@ -107,6 +108,7 @@ type Querier interface {
 	GrantSAMLSPAccessAccount(ctx context.Context, arg GrantSAMLSPAccessAccountParams) error
 	GrantSAMLSPAccessGroup(ctx context.Context, arg GrantSAMLSPAccessGroupParams) error
 	HasAnyActiveAdmin(ctx context.Context) (bool, error)
+	HasSAMLConsent(ctx context.Context, arg HasSAMLConsentParams) (bool, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
 	InsertAccountIdentity(ctx context.Context, arg InsertAccountIdentityParams) (AccountIdentity, error)
 	InsertCredential(ctx context.Context, arg InsertCredentialParams) (WebauthnCredential, error)
@@ -156,6 +158,7 @@ type Querier interface {
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
 	ListPublishableSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
+	ListSAMLConsentsByAccount(ctx context.Context, accountID int32) ([]ListSAMLConsentsByAccountRow, error)
 	ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]SamlSpAc, error)
 	ListSAMLSPAccessAccounts(ctx context.Context, samlSpID int64) ([]ListSAMLSPAccessAccountsRow, error)
 	ListSAMLSPAccessGroups(ctx context.Context, samlSpID int64) ([]ListSAMLSPAccessGroupsRow, error)
@@ -233,6 +236,7 @@ type Querier interface {
 	UpsertAvatarSource(ctx context.Context, arg UpsertAvatarSourceParams) error
 	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
+	UpsertSAMLConsent(ctx context.Context, arg UpsertSAMLConsentParams) error
 }
 
 var _ Querier = (*Queries)(nil)

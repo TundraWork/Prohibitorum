@@ -167,6 +167,13 @@ type RevokedJti struct {
 	RevokedAt pgtype.Timestamptz `json:"revokedAt"`
 }
 
+type SamlConsent struct {
+	AccountID int32              `json:"accountId"`
+	SpID      int64              `json:"spId"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt pgtype.Timestamptz `json:"updatedAt"`
+}
+
 type SamlSession struct {
 	ID           int64              `json:"id"`
 	SessionID    string             `json:"sessionId"`
