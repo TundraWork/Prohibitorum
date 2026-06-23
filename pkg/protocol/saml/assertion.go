@@ -6,11 +6,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/beevik/etree"
 	crewjam "github.com/crewjam/saml"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/db"
 )
 
@@ -243,4 +246,53 @@ func (i *IdP) buildResponse(ctx context.Context, sp db.SamlSp, acsURL, inRespons
 		return nil, fmt.Errorf("saml: serialize response: %w", err)
 	}
 	return out, nil
+}
+
+// issueAssertion builds, signs, persists, audits, and auto-POSTs a SAML
+// assertion to the SP's ACS. It is the shared issue tail of HandleSSO,
+// HandleIdPInitiated, and (later) the consent-resume path. On any internal
+// error it renders the IdP's own /error page and returns — no assertion emitted.
+func (i *IdP) issueAssertion(w http.ResponseWriter, r *http.Request, account db.Account, sp db.SamlSp, acsURL, inResponseTo, relayState string, authTime time.Time, sessionID, auditReason string) {
+	ctx := r.Context()
+	nameID, err := i.subjectID(ctx, account.ID, sp.ID, sp.NameIDFormat)
+	if err != nil {
+		i.errorPage(w, r, "server_error")
+		return
+	}
+	groupSlugs, gerr := i.queries.ListExposedGroupSlugsByAccount(ctx, account.ID)
+	if gerr != nil {
+		i.errorPage(w, r, "server_error")
+		return
+	}
+	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL(), groupSlugs)
+	if err != nil {
+		i.errorPage(w, r, "server_error")
+		return
+	}
+	respXML, err := i.buildResponse(ctx, sp, acsURL, inResponseTo, nameID, attrs, authTime, sessionID)
+	if err != nil {
+		i.errorPage(w, r, "server_error")
+		return
+	}
+	sessionExpiry := sessionNotOnOrAfter(sp, authTime, i.samlSessionLifetime())
+	if _, err := i.queries.InsertSAMLSession(ctx, db.InsertSAMLSessionParams{
+		SessionID:    sessionID,
+		SpID:         sp.ID,
+		NameID:       nameID,
+		SessionIndex: sessionID,
+		NotOnOrAfter: pgtype.Timestamptz{Time: sessionExpiry, Valid: true},
+	}); err != nil {
+		i.errorPage(w, r, "server_error")
+		return
+	}
+	accountID := account.ID
+	_ = i.audit.Record(ctx, audit.Record{
+		AccountID: &accountID,
+		Factor:    audit.FactorSAMLSP,
+		Event:     audit.EventUse,
+		IP:        audit.ParseIPOrNil(r.RemoteAddr),
+		UserAgent: r.UserAgent(),
+		Detail:    map[string]any{"reason": auditReason, "sp": sp.EntityID},
+	})
+	i.writeAutoPost(w, acsURL, respXML, relayState)
 }

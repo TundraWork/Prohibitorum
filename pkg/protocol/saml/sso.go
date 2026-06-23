@@ -336,72 +336,8 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The session carries the live db.Account row.
-	account := *sess.Account
-
-	// (6) Stable, opaque, per-(account,sp) NameID.
-	nameID, err := i.subjectID(ctx, account.ID, sp.ID, sp.NameIDFormat)
-	if err != nil {
-		i.errorPage(w, r, "server_error")
-		return
-	}
-
-	// (7-attrs) Fetch the account's exposed group slugs (for the "groups" source).
-	groupSlugs, gerr := i.queries.ListExposedGroupSlugsByAccount(ctx, account.ID)
-	if gerr != nil {
-		i.errorPage(w, r, "server_error")
-		return
-	}
-
-	// Project the account into SAML attributes per the SP's map.
-	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL(), groupSlugs)
-	if err != nil {
-		i.errorPage(w, r, "server_error")
-		return
-	}
-
-	sessionIndex := sess.Data.SessionID
-
-	// (7) Build + sign the Response (which carries a signed bearer Assertion).
-	respXML, err := i.buildResponse(ctx, sp, req.ACSURL, req.RequestID, nameID, attrs, authTime, sessionIndex)
-	if err != nil {
-		i.errorPage(w, r, "server_error")
-		return
-	}
-
-	// (8) Persist a saml_session row so SLO can later locate + revoke this SP
-	// session. The expiry MUST mirror the assertion's SessionNotOnOrAfter
-	// horizon, so use the SAME base (authTime) as buildResponse — anchoring on
-	// time.Now() here would let the DB row outlive the assertion's
-	// SessionNotOnOrAfter whenever the session is older than "now".
-	sessionExpiry := sessionNotOnOrAfter(sp, authTime, i.samlSessionLifetime())
-	if _, err := i.queries.InsertSAMLSession(ctx, db.InsertSAMLSessionParams{
-		SessionID:    sess.Data.SessionID,
-		SpID:         sp.ID,
-		NameID:       nameID,
-		SessionIndex: sessionIndex,
-		NotOnOrAfter: pgtype.Timestamptz{Time: sessionExpiry, Valid: true},
-	}); err != nil {
-		i.errorPage(w, r, "server_error")
-		return
-	}
-
-	// (8-audit) Best-effort audit of the SP use.
-	accountID := account.ID
-	_ = i.audit.Record(ctx, audit.Record{
-		AccountID: &accountID,
-		Factor:    audit.FactorSAMLSP,
-		Event:     audit.EventUse,
-		IP:        audit.ParseIPOrNil(r.RemoteAddr),
-		UserAgent: r.UserAgent(),
-		Detail: map[string]any{
-			"reason": "sso",
-			"sp":     sp.EntityID,
-		},
-	})
-
-	// (9) Auto-POST the Response to the SP's ACS.
-	i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
+	// (6–9) Issue the assertion (shared with IdP-initiated + consent-resume).
+	i.issueAssertion(w, r, *sess.Account, sp, req.ACSURL, req.RequestID, req.RelayState, authTime, sess.Data.SessionID, "sso")
 }
 
 // ssoParseError maps a parseAuthnRequest error to a browser-navigated /error
