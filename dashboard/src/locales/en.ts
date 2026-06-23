@@ -876,6 +876,9 @@ export default {
     revoke: 'Revoke',
     revokeConfirmTitle: 'Revoke access?',
     revokeConfirmBody: '{name} will ask for your consent again next time you sign in.',
+    kindOidc: 'OIDC',
+    kindSaml: 'SAML',
+    samlDescriptor: 'Signs you in to this app',
   },
 
   entityIcon: {

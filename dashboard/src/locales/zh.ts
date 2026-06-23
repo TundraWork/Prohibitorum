@@ -872,6 +872,9 @@ export default {
     revoke: '撤销',
     revokeConfirmTitle: '撤销访问权限？',
     revokeConfirmBody: '下次登录时，{name} 将重新向你请求授权。',
+    kindOidc: 'OIDC',
+    kindSaml: 'SAML',
+    samlDescriptor: '用于登录此应用',
   },
 
   entityIcon: {

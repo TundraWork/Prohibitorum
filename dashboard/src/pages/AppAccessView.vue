@@ -12,7 +12,7 @@ import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import AppIcon from '@/components/custom/AppIcon.vue'
 
-interface ConsentedApp { clientId: string; name: string; iconUrl?: string | null; scopes: string[]; grantedAt: string }
+interface ConsentedApp { kind: 'oidc' | 'saml'; clientId: string; name: string; iconUrl?: string | null; scopes: string[]; grantedAt: string }
 
 const { t } = useI18n()
 const { busy, run, errorText } = useApi()
@@ -26,7 +26,7 @@ async function load(): Promise<void> {
 async function confirmRevoke(): Promise<void> {
   const app = revokeTarget.value
   if (!app) return
-  const ok = await run(async () => { await api.post('/api/prohibitorum/me/consent/revoke', { clientId: app.clientId }); return true as const })
+  const ok = await run(async () => { await api.post('/api/prohibitorum/me/consent/revoke', { kind: app.kind, clientId: app.clientId }); return true as const })
   revokeTarget.value = null
   if (ok) await load()
 }
@@ -44,17 +44,21 @@ onMounted(load)
 
     <TableSkeleton v-if="busy && !apps.length" :rows="2" :cols="1" />
     <template v-else-if="apps.length">
-      <Card v-for="app in apps" :key="app.clientId">
+      <Card v-for="app in apps" :key="`${app.kind}:${app.clientId}`">
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 items-center gap-3">
             <AppIcon :src="app.iconUrl" :name="app.name" size="sm" />
             <div class="flex min-w-0 flex-col text-sm">
-              <span class="min-w-0 truncate font-medium text-ink">{{ app.name }}</span>
-              <span class="min-w-0 truncate text-muted">{{ t('appAccess.scopes') }}: {{ app.scopes.join(', ') }}</span>
+              <div class="flex min-w-0 items-center gap-2">
+                <span class="min-w-0 truncate font-medium text-ink">{{ app.name }}</span>
+                <span class="shrink-0 rounded px-1 py-0.5 text-xs text-muted ring-1 ring-border">{{ app.kind === 'saml' ? t('appAccess.kindSaml') : t('appAccess.kindOidc') }}</span>
+              </div>
+              <span v-if="app.kind === 'saml'" class="min-w-0 truncate text-muted">{{ t('appAccess.samlDescriptor') }}</span>
+              <span v-else class="min-w-0 truncate text-muted">{{ t('appAccess.scopes') }}: {{ app.scopes.join(', ') }}</span>
               <span v-if="app.grantedAt" class="truncate text-muted">{{ t('appAccess.grantedOn', { date: relativeTime(app.grantedAt) }) }}</span>
             </div>
           </div>
-          <Button variant="outline" size="sm" class="shrink-0" :disabled="busy" :data-test="`revoke-${app.clientId}`" @click="revokeTarget = app">
+          <Button variant="outline" size="sm" class="shrink-0" :disabled="busy" :data-test="`revoke-${app.kind}-${app.clientId}`" @click="revokeTarget = app">
             {{ t('appAccess.revoke') }}
           </Button>
         </CardContent>
