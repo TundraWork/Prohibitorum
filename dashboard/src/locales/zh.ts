@@ -578,6 +578,10 @@ export default {
     privacyPolicy: '隐私政策',
     termsOfService: '服务条款',
     customScope: '此应用请求的自定义权限',
+    remembered: '你只需批准一次 —— 下次 {client} 会自动让你登录，除非它申请新的权限。',
+    manageHint: '你可以随时在 设置 → 应用访问 中查看或撤销。',
+    additionalAccessTitle: '{client} 申请额外的访问权限',
+    newBadge: '新增',
     scopes: {
       openid: '确认你的身份',
       profile: '读取你的显示名称',

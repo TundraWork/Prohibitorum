@@ -187,4 +187,62 @@ describe('ConsentView', () => {
     expect(router.currentRoute.value.name).toBe('error')
     expect(router.currentRoute.value.query.error).toBe('invalid_consent_ticket')
   })
+
+  it('incremental: uses additionalAccessTitle heading when alreadyGranted is non-empty', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'x', displayName: 'Grafana' },
+      account: { displayName: 'Jesse' },
+      scopes: ['openid', 'email'],
+      alreadyGranted: ['openid'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    expect(wrapper.text()).toContain('additional access')
+    expect(wrapper.text()).toContain('Grafana')
+  })
+
+  it('incremental: only the new scope carries the New badge', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'x', displayName: 'Grafana' },
+      account: { displayName: 'Jesse' },
+      scopes: ['openid', 'email'],
+      alreadyGranted: ['openid'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    const badges = wrapper.findAll('.rounded-full')
+    // Only one badge should appear (for 'email', which is new)
+    expect(badges).toHaveLength(1)
+    expect(badges[0].text()).toBe(en.consent.newBadge)
+  })
+
+  it('first-time: uses requestingAccess heading when alreadyGranted is absent', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'x', displayName: 'Grafana' },
+      account: { displayName: 'Jesse' },
+      scopes: ['openid', 'email'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    expect(wrapper.text()).toContain('requesting access')
+    expect(wrapper.text()).not.toContain('additional access')
+  })
+
+  it('first-time: no New badge when alreadyGranted is absent', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'x', displayName: 'Grafana' },
+      account: { displayName: 'Jesse' },
+      scopes: ['openid', 'email'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    expect(wrapper.find('.rounded-full').exists()).toBe(false)
+  })
+
+  it('renders remembered and manageHint reassurance lines', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'app', displayName: 'Demo App' },
+      account: { displayName: 'Alex' },
+      scopes: ['openid'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    expect(wrapper.text()).toContain('approving this once')
+    expect(wrapper.text()).toContain('Settings')
+  })
 })

@@ -4,7 +4,7 @@
  *
  * Contract (pkg/server/handle_consent.go — verified):
  *   GET  /api/prohibitorum/consent?ticket=<t>
- *        → { client{clientId,displayName,…}, account{displayName}, scopes[] }
+ *        → { client{clientId,displayName,…}, account{displayName}, scopes[], alreadyGranted? }
  *        requires a session; no_session → /login, invalid ticket → /error.
  *   POST /api/prohibitorum/consent?return_to=<authorizeURL>
  *        body { ticket, decision: 'approve' | 'deny' }  → { redirect }
@@ -20,13 +20,14 @@
  * cross-origin, so safeReturnTo would wrongly reject it. We hand off to the
  * server's value verbatim.
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, type ApiError } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { hardRedirect } from '@/lib/navigate'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
+import ConsentCard from '@/components/custom/ConsentCard.vue'
 import ConsentScopeList from '@/components/custom/ConsentScopeList.vue'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -43,6 +44,7 @@ interface ConsentContext {
   client: ConsentClient
   account: { displayName: string }
   scopes: string[]
+  alreadyGranted?: string[]
 }
 interface ConsentResult {
   redirect: string
@@ -58,6 +60,12 @@ const returnTo = String(route.query.return_to ?? '')
 
 const ctx = ref<ConsentContext | null>(null)
 const loading = ref(true)
+
+const isIncremental = computed(() => (ctx.value?.alreadyGranted?.length ?? 0) > 0)
+const newScopes = computed(() => {
+  const had = new Set(ctx.value?.alreadyGranted ?? [])
+  return (ctx.value?.scopes ?? []).filter((s) => !had.has(s))
+})
 
 onMounted(async () => {
   try {
@@ -97,55 +105,38 @@ async function decide(decision: 'approve' | 'deny'): Promise<void> {
 
     <CardSkeleton v-if="loading" :lines="3" />
 
-    <div v-else-if="ctx" class="flex flex-col gap-6">
-      <div class="flex flex-col items-center gap-2 text-center">
-        <img
-          v-if="ctx.client.logoUri"
-          :src="ctx.client.logoUri"
-          :alt="ctx.client.displayName"
-          class="size-12 rounded-md object-contain"
-        />
-        <p class="text-ink">{{ t('consent.requestingAccess', { client: ctx.client.displayName }) }}</p>
-        <p class="text-sm text-muted">
-          {{ t('consent.yourAccount', { displayName: ctx.account.displayName }) }}
+    <ConsentCard
+      v-else-if="ctx"
+      :logo-uri="ctx.client.logoUri"
+      :display-name="ctx.client.displayName"
+      :account-name="ctx.account.displayName"
+      :policy-uri="ctx.client.policyUri"
+      :tos-uri="ctx.client.tosUri"
+    >
+      <template #heading>
+        <p class="text-ink">
+          {{ isIncremental
+            ? t('consent.additionalAccessTitle', { client: ctx.client.displayName })
+            : t('consent.requestingAccess', { client: ctx.client.displayName }) }}
         </p>
-      </div>
-
-      <div class="flex flex-col gap-2">
-        <p class="text-sm font-medium text-ink">{{ t('consent.scopesHeading') }}</p>
-        <ConsentScopeList :scopes="ctx.scopes" />
-      </div>
-
-      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
-
-      <div class="flex gap-3">
-        <Button variant="outline" class="flex-1" :disabled="busy" @click="decide('deny')">
-          {{ t('consent.deny') }}
-        </Button>
-        <Button class="flex-1" :disabled="busy" @click="decide('approve')">
-          {{ t('consent.approveCount', { count: ctx.scopes.length }) }}
-        </Button>
-      </div>
-
-      <p v-if="ctx.client.policyUri || ctx.client.tosUri" class="text-center text-xs text-muted">
-        <a
-          v-if="ctx.client.policyUri"
-          :href="ctx.client.policyUri"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="underline-offset-4 hover:underline"
-        >{{ t('consent.privacyPolicy') }}</a>
-        <span v-if="ctx.client.policyUri && ctx.client.tosUri"> &middot; </span>
-        <a
-          v-if="ctx.client.tosUri"
-          :href="ctx.client.tosUri"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="underline-offset-4 hover:underline"
-        >{{ t('consent.termsOfService') }}</a>
-      </p>
-    </div>
+      </template>
+      <template #body>
+        <div class="flex flex-col gap-2">
+          <p class="text-sm font-medium text-ink">{{ t('consent.scopesHeading') }}</p>
+          <ConsentScopeList :scopes="ctx.scopes" :new-scopes="isIncremental ? newScopes : []" />
+          <p class="text-xs text-muted">{{ t('consent.remembered', { client: ctx.client.displayName }) }}</p>
+          <p class="text-xs text-muted">{{ t('consent.manageHint') }}</p>
+        </div>
+        <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
+          <AlertDescription>{{ errorText }}</AlertDescription>
+        </Alert>
+      </template>
+      <template #actions>
+        <div class="flex gap-3">
+          <Button variant="outline" class="flex-1" :disabled="busy" @click="decide('deny')">{{ t('consent.deny') }}</Button>
+          <Button class="flex-1" :disabled="busy" @click="decide('approve')">{{ t('consent.approveCount', { count: isIncremental ? newScopes.length : ctx.scopes.length }) }}</Button>
+        </div>
+      </template>
+    </ConsentCard>
   </CenteredLayout>
 </template>

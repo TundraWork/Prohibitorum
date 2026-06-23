@@ -582,6 +582,10 @@ export default {
     privacyPolicy: 'Privacy policy',
     termsOfService: 'Terms of service',
     customScope: 'Custom permission requested by this application',
+    remembered: "You're approving this once — next time {client} signs you in automatically, unless it asks for new permissions.",
+    manageHint: 'You can review or revoke this anytime in Settings → App access.',
+    additionalAccessTitle: '{client} is requesting additional access',
+    newBadge: 'New',
     scopes: {
       openid: 'Confirm your identity',
       profile: 'Read your display name',
