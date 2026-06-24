@@ -2,15 +2,16 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { Search, Plus } from 'lucide-vue-next'
+import { Search, Plus, LayoutGrid } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useAuthStore } from '@/stores/auth'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import AppTile, { type LaunchpadApp } from '@/components/custom/AppTile.vue'
 import AppIcon from '@/components/custom/AppIcon.vue'
+import ProtocolBadge from '@/components/custom/ProtocolBadge.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
-import TableSkeleton from '@/components/custom/TableSkeleton.vue'
+import { Skeleton } from '@/components/ui/skeleton'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -33,6 +34,16 @@ const pickerOpen = ref(false)
 const search = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
 const { flag: copied, trigger: triggerCopied } = useTransientFlag()
+
+// Search-focus shortcut indicator. The handler accepts ⌘K and Ctrl-K on every
+// platform; only the displayed hint differs — the ⌘ glyph on Apple platforms,
+// "Ctrl K" elsewhere — so Windows/Linux users aren't shown a key they don't have.
+const isApplePlatform = /mac|iphone|ipad|ipod/i.test(
+  (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ||
+    navigator.platform ||
+    navigator.userAgent,
+)
+const searchShortcut = isApplePlatform ? '⌘K' : 'Ctrl K'
 
 const firstName = computed(() => (auth.me?.displayName ?? '').split(' ')[0] || auth.me?.username || '')
 
@@ -79,12 +90,21 @@ function adminPathFor(app: LaunchpadApp): string {
 }
 
 async function load(): Promise<void> {
-  const [a, c] = await Promise.all([
-    run(() => api.get<LaunchpadApp[]>('/api/prohibitorum/me/apps')),
-    api.get<Consent[]>('/api/prohibitorum/me/consent').catch(() => [] as Consent[]),
-  ])
-  if (a) apps.value = a
-  consentList.value = c
+  // Both lists are required to render the connected-vs-available split correctly.
+  // Fetch them under one run() so a failure of EITHER surfaces as an error rather
+  // than silently degrading (a swallowed /me/consent would drop every "connected"
+  // mark and push connected apps back into the "Add app" picker).
+  const result = await run(async () => {
+    const [a, c] = await Promise.all([
+      api.get<LaunchpadApp[]>('/api/prohibitorum/me/apps'),
+      api.get<Consent[]>('/api/prohibitorum/me/consent'),
+    ])
+    return { a, c }
+  })
+  if (result) {
+    apps.value = result.a
+    consentList.value = result.c
+  }
 }
 
 async function copyLink(app: LaunchpadApp): Promise<void> {
@@ -105,7 +125,9 @@ async function confirmRevoke(): Promise<void> {
   const app = revokeTarget.value
   if (!app) return
   const ok = await run(async () => {
-    await api.post('/api/prohibitorum/me/consent/revoke', { clientId: app.id })
+    // Send `kind` explicitly (matches AppAccessView) so the backend targets the
+    // right consent table — the SP numeric id and an OIDC client_id could collide.
+    await api.post('/api/prohibitorum/me/consent/revoke', { kind: app.kind, clientId: app.id })
     return true as const
   })
   revokeTarget.value = null
@@ -152,7 +174,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           :aria-label="t('myApps.searchPlaceholder')"
           class="h-9 w-full rounded-md border border-input bg-sunken pl-9 pr-12 text-sm text-ink outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-ring"
         />
-        <kbd class="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-line bg-card px-1.5 py-0.5 text-[0.625rem] font-medium text-muted sm:block">⌘K</kbd>
+        <kbd class="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-line bg-card px-1.5 py-0.5 text-[0.625rem] font-medium text-muted sm:block">{{ searchShortcut }}</kbd>
       </div>
     </div>
 
@@ -161,39 +183,56 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     </Alert>
     <StatusMessage :show="copied">{{ t('myApps.copied') }}</StatusMessage>
 
-    <TableSkeleton v-if="busy && !apps.length" :rows="2" :cols="3" />
+    <!-- Loading: placeholder tiles in the same grid the real apps use, so there's
+         no row-to-card jump when data arrives. -->
+    <div
+      v-if="busy && !apps.length"
+      role="status"
+      aria-busy="true"
+      aria-live="polite"
+      class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,11rem),1fr))]"
+    >
+      <div v-for="n in 6" :key="n" class="overflow-hidden rounded-2xl border border-line bg-card">
+        <Skeleton class="aspect-[4/3] w-full rounded-none" />
+        <div class="border-t border-line px-3 py-2.5">
+          <Skeleton class="h-4 w-2/3" />
+        </div>
+      </div>
+      <span class="sr-only">{{ t('common.loading') }}</span>
+    </div>
 
     <template v-else-if="connectedApps.length || availableApps.length">
-      <div class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,11rem),1fr))]">
-        <AppTile
-          v-for="app in visibleConnected"
-          :key="`${app.kind}:${app.id}`"
-          :app="app"
-          :consent="consentFor(app)"
-          :is-admin="auth.isAdmin"
-          @revoke="revokeTarget = $event"
-          @copy="copyLink"
-          @manage="manage"
-        />
+      <ul role="list" class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,11rem),1fr))]">
+        <li v-for="app in visibleConnected" :key="`${app.kind}:${app.id}`">
+          <AppTile
+            :app="app"
+            :consent="consentFor(app)"
+            :is-admin="auth.isAdmin"
+            @revoke="revokeTarget = $event"
+            @copy="copyLink"
+            @manage="manage"
+          />
+        </li>
         <!-- Add-app tile — opens the picker of authorized-but-not-connected apps. -->
-        <button
-          v-if="availableApps.length && !search"
-          type="button"
-          class="group flex h-full min-h-[10rem] flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border-strong text-muted outline-none transition-colors hover:border-ring hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"
-          :data-test="'add-app'"
-          @click="pickerOpen = true"
-        >
-          <Plus class="size-6" aria-hidden="true" />
-          <span class="text-sm font-medium">{{ t('myApps.addApp') }}</span>
-          <span class="text-xs">{{ t('myApps.addAppHint') }}</span>
-        </button>
-      </div>
+        <li v-if="availableApps.length && !search">
+          <button
+            type="button"
+            class="group flex h-full min-h-[10rem] w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border-strong text-muted outline-none transition-colors hover:border-ring hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"
+            :data-test="'add-app'"
+            @click="pickerOpen = true"
+          >
+            <Plus class="size-6" aria-hidden="true" />
+            <span class="text-sm font-medium">{{ t('myApps.addApp') }}</span>
+            <span class="text-xs">{{ t('myApps.addAppHint') }}</span>
+          </button>
+        </li>
+      </ul>
 
-      <p v-if="search && !visibleConnected.length" class="text-sm text-muted">{{ t('myApps.noMatches', { query: search }) }}</p>
-      <p v-else-if="!connectedApps.length && availableApps.length" class="text-sm text-muted">{{ t('myApps.connectFirst') }}</p>
+      <p v-if="search && !visibleConnected.length" role="status" class="text-sm text-muted">{{ t('myApps.noMatches', { query: search }) }}</p>
+      <p v-else-if="!connectedApps.length && availableApps.length" role="status" class="text-sm text-muted">{{ t('myApps.connectFirst') }}</p>
     </template>
 
-    <EmptyState v-else-if="!errorText" :title="t('myApps.empty')" :description="t('myApps.emptyHelp')" />
+    <EmptyState v-else-if="!errorText" :icon="LayoutGrid" :title="t('myApps.empty')" :description="t('myApps.emptyHelp')" />
 
     <!-- Connect-an-app picker: authorized apps the user hasn't connected yet. -->
     <Dialog :open="pickerOpen" @update:open="pickerOpen = $event">
@@ -203,19 +242,33 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           <DialogDescription>{{ t('myApps.addAppDesc') }}</DialogDescription>
         </DialogHeader>
         <ul class="flex max-h-[60vh] flex-col gap-1 overflow-y-auto">
-          <li v-for="app in availableApps" :key="`${app.kind}:${app.id}`">
+          <li
+            v-for="app in availableApps"
+            :key="`${app.kind}:${app.id}`"
+            class="relative flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent"
+          >
+            <!-- Stretched launch overlay: covers the row, owns the focus ring.
+                 Kept FIRST so the dialog's open-autofocus lands on the launch
+                 link, not the protocol badge (whose tooltip would otherwise pop
+                 open unprompted when the dialog appears). -->
             <a
               :href="app.launchUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="flex items-center gap-3 rounded-lg p-2 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+              :aria-label="t('myApps.open', { name: app.name })"
+              class="absolute inset-0 z-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
               :data-test="`connect-${app.kind}-${app.id}`"
               @click="pickerOpen = false"
-            >
-              <AppIcon :src="app.iconUrl" :name="app.name" size="sm" />
-              <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink">{{ app.name }}</span>
-              <span class="shrink-0 rounded-full bg-sunken px-2 py-0.5 text-[0.625rem] font-medium uppercase text-muted">{{ t(`myApps.type.${app.kind}`) }}</span>
-            </a>
+            />
+            <AppIcon :src="app.iconUrl" :name="app.name" size="sm" />
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink">{{ app.name }}</span>
+            <!-- Protocol glyph + hover tooltip, matching the launchpad tiles. Sits
+                 above the stretched launch anchor so hovering it shows the hint
+                 without launching the app. -->
+            <ProtocolBadge
+              :kind="app.kind"
+              class="relative z-[1] size-7 shrink-0 rounded-full bg-sunken text-muted ring-1 ring-line hover:text-ink"
+            />
           </li>
         </ul>
       </DialogContent>
