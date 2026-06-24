@@ -112,6 +112,23 @@ describe('MyAppsView', () => {
     expect(get.mock.calls.length).toBeGreaterThan(getCallsBefore) // refreshed
   })
 
+  it('surfaces an acknowledged SAML app as a revocable grant and revokes it (posts kind=saml)', async () => {
+    serve(APPS, [
+      { kind: 'oidc', clientId: 'linear', scopes: ['openid'] },
+      { kind: 'saml', clientId: '42', scopes: [] }, // Salesforce now acknowledged → connected
+    ])
+    post.mockResolvedValue(undefined)
+    const w = mountView(); await flushPromises()
+
+    const tile = w.findAllComponents(AppTile).find((t) => (t.props('app') as LaunchpadApp).id === '42')!
+    expect(tile.props('consent')).not.toBeNull() // passed a grant marker → tile shows connected + revoke
+    tile.vm.$emit('revoke', tile.props('app'))
+    await flushPromises()
+    clickConfirm(); await flushPromises()
+
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/consent/revoke', { kind: 'saml', clientId: '42' })
+  })
+
   it('search filters connected apps by name and shows a no-match message', async () => {
     serve()
     const w = mountView(); await flushPromises()

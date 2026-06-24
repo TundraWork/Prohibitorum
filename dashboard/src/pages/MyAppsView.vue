@@ -71,14 +71,20 @@ const visibleConnected = computed(() => {
   return q ? connectedApps.value.filter((a) => a.name.toLowerCase().includes(q)) : connectedApps.value
 })
 
-// Only OIDC apps carry a per-scope consent record (→ tile access mark + revoke).
+// The grant backing a tile's access mark + revoke action. OIDC apps carry a
+// per-scope consent record; SAML apps carry a scope-less acknowledgement.
+// forward-auth is always-on at the proxy, so it has no revocable grant.
 const oidcConsentByClient = computed(() => {
   const m = new Map<string, Consent>()
   for (const c of consentList.value) if ((c.kind ?? 'oidc') === 'oidc') m.set(c.clientId, c)
   return m
 })
 function consentFor(app: LaunchpadApp): Consent | null {
-  return app.kind === 'oidc' ? oidcConsentByClient.value.get(app.id) ?? null : null
+  if (app.kind === 'oidc') return oidcConsentByClient.value.get(app.id) ?? null
+  if (app.kind === 'saml' && connectedKeys.value.has(`saml:${app.id}`)) {
+    return { kind: 'saml', clientId: app.id, scopes: [] }
+  }
+  return null
 }
 
 function adminPathFor(app: LaunchpadApp): string {

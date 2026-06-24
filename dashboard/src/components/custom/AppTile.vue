@@ -35,7 +35,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const hasConsent = computed(() => !!props.consent)
-const canRevoke = computed(() => props.app.kind === 'oidc' && hasConsent.value)
+// A consented OIDC app or an acknowledged SAML app is a revocable grant;
+// forward-auth is always-on at the proxy, so it has nothing to revoke.
+const canRevoke = computed(() => props.app.kind !== 'forward_auth' && hasConsent.value)
 const monogram = computed(() => (props.app.name.trim()[0] ?? '?').toUpperCase())
 
 // Backdrop tint: derive hue + a calm chroma from the icon's server-extracted
