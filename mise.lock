@@ -110,45 +110,6 @@ checksum = "sha256:9d2c026e667bfd979fa7ba1cab8c4b24d2e73f336ec2d57f7fc72c7e73e5b
 url = "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-windows-amd64.exe"
 provenance = "cosign"
 
-[[tools."github:theseus-rs/postgresql-binaries"]]
-version = "18.3.0"
-backend = "github:theseus-rs/postgresql-binaries"
-
-[tools."github:theseus-rs/postgresql-binaries"."platforms.linux-arm64"]
-checksum = "sha256:d2a94bc296758f93bc7d29abb12365b1bdb9e32d14ed25086042802995a606cf"
-url = "https://github.com/theseus-rs/postgresql-binaries/releases/download/18.3.0/postgresql-18.3.0-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/theseus-rs/postgresql-binaries/releases/assets/363417368"
-
-[tools."github:theseus-rs/postgresql-binaries"."platforms.linux-arm64-musl"]
-checksum = "sha256:ba5ba86fda498567af9704b35252087f63ca4f8659ffd6c2e3127d0975328082"
-url = "https://github.com/theseus-rs/postgresql-binaries/releases/download/18.3.0/postgresql-18.3.0-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/theseus-rs/postgresql-binaries/releases/assets/363438675"
-
-[tools."github:theseus-rs/postgresql-binaries"."platforms.linux-x64"]
-checksum = "sha256:71066f6534cfbc1f6d1f645b3c5c7d2d352eb6a53280fe863a5b3d82614e9f7b"
-url = "https://github.com/theseus-rs/postgresql-binaries/releases/download/18.3.0/postgresql-18.3.0-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/theseus-rs/postgresql-binaries/releases/assets/363429790"
-
-[tools."github:theseus-rs/postgresql-binaries"."platforms.linux-x64-musl"]
-checksum = "sha256:7c226e3dc23e1940214bdde2b60f47161f77b6fbe083702f320426268f90de16"
-url = "https://github.com/theseus-rs/postgresql-binaries/releases/download/18.3.0/postgresql-18.3.0-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/theseus-rs/postgresql-binaries/releases/assets/363394678"
-
-[tools."github:theseus-rs/postgresql-binaries"."platforms.macos-arm64"]
-checksum = "sha256:67b2e48b91c61129de6d3c98d7bf6b35e113297b5d6f30c2cd8c6665aa71647b"
-url = "https://github.com/theseus-rs/postgresql-binaries/releases/download/18.3.0/postgresql-18.3.0-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/theseus-rs/postgresql-binaries/releases/assets/363298467"
-
-[tools."github:theseus-rs/postgresql-binaries"."platforms.macos-x64"]
-checksum = "sha256:cafd061662f8673584240bd238e20dd83c1eefb2baf70e8e9224b7a8c59d41f1"
-url = "https://github.com/theseus-rs/postgresql-binaries/releases/download/18.3.0/postgresql-18.3.0-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/theseus-rs/postgresql-binaries/releases/assets/363271312"
-
-[tools."github:theseus-rs/postgresql-binaries"."platforms.windows-x64"]
-checksum = "sha256:5746652708a16ec8a48195da3707b7dafcf6ab2a976761825c0aac74c174bccd"
-url = "https://github.com/theseus-rs/postgresql-binaries/releases/download/18.3.0/postgresql-18.3.0-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/theseus-rs/postgresql-binaries/releases/assets/363294005"
-
 [[tools.go]]
 version = "1.26.4"
 backend = "core:go"
@@ -218,22 +179,36 @@ version = "1.30.0"
 backend = "aqua:sqlc-dev/sqlc"
 
 [tools.sqlc."platforms.linux-arm64"]
-url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_arm64.tar.gz"
+checksum = "sha256:dd9ab43b022ba3b3402054f99d7ae6e5efea33c949e869c3c66b214415e0c82d"
+url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589120"
 
 [tools.sqlc."platforms.linux-arm64-musl"]
-url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_arm64.tar.gz"
+checksum = "sha256:dd9ab43b022ba3b3402054f99d7ae6e5efea33c949e869c3c66b214415e0c82d"
+url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589120"
 
 [tools.sqlc."platforms.linux-x64"]
-url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_amd64.tar.gz"
+checksum = "sha256:468aecee071bfe55e97fcbcac52ea0208eeca444f67736f3b8f0f3d6a106132e"
+url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589112"
 
 [tools.sqlc."platforms.linux-x64-musl"]
-url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_amd64.tar.gz"
+checksum = "sha256:468aecee071bfe55e97fcbcac52ea0208eeca444f67736f3b8f0f3d6a106132e"
+url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589112"
 
 [tools.sqlc."platforms.macos-arm64"]
-url = "https://downloads.sqlc.dev/sqlc_1.30.0_darwin_arm64.tar.gz"
+checksum = "sha256:ff18793b97715d08dde364446f43082a06da87b7797b9ec79ef2b31aeb0894e5"
+url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589106"
 
 [tools.sqlc."platforms.macos-x64"]
-url = "https://downloads.sqlc.dev/sqlc_1.30.0_darwin_amd64.tar.gz"
+checksum = "sha256:eb065ca44f02a9500f8e51cb63594a6bbd2486af04d18c0f81efadf7eadf5e29"
+url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_darwin_amd64.tar.gz"
+url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589097"
 
 [tools.sqlc."platforms.windows-x64"]
-url = "https://downloads.sqlc.dev/sqlc_1.30.0_windows_amd64.tar.gz"
+checksum = "sha256:1f18956ac8b38740420d5ab275df3425ee62e154310aee2dc42d5457181a2c06"
+url = "https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_windows_amd64.zip"
+url_api = "https://api.github.com/repos/sqlc-dev/sqlc/releases/assets/288589288"
