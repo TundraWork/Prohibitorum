@@ -128,9 +128,10 @@ blocking.
 `db start` (compose). GitHub `ubuntu-latest` ships both `podman` and Docker, and
 `podman compose`'s provider can be flaky on the runner, so CI pins the engine
 explicitly — `ci.yml` sets `PROHIBITORUM_COMPOSE="docker compose"` for the smoke
-job (local stays auto-detect, podman-first). The smoke's hardcoded
-`DATABASE_URL` is aligned to the compose credentials
-(`prohibitorum:prohibitorum@localhost:5432/prohibitorum_dev`).
+job (local stays auto-detect, podman-first). The smoke runs against a throwaway
+`prohibitorum_smoke` database that it drops + recreates each run (it bootstraps an
+admin and registers OIDC/SAML clients, so it needs a clean slate — and this keeps
+it from ever polluting or colliding with `prohibitorum_dev`).
 
 ## Section 3 — Self-containment & env
 
