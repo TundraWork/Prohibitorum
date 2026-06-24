@@ -135,11 +135,18 @@ fi
 """
 
 [tasks."ci:smoke"]
-description = "CI: end-to-end smoke — start the compose Postgres + the server and run cmd/smoke against it (expects exit 0). The CI `smoke` job; also runnable locally."
+description = "CI: end-to-end smoke — start the compose Postgres, (re)create a throwaway prohibitorum_smoke DB, then run the server + cmd/smoke against it (expects exit 0). The CI `smoke` job; also runnable locally WITHOUT touching prohibitorum_dev."
 run = """
 set -e
-scripts/db.sh start
-export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_dev?sslmode=disable"
+# The smoke bootstraps an admin + registers OIDC/SAML clients, so it needs a
+# CLEAN database — use a throwaway prohibitorum_smoke, never prohibitorum_dev
+# (which holds your dev data and would collide). Sourcing db.sh gives us db_start
+# + the in-container pg() helper (no host psql needed).
+. ./scripts/db.sh
+db_start
+pg psql -U prohibitorum -d postgres -c "DROP DATABASE IF EXISTS prohibitorum_smoke WITH (FORCE)" >/dev/null
+pg createdb -U prohibitorum prohibitorum_smoke
+export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_smoke?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
 export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"

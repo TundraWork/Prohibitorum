@@ -37,4 +37,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v3
+      # Bring the dev Postgres up via compose. ubuntu-latest ships both podman and
+      # docker; pin docker compose here because podman's compose provider can be
+      # flaky on the runner (local `mise run ci:smoke` stays auto-detect).
       - run: mise run ci:smoke
+        env:
+          PROHIBITORUM_COMPOSE: docker compose
