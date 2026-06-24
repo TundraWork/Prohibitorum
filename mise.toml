@@ -66,6 +66,15 @@ cd dashboard
 exec npm run dev
 """
 
+[tasks."dev:demo"]
+description = "DEV: preview the end-user launcher home (LauncherLayout + MyAppsView) with NO backend — the dashboard dev server runs against in-memory fixtures from dashboard/vite.demo.config.ts. No DB, no Go server, no admin enroll; open http://localhost:5173/. Installs npm deps on first run."
+run = """
+set -e
+cd dashboard
+[ -d node_modules ] || npm ci
+exec npm run dev -- --config vite.demo.config.ts
+"""
+
 [tasks."dev:run"]
 description = "DEV: run the Go server against your CURRENT env using the committed embedded SPA (no SPA rebuild, no npm). For the full dev experience use `mise run dev:server`."
 # Build the whole package, not just main.go — addDevSeedCmd etc. live in
