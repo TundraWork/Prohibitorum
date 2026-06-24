@@ -5,8 +5,8 @@ import { useBrandingStore } from '@/stores/branding'
 import NavUser from '@/components/custom/NavUser.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/custom/ThemeToggle.vue'
-// Decorative corner backdrop — "Auroras over North America as Seen from Space"
-// (NASA/GSFC, public domain). Purely ornamental; faded + masked so content
+// Decorative corner backdrop — JWST "Cosmic Cliffs" in the Carina Nebula
+// (NASA/ESA/CSA, public domain). Purely ornamental; faded + masked so content
 // stays readable, dimmed further in dark mode.
 import backdrop from '@/assets/launcher-backdrop.webp'
 
