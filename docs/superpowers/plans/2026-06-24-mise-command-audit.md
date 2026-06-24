@@ -380,13 +380,12 @@ description = "CI: end-to-end smoke — start the compose Postgres, (re)create a
 run = """
 set -e
 # The smoke bootstraps an admin + registers OIDC/SAML clients, so it needs a
-# CLEAN database — use a throwaway prohibitorum_smoke, never prohibitorum_dev
-# (which holds your dev data and would collide). Sourcing db.sh gives us db_start
-# + the in-container pg() helper (no host psql needed).
-. ./scripts/db.sh
-db_start
-pg psql -U prohibitorum -d postgres -c "DROP DATABASE IF EXISTS prohibitorum_smoke WITH (FORCE)" >/dev/null
-pg createdb -U prohibitorum prohibitorum_smoke
+# CLEAN database — a throwaway prohibitorum_smoke, never prohibitorum_dev (which
+# holds your dev data and would collide). EXECUTE db.sh (never source it): mise
+# may run this task body under plain sh, and db.sh uses bash-only constructs
+# (${BASH_SOURCE[0]}) that only apply under its own shebang when run as a subprocess.
+scripts/db.sh start
+scripts/db.sh recreate-db prohibitorum_smoke
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_smoke?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"

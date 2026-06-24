@@ -78,6 +78,16 @@ db_reset() {
 	db_start
 }
 
+# Drop + recreate ONE named database (the smoke uses this for a clean slate).
+# Exposed as a subcommand so callers that can't source this file — e.g. a mise
+# task body, which may run under plain sh — get it by EXECUTING db.sh instead.
+db_recreate() {
+	local name="${1:?usage: db.sh recreate-db <dbname>}"
+	pg psql -U prohibitorum -d postgres -c "DROP DATABASE IF EXISTS $name WITH (FORCE)" >/dev/null
+	pg createdb -U prohibitorum "$name"
+	echo "recreated database $name"
+}
+
 db_migrate() {
 	# shellcheck disable=SC1091
 	. "$ROOT/scripts/dev-env.sh"
@@ -102,6 +112,7 @@ _main() {
 	migrate) db_migrate ;;
 	status)  db_status ;;
 	ensure)  db_ensure ;;
+	recreate-db) db_recreate "${2:-}" ;;
 	"" | -h | --help) _usage ;;
 	*) echo "unknown subcommand: $1" >&2; _usage >&2; exit 2 ;;
 	esac
