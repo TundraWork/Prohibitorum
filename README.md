@@ -109,41 +109,46 @@ for relying-party integration patterns.
 ## Development
 
 The local dev loop — hot reload, a throwaway DB, dev defaults, seeded data — via
-`mise run dev:*` / `db:*`. (To deploy against your own config, see the
+`mise run dev:*` / `mise run db …`. (To deploy against your own config, see the
 [Quickstart](#quickstart).)
 
-The only prerequisite is [`mise`](https://mise.jdx.dev): `mise install` pins and
-installs the whole toolchain — Go, Node/npm, sqlc, goose, **and prebuilt Postgres
-18** — so no container runtime and no system Postgres are needed. The dashboard's
-npm deps install on first run.
+The prerequisites are [`mise`](https://mise.jdx.dev) and a container runtime
+(podman or docker): `mise install` pins and installs the whole toolchain — Go,
+Node/npm, sqlc, goose, GoReleaser, cosign — and the dev DB is a **Postgres
+container** defined in `compose.yaml`, started with `mise run db start`. The
+dashboard's npm deps install on first run.
 
 ### Local development
 
 ```bash
-mise install                       # toolchain: Go, Node/npm, sqlc, goose, prebuilt Postgres (pinned + locked)
-mise run db:start                  # local Postgres on :5432 from the mise binaries (or: podman compose up -d)
-mise run dev:server                # build the SPA + run the server on :8080 (auto-migrates)
+mise install                       # toolchain: Go, Node/npm, sqlc, goose, goreleaser, cosign (pinned + locked)
+mise run db start                  # local Postgres on :5432 (compose.yaml container; podman or docker)
+mise run dev:server                # start DB if needed + build the SPA if changed + run on :8080 (auto-migrates)
 mise run dev:enroll-admin -- --new # create an admin; prints an /enroll/<token> URL
 # open http://localhost:8080
 ```
 
 The `dev:*` tasks source `scripts/dev-env.sh` — a stable `.dev/encryption-key`
 (gitignored) and `PROHIBITORUM_DATABASE_URL` pointed at the local
-`prohibitorum_dev`. Export your own to override.
+`prohibitorum_dev`. Export your own to override. They also auto-start the DB
+(`scripts/db.sh ensure`) when it's down, so `mise run db start` is optional.
 
 ```bash
 mise run dev:seed                  # optional: seed example providers/accounts/invitations
-mise run db:stop                   # stop the local cluster, data persists (or: podman compose down)
-mise run db:reset                  # stop and wipe the local cluster (or: podman compose down -v)
+mise run db stop                   # stop the container, data persists in the named volume
+mise run db reset                  # stop and WIPE the database
 ```
 
 **Frontend.** `dashboard/` is a Vue 3 + Vite + Tailwind v4 + shadcn-vue/Reka UI
-SPA; `mise run dev:web` runs it with hot reload against the backend. The shipped
-UI is embedded via `go:embed` from the **committed** `pkg/webui/dist`, so rebuild
-and commit the bundle after any change that should ship in the binary:
+SPA; `mise run dev:dashboard` runs it with hot reload against the backend. The
+shipped UI is embedded via `go:embed` from the **committed** `pkg/webui/dist`.
+The SPA bundle is built by the hidden `build:web` task, which runs automatically
+(and is `sources`/`outputs`-gated) inside `dev:server` and `prod:build` — so to
+refresh and commit the embedded bundle after a change that should ship in the
+binary:
 
 ```bash
-mise run build:web         # rebuild the SPA into pkg/webui/dist
+mise run prod:build        # rebuilds the SPA into pkg/webui/dist (then compiles ./prohibitorum)
 git add pkg/webui/dist     # Vite chunk hashes change each build; commit the bundle
 ```
 
@@ -158,19 +163,20 @@ cd dashboard && npm run build                     # FE typecheck (vue-tsc -b) + 
 ```
 
 **End-to-end smoke** (`cmd/smoke`) drives a real server over HTTP and bootstraps
-its own admin, using the throwaway `postgres` maintenance database (isolated from
-`prohibitorum_dev`). The one-command form is **`mise run ci:smoke`** (starts a
-local Postgres + the server, runs the smoke, tears down). Equivalent manual steps
-(the federation arc runs an in-process mock OP on loopback, so the server must opt
-the outbound federation client out of the SSRF dial-screen):
+its own admin, using a throwaway `prohibitorum_smoke` database (dropped and
+recreated each run, isolated from `prohibitorum_dev`). The one-command form is
+**`mise run ci:smoke`** (starts a local Postgres + the server, runs the smoke,
+tears down). Equivalent manual steps (the federation arc runs an in-process mock
+OP on loopback, so the server must opt the outbound federation client out of the
+SSRF dial-screen):
 
 ```bash
-mise run db:start                                             # local Postgres (or: podman compose up -d)
-export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/postgres?sslmode=disable"
+mise run db start                                                     # local Postgres (compose container)
+export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_smoke?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
-export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"   # in-process mock OP is on loopback
-go run ./cmd/prohibitorum &                                   # auto-migrates on boot
+export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"           # in-process mock OP is on loopback
+go run ./cmd/prohibitorum &                                           # auto-migrates on boot
 go run ./cmd/smoke --base-url http://localhost:8080
 ```
 
@@ -182,27 +188,29 @@ can't be confused — `mise tasks` lists them grouped:
 
 | Namespace | Purpose |
 |-----------|---------|
-| `dev:*`   | local development — run the app, hot reload, seed, enroll an admin |
-| `db:*`    | local Postgres lifecycle (dev + smoke; never prod) |
-| `build:*` | build artifacts shared by dev and prod (SPA bundle, openapi) |
+| `dev:*`   | local development — run the app, hot reload, seed, enroll an admin, harnesses |
+| `db`      | arg-driven local Postgres lifecycle (dev + smoke; never prod) |
 | `ci:*`    | the checks GitHub Actions runs (also runnable locally) |
 | `prod:*`  | **production** build + release (release binary, OCI images) |
 
+(The SPA bundle build is the hidden, `sources`/`outputs`-gated `build:web` task,
+shared by `dev:server`, `prod:build`, and the GoReleaser before-hook — not a
+command you run directly.)
+
 | Task | What it does |
 |------|--------------|
-| `mise install` | Install the pinned, lockfile-verified toolchain (go 1.26, node 24, sqlc 1.30.0, goose 3.27.0, prebuilt Postgres 18, goreleaser, cosign). |
-| `mise run dev:server` | Build the SPA + run the embedded server on `:8080` against the dev DB + stable `.dev/encryption-key`. Auto-migrates. |
-| `mise run dev:web` | Dashboard dev server with hot reload (`npm run dev`). |
-| `mise run dev:run` | Run the server against your current env using the committed SPA (no rebuild). |
+| `mise install` | Install the pinned, lockfile-verified toolchain (go 1.26, node 24, sqlc 1.30.0, goose 3.27.0, goreleaser, cosign). |
+| `mise run dev:server` | Start the DB if needed + rebuild the SPA only if `dashboard/**` changed + run the embedded server on `:8080` against the dev DB + stable `.dev/encryption-key`. Auto-migrates. |
+| `mise run dev:dashboard` | Dashboard dev server with Vite hot reload (`npm run dev`). |
+| `mise run dev:demo` | Zero-backend launcher preview of the dashboard. |
 | `mise run dev:enroll-admin [-- FLAGS]` | Issue an admin enrollment URL against the dev DB (e.g. `-- --new`, `-- --reset --username alice`). |
 | `mise run dev:seed` | Seed the dev DB with example data (idempotent, loopback-only). |
 | `mise run dev:federation` | Two wired instances (upstream OP + downstream RP) for manual OIDC/enrollment/consent testing (see TOOLING.md). |
-| `mise run db:start` / `db:stop` / `db:reset` | Start / stop / wipe the local Postgres cluster (`.dev/pgdata`, port 5432). |
-| `mise run db:up` / `db:status` | Apply / show goose migrations on the dev DB. |
-| `mise run build:web` | Build the SPA into `pkg/webui/dist` (the embedded bundle). |
-| `mise run build:openapi` | Regenerate `openapi.yaml` from the running humacli. |
+| `mise run dev:forward-auth` | Manual end-to-end harness for the forward-auth flow (auto-starts the DB). |
+| `mise run dev:openapi` | Regenerate `openapi.yaml` from the running humacli. |
+| `mise run db <cmd>` | Local Postgres lifecycle: `start` / `stop` / `reset` (WIPES) / `migrate` / `status`. Container via `compose.yaml` (podman or docker). |
 | `mise run ci` | The full fast gate (`ci:go` + `ci:frontend` with a dist-freshness guard) — same as CI's gate job. |
-| `mise run ci:smoke` | End-to-end smoke (DB + server + `cmd/smoke`) — same as CI's smoke job. |
+| `mise run ci:smoke` | End-to-end smoke (server + `cmd/smoke`) against a throwaway `prohibitorum_smoke` DB — same as CI's smoke job. |
 | `mise run prod:build` | Build the SPA + compile the `./prohibitorum` release binary (`-tags nodynamic`). |
 | `mise run prod:release` | GoReleaser + ko: multi-arch OCI images, SBOMs, checksums, cosign signing (runs on a git tag). |
 

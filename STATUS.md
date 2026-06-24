@@ -71,7 +71,7 @@ build on without further migrations.
   and the three audit reports next to it retain the original
   vocabulary as the audit trail of what was removed.
 - **Build state:** `go build ./...` clean, `go test ./...` passes,
-  `mise run db:up` applies all five migrations against a fresh
+  `mise run db migrate` applies all five migrations against a fresh
   Postgres.
 
 ### Out of scope for this commit
