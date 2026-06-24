@@ -34,18 +34,11 @@ its dependencies are managed* — distinct from `CONFIG.md` (runtime env vars) a
 | Node | `node = "24"` | core | Provides **npm** (no Corepack — removed in Node 25+) |
 | sqlc | `sqlc = "1.30.0"` | registry | `sqlc generate` → `pkg/db` (config `sqlc.yaml`) |
 | goose | `aqua:pressly/goose = "3.27.0"` | aqua | DB migrations (`db/migrations`) |
-| Postgres | `github:theseus-rs/postgresql-binaries = "18.3.0"` | github | **Prebuilt** (NOT the source-building default that fails on macOS); checksum + SLSA verified by mise; feeds `mise db:start` |
 
 `mise.lock` (enabled via `[settings] lockfile = true`) pins exact versions +
 checksums + provenance for every tool, cross-language. It also pre-resolves
 download URLs, so `mise install` becomes hermetic and stops calling the GitHub
-API (which removes the prebuilt-postgres rate-limit failure mode). Commit it.
-See <https://mise.jdx.dev/dev-tools/mise-lock.html>.
-
-> **Multi-platform:** `mise lock` recorded **all** platforms (linux / macos /
-> windows × x64 / arm64, incl. musl — 35 entries), so `mise install --locked` is
-> already hermetic on Linux CI runners, not just macOS dev — no per-platform
-> follow-up needed.
+API. Commit it. See <https://mise.jdx.dev/dev-tools/mise-lock.html>.
 
 ### Go
 
@@ -70,13 +63,15 @@ pnpm's advantages are monorepo-shaped (<https://blog.openreplay.com/switch-npm-p
 
 ### Dev
 
-- One-stop: `mise install` provisions everything, **including a prebuilt
-  Postgres** — no container runtime and no system Postgres install required.
-- Dev DB: **`mise db:start`** (self-contained local cluster in `.dev/pgdata`
-  from mise's Postgres binaries; `scripts/dev-db.sh`) is the default;
-  `podman compose up -d` (`compose.yaml`) is the container alternative.
+- One-stop: `mise install` provisions every pinned tool (Go, Node/npm, sqlc,
+  goose, GoReleaser, cosign).
+- Dev DB: **`mise run db start`** — a Postgres container from `compose.yaml`,
+  via `scripts/db.sh`, which auto-detects `podman compose` or `docker compose`
+  (override with `PROHIBITORUM_COMPOSE`). Works on Linux and macOS. The dev
+  tasks (`dev:server`, `dev:seed`, `dev:enroll-admin`, the harnesses) call
+  `scripts/db.sh ensure` to start it automatically when it's down.
 - Env: `scripts/dev-env.sh` exports the dev `PROHIBITORUM_*` vars + a stable
-  `.dev/encryption-key`. (Could later move the static vars into mise `[env]`.)
+  `.dev/encryption-key`, sourced internally by the dev tasks.
 
 ### Prod — OCI image via GoReleaser + ko
 
@@ -115,14 +110,17 @@ limits). `.github/workflows/ci.yml` has two jobs:
   (`npm ci` → `npm test` → `npm run build` → **dist-freshness guard**: fails if
   `pkg/webui/dist` drifts from the committed bundle — would have caught the
   stale dist this audit found). (No `gofmt` gate yet — see deferred.)
-- **smoke** runs `mise run ci:smoke` (`db:start` → server → `cmd/smoke`); the smoke
-  talks to the DB via pgx, so it needs no extra services.
+- **smoke** runs `mise run ci:smoke` (`scripts/db.sh start` → a throwaway
+  `prohibitorum_smoke` DB → server → `cmd/smoke`). The smoke job pins
+  `PROHIBITORUM_COMPOSE=docker compose` so the container engine is deterministic
+  on the runner.
 
 ### Embedded `dist` drift
 
-`pkg/webui/dist` stays committed (so `go run` / `mise run dev:run` work without
-node), and CI's dist-freshness guard prevents it going stale. Locally, mise task
-`sources`/`outputs` can skip unnecessary SPA rebuilds.
+`pkg/webui/dist` stays committed (so `go run` / `mise run dev:server` work
+without node when `dashboard/**` is unchanged), and CI's dist-freshness guard
+prevents it going stale. Locally, mise task `sources`/`outputs` skip unnecessary
+SPA rebuilds.
 
 ## Implementation status
 
@@ -153,22 +151,25 @@ only in CI/release (they need a container runtime + OIDC).
 Tasks are namespaced by **context** so a newcomer can tell dev from prod at a
 glance (`mise tasks` lists them grouped):
 
-| Namespace | Context | Examples |
+| Namespace | Context | Commands |
 |-----------|---------|----------|
-| `dev:*`   | local development | `dev:server`, `dev:web`, `dev:run`, `dev:enroll-admin`, `dev:seed` |
-| `db:*`    | local Postgres lifecycle (dev + smoke) | `db:start`, `db:stop`, `db:reset`, `db:up`, `db:status` |
-| `build:*` | artifacts shared by dev + prod | `build:web`, `build:openapi` |
-| `ci:*`    | the checks CI runs | `ci`, `ci:go`, `ci:frontend`, `ci:smoke` |
-| `prod:*`  | **production** build + release | `prod:build`, `prod:release` |
+| `dev:*` | local development | `dev:server`, `dev:dashboard`, `dev:demo`, `dev:enroll-admin`, `dev:seed`, `dev:federation`, `dev:forward-auth`, `dev:openapi` |
+| `db` | local Postgres lifecycle (dev + smoke) | `mise run db start\|stop\|reset\|migrate\|status` |
+| `ci:*` | the checks CI runs | `ci`, `ci:smoke` (internal: `ci:go`, `ci:frontend`) |
+| `prod:*` | **production** build + release | `prod:build`, `prod:release` |
+
+The SPA bundle build is the hidden, `sources`/`outputs`-gated `build:web` task,
+shared by `dev:server`, `prod:build`, and the GoReleaser before-hook.
 
 ## Quick reference
 
 ```bash
-mise install                       # provision the locked toolchain (Go, Node/npm, sqlc, goose, Postgres, …)
-mise run db:start                  # local Postgres dev cluster (or: podman compose up -d)
-mise run dev:server                # build SPA + run server on :8080 (auto-migrates)
+mise install                       # provision the locked toolchain (Go, Node/npm, sqlc, goose, …)
+mise run db start                  # start the dev Postgres (compose; podman or docker)
+mise run dev:server                # start DB if needed + build SPA if changed + run server on :8080
 mise run dev:enroll-admin -- --new # bootstrap an admin
 mise run ci                        # the full fast gate (what CI runs)
+mise run ci:smoke                  # end-to-end smoke against a real server + DB
 mise run prod:build                # SPA -> pkg/webui/dist, then compile ./prohibitorum
 mise run prod:release              # release: binaries + OCI images (on a git tag; --snapshot to dry-run)
 mise lock                          # refresh mise.lock after changing [tools]
@@ -194,7 +195,7 @@ pinned to `127.0.0.1`, plus the wildcard cert nginx serves) and re-run.
 
 **Setup:**
 
-1. `mise run db:start` (the dev Postgres).
+1. (optional) `mise run db start` — the harness auto-starts it otherwise.
 2. `mise run dev:federation` — first run writes `.dev/dev-federation.env`; edit it.
 3. `mise run dev:federation` again — it seeds, wires, generates
    `.dev/nginx/prohibitorum-federation.conf`, and prints a one-time
@@ -211,6 +212,6 @@ pinned to `127.0.0.1`, plus the wildcard cert nginx serves) and re-run.
 - Direct OP test: paste the printed `test-rp` authorize URL → consent → read the
   `code` from the address bar → run the printed token + userinfo `curl`s.
 
-**Every run starts from a clean slate** — both DBs are dropped + recreated and a
-fresh admin enroll link is printed for each instance (so enrolled passkeys do
-not persist across runs; that is intentional for repeatable manual testing).
+**Idempotent by default** — existing DBs are reused so manual test state (e.g.
+enrolled passkeys) survives across runs. Pass `-- --fresh` to force a
+drop + recreate + reseed and print fresh admin enroll links for each instance.

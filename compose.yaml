@@ -1,8 +1,10 @@
-# Local development dependencies for Prohibitorum.
+# The dev/test Postgres for Prohibitorum — the single container definition used
+# by `mise run db …` (scripts/db.sh), the dev tasks, and `mise run ci:smoke`.
+# Works with podman or docker (set PROHIBITORUM_COMPOSE to force one).
 #
-#   podman compose up -d        # start Postgres on localhost:5432
-#   podman compose down         # stop (keeps data in the named volume)
-#   podman compose down -v      # stop and wipe the database
+#   mise run db start           # start Postgres on localhost:5432
+#   mise run db stop            # stop (keeps data in the named volume)
+#   mise run db reset           # stop and WIPE the database
 #
 # Postgres only: the dev KV defaults to the in-process "memory" driver
 # (configx: kv.driver=memory), so no Redis container is needed locally.
