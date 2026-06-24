@@ -1,1 +1,0 @@
-import{d as a,b as n,B as o,f as t,K as r,o as l}from"./index-DadXQDjb.js";const i=a({__name:"Skeleton",props:{class:{type:[Boolean,null,String,Object,Array]}},setup(e){const s=e;return(c,p)=>(l(),n("div",{"data-slot":"skeleton",class:o(t(r)("animate-pulse rounded-md bg-primary/10",s.class))},null,2))}});export{i as _};
