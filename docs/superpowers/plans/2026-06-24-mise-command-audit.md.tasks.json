@@ -1,0 +1,47 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-24-mise-command-audit.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Create scripts/db.sh (container DB backend + sourceable helpers)",
+      "status": "pending",
+      "description": "**Goal:** One concise script for dev Postgres lifecycle via compose.yaml (podman/docker auto-detect), bounded readiness check (kills the infinite-hang), sourceable for the harness pg() helper.\n\n**Files:** Create scripts/db.sh\n\n```json:metadata\n{\"files\": [\"scripts/db.sh\"], \"verifyCommand\": \"scripts/db.sh start && scripts/db.sh ensure && scripts/db.sh status\", \"acceptanceCriteria\": [\"start waits until pg_isready ok (<=30s)\", \"ensure no-op when ready\", \"sourcing defines compose_cmd/pg/db_ensure with no subcommand run\", \"engine = PROHIBITORUM_COMPOSE else podman else docker; --help needs no engine\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Rewrite mise.toml catalog, drop Postgres pin, delete dev-db.sh",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Switch to the 13-visible catalog: merged dev:server, renamed dev:dashboard/dev:openapi, arg-driven db, hidden build:web/ci:go/ci:frontend, DB-ensure in dev tasks. Remove the mise Postgres cluster.\n\n**Files:** Modify mise.toml; regenerate mise.lock (mise lock); delete scripts/dev-db.sh\n\n```json:metadata\n{\"files\": [\"mise.toml\", \"mise.lock\", \"scripts/dev-db.sh\"], \"verifyCommand\": \"mise tasks && mise run db status && grep -c postgresql-binaries mise.lock\", \"acceptanceCriteria\": [\"mise tasks lists exactly 13 visible tasks\", \"build:web/ci:go/ci:frontend hidden but runnable\", \"mise run db start|stop|status|migrate work; bare db prints usage\", \"dev:openapi regenerates openapi.yaml\", \"no postgresql-binaries in mise.lock; dev-db.sh deleted\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Route harness scripts through db.sh (kill the hang)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** dev-federation.sh + dev-forward-auth.sh source db.sh, call db_ensure (auto-start), and route all psql/createdb through the in-container pg() helper. No host psql probe.\n\n**Files:** Modify scripts/dev-federation.sh, scripts/dev-forward-auth.sh\n\n```json:metadata\n{\"files\": [\"scripts/dev-federation.sh\", \"scripts/dev-forward-auth.sh\"], \"verifyCommand\": \"bash -n scripts/dev-federation.sh && bash -n scripts/dev-forward-auth.sh\", \"acceptanceCriteria\": [\"no host psql reachability probe in either script\", \"both source db.sh + call db_ensure before DB use\", \"all psql/createdb go through pg()\", \"DB stopped: dev:federation auto-starts not hangs\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Point CI smoke at the container DB deterministically",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** ci.yml smoke job sets PROHIBITORUM_COMPOSE=docker compose (deterministic on GitHub runners); local stays auto-detect. (ci:smoke task body already updated in Task 1.)\n\n**Files:** Modify .github/workflows/ci.yml\n\n```json:metadata\n{\"files\": [\".github/workflows/ci.yml\"], \"verifyCommand\": \"grep -n PROHIBITORUM_COMPOSE .github/workflows/ci.yml && mise run ci:smoke\", \"acceptanceCriteria\": [\"smoke step sets PROHIBITORUM_COMPOSE: docker compose\", \"no workflow references removed task names\", \"mise run ci:smoke passes locally\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Update docs — TOOLING.md + compose.yaml",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Docs match new reality: container-only dev DB, 4-namespace catalog, new quick-ref. No doc points at a removed command or the mise Postgres cluster.\n\n**Files:** Modify TOOLING.md, compose.yaml\n\n```json:metadata\n{\"files\": [\"TOOLING.md\", \"compose.yaml\"], \"verifyCommand\": \"grep -rn 'db:start|db:up|build:web|build:openapi|dev:run|dev:web|dev-db.sh|theseus-rs|podman-free' TOOLING.md compose.yaml\", \"acceptanceCriteria\": [\"dev DB described container-only (mise run db start)\", \"namespaces table lists dev/db/ci/prod with new names\", \"quick reference uses mise run db start + dev:server\", \"no stale command refs in TOOLING.md/compose.yaml\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Final verification & done-gate",
+      "status": "pending",
+      "blockedBy": [2, 3, 4],
+      "description": "**Goal:** Prove the redesign works end-to-end and nothing dangles.\n\n**Files:** none (verification)\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"mise run ci && mise run ci:smoke && mise tasks\", \"acceptanceCriteria\": [\"mise tasks shows exactly 13 in 4 groups\", \"mise run ci green\", \"mise run ci:smoke green on compose DB\", \"cold dev:server (DB down) comes up on :8080\", \"no repo ref to removed task names or dev-db.sh\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-24"
+}
