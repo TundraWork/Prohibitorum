@@ -161,6 +161,20 @@ glance (`mise tasks` lists them grouped):
 The SPA bundle build is the hidden, `sources`/`outputs`-gated `build:web` task,
 shared by `dev:server`, `prod:build`, and the GoReleaser before-hook.
 
+### Renamed / removed commands
+
+If you have muscle memory from the older task set:
+
+| Old | New |
+|-----|-----|
+| `mise run db:start` / `db:stop` / `db:reset` | `mise run db start` / `db stop` / `db reset` |
+| `mise run db:up` | `mise run db migrate` |
+| `mise run db:status` | `mise run db status` |
+| `mise run dev:run` | `mise run dev:server` (now skips the SPA rebuild when unchanged) |
+| `mise run dev:web` | `mise run dev:dashboard` |
+| `mise run build:openapi` | `mise run dev:openapi` |
+| `mise run build:web` | hidden (runs automatically via `dev:server` / `prod:build`) |
+
 ## Quick reference
 
 ```bash
