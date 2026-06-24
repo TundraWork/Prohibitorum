@@ -28,8 +28,8 @@ jobs:
       - uses: jdx/mise-action@v3 # installs the mise.lock-pinned toolchain (auto --locked)
       - run: mise run ci
 
-  # End-to-end smoke against a real server + a podman-free local Postgres
-  # (mise provides the prebuilt binaries; the smoke talks to the DB via pgx).
+  # End-to-end smoke against a real server + the compose Postgres (scripts/db.sh
+  # brings it up; the smoke talks to the DB via pgx).
   smoke:
     name: End-to-end smoke
     runs-on: ubuntu-latest

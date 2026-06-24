@@ -24,23 +24,30 @@
     {
       "id": 3,
       "subject": "Task 3: Point CI smoke at the container DB deterministically",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** ci.yml smoke job sets PROHIBITORUM_COMPOSE=docker compose (deterministic on GitHub runners); local stays auto-detect. (ci:smoke task body already updated in Task 1.)\n\n**Files:** Modify .github/workflows/ci.yml\n\n```json:metadata\n{\"files\": [\".github/workflows/ci.yml\"], \"verifyCommand\": \"grep -n PROHIBITORUM_COMPOSE .github/workflows/ci.yml && mise run ci:smoke\", \"acceptanceCriteria\": [\"smoke step sets PROHIBITORUM_COMPOSE: docker compose\", \"no workflow references removed task names\", \"mise run ci:smoke passes locally\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Update docs — TOOLING.md + compose.yaml",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Docs match new reality: container-only dev DB, 4-namespace catalog, new quick-ref. No doc points at a removed command or the mise Postgres cluster.\n\n**Files:** Modify TOOLING.md, compose.yaml\n\n```json:metadata\n{\"files\": [\"TOOLING.md\", \"compose.yaml\"], \"verifyCommand\": \"grep -rn 'db:start|db:up|build:web|build:openapi|dev:run|dev:web|dev-db.sh|theseus-rs|podman-free' TOOLING.md compose.yaml\", \"acceptanceCriteria\": [\"dev DB described container-only (mise run db start)\", \"namespaces table lists dev/db/ci/prod with new names\", \"quick reference uses mise run db start + dev:server\", \"no stale command refs in TOOLING.md/compose.yaml\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Final verification & done-gate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 3, 4],
       "description": "**Goal:** Prove the redesign works end-to-end and nothing dangles.\n\n**Files:** none (verification)\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"mise run ci && mise run ci:smoke && mise tasks\", \"acceptanceCriteria\": [\"mise tasks shows exactly 13 in 4 groups\", \"mise run ci green\", \"mise run ci:smoke green on compose DB\", \"cold dev:server (DB down) comes up on :8080\", \"no repo ref to removed task names or dev-db.sh\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Fix remaining stale task refs (README.md, STATUS.md, dev-env.sh)",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** (emergent, found by the done-gate grep) Update README.md, STATUS.md, and the scripts/dev-env.sh comment to the new 13-task / container-DB catalog.\n\n```json:metadata\n{\"files\": [\"README.md\", \"STATUS.md\", \"scripts/dev-env.sh\"], \"verifyCommand\": \"grep -rnE 'db:start|db:up|dev:run|dev:web|dev-db.sh' README.md STATUS.md scripts/dev-env.sh\", \"acceptanceCriteria\": [\"no stale old-task names\", \"no prebuilt-Postgres/no-container-runtime current claim\"]}\n```"
     }
   ],
   "lastUpdated": "2026-06-24"
