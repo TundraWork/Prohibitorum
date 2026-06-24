@@ -86,26 +86,21 @@ done
 [ -f .dev/encryption-key ] || openssl rand -base64 32 >.dev/encryption-key
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(cat .dev/encryption-key)"
 
-# --- DB: ensure the two federation databases on the dev cluster ------------
-# PGPASSWORD matches the dev credential (compose.yaml / dev-env.sh). The
-# podman-free dev-db.sh cluster uses trust auth and ignores it; the compose
-# Postgres requires it — setting it works for both.
-export PGHOST=localhost PGPORT=5432 PGUSER=prohibitorum PGPASSWORD=prohibitorum
+# --- DB: ensure the dev Postgres (container) is up. psql/createdb run INSIDE
+# the container via the pg() helper from db.sh — no host Postgres client needed.
+# shellcheck disable=SC1091
+. "$ROOT/scripts/db.sh"
+db_ensure
 UP_DB="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_upstream?sslmode=disable"
 DOWN_DB="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_downstream?sslmode=disable"
-
-if ! psql -d postgres -tAc 'SELECT 1' >/dev/null 2>&1; then
-	echo "ERROR: Postgres not reachable on localhost:5432 — run 'mise run db:start'." >&2
-	exit 1
-fi
 
 # db_is_seeded NAME — true if the database exists AND is migrated (has the
 # `account` table). A bare createdb'd-but-empty DB (e.g. a previous run that
 # crashed mid-setup) reports false so it gets recreated clean rather than reused.
 db_is_seeded() {
 	local name="$1" reg
-	psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$name'" 2>/dev/null | grep -q 1 || return 1
-	reg="$(psql -d "$name" -tAc "SELECT to_regclass('public.account') IS NOT NULL" 2>/dev/null || true)"
+	pg psql -U prohibitorum -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$name'" 2>/dev/null | grep -q 1 || return 1
+	reg="$(pg psql -U prohibitorum -d "$name" -tAc "SELECT to_regclass('public.account') IS NOT NULL" 2>/dev/null || true)"
 	[ "$(printf '%s' "$reg" | tr -d '[:space:]')" = "t" ]
 }
 
@@ -114,7 +109,7 @@ db_is_seeded() {
 # "an admin already exists" error.
 db_has_admin() {
 	local name="$1" out
-	out="$(psql -d "$name" -tAc "SELECT EXISTS(SELECT 1 FROM account WHERE role = 'admin' AND NOT disabled)" 2>/dev/null || true)"
+	out="$(pg psql -U prohibitorum -d "$name" -tAc "SELECT EXISTS(SELECT 1 FROM account WHERE role = 'admin' AND NOT disabled)" 2>/dev/null || true)"
 	[ "$(printf '%s' "$out" | tr -d '[:space:]')" = "t" ]
 }
 
@@ -122,8 +117,8 @@ db_has_admin() {
 # lingering connections (e.g. a backend from a previous run).
 recreate_db() {
 	local name="$1"
-	psql -d postgres -c "DROP DATABASE IF EXISTS $name WITH (FORCE)" >/dev/null
-	createdb "$name"
+	pg psql -U prohibitorum -d postgres -c "DROP DATABASE IF EXISTS $name WITH (FORCE)" >/dev/null
+	pg createdb -U prohibitorum "$name"
 	echo "recreated database $name (clean slate)"
 }
 
