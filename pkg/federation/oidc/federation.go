@@ -294,6 +294,18 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		return nil, ErrUnknownIDP
 	}
 
+	// Pre-auth mode gate for the plain sign-in flow (no linking account, no
+	// invite token): an invite_only IdP can only be satisfied via an invite
+	// token (BeginInviteRedemption), so a generic sign-in here is always refused
+	// at the callback — reject up front instead of sending the user through the
+	// upstream dance to fail. link_only is deliberately NOT gated: an
+	// already-linked identity re-logs-in via Resolve's existing-identity path
+	// before mode dispatch, and the identity is unknown until the callback.
+	if linkingAccountID == nil && enrollmentToken == "" && idp.Mode == ModeInviteOnly {
+		f.failNoAccount(ctx, idp.Slug, "invite_required_pre_auth", nil)
+		return nil, authn.ErrInviteRequired()
+	}
+
 	flow := flowLogin
 	if linkingAccountID != nil {
 		flow = flowLink

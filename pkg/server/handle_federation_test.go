@@ -914,6 +914,35 @@ func TestListFederationProviders_TwoIDPs(t *testing.T) {
 	}
 }
 
+func TestListFederationProviders_OmitsInviteOnly(t *testing.T) {
+	// invite_only IdPs are reachable only via an invite link, so they must not
+	// appear as generic "sign in with" buttons. auto_provision + link_only do.
+	q := newFakeFedQueries()
+	q.listIDPs = []db.UpstreamIdp{
+		{Slug: "google", DisplayName: "Google", Mode: fedoidc.ModeAutoProvision},
+		{Slug: "okta", DisplayName: "Okta", Mode: fedoidc.ModeLinkOnly},
+		{Slug: "invite", DisplayName: "Invite Co", Mode: fedoidc.ModeInviteOnly},
+	}
+
+	s := newListFedServer(q)
+	req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/auth/federation", nil)
+	w := httptest.NewRecorder()
+	s.handleListFederationProvidersHTTP(w, req)
+
+	var out []contract.FederationProvider
+	if err := json.NewDecoder(w.Result().Body).Decode(&out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("providers: want 2 (auto_provision + link_only), got %d: %+v", len(out), out)
+	}
+	for _, p := range out {
+		if p.Slug == "invite" {
+			t.Errorf("invite_only IdP must not appear as a sign-in button: %+v", out)
+		}
+	}
+}
+
 func TestListFederationProviders_ZeroIDPs(t *testing.T) {
 	q := newFakeFedQueries()
 	// listIDPs is nil by default; handler must emit [] not null.

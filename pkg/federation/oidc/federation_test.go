@@ -960,6 +960,37 @@ func TestFederator_BeginLogin_MissingDEKVersion(t *testing.T) {
 	}
 }
 
+func TestFederator_BeginLogin_InviteOnly_RejectsPreAuth(t *testing.T) {
+	// A plain sign-in on an invite_only IdP can never succeed (invites arrive
+	// via BeginInviteRedemption), so begin() rejects BEFORE minting an authorize
+	// URL rather than sending the user through the upstream dance to fail at the
+	// callback.
+	fx := newFixture(t, federationoidc.ModeInviteOnly)
+
+	_, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required AuthError, got %v", err)
+	}
+	if r := auditReason(fx.au.snapshot(), audit.EventFail); r != "invite_required_pre_auth" {
+		t.Fatalf("audit fail reason = %q, want invite_required_pre_auth", r)
+	}
+}
+
+func TestFederator_BeginLogin_LinkOnly_Proceeds(t *testing.T) {
+	// link_only is NOT pre-gated: an already-linked identity re-logs-in via the
+	// existing-identity path at the callback, so BeginLogin must still mint the
+	// authorize URL (the upstream identity is unknown until the callback).
+	fx := newFixture(t, federationoidc.ModeLinkOnly)
+
+	req, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if err != nil {
+		t.Fatalf("BeginLogin on link_only should proceed, got %v", err)
+	}
+	if req == nil || req.AuthorizeURL == "" {
+		t.Fatal("expected an authorize URL")
+	}
+}
+
 // seedInviteEnrollment seeds a valid pending invite enrollment row bound
 // to the fixture's IdP slug. Tokens for ConsumeEnrollment AND
 // GetEnrollmentByToken share the same map, so BeginInviteRedemption and

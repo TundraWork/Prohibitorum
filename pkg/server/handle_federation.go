@@ -199,6 +199,13 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 	}
 	out := make([]contract.FederationProvider, 0, len(idps))
 	for _, idp := range idps {
+		// invite_only IdPs are reachable only via an invite link, never a
+		// generic "sign in with" button — a plain login on one is rejected
+		// pre-auth in begin(). Omit them so the login page never offers a
+		// doomed button.
+		if idp.Mode == fedoidc.ModeInviteOnly {
+			continue
+		}
 		out = append(out, contract.FederationProvider{
 			Slug:        idp.Slug,
 			DisplayName: idp.DisplayName,

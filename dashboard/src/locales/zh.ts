@@ -781,6 +781,7 @@ export default {
     enrollment_federation_required:
       '此邀请需要通过你的身份提供商完成注册。',
     invite_required: '创建账户需要邀请码。',
+    link_required: '此身份源尚未关联任何账户。请先以其他方式登录，然后在 设置 → 关联账户 中绑定。',
     username_taken: '该用户名已被占用。',
     username_collision: '该用户名已被占用。',
     invalid_username:

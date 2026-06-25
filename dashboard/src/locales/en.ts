@@ -785,6 +785,8 @@ export default {
     enrollment_federation_required:
       'This invitation must be completed through your identity provider.',
     invite_required: 'An invitation is required to create an account.',
+    link_required:
+      'This provider is not linked to any account. Sign in another way first, then connect it in Settings → Connected accounts.',
     username_taken: 'That username is already taken.',
     username_collision: 'That username is already taken.',
     invalid_username:
