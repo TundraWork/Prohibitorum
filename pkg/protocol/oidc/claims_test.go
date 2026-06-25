@@ -194,6 +194,13 @@ func TestClaimsIDTokenWithProfile(t *testing.T) {
 	if c["displayName"] != "Alice Example" {
 		t.Fatalf("displayName = %v, want Alice Example", c["displayName"])
 	}
+	// OIDC-standard aliases emitted alongside the legacy keys.
+	if c["preferred_username"] != "alice" {
+		t.Fatalf("preferred_username = %v, want alice", c["preferred_username"])
+	}
+	if c["name"] != "Alice Example" {
+		t.Fatalf("name = %v, want Alice Example", c["name"])
+	}
 	if c["role"] != "admin" {
 		t.Fatalf("role = %v, want admin", c["role"])
 	}
@@ -221,7 +228,7 @@ func TestClaimsIDTokenWithoutProfile(t *testing.T) {
 	}
 
 	// Profile claims absent.
-	for _, k := range []string{"username", "displayName", "role", "attributes"} {
+	for _, k := range []string{"username", "preferred_username", "displayName", "name", "role", "attributes"} {
 		if _, ok := c[k]; ok {
 			t.Fatalf("claim %q present without profile scope", k)
 		}
@@ -274,6 +281,13 @@ func TestClaimsUserinfoWithProfile(t *testing.T) {
 	}
 	if c["displayName"] != "Alice Example" {
 		t.Fatalf("displayName = %v, want Alice Example", c["displayName"])
+	}
+	// OIDC-standard aliases emitted alongside the legacy keys.
+	if c["preferred_username"] != "alice" {
+		t.Fatalf("preferred_username = %v, want alice", c["preferred_username"])
+	}
+	if c["name"] != "Alice Example" {
+		t.Fatalf("name = %v, want Alice Example", c["name"])
 	}
 	if c["role"] != "admin" {
 		t.Fatalf("role = %v, want admin", c["role"])

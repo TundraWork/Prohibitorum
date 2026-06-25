@@ -1543,8 +1543,17 @@ func main() {
 	if str(userinfo["displayName"]) == "" {
 		log.Fatalf("userinfo missing displayName (profile scope granted)")
 	}
-	log.Printf("  userinfo sub matches id_token; username=%s displayName=%s ✓",
-		str(userinfo["username"]), str(userinfo["displayName"]))
+	// OIDC-standard profile claims — emitted alongside the legacy username/
+	// displayName so generic RPs (and prohibitorum federating to itself) can read
+	// the user's handle + name. Their absence is what broke auto_provision federation.
+	if str(userinfo["preferred_username"]) != oidcMe.Username {
+		log.Fatalf("userinfo preferred_username: want %q, got %q", oidcMe.Username, str(userinfo["preferred_username"]))
+	}
+	if str(userinfo["name"]) == "" {
+		log.Fatalf("userinfo missing name (OIDC-standard profile claim)")
+	}
+	log.Printf("  userinfo sub matches id_token; username=%s preferred_username=%s name=%s ✓",
+		str(userinfo["username"]), str(userinfo["preferred_username"]), str(userinfo["name"]))
 
 	step(fmt.Sprintf("oidc %d/%d — POST /oauth/introspect (access token, Basic auth) → active", 6, nOIDC))
 	intro, err := introspect(*baseURL, rpClientID, rpSecret, accessToken)

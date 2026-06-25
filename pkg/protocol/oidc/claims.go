@@ -56,9 +56,15 @@ func decodeAttributes(raw []byte) map[string]any {
 // userinfo.
 func profileClaims(a db.Account, origin string) map[string]any {
 	c := map[string]any{
-		"username":    a.Username,
-		"displayName": a.DisplayName,
-		"role":        a.Role,
+		// OIDC-standard `profile`-scope claims so any RP (including prohibitorum
+		// federating to itself) can read the user's handle and name. The legacy
+		// camelCase keys are kept alongside for first-party consumers that already
+		// read them.
+		"preferred_username": a.Username,
+		"name":               a.DisplayName,
+		"username":           a.Username,
+		"displayName":        a.DisplayName,
+		"role":               a.Role,
 	}
 	if attrs := decodeAttributes(a.Attributes); attrs != nil {
 		c["attributes"] = attrs

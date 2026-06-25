@@ -128,10 +128,21 @@ func redirectAuthErrToError(w http.ResponseWriter, r *http.Request, err error) s
 // omit it.
 func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err error, returnTo string) string {
 	code := "server_error"
-	if ae := authn.AsAuthError(err); ae != nil {
+	ae := authn.AsAuthError(err)
+	if ae != nil {
 		code = ae.Code
 	}
 	ref := weberr.NewRef()
+	// Correlate the user-facing ref with the cause. A non-AuthError is a real
+	// server-side failure → log it at warn WITH the detail, so the ref printed on
+	// the /error page is diagnosable (previously these refs hit no log or audit).
+	// An AuthError is an expected outcome (bad_credentials, link_required, …) → debug.
+	entry := logx.WithContext(r.Context()).WithField("ref", ref).WithField("code", code)
+	if ae == nil {
+		entry.WithError(err).Warn("auth error redirect")
+	} else {
+		entry.Debug("auth error redirect")
+	}
 	weberr.RedirectToErrorWithReturn(w, r, code, ref, returnTo)
 	return ref
 }
