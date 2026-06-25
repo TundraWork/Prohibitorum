@@ -39,6 +39,7 @@ const (
 	testRPRedirect = "http://127.0.0.1:9876/callback"
 	slugAuto       = "upstream"
 	slugInvite     = "upstream-invite"
+	slugLink       = "upstream-link"
 )
 
 var _devFederationCmd *cobra.Command
@@ -51,8 +52,8 @@ func init() {
 		Long: `Idempotently wire two local prohibitorum instances for manual OIDC
 federation testing: an upstream OP and a downstream RP. Ensures an active
 signing key on each, registers the downstream-federation client on the upstream,
-the upstream/upstream-invite IdP rows on the downstream, a test-rp on each, and a
-federation-bound invitation. Refuses non-loopback origins.`,
+the upstream/upstream-invite/upstream-link IdP rows on the downstream, a test-rp
+on each, and a federation-bound invitation. Refuses non-loopback origins.`,
 		Run: func(_ *cobra.Command, _ []string) {
 			runDevFederation(upstreamDB, downstreamDB, upstreamOrigin, downstreamOrigin)
 		},
@@ -106,6 +107,7 @@ func runDevFederation(upstreamDB, downstreamDB, upstreamOrigin, downstreamOrigin
 	fedSecret := ensureFedClient(ctx, upQ, downstreamOrigin)
 	upsertUpstreamIDP(ctx, downQ, slugAuto, "Upstream", "auto_provision", upstreamOrigin, fedSecret, dek, keyVer)
 	upsertUpstreamIDP(ctx, downQ, slugInvite, "Upstream (invite)", "invite_only", upstreamOrigin, fedSecret, dek, keyVer)
+	upsertUpstreamIDP(ctx, downQ, slugLink, "Upstream (link)", "link_only", upstreamOrigin, fedSecret, dek, keyVer)
 
 	inviteSlug := slugInvite
 	inviteToken, inviteExp, err := enrollment.IssueEnrollment(
@@ -145,8 +147,10 @@ func fedRedirectURIs(downstreamOrigin string) []string {
 	return []string{
 		b + "/api/prohibitorum/auth/federation/" + slugAuto + "/callback",
 		b + "/api/prohibitorum/auth/federation/" + slugInvite + "/callback",
+		b + "/api/prohibitorum/auth/federation/" + slugLink + "/callback",
 		b + "/api/prohibitorum/me/identities/link/" + slugAuto + "/callback",
 		b + "/api/prohibitorum/me/identities/link/" + slugInvite + "/callback",
+		b + "/api/prohibitorum/me/identities/link/" + slugLink + "/callback",
 	}
 }
 
@@ -298,10 +302,15 @@ func printFederationSummary(upstreamOrigin, downstreamOrigin, fedSecret, upTestS
 	fmt.Println("================ dev-federation wiring complete ================")
 	fmt.Printf("Federation: downstream %q --[oidc]--> upstream %q\n", down, up)
 	fmt.Printf("  fed client_id=%s  client_secret=%s\n", fedClientID, fedSecret)
-	fmt.Printf("  downstream IdP slugs: %q (auto_provision), %q (invite_only)\n", slugAuto, slugInvite)
+	fmt.Printf("  downstream IdP slugs: %q (auto_provision), %q (invite_only), %q (link_only)\n", slugAuto, slugInvite, slugLink)
 	fmt.Println()
-	fmt.Println("Invite-gated (invite_only) entry point — open on the downstream:")
+	fmt.Println("Invite-gated (invite_only) — NOT shown as a sign-in button; reachable only")
+	fmt.Println("  via the invite link below (a plain sign-in on it is rejected pre-auth):")
 	fmt.Printf("  %s/enroll/%s   (expires %s)\n", down, inviteToken, inviteExp.Format(time.RFC3339))
+	fmt.Println()
+	fmt.Println("Link-only (link_only) — shown as a sign-in button; a fresh sign-in is")
+	fmt.Println("  refused (link_required). Link it first from the downstream's Connected")
+	fmt.Printf("  accounts (%s/connected), then sign in with it.\n", down)
 	fmt.Println()
 	fmt.Println("Direct OP test (PKCE S256, code_verifier shared below):")
 	fmt.Printf("  code_verifier=%s\n", verifier)
