@@ -604,6 +604,13 @@ export default {
       offline_access: 'Stay signed in when you are not using the app',
       groups: 'Read your group memberships',
     },
+    scopeDesc: {
+      openid: 'Confirms who you are without sharing your password.',
+      profile: 'Your name and basic profile details.',
+      email: 'Used to identify and contact you.',
+      offline_access: 'Keeps you signed in without approving again each visit.',
+      groups: 'The groups you belong to, used for access.',
+    },
   },
 
   logout: {

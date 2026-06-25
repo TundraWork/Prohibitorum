@@ -600,6 +600,13 @@ export default {
       offline_access: '在你未使用应用时保持登录',
       groups: '读取你的分组信息',
     },
+    scopeDesc: {
+      openid: '确认你的身份，无需分享你的密码。',
+      profile: '你的名称和基本资料。',
+      email: '用于识别并联系你。',
+      offline_access: '让你保持登录，无需每次重新授权。',
+      groups: '你所属的分组，用于访问控制。',
+    },
   },
 
   logout: {
