@@ -580,7 +580,7 @@ export default {
   consent: {
     title: '授权访问',
     requestingAccess: '{client} 请求访问你的账户。',
-    yourAccount: '你已登录为 {displayName}。',
+    signedInAs: '已登录为',
     scopesHeading: '此应用将能够：',
     approve: '允许',
     approveCount: '允许访问（{count}）',
@@ -588,7 +588,8 @@ export default {
     privacyPolicy: '隐私政策',
     termsOfService: '服务条款',
     customScope: '此应用请求的自定义权限',
-    remembered: '你只需批准一次 —— 下次 {client} 会自动让你登录，除非它申请新的权限。',
+    ongoingTitle: '你将同意以后的自动登录',
+    ongoing: '允许访问后，{client} 以后可以自动让你登录，无需再次询问，直到你撤销授权或它申请新的权限。',
     manageHint: '你可以随时在 设置 → 应用访问 中查看或撤销。',
     additionalAccessTitle: '{client} 申请额外的访问权限',
     newBadge: '新增',

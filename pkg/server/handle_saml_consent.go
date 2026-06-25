@@ -52,7 +52,7 @@ func (s *Server) handleSAMLConsentContextHTTP(w http.ResponseWriter, r *http.Req
 	}
 	out := contract.SAMLConsentContext{
 		SP:         contract.SAMLConsentSP{ID: id, DisplayName: ticket.DisplayName, LogoURI: logo},
-		Account:    contract.ConsentUser{DisplayName: sess.Account.DisplayName},
+		Account:    s.consentUser(sess.Account),
 		Attributes: ticket.Attributes,
 	}
 	w.Header().Set("Content-Type", "application/json")

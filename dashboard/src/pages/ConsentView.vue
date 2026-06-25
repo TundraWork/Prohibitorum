@@ -32,6 +32,7 @@ import ConsentScopeList from '@/components/custom/ConsentScopeList.vue'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
+import { Info } from 'lucide-vue-next'
 
 interface ConsentClient {
   clientId: string
@@ -42,7 +43,7 @@ interface ConsentClient {
 }
 interface ConsentContext {
   client: ConsentClient
-  account: { displayName: string }
+  account: { displayName: string; avatarUrl?: string }
   scopes: string[]
   alreadyGranted?: string[]
 }
@@ -110,6 +111,7 @@ async function decide(decision: 'approve' | 'deny'): Promise<void> {
       :logo-uri="ctx.client.logoUri"
       :display-name="ctx.client.displayName"
       :account-name="ctx.account.displayName"
+      :account-avatar-url="ctx.account.avatarUrl"
       :policy-uri="ctx.client.policyUri"
       :tos-uri="ctx.client.tosUri"
     >
@@ -121,10 +123,22 @@ async function decide(decision: 'approve' | 'deny'): Promise<void> {
         </p>
       </template>
       <template #body>
-        <div class="flex flex-col gap-2">
-          <p class="text-sm font-medium text-ink">{{ t('consent.scopesHeading') }}</p>
-          <ConsentScopeList :scopes="ctx.scopes" :new-scopes="isIncremental ? newScopes : []" />
-          <p class="text-xs text-muted">{{ t('consent.remembered', { client: ctx.client.displayName }) }}</p>
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-2.5">
+            <p class="text-sm font-medium text-ink">{{ t('consent.scopesHeading') }}</p>
+            <ConsentScopeList :scopes="ctx.scopes" :new-scopes="isIncremental ? newScopes : []" />
+          </div>
+
+          <!-- Ongoing-consent notice: allowing also approves future automatic
+               sign-ins, so it reads as a callout, not a muted footnote. -->
+          <div role="note" class="flex items-start gap-3 rounded-lg border border-info-border bg-info p-3 text-info-foreground">
+            <Info class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div class="min-w-0 space-y-1">
+              <p class="text-sm font-medium">{{ t('consent.ongoingTitle') }}</p>
+              <p class="text-sm">{{ t('consent.ongoing', { client: ctx.client.displayName }) }}</p>
+            </div>
+          </div>
+
           <p class="text-xs text-muted">{{ t('consent.manageHint') }}</p>
         </div>
         <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">

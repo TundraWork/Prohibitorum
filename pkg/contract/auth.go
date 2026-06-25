@@ -379,7 +379,8 @@ type ConsentClient struct {
 }
 
 type ConsentUser struct {
-	DisplayName string `json:"displayName"`
+	DisplayName string  `json:"displayName"`
+	AvatarURL   *string `json:"avatarUrl,omitempty"`
 }
 
 // ConsentDecision is the POST body. Decision is "approve" or "deny".

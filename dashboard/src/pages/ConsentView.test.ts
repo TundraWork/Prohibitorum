@@ -235,14 +235,28 @@ describe('ConsentView', () => {
     expect(wrapper.find('.rounded-full').exists()).toBe(false)
   })
 
-  it('renders remembered and manageHint reassurance lines', async () => {
+  it('renders the ongoing-consent notice and manage hint', async () => {
     get.mockResolvedValue({
       client: { clientId: 'app', displayName: 'Demo App' },
       account: { displayName: 'Alex' },
       scopes: ['openid'],
     })
     const wrapper = await mountView(await makeRouter())
-    expect(wrapper.text()).toContain('approving this once')
+    expect(wrapper.text()).toContain('future sign-ins')
+    expect(wrapper.text()).toContain('sign you in automatically')
     expect(wrapper.text()).toContain('Settings')
+  })
+
+  it('shows the signed-in account block with its avatar image', async () => {
+    get.mockResolvedValue({
+      client: { clientId: 'app', displayName: 'Demo App' },
+      account: { displayName: 'Alex Smith', avatarUrl: 'https://idp.example/avatar/abc' },
+      scopes: ['openid'],
+    })
+    const wrapper = await mountView(await makeRouter())
+    expect(wrapper.text()).toContain('Signed in as')
+    expect(wrapper.text()).toContain('Alex Smith')
+    const avatar = wrapper.find('img[src="https://idp.example/avatar/abc"]')
+    expect(avatar.exists()).toBe(true)
   })
 })

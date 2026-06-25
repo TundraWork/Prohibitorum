@@ -1,0 +1,1 @@
+import{d as r,b as o,B as n,f as t,K as l,A as c,o as d}from"./index-CdM9_dHC.js";const m=r({__name:"Card",props:{class:{type:[Boolean,null,String,Object,Array]}},setup(a){const e=a;return(s,p)=>(d(),o("div",{"data-slot":"card",class:n(t(l)("bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",e.class))},[c(s.$slots,"default")],2))}});export{m as _};

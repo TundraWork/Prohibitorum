@@ -584,7 +584,7 @@ export default {
   consent: {
     title: 'Approve access',
     requestingAccess: '{client} is requesting access to your account.',
-    yourAccount: 'You are signed in as {displayName}.',
+    signedInAs: 'Signed in as',
     scopesHeading: 'This application will be able to:',
     approve: 'Allow',
     approveCount: 'Allow access ({count})',
@@ -592,7 +592,8 @@ export default {
     privacyPolicy: 'Privacy policy',
     termsOfService: 'Terms of service',
     customScope: 'Custom permission requested by this application',
-    remembered: "You're approving this once — next time {client} signs you in automatically, unless it asks for new permissions.",
+    ongoingTitle: "You're allowing future sign-ins",
+    ongoing: 'After you allow access, {client} can sign you in automatically without asking again, until you revoke it or it requests new permissions.',
     manageHint: 'You can review or revoke this anytime in Settings → App access.',
     additionalAccessTitle: '{client} is requesting additional access',
     newBadge: 'New',

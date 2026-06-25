@@ -13,7 +13,7 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 
 interface SamlConsentContext {
   sp: { id: string; displayName: string; logoUri?: string }
-  account: { displayName: string }
+  account: { displayName: string; avatarUrl?: string }
   attributes: string[]
 }
 interface ConsentResult { redirect: string }
@@ -60,6 +60,7 @@ async function decide(decision: 'approve' | 'decline'): Promise<void> {
       :logo-uri="ctx.sp.logoUri"
       :display-name="ctx.sp.displayName"
       :account-name="ctx.account.displayName"
+      :account-avatar-url="ctx.account.avatarUrl"
     >
       <template #heading>
         <p class="text-ink">{{ t('samlConsent.intro', { sp: ctx.sp.displayName }) }}</p>

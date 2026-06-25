@@ -11,9 +11,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
+
+// consentUser projects the session account into the consent screens' user view,
+// carrying the public avatar URL when the account has one (empty → field
+// omitted; the SPA then falls back to initials). Shared by the OIDC and SAML
+// consent handlers so both screens render the same identity.
+func (s *Server) consentUser(a *db.Account) contract.ConsentUser {
+	u := contract.ConsentUser{DisplayName: a.DisplayName}
+	origin := ""
+	if s.config != nil && len(s.config.PublicOrigins) > 0 {
+		origin = s.config.PublicOrigins[0]
+	}
+	if av := avatar.AccountURL(*a, origin); av != "" {
+		u.AvatarURL = &av
+	}
+	return u
+}
 
 // oidcConsentQueries is the narrow DB surface the OIDC consent handlers need.
 // Declared here so tests can stub it without constructing *db.Queries.
@@ -60,7 +77,7 @@ func (s *Server) handleConsentContextHTTP(w http.ResponseWriter, r *http.Request
 			PolicyURI:   textOrEmpty(client.PolicyUri),
 			TosURI:      textOrEmpty(client.TosUri),
 		},
-		Account: contract.ConsentUser{DisplayName: sess.Account.DisplayName},
+		Account: s.consentUser(sess.Account),
 		Scopes:  ticket.Scopes,
 	}
 	granted, gerr := q.GetConsent(r.Context(), db.GetConsentParams{
