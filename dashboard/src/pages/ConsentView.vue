@@ -148,7 +148,7 @@ async function decide(decision: 'approve' | 'deny'): Promise<void> {
       <template #actions>
         <div class="flex gap-3">
           <Button variant="outline" class="flex-1" :disabled="busy" @click="decide('deny')">{{ t('consent.deny') }}</Button>
-          <Button class="flex-1" :disabled="busy" @click="decide('approve')">{{ t('consent.approveCount', { count: isIncremental ? newScopes.length : ctx.scopes.length }) }}</Button>
+          <Button class="flex-1" :disabled="busy" @click="decide('approve')">{{ t('consent.approve') }}</Button>
         </div>
       </template>
     </ConsentCard>

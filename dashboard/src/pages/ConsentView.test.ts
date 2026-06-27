@@ -120,7 +120,7 @@ describe('ConsentView', () => {
     expect(wrapper.find('a[target="_blank"]').exists()).toBe(false)
   })
 
-  it('approve button shows the scope count', async () => {
+  it('approve button reads "Allow access" with no scope count', async () => {
     get.mockResolvedValue({
       client: { clientId: 'app', displayName: 'Demo App' },
       account: { displayName: 'Alex' },
@@ -129,7 +129,7 @@ describe('ConsentView', () => {
     const wrapper = await mountView(await makeRouter())
     const approveBtn = wrapper.findAll('button').find((b) => b.text().includes('Allow access'))
     expect(approveBtn).toBeTruthy()
-    expect(approveBtn!.text()).toContain('3')
+    expect(approveBtn!.text()).not.toMatch(/\d/)
   })
 
   it('approve posts the decision with return_to and follows the server redirect', async () => {
