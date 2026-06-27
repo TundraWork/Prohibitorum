@@ -1,26 +1,12 @@
 # Traefik ForwardAuth integration
 
-Prohibitorum can natively answer Traefik's **ForwardAuth** middleware, so you can
-protect any service behind Traefik with your Prohibitorum login — **without
-running a separate reverse-proxy component** (no oauth2-proxy). It reuses
-Prohibitorum's OIDC provider for the login + the existing per-application access
-control (RBAC) for authorization.
+Prohibitorum natively answers Traefik's **ForwardAuth** middleware — no oauth2-proxy. It reuses the OIDC provider for login and the existing per-application RBAC for authorization. Works for apps on unrelated domains (e.g. Prohibitorum on `auth.example.com`, protected app on `app.acme.io`): the first request drives OIDC login; subsequent requests are a fast `200`/redirect check against a host-only **per-domain cookie**.
 
-It works for protected services on **unrelated domains** (e.g. Prohibitorum on
-`auth.example.com`, the app on `app.acme.io`). On the first request the user is
-sent through the OIDC login and a small, host-only **per-domain cookie** is
-planted on the protected domain; afterwards every request is just a fast
-`200`/redirect check.
-
-> **HTTPS is required.** The per-domain cookie is `Secure`; forward-auth does not
-> work over plain HTTP. Use valid certificates (and ideally HSTS).
+> **HTTPS is required.** The per-domain cookie is `Secure`; forward-auth does not work over plain HTTP.
 
 ---
 
 ## 1. Register the protected service
-
-Each protected service is a backing OIDC client flagged for forward-auth.
-Register it with the CLI:
 
 ```bash
 prohibitorum forward-auth-app create \
@@ -29,28 +15,20 @@ prohibitorum forward-auth-app create \
   --display-name "Acme App"
 ```
 
-This creates a public (PKCE) OIDC client with
-`redirect_uri = https://app.acme.io/.prohibitorum-forward-auth/callback` and
-consent disabled, and flags it for forward-auth on host `app.acme.io`.
+Creates a public (PKCE) OIDC client with `redirect_uri = https://app.acme.io/.prohibitorum-forward-auth/callback`, consent disabled, flagged for forward-auth on `app.acme.io`.
 
-**Authorization (RBAC).** By default any logged-in user is allowed. To restrict
-the service to specific groups/accounts, mark it access-restricted and grant
-access using the existing OIDC-client access commands, e.g.:
+**RBAC.** By default any logged-in user is allowed. To restrict:
 
 ```bash
 # Restrict to granted principals, then grant a group (and/or --grant-account):
 prohibitorum oidc-client access --client-id app-acme --access-restricted=true --grant-group staff
 ```
 
-Access is re-evaluated **live on every request**, so revoking a group or
-disabling an account takes effect immediately.
+Access is re-evaluated **live on every request**.
 
 ---
 
 ## 2. Configure Traefik
-
-Two hookups are needed on the protected service's router: the ForwardAuth
-**middleware** (the auth check) and a **route** for the per-domain callback path.
 
 ### Trust the proxy chain at the EntryPoint (required — see Security)
 
@@ -98,60 +76,29 @@ http:
       tls: {}
 ```
 
-(Docker-label equivalents follow the same shape: a `forwardauth` middleware with
-`address`, `trustForwardHeader=true`, `authResponseHeaders`, plus a second router
-for the `PathPrefix(/.prohibitorum-forward-auth/)` → the Prohibitorum service.)
+Docker-label equivalents follow the same shape: a `forwardauth` middleware with `address`, `trustForwardHeader=true`, `authResponseHeaders`, plus a second router for `PathPrefix(/.prohibitorum-forward-auth/)` → the Prohibitorum service.
 
-The backend reads identity from the `Remote-*` request headers (only present on
-an allowed request).
+The backend reads identity from the `Remote-*` request headers (present only on allowed requests).
 
 ### Sign out
 
-The forward-auth prefix also serves a sign-out endpoint. Link users to:
+Link users to:
 
     https://<protected-host>/.prohibitorum-forward-auth/sign_out
 
-It clears the per-domain forward-auth cookie + session, then bounces to
-Prohibitorum to terminate the SSO session and returns the browser to the app
-(now unauthenticated, so the next request triggers a fresh login). Note:
-forward-auth sessions already established on *other* protected domains remain
-valid until they expire (`forward_auth.session_ttl`, default 1h) or the next
-live authorization check denies them — signing out is immediate for the
-dashboard and this app, and prevents silent re-login elsewhere, but does not
-retroactively revoke other domains' per-domain cookies.
+Clears the per-domain cookie + session, bounces to Prohibitorum to terminate the SSO session, then returns the browser to the app. Forward-auth sessions on *other* protected domains remain valid until they expire (`forward_auth.session_ttl`, default 1h) or a live authorization check denies them.
 
-> The `sign_out` path is served by Prohibitorum, so the same forward-auth
-> `PathPrefix(/.prohibitorum-forward-auth/)` router that handles `/callback`
-> already covers it — no extra Traefik config is needed.
+> `sign_out` is served by Prohibitorum, so the same `PathPrefix(/.prohibitorum-forward-auth/)` router already covers it — no extra Traefik config needed.
 
 ---
 
-## 3. Security requirements (read this)
+## 3. Security requirements
 
-Forward-auth is only as trustworthy as the network boundary. These are operator
-obligations, not optional hardening:
+- **Set both `forwardedHeaders.trustedIPs` and `trustForwardHeader: true`.** `trustedIPs` makes Traefik strip client-supplied `X-Forwarded-*` and set them from the real request; `trustForwardHeader: true` then forwards those trusted values. Prohibitorum reconstructs the original request and resolves the protected service from `X-Forwarded-Host` / `X-Forwarded-Proto` / `X-Forwarded-Uri` — a client that can set those can influence the redirect target. Do not expose the EntryPoint to untrusted networks without `trustedIPs`.
 
-- **Traefik must OVERWRITE the forwarded headers — never pass client values
-  through.** Prohibitorum reconstructs the original request (for the post-login
-  redirect) and resolves the protected service from
-  `X-Forwarded-Host` / `X-Forwarded-Proto` / `X-Forwarded-Uri`. If a client could
-  set those, it could influence the redirect target. Setting
-  `forwardedHeaders.trustedIPs` at the EntryPoint makes Traefik strip
-  client-supplied `X-Forwarded-*` and set them itself from the real request;
-  `trustForwardHeader: true` on the middleware then forwards those trusted
-  values. **Set both.** Do not expose the EntryPoint to untrusted networks
-  without `trustedIPs`.
+- **The proxy must be the only path to the backend.** Identity is conveyed by `Remote-*` headers. Any route that bypasses Traefik (another container on the same network, a LAN/VPN route) can forge `Remote-User` / `Remote-Groups`. Bind backends to internal networks only.
 
-- **The proxy must be the only way to reach the backend.** Identity is conveyed
-  by the `Remote-*` headers. If the backend is reachable by any path that
-  bypasses Traefik (another container on the same network, a LAN/VPN route),
-  that path can forge `Remote-User`/`Remote-Groups`. Bind backends to internal
-  networks only.
-
-- **Strip client-supplied `Remote-*` headers.** `authResponseHeaders` already
-  replaces the listed headers with Prohibitorum's verified values on an allowed
-  request, but ensure no other middleware re-introduces client-controlled
-  `Remote-*` headers toward the backend.
+- **No other middleware may introduce client-controlled `Remote-*` headers.** `authResponseHeaders` replaces the listed headers with Prohibitorum's verified values on an allowed request, but a middleware upstream of that replacement could reintroduce client values.
 
 - **HTTPS only**, valid certs, ideally HSTS — the per-domain cookie is `Secure`.
 
@@ -159,13 +106,15 @@ obligations, not optional hardening:
 
 ## Local dev harness
 
-To exercise the full browser flow locally — app → verify → authorize → callback → 200 with `Remote-*` headers — use the built-in dev harness:
-
 ```bash
 mise run dev:forward-auth
 ```
 
-On first run it writes a template to `.dev/dev-forward-auth.env` (gitignored) with `example.test` placeholder hostnames and cert paths. Fill in your real values (both hostnames must resolve to `127.0.0.1`), then re-run. The harness builds the binary, seeds a dev database, registers the forward-auth app client, starts a tiny `forward-auth-whoami` server that echoes the injected `Remote-*` headers, and generates a **Traefik** front (a static config at `.dev/traefik/traefik.yml` and a dynamic config at `.dev/traefik/dynamic.yml`) mirroring the canonical setup above — the forward-auth middleware, the per-domain `/.prohibitorum-forward-auth` router, and the backend services. If `traefik` is on your `PATH` the harness launches it for you; otherwise it prints the exact `traefik --configFile=…` command to run. (Traefik, not nginx: the verify endpoint answers an unauthenticated request with a `302` into the login flow, which Traefik's ForwardAuth forwards to the browser; nginx's `auth_request` cannot.) Open the protected app URL in a browser; after logging in you should see the identity headers echoed as plain text.
+On first run writes a template to `.dev/dev-forward-auth.env` (gitignored) with `example.test` placeholder hostnames and cert paths. Fill in real values (both hostnames must resolve to `127.0.0.1`), then re-run. The harness builds the binary, seeds a dev database, registers the forward-auth app client, starts a `forward-auth-whoami` server that echoes the injected `Remote-*` headers, and generates Traefik config (`.dev/traefik/traefik.yml` + `.dev/traefik/dynamic.yml`) mirroring the canonical setup. If `traefik` is on your `PATH` the harness launches it; otherwise it prints the `traefik --configFile=…` command.
+
+(Traefik, not nginx: the verify endpoint answers an unauthenticated request with a `302` into the login flow, which ForwardAuth forwards to the browser; nginx's `auth_request` cannot.)
+
+Open the protected app URL; after login you should see the identity headers echoed as plain text.
 
 ---
 
@@ -184,14 +133,7 @@ On first run it writes a template to `.dev/dev-forward-auth.env` (gitignored) wi
    Traefik forwards the request to the backend with those headers
 ```
 
-The endpoints:
-- **`GET /api/prohibitorum/forward-auth/verify`** — the ForwardAuth target:
-  `200` + identity headers (allowed), `302` to login (unauthenticated), or `403`
-  (the host is not a registered forward-auth service).
-- **`/.prohibitorum-forward-auth/callback`** — routed by you on each protected
-  domain to Prohibitorum; completes the OIDC exchange and sets the per-domain
-  cookie.
-- **`/.prohibitorum-forward-auth/sign_out`** — routed the same way; clears the
-  per-domain cookie + session and 302s to the IdP-domain
-  **`GET /api/prohibitorum/forward-auth/sso-logout`**, which terminates the SSO
-  session and redirects back only to a validated forward-auth host.
+Endpoints:
+- **`GET /api/prohibitorum/forward-auth/verify`** — the ForwardAuth target: `200` + identity headers (allowed), `302` to login (unauthenticated), or `403` (host not a registered forward-auth service).
+- **`/.prohibitorum-forward-auth/callback`** — routed by you on each protected domain to Prohibitorum; completes the OIDC exchange and sets the per-domain cookie.
+- **`/.prohibitorum-forward-auth/sign_out`** — routed the same way; clears the per-domain cookie + session and `302`s to **`GET /api/prohibitorum/forward-auth/sso-logout`**, which terminates the SSO session and redirects back only to a validated forward-auth host.
