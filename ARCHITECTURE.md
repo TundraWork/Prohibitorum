@@ -1,7 +1,5 @@
 # Prohibitorum — Architecture
 
-> Index Librorum Prohibitorum. The list of who's allowed and what they can do.
-
 A single-tenant identity provider for a small org. Owns the account directory, authenticates users via one of four upstream methods (WebAuthn, Password, TOTP, upstream OIDC federation), and issues identity assertions to downstream apps via OIDC OP or SAML 2.0 IdP.
 
 ## What this is (and isn't)
@@ -15,9 +13,9 @@ A single-tenant identity provider for a small org. Owns the account directory, a
 - A multi-tenant SaaS IdP (no per-tenant separation).
 - A SAML SP — Prohibitorum does **not** consume upstream SAML assertions; only OIDC federation goes upstream.
 - A social-login proxy in the consumer sense; "Sign in with Google" works only if an admin has registered Google as an upstream IdP and configured a provisioning mode.
-- An authorization policy engine (no OPA/Rego). A free-form `attributes` map per account flows into ID-token claims and SAML AttributeStatement; RPs enforce policy from those claims. The RBAC feature (v0.7) adds a *coarse per-app access gate* — whether a user may obtain a token/assertion for an app at all — but the RP still governs in-app policy from claims (including the `groups` claim). The two layers are distinct: IdP gates app access; RP gates in-app policy.
+- An authorization policy engine (no OPA/Rego). A free-form `attributes` map per account flows into ID-token claims and SAML AttributeStatement; RPs enforce policy from those claims. The RBAC feature adds a *coarse per-app access gate* — whether a user may obtain a token/assertion for an app at all — but the RP still governs in-app policy from claims (including the `groups` claim). The two layers are distinct: IdP gates app access; RP gates in-app policy.
 
-## Architecture — three-layer (Approach A)
+## Architecture — three-layer
 
 Industry-convergent layout drawn from Keycloak, Ory Kratos+Hydra, Authelia, Dex, Zitadel. Three layers, acyclic import graph:
 
@@ -27,7 +25,7 @@ Industry-convergent layout drawn from Keycloak, Ory Kratos+Hydra, Authelia, Dex,
 
 The `session` package is the contract between layers (2) and (3). Protocols don't know how the user authenticated; factors don't know what RPs consume the result.
 
-```
+```text
                       ┌──────────────────────────────────┐
                       │             Prohibitorum         │
                       │                                  │
@@ -55,22 +53,22 @@ The `session` package is the contract between layers (2) and (3). Protocols don'
 
 ### Package layout
 
-```
+```text
 pkg/
   account/                # directory: Account, list, disable, role, attributes
   credential/
     webauthn/             # WebAuthn registration + assertion
-    password/             # argon2id PHC hash store + verify (v0.2)
-    totp/                 # RFC 6238 + recovery codes; AES-GCM at-rest (v0.2)
+    password/             # argon2id PHC hash store + verify
+    totp/                 # RFC 6238 + recovery codes; AES-GCM at-rest
     pairing/              # device-pairing code (no bearer-token in URL)
     enrollment/           # invite/reset/add-device/bootstrap tokens
   federation/
-    oidc/                 # upstream OIDC RP (v0.3)
+    oidc/                 # upstream OIDC RP
   session/                # PG + KV-backed session, middleware
   authn/                  # login orchestrator + sudo + rate limit + middleware
   protocol/
-    oidc/                 # downstream OIDC OP (v0.4)
-    saml/                 # SAML 2.0 IdP (v0.5), GHES-compatible profile
+    oidc/                 # downstream OIDC OP
+    saml/                 # SAML 2.0 IdP, GHES-compatible profile
   server/                 # HTTP wiring, routes mounted from each subsystem
   contract/               # types exposed to dashboard / RPs
   audit/                  # credential_event writer
@@ -79,15 +77,15 @@ pkg/
 
 ## Authentication methods
 
-The four upstream methods, in preference order. Subsections tagged **(v0.X)** describe planned behavior for that version; v0.1 ships the schema and stub packages only.
+The four upstream methods, in preference order.
 
 ### WebAuthn (primary)
 
 ResidentKey=Required (discoverable credentials), UV=Required at register / Preferred at login. Sign-count regression detection writes `webauthn_credential.clone_warning_at` so the admin UI can surface suspected cloned authenticators. COSE algorithm, user handle, and `uv_initialized` are persisted per credential per WebAuthn L3 §4.
 
-When a user adds a passkey via `POST /api/prohibitorum/me/credentials/register/{begin,complete}`, v0.2 will offer to delete the account's password + TOTP + recovery codes in the same transaction (via `authn.DisableNonWebAuthnFallbacks`, currently stubbed). Default yes. The decision is captured server-side; no client-side bypass.
+When a user adds a passkey via `POST /api/prohibitorum/me/credentials/register/{begin,complete}`, Prohibitorum offers to delete the account's password + TOTP + recovery codes in the same transaction (via `authn.DisableNonWebAuthnFallbacks`). Default yes. The decision is captured server-side; no client-side bypass.
 
-### Password + TOTP (fallback, v0.2)
+### Password + TOTP (fallback)
 
 For users without passkey-capable devices. Both factors required; neither alone produces a session.
 
@@ -95,7 +93,7 @@ For users without passkey-capable devices. Both factors required; neither alone 
 - **TOTP.** AES-256-GCM at rest with versioned DEK (`PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>`); AAD = `'totp:'||account_id||':'||key_version` so ciphertext can't be copied between rows. Per RFC 6238: ±1 period drift, `totp_credential.last_step` defeats same-step replay (§5.2). SHA1 default for Google Authenticator interop.
 - **Recovery codes.** 10 codes shown once at TOTP enrollment; argon2id PHC at rest; single-use; redemption context (session, IP) captured for audit (`recovery_code.used_session_id`, `used_ip`).
 
-### Upstream OIDC federation (v0.3)
+### Upstream OIDC federation
 
 Per-IdP configuration in `upstream_idp` with three provisioning modes:
 
@@ -109,7 +107,7 @@ Federation state in KV at request time snapshots `expected_iss` and `expected_to
 
 ## Downstream protocols
 
-### OIDC OP (v0.4)
+### OIDC OP
 
 Authorization Code + PKCE only. Implicit / ROPC / Hybrid are not registered as accepted `response_type`s. Discovery + JWKS endpoints published. RS256 signing (key store unified with SAML; see "Cryptography").
 
@@ -120,9 +118,9 @@ Authorization Code + PKCE only. Implicit / ROPC / Hybrid are not registered as a
 - **Revocation (RFC 7009):** writes to `revoked_jti` for self-contained access tokens; `/oauth/introspect` returns `active: false`.
 - **RP-Initiated Logout:** `post_logout_redirect_uri` exact-matched against `oidc_client.post_logout_redirect_uris`.
 
-### SAML IdP (v0.5, extended v0.6)
+### SAML IdP
 
-SP-initiated SSO (HTTP-Redirect and HTTP-POST bindings for AuthnRequest; HTTP-POST binding for the Response) plus IdP-initiated SSO (v0.6, per-SP opt-in). `crewjam/saml` does the protocol heavy lifting.
+SP-initiated SSO (HTTP-Redirect and HTTP-POST bindings for AuthnRequest; HTTP-POST binding for the Response) plus IdP-initiated SSO (per-SP opt-in). `crewjam/saml` does the protocol heavy lifting.
 
 - **Assertion construction.** Always sign both `<Response>` and `<Assertion>`. `Destination` on `<Response>` = chosen ACS URL. `<SubjectConfirmationData Recipient>` = same ACS URL. `<Audience>` inside `<AudienceRestriction>` = `saml_sp.entity_id` verbatim.
 - **NameID stability** via `saml_subject_id(account_id, sp_id)`: 32-byte random opaque value generated on first SSO, reused forever (Core §8.3.7). Defeats GHES account re-linking on rename / email change.
@@ -131,7 +129,7 @@ SP-initiated SSO (HTTP-Redirect and HTTP-POST bindings for AuthnRequest; HTTP-PO
 - **AuthnContextClassRef:** `…PasswordProtectedTransport` for password+TOTP, `…unspecified` for WebAuthn (no standard passkey ref exists yet), `Comparison="exact"`.
 - **Metadata at `/saml/metadata`** publishes every `signing_key` row in the `{pending, active, decommissioning}` set, so verification continues across rotation (a decommissioning key lingers until its `retire_after` grace, default 7d, elapses).
 
-### Per-app access gate (RBAC, v0.7)
+### Per-app access gate (RBAC)
 
 A coarse access gate on top of the downstream protocols. New tables `user_group` + `group_member` (first-class groups and membership) and `oidc_client_access` / `saml_sp_access` (grants pointing at **either** a group or an account, `CHECK num_nonnulls(group_id, account_id) = 1`), plus an `access_restricted boolean NOT NULL DEFAULT false` column on `oidc_client` and `saml_sp`. A single sqlc predicate per protocol (`IsAccountAuthorizedFor{OIDCClient,SAMLSP}`) decides:
 
@@ -188,7 +186,7 @@ CLI parity: a `group` verb (`create|list|update|delete|add-member|remove-member`
 
 #### Signing-key lifecycle states
 
-```
+```text
 pending ──activate──► active ──activate(new)──► decommissioning ──reconcile──► retired
 ```
 
@@ -281,8 +279,6 @@ SAML IdP flow:
 
 ## Threat model
 
-New surfaces beyond v0.1's WebAuthn-only model:
-
 - **Password brute-force.** Per-account exponential backoff in `auth_throttle(account_id, factor='password')`, persistent across restarts (RFC 4226 §7.3). argon2id params tuned for ≥250ms/verify on prod hardware. No email-channel reset; admin enrollment token is the only recovery.
 - **TOTP code guessing.** 6-digit space = 10^6. Rate-limit ≤5 attempts / 5 min per account in `auth_throttle`. Same-step replay defeated by `totp_credential.last_step` (RFC 6238 §5.2).
 - **Recovery-code theft.** Codes shown exactly once, argon2id-hashed at rest, single-use, redemption context captured.
@@ -297,10 +293,10 @@ New surfaces beyond v0.1's WebAuthn-only model:
 - **SAML open-redirect via spoofed ACS URL.** Validated against `saml_sp_acs` rows (exact match → index lookup → is_default fallback) per Profiles §4.1.4.1.
 - **SAML NameID drift.** Stable `saml_subject_id(account_id, sp_id)` pairing — renames and email changes don't re-link GHES accounts (Core §8.3.7).
 - **SAML XML signature wrapping (XSW).** crewjam/saml's post-canonicalization signature verification; reject assertions with multiple `Signature` elements or unexpected structure.
-- **Stolen session cookie.** Live `account.disabled` check on every request + sudo for sensitive actions (carried over).
+- **Stolen session cookie.** Live `account.disabled` check on every request + sudo for sensitive actions.
 - **Bearer-token URL leak.** Device pairing avoids it; admin-issued recovery is the only bearer-token surface, gated by short TTL.
 
-See `AUDIT.md` for the per-layer compliance matrix and `STATUS.md` for the version-by-version delivery plan.
+See `AUDIT.md` for the per-layer compliance matrix and `STATUS.md` for delivery status.
 
 ## Out of scope
 
@@ -311,8 +307,8 @@ See `AUDIT.md` for the per-layer compliance matrix and `STATUS.md` for the versi
 - Dynamic OIDC client registration (RFC 7591)
 - Consent screen (first-party deployment assumption)
 - DPoP / PAR / JAR / mTLS / Pairwise sub
-- HSM / KMS-backed signing keys (optional production hardening; unscheduled)
+- HSM / KMS-backed signing keys (planned)
 - Authorization policy engine (RPs enforce; we just supply claims)
-- Audit-log export / SIEM integration (unscheduled)
+- Audit-log export / SIEM integration (planned)
 
-Each is a clean future addition without breaking the v0.x surface.
+Each is a clean future addition without breaking the existing surface.
