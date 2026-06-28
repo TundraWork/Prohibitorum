@@ -3,11 +3,12 @@
  * TokensView (/tokens) — list/revoke the caller's personal access tokens and
  * create one via a dialog that reveals the plaintext exactly once.
  *
- * GET  /me/tokens                 → PersonalAccessTokenView[]
- * POST /me/tokens                 → { token: string, pat: PersonalAccessTokenView }  (sudo-gated)
- * POST /me/tokens/revoke {id}     → 204
+ * GET  /me/tokens                  → PersonalAccessTokenView[]
+ * GET  /me/forward-auth-apps       → FAApp[]
+ * POST /me/tokens                  → { token: string, pat: PersonalAccessTokenView }  (sudo-gated)
+ * POST /me/tokens/revoke {id}      → 204
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Copy, Check, Terminal } from 'lucide-vue-next'
 import { api } from '@/lib/api'
@@ -19,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
@@ -26,14 +28,19 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
-import ScopeSelector from '@/components/custom/ScopeSelector.vue'
+
+interface FAApp {
+  clientId: string
+  displayName: string
+  scopes: { name: string; description?: string }[]
+}
 
 interface PersonalAccessTokenView {
   id: number
   name: string
   tokenHint: string
-  upstreamScopes: string[]
-  allowedClientIds: string[]
+  allApps: boolean
+  appGrants: Record<string, string[]>
   createdAt: string
   expiresAt?: string
   lastUsedAt?: string
@@ -41,15 +48,22 @@ interface PersonalAccessTokenView {
 
 const { t } = useI18n()
 const { busy, run, errorText } = useApi()
+// Separate instance so the apps prefetch never collides with the token-list
+// busy-guard (opening the dialog mid-prefetch must not no-op the apps fetch).
+const appsApi = useApi()
 
 const rows = ref<PersonalAccessTokenView[]>([])
 const confirmRevokeId = ref<number | null>(null)
+
+// Forward-auth apps (loaded on mount + on dialog open, for picker + name resolution)
+const apps = ref<FAApp[]>([])
 
 // Create dialog state
 const createOpen = ref(false)
 const newName = ref('')
 const newExpiry = ref('0')  // '0' = no expiry, '30', '90' = days
-const newScopes = ref<string[]>([])
+const allApps = ref(false)
+const grants = ref<Record<string, string[]>>({})
 
 // Reveal state (after creation)
 const revealToken = ref<string | null>(null)
@@ -59,6 +73,38 @@ const savedConfirmed = ref(false)
 
 function isExpired(pat: PersonalAccessTokenView): boolean {
   return !!pat.expiresAt && new Date(pat.expiresAt) < new Date()
+}
+
+/** Resolve a clientId to its display name via the loaded apps list. */
+function appName(clientId: string): string {
+  return apps.value.find((a) => a.clientId === clientId)?.displayName ?? clientId
+}
+
+function toggleApp(cid: string, on: boolean): void {
+  if (on) {
+    grants.value = { ...grants.value, [cid]: [] }
+  } else {
+    const g = { ...grants.value }
+    delete g[cid]
+    grants.value = g
+  }
+}
+
+function toggleScope(cid: string, name: string, on: boolean): void {
+  const cur = grants.value[cid] ?? []
+  grants.value = {
+    ...grants.value,
+    [cid]: on ? [...cur, name] : cur.filter((s) => s !== name),
+  }
+}
+
+const canSubmit = computed(
+  () => newName.value.trim() && (allApps.value || Object.keys(grants.value).length > 0),
+)
+
+async function loadApps(): Promise<void> {
+  const res = await appsApi.run(() => api.get<FAApp[]>('/api/prohibitorum/me/forward-auth-apps'))
+  if (res) apps.value = res
 }
 
 async function load(): Promise<void> {
@@ -78,12 +124,12 @@ async function revoke(): Promise<void> {
 }
 
 async function create(): Promise<void> {
-  const body: { name: string; expiresInDays?: number; upstreamScopes?: string[] } = {
+  const body = {
     name: newName.value.trim(),
+    expiresInDays: parseInt(newExpiry.value, 10) || undefined,
+    allApps: allApps.value,
+    appGrants: allApps.value ? {} : grants.value,
   }
-  const days = parseInt(newExpiry.value, 10)
-  if (days > 0) body.expiresInDays = days
-  if (newScopes.value.length > 0) body.upstreamScopes = [...newScopes.value]
 
   const res = await run(() =>
     withSudo(
@@ -114,15 +160,18 @@ async function copyToken(): Promise<void> {
   }
 }
 
-function openCreate(): void {
+async function openCreate(): Promise<void> {
   newName.value = ''
   newExpiry.value = '0'
-  newScopes.value = []
+  allApps.value = false
+  grants.value = {}
   revealToken.value = null
   savedConfirmed.value = false
   copied.value = false
   copyFailed.value = false
   createOpen.value = true
+  // Fetch the apps list so the picker is populated.
+  await loadApps()
 }
 
 function closeCreate(): void {
@@ -131,7 +180,11 @@ function closeCreate(): void {
   revealToken.value = null
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  // Load apps list in the background for name resolution in the list view.
+  void loadApps()
+})
 </script>
 
 <template>
@@ -165,20 +218,24 @@ onMounted(load)
               <template v-if="r.lastUsedAt">{{ relativeTime(r.lastUsedAt) }}</template>
               <template v-else>{{ t('tokens.neverUsed') }}</template>
             </span>
-            <div v-if="r.upstreamScopes.length" class="mt-1 flex flex-wrap gap-1">
-              <span
-                v-for="s in r.upstreamScopes"
-                :key="s"
-                class="inline-flex items-center rounded border border-border bg-sunken px-1.5 py-0.5 font-mono text-xs text-muted"
-              >{{ s }}</span>
+            <!-- Per-app grants display -->
+            <div v-if="r.allApps" class="mt-1">
+              <span class="inline-flex items-center rounded border border-border bg-sunken px-1.5 py-0.5 text-xs text-muted">
+                {{ t('tokens.allAppsLabel') }}
+              </span>
             </div>
-            <div v-if="r.allowedClientIds.length" class="mt-1 flex flex-wrap items-center gap-1">
-              <span class="text-muted">{{ t('tokens.allowedClients') }}:</span>
-              <span
-                v-for="c in r.allowedClientIds"
-                :key="c"
-                class="inline-flex items-center rounded border border-border bg-sunken px-1.5 py-0.5 font-mono text-xs text-muted"
-              >{{ c }}</span>
+            <div v-else-if="Object.keys(r.appGrants).length" class="mt-1 flex flex-col gap-1">
+              <div v-for="(scopes, clientId) in r.appGrants" :key="clientId" class="flex flex-wrap items-center gap-1">
+                <span class="text-xs font-medium text-ink">{{ appName(String(clientId)) }}</span>
+                <template v-if="scopes.length">
+                  <span
+                    v-for="s in scopes"
+                    :key="s"
+                    class="inline-flex items-center rounded border border-border bg-sunken px-1.5 py-0.5 font-mono text-xs text-muted"
+                  >{{ s }}</span>
+                </template>
+                <span v-else class="text-xs text-muted">({{ t('tokens.allScopesLabel') }})</span>
+              </div>
             </div>
           </div>
           <Button variant="outline" size="sm" class="shrink-0" :disabled="busy" data-test="revoke" @click="confirmRevokeId = r.id">
@@ -236,10 +293,40 @@ onMounted(load)
               </Select>
             </div>
 
-            <div class="flex flex-col gap-1.5">
-              <Label>{{ t('tokens.scopesLabel') }}</Label>
-              <ScopeSelector :known="[]" :allow-custom="true" v-model="newScopes" />
-              <p class="text-xs text-muted">{{ t('tokens.scopesHint') }}</p>
+            <!-- App + scope picker -->
+            <div class="flex flex-col gap-3">
+              <label class="flex cursor-pointer items-center gap-2 text-sm text-ink">
+                <Switch v-model="allApps" data-test="all-apps" />
+                <span>{{ t('tokens.allAppsLabel') }}</span>
+              </label>
+              <template v-if="!allApps">
+                <p class="text-xs text-muted">{{ t('tokens.appsHelp') }}</p>
+                <div v-for="a in apps" :key="a.clientId" class="rounded-md border border-border p-3">
+                  <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-ink">
+                    <Checkbox
+                      :model-value="a.clientId in grants"
+                      data-test="app"
+                      @update:model-value="(v) => toggleApp(a.clientId, Boolean(v))"
+                    />
+                    <span>{{ a.displayName }}</span>
+                  </label>
+                  <div v-if="a.clientId in grants && a.scopes.length" class="mt-2 flex flex-col gap-1 pl-6">
+                    <label
+                      v-for="sc in a.scopes"
+                      :key="sc.name"
+                      class="flex cursor-pointer items-center gap-2 text-sm text-ink"
+                    >
+                      <Checkbox
+                        :model-value="(grants[a.clientId] ?? []).includes(sc.name)"
+                        @update:model-value="(v) => toggleScope(a.clientId, sc.name, Boolean(v))"
+                      />
+                      <span class="font-mono">{{ sc.name }}</span>
+                      <span v-if="sc.description" class="text-muted">— {{ sc.description }}</span>
+                    </label>
+                  </div>
+                </div>
+                <EmptyState v-if="!apps.length" :icon="Terminal" :title="t('tokens.noApps')" />
+              </template>
             </div>
 
             <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
@@ -249,7 +336,7 @@ onMounted(load)
             <div class="flex gap-2">
               <Button
                 type="button"
-                :disabled="busy || !newName.trim()"
+                :disabled="busy || !canSubmit"
                 data-test="token-create-submit"
                 @click="create"
               >
