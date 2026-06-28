@@ -94,6 +94,7 @@ type Querier interface {
 	GetGroupBySlug(ctx context.Context, slug string) (UserGroup, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
 	GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error)
+	GetPATByTokenHash(ctx context.Context, tokenHash []byte) (PersonalAccessToken, error)
 	GetPasswordCredential(ctx context.Context, accountID int32) (PasswordCredential, error)
 	GetSAMLSPByEntityID(ctx context.Context, entityID string) (SamlSp, error)
 	GetSAMLSPByID(ctx context.Context, id int64) (SamlSp, error)
@@ -115,6 +116,7 @@ type Querier interface {
 	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
+	InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalAccessToken, error)
 	InsertPendingSigningKey(ctx context.Context, arg InsertPendingSigningKeyParams) (SigningKey, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) (RecoveryCode, error)
 	InsertRevokedJTI(ctx context.Context, arg InsertRevokedJTIParams) error
@@ -155,6 +157,7 @@ type Querier interface {
 	ListOIDCClientAccessAccounts(ctx context.Context, clientID string) ([]ListOIDCClientAccessAccountsRow, error)
 	ListOIDCClientAccessGroups(ctx context.Context, clientID string) ([]ListOIDCClientAccessGroupsRow, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
+	ListPATsByAccount(ctx context.Context, accountID int32) ([]PersonalAccessToken, error)
 	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
 	ListPublishableSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
@@ -182,6 +185,7 @@ type Querier interface {
 	RevokeInvitation(ctx context.Context, token string) (Enrollment, error)
 	RevokeOIDCClientAccessAccount(ctx context.Context, arg RevokeOIDCClientAccessAccountParams) (int64, error)
 	RevokeOIDCClientAccessGroup(ctx context.Context, arg RevokeOIDCClientAccessGroupParams) (int64, error)
+	RevokePAT(ctx context.Context, arg RevokePATParams) (int64, error)
 	RevokeSAMLSPAccessAccount(ctx context.Context, arg RevokeSAMLSPAccessAccountParams) (int64, error)
 	RevokeSAMLSPAccessGroup(ctx context.Context, arg RevokeSAMLSPAccessGroupParams) (int64, error)
 	RevokeSession(ctx context.Context, id string) error
@@ -199,6 +203,7 @@ type Querier interface {
 	SetSAMLSPAccessRestricted(ctx context.Context, arg SetSAMLSPAccessRestrictedParams) (SamlSp, error)
 	SetSAMLSPDisabled(ctx context.Context, arg SetSAMLSPDisabledParams) (SamlSp, error)
 	SetUpstreamIDPDisabled(ctx context.Context, arg SetUpstreamIDPDisabledParams) (UpstreamIdp, error)
+	TouchPATLastUsed(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateAccountDisplayName(ctx context.Context, arg UpdateAccountDisplayNameParams) error
 	// Refreshes an account's email from a verified upstream on re-login (federation

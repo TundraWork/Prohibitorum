@@ -150,6 +150,20 @@ type PasswordCredential struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updatedAt"`
 }
 
+type PersonalAccessToken struct {
+	ID               int32              `json:"id"`
+	AccountID        int32              `json:"accountId"`
+	Name             string             `json:"name"`
+	TokenHash        []byte             `json:"tokenHash"`
+	TokenHint        string             `json:"tokenHint"`
+	UpstreamScopes   []string           `json:"upstreamScopes"`
+	AllowedClientIds []string           `json:"allowedClientIds"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
+	ExpiresAt        pgtype.Timestamptz `json:"expiresAt"`
+	LastUsedAt       pgtype.Timestamptz `json:"lastUsedAt"`
+	RevokedAt        pgtype.Timestamptz `json:"revokedAt"`
+}
+
 type RecoveryCode struct {
 	ID            int32              `json:"id"`
 	AccountID     int32              `json:"accountId"`
