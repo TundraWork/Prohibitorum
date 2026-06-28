@@ -154,11 +154,12 @@ onMounted(load)
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
             <div class="flex min-w-0 items-center gap-2">
               <span class="min-w-0 truncate font-medium text-ink" data-test="token-name">{{ r.name }}</span>
-              <StatusBadge v-if="isExpired(r)" variant="caution" class="shrink-0">{{ t('tokens.expired') }}</StatusBadge>
+              <StatusBadge v-if="isExpired(r)" variant="danger" class="shrink-0">{{ t('tokens.expired') }}</StatusBadge>
             </div>
             <span class="truncate text-muted">{{ t('tokens.hint') }}: <span class="font-mono">{{ r.tokenHint }}</span></span>
             <span class="truncate text-muted">{{ t('tokens.created') }}: {{ relativeTime(r.createdAt) }}</span>
             <span v-if="r.expiresAt" class="truncate text-muted">{{ t('tokens.expires') }}: {{ formatDateTime(r.expiresAt) }}</span>
+            <span v-else class="truncate text-muted">{{ t('tokens.expires') }}: {{ t('tokens.expiryNever') }}</span>
             <span class="truncate text-muted">
               {{ t('tokens.lastUsed') }}:
               <template v-if="r.lastUsedAt">{{ relativeTime(r.lastUsedAt) }}</template>
@@ -171,7 +172,8 @@ onMounted(load)
                 class="inline-flex items-center rounded border border-border bg-sunken px-1.5 py-0.5 font-mono text-xs text-muted"
               >{{ s }}</span>
             </div>
-            <div v-if="r.allowedClientIds.length" class="mt-1 flex flex-wrap gap-1">
+            <div v-if="r.allowedClientIds.length" class="mt-1 flex flex-wrap items-center gap-1">
+              <span class="text-muted">{{ t('tokens.allowedClients') }}:</span>
               <span
                 v-for="c in r.allowedClientIds"
                 :key="c"
@@ -203,7 +205,7 @@ onMounted(load)
     <Dialog :open="createOpen" @update:open="(v) => { if (!v) closeCreate() }">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{{ t('tokens.createTitle') }}</DialogTitle>
+          <DialogTitle>{{ revealToken ? t('tokens.revealTitle') : t('tokens.createTitle') }}</DialogTitle>
         </DialogHeader>
 
         <!-- Form state: shown before creation -->
@@ -272,7 +274,7 @@ onMounted(load)
                 <span>{{ copied ? t('common.copied') : t('tokens.copy') }}</span>
               </Button>
             </div>
-            <p v-if="copyFailed" class="text-xs text-destructive" role="alert">{{ t('common.error') }}</p>
+            <p v-if="copyFailed" class="text-xs text-destructive" role="alert">{{ t('tokens.copyFailed') }}</p>
 
             <label class="flex cursor-pointer items-center gap-2 text-sm text-ink">
               <Checkbox v-model="savedConfirmed" data-test="token-saved" />
