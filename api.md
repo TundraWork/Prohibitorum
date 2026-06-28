@@ -154,8 +154,8 @@ Gate notation for this section:
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/me/tokens` | 🔓 | List the calling user's PATs. Returns `id`, `displayName`, `hint` (last 4 characters of the token), `createdAt`, `expiresAt`, `lastUsedAt`, `upstreamScopes`. The raw token secret is **never returned** after creation. |
-| POST | `/api/prohibitorum/me/tokens` | 🔐 | Create a new PAT. Body: `{displayName, expiresAt?, upstreamScopes?}`. Generates a cryptographically random token; returns the cleartext in `token` **once only** — only the hash is persisted. |
+| GET | `/api/prohibitorum/me/tokens` | 🔓 | List the calling user's PATs. Each row: `id`, `name`, `tokenHint` (non-secret display aid = token prefix + last 4 chars, e.g. `prohibitorum_pat_…a1b2`), `upstreamScopes`, `allowedClientIds`, `createdAt`, `expiresAt` (omitted when no expiry), `lastUsedAt` (omitted until first use). The raw token secret is **never returned** here. |
+| POST | `/api/prohibitorum/me/tokens` | 🔐 | Create a new PAT. Body: `{name, expiresInDays?, upstreamScopes?, allowedClientIds?}`. `name` is required (1–128 chars). `expiresInDays` is an **integer number of days** (not a timestamp): omitted or `0` = no expiry; valid range 1–3650; a negative value or one above 3650 is rejected (`bad_request`). Generates a cryptographically random token; the response is `{token, pat}` where `token` is the plaintext, revealed **once only** — only the hash is persisted. |
 | POST | `/api/prohibitorum/me/tokens/revoke` | 🔓 | Body: `{"id": <int>}`. Revokes the specified PAT. The caller must own the token; revoking another user's token returns 404. |
 
 `upstreamScopes` is a list of opaque capability labels forwarded as `Remote-Scopes` at the verify endpoint. The gateway does not interpret them — the upstream service enforces them.
