@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound, Settings, Waypoints, LayoutGrid } from 'lucide-vue-next'
+import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, Users, Ticket, AppWindow, Building2, Network, KeySquare, ScrollText, UsersRound, Settings, Waypoints, LayoutGrid, Terminal } from 'lucide-vue-next'
 import NavUser from '@/components/custom/NavUser.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/custom/ThemeToggle.vue'
@@ -32,6 +32,7 @@ const isActive = (to: string) =>
 const accountItems = computed(() => [
   { to: '/security', label: t('nav.security'), icon: KeyRound },
   { to: '/sessions', label: t('nav.sessions'), icon: MonitorSmartphone },
+  { to: '/tokens', label: t('nav.tokens'), icon: Terminal },
   { to: '/connected', label: t('nav.connected'), icon: Link2 },
   { to: '/devices', label: t('nav.devices'), icon: TabletSmartphone },
   { to: '/app-access', label: t('nav.appAccess'), icon: ShieldCheck },

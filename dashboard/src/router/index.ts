@@ -101,6 +101,7 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
     children: [
       { path: '/sessions', name: 'sessions', component: () => import('../pages/SessionsView.vue'), meta: { titleKey: 'title.sessions' } },
+      { path: '/tokens', name: 'tokens', component: () => import('../pages/TokensView.vue'), meta: { titleKey: 'title.tokens' } },
       { path: '/security', name: 'security', component: () => import('../pages/SecurityView.vue'), meta: { titleKey: 'title.security' } },
       { path: '/connected', name: 'connected', component: () => import('../pages/ConnectedAccountsView.vue'), meta: { titleKey: 'title.connected' } },
       { path: '/devices', name: 'devices', component: () => import('../pages/DevicesView.vue'), meta: { titleKey: 'title.devices' } },
