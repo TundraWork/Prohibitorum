@@ -18,6 +18,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -30,13 +32,41 @@ import (
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
+// faScopeNameRe requires a scope name to start AND end with an alphanumeric;
+// dot/dash/underscore/colon are allowed only internally. This rejects leading or
+// trailing separators (e.g. "-bad", "a.", ":bad") while still accepting
+// "repo:read", "a.b-c", and single-char names.
+var faScopeNameRe = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._:-]*[a-zA-Z0-9])?$`)
+
+// validateFAScopes returns normalized scopes (or an error) — names must match
+// the label pattern and be unique, and descriptions are capped. nil/empty is
+// valid (no vocabulary).
+func validateFAScopes(in []contract.ForwardAuthScope) ([]contract.ForwardAuthScope, error) {
+	seen := map[string]bool{}
+	out := make([]contract.ForwardAuthScope, 0, len(in))
+	for _, sc := range in {
+		name := strings.TrimSpace(sc.Name)
+		if name == "" || len(name) > 64 || !faScopeNameRe.MatchString(name) || seen[name] {
+			return nil, authn.ErrBadRequest()
+		}
+		desc := strings.TrimSpace(sc.Description)
+		if len(desc) > 256 {
+			return nil, authn.ErrBadRequest()
+		}
+		seen[name] = true
+		out = append(out, contract.ForwardAuthScope{Name: name, Description: desc})
+	}
+	return out, nil
+}
+
 // forwardAuthAppView projects the common FA columns into the wire view. Shared
 // by every FA row shape (list/get/update) since they select the same columns.
-func forwardAuthAppView(clientID, displayName string, host pgtype.Text, accessRestricted, disabled bool, createdAt pgtype.Timestamptz) contract.ForwardAuthAppView {
+func forwardAuthAppView(clientID, displayName string, host pgtype.Text, scopesJSON []byte, accessRestricted, disabled bool, createdAt pgtype.Timestamptz) contract.ForwardAuthAppView {
 	v := contract.ForwardAuthAppView{
 		ClientID:         clientID,
 		DisplayName:      displayName,
 		ForwardAuthHost:  host.String, // "" when !Valid
+		Scopes:           parseFAScopes(scopesJSON),
 		AccessRestricted: accessRestricted,
 		Disabled:         disabled,
 	}
@@ -66,7 +96,7 @@ func (s *Server) handleListForwardAuthApps(ctx context.Context, _ *struct{}) (*l
 	}
 	views := make([]contract.ForwardAuthAppView, 0, len(rows))
 	for _, r := range rows {
-		views = append(views, forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.AccessRestricted, r.Disabled, r.CreatedAt))
+		views = append(views, forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt))
 	}
 	return &listForwardAuthAppsOut{Body: views}, nil
 }
@@ -89,7 +119,7 @@ func (s *Server) handleGetForwardAuthApp(ctx context.Context, in *getForwardAuth
 		}
 		return nil, fmt.Errorf("handleGetForwardAuthApp: %w", err)
 	}
-	view := forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.AccessRestricted, r.Disabled, r.CreatedAt)
+	view := forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt)
 	view.IconURL = entityIconURLPtr("oidc_client", r.ClientID, s.lookupEntityIconEtag(ctx, "oidc_client", r.ClientID))
 	return &forwardAuthAppOut{Body: view}, nil
 }
@@ -97,9 +127,10 @@ func (s *Server) handleGetForwardAuthApp(ctx context.Context, in *getForwardAuth
 // ----- POST /forward-auth-apps (raw, sudo-gated) -----------------------------
 
 type createForwardAuthAppBody struct {
-	ClientID    string `json:"clientId"`
-	Host        string `json:"host"`
-	DisplayName string `json:"displayName"`
+	ClientID    string                   `json:"clientId"`
+	Host        string                   `json:"host"`
+	DisplayName string                   `json:"displayName"`
+	Scopes      []contract.ForwardAuthScope `json:"scopes"`
 }
 
 func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +144,13 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	validated, err := validateFAScopes(body.Scopes)
+	if err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	scopesJSON, _ := json.Marshal(validated)
+
 	c, err := oidc.RegisterForwardAuthApp(r.Context(), s.queries, body.ClientID, body.Host, body.DisplayName)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -120,6 +158,18 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 			return
 		}
 		writeAuthErr(w, fmt.Errorf("handleCreateForwardAuthApp: %w", err))
+		return
+	}
+
+	// The scope vocabulary is written as a third, non-transactional write after
+	// RegisterForwardAuthApp's own two writes. A transient failure here leaves a
+	// fully-created forward-auth app with an empty scope vocabulary, which the
+	// admin can recover by saving scopes again via the FA-app PUT.
+	if err := s.queries.SetForwardAuthScopes(r.Context(), db.SetForwardAuthScopesParams{
+		ClientID:          body.ClientID,
+		ForwardAuthScopes: scopesJSON,
+	}); err != nil {
+		writeAuthErr(w, fmt.Errorf("handleCreateForwardAuthApp: set scopes: %w", err))
 		return
 	}
 
@@ -134,7 +184,7 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 	// flag/host update is applied by RegisterForwardAuthApp's SetForwardAuthConfig
 	// call). Build the view from known create-time values: a fresh FA app is
 	// never access-restricted and is enabled.
-	view := forwardAuthAppView(c.ClientID, c.DisplayName, pgtype.Text{String: body.Host, Valid: true}, false, c.Disabled, c.CreatedAt)
+	view := forwardAuthAppView(c.ClientID, c.DisplayName, pgtype.Text{String: body.Host, Valid: true}, scopesJSON, false, c.Disabled, c.CreatedAt)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(view)
@@ -143,8 +193,9 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 // ----- PUT /forward-auth-apps/{clientId} (raw, sudo-gated) -------------------
 
 type updateForwardAuthAppBody struct {
-	DisplayName string `json:"displayName"`
-	Host        string `json:"host"`
+	DisplayName string                      `json:"displayName"`
+	Host        string                      `json:"host"`
+	Scopes      []contract.ForwardAuthScope `json:"scopes"`
 }
 
 func (s *Server) handleUpdateForwardAuthAppHTTP(w http.ResponseWriter, r *http.Request) {
@@ -163,11 +214,19 @@ func (s *Server) handleUpdateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	validated, err := validateFAScopes(body.Scopes)
+	if err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	scopesJSON, _ := json.Marshal(validated)
+
 	row, err := s.queries.UpdateForwardAuthApp(r.Context(), db.UpdateForwardAuthAppParams{
-		ClientID:        clientID,
-		DisplayName:     body.DisplayName,
-		RedirectUris:    []string{oidc.ForwardAuthCallbackURI(body.Host)},
-		ForwardAuthHost: pgtype.Text{String: body.Host, Valid: true},
+		ClientID:          clientID,
+		DisplayName:       body.DisplayName,
+		RedirectUris:      []string{oidc.ForwardAuthCallbackURI(body.Host)},
+		ForwardAuthHost:   pgtype.Text{String: body.Host, Valid: true},
+		ForwardAuthScopes: scopesJSON,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -189,7 +248,7 @@ func (s *Server) handleUpdateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		Detail:    map[string]any{"client_id": clientID, "forward_auth": true, "host": body.Host},
 	})
 
-	writeJSON(w, forwardAuthAppView(row.ClientID, row.DisplayName, row.ForwardAuthHost, row.AccessRestricted, row.Disabled, row.CreatedAt))
+	writeJSON(w, forwardAuthAppView(row.ClientID, row.DisplayName, row.ForwardAuthHost, row.ForwardAuthScopes, row.AccessRestricted, row.Disabled, row.CreatedAt))
 }
 
 // ----- POST /forward-auth-apps/set-disabled (raw, admin-only, no sudo) -------
@@ -240,7 +299,7 @@ func (s *Server) handleSetForwardAuthAppDisabledHTTP(w http.ResponseWriter, r *h
 	})
 
 	// SetOIDCClientDisabled returns a full OidcClient; project only FA fields.
-	writeJSON(w, forwardAuthAppView(c.ClientID, c.DisplayName, c.ForwardAuthHost, c.AccessRestricted, c.Disabled, c.CreatedAt))
+	writeJSON(w, forwardAuthAppView(c.ClientID, c.DisplayName, c.ForwardAuthHost, c.ForwardAuthScopes, c.AccessRestricted, c.Disabled, c.CreatedAt))
 }
 
 // ----- POST /forward-auth-apps/delete (raw, sudo-gated) ----------------------

@@ -539,13 +539,14 @@ var OperationGetOIDCApplication = huma.Operation{
 // clients are public (PKCE) and carry no secret, so there is no secret material
 // to leak.
 type ForwardAuthAppView struct {
-	ClientID         string    `json:"clientId"`
-	DisplayName      string    `json:"displayName"`
-	IconURL          *string   `json:"iconUrl,omitempty"`
-	ForwardAuthHost  string    `json:"forwardAuthHost"`
-	AccessRestricted bool      `json:"accessRestricted"`
-	Disabled         bool      `json:"disabled"`
-	CreatedAt        time.Time `json:"createdAt"`
+	ClientID         string             `json:"clientId"`
+	DisplayName      string             `json:"displayName"`
+	IconURL          *string            `json:"iconUrl,omitempty"`
+	ForwardAuthHost  string             `json:"forwardAuthHost"`
+	Scopes           []ForwardAuthScope `json:"scopes"`
+	AccessRestricted bool               `json:"accessRestricted"`
+	Disabled         bool               `json:"disabled"`
+	CreatedAt        time.Time          `json:"createdAt"`
 }
 
 var OperationListForwardAuthApps = huma.Operation{
