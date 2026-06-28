@@ -68,6 +68,7 @@ const (
 	nHardening  = 12
 	nConsent    = 2
 	nAdmin      = 8
+	nPAT        = 6
 )
 
 func main() {
@@ -2079,7 +2080,9 @@ func main() {
 			log.Fatalf("saml consent — re-prompt: parse Location: %v", err)
 		}
 		ticket2 := reproLocU.Query().Get("ticket")
-		var cr struct{ Redirect string `json:"redirect"` }
+		var cr struct {
+			Redirect string `json:"redirect"`
+		}
 		if err := c.postJSON("/api/prohibitorum/saml-consent", map[string]string{
 			"ticket": ticket2, "decision": "approve",
 		}, &cr); err != nil {
@@ -2772,7 +2775,9 @@ func main() {
 				log.Fatalf("/saml/sso/init (pre-consent): parse Location: %v", perr)
 			}
 			initTicket := initConsentLocU.Query().Get("ticket")
-			var initCR struct{ Redirect string `json:"redirect"` }
+			var initCR struct {
+				Redirect string `json:"redirect"`
+			}
 			if err := c.postJSON("/api/prohibitorum/saml-consent", map[string]string{
 				"ticket": initTicket, "decision": "approve",
 			}, &initCR); err != nil {
@@ -4190,8 +4195,148 @@ func main() {
 		log.Printf("  SAML malformed SAMLRequest → 302 %s ✓", loc)
 	}
 
+	// =====================================================================
+	// pat — Personal Access Tokens as forward-auth (gateway) credentials.
+	//
+	// A PAT is presented as `Authorization: Bearer` to the public
+	// forward-auth verify endpoint; the app is resolved from
+	// X-Forwarded-Host. A valid PAT for a non-restricted FA app → 200 with
+	// the authoritative Remote-* identity headers (Remote-Scopes = the PAT's
+	// comma-joined upstream_scopes). A bogus Bearer → 401. A PAT whose
+	// allow-list excludes the resolved app → 403.
+	//
+	// All four sudo-gated mutations below (2 FA-app creates + 2 PAT creates)
+	// ride a SINGLE fresh sudo elevation: SudoTTL is 15m and sudo is
+	// multi-use until expiry, so one /me/sudo/begin stays well within the
+	// 10/min per-session rate limit.
+	// =====================================================================
+	{
+		const (
+			faHost1   = "smoke-fa.example.test"
+			faHost2   = "smoke-fa2.example.test"
+			faClient  = "smoke-fa"
+			faClient2 = "smoke-fa2"
+			patScope  = "smoke:read"
+		)
+		verifyURL := *baseURL + "/api/prohibitorum/forward-auth/verify"
+
+		step(fmt.Sprintf("pat %d/%d — fresh webauthn session + sudo + register forward-auth app #1 (host=%s)", 1, nPAT, faHost1))
+		// /me/sudo/begin is rate-limited per session (10/min, keyed on the
+		// session id). The earlier arcs (federation/admin/avatar) burned through
+		// this session's budget, so log out and re-login for a clean sudo budget
+		// before the PAT block's four sudo-gated mutations — mirroring the
+		// core-arc "fresh login to reset per-session sudo rate limit" step.
+		if err := c.logout(); err != nil {
+			log.Fatalf("pat: logout pre-sudo-refresh: %v", err)
+		}
+		patBegin, err := c.beginLogin()
+		if err != nil {
+			log.Fatalf("pat: relogin/begin: %v", err)
+		}
+		patSigned, err := auth.signAssertion(patBegin.Challenge, *baseURL)
+		if err != nil {
+			log.Fatalf("pat: relogin sign: %v", err)
+		}
+		if err := c.completeLogin(auth, patSigned); err != nil {
+			log.Fatalf("pat: relogin/complete: %v", err)
+		}
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("pat: sudo webauthn (pre forward-auth-app create): %v", err)
+		}
+		registerForwardAuthApp(c, faClient, faHost1, "Smoke FA")
+		log.Printf("  forward-auth app registered: client_id=%s host=%s ✓", faClient, faHost1)
+
+		step(fmt.Sprintf("pat %d/%d — POST /me/tokens (upstreamScopes=[%s]) → plaintext once", 2, nPAT, patScope))
+		var created struct {
+			Token string `json:"token"`
+			PAT   struct {
+				ID             int32    `json:"id"`
+				TokenHint      string   `json:"tokenHint"`
+				UpstreamScopes []string `json:"upstreamScopes"`
+			} `json:"pat"`
+		}
+		if err := c.postJSON("/api/prohibitorum/me/tokens", map[string]any{
+			"name":           "smoke-pat",
+			"expiresInDays":  1,
+			"upstreamScopes": []string{patScope},
+		}, &created); err != nil {
+			log.Fatalf("pat: POST /me/tokens: %v", err)
+		}
+		if created.Token == "" {
+			log.Fatalf("pat: created PAT token is empty")
+		}
+		if created.PAT.TokenHint == "" {
+			log.Fatalf("pat: created PAT tokenHint is empty")
+		}
+		log.Printf("  PAT created: id=%d hint=%s scopes=%v (plaintext len=%d) ✓",
+			created.PAT.ID, created.PAT.TokenHint, created.PAT.UpstreamScopes, len(created.Token))
+
+		step(fmt.Sprintf("pat %d/%d — forward-auth verify (Bearer PAT, host=%s) → 200 + Remote-User/Remote-Scopes", 3, nPAT, faHost1))
+		{
+			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+created.Token)
+			if status != http.StatusOK {
+				log.Fatalf("pat: verify success: want 200, got %d — %s", status, firstN(body, 200))
+			}
+			if got := hdr.Get("Remote-User"); got != *username {
+				log.Fatalf("pat: Remote-User: want %q, got %q", *username, got)
+			}
+			if got := hdr.Get("Remote-Scopes"); got != patScope {
+				log.Fatalf("pat: Remote-Scopes: want %q, got %q", patScope, got)
+			}
+			log.Printf("  200 Remote-User=%s Remote-Scopes=%s ✓", hdr.Get("Remote-User"), hdr.Get("Remote-Scopes"))
+		}
+
+		step(fmt.Sprintf("pat %d/%d — forward-auth verify (bogus Bearer) → 401", 4, nPAT))
+		{
+			status, _, body := forwardAuthVerify(verifyURL, faHost1, "Bearer prohibitorum_pat_bogus")
+			if status != http.StatusUnauthorized {
+				log.Fatalf("pat: bogus Bearer: want 401, got %d — %s", status, firstN(body, 200))
+			}
+			log.Printf("  bogus Bearer → 401 ✓")
+		}
+
+		step(fmt.Sprintf("pat %d/%d — app-restricted PAT (allowedClientIds=[%s]) against host=%s → 403", 5, nPAT, faClient, faHost2))
+		// Register a SECOND forward-auth app, then mint a PAT pinned to the
+		// FIRST app only. Verifying it against the second app's host must 403
+		// (valid owner, valid credential, but not allowed for this app).
+		registerForwardAuthApp(c, faClient2, faHost2, "Smoke FA 2")
+		log.Printf("  forward-auth app #2 registered: client_id=%s host=%s ✓", faClient2, faHost2)
+		var created2 struct {
+			Token string `json:"token"`
+		}
+		if err := c.postJSON("/api/prohibitorum/me/tokens", map[string]any{
+			"name":             "smoke-pat2",
+			"expiresInDays":    1,
+			"allowedClientIds": []string{faClient},
+		}, &created2); err != nil {
+			log.Fatalf("pat: POST /me/tokens (restricted): %v", err)
+		}
+		if created2.Token == "" {
+			log.Fatalf("pat: restricted PAT token is empty")
+		}
+		{
+			status, _, body := forwardAuthVerify(verifyURL, faHost2, "Bearer "+created2.Token)
+			if status != http.StatusForbidden {
+				log.Fatalf("pat: app-restriction: want 403, got %d — %s", status, firstN(body, 200))
+			}
+			log.Printf("  PAT restricted to %s, verified against %s → 403 ✓", faClient, faHost2)
+		}
+
+		step(fmt.Sprintf("pat %d/%d — sanity: restricted PAT against its ALLOWED host=%s → 200", 6, nPAT, faHost1))
+		{
+			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+created2.Token)
+			if status != http.StatusOK {
+				log.Fatalf("pat: restricted PAT on allowed host: want 200, got %d — %s", status, firstN(body, 200))
+			}
+			if got := hdr.Get("Remote-User"); got != *username {
+				log.Fatalf("pat: restricted PAT Remote-User: want %q, got %q", *username, got)
+			}
+			log.Printf("  restricted PAT on allowed host %s → 200 Remote-User=%s ✓", faHost1, hdr.Get("Remote-User"))
+		}
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway: valid Bearer → 200 + Remote-User/Remote-Scopes, bogus Bearer → 401, app-restricted PAT → 403) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -4815,6 +4960,58 @@ func fmtSQLVal(v any) string {
 	default:
 		return fmt.Sprintf("%v", x)
 	}
+}
+
+// =========================================================================
+// pat (forward-auth) helpers
+// =========================================================================
+
+// registerForwardAuthApp provisions a Traefik ForwardAuth app via the
+// admin HTTP endpoint POST /forward-auth-apps (admin + sudo). The caller
+// must hold a fresh sudo grant on c. log.Fatalf on any failure.
+func registerForwardAuthApp(c *client, clientID, host, displayName string) {
+	resp, err := c.postJSONRaw("/api/prohibitorum/forward-auth-apps", map[string]string{
+		"clientId":    clientID,
+		"host":        host,
+		"displayName": displayName,
+	})
+	if err != nil {
+		log.Fatalf("forward-auth-app create %q: %v", clientID, err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusCreated {
+		log.Fatalf("forward-auth-app create %q: want 201, got %d — %s",
+			clientID, resp.StatusCode, firstN(string(body), 300))
+	}
+}
+
+// forwardAuthVerify issues GET {verifyURL} with the Traefik ForwardAuth
+// headers and the supplied Authorization value, WITHOUT following redirects
+// or carrying any cookie jar (PAT auth is cookie-free). It returns the
+// status, the response headers (for the Remote-* identity assertions), and
+// the body (for diagnostics).
+func forwardAuthVerify(verifyURL, host, authorization string) (int, http.Header, string) {
+	hc := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, verifyURL, nil)
+	if err != nil {
+		log.Fatalf("forward-auth verify: build request: %v", err)
+	}
+	req.Header.Set("X-Forwarded-Host", host)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Authorization", authorization)
+	resp, err := hc.Do(req)
+	if err != nil {
+		log.Fatalf("forward-auth verify: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, resp.Header, string(body)
 }
 
 // =========================================================================
