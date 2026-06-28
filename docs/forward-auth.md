@@ -56,6 +56,7 @@ http:
           - Remote-Name
           - Remote-Email
           - Remote-Groups
+          - Remote-Scopes
 
   routers:
     # The protected app — gated by the forward-auth middleware.
@@ -92,7 +93,97 @@ Clears the per-domain cookie + session, bounces to Prohibitorum to terminate the
 
 ---
 
-## 3. Security requirements
+## 3. Personal Access Tokens
+
+A **Personal Access Token (PAT)** is a user-owned bearer credential that can authenticate to the forward-auth verify endpoint. This enables non-browser API or automation clients to traverse the gateway without a session cookie.
+
+### Bearer authentication at the verify endpoint
+
+When `GET /api/prohibitorum/forward-auth/verify` receives an `Authorization: Bearer <PAT>` header, it enters **API mode** — a terminal path that never redirects:
+
+| Outcome | HTTP | Meaning |
+|---------|------|---------|
+| Valid token, owner allowed | `200` | Identity headers emitted (including `Remote-Scopes`); Traefik forwards request upstream. |
+| Invalid, expired, or revoked token; disabled owner | `401` | Token authentication failed. |
+| Valid token, owner not authorized for this app | `403` | PAT app-restriction or RBAC denied access. |
+
+No `Authorization` header present → the existing browser flow: valid cookie → `200`, no/expired cookie → `302` into the login flow.
+
+PATs act as the owning user with the **intersection** of the owner's authorization, any restrictions encoded in the PAT itself, and the protected-app access policy.
+
+PATs are accepted **only** at the forward-auth verify endpoint. They are not accepted at the admin API or OIDC/SAML endpoints.
+
+### Authoritative identity headers
+
+The gateway emits five headers on every allowed request, **all unconditionally** (even empty), so Traefik's `authResponseHeaders` copy overwrites any client-supplied value:
+
+| Header | Content |
+|--------|---------|
+| `Remote-User` | Subject identifier of the authenticated user. |
+| `Remote-Name` | Display name. |
+| `Remote-Email` | Primary email address. |
+| `Remote-Groups` | Comma-joined group slugs exposed to downstreams. |
+| `Remote-Scopes` | Comma-joined opaque `upstream_scopes` from the PAT; **empty string for cookie/browser sessions**. The gateway does not interpret these labels — the upstream service enforces them. |
+
+The operator **must** list all five in `authResponseHeaders` (or use `authResponseHeadersRegex: "Remote-.*"`) so Prohibitorum's authoritative values always overwrite any client-supplied copies. Update the Traefik middleware from the example in section 2:
+
+```yaml
+authResponseHeaders:
+  - Remote-User
+  - Remote-Name
+  - Remote-Email
+  - Remote-Groups
+  - Remote-Scopes
+```
+
+### Required Traefik configuration for PAT-protected routers
+
+> Because Prohibitorum runs as a forward-auth verifier and is not in the request data path, it cannot unilaterally remove the client's raw PAT from the upstream request. Deployments must configure Traefik to forward the authoritative `Remote-*` headers from Prohibitorum and strip the original `Authorization` header before the request reaches upstream.
+
+Two requirements:
+
+1. **`authResponseHeaders` for all five `Remote-*` headers** — ensures the gateway's verified values reach the upstream service (see example above).
+
+2. **An explicit `headers` middleware that removes the inbound `Authorization` header** before the request is forwarded upstream. Do NOT rely on `authResponseHeaders` to clear `Authorization` — that behaviour is not guaranteed across Traefik versions. Strip it explicitly on PAT-protected routers.
+
+Example middleware and router configuration:
+
+```yaml
+http:
+  middlewares:
+    prohibitorum-forwardauth:
+      forwardAuth:
+        address: "https://auth.example.com/api/prohibitorum/forward-auth/verify"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Name
+          - Remote-Email
+          - Remote-Groups
+          - Remote-Scopes
+
+    strip-authorization:
+      headers:
+        customRequestHeaders:
+          Authorization: ""   # empty string → Traefik removes the header
+
+  routers:
+    acme-app:
+      rule: "Host(`app.acme.io`)"
+      entryPoints: ["websecure"]
+      # Chain: forward-auth first, then strip Authorization before reaching backend.
+      middlewares:
+        - prohibitorum-forwardauth
+        - strip-authorization
+      service: acme-app-backend
+      tls: {}
+```
+
+The `strip-authorization` middleware is only required on routers where PAT-bearing clients are expected. Browser-only apps that never send `Authorization` headers can omit it, though adding it is harmless.
+
+---
+
+## 4. Security requirements
 
 - **Set both `forwardedHeaders.trustedIPs` and `trustForwardHeader: true`.** `trustedIPs` makes Traefik strip client-supplied `X-Forwarded-*` and set them from the real request; `trustForwardHeader: true` then forwards those trusted values. Prohibitorum reconstructs the original request and resolves the protected service from `X-Forwarded-Host` / `X-Forwarded-Proto` / `X-Forwarded-Uri` — a client that can set those can influence the redirect target. Do not expose the EntryPoint to untrusted networks without `trustedIPs`.
 

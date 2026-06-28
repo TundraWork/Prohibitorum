@@ -141,3 +141,41 @@ Every admin mutation (🔐 and 🔓) writes a `credential_event` row:
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/accounts/{id}/credentials` | 🔓 | List WebAuthn credentials for any account. Returns `id`, `credentialIdSuffix` (last 4 characters only), `nickname`, `lastUsedAt`, `cloneWarningAt`, `createdAt`. |
 | POST | `/api/prohibitorum/accounts/credentials/delete` | 🔐 | Body: `{"accountId": <int>, "credentialId": <int>}`. Admin force-revokes a passkey. |
+
+---
+
+## Personal access tokens (self-service)
+
+Self-service PAT management routes. These are **not** admin-gated — any enrolled user may call them on their own account.
+
+Gate notation for this section:
+- 🔓 = active user session (no admin role required)
+- 🔐 = active user session + **fresh sudo grant** (same TTL as the admin sudo grant; prevents dormant-session minting)
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/me/tokens` | 🔓 | List the calling user's PATs. Returns `id`, `displayName`, `hint` (last 4 characters of the token), `createdAt`, `expiresAt`, `lastUsedAt`, `upstreamScopes`. The raw token secret is **never returned** after creation. |
+| POST | `/api/prohibitorum/me/tokens` | 🔐 | Create a new PAT. Body: `{displayName, expiresAt?, upstreamScopes?}`. Generates a cryptographically random token; returns the cleartext in `token` **once only** — only the hash is persisted. |
+| POST | `/api/prohibitorum/me/tokens/revoke` | 🔓 | Body: `{"id": <int>}`. Revokes the specified PAT. The caller must own the token; revoking another user's token returns 404. |
+
+`upstreamScopes` is a list of opaque capability labels forwarded as `Remote-Scopes` at the verify endpoint. The gateway does not interpret them — the upstream service enforces them.
+
+---
+
+## Forward-auth verify endpoint
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/forward-auth/verify` | — | Traefik ForwardAuth target. See below for response semantics. |
+
+**Browser (cookie) flow** — no `Authorization` header present:
+- `200` + `Remote-*` identity headers: valid forward-auth cookie + live access check passed.
+- `302` to login: no valid cookie — browser is redirected into the Prohibitorum OIDC login flow.
+- `403`: `X-Forwarded-Host` is not a registered forward-auth service.
+
+**PAT (API) flow** — `Authorization: Bearer <token>` header present. Terminal: never redirects.
+- `200` + `Remote-*` identity headers (including `Remote-Scopes`): valid PAT, owner is active and authorized.
+- `401`: token is invalid, expired, or revoked; or the owning account is disabled.
+- `403`: valid token, but the owner is not authorized for this application (PAT app-restriction or RBAC).
+
+The PAT path takes precedence: if an `Authorization` header is present the request is always handled as a PAT regardless of any cookie.
