@@ -751,6 +751,7 @@ export default {
       deleteAccount: '确认以永久删除此账户。',
       reissueEnrollment: '确认以重新签发注册链接。',
       createToken: '确认以创建个人访问令牌。',
+      revokeToken: '确认以吊销此个人访问令牌。',
     },
   },
 

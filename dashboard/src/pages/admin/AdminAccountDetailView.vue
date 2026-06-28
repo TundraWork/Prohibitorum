@@ -224,7 +224,7 @@ async function revokeToken(tokenId: number): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/accounts/tokens/revoke', { id: tokenId })
     return true as const
-  }))
+  }, t('sudo.reason.revokeToken')))
   confirmRevokeTokenId.value = null
   if (ok) await loadTokens()
 }

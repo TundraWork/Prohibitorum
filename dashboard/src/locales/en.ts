@@ -755,6 +755,7 @@ export default {
       deleteAccount: 'Confirm to permanently delete this account.',
       reissueEnrollment: 'Confirm to reissue the enrollment link.',
       createToken: 'Confirm to create a personal access token.',
+      revokeToken: 'Confirm to revoke this personal access token.',
     },
   },
 
