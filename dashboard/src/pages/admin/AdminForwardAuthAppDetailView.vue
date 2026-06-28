@@ -5,9 +5,10 @@
  * the OIDC AppAccessCard for RBAC, and a danger zone (disable/enable + delete).
  * No rotate-secret — forward-auth clients are public.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { TriangleAlert, Plus, X } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -16,7 +17,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import SectionTitle from '@/components/custom/SectionTitle.vue'
@@ -28,6 +29,9 @@ import CodeBlock from '@/components/custom/CodeBlock.vue'
 import AppAccessCard from '@/components/custom/AppAccessCard.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 
+interface ScopeEntry { name: string; description: string }
+interface ScopeRow extends ScopeEntry { _id: number }
+
 interface ForwardAuthApp {
   clientId: string
   displayName: string
@@ -36,6 +40,7 @@ interface ForwardAuthApp {
   disabled: boolean
   createdAt: string
   iconUrl?: string | null
+  scopes: ScopeEntry[]
 }
 
 const { t } = useI18n()
@@ -52,6 +57,23 @@ const host = ref('')
 const disabled = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 const confirmDelete = ref(false)
+
+// Scope vocabulary editor
+let scopeUid = 0
+const scopeRows = ref<ScopeRow[]>([])
+const scopeListEl = ref<HTMLElement | null>(null)
+
+function toScopeRows(entries: ScopeEntry[]): ScopeRow[] {
+  return entries.map((e) => ({ ...e, _id: scopeUid++ }))
+}
+function addScope(): void {
+  scopeRows.value.push({ _id: scopeUid++, name: '', description: '' })
+  nextTick(() => {
+    const inputs = scopeListEl.value?.querySelectorAll<HTMLInputElement>('input[data-scope-name]')
+    inputs?.[inputs.length - 1]?.focus()
+  })
+}
+function removeScope(i: number): void { scopeRows.value.splice(i, 1) }
 
 const traefikSnippet = computed(() => {
   const origin = window.location.origin
@@ -87,12 +109,14 @@ async function load(): Promise<void> {
   displayName.value = c.displayName
   host.value = c.forwardAuthHost
   disabled.value = c.disabled
+  scopeRows.value = toScopeRows(c.scopes ?? [])
 }
 
 async function save(): Promise<void> {
   const updated = await run(() => withSudo(() => api.put<ForwardAuthApp>(`/api/prohibitorum/forward-auth-apps/${clientId}`, {
     displayName: displayName.value,
     host: host.value,
+    scopes: scopeRows.value.map(({ _id: _, ...e }) => e),
   }), t('sudo.reason.saveChanges')))
   if (updated) { app.value = updated; triggerSaved() }
 }
@@ -151,9 +175,90 @@ onMounted(load)
         </CardContent>
       </Card>
 
+      <!-- Scope vocabulary editor -->
+      <Card>
+        <CardHeader><CardTitle>{{ t('admin.forwardAuth.scopesLabel') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-4">
+          <div class="flex flex-col gap-3">
+            <div v-if="scopeRows.length" ref="scopeListEl" class="flex flex-col gap-3">
+              <div class="hidden grid-cols-[1fr_2fr_2rem] gap-2 text-xs font-medium text-muted sm:grid">
+                <span>{{ t('admin.forwardAuth.scopeName') }}</span>
+                <span>{{ t('admin.forwardAuth.scopeDescription') }}</span>
+                <span />
+              </div>
+              <div
+                v-for="(row, i) in scopeRows"
+                :key="row._id"
+                class="grid grid-cols-1 gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_2fr_2rem] sm:items-start sm:gap-2 sm:rounded-none sm:border-0 sm:p-0"
+                :data-test="`scope-row-${i}`"
+              >
+                <div class="flex flex-col gap-1">
+                  <span class="text-xs font-medium text-muted sm:hidden">{{ t('admin.forwardAuth.scopeName') }}</span>
+                  <Input
+                    v-model="scopeRows[i].name"
+                    :placeholder="t('admin.forwardAuth.scopeName')"
+                    :aria-label="t('admin.forwardAuth.scopeName')"
+                    data-scope-name
+                    :data-test="`scope-name-${i}`"
+                  />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <span class="text-xs font-medium text-muted sm:hidden">{{ t('admin.forwardAuth.scopeDescription') }}</span>
+                  <Input
+                    v-model="scopeRows[i].description"
+                    :placeholder="t('admin.forwardAuth.scopeDescription')"
+                    :aria-label="t('admin.forwardAuth.scopeDescription')"
+                    :data-test="`scope-desc-${i}`"
+                  />
+                </div>
+                <div class="flex justify-end sm:block">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    class="shrink-0 text-muted hover:text-ink sm:mt-0.5"
+                    :aria-label="t('admin.forwardAuth.removeScope')"
+                    :data-test="`scope-remove-${i}`"
+                    @click="removeScope(i)"
+                  >
+                    <X class="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              class="w-fit"
+              data-test="scope-add"
+              @click="addScope"
+            >
+              <Plus class="size-4" aria-hidden="true" />
+              {{ t('admin.forwardAuth.addScope') }}
+            </Button>
+          </div>
+          <div class="flex items-center gap-3">
+            <Button type="button" :disabled="busy" data-test="save-scopes" @click="save">{{ t('admin.forwardAuth.save') }}</Button>
+            <StatusMessage :show="saved">{{ t('admin.forwardAuth.saved') }}</StatusMessage>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader><CardTitle>{{ t('admin.forwardAuth.traefikTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-3">
+          <Alert class="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200">
+            <TriangleAlert class="size-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <AlertTitle>{{ t('admin.forwardAuth.trustTitle') }}</AlertTitle>
+            <AlertDescription>
+              <ul class="mt-1 list-disc pl-4 space-y-1">
+                <li>{{ t('admin.forwardAuth.trustIsolation') }}</li>
+                <li>{{ t('admin.forwardAuth.trustHeaders') }}</li>
+                <li>{{ t('admin.forwardAuth.trustStripAuth') }}</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
           <p class="text-xs text-muted">{{ t('admin.forwardAuth.traefikDesc') }}</p>
           <CodeBlock :value="traefikSnippet" />
         </CardContent>

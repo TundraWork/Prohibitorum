@@ -319,6 +319,13 @@ export default {
       deleteTitle: 'Delete service', deleteHelp: 'Permanently delete this service and its backing client. The protected app will stop authenticating.',
       delete: 'Delete service', deleteConfirmTitle: 'Delete this service?',
       deleteConfirmBody: 'This permanently removes the service. This cannot be undone.',
+      scopesLabel: 'Scope vocabulary',
+      scopeName: 'Scope name', scopeDescription: 'Description',
+      addScope: 'Add scope', removeScope: 'Remove scope',
+      trustTitle: 'Deployment requirements',
+      trustIsolation: 'This app must be reachable only through Traefik. A directly-reachable app lets a client forge the Remote-* identity headers.',
+      trustHeaders: 'Configure Traefik authResponseHeaders to forward all five Remote-* headers (User, Name, Email, Groups, Scopes).',
+      trustStripAuth: 'Strip the inbound Authorization header in Traefik so a raw personal access token never reaches the upstream app.',
     },
     saml: {
       title: 'SAML applications', create: 'Register application', createTitle: 'New SAML application', created: 'Application registered.',

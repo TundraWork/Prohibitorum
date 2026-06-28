@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /** AdminForwardAuthAppsView (/admin/forward-auth-apps) — list of forward-auth services; inline create. */
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { Plus, Waypoints, X } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
@@ -17,7 +18,9 @@ import StatusMessage from '@/components/custom/StatusMessage.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
-import { Waypoints } from 'lucide-vue-next'
+
+interface ScopeEntry { name: string; description: string }
+interface ScopeRow extends ScopeEntry { _id: number }
 
 interface ForwardAuthApp {
   clientId: string
@@ -40,6 +43,20 @@ const clientId = ref('')
 const host = ref('')
 const displayName = ref('')
 
+// Scope vocabulary for create form
+let scopeUid = 0
+const createScopeRows = ref<ScopeRow[]>([])
+const createScopeListEl = ref<HTMLElement | null>(null)
+
+function addCreateScope(): void {
+  createScopeRows.value.push({ _id: scopeUid++, name: '', description: '' })
+  nextTick(() => {
+    const inputs = createScopeListEl.value?.querySelectorAll<HTMLInputElement>('input[data-scope-name]')
+    inputs?.[inputs.length - 1]?.focus()
+  })
+}
+function removeCreateScope(i: number): void { createScopeRows.value.splice(i, 1) }
+
 async function load(): Promise<void> {
   const res = await run(() => api.get<ForwardAuthApp[]>('/api/prohibitorum/forward-auth-apps'))
   if (res) rows.value = res
@@ -51,6 +68,7 @@ function openCreate(): void {
   clientId.value = ''
   host.value = ''
   displayName.value = ''
+  createScopeRows.value = []
   created.value = false
   createOpen.value = true
 }
@@ -61,6 +79,7 @@ async function create(): Promise<void> {
     clientId: clientId.value,
     host: host.value,
     displayName: displayName.value,
+    scopes: createScopeRows.value.map(({ _id: _, ...e }) => e),
   })))
   if (res) {
     createOpen.value = false
@@ -98,6 +117,65 @@ onMounted(load)
             <Label for="displayName">{{ t('admin.forwardAuth.displayName') }}</Label>
             <Input id="displayName" name="displayName" v-model="displayName" />
           </div>
+        </FormSection>
+        <FormSection :title="t('admin.forwardAuth.scopesLabel')">
+          <div v-if="createScopeRows.length" ref="createScopeListEl" class="flex flex-col gap-3">
+            <div class="hidden grid-cols-[1fr_2fr_2rem] gap-2 text-xs font-medium text-muted sm:grid">
+              <span>{{ t('admin.forwardAuth.scopeName') }}</span>
+              <span>{{ t('admin.forwardAuth.scopeDescription') }}</span>
+              <span />
+            </div>
+            <div
+              v-for="(row, i) in createScopeRows"
+              :key="row._id"
+              class="grid grid-cols-1 gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_2fr_2rem] sm:items-start sm:gap-2 sm:rounded-none sm:border-0 sm:p-0"
+              :data-test="`create-scope-row-${i}`"
+            >
+              <div class="flex flex-col gap-1">
+                <span class="text-xs font-medium text-muted sm:hidden">{{ t('admin.forwardAuth.scopeName') }}</span>
+                <Input
+                  v-model="createScopeRows[i].name"
+                  :placeholder="t('admin.forwardAuth.scopeName')"
+                  :aria-label="t('admin.forwardAuth.scopeName')"
+                  data-scope-name
+                  :data-test="`create-scope-name-${i}`"
+                />
+              </div>
+              <div class="flex flex-col gap-1">
+                <span class="text-xs font-medium text-muted sm:hidden">{{ t('admin.forwardAuth.scopeDescription') }}</span>
+                <Input
+                  v-model="createScopeRows[i].description"
+                  :placeholder="t('admin.forwardAuth.scopeDescription')"
+                  :aria-label="t('admin.forwardAuth.scopeDescription')"
+                  :data-test="`create-scope-desc-${i}`"
+                />
+              </div>
+              <div class="flex justify-end sm:block">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  class="shrink-0 text-muted hover:text-ink sm:mt-0.5"
+                  :aria-label="t('admin.forwardAuth.removeScope')"
+                  :data-test="`create-scope-remove-${i}`"
+                  @click="removeCreateScope(i)"
+                >
+                  <X class="size-4" aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="w-fit"
+            data-test="create-scope-add"
+            @click="addCreateScope"
+          >
+            <Plus class="size-4" aria-hidden="true" />
+            {{ t('admin.forwardAuth.addScope') }}
+          </Button>
         </FormSection>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.forwardAuth.create') }}</Button>

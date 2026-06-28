@@ -315,6 +315,13 @@ export default {
       deleteTitle: '删除服务', deleteHelp: '永久删除该服务及其后端客户端。受保护的应用将无法再认证。',
       delete: '删除服务', deleteConfirmTitle: '删除此服务？',
       deleteConfirmBody: '此操作将永久删除该服务，且无法撤销。',
+      scopesLabel: '作用域词汇表',
+      scopeName: '作用域名称', scopeDescription: '描述',
+      addScope: '添加作用域', removeScope: '移除作用域',
+      trustTitle: '部署要求',
+      trustIsolation: '此应用必须仅通过 Traefik 可达。若应用可直接访问，客户端可伪造 Remote-* 身份标头。',
+      trustHeaders: '配置 Traefik 的 authResponseHeaders，以转发全部五个 Remote-* 标头（User、Name、Email、Groups、Scopes）。',
+      trustStripAuth: '在 Traefik 中剥离入站 Authorization 标头，防止原始个人访问令牌传递到上游应用。',
     },
     saml: {
       title: 'SAML 应用', create: '注册应用', createTitle: '新建 SAML 应用', created: '应用已注册。',
