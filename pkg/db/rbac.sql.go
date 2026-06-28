@@ -219,7 +219,7 @@ func (q *Queries) IsAccountAuthorizedForSAMLSP(ctx context.Context, arg IsAccoun
 }
 
 const listAuthorizedForwardAuthAppsForAccount = `-- name: ListAuthorizedForwardAuthAppsForAccount :many
-SELECT c.client_id, c.display_name, c.forward_auth_host
+SELECT c.client_id, c.display_name, c.forward_auth_host, c.forward_auth_scopes
 FROM oidc_client c
 WHERE c.disabled = false
   AND c.forward_auth_enabled = true
@@ -236,9 +236,10 @@ ORDER BY c.display_name
 `
 
 type ListAuthorizedForwardAuthAppsForAccountRow struct {
-	ClientID        string      `json:"clientId"`
-	DisplayName     string      `json:"displayName"`
-	ForwardAuthHost pgtype.Text `json:"forwardAuthHost"`
+	ClientID          string      `json:"clientId"`
+	DisplayName       string      `json:"displayName"`
+	ForwardAuthHost   pgtype.Text `json:"forwardAuthHost"`
+	ForwardAuthScopes []byte      `json:"forwardAuthScopes"`
 }
 
 func (q *Queries) ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedForwardAuthAppsForAccountRow, error) {
@@ -250,7 +251,12 @@ func (q *Queries) ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, a
 	var items []ListAuthorizedForwardAuthAppsForAccountRow
 	for rows.Next() {
 		var i ListAuthorizedForwardAuthAppsForAccountRow
-		if err := rows.Scan(&i.ClientID, &i.DisplayName, &i.ForwardAuthHost); err != nil {
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.ForwardAuthHost,
+			&i.ForwardAuthScopes,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -709,7 +715,7 @@ func (q *Queries) RevokeSAMLSPAccessGroup(ctx context.Context, arg RevokeSAMLSPA
 }
 
 const setOIDCClientAccessRestricted = `-- name: SetOIDCClientAccessRestricted :one
-UPDATE oidc_client SET access_restricted = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, launch_url
+UPDATE oidc_client SET access_restricted = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, launch_url, forward_auth_scopes
 `
 
 type SetOIDCClientAccessRestrictedParams struct {
@@ -741,6 +747,7 @@ func (q *Queries) SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDC
 		&i.ForwardAuthEnabled,
 		&i.ForwardAuthHost,
 		&i.LaunchUrl,
+		&i.ForwardAuthScopes,
 	)
 	return i, err
 }

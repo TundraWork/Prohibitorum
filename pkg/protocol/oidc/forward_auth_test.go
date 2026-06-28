@@ -787,22 +787,47 @@ func faBearerRequest(host, raw string, cookie *http.Cookie) *http.Request {
 	return req
 }
 
-func TestForwardAuthVerify_PAT_Valid_200WithScopes(t *testing.T) {
+func TestForwardAuthVerify_PAT_GrantedApp_200WithScopes(t *testing.T) {
 	q := &fakeFAQueries{
-		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", Disabled: false},
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
 		authorized: true,
-		acct:       db.Account{ID: 42, Username: "alice", DisplayName: "Alice", Email: pgtype.Text{String: "a@x", Valid: true}},
+		acct:       db.Account{ID: 42, Username: "alice", DisplayName: "Alice"},
 		groups:     []string{"staff"},
-		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, UpstreamScopes: []string{"repo:read"}},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, AppGrants: []byte(`{"svc":["repo:read"]}`)},
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
 	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d", rec.Code)
+	if rec.Code != http.StatusOK || rec.Header().Get("Remote-Scopes") != "repo:read" {
+		t.Fatalf("code=%d scopes=%q", rec.Code, rec.Header().Get("Remote-Scopes"))
 	}
-	if rec.Header().Get("Remote-User") != "alice" || rec.Header().Get("Remote-Scopes") != "repo:read" {
-		t.Fatalf("headers: %v", rec.Header())
+}
+
+func TestForwardAuthVerify_PAT_AllApps_200NoScopes(t *testing.T) {
+	q := &fakeFAQueries{
+		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true,
+		acct: db.Account{ID: 42, Username: "alice"},
+		pat:  db.PersonalAccessToken{ID: 7, AccountID: 42, AllApps: true},
+	}
+	p, _ := newFAProvider(q)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	if rec.Code != http.StatusOK || rec.Header().Get("Remote-Scopes") != "" {
+		t.Fatalf("code=%d scopes=%q", rec.Code, rec.Header().Get("Remote-Scopes"))
+	}
+}
+
+func TestForwardAuthVerify_PAT_NotGrantedApp_403(t *testing.T) {
+	q := &fakeFAQueries{
+		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true,
+		acct: db.Account{ID: 42, Username: "alice"},
+		pat:  db.PersonalAccessToken{ID: 7, AccountID: 42, AppGrants: []byte(`{"other":["x"]}`)},
+	}
+	p, _ := newFAProvider(q)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", rec.Code)
 	}
 }
 
@@ -833,27 +858,12 @@ func TestForwardAuthVerify_PAT_DisabledOwner_401(t *testing.T) {
 	}
 }
 
-func TestForwardAuthVerify_PAT_AppRestrictionExcludes_403(t *testing.T) {
-	q := &fakeFAQueries{
-		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
-		authorized: true,
-		acct:       db.Account{ID: 42, Username: "alice"},
-		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, AllowedClientIds: []string{"other"}},
-	}
-	p, _ := newFAProvider(q)
-	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", rec.Code)
-	}
-}
-
 func TestForwardAuthVerify_PAT_RBACDenies_403(t *testing.T) {
 	q := &fakeFAQueries{
 		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
 		authorized: false,
 		acct:       db.Account{ID: 42, Username: "alice"},
-		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, AppGrants: []byte(`{"svc":[]}`)},
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()

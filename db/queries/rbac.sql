@@ -144,7 +144,7 @@ WHERE c.disabled = false
 ORDER BY c.display_name;
 
 -- name: ListAuthorizedForwardAuthAppsForAccount :many
-SELECT c.client_id, c.display_name, c.forward_auth_host
+SELECT c.client_id, c.display_name, c.forward_auth_host, c.forward_auth_scopes
 FROM oidc_client c
 WHERE c.disabled = false
   AND c.forward_auth_enabled = true

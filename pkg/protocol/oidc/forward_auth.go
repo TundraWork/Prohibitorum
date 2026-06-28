@@ -197,8 +197,8 @@ func faCookie(secure bool, token string) *http.Cookie {
 // writeIdentityHeaders sets the Traefik/nginx ForwardAuth identity headers on w.
 // ALL headers are emitted unconditionally — even when empty — so a downstream
 // Traefik authResponseHeaders config overwrites (or clears) any client-supplied
-// copy, preventing identity/scope spoofing. scopes carries a PAT's opaque
-// upstream_scopes (nil for cookie/browser sessions).
+// copy, preventing identity/scope spoofing. scopes carries a PAT's chosen
+// per-app scopes for THIS app (nil for cookie/browser sessions or all_apps).
 func writeIdentityHeaders(w http.ResponseWriter, user, name, email string, groups, scopes []string) {
 	w.Header().Set("Remote-User", user)
 	w.Header().Set("Remote-Name", name)
@@ -388,11 +388,9 @@ func accountEmail(a db.Account) string {
 }
 
 // verifyForwardAuthPAT authenticates a forward-auth request by Personal Access
-// Token. It is terminal: it always writes a response. 401 = the credential
-// cannot resolve a valid, enabled owner (not found / expired / revoked /
-// disabled). 403 = a valid owner that is not authorized for this app (PAT
-// allow-list or RBAC). On success it emits the authoritative identity headers
-// and best-effort updates last_used_at (throttled in SQL).
+// Token, with per-app scope isolation. Terminal: always writes a response.
+// 401 = unresolvable/disabled owner; 403 = owner not granted this app (or RBAC).
+// On success Remote-Scopes carries only THIS app's chosen scopes.
 func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, raw string, client db.GetForwardAuthClientByHostRow) {
 	ctx := r.Context()
 	row, err := p.queries.GetPATByTokenHash(ctx, pat.HashToken(raw))
@@ -405,9 +403,21 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		writeBearerError(w, http.StatusUnauthorized, "invalid token")
 		return
 	}
-	if !patAllowsClient(row.AllowedClientIds, client.ClientID) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
+	var scopes []string
+	if !row.AllApps {
+		grants := map[string][]string{}
+		if len(row.AppGrants) > 0 {
+			if jerr := json.Unmarshal(row.AppGrants, &grants); jerr != nil {
+				http.Error(w, "forbidden", http.StatusForbidden) // corrupt grant → fail closed
+				return
+			}
+		}
+		s, ok := grants[client.ClientID]
+		if !ok {
+			http.Error(w, "forbidden", http.StatusForbidden) // PAT not granted for this app
+			return
+		}
+		scopes = s
 	}
 	ok, aerr := p.queries.IsAccountAuthorizedForOIDCClient(ctx, db.IsAccountAuthorizedForOIDCClientParams{
 		AccountID: pgtype.Int4{Int32: acct.ID, Valid: true}, ClientID: client.ClientID,
@@ -417,21 +427,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	groups, _ := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
-	writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups, row.UpstreamScopes)
-	_ = p.queries.TouchPATLastUsed(ctx, row.ID) // best-effort; throttled in SQL
+	writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups, scopes)
+	_ = p.queries.TouchPATLastUsed(ctx, row.ID)
 	w.WriteHeader(http.StatusOK)
-}
-
-// patAllowsClient reports whether a PAT (with an optional allow-list) may be
-// used for clientID. An empty allow-list means "any app the owner may reach".
-func patAllowsClient(allowed []string, clientID string) bool {
-	if len(allowed) == 0 {
-		return true
-	}
-	for _, c := range allowed {
-		if c == clientID {
-			return true
-		}
-	}
-	return false
 }

@@ -186,6 +186,7 @@ type Querier interface {
 	RevokeOIDCClientAccessAccount(ctx context.Context, arg RevokeOIDCClientAccessAccountParams) (int64, error)
 	RevokeOIDCClientAccessGroup(ctx context.Context, arg RevokeOIDCClientAccessGroupParams) (int64, error)
 	RevokePAT(ctx context.Context, arg RevokePATParams) (int64, error)
+	RevokePATByID(ctx context.Context, id int32) (int64, error)
 	RevokeSAMLSPAccessAccount(ctx context.Context, arg RevokeSAMLSPAccessAccountParams) (int64, error)
 	RevokeSAMLSPAccessGroup(ctx context.Context, arg RevokeSAMLSPAccessGroupParams) (int64, error)
 	RevokeSession(ctx context.Context, id string) error
@@ -197,6 +198,7 @@ type Querier interface {
 	SetEntityIcon(ctx context.Context, arg SetEntityIconParams) error
 	SetEntityIconAccent(ctx context.Context, arg SetEntityIconAccentParams) error
 	SetForwardAuthConfig(ctx context.Context, arg SetForwardAuthConfigParams) error
+	SetForwardAuthScopes(ctx context.Context, arg SetForwardAuthScopesParams) error
 	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
 	SetOIDCClientLaunchURL(ctx context.Context, arg SetOIDCClientLaunchURLParams) error

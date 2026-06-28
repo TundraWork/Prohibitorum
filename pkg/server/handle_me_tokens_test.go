@@ -44,18 +44,31 @@ type fakePATQ struct {
 func (f *fakePATQ) InsertPAT(_ context.Context, arg db.InsertPATParams) (db.PersonalAccessToken, error) {
 	f.nextID++
 	row := db.PersonalAccessToken{
-		ID:               f.nextID,
-		AccountID:        arg.AccountID,
-		Name:             arg.Name,
-		TokenHash:        arg.TokenHash,
-		TokenHint:        arg.TokenHint,
-		UpstreamScopes:   arg.UpstreamScopes,
-		AllowedClientIds: arg.AllowedClientIds,
-		CreatedAt:        pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		ExpiresAt:        arg.ExpiresAt,
+		ID:        f.nextID,
+		AccountID: arg.AccountID,
+		Name:      arg.Name,
+		TokenHash: arg.TokenHash,
+		TokenHint: arg.TokenHint,
+		AllApps:   arg.AllApps,
+		AppGrants: arg.AppGrants,
+		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		ExpiresAt: arg.ExpiresAt,
 	}
 	f.rows = append(f.rows, row)
 	return row, nil
+}
+
+// ListAuthorizedForwardAuthAppsForAccount returns a single fixed forward-auth
+// app "svc" with the scope vocabulary [{repo:read},{repo:write}] — the candidate
+// set the create-validation and /me/forward-auth-apps tests resolve against.
+func (f *fakePATQ) ListAuthorizedForwardAuthAppsForAccount(_ context.Context, _ pgtype.Int4) ([]db.ListAuthorizedForwardAuthAppsForAccountRow, error) {
+	return []db.ListAuthorizedForwardAuthAppsForAccountRow{
+		{
+			ClientID:          "svc",
+			DisplayName:       "Service",
+			ForwardAuthScopes: []byte(`[{"name":"repo:read"},{"name":"repo:write"}]`),
+		},
+	}, nil
 }
 
 func (f *fakePATQ) ListPATsByAccount(_ context.Context, accountID int32) ([]db.PersonalAccessToken, error) {
@@ -117,6 +130,7 @@ func TestHandleCreateMyToken_HappyPath(t *testing.T) {
 
 	in := &createMyTokenIn{}
 	in.Body.Name = "ci-runner"
+	in.Body.AllApps = true
 
 	out, err := s.handleCreateMyToken(ctx, in)
 	if err != nil {
@@ -262,6 +276,7 @@ func TestHandleListMyTokens_ReturnsOnlyActiveTokens(t *testing.T) {
 	// Create one token.
 	createIn := &createMyTokenIn{}
 	createIn.Body.Name = "my-token"
+	createIn.Body.AllApps = true
 	createOut, err := s.handleCreateMyToken(ctx, createIn)
 	if err != nil {
 		t.Fatalf("handleCreateMyToken: %v", err)
@@ -313,6 +328,7 @@ func TestHandleRevokeMyToken_ForeignID(t *testing.T) {
 	ctx1 := patCtx(1)
 	createIn := &createMyTokenIn{}
 	createIn.Body.Name = "account-1-token"
+	createIn.Body.AllApps = true
 	createOut, err := s.handleCreateMyToken(ctx1, createIn)
 	if err != nil {
 		t.Fatalf("handleCreateMyToken: %v", err)
@@ -353,6 +369,7 @@ func TestHandleRevokeMyToken_DoubleRevoke(t *testing.T) {
 	// Create and revoke.
 	createIn := &createMyTokenIn{}
 	createIn.Body.Name = "short-lived"
+	createIn.Body.AllApps = true
 	createOut, err := s.handleCreateMyToken(ctx, createIn)
 	if err != nil {
 		t.Fatalf("handleCreateMyToken: %v", err)
@@ -385,6 +402,7 @@ func TestHandleListMyTokens_NeverExposesPlaintextOrHash(t *testing.T) {
 	// Create a token.
 	createIn := &createMyTokenIn{}
 	createIn.Body.Name = "secret-guard"
+	createIn.Body.AllApps = true
 	createOut, err := s.handleCreateMyToken(ctx, createIn)
 	if err != nil {
 		t.Fatalf("handleCreateMyToken: %v", err)
@@ -407,5 +425,165 @@ func TestHandleListMyTokens_NeverExposesPlaintextOrHash(t *testing.T) {
 	// Sanity: hint is non-empty.
 	if view.TokenHint == "" {
 		t.Error("TokenHint: want non-empty, got empty")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Per-app grant validation (Task 2)
+// ---------------------------------------------------------------------------
+
+// TestHandleCreateMyToken_GrantedAppValidScope — an app the owner is authorized
+// for plus a scope in that app's vocabulary inserts successfully and the view
+// round-trips the per-app grant.
+func TestHandleCreateMyToken_GrantedAppValidScope(t *testing.T) {
+	t.Parallel()
+
+	q := &fakePATQ{}
+	s := newPATServer(q)
+	ctx := patCtx(1)
+
+	in := &createMyTokenIn{}
+	in.Body.Name = "per-app"
+	in.Body.AppGrants = map[string][]string{"svc": {"repo:read"}}
+
+	out, err := s.handleCreateMyToken(ctx, in)
+	if err != nil {
+		t.Fatalf("handleCreateMyToken: %v", err)
+	}
+	if out.Body.PAT.AllApps {
+		t.Error("AllApps: want false for a per-app grant")
+	}
+	got := out.Body.PAT.AppGrants["svc"]
+	if len(got) != 1 || got[0] != "repo:read" {
+		t.Errorf("AppGrants[svc]: want [repo:read], got %v", got)
+	}
+	if len(q.rows) != 1 {
+		t.Fatalf("InsertPAT row count: want 1, got %d", len(q.rows))
+	}
+}
+
+// TestHandleCreateMyToken_UnknownApp — granting an app the owner is NOT
+// authorized for is rejected with bad_request and no row inserted.
+func TestHandleCreateMyToken_UnknownApp(t *testing.T) {
+	t.Parallel()
+
+	q := &fakePATQ{}
+	s := newPATServer(q)
+	ctx := patCtx(1)
+
+	in := &createMyTokenIn{}
+	in.Body.Name = "bad-app"
+	in.Body.AppGrants = map[string][]string{"not-authorized": {"repo:read"}}
+
+	_, err := s.handleCreateMyToken(ctx, in)
+	if err == nil {
+		t.Fatal("expected error for unauthorized app, got nil")
+	}
+	if code := codeFromErr(t, err); code != "bad_request" {
+		t.Errorf("code: want bad_request, got %s", code)
+	}
+	if len(q.rows) != 0 {
+		t.Errorf("InsertPAT must not be called for unauthorized app; got %d row(s)", len(q.rows))
+	}
+}
+
+// TestHandleCreateMyToken_UnknownScope — a scope outside the app's vocabulary is
+// rejected with bad_request and no row inserted.
+func TestHandleCreateMyToken_UnknownScope(t *testing.T) {
+	t.Parallel()
+
+	q := &fakePATQ{}
+	s := newPATServer(q)
+	ctx := patCtx(1)
+
+	in := &createMyTokenIn{}
+	in.Body.Name = "bad-scope"
+	in.Body.AppGrants = map[string][]string{"svc": {"repo:delete"}}
+
+	_, err := s.handleCreateMyToken(ctx, in)
+	if err == nil {
+		t.Fatal("expected error for out-of-vocabulary scope, got nil")
+	}
+	if code := codeFromErr(t, err); code != "bad_request" {
+		t.Errorf("code: want bad_request, got %s", code)
+	}
+	if len(q.rows) != 0 {
+		t.Errorf("InsertPAT must not be called for bad scope; got %d row(s)", len(q.rows))
+	}
+}
+
+// TestHandleCreateMyToken_EmptyGrantsNotAllApps — allApps=false with no app
+// grants violates least-privilege and is rejected with bad_request.
+func TestHandleCreateMyToken_EmptyGrantsNotAllApps(t *testing.T) {
+	t.Parallel()
+
+	q := &fakePATQ{}
+	s := newPATServer(q)
+	ctx := patCtx(1)
+
+	in := &createMyTokenIn{}
+	in.Body.Name = "no-apps"
+	// AllApps defaults to false; AppGrants nil.
+
+	_, err := s.handleCreateMyToken(ctx, in)
+	if err == nil {
+		t.Fatal("expected error for empty grants without all_apps, got nil")
+	}
+	if code := codeFromErr(t, err); code != "bad_request" {
+		t.Errorf("code: want bad_request, got %s", code)
+	}
+	if len(q.rows) != 0 {
+		t.Errorf("InsertPAT must not be called; got %d row(s)", len(q.rows))
+	}
+}
+
+// TestHandleCreateMyToken_AllAppsWithGrantsConflict — allApps=true MUST be
+// identity-only; supplying app grants alongside it is rejected with bad_request.
+func TestHandleCreateMyToken_AllAppsWithGrantsConflict(t *testing.T) {
+	t.Parallel()
+
+	q := &fakePATQ{}
+	s := newPATServer(q)
+	ctx := patCtx(1)
+
+	in := &createMyTokenIn{}
+	in.Body.Name = "conflict"
+	in.Body.AllApps = true
+	in.Body.AppGrants = map[string][]string{"svc": {"repo:read"}}
+
+	_, err := s.handleCreateMyToken(ctx, in)
+	if err == nil {
+		t.Fatal("expected error for all_apps with grants, got nil")
+	}
+	if code := codeFromErr(t, err); code != "bad_request" {
+		t.Errorf("code: want bad_request, got %s", code)
+	}
+	if len(q.rows) != 0 {
+		t.Errorf("InsertPAT must not be called; got %d row(s)", len(q.rows))
+	}
+}
+
+// TestHandleListMyForwardAuthApps — returns the caller's authorized FA apps,
+// each carrying its scope vocabulary, for the create picker.
+func TestHandleListMyForwardAuthApps(t *testing.T) {
+	t.Parallel()
+
+	q := &fakePATQ{}
+	s := newPATServer(q)
+	ctx := patCtx(1)
+
+	out, err := s.handleListMyForwardAuthApps(ctx, nil)
+	if err != nil {
+		t.Fatalf("handleListMyForwardAuthApps: %v", err)
+	}
+	if len(out.Body) != 1 {
+		t.Fatalf("app count: want 1, got %d", len(out.Body))
+	}
+	app := out.Body[0]
+	if app.ClientID != "svc" || app.DisplayName != "Service" {
+		t.Errorf("app identity: got %q / %q", app.ClientID, app.DisplayName)
+	}
+	if len(app.Scopes) != 2 || app.Scopes[0].Name != "repo:read" || app.Scopes[1].Name != "repo:write" {
+		t.Errorf("scopes vocabulary: got %+v", app.Scopes)
 	}
 }

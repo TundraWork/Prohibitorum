@@ -12,7 +12,7 @@ import (
 )
 
 const getPATByTokenHash = `-- name: GetPATByTokenHash :one
-SELECT id, account_id, name, token_hash, token_hint, upstream_scopes, allowed_client_ids, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
+SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
 WHERE token_hash = $1
   AND revoked_at IS NULL
   AND (expires_at IS NULL OR expires_at > now())
@@ -27,8 +27,8 @@ func (q *Queries) GetPATByTokenHash(ctx context.Context, tokenHash []byte) (Pers
 		&i.Name,
 		&i.TokenHash,
 		&i.TokenHint,
-		&i.UpstreamScopes,
-		&i.AllowedClientIds,
+		&i.AllApps,
+		&i.AppGrants,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.LastUsedAt,
@@ -39,19 +39,19 @@ func (q *Queries) GetPATByTokenHash(ctx context.Context, tokenHash []byte) (Pers
 
 const insertPAT = `-- name: InsertPAT :one
 INSERT INTO personal_access_token (
-  account_id, name, token_hash, token_hint, upstream_scopes, allowed_client_ids, expires_at
+  account_id, name, token_hash, token_hint, all_apps, app_grants, expires_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, account_id, name, token_hash, token_hint, upstream_scopes, allowed_client_ids, created_at, expires_at, last_used_at, revoked_at
+RETURNING id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at
 `
 
 type InsertPATParams struct {
-	AccountID        int32              `json:"accountId"`
-	Name             string             `json:"name"`
-	TokenHash        []byte             `json:"tokenHash"`
-	TokenHint        string             `json:"tokenHint"`
-	UpstreamScopes   []string           `json:"upstreamScopes"`
-	AllowedClientIds []string           `json:"allowedClientIds"`
-	ExpiresAt        pgtype.Timestamptz `json:"expiresAt"`
+	AccountID int32              `json:"accountId"`
+	Name      string             `json:"name"`
+	TokenHash []byte             `json:"tokenHash"`
+	TokenHint string             `json:"tokenHint"`
+	AllApps   bool               `json:"allApps"`
+	AppGrants []byte             `json:"appGrants"`
+	ExpiresAt pgtype.Timestamptz `json:"expiresAt"`
 }
 
 func (q *Queries) InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalAccessToken, error) {
@@ -60,8 +60,8 @@ func (q *Queries) InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalA
 		arg.Name,
 		arg.TokenHash,
 		arg.TokenHint,
-		arg.UpstreamScopes,
-		arg.AllowedClientIds,
+		arg.AllApps,
+		arg.AppGrants,
 		arg.ExpiresAt,
 	)
 	var i PersonalAccessToken
@@ -71,8 +71,8 @@ func (q *Queries) InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalA
 		&i.Name,
 		&i.TokenHash,
 		&i.TokenHint,
-		&i.UpstreamScopes,
-		&i.AllowedClientIds,
+		&i.AllApps,
+		&i.AppGrants,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.LastUsedAt,
@@ -82,7 +82,7 @@ func (q *Queries) InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalA
 }
 
 const listPATsByAccount = `-- name: ListPATsByAccount :many
-SELECT id, account_id, name, token_hash, token_hint, upstream_scopes, allowed_client_ids, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
+SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
 WHERE account_id = $1 AND revoked_at IS NULL
 ORDER BY created_at DESC
 `
@@ -102,8 +102,8 @@ func (q *Queries) ListPATsByAccount(ctx context.Context, accountID int32) ([]Per
 			&i.Name,
 			&i.TokenHash,
 			&i.TokenHint,
-			&i.UpstreamScopes,
-			&i.AllowedClientIds,
+			&i.AllApps,
+			&i.AppGrants,
 			&i.CreatedAt,
 			&i.ExpiresAt,
 			&i.LastUsedAt,
@@ -132,6 +132,20 @@ type RevokePATParams struct {
 
 func (q *Queries) RevokePAT(ctx context.Context, arg RevokePATParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokePAT, arg.ID, arg.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokePATByID = `-- name: RevokePATByID :execrows
+UPDATE personal_access_token
+SET revoked_at = now()
+WHERE id = $1 AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokePATByID(ctx context.Context, id int32) (int64, error) {
+	result, err := q.db.Exec(ctx, revokePATByID, id)
 	if err != nil {
 		return 0, err
 	}

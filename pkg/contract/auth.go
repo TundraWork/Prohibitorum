@@ -85,25 +85,36 @@ type CredentialView struct {
 	LastUsedAt         *time.Time `json:"lastUsedAt,omitempty"`
 }
 
-// PersonalAccessTokenView is a row in /me/tokens. The plaintext token is never
-// returned here — only once, in PersonalAccessTokenCreated. TokenHint is a
-// non-secret display aid (prefix + last 4 chars).
-type PersonalAccessTokenView struct {
-	ID               int32      `json:"id"`
-	Name             string     `json:"name"`
-	TokenHint        string     `json:"tokenHint"`
-	UpstreamScopes   []string   `json:"upstreamScopes"`
-	AllowedClientIDs []string   `json:"allowedClientIds"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
-	LastUsedAt       *time.Time `json:"lastUsedAt,omitempty"`
+// ForwardAuthScope is one admin-defined scope label for a forward-auth app.
+type ForwardAuthScope struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
-// PersonalAccessTokenCreated is the create response: the plaintext is revealed
-// exactly once and never retrievable again.
+// PersonalAccessTokenView is a row in /me/tokens. No secret; per-app grants.
+type PersonalAccessTokenView struct {
+	ID         int32               `json:"id"`
+	Name       string              `json:"name"`
+	TokenHint  string              `json:"tokenHint"`
+	AllApps    bool                `json:"allApps"`
+	AppGrants  map[string][]string `json:"appGrants"` // client_id -> scopes
+	CreatedAt  time.Time           `json:"createdAt"`
+	ExpiresAt  *time.Time          `json:"expiresAt,omitempty"`
+	LastUsedAt *time.Time          `json:"lastUsedAt,omitempty"`
+}
+
+// PersonalAccessTokenCreated reveals the plaintext exactly once.
 type PersonalAccessTokenCreated struct {
 	Token string                  `json:"token"`
 	PAT   PersonalAccessTokenView `json:"pat"`
+}
+
+// MyForwardAuthApp is one forward-auth app the caller may use, with its scope
+// vocabulary — the candidate list for the PAT create picker.
+type MyForwardAuthApp struct {
+	ClientID    string             `json:"clientId"`
+	DisplayName string             `json:"displayName"`
+	Scopes      []ForwardAuthScope `json:"scopes"`
 }
 
 // EnrollmentTarget is the public-safe identity of the target account for invite/reset.
@@ -281,6 +292,13 @@ var OperationRevokeMyToken = huma.Operation{
 	Method:      http.MethodPost,
 	Path:        "/me/tokens/revoke",
 	Summary:     "Revoke one of the caller's personal access tokens by id.",
+}
+
+var OperationListMyForwardAuthApps = huma.Operation{
+	OperationID: "listMyForwardAuthApps",
+	Method:      http.MethodGet,
+	Path:        "/me/forward-auth-apps",
+	Summary:     "List the forward-auth apps the caller may use, with each app's scope vocabulary.",
 }
 
 var OperationPreviewEnrollment = huma.Operation{
