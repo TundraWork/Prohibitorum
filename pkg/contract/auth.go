@@ -85,6 +85,27 @@ type CredentialView struct {
 	LastUsedAt         *time.Time `json:"lastUsedAt,omitempty"`
 }
 
+// PersonalAccessTokenView is a row in /me/tokens. The plaintext token is never
+// returned here — only once, in PersonalAccessTokenCreated. TokenHint is a
+// non-secret display aid (prefix + last 4 chars).
+type PersonalAccessTokenView struct {
+	ID               int32      `json:"id"`
+	Name             string     `json:"name"`
+	TokenHint        string     `json:"tokenHint"`
+	UpstreamScopes   []string   `json:"upstreamScopes"`
+	AllowedClientIDs []string   `json:"allowedClientIds"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
+	LastUsedAt       *time.Time `json:"lastUsedAt,omitempty"`
+}
+
+// PersonalAccessTokenCreated is the create response: the plaintext is revealed
+// exactly once and never retrievable again.
+type PersonalAccessTokenCreated struct {
+	Token string                  `json:"token"`
+	PAT   PersonalAccessTokenView `json:"pat"`
+}
+
 // EnrollmentTarget is the public-safe identity of the target account for invite/reset.
 // Bootstrap intents have no target; the field is omitted in that case.
 type EnrollmentTarget struct {
@@ -239,6 +260,27 @@ var OperationRevokeMySession = huma.Operation{
 	Method:      http.MethodPost,
 	Path:        "/me/sessions/revoke",
 	Summary:     "Revoke one of the caller's sessions by id; cannot target the current session.",
+}
+
+var OperationListMyTokens = huma.Operation{
+	OperationID: "listMyTokens",
+	Method:      http.MethodGet,
+	Path:        "/me/tokens",
+	Summary:     "List the caller's personal access tokens (never returns the secret).",
+}
+
+var OperationCreateMyToken = huma.Operation{
+	OperationID: "createMyToken",
+	Method:      http.MethodPost,
+	Path:        "/me/tokens",
+	Summary:     "Create a personal access token; the plaintext is revealed once.",
+}
+
+var OperationRevokeMyToken = huma.Operation{
+	OperationID: "revokeMyToken",
+	Method:      http.MethodPost,
+	Path:        "/me/tokens/revoke",
+	Summary:     "Revoke one of the caller's personal access tokens by id.",
 }
 
 var OperationPreviewEnrollment = huma.Operation{

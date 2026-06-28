@@ -33,6 +33,8 @@ const (
 	FactorInvitation Factor = "invitation"
 	// FactorGroup covers admin group CRUD and membership mutations.
 	FactorGroup Factor = "group"
+	// FactorPAT covers personal-access-token create/revoke.
+	FactorPAT Factor = "personal_access_token"
 )
 
 const (

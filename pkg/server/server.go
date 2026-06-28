@@ -119,6 +119,10 @@ type Server struct {
 	// /api/prohibitorum/consent handlers without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
 	oidcConsentOverride oidcConsentQueries
+	// patQueriesOverride lets tests inject a fake patQueries for the
+	// /me/tokens handlers without standing up *db.Queries. Nil in production —
+	// handlers fall back to s.queries.
+	patQueriesOverride patQueries
 	// branding resolves the effective instance name and icon with DB-override →
 	// config → built-in precedence. Admin mutation handlers call Invalidate()
 	// after writes so changes propagate immediately.
@@ -389,6 +393,9 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/complete", sessionReq, s.handleAddCredentialCompleteHTTP)
 	registerOp(mgmt, contract.OperationListMySessions, s.handleListMySessions, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeMySession, s.handleRevokeMySession, sessionReq)
+	registerOp(mgmt, contract.OperationListMyTokens, s.handleListMyTokens, sessionReq)
+	registerSudoOp(s, mgmt, contract.OperationCreateMyToken, s.handleCreateMyToken, sessionReq)
+	registerOp(mgmt, contract.OperationRevokeMyToken, s.handleRevokeMyToken, sessionReq)
 	registerOp(mgmt, contract.OperationListMyApps, s.handleListMyApps, sessionReq)
 	registerOp(mgmt, contract.OperationListMyConsent, s.handleListMyConsent, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeConsent, s.handleRevokeMyConsent, sessionReq)
