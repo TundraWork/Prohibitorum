@@ -1,0 +1,53 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-28-personal-access-tokens.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: DB migration + sqlc for personal_access_token",
+      "status": "pending",
+      "description": "**Goal:** Create the PAT table and its sqlc queries; regenerate pkg/db.\n\n**Files:** db/migrations/023_personal_access_token.sql, db/queries/personal_access_token.sql, pkg/db (generated).\n\n**Verify:** `sqlc generate && go build -tags nodynamic ./...`\n\n```json:metadata\n{\"files\": [\"db/migrations/023_personal_access_token.sql\", \"db/queries/personal_access_token.sql\", \"pkg/db\"], \"verifyCommand\": \"sqlc generate && go build -tags nodynamic ./...\", \"acceptanceCriteria\": [\"migration 023 up/down clean\", \"sqlc generates 5 PAT queries\", \"go build -tags nodynamic ./... clean\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: pat crypto package (generate/hash/hint)",
+      "status": "pending",
+      "description": "**Goal:** A leaf package producing PAT plaintext, its SHA-256 hash, and a non-secret hint — no DB dependency.\n\n**Files:** pkg/credential/pat/pat.go, pkg/credential/pat/pat_test.go.\n\n**Verify:** `go test ./pkg/credential/pat/ -v`\n\n```json:metadata\n{\"files\": [\"pkg/credential/pat/pat.go\", \"pkg/credential/pat/pat_test.go\"], \"verifyCommand\": \"go test ./pkg/credential/pat/ -v\", \"acceptanceCriteria\": [\"Generate returns prefixed raw + sha256 hash + hint\", \"HashToken deterministic == Generate hash\", \"Hint = prefix+ellipsis+last4\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Gateway PAT verify branch",
+      "status": "pending",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** Accept Authorization: Bearer <PAT> at the forward-auth verify endpoint with terminal precedence; emit the always-on authoritative header set incl Remote-Scopes.\n\n**Files:** pkg/protocol/oidc/forward_auth.go, pkg/protocol/oidc/forward_auth_test.go.\n\n**Verify:** `go test ./pkg/protocol/oidc/ -run ForwardAuth -v`\n\n```json:metadata\n{\"files\": [\"pkg/protocol/oidc/forward_auth.go\", \"pkg/protocol/oidc/forward_auth_test.go\"], \"verifyCommand\": \"go test ./pkg/protocol/oidc/ -run ForwardAuth -v\", \"acceptanceCriteria\": [\"writeIdentityHeaders always-emit 5 headers incl Remote-Scopes\", \"valid PAT 200 + headers\", \"invalid/disabled 401; unauthorized 403\", \"Bearer terminal precedence over cookie\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Self-service /me/tokens API",
+      "status": "pending",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** Let a user create (sudo, plaintext once), list (no secret), and revoke their own PATs; audit create/revoke.\n\n**Files:** pkg/audit/event.go, pkg/contract/auth.go, pkg/server/handle_me_tokens.go, pkg/server/handle_me_tokens_test.go, pkg/server/server.go.\n\n**Verify:** `go test ./pkg/server/ -run Token -v && go build -tags nodynamic ./...`\n\n```json:metadata\n{\"files\": [\"pkg/audit/event.go\", \"pkg/contract/auth.go\", \"pkg/server/handle_me_tokens.go\", \"pkg/server/handle_me_tokens_test.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"go test ./pkg/server/ -run Token -v && go build -tags nodynamic ./...\", \"acceptanceCriteria\": [\"create sudo-gated, plaintext once\", \"list has no secret, non-revoked only\", \"revoke owner-scoped + audit rows\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Dashboard Personal Access Tokens page",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** A /tokens page listing/revoking PATs and creating one via a reveal-once dialog; wired into router, sidebar, and both locales.\n\n**Files:** dashboard/src/pages/TokensView.vue, dashboard/src/router/index.ts, dashboard/src/components/custom/AppSidebar.vue, dashboard/src/locales/en.ts, dashboard/src/locales/zh.ts.\n\n**Verify:** `cd dashboard && npm run build && npm test`\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/TokensView.vue\", \"dashboard/src/router/index.ts\", \"dashboard/src/components/custom/AppSidebar.vue\", \"dashboard/src/locales/en.ts\", \"dashboard/src/locales/zh.ts\"], \"verifyCommand\": \"cd dashboard && npm run build && npm test\", \"acceptanceCriteria\": [\"/tokens list+revoke\", \"create reveal-once dialog with save gate\", \"sidebar entry + en/zh parity\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Docs — forward-auth deployment + API",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** Document the PAT credential, Remote-Scopes, and the mandatory Traefik config (forward Remote-*; strip Authorization).\n\n**Files:** docs/forward-auth.md, api.md.\n\n**Verify:** `grep -n 'Remote-Scopes' docs/forward-auth.md api.md`\n\n```json:metadata\n{\"files\": [\"docs/forward-auth.md\", \"api.md\"], \"verifyCommand\": \"grep -n 'Remote-Scopes' docs/forward-auth.md api.md\", \"acceptanceCriteria\": [\"forward-auth.md PAT section + verbatim boundary note + Traefik strip-Authorization\", \"api.md /me/tokens + verify Bearer 200/401/403\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Smoke coverage + full gate + dist commit",
+      "status": "pending",
+      "blockedBy": [2, 3, 4, 5],
+      "description": "**Goal:** Prove the PAT path end-to-end against a live server, then run the full project gate and commit the rebuilt SPA bundle.\n\n**USER-ORDERED GATE — NON-SKIPPABLE.** Requested by the user in the current conversation (project convention: every cycle ends with SMOKE_EXIT=0 + committed dist). Do not close by walking around it or substituting a cheaper check; re-validate every acceptanceCriteria with captured output.\n\n**Files:** cmd/smoke/main.go, pkg/webui/dist (generated).\n\n**Verify:** `mise run ci && mise run ci:smoke` → both exit 0.\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\", \"pkg/webui/dist\"], \"verifyCommand\": \"mise run ci && mise run ci:smoke\", \"acceptanceCriteria\": [\"smoke: PAT verify 200 + Remote-User + Remote-Scopes\", \"smoke: bad Bearer 401; app-restricted 403\", \"mise run ci exits 0 (no dist drift)\", \"mise run ci:smoke exits 0\"], \"userGate\": true, \"tags\": [\"user-gate\"], \"modelTier\": \"standard\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-28T00:00:00Z"
+}
