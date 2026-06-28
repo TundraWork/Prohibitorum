@@ -27,6 +27,8 @@ All admin routes share the `/api/prohibitorum` prefix. Resource names use role-o
 | POST | `/api/prohibitorum/oidc-applications/rotate-secret` | 🔐 | Body: `{"clientId": "..."}`. Generates and stores a new secret; returns new cleartext in `secret` **once only**. Guaranteed ≠ previous secret. |
 | POST | `/api/prohibitorum/oidc-applications/delete` | 🔐 | Body: `{"clientId": "..."}`. Hard-deletes the client row. |
 
+**Forward-auth scope vocabulary.** OIDC clients flagged for forward-auth carry an additional `scopes` field: an ordered list of `{name: string, description: string}` pairs that defines the capability labels the upstream service understands. This field is included in GET responses and accepted on POST/PUT. Scopes are admin-defined and opaque to Prohibitorum — the upstream service enforces them. Users select from this vocabulary when creating PAT per-app grants; scopes outside the vocabulary are rejected at PAT creation time.
+
 ---
 
 ## SAML applications (downstream service providers)
@@ -154,11 +156,23 @@ Gate notation for this section:
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/me/tokens` | 🔓 | List the calling user's PATs. Each row: `id`, `name`, `tokenHint` (non-secret display aid = token prefix + last 4 chars, e.g. `prohibitorum_pat_…a1b2`), `upstreamScopes`, `allowedClientIds`, `createdAt`, `expiresAt` (omitted when no expiry), `lastUsedAt` (omitted until first use). The raw token secret is **never returned** here. |
-| POST | `/api/prohibitorum/me/tokens` | 🔐 | Create a new PAT. Body: `{name, expiresInDays?, upstreamScopes?, allowedClientIds?}`. `name` is required (1–128 chars). `expiresInDays` is an **integer number of days** (not a timestamp): omitted or `0` = no expiry; valid range 1–3650; a negative value or one above 3650 is rejected (`bad_request`). Generates a cryptographically random token; the response is `{token, pat}` where `token` is the plaintext, revealed **once only** — only the hash is persisted. |
+| GET | `/api/prohibitorum/me/tokens` | 🔓 | List the calling user's PATs. Each row (`PersonalAccessTokenView`): `id`, `name`, `tokenHint` (non-secret display aid = token prefix + last 4 chars, e.g. `prohibitorum_pat_…a1b2`), `allApps` (bool), `appGrants` (object: clientId → `[scopes]`), `createdAt`, `expiresAt` (omitted when no expiry), `lastUsedAt` (omitted until first use). The raw token secret is **never returned** here. |
+| POST | `/api/prohibitorum/me/tokens` | 🔐 | Create a new PAT. Body: `{name, expiresInDays?, allApps, appGrants}`. `name` is required (1–128 chars). `expiresInDays` is an **integer number of days** (not a timestamp): omitted or `0` = no expiry; valid range 1–3650; a negative value or one above 3650 is rejected (`bad_request`). `allApps` (bool): `true` = token accepted at every forward-auth app the owner can reach; `appGrants` must be empty when `allApps: true`. `appGrants` (object: clientId → `[scopes]`): when `allApps: false`, must specify at least one app; each app must be in the caller's authorized forward-auth app set and each scope must be in that app's declared scope vocabulary — mismatches are rejected (`bad_request`). Generates a cryptographically random token; the response is `{token, pat}` where `token` is the plaintext, revealed **once only** — only the hash is persisted. |
 | POST | `/api/prohibitorum/me/tokens/revoke` | 🔓 | Body: `{"id": <int>}`. Revokes the specified PAT. The caller must own the token; revoking another user's token returns 404. |
+| GET | `/api/prohibitorum/me/forward-auth-apps` | 🔓 | List the calling user's authorized forward-auth apps with their scope vocabulary. Each entry: `clientId`, `displayName`, `scopes: [{name, description}]`. Used by the PAT creation UI to populate the per-app scope picker. Only apps the caller is authorized to access (per RBAC access policy) are returned. |
 
-`upstreamScopes` is a list of opaque capability labels forwarded as `Remote-Scopes` at the verify endpoint. The gateway does not interpret them — the upstream service enforces them.
+`Remote-Scopes` at the verify endpoint carries only the scopes the PAT granted to the **specific app** being accessed (per-app isolation). `allApps` PATs emit an empty `Remote-Scopes`. The gateway does not interpret scope labels — the upstream service enforces them.
+
+---
+
+## Personal access tokens (admin oversight)
+
+Admin routes for inspecting and revoking any user's PATs. Gate notation follows the global conventions at the top of this file.
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/accounts/{id}/tokens` | 🔓 | List all PATs belonging to account `{id}`. Returns the same `PersonalAccessTokenView` shape as `GET /me/tokens` (`id`, `name`, `tokenHint`, `allApps`, `appGrants`, `createdAt`, `expiresAt?`, `lastUsedAt?`). Raw token secret is **never returned**. |
+| POST | `/api/prohibitorum/accounts/tokens/revoke` | 🔐 | Body: `{"id": <int>}`. Admin force-revoke of any PAT by its numeric ID. Requires a fresh sudo grant. Returns 404 if the token does not exist. |
 
 ---
 

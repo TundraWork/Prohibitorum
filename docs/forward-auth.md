@@ -97,6 +97,17 @@ Clears the per-domain cookie + session, bounces to Prohibitorum to terminate the
 
 A **Personal Access Token (PAT)** is a user-owned bearer credential that can authenticate to the forward-auth verify endpoint. This enables non-browser API or automation clients to traverse the gateway without a session cookie.
 
+### Per-app scope model
+
+Each forward-auth app (OIDC client) carries an admin-defined **scope vocabulary** — a list of `{name, description}` pairs that the operator declares meaningful for that app. Examples: `read`, `write`, `admin:users`, or any opaque label the upstream service understands.
+
+When a user creates a PAT they choose **which forward-auth apps** the token may reach, and **which scopes** to request from each app's vocabulary. Two grant modes:
+
+- **Per-app grants** (`allApps: false`) — the PAT lists one or more forward-auth apps; for each app the user selects a subset of that app's declared scopes. The token is only accepted at those specific apps.
+- **All-apps mode** (`allApps: true`) — the PAT is accepted at every forward-auth app the owner is authorized to access. No per-app scopes are carried; `Remote-Scopes` is always empty. Useful for identity-only integrations that do not consume scopes.
+
+**Per-app isolation.** When the gateway evaluates a PAT-bearing request it knows which forward-auth app is being accessed (from `X-Forwarded-Host`). It emits `Remote-Scopes` containing *only* the scopes the PAT granted to **that specific app**. Scopes granted to other apps in the same PAT are never leaked to the current app.
+
 ### Bearer authentication at the verify endpoint
 
 When `GET /api/prohibitorum/forward-auth/verify` receives an `Authorization: Bearer <PAT>` header, it enters **API mode** — a terminal path that never redirects:
@@ -105,11 +116,11 @@ When `GET /api/prohibitorum/forward-auth/verify` receives an `Authorization: Bea
 |---------|------|---------|
 | Valid token, owner allowed | `200` | Identity headers emitted (including `Remote-Scopes`); Traefik forwards request upstream. |
 | Invalid, expired, or revoked token; disabled owner | `401` | Token authentication failed. |
-| Valid token, owner not authorized for this app | `403` | PAT app-restriction or RBAC denied access. |
+| Valid token, owner not authorized for this app | `403` | PAT does not grant access to this app, or RBAC denied. |
 
 No `Authorization` header present → the existing browser flow: valid cookie → `200`, no/expired cookie → `302` into the login flow.
 
-PATs act as the owning user with the **intersection** of the owner's authorization, any restrictions encoded in the PAT itself, and the protected-app access policy.
+PATs act as the owning user with the **intersection** of the owner's authorization, the PAT's per-app grants (`appGrants`), and the protected-app access policy.
 
 PATs are accepted **only** at the forward-auth verify endpoint. They are not accepted at the admin API or OIDC/SAML endpoints.
 
@@ -123,7 +134,7 @@ The gateway emits five headers on every allowed request, **all unconditionally**
 | `Remote-Name` | Display name. |
 | `Remote-Email` | Primary email address. |
 | `Remote-Groups` | Comma-joined group slugs exposed to downstreams. |
-| `Remote-Scopes` | Comma-joined opaque `upstream_scopes` from the PAT; **empty string for cookie/browser sessions**. The gateway does not interpret these labels — the upstream service enforces them. |
+| `Remote-Scopes` | Comma-joined scopes the PAT granted to **this specific app** (per-app isolation); **empty string for cookie/browser sessions and for `allApps` PATs**. The gateway does not interpret these labels — the upstream service enforces them. |
 
 The operator **must** list all five in `authResponseHeaders` (or use `authResponseHeadersRegex: "Remote-.*"`) so Prohibitorum's authoritative values always overwrite any client-supplied copies. Update the Traefik middleware from the example in section 2:
 
