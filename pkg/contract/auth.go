@@ -364,6 +364,13 @@ var OperationListAccountSessions = huma.Operation{
 	Summary:     "List an account's active sessions (admin only).",
 }
 
+var OperationListAccountTokens = huma.Operation{
+	OperationID: "listAccountTokens",
+	Method:      http.MethodGet,
+	Path:        "/accounts/{id}/tokens",
+	Summary:     "List an account's personal access tokens (admin only).",
+}
+
 var OperationListAccountGroups = huma.Operation{
 	OperationID: "listAccountGroups",
 	Method:      http.MethodGet,

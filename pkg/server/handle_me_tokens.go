@@ -27,6 +27,10 @@ type patQueries interface {
 	ListPATsByAccount(ctx context.Context, accountID int32) ([]db.PersonalAccessToken, error)
 	RevokePAT(ctx context.Context, arg db.RevokePATParams) (int64, error)
 	ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, accountID pgtype.Int4) ([]db.ListAuthorizedForwardAuthAppsForAccountRow, error)
+	// GetAccountByID backs the admin account-existence 404 guard on
+	// GET /accounts/{id}/tokens (handle_admin_account_tokens.go), mirroring the
+	// sibling GET /accounts/{id}/* handlers in handle_account.go.
+	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
 }
 
 // patView projects a row, unmarshalling app_grants (jsonb) to a map.

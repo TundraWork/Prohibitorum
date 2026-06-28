@@ -71,6 +71,10 @@ var sudoGatedRoutes = []sudoRoute{
 	// Account credential revoke — high-impact, sudo-gated
 	{method: "POST", path: "/api/prohibitorum/accounts/credentials/delete", body: `{"accountId":1,"credentialId":1}`},
 
+	// Admin PAT revoke — RevokePATByID has no ownership guard, so this admin+sudo
+	// route is the sole protection; the gate must never silently demote.
+	{method: "POST", path: "/api/prohibitorum/accounts/tokens/revoke", body: `{"id":1}`},
+
 	// Account/invitation lifecycle mutations — fresh-sudo via registerSudoOp
 	// (typed Huma ops). UpdateAccount can escalate user→admin, so step-up matters.
 	{method: "PUT", path: "/api/prohibitorum/accounts/1", body: `{"displayName":"x","role":"user"}`},
