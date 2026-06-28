@@ -68,7 +68,7 @@ const (
 	nHardening  = 12
 	nConsent    = 2
 	nAdmin      = 8
-	nPAT        = 6
+	nPAT        = 7
 )
 
 func main() {
@@ -4196,19 +4196,24 @@ func main() {
 	}
 
 	// =====================================================================
-	// pat — Personal Access Tokens as forward-auth (gateway) credentials.
+	// pat — Personal Access Tokens as forward-auth (gateway) credentials,
+	// fine-grained per-app model.
 	//
-	// A PAT is presented as `Authorization: Bearer` to the public
-	// forward-auth verify endpoint; the app is resolved from
-	// X-Forwarded-Host. A valid PAT for a non-restricted FA app → 200 with
-	// the authoritative Remote-* identity headers (Remote-Scopes = the PAT's
-	// comma-joined upstream_scopes). A bogus Bearer → 401. A PAT whose
-	// allow-list excludes the resolved app → 403.
+	// A PAT is presented as `Authorization: Bearer` to the public forward-auth
+	// verify endpoint; the app is resolved from X-Forwarded-Host. A PAT either
+	// grants `all_apps` (identity only, no scopes) or carries an explicit
+	// per-app grant map `{client_id: [scopes]}`; scopes are drawn from each
+	// app's admin-defined vocabulary. The gateway emits ONLY the requested
+	// app's scopes as Remote-Scopes. A per-app PAT verified against a granted
+	// app → 200 with that app's scopes; an all_apps PAT → 200 with empty
+	// Remote-Scopes; a per-app PAT against an app NOT in its grants → 403; a
+	// bogus or revoked credential → 401. Admins may list and revoke any
+	// account's PATs.
 	//
-	// All four sudo-gated mutations below (2 FA-app creates + 2 PAT creates)
-	// ride a SINGLE fresh sudo elevation: SudoTTL is 15m and sudo is
-	// multi-use until expiry, so one /me/sudo/begin stays well within the
-	// 10/min per-session rate limit.
+	// All sudo-gated mutations below (2 FA-app creates + 1 FA-app PUT
+	// [vocabulary] + 2 PAT creates + 1 admin revoke) ride a SINGLE fresh sudo
+	// elevation: SudoTTL is 15m and sudo is multi-use until expiry, so one
+	// /me/sudo/begin stays well within the 10/min per-session rate limit.
 	// =====================================================================
 	{
 		const (
@@ -4220,12 +4225,12 @@ func main() {
 		)
 		verifyURL := *baseURL + "/api/prohibitorum/forward-auth/verify"
 
-		step(fmt.Sprintf("pat %d/%d — fresh webauthn session + sudo + register forward-auth app #1 (host=%s)", 1, nPAT, faHost1))
+		step(fmt.Sprintf("pat %d/%d — fresh webauthn session + sudo + register 2 forward-auth apps + set %s scope vocabulary [%s]", 1, nPAT, faClient, patScope))
 		// /me/sudo/begin is rate-limited per session (10/min, keyed on the
 		// session id). The earlier arcs (federation/admin/avatar) burned through
 		// this session's budget, so log out and re-login for a clean sudo budget
-		// before the PAT block's four sudo-gated mutations — mirroring the
-		// core-arc "fresh login to reset per-session sudo rate limit" step.
+		// before the PAT block's sudo-gated mutations — mirroring the core-arc
+		// "fresh login to reset per-session sudo rate limit" step.
 		if err := c.logout(); err != nil {
 			log.Fatalf("pat: logout pre-sudo-refresh: %v", err)
 		}
@@ -4243,24 +4248,50 @@ func main() {
 		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 			log.Fatalf("pat: sudo webauthn (pre forward-auth-app create): %v", err)
 		}
+		patMe, err := c.getMe()
+		if err != nil {
+			log.Fatalf("pat: getMe (account id for admin oversight): %v", err)
+		}
 		registerForwardAuthApp(c, faClient, faHost1, "Smoke FA")
-		log.Printf("  forward-auth app registered: client_id=%s host=%s ✓", faClient, faHost1)
+		registerForwardAuthApp(c, faClient2, faHost2, "Smoke FA 2")
+		log.Printf("  forward-auth apps registered: %s (host=%s), %s (host=%s) ✓", faClient, faHost1, faClient2, faHost2)
+		// Set faClient's admin-defined scope vocabulary via the FA-app PUT.
+		// The PUT requires displayName + host (else it would blank them), so
+		// re-send the registration values alongside the new scope vocabulary.
+		{
+			resp, err := c.putJSONRaw("/api/prohibitorum/forward-auth-apps/"+faClient, map[string]any{
+				"displayName": "Smoke FA",
+				"host":        faHost1,
+				"scopes":      []map[string]string{{"name": patScope}},
+			})
+			if err != nil {
+				log.Fatalf("pat: PUT forward-auth-apps/%s (scopes): %v", faClient, err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				log.Fatalf("pat: PUT forward-auth-apps/%s: want 200, got %d — %s", faClient, resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		log.Printf("  %s scope vocabulary set: [%s] ✓", faClient, patScope)
 
-		step(fmt.Sprintf("pat %d/%d — POST /me/tokens (upstreamScopes=[%s]) → plaintext once", 2, nPAT, patScope))
+		step(fmt.Sprintf("pat %d/%d — POST /me/tokens (per-app grant {%s:[%s]}) → plaintext once", 2, nPAT, faClient, patScope))
 		var created struct {
 			Token string `json:"token"`
 			PAT   struct {
-				ID             int32    `json:"id"`
-				TokenHint      string   `json:"tokenHint"`
-				UpstreamScopes []string `json:"upstreamScopes"`
+				ID        int32               `json:"id"`
+				TokenHint string              `json:"tokenHint"`
+				AllApps   bool                `json:"allApps"`
+				AppGrants map[string][]string `json:"appGrants"`
 			} `json:"pat"`
 		}
 		if err := c.postJSON("/api/prohibitorum/me/tokens", map[string]any{
-			"name":           "smoke-pat",
-			"expiresInDays":  1,
-			"upstreamScopes": []string{patScope},
+			"name":          "smoke-pat",
+			"expiresInDays": 1,
+			"allApps":       false,
+			"appGrants":     map[string][]string{faClient: {patScope}},
 		}, &created); err != nil {
-			log.Fatalf("pat: POST /me/tokens: %v", err)
+			log.Fatalf("pat: POST /me/tokens (per-app): %v", err)
 		}
 		if created.Token == "" {
 			log.Fatalf("pat: created PAT token is empty")
@@ -4268,14 +4299,20 @@ func main() {
 		if created.PAT.TokenHint == "" {
 			log.Fatalf("pat: created PAT tokenHint is empty")
 		}
-		log.Printf("  PAT created: id=%d hint=%s scopes=%v (plaintext len=%d) ✓",
-			created.PAT.ID, created.PAT.TokenHint, created.PAT.UpstreamScopes, len(created.Token))
+		if created.PAT.AllApps {
+			log.Fatalf("pat: per-app PAT unexpectedly reports allApps=true")
+		}
+		if got := created.PAT.AppGrants[faClient]; len(got) != 1 || got[0] != patScope {
+			log.Fatalf("pat: per-app PAT appGrants[%s]: want [%s], got %v", faClient, patScope, got)
+		}
+		log.Printf("  per-app PAT created: id=%d hint=%s appGrants=%v (plaintext len=%d) ✓",
+			created.PAT.ID, created.PAT.TokenHint, created.PAT.AppGrants, len(created.Token))
 
-		step(fmt.Sprintf("pat %d/%d — forward-auth verify (Bearer PAT, host=%s) → 200 + Remote-User/Remote-Scopes", 3, nPAT, faHost1))
+		step(fmt.Sprintf("pat %d/%d — forward-auth verify (per-app PAT, host=%s) → 200 + Remote-Scopes=%s", 3, nPAT, faHost1, patScope))
 		{
 			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+created.Token)
 			if status != http.StatusOK {
-				log.Fatalf("pat: verify success: want 200, got %d — %s", status, firstN(body, 200))
+				log.Fatalf("pat: verify granted app: want 200, got %d — %s", status, firstN(body, 200))
 			}
 			if got := hdr.Get("Remote-User"); got != *username {
 				log.Fatalf("pat: Remote-User: want %q, got %q", *username, got)
@@ -4286,7 +4323,49 @@ func main() {
 			log.Printf("  200 Remote-User=%s Remote-Scopes=%s ✓", hdr.Get("Remote-User"), hdr.Get("Remote-Scopes"))
 		}
 
-		step(fmt.Sprintf("pat %d/%d — forward-auth verify (bogus Bearer) → 401", 4, nPAT))
+		step(fmt.Sprintf("pat %d/%d — POST /me/tokens (allApps=true) → verify host=%s → 200 + EMPTY Remote-Scopes", 4, nPAT, faHost1))
+		var createdAll struct {
+			Token string `json:"token"`
+			PAT   struct {
+				ID      int32 `json:"id"`
+				AllApps bool  `json:"allApps"`
+			} `json:"pat"`
+		}
+		if err := c.postJSON("/api/prohibitorum/me/tokens", map[string]any{
+			"name":      "smoke-allapps",
+			"allApps":   true,
+			"appGrants": map[string][]string{},
+		}, &createdAll); err != nil {
+			log.Fatalf("pat: POST /me/tokens (allApps): %v", err)
+		}
+		if createdAll.Token == "" {
+			log.Fatalf("pat: all-apps PAT token is empty")
+		}
+		if !createdAll.PAT.AllApps {
+			log.Fatalf("pat: all-apps PAT did not report allApps=true")
+		}
+		{
+			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+createdAll.Token)
+			if status != http.StatusOK {
+				log.Fatalf("pat: all-apps verify: want 200, got %d — %s", status, firstN(body, 200))
+			}
+			if got := hdr.Get("Remote-Scopes"); got != "" {
+				log.Fatalf("pat: all-apps Remote-Scopes: want empty, got %q", got)
+			}
+			log.Printf("  all-apps PAT id=%d → 200 Remote-User=%s Remote-Scopes=<empty> ✓", createdAll.PAT.ID, hdr.Get("Remote-User"))
+		}
+
+		step(fmt.Sprintf("pat %d/%d — per-app PAT (grants only %s) against NON-granted host=%s → 403", 5, nPAT, faClient, faHost2))
+		// The first PAT grants only faClient; verifying it against faClient2's
+		// host must 403 (valid owner, valid credential, but no grant for this
+		// app). Also a bogus Bearer → 401.
+		{
+			status, _, body := forwardAuthVerify(verifyURL, faHost2, "Bearer "+created.Token)
+			if status != http.StatusForbidden {
+				log.Fatalf("pat: non-granted app: want 403, got %d — %s", status, firstN(body, 200))
+			}
+			log.Printf("  per-app PAT (grants %s) against %s → 403 ✓", faClient, faHost2)
+		}
 		{
 			status, _, body := forwardAuthVerify(verifyURL, faHost1, "Bearer prohibitorum_pat_bogus")
 			if status != http.StatusUnauthorized {
@@ -4295,48 +4374,52 @@ func main() {
 			log.Printf("  bogus Bearer → 401 ✓")
 		}
 
-		step(fmt.Sprintf("pat %d/%d — app-restricted PAT (allowedClientIds=[%s]) against host=%s → 403", 5, nPAT, faClient, faHost2))
-		// Register a SECOND forward-auth app, then mint a PAT pinned to the
-		// FIRST app only. Verifying it against the second app's host must 403
-		// (valid owner, valid credential, but not allowed for this app).
-		registerForwardAuthApp(c, faClient2, faHost2, "Smoke FA 2")
-		log.Printf("  forward-auth app #2 registered: client_id=%s host=%s ✓", faClient2, faHost2)
-		var created2 struct {
-			Token string `json:"token"`
+		step(fmt.Sprintf("pat %d/%d — admin GET /accounts/%d/tokens lists the created PATs", 6, nPAT, patMe.ID))
+		var adminTokens []struct {
+			ID int32 `json:"id"`
 		}
-		if err := c.postJSON("/api/prohibitorum/me/tokens", map[string]any{
-			"name":             "smoke-pat2",
-			"expiresInDays":    1,
-			"allowedClientIds": []string{faClient},
-		}, &created2); err != nil {
-			log.Fatalf("pat: POST /me/tokens (restricted): %v", err)
+		if err := c.get(fmt.Sprintf("/api/prohibitorum/accounts/%d/tokens", patMe.ID), &adminTokens); err != nil {
+			log.Fatalf("pat: admin GET /accounts/%d/tokens: %v", patMe.ID, err)
 		}
-		if created2.Token == "" {
-			log.Fatalf("pat: restricted PAT token is empty")
-		}
-		{
-			status, _, body := forwardAuthVerify(verifyURL, faHost2, "Bearer "+created2.Token)
-			if status != http.StatusForbidden {
-				log.Fatalf("pat: app-restriction: want 403, got %d — %s", status, firstN(body, 200))
+		foundPerApp, foundAll := false, false
+		for _, t := range adminTokens {
+			if t.ID == created.PAT.ID {
+				foundPerApp = true
 			}
-			log.Printf("  PAT restricted to %s, verified against %s → 403 ✓", faClient, faHost2)
+			if t.ID == createdAll.PAT.ID {
+				foundAll = true
+			}
 		}
+		if !foundPerApp || !foundAll {
+			log.Fatalf("pat: admin token list missing created ids: per-app(id=%d) found=%v, all-apps(id=%d) found=%v, list=%v",
+				created.PAT.ID, foundPerApp, createdAll.PAT.ID, foundAll, adminTokens)
+		}
+		log.Printf("  admin GET /accounts/%d/tokens lists %d PAT(s) incl. per-app id=%d + all-apps id=%d ✓",
+			patMe.ID, len(adminTokens), created.PAT.ID, createdAll.PAT.ID)
 
-		step(fmt.Sprintf("pat %d/%d — sanity: restricted PAT against its ALLOWED host=%s → 200", 6, nPAT, faHost1))
+		step(fmt.Sprintf("pat %d/%d — admin POST /accounts/tokens/revoke {id:%d} → re-verify host=%s → 401", 7, nPAT, created.PAT.ID, faHost1))
 		{
-			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+created2.Token)
-			if status != http.StatusOK {
-				log.Fatalf("pat: restricted PAT on allowed host: want 200, got %d — %s", status, firstN(body, 200))
+			resp, err := c.postJSONRaw("/api/prohibitorum/accounts/tokens/revoke", map[string]any{"id": created.PAT.ID})
+			if err != nil {
+				log.Fatalf("pat: admin revoke: %v", err)
 			}
-			if got := hdr.Get("Remote-User"); got != *username {
-				log.Fatalf("pat: restricted PAT Remote-User: want %q, got %q", *username, got)
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("pat: admin revoke: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
 			}
-			log.Printf("  restricted PAT on allowed host %s → 200 Remote-User=%s ✓", faHost1, hdr.Get("Remote-User"))
+		}
+		{
+			status, _, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+created.Token)
+			if status != http.StatusUnauthorized {
+				log.Fatalf("pat: revoked PAT verify: want 401, got %d — %s", status, firstN(body, 200))
+			}
+			log.Printf("  revoked PAT id=%d → re-verify against %s → 401 ✓", created.PAT.ID, faHost1)
 		}
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway: valid Bearer → 200 + Remote-User/Remote-Scopes, bogus Bearer → 401, app-restricted PAT → 403) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + DB-state assertions passed against",
 		*baseURL)
 }
 
