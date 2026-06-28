@@ -50,6 +50,11 @@ interface SessionListItem {
   id: string; isCurrent: boolean; issuedAt: string; expiresAt: string
   lastSeenIp: string; userAgent?: string
 }
+interface PersonalAccessTokenView {
+  id: number; name: string; tokenHint: string
+  allApps: boolean; appGrants: Record<string, string[]>
+  createdAt: string; expiresAt?: string; lastUsedAt?: string
+}
 interface GroupView {
   id: number; slug: string; displayName: string; description?: string
   exposedToDownstream: boolean; createdAt: string
@@ -110,6 +115,9 @@ function buildAttrs(): Record<string, unknown> {
 function addAttrRow(): void { attrRows.value.push({ uid: attrUid++, key: '', value: '' }) }
 function removeAttrRow(i: number): void { attrRows.value.splice(i, 1) }
 
+const tokens = ref<PersonalAccessTokenView[]>([])
+const confirmRevokeTokenId = ref<number | null>(null)
+
 const revokeCredId = ref<number | null>(null)
 const confirmRevokeSessionId = ref<string | null>(null)
 const confirmRevokeAll = ref(false)
@@ -127,6 +135,10 @@ async function loadCredentials(): Promise<void> {
 async function loadSessions(): Promise<void> {
   const res = await run(() => api.get<SessionListItem[]>(`/api/prohibitorum/accounts/${id}/sessions`))
   if (res) sessions.value = res
+}
+async function loadTokens(): Promise<void> {
+  const res = await run(() => api.get<PersonalAccessTokenView[]>(`/api/prohibitorum/accounts/${id}/tokens`))
+  if (res) tokens.value = res
 }
 async function loadAccountGroups(): Promise<void> {
   const res = await groupsApi.run(() => api.get<GroupView[]>(`/api/prohibitorum/accounts/${id}/groups`))
@@ -147,6 +159,7 @@ async function load(): Promise<void> {
   seedAttrs(acc.attributes)
   await loadCredentials()
   await loadSessions()
+  await loadTokens()
 }
 
 // Groups computed: groups the account is not yet in — used by the add-picker.
@@ -206,6 +219,14 @@ async function revokeSession(sessionId: string): Promise<void> {
     return true as const
   }, t('sudo.reason.revokeSession')))
   if (ok) await loadSessions()
+}
+async function revokeToken(tokenId: number): Promise<void> {
+  const ok = await run(() => withSudo(async () => {
+    await api.post('/api/prohibitorum/accounts/tokens/revoke', { id: tokenId })
+    return true as const
+  }))
+  confirmRevokeTokenId.value = null
+  if (ok) await loadTokens()
 }
 async function revokeAllSessions(): Promise<void> {
   const res = await run(() => withSudo(() =>
@@ -361,6 +382,25 @@ onMounted(async () => {
       </Card>
 
       <Card>
+        <CardHeader><CardTitle>{{ t('admin.account.tokens.title') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-3">
+          <EmptyState v-if="tokens.length === 0" :title="t('admin.account.tokens.empty')" />
+          <div v-for="tok in tokens" :key="tok.id" class="flex items-center justify-between gap-4" :data-test="`token-row-${tok.id}`">
+            <div class="flex min-w-0 flex-col text-sm">
+              <span class="truncate font-medium text-ink">{{ tok.name }}</span>
+              <span class="font-mono text-xs text-muted">{{ tok.tokenHint }}</span>
+              <span class="text-xs text-muted">
+                <template v-if="tok.allApps">{{ t('admin.account.tokens.allApps') }}</template>
+                <template v-else>{{ t('admin.account.tokens.appCount', { n: Object.keys(tok.appGrants).length }) }}</template>
+                <template v-if="tok.expiresAt"> · {{ t('tokens.expires') }} {{ formatDateTime(tok.expiresAt) }}</template>
+              </span>
+            </div>
+            <Button type="button" variant="outline" size="sm" class="shrink-0" :disabled="busy" :data-test="`token-revoke-${tok.id}`" @click="confirmRevokeTokenId = tok.id">{{ t('admin.account.tokens.revoke') }}</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle>{{ t('admin.account.groupsTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
           <Alert v-if="groupsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
@@ -458,6 +498,10 @@ onMounted(async () => {
     <ConfirmDialog :open="confirmRemoveGroupId !== null" :title="t('admin.account.groupsRemoveConfirmTitle')" :confirm-label="t('admin.account.groupsRemove')" :busy="groupsApi.busy.value"
       @update:open="(v) => { if (!v) confirmRemoveGroupId = null }" @cancel="confirmRemoveGroupId = null" @confirm="removeFromGroup">
       {{ t('admin.account.groupsRemoveConfirmBody', { name: groupToRemove?.displayName ?? '' }) }}
+    </ConfirmDialog>
+    <ConfirmDialog :open="confirmRevokeTokenId !== null" :title="t('admin.account.tokens.revokeConfirmTitle')" :confirm-label="t('admin.account.tokens.revoke')" :busy="busy"
+      @update:open="(v) => { if (!v) confirmRevokeTokenId = null }" @cancel="confirmRevokeTokenId = null" @confirm="async () => { if (confirmRevokeTokenId !== null) await revokeToken(confirmRevokeTokenId) }">
+      {{ t('admin.account.tokens.revokeConfirmBody') }}
     </ConfirmDialog>
   </div>
 </template>

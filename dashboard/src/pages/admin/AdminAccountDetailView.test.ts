@@ -34,13 +34,18 @@ const ALL_GROUPS = [
   { id: 10, slug: 'eng', displayName: 'Engineering', exposedToDownstream: true, createdAt: '2026-01-01T00:00:00Z' },
   { id: 20, slug: 'ops', displayName: 'Operations', exposedToDownstream: false, createdAt: '2026-01-02T00:00:00Z' },
 ]
+const TOKENS = [
+  { id: 101, name: 'ci-deploy', tokenHint: 'proh_abc…', allApps: false, appGrants: { 'svc-1': ['repo:read'] }, createdAt: '2026-06-01T00:00:00Z' },
+  { id: 102, name: 'all-access', tokenHint: 'proh_xyz…', allApps: true, appGrants: {}, createdAt: '2026-06-02T00:00:00Z', expiresAt: '2027-06-02T00:00:00Z' },
+]
 // GET router: /accounts/7 → account; /accounts/7/credentials → creds;
-// /accounts/7/sessions → sessions; /accounts/7/groups → account groups;
-// /groups (exact) → all groups (picker)
-function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, acctGroups = GROUPS_FOR_ACCOUNT, allGroupsList = ALL_GROUPS) {
+// /accounts/7/sessions → sessions; /accounts/7/tokens → tokens;
+// /accounts/7/groups → account groups; /groups (exact) → all groups (picker)
+function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, acctGroups = GROUPS_FOR_ACCOUNT, allGroupsList = ALL_GROUPS, toks = TOKENS) {
   get.mockImplementation(async (p: string) => {
     if (p.endsWith('/credentials')) return creds
     if (p.endsWith('/sessions')) return sess
+    if (p.endsWith('/tokens')) return toks
     if (p === '/api/prohibitorum/groups') return allGroupsList
     if (p.endsWith('/groups')) return acctGroups
     return account
@@ -350,6 +355,7 @@ describe('AdminAccountDetailView', () => {
     get.mockImplementation(async (p: string) => {
       if (p.endsWith('/credentials')) return CREDS
       if (p.endsWith('/sessions')) return SESSIONS
+      if (p.endsWith('/tokens')) return TOKENS
       if (p === '/api/prohibitorum/groups') return ALL_GROUPS
       if (p.endsWith('/groups')) { groupsCallCount++; return groupsCallCount === 1 ? GROUPS_FOR_ACCOUNT : updatedGroups }
       return ACCOUNT
@@ -380,5 +386,36 @@ describe('AdminAccountDetailView', () => {
     // confirm dialog should appear — click its destructive confirm button
     clickConfirm(en.admin.account.groupsRemove); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/groups/10/members/remove', { accountId: 7 })
+  })
+
+  // ---- personal access tokens card ----
+
+  it('loads and renders token rows on mount', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(get.mock.calls.some((c) => String(c[0]).endsWith('/tokens'))).toBe(true)
+    expect(w.find('[data-test="token-row-101"]').exists()).toBe(true)
+    expect(w.find('[data-test="token-row-102"]').exists()).toBe(true)
+    expect(w.find('[data-test="token-revoke-101"]').exists()).toBe(true)
+    expect(w.find('[data-test="token-revoke-102"]').exists()).toBe(true)
+    expect(w.text()).toContain('ci-deploy')
+    expect(w.text()).toContain('all-access')
+  })
+
+  it('shows empty state when token list is empty', async () => {
+    mockGets(ACCOUNT, CREDS, SESSIONS, GROUPS_FOR_ACCOUNT, ALL_GROUPS, [])
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.admin.account.tokens.empty)
+  })
+
+  it('per-row revoke opens confirm dialog, POSTs revoke endpoint, and re-fetches tokens', async () => {
+    mockGets(); post.mockResolvedValue(undefined)
+    const w = mountView(); await flushPromises()
+    const getTokensBefore = get.mock.calls.filter((c) => String(c[0]).endsWith('/tokens')).length
+    await w.find('[data-test="token-revoke-101"]').trigger('click'); await flushPromises()
+    clickConfirm(en.admin.account.tokens.revoke); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/tokens/revoke', { id: 101 })
+    const getTokensAfter = get.mock.calls.filter((c) => String(c[0]).endsWith('/tokens')).length
+    expect(getTokensAfter).toBe(getTokensBefore + 1)
   })
 })
