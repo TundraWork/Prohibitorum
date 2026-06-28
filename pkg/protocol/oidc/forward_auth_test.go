@@ -77,16 +77,21 @@ func TestForwardAuth_Cookie_HostOnly(t *testing.T) {
 
 func TestForwardAuth_IdentityHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
-	writeIdentityHeaders(rec, "alice", "Alice A", "alice@example.com", []string{"admins", "staff"})
+	writeIdentityHeaders(rec, "alice", "Alice A", "alice@example.com", []string{"admins", "staff"}, []string{"repo:read"})
 	h := rec.Header()
 	if h.Get("Remote-User") != "alice" || h.Get("Remote-Name") != "Alice A" ||
-		h.Get("Remote-Email") != "alice@example.com" || h.Get("Remote-Groups") != "admins,staff" {
+		h.Get("Remote-Email") != "alice@example.com" || h.Get("Remote-Groups") != "admins,staff" ||
+		h.Get("Remote-Scopes") != "repo:read" {
 		t.Fatalf("headers: %v", h)
 	}
+	// All five are emitted unconditionally (even empty) so Traefik overwrites
+	// any client-supplied copy.
 	rec2 := httptest.NewRecorder()
-	writeIdentityHeaders(rec2, "bob", "Bob", "", nil)
-	if _, ok := rec2.Header()["Remote-Email"]; ok {
-		t.Fatal("empty email must be omitted")
+	writeIdentityHeaders(rec2, "bob", "Bob", "", nil, nil)
+	for _, k := range []string{"Remote-Email", "Remote-Groups", "Remote-Scopes"} {
+		if _, ok := rec2.Header()[k]; !ok {
+			t.Errorf("%s must be emitted even when empty", k)
+		}
 	}
 }
 
@@ -111,6 +116,9 @@ type fakeFAQueries struct {
 	acctErr error
 	// groups is returned by ListExposedGroupSlugsByAccount.
 	groups []string
+	// PAT lookup results for the Bearer path.
+	pat    db.PersonalAccessToken
+	patErr error
 	// Captured params for RegisterForwardAuthApp tests.
 	insertParams   *db.InsertOIDCClientParams
 	faConfigParams *db.SetForwardAuthConfigParams
@@ -143,6 +151,15 @@ func (f *fakeFAQueries) GetAccountByID(_ context.Context, _ int32) (db.Account, 
 func (f *fakeFAQueries) ListExposedGroupSlugsByAccount(_ context.Context, _ int32) ([]string, error) {
 	return f.groups, nil
 }
+
+func (f *fakeFAQueries) GetPATByTokenHash(_ context.Context, _ []byte) (db.PersonalAccessToken, error) {
+	if f.patErr != nil {
+		return db.PersonalAccessToken{}, f.patErr
+	}
+	return f.pat, nil
+}
+
+func (f *fakeFAQueries) TouchPATLastUsed(_ context.Context, _ int32) error { return nil }
 
 // Capture fields for RegisterForwardAuthApp tests.
 func (f *fakeFAQueries) InsertOIDCClient(_ context.Context, p db.InsertOIDCClientParams) (db.OidcClient, error) {
@@ -755,5 +772,108 @@ func TestValidatedForwardAuthReturnURL_RejectsDisabledHost(t *testing.T) {
 	}
 	if _, ok := ValidatedForwardAuthReturnURL(context.Background(), q, "https://app.example.test/"); ok {
 		t.Error("expected a disabled forward-auth host to be rejected")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// HandleForwardAuthVerify — PAT (Authorization: Bearer) path
+// ---------------------------------------------------------------------------
+
+// faBearerRequest builds a ForwardAuth request carrying an Authorization: Bearer
+// PAT and (optionally) a cookie, to assert Bearer precedence.
+func faBearerRequest(host, raw string, cookie *http.Cookie) *http.Request {
+	req := faRequest("https", host, "/api", cookie)
+	req.Header.Set("Authorization", "Bearer "+raw)
+	return req
+}
+
+func TestForwardAuthVerify_PAT_Valid_200WithScopes(t *testing.T) {
+	q := &fakeFAQueries{
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", Disabled: false},
+		authorized: true,
+		acct:       db.Account{ID: 42, Username: "alice", DisplayName: "Alice", Email: pgtype.Text{String: "a@x", Valid: true}},
+		groups:     []string{"staff"},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, UpstreamScopes: []string{"repo:read"}},
+	}
+	p, _ := newFAProvider(q)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	if rec.Header().Get("Remote-User") != "alice" || rec.Header().Get("Remote-Scopes") != "repo:read" {
+		t.Fatalf("headers: %v", rec.Header())
+	}
+}
+
+func TestForwardAuthVerify_PAT_Invalid_401(t *testing.T) {
+	q := &fakeFAQueries{
+		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"},
+		patErr:   pgx.ErrNoRows,
+	}
+	p, _ := newFAProvider(q)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_bad", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", rec.Code)
+	}
+}
+
+func TestForwardAuthVerify_PAT_DisabledOwner_401(t *testing.T) {
+	q := &fakeFAQueries{
+		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"},
+		acct:     db.Account{ID: 42, Disabled: true},
+		pat:      db.PersonalAccessToken{ID: 7, AccountID: 42},
+	}
+	p, _ := newFAProvider(q)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", rec.Code)
+	}
+}
+
+func TestForwardAuthVerify_PAT_AppRestrictionExcludes_403(t *testing.T) {
+	q := &fakeFAQueries{
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
+		authorized: true,
+		acct:       db.Account{ID: 42, Username: "alice"},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, AllowedClientIds: []string{"other"}},
+	}
+	p, _ := newFAProvider(q)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", rec.Code)
+	}
+}
+
+func TestForwardAuthVerify_PAT_RBACDenies_403(t *testing.T) {
+	q := &fakeFAQueries{
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
+		authorized: false,
+		acct:       db.Account{ID: 42, Username: "alice"},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42},
+	}
+	p, _ := newFAProvider(q)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", rec.Code)
+	}
+}
+
+func TestForwardAuthVerify_PAT_PrecedesCookie(t *testing.T) {
+	// A bad PAT plus a (would-be valid) cookie must still 401 — Bearer is terminal.
+	q := &fakeFAQueries{
+		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"},
+		patErr:   pgx.ErrNoRows,
+	}
+	p, store := newFAProvider(q)
+	token, _ := mintFASession(context.Background(), store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_bad", faCookie(true, token)))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401 (Bearer terminal), got %d", rec.Code)
 	}
 }

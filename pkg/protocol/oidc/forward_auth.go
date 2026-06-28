@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 )
@@ -194,14 +195,16 @@ func faCookie(secure bool, token string) *http.Cookie {
 }
 
 // writeIdentityHeaders sets the Traefik/nginx ForwardAuth identity headers on w.
-// Remote-Email is omitted when email is empty.
-func writeIdentityHeaders(w http.ResponseWriter, user, name, email string, groups []string) {
+// ALL headers are emitted unconditionally — even when empty — so a downstream
+// Traefik authResponseHeaders config overwrites (or clears) any client-supplied
+// copy, preventing identity/scope spoofing. scopes carries a PAT's opaque
+// upstream_scopes (nil for cookie/browser sessions).
+func writeIdentityHeaders(w http.ResponseWriter, user, name, email string, groups, scopes []string) {
 	w.Header().Set("Remote-User", user)
 	w.Header().Set("Remote-Name", name)
-	if email != "" {
-		w.Header().Set("Remote-Email", email)
-	}
+	w.Header().Set("Remote-Email", email)
 	w.Header().Set("Remote-Groups", strings.Join(groups, ","))
+	w.Header().Set("Remote-Scopes", strings.Join(scopes, ","))
 }
 
 // HandleForwardAuthVerify is the Traefik ForwardAuth target. Traefik forwards
@@ -222,6 +225,14 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 	}
 	secure := proto == "https"
 
+	// Programmatic path takes precedence and is terminal: a present
+	// Authorization: Bearer is always handled as a PAT (API mode) and never
+	// falls through to the cookie path or the 302 login redirect.
+	if raw := bearerToken(r); raw != "" {
+		p.verifyForwardAuthPAT(w, r, raw, client)
+		return
+	}
+
 	if c, cerr := r.Cookie(faCookieName(secure)); cerr == nil {
 		if sess := loadFASession(ctx, p.kv, c.Value); sess != nil && sess.ClientID == client.ClientID {
 			ok, aerr := p.queries.IsAccountAuthorizedForOIDCClient(ctx, db.IsAccountAuthorizedForOIDCClientParams{
@@ -230,7 +241,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 			if aerr == nil && ok.Bool {
 				if acct, gerr := p.queries.GetAccountByID(ctx, sess.AccountID); gerr == nil && !acct.Disabled {
 					groups, _ := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
-					writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups)
+					writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups, nil)
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -374,4 +385,53 @@ func accountEmail(a db.Account) string {
 		return a.Email.String
 	}
 	return ""
+}
+
+// verifyForwardAuthPAT authenticates a forward-auth request by Personal Access
+// Token. It is terminal: it always writes a response. 401 = the credential
+// cannot resolve a valid, enabled owner (not found / expired / revoked /
+// disabled). 403 = a valid owner that is not authorized for this app (PAT
+// allow-list or RBAC). On success it emits the authoritative identity headers
+// and best-effort updates last_used_at (throttled in SQL).
+func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, raw string, client db.GetForwardAuthClientByHostRow) {
+	ctx := r.Context()
+	row, err := p.queries.GetPATByTokenHash(ctx, pat.HashToken(raw))
+	if err != nil {
+		writeBearerError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	acct, err := p.queries.GetAccountByID(ctx, row.AccountID)
+	if err != nil || acct.Disabled {
+		writeBearerError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	if !patAllowsClient(row.AllowedClientIds, client.ClientID) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	ok, aerr := p.queries.IsAccountAuthorizedForOIDCClient(ctx, db.IsAccountAuthorizedForOIDCClientParams{
+		AccountID: pgtype.Int4{Int32: acct.ID, Valid: true}, ClientID: client.ClientID,
+	})
+	if aerr != nil || !ok.Bool {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	groups, _ := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
+	writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups, row.UpstreamScopes)
+	_ = p.queries.TouchPATLastUsed(ctx, row.ID) // best-effort; throttled in SQL
+	w.WriteHeader(http.StatusOK)
+}
+
+// patAllowsClient reports whether a PAT (with an optional allow-list) may be
+// used for clientID. An empty allow-list means "any app the owner may reach".
+func patAllowsClient(allowed []string, clientID string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, c := range allowed {
+		if c == clientID {
+			return true
+		}
+	}
+	return false
 }
