@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { api, registerUnauthorizedHandler } from './api'
+import {
+  api,
+  registerUnauthorizedHandler,
+  registerMaintenanceHandler,
+  registerConnectionErrorHandler,
+} from './api'
 import type { ApiError } from './api'
 
 // Helper to build a mock Response
@@ -128,6 +133,52 @@ describe('401 no_session seam', () => {
     registerUnauthorizedHandler(spy)
     vi.mocked(fetch).mockResolvedValue(mockResponse(403, JSON.stringify({ code: 'forbidden', message: 'x' })))
     await expect(api.get('/api/x')).rejects.toMatchObject({ code: 'forbidden' })
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe('connection-error seam', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    registerConnectionErrorHandler(null)
+    registerMaintenanceHandler(null)
+  })
+
+  it('fires the connection handler with network_error when fetch rejects (server unreachable)', async () => {
+    const spy = vi.fn()
+    registerConnectionErrorHandler(spy)
+    vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'))
+    await expect(api.get('/api/x')).rejects.toMatchObject({ code: 'network_error' })
+    expect(spy).toHaveBeenCalledWith({ code: 'network_error', message: expect.any(String) })
+  })
+
+  it('fires the connection handler on a 5xx server_error', async () => {
+    const spy = vi.fn()
+    registerConnectionErrorHandler(spy)
+    vi.mocked(fetch).mockResolvedValue(mockResponse(500, JSON.stringify({ code: 'server_error', message: 'boom' })))
+    await expect(api.get('/api/x')).rejects.toMatchObject({ code: 'server_error' })
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT fire the connection handler on a 503 maintenance_mode (maintenance handler owns it)', async () => {
+    const conn = vi.fn()
+    const maint = vi.fn()
+    registerConnectionErrorHandler(conn)
+    registerMaintenanceHandler(maint)
+    vi.mocked(fetch).mockResolvedValue(mockResponse(503, JSON.stringify({ code: 'maintenance_mode', message: 'x' })))
+    await expect(api.get('/api/x')).rejects.toMatchObject({ code: 'maintenance_mode' })
+    expect(maint).toHaveBeenCalledTimes(1)
+    expect(conn).not.toHaveBeenCalled()
+  })
+
+  it('does NOT fire the connection handler on a 4xx app error', async () => {
+    const spy = vi.fn()
+    registerConnectionErrorHandler(spy)
+    vi.mocked(fetch).mockResolvedValue(mockResponse(409, JSON.stringify({ code: 'username_taken', message: 'x' })))
+    await expect(api.post('/api/x')).rejects.toMatchObject({ code: 'username_taken' })
     expect(spy).not.toHaveBeenCalled()
   })
 })

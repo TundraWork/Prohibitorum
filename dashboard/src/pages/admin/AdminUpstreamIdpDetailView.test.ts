@@ -106,10 +106,12 @@ describe('AdminUpstreamIdpDetailView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/delete', { slug: 'okta' })
     expect(push).toHaveBeenCalledWith('/admin/identity-providers')
   })
-  it('surfaces a generic load error in the Alert without showing not-found', async () => {
-    get.mockRejectedValue({ code: 'server_error', message: 'boom' })
+  it('surfaces a generic app load error in the Alert without showing not-found', async () => {
+    // A non-not-found app 4xx still renders inline; connectivity/5xx
+    // (server_error) is now suppressed here and shown via the global toast.
+    get.mockRejectedValue({ code: 'forbidden', message: 'zh' })
     const w = mountView(); await flushPromises()
-    expect(w.text()).toContain(en.errors.server_error)
+    expect(w.text()).toContain(en.errors.forbidden)
     expect(w.text()).not.toContain(en.admin.upstream.notFound)
   })
   it('does not navigate when delete fails', async () => {

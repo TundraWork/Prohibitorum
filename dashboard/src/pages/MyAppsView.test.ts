@@ -76,19 +76,30 @@ describe('MyAppsView', () => {
     expect(w.text()).toContain(en.myApps.empty)
   })
 
-  it('surfaces an error when /me/apps fails', async () => {
+  it('surfaces an error when /me/apps fails with an app error', async () => {
+    // App 4xx codes still render inline; connectivity/5xx (server_error) are now
+    // suppressed here and surfaced via the global toast instead.
+    get.mockImplementation(((path: string) =>
+      path.includes('/me/consent')
+        ? Promise.resolve([])
+        : Promise.reject({ code: 'forbidden', message: 'boom' })) as typeof api.get)
+    const w = mountView(); await flushPromises()
+    expect(w.find('[role="alert"]').exists()).toBe(true)
+  })
+
+  it('does NOT render an inline alert for server_error (global toast owns it)', async () => {
     get.mockImplementation(((path: string) =>
       path.includes('/me/consent')
         ? Promise.resolve([])
         : Promise.reject({ code: 'server_error', message: 'boom' })) as typeof api.get)
     const w = mountView(); await flushPromises()
-    expect(w.find('[role="alert"]').exists()).toBe(true)
+    expect(w.find('[role="alert"]').exists()).toBe(false)
   })
 
   it('surfaces an error when /me/consent fails (no misleading connected/available split)', async () => {
     get.mockImplementation(((path: string) =>
       path.includes('/me/consent')
-        ? Promise.reject({ code: 'server_error', message: 'boom' })
+        ? Promise.reject({ code: 'forbidden', message: 'boom' })
         : Promise.resolve(APPS)) as typeof api.get)
     const w = mountView(); await flushPromises()
     // The whole load fails atomically: alert shown, and NO app grid rendered

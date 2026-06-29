@@ -25,6 +25,8 @@ function isApiError(v: unknown): v is ApiError {
   )
 }
 
+const REQUEST_TIMEOUT_MS = 15000
+
 export type UnauthorizedHandler = (ctx: { method: string }) => void
 let unauthorizedHandler: UnauthorizedHandler | null = null
 
@@ -61,18 +63,50 @@ function maybeSignalMaintenance(status: number, err: ApiError): void {
   }
 }
 
+export type ConnectionErrorHandler = (err: ApiError) => void
+let connectionErrorHandler: ConnectionErrorHandler | null = null
+
+/**
+ * Register a handler invoked when a request can't reach the server: a `fetch`
+ * rejection (server down/unreachable), a timeout (AbortError after
+ * REQUEST_TIMEOUT_MS), or a 5xx server error. Wired in main.ts to surface a
+ * global toast. Pass null to clear (tests).
+ */
+export function registerConnectionErrorHandler(fn: ConnectionErrorHandler | null): void {
+  connectionErrorHandler = fn
+}
+
+function signalConnectionError(err: ApiError): void {
+  connectionErrorHandler?.(err)
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {}
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
   }
 
-  const res = await fetch(path, {
-    method,
-    credentials: 'include',
-    headers: Object.keys(headers).length > 0 ? headers : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(path, {
+      method,
+      credentials: 'include',
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    })
+  } catch {
+    // Network failure (server down/unreachable) or AbortError (timeout). Surface
+    // a typed network_error instead of leaking an uncaught TypeError/DOMException.
+    const err: ApiError = { code: 'network_error', message: 'network request failed' }
+    signalConnectionError(err)
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
 
   const text = await res.text()
 
@@ -93,6 +127,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       : { code: 'server_error', message: text || res.statusText }
     maybeSignalUnauthorized(res.status, err, method)
     maybeSignalMaintenance(res.status, err)
+    // 5xx → global connection toast, EXCEPT maintenance (503 maintenance_mode is
+    // owned by the maintenance handler, which redirects to the maintenance screen
+    // — a "server error" toast on top of that would be wrong).
+    if (res.status >= 500 && err.code !== 'maintenance_mode') signalConnectionError(err)
     throw err
   }
 
@@ -103,7 +141,20 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 async function upload<T>(path: string, body: Blob): Promise<T> {
-  const res = await fetch(path, { method: 'PUT', credentials: 'include', body })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(path, { method: 'PUT', credentials: 'include', body, signal: controller.signal })
+  } catch {
+    const err: ApiError = { code: 'network_error', message: 'network request failed' }
+    signalConnectionError(err)
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
+
   const text = await res.text()
   let data: unknown = undefined
   if (text) {
@@ -113,6 +164,10 @@ async function upload<T>(path: string, body: Blob): Promise<T> {
     const err: ApiError = isApiError(data) ? data : { code: 'server_error', message: text || res.statusText }
     maybeSignalUnauthorized(res.status, err, 'PUT')
     maybeSignalMaintenance(res.status, err)
+    // 5xx → global connection toast, EXCEPT maintenance (503 maintenance_mode is
+    // owned by the maintenance handler, which redirects to the maintenance screen
+    // — a "server error" toast on top of that would be wrong).
+    if (res.status >= 500 && err.code !== 'maintenance_mode') signalConnectionError(err)
     throw err
   }
   return (data ?? {}) as T

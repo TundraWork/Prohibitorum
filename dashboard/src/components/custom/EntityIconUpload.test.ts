@@ -54,7 +54,10 @@ describe('EntityIconUpload', () => {
   })
 
   it('shows an error alert and does not emit changed when upload fails', async () => {
-    upload.mockRejectedValue(new Error('upload failed'))
+    // An app 4xx (e.g. a rejected image) still renders inline; connectivity/5xx
+    // and unexpected non-ApiError throws (mapped to server_error) are now
+    // surfaced via the global toast instead.
+    upload.mockRejectedValue({ code: 'avatar_invalid_image', message: 'zh' })
     const w = mountComp()
     const file = new File(['img'], 'icon.png', { type: 'image/png' })
     const input = w.find<HTMLInputElement>('[data-test="icon-input"]')

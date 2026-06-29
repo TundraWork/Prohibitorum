@@ -25,6 +25,7 @@ export default {
     copied: 'Copied',
     remove: 'Remove',
     add: 'Add',
+    dismiss: 'Dismiss',
   },
 
   scopeSelector: {
@@ -886,6 +887,7 @@ export default {
 
     // Generic / client-synthesized
     server_error: 'Something went wrong on our end. Please try again.',
+    network_error: "Can't reach the server. Check your connection and try again.",
     not_found: 'The requested page could not be found.',
 
     // Passkey management
@@ -926,6 +928,10 @@ export default {
     group_slug_conflict: 'A group with that slug already exists.',
 
     maintenance_mode: 'The system is under maintenance. Please try again later.',
+  },
+
+  offline: {
+    message: "You're offline. Some actions may not work until you reconnect.",
   },
 
   myApps: {

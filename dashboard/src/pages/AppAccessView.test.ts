@@ -85,10 +85,18 @@ describe('AppAccessView', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
-  it('shows error alert when get fails', async () => {
-    get.mockRejectedValue({ code: 'server_error', message: 'zh' })
+  it('shows error alert when get fails with an app error', async () => {
+    // App 4xx codes still render inline; connectivity/5xx (server_error) are now
+    // suppressed here and surfaced via the global toast instead.
+    get.mockRejectedValue({ code: 'forbidden', message: 'zh' })
     const w = mountView(); await flushPromises()
     expect(w.find('[role="alert"]').exists()).toBe(true)
+  })
+
+  it('does NOT render an inline alert for server_error (global toast owns it)', async () => {
+    get.mockRejectedValue({ code: 'server_error', message: 'boom' })
+    const w = mountView(); await flushPromises()
+    expect(w.find('[role="alert"]').exists()).toBe(false)
   })
 
   it('app with iconUrl renders an <img> with that src', async () => {

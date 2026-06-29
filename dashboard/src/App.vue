@@ -5,6 +5,8 @@ import { useLocale } from '@/composables/useLocale'
 import { useBrandingStore } from '@/stores/branding'
 import { setFavicon } from '@/lib/favicon'
 import SessionExpiredBanner from '@/components/custom/SessionExpiredBanner.vue'
+import OfflineBanner from '@/components/custom/OfflineBanner.vue'
+import Toaster from '@/components/custom/Toaster.vue'
 useTheme()
 useLocale()
 const branding = useBrandingStore()
@@ -18,6 +20,8 @@ watch(() => branding.iconSrc, setFavicon, { immediate: true })
 </script>
 
 <template>
+  <OfflineBanner />
   <SessionExpiredBanner />
   <RouterView />
+  <Toaster />
 </template>

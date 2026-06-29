@@ -1,0 +1,1 @@
+import{G as r,r as a}from"./index-BuDwzV_u.js";function o(t=3e3){const l=a(!1);let e=null;function n(){e!==null&&(clearTimeout(e),e=null)}function u(){l.value=!0,n(),e=setTimeout(()=>{l.value=!1,e=null},t)}return r(n),{flag:l,trigger:u}}export{o as u};

@@ -21,6 +21,7 @@ export default {
     copied: '已复制',
     remove: '移除',
     add: '添加',
+    dismiss: '忽略',
   },
 
   scopeSelector: {
@@ -881,6 +882,7 @@ export default {
 
     // Generic / client-synthesized
     server_error: '我们这边出了点问题，请重试。',
+    network_error: '无法连接到服务器，请检查你的网络连接后重试。',
     not_found: '找不到请求的页面。',
 
     // Passkey management
@@ -921,6 +923,10 @@ export default {
     group_slug_conflict: '已存在使用该 slug 的用户组。',
 
     maintenance_mode: '系统正在维护中，请稍后再试。',
+  },
+
+  offline: {
+    message: '你当前处于离线状态，重新连接前部分功能可能无法使用。',
   },
 
   myApps: {

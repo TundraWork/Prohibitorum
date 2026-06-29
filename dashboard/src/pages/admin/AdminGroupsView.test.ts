@@ -87,9 +87,17 @@ describe('AdminGroupsView', () => {
     expect(w.text()).toContain(en.errors.group_slug_conflict)
   })
 
-  it('surfaces server_error on load failure', async () => {
+  it('surfaces an app load error inline', async () => {
+    // App 4xx codes still render inline; connectivity/5xx (server_error) are now
+    // suppressed here and surfaced via the global toast instead.
+    get.mockRejectedValue({ code: 'forbidden', message: 'zh' })
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.errors.forbidden)
+  })
+
+  it('does NOT render server_error inline (global toast owns it)', async () => {
     get.mockRejectedValue({ code: 'server_error', message: 'boom' })
     const w = mountView(); await flushPromises()
-    expect(w.text()).toContain(en.errors.server_error)
+    expect(w.text()).not.toContain(en.errors.server_error)
   })
 })

@@ -74,10 +74,21 @@ describe('SessionsView', () => {
     expect(wrapper.text()).toContain(en.sessions.empty)
   })
 
-  it('renders error alert when the request fails', async () => {
+  it('renders error alert when the request fails with an app error', async () => {
+    // App 4xx codes still render inline; connectivity/5xx (server_error) are now
+    // suppressed here and surfaced via the global toast instead.
+    get.mockRejectedValue({ code: 'forbidden', message: 'zh' })
+    const wrapper = mount(SessionsView, { global: { plugins: [makeI18n()] } })
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain(en.errors.forbidden)
+  })
+
+  it('does NOT render server_error inline (global toast owns it)', async () => {
     get.mockRejectedValue({ code: 'server_error', message: 'boom' })
     const wrapper = mount(SessionsView, { global: { plugins: [makeI18n()] } })
     await flushPromises()
-    expect(wrapper.text()).toContain(en.errors.server_error)
+    expect(wrapper.text()).not.toContain(en.errors.server_error)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 })
