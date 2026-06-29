@@ -97,7 +97,13 @@ function onSuccess(redirect?: string): void {
         <AlertDescription>{{ t('login.maintenanceNotice') }}</AlertDescription>
       </Alert>
 
-      <Alert v-if="sessionExpired" role="status" aria-live="polite">
+      <Alert
+        v-if="sessionExpired"
+        variant="destructive"
+        class="border-destructive/20 bg-destructive/10"
+        role="status"
+        aria-live="polite"
+      >
         <AlertDescription>{{ t('login.sessionExpired') }}</AlertDescription>
       </Alert>
 

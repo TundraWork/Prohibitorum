@@ -142,7 +142,7 @@ async function submitTotp(): Promise<void> {
         <AlertDescription>{{ errorText }}</AlertDescription>
       </Alert>
 
-      <Button type="submit" variant="outline" class="w-full" :disabled="busy">
+      <Button type="submit" class="w-full" :disabled="busy">
         {{ phase === 'password' ? t('login.passwordSubmit') : t('login.totpSubmit') }}
       </Button>
     </template>
