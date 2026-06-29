@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** SettingsView (/admin/settings) — edit instance name + icon (admin + sudo). */
+/** SettingsView (/admin/settings) — edit instance name + icon + maintenance mode (admin + sudo). */
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
@@ -10,6 +10,8 @@ import { useBrandingStore } from '@/stores/branding'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 
@@ -21,7 +23,17 @@ const { flag: savedFlag, trigger: triggerSaved } = useTransientFlag(2000)
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploadError = ref('')
 
-onMounted(() => { name.value = branding.instanceName })
+// Maintenance mode local state — initialised from the branding store on mount.
+const maintenanceMode = ref(branding.maintenanceMode)
+const maintenanceMessage = ref(branding.maintenanceMessage)
+const { flag: maintenanceSavedFlag, trigger: triggerMaintenanceSaved } = useTransientFlag(2000)
+
+onMounted(async () => {
+  name.value = branding.instanceName
+  await branding.ensureLoaded()
+  maintenanceMode.value = branding.maintenanceMode
+  maintenanceMessage.value = branding.maintenanceMessage
+})
 
 async function saveName(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
@@ -31,6 +43,20 @@ async function saveName(): Promise<void> {
   if (ok) {
     await branding.load()
     triggerSaved()
+  }
+}
+
+async function saveMaintenance(): Promise<void> {
+  const ok = await run(() => withSudo(async () => {
+    await api.put('/api/prohibitorum/admin/settings/maintenance', {
+      maintenanceMode: maintenanceMode.value,
+      maintenanceMessage: maintenanceMessage.value,
+    })
+    return true as const
+  }))
+  if (ok) {
+    await branding.load()
+    triggerMaintenanceSaved()
   }
 }
 
@@ -81,6 +107,33 @@ async function removeIcon(): Promise<void> {
         <div class="flex items-center gap-3">
           <Button :disabled="busy" data-test="save-name" @click="saveName">{{ t('admin.settings.save') }}</Button>
           <span v-if="savedFlag" class="text-sm text-muted" role="status">{{ t('admin.settings.saved') }}</span>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader><CardTitle>{{ t('admin.settings.maintenanceLabel') }}</CardTitle></CardHeader>
+      <CardContent class="flex flex-col gap-3">
+        <p class="text-xs text-muted">{{ t('admin.settings.maintenanceDescription') }}</p>
+        <div class="flex items-center gap-3">
+          <Switch id="maintenance-mode" v-model="maintenanceMode" :disabled="busy" :aria-label="t('admin.settings.maintenanceToggle')" />
+          <Label for="maintenance-mode">{{ t('admin.settings.maintenanceToggle') }}</Label>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <Label for="maintenance-message">{{ t('admin.settings.maintenanceMessageLabel') }}</Label>
+          <Textarea
+            id="maintenance-message"
+            v-model="maintenanceMessage"
+            :disabled="busy"
+            :placeholder="t('admin.settings.maintenanceMessagePlaceholder')"
+            :maxlength="500"
+            rows="3"
+          />
+        </div>
+        <p class="text-xs text-amber-700 dark:text-amber-400">{{ t('admin.settings.maintenanceWarning') }}</p>
+        <div class="flex items-center gap-3">
+          <Button :disabled="busy" data-test="save-maintenance" @click="saveMaintenance">{{ t('admin.settings.maintenanceSave') }}</Button>
+          <span v-if="maintenanceSavedFlag" class="text-sm text-muted" role="status">{{ t('admin.settings.saved') }}</span>
         </div>
       </CardContent>
     </Card>

@@ -85,6 +85,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/WelcomeView.vue'),
     meta: { public: true, titleKey: 'title.welcome' },
   },
+  {
+    path: '/maintenance',
+    name: 'maintenance',
+    component: () => import('../pages/MaintenanceView.vue'),
+    meta: { public: true, titleKey: 'title.maintenance' },
+  },
   // Launcher shell — the end-user home.
   {
     path: '/',
@@ -142,6 +148,41 @@ const routes: RouteRecordRaw[] = [
 // ---------------------------------------------------------------------------
 export function installGuard(router: Router): void {
   router.beforeEach(async (to) => {
+    // ---------------------------------------------------------------------------
+    // Maintenance gate — evaluated before auth so non-admin users are redirected
+    // even on routes they would otherwise be allowed to visit.
+    // ---------------------------------------------------------------------------
+    {
+      const { useBrandingStore: useBranding } = await import('@/stores/branding')
+      const { getActivePinia } = await import('pinia')
+      const pinia = getActivePinia()
+      if (pinia) {
+        const branding = useBranding(pinia)
+        await branding.ensureLoaded()
+
+        if (branding.maintenanceMode) {
+          // Check if the visitor is an authenticated admin — admins bypass maintenance.
+          const { useAuthStore: useAuth } = await import('@/stores/auth')
+          const auth = useAuth(pinia)
+          // GET /me is allowlisted by the backend during maintenance.
+          try { await auth.ensureLoaded() } catch { /* treat as unauthenticated */ }
+
+          if (auth.me && !auth.isAdmin) {
+            // Authenticated non-admin: redirect to maintenance (allow logout).
+            if (to.name !== 'maintenance' && to.name !== 'logout') {
+              return { name: 'maintenance' }
+            }
+            return true
+          }
+          // Unauthenticated users may still reach /login (so admins can sign in).
+          // Admins fall through to normal flow below.
+        } else {
+          // Maintenance is off — don't strand anyone on the maintenance page.
+          if (to.name === 'maintenance') return { name: 'login' }
+        }
+      }
+    }
+
     // All threshold routes and any route marked public: skip guard.
     if (to.meta.public) return true
 

@@ -8,7 +8,9 @@ import SessionExpiredBanner from '@/components/custom/SessionExpiredBanner.vue'
 useTheme()
 useLocale()
 const branding = useBrandingStore()
-void branding.load()
+// ensureLoaded() memoises the load — calling it here sets the _loadedFlag so
+// the router guard's await resolves immediately after App.vue boots.
+void branding.ensureLoaded()
 // Keep the browser-tab favicon in sync with the instance icon. iconSrc carries
 // a ?v=<etag> cache-buster, so an uploaded/removed icon changes the URL and the
 // browser refetches instead of serving the stale (default) cached favicon.

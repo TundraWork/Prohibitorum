@@ -1,7 +1,8 @@
 /**
- * Branding store — the instance name + icon, loaded once from the public
- * /config endpoint at boot. Drives the sidebar/login brand mark + page titles.
- * Defaults keep the UI sane before load() resolves (and if it fails).
+ * Branding store — the instance name + icon + maintenance mode, loaded once
+ * from the public /config endpoint at boot. Drives the sidebar/login brand mark
+ * + page titles + the maintenance gate. Defaults keep the UI sane before
+ * load() resolves (and if it fails).
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -12,12 +13,16 @@ interface PublicConfig {
   hasCustomIcon: boolean
   iconUrl: string
   iconEtag: string
+  maintenanceMode: boolean
+  maintenanceMessage: string
 }
 
 export const useBrandingStore = defineStore('branding', () => {
   const instanceName = ref('Prohibitorum')
   const hasCustomIcon = ref(false)
   const iconEtag = ref('')
+  const maintenanceMode = ref(false)
+  const maintenanceMessage = ref('')
 
   const iconSrc = computed(() => {
     const v = iconEtag.value ? iconEtag.value.slice(0, 8) : ''
@@ -30,10 +35,29 @@ export const useBrandingStore = defineStore('branding', () => {
       if (cfg.instanceName) instanceName.value = cfg.instanceName
       hasCustomIcon.value = !!cfg.hasCustomIcon
       iconEtag.value = cfg.iconEtag ?? ''
+      maintenanceMode.value = !!cfg.maintenanceMode
+      maintenanceMessage.value = cfg.maintenanceMessage ?? ''
     } catch {
       // Keep defaults — branding is non-critical.
+    } finally {
+      _loadedFlag.value = true
     }
   }
 
-  return { instanceName, hasCustomIcon, iconEtag, iconSrc, load }
+  // Memoized load — callers (router guard) can await this and it resolves
+  // immediately if load() has already run. App.vue calls ensureLoaded() at boot.
+  const _loadedFlag = ref(false)
+  let _loadPromise: Promise<void> | null = null
+
+  async function ensureLoaded(): Promise<void> {
+    if (_loadedFlag.value) return
+    if (!_loadPromise) _loadPromise = load()
+    await _loadPromise
+  }
+
+  return {
+    instanceName, hasCustomIcon, iconEtag, iconSrc,
+    maintenanceMode, maintenanceMessage,
+    load, ensureLoaded,
+  }
 })

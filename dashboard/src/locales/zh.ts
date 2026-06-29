@@ -560,6 +560,13 @@ export default {
       upload: '上传图标',
       remove: '移除图标',
       uploadError: '无法使用该图片，请换一张正方形 PNG 或 JPEG。',
+      maintenanceLabel: '维护模式',
+      maintenanceDescription: '在对实例进行维护时，临时阻止所有非管理员访问。',
+      maintenanceToggle: '启用维护模式',
+      maintenanceMessageLabel: '用户提示信息（可选）',
+      maintenanceMessagePlaceholder: '例如：将于北京时间 01:00 恢复',
+      maintenanceWarning: '启用后，所有非管理员用户将无法创建新会话，无法登录、使用应用或访问网关。你将保持完整的管理员访问权限。',
+      maintenanceSave: '保存维护设置',
     },
     access: {
       title: '应用访问控制',
@@ -597,6 +604,7 @@ export default {
     lostAuthenticator: '丢失了身份验证器？',
     recoveryRestart: '该恢复码无法使用——可能已输入有误或已被使用。为了账户安全，本次登录已重置，请重新开始登录。',
     sessionExpired: '你的会话已过期，请重新登录。',
+    maintenanceNotice: '系统正在维护中，目前仅限管理员登录。',
   },
 
   sessionExpiry: {
@@ -755,6 +763,16 @@ export default {
     },
   },
 
+  maintenance: {
+    heading: '我们马上回来',
+    body: '我们正在对 {instance} 进行改进，很快就会恢复上线——感谢你的耐心等待。',
+    noteLabel: '来自团队的说明',
+    retry: '重试',
+    signOut: '退出登录',
+    adminBanner: '维护模式已开启——非管理员用户当前无法访问。',
+    adminBannerAction: '管理',
+  },
+
   title: {
     myApps: '我的应用',
     appAccess: '应用访问',
@@ -763,6 +781,7 @@ export default {
     samlConsent: '登录',
     logout: '已退出登录',
     error: '错误',
+    maintenance: '维护中',
     enroll: '设置账户',
     pair: '配对设备',
     welcome: '欢迎',
@@ -900,6 +919,8 @@ export default {
 
     group_not_found: '该用户组已不存在。',
     group_slug_conflict: '已存在使用该 slug 的用户组。',
+
+    maintenance_mode: '系统正在维护中，请稍后再试。',
   },
 
   myApps: {

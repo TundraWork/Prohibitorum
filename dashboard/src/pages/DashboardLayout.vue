@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/auth'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import AppSidebar from '@/components/custom/AppSidebar.vue'
 import SudoModal from '@/components/custom/SudoModal.vue'
+import MaintenanceBanner from '@/components/custom/MaintenanceBanner.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -57,6 +58,7 @@ watch(() => route.path, () => { contentRef.value?.focus() })
   <SidebarProvider>
     <AppSidebar />
     <SidebarInset>
+      <MaintenanceBanner />
       <header class="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-border bg-background px-4">
         <SidebarTrigger />
         <!-- Orientation label, not a heading: each routed page renders its own <h1>. -->

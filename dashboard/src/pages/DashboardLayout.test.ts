@@ -19,11 +19,14 @@ vi.mock('@/components/ui/sidebar', () => ({
   SidebarTrigger: defineComponent({ template: '<button/>' }),
 }))
 
-// AppSidebar, SudoModal — not under test here.
+// AppSidebar, SudoModal, MaintenanceBanner — not under test here.
 vi.mock('@/components/custom/AppSidebar.vue', () => ({
   default: defineComponent({ template: '<div/>' }),
 }))
 vi.mock('@/components/custom/SudoModal.vue', () => ({
+  default: defineComponent({ template: '<div/>' }),
+}))
+vi.mock('@/components/custom/MaintenanceBanner.vue', () => ({
   default: defineComponent({ template: '<div/>' }),
 }))
 

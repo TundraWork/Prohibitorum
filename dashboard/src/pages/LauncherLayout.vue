@@ -5,6 +5,7 @@ import { useBrandingStore } from '@/stores/branding'
 import NavUser from '@/components/custom/NavUser.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/custom/ThemeToggle.vue'
+import MaintenanceBanner from '@/components/custom/MaintenanceBanner.vue'
 // Decorative top-left corner backdrop. Purely ornamental: anchored to the
 // top-left of the content area (it begins below the title bar, not the page
 // top), with a square (box) fade so it dissolves into the canvas toward the
@@ -23,6 +24,7 @@ const branding = useBrandingStore()
 
 <template>
   <div class="flex min-h-screen flex-col bg-canvas text-ink">
+    <MaintenanceBanner />
     <header class="relative z-10 flex items-center justify-between border-b border-line/70 px-4 py-3 sm:px-6">
       <RouterLink to="/" class="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity">
         <span class="inline-flex size-8 items-center justify-center overflow-hidden rounded-md bg-ember/12 text-ember ring-1 ring-inset ring-ember/15">

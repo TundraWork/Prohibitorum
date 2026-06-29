@@ -564,6 +564,13 @@ export default {
       upload: 'Upload icon',
       remove: 'Remove icon',
       uploadError: 'That image could not be used. Try a different square PNG or JPEG.',
+      maintenanceLabel: 'Maintenance mode',
+      maintenanceDescription: 'Temporarily block all non-admin access while you work on the instance.',
+      maintenanceToggle: 'Enable maintenance mode',
+      maintenanceMessageLabel: 'Message for users (optional)',
+      maintenanceMessagePlaceholder: 'e.g. Back at 17:00 UTC',
+      maintenanceWarning: 'While enabled, all non-admin users are signed out of new sessions and cannot log in, use apps, or the gateway. You will keep full access.',
+      maintenanceSave: 'Save maintenance settings',
     },
     access: {
       title: 'App access',
@@ -601,6 +608,7 @@ export default {
     lostAuthenticator: 'Lost your authenticator?',
     recoveryRestart: 'That recovery code could not be used — it may be incorrect or already spent. For security, this sign-in was reset. Please sign in again from the start.',
     sessionExpired: 'Your session expired. Please sign in again.',
+    maintenanceNotice: 'The system is under maintenance. Only administrators can sign in right now.',
   },
 
   sessionExpiry: {
@@ -759,6 +767,16 @@ export default {
     },
   },
 
+  maintenance: {
+    heading: "We'll be right back",
+    body: "We're making some improvements to {instance}. We'll be back online shortly — thanks for your patience.",
+    noteLabel: 'A note from the team',
+    retry: 'Try again',
+    signOut: 'Sign out',
+    adminBanner: 'Maintenance mode is on — non-admin users are locked out.',
+    adminBannerAction: 'Manage',
+  },
+
   title: {
     myApps: 'My apps',
     appAccess: 'App access',
@@ -767,6 +785,7 @@ export default {
     samlConsent: 'Sign in',
     logout: 'Signed out',
     error: 'Error',
+    maintenance: 'Maintenance',
     enroll: 'Set up your account',
     pair: 'Pair a device',
     welcome: 'Welcome',
@@ -905,6 +924,8 @@ export default {
 
     group_not_found: 'That group no longer exists.',
     group_slug_conflict: 'A group with that slug already exists.',
+
+    maintenance_mode: 'The system is under maintenance. Please try again later.',
   },
 
   myApps: {

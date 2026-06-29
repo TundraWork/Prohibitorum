@@ -16,6 +16,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { useBrandingStore } from '@/stores/branding'
 import { useReturnTo } from '@/composables/useReturnTo'
 import { useSessionExpiry } from '@/composables/useSessionExpiry'
 import { hardRedirect } from '@/lib/navigate'
@@ -30,6 +31,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 const { t } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
+const branding = useBrandingStore()
 const { rawReturnTo, goReturnTo } = useReturnTo()
 const sessionExpired = computed(() => route.query.reason === 'session_expired')
 
@@ -91,6 +93,10 @@ function onSuccess(redirect?: string): void {
     </template>
 
     <div class="flex flex-col gap-6">
+      <Alert v-if="branding.maintenanceMode" role="status" aria-live="polite">
+        <AlertDescription>{{ t('login.maintenanceNotice') }}</AlertDescription>
+      </Alert>
+
       <Alert v-if="sessionExpired" role="status" aria-live="polite">
         <AlertDescription>{{ t('login.sessionExpired') }}</AlertDescription>
       </Alert>

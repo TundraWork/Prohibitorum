@@ -43,6 +43,24 @@ function maybeSignalUnauthorized(status: number, err: ApiError, method: string):
   }
 }
 
+export type MaintenanceHandler = () => void
+let maintenanceHandler: MaintenanceHandler | null = null
+
+/**
+ * Register a handler invoked when a request returns 503 with code
+ * "maintenance_mode". Wired in main.ts to set the branding store flag and
+ * redirect non-admins to the maintenance page. Pass null to clear (tests).
+ */
+export function registerMaintenanceHandler(fn: MaintenanceHandler | null): void {
+  maintenanceHandler = fn
+}
+
+function maybeSignalMaintenance(status: number, err: ApiError): void {
+  if (status === 503 && err.code === 'maintenance_mode' && maintenanceHandler) {
+    maintenanceHandler()
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {}
   if (body !== undefined) {
@@ -74,6 +92,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       ? data
       : { code: 'server_error', message: text || res.statusText }
     maybeSignalUnauthorized(res.status, err, method)
+    maybeSignalMaintenance(res.status, err)
     throw err
   }
 
@@ -93,6 +112,7 @@ async function upload<T>(path: string, body: Blob): Promise<T> {
   if (!res.ok) {
     const err: ApiError = isApiError(data) ? data : { code: 'server_error', message: text || res.statusText }
     maybeSignalUnauthorized(res.status, err, 'PUT')
+    maybeSignalMaintenance(res.status, err)
     throw err
   }
   return (data ?? {}) as T
