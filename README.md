@@ -22,7 +22,7 @@ whole IdP plus its admin UI.
 - [x] Password + TOTP sign-in (fallback)
 - [x] Upstream OIDC federation
 - [x] Step-up re-authentication
-- [ ] Personal access tokens — user-owned credentials for programmatic gateway access
+- [x] Personal access tokens — user-owned credentials for programmatic gateway access
 
 **Downstream protocols**
 - [x] OIDC provider
