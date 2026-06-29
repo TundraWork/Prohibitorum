@@ -32,10 +32,10 @@ const isActive = (to: string) =>
 const accountItems = computed(() => [
   { to: '/security', label: t('nav.security'), icon: KeyRound },
   { to: '/sessions', label: t('nav.sessions'), icon: MonitorSmartphone },
-  { to: '/tokens', label: t('nav.tokens'), icon: Terminal },
   { to: '/connected', label: t('nav.connected'), icon: Link2 },
   { to: '/devices', label: t('nav.devices'), icon: TabletSmartphone },
   { to: '/app-access', label: t('nav.appAccess'), icon: ShieldCheck },
+  { to: '/tokens', label: t('nav.tokens'), icon: Terminal },
 ])
 
 const adminItems = computed(() => [
