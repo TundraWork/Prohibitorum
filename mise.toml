@@ -84,7 +84,7 @@ exec go run ./cmd/prohibitorum dev-seed
 """
 
 [tasks."dev:federation"]
-description = "DEV: bring up two prohibitorum instances (upstream + downstream IdP) wired for OIDC federation behind nginx TLS, for manual end-to-end testing. Reads local hostnames/cert from .dev/dev-federation.env (a template is written on first run). Idempotent by default (existing DBs reused); pass `-- --fresh` to wipe + reseed both. Starts the dev DB automatically."
+description = "DEV: the designated dev test environment — two prohibitorum instances (upstream + downstream IdP) wired for OIDC federation behind nginx TLS for manual end-to-end testing. Runs dev-seed on every start (idempotent) so both instances always carry the example data. Reads local hostnames/cert from .dev/dev-federation.env (a template is written on first run). Idempotent by default (existing DBs reused); pass `-- --fresh` to wipe + reseed both. Starts the dev DB automatically."
 run = "exec scripts/dev-federation.sh \"$@\""
 
 [tasks."dev:forward-auth"]

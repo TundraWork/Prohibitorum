@@ -155,20 +155,19 @@ echo "building prohibitorum (-tags nodynamic) ..."
 go build -tags nodynamic -o "$BIN" ./cmd/prohibitorum
 
 # --- 4. per-instance seed + admin enrollment -------------------------------
-# Fresh DBs are seeded and get a bootstrap enroll link. Reused DBs keep their
-# data: dev-seed is skipped, and enroll-admin only runs if no admin exists yet
-# (so a reused instance whose admin is already registered isn't disturbed).
-# The enroll URL (when issued) is captured into the named output var for the banner.
+# This federation harness is the designated dev test env, so every start runs
+# dev-seed against both instances. dev-seed is idempotent (it skips rows that
+# already exist): a reused DB gets any missing demo data topped up without
+# wiping anything, and a fresh DB is populated from empty. enroll-admin only
+# runs if no admin exists yet (so a reused instance whose admin is already
+# registered isn't disturbed). The enroll URL (when issued) is captured into the
+# named output var for the banner.
 UP_ENROLL_URL=""
 DOWN_ENROLL_URL=""
 setup_instance() {
-	local origin="$1" dburl="$2" dbname="$3" label="$4" outvar="$5" mode="$6"
-	if [ "$mode" = fresh ]; then
-		echo "==> [$label] dev-seed"
-		PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" dev-seed
-	else
-		echo "==> [$label] reusing existing data — skipping dev-seed"
-	fi
+	local origin="$1" dburl="$2" dbname="$3" label="$4" outvar="$5"
+	echo "==> [$label] dev-seed"
+	PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" dev-seed
 	if db_has_admin "$dbname"; then
 		echo "==> [$label] admin already enrolled — skipping enroll-admin (re-issue with 'enroll-admin --reset --username NAME', or run with --fresh)"
 		printf -v "$outvar" '%s' ""
@@ -185,8 +184,8 @@ setup_instance() {
 		exit 1
 	fi
 }
-setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL "$UP_MODE"
-setup_instance "$DOWN_ORIGIN" "$DOWN_DB" prohibitorum_downstream downstream DOWN_ENROLL_URL "$DOWN_MODE"
+setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL
+setup_instance "$DOWN_ORIGIN" "$DOWN_DB" prohibitorum_downstream downstream DOWN_ENROLL_URL
 
 # --- 5. wire federation ----------------------------------------------------
 echo "==> wiring federation"
