@@ -27,6 +27,7 @@ whole IdP plus its admin UI.
 **Downstream protocols**
 - [x] OIDC provider
 - [x] SAML 2.0 IdP (GHES-compatible)
+- [x] Forward-auth gateway — header-based SSO for non-OIDC/SAML apps (Traefik forward-auth, admin-defined per-app scopes)
 - [ ] Coordinated single sign-out
 
 **Dashboard**
