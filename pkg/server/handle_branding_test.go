@@ -11,17 +11,20 @@ import (
 )
 
 type fakeBrandingStore struct {
-	name *string
-	icon []byte
-	etag *string
+	name     *string
+	icon     []byte
+	etag     *string
+	maint    bool
+	maintMsg *string
 }
 
 func (f *fakeBrandingStore) Get(context.Context) (branding.Settings, error) {
-	return branding.Settings{Name: f.name, IconPNG: f.icon, IconEtag: f.etag}, nil
+	return branding.Settings{Name: f.name, IconPNG: f.icon, IconEtag: f.etag, Maintenance: f.maint, MaintenanceMessage: f.maintMsg}, nil
 }
-func (f *fakeBrandingStore) SetName(context.Context, *string) error        { return nil }
-func (f *fakeBrandingStore) SetIcon(context.Context, []byte, string) error { return nil }
-func (f *fakeBrandingStore) ClearIcon(context.Context) error               { return nil }
+func (f *fakeBrandingStore) SetName(context.Context, *string) error            { return nil }
+func (f *fakeBrandingStore) SetIcon(context.Context, []byte, string) error     { return nil }
+func (f *fakeBrandingStore) ClearIcon(context.Context) error                   { return nil }
+func (f *fakeBrandingStore) SetMaintenance(context.Context, bool, *string) error { return nil }
 
 func TestBrandingConfigEndpoint(t *testing.T) {
 	s := &Server{branding: branding.NewWithStore("TestCo", &fakeBrandingStore{})}

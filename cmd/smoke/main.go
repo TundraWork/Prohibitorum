@@ -4418,8 +4418,79 @@ func main() {
 		}
 	}
 
+	// =====================================================================
+	//  MAINTENANCE MODE — admin toggles maintenance; verify /config reflects
+	//  it and the admin is NOT locked out (own /me stays 200). Non-admin
+	//  blocking (dashboard + gateway) is covered by the Go unit tests
+	//  (pkg/server/maintenance_test.go + pkg/protocol/oidc/forward_auth_test.go)
+	//  since the smoke runs only as the admin.
+	// =====================================================================
+	{
+		const nMaint = 3
+		const maintMsg = "Smoke maintenance window — back shortly"
+
+		step(fmt.Sprintf("maintenance %d/%d — admin enables maintenance (sudo PUT) → /config maintenanceMode=true", 1, nMaint))
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("maintenance: sudo (enable): %v", err)
+		}
+		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/maintenance", map[string]any{
+			"maintenanceMode": true, "maintenanceMessage": maintMsg,
+		}); err != nil {
+			log.Fatalf("maintenance: PUT enable: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("maintenance: PUT enable: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		var cfg struct {
+			MaintenanceMode    bool   `json:"maintenanceMode"`
+			MaintenanceMessage string `json:"maintenanceMessage"`
+		}
+		if err := c.get("/api/prohibitorum/config", &cfg); err != nil {
+			log.Fatalf("maintenance: GET /config: %v", err)
+		}
+		if !cfg.MaintenanceMode || cfg.MaintenanceMessage != maintMsg {
+			log.Fatalf("maintenance: /config = (%v,%q), want (true,%q)", cfg.MaintenanceMode, cfg.MaintenanceMessage, maintMsg)
+		}
+		log.Printf("  maintenance ON; /config maintenanceMode=true message=%q ✓", cfg.MaintenanceMessage)
+
+		step(fmt.Sprintf("maintenance %d/%d — admin is exempt: GET /me still 200 during maintenance", 2, nMaint))
+		if _, err := c.getMe(); err != nil {
+			log.Fatalf("maintenance: admin GET /me during maintenance (admin must be exempt): %v", err)
+		}
+		log.Printf("  admin GET /me 200 during maintenance (not locked out) ✓")
+
+		step(fmt.Sprintf("maintenance %d/%d — admin disables maintenance → /config maintenanceMode=false", 3, nMaint))
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("maintenance: sudo (disable): %v", err)
+		}
+		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/maintenance", map[string]any{
+			"maintenanceMode": false, "maintenanceMessage": "",
+		}); err != nil {
+			log.Fatalf("maintenance: PUT disable: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("maintenance: PUT disable: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		var cfg2 struct {
+			MaintenanceMode bool `json:"maintenanceMode"`
+		}
+		if err := c.get("/api/prohibitorum/config", &cfg2); err != nil {
+			log.Fatalf("maintenance: GET /config (post-disable): %v", err)
+		}
+		if cfg2.MaintenanceMode {
+			log.Fatalf("maintenance: /config still maintenanceMode=true after disable")
+		}
+		log.Printf("  maintenance OFF; /config maintenanceMode=false ✓")
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + DB-state assertions passed against",
 		*baseURL)
 }
 

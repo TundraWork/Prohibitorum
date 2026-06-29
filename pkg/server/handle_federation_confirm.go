@@ -109,6 +109,10 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 	if len(amr) == 0 {
 		amr = []string{"federated"}
 	}
+	if me := s.maintenanceLockout(r.Context(), grant.AccountID); me != nil {
+		writeAuthErr(w, me)
+		return
+	}
 	// H1-sch: stamp the upstream IdP onto the session row (federated discriminator).
 	idpID := grant.IDPID
 	sess, _, err := s.sessionStore.Issue(r.Context(), grant.AccountID, ip, r.UserAgent(), amr, &idpID)

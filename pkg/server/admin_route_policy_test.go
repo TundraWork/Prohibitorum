@@ -86,6 +86,7 @@ var sudoGatedRoutes = []sudoRoute{
 	// Instance-branding settings (name PUT + icon DELETE — sudo-gated)
 	{method: "PUT", path: "/api/prohibitorum/admin/settings", body: `{"instanceName":"x"}`},
 	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
+	{method: "PUT", path: "/api/prohibitorum/admin/settings/maintenance", body: `{"maintenanceMode":true}`},
 
 	// Entity icon removal (app & provider icons)
 	{method: "DELETE", path: "/api/prohibitorum/oidc-applications/test-client/icon", body: `{}`},

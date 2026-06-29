@@ -169,6 +169,12 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	if len(amr) == 0 {
 		amr = []string{"federated"}
 	}
+	// Non-admins are locked out during maintenance — bounce to the SPA, which
+	// renders the maintenance screen (no session is issued).
+	if s.maintenanceLockout(r.Context(), result.AccountID) != nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
 	// H1-sch: stamp the upstream IdP onto the session row so the OIDC OP can
 	// surface a "federated" discriminator in downstream id_token claims.
 	idpID := result.IDPID

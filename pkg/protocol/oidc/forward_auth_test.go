@@ -215,6 +215,48 @@ func TestForwardAuthVerify_UnknownHost_403(t *testing.T) {
 	}
 }
 
+// TestForwardAuthVerify_PAT_Maintenance verifies the gateway maintenance check:
+// a non-admin PAT owner is denied 503 while maintenance is on, an admin owner is
+// exempt (200), and with maintenance off the non-admin is allowed (200).
+func TestForwardAuthVerify_PAT_Maintenance(t *testing.T) {
+	base := func(role string) *fakeFAQueries {
+		return &fakeFAQueries{
+			faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", Disabled: false},
+			authorized: true,
+			pat:        db.PersonalAccessToken{ID: 1, AccountID: 7, AllApps: true},
+			acct:       db.Account{ID: 7, Username: "bob", Role: role},
+		}
+	}
+	mkReq := func() *http.Request {
+		r := faRequest("https", "app.acme.io", "/", nil)
+		r.Header.Set("Authorization", "Bearer prohibitorum_pat_demo")
+		return r
+	}
+	on := func(context.Context) bool { return true }
+
+	cases := []struct {
+		name        string
+		role        string
+		maintenance func(context.Context) bool
+		want        int
+	}{
+		{"non-admin blocked during maintenance", "user", on, http.StatusServiceUnavailable},
+		{"admin exempt during maintenance", "admin", on, http.StatusOK},
+		{"non-admin allowed when maintenance off", "user", nil, http.StatusOK},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, _ := newFAProvider(base(tc.role))
+			p.maintenance = tc.maintenance
+			rec := httptest.NewRecorder()
+			p.HandleForwardAuthVerify(rec, mkReq())
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d", rec.Code, tc.want)
+			}
+		})
+	}
+}
+
 func TestForwardAuthVerify_NoCookie_RedirectsToAuthorize(t *testing.T) {
 	q := &fakeFAQueries{
 		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc", Disabled: false},

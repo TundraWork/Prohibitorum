@@ -15,15 +15,26 @@ func NewPGStore(pool *pgxpool.Pool) *PGStore { return &PGStore{pool: pool} }
 func (s *PGStore) Get(ctx context.Context) (Settings, error) {
 	var out Settings
 	row := s.pool.QueryRow(ctx,
-		`SELECT instance_name, icon_png, icon_etag FROM instance_settings WHERE id = 1`)
+		`SELECT instance_name, icon_png, icon_etag, maintenance_mode, maintenance_message
+		   FROM instance_settings WHERE id = 1`)
 	var name *string
 	var icon []byte
 	var etag *string
-	if err := row.Scan(&name, &icon, &etag); err != nil {
+	var maintenance bool
+	var message *string
+	if err := row.Scan(&name, &icon, &etag, &maintenance, &message); err != nil {
 		return Settings{}, err
 	}
 	out.Name, out.IconPNG, out.IconEtag = name, icon, etag
+	out.Maintenance, out.MaintenanceMessage = maintenance, message
 	return out, nil
+}
+
+func (s *PGStore) SetMaintenance(ctx context.Context, on bool, message *string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE instance_settings SET maintenance_mode = $1, maintenance_message = $2, updated_at = now() WHERE id = 1`,
+		on, message)
+	return err
 }
 
 func (s *PGStore) SetName(ctx context.Context, name *string) error {

@@ -240,6 +240,10 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 			})
 			if aerr == nil && ok.Bool {
 				if acct, gerr := p.queries.GetAccountByID(ctx, sess.AccountID); gerr == nil && !acct.Disabled {
+					if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {
+						http.Error(w, "service under maintenance", http.StatusServiceUnavailable)
+						return
+					}
 					groups, _ := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
 					writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups, nil)
 					w.WriteHeader(http.StatusOK)
@@ -401,6 +405,10 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 	acct, err := p.queries.GetAccountByID(ctx, row.AccountID)
 	if err != nil || acct.Disabled {
 		writeBearerError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {
+		http.Error(w, "service under maintenance", http.StatusServiceUnavailable)
 		return
 	}
 	var scopes []string

@@ -12,10 +12,12 @@ type fakeStore struct {
 	name     *string
 	iconPNG  []byte
 	iconEtag *string
+	maint    bool
+	maintMsg *string
 }
 
 func (f *fakeStore) Get(context.Context) (Settings, error) {
-	return Settings{Name: f.name, IconPNG: f.iconPNG, IconEtag: f.iconEtag}, nil
+	return Settings{Name: f.name, IconPNG: f.iconPNG, IconEtag: f.iconEtag, Maintenance: f.maint, MaintenanceMessage: f.maintMsg}, nil
 }
 func (f *fakeStore) SetName(_ context.Context, n *string) error { f.name = n; return nil }
 func (f *fakeStore) SetIcon(_ context.Context, png []byte, etag string) error {
@@ -23,8 +25,28 @@ func (f *fakeStore) SetIcon(_ context.Context, png []byte, etag string) error {
 	return nil
 }
 func (f *fakeStore) ClearIcon(context.Context) error { f.iconPNG, f.iconEtag = nil, nil; return nil }
+func (f *fakeStore) SetMaintenance(_ context.Context, on bool, msg *string) error {
+	f.maint, f.maintMsg = on, msg
+	return nil
+}
 
 func strp(s string) *string { return &s }
+
+// TestMaintenance_RoundTrip verifies SetMaintenance persists + invalidates the
+// cache so Maintenance reflects the new state (off by default).
+func TestMaintenance_RoundTrip(t *testing.T) {
+	ctx := context.Background()
+	r := NewWithStore("X", &fakeStore{})
+	if on, _ := r.Maintenance(ctx); on {
+		t.Fatal("default maintenance should be off")
+	}
+	if err := r.SetMaintenance(ctx, true, "Down for upgrade"); err != nil {
+		t.Fatalf("SetMaintenance: %v", err)
+	}
+	if on, msg := r.Maintenance(ctx); !on || msg != "Down for upgrade" {
+		t.Errorf("Maintenance = (%v,%q), want (true,Down for upgrade)", on, msg)
+	}
+}
 
 func TestInstanceName_Precedence(t *testing.T) {
 	ctx := context.Background()

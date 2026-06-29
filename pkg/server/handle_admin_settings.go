@@ -68,6 +68,39 @@ func (s *Server) handlePutInstanceIconHTTP(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// PUT /api/prohibitorum/admin/settings/maintenance
+//
+//	{"maintenanceMode": true, "maintenanceMessage": "..."}
+//
+// Toggles maintenance mode, which denies all non-admin access (login, dashboard,
+// OIDC/SAML SSO, forward-auth gateway). Registered via registerSudoOpHTTP — admin
+// role + fresh sudo enforced by the wrapper, so an admin can't be locked out and
+// the toggle itself is a re-authenticated action.
+func (s *Server) handlePutMaintenanceHTTP(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		MaintenanceMode    bool   `json:"maintenanceMode"`
+		MaintenanceMessage string `json:"maintenanceMessage"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if len([]rune(body.MaintenanceMessage)) > 500 {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.branding.SetMaintenance(r.Context(), body.MaintenanceMode, body.MaintenanceMessage); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	reason := "maintenance_disabled"
+	if body.MaintenanceMode {
+		reason = "maintenance_enabled"
+	}
+	s.auditBranding(r, reason)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // DELETE /api/prohibitorum/admin/settings/icon
 // Registered via registerSudoOpHTTP — admin role + fresh sudo enforced by wrapper.
 func (s *Server) handleDeleteInstanceIconHTTP(w http.ResponseWriter, r *http.Request) {

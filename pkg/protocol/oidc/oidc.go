@@ -12,6 +12,7 @@
 package oidc
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -29,14 +30,22 @@ import (
 // server bootstrap and wired into the chi router. It carries every
 // dependency the endpoint handlers (in the sibling files) require.
 type Provider struct {
-	cfg      *configx.Config
-	queries  db.Querier
-	kv       kv.Store
-	sessions *session.SessionStore
-	audit    audit.Writer
-	rl       *authn.RateLimiter
-	keys     *keyCache
+	cfg         *configx.Config
+	queries     db.Querier
+	kv          kv.Store
+	sessions    *session.SessionStore
+	audit       audit.Writer
+	rl          *authn.RateLimiter
+	keys        *keyCache
+	maintenance func(context.Context) bool // nil = never in maintenance
 }
+
+// SetMaintenanceChecker injects a callback reporting whether maintenance mode is
+// on. The forward-auth gateway uses it to deny non-admin principals, which
+// authenticate off a PAT or a per-domain cookie — outside the main session
+// middleware that enforces maintenance everywhere else. nil leaves the gateway
+// unaffected (the default for tests).
+func (p *Provider) SetMaintenanceChecker(fn func(context.Context) bool) { p.maintenance = fn }
 
 // New constructs a Provider, building the signing-key cache from queries and
 // retaining every dependency the handlers attach to.

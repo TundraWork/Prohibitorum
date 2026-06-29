@@ -304,6 +304,10 @@ func (s *Server) accountLookupQ() accountLookupQueries {
 // client-supplied one. The redirect is validated from the "return_to" query
 // parameter via validateReturnTo; unsafe or absent values fall back to "/".
 func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request, accountID int32, amr []string) {
+	if me := s.maintenanceLockout(r.Context(), accountID); me != nil {
+		writeAuthErr(w, me)
+		return
+	}
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	ua := r.UserAgent()
 	token, _, err := s.sessionStore.Issue(r.Context(), accountID, ip, ua, amr, nil)

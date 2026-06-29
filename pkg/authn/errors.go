@@ -234,6 +234,15 @@ func ErrNotBootstrapped() *AuthError {
 	return newErr(http.StatusServiceUnavailable, "not_bootstrapped", "系统尚未初始化，请在服务器上运行 `prohibitorum enroll-admin`")
 }
 
+// ErrMaintenanceMode is returned to non-admin principals while maintenance mode
+// is on: login, dashboard self-service, OIDC/SAML SSO, and the forward-auth
+// gateway all reject with it. Admins are exempt so they can still manage the
+// instance and lift the mode. Status 503 (temporary, not a permanent denial)
+// with a code the dashboard maps to the maintenance screen.
+func ErrMaintenanceMode() *AuthError {
+	return newErr(http.StatusServiceUnavailable, "maintenance_mode", "系统正在维护中，请稍后再试")
+}
+
 // Pairing errors — same not-found / state policy as enrollment: collapse
 // "never existed", "expired", and "consumed" into one code so an attacker
 // can't probe code validity.

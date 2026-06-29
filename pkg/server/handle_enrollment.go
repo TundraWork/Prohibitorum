@@ -520,6 +520,10 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		_, _ = s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
 	}
 
+	if me := s.maintenanceLockout(r.Context(), acct.ID); me != nil {
+		writeAuthErr(w, me)
+		return
+	}
 	// Issue session for the (new or existing) account.
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil)

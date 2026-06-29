@@ -13,11 +13,14 @@ import (
 func (s *Server) handleGetPublicConfigHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	_, etag, _ := s.branding.Icon(ctx)
+	maintenance, maintenanceMsg := s.branding.Maintenance(ctx)
 	cfg := contract.PublicConfig{
-		InstanceName:  s.branding.InstanceName(ctx),
-		HasCustomIcon: s.branding.HasCustomIcon(ctx),
-		IconURL:       "/branding/icon",
-		IconEtag:      etag,
+		InstanceName:       s.branding.InstanceName(ctx),
+		HasCustomIcon:      s.branding.HasCustomIcon(ctx),
+		IconURL:            "/branding/icon",
+		IconEtag:           etag,
+		MaintenanceMode:    maintenance,
+		MaintenanceMessage: maintenanceMsg,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

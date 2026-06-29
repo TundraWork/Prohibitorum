@@ -180,8 +180,15 @@ func NewServer(ctx context.Context) (*Server, error) {
 		"origins": config.WebAuthn.RPOrigins,
 	}).Info("auth ready")
 
+	brandingResolver, berr := branding.New(config.Branding.InstanceName, config.Branding.IconPath, branding.NewPGStore(conn))
+	if berr != nil {
+		logx.WithContext(ctx).WithError(berr).Warn("branding: config icon_path unusable; using built-in default")
+		brandingResolver, _ = branding.New(config.Branding.InstanceName, "", branding.NewPGStore(conn))
+	}
+
 	router := chi.NewMux()
 	router.Use(sessstore.LoadSession(config, queries, sessionStore))
+	router.Use(maintenanceGateMW(brandingResolver))
 	api := humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0"))
 	registerSecurityScheme(api, sessstore.SessionCookieNameFor(config))
 
@@ -207,12 +214,6 @@ func NewServer(ctx context.Context) (*Server, error) {
 
 	rateLimiter := authn.NewRateLimiter()
 
-	brandingResolver, berr := branding.New(config.Branding.InstanceName, config.Branding.IconPath, branding.NewPGStore(conn))
-	if berr != nil {
-		logx.WithContext(ctx).WithError(berr).Warn("branding: config icon_path unusable; using built-in default")
-		brandingResolver, _ = branding.New(config.Branding.InstanceName, "", branding.NewPGStore(conn))
-	}
-
 	s := &Server{
 		queries:       queries,
 		dbPool:        conn,
@@ -233,6 +234,12 @@ func NewServer(ctx context.Context) (*Server, error) {
 		Audit:         auditWriter,
 		branding:      brandingResolver,
 	}
+	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
+	// the main session middleware, so it gets the maintenance flag injected here.
+	s.oidcOP.SetMaintenanceChecker(func(ctx context.Context) bool {
+		on, _ := brandingResolver.Maintenance(ctx)
+		return on
+	})
 	s.registerOperations()
 	s.router.NotFound(webui.Handler(s.config.Branding.InstanceName).ServeHTTP)
 	logx.WithContext(ctx).Info("registered operations")
@@ -488,6 +495,7 @@ func (s *Server) registerOperations() {
 
 	// Admin: instance-branding settings (name + icon)
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings", admin, s.handlePutInstanceNameHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/maintenance", admin, s.handlePutMaintenanceHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/icon", admin, s.handlePutInstanceIconHTTP)
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/icon", admin, s.handleDeleteInstanceIconHTTP)
 

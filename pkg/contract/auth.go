@@ -145,6 +145,11 @@ type PublicConfig struct {
 	HasCustomIcon bool   `json:"hasCustomIcon"`
 	IconURL       string `json:"iconUrl"`
 	IconEtag      string `json:"iconEtag"`
+	// MaintenanceMode is the public maintenance flag — the SPA reads it (even
+	// pre-login) to render the maintenance screen for non-admins. MaintenanceMessage
+	// is the optional admin-authored note shown on that screen.
+	MaintenanceMode    bool   `json:"maintenanceMode"`
+	MaintenanceMessage string `json:"maintenanceMessage"`
 }
 
 // EnrollmentURLResponse is returned by reissue-enrollment. Reveal-once: the URL

@@ -24,9 +24,11 @@ var (
 // Settings is the raw DB-override row (nil fields = no override). Exported so
 // the server package's tests/wiring can build a Store fake.
 type Settings struct {
-	Name     *string
-	IconPNG  []byte
-	IconEtag *string
+	Name               *string
+	IconPNG            []byte
+	IconEtag           *string
+	Maintenance        bool
+	MaintenanceMessage *string
 }
 
 // Store is the persistence seam (real impl in store_pg.go; fakes in tests).
@@ -35,6 +37,7 @@ type Store interface {
 	SetName(ctx context.Context, name *string) error
 	SetIcon(ctx context.Context, png []byte, etag string) error
 	ClearIcon(ctx context.Context) error
+	SetMaintenance(ctx context.Context, on bool, message *string) error
 }
 
 // Resolver resolves the effective instance name and icon with DB → config →
@@ -129,6 +132,32 @@ func (r *Resolver) Icon(ctx context.Context) (pngBytes []byte, etag string, cust
 func (r *Resolver) HasCustomIcon(ctx context.Context) bool {
 	_, _, custom := r.Icon(ctx)
 	return custom
+}
+
+// Maintenance reports whether maintenance mode is on and the optional
+// admin-authored message. Cached with the rest of the singleton row, so this is
+// a free read on the hot path until the next admin toggle invalidates it.
+func (r *Resolver) Maintenance(ctx context.Context) (on bool, message string) {
+	s := r.load(ctx)
+	if s.MaintenanceMessage != nil {
+		message = *s.MaintenanceMessage
+	}
+	return s.Maintenance, message
+}
+
+// SetMaintenance toggles maintenance mode (and the optional message) and
+// invalidates the cache so the change applies immediately. An empty message
+// clears the stored note.
+func (r *Resolver) SetMaintenance(ctx context.Context, on bool, message string) error {
+	var p *string
+	if message != "" {
+		p = &message
+	}
+	if err := r.st.SetMaintenance(ctx, on, p); err != nil {
+		return err
+	}
+	r.Invalidate()
+	return nil
 }
 
 // SetName updates the DB override and invalidates the cache. Pass an empty

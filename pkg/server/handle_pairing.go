@@ -136,6 +136,10 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		writeAuthErr(w, authn.ErrAccountDisabled())
 		return
 	}
+	if me := s.maintenanceLockout(r.Context(), acct.ID); me != nil {
+		writeAuthErr(w, me)
+		return
+	}
 	// Consume BEFORE issuing the session so a duplicate /complete cannot
 	// double-issue if two concurrent requests both pass the status check
 	// above. KV Del is single-key atomic; the loser sees pairing_not_found.

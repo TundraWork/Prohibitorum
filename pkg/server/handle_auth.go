@@ -310,6 +310,10 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		writeAuthErr(w, authn.ErrAccountDisabled())
 		return
 	}
+	if me := s.maintenanceLockout(r.Context(), resolvedAccount.ID); me != nil {
+		writeAuthErr(w, me)
+		return
+	}
 
 	// Update credential usage (sign_count + last_used_at), then issue session.
 	// Check for sign-count regression (potential cloned authenticator) before

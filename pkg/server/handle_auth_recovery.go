@@ -206,6 +206,10 @@ func (s *Server) handleAuthRecoveryTOTPVerifyHTTP(w http.ResponseWriter, r *http
 	// that the FIRST step was a recovery code is captured in the audit
 	// trail (recovery_code:use + the recovery_complete revoke chain), not
 	// here.
+	if me := s.maintenanceLockout(r.Context(), acct.ID); me != nil {
+		writeAuthErr(w, me)
+		return
+	}
 	ip := sessstore.ClientIP(r, s.config.TrustProxy)
 	ua := r.UserAgent()
 	token, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, ua, []string{"pwd", "otp", "mfa"}, nil)
