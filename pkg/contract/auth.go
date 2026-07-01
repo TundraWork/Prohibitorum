@@ -150,6 +150,12 @@ type PublicConfig struct {
 	// is the optional admin-authored note shown on that screen.
 	MaintenanceMode    bool   `json:"maintenanceMode"`
 	MaintenanceMessage string `json:"maintenanceMessage"`
+	// Login-page background: served verbatim (no re-encode) from BackgroundURL when
+	// an admin uploaded one. HasCustomBackground=false → the SPA uses its build-time
+	// asset / gradient fallback.
+	HasCustomBackground bool   `json:"hasCustomBackground"`
+	BackgroundURL       string `json:"backgroundUrl"`
+	BackgroundEtag      string `json:"backgroundEtag"`
 }
 
 // EnrollmentURLResponse is returned by reissue-enrollment. Reveal-once: the URL

@@ -112,6 +112,43 @@ func (s *Server) handleDeleteInstanceIconHTTP(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// PUT /api/prohibitorum/admin/settings/background  (raw image body, up to 5 MiB)
+// Same shape as the icon upload: registerOpHTTP(admin) + an in-handler fresh-sudo
+// gate (the sudo wrapper rejects non-JSON bodies and caps size). The image is
+// stored and later served VERBATIM — validated but never re-encoded.
+func (s *Server) handlePutInstanceBackgroundHTTP(w http.ResponseWriter, r *http.Request) {
+	sess := authn.SessionFromContext(r.Context())
+	if s.requireFreshSudo(r.Context(), w, sess) {
+		return
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, maxIconRead))
+	if err != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	if err := s.branding.SetLoginBackground(r.Context(), raw); err != nil {
+		if errors.Is(err, branding.ErrTooLarge) {
+			writeAvatarErr(w, "avatar_too_large", "background: image exceeds 5 MiB")
+			return
+		}
+		writeAvatarErr(w, "avatar_invalid_image", "background: invalid or unsupported image format")
+		return
+	}
+	s.auditBranding(r, "instance_login_background_updated")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DELETE /api/prohibitorum/admin/settings/background
+// Registered via registerSudoOpHTTP — admin role + fresh sudo enforced by wrapper.
+func (s *Server) handleDeleteInstanceBackgroundHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := s.branding.ClearLoginBackground(r.Context()); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	s.auditBranding(r, "instance_login_background_removed")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // auditBranding records a branding-mutation admin audit event.
 // Uses FactorSigningKey (the closest admin system-config factor in the audit
 // vocabulary) and EventUpdate (all three mutations are configuration updates).

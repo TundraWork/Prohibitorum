@@ -424,6 +424,7 @@ func (s *Server) registerOperations() {
 	// Public branding: SPA boot config + icon image.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/config", publicReq, s.handleGetPublicConfigHTTP)
 	registerOpHTTP(s.router, "GET", "/branding/icon", publicReq, s.handleGetBrandingIconHTTP)
+	registerOpHTTP(s.router, "GET", "/branding/background", publicReq, s.handleGetBrandingBackgroundHTTP)
 	registerOpHTTP(s.router, "GET", "/icon/{kind}/{id}", publicReq, s.handleGetEntityIconHTTP)
 
 	// Native Traefik ForwardAuth (see docs/forward-auth.md). The verify endpoint
@@ -498,6 +499,8 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/maintenance", admin, s.handlePutMaintenanceHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/icon", admin, s.handlePutInstanceIconHTTP)
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/icon", admin, s.handleDeleteInstanceIconHTTP)
+	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/background", admin, s.handlePutInstanceBackgroundHTTP)
+	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/background", admin, s.handleDeleteInstanceBackgroundHTTP)
 
 	// Admin: signing-key lifecycle management
 	registerOp(mgmt, contract.OperationListSigningKeys, s.handleListSigningKeys, admin)
