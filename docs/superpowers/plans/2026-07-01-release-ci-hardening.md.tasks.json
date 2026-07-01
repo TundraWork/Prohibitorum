@@ -1,0 +1,40 @@
+{
+  "planPath": "docs/superpowers/plans/2026-07-01-release-ci-hardening.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Pin lint toolchain and add release/lint mise tasks",
+      "status": "pending",
+      "description": "**Goal:** actionlint + zizmor pinned in mise.lock; the three CI wrapper tasks exist.\n\n**Files:** Modify mise.toml ([tools] ~line 10; tasks after ci:smoke ~line 163); regenerate mise.lock.\n\n**Verify:** `mise install && mise run ci:release-check` exits 0.\n\n```json:metadata\n{\"files\": [\"mise.toml\", \"mise.lock\"], \"verifyCommand\": \"mise install && mise run ci:release-check\", \"acceptanceCriteria\": [\"mise.lock gains actionlint+zizmor\", \"ci:release-check passes\", \"three tasks listed\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Add docker_digest and validate the release build locally",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** GoReleaser emits dist/digests.txt for image attestation; local snapshot proves the pipeline builds; settle the ko-digest question.\n\n**Files:** Modify .goreleaser.yaml (after checksum: block ~line 64).\n\n**Verify:** `mise run ci:release-snapshot` exits 0; jq shows ghcr manifest digest in dist/artifacts.json.\n\n```json:metadata\n{\"files\": [\".goreleaser.yaml\"], \"verifyCommand\": \"mise run ci:release-snapshot\", \"acceptanceCriteria\": [\"docker_digest added\", \"snapshot builds\", \"artifacts.json records ko digest\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Harden release.yml and add zizmor config",
+      "status": "pending",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** release.yml gets least-privilege perms, SHA pins, concurrency guard, harden-runner, two actions/attest steps; add .github/zizmor.yml.\n\n**Files:** Modify .github/workflows/release.yml (full rewrite); Create .github/zizmor.yml.\n\n**Verify:** `mise exec -- actionlint .github/workflows/release.yml && mise exec -- zizmor .github/workflows/release.yml` exits 0.\n\n```json:metadata\n{\"files\": [\".github/workflows/release.yml\", \".github/zizmor.yml\"], \"verifyCommand\": \"mise exec -- actionlint .github/workflows/release.yml && mise exec -- zizmor .github/workflows/release.yml\", \"acceptanceCriteria\": [\"SHA-pinned\", \"job-scoped perms\", \"concurrency guard\", \"harden-runner\", \"attest steps\", \"lint clean\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Harden ci.yml and add the pre-tag validation gate",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** SHA-pin + egress-audit existing CI jobs; add release-check job; add path-filtered release-dryrun workflow.\n\n**Files:** Modify .github/workflows/ci.yml; Create .github/workflows/release-dryrun.yml.\n\n**Verify:** `mise run ci:lint-actions` exits 0.\n\n```json:metadata\n{\"files\": [\".github/workflows/ci.yml\", \".github/workflows/release-dryrun.yml\"], \"verifyCommand\": \"mise run ci:lint-actions\", \"acceptanceCriteria\": [\"SHA-pinned\", \"harden-runner on jobs\", \"release-check job\", \"path-filtered release-dryrun\", \"lint clean\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Document the release process, provenance, and verification",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** TOOLING.md + README.md describe the hardened pipeline, provenance, consumer verification, manual GitHub setup, and deferred items.\n\n**Files:** Modify TOOLING.md (Prod + CI sections); Modify README.md (Status/Security).\n\n**Verify:** `mise exec -- actionlint .github/workflows` clean; manual read confirms commands match workflows.\n\n```json:metadata\n{\"files\": [\"TOOLING.md\", \"README.md\"], \"verifyCommand\": \"mise exec -- actionlint .github/workflows\", \"acceptanceCriteria\": [\"TOOLING documents hardening+provenance+gate+deferred\", \"manual setup + verify commands\", \"README updated\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-07-01T00:00:00Z"
+}
