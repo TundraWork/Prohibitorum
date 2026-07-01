@@ -89,10 +89,18 @@ they're trivial to enable later.
   - uses: actions/attest@<sha>   # v4.x — binaries + archives
     with:
       subject-checksums: ./dist/checksums.txt
-  - uses: actions/attest@<sha>   # v4.x — ko images
-    if: startsWith(github.ref, 'refs/tags/v')
+  # Image: read the manifest digest from artifacts.json and attest by
+  # subject-name/subject-digest. (digests.txt is CSV, which attest's
+  # space-delimited subject-checksums parser cannot read — see the risk note.)
+  - name: Resolve pushed image manifest digest
+    id: image
+    run: |
+      digest=$(jq -r 'first(.[] | select(.type=="Docker Manifest") | .path) | split("@")[1]' dist/artifacts.json)
+      echo "digest=$digest" >> "$GITHUB_OUTPUT"
+  - uses: actions/attest@<sha>   # v4.x — ko image
     with:
-      subject-checksums: ./dist/digests.txt
+      subject-name: ghcr.io/tundrawork/prohibitorum
+      subject-digest: ${{ steps.image.outputs.digest }}
   ```
 
 ### 2. `.goreleaser.yaml`
@@ -193,15 +201,16 @@ hand-written Dockerfile; changing the base image or SBOM format.
 
 - Run `goreleaser release --snapshot --clean` **locally** (GoReleaser is
   mise-pinned, so versions match CI) to confirm the full build succeeds.
-- **Primary risk / unknown:** does `docker_digest` capture **ko**-built image
-  manifests in `dist/digests.txt`? The feature is documented generically for
-  "all images and manifests published," but the docs don't explicitly confirm ko
-  coverage. Settle it empirically from the snapshot run by inspecting
-  `dist/digests.txt` and `dist/artifacts.json`.
-  - **Fallback if ko images are absent:** derive digests from
-    `dist/artifacts.json` (jq over `Docker Manifest` entries →
-    `image@sha256:...`) into a checksums-format file, and point the second
-    `actions/attest` step at that instead.
+- **Primary risk — RESOLVED during implementation:** the original plan attested
+  images via `subject-checksums: ./dist/digests.txt`. A local snapshot + source
+  inspection settled it: ko digests *are* recorded (in `dist/artifacts.json` as
+  `Docker Manifest` entries), but GoReleaser writes `digests.txt` as **CSV**,
+  which `actions/attest@v4`'s `subject-checksums` parser **cannot read** (it
+  splits on the first space and requires bare-hex digests). So image provenance
+  instead reads the manifest-index digest from `dist/artifacts.json` and attests
+  via `subject-name` + `subject-digest` — format-independent and verifiable with
+  `gh attestation verify oci://…`. `docker_digest`/`digests.txt` is retained only
+  as a published, human-facing digest list.
 - After merge, exercise the pre-tag gate on a PR before ever pushing a tag.
 
 ## Files touched
