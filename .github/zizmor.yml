@@ -6,6 +6,7 @@ rules:
   # checkout-persisted git credential, so residual risk is minimal. Revisit when
   # enabling the deferred Low items.
   artipacked:
+    # (ci.yml + release-dryrun.yml are hardened in later tasks; listed ahead of time.)
     ignore:
       - release.yml
       - ci.yml
