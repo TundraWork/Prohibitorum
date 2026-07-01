@@ -56,7 +56,17 @@ jobs:
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
           subject-checksums: ./dist/checksums.txt
-      - name: Attest build provenance (images)
+      - name: Resolve pushed image manifest digest
+        id: image
+        run: |
+          # digests.txt is CSV (incompatible with attest's space-delimited
+          # subject-checksums), so read the manifest-index digest from GoReleaser's
+          # artifacts.json — this is what `oci://…:<tag>` resolves to.
+          digest=$(jq -r 'first(.[] | select(.type=="Docker Manifest") | .path) | split("@")[1]' dist/artifacts.json)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Attesting ghcr.io/tundrawork/prohibitorum@$digest"
+      - name: Attest build provenance (image)
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
-          subject-checksums: ./dist/digests.txt
+          subject-name: ghcr.io/tundrawork/prohibitorum
+          subject-digest: ${{ steps.image.outputs.digest }}
