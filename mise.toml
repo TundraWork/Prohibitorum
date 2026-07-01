@@ -221,5 +221,5 @@ echo "built ./prohibitorum"
 """
 
 [tasks."prod:release"]
-description = "PROD: build + publish a release — binaries + multi-arch OCI images (GoReleaser + ko) + SBOMs + checksums + cosign signatures. Runs on a git tag in the release workflow; dry-run locally with `goreleaser release --snapshot --clean`."
+description = "PROD: build + publish a release — binaries + multi-arch OCI images (GoReleaser + ko) + SBOMs + checksums + cosign signatures. Runs on a git tag in the release workflow; dry-run locally with `mise run ci:release-snapshot`."
 run = "goreleaser release --clean"
