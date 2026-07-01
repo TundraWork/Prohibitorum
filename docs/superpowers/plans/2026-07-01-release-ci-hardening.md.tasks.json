@@ -17,7 +17,7 @@
     {
       "id": 2,
       "subject": "Task 2: Harden release.yml and add zizmor config",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 1],
       "description": "**Goal:** release.yml gets least-privilege perms, SHA pins, concurrency guard, harden-runner, two actions/attest steps; add .github/zizmor.yml.\n\n**Files:** Modify .github/workflows/release.yml (full rewrite); Create .github/zizmor.yml.\n\n**Verify:** `mise exec -- actionlint .github/workflows/release.yml && mise exec -- zizmor .github/workflows/release.yml` exits 0.\n\n```json:metadata\n{\"files\": [\".github/workflows/release.yml\", \".github/zizmor.yml\"], \"verifyCommand\": \"mise exec -- actionlint .github/workflows/release.yml && mise exec -- zizmor .github/workflows/release.yml\", \"acceptanceCriteria\": [\"SHA-pinned\", \"job-scoped perms\", \"concurrency guard\", \"harden-runner\", \"attest steps\", \"lint clean\"]}\n```"
     },
