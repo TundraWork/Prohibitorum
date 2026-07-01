@@ -4489,8 +4489,104 @@ func main() {
 		log.Printf("  maintenance OFF; /config maintenanceMode=false ✓")
 	}
 
+	// =====================================================================
+	//  LOGIN BACKGROUND — admin uploads a custom login-page background; verify
+	//  it is served BYTE-FOR-BYTE (no postprocess), /config reflects it, and
+	//  removal restores the 404 (frontend then falls back to its build-time asset).
+	// =====================================================================
+	{
+		const nBg = 4
+
+		var bgBuf bytes.Buffer
+		if err := png.Encode(&bgBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
+			log.Fatalf("bg: encode PNG: %v", err)
+		}
+		bgBytes := bgBuf.Bytes()
+
+		step(fmt.Sprintf("bg %d/%d — admin uploads login background (sudo PUT raw PNG) → 204", 1, nBg))
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("bg: sudo (upload): %v", err)
+		}
+		{
+			req, err := http.NewRequest(http.MethodPut, *baseURL+"/api/prohibitorum/admin/settings/background", bytes.NewReader(bgBytes))
+			if err != nil {
+				log.Fatalf("bg: build PUT: %v", err)
+			}
+			req.Header.Set("Content-Type", "image/png")
+			for _, ck := range c.cookies() {
+				req.AddCookie(ck)
+			}
+			resp, err := c.hc.Do(req)
+			if err != nil {
+				log.Fatalf("bg: PUT background: %v", err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("bg: PUT background: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		log.Printf("  PUT /admin/settings/background → 204 ✓")
+
+		step(fmt.Sprintf("bg %d/%d — public GET /branding/background returns the EXACT uploaded bytes", 2, nBg))
+		got, err := c.getBytes("/branding/background")
+		if err != nil {
+			log.Fatalf("bg: GET /branding/background: %v", err)
+		}
+		if !bytes.Equal(got, bgBytes) {
+			log.Fatalf("bg: served %d bytes != uploaded %d bytes — background must be verbatim (no postprocess)", len(got), len(bgBytes))
+		}
+		log.Printf("  GET /branding/background = %d bytes, byte-for-byte identical ✓", len(got))
+
+		step(fmt.Sprintf("bg %d/%d — /config reflects hasCustomBackground=true", 3, nBg))
+		var cfg struct {
+			HasCustomBackground bool   `json:"hasCustomBackground"`
+			BackgroundURL       string `json:"backgroundUrl"`
+			BackgroundEtag      string `json:"backgroundEtag"`
+		}
+		if err := c.get("/api/prohibitorum/config", &cfg); err != nil {
+			log.Fatalf("bg: GET /config: %v", err)
+		}
+		if !cfg.HasCustomBackground || cfg.BackgroundURL != "/branding/background" || cfg.BackgroundEtag == "" {
+			log.Fatalf("bg: /config = %+v, want hasCustomBackground=true + backgroundUrl=/branding/background + non-empty etag", cfg)
+		}
+		log.Printf("  /config hasCustomBackground=true etag=%s… ✓", firstN(cfg.BackgroundEtag, 8))
+
+		step(fmt.Sprintf("bg %d/%d — admin removes background (sudo DELETE) → GET 404", 4, nBg))
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("bg: sudo (remove): %v", err)
+		}
+		{
+			req, err := http.NewRequest(http.MethodDelete, *baseURL+"/api/prohibitorum/admin/settings/background", nil)
+			if err != nil {
+				log.Fatalf("bg: build DELETE: %v", err)
+			}
+			for _, ck := range c.cookies() {
+				req.AddCookie(ck)
+			}
+			resp, err := c.hc.Do(req)
+			if err != nil {
+				log.Fatalf("bg: DELETE background: %v", err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("bg: DELETE background: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		if resp, err := c.getRaw("/branding/background"); err != nil {
+			log.Fatalf("bg: GET after delete: %v", err)
+		} else {
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNotFound {
+				log.Fatalf("bg: GET /branding/background after delete: want 404, got %d", resp.StatusCode)
+			}
+		}
+		log.Printf("  DELETE background → GET /branding/background 404 ✓")
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + DB-state assertions passed against",
 		*baseURL)
 }
 
