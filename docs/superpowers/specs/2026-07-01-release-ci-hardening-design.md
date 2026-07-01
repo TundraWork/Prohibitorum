@@ -43,7 +43,8 @@ supply-chain verifiability.
 | No runner egress visibility | none | `step-security/harden-runner` (audit) | Medium | ✅ |
 | Release concurrency race | none | native `concurrency:` guard | Low | ✅ |
 | Checkout persists credentials | default | `persist-credentials: false` | Low | ❌ deferred |
-| cosign v2-style sign outputs | separate cert/sig | cosign v3 `--bundle` (`.sigstore.json`) | Low | ❌ deferred |
+| cosign v2-style sign outputs | separate cert/sig — **removed in cosign 3.x, so the pinned 3.1.1 would fail the release** | cosign v3 `--bundle` (`.sigstore.json`) | **Required fix** | ✅ |
+| Archive SBOM tool missing | `syft` not pinned — SBOM pipe would fail | pin `syft` in mise | **Required fix** | ✅ |
 
 Deferred Low-severity items are documented in [Out of scope](#out-of-scope) so
 they're trivial to enable later.
@@ -104,8 +105,16 @@ docker_digest:
   name_template: "digests.txt"
 ```
 
-`checksum.name_template` is already `checksums.txt`. **No other changes** — ko,
-SBOM, and cosign signing config are untouched.
+`checksum.name_template` is already `checksums.txt`. ko and archive-SBOM config
+are otherwise untouched. **Two required corrections surfaced when the build was
+first exercised** (both release-breaking bugs in the pre-existing config, not
+optional modernization):
+- **cosign `signs` block:** cosign 3.1.1 (already pinned) removed
+  `--output-signature`/`--output-certificate`; the block now uses
+  `--bundle=${signature}` with `signature: "${artifact}.sigstore.json"`.
+  `docker_signs` (`cosign sign`) is unaffected.
+- **`syft`:** the archive `sboms` pipe shells out to `syft`, which was not pinned
+  in mise — added `aqua:anchore/syft` so the release doesn't fail on the SBOM step.
 
 ### 3. `.github/workflows/ci.yml` — pre-tag validation gate
 
@@ -172,9 +181,10 @@ follow-up:
 
 - **`persist-credentials: false`** on the release checkout (GoReleaser uses
   `GITHUB_TOKEN` from env, not the git credential).
-- **cosign v3 `--bundle`** — replace the separate
-  `--output-signature`/`--output-certificate` outputs with a single
-  `.sigstore.json` bundle in the `signs` block.
+
+(cosign v3 `--bundle` was originally listed here as deferred, but proved
+*mandatory* — cosign 3.1.1 removed the old flags — so it was fixed during
+implementation, not deferred. See the `.goreleaser.yaml` section above.)
 
 Also out of scope: macOS/Windows release binaries; replacing ko with a
 hand-written Dockerfile; changing the base image or SBOM format.
