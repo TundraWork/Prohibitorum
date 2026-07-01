@@ -63,22 +63,26 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+# Emit dist/digests.txt (image + manifest digests) so the release workflow can
+# hand it to actions/attest for SLSA build provenance on the OCI images.
+docker_digest:
+  name_template: "digests.txt"
+
 sboms:
   - id: archive
     artifacts: archive
 
 # Keyless cosign signatures (CI provides the OIDC token via id-token: write).
+# cosign 3.x removed --output-signature/--output-certificate; use --bundle instead.
 signs:
   - id: checksums
     cmd: cosign
     args:
       - sign-blob
       - "--yes"
-      - "--output-signature=${signature}"
-      - "--output-certificate=${certificate}"
+      - "--bundle=${signature}"
       - "${artifact}"
     artifacts: checksum
-    certificate: "${artifact}.pem"
     output: true
 
 docker_signs:
