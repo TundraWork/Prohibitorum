@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 0: Pin lint toolchain and add release/lint mise tasks",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** actionlint + zizmor pinned in mise.lock; the three CI wrapper tasks exist.\n\n**Files:** Modify mise.toml ([tools] ~line 10; tasks after ci:smoke ~line 163); regenerate mise.lock.\n\n**Verify:** `mise install && mise run ci:release-check` exits 0.\n\n```json:metadata\n{\"files\": [\"mise.toml\", \"mise.lock\"], \"verifyCommand\": \"mise install && mise run ci:release-check\", \"acceptanceCriteria\": [\"mise.lock gains actionlint+zizmor\", \"ci:release-check passes\", \"three tasks listed\"]}\n```"
     },
     {

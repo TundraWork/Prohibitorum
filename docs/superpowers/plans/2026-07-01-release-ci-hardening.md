@@ -479,7 +479,7 @@ git commit -m "ci: SHA-pin + harden-runner all workflows; add release-check + pa
 - Modify: `README.md` (Status/Security area)
 
 **Acceptance Criteria:**
-- [ ] `TOOLING.md` documents: SHA-pinning + least-privilege + harden-runner; `actions/attest` provenance (checksums + images); the `release-check` + `release-dryrun` gate; the deferred Low items (concurrency guard is now IN, so only `persist-credentials:false` + cosign `--bundle` remain deferred).
+- [ ] `TOOLING.md` documents: SHA-pinning + least-privilege + harden-runner; `actions/attest` provenance (checksums + images); the `release-check` + `release-dryrun` gate; the deferred Low items (concurrency guard is now IN, and cosign `--bundle` was a *required* fix — cosign 3.1.1 removed the old flags — so **only `persist-credentials:false` remains deferred**). Also note `syft` was pinned (archive-SBOM pipe) and the cosign `signs` block now emits `checksums.txt.sigstore.json`.
 - [ ] `TOOLING.md` includes the **manual GitHub setup** checklist and **consumer verification** commands.
 - [ ] `README.md` mentions signed images + build provenance with a one-line verify pointer.
 - [ ] No milestone/version labels baked into prose (per repo convention).
@@ -522,7 +522,7 @@ cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
 
 ### Deferred (Low severity)
 
-Documented in the hardening spec, easy to enable later: `persist-credentials: false` on the release checkout, and cosign v3 `--bundle` single-file signatures.
+Documented in the hardening spec, easy to enable later: `persist-credentials: false` on the release checkout. (cosign v3 `--bundle` was originally deferred but proved mandatory — cosign 3.1.1 removed `--output-signature`/`--output-certificate` — so it was fixed in Task 1, not deferred.)
 ```
 
 - [ ] **Step 2: Update `TOOLING.md` `## CI` section** — add the `release-check` job and the `release-dryrun` workflow to the jobs description:
