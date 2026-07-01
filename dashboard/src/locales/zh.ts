@@ -568,6 +568,11 @@ export default {
       maintenanceMessagePlaceholder: '例如：将于北京时间 01:00 恢复',
       maintenanceWarning: '启用后，所有非管理员用户将无法创建新会话，无法登录、使用应用或访问网关。你将保持完整的管理员访问权限。',
       maintenanceSave: '保存维护设置',
+      backgroundLabel: '登录页背景',
+      backgroundHint: '用于登录页及其他未登录页面的整页背景图片（PNG、JPEG 或 WebP，最大 5 MB）。将按上传的原图直接使用，不做裁剪或重新编码。',
+      backgroundUpload: '上传背景',
+      backgroundRemove: '移除背景',
+      backgroundError: '无法使用该图片，请换一张小于 5 MB 的 PNG、JPEG 或 WebP。',
     },
     access: {
       title: '应用访问控制',

@@ -572,6 +572,11 @@ export default {
       maintenanceMessagePlaceholder: 'e.g. Back at 17:00 UTC',
       maintenanceWarning: 'While enabled, all non-admin users are signed out of new sessions and cannot log in, use apps, or the gateway. You will keep full access.',
       maintenanceSave: 'Save maintenance settings',
+      backgroundLabel: 'Login background',
+      backgroundHint: 'A full-page background for the sign-in and other pre-login pages (PNG, JPEG, or WebP, up to 5 MB). Served exactly as uploaded — no cropping or re-encoding.',
+      backgroundUpload: 'Upload background',
+      backgroundRemove: 'Remove background',
+      backgroundError: 'That image could not be used. Try a PNG, JPEG, or WebP under 5 MB.',
     },
     access: {
       title: 'App access',

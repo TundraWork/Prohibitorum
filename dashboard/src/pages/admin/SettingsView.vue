@@ -22,6 +22,8 @@ const name = ref(branding.instanceName)
 const { flag: savedFlag, trigger: triggerSaved } = useTransientFlag(2000)
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploadError = ref('')
+const bgInput = ref<HTMLInputElement | null>(null)
+const bgError = ref('')
 
 // Maintenance mode local state — initialised from the branding store on mount.
 const maintenanceMode = ref(branding.maintenanceMode)
@@ -79,6 +81,30 @@ async function onPickFile(e: Event): Promise<void> {
 async function removeIcon(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.del('/api/prohibitorum/admin/settings/icon')
+    return true as const
+  }))
+  if (ok) await branding.load()
+}
+
+async function onPickBackground(e: Event): Promise<void> {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  bgError.value = ''
+  const ok = await run(() => withSudo(async () => {
+    await api.upload('/api/prohibitorum/admin/settings/background', file)
+    return true as const
+  }))
+  if (ok) {
+    await branding.load()
+  } else {
+    bgError.value = t('admin.settings.backgroundError')
+  }
+  if (bgInput.value) bgInput.value.value = ''
+}
+
+async function removeBackground(): Promise<void> {
+  const ok = await run(() => withSudo(async () => {
+    await api.del('/api/prohibitorum/admin/settings/background')
     return true as const
   }))
   if (ok) await branding.load()
@@ -153,6 +179,26 @@ async function removeIcon(): Promise<void> {
               <Button v-if="branding.hasCustomIcon" variant="outline" size="sm" :disabled="busy" data-test="remove-icon" @click="removeIcon">{{ t('admin.settings.remove') }}</Button>
             </div>
             <p v-if="uploadError" class="text-sm text-destructive" role="alert">{{ uploadError }}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader><CardTitle>{{ t('admin.settings.backgroundLabel') }}</CardTitle></CardHeader>
+      <CardContent class="flex flex-col gap-3">
+        <div class="flex items-start gap-4">
+          <span class="inline-flex h-16 w-28 items-center justify-center overflow-hidden rounded-md bg-ember/10 ring-1 ring-inset ring-border">
+            <img v-if="branding.hasCustomBackground" :src="branding.backgroundSrc" :alt="t('admin.settings.backgroundLabel')" class="size-full object-cover" />
+          </span>
+          <div class="flex flex-col gap-2">
+            <p class="text-xs text-muted">{{ t('admin.settings.backgroundHint') }}</p>
+            <div class="flex gap-2">
+              <input ref="bgInput" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" data-test="background-input" @change="onPickBackground" />
+              <Button variant="outline" size="sm" :disabled="busy" data-test="upload-background" @click="bgInput?.click()">{{ t('admin.settings.backgroundUpload') }}</Button>
+              <Button v-if="branding.hasCustomBackground" variant="outline" size="sm" :disabled="busy" data-test="remove-background" @click="removeBackground">{{ t('admin.settings.backgroundRemove') }}</Button>
+            </div>
+            <p v-if="bgError" class="text-sm text-destructive" role="alert">{{ bgError }}</p>
           </div>
         </div>
       </CardContent>

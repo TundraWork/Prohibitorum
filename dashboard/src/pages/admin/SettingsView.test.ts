@@ -18,7 +18,7 @@ function mountView(hasCustomIcon = false) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const branding = useBrandingStore()
-  branding.$patch({ instanceName: 'TestInstance', hasCustomIcon, iconSrc: '/api/prohibitorum/icon' })
+  branding.$patch({ instanceName: 'TestInstance', hasCustomIcon, iconSrc: '/api/prohibitorum/icon', hasCustomBackground: hasCustomIcon, backgroundSrc: '/branding/background' })
   return mount(SettingsView, { global: { plugins: [i18n(), pinia] }, attachTo: document.body })
 }
 
@@ -68,5 +68,28 @@ describe('SettingsView', () => {
     const w = mountView()
     await flushPromises()
     expect(w.find('[data-test="upload-icon"]').exists()).toBe(true)
+  })
+
+  it('renders the Upload background button', async () => {
+    const w = mountView()
+    await flushPromises()
+    expect(w.find('[data-test="upload-background"]').exists()).toBe(true)
+  })
+
+  it('does not show Remove background when hasCustomBackground is false', async () => {
+    const w = mountView(false)
+    await flushPromises()
+    expect(w.find('[data-test="remove-background"]').exists()).toBe(false)
+  })
+
+  it('shows Remove background when set and calls api.del on click', async () => {
+    del.mockResolvedValue({})
+    const w = mountView(true)
+    await flushPromises()
+    const btn = w.find('[data-test="remove-background"]')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    await flushPromises()
+    expect(del).toHaveBeenCalledWith('/api/prohibitorum/admin/settings/background')
   })
 })
