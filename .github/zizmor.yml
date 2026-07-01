@@ -1,0 +1,12 @@
+# zizmor GitHub Actions security-audit config.
+# See docs/superpowers/specs/2026-07-01-release-ci-hardening-design.md.
+rules:
+  # persist-credentials:false was consciously DEFERRED (Low severity) in the
+  # hardening spec: GoReleaser authenticates via GITHUB_TOKEN in env, not the
+  # checkout-persisted git credential, so residual risk is minimal. Revisit when
+  # enabling the deferred Low items.
+  artipacked:
+    ignore:
+      - release.yml
+      - ci.yml
+      - release-dryrun.yml
