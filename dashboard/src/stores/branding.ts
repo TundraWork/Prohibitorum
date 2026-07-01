@@ -15,6 +15,9 @@ interface PublicConfig {
   iconEtag: string
   maintenanceMode: boolean
   maintenanceMessage: string
+  hasCustomBackground: boolean
+  backgroundUrl: string
+  backgroundEtag: string
 }
 
 export const useBrandingStore = defineStore('branding', () => {
@@ -23,10 +26,17 @@ export const useBrandingStore = defineStore('branding', () => {
   const iconEtag = ref('')
   const maintenanceMode = ref(false)
   const maintenanceMessage = ref('')
+  const hasCustomBackground = ref(false)
+  const backgroundEtag = ref('')
 
   const iconSrc = computed(() => {
     const v = iconEtag.value ? iconEtag.value.slice(0, 8) : ''
     return v ? `/branding/icon?v=${v}` : '/branding/icon'
+  })
+
+  const backgroundSrc = computed(() => {
+    const v = backgroundEtag.value ? backgroundEtag.value.slice(0, 8) : ''
+    return v ? `/branding/background?v=${v}` : '/branding/background'
   })
 
   async function load(): Promise<void> {
@@ -37,6 +47,8 @@ export const useBrandingStore = defineStore('branding', () => {
       iconEtag.value = cfg.iconEtag ?? ''
       maintenanceMode.value = !!cfg.maintenanceMode
       maintenanceMessage.value = cfg.maintenanceMessage ?? ''
+      hasCustomBackground.value = !!cfg.hasCustomBackground
+      backgroundEtag.value = cfg.backgroundEtag ?? ''
     } catch {
       // Keep defaults — branding is non-critical.
     } finally {
@@ -58,6 +70,7 @@ export const useBrandingStore = defineStore('branding', () => {
   return {
     instanceName, hasCustomIcon, iconEtag, iconSrc,
     maintenanceMode, maintenanceMessage,
+    hasCustomBackground, backgroundEtag, backgroundSrc,
     load, ensureLoaded,
   }
 })

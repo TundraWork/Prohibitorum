@@ -8,22 +8,34 @@
  * Legibility is non-negotiable — a contrast scrim layered over the scene
  * guarantees WCAG 2.2 AA for the near-opaque card and corner chrome above it.
  *
- * Scene source — zero-code swap:
- *   Drop a real painting at  src/assets/auth-scene.{png,jpg,jpeg,webp,avif}
- *   and it is picked up automatically (resolved at build time below). If no
- *   such file exists, a painterly CSS-gradient placeholder is used.
+ * Scene source — three-tier precedence:
+ *   1. Admin-uploaded background (branding store hasCustomBackground → backgroundSrc),
+ *      served from /branding/background and cache-busted via the backgroundEtag.
+ *   2. Build-time asset: drop a real painting at
+ *      src/assets/auth-scene.{png,jpg,jpeg,webp,avif} and it is picked up
+ *      automatically (resolved at build time below).
+ *   3. If neither is present, a painterly CSS-gradient placeholder is used.
  *
  * Motion: the scene is static — there is no animation to honour for
  * prefers-reduced-motion, by construction.
  */
 
-// Optional real scene asset. import.meta.glob resolves matching files at build
-// time; with no match it is an empty object → we fall back to the CSS placeholder.
+import { computed } from 'vue'
+import { useBrandingStore } from '@/stores/branding'
+
+const branding = useBrandingStore()
+
+// Optional real scene asset resolved at build time (empty object → no match).
 const sceneModules = import.meta.glob(
   '../../assets/auth-scene.{png,jpg,jpeg,webp,avif}',
   { eager: true, query: '?url', import: 'default' },
 ) as Record<string, string>
-const sceneUrl: string | undefined = Object.values(sceneModules)[0]
+const assetUrl: string | undefined = Object.values(sceneModules)[0]
+
+// Precedence: admin-uploaded DB background → build-time asset → CSS placeholder.
+const sceneUrl = computed<string | undefined>(() =>
+  branding.hasCustomBackground ? branding.backgroundSrc : assetUrl,
+)
 </script>
 
 <template>
