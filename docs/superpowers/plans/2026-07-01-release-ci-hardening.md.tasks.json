@@ -24,7 +24,7 @@
     {
       "id": 3,
       "subject": "Task 3: Harden ci.yml and add the pre-tag validation gate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** SHA-pin + egress-audit existing CI jobs; add release-check job; add path-filtered release-dryrun workflow.\n\n**Files:** Modify .github/workflows/ci.yml; Create .github/workflows/release-dryrun.yml.\n\n**Verify:** `mise run ci:lint-actions` exits 0.\n\n```json:metadata\n{\"files\": [\".github/workflows/ci.yml\", \".github/workflows/release-dryrun.yml\"], \"verifyCommand\": \"mise run ci:lint-actions\", \"acceptanceCriteria\": [\"SHA-pinned\", \"harden-runner on jobs\", \"release-check job\", \"path-filtered release-dryrun\", \"lint clean\"]}\n```"
     },
