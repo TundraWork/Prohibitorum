@@ -12,6 +12,11 @@
 | Node | `node = "24"` | core | Provides **npm** (no Corepack — removed in Node 25+) |
 | sqlc | `sqlc = "1.30.0"` | registry | `sqlc generate` → `pkg/db` (config `sqlc.yaml`) |
 | goose | `aqua:pressly/goose = "3.27.0"` | aqua | DB migrations (`db/migrations`) |
+| GoReleaser | `aqua:goreleaser/goreleaser = "2.16.0"` | aqua | Release builds + ko multi-arch OCI images + SBOMs + checksums |
+| cosign | `aqua:sigstore/cosign = "3.1.1"` | aqua | Keyless signing; emits `checksums.txt.sigstore.json` via `--bundle` |
+| syft | `aqua:anchore/syft = "1.27.1"` | aqua | SBOM generation; the GoReleaser archive-SBOM pipe shells out to it |
+| actionlint | `aqua:rhysd/actionlint = "1.7.12"` | aqua | GitHub Actions workflow schema + shellcheck linting |
+| zizmor | `aqua:zizmorcore/zizmor = "1.26.1"` | aqua | GitHub Actions supply-chain security audit |
 
 `mise.lock` (enabled via `[settings] lockfile = true`) pins exact versions + checksums + provenance for every tool, cross-language. It pre-resolves download URLs so `mise install` is hermetic and never calls the GitHub API. Commit it. See <https://mise.jdx.dev/dev-tools/mise-lock.html>.
 
@@ -44,7 +49,47 @@ The server is a single Go binary with the SPA embedded via `go:embed` (`pkg/webu
 - `kos`: `repositories: [ghcr.io/tundrawork/prohibitorum]`, `bare: true`, `platforms: [linux/amd64, linux/arm64]`, `sbom: spdx`, base image distroless/static (ko default) `:nonroot`.
 - Image signing + checksums via cosign (keyless, CI OIDC). goreleaser 2.16.0 + cosign 3.1.1 pinned in mise.
 
-Triggered on tag by `.github/workflows/release.yml` (`mise run prod:release` after GHCR login; `id-token: write` for cosign). Dry-run locally: `goreleaser release --snapshot --clean`.
+Triggered on tag by `.github/workflows/release.yml` (`mise run prod:release` after GHCR login; `id-token: write` for cosign). Dry-run locally: `mise run ci:release-snapshot`.
+
+### Release workflow hardening
+
+The release workflow is hardened against supply-chain attacks in several layers:
+
+- **SHA-pinned actions** — every `uses:` is pinned to a full commit SHA with the version in a trailing comment. Mutable tags (`@v4`, `@main`) cannot be hijacked; a renovate/dependabot rule should keep the SHAs fresh.
+- **Least privilege** — the top-level `permissions: {}` closes all defaults. The `release` job grants only `contents: write` (upload release assets), `packages: write` (push to GHCR), `id-token: write` (cosign OIDC), and `attestations: write` (SLSA provenance). No other job holds write permissions.
+- **Concurrency guard** — `concurrency: group: release-${{ github.ref }}` with `cancel-in-progress: false` ensures exactly one release runs per tag and is never cancelled mid-publish.
+- **`step-security/harden-runner` (egress `audit`)** — inserted as the first step of every job. Currently in audit mode (logs egress, never blocks). Once an audit run exposes the real endpoints, flip to `block` with an explicit allowlist.
+- **SLSA build provenance** — `actions/attest@v4` attests both `dist/checksums.txt` (covers all binary archives) and `dist/digests.txt` (covers OCI image digests, emitted by the GoReleaser `docker_digest` pipe). The attestations are anchored to the public-good Sigstore + Rekor log, so any consumer can verify them without trusting private keys.
+- **cosign keyless signing** — GoReleaser's cosign pipe uses `--bundle`, emitting `checksums.txt.sigstore.json` alongside `checksums.txt`. `syft` is a pinned dependency (see table above) because the GoReleaser archive-SBOM pipe shells out to it.
+
+### Manual GitHub setup (one-time, out-of-band)
+
+1. **Settings ▸ Actions ▸ General ▸ Workflow permissions** → set to **Read repository contents and packages permissions** (read-only default). Individual jobs elevate their own permissions; nothing grants broad write access by default.
+2. **GHCR needs no signup** — it authenticates with `GITHUB_TOKEN`. The first tagged release creates `ghcr.io/tundrawork/prohibitorum`; afterward set the package visibility to **public** and confirm it's linked to this repository. Ensure the org doesn't block Actions from creating packages.
+3. **Cutting a release** — push an annotated `vX.Y.Z` tag. `prerelease: auto` in `.goreleaser.yaml` flags pre-release tags (e.g. `v1.2.3-rc1`) automatically.
+4. **(Optional)** Enforce SHA-pinning org-wide via the allowed-actions policy; install the StepSecurity app for the harden-runner egress dashboard.
+
+### Verifying a release (consumers)
+
+```sh
+# SLSA build provenance (public-good Sigstore)
+gh attestation verify oci://ghcr.io/tundrawork/prohibitorum:<tag> --owner TundraWork
+gh attestation verify prohibitorum_<version>_linux_amd64.tar.gz --owner TundraWork
+
+# cosign keyless signature (checksums bundle)
+cosign verify-blob --bundle checksums.txt.sigstore.json checksums.txt \
+  --certificate-identity-regexp 'https://github.com/TundraWork/Prohibitorum/.+' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+# cosign keyless signature (image)
+cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
+  --certificate-identity-regexp 'https://github.com/TundraWork/Prohibitorum/.+' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+### Deferred (low severity)
+
+`persist-credentials: false` on the release-workflow checkout is the one deliberately-deferred item. It has no practical impact here (no subsequent git operations in the job), but adding it would make the intent explicit and silence any future audit finding.
 
 ## CI — GitHub Actions running `mise run ci`
 
@@ -52,6 +97,9 @@ Triggered on tag by `.github/workflows/release.yml` (`mise run prod:release` aft
 
 - **gate** runs `mise run ci` = `mise run ci:go` (`go vet ./...` → `go build -tags nodynamic ./...` → `go test ./...`) + `mise run ci:frontend` (`npm ci` → `npm test` → `npm run build` → **dist-freshness guard**: fails if `pkg/webui/dist` drifts from the committed bundle).
 - **smoke** runs `mise run ci:smoke` (`scripts/db.sh start` → throwaway `prohibitorum_smoke` DB → server → `cmd/smoke`). Pins `PROHIBITORUM_COMPOSE=docker compose` for determinism on the runner.
+- **release-check** runs `mise run ci:release-check` (`goreleaser check`) + `mise run ci:lint-actions` (`actionlint` schema/shellcheck + `zizmor` supply-chain audit over `.github/workflows`) on every PR. A broken release config or workflow fails here, not on the first tag push.
+
+`.github/workflows/release-dryrun.yml` runs `mise run ci:release-snapshot` (full multi-arch GoReleaser+ko build, no publish, `--skip=sign`) — path-filtered to changes that affect the release (`.goreleaser.yaml`, `mise.toml`, `mise.lock`, `go.*`, `cmd/**`, `pkg/**`, `dashboard/**`, the release workflow itself) plus `workflow_dispatch`. This catches build breakage without needing a real tag.
 
 ## Embedded `dist` drift
 
@@ -63,7 +111,7 @@ Triggered on tag by `.github/workflows/release.yml` (`mise run prod:release` aft
 |-----------|---------|----------|
 | `dev:*` | local development | `dev:server`, `dev:dashboard`, `dev:demo`, `dev:enroll-admin`, `dev:seed`, `dev:federation`, `dev:forward-auth`, `dev:openapi` |
 | `db` | local Postgres lifecycle (dev + smoke) | `mise run db start\|stop\|reset\|migrate\|status` |
-| `ci:*` | the checks CI runs | `ci`, `ci:smoke` (internal: `ci:go`, `ci:frontend`) |
+| `ci:*` | the checks CI runs | `ci`, `ci:smoke`, `ci:release-check`, `ci:lint-actions`, `ci:release-snapshot` (internal: `ci:go`, `ci:frontend`) |
 | `prod:*` | **production** build + release | `prod:build`, `prod:release` |
 
 The SPA bundle build is the hidden, `sources`/`outputs`-gated `build:web` task, shared by `dev:server`, `prod:build`, and the GoReleaser before-hook.
@@ -90,7 +138,8 @@ mise run dev:enroll-admin -- --new # bootstrap an admin
 mise run ci                        # the full fast gate (what CI runs)
 mise run ci:smoke                  # end-to-end smoke against a real server + DB
 mise run prod:build                # SPA -> pkg/webui/dist, then compile ./prohibitorum
-mise run prod:release              # release: binaries + OCI images (on a git tag; --snapshot to dry-run)
+mise run prod:release              # release: binaries + OCI images (on a git tag in the release workflow)
+mise run ci:release-snapshot       # dry-run release build: full build, no publish, no sign
 mise lock                          # refresh mise.lock after changing [tools]
 ```
 

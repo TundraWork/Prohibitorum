@@ -2,7 +2,7 @@
 # Builds the SPA, then a reproducible static Go binary that embeds it, then
 # multi-arch OCI images via ko, plus SBOMs, checksums, and cosign signatures.
 # Run on a git tag by .github/workflows/release.yml; dry-run locally with:
-#   goreleaser release --snapshot --clean
+#   mise run ci:release-snapshot
 version: 2
 
 project_name: prohibitorum

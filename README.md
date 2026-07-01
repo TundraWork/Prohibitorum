@@ -38,6 +38,7 @@ whole IdP plus its admin UI.
 
 **Keys & operations**
 - [x] Signing-key lifecycle — rotation, grace windows, sealed at rest
+- [x] Signed, provenance-tracked releases — multi-arch OCI images to GHCR with cosign signatures, SBOMs, and SLSA build provenance (verify with `gh attestation verify oci://ghcr.io/tundrawork/prohibitorum:<tag> --owner TundraWork`). See [TOOLING.md](./TOOLING.md).
 - [ ] KMS/HSM-backed signing
 - [ ] Audit-log export to SIEM
 
