@@ -87,6 +87,34 @@ func ProcessSquareWebP(raw []byte) (out []byte, etag string, err error) {
 	return EncodeWebP(img)
 }
 
+// ValidateRaw verifies raw is a web-renderable image within the size and
+// dimension limits WITHOUT decoding pixels or re-encoding. It is for assets that
+// must be served back byte-for-byte (the login-page background): the bytes are
+// never transformed, only sniffed via image.DecodeConfig. It returns a sha256-hex
+// etag over the unmodified bytes.
+//
+// Rejects: oversize input (ErrTooLarge); anything DecodeConfig can't parse, a
+// format outside {png, jpeg, webp}, or out-of-range dimensions (ErrInvalidImage).
+func ValidateRaw(raw []byte) (etag string, err error) {
+	if len(raw) > MaxInputBytes {
+		return "", ErrTooLarge
+	}
+	cfg, format, derr := image.DecodeConfig(bytes.NewReader(raw))
+	if derr != nil {
+		return "", ErrInvalidImage
+	}
+	switch format {
+	case "png", "jpeg", "webp":
+	default:
+		return "", ErrInvalidImage
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > MaxInputDim || cfg.Height > MaxInputDim {
+		return "", ErrInvalidImage
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
+}
+
 // cropSquare center-crops src to its largest centred square.
 func cropSquare(src image.Image) image.Image {
 	b := src.Bounds()
