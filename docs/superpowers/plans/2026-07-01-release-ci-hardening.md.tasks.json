@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 1: Add docker_digest and validate the release build locally",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** GoReleaser emits dist/digests.txt for image attestation; local snapshot proves the pipeline builds; settle the ko-digest question.\n\n**Files:** Modify .goreleaser.yaml (after checksum: block ~line 64).\n\n**Verify:** `mise run ci:release-snapshot` exits 0; jq shows ghcr manifest digest in dist/artifacts.json.\n\n```json:metadata\n{\"files\": [\".goreleaser.yaml\"], \"verifyCommand\": \"mise run ci:release-snapshot\", \"acceptanceCriteria\": [\"docker_digest added\", \"snapshot builds\", \"artifacts.json records ko digest\"]}\n```"
     },

@@ -483,6 +483,8 @@ git commit -m "ci: SHA-pin + harden-runner all workflows; add release-check + pa
 - [ ] `TOOLING.md` includes the **manual GitHub setup** checklist and **consumer verification** commands.
 - [ ] `README.md` mentions signed images + build provenance with a one-line verify pointer.
 - [ ] No milestone/version labels baked into prose (per repo convention).
+- [ ] **Stale local dry-run command fixed** in all three spots that now point at a command which fails locally (bare `goreleaser release --snapshot --clean` invokes cosign without OIDC): `.goreleaser.yaml` header comment (line ~5), `TOOLING.md` (`Dry-run locally:` ~line 47 and the quick-ref ~line 93), and the `prod:release` task description in `mise.toml`. Replace with `mise run ci:release-snapshot` (which adds `--skip=sign`).
+- [ ] **`syft` added to the `TOOLING.md` tool-inventory** (the pinned-tools list ~lines 7–15 / Prod §) since it's now a pinned release dependency (archive SBOM pipe).
 
 **Verify:** `mise exec -- actionlint .github/workflows` still clean (docs-only change shouldn't affect it); manual read confirms commands match the workflows.
 
