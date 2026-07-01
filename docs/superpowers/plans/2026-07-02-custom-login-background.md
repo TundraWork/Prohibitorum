@@ -255,13 +255,20 @@ git commit -m "feat(imageutil): ValidateRaw — sniff image without re-encoding 
 - [ ] **Step 1: Create the migration** `db/migrations/026_login_background.sql`:
 
 ```sql
--- 026_login_background.sql — custom login-page background image.
--- Stored and served VERBATIM (no re-encode). NULL = no override; the SPA then
+-- +goose Up
+-- Custom login-page background image. Stored and served VERBATIM (no re-encode) —
+-- the exact uploaded bytes reach the browser. NULL = no override; the SPA then
 -- falls back to its build-time asset / CSS gradient.
 ALTER TABLE instance_settings
   ADD COLUMN IF NOT EXISTS login_bg      bytea NULL,
   ADD COLUMN IF NOT EXISTS login_bg_etag text  NULL;
+
+-- +goose Down
+ALTER TABLE instance_settings
+  DROP COLUMN IF EXISTS login_bg,
+  DROP COLUMN IF EXISTS login_bg_etag;
 ```
+> Migrations use goose annotations (`-- +goose Up` / `-- +goose Down`) — mirror `025_maintenance_mode.sql`. A plain SQL file without them fails to parse at boot.
 
 - [ ] **Step 2: Write the failing resolver test** — add to `pkg/branding/branding_test.go`. First extend `fakeStore` (lines 11-31) to carry and return the new columns and implement the two new interface methods:
 
