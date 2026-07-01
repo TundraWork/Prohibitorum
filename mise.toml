@@ -8,6 +8,7 @@ sqlc = "1.30.0"
 # integration + SBOMs; cosign signs the artifacts. See TOOLING.md.
 "aqua:goreleaser/goreleaser" = "2.16.0"
 "aqua:sigstore/cosign" = "3.1.1"
+"aqua:anchore/syft" = "1.27.1"
 # Workflow linting (used by `mise run ci:lint-actions` and the CI release-check job):
 # actionlint = schema + shellcheck of workflow YAML; zizmor = Actions security audit.
 "aqua:rhysd/actionlint" = "1.7.12"
