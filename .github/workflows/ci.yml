@@ -24,9 +24,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v3 # installs the mise.lock-pinned toolchain (auto --locked)
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3 — installs the mise.lock-pinned toolchain (auto --locked)
       - run: mise run ci
+
+  # Validate the release config + workflows on every PR so a broken release
+  # fails here, not on the first tag. Cheap (no build).
+  release-check:
+    name: Release config + workflow lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+      - run: mise run ci:release-check
+      - run: mise run ci:lint-actions
 
   # End-to-end smoke against a real server + the compose Postgres (scripts/db.sh
   # brings it up; the smoke talks to the DB via pgx).
@@ -35,8 +55,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
-      - uses: jdx/mise-action@v3
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
       # Bring the dev Postgres up via compose. ubuntu-latest ships both podman and
       # docker; pin docker compose here because podman's compose provider can be
       # flaky on the runner (local `mise run ci:smoke` stays auto-detect).
