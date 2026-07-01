@@ -1,0 +1,47 @@
+{
+  "planPath": "docs/superpowers/plans/2026-07-02-custom-login-background.md",
+  "tasks": [
+    {
+      "id": 6,
+      "subject": "Task 1: imageutil.ValidateRaw — validate-not-transform helper",
+      "status": "pending",
+      "description": "**Goal:** Pure function: accept raw image bytes, verify web-renderable image within limits WITHOUT decode/re-encode, return sha256 etag over unmodified bytes.\n\n**Files:** Modify pkg/imageutil/imageutil.go; Create pkg/imageutil/validate_test.go\n\n**Acceptance Criteria:** accepts png/jpeg/webp (etag==sha256(raw)); rejects oversize→ErrTooLarge; rejects non-image+gif→ErrInvalidImage; rejects dims>MaxInputDim; input unmodified.\n\n**Verify:** go test -tags nodynamic ./pkg/imageutil/ -run ValidateRaw -v\n\n```json:metadata\n{\"files\": [\"pkg/imageutil/imageutil.go\", \"pkg/imageutil/validate_test.go\"], \"verifyCommand\": \"go test -tags nodynamic ./pkg/imageutil/ -run ValidateRaw -v\", \"acceptanceCriteria\": [\"accepts png/jpeg/webp, etag==sha256(raw)\", \"rejects oversize with ErrTooLarge\", \"rejects non-image + gif with ErrInvalidImage\", \"rejects dims > MaxInputDim\", \"does not modify input\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 2: Migration + branding persistence & resolver",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Persist login background in instance_settings; resolver validate-and-store raw bytes + read back.\n\n**Files:** Create db/migrations/026_login_background.sql; Modify pkg/branding/branding.go, pkg/branding/store_pg.go, pkg/branding/branding_test.go\n\n**Acceptance Criteria:** SetLoginBackground validates+stores verbatim+invalidates; Background returns set/unset; ClearLoginBackground clears+invalidates; invalid uploads never touch store.\n\n**Verify:** go test -tags nodynamic ./pkg/branding/ -v\n\n```json:metadata\n{\"files\": [\"db/migrations/026_login_background.sql\", \"pkg/branding/branding.go\", \"pkg/branding/store_pg.go\", \"pkg/branding/branding_test.go\"], \"verifyCommand\": \"go test -tags nodynamic ./pkg/branding/ -v\", \"acceptanceCriteria\": [\"SetLoginBackground validates+stores verbatim+invalidates\", \"Background returns set/unset correctly\", \"ClearLoginBackground clears+invalidates\", \"invalid uploads never touch store\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 3: Backend HTTP surface — contract, config/serve, admin handlers, routes",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** HTTP surface: public config flags + verbatim serve; admin upload/remove behind fresh-sudo; byte-for-byte round-trip.\n\n**Files:** Modify pkg/contract/auth.go, pkg/server/handle_branding.go, pkg/server/handle_admin_settings.go, pkg/server/server.go, pkg/server/handle_branding_test.go, pkg/server/handle_admin_settings_test.go\n\n**Acceptance Criteria:** /config exposes hasCustomBackground/backgroundUrl/backgroundEtag; GET /branding/background verbatim + ETag/304, 404 when unset; PUT stores + DELETE clears, both fresh-sudo; GET bytes == PUT bytes.\n\n**Verify:** go test -tags nodynamic ./pkg/server/ -run 'Branding|AdminSettings' -v\n\n```json:metadata\n{\"files\": [\"pkg/contract/auth.go\", \"pkg/server/handle_branding.go\", \"pkg/server/handle_admin_settings.go\", \"pkg/server/server.go\", \"pkg/server/handle_branding_test.go\", \"pkg/server/handle_admin_settings_test.go\"], \"verifyCommand\": \"go test -tags nodynamic ./pkg/server/ -run 'Branding|AdminSettings' -v\", \"acceptanceCriteria\": [\"config exposes hasCustomBackground/backgroundUrl/backgroundEtag\", \"serve verbatim + ETag/304, 404 when unset\", \"PUT stores + DELETE clears, both fresh-sudo\", \"byte-for-byte GET==PUT\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 4: Frontend — branding store + AuthBackdrop",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "**Goal:** Store exposes hasCustomBackground + cache-busted backgroundSrc; AuthBackdrop uses it as top precedence (DB→asset→gradient), scrim kept.\n\n**Files:** Modify dashboard/src/stores/branding.ts, dashboard/src/components/custom/AuthBackdrop.vue, dashboard/src/stores/branding.test.ts\n\n**Acceptance Criteria:** defaults hasCustomBackground=false + backgroundSrc=/branding/background; after load backgroundSrc cache-busted; AuthBackdrop precedence + scrim always.\n\n**Verify:** cd dashboard && npx vitest run src/stores/branding.test.ts && npx vue-tsc -b\n\n```json:metadata\n{\"files\": [\"dashboard/src/stores/branding.ts\", \"dashboard/src/components/custom/AuthBackdrop.vue\", \"dashboard/src/stores/branding.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/stores/branding.test.ts && npx vue-tsc -b\", \"acceptanceCriteria\": [\"store defaults correct\", \"backgroundSrc cache-busted after load\", \"AuthBackdrop precedence DB->asset->placeholder, scrim kept\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 5: Frontend — admin SettingsView background card + i18n",
+      "status": "pending",
+      "blockedBy": [9],
+      "description": "**Goal:** Add 'Login background' card to /admin/settings (upload via sudo + remove), mirroring icon card, with en + zh strings.\n\n**Files:** Modify dashboard/src/pages/admin/SettingsView.vue, dashboard/src/locales/en.ts, dashboard/src/locales/zh.ts, dashboard/src/pages/admin/SettingsView.test.ts\n\n**Acceptance Criteria:** Upload button renders + Remove gated on hasCustomBackground; upload/remove call correct endpoints via withSudo; en+zh define all 5 keys.\n\n**Verify:** cd dashboard && npx vitest run src/pages/admin/SettingsView.test.ts && npx vue-tsc -b\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/SettingsView.vue\", \"dashboard/src/locales/en.ts\", \"dashboard/src/locales/zh.ts\", \"dashboard/src/pages/admin/SettingsView.test.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/SettingsView.test.ts && npx vue-tsc -b\", \"acceptanceCriteria\": [\"upload button renders, remove gated on hasCustomBackground\", \"upload/remove call correct endpoints via withSudo\", \"en+zh define all 5 keys\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 6: End-to-end smoke coverage + full gate + dist",
+      "status": "pending",
+      "blockedBy": [8, 10],
+      "description": "**Goal:** Prove verbatim round-trip against a live server, run the full done-gate, commit rebuilt dist.\n\n**Files:** Modify cmd/smoke/main.go; Modify dashboard/dist/**\n\n**Acceptance Criteria:** smoke uploads PNG (admin sudo PUT) → GET byte-for-byte equal → /config.hasCustomBackground=true → remove → 404; full gate green incl live smoke SMOKE_EXIT=0; dist rebuilt+committed.\n\n**Verify:** live smoke prints '✓ smoke OK …' and SMOKE_EXIT=0\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\", \"dashboard/dist\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go vet ./... && go test -tags nodynamic ./... && (cd dashboard && npx vitest run && npx vue-tsc -b)\", \"acceptanceCriteria\": [\"smoke asserts byte-for-byte verbatim round-trip + /config + 404 on remove\", \"full gate green incl live smoke SMOKE_EXIT=0\", \"dist rebuilt+committed\"], \"modelTier\": \"standard\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-07-02"
+}
