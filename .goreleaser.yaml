@@ -83,6 +83,7 @@ signs:
       - "--bundle=${signature}"
       - "${artifact}"
     artifacts: checksum
+    signature: "${artifact}.sigstore.json"
     output: true
 
 docker_signs:
