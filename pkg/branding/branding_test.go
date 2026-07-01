@@ -9,15 +9,21 @@ import (
 )
 
 type fakeStore struct {
-	name     *string
-	iconPNG  []byte
-	iconEtag *string
-	maint    bool
-	maintMsg *string
+	name        *string
+	iconPNG     []byte
+	iconEtag    *string
+	maint       bool
+	maintMsg    *string
+	loginBG     []byte
+	loginBGEtag *string
 }
 
 func (f *fakeStore) Get(context.Context) (Settings, error) {
-	return Settings{Name: f.name, IconPNG: f.iconPNG, IconEtag: f.iconEtag, Maintenance: f.maint, MaintenanceMessage: f.maintMsg}, nil
+	return Settings{
+		Name: f.name, IconPNG: f.iconPNG, IconEtag: f.iconEtag,
+		Maintenance: f.maint, MaintenanceMessage: f.maintMsg,
+		LoginBG: f.loginBG, LoginBGEtag: f.loginBGEtag,
+	}, nil
 }
 func (f *fakeStore) SetName(_ context.Context, n *string) error { f.name = n; return nil }
 func (f *fakeStore) SetIcon(_ context.Context, png []byte, etag string) error {
@@ -29,6 +35,12 @@ func (f *fakeStore) SetMaintenance(_ context.Context, on bool, msg *string) erro
 	f.maint, f.maintMsg = on, msg
 	return nil
 }
+func (f *fakeStore) SetLoginBG(_ context.Context, raw []byte, etag string) error {
+	e := etag
+	f.loginBG, f.loginBGEtag = raw, &e
+	return nil
+}
+func (f *fakeStore) ClearLoginBG(context.Context) error { f.loginBG, f.loginBGEtag = nil, nil; return nil }
 
 func strp(s string) *string { return &s }
 
@@ -122,5 +134,45 @@ func TestInvalidate_Reloads(t *testing.T) {
 	r.Invalidate()
 	if got := r.InstanceName(ctx); got != "Second" {
 		t.Fatalf("post-invalidate should reload Second, got %q", got)
+	}
+}
+
+func TestLoginBackground_RoundTrip(t *testing.T) {
+	fs := &fakeStore{}
+	r := NewWithStore("X", fs)
+
+	// No override initially.
+	if data, etag, custom := r.Background(context.Background()); custom || data != nil || etag != "" {
+		t.Fatalf("Background() = (%v,%q,%v), want (nil,\"\",false)", data, etag, custom)
+	}
+
+	// A real tiny PNG.
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 8, 8))); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	raw := buf.Bytes()
+
+	if err := r.SetLoginBackground(context.Background(), raw); err != nil {
+		t.Fatalf("SetLoginBackground: %v", err)
+	}
+	data, etag, custom := r.Background(context.Background())
+	if !custom || etag == "" {
+		t.Fatalf("after set: custom=%v etag=%q, want true + non-empty", custom, etag)
+	}
+	if !bytes.Equal(data, raw) {
+		t.Fatalf("stored bytes differ from input — background must be verbatim")
+	}
+
+	// Invalid upload must not touch the store.
+	if err := r.SetLoginBackground(context.Background(), []byte("not an image")); err == nil {
+		t.Fatal("SetLoginBackground(bad) = nil err, want ErrInvalidImage")
+	}
+
+	if err := r.ClearLoginBackground(context.Background()); err != nil {
+		t.Fatalf("ClearLoginBackground: %v", err)
+	}
+	if _, _, custom := r.Background(context.Background()); custom {
+		t.Fatal("after clear: custom=true, want false")
 	}
 }
