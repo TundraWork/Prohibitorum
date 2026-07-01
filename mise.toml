@@ -180,8 +180,8 @@ zizmor .github/workflows
 """
 
 [tasks."ci:release-snapshot"]
-description = "CI: full GoReleaser+ko build with NO publish (release dry-run) — proves the release still builds. The release-dryrun job runs this; also the local dry-run."
-run = "goreleaser release --snapshot --clean"
+description = "CI: full GoReleaser+ko build with NO publish and NO signing (release dry-run) — proves the release still builds. The release-dryrun job runs this; needs a container runtime for ko."
+run = "goreleaser release --snapshot --clean --skip=sign"
 
 # ---- build: SPA bundle (hidden — shared by dev:server, prod:build, release) --
 
