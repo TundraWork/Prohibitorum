@@ -46,7 +46,7 @@ The server is a single Go binary with the SPA embedded via `go:embed` (`pkg/webu
 `.goreleaser.yaml` shape:
 - `before.hooks`: build the SPA (`mise run build:web` → `pkg/webui/dist`) so ko's Go build embeds a fresh bundle.
 - `builds`: `env: [CGO_ENABLED=0]`, `flags: [-trimpath, -tags=nodynamic]`, `ldflags: [-s -w]`, `mod_timestamp: {{.CommitTimestamp}}`, `goos: [linux]`, `goarch: [amd64, arm64]`.
-- `kos`: `repositories: [ghcr.io/tundrawork/prohibitorum]`, `bare: true`, `platforms: [linux/amd64, linux/arm64]`, `sbom: spdx`, base image distroless/static (ko default) `:nonroot`.
+- `kos`: `repositories: [ghcr.io/tundrawork/prohibitorum]`, `bare: true`, `platforms: [linux/amd64, linux/arm64]`, `sbom: spdx`, `base_image: cgr.dev/chainguard/static:latest` (distroless, nonroot, CVE-minimal).
 - Image signing + checksums via cosign (keyless, CI OIDC). goreleaser 2.16.0 + cosign 3.1.1 pinned in mise.
 
 Triggered on tag by `.github/workflows/release.yml` (`mise run prod:release` after GHCR login; `id-token: write` for cosign). Dry-run locally: `mise run ci:release-snapshot`.
