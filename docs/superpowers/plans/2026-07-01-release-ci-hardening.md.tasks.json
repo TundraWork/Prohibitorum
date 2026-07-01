@@ -31,10 +31,10 @@
     {
       "id": 4,
       "subject": "Task 4: Document the release process, provenance, and verification",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "**Goal:** TOOLING.md + README.md describe the hardened pipeline, provenance, consumer verification, manual GitHub setup, and deferred items.\n\n**Files:** Modify TOOLING.md (Prod + CI sections); Modify README.md (Status/Security).\n\n**Verify:** `mise exec -- actionlint .github/workflows` clean; manual read confirms commands match workflows.\n\n```json:metadata\n{\"files\": [\"TOOLING.md\", \"README.md\"], \"verifyCommand\": \"mise exec -- actionlint .github/workflows\", \"acceptanceCriteria\": [\"TOOLING documents hardening+provenance+gate+deferred\", \"manual setup + verify commands\", \"README updated\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-07-01T00:00:00Z"
+  "lastUpdated": "2026-07-01T18:00:00Z"
 }
