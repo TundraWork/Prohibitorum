@@ -41,7 +41,7 @@ supply-chain verifiability.
 | No SLSA build provenance | cosign sigs only | Native `actions/attest@v4` for binaries + images | Medium-High | ✅ |
 | Release config never validated | none | `goreleaser check` + snapshot dry-run + `actionlint` + `zizmor` in CI | Medium | ✅ |
 | No runner egress visibility | none | `step-security/harden-runner` (audit) | Medium | ✅ |
-| Release concurrency race | none | `concurrency:` guard | Low | ❌ deferred |
+| Release concurrency race | none | native `concurrency:` guard | Low | ✅ |
 | Checkout persists credentials | default | `persist-credentials: false` | Low | ❌ deferred |
 | cosign v2-style sign outputs | separate cert/sig | cosign v3 `--bundle` (`.sigstore.json`) | Low | ❌ deferred |
 
@@ -51,6 +51,15 @@ they're trivial to enable later.
 ## Design
 
 ### 1. `.github/workflows/release.yml`
+
+- **Concurrency guard** (native GitHub Actions) so the same tag can't release
+  twice concurrently; never cancel a partially-published release:
+
+  ```yaml
+  concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+  ```
 
 - **SHA-pin all actions** to a full commit SHA, each with a `# vX.Y.Z` comment so
   the human-readable version and Dependabot updates still work. Actions:
@@ -161,7 +170,6 @@ cosign verify ghcr.io/tundrawork/prohibitorum:<tag> \
 Deferred Low-severity items — documented so they can be enabled in a one-line
 follow-up:
 
-- **Release concurrency guard** — `concurrency: { group: release-${{ github.ref }}, cancel-in-progress: false }`.
 - **`persist-credentials: false`** on the release checkout (GoReleaser uses
   `GITHUB_TOKEN` from env, not the git credential).
 - **cosign v3 `--bundle`** — replace the separate
@@ -188,8 +196,8 @@ hand-written Dockerfile; changing the base image or SBOM format.
 
 ## Files touched
 
-- `.github/workflows/release.yml` — SHA pins, job-scoped perms, harden-runner,
-  attest steps.
+- `.github/workflows/release.yml` — concurrency guard, SHA pins, job-scoped
+  perms, harden-runner, attest steps.
 - `.github/workflows/ci.yml` — SHA pins, `release-check` job, path-filtered
   snapshot job.
 - `.goreleaser.yaml` — add `docker_digest`.
