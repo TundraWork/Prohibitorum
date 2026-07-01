@@ -8,6 +8,10 @@ sqlc = "1.30.0"
 # integration + SBOMs; cosign signs the artifacts. See TOOLING.md.
 "aqua:goreleaser/goreleaser" = "2.16.0"
 "aqua:sigstore/cosign" = "3.1.1"
+# Workflow linting (used by `mise run ci:lint-actions` and the CI release-check job):
+# actionlint = schema + shellcheck of workflow YAML; zizmor = Actions security audit.
+"aqua:rhysd/actionlint" = "1.7.12"
+"aqua:zizmorcore/zizmor" = "1.26.1"
 
 [settings]
 # Pin exact tool versions + checksums + provenance in mise.lock (committed), so
@@ -161,6 +165,22 @@ for _ in $(seq 1 60); do
 done
 go run ./cmd/smoke --base-url http://localhost:8080
 """
+
+[tasks."ci:release-check"]
+description = "CI: validate the GoReleaser release config (`goreleaser check`) — cheap, catches a broken .goreleaser.yaml before a tag is cut."
+run = "goreleaser check"
+
+[tasks."ci:lint-actions"]
+description = "CI: lint GitHub Actions workflows — actionlint (schema/shellcheck) + zizmor (supply-chain security audit)."
+run = """
+set -e
+actionlint
+zizmor .github/workflows
+"""
+
+[tasks."ci:release-snapshot"]
+description = "CI: full GoReleaser+ko build with NO publish (release dry-run) — proves the release still builds. The release-dryrun job runs this; also the local dry-run."
+run = "goreleaser release --snapshot --clean"
 
 # ---- build: SPA bundle (hidden — shared by dev:server, prod:build, release) --
 
