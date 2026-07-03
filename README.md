@@ -28,7 +28,7 @@ whole IdP plus its admin UI.
 - [x] OIDC provider
 - [x] SAML 2.0 IdP (GHES-compatible)
 - [x] Forward-auth gateway (Traefik-compatible)
-- ~~[ ] Coordinated single sign-out~~
+- [ ] ~~Coordinated single sign-out~~
 
 **Dashboard**
 - [x] Admin console — accounts, apps, providers, signing keys, audit log
