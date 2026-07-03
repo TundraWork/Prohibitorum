@@ -93,4 +93,21 @@ describe('MaintenanceView', () => {
     expect(link).toBeDefined()
     expect(link!.text()).toBe(en.maintenance.signOut)
   })
+
+  it('shows the admin-sign-in link when unauthenticated', async () => {
+    authState.me = null
+    const wrapper = mountView()
+    await flushPromises()
+    const link = wrapper.findAll('a').find(l => l.attributes('href') === '/login?admin=1')
+    expect(link).toBeDefined()
+    expect(link!.text()).toBe(en.maintenance.adminSignIn)
+  })
+
+  it('does NOT show the admin-sign-in link when authenticated', async () => {
+    authState.me = { id: 1, username: 'alex' }
+    const wrapper = mountView()
+    await flushPromises()
+    const link = wrapper.findAll('a').find(l => l.attributes('href') === '/login?admin=1')
+    expect(link).toBeUndefined()
+  })
 })

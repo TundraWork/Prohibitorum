@@ -779,6 +779,7 @@ export default {
     noteLabel: 'A note from the team',
     retry: 'Try again',
     signOut: 'Sign out',
+    adminSignIn: 'Sign in as administrator',
     adminBanner: 'Maintenance mode is on — non-admin users are locked out.',
     adminBannerAction: 'Manage',
   },

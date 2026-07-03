@@ -59,13 +59,22 @@ function reload(): void {
         {{ t('maintenance.retry') }}
       </Button>
 
-      <!-- Sign-out link for authenticated users who are stuck here -->
+      <!-- Authenticated users who are stuck here can sign out; unauthenticated
+           visitors get the deliberate admin-login entry (the form is otherwise
+           unreachable during maintenance). -->
       <RouterLink
         v-if="hasSession"
         to="/logout"
         class="text-xs text-muted underline underline-offset-4 hover:text-ink"
       >
         {{ t('maintenance.signOut') }}
+      </RouterLink>
+      <RouterLink
+        v-else
+        to="/login?admin=1"
+        class="text-xs text-muted underline underline-offset-4 hover:text-ink"
+      >
+        {{ t('maintenance.adminSignIn') }}
       </RouterLink>
     </div>
   </CenteredLayout>

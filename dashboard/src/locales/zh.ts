@@ -775,6 +775,7 @@ export default {
     noteLabel: '来自团队的说明',
     retry: '重试',
     signOut: '退出登录',
+    adminSignIn: '管理员登录',
     adminBanner: '维护模式已开启——非管理员用户当前无法访问。',
     adminBannerAction: '管理',
   },
