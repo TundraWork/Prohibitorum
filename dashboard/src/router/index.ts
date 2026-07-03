@@ -161,21 +161,23 @@ export function installGuard(router: Router): void {
         await branding.ensureLoaded()
 
         if (branding.maintenanceMode) {
-          // Check if the visitor is an authenticated admin — admins bypass maintenance.
+          // Admins bypass maintenance entirely; everyone else — unauthenticated
+          // visitors AND authenticated non-admins — is confined to the notice
+          // page, sign-out, and the deliberate admin-login entry (/login?admin=1).
           const { useAuthStore: useAuth } = await import('@/stores/auth')
           const auth = useAuth(pinia)
           // GET /me is allowlisted by the backend during maintenance.
           try { await auth.ensureLoaded() } catch { /* treat as unauthenticated */ }
 
-          if (auth.me && !auth.isAdmin) {
-            // Authenticated non-admin: redirect to maintenance (allow logout).
-            if (to.name !== 'maintenance' && to.name !== 'logout') {
-              return { name: 'maintenance' }
-            }
+          if (!(auth.me && auth.isAdmin)) {
+            const allowed =
+              to.name === 'maintenance' ||
+              to.name === 'logout' ||
+              (to.name === 'login' && to.query.admin !== undefined)
+            if (!allowed) return { name: 'maintenance' }
             return true
           }
-          // Unauthenticated users may still reach /login (so admins can sign in).
-          // Admins fall through to normal flow below.
+          // Admin: fall through to the normal flow below.
         } else {
           // Maintenance is off — don't strand anyone on the maintenance page.
           if (to.name === 'maintenance') return { name: 'login' }
