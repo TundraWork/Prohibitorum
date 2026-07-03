@@ -28,7 +28,7 @@ whole IdP plus its admin UI.
 - [x] OIDC provider
 - [x] SAML 2.0 IdP (GHES-compatible)
 - [x] Forward-auth gateway (Traefik-compatible)
-- [ ] Coordinated single sign-out
+- ~~[ ] Coordinated single sign-out~~
 
 **Dashboard**
 - [x] Admin console — accounts, apps, providers, signing keys, audit log
@@ -38,7 +38,7 @@ whole IdP plus its admin UI.
 
 **Keys & operations**
 - [x] Signing-key lifecycle — rotation, grace windows, sealed at rest
-- [x] Signed, provenance-tracked releases — multi-arch OCI images to GHCR with cosign signatures, SBOMs, and SLSA build provenance (verify with `gh attestation verify oci://ghcr.io/tundrawork/prohibitorum:<tag> --owner TundraWork`). See [TOOLING.md](./TOOLING.md).
+- [x] Signed, provenance-tracked releases
 - [ ] KMS/HSM-backed signing
 - [ ] Audit-log export to SIEM
 
