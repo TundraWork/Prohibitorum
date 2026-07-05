@@ -210,7 +210,7 @@ func (s *Server) handleAuthRecoveryTOTPVerifyHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, me)
 		return
 	}
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	ua := r.UserAgent()
 	token, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, ua, []string{"pwd", "otp", "mfa"}, nil)
 	if err != nil {

@@ -22,6 +22,7 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/branding"
+	"prohibitorum/pkg/clientip"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/pairing"
@@ -127,6 +128,9 @@ type Server struct {
 	// config → built-in precedence. Admin mutation handlers call Invalidate()
 	// after writes so changes propagate immediately.
 	branding *branding.Resolver
+	// clientIP resolves the effective client IP under the DB-stored, peer-validated
+	// policy. Admin PUT handlers call Invalidate() after writes.
+	clientIP *clientip.Resolver
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -186,8 +190,10 @@ func NewServer(ctx context.Context) (*Server, error) {
 		brandingResolver, _ = branding.New(config.Branding.InstanceName, "", branding.NewPGStore(conn))
 	}
 
+	clientIPResolver := clientip.NewResolver(clientip.NewPGStore(conn))
+
 	router := chi.NewMux()
-	router.Use(sessstore.LoadSession(config, queries, sessionStore))
+	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
 	router.Use(maintenanceGateMW(brandingResolver))
 	api := humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0"))
 	registerSecurityScheme(api, sessstore.SessionCookieNameFor(config))
@@ -233,6 +239,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		federator:     federator,
 		Audit:         auditWriter,
 		branding:      brandingResolver,
+		clientIP:      clientIPResolver,
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.

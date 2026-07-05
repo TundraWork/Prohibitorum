@@ -60,7 +60,7 @@ func SessionCookieNameFor(cfg *configx.Config) string {
 // what route is being hit. Failures in cookie parsing or session lookup are
 // silently swallowed — the request continues unauthenticated, and downstream
 // auth checks will produce the appropriate 401.
-func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore) func(http.Handler) http.Handler {
+func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore, ipOf func(*http.Request) string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			c, err := r.Cookie(SessionCookieNameFor(cfg))
@@ -74,7 +74,7 @@ func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore) func(ht
 				next.ServeHTTP(w, r)
 				return
 			}
-			ip := ClientIP(r, cfg.TrustProxy)
+			ip := ipOf(r)
 			data, refreshed, err := store.Load(r.Context(), accountID, token, ip, r.UserAgent())
 			if err != nil {
 				// Invalid/expired session: clear the cookie, continue unauthenticated.
@@ -164,8 +164,8 @@ func CeremonyCookie(cfg *configx.Config, _ *http.Request, value string) *http.Co
 		// Secure derives from the deployment-stable public-origin scheme
 		// (secureCookies), matching FreshSessionCookie/FedStateCookie — NOT a
 		// per-request isSecure(r) probe, which returns false behind a
-		// TLS-terminating proxy with TrustProxy off and would ship this cookie
-		// without Secure on an https deployment (audit SESS-2).
+		// TLS-terminating proxy and would ship this cookie without Secure on an
+		// https deployment (audit SESS-2).
 		Secure:   secureCookies(cfg),
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   300,
@@ -219,25 +219,3 @@ func ClearedFedStateCookie(cfg *configx.Config, r *http.Request) *http.Cookie {
 	return c
 }
 
-// ClientIP returns the client's IP, honoring X-Forwarded-For / X-Real-IP only
-// when TrustProxy is on. Otherwise falls back to RemoteAddr's host portion.
-func ClientIP(r *http.Request, trustProxy bool) string {
-	if trustProxy {
-		if v := r.Header.Get("X-Forwarded-For"); v != "" {
-			if i := strings.IndexByte(v, ','); i > 0 {
-				return strings.TrimSpace(v[:i])
-			}
-			return strings.TrimSpace(v)
-		}
-		if v := r.Header.Get("X-Real-IP"); v != "" {
-			return v
-		}
-	}
-	host := r.RemoteAddr
-	if i := strings.LastIndexByte(host, ':'); i > 0 {
-		// strip port; handles IPv4 "1.2.3.4:5678" and IPv6 "[::1]:5678" reasonably.
-		host = host[:i]
-		host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
-	}
-	return host
-}

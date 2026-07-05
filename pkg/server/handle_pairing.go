@@ -46,7 +46,7 @@ type pairBeginResp struct {
 }
 
 func (s *Server) handlePairBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	ua := r.UserAgent()
 	p, err := s.pairingStore.New(r.Context(), ua, ip)
 	if err != nil {
@@ -147,7 +147,7 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		writeAuthErr(w, err)
 		return
 	}
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
 	if err != nil {
 		writeAuthErr(w, err)
@@ -261,7 +261,7 @@ func (s *Server) handlePairApproveHTTP(w http.ResponseWriter, r *http.Request) {
 		"event":      "auth.pairing_approved",
 		"pairing_id": p.ID,
 		"account_id": sess.Account.ID,
-		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
+		"client_ip":  s.clientIP.IP(r),
 	}).Info("auth")
 	w.WriteHeader(http.StatusNoContent)
 }

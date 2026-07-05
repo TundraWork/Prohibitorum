@@ -324,7 +324,6 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 
 	cfg := &configx.Config{
 		SessionTTL: time.Hour,
-		TrustProxy: false,
 	}
 	sessionStore := sessstore.NewSessionStore(kvStore, q, cfg.SessionTTL)
 

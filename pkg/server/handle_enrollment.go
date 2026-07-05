@@ -511,7 +511,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		"event":      "auth.enrollment_consumed",
 		"intent":     consumed.Intent,
 		"account_id": acct.ID,
-		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
+		"client_ip":  s.clientIP.IP(r),
 	}).Info("auth")
 
 	// Post-commit cleanup (best-effort).
@@ -525,7 +525,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 	// Issue session for the (new or existing) account.
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/complete: session issue: %w", err))

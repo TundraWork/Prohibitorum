@@ -53,7 +53,7 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 	// argon2id hash (enumeration defense), so an unthrottled flood is a
 	// CPU/RAM-exhaustion DoS amplifier (audit AUTHZ-1). The per-account
 	// throttle does not help the unknown-username path (no account to key on).
-	if s.rateLimit(w, r, "pwd_begin:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), pwdBeginIPLimit, authIPWindow) {
+	if s.rateLimit(w, r, "pwd_begin:ip:"+s.clientIP.IP(r), pwdBeginIPLimit, authIPWindow) {
 		return
 	}
 
@@ -238,7 +238,7 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
 		return
 	}
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	if err := s.totpStore.VerifyRecoveryCode(r.Context(), partial.AccountID, body.Code, "", ip); err != nil {
 		if ae := authn.AsAuthError(err); ae != nil {
 			writeAuthErr(w, ae)
@@ -308,7 +308,7 @@ func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request
 		writeAuthErr(w, me)
 		return
 	}
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	ua := r.UserAgent()
 	token, _, err := s.sessionStore.Issue(r.Context(), accountID, ip, ua, amr, nil)
 	if err != nil {

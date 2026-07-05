@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+
+	"prohibitorum/pkg/logx"
 )
 
 // Config is parsed from env vars (PROHIBITORUM_* prefix) and an optional
@@ -27,7 +29,6 @@ type Config struct {
 
 	PublicOrigins []string      `mapstructure:"public_origin"`
 	SessionTTL    time.Duration `mapstructure:"session_ttl"`
-	TrustProxy    bool          `mapstructure:"trust_proxy"`
 
 	KV                 KVConfig           `mapstructure:"kv"`
 	OIDC               OIDCConfig         `mapstructure:"oidc"`
@@ -201,7 +202,6 @@ func Parse() (*Config, error) {
 	viper.SetDefault("kv.redis_tls", false)
 	viper.SetDefault("public_origin", "http://localhost:8080")
 	viper.SetDefault("session_ttl", 8*time.Hour)
-	viper.SetDefault("trust_proxy", false)
 
 	// OIDC defaults — short access tokens, longer refresh tokens, very
 	// short authorization codes (single-use anyway).
@@ -280,6 +280,10 @@ func Parse() (*Config, error) {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	bindEnvs(Config{})
 	_ = viper.Unmarshal(&config)
+
+	if viper.IsSet("trust_proxy") {
+		logx.New().Warn("config: 'trust_proxy' is removed — configure client IP handling in Admin → Settings → Client IP; the direct connection IP is used until then")
+	}
 
 	if raw := viper.GetString("public_origin"); raw != "" {
 		config.PublicOrigins = nil

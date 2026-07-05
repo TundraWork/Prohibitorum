@@ -160,7 +160,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	// One-shot binding consumed — clear the anti-forgery cookie.
 	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
 
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	ua := r.UserAgent()
 	// RFC 8176 §2: "federated" indicates a federated authentication assertion.
 	// Real upstream OPs commonly omit the amr claim — we backfill with this

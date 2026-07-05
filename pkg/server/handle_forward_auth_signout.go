@@ -25,7 +25,7 @@ func (s *Server) handleForwardAuthSSOLogoutHTTP(w http.ResponseWriter, r *http.R
 			logx.WithContext(r.Context()).WithFields(logrus.Fields{
 				"event":      "auth.logout",
 				"account_id": id,
-				"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
+				"client_ip":  s.clientIP.IP(r),
 				"via":        "forward_auth",
 			}).Info("auth")
 		}

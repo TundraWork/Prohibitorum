@@ -100,7 +100,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 	}
 	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
 
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	// Carry the upstream AMR through the grant so a first-login user who
 	// completed MFA at the upstream IdP keeps the "mfa" amr claim in their
 	// session. Backfill with the generic RFC 8176 "federated" value only when the

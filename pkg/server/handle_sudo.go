@@ -42,7 +42,6 @@ import (
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
-	sessstore "prohibitorum/pkg/session"
 )
 
 // sudoIntent is the JSON payload stashed at /begin so /complete knows which
@@ -345,7 +344,7 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 // and returns the error so the caller can bail without double-writing. On
 // success it returns nil and writes nothing to w.
 func (s *Server) applySudoGrant(ctx context.Context, w http.ResponseWriter, r *http.Request, sess *authn.Session, method string) error {
-	current, _, err := s.sessionStore.Load(ctx, sess.Account.ID, sess.Token, sessstore.ClientIP(r, s.config.TrustProxy), r.UserAgent())
+	current, _, err := s.sessionStore.Load(ctx, sess.Account.ID, sess.Token, s.clientIP.IP(r), r.UserAgent())
 	if err != nil {
 		writeAuthErr(w, err)
 		return err
@@ -371,7 +370,7 @@ func (s *Server) applySudoGrant(ctx context.Context, w http.ResponseWriter, r *h
 			AccountID: &accountID,
 			Factor:    audit.FactorSession,
 			Event:     "sudo_granted",
-			IP:        audit.ParseIPOrNil(sessstore.ClientIP(r, s.config.TrustProxy)),
+			IP:        audit.ParseIPOrNil(s.clientIP.IP(r)),
 			UserAgent: r.UserAgent(),
 			Detail:    map[string]any{"method": method},
 		})
@@ -382,7 +381,7 @@ func (s *Server) applySudoGrant(ctx context.Context, w http.ResponseWriter, r *h
 		"account_id": sess.Account.ID,
 		"session_id": sess.Data.SessionID,
 		"method":     method,
-		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
+		"client_ip":  s.clientIP.IP(r),
 	}).Info("auth")
 
 	return nil

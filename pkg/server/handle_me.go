@@ -21,7 +21,6 @@ import (
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
-	sessstore "prohibitorum/pkg/session"
 )
 
 // ----- GET /me ------------------------------------------------------------
@@ -353,7 +352,7 @@ func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.
 		"event":         "auth.credential_added",
 		"account_id":    sess.Account.ID,
 		"credential_id": row.ID,
-		"client_ip":     sessstore.ClientIP(r, s.config.TrustProxy),
+		"client_ip":     s.clientIP.IP(r),
 	}).Info("auth")
 
 	w.Header().Set("Content-Type", "application/json")

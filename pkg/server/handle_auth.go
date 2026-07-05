@@ -178,7 +178,7 @@ func (s *Server) handleAuthStatus(ctx context.Context, _ *struct{}) (*authStatus
 func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	// Per-IP cap on the unauthenticated login ceremony — bounds ceremony-spam
 	// (KV writes) and WebAuthn-verification cost (audit SESS-3).
-	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), loginIPLimit, authIPWindow) {
+	if s.rateLimit(w, r, "login:ip:"+s.clientIP.IP(r), loginIPLimit, authIPWindow) {
 		return
 	}
 
@@ -224,7 +224,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	// Per-IP cap on the login ceremony — shares the begin budget so a ceremony
 	// (begin+complete) counts together; bounds WebAuthn-verify + DB cost on the
 	// unauthenticated surface (audit SESS-3).
-	if s.rateLimit(w, r, "login:ip:"+sessstore.ClientIP(r, s.config.TrustProxy), loginIPLimit, authIPWindow) {
+	if s.rateLimit(w, r, "login:ip:"+s.clientIP.IP(r), loginIPLimit, authIPWindow) {
 		return
 	}
 
@@ -248,7 +248,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		logx.WithContext(r.Context()).WithFields(logrus.Fields{
 			"event":     "auth.login_failure",
 			"reason":    "ceremony_state_missing",
-			"client_ip": sessstore.ClientIP(r, s.config.TrustProxy),
+			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
@@ -258,7 +258,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		logx.WithContext(r.Context()).WithFields(logrus.Fields{
 			"event":     "auth.login_failure",
 			"reason":    "ceremony_state_corrupt",
-			"client_ip": sessstore.ClientIP(r, s.config.TrustProxy),
+			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
 		writeAuthErr(w, authn.ErrCeremonyState())
 		return
@@ -295,7 +295,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		logx.WithContext(r.Context()).WithFields(logrus.Fields{
 			"event":     "auth.login_failure",
 			"reason":    "no_account",
-			"client_ip": sessstore.ClientIP(r, s.config.TrustProxy),
+			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
 		writeAuthErr(w, authn.ErrLoginAccountNotFound())
 		return
@@ -305,7 +305,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"event":      "auth.login_failure",
 			"reason":     "account_disabled",
 			"account_id": resolvedAccount.ID,
-			"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
+			"client_ip":  s.clientIP.IP(r),
 		}).Warn("auth")
 		writeAuthErr(w, authn.ErrAccountDisabled())
 		return
@@ -345,7 +345,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	// Ceremony stash was Popped atomically above; no Del needed here.
 	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r))
 
-	ip := sessstore.ClientIP(r, s.config.TrustProxy)
+	ip := s.clientIP.IP(r)
 	token, _, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("session issue: %w", err))
@@ -357,7 +357,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		"event":      "auth.login_success",
 		"account_id": resolvedAccount.ID,
 		"username":   resolvedAccount.Username,
-		"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
+		"client_ip":  s.clientIP.IP(r),
 	}).Info("auth")
 
 	w.Header().Set("Content-Type", "application/json")
@@ -375,7 +375,7 @@ func (s *Server) handleLogoutHTTP(w http.ResponseWriter, r *http.Request) {
 			logx.WithContext(r.Context()).WithFields(logrus.Fields{
 				"event":      "auth.logout",
 				"account_id": id,
-				"client_ip":  sessstore.ClientIP(r, s.config.TrustProxy),
+				"client_ip":  s.clientIP.IP(r),
 			}).Info("auth")
 		}
 	}
