@@ -1,0 +1,1 @@
+import{f as t}from"./useForwardExpose-BoXLbStG.js";import{c as e,ai as m}from"./index-C3Ziph_J.js";function n(o){return e(()=>{var r;return m(o)?!!((r=t(o))!=null&&r.closest("form")):!0})}export{n as u};

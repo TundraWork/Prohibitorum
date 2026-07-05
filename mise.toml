@@ -154,12 +154,20 @@ export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
 export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"
+# Steam mock: build + start before the main server so the env vars that redirect
+# the Steam endpoints are set when the server binary reads them at startup.
+STEAM_MOCK_BIN="$(mktemp -d)/steammock"
+go build -o "$STEAM_MOCK_BIN" ./cmd/steammock
+STEAM_MOCK_PORT=18099
+"$STEAM_MOCK_BIN" --addr "127.0.0.1:${STEAM_MOCK_PORT}" & STEAM_MOCK_PID=$!
+export PROHIBITORUM_STEAM_LOGIN_ENDPOINT="http://127.0.0.1:${STEAM_MOCK_PORT}/openid/login"
+export PROHIBITORUM_STEAM_SUMMARY_ENDPOINT="http://127.0.0.1:${STEAM_MOCK_PORT}/ISteamUser/GetPlayerSummaries/v2/"
 # Build once and run the binary directly so the trap kills the real server
 # (backgrounding `go run` leaves its compiled child orphaned, holding :8080).
 BIN="$(mktemp -d)/prohibitorum"
 go build -tags nodynamic -o "$BIN" ./cmd/prohibitorum
 "$BIN" & SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true; rm -rf "$(dirname "$BIN")"' EXIT
+trap 'kill "$SERVER_PID" 2>/dev/null || true; kill "$STEAM_MOCK_PID" 2>/dev/null || true; rm -rf "$(dirname "$BIN")" "$(dirname "$STEAM_MOCK_BIN")"' EXIT
 for _ in $(seq 1 60); do
   curl -sf http://localhost:8080/.well-known/openid-configuration >/dev/null 2>&1 && break
   sleep 1

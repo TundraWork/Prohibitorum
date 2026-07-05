@@ -69,6 +69,7 @@ const (
 	nConsent    = 2
 	nAdmin      = 8
 	nPAT        = 7
+	nSteam      = 5
 )
 
 func main() {
@@ -4653,8 +4654,201 @@ func main() {
 		log.Printf("  DELETE background → GET /branding/background 404 ✓")
 	}
 
+	// =========================================================================
+	// STEAM FEDERATION ARC — admin creates a protocol=steam upstream IdP; a
+	// fresh browser-client drives the full login arc against the cmd/steammock
+	// process started by the mise ci:smoke task. Asserts:
+	//   1. POST /identity-providers (sudo, steam) → 201 + protocol=steam echoed
+	//   2. GET  /identity-providers (list) → slug present
+	//   3. login → mock Steam redirect → callback → 302 /welcome (first-time)
+	//   4. confirm GET + confirm POST → session issued + /me username=steam_<id>
+	//   5. DB: account row username=steam_76561198000000001 displayName=SmokeGaben
+	//
+	// Uses PROHIBITORUM_STEAM_LOGIN_ENDPOINT / PROHIBITORUM_STEAM_SUMMARY_ENDPOINT
+	// env vars (set by the mise task) to redirect the Steam adapter to the mock.
+	// =========================================================================
+	{
+		const steamSlug = "steamco"
+		const steamSteamID = "76561198000000001"
+		const steamUsername = "steam_" + steamSteamID
+		const steamDisplayName = "SmokeGaben"
+
+		step(fmt.Sprintf("steam %d/%d — admin: POST /identity-providers (protocol=steam, sudo) → 201", 1, nSteam))
+		// Sudo window reused from the bg arc's last sudoWebAuthn (bg 4/4, SudoTTL=15m,
+		// multi-use). No new begin+complete call here: each sudoWebAuthn consumes 2
+		// units of the 10/min per-session rate-limit bucket; issuing another would push
+		// the total over the limit for this session.
+		{
+			var created struct {
+				Slug     string `json:"slug"`
+				Protocol string `json:"protocol"`
+				Mode     string `json:"mode"`
+			}
+			if err := c.postJSON("/api/prohibitorum/identity-providers", map[string]any{
+				"slug":        steamSlug,
+				"displayName": "Steam",
+				"protocol":    "steam",
+				"mode":        "auto_provision",
+				"apiKey":      "SMOKEKEY",
+			}, &created); err != nil {
+				log.Fatalf("steam: POST /identity-providers: %v", err)
+			}
+			if created.Slug != steamSlug {
+				log.Fatalf("steam: create: slug want %q got %q", steamSlug, created.Slug)
+			}
+			if created.Protocol != "steam" {
+				log.Fatalf("steam: create: protocol want %q got %q", "steam", created.Protocol)
+			}
+			if created.Mode != "auto_provision" {
+				log.Fatalf("steam: create: mode want %q got %q", "auto_provision", created.Mode)
+			}
+			log.Printf("  POST /identity-providers slug=%s protocol=%s mode=%s → 201 ✓",
+				created.Slug, created.Protocol, created.Mode)
+		}
+
+		step(fmt.Sprintf("steam %d/%d — GET /identity-providers lists the steam provider", 2, nSteam))
+		{
+			var list []struct {
+				Slug     string `json:"slug"`
+				Protocol string `json:"protocol"`
+			}
+			if err := c.get("/api/prohibitorum/identity-providers", &list); err != nil {
+				log.Fatalf("steam: GET /identity-providers: %v", err)
+			}
+			var found bool
+			for _, p := range list {
+				if p.Slug == steamSlug && p.Protocol == "steam" {
+					found = true
+					break
+				}
+			}
+			if !found {
+				log.Fatalf("steam: GET /identity-providers: slug=%s protocol=steam not found in list (%d items)",
+					steamSlug, len(list))
+			}
+			log.Printf("  GET /identity-providers: slug=%s protocol=steam present ✓", steamSlug)
+		}
+
+		step(fmt.Sprintf("steam %d/%d — Steam login arc: begin → mock redirect → callback → /welcome", 3, nSteam))
+		steamClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("steam: federation client: %v", err)
+		}
+		{
+			// Step A: GET /login → 302 to mock Steam /openid/login?openid.mode=checkid_setup&...
+			// The server also sets the anti-forgery cookie on steamClient at this point.
+			loginPath := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", steamSlug)
+			steamAuthorizeURL, err := steamClient.getRedirect(loginPath)
+			if err != nil {
+				log.Fatalf("steam: /login → 302: %v", err)
+			}
+			if !strings.Contains(steamAuthorizeURL, "/openid/login") {
+				log.Fatalf("steam: /login redirect want /openid/login, got %q", steamAuthorizeURL)
+			}
+			log.Printf("  /login → 302 to mock Steam /openid/login ✓")
+
+			// Step B: GET the mock Steam URL → 302 to our /callback?state=...&openid.*=...
+			// followMockOPAuthorize issues the GET with a fresh no-cookie client (the mock
+			// does not need session cookies) and returns the callback Location.
+			steamCallbackURL, err := followMockOPAuthorize(steamAuthorizeURL)
+			if err != nil {
+				log.Fatalf("steam: mock Steam authorize: %v", err)
+			}
+			if !strings.Contains(steamCallbackURL, "/auth/federation/"+steamSlug+"/callback") {
+				log.Fatalf("steam: mock Steam did not redirect to RP /callback: %q", steamCallbackURL)
+			}
+			log.Printf("  mock Steam → 302 to RP /callback ✓")
+
+			// Step C: GET /callback (with anti-forgery cookie) → 302 /welcome (first-time identity).
+			loc, err := steamClient.getRedirectAbs(steamCallbackURL)
+			if err != nil {
+				log.Fatalf("steam: /callback: %v", err)
+			}
+			if loc != "/welcome" {
+				log.Fatalf("steam: /callback want 302 /welcome (first-time), got %q", loc)
+			}
+			// No session must be issued yet.
+			if _, err := steamClient.getMe(); err == nil {
+				log.Fatalf("steam: /callback issued a session before confirmation; /me should 401 pre-confirm")
+			}
+			log.Printf("  /callback → 302 /welcome; no session yet (pre-confirm /me 401) ✓")
+		}
+
+		step(fmt.Sprintf("steam %d/%d — confirm GET + POST → session issued; /me username=steam_<id>", 4, nSteam))
+		{
+			view, err := steamClient.confirmGet()
+			if err != nil {
+				log.Fatalf("steam: confirm GET: %v", err)
+			}
+			if view.Username != steamUsername {
+				log.Fatalf("steam: confirm GET username: got %q want %q", view.Username, steamUsername)
+			}
+			if view.DisplayName != steamDisplayName {
+				log.Fatalf("steam: confirm GET displayName: got %q want %q", view.DisplayName, steamDisplayName)
+			}
+			log.Printf("  confirm GET: username=%s displayName=%s ✓", view.Username, view.DisplayName)
+
+			redirect, err := steamClient.confirmPost()
+			if err != nil {
+				log.Fatalf("steam: confirm POST: %v", err)
+			}
+			if redirect != "/me" {
+				log.Fatalf("steam: confirm POST redirect: got %q want %q", redirect, "/me")
+			}
+			steamMe, err := steamClient.getMe()
+			if err != nil {
+				log.Fatalf("steam: /me post-confirm: %v", err)
+			}
+			if steamMe.Username != steamUsername {
+				log.Fatalf("steam: /me username: got %q want %q", steamMe.Username, steamUsername)
+			}
+			if steamMe.DisplayName != steamDisplayName {
+				log.Fatalf("steam: /me displayName: got %q want %q", steamMe.DisplayName, steamDisplayName)
+			}
+			log.Printf("  confirm POST → session; /me username=%s displayName=%s ✓",
+				steamMe.Username, steamMe.DisplayName)
+		}
+
+		step(fmt.Sprintf("steam %d/%d — DB: account row username=steam_<id> + account_identity for steam sub", 5, nSteam))
+		{
+			dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+			rows, err := dbScalar(dburl, fmt.Sprintf(
+				"SELECT a.username, a.display_name "+
+					"FROM account a WHERE a.username='%s'", steamUsername))
+			if err != nil {
+				log.Fatalf("steam: DB account query: %v", err)
+			}
+			if len(rows) != 1 {
+				log.Fatalf("steam: DB: expected 1 account row for username=%s, got %d (%v)",
+					steamUsername, len(rows), rows)
+			}
+			// rows[0] = "steam_76561198000000001|SmokeGaben"
+			parts := strings.SplitN(rows[0], "|", 2)
+			if len(parts) != 2 || parts[0] != steamUsername || parts[1] != steamDisplayName {
+				log.Fatalf("steam: DB account row: got %q, want username=%s displayName=%s",
+					rows[0], steamUsername, steamDisplayName)
+			}
+			log.Printf("  DB account: username=%s displayName=%s ✓", parts[0], parts[1])
+
+			// Verify account_identity row with the Steam upstream_sub = SteamID64.
+			idRows, err := dbScalar(dburl, fmt.Sprintf(
+				"SELECT count(*)::text FROM account_identity ai "+
+					"JOIN account a ON a.id=ai.account_id "+
+					"WHERE a.username='%s' AND ai.upstream_sub='%s'",
+				steamUsername, steamSteamID))
+			if err != nil {
+				log.Fatalf("steam: DB account_identity query: %v", err)
+			}
+			if len(idRows) != 1 || idRows[0] != "1" {
+				log.Fatalf("steam: DB account_identity: expected 1 row for sub=%s, got %v",
+					steamSteamID, idRows)
+			}
+			log.Printf("  DB account_identity: upstream_sub=%s ✓", steamSteamID)
+		}
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + DB-state assertions passed against",
 		*baseURL)
 }
 

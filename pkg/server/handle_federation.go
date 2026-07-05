@@ -115,10 +115,12 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if state == "" || code == "" {
-		// Stray browser request or someone pasting the callback URL out of
-		// context. No audit — this fires on benign hits (back-button replay,
-		// link previews) and would flood the log.
+	// A valid callback carries either an OAuth2 authorization code (OIDC) or an
+	// OpenID 2.0 id_res response (Steam). Both require a non-empty state token.
+	// Stray requests (back-button replay, link previews) have neither — reject
+	// them before touching the KV store. No audit: these are benign hits.
+	isSteamCallback := code == "" && q.Get("openid.mode") == "id_res"
+	if state == "" || (code == "" && !isSteamCallback) {
 		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 		return
 	}

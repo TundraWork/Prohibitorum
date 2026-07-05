@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -33,6 +34,19 @@ var (
 	loginEndpoint   = "https://steamcommunity.com/openid/login"
 	summaryEndpoint = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/"
 )
+
+// init allows tests and CI to override Steam endpoints via environment variables.
+// PROHIBITORUM_STEAM_LOGIN_ENDPOINT overrides loginEndpoint (the OpenID 2.0 endpoint).
+// PROHIBITORUM_STEAM_SUMMARY_ENDPOINT overrides summaryEndpoint (the Web API base URL).
+// The test export_test.go SetEndpoints seam still works; env vars are read once at startup.
+func init() {
+	if v := os.Getenv("PROHIBITORUM_STEAM_LOGIN_ENDPOINT"); v != "" {
+		loginEndpoint = v
+	}
+	if v := os.Getenv("PROHIBITORUM_STEAM_SUMMARY_ENDPOINT"); v != "" {
+		summaryEndpoint = v
+	}
+}
 
 // claimedIDRe anchors the Claimed-ID to Steam's exact format so a look-alike host or
 // a non-numeric id cannot pass. THE anti-spoofing control (paired with
