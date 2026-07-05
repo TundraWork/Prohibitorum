@@ -82,22 +82,29 @@ crypto — it does NOT import `pkg/federation/oidc` internals.
 ALTER TABLE upstream_idp
   ADD COLUMN IF NOT EXISTS protocol text NOT NULL DEFAULT 'oidc'
     CHECK (protocol IN ('oidc', 'steam'));
--- Steam rows carry no OIDC discovery/client fields; relax the OIDC-only NOT NULLs.
--- oidc rows keep requiring them via handler validation (unchanged behavior).
-ALTER TABLE upstream_idp ALTER COLUMN issuer_url DROP NOT NULL;
-ALTER TABLE upstream_idp ALTER COLUMN client_id  DROP NOT NULL;
-ALTER TABLE upstream_idp ALTER COLUMN scopes     DROP NOT NULL;
 
 -- +goose Down
--- (down is best-effort; NULLs in relaxed columns would block re-adding NOT NULL — acceptable
---  for a dev-only rollback since Steam rows are the only ones with NULLs.)
 ALTER TABLE upstream_idp DROP COLUMN IF EXISTS protocol;
 ```
 
+**Only the `protocol` discriminator is added — the OIDC-only columns stay `NOT NULL`.** A Steam row
+stores empty sentinels in the columns that don't apply to it (`issuer_url=''`, `client_id=''`,
+`scopes='{}'`); `protocol='steam'` is the authoritative "ignore these" signal, and handler
+validation keeps them non-empty for `oidc` rows. This deliberately avoids `DROP NOT NULL`: the
+sqlc-generated `UpstreamIdp` struct types those columns as non-null Go (`IssuerUrl string`,
+`ClientID string`, `Scopes []string`), and relaxing the constraint would flip them to
+`pgtype.Text`/pointers, rippling a breaking change through every OIDC read in
+`client.go`/`federation.go`/`modes.go`. Empty sentinels keep the existing OIDC code untouched
+(it never runs for `steam` rows) and shrink the migration to one additive column. This is the
+concrete realization of the approved "inline in the shared table" decision — the OIDC columns still
+live inline; they just hold `''`/`{}` (not NULL) for Steam rows.
+
 `client_secret_enc` / `secret_nonce` / `key_version` are **reused verbatim** to store the encrypted
 Steam Web API key (same `oidc.EncryptClientSecret` AES-256-GCM path, AAD = `upstream_idp:<id>:<ver>`).
-No new crypto. The sqlc `upstream_idp` row struct gains `Protocol`; `IssuerUrl`/`ClientID`/`Scopes`
-become nullable in Go (`pgtype`/pointer) — the OIDC adapter already only reads them for `oidc` rows.
+No new crypto. The sqlc `upstream_idp` row struct gains only `Protocol string`; the OIDC column
+types are unchanged. `protocol` is immutable after create (set once, like `slug`); the claim columns
+(`username_claim`/`display_name_claim`/`email_claim`/`picture_claim`) keep their schema defaults for
+Steam rows and resolve against a synthetic `tokens.Raw`, so no per-protocol claim handling is needed.
 
 ## `pkg/federation/steam` — the adapter
 
@@ -138,10 +145,11 @@ public, so this is belt-and-suspenders, not the primary control).
   unchanged. The single-use KV state `Pop` + browser-binding check run first for **both** protocols.
 - The resulting tuple flows into the **existing** `Resolve`/mode dispatch. For Steam:
   `email = ""`/NULL, the `require_verified_email` gate is skipped, `username = steam_<id>`,
-  `displayName = persona`. Avatar: `kickoffAvatarInherit` is called with the Steam `avatarfull`
-  URL fed directly (bypassing the OIDC `picture_claim`/UserInfo extraction) so the existing
-  SSRF-screened fetch → `avatar.Process` → `UpsertAvatarSource("upstream:<slug>")` → activate-gate
-  pipeline runs unchanged.
+  `displayName = persona`. Avatar: the Steam path sets `tokens.Raw["picture"] = avatarfull` (the
+  default `picture_claim` is `"picture"`) and calls `kickoffAvatarInherit(nil, idp, tokens,
+  accountID)`. `runAvatarInherit` already guards `if pic == "" && client != nil`, so a non-empty
+  `picture` means the nil OIDC client is never dereferenced — the existing SSRF-screened fetch →
+  `avatar.Process` → `UpsertAvatarSource("upstream:<slug>")` → activate-gate pipeline runs unchanged.
 
 ## Admin — backend
 
