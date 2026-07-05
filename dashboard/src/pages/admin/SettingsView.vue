@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 
 const { t } = useI18n()
 const { busy, run, errorText } = useApi()
@@ -30,11 +31,18 @@ const maintenanceMode = ref(branding.maintenanceMode)
 const maintenanceMessage = ref(branding.maintenanceMessage)
 const { flag: maintenanceSavedFlag, trigger: triggerMaintenanceSaved } = useTransientFlag(2000)
 
+// Client IP / Proxy local state — loaded from the API on mount.
+const clientIpStrategy = ref<'direct' | 'forwarded' | 'header'>('direct')
+const clientIpHeader = ref('CF-Connecting-IP')
+const clientIpTrusted = ref('') // textarea, one CIDR per line
+const { flag: clientIpSavedFlag, trigger: triggerClientIpSaved } = useTransientFlag(2000)
+
 onMounted(async () => {
   name.value = branding.instanceName
   await branding.ensureLoaded()
   maintenanceMode.value = branding.maintenanceMode
   maintenanceMessage.value = branding.maintenanceMessage
+  await loadClientIp()
 })
 
 async function saveName(): Promise<void> {
@@ -60,6 +68,36 @@ async function saveMaintenance(): Promise<void> {
     await branding.load()
     triggerMaintenanceSaved()
   }
+}
+
+async function loadClientIp(): Promise<void> {
+  const cfg = await run(() =>
+    api.get<{ strategy: string; header: string; trustedProxies: string[] }>(
+      '/api/prohibitorum/admin/settings/client-ip',
+    ),
+  )
+  if (!cfg) return
+  clientIpStrategy.value = (cfg.strategy as 'direct' | 'forwarded' | 'header') || 'direct'
+  if (cfg.header) clientIpHeader.value = cfg.header
+  clientIpTrusted.value = (cfg.trustedProxies || []).join('\n')
+}
+
+async function saveClientIp(): Promise<void> {
+  const trustedProxies = clientIpTrusted.value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+  const ok = await run(() =>
+    withSudo(async () => {
+      await api.put('/api/prohibitorum/admin/settings/client-ip', {
+        strategy: clientIpStrategy.value,
+        header: clientIpStrategy.value === 'header' ? clientIpHeader.value : '',
+        trustedProxies,
+      })
+      return true as const
+    }),
+  )
+  if (ok) triggerClientIpSaved()
 }
 
 async function onPickFile(e: Event): Promise<void> {
@@ -160,6 +198,43 @@ async function removeBackground(): Promise<void> {
         <div class="flex items-center gap-3">
           <Button :disabled="busy" data-test="save-maintenance" @click="saveMaintenance">{{ t('admin.settings.maintenanceSave') }}</Button>
           <span v-if="maintenanceSavedFlag" class="text-sm text-muted" role="status">{{ t('admin.settings.saved') }}</span>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader><CardTitle>{{ t('admin.settings.clientIpLabel') }}</CardTitle></CardHeader>
+      <CardContent class="flex flex-col gap-3">
+        <p class="text-xs text-muted">{{ t('admin.settings.clientIpHelp') }}</p>
+        <div class="flex flex-col gap-1.5">
+          <Label for="client-ip-strategy">{{ t('admin.settings.clientIpStrategyLabel') }}</Label>
+          <Select :model-value="clientIpStrategy" @update:model-value="(v) => (clientIpStrategy = v as 'direct' | 'forwarded' | 'header')">
+            <SelectTrigger id="client-ip-strategy" data-test="client-ip-strategy" :aria-label="t('admin.settings.clientIpStrategyLabel')">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="direct">{{ t('admin.settings.clientIpStrategyDirect') }}</SelectItem>
+              <SelectItem value="forwarded">{{ t('admin.settings.clientIpStrategyForwarded') }}</SelectItem>
+              <SelectItem value="header">{{ t('admin.settings.clientIpStrategyHeader') }}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div v-if="clientIpStrategy === 'header'" class="flex flex-col gap-1.5">
+          <Label for="client-ip-header">{{ t('admin.settings.clientIpHeaderLabel') }}</Label>
+          <Input id="client-ip-header" v-model="clientIpHeader" :disabled="busy" data-test="client-ip-header" />
+          <p class="text-xs text-muted">{{ t('admin.settings.clientIpHeaderHint') }}</p>
+        </div>
+        <div v-if="clientIpStrategy !== 'direct'" class="flex flex-col gap-1.5">
+          <Label for="client-ip-trusted">{{ t('admin.settings.clientIpTrustedLabel') }}</Label>
+          <Textarea id="client-ip-trusted" v-model="clientIpTrusted" :disabled="busy" rows="4" data-test="client-ip-trusted" />
+          <p class="text-xs text-muted">{{ t('admin.settings.clientIpTrustedHint') }}</p>
+          <p v-if="clientIpTrusted.trim() === ''" class="text-xs text-amber-700 dark:text-amber-400" data-test="client-ip-warning">
+            {{ t('admin.settings.clientIpEmptyWarning') }}
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <Button :disabled="busy" data-test="save-client-ip" @click="saveClientIp">{{ t('admin.settings.clientIpSave') }}</Button>
+          <span v-if="clientIpSavedFlag" class="text-sm text-muted" role="status">{{ t('admin.settings.saved') }}</span>
         </div>
       </CardContent>
     </Card>
