@@ -44,7 +44,7 @@
     {
       "id": 7,
       "subject": "Task 7: Smoke (mock Steam) + full gate + dist",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4, 6],
       "description": "Mock-Steam login arc smoke (approach A env-configurable endpoints preferred, B integration+admin-create fallback, log boundary); full gate; rebuild+commit dist.\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\", \"pkg/webui/dist\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go vet ./... && go test ./... && (cd dashboard && npx vitest run && npx vue-tsc -b && node scripts/check-contrast.mjs)\", \"acceptanceCriteria\": [\"steam login arc covered (mock or integration+admin-create, logged)\", \"full gate green\", \"live smoke SMOKE_EXIT=0\", \"dist rebuilt+committed\"], \"modelTier\": \"standard\"}\n```"
     }
