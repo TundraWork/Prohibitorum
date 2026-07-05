@@ -101,4 +101,25 @@ func TestVerify(t *testing.T) {
 			t.Fatal("expected wrong-mode rejection")
 		}
 	})
+	t.Run("signed omits claimed_id", func(t *testing.T) {
+		// is_valid:true but openid.signed does not cover claimed_id — the RP
+		// must reject this per OpenID 2.0 §11.4.2 to prevent SteamID spoofing.
+		_, done := steamMock(t, true)
+		defer done()
+		p := validParams(rt, good)
+		p.Set("openid.signed", "mode,return_to") // identity fields absent
+		if _, err := Verify(context.Background(), http.DefaultClient, p, rt); err == nil {
+			t.Fatal("expected error when openid.signed omits claimed_id/identity")
+		}
+	})
+	t.Run("signed omits identity", func(t *testing.T) {
+		// Covers the case where claimed_id is signed but identity is not.
+		_, done := steamMock(t, true)
+		defer done()
+		p := validParams(rt, good)
+		p.Set("openid.signed", "mode,return_to,claimed_id") // identity absent
+		if _, err := Verify(context.Background(), http.DefaultClient, p, rt); err == nil {
+			t.Fatal("expected error when openid.signed omits identity")
+		}
+	})
 }

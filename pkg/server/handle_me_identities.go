@@ -308,7 +308,11 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if state == "" || code == "" {
+	// OpenID 2.0 callbacks (Steam) carry no code — detect them by openid.mode
+	// before applying the OIDC-style code guard. Mirrors the same pattern in
+	// handle_federation.go handleFederationLoginCallbackHTTP.
+	isSteamCallback := code == "" && q.Get("openid.mode") == "id_res"
+	if state == "" || (code == "" && !isSteamCallback) {
 		// Stray / replayed callback. Federator's LinkCallback would also
 		// reject this on the KV Pop, but short-circuiting here keeps the
 		// audit log clean of accidental hits.

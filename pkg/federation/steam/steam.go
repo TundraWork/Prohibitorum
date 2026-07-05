@@ -103,6 +103,14 @@ func Verify(ctx context.Context, hc *http.Client, params url.Values, expectedRet
 	if !isValid(string(body)) {
 		return "", errors.New("steam: check_authentication returned is_valid:false")
 	}
+	// OpenID 2.0 §11.4.2: is_valid:true only attests the fields listed in
+	// openid.signed are covered by the signature — it does NOT guarantee
+	// claimed_id/identity are among them. An OP could validly sign a response
+	// that omits identity fields, letting an attacker substitute an arbitrary
+	// SteamID. Confirm the identity fields are signed before trusting them.
+	if !signedCovers(params.Get("openid.signed"), "claimed_id", "identity") {
+		return "", errors.New("steam: openid.signed does not cover claimed_id/identity")
+	}
 	m := claimedIDRe.FindStringSubmatch(params.Get("openid.claimed_id"))
 	if m == nil {
 		return "", errors.New("steam: claimed_id did not match the Steam identifier format")
@@ -118,4 +126,22 @@ func isValid(body string) bool {
 		}
 	}
 	return false
+}
+
+// signedCovers reports whether the comma-separated openid.signed list contains
+// every required field. Steam's is_valid:true only attests the fields in this
+// list are signed; the RP MUST confirm the identity fields are among them
+// (OpenID 2.0 §11.4.2) or a validly-signed-but-identity-unsigned assertion could
+// authenticate an attacker-chosen SteamID.
+func signedCovers(signed string, required ...string) bool {
+	have := make(map[string]bool)
+	for _, f := range strings.Split(signed, ",") {
+		have[strings.TrimSpace(f)] = true
+	}
+	for _, r := range required {
+		if !have[r] {
+			return false
+		}
+	}
+	return true
 }
