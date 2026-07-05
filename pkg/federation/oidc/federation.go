@@ -672,7 +672,11 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 // INSERTs an account_identity row binding the upstream identity to
 // currentAccountID. Refuses if the bound account in FedState differs from
 // currentAccountID (session-swap defense).
-func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam string, currentAccountID int32) (*LinkResult, error) {
+//
+// callbackParams are the raw query parameters from the upstream callback URL
+// (r.URL.Query() from the HTTP layer). For OIDC flows they are unused here.
+// For Steam flows they carry the openid.* parameters that steam.Verify needs.
+func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam string, currentAccountID int32, callbackParams url.Values) (*LinkResult, error) {
 	blob, err := f.kvStore.Pop(ctx, LinkKey(stateToken))
 	if err != nil {
 		f.failWithAccount(ctx, currentAccountID, "", "state_invalid", nil)
@@ -710,34 +714,50 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 		return nil, authn.ErrFederationStateInvalid()
 	}
 
-	client, err := f.buildClient(ctx, &idp, flowLink)
-	if err != nil {
-		return nil, err
-	}
+	// Protocol-specific token acquisition. Steam: verify the OpenID 2.0
+	// callback + fetch player summary → build synthetic *Tokens. OIDC: build
+	// the RP client, check for discovery drift, then exchange the code.
+	var tokens *Tokens
+	if idp.Protocol == "steam" {
+		t, terr := f.steamTokens(ctx, &idp, callbackParams, f.steamCallbackURL(idp.Slug, stateToken))
+		if terr != nil {
+			f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "steam_verify_failed", map[string]any{"err": terr.Error()})
+			return nil, authn.ErrFederationStateInvalid()
+		}
+		tokens = t
+	} else {
+		client, err := f.buildClient(ctx, &idp, flowLink)
+		if err != nil {
+			return nil, err
+		}
 
-	// RFC 9700 §4.4.2.1 mix-up defense: same check as HandleCallback —
-	// the snapshotted token_endpoint must still match. Audit finding H3-sch.
-	if client.TokenEndpoint() != state.ExpectedTokenEndpoint {
-		f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "token_endpoint_drift", map[string]any{
-			"expected": state.ExpectedTokenEndpoint,
-			"got":      client.TokenEndpoint(),
-		})
-		return nil, authn.ErrFederationStateInvalid()
-	}
+		// RFC 9700 §4.4.2.1 mix-up defense: same check as HandleCallback —
+		// the snapshotted token_endpoint must still match. Audit finding H3-sch.
+		if client.TokenEndpoint() != state.ExpectedTokenEndpoint {
+			f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "token_endpoint_drift", map[string]any{
+				"expected": state.ExpectedTokenEndpoint,
+				"got":      client.TokenEndpoint(),
+			})
+			return nil, authn.ErrFederationStateInvalid()
+		}
 
-	tokens, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
-	if err != nil {
-		f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "code_exchange_failed", map[string]any{
-			"err": err.Error(),
-		})
-		return nil, authn.ErrFederationStateInvalid()
+		t, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
+		if err != nil {
+			f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "code_exchange_failed", map[string]any{
+				"err": err.Error(),
+			})
+			return nil, authn.ErrFederationStateInvalid()
+		}
+		tokens = t
 	}
 
 	// Self-service link is neither invite_only nor link_only — it's an
 	// authenticated user binding a fresh upstream identity. Apply the same
 	// gates auto_provision enforces so admin policy (require_verified_email,
 	// allowed_domains) can't be bypassed through this surface.
-	if idp.RequireVerifiedEmail && !tokens.EmailVerified {
+	// Steam rows are created with require_verified_email=false; this guard is
+	// belt-and-suspenders so the email_verified gate is never applied to Steam.
+	if idp.Protocol != "steam" && idp.RequireVerifiedEmail && !tokens.EmailVerified {
 		f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "email_not_verified", map[string]any{
 			"upstream_iss": tokens.Issuer,
 		})

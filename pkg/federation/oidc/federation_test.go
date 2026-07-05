@@ -765,7 +765,7 @@ func TestFederator_LinkCallback_HappyPath(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	result, err := fx.f.LinkCallback(context.Background(), state, code, iss, acctID)
+	result, err := fx.f.LinkCallback(context.Background(), state, code, iss, acctID, url.Values{})
 	if err != nil {
 		t.Fatalf("LinkCallback: %v", err)
 	}
@@ -812,7 +812,7 @@ func TestFederator_LinkCallback_RejectsSessionSwap(t *testing.T) {
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
 	// Different account completes the link flow.
-	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, completingAs)
+	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, completingAs, url.Values{})
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -839,7 +839,7 @@ func TestFederator_LinkCallback_RejectsLinkConflict(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, acctID)
+	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, acctID, url.Values{})
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -862,7 +862,7 @@ func TestFederator_LinkCallback_RejectsEmailNotVerified(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, acctID)
+	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, acctID, url.Values{})
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
 		t.Fatalf("want email_not_verified, got %v", err)
 	}
@@ -905,7 +905,7 @@ func TestFederator_LinkCallback_RejectsDomainNotAllowed(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, acctID)
+	_, err = fx.f.LinkCallback(context.Background(), state, code, iss, acctID, url.Values{})
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required, got %v", err)
 	}
@@ -941,7 +941,7 @@ func TestFederator_LinkCallback_RejectsLoginStateToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
-	_, err = fx.f.LinkCallback(context.Background(), req.StateKey, "any-code", "", 99)
+	_, err = fx.f.LinkCallback(context.Background(), req.StateKey, "any-code", "", 99, url.Values{})
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -1865,5 +1865,90 @@ func TestFederator_HandleCallback_Steam_HappyPath(t *testing.T) {
 	}
 	if findEvent(recs, audit.EventUse) == nil {
 		t.Error("missing audit Use")
+	}
+}
+
+// TestFederator_LinkCallback_Steam_HappyPath drives the Steam branch of
+// LinkCallback: an authenticated user links a Steam identity to their existing
+// account. Stubs the Steam seams, seeds a link-flow KV state via LinkBegin,
+// then calls LinkCallback with openid.* callback params. Asserts that an
+// account_identity row is inserted + confirmed for the existing account (no new
+// account created), and that EventLink is emitted with the correct account_id.
+func TestFederator_LinkCallback_Steam_HappyPath(t *testing.T) {
+	const steamID = "76561198000000002"
+	const personaName = "LinkTestGamer"
+	const avatarURL = "https://cdn.steamstatic.com/link-test.jpg"
+	const acctID int32 = 42
+
+	fx := newSteamFixture(t, federationoidc.ModeAutoProvision)
+
+	// Stub the Steam seams: verify always succeeds; summary returns fixed data.
+	federationoidc.SetSteamSeamsForTest(fx.f,
+		func(_ context.Context, _ url.Values, _ string) (string, error) {
+			return steamID, nil
+		},
+		func(_ context.Context, _, _ string) (steamoidc.Summary, error) {
+			return steamoidc.Summary{PersonaName: personaName, AvatarURL: avatarURL}, nil
+		},
+	)
+
+	// Start the link flow for acctID. LinkBegin on a steam IdP goes through
+	// beginSteam and stashes FedState under LinkKey with LinkingAccountID=acctID.
+	req, err := fx.f.LinkBegin(context.Background(), acctID, "steam", "/me/identities")
+	if err != nil {
+		t.Fatalf("LinkBegin (steam): %v", err)
+	}
+
+	// Construct synthetic callback params matching what Steam sends back.
+	// The stub ignores the actual params; we need openid.mode=id_res so the
+	// steam path doesn't short-circuit on a cancelled flow.
+	callbackParams := url.Values{
+		"openid.mode":       {"id_res"},
+		"openid.ns":         {"http://specs.openid.net/auth/2.0"},
+		"openid.claimed_id": {"https://steamcommunity.com/openid/id/" + steamID},
+		"openid.identity":   {"https://steamcommunity.com/openid/id/" + steamID},
+		"openid.return_to":  {fx.origin + "/api/prohibitorum/me/identities/link/steam/callback?state=" + req.StateKey},
+		"state":             {req.StateKey},
+	}
+
+	// Steam link: code and iss are unused.
+	result, err := fx.f.LinkCallback(context.Background(), req.StateKey, "", "", acctID, callbackParams)
+	if err != nil {
+		t.Fatalf("LinkCallback (steam): %v", err)
+	}
+	if result.IDPSlug != "steam" {
+		t.Errorf("IDPSlug = %q, want steam", result.IDPSlug)
+	}
+	if result.ReturnTo != "/me/identities" {
+		t.Errorf("ReturnTo = %q, want /me/identities", result.ReturnTo)
+	}
+
+	// Identity row must be bound to the existing account (not a new one).
+	if fx.q.insertedIdentity.AccountID != acctID {
+		t.Errorf("inserted identity AccountID = %d, want %d", fx.q.insertedIdentity.AccountID, acctID)
+	}
+	// No new account must have been created.
+	if len(fx.q.insertedAccounts) != 0 {
+		t.Errorf("link MUST NOT insert a new account; got %d", len(fx.q.insertedAccounts))
+	}
+	// Steam issuer + SteamID as subject.
+	if fx.q.insertedIdentity.UpstreamIss != "https://steamcommunity.com/openid" {
+		t.Errorf("identity upstream_iss = %q, want https://steamcommunity.com/openid", fx.q.insertedIdentity.UpstreamIss)
+	}
+	if fx.q.insertedIdentity.UpstreamSub != steamID {
+		t.Errorf("identity upstream_sub = %q, want %q", fx.q.insertedIdentity.UpstreamSub, steamID)
+	}
+
+	// Audit: EventLink emitted with the linking account ID.
+	recs := fx.au.snapshot()
+	link := findEvent(recs, audit.EventLink)
+	if link == nil {
+		t.Fatal("missing audit EventLink")
+	}
+	if link.AccountID == nil || *link.AccountID != acctID {
+		t.Errorf("Link account = %v, want %d", link.AccountID, acctID)
+	}
+	if link.Detail["idp_slug"] != "steam" {
+		t.Errorf("Link detail idp_slug = %v, want steam", link.Detail["idp_slug"])
 	}
 }

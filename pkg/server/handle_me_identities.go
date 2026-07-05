@@ -316,7 +316,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	result, err := s.federator.LinkCallback(r.Context(), state, code, iss, sess.Account.ID)
+	result, err := s.federator.LinkCallback(r.Context(), state, code, iss, sess.Account.ID, r.URL.Query())
 	if err != nil {
 		// Federator already emitted a fail audit row for each structured
 		// failure mode (state_invalid, session_swap, iss_mismatch_callback,
