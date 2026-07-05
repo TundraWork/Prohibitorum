@@ -508,6 +508,8 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/icon", admin, s.handleDeleteInstanceIconHTTP)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/background", admin, s.handlePutInstanceBackgroundHTTP)
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/background", admin, s.handleDeleteInstanceBackgroundHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/admin/settings/client-ip", admin, s.handleGetClientIPHTTP)
+	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/client-ip", admin, s.handlePutClientIPHTTP)
 
 	// Admin: signing-key lifecycle management
 	registerOp(mgmt, contract.OperationListSigningKeys, s.handleListSigningKeys, admin)

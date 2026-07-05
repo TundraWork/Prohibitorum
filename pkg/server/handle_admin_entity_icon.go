@@ -92,7 +92,7 @@ func (s *Server) auditEntityIcon(r *http.Request, factor audit.Factor, kind, id,
 		AccountID: acct,
 		Factor:    factor,
 		Event:     audit.EventUpdate,
-		IP:        audit.ParseIPOrNil(r.RemoteAddr),
+		IP:        audit.ParseIPOrNil(s.clientIP.IP(r)),
 		UserAgent: r.UserAgent(),
 		Detail:    map[string]any{"reason": reason, "owner_kind": kind, "owner_id": id},
 	})
