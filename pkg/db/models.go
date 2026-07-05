@@ -98,11 +98,18 @@ type GroupMember struct {
 }
 
 type InstanceSetting struct {
-	ID           int16              `json:"id"`
-	InstanceName pgtype.Text        `json:"instanceName"`
-	IconPng      []byte             `json:"iconPng"`
-	IconEtag     pgtype.Text        `json:"iconEtag"`
-	UpdatedAt    pgtype.Timestamptz `json:"updatedAt"`
+	ID                     int16              `json:"id"`
+	InstanceName           pgtype.Text        `json:"instanceName"`
+	IconPng                []byte             `json:"iconPng"`
+	IconEtag               pgtype.Text        `json:"iconEtag"`
+	UpdatedAt              pgtype.Timestamptz `json:"updatedAt"`
+	MaintenanceMode        bool               `json:"maintenanceMode"`
+	MaintenanceMessage     pgtype.Text        `json:"maintenanceMessage"`
+	LoginBg                []byte             `json:"loginBg"`
+	LoginBgEtag            pgtype.Text        `json:"loginBgEtag"`
+	ClientIpStrategy       string             `json:"clientIpStrategy"`
+	ClientIpHeader         string             `json:"clientIpHeader"`
+	ClientIpTrustedProxies []string           `json:"clientIpTrustedProxies"`
 }
 
 type OidcClient struct {
@@ -125,8 +132,8 @@ type OidcClient struct {
 	AccessRestricted            bool               `json:"accessRestricted"`
 	ForwardAuthEnabled          bool               `json:"forwardAuthEnabled"`
 	ForwardAuthHost             pgtype.Text        `json:"forwardAuthHost"`
-	LaunchUrl                   pgtype.Text        `json:"launchUrl"`
 	ForwardAuthScopes           []byte             `json:"forwardAuthScopes"`
+	LaunchUrl                   pgtype.Text        `json:"launchUrl"`
 }
 
 type OidcClientAccess struct {
@@ -309,6 +316,7 @@ type UpstreamIdp struct {
 	CreatedAt            pgtype.Timestamptz `json:"createdAt"`
 	RequireVerifiedEmail bool               `json:"requireVerifiedEmail"`
 	PictureClaim         string             `json:"pictureClaim"`
+	Protocol             string             `json:"protocol"`
 }
 
 type UserGroup struct {

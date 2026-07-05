@@ -8,8 +8,8 @@ SELECT * FROM upstream_idp WHERE NOT disabled ORDER BY display_name;
 INSERT INTO upstream_idp (slug, display_name, issuer_url, client_id,
   client_secret_enc, secret_nonce, key_version, scopes, mode,
   allowed_domains, username_claim, display_name_claim, email_claim,
-  require_verified_email, picture_claim)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+  require_verified_email, picture_claim, protocol)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 RETURNING *;
 
 -- name: UpdateUpstreamIDP :exec
