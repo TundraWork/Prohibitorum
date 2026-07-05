@@ -163,7 +163,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			AccountID: &acctID,
 			Factor:    audit.FactorSAMLSP,
 			Event:     audit.EventAccessDenied,
-			IP:        audit.ParseIPOrNil(r.RemoteAddr),
+			IP:        audit.ParseIPOrNil(i.auditIP(r)),
 			UserAgent: r.UserAgent(),
 			Detail: map[string]any{
 				"reason": "app_access_denied",

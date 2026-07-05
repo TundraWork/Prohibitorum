@@ -232,7 +232,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		rateLimiter:   rateLimiter,
 		webauthn:      wa,
 		oidcOP:        oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
-		samlIdP:       samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter),
+		samlIdP:       samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
 		passwordStore: passwordStore,
 		totpStore:     totpStore,
 		throttle:      throttle,

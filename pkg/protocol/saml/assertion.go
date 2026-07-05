@@ -290,7 +290,7 @@ func (i *IdP) issueAssertion(w http.ResponseWriter, r *http.Request, account db.
 		AccountID: &accountID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventUse,
-		IP:        audit.ParseIPOrNil(r.RemoteAddr),
+		IP:        audit.ParseIPOrNil(i.auditIP(r)),
 		UserAgent: r.UserAgent(),
 		Detail:    map[string]any{"reason": auditReason, "sp": sp.EntityID},
 	})

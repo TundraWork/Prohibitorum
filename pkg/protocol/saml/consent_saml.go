@@ -122,7 +122,7 @@ func (i *IdP) HandleConsentResume(w http.ResponseWriter, r *http.Request) {
 		acctID := sess.Data.AccountID
 		_ = i.audit.Record(ctx, audit.Record{
 			AccountID: &acctID, Factor: audit.FactorSAMLSP, Event: audit.EventAccessDenied,
-			IP: audit.ParseIPOrNil(r.RemoteAddr), UserAgent: r.UserAgent(),
+			IP: audit.ParseIPOrNil(i.auditIP(r)), UserAgent: r.UserAgent(),
 			Detail: map[string]any{"reason": "app_access_denied", "sp": sp.EntityID},
 		})
 		http.Redirect(w, r, i.baseURL()+"/error?reason=app_access_denied&app="+url.QueryEscape(sp.DisplayName), http.StatusFound)

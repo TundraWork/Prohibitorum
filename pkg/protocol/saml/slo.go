@@ -238,7 +238,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 			Factor:    audit.FactorSAMLSP,
 			Event:     audit.EventSessionEnd,
 			AccountID: &acctID,
-			IP:        audit.ParseIPOrNil(r.RemoteAddr),
+			IP:        audit.ParseIPOrNil(i.auditIP(r)),
 			UserAgent: r.UserAgent(),
 			Detail:    detail,
 		})

@@ -34,12 +34,15 @@ type IdP struct {
 	audit    audit.Writer
 	rl       *authn.RateLimiter
 	keys     *samlKeyCache
+	// clientIP resolves the effective client IP for audit records. nil in unit tests,
+	// where auditIP falls back to the request peer.
+	clientIP func(*http.Request) string
 }
 
 // NewIdP constructs an IdP, building the SAML signing-key cache from queries
 // and retaining every dependency the handlers attach to. The parameter order
 // and names mirror the OIDC New constructor exactly.
-func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *session.SessionStore, auditW audit.Writer, rl *authn.RateLimiter) *IdP {
+func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *session.SessionStore, auditW audit.Writer, rl *authn.RateLimiter, clientIP func(*http.Request) string) *IdP {
 	return &IdP{
 		cfg:      cfg,
 		queries:  queries,
@@ -48,7 +51,17 @@ func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions 
 		audit:    auditW,
 		rl:       rl,
 		keys:     newSAMLKeyCache(queries, cfg.DataEncryptionKeys),
+		clientIP: clientIP,
 	}
+}
+
+// auditIP returns the effective client IP for audit records: the injected resolver
+// when wired, otherwise the raw request peer.
+func (i *IdP) auditIP(r *http.Request) string {
+	if i.clientIP != nil {
+		return i.clientIP(r)
+	}
+	return r.RemoteAddr
 }
 
 // InvalidateKeyCache marks the SAML signing-key cache stale so the next SSO
