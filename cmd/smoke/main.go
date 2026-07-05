@@ -4490,6 +4490,74 @@ func main() {
 	}
 
 	// =====================================================================
+	//  CLIENT IP / PROXY — admin sets the client-IP resolution policy via the
+	//  sudo-gated PUT, reads it back, and a bad CIDR is rejected. The IP
+	//  EXTRACTION logic (direct/header/forwarded, peer-validation, spoof
+	//  resistance) is exhaustively unit-tested in pkg/clientip; this block proves
+	//  the live admin config API + persistence + sudo gate through the real stack.
+	//  Sudo window is REUSED from the maintenance block's last sudoWebAuthn call
+	//  (SudoTTL=15m, multi-use). No new begin call here: /me/sudo/begin+complete
+	//  BOTH count against the same 10/min per-session bucket, so each
+	//  sudoWebAuthn consumes 2 units; 5 calls = 10 units = budget exhausted.
+	// =====================================================================
+	{
+		const nCip = 3
+
+		step(fmt.Sprintf("client-ip %d/%d — admin sets header strategy (sudo PUT) → 204, GET echoes it", 1, nCip))
+		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/client-ip", map[string]any{
+			"strategy": "header", "header": "CF-Connecting-IP", "trustedProxies": []string{"127.0.0.1/32"},
+		}); err != nil {
+			log.Fatalf("client-ip: PUT header: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("client-ip: PUT header: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		var pol struct {
+			Strategy       string   `json:"strategy"`
+			Header         string   `json:"header"`
+			TrustedProxies []string `json:"trustedProxies"`
+		}
+		if err := c.get("/api/prohibitorum/admin/settings/client-ip", &pol); err != nil {
+			log.Fatalf("client-ip: GET: %v", err)
+		}
+		if pol.Strategy != "header" || pol.Header != "CF-Connecting-IP" || len(pol.TrustedProxies) != 1 || pol.TrustedProxies[0] != "127.0.0.1/32" {
+			log.Fatalf("client-ip: GET = %+v, want header/CF-Connecting-IP/[127.0.0.1/32]", pol)
+		}
+		log.Printf("  client-ip policy stored + echoed ✓")
+
+		step(fmt.Sprintf("client-ip %d/%d — invalid CIDR is rejected 400", 2, nCip))
+		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/client-ip", map[string]any{
+			"strategy": "forwarded", "trustedProxies": []string{"not-a-cidr"},
+		}); err != nil {
+			log.Fatalf("client-ip: PUT bad: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest {
+				log.Fatalf("client-ip: PUT bad CIDR: want 400, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		log.Printf("  invalid CIDR rejected 400 ✓")
+
+		step(fmt.Sprintf("client-ip %d/%d — reset to direct → 204", 3, nCip))
+		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/client-ip", map[string]any{
+			"strategy": "direct",
+		}); err != nil {
+			log.Fatalf("client-ip: PUT reset: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("client-ip: PUT reset: want 204, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		log.Printf("  client-ip reset to direct ✓")
+	}
+
+	// =====================================================================
 	//  LOGIN BACKGROUND — admin uploads a custom login-page background; verify
 	//  it is served BYTE-FOR-BYTE (no postprocess), /config reflects it, and
 	//  removal restores the 404 (frontend then falls back to its build-time asset).
@@ -4586,7 +4654,7 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + DB-state assertions passed against",
 		*baseURL)
 }
 

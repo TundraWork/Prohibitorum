@@ -35,6 +35,7 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/clientip"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/credential/totp"
@@ -334,6 +335,7 @@ func newSudoTestServer(t *testing.T) (*Server, *fakeSudoQueries, []byte) {
 		throttle:         throttle,
 		Audit:            auditWriter,
 		sudoFlowOverride: f,
+		clientIP:         clientip.NewResolver(directStore{}),
 	}
 	return s, f, dek
 }

@@ -34,6 +34,7 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/clientip"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/totp"
 	"prohibitorum/pkg/db"
@@ -41,13 +42,27 @@ import (
 	sessstore "prohibitorum/pkg/session"
 )
 
+// directStore is a minimal clientip.Store that always returns the "direct"
+// strategy, used to provide a non-nil clientIP resolver in unit tests that
+// build *Server manually without the full constructor.
+type directStore struct{}
+
+func (directStore) Get(_ context.Context) (clientip.Stored, error) {
+	return clientip.Stored{Strategy: "direct"}, nil
+}
+func (directStore) Set(_ context.Context, _ clientip.Stored) error { return nil }
+
+// newDirectResolver returns a *clientip.Resolver wired to a direct-strategy
+// in-memory store, suitable for tests that don't need real IP extraction.
+func newDirectResolver() *clientip.Resolver { return clientip.NewResolver(directStore{}) }
+
 // TestPasswordBeginRateLimitsByIP verifies the per-IP fixed-window cap added in
 // front of /auth/password/begin (audit AUTHZ-1): a flood from one IP gets a 429
 // after pwdBeginIPLimit requests, bounding the unauthenticated argon2id DoS
 // surface. Bodies are empty so each allowed request bails at the decode guard
 // before any DB/argon2 work — proving the limiter sits ahead of everything.
 func TestPasswordBeginRateLimitsByIP(t *testing.T) {
-	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter()}
+	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter(), clientIP: newDirectResolver()}
 
 	for i := 0; i < pwdBeginIPLimit; i++ {
 		rec := httptest.NewRecorder()
@@ -71,7 +86,7 @@ func TestPasswordBeginRateLimitsByIP(t *testing.T) {
 // the cap did not short-circuit, the handler would reach s.queries and panic —
 // the clean 401 proves the cap fires first.
 func TestPasswordBeginRejectsOversizePassword(t *testing.T) {
-	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter()}
+	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter(), clientIP: newDirectResolver()}
 
 	body := fmt.Sprintf(`{"username":"alice","password":%q}`, strings.Repeat("a", maxPasswordBytes+1))
 	rec := httptest.NewRecorder()
@@ -88,7 +103,7 @@ func TestPasswordBeginRejectsOversizePassword(t *testing.T) {
 // request bails at the cookie guard (401) before any KV/webauthn work; after
 // loginIPLimit requests the IP is throttled with 429.
 func TestLoginCompleteRateLimitsByIP(t *testing.T) {
-	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter()}
+	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter(), clientIP: newDirectResolver()}
 
 	for i := 0; i < loginIPLimit; i++ {
 		rec := httptest.NewRecorder()
@@ -356,6 +371,7 @@ func newTestServer(t *testing.T) (*Server, *fakeAuthQueries, []byte) {
 		throttle:      throttle,
 		Audit:         auditWriter,
 		accountLookup: f, // Fix 4: step-2 disabled re-check
+		clientIP:      newDirectResolver(),
 	}
 	return s, f, dek
 }

@@ -24,10 +24,16 @@ func (s *PGStore) Get(ctx context.Context) (Stored, error) {
 }
 
 func (s *PGStore) Set(ctx context.Context, in Stored) error {
+	// Normalise nil to an empty slice so the NOT NULL text[] column is never
+	// sent a NULL value (strategy=direct carries no proxies, body omits the key).
+	proxies := in.TrustedProxies
+	if proxies == nil {
+		proxies = []string{}
+	}
 	_, err := s.pool.Exec(ctx,
 		`UPDATE instance_settings
 		    SET client_ip_strategy = $1, client_ip_header = $2, client_ip_trusted_proxies = $3, updated_at = now()
 		  WHERE id = 1`,
-		in.Strategy, in.Header, in.TrustedProxies)
+		in.Strategy, in.Header, proxies)
 	return err
 }

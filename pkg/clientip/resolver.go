@@ -61,7 +61,13 @@ func (r *Resolver) Config(ctx context.Context) Config {
 }
 
 // IP is the hot-path helper: parsed policy + Extract.
+// Safe to call on a nil *Resolver: falls back to the direct (RemoteAddr)
+// strategy, which is the same safe default Config.go returns on store error.
+// This allows test scaffolding that builds *Server without wiring clientIP.
 func (r *Resolver) IP(req *http.Request) string {
+	if r == nil {
+		return Extract(req, Config{Strategy: Direct})
+	}
 	return Extract(req, r.Config(req.Context()))
 }
 
