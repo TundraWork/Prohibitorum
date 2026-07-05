@@ -231,7 +231,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		pairingStore:  pairing.NewPairingStore(kvStore),
 		rateLimiter:   rateLimiter,
 		webauthn:      wa,
-		oidcOP:        oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter),
+		oidcOP:        oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
 		samlIdP:       samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter),
 		passwordStore: passwordStore,
 		totpStore:     totpStore,

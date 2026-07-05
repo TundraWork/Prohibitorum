@@ -71,7 +71,7 @@ func (p *Provider) auditRevoked(ctx context.Context, r *http.Request, clientID, 
 	_ = p.audit.Record(ctx, audit.Record{
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRevoke,
-		IP:        audit.ParseIPOrNil(r.RemoteAddr),
+		IP:        audit.ParseIPOrNil(p.auditIP(r)),
 		UserAgent: r.UserAgent(),
 		Detail: map[string]any{
 			"reason":     "revoked",

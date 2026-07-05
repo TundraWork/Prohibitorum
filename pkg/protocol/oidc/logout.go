@@ -119,7 +119,7 @@ func (p *Provider) auditLogout(ctx context.Context, r *http.Request, accountID i
 		AccountID: &id,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventUse,
-		IP:        audit.ParseIPOrNil(r.RemoteAddr),
+		IP:        audit.ParseIPOrNil(p.auditIP(r)),
 		UserAgent: r.UserAgent(),
 		Detail: map[string]any{
 			"reason":    "logout",

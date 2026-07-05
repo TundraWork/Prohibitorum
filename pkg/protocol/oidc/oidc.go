@@ -38,6 +38,9 @@ type Provider struct {
 	rl          *authn.RateLimiter
 	keys        *keyCache
 	maintenance func(context.Context) bool // nil = never in maintenance
+	// clientIP resolves the effective client IP for audit records. nil in bare-Config
+	// unit tests, where auditIP falls back to the request peer.
+	clientIP func(*http.Request) string
 }
 
 // SetMaintenanceChecker injects a callback reporting whether maintenance mode is
@@ -49,7 +52,7 @@ func (p *Provider) SetMaintenanceChecker(fn func(context.Context) bool) { p.main
 
 // New constructs a Provider, building the signing-key cache from queries and
 // retaining every dependency the handlers attach to.
-func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *session.SessionStore, auditW audit.Writer, rl *authn.RateLimiter) *Provider {
+func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *session.SessionStore, auditW audit.Writer, rl *authn.RateLimiter, clientIP func(*http.Request) string) *Provider {
 	return &Provider{
 		cfg:      cfg,
 		queries:  queries,
@@ -58,7 +61,17 @@ func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *se
 		audit:    auditW,
 		rl:       rl,
 		keys:     newKeyCache(queries, cfg.DataEncryptionKeys),
+		clientIP: clientIP,
 	}
+}
+
+// auditIP returns the effective client IP for audit records: the injected resolver
+// when wired, otherwise the raw request peer (unit tests build Providers without it).
+func (p *Provider) auditIP(r *http.Request) string {
+	if p.clientIP != nil {
+		return p.clientIP(r)
+	}
+	return r.RemoteAddr
 }
 
 // defaultJWKSCacheMaxAge is the compiled-in fallback for the JWKS / discovery

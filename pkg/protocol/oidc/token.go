@@ -335,7 +335,7 @@ func (p *Provider) auditTokenEvent(ctx context.Context, r *http.Request, event s
 		AccountID: accountID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     event,
-		IP:        audit.ParseIPOrNil(r.RemoteAddr),
+		IP:        audit.ParseIPOrNil(p.auditIP(r)),
 		UserAgent: r.UserAgent(),
 		Detail:    detail,
 	})

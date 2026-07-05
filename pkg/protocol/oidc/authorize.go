@@ -152,7 +152,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			AccountID: &acctID,
 			Factor:    audit.FactorOIDCClient,
 			Event:     audit.EventAccessDenied,
-			IP:        audit.ParseIPOrNil(r.RemoteAddr),
+			IP:        audit.ParseIPOrNil(p.auditIP(r)),
 			UserAgent: r.UserAgent(),
 			Detail: map[string]any{
 				"reason":    "app_access_denied",
@@ -339,7 +339,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		AccountID: &accountID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventUse,
-		IP:        audit.ParseIPOrNil(r.RemoteAddr),
+		IP:        audit.ParseIPOrNil(p.auditIP(r)),
 		UserAgent: r.UserAgent(),
 		Detail: map[string]any{
 			"reason":    "authorize",
