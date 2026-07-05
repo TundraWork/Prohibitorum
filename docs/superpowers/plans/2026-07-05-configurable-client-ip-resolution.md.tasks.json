@@ -4,58 +4,58 @@
     {
       "id": 1,
       "subject": "Task 1: clientip extraction core",
-      "status": "pending",
+      "status": "completed",
       "description": "Pure spoof-resistant Extract(r, Config) returning the effective client IP host, with exhaustive table tests. Files: pkg/clientip/clientip.go, pkg/clientip/clientip_test.go.\n\n```json:metadata\n{\"files\": [\"pkg/clientip/clientip.go\", \"pkg/clientip/clientip_test.go\"], \"verifyCommand\": \"go test ./pkg/clientip/ -run TestExtract -v\", \"acceptanceCriteria\": [\"direct ignores headers\", \"header trusted-peer only\", \"forwarded right-to-left skip\", \"spoof case returns real client\", \"ipv6 + malformed handled\"], \"modelTier\": \"standard\"}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: clientip resolver, store, migration",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "DB-backed cached resolver over instance_settings columns with shared ParseStored validation. Files: pkg/clientip/resolver.go, pkg/clientip/store_pg.go, pkg/clientip/resolver_test.go, db/migrations/027_client_ip_config.sql.\n\n```json:metadata\n{\"files\": [\"pkg/clientip/resolver.go\", \"pkg/clientip/store_pg.go\", \"pkg/clientip/resolver_test.go\", \"db/migrations/027_client_ip_config.sql\"], \"verifyCommand\": \"go test ./pkg/clientip/ -v\", \"acceptanceCriteria\": [\"ParseStored validation good+bad cases\", \"cache + invalidate behavior\", \"read-error fail-safe to Direct\", \"migration applies+reverses\"], \"modelTier\": \"standard\"}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: Wire resolver into server + middleware; retire trust_proxy",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "Build resolver once, inject IP into session middleware and every pkg/server IP site, remove static trust_proxy with startup deprecation warning. Files: pkg/configx/configx.go, pkg/session/middleware.go, pkg/server/server.go + all pkg/server ClientIP call sites.\n\n```json:metadata\n{\"files\": [\"pkg/configx/configx.go\", \"pkg/session/middleware.go\", \"pkg/server/server.go\", \"pkg/server/handle_auth.go\", \"pkg/server/handle_auth_recovery.go\", \"pkg/server/handle_pairing.go\", \"pkg/server/handle_sudo.go\", \"pkg/server/handle_me.go\", \"pkg/server/handle_forward_auth_signout.go\", \"pkg/server/handle_auth_password.go\", \"pkg/server/handle_enrollment.go\"], \"verifyCommand\": \"go build ./... && go vet ./... && go test ./pkg/session/\", \"acceptanceCriteria\": [\"TrustProxy removed + deprecation warning\", \"session.ClientIP deleted; LoadSession uses ipOf\", \"all pkg/server ClientIP sites migrated\", \"no residual TrustProxy/ClientIP refs\", \"build+vet+session tests green\"], \"modelTier\": \"standard\"}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Migrate OIDC audit IP sites",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "Inject IP func into oidc.Provider; replace 5 audit.ParseIPOrNil(r.RemoteAddr) sites with p.auditIP(r); leave forward_auth X-Forwarded-* untouched. Files: pkg/protocol/oidc/{oidc,logout,revoke,authorize,token}.go, pkg/server/server.go.\n\n```json:metadata\n{\"files\": [\"pkg/protocol/oidc/oidc.go\", \"pkg/protocol/oidc/logout.go\", \"pkg/protocol/oidc/revoke.go\", \"pkg/protocol/oidc/authorize.go\", \"pkg/protocol/oidc/token.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"go test ./pkg/protocol/oidc/\", \"acceptanceCriteria\": [\"Provider.clientIP seam + New param\", \"5 audit sites use auditIP\", \"forward_auth untouched\", \"oidc tests green\"], \"modelTier\": \"standard\"}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Migrate SAML audit IP sites",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "Same seam for saml.IdP; replace 5 audit sites with <recv>.auditIP(r). Files: pkg/protocol/saml/{saml,sso,assertion,slo,consent_saml,sso_init}.go, pkg/server/server.go.\n\n```json:metadata\n{\"files\": [\"pkg/protocol/saml/saml.go\", \"pkg/protocol/saml/sso.go\", \"pkg/protocol/saml/assertion.go\", \"pkg/protocol/saml/slo.go\", \"pkg/protocol/saml/consent_saml.go\", \"pkg/protocol/saml/sso_init.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"go test ./pkg/protocol/saml/\", \"acceptanceCriteria\": [\"IdP.clientIP seam + NewIdP param\", \"5 audit sites use auditIP\", \"saml tests green\", \"no residual RemoteAddr audit sites outside admin\"], \"modelTier\": \"standard\"}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Admin GET/PUT client-IP API",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "Admin read + sudo-gated write of the client-IP policy with validation and audit; migrate remaining admin RemoteAddr audit sites. Files: pkg/server/handle_admin_client_ip.go(+test), pkg/server/server.go, pkg/server/handle_admin_settings.go, pkg/server/handle_admin_entity_icon.go.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_admin_client_ip.go\", \"pkg/server/handle_admin_client_ip_test.go\", \"pkg/server/server.go\", \"pkg/server/handle_admin_settings.go\", \"pkg/server/handle_admin_entity_icon.go\"], \"verifyCommand\": \"go test ./pkg/server/ -run ClientIP -v\", \"acceptanceCriteria\": [\"GET returns policy JSON\", \"PUT validates+sudo+204+invalidate+audit\", \"admin RemoteAddr audit sites migrated\", \"handler tests green\"], \"modelTier\": \"standard\"}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: Dashboard Client IP / Proxy settings card",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "New card in SettingsView.vue to view/edit strategy/header/CIDRs, saved through sudo, with i18n (en+zh) and vitest. Files: dashboard/src/pages/admin/SettingsView.vue(+test), dashboard/src/locales/{en,zh}.ts.\n\n```json:metadata\n{\"files\": [\"dashboard/src/pages/admin/SettingsView.vue\", \"dashboard/src/pages/admin/SettingsView.test.ts\", \"dashboard/src/locales/en.ts\", \"dashboard/src/locales/zh.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run src/pages/admin/SettingsView.test.ts && npx vue-tsc -b\", \"acceptanceCriteria\": [\"loads policy on mount\", \"conditional header/CIDR fields\", \"empty-CIDR warning\", \"save PUT via withSudo with split CIDRs\", \"vitest + vue-tsc green\"], \"modelTier\": \"standard\"}\n```"
     },
     {
       "id": 8,
       "subject": "Task 8: Smoke coverage, full gate, dist rebuild",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 6, 7],
       "description": "Live smoke block proving header trusted-peer → 203.0.113.9 and direct → peer; full gate; rebuild + commit dist. Files: cmd/smoke/main.go, pkg/webui/dist.\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\", \"pkg/webui/dist\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go vet ./... && go test ./... && (cd dashboard && npx vitest run && npx vue-tsc -b && node scripts/check-contrast.mjs)\", \"acceptanceCriteria\": [\"smoke: header trusted-peer -> 203.0.113.9; direct -> peer\", \"full gate green\", \"live smoke SMOKE_EXIT=0\", \"dist rebuilt+committed\"], \"modelTier\": \"standard\"}\n```"
     }
   ],
-  "lastUpdated": "2026-07-05"
+  "lastUpdated": "2026-07-05T22:10:00Z"
 }
