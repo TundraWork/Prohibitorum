@@ -57,12 +57,21 @@ func Extract(r *http.Request, cfg Config) string {
 }
 
 // peerHost strips the port from a RemoteAddr ("1.2.3.4:5678" -> "1.2.3.4",
-// "[::1]:5678" -> "::1"). If there is no port it returns s trimmed of brackets.
+// "[::1]:5678" -> "::1") and canonicalizes the result so audit records and
+// rate-limit keys use one representation (e.g. "::ffff:1.2.3.4" -> "1.2.3.4").
+// If there is no port it falls back to the bracket-trimmed host; a value that
+// does not parse as an IP is returned as-is.
 func peerHost(s string) string {
-	if host, _, err := net.SplitHostPort(s); err == nil {
-		return host
+	host := s
+	if h, _, err := net.SplitHostPort(s); err == nil {
+		host = h
+	} else {
+		host = strings.Trim(s, "[]")
 	}
-	return strings.Trim(s, "[]")
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String()
+	}
+	return host
 }
 
 // trusted reports whether ip (bare host) parses and falls inside any CIDR.

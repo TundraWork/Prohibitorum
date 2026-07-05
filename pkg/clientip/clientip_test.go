@@ -109,6 +109,12 @@ func TestExtract(t *testing.T) {
 			headers:    map[string]string{"CF-Connecting-IP": "198.51.100.23"},
 			want:       "198.51.100.23",
 		},
+		{
+			name:       "direct canonicalizes v4-in-v6 peer",
+			cfg:        Config{Strategy: Direct},
+			remoteAddr: "[::ffff:203.0.113.7]:5000",
+			want:       "203.0.113.7",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
