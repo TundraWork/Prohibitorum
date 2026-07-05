@@ -31,7 +31,7 @@ export interface IdentityProvider {
   scopes: string[]; mode: 'auto_provision' | 'invite_only' | 'link_only'; allowedDomains: string[]
   usernameClaim: string; displayNameClaim: string; emailClaim: string; pictureClaim: string
   requireVerifiedEmail: boolean; disabled: boolean; createdAt: string
-  iconUrl?: string | null
+  iconUrl?: string | null; protocol?: string
 }
 
 const { t } = useI18n()
@@ -48,6 +48,7 @@ const scopes = ref<string[]>(['openid', 'profile', 'email'])
 const allowedDomains = ref<string[]>([])
 const usernameClaim = ref('preferred_username'); const displayNameClaim = ref('name'); const emailClaim = ref('email'); const pictureClaim = ref('picture')
 const requireVerifiedEmail = ref(false)
+const protocol = ref('oidc'); const apiKey = ref('')
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
 
@@ -70,17 +71,24 @@ function openCreate(): void {
   clientSecret.value = ''; mode.value = 'auto_provision'
   scopes.value = ['openid', 'profile', 'email']; allowedDomains.value = []
   usernameClaim.value = 'preferred_username'; displayNameClaim.value = 'name'; emailClaim.value = 'email'; pictureClaim.value = 'picture'
-  requireVerifiedEmail.value = false; createOpen.value = true
+  requireVerifiedEmail.value = false; protocol.value = 'oidc'; apiKey.value = ''; createOpen.value = true
 }
 
 async function create(): Promise<void> {
-  const res = await run(() => withSudo(() => api.post<IdentityProvider>('/api/prohibitorum/identity-providers', {
-    slug: slug.value, displayName: displayName.value, issuerUrl: issuerUrl.value, clientId: clientId.value,
-    clientSecret: clientSecret.value, mode: mode.value, scopes: scopes.value,
-    allowedDomains: allowedDomains.value, usernameClaim: usernameClaim.value,
-    displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value, pictureClaim: pictureClaim.value,
-    requireVerifiedEmail: requireVerifiedEmail.value,
-  })))
+  const body: Record<string, unknown> = {
+    slug: slug.value, displayName: displayName.value, protocol: protocol.value,
+    mode: mode.value, allowedDomains: allowedDomains.value,
+  }
+  if (protocol.value === 'steam') {
+    body.apiKey = apiKey.value
+  } else {
+    body.issuerUrl = issuerUrl.value; body.clientId = clientId.value
+    body.clientSecret = clientSecret.value; body.scopes = scopes.value
+    body.usernameClaim = usernameClaim.value; body.displayNameClaim = displayNameClaim.value
+    body.emailClaim = emailClaim.value; body.pictureClaim = pictureClaim.value
+    body.requireVerifiedEmail = requireVerifiedEmail.value
+  }
+  const res = await run(() => withSudo(() => api.post<IdentityProvider>('/api/prohibitorum/identity-providers', body)))
   if (res) { createOpen.value = false; triggerCreated(); await load() }
 }
 
@@ -110,23 +118,38 @@ onMounted(load)
             <Input id="displayName" name="displayName" v-model="displayName" autocomplete="off" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
-            <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.issuerUrlDesc') }}</p>
+            <Label>{{ t('admin.upstream.protocol') }}</Label>
+            <RadioCardGroup v-model="protocol" :aria-label="t('admin.upstream.protocol')" :options="[
+              {value:'oidc',title:t('admin.upstream.protocolOidc'),description:t('admin.upstream.protocolOidcDesc')},
+              {value:'steam',title:t('admin.upstream.protocolSteam'),description:t('admin.upstream.protocolSteamDesc')}]" />
           </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
-            <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="clientSecret">{{ t('admin.upstream.clientSecret') }}</Label>
-            <Input id="clientSecret" name="clientSecret" type="password" v-model="clientSecret" autocomplete="off" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
-            <ScopeSelector :known="upstreamScopesKnown" :allow-custom="true" v-model="scopes" />
-            <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
-          </div>
+          <template v-if="protocol === 'oidc'">
+            <div class="flex flex-col gap-1.5">
+              <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
+              <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.issuerUrlDesc') }}</p>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
+              <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="clientSecret">{{ t('admin.upstream.clientSecret') }}</Label>
+              <Input id="clientSecret" name="clientSecret" type="password" v-model="clientSecret" autocomplete="off" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
+              <ScopeSelector :known="upstreamScopesKnown" :allow-custom="true" v-model="scopes" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
+            </div>
+          </template>
+          <template v-if="protocol === 'steam'">
+            <div class="flex flex-col gap-1.5">
+              <Label for="apiKey">{{ t('admin.upstream.steamApiKey') }}</Label>
+              <Input id="apiKey" name="apiKey" type="password" v-model="apiKey" autocomplete="off" />
+              <p class="text-xs text-muted">{{ t('admin.upstream.steamApiKeyDesc') }}</p>
+            </div>
+          </template>
         </FormSection>
         <FormSection :title="t('admin.upstream.sectionProvisioning')">
           <div class="flex flex-col gap-1.5">
@@ -142,11 +165,11 @@ onMounted(load)
               :add-label="t('admin.upstream.addDomain')" :placeholder="t('admin.upstream.domainPlaceholder')" :validate="validateDomain" />
             <p class="text-xs text-muted">{{ t('admin.upstream.domainsHint') }}</p>
           </div>
-          <SettingRow :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
+          <SettingRow v-if="protocol === 'oidc'" :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
             <Switch id="requireVerifiedEmail" data-test="requireVerifiedEmail" v-model="requireVerifiedEmail" />
           </SettingRow>
         </FormSection>
-        <FormSection :title="t('admin.upstream.sectionClaims')">
+        <FormSection v-if="protocol === 'oidc'" :title="t('admin.upstream.sectionClaims')">
           <div class="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-3 gap-y-2">
             <Label class="text-sm" for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
             <Input id="usernameClaim" name="usernameClaim" class="h-8" v-model="usernameClaim" placeholder="preferred_username" autocomplete="off" data-test="claim-username" />

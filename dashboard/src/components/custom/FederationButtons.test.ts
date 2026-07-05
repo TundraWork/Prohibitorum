@@ -25,6 +25,11 @@ const PROVIDERS_WITH_ICON = [
   { slug: 'okta', displayName: 'Okta' },
 ]
 
+const PROVIDERS_MIXED = [
+  { slug: 'steamco', displayName: 'Steam', protocol: 'steam' },
+  { slug: 'okta', displayName: 'Okta', protocol: 'oidc' },
+]
+
 beforeEach(() => { get.mockReset() })
 
 describe('FederationButtons', () => {
@@ -78,5 +83,20 @@ describe('FederationButtons', () => {
     expect(assign).toHaveBeenCalledWith(
       '/api/prohibitorum/auth/federation/google/login?return_to=%2Fme')
     vi.unstubAllGlobals()
+  })
+
+  it('renders SteamButton for steam protocol and generic button for oidc', async () => {
+    get.mockResolvedValue(PROVIDERS_MIXED)
+    const w = mountComp(); await flushPromises()
+    // Steam provider renders the bespoke button (data-test="steam-login")
+    expect(w.find('[data-test="steam-login"]').exists()).toBe(true)
+    expect(w.find('[data-test="steam-login"]').text()).toContain('Steam')
+    // OIDC provider still renders the generic outline button (no steam-login attr)
+    const buttons = w.findAll('button')
+    expect(buttons).toHaveLength(2)
+    // Only the first button has the steam-login test id
+    expect(buttons[0]!.attributes('data-test')).toBe('steam-login')
+    expect(buttons[1]!.attributes('data-test')).toBeUndefined()
+    expect(buttons[1]!.text()).toContain('Okta')
   })
 })

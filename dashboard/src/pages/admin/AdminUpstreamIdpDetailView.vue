@@ -44,6 +44,7 @@ const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClai
 const requireVerifiedEmail = ref(false); const disabled = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
+const isSteam = computed(() => idp.value?.protocol === 'steam')
 const newSecret = ref(''); const { flag: rotated, trigger: triggerRotated } = useTransientFlag()
 const confirmDelete = ref(false)
 
@@ -121,23 +122,29 @@ onMounted(load)
               <p class="text-xs text-muted">{{ t('admin.upstream.slugDesc') }}</p>
             </div>
             <div class="flex flex-col gap-1.5">
+              <Label>{{ t('admin.upstream.protocol') }}</Label>
+              <p class="font-mono text-sm text-muted" data-test="idp-protocol">{{ idp.protocol ?? 'oidc' }}</p>
+            </div>
+            <div class="flex flex-col gap-1.5">
               <Label for="displayName">{{ t('admin.upstream.displayName') }}</Label>
               <Input id="displayName" name="displayName" v-model="displayName" autocomplete="off" />
             </div>
-            <div class="flex flex-col gap-1.5">
-              <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
-              <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
-              <p class="text-xs text-muted">{{ t('admin.upstream.issuerUrlDesc') }}</p>
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
-              <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
-              <ScopeSelector :known="upstreamScopesKnown" :allow-custom="true" v-model="scopes" />
-              <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
-            </div>
+            <template v-if="!isSteam">
+              <div class="flex flex-col gap-1.5">
+                <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
+                <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
+                <p class="text-xs text-muted">{{ t('admin.upstream.issuerUrlDesc') }}</p>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
+                <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
+                <ScopeSelector :known="upstreamScopesKnown" :allow-custom="true" v-model="scopes" />
+                <p class="text-xs text-muted">{{ t('admin.upstream.scopesDesc') }}</p>
+              </div>
+            </template>
           </FormSection>
           <FormSection :title="t('admin.upstream.sectionProvisioning')">
             <div class="flex flex-col gap-1.5">
@@ -153,11 +160,11 @@ onMounted(load)
                 :add-label="t('admin.upstream.addDomain')" :placeholder="t('admin.upstream.domainPlaceholder')" :validate="validateDomain" />
               <p class="text-xs text-muted">{{ t('admin.upstream.domainsHint') }}</p>
             </div>
-            <SettingRow :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
+            <SettingRow v-if="!isSteam" :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
               <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />
             </SettingRow>
           </FormSection>
-          <FormSection :title="t('admin.upstream.sectionClaims')">
+          <FormSection v-if="!isSteam" :title="t('admin.upstream.sectionClaims')">
             <div class="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-3 gap-y-2">
               <Label class="text-sm" for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
               <Input id="usernameClaim" name="usernameClaim" class="h-8" v-model="usernameClaim" placeholder="preferred_username" autocomplete="off" data-test="claim-username" />
@@ -203,14 +210,14 @@ onMounted(load)
 
           <Separator />
           <div class="flex flex-col gap-2">
-            <SectionTitle as="h3">{{ t('admin.upstream.rotateTitle') }}</SectionTitle>
-            <p class="text-xs text-muted">{{ t('admin.upstream.rotateBody') }}</p>
+            <SectionTitle as="h3">{{ isSteam ? t('admin.upstream.rotateTitleSteam') : t('admin.upstream.rotateTitle') }}</SectionTitle>
+            <p class="text-xs text-muted">{{ isSteam ? t('admin.upstream.rotateBodySteam') : t('admin.upstream.rotateBody') }}</p>
             <div class="flex flex-col gap-1.5">
-              <Label for="newSecret">{{ t('admin.upstream.clientSecret') }}</Label>
+              <Label for="newSecret">{{ isSteam ? t('admin.upstream.steamApiKey') : t('admin.upstream.clientSecret') }}</Label>
               <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
             </div>
             <StatusMessage :show="rotated">{{ t('admin.upstream.rotated') }}</StatusMessage>
-            <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ t('admin.upstream.rotateConfirm') }}</Button>
+            <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ isSteam ? t('admin.upstream.rotateConfirmSteam') : t('admin.upstream.rotateConfirm') }}</Button>
           </div>
 
           <Separator />

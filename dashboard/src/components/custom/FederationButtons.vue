@@ -22,11 +22,13 @@ import { useReturnTo } from '@/composables/useReturnTo'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import AppIcon from '@/components/custom/AppIcon.vue'
+import SteamButton from '@/components/custom/SteamButton.vue'
 
 interface FederationProvider {
   slug: string
   displayName: string
   iconUrl?: string | null
+  protocol?: string
 }
 
 const { t } = useI18n()
@@ -69,17 +71,23 @@ function startFederation(slug: string): void {
   <div v-else-if="providers.length" class="flex flex-col gap-4">
     <p class="text-center text-sm text-muted">{{ t('login.federationHeading') }}</p>
     <div class="flex flex-col gap-2">
-      <Button
-        v-for="p in providers"
-        :key="p.slug"
-        type="button"
-        variant="outline"
-        class="w-full justify-start gap-2"
-        @click="startFederation(p.slug)"
-      >
-        <AppIcon :src="p.iconUrl" :name="p.displayName" size="sm" />
-        <span>{{ p.displayName }}</span>
-      </Button>
+      <template v-for="p in providers" :key="p.slug">
+        <SteamButton
+          v-if="p.protocol === 'steam'"
+          :label="p.displayName"
+          @click="startFederation(p.slug)"
+        />
+        <Button
+          v-else
+          type="button"
+          variant="outline"
+          class="w-full justify-start gap-2"
+          @click="startFederation(p.slug)"
+        >
+          <AppIcon :src="p.iconUrl" :name="p.displayName" size="sm" />
+          <span>{{ p.displayName }}</span>
+        </Button>
+      </template>
     </div>
   </div>
 </template>
