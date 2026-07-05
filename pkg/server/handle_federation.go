@@ -215,6 +215,7 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 		out = append(out, contract.FederationProvider{
 			Slug:        idp.Slug,
 			DisplayName: idp.DisplayName,
+			Protocol:    idp.Protocol,
 			IconURL:     entityIconURLPtr("upstream_idp", idp.Slug, etagBySlug[idp.Slug]),
 		})
 	}

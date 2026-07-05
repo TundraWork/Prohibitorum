@@ -481,6 +481,7 @@ type LoginResult struct {
 type FederationProvider struct {
 	Slug        string  `json:"slug"`
 	DisplayName string  `json:"displayName"`
+	Protocol    string  `json:"protocol"`
 	IconURL     *string `json:"iconUrl,omitempty"`
 }
 
@@ -625,6 +626,7 @@ type SAMLApplicationView struct {
 type IdentityProviderView struct {
 	Slug                 string    `json:"slug"`
 	DisplayName          string    `json:"displayName"`
+	Protocol             string    `json:"protocol"`
 	IconURL              *string   `json:"iconUrl,omitempty"`
 	IssuerUrl            string    `json:"issuerUrl"`
 	ClientID             string    `json:"clientId"`

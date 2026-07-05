@@ -4,16 +4,24 @@
 // intentionally DB-free: the view projection (identityProviderView) is the primary
 // unit under test, with assertions on sealed-secret exclusion and correct field
 // mapping. Route-level sudo gating is covered centrally in Task 9.
+//
+// Handler-level validation tests (400 paths) are also included; they exercise
+// request-body parsing and protocol-branch validation, which return before
+// touching the DB pool.
 
 package server
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
@@ -263,5 +271,121 @@ func TestAdminUpstreamIDPs_ViewProjection_PictureClaim(t *testing.T) {
 				t.Errorf("PictureClaim: got %q, want %q", view.PictureClaim, tc.want)
 			}
 		})
+	}
+}
+
+// TestAdminUpstreamIDPs_ViewProjection_Protocol verifies that the Protocol
+// field is projected from the db row into the view for both oidc and steam
+// protocol values.
+func TestAdminUpstreamIDPs_ViewProjection_Protocol(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		protocol string
+	}{
+		{"oidc", "oidc"},
+		{"steam", "steam"},
+		{"empty", ""},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			row := db.UpstreamIdp{
+				Slug:        "idp",
+				DisplayName: "IdP",
+				Protocol:    tc.protocol,
+			}
+			view := identityProviderView(row)
+			if view.Protocol != tc.protocol {
+				t.Errorf("Protocol: got %q, want %q", view.Protocol, tc.protocol)
+			}
+		})
+	}
+}
+
+// newMinimalServer builds a Server with only the config wired — no DB pool,
+// no queries. Sufficient for handler tests that exercise validation paths
+// returning 400 before any DB access.
+func newMinimalServer(t *testing.T) *Server {
+	t.Helper()
+	dek := make([]byte, 32)
+	cfg := &configx.Config{
+		DataEncryptionKeys: map[int][]byte{1: dek},
+		Federation: configx.FederationConfig{
+			AllowPrivateNetwork: true, // skip SSRF validation in OIDC path
+		},
+	}
+	return &Server{config: cfg}
+}
+
+// TestIdentityProviderCreate_Steam_MissingApiKey verifies that a Steam create
+// request without an apiKey is rejected with 400.
+func TestIdentityProviderCreate_Steam_MissingApiKey(t *testing.T) {
+	t.Parallel()
+
+	s := newMinimalServer(t)
+	body := `{"slug":"steam-test","displayName":"Steam","mode":"auto_provision","protocol":"steam"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	s.handleCreateIdentityProviderHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+// TestIdentityProviderCreate_UnknownProtocol verifies that an unknown protocol
+// value is rejected with 400.
+func TestIdentityProviderCreate_UnknownProtocol(t *testing.T) {
+	t.Parallel()
+
+	s := newMinimalServer(t)
+	body := `{"slug":"test","displayName":"Test","mode":"auto_provision","protocol":"oauth1"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	s.handleCreateIdentityProviderHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+// TestIdentityProviderCreate_OIDC_MissingFields verifies that an OIDC create
+// request without required fields (issuerUrl, clientId, clientSecret) is
+// rejected with 400. This preserves the existing OIDC validation behavior.
+func TestIdentityProviderCreate_OIDC_MissingFields(t *testing.T) {
+	t.Parallel()
+
+	s := newMinimalServer(t)
+	// protocol omitted → defaults to oidc
+	body := `{"slug":"test","displayName":"Test","mode":"auto_provision"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	s.handleCreateIdentityProviderHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+// TestIdentityProviderCreate_Steam_MissingSlug verifies that a Steam create
+// request missing the required slug is rejected with 400 (common-field check
+// runs before the protocol branch).
+func TestIdentityProviderCreate_Steam_MissingSlug(t *testing.T) {
+	t.Parallel()
+
+	s := newMinimalServer(t)
+	body := `{"displayName":"Steam","mode":"auto_provision","protocol":"steam","apiKey":"KEY"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	s.handleCreateIdentityProviderHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
 	}
 }

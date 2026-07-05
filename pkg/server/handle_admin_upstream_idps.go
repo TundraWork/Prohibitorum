@@ -48,6 +48,7 @@ func identityProviderView(r db.UpstreamIdp) contract.IdentityProviderView {
 	v := contract.IdentityProviderView{
 		Slug:                 r.Slug,
 		DisplayName:          r.DisplayName,
+		Protocol:             r.Protocol,
 		IssuerUrl:            r.IssuerUrl,
 		ClientID:             r.ClientID,
 		Scopes:               r.Scopes,
@@ -154,9 +155,11 @@ func (s *Server) handleGetIdentityProvider(ctx context.Context, in *getIdentityP
 type createIdentityProviderBody struct {
 	Slug                 string   `json:"slug"`
 	DisplayName          string   `json:"displayName"`
+	Protocol             string   `json:"protocol"`
 	IssuerUrl            string   `json:"issuerUrl"`
 	ClientID             string   `json:"clientId"`
 	ClientSecret         string   `json:"clientSecret"`
+	ApiKey               string   `json:"apiKey"`
 	Scopes               []string `json:"scopes"`
 	Mode                 string   `json:"mode"`
 	AllowedDomains       []string `json:"allowedDomains"`
@@ -173,13 +176,47 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if body.Slug == "" || body.DisplayName == "" || body.IssuerUrl == "" ||
-		body.ClientID == "" || body.ClientSecret == "" || body.Mode == "" {
+
+	// Normalize protocol; default to oidc when omitted.
+	protocol := body.Protocol
+	if protocol == "" {
+		protocol = "oidc"
+	}
+	// slug, displayName, and mode are required for all protocols.
+	if body.Slug == "" || body.DisplayName == "" || body.Mode == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if err := s.validateUpstreamIssuer(body.IssuerUrl); err != nil {
-		writeAuthErr(w, err)
+
+	// Protocol-branched validation and variable setup.
+	var issuerURL, clientID, secretPlaintext string
+	var scopes []string
+	requireVerifiedEmail := body.RequireVerifiedEmail
+	switch protocol {
+	case "steam":
+		if body.ApiKey == "" {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
+		secretPlaintext = body.ApiKey
+		scopes = []string{}
+		requireVerifiedEmail = false
+	case "oidc":
+		if body.IssuerUrl == "" || body.ClientID == "" || body.ClientSecret == "" {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
+		if err := s.validateUpstreamIssuer(body.IssuerUrl); err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+		issuerURL, clientID, secretPlaintext = body.IssuerUrl, body.ClientID, body.ClientSecret
+		scopes = body.Scopes
+		if len(scopes) == 0 {
+			scopes = s.defaultFederationScopes()
+		}
+	default:
+		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
 
@@ -189,10 +226,6 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		return
 	}
 
-	scopes := body.Scopes
-	if len(scopes) == 0 {
-		scopes = s.defaultFederationScopes()
-	}
 	allowedDomains := body.AllowedDomains
 	if allowedDomains == nil {
 		allowedDomains = []string{}
@@ -231,8 +264,8 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 	row, err := qtx.InsertUpstreamIDP(r.Context(), db.InsertUpstreamIDPParams{
 		Slug:                 body.Slug,
 		DisplayName:          body.DisplayName,
-		IssuerUrl:            body.IssuerUrl,
-		ClientID:             body.ClientID,
+		IssuerUrl:            issuerURL,
+		ClientID:             clientID,
 		ClientSecretEnc:      placeholder,
 		SecretNonce:          placeholder,
 		KeyVersion:           keyVer,
@@ -243,7 +276,8 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		DisplayNameClaim:     displayNameClaim,
 		EmailClaim:           emailClaim,
 		PictureClaim:         pictureClaim,
-		RequireVerifiedEmail: body.RequireVerifiedEmail,
+		RequireVerifiedEmail: requireVerifiedEmail,
+		Protocol:             protocol,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -254,8 +288,9 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		return
 	}
 
-	// Seal the real secret using the row id for AAD.
-	ciphertext, nonce, err := oidc.EncryptClientSecret(dek, []byte(body.ClientSecret), row.ID, keyVer)
+	// Seal the real secret (clientSecret for oidc, apiKey for steam) using
+	// the row id for AAD.
+	ciphertext, nonce, err := oidc.EncryptClientSecret(dek, []byte(secretPlaintext), row.ID, keyVer)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: seal: %w", err))
 		return
