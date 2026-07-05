@@ -27,6 +27,7 @@ import (
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	federationoidc "prohibitorum/pkg/federation/oidc"
+	steamoidc "prohibitorum/pkg/federation/steam"
 	"prohibitorum/pkg/kv"
 )
 
@@ -425,7 +426,7 @@ func TestFederator_HandleCallback_HappyPath_AutoProvision(t *testing.T) {
 		t.Fatalf("iss from authorize = %q, want %q", iss, fx.ts.URL)
 	}
 
-	result, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
+	result, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken, nil)
 	if err != nil {
 		t.Fatalf("HandleCallback: %v", err)
 	}
@@ -487,7 +488,7 @@ func TestFederator_HandleCallback_HappyPath_ExistingIdentity(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	result, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
+	result, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken, nil)
 	if err != nil {
 		t.Fatalf("HandleCallback: %v", err)
 	}
@@ -520,7 +521,7 @@ func TestFederator_HandleCallback_RejectsIssMismatch(t *testing.T) {
 	code, state, _ := driveAuthorizeFed(t, req.AuthorizeURL)
 
 	// Pretend the OP shipped a different iss in the callback param.
-	_, err = fx.f.HandleCallback(context.Background(), state, code, "https://attacker.example/", req.AntiForgeryToken)
+	_, err = fx.f.HandleCallback(context.Background(), state, code, "https://attacker.example/", req.AntiForgeryToken, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -562,7 +563,7 @@ func TestFederator_HandleCallback_RejectsTokenEndpointDrift(t *testing.T) {
 		t.Fatalf("SetEx: %v", err)
 	}
 
-	_, err = fx.f.HandleCallback(context.Background(), stateToken, code, "", req.AntiForgeryToken)
+	_, err = fx.f.HandleCallback(context.Background(), stateToken, code, "", req.AntiForgeryToken, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -575,7 +576,7 @@ func TestFederator_HandleCallback_RejectsMissingState(t *testing.T) {
 	fx := newFixture(t, federationoidc.ModeAutoProvision)
 
 	// Token that never went into KV.
-	_, err := fx.f.HandleCallback(context.Background(), "totally-bogus-state", "any-code", "", "")
+	_, err := fx.f.HandleCallback(context.Background(), "totally-bogus-state", "any-code", "", "", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid, got %v", err)
 	}
@@ -592,12 +593,12 @@ func TestFederator_HandleCallback_SingleUseStateConsumed(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	if _, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken); err != nil {
+	if _, err := fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken, nil); err != nil {
 		t.Fatalf("first HandleCallback: %v", err)
 	}
 
 	// Second call MUST fail — state was Pop'd on the first call.
-	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
+	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid on replay, got %v", err)
 	}
@@ -617,7 +618,7 @@ func TestFederator_HandleCallback_RejectsBrowserBindingMismatch(t *testing.T) {
 
 	// Wrong token (attacker fed the victim a code/state from the attacker's own
 	// upstream dance; the victim's browser has a different / no binding cookie).
-	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, "wrong-anti-forgery-token")
+	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, "wrong-anti-forgery-token", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid on binding mismatch, got %v", err)
 	}
@@ -632,7 +633,7 @@ func TestFederator_HandleCallback_RejectsBrowserBindingMismatch(t *testing.T) {
 		t.Fatalf("BeginLogin #2: %v", err)
 	}
 	code2, state2, iss2 := driveAuthorizeFed(t, req2.AuthorizeURL)
-	_, err = fx.f.HandleCallback(context.Background(), state2, code2, iss2, "")
+	_, err = fx.f.HandleCallback(context.Background(), state2, code2, iss2, "", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid on absent cookie, got %v", err)
 	}
@@ -653,7 +654,7 @@ func TestFederator_HandleCallback_DisabledMidFlowCleanError(t *testing.T) {
 	// Disable the IdP mid-flow (GetUpstreamIDPBySlug now misses → ErrNoRows).
 	delete(fx.q.idpBySlug, "mockop")
 
-	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
+	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want clean federation_state_invalid, got %v", err)
 	}
@@ -671,7 +672,7 @@ func TestFederator_HandleCallback_RejectsCodeExchangeFailure(t *testing.T) {
 	_, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
 	// Submit a code that does not match anything the OP recorded.
-	_, err = fx.f.HandleCallback(context.Background(), state, "definitely-not-a-real-code", iss, req.AntiForgeryToken)
+	_, err = fx.f.HandleCallback(context.Background(), state, "definitely-not-a-real-code", iss, req.AntiForgeryToken, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("want federation_state_invalid on bad code, got %v", err)
 	}
@@ -704,7 +705,7 @@ func TestFederator_HandleCallback_RejectsDisabledAccount(t *testing.T) {
 	}
 	code, state, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken)
+	_, err = fx.f.HandleCallback(context.Background(), state, code, iss, req.AntiForgeryToken, nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "bad_credentials" {
 		t.Fatalf("want bad_credentials for disabled account, got %v", err)
 	}
@@ -1048,7 +1049,7 @@ func TestFederator_HandleCallback_InviteRedemption_HappyPath(t *testing.T) {
 
 	code, stateTok, iss := driveAuthorizeFed(t, req.AuthorizeURL)
 
-	result, err := fx.f.HandleCallback(context.Background(), stateTok, code, iss, req.AntiForgeryToken)
+	result, err := fx.f.HandleCallback(context.Background(), stateTok, code, iss, req.AntiForgeryToken, nil)
 	if err != nil {
 		t.Fatalf("HandleCallback: %v", err)
 	}
@@ -1640,5 +1641,229 @@ func TestAvatarInherit_SecondUpstreamDoesNotStealActive(t *testing.T) {
 	fx.q.mu.Unlock()
 	if len(calls) != 0 {
 		t.Fatalf("must NOT call SetActiveAvatar when a different upstream is already active; got %d call(s)", len(calls))
+	}
+}
+
+// --- Steam OpenID 2.0 branch tests ----------------------------------------
+
+// newSteamFixture builds a fixtureFederator wired with a Steam-protocol IdP
+// (no mock OP, no OIDC client). The Steam seams are NOT yet stubbed — callers
+// must call SetSteamSeamsForTest before driving the callback.
+func newSteamFixture(t *testing.T, mode string) *fixtureFederator {
+	t.Helper()
+
+	const idpID int64 = 99
+	const keyVersion int32 = 1
+
+	// The Steam API key lives in the same ClientSecretEnc field as the OIDC
+	// client secret. Encrypt a known value so steamTokens can decrypt it.
+	ct, nonce, err := federationoidc.EncryptClientSecret(testDEK, []byte("steam-api-key"), idpID, keyVersion)
+	if err != nil {
+		t.Fatalf("EncryptClientSecret: %v", err)
+	}
+
+	idp := db.UpstreamIdp{
+		ID:               idpID,
+		Slug:             "steam",
+		DisplayName:      "Steam",
+		Protocol:         "steam",
+		IssuerUrl:        "https://steamcommunity.com/openid", // informational only
+		ClientID:         "",                                   // unused for Steam
+		ClientSecretEnc:  ct,
+		SecretNonce:      nonce,
+		KeyVersion:       keyVersion,
+		Mode:             mode,
+		// Claim fields unused on steam path but populated for completeness.
+		UsernameClaim:    "preferred_username",
+		DisplayNameClaim: "name",
+		EmailClaim:       "email",
+		PictureClaim:     "picture",
+	}
+
+	q := newFakeFederatorQueries()
+	q.idpBySlug[idp.Slug] = idp
+
+	kvm := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = kvm.Close() })
+
+	au := &recordingAudit{}
+
+	cfg := configx.FederationConfig{
+		StateTTL:      5 * time.Minute,
+		DefaultScopes: []string{},
+	}
+	deks := map[int][]byte{1: testDEK}
+	origin := "https://idp.example.test"
+
+	fd := federationoidc.NewFederator(q, kvm, au, cfg, deks, nil, origin)
+
+	return &fixtureFederator{
+		t: t, idp: idp, q: q, kvm: kvm, au: au,
+		f: fd, cfg: cfg, origin: origin,
+	}
+}
+
+// TestFederator_BeginSteam_BuildsCorrectURL verifies that BeginLogin on a
+// Steam-protocol IdP returns a Steam OpenID 2.0 checkid_setup URL (not an
+// OIDC /authorize URL), stashes the FedState under LoginKey with Protocol-
+// agnostic fields (IDPID, IDPSlug, ReturnTo, BrowserBinding), and leaves
+// OIDC-only fields (ExpectedIss, ExpectedTokenEndpoint, Nonce, CodeVerifier)
+// empty so HandleCallback can skip the OIDC drift check.
+func TestFederator_BeginSteam_BuildsCorrectURL(t *testing.T) {
+	fx := newSteamFixture(t, federationoidc.ModeAutoProvision)
+
+	req, err := fx.f.BeginLogin(context.Background(), "steam", "/dashboard")
+	if err != nil {
+		t.Fatalf("BeginLogin (steam): %v", err)
+	}
+	if req.StateKey == "" {
+		t.Fatal("StateKey empty")
+	}
+	if req.AntiForgeryToken == "" {
+		t.Fatal("AntiForgeryToken empty (login flow should set it)")
+	}
+
+	// AuthorizeURL should point at Steam's checkid_setup endpoint.
+	if !strings.HasPrefix(req.AuthorizeURL, "https://steamcommunity.com/openid/login") {
+		t.Errorf("AuthorizeURL should be Steam login URL, got %s", req.AuthorizeURL)
+	}
+	u, err := url.Parse(req.AuthorizeURL)
+	if err != nil {
+		t.Fatalf("parse AuthorizeURL: %v", err)
+	}
+	if u.Query().Get("openid.mode") != "checkid_setup" {
+		t.Errorf("openid.mode = %q, want checkid_setup", u.Query().Get("openid.mode"))
+	}
+
+	// The return_to should carry our state token.
+	returnTo := u.Query().Get("openid.return_to")
+	if !strings.Contains(returnTo, req.StateKey) {
+		t.Errorf("openid.return_to %q should contain state token %q", returnTo, req.StateKey)
+	}
+
+	// State must live under LoginKey.
+	blob, err := fx.kvm.Get(context.Background(), federationoidc.LoginKey(req.StateKey))
+	if err != nil {
+		t.Fatalf("state missing from LoginKey: %v", err)
+	}
+	state, err := federationoidc.DecodeFedState(blob)
+	if err != nil {
+		t.Fatalf("DecodeFedState: %v", err)
+	}
+	if state.IDPSlug != "steam" {
+		t.Errorf("IDPSlug = %q, want steam", state.IDPSlug)
+	}
+	if state.ReturnTo != "/dashboard" {
+		t.Errorf("ReturnTo = %q, want /dashboard", state.ReturnTo)
+	}
+	// OIDC-only fields should be empty for Steam.
+	if state.ExpectedIss != "" {
+		t.Errorf("ExpectedIss should be empty for Steam, got %q", state.ExpectedIss)
+	}
+	if state.ExpectedTokenEndpoint != "" {
+		t.Errorf("ExpectedTokenEndpoint should be empty for Steam, got %q", state.ExpectedTokenEndpoint)
+	}
+	if state.Nonce != "" {
+		t.Errorf("Nonce should be empty for Steam, got %q", state.Nonce)
+	}
+	if state.CodeVerifier != "" {
+		t.Errorf("CodeVerifier should be empty for Steam, got %q", state.CodeVerifier)
+	}
+	if state.BrowserBinding == "" {
+		t.Error("BrowserBinding should be set for login flow")
+	}
+}
+
+// TestFederator_HandleCallback_Steam_HappyPath drives the full Steam callback
+// path: stub steamVerify (returns a fixed SteamID64) + steamSummary (returns
+// persona name + avatar URL), pre-stash the LoginKey state (so PopState works
+// without going through BeginLogin), and assert that an account is auto-
+// provisioned with username "steam_<id>" + the persona name as display name.
+func TestFederator_HandleCallback_Steam_HappyPath(t *testing.T) {
+	const steamID = "76561198000000001"
+	const personaName = "ProGamer"
+	const avatarURL = "https://cdn.steamstatic.com/test.jpg"
+
+	fx := newSteamFixture(t, federationoidc.ModeAutoProvision)
+
+	// Stub the Steam seams: verify always succeeds; summary returns fixed data.
+	federationoidc.SetSteamSeamsForTest(fx.f,
+		func(_ context.Context, _ url.Values, _ string) (string, error) {
+			return steamID, nil
+		},
+		func(_ context.Context, _, _ string) (steamoidc.Summary, error) {
+			return steamoidc.Summary{PersonaName: personaName, AvatarURL: avatarURL}, nil
+		},
+	)
+
+	// Use BeginLogin to stash the FedState (so we get a valid stateToken +
+	// anti-forgery token). BeginLogin on a steam IdP goes through beginSteam
+	// and populates LoginKey, which HandleCallback will Pop.
+	req, err := fx.f.BeginLogin(context.Background(), "steam", "/me")
+	if err != nil {
+		t.Fatalf("BeginLogin (steam): %v", err)
+	}
+
+	// Construct synthetic callback params (what Steam would send back).
+	// The openid.mode must be "id_res" for steam.Verify; the stub ignores the
+	// actual params so we only need a plausible set.
+	callbackParams := url.Values{
+		"openid.mode":      {"id_res"},
+		"openid.ns":        {"http://specs.openid.net/auth/2.0"},
+		"openid.claimed_id": {"https://steamcommunity.com/openid/id/" + steamID},
+		"openid.identity":  {"https://steamcommunity.com/openid/id/" + steamID},
+		"openid.return_to": {fx.origin + "/api/prohibitorum/auth/federation/steam/callback?state=" + req.StateKey},
+		"state":            {req.StateKey},
+	}
+
+	// On Steam flow, code and iss are empty (Steam doesn't use them).
+	result, err := fx.f.HandleCallback(context.Background(), req.StateKey, "", "", req.AntiForgeryToken, callbackParams)
+	if err != nil {
+		t.Fatalf("HandleCallback (steam): %v", err)
+	}
+
+	// A new account must have been provisioned.
+	if !result.IsNew {
+		t.Error("IsNew = false, want true (new Steam user)")
+	}
+	if result.IDPSlug != "steam" {
+		t.Errorf("IDPSlug = %q, want steam", result.IDPSlug)
+	}
+	if result.ReturnTo != "/me" {
+		t.Errorf("ReturnTo = %q, want /me", result.ReturnTo)
+	}
+
+	// AMR must carry ["steam"].
+	if len(result.AMR) != 1 || result.AMR[0] != "steam" {
+		t.Errorf("AMR = %v, want [steam]", result.AMR)
+	}
+
+	// Account row must use the "steam_<id>" username and persona display name.
+	if len(fx.q.insertedAccounts) != 1 {
+		t.Fatalf("want 1 inserted account, got %d", len(fx.q.insertedAccounts))
+	}
+	wantUsername := "steam_" + steamID
+	if fx.q.insertedAccount.Username != wantUsername {
+		t.Errorf("username = %q, want %q", fx.q.insertedAccount.Username, wantUsername)
+	}
+	if fx.q.insertedAccount.DisplayName != personaName {
+		t.Errorf("display_name = %q, want %q", fx.q.insertedAccount.DisplayName, personaName)
+	}
+
+	// Identity row must use the Steam issuer + SteamID as subject.
+	if fx.q.insertedIdentity.UpstreamIss != "https://steamcommunity.com/openid" {
+		t.Errorf("identity upstream_iss = %q, want https://steamcommunity.com/openid", fx.q.insertedIdentity.UpstreamIss)
+	}
+	if fx.q.insertedIdentity.UpstreamSub != steamID {
+		t.Errorf("identity upstream_sub = %q, want %q", fx.q.insertedIdentity.UpstreamSub, steamID)
+	}
+
+	// Audit: Register + Use.
+	recs := fx.au.snapshot()
+	if findEvent(recs, audit.EventRegister) == nil {
+		t.Error("missing audit Register")
+	}
+	if findEvent(recs, audit.EventUse) == nil {
+		t.Error("missing audit Use")
 	}
 }

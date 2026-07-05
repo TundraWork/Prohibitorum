@@ -130,7 +130,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		browserToken = c.Value
 	}
 
-	result, err := s.federator.HandleCallback(r.Context(), state, code, iss, browserToken)
+	result, err := s.federator.HandleCallback(r.Context(), state, code, iss, browserToken, r.URL.Query())
 	if err != nil {
 		// HandleCallback returns structured *authn.AuthError for every
 		// expected failure (federation_state_invalid, bad_credentials,

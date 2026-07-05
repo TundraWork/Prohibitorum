@@ -37,6 +37,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +53,7 @@ import (
 	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/federation/steam"
 	"prohibitorum/pkg/kv"
 )
 
@@ -196,6 +199,21 @@ type Federator struct {
 	// fetchUpstreamAvatar; the test seam (export_test.go) swaps it for a stub so
 	// the avatar-inherit job can run without a live image server.
 	avatarFetch func(ctx context.Context, url string, allowPrivate bool) ([]byte, error)
+
+	// steamHTTP is the HTTP client used for Steam OpenID verification and Web API
+	// calls. Defaulted in NewFederator to a 10-second timeout client; tests
+	// override via export_test.go.
+	steamHTTP *http.Client
+
+	// steamVerify validates a Steam OpenID 2.0 callback and returns the SteamID64.
+	// Defaults to a closure over steam.Verify bound to steamHTTP; tests override
+	// via SetSteamSeamsForTest.
+	steamVerify func(ctx context.Context, params url.Values, expectedReturnTo string) (string, error)
+
+	// steamSummary fetches a Steam player summary given the decrypted API key and
+	// SteamID64. Defaults to a closure over steam.FetchSummary bound to steamHTTP;
+	// tests override via SetSteamSeamsForTest.
+	steamSummary func(ctx context.Context, apiKey, steamID string) (steam.Summary, error)
 }
 
 // NewFederator constructs a Federator from its collaborators. publicOrigin is
@@ -213,7 +231,7 @@ func NewFederator(
 	dbPool *pgxpool.Pool,
 	publicOrigin string,
 ) *Federator {
-	return &Federator{
+	f := &Federator{
 		q:                   q,
 		kvStore:             kvStore,
 		audit:               aud,
@@ -224,7 +242,15 @@ func NewFederator(
 		clientCacheTTL:      clientCacheTTL,
 		allowPrivateNetwork: cfg.AllowPrivateNetwork,
 		avatarFetch:         fetchUpstreamAvatar,
+		steamHTTP:           &http.Client{Timeout: 10 * time.Second},
 	}
+	f.steamVerify = func(ctx context.Context, params url.Values, expectedReturnTo string) (string, error) {
+		return steam.Verify(ctx, f.steamHTTP, params, expectedReturnTo)
+	}
+	f.steamSummary = func(ctx context.Context, apiKey, steamID string) (steam.Summary, error) {
+		return steam.FetchSummary(ctx, f.steamHTTP, apiKey, steamID)
+	}
+	return f
 }
 
 // BeginLogin starts a federated login flow. Caller is the unauthenticated
@@ -306,6 +332,12 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 		return nil, authn.ErrInviteRequired()
 	}
 
+	// Steam OpenID 2.0 has no OIDC client/PKCE/nonce — branch before the OIDC
+	// path and return via the minimal Steam-specific begin.
+	if idp.Protocol == "steam" {
+		return f.beginSteam(ctx, &idp, returnTo, linkingAccountID, enrollmentToken)
+	}
+
 	flow := flowLogin
 	if linkingAccountID != nil {
 		flow = flowLink
@@ -381,6 +413,110 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 	}, nil
 }
 
+// beginSteam is the Steam-specific path of begin(): skips OIDC client/PKCE/nonce,
+// stashes a minimal FedState (IDPID/IDPSlug/ReturnTo/LinkingAccountID/EnrollmentToken/
+// BrowserBinding), and returns a LoginRequest whose AuthorizeURL is the Steam
+// OpenID 2.0 checkid_setup redirect.
+func (f *Federator) beginSteam(ctx context.Context, idp *db.UpstreamIdp, returnTo string, linkingAccountID *int32, enrollmentToken string) (*LoginRequest, error) {
+	stateToken, err := randB64URL(32)
+	if err != nil {
+		return nil, fmt.Errorf("federation/oidc: steam state token: %w", err)
+	}
+
+	// Anti-forgery binding mirrors the OIDC path: login + invite flows carry a
+	// browser-bound cookie; link flow leaves the binding empty (it's already guarded
+	// by the authenticated session + LinkingAccountID match).
+	var antiForgery, browserBinding string
+	if linkingAccountID == nil {
+		antiForgery, err = randB64URL(32)
+		if err != nil {
+			return nil, fmt.Errorf("federation/oidc: steam anti-forgery token: %w", err)
+		}
+		browserBinding = hashAntiForgery(antiForgery)
+	}
+
+	// Steam has no OIDC issuer, nonce, PKCE verifier, or token endpoint — leave
+	// those fields empty. The callback URL carries the stateToken as a query param;
+	// Steam echoes it back via openid.return_to so we can pop the KV entry.
+	callbackURL := f.steamCallbackURL(idp.Slug, stateToken)
+	state := FedState{
+		IDPID:            idp.ID,
+		IDPSlug:          idp.Slug,
+		ReturnTo:         returnTo,
+		LinkingAccountID: linkingAccountID,
+		EnrollmentToken:  enrollmentToken,
+		BrowserBinding:   browserBinding,
+		// ExpectedIss / ExpectedTokenEndpoint / Nonce / CodeVerifier are left
+		// zero: HandleCallback skips the OIDC iss check when Protocol=="steam"
+		// (the Steam verify path does its own return_to binding) and never reaches
+		// the token-endpoint drift check.
+	}
+	blob, err := state.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	key := LoginKey(stateToken)
+	if linkingAccountID != nil {
+		key = LinkKey(stateToken)
+	}
+	if err := f.kvStore.SetEx(ctx, key, blob, f.cfg.StateTTL); err != nil {
+		return nil, fmt.Errorf("federation/oidc: steam stash state: %w", err)
+	}
+
+	authorizeURL := steam.BuildAuthURL(f.publicOrigin, callbackURL)
+	return &LoginRequest{
+		AuthorizeURL:     authorizeURL,
+		StateKey:         stateToken,
+		AntiForgeryToken: antiForgery,
+	}, nil
+}
+
+// steamCallbackURL builds the full callback URL that Steam will redirect the user
+// back to. The state token is a query parameter so HandleCallback can pop the KV
+// entry. This is also the expectedReturnTo passed to steam.Verify — it must match
+// the openid.return_to echo from Steam exactly.
+func (f *Federator) steamCallbackURL(slug, stateToken string) string {
+	base := strings.TrimRight(f.publicOrigin, "/") +
+		"/api/prohibitorum/auth/federation/" + url.PathEscape(slug) + "/callback"
+	return base + "?state=" + url.QueryEscape(stateToken)
+}
+
+// steamTokens verifies the Steam OpenID 2.0 callback, decrypts the API key,
+// fetches the player summary, and returns a synthetic *Tokens that flows into the
+// same Resolve / applyInviteOnly dispatch as the OIDC path.
+//
+// The decrypted client_secret_enc is treated as the Steam Web API key (the admin
+// stores it in the same encrypted field; the "client ID" field is unused for Steam).
+func (f *Federator) steamTokens(ctx context.Context, idp *db.UpstreamIdp, callbackParams url.Values, expectedReturnTo string) (*Tokens, error) {
+	steamID, err := f.steamVerify(ctx, callbackParams, expectedReturnTo)
+	if err != nil {
+		return nil, fmt.Errorf("steam verify: %w", err)
+	}
+
+	apiKey, err := f.decryptSecret(idp)
+	if err != nil {
+		return nil, err
+	}
+
+	summary, err := f.steamSummary(ctx, string(apiKey), steamID)
+	if err != nil {
+		return nil, fmt.Errorf("steam summary: %w", err)
+	}
+
+	return &Tokens{
+		Subject:       steamID,
+		Issuer:        steam.Issuer,
+		EmailVerified: false,
+		AMR:           []string{"steam"},
+		Raw: map[string]any{
+			"preferred_username": "steam_" + steamID,
+			"name":               summary.PersonaName,
+			"picture":            summary.AvatarURL,
+		},
+	}, nil
+}
+
 // HandleCallback consumes the login-flow KV state, exchanges the code, and
 // dispatches to Resolve. Returns ErrFederationStateInvalid for nearly every
 // failure mode — the audit log carries the structured reason.
@@ -390,7 +526,12 @@ func (f *Federator) begin(ctx context.Context, idpSlug, returnTo string, linking
 // MUST hash to it — this binds the flow to the initiating browser and defeats
 // login-CSRF / session-fixation (N4). An empty BrowserBinding (e.g. a flow that
 // pre-dates the binding) skips the check.
-func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issParam, browserToken string) (*CallbackResult, error) {
+//
+// callbackParams are the raw query parameters from the upstream callback URL
+// (r.URL.Query() from the HTTP layer). For OIDC flows they are not used here
+// (code/state/iss are passed explicitly). For Steam flows they carry all the
+// openid.* parameters that steam.Verify needs.
+func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issParam, browserToken string, callbackParams url.Values) (*CallbackResult, error) {
 	blob, err := f.kvStore.Pop(ctx, LoginKey(stateToken))
 	if err != nil {
 		f.failNoAccount(ctx, "", "state_invalid", nil)
@@ -425,31 +566,49 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 		return nil, authn.ErrFederationStateInvalid()
 	}
 
-	client, err := f.buildClient(ctx, &idp, flowLogin)
-	if err != nil {
-		return nil, err
-	}
+	// Protocol-specific token acquisition. Steam: verify the OpenID 2.0 callback +
+	// fetch player summary → build synthetic *Tokens. OIDC: build the RP client,
+	// check for discovery drift, then exchange the authorization code.
+	var tokens *Tokens
+	var avatarClient *Client
+	if idp.Protocol == "steam" {
+		t, terr := f.steamTokens(ctx, &idp, callbackParams, f.steamCallbackURL(idp.Slug, stateToken))
+		if terr != nil {
+			f.failNoAccount(ctx, state.IDPSlug, "steam_verify_failed", map[string]any{"err": terr.Error()})
+			return nil, authn.ErrFederationStateInvalid()
+		}
+		tokens = t
+		// avatarClient remains nil — runAvatarInherit uses Raw["picture"] directly
+		// and only falls back to UserInfo (which needs a client) when picture is empty.
+	} else {
+		client, err := f.buildClient(ctx, &idp, flowLogin)
+		if err != nil {
+			return nil, err
+		}
 
-	// RFC 9700 §4.4.2.1 mix-up defense: the discovery doc may have been
-	// edited (or swapped, in an attack scenario) between BeginLogin and
-	// here. ExpectedIss is already snapshotted and re-checked in
-	// client.Exchange; the token_endpoint must match the same snapshot
-	// or we risk sending the code to a different OP than the user
-	// authenticated to. Audit finding H3-sch.
-	if client.TokenEndpoint() != state.ExpectedTokenEndpoint {
-		f.failNoAccount(ctx, state.IDPSlug, "token_endpoint_drift", map[string]any{
-			"expected": state.ExpectedTokenEndpoint,
-			"got":      client.TokenEndpoint(),
-		})
-		return nil, authn.ErrFederationStateInvalid()
-	}
+		// RFC 9700 §4.4.2.1 mix-up defense: the discovery doc may have been
+		// edited (or swapped, in an attack scenario) between BeginLogin and
+		// here. ExpectedIss is already snapshotted and re-checked in
+		// client.Exchange; the token_endpoint must match the same snapshot
+		// or we risk sending the code to a different OP than the user
+		// authenticated to. Audit finding H3-sch.
+		if client.TokenEndpoint() != state.ExpectedTokenEndpoint {
+			f.failNoAccount(ctx, state.IDPSlug, "token_endpoint_drift", map[string]any{
+				"expected": state.ExpectedTokenEndpoint,
+				"got":      client.TokenEndpoint(),
+			})
+			return nil, authn.ErrFederationStateInvalid()
+		}
 
-	tokens, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
-	if err != nil {
-		f.failNoAccount(ctx, state.IDPSlug, "code_exchange_failed", map[string]any{
-			"err": err.Error(),
-		})
-		return nil, authn.ErrFederationStateInvalid()
+		t, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
+		if err != nil {
+			f.failNoAccount(ctx, state.IDPSlug, "code_exchange_failed", map[string]any{
+				"err": err.Error(),
+			})
+			return nil, authn.ErrFederationStateInvalid()
+		}
+		tokens = t
+		avatarClient = client
 	}
 
 	// Mode-decoupled dispatch: an EnrollmentToken on the FedState means the
@@ -493,7 +652,9 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 	// time they accept. The job keeps the 'upstream' avatar row fresh on every
 	// login but only makes it active when the user hasn't chosen 'none'/'user';
 	// it dedupes concurrent runs via SetNX and runs on a detached goroutine.
-	f.kickoffAvatarInherit(client, idp, tokens, outcome.AccountID)
+	// avatarClient is nil on the steam path — runAvatarInherit uses Raw["picture"]
+	// directly and only needs the client for the UserInfo fallback (not needed for Steam).
+	f.kickoffAvatarInherit(avatarClient, idp, tokens, outcome.AccountID)
 
 	return &CallbackResult{
 		AccountID:  outcome.AccountID,

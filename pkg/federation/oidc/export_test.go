@@ -2,12 +2,14 @@ package oidc
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/federation/steam"
 )
 
 // SetClientCacheTTLForTest lets tests in the _test package shrink (or expire)
@@ -68,4 +70,16 @@ func RunAvatarInheritForTest(f *Federator, ctx context.Context, client *Client, 
 // server, no SSRF dance).
 func SetAvatarFetchForTest(f *Federator, fn func(ctx context.Context, url string, allowPrivate bool) ([]byte, error)) {
 	f.avatarFetch = fn
+}
+
+// SetSteamSeamsForTest replaces the Federator's Steam verify and summary functions
+// with stubs, so the Steam callback branch can be exercised without a live Steam
+// endpoint. Mirror of SetAvatarFetchForTest.
+func SetSteamSeamsForTest(
+	f *Federator,
+	verify func(ctx context.Context, params url.Values, expectedReturnTo string) (string, error),
+	summary func(ctx context.Context, apiKey, steamID string) (steam.Summary, error),
+) {
+	f.steamVerify = verify
+	f.steamSummary = summary
 }
