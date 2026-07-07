@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -250,6 +251,19 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 					return
 				}
 			}
+			// Session was valid but RBAC or account check denied access.
+			// Emit before falling through to the 302 login redirect.
+			acctID := sess.AccountID
+			_ = p.audit.Record(ctx, audit.Record{
+				AccountID: &acctID,
+				Factor:    audit.FactorOIDCClient,
+				Event:     audit.EventAccessDenied,
+				Detail: map[string]any{
+					"reason":         "app_access_denied",
+					"client_id":      client.ClientID,
+					"principal_kind": "session",
+				},
+			})
 		}
 	}
 
@@ -290,16 +304,31 @@ func (p *Provider) HandleForwardAuthCallback(w http.ResponseWriter, r *http.Requ
 
 	st := popFAState(ctx, p.kv, stateID)
 	if st == nil || code == "" {
+		_ = p.audit.Record(ctx, audit.Record{
+			Factor: audit.FactorOIDCClient,
+			Event:  audit.EventFail,
+			Detail: map[string]any{"reason": "invalid_state"},
+		})
 		p.redirectToErrorPage(w, r, errCodeServerError)
 		return
 	}
 	ac, err := consumeCode(ctx, p.kv, code)
 	if err != nil {
+		_ = p.audit.Record(ctx, audit.Record{
+			Factor: audit.FactorOIDCClient,
+			Event:  audit.EventFail,
+			Detail: map[string]any{"reason": "invalid_code", "client_id": st.ClientID},
+		})
 		p.redirectToErrorPage(w, r, errCodeServerError)
 		return
 	}
 	expectedRedirect := schemeOf(r) + "://" + hostOf(r) + ForwardAuthPathPrefix + "/callback"
 	if ac.ClientID != st.ClientID || !verifyPKCE(st.Verifier, ac.CodeChallenge) || ac.RedirectURI != expectedRedirect {
+		_ = p.audit.Record(ctx, audit.Record{
+			Factor: audit.FactorOIDCClient,
+			Event:  audit.EventFail,
+			Detail: map[string]any{"reason": "callback_mismatch", "client_id": st.ClientID},
+		})
 		p.redirectToErrorPage(w, r, errCodeServerError)
 		return
 	}
@@ -399,15 +428,34 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	row, err := p.queries.GetPATByTokenHash(ctx, pat.HashToken(raw))
 	if err != nil {
+		_ = p.audit.Record(ctx, audit.Record{
+			Factor: audit.FactorPAT,
+			Event:  audit.EventFail,
+			Detail: map[string]any{"reason": "pat_unknown", "client_id": client.ClientID},
+		})
 		writeBearerError(w, http.StatusUnauthorized, "invalid token")
 		return
 	}
 	acct, err := p.queries.GetAccountByID(ctx, row.AccountID)
 	if err != nil || acct.Disabled {
+		acctID := row.AccountID
+		_ = p.audit.Record(ctx, audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorPAT,
+			Event:     audit.EventFail,
+			Detail:    map[string]any{"reason": "account_disabled", "client_id": client.ClientID},
+		})
 		writeBearerError(w, http.StatusUnauthorized, "invalid token")
 		return
 	}
 	if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {
+		acctID := acct.ID
+		_ = p.audit.Record(ctx, audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorPAT,
+			Event:     audit.EventFail,
+			Detail:    map[string]any{"reason": "maintenance", "client_id": client.ClientID},
+		})
 		http.Error(w, "service under maintenance", http.StatusServiceUnavailable)
 		return
 	}
@@ -416,12 +464,26 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		grants := map[string][]string{}
 		if len(row.AppGrants) > 0 {
 			if jerr := json.Unmarshal(row.AppGrants, &grants); jerr != nil {
+				acctID := acct.ID
+				_ = p.audit.Record(ctx, audit.Record{
+					AccountID: &acctID,
+					Factor:    audit.FactorPAT,
+					Event:     audit.EventFail,
+					Detail:    map[string]any{"reason": "pat_grant_corrupt", "client_id": client.ClientID},
+				})
 				http.Error(w, "forbidden", http.StatusForbidden) // corrupt grant → fail closed
 				return
 			}
 		}
 		s, ok := grants[client.ClientID]
 		if !ok {
+			acctID := acct.ID
+			_ = p.audit.Record(ctx, audit.Record{
+				AccountID: &acctID,
+				Factor:    audit.FactorPAT,
+				Event:     audit.EventFail,
+				Detail:    map[string]any{"reason": "pat_app_not_granted", "client_id": client.ClientID},
+			})
 			http.Error(w, "forbidden", http.StatusForbidden) // PAT not granted for this app
 			return
 		}
@@ -431,6 +493,17 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		AccountID: pgtype.Int4{Int32: acct.ID, Valid: true}, ClientID: client.ClientID,
 	})
 	if aerr != nil || !ok.Bool {
+		acctID := acct.ID
+		_ = p.audit.Record(ctx, audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorOIDCClient,
+			Event:     audit.EventAccessDenied,
+			Detail: map[string]any{
+				"reason":         "app_access_denied",
+				"client_id":      client.ClientID,
+				"principal_kind": "pat",
+			},
+		})
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}

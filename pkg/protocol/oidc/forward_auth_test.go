@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
@@ -927,5 +928,153 @@ func TestForwardAuthVerify_PAT_PrecedesCookie(t *testing.T) {
 	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_bad", faCookie(true, token)))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401 (Bearer terminal), got %d", rec.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Audit-emission tests: denied PAT, denied cookie session, unknown PAT
+// ---------------------------------------------------------------------------
+
+// newFAProviderAudit is like newFAProvider but also returns the recording audit
+// writer so tests can inspect emitted records.
+func newFAProviderAudit(q db.Querier) (*Provider, kv.Store, *recordingAudit) {
+	store := kv.NewMemoryStore()
+	ra := &recordingAudit{}
+	p := &Provider{
+		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}},
+		queries: q,
+		kv:      store,
+		audit:   ra,
+		rl:      authn.NewRateLimiter(),
+	}
+	return p, store, ra
+}
+
+// TestForwardAuthAudit_PAT_RBACDenied asserts that a PAT that resolves to a
+// known account but is denied by RBAC emits an oidc_client|access_denied record
+// with principal_kind=pat and the correct client_id and AccountID.
+func TestForwardAuthAudit_PAT_RBACDenied(t *testing.T) {
+	const acctID int32 = 42
+	q := &fakeFAQueries{
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
+		authorized: false,
+		acct:       db.Account{ID: acctID, Username: "alice"},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: acctID, AllApps: true},
+	}
+	p, _, ra := newFAProviderAudit(q)
+
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", rec.Code)
+	}
+
+	var found *audit.Record
+	for i := range ra.records {
+		r := &ra.records[i]
+		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventAccessDenied {
+			found = r
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected oidc_client|access_denied audit record, got none")
+	}
+	if found.AccountID == nil || *found.AccountID != acctID {
+		t.Errorf("AccountID = %v, want %d", found.AccountID, acctID)
+	}
+	if got := found.Detail["principal_kind"]; got != "pat" {
+		t.Errorf("principal_kind = %v, want pat", got)
+	}
+	if got := found.Detail["client_id"]; got != "svc" {
+		t.Errorf("client_id = %v, want svc", got)
+	}
+	if got := found.Detail["reason"]; got != "app_access_denied" {
+		t.Errorf("reason = %v, want app_access_denied", got)
+	}
+}
+
+// TestForwardAuthAudit_Cookie_RBACDenied asserts that a valid forward-auth
+// session cookie that is denied by RBAC emits an oidc_client|access_denied
+// record with principal_kind=session.
+func TestForwardAuthAudit_Cookie_RBACDenied(t *testing.T) {
+	ctx := context.Background()
+	const acctID int32 = 42
+	q := &fakeFAQueries{
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", Disabled: false},
+		authorized: false, // RBAC denies
+		acct:       db.Account{ID: acctID, Username: "alice"},
+	}
+	p, store, ra := newFAProviderAudit(q)
+
+	token, err := mintFASession(ctx, store, faSession{AccountID: acctID, ClientID: "svc"}, time.Hour)
+	if err != nil {
+		t.Fatalf("mintFASession: %v", err)
+	}
+	cookie := faCookie(true, token)
+
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faRequest("https", "app.acme.io", "/dashboard", cookie))
+
+	// Falls through to 302 redirect after denial.
+	if rec.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d", rec.Code)
+	}
+
+	var found *audit.Record
+	for i := range ra.records {
+		r := &ra.records[i]
+		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventAccessDenied {
+			found = r
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected oidc_client|access_denied audit record, got none")
+	}
+	if found.AccountID == nil || *found.AccountID != acctID {
+		t.Errorf("AccountID = %v, want %d", found.AccountID, acctID)
+	}
+	if got := found.Detail["principal_kind"]; got != "session" {
+		t.Errorf("principal_kind = %v, want session", got)
+	}
+	if got := found.Detail["client_id"]; got != "svc" {
+		t.Errorf("client_id = %v, want svc", got)
+	}
+}
+
+// TestForwardAuthAudit_PAT_Unknown asserts that an unresolvable PAT emits a
+// personal_access_token|fail record with reason=pat_unknown.
+func TestForwardAuthAudit_PAT_Unknown(t *testing.T) {
+	q := &fakeFAQueries{
+		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"},
+		patErr:   pgx.ErrNoRows,
+	}
+	p, _, ra := newFAProviderAudit(q)
+
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_bad", nil))
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", rec.Code)
+	}
+
+	var found *audit.Record
+	for i := range ra.records {
+		r := &ra.records[i]
+		if r.Factor == audit.FactorPAT && r.Event == audit.EventFail {
+			found = r
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected personal_access_token|fail audit record, got none")
+	}
+	if got := found.Detail["reason"]; got != "pat_unknown" {
+		t.Errorf("reason = %v, want pat_unknown", got)
+	}
+	if found.AccountID != nil {
+		t.Errorf("AccountID should be nil for unresolved PAT, got %v", *found.AccountID)
 	}
 }
