@@ -17,6 +17,7 @@ export const AUDIT_FACTORS = [
   'signing_key',
   'account',
   'invitation',
+  'settings',
 ] as const
 
 export type AuditFactor = (typeof AUDIT_FACTORS)[number]
@@ -37,6 +38,8 @@ export const AUDIT_EVENTS = [
   'factor_locked',
   'update',
   'rotate',
+  'sudo_granted',
+  'sudo_failed',
 ] as const
 
 export type AuditEvent = (typeof AUDIT_EVENTS)[number]
