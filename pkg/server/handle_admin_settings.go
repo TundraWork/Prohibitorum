@@ -149,10 +149,11 @@ func (s *Server) handleDeleteInstanceBackgroundHTTP(w http.ResponseWriter, r *ht
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// auditBranding records a branding-mutation admin audit event.
-// Uses FactorSigningKey (the closest admin system-config factor in the audit
-// vocabulary) and EventUpdate (all three mutations are configuration updates).
-// Errors are silently ignored — the same pattern used throughout the server.
+// auditBranding records an instance-settings mutation admin audit event.
+// Uses FactorSettings (the dedicated factor for instance configuration
+// mutations: name, icon, login background, maintenance mode, client-IP policy)
+// and EventUpdate. Errors are silently ignored — the same pattern used
+// throughout the server.
 func (s *Server) auditBranding(r *http.Request, reason string) {
 	var acct *int32
 	if sess := authn.SessionFromContext(r.Context()); sess != nil && sess.Account != nil {
@@ -161,7 +162,7 @@ func (s *Server) auditBranding(r *http.Request, reason string) {
 	}
 	_ = s.Audit.Record(r.Context(), audit.Record{
 		AccountID: acct,
-		Factor:    audit.FactorSigningKey,
+		Factor:    audit.FactorSettings,
 		Event:     audit.EventUpdate,
 		IP:        audit.ParseIPOrNil(s.clientIP.IP(r)),
 		UserAgent: r.UserAgent(),
