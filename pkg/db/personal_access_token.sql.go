@@ -11,6 +11,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getPATByID = `-- name: GetPATByID :one
+SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token WHERE id = $1
+`
+
+func (q *Queries) GetPATByID(ctx context.Context, id int32) (PersonalAccessToken, error) {
+	row := q.db.QueryRow(ctx, getPATByID, id)
+	var i PersonalAccessToken
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Name,
+		&i.TokenHash,
+		&i.TokenHint,
+		&i.AllApps,
+		&i.AppGrants,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.LastUsedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const getPATByTokenHash = `-- name: GetPATByTokenHash :one
 SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
 WHERE token_hash = $1

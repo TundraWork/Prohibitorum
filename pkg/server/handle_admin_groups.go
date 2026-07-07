@@ -152,10 +152,10 @@ func (s *Server) handleListGroupMembers(ctx context.Context, in *listGroupMember
 // ----- POST /groups (raw, sudo-gated) ------------------------------------------------
 
 type createGroupBody struct {
-	Slug                string  `json:"slug"`
-	DisplayName         string  `json:"displayName"`
-	Description         string  `json:"description"`
-	ExposedToDownstream *bool   `json:"exposedToDownstream"`
+	Slug                string `json:"slug"`
+	DisplayName         string `json:"displayName"`
+	Description         string `json:"description"`
+	ExposedToDownstream *bool  `json:"exposedToDownstream"`
 }
 
 func (s *Server) handleCreateGroupHTTP(w http.ResponseWriter, r *http.Request) {
@@ -314,6 +314,13 @@ func (s *Server) handleDeleteGroupHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Load the group slug before the hard-delete so the audit record carries a
+	// human-readable identifier (group rows are unrecoverable after deletion).
+	var groupSlug string
+	if g, err := s.queries.GetGroup(r.Context(), body.ID); err == nil {
+		groupSlug = g.Slug
+	}
+
 	rows, err := s.queries.DeleteGroup(r.Context(), body.ID)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteGroup: delete: %w", err))
@@ -333,7 +340,7 @@ func (s *Server) handleDeleteGroupHTTP(w http.ResponseWriter, r *http.Request) {
 		AccountID: actorID,
 		Factor:    audit.FactorGroup,
 		Event:     audit.EventRevoke,
-		Detail:    map[string]any{"group_id": body.ID},
+		Detail:    map[string]any{"group_id": body.ID, "slug": groupSlug},
 	})
 
 	w.WriteHeader(http.StatusNoContent)

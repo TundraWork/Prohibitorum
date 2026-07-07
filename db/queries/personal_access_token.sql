@@ -4,6 +4,9 @@ INSERT INTO personal_access_token (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
+-- name: GetPATByID :one
+SELECT * FROM personal_access_token WHERE id = $1;
+
 -- name: RevokePATByID :execrows
 UPDATE personal_access_token
 SET revoked_at = now()

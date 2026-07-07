@@ -94,6 +94,7 @@ type Querier interface {
 	GetGroupBySlug(ctx context.Context, slug string) (UserGroup, error)
 	GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error)
 	GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error)
+	GetPATByID(ctx context.Context, id int32) (PersonalAccessToken, error)
 	GetPATByTokenHash(ctx context.Context, tokenHash []byte) (PersonalAccessToken, error)
 	GetPasswordCredential(ctx context.Context, accountID int32) (PasswordCredential, error)
 	GetSAMLSPByEntityID(ctx context.Context, entityID string) (SamlSp, error)

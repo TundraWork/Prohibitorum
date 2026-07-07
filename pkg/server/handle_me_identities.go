@@ -151,6 +151,28 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Capture identity metadata for audit enrichment before the delete.
+	// ListAccountIdentitiesByAccount is scoped to sess.Account.ID, so we
+	// find the row by id64 within the locked transaction. If the row is not
+	// found (foreign id or already deleted), the subsequent delete will
+	// return ErrNoRows and the handler will 404 — we don't need to handle
+	// that case here.
+	var (
+		auditIdpSlug     string
+		auditUpstreamIs  string
+		auditUpstreamSub string
+	)
+	if identRows, _ := q.ListAccountIdentitiesByAccount(r.Context(), sess.Account.ID); identRows != nil {
+		for _, row := range identRows {
+			if row.ID == id64 {
+				auditIdpSlug = row.IdpSlug
+				auditUpstreamIs = row.UpstreamIss
+				auditUpstreamSub = row.UpstreamSub
+				break
+			}
+		}
+	}
+
 	// Delete-then-check: delete the identity row first (within the locked
 	// tx), then call AvailableMethods to see how many usable sign-in methods
 	// remain in the post-delete state. This is safer than check-then-delete
@@ -210,7 +232,12 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 		AccountID: &acct,
 		Factor:    audit.FactorFederationOIDC,
 		Event:     audit.EventUnlink,
-		Detail:    map[string]any{"identity_id": deletedID},
+		Detail: map[string]any{
+			"identity_id":  deletedID,
+			"idp_slug":     auditIdpSlug,
+			"upstream_iss": auditUpstreamIs,
+			"upstream_sub": auditUpstreamSub,
+		},
 	})
 
 	w.WriteHeader(http.StatusNoContent)

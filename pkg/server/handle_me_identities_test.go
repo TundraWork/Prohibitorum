@@ -504,7 +504,8 @@ func TestMeIdentities_Unlink_WithBackup_204(t *testing.T) {
 	if q.deletedIdentities[0].ID != 1 || q.deletedIdentities[0].AccountID != accountID {
 		t.Errorf("delete params: %+v", q.deletedIdentities[0])
 	}
-	// Audit row: factor=federation_oidc, event=unlink, detail.identity_id=1.
+	// Audit row: factor=federation_oidc, event=unlink, detail carries
+	// identity_id, idp_slug, upstream_iss, upstream_sub.
 	found := false
 	for _, ev := range q.events {
 		if ev.Factor != string(audit.FactorFederationOIDC) || ev.Event != audit.EventUnlink {
@@ -512,10 +513,20 @@ func TestMeIdentities_Unlink_WithBackup_204(t *testing.T) {
 		}
 		var detail map[string]any
 		_ = json.Unmarshal(ev.Detail, &detail)
-		if v, ok := detail["identity_id"]; ok && toInt64(v) == 1 {
-			found = true
-			break
+		if v, ok := detail["identity_id"]; !ok || toInt64(v) != 1 {
+			continue
 		}
+		if detail["idp_slug"] != "google" {
+			t.Errorf("audit detail idp_slug: want google, got %v", detail["idp_slug"])
+		}
+		if detail["upstream_iss"] != "https://op.example.com" {
+			t.Errorf("audit detail upstream_iss: want https://op.example.com, got %v", detail["upstream_iss"])
+		}
+		if detail["upstream_sub"] != "sub-google" {
+			t.Errorf("audit detail upstream_sub: want sub-google, got %v", detail["upstream_sub"])
+		}
+		found = true
+		break
 	}
 	if !found {
 		t.Errorf("audit: missing unlink row with identity_id=1; events=%+v", q.events)
