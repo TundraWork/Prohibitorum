@@ -515,13 +515,11 @@ func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAc
 		"target_id":     in.Body.AccountID,
 		"credential_id": in.Body.CredentialID,
 	}).Info("auth")
-	targetID := in.Body.AccountID
 	_ = s.Audit.Record(ctx, audit.Record{
-		AccountID: &targetID,
+		AccountID: auditActor(sess),
 		Factor:    audit.FactorWebAuthn,
 		Event:     audit.EventRevoke,
 		Detail: map[string]any{
-			"actor_id":      actorID,
 			"target_id":     in.Body.AccountID,
 			"credential_id": in.Body.CredentialID,
 		},
@@ -597,13 +595,11 @@ func (s *Server) handleDeleteAccountCredentialHTTP(w http.ResponseWriter, r *htt
 		"target_id":     body.AccountID,
 		"credential_id": body.CredentialID,
 	}).Info("auth")
-	httpTargetID := body.AccountID
 	_ = s.Audit.Record(ctx, audit.Record{
-		AccountID: &httpTargetID,
+		AccountID: auditActor(sess),
 		Factor:    audit.FactorWebAuthn,
 		Event:     audit.EventRevoke,
 		Detail: map[string]any{
-			"actor_id":      actorID,
 			"target_id":     body.AccountID,
 			"credential_id": body.CredentialID,
 		},
@@ -1012,13 +1008,11 @@ func (s *Server) handleRevokeAccountSessionHTTP(w http.ResponseWriter, r *http.R
 		"target_id":      accountID,
 		"target_session": body.SessionID,
 	}).Info("auth")
-	sessionTargetID := accountID
 	_ = s.Audit.Record(r.Context(), audit.Record{
-		AccountID: &sessionTargetID,
+		AccountID: auditActor(sess),
 		Factor:    audit.FactorSession,
 		Event:     audit.EventSessionEnd,
 		Detail: map[string]any{
-			"actor_id":   actorID,
 			"target_id":  accountID,
 			"session_id": body.SessionID,
 		},

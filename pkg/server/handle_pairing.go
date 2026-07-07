@@ -320,7 +320,7 @@ func (s *Server) handlePairCancelHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = s.Audit.Record(r.Context(), audit.Record{
 		AccountID: &sess.Account.ID,
 		Factor:    audit.FactorSession,
-		Event:     audit.EventFail,
+		Event:     audit.EventRevoke,
 		Detail:    map[string]any{"reason": "pairing_cancelled", "pairing_id": p.ID},
 	})
 	w.WriteHeader(http.StatusNoContent)
