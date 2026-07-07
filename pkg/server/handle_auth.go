@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/sirupsen/logrus"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/contract"
@@ -250,6 +251,11 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"reason":    "ceremony_state_missing",
 			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
+		_ = s.Audit.Record(r.Context(), audit.Record{
+			Factor: audit.FactorWebAuthn,
+			Event:  audit.EventFail,
+			Detail: map[string]any{"reason": "ceremony_missing"},
+		})
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
 	}
@@ -260,6 +266,11 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"reason":    "ceremony_state_corrupt",
 			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
+		_ = s.Audit.Record(r.Context(), audit.Record{
+			Factor: audit.FactorWebAuthn,
+			Event:  audit.EventFail,
+			Detail: map[string]any{"reason": "ceremony_corrupt"},
+		})
 		writeAuthErr(w, authn.ErrCeremonyState())
 		return
 	}
@@ -288,6 +299,11 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 
 	_, credential, err := s.webauthn.FinishPasskeyLogin(handler, sessionData, r)
 	if err != nil {
+		_ = s.Audit.Record(r.Context(), audit.Record{
+			Factor: audit.FactorWebAuthn,
+			Event:  audit.EventFail,
+			Detail: map[string]any{"reason": "finish_failed"},
+		})
 		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
 		return
 	}
@@ -297,6 +313,11 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"reason":    "no_account",
 			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
+		_ = s.Audit.Record(r.Context(), audit.Record{
+			Factor: audit.FactorWebAuthn,
+			Event:  audit.EventFail,
+			Detail: map[string]any{"reason": "no_account"},
+		})
 		writeAuthErr(w, authn.ErrLoginAccountNotFound())
 		return
 	}
@@ -307,6 +328,13 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"account_id": resolvedAccount.ID,
 			"client_ip":  s.clientIP.IP(r),
 		}).Warn("auth")
+		accountID := resolvedAccount.ID
+		_ = s.Audit.Record(r.Context(), audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.FactorWebAuthn,
+			Event:     audit.EventFail,
+			Detail:    map[string]any{"reason": "account_disabled"},
+		})
 		writeAuthErr(w, authn.ErrAccountDisabled())
 		return
 	}
@@ -333,6 +361,15 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 					"old_count":     c.SignCount,
 					"new_count":     newCount,
 				}).Warn("auth")
+				cloneAccountID := resolvedAccount.ID
+				cloneCredRef := int64(credRowID)
+				_ = s.Audit.Record(r.Context(), audit.Record{
+					AccountID:     &cloneAccountID,
+					Factor:        audit.FactorWebAuthn,
+					Event:         audit.EventCloneWarning,
+					CredentialRef: &cloneCredRef,
+					Detail:        map[string]any{"reason": "clone_warning"},
+				})
 				break
 			}
 		}
@@ -359,6 +396,20 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		"username":   resolvedAccount.Username,
 		"client_ip":  s.clientIP.IP(r),
 	}).Info("auth")
+
+	successAccountID := resolvedAccount.ID
+	var successCredRef *int64
+	if credRowID != 0 {
+		ref := int64(credRowID)
+		successCredRef = &ref
+	}
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID:     &successAccountID,
+		Factor:        audit.FactorWebAuthn,
+		Event:         audit.EventUse,
+		CredentialRef: successCredRef,
+		Detail:        map[string]any{"reason": "login"},
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(contract.LoginResult{
