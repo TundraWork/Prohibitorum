@@ -259,6 +259,9 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 
 	sess := authn.SessionFromContext(ctx)
 	changes := logrus.Fields{}
+	if current.DisplayName != updated.DisplayName {
+		changes["displayName"] = []string{current.DisplayName, updated.DisplayName}
+	}
 	if current.Role != updated.Role {
 		changes["role"] = []string{current.Role, updated.Role}
 	}
@@ -512,6 +515,17 @@ func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAc
 		"target_id":     in.Body.AccountID,
 		"credential_id": in.Body.CredentialID,
 	}).Info("auth")
+	targetID := in.Body.AccountID
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: &targetID,
+		Factor:    audit.FactorWebAuthn,
+		Event:     audit.EventRevoke,
+		Detail: map[string]any{
+			"actor_id":      actorID,
+			"target_id":     in.Body.AccountID,
+			"credential_id": in.Body.CredentialID,
+		},
+	})
 
 	return &struct{}{}, nil
 }
@@ -583,6 +597,17 @@ func (s *Server) handleDeleteAccountCredentialHTTP(w http.ResponseWriter, r *htt
 		"target_id":     body.AccountID,
 		"credential_id": body.CredentialID,
 	}).Info("auth")
+	httpTargetID := body.AccountID
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: &httpTargetID,
+		Factor:    audit.FactorWebAuthn,
+		Event:     audit.EventRevoke,
+		Detail: map[string]any{
+			"actor_id":      actorID,
+			"target_id":     body.AccountID,
+			"credential_id": body.CredentialID,
+		},
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -680,7 +705,7 @@ func (s *Server) handleReissueEnrollment(ctx context.Context, in *reissueEnrollm
 	}).Info("auth")
 	_ = s.Audit.Record(ctx, audit.Record{
 		AccountID: auditActor(sess),
-		Factor:    audit.FactorAccount,
+		Factor:    audit.FactorEnrollment,
 		Event:     audit.EventEnrollmentIssued,
 		Detail:    map[string]any{"target_id": in.Body.ID, "intent": "reset"},
 	})
@@ -987,6 +1012,17 @@ func (s *Server) handleRevokeAccountSessionHTTP(w http.ResponseWriter, r *http.R
 		"target_id":      accountID,
 		"target_session": body.SessionID,
 	}).Info("auth")
+	sessionTargetID := accountID
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &sessionTargetID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventSessionEnd,
+		Detail: map[string]any{
+			"actor_id":   actorID,
+			"target_id":  accountID,
+			"session_id": body.SessionID,
+		},
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 }
