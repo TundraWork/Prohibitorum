@@ -179,6 +179,7 @@ func newAvatarServer(t *testing.T, q *fakeAvatarQueries) *Server {
 	t.Helper()
 	return &Server{
 		avatarQueriesOverride: q,
+		Audit:                 noopAuditWriter{},
 		// dbPool left nil → handlers use the nil-dbPool seam (no tx).
 	}
 }

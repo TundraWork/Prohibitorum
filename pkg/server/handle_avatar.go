@@ -30,6 +30,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/db"
@@ -153,6 +154,15 @@ func (s *Server) handlePutAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 	sess.Account.AvatarContentType = ct
 	sess.Account.AvatarEtag = etagPG
 
+	{
+		acctID := acctID
+		_ = s.Audit.Record(ctx, audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorAccount,
+			Event:     audit.EventUpdate,
+			Detail:    map[string]any{"reason": "avatar_upload"},
+		})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -210,6 +220,15 @@ func (s *Server) handlePutAvatarSelectionHTTP(w http.ResponseWriter, r *http.Req
 		sess.Account.AvatarSource = pgtype.Text{String: "none", Valid: true}
 		sess.Account.AvatarEtag = pgtype.Text{}
 		sess.Account.AvatarContentType = pgtype.Text{}
+		{
+			acctIDAudit := acctID
+			_ = s.Audit.Record(ctx, audit.Record{
+				AccountID: &acctIDAudit,
+				Factor:    audit.FactorAccount,
+				Event:     audit.EventUpdate,
+				Detail:    map[string]any{"reason": "avatar_select"},
+			})
+		}
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -270,6 +289,15 @@ func (s *Server) handlePutAvatarSelectionHTTP(w http.ResponseWriter, r *http.Req
 		sess.Account.AvatarEtag = row.Etag
 		sess.Account.AvatarContentType = row.ContentType
 	}
+	{
+		acctIDAudit := acctID
+		_ = s.Audit.Record(ctx, audit.Record{
+			AccountID: &acctIDAudit,
+			Factor:    audit.FactorAccount,
+			Event:     audit.EventUpdate,
+			Detail:    map[string]any{"reason": "avatar_select"},
+		})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -320,6 +348,15 @@ func (s *Server) handleDeleteAvatarHTTP(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	{
+		acctIDAudit := acctID
+		_ = s.Audit.Record(ctx, audit.Record{
+			AccountID: &acctIDAudit,
+			Factor:    audit.FactorAccount,
+			Event:     audit.EventUpdate,
+			Detail:    map[string]any{"reason": "avatar_remove"},
+		})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

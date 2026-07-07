@@ -39,6 +39,7 @@ func (f *fakeUpdateMeQ) UpdateAccountDisplayName(_ context.Context, arg db.Updat
 func newUpdateMeServer(q *fakeUpdateMeQ) *Server {
 	return &Server{
 		updateMeOverride: q,
+		Audit:            noopAuditWriter{},
 	}
 }
 
@@ -458,11 +459,11 @@ func TestHandleGetMe_AvatarSourceAndUrls(t *testing.T) {
 		t.Fatalf("scan UUID: %v", err)
 	}
 	acct := &db.Account{
-		ID:          acctID,
-		Username:    "testme",
-		DisplayName: "Test Me",
-		Role:        "user",
-		OidcSubject: subUUID,
+		ID:           acctID,
+		Username:     "testme",
+		DisplayName:  "Test Me",
+		Role:         "user",
+		OidcSubject:  subUUID,
 		AvatarSource: pgtype.Text{String: "user", Valid: true},
 		AvatarEtag:   pgtype.Text{String: "user-etag-0002", Valid: true},
 	}

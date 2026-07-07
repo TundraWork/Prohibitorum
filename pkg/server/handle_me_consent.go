@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
@@ -79,10 +80,10 @@ func (s *Server) listConsents(ctx context.Context, accountID int32) ([]contract.
 			iconURL = entityIconURLPtr("saml_sp", id, etag)
 		}
 		out = append(out, contract.ConsentedApp{
-			Kind:      "saml",
-			ClientID:  id,
-			Name:      r.DisplayName,
-			IconURL:   iconURL,
+			Kind:     "saml",
+			ClientID: id,
+			Name:     r.DisplayName,
+			IconURL:  iconURL,
 			// Empty (non-nil) so the JSON is "scopes":[] not "scopes":null — SAML
 			// acks carry no scopes, but a null would be a footgun for consumers.
 			Scopes:    []string{},
@@ -115,6 +116,24 @@ func (s *Server) handleRevokeMyConsent(ctx context.Context, in *revokeConsentIn)
 		"client_id":  in.Body.ClientID,
 		"kind":       in.Body.Kind,
 	}).Info("auth")
+	{
+		acctID := sess.Account.ID
+		var factor audit.Factor
+		var detail map[string]any
+		if in.Body.Kind == "saml" {
+			factor = audit.FactorSAMLSP
+			detail = map[string]any{"sp": in.Body.ClientID, "kind": "saml"}
+		} else {
+			factor = audit.FactorOIDCClient
+			detail = map[string]any{"client_id": in.Body.ClientID, "kind": "oidc"}
+		}
+		_ = s.Audit.Record(ctx, audit.Record{
+			AccountID: &acctID,
+			Factor:    factor,
+			Event:     audit.EventAccessRevoked,
+			Detail:    detail,
+		})
+	}
 	return &struct{}{}, nil
 }
 

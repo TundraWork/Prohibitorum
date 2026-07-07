@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/account"
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
@@ -79,6 +80,13 @@ func (s *Server) handleUpdateMe(ctx context.Context, in *updateMeIn) (*meOut, er
 		"account_id":   sess.Account.ID,
 		"display_name": in.Body.DisplayName,
 	}).Info("auth")
+	acctID := sess.Account.ID
+	_ = s.Audit.Record(ctx, audit.Record{
+		AccountID: &acctID,
+		Factor:    audit.FactorAccount,
+		Event:     audit.EventUpdate,
+		Detail:    map[string]any{"reason": "display_name"},
+	})
 	sess.Account.DisplayName = in.Body.DisplayName
 	v := s.sessionView(sess.Account)
 	if s.federator != nil {
@@ -354,6 +362,16 @@ func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.
 		"credential_id": row.ID,
 		"client_ip":     s.clientIP.IP(r),
 	}).Info("auth")
+	{
+		acctID := sess.Account.ID
+		credRef := int64(row.ID)
+		_ = s.Audit.Record(r.Context(), audit.Record{
+			AccountID:     &acctID,
+			Factor:        audit.FactorWebAuthn,
+			Event:         audit.EventRegister,
+			CredentialRef: &credRef,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(credentialView(&row))
@@ -425,6 +443,15 @@ func (s *Server) handleRevokeMySession(ctx context.Context, in *revokeMySessionI
 		"account_id":     sess.Account.ID,
 		"target_session": in.Body.ID,
 	}).Info("auth")
+	{
+		acctID := sess.Account.ID
+		_ = s.Audit.Record(ctx, audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorSession,
+			Event:     audit.EventSessionEnd,
+			Detail:    map[string]any{"reason": "self_revoke", "session_id": in.Body.ID},
+		})
+	}
 	return &struct{}{}, nil
 }
 
@@ -472,6 +499,17 @@ func (s *Server) handleRenameMyCredential(ctx context.Context, in *renameMyCrede
 		"account_id":    sess.Account.ID,
 		"credential_id": in.Body.ID,
 	}).Info("auth")
+	{
+		acctID := sess.Account.ID
+		credRef := int64(in.Body.ID)
+		_ = s.Audit.Record(ctx, audit.Record{
+			AccountID:     &acctID,
+			Factor:        audit.FactorWebAuthn,
+			Event:         audit.EventUpdate,
+			CredentialRef: &credRef,
+			Detail:        map[string]any{"reason": "rename"},
+		})
+	}
 	return &struct{}{}, nil
 }
 
@@ -532,5 +570,15 @@ func (s *Server) handleDeleteMyCredential(ctx context.Context, in *deleteMyCrede
 		"account_id":    sess.Account.ID,
 		"credential_id": in.Body.ID,
 	}).Info("auth")
+	{
+		acctID := sess.Account.ID
+		credRef := int64(in.Body.ID)
+		_ = s.Audit.Record(ctx, audit.Record{
+			AccountID:     &acctID,
+			Factor:        audit.FactorWebAuthn,
+			Event:         audit.EventRevoke,
+			CredentialRef: &credRef,
+		})
+	}
 	return &emptyOut{}, nil
 }
