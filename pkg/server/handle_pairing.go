@@ -11,14 +11,15 @@
 // discoverable login on the new device.
 //
 // Endpoints:
-//   POST /auth/devices/pair/begin    — anonymous. New device starts pairing.
-//   GET  /auth/devices/pair/status   — anonymous. New device polls.
-//   POST /auth/devices/pair/complete — anonymous. New device redeems an
-//                                       approved pairing for a session.
-//   GET  /me/devices/pair/lookup     — authed. Show pairing context before
-//                                       confirmation.
-//   POST /me/devices/pair/approve    — authed. Bind pairing to caller.
-//   POST /me/devices/pair/cancel     — authed. Drop a pending pairing.
+//
+//	POST /auth/devices/pair/begin    — anonymous. New device starts pairing.
+//	GET  /auth/devices/pair/status   — anonymous. New device polls.
+//	POST /auth/devices/pair/complete — anonymous. New device redeems an
+//	                                    approved pairing for a session.
+//	GET  /me/devices/pair/lookup     — authed. Show pairing context before
+//	                                    confirmation.
+//	POST /me/devices/pair/approve    — authed. Bind pairing to caller.
+//	POST /me/devices/pair/cancel     — authed. Drop a pending pairing.
 package server
 
 import (
@@ -29,6 +30,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/pairing"
@@ -58,6 +60,11 @@ func (s *Server) handlePairBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		"pairing_id": p.ID,
 		"client_ip":  ip,
 	}).Info("auth")
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		Factor: audit.FactorSession,
+		Event:  audit.EventUse,
+		Detail: map[string]any{"reason": "pairing_begin", "pairing_id": p.ID},
+	})
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(pairBeginResp{
 		PairingID:   p.ID,
@@ -161,6 +168,12 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		"pairing_id": p.ID,
 		"client_ip":  ip,
 	}).Info("auth")
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &acct.ID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventSessionStart,
+		Detail:    map[string]any{"via": "pairing"},
+	})
 
 	writeJSON(w, pairCompleteResp{Session: s.sessionView(&acct)})
 }
@@ -263,6 +276,12 @@ func (s *Server) handlePairApproveHTTP(w http.ResponseWriter, r *http.Request) {
 		"account_id": sess.Account.ID,
 		"client_ip":  s.clientIP.IP(r),
 	}).Info("auth")
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &sess.Account.ID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventUse,
+		Detail:    map[string]any{"reason": "pairing_approved", "pairing_id": p.ID},
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -298,6 +317,12 @@ func (s *Server) handlePairCancelHTTP(w http.ResponseWriter, r *http.Request) {
 		"pairing_id": p.ID,
 		"account_id": sess.Account.ID,
 	}).Info("auth")
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &sess.Account.ID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventFail,
+		Detail:    map[string]any{"reason": "pairing_cancelled", "pairing_id": p.ID},
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 

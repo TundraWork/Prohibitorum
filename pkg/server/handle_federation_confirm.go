@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
@@ -120,6 +121,19 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 		writeAuthErr(w, err)
 		return
 	}
+	accountID := grant.AccountID
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &accountID,
+		Factor:    audit.FactorFederationOIDC,
+		Event:     audit.EventUse,
+		Detail:    map[string]any{"reason": "confirm", "idp_id": grant.IDPID},
+	})
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &accountID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventSessionStart,
+		Detail:    map[string]any{"via": "federation"},
+	})
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, grant.AccountID, sess, s.config.SessionTTL))
 	writeJSON(w, map[string]string{"redirect": grant.ReturnTo})
 }
@@ -129,8 +143,20 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 // grant (best-effort single-use consume) and clear the cookie. No session.
 func (s *Server) handleFederationConfirmDecline(w http.ResponseWriter, r *http.Request) {
 	token, anti := splitConfirmCookie(cookieValue(r, sessstore.FedStateCookieName))
-	_, _ = s.federator.PopConfirmGrant(r.Context(), token, anti) // best-effort consume
+	grant, _ := s.federator.PopConfirmGrant(r.Context(), token, anti) // best-effort consume
 	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
+	// Emit the decline audit even on an invalid/missing grant (best-effort).
+	var accountID *int32
+	if grant != nil {
+		id := grant.AccountID
+		accountID = &id
+	}
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: accountID,
+		Factor:    audit.FactorFederationOIDC,
+		Event:     audit.EventFail,
+		Detail:    map[string]any{"reason": "confirm_declined"},
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 

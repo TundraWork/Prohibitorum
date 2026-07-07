@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	acctpkg "prohibitorum/pkg/account"
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/enrollment"
@@ -194,6 +195,11 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		// Allowing the WebAuthn enrollment path here would silently override the
 		// admin's "must federate via this IdP" policy. Audit finding M1-int.
 		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				Factor: audit.FactorEnrollment,
+				Event:  audit.EventFail,
+				Detail: map[string]any{"reason": "federation_required"},
+			})
 			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
 			return
 		}
@@ -265,6 +271,12 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		// the holder could wipe its credentials + plant a fresh passkey (T1.2).
 		// Every other credential path re-checks Disabled; mirror it here.
 		if a.Disabled {
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &a.ID,
+				Factor:    audit.FactorEnrollment,
+				Event:     audit.EventFail,
+				Detail:    map[string]any{"reason": "account_disabled"},
+			})
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
@@ -355,7 +367,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	}
 
 	var (
-		acct  db.Account
+		acct   db.Account
 		credID int32
 	)
 
@@ -405,6 +417,13 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		// already-consumed enrollment so the invitee can retry via the
 		// correct /enrollments/{token}/start-federation entrypoint.
 		if consumed.ExpectedUpstreamIdpSlug.Valid && consumed.ExpectedUpstreamIdpSlug.String != "" {
+			// Use the outer writer: this error rolls back the tx, so a
+			// tx-scoped audit row would disappear with it.
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				Factor: audit.FactorEnrollment,
+				Event:  audit.EventFail,
+				Detail: map[string]any{"reason": "federation_required"},
+			})
 			writeAuthErr(w, authn.ErrEnrollmentFederationRequired())
 			return
 		}
@@ -471,6 +490,14 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		// Refuse to complete a reset against a disabled account (T1.2): the token
 		// is consumed here, so check before the destructive credential wipe.
 		if a.Disabled {
+			// Use the outer writer: this error rolls back the tx, so a
+			// tx-scoped audit row would disappear with it.
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &a.ID,
+				Factor:    audit.FactorEnrollment,
+				Event:     audit.EventFail,
+				Detail:    map[string]any{"reason": "account_disabled"},
+			})
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
@@ -514,6 +541,16 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		"client_ip":  s.clientIP.IP(r),
 	}).Info("auth")
 
+	// Emit enrollment_consumed AFTER commit: the account row is now visible on all
+	// connections so the credential_event.account_id FK resolves. Outer s.Audit is
+	// correct here — not a tx-scoped writer — because the tx has already committed.
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &acct.ID,
+		Factor:    audit.FactorEnrollment,
+		Event:     audit.EventEnrollmentConsumed,
+		Detail:    map[string]any{"intent": string(consumed.Intent)},
+	})
+
 	// Post-commit cleanup (best-effort).
 	_ = s.kvStore.Del(r.Context(), enrollCeremonyKey(token))
 	if consumed.Intent == enrollment.IntentReset {
@@ -531,6 +568,12 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, fmt.Errorf("enrollment/complete: session issue: %w", err))
 		return
 	}
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &acct.ID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventSessionStart,
+		Detail:    map[string]any{"via": "enrollment"},
+	})
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, sessionToken, s.config.SessionTTL))
 
 	// Capture the new credential's id so the FE can offer a "name your passkey"
@@ -569,7 +612,7 @@ func insertCredentialForTx(q db.Querier, ctx context.Context, accountID int32, u
 		PublicKey:       cred.PublicKey,
 		CoseAlg:         webauthnauth.COSEAlg(cred.PublicKey),
 		UserHandle:      userHandle,
-		SignCount:        int64(cred.Authenticator.SignCount),
+		SignCount:       int64(cred.Authenticator.SignCount),
 		Transports:      transports,
 		Aaguid:          cred.Authenticator.AAGUID,
 		AttestationType: attType,
