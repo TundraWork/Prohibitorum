@@ -1116,3 +1116,53 @@ func TestSSOPostDoctypeRejected(t *testing.T) {
 		t.Errorf("rejected request must not issue a SAMLResponse; body=%s", body)
 	}
 }
+
+// TestSSOReplayAuditRecord verifies that a replayed AuthnRequest (second
+// presentation of the same request ID) emits a saml_sp|fail audit record with
+// reason=replayed_request and the SP entity ID, in addition to redirecting to
+// the /error page. The session account ID is included because the replay check
+// runs AFTER the authenticated session gate.
+func TestSSOReplayAuditRecord(t *testing.T) {
+	h := newSSOHarness(t, ssoSP())
+	acct := testAccount()
+
+	// First issue — consumes the replay key.
+	req1 := h.request(t, "_sso-replay-audit", liveSession(acct))
+	h.idp.HandleSSO(httptest.NewRecorder(), req1)
+
+	// Clear the audit log so we only see what the replay trip emits.
+	h.auditW.mu.Lock()
+	h.auditW.records = nil
+	h.auditW.mu.Unlock()
+
+	// Re-present the same request ID with a fresh (authenticated) session.
+	req2 := h.request(t, "_sso-replay-audit", liveSession(acct))
+	rec2 := httptest.NewRecorder()
+	h.idp.HandleSSO(rec2, req2)
+
+	if rec2.Code != http.StatusFound {
+		t.Fatalf("replay status = %d, want 302 /error; body=%s", rec2.Code, rec2.Body.String())
+	}
+	if loc := rec2.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_replayed&ref=") {
+		t.Fatalf("replay Location = %q, want /error?error=saml_replayed prefix", loc)
+	}
+
+	// A saml_sp|fail audit record must be emitted for the replay.
+	recs := h.auditW.all()
+	if len(recs) != 1 {
+		t.Fatalf("audit records = %d on replay, want 1", len(recs))
+	}
+	rec := recs[0]
+	if rec.Factor != audit.FactorSAMLSP || rec.Event != audit.EventFail {
+		t.Errorf("audit factor/event = %q/%q, want %q/%q", rec.Factor, rec.Event, audit.FactorSAMLSP, audit.EventFail)
+	}
+	if rec.AccountID == nil || *rec.AccountID != acct.ID {
+		t.Errorf("audit AccountID = %v, want %d", rec.AccountID, acct.ID)
+	}
+	if got := rec.Detail["reason"]; got != "replayed_request" {
+		t.Errorf("audit detail reason = %v, want replayed_request", got)
+	}
+	if got := rec.Detail["sp"]; got != testSPEntityID {
+		t.Errorf("audit detail sp = %v, want %q", got, testSPEntityID)
+	}
+}

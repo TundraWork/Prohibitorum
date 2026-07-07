@@ -299,6 +299,25 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// SP must send a fresh AuthnRequest, which is acceptable.)
 	if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
 		if errors.Is(cerr, ErrReplayedRequest) {
+			// Emit a saml_sp|fail audit record: the SP is known (resolved above),
+			// so this is attributable. The session exists at this point (past the
+			// session gate), so include the account ID.
+			var replayAcctID *int32
+			if sess != nil && sess.Data != nil {
+				aid := sess.Data.AccountID
+				replayAcctID = &aid
+			}
+			_ = i.audit.Record(ctx, audit.Record{
+				AccountID: replayAcctID,
+				Factor:    audit.FactorSAMLSP,
+				Event:     audit.EventFail,
+				IP:        audit.ParseIPOrNil(i.auditIP(r)),
+				UserAgent: r.UserAgent(),
+				Detail: map[string]any{
+					"reason": "replayed_request",
+					"sp":     sp.EntityID,
+				},
+			})
 			i.errorPage(w, r, "saml_replayed")
 		} else {
 			i.errorPage(w, r, "server_error")

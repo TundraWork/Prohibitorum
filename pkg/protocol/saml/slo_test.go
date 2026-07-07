@@ -598,8 +598,68 @@ func TestSLOBadSignatureLeavesSessionUntouched(t *testing.T) {
 	if del := h.q.deletedRows(); len(del) != 0 {
 		t.Errorf("deleted rows = %v on bad signature, want none", del)
 	}
-	if recs := h.auditW.all(); len(recs) != 0 {
-		t.Errorf("audit records = %d on bad signature, want 0", len(recs))
+
+	// A saml_sp|fail audit record must be emitted: the SP entity ID is resolved
+	// before the signature gate, so the failure is attributable.
+	recs := h.auditW.all()
+	if len(recs) != 1 {
+		t.Fatalf("audit records = %d on bad signature, want 1", len(recs))
+	}
+	ar := recs[0]
+	if ar.Factor != audit.FactorSAMLSP || ar.Event != audit.EventFail {
+		t.Errorf("audit factor/event = %q/%q, want %q/%q", ar.Factor, ar.Event, audit.FactorSAMLSP, audit.EventFail)
+	}
+	if ar.AccountID != nil {
+		t.Errorf("audit AccountID = %v, want nil (no session lookup before sig gate)", ar.AccountID)
+	}
+	if got := ar.Detail["reason"]; got != "bad_signature" {
+		t.Errorf("audit detail reason = %v, want bad_signature", got)
+	}
+	if got := ar.Detail["sp"]; got != testSPEntityID {
+		t.Errorf("audit detail sp = %v, want %q", got, testSPEntityID)
+	}
+}
+
+// TestSLOMissingSignatureAuditRecord verifies that an absent SLO signature on a
+// KNOWN SP emits a saml_sp|fail audit record with reason=missing_signature.
+func TestSLOMissingSignatureAuditRecord(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-nosig-audit"
+	_ = h.seedSession(t, 42, nameID, "")
+
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:          "_slo-nosig-audit",
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        false, // no signature
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/error?error=saml_request_invalid&ref=") {
+		t.Fatalf("Location = %q, want /error?error=saml_request_invalid prefix", loc)
+	}
+
+	// Missing-signature on a known SP must emit saml_sp|fail with reason=missing_signature.
+	recs := h.auditW.all()
+	if len(recs) != 1 {
+		t.Fatalf("audit records = %d on absent signature, want 1", len(recs))
+	}
+	ar := recs[0]
+	if ar.Factor != audit.FactorSAMLSP || ar.Event != audit.EventFail {
+		t.Errorf("audit factor/event = %q/%q, want %q/%q", ar.Factor, ar.Event, audit.FactorSAMLSP, audit.EventFail)
+	}
+	if ar.AccountID != nil {
+		t.Errorf("audit AccountID = %v, want nil", ar.AccountID)
+	}
+	if got := ar.Detail["reason"]; got != "missing_signature" {
+		t.Errorf("audit detail reason = %v, want missing_signature", got)
+	}
+	if got := ar.Detail["sp"]; got != testSPEntityID {
+		t.Errorf("audit detail sp = %v, want %q", got, testSPEntityID)
 	}
 }
 

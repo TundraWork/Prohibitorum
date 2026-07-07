@@ -114,11 +114,13 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		// and verifies against the SP's "signing" certs. Absent signature →
 		// ErrMissingSignature.
 		if verr := i.verifyRedirectSignature(ctx, r, sp); verr != nil {
+			i.sloEmitSigFail(ctx, r, sp.EntityID, verr)
 			i.sloParseError(w, r, verr)
 			return
 		}
 	case crewjam.HTTPPostBinding:
 		if verr := i.verifyPostLogoutSignature(ctx, reqEl, sp); verr != nil {
+			i.sloEmitSigFail(ctx, r, sp.EntityID, verr)
 			i.sloParseError(w, r, verr)
 			return
 		}
@@ -544,6 +546,39 @@ func (i *IdP) writeRedirectLogoutResponse(w http.ResponseWriter, r *http.Request
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, location+sep+signedQuery, http.StatusFound)
+}
+
+// sloEmitSigFail emits a saml_sp|fail audit record for a signature failure on a
+// KNOWN SP. It is called from HandleSLO AFTER the SP is resolved (so the entity
+// ID is attributable) but BEFORE session mutation. The AccountID is nil because
+// the SLO signature gate runs before any session lookup — a failed signature
+// means we never discover which account owns the session.
+//
+// sigErr is inspected to derive a stable reason code; unrecognised errors
+// default to "bad_signature" rather than leaking internal details.
+func (i *IdP) sloEmitSigFail(ctx context.Context, r *http.Request, spEntityID string, sigErr error) {
+	reason := "bad_signature"
+	switch {
+	case errors.Is(sigErr, ErrMissingSignature),
+		errors.Is(sigErr, errNoSignature):
+		reason = "missing_signature"
+	case errors.Is(sigErr, errWeakSigAlg),
+		errors.Is(sigErr, errBadSigAlg):
+		reason = "weak_sig_alg"
+	case errors.Is(sigErr, errSigRefMismatch):
+		reason = "sig_ref_mismatch"
+	}
+	_ = i.audit.Record(ctx, audit.Record{
+		AccountID: nil,
+		Factor:    audit.FactorSAMLSP,
+		Event:     audit.EventFail,
+		IP:        audit.ParseIPOrNil(i.auditIP(r)),
+		UserAgent: r.UserAgent(),
+		Detail: map[string]any{
+			"reason": reason,
+			"sp":     spEntityID,
+		},
+	})
 }
 
 // sloParseError maps an SLO parse/validation/signature error to a browser-
