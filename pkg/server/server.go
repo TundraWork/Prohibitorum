@@ -193,6 +193,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	clientIPResolver := clientip.NewResolver(clientip.NewPGStore(conn))
 
 	router := chi.NewMux()
+	router.Use(requestMetaMW(clientIPResolver.IP))
 	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
 	router.Use(maintenanceGateMW(brandingResolver))
 	api := humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0"))

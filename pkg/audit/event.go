@@ -35,16 +35,19 @@ const (
 	FactorGroup Factor = "group"
 	// FactorPAT covers personal-access-token create/revoke.
 	FactorPAT Factor = "personal_access_token"
+	// FactorSettings covers instance-settings / branding / client-IP mutations
+	// (previously mis-filed under FactorSigningKey).
+	FactorSettings Factor = "settings"
 )
 
 const (
-	EventRegister         = "register"
-	EventUse              = "use"
-	EventFail             = "fail"
-	EventRevoke           = "revoke"
-	EventCloneWarning     = "clone_warning"
-	EventLink             = "link"
-	EventUnlink           = "unlink"
+	EventRegister           = "register"
+	EventUse                = "use"
+	EventFail               = "fail"
+	EventRevoke             = "revoke"
+	EventCloneWarning       = "clone_warning"
+	EventLink               = "link"
+	EventUnlink             = "unlink"
 	EventEnrollmentIssued   = "enrollment_issued"
 	EventEnrollmentConsumed = "enrollment_consumed"
 	EventSessionStart       = "session_start"
@@ -63,6 +66,9 @@ const (
 	EventAccessRevoked       = "access_revoked"
 	EventAccessRestrictedSet = "access_restricted_set"
 	EventAccessDenied        = "access_denied"
+
+	EventSudoGranted = "sudo_granted"
+	EventSudoFailed  = "sudo_failed"
 )
 
 type Record struct {
@@ -86,6 +92,18 @@ func NewWriter(q db.Querier) Writer {
 type dbWriter struct{ q db.Querier }
 
 func (w *dbWriter) Record(ctx context.Context, r Record) error {
+	// Enrich from request ctx when the call site didn't set these explicitly.
+	// The RequestMeta middleware stashes them for every HTTP request; detached
+	// goroutines (context.Background) carry none, which is correct.
+	if r.IP == nil {
+		if ip := ipFromCtx(ctx); ip != "" {
+			r.IP = ParseIPOrNil(ip)
+		}
+	}
+	if r.UserAgent == "" {
+		r.UserAgent = uaFromCtx(ctx)
+	}
+
 	var detail []byte
 	if r.Detail != nil {
 		b, err := json.Marshal(r.Detail)
