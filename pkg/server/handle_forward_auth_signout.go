@@ -12,6 +12,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/logx"
 	oidc "prohibitorum/pkg/protocol/oidc"
 	sessstore "prohibitorum/pkg/session"
@@ -28,6 +29,12 @@ func (s *Server) handleForwardAuthSSOLogoutHTTP(w http.ResponseWriter, r *http.R
 				"client_ip":  s.clientIP.IP(r),
 				"via":        "forward_auth",
 			}).Info("auth")
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &id,
+				Factor:    audit.FactorSession,
+				Event:     audit.EventSessionEnd,
+				Detail:    map[string]any{"reason": "forward_auth_signout"},
+			})
 		}
 	}
 	http.SetCookie(w, sessstore.ClearedSessionCookie(s.config, r))

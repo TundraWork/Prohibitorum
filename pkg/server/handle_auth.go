@@ -410,6 +410,12 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		CredentialRef: successCredRef,
 		Detail:        map[string]any{"reason": "login"},
 	})
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &successAccountID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventSessionStart,
+		Detail:    map[string]any{"via": "webauthn"},
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(contract.LoginResult{
@@ -428,6 +434,12 @@ func (s *Server) handleLogoutHTTP(w http.ResponseWriter, r *http.Request) {
 				"account_id": id,
 				"client_ip":  s.clientIP.IP(r),
 			}).Info("auth")
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &id,
+				Factor:    audit.FactorSession,
+				Event:     audit.EventSessionEnd,
+				Detail:    map[string]any{"reason": "logout"},
+			})
 		}
 	}
 	http.SetCookie(w, sessstore.ClearedSessionCookie(s.config, r))

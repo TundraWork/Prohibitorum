@@ -33,6 +33,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/password"
@@ -316,6 +317,12 @@ func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request
 		return
 	}
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, accountID, token, s.config.SessionTTL))
+	_ = s.Audit.Record(r.Context(), audit.Record{
+		AccountID: &accountID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventSessionStart,
+		Detail:    map[string]any{"via": "password_totp"},
+	})
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(contract.LoginResult{
 		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
