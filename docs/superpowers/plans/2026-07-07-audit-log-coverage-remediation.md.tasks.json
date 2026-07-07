@@ -1,0 +1,103 @@
+{
+  "planPath": "docs/superpowers/plans/2026-07-07-audit-log-coverage-remediation.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: ctx-carried IP/UA seam + audit vocabulary + middleware",
+      "status": "pending",
+      "description": "Foundation: audit.WithRequestMeta + ctx-aware dbWriter.Record fill (explicit wins), requestMetaMW mounted before LoadSession, new consts FactorSettings/EventSudoGranted/EventSudoFailed. Files: pkg/audit/reqmeta.go(+test), pkg/audit/event.go, pkg/server/middleware_reqmeta.go, pkg/server/server.go.\n\n```json:metadata\n{\"files\": [\"pkg/audit/reqmeta.go\", \"pkg/audit/reqmeta_test.go\", \"pkg/audit/event.go\", \"pkg/server/middleware_reqmeta.go\", \"pkg/server/server.go\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go test ./pkg/audit/\", \"acceptanceCriteria\": [\"WithRequestMeta + ctx-aware Record fill (explicit wins)\", \"requestMetaMW before LoadSession\", \"FactorSettings/EventSudoGranted/EventSudoFailed\", \"unit tests pass\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: propagate new factor/event values to audit-viewer filters",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Add settings/sudo/session/enrollment_consumed/clone_warning to dashboard/src/lib/audit.ts AUDIT_FACTORS/AUDIT_EVENTS; confirm no server-side allowlist in handle_admin_audit.go.\n\n```json:metadata\n{\"files\": [\"dashboard/src/lib/audit.ts\"], \"verifyCommand\": \"cd dashboard && npx vitest run && npx vue-tsc -b\", \"acceptanceCriteria\": [\"AUDIT_FACTORS has settings\", \"AUDIT_EVENTS has sudo_granted/sudo_failed/session_start/session_end/enrollment_consumed/clone_warning\", \"no server allowlist blocks them\", \"vitest+vue-tsc green\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: forward-auth/PAT gateway — audit failures & denials",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "forward_auth.go: personal_access_token|fail on bad/disabled/not-granted PAT; oidc_client|access_denied on RBAC deny (PAT + cookie paths); oidc_client|fail on callback failures. No success emission.\n\n```json:metadata\n{\"files\": [\"pkg/protocol/oidc/forward_auth.go\", \"pkg/protocol/oidc/forward_auth_test.go\"], \"verifyCommand\": \"go test ./pkg/protocol/oidc/ -run ForwardAuth\", \"acceptanceCriteria\": [\"PAT fail records\", \"RBAC access_denied PAT+cookie\", \"callback fail records\", \"no success emission\", \"test passes\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: WebAuthn login — use/fail/clone_warning records",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "handle_auth.go: webauthn|use on login success; webauthn|fail on each failure branch; webauthn|clone_warning on sign-count regression. (session_start/end for this file = Task 8.)\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_auth.go\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go test ./pkg/server/ -run 'Login|Auth'\", \"acceptanceCriteria\": [\"webauthn|use success\", \"webauthn|fail all branches\", \"webauthn|clone_warning\", \"builds+tests\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: OIDC token/refresh/revoke — failure audits + attribution",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "token.go/refresh.go/revoke.go/logout.go: oidc_client|fail on token-endpoint rejections; refresh fail + refresh_reuse AccountID (from rotateRefresh); revoke AccountID; logout EventUse→EventSessionEnd.\n\n```json:metadata\n{\"files\": [\"pkg/protocol/oidc/token.go\", \"pkg/protocol/oidc/refresh.go\", \"pkg/protocol/oidc/revoke.go\", \"pkg/protocol/oidc/logout.go\"], \"verifyCommand\": \"go test ./pkg/protocol/oidc/\", \"acceptanceCriteria\": [\"token fail records\", \"refresh fail + reuse AccountID\", \"revoke AccountID\", \"logout session_end\", \"tests pass\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: SAML — replay & signature failure audits",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "sso.go/slo.go: saml_sp|fail on replayed AuthnRequest + signature/parse failures when SP is resolved. AccountID may be nil.\n\n```json:metadata\n{\"files\": [\"pkg/protocol/saml/sso.go\", \"pkg/protocol/saml/slo.go\"], \"verifyCommand\": \"go test ./pkg/protocol/saml/\", \"acceptanceCriteria\": [\"replay fail record\", \"signature-fail-on-known-SP records\", \"no record when SP unresolved\", \"tests pass\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: sudo — grant reshape + fail + clone_warning",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "handle_sudo.go: grant = verified factor + EventSudoGranted + {method}; EventSudoFailed on fail paths; webauthn|clone_warning on sudo clone.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_sudo.go\"], \"verifyCommand\": \"go test ./pkg/server/ -run Sudo\", \"acceptanceCriteria\": [\"grant verified-factor + EventSudoGranted\", \"EventSudoFailed on fails\", \"clone_warning\", \"test passes\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: session lifecycle — session_start / session_end",
+      "status": "pending",
+      "blockedBy": [1, 4],
+      "description": "session|session_start in handle_auth.go/handle_auth_password.go/handle_auth_recovery.go after Issue; session|session_end on handle_auth.go logout + handle_forward_auth_signout.go. (enrollment/pairing/confirm session_start = Task 11.)\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_auth.go\", \"pkg/server/handle_auth_password.go\", \"pkg/server/handle_auth_recovery.go\", \"pkg/server/handle_forward_auth_signout.go\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go test ./pkg/server/ -run 'Login|Logout|Recovery'\", \"acceptanceCriteria\": [\"session_start at 3 login handlers\", \"session_end at logout+signout\", \"builds+tests\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: self-service /me — credential/profile/consent/avatar",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "handle_me.go/handle_me_consent.go/handle_avatar.go: passkey register/revoke/update; session_end on self-revoke; consent access_revoked; account|update for avatar+displayName.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_me.go\", \"pkg/server/handle_me_consent.go\", \"pkg/server/handle_avatar.go\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go test ./pkg/server/ -run 'Me|Avatar|Consent'\", \"acceptanceCriteria\": [\"passkey register/revoke/update\", \"session_end self-revoke\", \"consent access_revoked\", \"account|update avatar+displayName\", \"builds+tests\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: admin account — cred-delete, session-revoke, displayName, enrollment factor",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "handle_account.go: admin cred-delete record; admin single-session revoke session_end; displayName in changes diff; enrollment_issued FactorAccount→FactorEnrollment.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_account.go\"], \"verifyCommand\": \"go test ./pkg/server/ -run Account\", \"acceptanceCriteria\": [\"admin cred-delete record\", \"admin single-session session_end\", \"displayName in diff\", \"enrollment under FactorEnrollment\", \"test passes\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: enrollment/pairing/federation-confirm lifecycle",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "handle_enrollment.go/handle_pairing.go/handle_federation_confirm.go: enrollment consumed+fail+session_start; pairing lifecycle+session_start; welcome confirm use/session_start + decline fail. tx-writer rule for enrollment.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_enrollment.go\", \"pkg/server/handle_pairing.go\", \"pkg/server/handle_federation_confirm.go\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go test ./pkg/server/ -run 'Enroll|Pair|Confirm'\", \"acceptanceCriteria\": [\"enrollment consumed+fail+session_start\", \"pairing lifecycle+session_start\", \"welcome confirm+decline\", \"tx-writer respected\", \"builds+tests\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: FactorSettings reclassification",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "handle_admin_settings.go auditBranding + handle_admin_client_ip.go: file 7 settings/branding/client-ip mutations under FactorSettings not FactorSigningKey.\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_admin_settings.go\", \"pkg/server/handle_admin_client_ip.go\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go test ./pkg/server/ -run 'Settings|Branding|Maintenance|ClientIP'\", \"acceptanceCriteria\": [\"auditBranding uses FactorSettings\", \"7 mutations factor=settings\", \"no signing_key misfile\", \"tests pass\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: attribution & detail-quality fixes",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "handle_me_identities.go (unlink detail idp_slug/iss/sub), handle_admin_groups.go (group-delete slug), handle_admin_account_tokens.go (admin PAT-revoke target_account_id).\n\n```json:metadata\n{\"files\": [\"pkg/server/handle_me_identities.go\", \"pkg/server/handle_admin_groups.go\", \"pkg/server/handle_admin_account_tokens.go\"], \"verifyCommand\": \"go test ./pkg/server/ -run 'Identit|Group|Token'\", \"acceptanceCriteria\": [\"unlink idp_slug/iss/sub\", \"group-delete slug\", \"admin PAT-revoke target_account_id\", \"tests pass\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: smoke coverage + full gate + dist",
+      "status": "pending",
+      "blockedBy": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+      "description": "Extend smoke verify*AuditEvents + assertAuditDetailNoSecret for new events (login use/fail, session_start/end, gateway fail/deny, sudo grant/fail, settings factor, consent access_revoked); full gate; rebuild+commit dist.\n\n```json:metadata\n{\"files\": [\"cmd/smoke/main.go\", \"pkg/webui/dist\"], \"verifyCommand\": \"go build -tags nodynamic ./... && go vet ./... && go test ./... && (cd dashboard && npx vitest run && npx vue-tsc -b && node scripts/check-contrast.mjs)\", \"acceptanceCriteria\": [\"smoke asserts new events\", \"assertAuditDetailNoSecret extended\", \"full gate green\", \"live smoke SMOKE_EXIT=0\", \"dist rebuilt+committed\"], \"modelTier\": \"standard\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-07-07T00:00:00Z"
+}
