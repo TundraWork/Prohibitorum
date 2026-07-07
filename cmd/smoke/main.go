@@ -4847,8 +4847,27 @@ func main() {
 		}
 	}
 
+	// =========================================================================
+	// audit-log-remediation coverage: assert the new credential_event rows
+	// introduced by Tasks 1–13 are actually present in the DB, and that the
+	// ctx-carried IP seam (Task 1) is wired end-to-end.
+	//
+	// Pre-condition: c holds a live admin session (verified throughout the
+	// preceding arcs; the GET /audit-events endpoint is admin-only).
+	// =========================================================================
+
+	step("audit-remediation 1/2 — DB assert: new event types present (webauthn:use, session:session_start/end, settings:update, PAT)")
+	if err := verifyNewAuditEvents(me2.ID); err != nil {
+		log.Fatalf("audit-remediation new events DB assert: %v", err)
+	}
+
+	step("audit-remediation 2/2 — API assert: GET /audit-events?factor=session&event=session_start has non-empty ip (ctx seam wired)")
+	if err := verifyAuditIPPopulated(c); err != nil {
+		log.Fatalf("audit-remediation IP assert: %v", err)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + DB-state assertions passed against",
 		*baseURL)
 }
 
@@ -6004,9 +6023,12 @@ func verifyCoreAuditEvents(accountID int32) error {
 		// + final destructive revoke. Lower bound 9 keeps us safe against
 		// minor reordering.
 		{"recovery_code:revoke", 9},
-		// session:sudo_granted: pre-pwd-set (webauthn), pwd_totp, pre-revoke
-		// (webauthn). Recovery_code is no longer a sudo method.
-		{"session:sudo_granted", 3},
+		// sudo_granted is now filed under the factor of the verified credential
+		// (Task 7 reshape). The smoke drives webauthn sudo 3× (pre-pwd-set,
+		// pre-add-passkey, pre-revoke) and password_totp sudo 1× (core 43).
+		// password_totp → FactorTOTP; webauthn → FactorWebAuthn.
+		{"webauthn:sudo_granted", 3},
+		{"totp:sudo_granted", 1},
 	}
 	for _, w := range want {
 		if counts[w.key] < w.min {
@@ -6903,6 +6925,7 @@ type contractAuditEvent struct {
 	ID     int64          `json:"id"`
 	Factor string         `json:"factor"`
 	Event  string         `json:"event"`
+	IP     string         `json:"ip,omitempty"`
 	Detail map[string]any `json:"detail"`
 }
 
@@ -7608,17 +7631,20 @@ func verifyRevokedJTI(jti string) error {
 
 // verifyOIDCAuditEvents asserts credential_event has lower-bound counts for
 // the oidc_client factor across this smoke run. The audit `event` column holds
-// the abstract verb (use/fail/revoke); the concrete reason lives in
+// the abstract verb (use/fail/revoke/session_end); the concrete reason lives in
 // detail->>'reason'. We assert on (event, reason) pairs so a regression that
 // drops a specific audit (e.g. refresh_reuse) is caught.
 //
 // Expected reasons emitted by the handlers:
-//   - use/authorize        — every /oauth/authorize success (≥5: steps 72,79,80,82,83 + reruns)
-//   - use/token_issued     — every authorization_code grant (≥4: steps 73,79,80 + the negatives consume a code but the bad-secret/PKCE-mismatch ones FAIL before token_issued)
-//   - use/refresh_rotated  — the successful refresh (oidc 7) ≥1
-//   - use/logout           — RP-initiated logout (oidc 15) ≥1
-//   - fail/refresh_reuse   — the reuse replay (oidc 8) ≥1
-//   - revoke/revoked       — /oauth/revoke (steps 79 refresh + 80 access) ≥2
+//   - use/authorize          — every /oauth/authorize success (≥5)
+//   - use/token_issued       — every authorization_code grant (≥3)
+//   - use/refresh_rotated    — the successful refresh (oidc 7) ≥1
+//   - session_end/logout     — RP-initiated logout (oidc 15) ≥1; Task 8 moved
+//     RP-initiated logout from use/logout → session_end/logout (factor stays
+//     oidc_client, event is now session_end to mirror the session lifecycle
+//     pattern used by all other logout paths).
+//   - fail/refresh_reuse     — the reuse replay (oidc 8) ≥1
+//   - revoke/revoked         — /oauth/revoke (steps 79 refresh + 80 access) ≥2
 func verifyOIDCAuditEvents() error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
@@ -7648,7 +7674,9 @@ func verifyOIDCAuditEvents() error {
 		{"use:authorize", 5},
 		{"use:token_issued", 3},
 		{"use:refresh_rotated", 1},
-		{"use:logout", 1},
+		// Task 8: RP-initiated logout moved from use/logout → session_end/logout.
+		// The factor stays oidc_client; only the event verb changed.
+		{"session_end:logout", 1},
 		{"fail:refresh_reuse", 1},
 		{"revoke:revoked", 2},
 	}
@@ -7660,4 +7688,131 @@ func verifyOIDCAuditEvents() error {
 	}
 	log.Printf("  credential_event covers OIDC OP lifecycle (counts=%v)", counts)
 	return nil
+}
+
+// verifyNewAuditEvents checks that the new event types introduced by the
+// audit-log-remediation branch (Tasks 1–13) are now present in
+// credential_event. Each assertion is a lower bound; the smoke drives enough
+// actions to guarantee at least that many rows.
+//
+// Covers:
+//   - webauthn:use             — every login/complete writes one (≥5 in this run)
+//   - session:session_start    — written at login for every auth method (≥5)
+//   - session:session_end      — written at logout (≥5 logouts during the run)
+//   - webauthn:sudo_granted    — duplicate of the core assert; here for clarity
+//   - settings:update          — maintenance enable/disable + client-ip + bg (≥5)
+//   - personal_access_token:register — PAT create (≥2: per-app + all-apps)
+//   - personal_access_token:revoke   — admin revoke (≥1)
+//   - personal_access_token:fail     — bogus Bearer + non-granted app + revoked (≥3)
+func verifyNewAuditEvents(accountID int32) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+
+	// webauthn:use, session:session_start/end, webauthn:sudo_granted are all
+	// scoped to the smoke-admin account. personal_access_token and settings
+	// may not have account_id (admin PAT operations are attributed to the
+	// admin; settings mutations are also attributed to the admin account).
+	perAccountRows, err := dbScalar(dburl, fmt.Sprintf(
+		"SELECT factor || ':' || event || ':' || count(*)::text "+
+			"FROM credential_event WHERE account_id=%d GROUP BY factor, event ORDER BY 1",
+		accountID))
+	if err != nil {
+		return fmt.Errorf("verifyNewAuditEvents perAccount: %w", err)
+	}
+	perAccount := map[string]int{}
+	for _, row := range perAccountRows {
+		parts := strings.SplitN(row, ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		n, _ := strconv.Atoi(parts[2])
+		perAccount[parts[0]+":"+parts[1]] = n
+	}
+
+	// Global counts for factors not always bound to an account.
+	globalRows, err := dbScalar(dburl,
+		"SELECT factor || ':' || event || ':' || count(*)::text "+
+			"FROM credential_event GROUP BY factor, event ORDER BY 1")
+	if err != nil {
+		return fmt.Errorf("verifyNewAuditEvents global: %w", err)
+	}
+	global := map[string]int{}
+	for _, row := range globalRows {
+		parts := strings.SplitN(row, ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		n, _ := strconv.Atoi(parts[2])
+		global[parts[0]+":"+parts[1]] = n
+	}
+
+	type check struct {
+		key string
+		min int
+		m   map[string]int
+	}
+	checks := []check{
+		// Task 4 — WebAuthn login use records.
+		{"webauthn:use", 5, perAccount},
+		// Task 8 — session lifecycle records (session_start on every login,
+		// session_end on every logout; both are high-frequency in this run).
+		{"session:session_start", 5, perAccount},
+		{"session:session_end", 5, perAccount},
+		// Task 7 — sudo_granted now filed under the credential factor.
+		{"webauthn:sudo_granted", 3, perAccount},
+		// Task 12 — instance-settings mutations under FactorSettings.
+		// maintenance enable + disable (2) + client-ip PUT×2 + bg upload + delete (2) = ≥5.
+		{"settings:update", 5, global},
+		// Task 3 — PAT create/revoke/fail records.
+		{"personal_access_token:register", 2, perAccount},
+		{"personal_access_token:revoke", 1, global},
+		{"personal_access_token:fail", 3, global},
+	}
+	for _, ch := range checks {
+		if ch.m[ch.key] < ch.min {
+			return fmt.Errorf("verifyNewAuditEvents %s: want >=%d, got %d (perAccount=%v global=%v)",
+				ch.key, ch.min, ch.m[ch.key], perAccount, global)
+		}
+	}
+	log.Printf("  new audit events present: webauthn:use=%d session_start=%d session_end=%d "+
+		"webauthn:sudo_granted=%d settings:update=%d pat:register=%d pat:revoke=%d pat:fail=%d",
+		perAccount["webauthn:use"],
+		perAccount["session:session_start"],
+		perAccount["session:session_end"],
+		perAccount["webauthn:sudo_granted"],
+		global["settings:update"],
+		perAccount["personal_access_token:register"],
+		global["personal_access_token:revoke"],
+		global["personal_access_token:fail"],
+	)
+	return nil
+}
+
+// verifyAuditIPPopulated uses the admin /audit-events API to assert that at
+// least one recently emitted credential_event carries a non-empty ip field.
+// This proves the ctx-carried IP seam (Task 1) is wired all the way through
+// from the HTTP middleware to the audit record.
+//
+// We fetch session:session_start events (every login sets one via the HTTP
+// request context, so they are always IP-bearing) and assert at least one has
+// a non-empty ip value. The smoke runs against localhost so the IP will be
+// a loopback address; the assertion is presence, not value.
+func verifyAuditIPPopulated(c *client) error {
+	var events []contractAuditEvent
+	if err := c.get("/api/prohibitorum/audit-events?factor=session&event=session_start&limit=20", &events); err != nil {
+		return fmt.Errorf("GET /audit-events?factor=session&event=session_start: %w", err)
+	}
+	if len(events) == 0 {
+		return errors.New("verifyAuditIPPopulated: no session:session_start events returned — new session_start emission not wired?")
+	}
+	for _, e := range events {
+		if e.IP != "" {
+			log.Printf("  audit IP populated: session:session_start event id=%d ip=%s ✓", e.ID, e.IP)
+			return nil
+		}
+	}
+	return fmt.Errorf("verifyAuditIPPopulated: %d session:session_start events but all have empty ip (ctx seam not wired?)",
+		len(events))
 }
