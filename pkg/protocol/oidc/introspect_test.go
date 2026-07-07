@@ -182,11 +182,11 @@ func TestIntrospectSupersededRefreshTokenInactive(t *testing.T) {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
-	_, rt1, rotated, err := rotateRefresh(ctx, h.p.kv, rt0, RefreshTokenTTL)
+	_, rt1, rotated, _, err := rotateRefresh(ctx, h.p.kv, rt0, RefreshTokenTTL)
 	if err != nil || !rotated {
 		t.Fatalf("rotate rt0->rt1: rotated=%v err=%v", rotated, err)
 	}
-	_, rt2, rotated, err := rotateRefresh(ctx, h.p.kv, rt1, RefreshTokenTTL)
+	_, rt2, rotated, _, err := rotateRefresh(ctx, h.p.kv, rt1, RefreshTokenTTL)
 	if err != nil || !rotated {
 		t.Fatalf("rotate rt1->rt2: rotated=%v err=%v", rotated, err)
 	}

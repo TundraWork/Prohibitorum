@@ -118,7 +118,7 @@ func (p *Provider) auditLogout(ctx context.Context, r *http.Request, accountID i
 	_ = p.audit.Record(ctx, audit.Record{
 		AccountID: &id,
 		Factor:    audit.FactorOIDCClient,
-		Event:     audit.EventUse,
+		Event:     audit.EventSessionEnd,
 		IP:        audit.ParseIPOrNil(p.auditIP(r)),
 		UserAgent: r.UserAgent(),
 		Detail: map[string]any{

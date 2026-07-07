@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/session"
 )
@@ -22,7 +23,7 @@ type fakeSessionQueries struct{}
 func (fakeSessionQueries) InsertSession(context.Context, db.InsertSessionParams) (db.Session, error) {
 	return db.Session{}, nil
 }
-func (fakeSessionQueries) RevokeSession(context.Context, string) error            { return nil }
+func (fakeSessionQueries) RevokeSession(context.Context, string) error             { return nil }
 func (fakeSessionQueries) RevokeAllSessionsByAccount(context.Context, int32) error { return nil }
 
 // withSessions attaches a real SessionStore (over the harness's in-memory KV)
@@ -121,11 +122,14 @@ func TestLogoutValidHintRevokesAndRedirects(t *testing.T) {
 		t.Fatal("session should have been revoked")
 	}
 
-	// logout audited under oidc_client / use.
+	// logout audited under oidc_client / session_end.
 	var found bool
 	for _, rrec := range h.audit.records {
 		if rrec.Detail["reason"] == "logout" {
 			found = true
+			if rrec.Event != audit.EventSessionEnd {
+				t.Fatalf("logout audit Event = %q, want %q", rrec.Event, audit.EventSessionEnd)
+			}
 		}
 	}
 	if !found {

@@ -32,6 +32,18 @@ func (h *endpointHarness) sawRevokedAudit(tokenType string) bool {
 	return false
 }
 
+// revokedAuditAccountID returns the AccountID from the revoke audit record for
+// the given tokenType, or nil if no such record was found.
+func (h *endpointHarness) revokedAuditAccountID(tokenType string) *int32 {
+	for _, r := range h.audit.records {
+		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventRevoke &&
+			r.Detail["token_type"] == tokenType {
+			return r.AccountID
+		}
+	}
+	return nil
+}
+
 func TestRevokeAccessToken(t *testing.T) {
 	h := newEndpointHarness(t)
 	at := h.mintAccessToken(t, testSubject, testClientID, "openid", "jti-r1", time.Now().Add(time.Hour))
@@ -178,5 +190,50 @@ func TestRevokeBadClientAuth(t *testing.T) {
 	}
 	if got := decodeError(t, rec); got != errCodeInvalidClient {
 		t.Fatalf("error = %q, want %q", got, errCodeInvalidClient)
+	}
+}
+
+// TestRevokeAccessTokenCarriesAccountID verifies that revoking an access token
+// produces an audit record attributed to the token's subject account (id 7).
+func TestRevokeAccessTokenCarriesAccountID(t *testing.T) {
+	h := newEndpointHarness(t)
+	at := h.mintAccessToken(t, testSubject, testClientID, "openid", "jti-aid1", time.Now().Add(time.Hour))
+
+	rec := httptest.NewRecorder()
+	h.p.HandleRevoke(rec, revokeReq(at))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	acctID := h.revokedAuditAccountID("access_token")
+	if acctID == nil || *acctID != 7 {
+		t.Fatalf("access_token revoke AccountID = %v, want 7", acctID)
+	}
+}
+
+// TestRevokeRefreshTokenCarriesAccountID verifies that revoking a refresh token
+// produces an audit record attributed to the family's AccountID (7).
+func TestRevokeRefreshTokenCarriesAccountID(t *testing.T) {
+	h := newEndpointHarness(t)
+	ctx := context.Background()
+
+	rt, _, err := issueRefresh(ctx, h.p.kv, refreshFamily{
+		ClientID:  testClientID,
+		AccountID: 7,
+		Scope:     []string{"openid", "offline_access"},
+	}, RefreshTokenTTL)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleRevoke(rec, revokeReq(rt))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	acctID := h.revokedAuditAccountID("refresh_token")
+	if acctID == nil || *acctID != 7 {
+		t.Fatalf("refresh_token revoke AccountID = %v, want 7", acctID)
 	}
 }

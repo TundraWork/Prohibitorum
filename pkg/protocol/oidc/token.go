@@ -95,6 +95,9 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Every client load/auth failure collapses to invalid_client (401) per
 		// RFC 6749 §5.2; do not distinguish unknown client from bad secret.
+		p.auditTokenEvent(r.Context(), r, audit.EventFail, nil, map[string]any{
+			"reason": "client_auth_failed",
+		})
 		writeInvalidClient(w, r, "client authentication failed")
 		return
 	}
@@ -104,6 +107,10 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 		if ra := p.rl.RetryAfter(rlKey); ra > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 		}
+		p.auditTokenEvent(r.Context(), r, audit.EventFail, nil, map[string]any{
+			"reason":    "rate_limited",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusTooManyRequests, errCodeTemporarilyUnavailable, "rate limit exceeded")
 		return
 	}
@@ -154,12 +161,22 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 	// Bind the code to the authenticated client (RFC 6749 §4.1.3): a code
 	// minted for one client must not be redeemable by another.
 	if ac.ClientID != client.ClientID {
+		acID := ac.AccountID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acID, map[string]any{
+			"reason":    "code_client_mismatch",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "client mismatch")
 		return
 	}
 
 	// redirect_uri MUST match the one used at /authorize (RFC 6749 §4.1.3).
 	if r.PostForm.Get("redirect_uri") != ac.RedirectURI {
+		acID := ac.AccountID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acID, map[string]any{
+			"reason":    "redirect_uri_mismatch",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "redirect_uri mismatch")
 		return
 	}
@@ -174,6 +191,11 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 	// non-empty challenge so a legitimate no-PKCE code (no challenge, empty
 	// method) is not caught here.
 	if ac.CodeChallenge != "" && (ac.CodeChallengeMethod == "plain" || ac.CodeChallengeMethod == "") {
+		acID := ac.AccountID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acID, map[string]any{
+			"reason":    "pkce_method_unsupported",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "unsupported PKCE method")
 		return
 	}
@@ -187,6 +209,11 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 	// out — exactly the case that must exchange without a verifier.
 	if ac.CodeChallenge != "" {
 		if !verifyPKCE(r.PostForm.Get("code_verifier"), ac.CodeChallenge) {
+			acID := ac.AccountID
+			p.auditTokenEvent(ctx, r, audit.EventFail, &acID, map[string]any{
+				"reason":    "pkce_failed",
+				"client_id": client.ClientID,
+			})
 			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "PKCE verification failed")
 			return
 		}
@@ -194,10 +221,20 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 
 	acct, err := p.queries.GetAccountByID(ctx, ac.AccountID)
 	if err != nil {
+		acID := ac.AccountID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acID, map[string]any{
+			"reason":    "account_unavailable",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account not found")
 		return
 	}
 	if acct.Disabled {
+		acID := acct.ID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acID, map[string]any{
+			"reason":    "account_unavailable",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
 		return
 	}
@@ -210,6 +247,11 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 	// Guarded on a non-empty SessionID so any non-session-bound code is unaffected.
 	if ac.SessionID != "" {
 		if _, serr := p.queries.GetSession(ctx, ac.SessionID); serr != nil {
+			acID := acct.ID
+			p.auditTokenEvent(ctx, r, audit.EventFail, &acID, map[string]any{
+				"reason":    "session_revoked",
+				"client_id": client.ClientID,
+			})
 			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "originating session is no longer valid")
 			return
 		}

@@ -48,7 +48,18 @@ func (p *Provider) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 				ExpiresAt: pgtype.Timestamptz{Time: time.Unix(int64(expf), 0), Valid: true},
 				Reason:    pgtype.Text{String: "revoke", Valid: true},
 			})
-			p.auditRevoked(ctx, r, client.ClientID, "access_token")
+			// Resolve the AccountID from the sub claim for attribution.
+			var acctID *int32
+			if sub, _ := claims["sub"].(string); sub != "" {
+				var u pgtype.UUID
+				if scanErr := u.Scan(sub); scanErr == nil {
+					if acct, qErr := p.queries.GetAccountByOIDCSubject(ctx, u); qErr == nil {
+						id := acct.ID
+						acctID = &id
+					}
+				}
+			}
+			p.auditRevoked(ctx, r, client.ClientID, "access_token", acctID)
 		}
 		// If the token doesn't belong to the caller, do nothing — still 200.
 		w.WriteHeader(http.StatusOK)
@@ -58,7 +69,8 @@ func (p *Provider) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 	// Not a live access token: try it as a refresh token.
 	if fam, ok := lookupRefresh(ctx, p.kv, token); ok && fam.ClientID == client.ClientID {
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
-		p.auditRevoked(ctx, r, client.ClientID, "refresh_token")
+		famAcctID := fam.AccountID
+		p.auditRevoked(ctx, r, client.ClientID, "refresh_token", &famAcctID)
 	}
 
 	// Unknown / invalid / not-owned: RFC 7009 — still 200.
@@ -66,9 +78,11 @@ func (p *Provider) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 }
 
 // auditRevoked records a best-effort revoke audit event under the oidc_client
-// factor, mirroring auditTokenEvent's convention.
-func (p *Provider) auditRevoked(ctx context.Context, r *http.Request, clientID, tokenType string) {
+// factor, mirroring auditTokenEvent's convention. accountID may be nil when
+// the revoking actor's account cannot be determined (e.g. a garbage token).
+func (p *Provider) auditRevoked(ctx context.Context, r *http.Request, clientID, tokenType string, accountID *int32) {
 	_ = p.audit.Record(ctx, audit.Record{
+		AccountID: accountID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRevoke,
 		IP:        audit.ParseIPOrNil(p.auditIP(r)),

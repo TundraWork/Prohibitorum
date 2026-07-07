@@ -579,6 +579,69 @@ func TestTokenBadClientSecret(t *testing.T) {
 	}
 }
 
+// TestTokenClientAuthFailAudited verifies that a client-authentication failure
+// on the token endpoint emits an oidc_client|fail record with reason
+// "client_auth_failed".
+func TestTokenClientAuthFailAudited(t *testing.T) {
+	h := newTokenHarness(t)
+	code := h.mintTestCode(t, baseAuthCode())
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token",
+		strings.NewReader(codeExchangeForm(code, testVerifier, testRedirect).Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(testClientID, "wrong-secret") // bad credentials
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", rec.Code)
+	}
+
+	var sawFail bool
+	for _, r := range h.audit.records {
+		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventFail &&
+			r.Detail["reason"] == "client_auth_failed" {
+			sawFail = true
+		}
+	}
+	if !sawFail {
+		t.Fatal("expected a client_auth_failed audit record")
+	}
+}
+
+// TestTokenPKCEFailAudited verifies that a PKCE verification failure on the
+// token endpoint emits an oidc_client|fail record with reason "pkce_failed"
+// and carries the code's AccountID for attribution.
+func TestTokenPKCEFailAudited(t *testing.T) {
+	h := newTokenHarness(t)
+	code := h.mintTestCode(t, baseAuthCode())
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(codeExchangeForm(code, "wrong-verifier", testRedirect)))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+
+	var sawFail bool
+	for _, r := range h.audit.records {
+		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventFail &&
+			r.Detail["reason"] == "pkce_failed" {
+			sawFail = true
+			if r.AccountID == nil || *r.AccountID != 42 {
+				t.Fatalf("pkce_failed AccountID = %v, want 42", r.AccountID)
+			}
+			if r.Detail["client_id"] != testClientID {
+				t.Fatalf("pkce_failed client_id = %v, want %s", r.Detail["client_id"], testClientID)
+			}
+		}
+	}
+	if !sawFail {
+		t.Fatal("expected a pkce_failed audit record")
+	}
+}
+
 // TestTokenEmptyPublicOriginsNoPanic asserts that a provider configured with
 // PublicOrigins: nil (a valid operator configuration — only the data-encryption
 // key is hard-required) does not panic at token exchange and instead falls back

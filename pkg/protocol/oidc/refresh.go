@@ -173,50 +173,53 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl ti
 //     idempotent replay: return the already-rotated CurrentToken (caller
 //     re-mints access/ID tokens). No second mint.
 //   - presented != CurrentToken (and not valid-previous) → superseded/stolen
-//     → revoke family, errRefreshReuse.
+//     → revoke family, errRefreshReuse. reuseAccountID carries the family's
+//     AccountID so the caller can attribute the refresh_reuse audit record.
 //   - presented == CurrentToken → mint newToken, record PreviousToken=presented,
 //     PreviousValidUntil, set CurrentToken=newToken, persist.
 //
 // rotated reports whether this call performed a real rotation (true) vs served
 // an idempotent replay (false) — the caller uses it to pick the audit reason.
-func rotateRefresh(ctx context.Context, store kv.Store, presented string, ttl time.Duration) (fam *refreshFamily, newToken string, rotated bool, err error) {
+// reuseAccountID is non-zero only when errRefreshReuse is returned.
+func rotateRefresh(ctx context.Context, store kv.Store, presented string, ttl time.Duration) (fam *refreshFamily, newToken string, rotated bool, reuseAccountID int32, err error) {
 	got, lockErr := store.SetNX(ctx, refreshLockKey(presented), "1", refreshIdempotencyWindow)
 	if lockErr != nil {
-		return nil, "", false, lockErr // fail closed: no rotation, no revoke
+		return nil, "", false, 0, lockErr // fail closed: no rotation, no revoke
 	}
 	if !got {
-		return nil, "", false, errRotationInProgress
+		return nil, "", false, 0, errRotationInProgress
 	}
 	defer func() { _ = store.Del(ctx, refreshLockKey(presented)) }()
 
 	fam, err = loadFamily(ctx, store, presented)
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, 0, err
 	}
 
 	now := time.Now().UTC()
 	if presented == fam.PreviousToken && now.Before(fam.PreviousValidUntil) {
-		return fam, fam.CurrentToken, false, nil
+		return fam, fam.CurrentToken, false, 0, nil
 	}
 
 	if presented != fam.CurrentToken {
+		accountID := fam.AccountID
 		if delErr := store.Del(ctx, refreshFamilyKey(fam.FamilyID)); delErr != nil {
-			return nil, "", false, delErr
+			return nil, "", false, 0, delErr
 		}
-		return nil, "", false, errRefreshReuse
+		return nil, "", false, accountID, errRefreshReuse
 	}
 
 	minted, err := randToken()
 	if err != nil {
-		return nil, "", false, fmt.Errorf("oidc: generate refresh token: %w", err)
+		return nil, "", false, 0, fmt.Errorf("oidc: generate refresh token: %w", err)
 	}
 	fam.PreviousToken = presented
 	fam.PreviousValidUntil = now.Add(refreshIdempotencyWindow)
 	fam.CurrentToken = minted
 	if err := putFamily(ctx, store, fam, ttl); err != nil {
-		return nil, "", false, err
+		return nil, "", false, 0, err
 	}
-	return fam, minted, true, nil
+	return fam, minted, true, 0, nil
 }
 
 // lookupRefresh resolves a presented token to its family WITHOUT mutating
@@ -265,7 +268,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	ctx := r.Context()
 	presented := r.PostForm.Get("refresh_token")
 
-	fam, newToken, rotated, err := rotateRefresh(ctx, p.kv, presented, p.refreshTokenTTL())
+	fam, newToken, rotated, reuseAccountID, err := rotateRefresh(ctx, p.kv, presented, p.refreshTokenTTL())
 	if errors.Is(err, errRotationInProgress) {
 		p.auditTokenEvent(ctx, r, audit.EventFail, nil, map[string]any{
 			"reason":    "refresh_rotation_in_progress",
@@ -275,7 +278,11 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 	if errors.Is(err, errRefreshReuse) {
-		p.auditTokenEvent(ctx, r, audit.EventFail, nil, map[string]any{
+		var acctPtr *int32
+		if reuseAccountID != 0 {
+			acctPtr = &reuseAccountID
+		}
+		p.auditTokenEvent(ctx, r, audit.EventFail, acctPtr, map[string]any{
 			"reason":    "refresh_reuse",
 			"client_id": client.ClientID,
 		})
@@ -293,6 +300,11 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	// as an attack) before refusing.
 	if fam.ClientID != client.ClientID {
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+		famAcctID := fam.AccountID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &famAcctID, map[string]any{
+			"reason":    "code_client_mismatch",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "client mismatch")
 		return
 	}
@@ -302,11 +314,21 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	acct, err := p.queries.GetAccountByID(ctx, fam.AccountID)
 	if err != nil {
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+		famAcctID := fam.AccountID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &famAcctID, map[string]any{
+			"reason":    "account_unavailable",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account not found")
 		return
 	}
 	if acct.Disabled {
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+		acctID := acct.ID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acctID, map[string]any{
+			"reason":    "account_unavailable",
+			"client_id": client.ClientID,
+		})
 		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
 		return
 	}
