@@ -657,10 +657,11 @@ func TestSudoComplete_PasswordTOTPSuccess(t *testing.T) {
 		t.Errorf("SudoUntil not stamped: %v (now=%v)", current.SudoUntil, time.Now())
 	}
 
-	// Audit event should be present with method=password_totp.
+	// Audit event should be present: factor=totp (the verified elevator),
+	// event=sudo_granted, detail.method=password_totp.
 	found := false
 	for _, ev := range f.events {
-		if ev.Factor == "session" && ev.Event == "sudo_granted" {
+		if ev.Factor == string(audit.FactorTOTP) && ev.Event == audit.EventSudoGranted {
 			var detail map[string]any
 			_ = json.Unmarshal(ev.Detail, &detail)
 			if detail["method"] == "password_totp" {
@@ -670,12 +671,53 @@ func TestSudoComplete_PasswordTOTPSuccess(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("audit: missing sudo_granted event with method=password_totp; events=%+v", f.events)
+		t.Errorf("audit: missing sudo_granted(totp) event with method=password_totp; events=%+v", f.events)
 	}
 
 	// Intent should have been cleared.
 	if _, err := s.kvStore.Get(context.Background(), sudoIntentKey(sess.Data.SessionID)); err == nil {
 		t.Error("intent should be cleared on success")
+	}
+}
+
+// TestSudoComplete_PasswordTOTPSuccessAuditFactor verifies that the grant
+// record carries Factor=totp (not "session") and Event=sudo_granted.
+// The success path is already covered by TestSudoComplete_PasswordTOTPSuccess;
+// this test isolates the factor/event shape.
+func TestSudoComplete_PasswordTOTPFailAudit(t *testing.T) {
+	s, f, dek := newSudoTestServer(t)
+	const accountID int32 = 42
+	seedPassword(t, s, accountID, "correct-horse")
+	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
+	_, sess := issueSudoTestSession(t, s, accountID)
+	stashIntent(t, s, sess.Data.SessionID, "password_totp")
+
+	// Send wrong password — should produce a sudo_failed audit record.
+	at := time.Now().Add(31 * time.Second)
+	code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, *f.totpRow, accountID), at.Unix(), 6)
+	body := fmt.Sprintf(`{"current_password":"wrong","totp_code":%q}`, code)
+	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/sudo/complete", body)
+	w := httptest.NewRecorder()
+	s.handleSudoCompleteHTTP(w, r)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	// Expect a sudo_failed audit record with factor=password.
+	found := false
+	for _, ev := range f.events {
+		if ev.Factor == string(audit.FactorPassword) && ev.Event == audit.EventSudoFailed {
+			var detail map[string]any
+			_ = json.Unmarshal(ev.Detail, &detail)
+			if detail["reason"] == "bad_credentials" && detail["method"] == "password_totp" {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		t.Errorf("audit: missing sudo_failed(password) event; events=%+v", f.events)
 	}
 }
 

@@ -219,11 +219,29 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 	// intent already TTL-expired.
 	intentRaw, err := s.kvStore.Pop(r.Context(), sudoIntentKey(sess.Data.SessionID))
 	if err != nil {
+		accountID := sess.Account.ID
+		if s.Audit != nil {
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorSession,
+				Event:     audit.EventSudoFailed,
+				Detail:    map[string]any{"reason": "ceremony_expired"},
+			})
+		}
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
 	}
 	var intent sudoIntent
 	if err := json.Unmarshal([]byte(intentRaw), &intent); err != nil {
+		accountID := sess.Account.ID
+		if s.Audit != nil {
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorSession,
+				Event:     audit.EventSudoFailed,
+				Detail:    map[string]any{"reason": "ceremony_state"},
+			})
+		}
 		writeAuthErr(w, authn.ErrCeremonyState())
 		return
 	}
@@ -266,6 +284,15 @@ func (s *Server) completeSudoWebAuthn(w http.ResponseWriter, r *http.Request, se
 	wu := &webauthnauth.WebAuthnAccount{Account: sess.Account, Credentials: creds}
 	credential, err := s.webauthn.FinishLogin(wu, sessionData, r)
 	if err != nil {
+		accountID := sess.Account.ID
+		if s.Audit != nil {
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorWebAuthn,
+				Event:     audit.EventSudoFailed,
+				Detail:    map[string]any{"reason": "finish_login_failed", "method": string(authn.MethodWebAuthn)},
+			})
+		}
 		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
 		return
 	}
@@ -285,6 +312,15 @@ func (s *Server) completeSudoWebAuthn(w http.ResponseWriter, r *http.Request, se
 					"old_count":     c.SignCount,
 					"new_count":     newCount,
 				}).Warn("auth")
+				accountID := sess.Account.ID
+				if s.Audit != nil {
+					_ = s.Audit.Record(r.Context(), audit.Record{
+						AccountID: &accountID,
+						Factor:    audit.FactorWebAuthn,
+						Event:     audit.EventCloneWarning,
+						Detail:    map[string]any{"reason": "clone_warning"},
+					})
+				}
 				break
 			}
 		}
@@ -319,6 +355,15 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 		}
 		// Sentinel collapse: ErrPasswordIncorrect / ErrPasswordNotSet →
 		// generic 401 so /complete doesn't leak which factor missed.
+		accountID := sess.Account.ID
+		if s.Audit != nil {
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorPassword,
+				Event:     audit.EventSudoFailed,
+				Detail:    map[string]any{"reason": "bad_credentials", "method": string(authn.MethodPasswordTOTP)},
+			})
+		}
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
@@ -327,6 +372,15 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 		if ae := authn.AsAuthError(err); ae != nil {
 			writeAuthErr(w, ae)
 			return
+		}
+		accountID := sess.Account.ID
+		if s.Audit != nil {
+			_ = s.Audit.Record(r.Context(), audit.Record{
+				AccountID: &accountID,
+				Factor:    audit.FactorTOTP,
+				Event:     audit.EventSudoFailed,
+				Detail:    map[string]any{"reason": "bad_credentials", "method": string(authn.MethodPasswordTOTP)},
+			})
 		}
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
@@ -366,12 +420,11 @@ func (s *Server) applySudoGrant(ctx context.Context, w http.ResponseWriter, r *h
 
 	if s.Audit != nil {
 		accountID := sess.Account.ID
+		factor := sudoMethodFactor(method)
 		_ = s.Audit.Record(ctx, audit.Record{
 			AccountID: &accountID,
-			Factor:    audit.FactorSession,
-			Event:     "sudo_granted",
-			IP:        audit.ParseIPOrNil(s.clientIP.IP(r)),
-			UserAgent: r.UserAgent(),
+			Factor:    factor,
+			Event:     audit.EventSudoGranted,
 			Detail:    map[string]any{"method": method},
 		})
 	}
@@ -397,6 +450,21 @@ func (s *Server) stampSudoUntil(w http.ResponseWriter, r *http.Request, sess *au
 
 func sudoStashKey(sessionID string) string {
 	return "webauthn_ceremony:sudo:" + sessionID
+}
+
+// sudoMethodFactor maps the sudo method name to the audit factor that best
+// represents the verified credential. "webauthn" → FactorWebAuthn;
+// "password_totp" → FactorTOTP (the second, time-bound factor is the
+// elevator — password alone is insufficient). Fallback: FactorSession.
+func sudoMethodFactor(method string) audit.Factor {
+	switch method {
+	case string(authn.MethodWebAuthn):
+		return audit.FactorWebAuthn
+	case string(authn.MethodPasswordTOTP):
+		return audit.FactorTOTP
+	default:
+		return audit.FactorSession
+	}
 }
 
 // hasFreshSudo reports whether the session is currently elevated. Two ways
