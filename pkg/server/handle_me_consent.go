@@ -127,7 +127,7 @@ func (s *Server) handleRevokeMyConsent(ctx context.Context, in *revokeConsentIn)
 			factor = audit.FactorOIDCClient
 			detail = map[string]any{"client_id": in.Body.ClientID, "kind": "oidc"}
 		}
-		_ = s.Audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.Audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    factor,
 			Event:     audit.EventAccessRevoked,

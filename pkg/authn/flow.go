@@ -130,20 +130,18 @@ func DisableNonWebAuthnFallbacks(ctx context.Context, q FlowQueries, w audit.Wri
 	if err := q.DeletePasswordCredential(ctx, accountID); err != nil {
 		return fmt.Errorf("DisableNonWebAuthnFallbacks: delete password: %w", err)
 	}
-	if w != nil {
-		// Audit emission mirrors the delete order so the credential_event
-		// log narrates the revocation in the same sequence the rows fell.
-		for _, factor := range []audit.Factor{
-			audit.FactorRecoveryCode,
-			audit.FactorTOTP,
-			audit.FactorPassword,
-		} {
-			_ = w.Record(ctx, audit.Record{
-				AccountID: &accountID,
-				Factor:    factor,
-				Event:     audit.EventRevoke,
-			})
-		}
+	// Audit emission mirrors the delete order so the credential_event
+	// log narrates the revocation in the same sequence the rows fell.
+	for _, factor := range []audit.Factor{
+		audit.FactorRecoveryCode,
+		audit.FactorTOTP,
+		audit.FactorPassword,
+	} {
+		audit.RecordOrLog(ctx, w, audit.Record{
+			AccountID: &accountID,
+			Factor:    factor,
+			Event:     audit.EventRevoke,
+		})
 	}
 	return nil
 }

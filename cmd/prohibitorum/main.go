@@ -1144,14 +1144,38 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	root.AddCommand(upstreamCmd)
 }
 
-// fetchMetadata fetches SP metadata XML over HTTP(S) with a timeout, capping
-// the response body at 1 MiB.
-func fetchMetadata(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// metadataMaxBytes caps a CLI metadata fetch response body at 1 MiB, matching
+// the original --metadata-url fetch bound. It is passed to the shared hardened
+// outbound client so the CLI reuses one policy (dial screen, redirect scheme,
+// hop cap) without inventing a divergent size limit.
+const metadataMaxBytes = 1 << 20 // 1 MiB
+
+// fetchMetadata fetches SP metadata XML from an operator-supplied --metadata-url.
+// It reuses the single hardened outbound client/policy from pkg/federation/oidc
+// (dial-time resolved-IP screen, per-hop redirect scheme + hop-cap, overall
+// timeout) so the CLI does not introduce a second, divergent HTTP security
+// policy. The URL must be an absolute https:// URL with a domain host and no
+// userinfo/IP literal; redirects to HTTP or internal addresses are refused; the
+// response body is capped at metadataMaxBytes; the caller's context governs
+// cancellation.
+func fetchMetadata(ctx context.Context, rawURL string) ([]byte, error) {
+	if err := fedoidc.ValidateOutboundURL(rawURL); err != nil {
+		return nil, err
+	}
+	return fetchMetadataWithClient(ctx, rawURL, fedoidc.NewOutboundHTTPClient(false, metadataMaxBytes))
+}
+
+// fetchMetadataWithClient is the testable seam for fetchMetadata: it runs the
+// request through the given hardened client (which supplies the dial screen,
+// redirect scheme/hop policy, and size cap) and validates the response status.
+// Production callers use fetchMetadata (which validates the URL first and
+// builds the production hardened client); tests pass a loopback-trusting
+// client to reach an httptest server while still exercising the shared policy.
+func fetchMetadataWithClient(ctx context.Context, rawURL string, client *http.Client) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1160,7 +1184,9 @@ func fetchMetadata(ctx context.Context, url string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("metadata url returned status %d", resp.StatusCode)
 	}
-	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	// The hardened client's transport already caps the body at metadataMaxBytes;
+	// the LimitReader is a belt-and-suspenders bound at the same 1 MiB limit.
+	return io.ReadAll(io.LimitReader(resp.Body, metadataMaxBytes+1))
 }
 
 // addGroupCommands registers the `group` command group:

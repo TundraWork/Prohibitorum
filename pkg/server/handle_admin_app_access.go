@@ -2,18 +2,19 @@
 //
 // Admin app-access endpoints for OIDC clients and SAML SPs:
 //   GET  /oidc-applications/{clientId}/access          — read access state (admin, no sudo)
-//   POST /oidc-applications/{clientId}/access/set-restricted — toggle access_restricted (admin + sudo)
-//   POST /oidc-applications/{clientId}/access/grant    — grant group/account access (admin + sudo)
-//   POST /oidc-applications/{clientId}/access/revoke   — revoke group/account access (admin + sudo)
+//   POST /oidc-applications/{clientId}/access/set-restricted — toggle access_restricted (admin, no sudo)
+//   POST /oidc-applications/{clientId}/access/grant    — grant group/account access (admin, no sudo)
+//   POST /oidc-applications/{clientId}/access/revoke   — revoke group/account access (admin, no sudo)
 //
 //   GET  /saml-applications/{id}/access                — read access state (admin, no sudo)
-//   POST /saml-applications/{id}/access/set-restricted — toggle access_restricted (admin + sudo)
-//   POST /saml-applications/{id}/access/grant          — grant group/account access (admin + sudo)
-//   POST /saml-applications/{id}/access/revoke         — revoke group/account access (admin + sudo)
+//   POST /saml-applications/{id}/access/set-restricted — toggle access_restricted (admin, no sudo)
+//   POST /saml-applications/{id}/access/grant          — grant group/account access (admin, no sudo)
+//   POST /saml-applications/{id}/access/revoke         — revoke group/account access (admin, no sudo)
 //
-// Mutations are registered via s.registerSudoOpHTTP — the sudo gate, content-type
-// check, and body-size limit are all enforced by the wrapper; handlers must NOT
-// call requireFreshSudo themselves.
+// Mutations are registered via s.registerAdminBodyOpHTTP — content-type check
+// and body-size limit are enforced by the wrapper (no sudo gate; access
+// grants/restrictions are reversible per api.md). Handlers must NOT call
+// requireFreshSudo themselves.
 
 package server
 
@@ -126,7 +127,7 @@ func (s *Server) handleSetOIDCClientAccessRestrictedHTTP(w http.ResponseWriter, 
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventAccessRestrictedSet,
@@ -180,7 +181,7 @@ func (s *Server) handleGrantOIDCClientAccessHTTP(w http.ResponseWriter, r *http.
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventAccessGranted,
@@ -238,7 +239,7 @@ func (s *Server) handleRevokeOIDCClientAccessHTTP(w http.ResponseWriter, r *http
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventAccessRevoked,
@@ -330,7 +331,7 @@ func (s *Server) handleSetSAMLSPAccessRestrictedHTTP(w http.ResponseWriter, r *h
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventAccessRestrictedSet,
@@ -391,7 +392,7 @@ func (s *Server) handleGrantSAMLSPAccessHTTP(w http.ResponseWriter, r *http.Requ
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventAccessGranted,
@@ -453,7 +454,7 @@ func (s *Server) handleRevokeSAMLSPAccessHTTP(w http.ResponseWriter, r *http.Req
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventAccessRevoked,

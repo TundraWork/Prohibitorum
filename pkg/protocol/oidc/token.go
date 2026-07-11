@@ -373,7 +373,7 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 // auditTokenEvent records a token-endpoint audit event (best-effort) under the
 // oidc_client factor, mirroring authorize.go's convention.
 func (p *Provider) auditTokenEvent(ctx context.Context, r *http.Request, event string, accountID *int32, detail map[string]any) {
-	_ = p.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, p.audit, audit.Record{
 		AccountID: accountID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     event,

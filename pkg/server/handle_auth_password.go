@@ -317,7 +317,7 @@ func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request
 		return
 	}
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, accountID, token, s.config.SessionTTL))
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorSession,
 		Event:     audit.EventSessionStart,

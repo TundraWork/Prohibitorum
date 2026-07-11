@@ -220,7 +220,7 @@ func (s *Server) handleAuthRecoveryTOTPVerifyHTTP(w http.ResponseWriter, r *http
 	}
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, acct.ID, token, s.config.SessionTTL))
 	recoveryAccountID := acct.ID
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &recoveryAccountID,
 		Factor:    audit.FactorSession,
 		Event:     audit.EventSessionStart,

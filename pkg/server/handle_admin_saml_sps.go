@@ -3,18 +3,19 @@
 // Admin SAML application endpoints:
 //   GET  /saml-applications              — list all SPs (admin role, no sudo)
 //   GET  /saml-applications/{id}         — get one SP with ACS + key summaries (admin role, no sudo)
-//   POST /saml-applications              — create SP + ACS + keys in one tx (admin + sudo)
-//   PUT  /saml-applications/{id}         — update mutable SP flags/fields (admin + sudo)
-//   POST /saml-applications/{id}/reingest-metadata — replace ACS + keys from fresh metadata (admin + sudo)
-//   POST /saml-applications/delete       — hard-delete SP + children in one tx (admin + sudo)
+//   POST /saml-applications              — create SP + ACS + keys in one tx (admin, no sudo)
+//   PUT  /saml-applications/{id}         — update mutable SP flags/fields (admin, no sudo)
+//   POST /saml-applications/{id}/reingest-metadata — replace ACS + keys from fresh metadata (admin, no sudo)
+//   POST /saml-applications/delete       — hard-delete SP + children in one tx (admin, no sudo)
 //
 // Raw certificate PEM is NEVER returned — callers get SAMLKeyView{Use, NotAfter}
 // summaries only. SPs have only public certificates (signing certs from metadata)
 // so there is no private-key material to protect, but we keep the boundary clean.
 //
-// Mutations are registered via s.registerSudoOpHTTP, so the sudo gate,
-// content-type check, and body-size limit are all enforced by the wrapper —
-// handlers must NOT call requireFreshSudo themselves.
+// Mutations are registered via s.registerAdminBodyOpHTTP — content-type check
+// and body-size limit are enforced by the wrapper (no sudo gate; SAML CRUD is
+// reversible and lower-impact per api.md). Handlers must NOT call
+// requireFreshSudo themselves.
 //
 // Create and reingest use saml.BuildSPParams (the same ingest path as the CLI)
 // and execute their inserts inside a single pgx transaction.
@@ -272,7 +273,7 @@ func (s *Server) handleCreateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventRegister,
@@ -362,7 +363,7 @@ func (s *Server) handleUpdateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventUpdate,
@@ -479,7 +480,7 @@ func (s *Server) handleReingestSAMLApplicationHTTP(w http.ResponseWriter, r *htt
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventUpdate,
@@ -542,7 +543,7 @@ func (s *Server) handleDeleteSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventRevoke,
@@ -592,7 +593,7 @@ func (s *Server) handleSetSAMLApplicationDisabledHTTP(w http.ResponseWriter, r *
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventUpdate,

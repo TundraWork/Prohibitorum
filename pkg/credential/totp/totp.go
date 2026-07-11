@@ -192,7 +192,7 @@ func (s *Store) begin(ctx context.Context, accountID int32, username string, wip
 	// revokes — investigators can't see when a batch was wiped. Best-effort
 	// emit: a record failure does not block re-enrollment.
 	if oldRow, gerr := s.q.GetTOTPCredential(ctx, accountID); gerr == nil && oldRow.ConfirmedAt.Valid {
-		_ = s.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorTOTP,
 			Event:     audit.EventRevoke,
@@ -202,7 +202,7 @@ func (s *Store) begin(ctx context.Context, accountID int32, username string, wip
 	if wipeRecovery {
 		if existing, lerr := s.q.ListRecoveryCodesByAccount(ctx, accountID); lerr == nil {
 			for range existing {
-				_ = s.audit.Record(ctx, audit.Record{
+				audit.RecordOrLog(ctx, s.audit, audit.Record{
 					AccountID: &accountID,
 					Factor:    audit.FactorRecoveryCode,
 					Event:     audit.EventRevoke,
@@ -287,7 +287,7 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 		// ErrTOTPCorrupt so the HTTP layer can return a generic
 		// bad-credentials response without leaking "cipher: message
 		// authentication failed" or similar AES-GCM diagnostics.
-		_ = s.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorTOTP,
 			Event:     audit.EventFail,
@@ -308,7 +308,7 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 	}
 	if matchedStep < 0 {
 		_, _ = s.throttle.RegisterFailure(ctx, accountID, "totp")
-		_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorTOTP, Event: audit.EventFail})
+		audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorTOTP, Event: audit.EventFail})
 		return nil, ErrTOTPInvalidCode
 	}
 	// RFC 6238 §5.2: a code accepted at step T may not be accepted again at
@@ -316,7 +316,7 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 	// we surface the replay error here before mutating audit state.
 	if matchedStep <= row.LastStep {
 		_, _ = s.throttle.RegisterFailure(ctx, accountID, "totp")
-		_ = s.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorTOTP,
 			Event:     audit.EventFail,
@@ -336,7 +336,7 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 	}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			_, _ = s.throttle.RegisterFailure(ctx, accountID, "totp")
-			_ = s.audit.Record(ctx, audit.Record{
+			audit.RecordOrLog(ctx, s.audit, audit.Record{
 				AccountID: &accountID,
 				Factor:    audit.FactorTOTP,
 				Event:     audit.EventFail,
@@ -347,7 +347,7 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 		return nil, fmt.Errorf("totp.Verify: update last_step: %w", err)
 	}
 	_ = s.throttle.Reset(ctx, accountID, "totp")
-	_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorTOTP, Event: audit.EventUse})
+	audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorTOTP, Event: audit.EventUse})
 
 	if !row.ConfirmedAt.Valid {
 		// Atomic confirm + recovery-code mint (audit Medium #2). Prior
@@ -407,7 +407,7 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 			// see one revoke per code with reason=recovery_complete,
 			// followed by the totp/register + 10 fresh registers.
 			for i := 0; i < wipedCount; i++ {
-				_ = s.audit.Record(ctx, audit.Record{
+				audit.RecordOrLog(ctx, s.audit, audit.Record{
 					AccountID: &accountID,
 					Factor:    audit.FactorRecoveryCode,
 					Event:     audit.EventRevoke,
@@ -415,13 +415,13 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 				})
 			}
 		}
-		_ = s.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorTOTP,
 			Event:     audit.EventRegister,
 		})
 		for range codes {
-			_ = s.audit.Record(ctx, audit.Record{
+			audit.RecordOrLog(ctx, s.audit, audit.Record{
 				AccountID: &accountID,
 				Factor:    audit.FactorRecoveryCode,
 				Event:     audit.EventRegister,
@@ -439,7 +439,7 @@ func (s *Store) VerifyRecoveryCode(ctx context.Context, accountID int32, code, s
 	normalized := normalizeRecoveryCode(code)
 	if len(normalized) != recoveryCodeLen {
 		_, _ = s.throttle.RegisterFailure(ctx, accountID, "recovery_code")
-		_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventFail})
+		audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventFail})
 		return ErrRecoveryCodeInvalid
 	}
 
@@ -463,12 +463,12 @@ func (s *Store) VerifyRecoveryCode(ctx context.Context, accountID int32, code, s
 			return fmt.Errorf("totp.VerifyRecoveryCode: consume: %w", err)
 		}
 		_ = s.throttle.Reset(ctx, accountID, "recovery_code")
-		_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventUse})
+		audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventUse})
 		return nil
 	}
 
 	_, _ = s.throttle.RegisterFailure(ctx, accountID, "recovery_code")
-	_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventFail})
+	audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorRecoveryCode, Event: audit.EventFail})
 	return ErrRecoveryCodeInvalid
 }
 
@@ -504,7 +504,7 @@ func (s *Store) RegenerateRecoveryCodes(ctx context.Context, accountID int32) ([
 	// investigators a clean before/after trail. Emit after commit so the
 	// audit reflects what actually persisted.
 	for range existing {
-		_ = s.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorRecoveryCode,
 			Event:     audit.EventRevoke,
@@ -512,7 +512,7 @@ func (s *Store) RegenerateRecoveryCodes(ctx context.Context, accountID int32) ([
 		})
 	}
 	for range codes {
-		_ = s.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorRecoveryCode,
 			Event:     audit.EventRegister,
@@ -530,7 +530,7 @@ func (s *Store) Delete(ctx context.Context, accountID int32) error {
 	if err := s.q.DeleteTOTPCredential(ctx, accountID); err != nil {
 		return fmt.Errorf("totp.Delete: %w", err)
 	}
-	_ = s.audit.Record(ctx, audit.Record{AccountID: &accountID, Factor: audit.FactorTOTP, Event: audit.EventRevoke})
+	audit.RecordOrLog(ctx, s.audit, audit.Record{AccountID: &accountID, Factor: audit.FactorTOTP, Event: audit.EventRevoke})
 	return nil
 }
 

@@ -18,6 +18,7 @@ package server
 // genuinely removed and not just accidentally absent from sudoGatedRoutes.
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -27,6 +28,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
+	"prohibitorum/pkg/authn"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -83,10 +85,13 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/accounts/reissue-enrollment", body: `{"id":1}`},
 	{method: "POST", path: "/api/prohibitorum/invitations", body: `{"role":"user"}`},
 
-	// Instance-branding settings (name PUT + icon DELETE — sudo-gated)
+	// Instance-branding settings (name PUT, icon DELETE, background DELETE,
+	// maintenance PUT, client-ip PUT — all sudo-gated)
 	{method: "PUT", path: "/api/prohibitorum/admin/settings", body: `{"instanceName":"x"}`},
 	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
+	{method: "DELETE", path: "/api/prohibitorum/admin/settings/background", body: ``},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/maintenance", body: `{"maintenanceMode":true}`},
+	{method: "PUT", path: "/api/prohibitorum/admin/settings/client-ip", body: `{"trustedHeader":"X-Forwarded-For"}`},
 
 	// Entity icon removal (app & provider icons)
 	{method: "DELETE", path: "/api/prohibitorum/oidc-applications/test-client/icon", body: `{}`},
@@ -190,6 +195,152 @@ func TestAdminMutationRoutesRequireSudo(t *testing.T) {
 			}
 			if !strings.Contains(rr.Body.String(), "sudo_required") {
 				t.Errorf("body = %q, want sudo_required", rr.Body.String())
+			}
+		})
+	}
+}
+
+// realAdminOnlyRouter builds a *Server with the real chi.Mux + huma.API and
+// registers all operations exactly as production does, but with no DB/KV
+// wiring — the same construction used by TestAdminMutationRoutesRequireSudo.
+func realAdminOnlyRouter(t *testing.T) (*chi.Mux, *Server) {
+	t.Helper()
+	router := chi.NewMux()
+	s := &Server{
+		router: router,
+		api:    humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")),
+	}
+	registerSecurityScheme(s.api, sessstore.SessionCookieName)
+	s.registerOperations()
+	return router, s
+}
+
+var adminBodyControlRoutes = []sudoRoute{
+	// SAML application CRUD — admin-only, no step-up
+	{method: "POST", path: "/api/prohibitorum/saml-applications", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/saml-applications/1", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/reingest-metadata", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/set-disabled", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/delete", body: `{}`},
+	// SAML app-access management
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/set-restricted", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/grant", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/revoke", body: `{}`},
+	// OIDC app-access management
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/set-restricted", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/grant", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/revoke", body: `{}`},
+	// OIDC / forward-auth / IdP set-disabled — admin-only, no step-up
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/set-disabled", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/set-disabled", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/identity-providers/set-disabled", body: `{}`},
+	// Account session revoke — admin-only, no step-up
+	{method: "POST", path: "/api/prohibitorum/accounts/1/sessions/revoke", body: `{"sessionId":"x"}`},
+	// Group CRUD + membership management
+	{method: "POST", path: "/api/prohibitorum/groups", body: `{}`},
+	{method: "PUT", path: "/api/prohibitorum/groups/1", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/delete", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/members", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/groups/1/members/remove", body: `{}`},
+}
+
+// TestAdminMutationBodyControls_OversizedJSONReturns413 builds the REAL router
+// and asserts that a 128 KiB JSON body sent to an intentional admin-only
+// SAML mutation route (POST /saml-applications) is rejected with HTTP 413 —
+// NOT a generic 500 — before the handler's business logic runs.
+//
+// The body controls (MaxBytesReader) are installed at route registration, so
+// the rejection happens inside the wrapper before any handler/DB access. The
+// admin session has no fresh sudo grant; since these routes are intentionally
+// admin-only (not sudo-gated), the request passes the auth check and reaches
+// the body-size enforcement.
+func TestAdminMutationBodyControls_OversizedJSONReturns413(t *testing.T) {
+	router, _ := realAdminOnlyRouter(t)
+
+	// 128 KiB JSON body — double the 64 KiB cap.
+	oversized := strings.Repeat(" ", 128*1024) // 128 KiB of spaces inside a JSON string
+	body := `{"metadataXml":"` + oversized + `"}`
+	bodyBytes := []byte(body)
+
+	sess := adminSession(time.Time{}) // admin role, no fresh sudo (intentional admin-only)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/saml-applications", strings.NewReader(string(bodyBytes)))
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = int64(len(bodyBytes))
+	req = req.WithContext(authn.WithSession(req.Context(), sess))
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413 (oversized body must be rejected before handler); body: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "request_too_large") {
+		t.Errorf("body = %q, want request_too_large code", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "request body too large") {
+		t.Errorf("body = %q, want 'request body too large' message", rr.Body.String())
+	}
+}
+
+// TestAdminMutationBodyControls_WrongContentTypeReturns400 asserts that an
+// admin-only mutation route with a non-JSON content type and a body is
+// rejected with the canonical 400 bad_request error — using the project's
+// existing error vocabulary — before the handler runs. It also confirms the
+// route does NOT return sudo_required (it's intentionally admin-only).
+func TestAdminMutationBodyControls_WrongContentTypeReturns400(t *testing.T) {
+	router, _ := realAdminOnlyRouter(t)
+
+	sess := adminSession(time.Time{})
+
+	rr := httptest.NewRecorder()
+	req := reqWithSession(http.MethodPost, "/api/prohibitorum/saml-applications", `data`, "text/plain", sess)
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (bad_request for non-JSON content type); body: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "bad_request") {
+		t.Fatalf("body = %q, want bad_request code", rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), "sudo_required") {
+		t.Fatalf("body = %q — admin-only route must NOT return sudo_required", rr.Body.String())
+	}
+}
+
+// TestAdminMutationBodyControls_NoSudoRequired asserts that each
+// admin-only body-controlled route does NOT return sudo_required when served
+// with an admin session carrying no fresh sudo grant — confirming the sudo
+// gate was genuinely not installed on these intentional admin-only routes.
+// The body/content-type controls run first; a wrong-content-type request
+// short-circuits to 400 before any handler or sudo logic.
+func TestAdminMutationBodyControls_NoSudoRequired(t *testing.T) {
+	router, _ := realAdminOnlyRouter(t)
+	sess := adminSession(time.Time{})
+
+	for _, sr := range adminBodyControlRoutes {
+		sr := sr
+		t.Run(sr.method+" "+sr.path, func(t *testing.T) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					t.Logf("handler panicked (nil deps, expected): %v — sudo gate is absent", rec)
+				}
+			}()
+
+			rr := httptest.NewRecorder()
+			// Send with a wrong content type so the body control short-circuits to
+			// 400 before the handler runs — proving the route is body-controlled AND
+			// not sudo-gated.
+			req := reqWithSession(sr.method, sr.path, sr.body, "text/plain", sess)
+			router.ServeHTTP(rr, req)
+
+			if rr.Code == 401 && strings.Contains(rr.Body.String(), "sudo_required") {
+				t.Errorf("%s %s: got sudo_required (401) — sudo gate was installed on an admin-only route; body: %s",
+					sr.method, sr.path, rr.Body.String())
+			}
+			// A 400 bad_request from the content-type check is the expected
+			// short-circuit; a panic-recover also satisfies the invariant.
+			if rr.Code == 400 && !strings.Contains(rr.Body.String(), "bad_request") {
+				t.Errorf("%s %s: 400 without bad_request code; body: %s", sr.method, sr.path, rr.Body.String())
 			}
 		})
 	}

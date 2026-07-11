@@ -81,7 +81,7 @@ func (p *Provider) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 // factor, mirroring auditTokenEvent's convention. accountID may be nil when
 // the revoking actor's account cannot be determined (e.g. a garbage token).
 func (p *Provider) auditRevoked(ctx context.Context, r *http.Request, clientID, tokenType string, accountID *int32) {
-	_ = p.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, p.audit, audit.Record{
 		AccountID: accountID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRevoke,

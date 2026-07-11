@@ -81,7 +81,7 @@ func (s *Server) handleUpdateMe(ctx context.Context, in *updateMeIn) (*meOut, er
 		"display_name": in.Body.DisplayName,
 	}).Info("auth")
 	acctID := sess.Account.ID
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: &acctID,
 		Factor:    audit.FactorAccount,
 		Event:     audit.EventUpdate,
@@ -365,7 +365,7 @@ func (s *Server) handleAddCredentialCompleteHTTP(w http.ResponseWriter, r *http.
 	{
 		acctID := sess.Account.ID
 		credRef := int64(row.ID)
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			AccountID:     &acctID,
 			Factor:        audit.FactorWebAuthn,
 			Event:         audit.EventRegister,
@@ -445,7 +445,7 @@ func (s *Server) handleRevokeMySession(ctx context.Context, in *revokeMySessionI
 	}).Info("auth")
 	{
 		acctID := sess.Account.ID
-		_ = s.Audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.Audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorSession,
 			Event:     audit.EventSessionEnd,
@@ -502,7 +502,7 @@ func (s *Server) handleRenameMyCredential(ctx context.Context, in *renameMyCrede
 	{
 		acctID := sess.Account.ID
 		credRef := int64(in.Body.ID)
-		_ = s.Audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.Audit, audit.Record{
 			AccountID:     &acctID,
 			Factor:        audit.FactorWebAuthn,
 			Event:         audit.EventUpdate,
@@ -573,7 +573,7 @@ func (s *Server) handleDeleteMyCredential(ctx context.Context, in *deleteMyCrede
 	{
 		acctID := sess.Account.ID
 		credRef := int64(in.Body.ID)
-		_ = s.Audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.Audit, audit.Record{
 			AccountID:     &acctID,
 			Factor:        audit.FactorWebAuthn,
 			Event:         audit.EventRevoke,

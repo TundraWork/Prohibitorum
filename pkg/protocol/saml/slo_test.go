@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/xml"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -230,7 +231,8 @@ type sloReqOpts struct {
 	nameID       string
 	sessionIndex string
 	notOnOrAfter *time.Time
-	version      string // override LogoutRequest @Version (empty = "2.0")
+	issueInstant *time.Time // override LogoutRequest @IssueInstant (nil = time.Now)
+	version      string     // override LogoutRequest @Version (empty = "2.0")
 
 	relayState string
 	hasRelay   bool
@@ -238,6 +240,15 @@ type sloReqOpts struct {
 	// signing
 	sign    bool
 	signKey *rsa.PrivateKey
+}
+
+// sloIssueInstant returns the LogoutRequest IssueInstant to use for the given
+// options, defaulting to time.Now().UTC() when no override is set.
+func sloIssueInstant(o sloReqOpts) time.Time {
+	if o.issueInstant != nil {
+		return o.issueInstant.UTC()
+	}
+	return time.Now().UTC()
 }
 
 // buildLogoutRedirect builds a redirect-binding (GET) signed LogoutRequest. The
@@ -251,7 +262,7 @@ func buildLogoutRedirect(t *testing.T, o sloReqOpts) *http.Request {
 	lr := crewjam.LogoutRequest{
 		ID:           o.id,
 		Version:      version,
-		IssueInstant: time.Now().UTC(),
+		IssueInstant: sloIssueInstant(o),
 		Destination:  o.destination,
 		Issuer:       &crewjam.Issuer{Value: testSPEntityID},
 		NameID:       &crewjam.NameID{Value: o.nameID},
@@ -320,7 +331,7 @@ func buildLogoutPost(t *testing.T, o sloReqOpts, signCertDER []byte) *http.Reque
 	lr := crewjam.LogoutRequest{
 		ID:           id,
 		Version:      "2.0",
-		IssueInstant: time.Now().UTC(),
+		IssueInstant: sloIssueInstant(o),
 		Destination:  o.destination,
 		Issuer:       &crewjam.Issuer{Value: testSPEntityID},
 		NameID:       &crewjam.NameID{Value: o.nameID},
@@ -939,5 +950,494 @@ func TestSLONoMetadataFallbackRedirectsToErrorPage(t *testing.T) {
 	}
 	if del := h.q.deletedRows(); len(del) != 1 || del[0] != sid {
 		t.Errorf("deleted rows = %v, want [%s] (binding cleaned even when undeliverable)", del, sid)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SLO freshness + replay hardening (2026-07-11 plan)
+//
+// These tests cover the NEW pre-mutation gates: missing/invalid NCName ID,
+// missing/stale/future IssueInstant, replayed ID after a later session exists,
+// same ID from a different SP allowed, invalid signature must NOT reserve the
+// replay key, KV SetNX error fails closed, and a distinct valid request for an
+// already-gone session still returns a signed Success.
+// ---------------------------------------------------------------------------
+
+// sloPOSTReq builds a signed POST-binding LogoutRequest from opts (using the
+// harness SP cert DER for the enveloped signature).
+func sloPOSTReq(t *testing.T, h *sloHarness, o sloReqOpts) *http.Request {
+	t.Helper()
+	return buildLogoutPost(t, o, h.spCert.Raw)
+}
+
+// assertSLORejectedToError asserts the SLO handler dead-ended at /error with the
+// given error code prefix and the session was NOT revoked.
+func assertSLORejectedToError(t *testing.T, rec *httptest.ResponseRecorder, h *sloHarness, sid string, wantCode string) {
+	t.Helper()
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 /error; body=%s", rec.Code, rec.Body.String())
+	}
+	prefix := "/error?error=" + wantCode + "&ref="
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, prefix) {
+		t.Fatalf("Location = %q, want prefix %q", loc, prefix)
+	}
+	if sid != "" && !h.sessionAlive(t, 42, sid) {
+		t.Errorf("session revoked despite rejection; MUST remain untouched (code=%s)", wantCode)
+	}
+}
+
+// TestSLOMissingIDRejected confirms a signed LogoutRequest with an empty @ID is
+// rejected as malformed before any session mutation.
+func TestSLOMissingIDRejected(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-noid"
+	sid := h.seedSession(t, 42, nameID, "")
+
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:          "", // missing ID
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	assertSLORejectedToError(t, rec, h, sid, "saml_request_invalid")
+	if del := h.q.deletedRows(); len(del) != 0 {
+		t.Errorf("deleted rows = %v on missing ID, want none", del)
+	}
+}
+
+// TestSLOInvalidNCNameIDRejected confirms a signed LogoutRequest whose @ID is
+// not a valid NCName (begins with a digit) is rejected before session mutation.
+func TestSLOInvalidNCNameIDRejected(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-badid"
+	sid := h.seedSession(t, 42, nameID, "")
+
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:          "123badid", // NCName may not start with a digit
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	assertSLORejectedToError(t, rec, h, sid, "saml_request_invalid")
+	if del := h.q.deletedRows(); len(del) != 0 {
+		t.Errorf("deleted rows = %v on invalid NCName ID, want none", del)
+	}
+}
+
+// TestSLOMissingIssueInstantRejected confirms a signed LogoutRequest with a
+// zero/absent IssueInstant is rejected before session mutation.
+func TestSLOMissingIssueInstantRejected(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-noinst"
+	sid := h.seedSession(t, 42, nameID, "")
+
+	zero := time.Time{}
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:           "_slo-noinst",
+		destination:  testSLOURL,
+		nameID:       nameID,
+		issueInstant: &zero,
+		sign:         true,
+		signKey:      h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	assertSLORejectedToError(t, rec, h, sid, "saml_request_invalid")
+	if del := h.q.deletedRows(); len(del) != 0 {
+		t.Errorf("deleted rows = %v on missing IssueInstant, want none", del)
+	}
+}
+
+// TestSLOStaleIssueInstantRejected confirms a signed LogoutRequest whose
+// IssueInstant is older than AuthnRequestTTL is rejected before session
+// mutation (both redirect and POST bindings).
+func TestSLOStaleIssueInstantRejected(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-stale"
+	sid := h.seedSession(t, 42, nameID, "")
+
+	stale := time.Now().Add(-(AuthnRequestTTL + time.Minute)).UTC()
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:           "_slo-stale",
+		destination:  testSLOURL,
+		nameID:       nameID,
+		issueInstant: &stale,
+		sign:         true,
+		signKey:      h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	assertSLORejectedToError(t, rec, h, sid, "saml_request_invalid")
+	if del := h.q.deletedRows(); len(del) != 0 {
+		t.Errorf("deleted rows = %v on stale IssueInstant, want none", del)
+	}
+}
+
+// TestSLOFutureIssueInstantRejected confirms a signed LogoutRequest whose
+// IssueInstant is too far in the future (beyond +AuthnRequestTTL) is rejected
+// before session mutation.
+func TestSLOFutureIssueInstantRejected(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-future"
+	sid := h.seedSession(t, 42, nameID, "")
+
+	future := time.Now().Add(AuthnRequestTTL + time.Minute).UTC()
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:           "_slo-future",
+		destination:  testSLOURL,
+		nameID:       nameID,
+		issueInstant: &future,
+		sign:         true,
+		signKey:      h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	assertSLORejectedToError(t, rec, h, sid, "saml_request_invalid")
+	if del := h.q.deletedRows(); len(del) != 0 {
+		t.Errorf("deleted rows = %v on future IssueInstant, want none", del)
+	}
+}
+
+// TestSLOStaleIssueInstantPOSTRejected mirrors the stale-IssueInstant test on
+// the POST binding to confirm both bindings enforce freshness.
+func TestSLOStaleIssueInstantPOSTRejected(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-stale-post"
+	sid := h.seedSession(t, 42, nameID, "")
+
+	stale := time.Now().Add(-(AuthnRequestTTL + time.Minute)).UTC()
+	req := sloPOSTReq(t, h, sloReqOpts{
+		id:           "_slo-stale-post",
+		destination:  testSLOURL,
+		nameID:       nameID,
+		issueInstant: &stale,
+		sign:         true,
+		signKey:      h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	assertSLORejectedToError(t, rec, h, sid, "saml_request_invalid")
+	if del := h.q.deletedRows(); len(del) != 0 {
+		t.Errorf("deleted rows = %v on POST stale IssueInstant, want none", del)
+	}
+}
+
+// TestSLOReplayDoesNotRevokeNewSession is the core replay test: a first signed
+// request revokes the session, then a NEW session is created, then the SAME
+// request ID is replayed. The replay MUST NOT revoke the new session and MUST
+// be rejected as saml_replayed.
+func TestSLOReplayDoesNotRevokeNewSession(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-replay"
+	const reqID = "_slo-replay-new"
+
+	// First session: revoked by the first (legitimate) SLO.
+	sid1 := h.seedSession(t, 42, nameID, "")
+	req1 := buildLogoutRedirect(t, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec1 := httptest.NewRecorder()
+	h.idp.HandleSLO(rec1, req1)
+	if rec1.Code != http.StatusFound {
+		t.Fatalf("first SLO status = %d, want 302; body=%s", rec1.Code, rec1.Body.String())
+	}
+	if h.sessionAlive(t, 42, sid1) {
+		t.Fatal("first session should have been revoked")
+	}
+
+	// A NEW session is created for the same account+NameID after the first SLO.
+	sid2 := h.seedSession(t, 42, nameID, "")
+
+	// Replay the SAME request ID. This MUST NOT revoke sid2.
+	req2 := buildLogoutRedirect(t, sloReqOpts{
+		id:          reqID, // same ID → replay
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec2 := httptest.NewRecorder()
+	h.idp.HandleSLO(rec2, req2)
+
+	assertSLORejectedToError(t, rec2, h, sid2, "saml_replayed")
+	// No additional binding row delete on replay.
+	if del := h.q.deletedRows(); len(del) != 1 || del[0] != sid1 {
+		t.Errorf("deleted rows = %v after replay, want only [%s]", del, sid1)
+	}
+
+	// A saml_sp|fail audit record with reason=replayed_request must be emitted,
+	// WITHOUT a NameID (sensitive) and WITHOUT an AccountID (pre-session-lookup).
+	recs := h.auditW.all()
+	var replayRec *audit.Record
+	for i := range recs {
+		if recs[i].Event == audit.EventFail && recs[i].Detail["reason"] == "replayed_request" {
+			replayRec = &recs[i]
+			break
+		}
+	}
+	if replayRec == nil {
+		t.Fatalf("no replayed_request audit record emitted; got %d records", len(recs))
+	}
+	if replayRec.AccountID != nil {
+		t.Errorf("replay audit AccountID = %v, want nil (pre-session-lookup)", *replayRec.AccountID)
+	}
+	if replayRec.Factor != audit.FactorSAMLSP {
+		t.Errorf("replay audit Factor = %q, want %q", replayRec.Factor, audit.FactorSAMLSP)
+	}
+	if got := replayRec.Detail["sp"]; got != testSPEntityID {
+		t.Errorf("replay audit sp = %v, want %q", got, testSPEntityID)
+	}
+	// NameID must NOT appear in the audit detail.
+	if _, has := replayRec.Detail["nameid"]; has {
+		t.Error("replay audit detail contains nameid; sensitive NameID must not be logged")
+	}
+}
+
+// TestSLOReplayPOSTBinding confirms replay rejection also works on the POST
+// binding.
+func TestSLOReplayPOSTBinding(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-replay-post"
+	const reqID = "_slo-replay-post"
+
+	sid1 := h.seedSession(t, 42, nameID, "")
+	req1 := sloPOSTReq(t, h, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec1 := httptest.NewRecorder()
+	h.idp.HandleSLO(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first POST SLO status = %d, want 200; body=%s", rec1.Code, rec1.Body.String())
+	}
+	if h.sessionAlive(t, 42, sid1) {
+		t.Fatal("first POST session should have been revoked")
+	}
+
+	sid2 := h.seedSession(t, 42, nameID, "")
+
+	req2 := sloPOSTReq(t, h, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec2 := httptest.NewRecorder()
+	h.idp.HandleSLO(rec2, req2)
+
+	// POST binding replay also dead-ends at /error (no SP response delivered).
+	assertSLORejectedToError(t, rec2, h, sid2, "saml_replayed")
+	if !h.sessionAlive(t, 42, sid2) {
+		t.Error("new session revoked by POST-binding replay")
+	}
+}
+
+// TestSLOSameIDDifferentSPAllowed confirms the replay key is SP-scoped: the
+// same request ID from a different SP is NOT a replay.
+func TestSLOSameIDDifferentSPAllowed(t *testing.T) {
+	const nameID = "user-nameid-diffsp"
+	const reqID = "_slo-diffsp"
+
+	// Two harnesses with different SPs (different entity IDs → different
+	// replay-key scopes), each with its own KV store.
+	sp1 := sloSP() // entityID = testSPEntityID
+	h1 := newSLOHarness(t, sp1)
+	_ = h1.seedSession(t, 42, nameID, "")
+
+	sp2 := sloSP()
+	sp2.ID = 8
+	sp2.EntityID = "https://sp2.example.test/saml/metadata"
+	sp2.MetadataXml = pgtype.Text{String: strings.ReplaceAll(sp1.MetadataXml.String, testSPEntityID, sp2.EntityID), Valid: true}
+	h2 := newSLOHarness(t, sp2)
+	_ = h2.seedSession(t, 42, nameID, "")
+
+	// First SLO on sp1 with reqID succeeds (302).
+	req1 := buildLogoutRedirect(t, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h1.spKey,
+	})
+	rec1 := httptest.NewRecorder()
+	h1.idp.HandleSLO(rec1, req1)
+	if rec1.Code != http.StatusFound {
+		t.Fatalf("sp1 SLO status = %d, want 302; body=%s", rec1.Code, rec1.Body.String())
+	}
+
+	// Same reqID on sp2 must NOT be a replay (different SP scope).
+	req2 := buildLogoutRedirect(t, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h2.spKey,
+	})
+	rec2 := httptest.NewRecorder()
+	h2.idp.HandleSLO(rec2, req2)
+	if rec2.Code != http.StatusFound {
+		t.Fatalf("sp2 SLO status = %d, want 302 (not a replay); body=%s", rec2.Code, rec2.Body.String())
+	}
+	loc := rec2.Header().Get("Location")
+	if strings.HasPrefix(loc, "/error?error=saml_replayed") {
+		t.Fatalf("same ID from different SP was rejected as replay: %q", loc)
+	}
+}
+
+// TestSLOBadSignatureDoesNotReserveReplayKey confirms that an invalid signature
+// does NOT poison the replay cache: after a bad-signature rejection, a valid
+// request with the SAME ID must still succeed (the key was never set).
+func TestSLOBadSignatureDoesNotReserveReplayKey(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-badsig-noreserve"
+	sid := h.seedSession(t, 42, nameID, "")
+	const reqID = "_slo-badsig-noreserve"
+
+	wrongKey, _ := testSPKey(t) // different key than the SP's registered cert
+
+	// First: bad signature with reqID. Must be rejected (saml_request_invalid).
+	req1 := buildLogoutRedirect(t, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     wrongKey,
+	})
+	rec1 := httptest.NewRecorder()
+	h.idp.HandleSLO(rec1, req1)
+	assertSLORejectedToError(t, rec1, h, sid, "saml_request_invalid")
+
+	// Second: VALID signature with the SAME reqID. Since the bad-signature path
+	// runs before the replay reservation, the key was never set, so this must
+	// succeed (not be treated as a replay).
+	req2 := buildLogoutRedirect(t, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec2 := httptest.NewRecorder()
+	h.idp.HandleSLO(rec2, req2)
+
+	if rec2.Code != http.StatusFound {
+		t.Fatalf("valid-after-badsig status = %d, want 302; body=%s", rec2.Code, rec2.Body.String())
+	}
+	loc := rec2.Header().Get("Location")
+	if strings.HasPrefix(loc, "/error?error=saml_replayed") {
+		t.Fatalf("valid request after bad-sig was treated as replay (key was poisoned): %q", loc)
+	}
+	if h.sessionAlive(t, 42, sid) {
+		t.Error("session should have been revoked by the valid request")
+	}
+}
+
+// TestSLOKVSetNXErrorFailsClosed confirms that a KV SetNX error causes the SLO
+// handler to fail closed (server_error) without revoking the session, and that
+// the key was never actually set (a subsequent valid call on a real store
+// succeeds).
+func TestSLOKVSetNXErrorFailsClosed(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-kvfail"
+	sid := h.seedSession(t, 42, nameID, "")
+	const reqID = "_slo-kvfail"
+
+	// Swap in an error-injecting KV on the IdP.
+	injectedErr := errors.New("kv: simulated SLO backend failure")
+	h.idp.kv = &fakeErrorKV{MemoryStore: kv.NewMemoryStore(), setNXErr: injectedErr}
+
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	// KV error → server_error, session untouched.
+	assertSLORejectedToError(t, rec, h, sid, "server_error")
+	if del := h.q.deletedRows(); len(del) != 0 {
+		t.Errorf("deleted rows = %v on KV error, want none", del)
+	}
+
+	// Restore a real KV: the same ID must now succeed (the failed SetNX never
+	// wrote the key).
+	h.idp.kv = kv.NewMemoryStore()
+	req2 := buildLogoutRedirect(t, sloReqOpts{
+		id:          reqID,
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec2 := httptest.NewRecorder()
+	h.idp.HandleSLO(rec2, req2)
+	if rec2.Code != http.StatusFound {
+		t.Fatalf("valid-after-kvfail status = %d, want 302; body=%s", rec2.Code, rec2.Body.String())
+	}
+	if loc := rec2.Header().Get("Location"); strings.HasPrefix(loc, "/error?error=saml_replayed") {
+		t.Fatalf("valid request after KV error treated as replay (key poisoned): %q", loc)
+	}
+}
+
+// TestSLODistinctRequestAlreadyGoneSessionStillSuccess confirms that a fresh,
+// signed, unique LogoutRequest targeting a NameID whose session is ALREADY gone
+// still returns a signed Success LogoutResponse (idempotent logout preserved).
+func TestSLODistinctRequestAlreadyGoneSessionStillSuccess(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	const nameID = "user-nameid-gone"
+
+	// Seed a session, then revoke it (simulate already-gone).
+	sid := h.seedSession(t, 42, nameID, "")
+	h.q.mu.Lock()
+	delete(h.q.pgSess, sid) // GetSession → ErrNoRows (session already gone)
+	h.q.mu.Unlock()
+
+	// A fresh, unique, signed request must still get a signed Success.
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:          "_slo-gone-distinct",
+		destination: testSLOURL,
+		nameID:      nameID,
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 signed Success; body=%s", rec.Code, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	if strings.HasPrefix(loc, "/error?") {
+		t.Fatalf("already-gone session rejected instead of signed Success: %q", loc)
+	}
+	respXML := decodeRedirectLogoutResponse(t, loc)
+	assertLogoutResponseValid(t, h, respXML, "_slo-gone-distinct")
+
+	// The orphan binding row was still cleaned.
+	if del := h.q.deletedRows(); len(del) != 1 || del[0] != sid {
+		t.Errorf("deleted rows = %v, want [%s] (orphan cleaned)", del, sid)
 	}
 }

@@ -122,13 +122,13 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	accountID := grant.AccountID
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorFederationOIDC,
 		Event:     audit.EventUse,
 		Detail:    map[string]any{"reason": "confirm", "idp_id": grant.IDPID},
 	})
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorSession,
 		Event:     audit.EventSessionStart,
@@ -151,7 +151,7 @@ func (s *Server) handleFederationConfirmDecline(w http.ResponseWriter, r *http.R
 		id := grant.AccountID
 		accountID = &id
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: accountID,
 		Factor:    audit.FactorFederationOIDC,
 		Event:     audit.EventFail,

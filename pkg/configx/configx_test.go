@@ -3,6 +3,7 @@ package configx
 import (
 	"encoding/base64"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,5 +111,55 @@ func TestParse_TOTPIssuerExplicitOverride(t *testing.T) {
 	}
 	if cfg.TOTP.Issuer != "Acme Corp" {
 		t.Errorf("explicit totp.issuer must win over rp_display_name fallback: got %q", cfg.TOTP.Issuer)
+	}
+}
+
+// TestParse_RejectsShortDEK asserts that a base64-valid but cryptographically
+// undersized data-encryption key is rejected at Parse startup. A 4-byte key
+// decodes cleanly from base64 but is far too short for AES-256, so the failure
+// must surface now, not at first use. The error must name the version and the
+// actual length so an operator can identify which env var is misconfigured.
+func TestParse_RejectsShortDEK(t *testing.T) {
+	resetViper(t)
+	// Override the valid key injected by resetViper with a 4-byte (base64-valid) key.
+	t.Setenv("PROHIBITORUM_DATA_ENCRYPTION_KEY_V1", base64.StdEncoding.EncodeToString([]byte{1, 2, 3, 4}))
+	_, err := Parse()
+	if err == nil {
+		t.Fatal("Parse accepted a 4-byte DEK; want a length-validation error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "v1") {
+		t.Errorf("error %q does not name the key version (v1)", msg)
+	}
+	if !strings.Contains(msg, "4") {
+		t.Errorf("error %q does not name the actual byte length (4)", msg)
+	}
+	// The error must never include key material — only version + length.
+	if strings.Contains(msg, base64.StdEncoding.EncodeToString([]byte{1, 2, 3, 4})) {
+		t.Errorf("error %q leaks the raw key material", msg)
+	}
+}
+
+// TestParse_AcceptsValidDEKLengths confirms a 32-byte key (the valid AES-256
+// DEK length) still passes Parse after length validation is enforced, and a
+// two-version keyring of valid keys is accepted.
+func TestParse_AcceptsValidDEKLengths(t *testing.T) {
+	resetViper(t)
+	cfg, err := Parse()
+	if err != nil {
+		t.Fatalf("Parse with valid 32-byte DEK: %v", err)
+	}
+	if len(cfg.DataEncryptionKeys) != 1 {
+		t.Errorf("DataEncryptionKeys: want 1, got %d", len(cfg.DataEncryptionKeys))
+	}
+
+	resetViper(t)
+	t.Setenv("PROHIBITORUM_DATA_ENCRYPTION_KEY_V2", base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	cfg, err = Parse()
+	if err != nil {
+		t.Fatalf("Parse with two valid 32-byte DEKs: %v", err)
+	}
+	if len(cfg.DataEncryptionKeys) != 2 {
+		t.Errorf("DataEncryptionKeys: want 2, got %d", len(cfg.DataEncryptionKeys))
 	}
 }

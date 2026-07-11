@@ -198,7 +198,7 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRegister,
@@ -315,7 +315,7 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventUpdate,
@@ -363,7 +363,7 @@ func (s *Server) handleSetOIDCApplicationDisabledHTTP(w http.ResponseWriter, r *
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventUpdate,
@@ -421,7 +421,7 @@ func (s *Server) handleRotateOIDCApplicationSecretHTTP(w http.ResponseWriter, r 
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRotate,
@@ -472,7 +472,7 @@ func (s *Server) handleDeleteOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRevoke,

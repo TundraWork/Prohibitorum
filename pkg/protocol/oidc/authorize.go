@@ -148,7 +148,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		acctID := sess.Data.AccountID
-		_ = p.audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), p.audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorOIDCClient,
 			Event:     audit.EventAccessDenied,
@@ -335,7 +335,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	// (11) Audit the successful authorization. Best-effort.
 	accountID := sess.Data.AccountID
-	_ = p.audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), p.audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventUse,

@@ -115,7 +115,7 @@ func (p *Provider) HandleLogout(w http.ResponseWriter, r *http.Request) {
 // oidc_client factor, mirroring the auditRevoked / auditTokenEvent convention.
 func (p *Provider) auditLogout(ctx context.Context, r *http.Request, accountID int32, clientID string) {
 	id := accountID
-	_ = p.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, p.audit, audit.Record{
 		AccountID: &id,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventSessionEnd,

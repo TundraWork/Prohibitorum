@@ -119,7 +119,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	}
 	if !authzed.Bool {
 		acctID := account.ID
-		_ = i.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, i.audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorSAMLSP,
 			Event:     audit.EventAccessDenied,

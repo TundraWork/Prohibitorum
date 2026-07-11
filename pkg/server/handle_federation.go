@@ -101,7 +101,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		// never reached the resolve step), stamp a correlation ref, then
 		// redirect to the SPA /error page.
 		ref := weberr.NewRef()
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			Factor: audit.FactorFederationOIDC,
 			Event:  audit.EventFail,
 			Detail: map[string]any{

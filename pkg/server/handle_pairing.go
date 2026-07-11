@@ -60,7 +60,7 @@ func (s *Server) handlePairBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		"pairing_id": p.ID,
 		"client_ip":  ip,
 	}).Info("auth")
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		Factor: audit.FactorSession,
 		Event:  audit.EventUse,
 		Detail: map[string]any{"reason": "pairing_begin", "pairing_id": p.ID},
@@ -77,7 +77,7 @@ func (s *Server) handlePairBeginHTTP(w http.ResponseWriter, r *http.Request) {
 // ----- GET /auth/devices/pair/status (anonymous, polled) -------------------
 
 type pairStatusResp struct {
-	Status    string    `json:"status"` // pending | approved | expired
+	Status    string    `json:"status"` // pending | approved | expired (consumed maps to expired)
 	ExpiresAt time.Time `json:"expiresAt,omitempty"`
 }
 
@@ -99,8 +99,18 @@ func (s *Server) handlePairStatusHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAuthErr(w, err)
 		return
 	}
+	// Map the internal consumed marker to the public terminal "expired"
+	// state. "consumed" is a store-internal state (the tombstone left in
+	// KV after /pair/complete) and is not part of the public status union
+	// (pending|approved|expired) the PC polls for; surfacing it would
+	// wedge the polling loop with no retry path. Expired is the existing
+	// terminal state the PC already handles (offer regenerate).
+	status := string(p.Status)
+	if status == string(pairing.PairingConsumed) {
+		status = "expired"
+	}
 	writeJSON(w, pairStatusResp{
-		Status:    string(p.Status),
+		Status:    status,
 		ExpiresAt: p.ExpiresAt,
 	})
 }
@@ -125,17 +135,29 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		writeAuthErr(w, authn.ErrPairingNotFound())
 		return
 	}
-	p, err := s.pairingStore.GetByID(r.Context(), body.PairingID)
+	// Atomically consume the pairing BEFORE loading the account or issuing
+	// a session. Consume CAS-replaces the exact approved JSON with a
+	// consumed marker (single-winner), so two concurrent /complete calls
+	// produce exactly one CAS winner — only the winner holds the consumed
+	// record and proceeds to session issuance. The loser sees the consumed
+	// marker (a CAS mismatch) and receives pairing_state. A pending pairing
+	// is NOT mutated — Consume returns pairing_not_approved and preserves the
+	// ceremony for the user to approve. A malformed or absent record fails
+	// closed without mutation.
+	p, err := s.pairingStore.Consume(r.Context(), body.PairingID)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	if p.Status != pairing.PairingApproved {
-		writeAuthErr(w, authn.ErrPairingNotApproved())
-		return
-	}
-	acct, err := s.queries.GetAccountByID(r.Context(), p.ApprovedFor)
+	// p is the canonical approved record from the winning CAS. Trust it —
+	// not a stale pre-consume object — for the account lookup and session.
+	acct, err := s.accountLookupQ().GetAccountByID(r.Context(), p.ApprovedFor)
 	if err != nil {
+		// The pairing is already consumed; do NOT resurrect it. The user
+		// must restart the flow. This is conservative and correct: the
+		// account was approved at consume time, and a vanishing account
+		// between consume and lookup is an exceptional state we surface
+		// as account_not_found without re-arming the pairing.
 		writeAuthErr(w, authn.ErrAccountNotFound())
 		return
 	}
@@ -147,16 +169,12 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		writeAuthErr(w, me)
 		return
 	}
-	// Consume BEFORE issuing the session so a duplicate /complete cannot
-	// double-issue if two concurrent requests both pass the status check
-	// above. KV Del is single-key atomic; the loser sees pairing_not_found.
-	if err := s.pairingStore.Consume(r.Context(), p); err != nil {
-		writeAuthErr(w, err)
-		return
-	}
 	ip := s.clientIP.IP(r)
 	sessionToken, _, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
 	if err != nil {
+		// Session issuance failed after the pairing was consumed. Do NOT
+		// resurrect the consumed state — that would reopen the race. The
+		// user restarts the pairing flow.
 		writeAuthErr(w, err)
 		return
 	}
@@ -168,7 +186,7 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		"pairing_id": p.ID,
 		"client_ip":  ip,
 	}).Info("auth")
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &acct.ID,
 		Factor:    audit.FactorSession,
 		Event:     audit.EventSessionStart,
@@ -276,7 +294,7 @@ func (s *Server) handlePairApproveHTTP(w http.ResponseWriter, r *http.Request) {
 		"account_id": sess.Account.ID,
 		"client_ip":  s.clientIP.IP(r),
 	}).Info("auth")
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &sess.Account.ID,
 		Factor:    audit.FactorSession,
 		Event:     audit.EventUse,
@@ -317,7 +335,7 @@ func (s *Server) handlePairCancelHTTP(w http.ResponseWriter, r *http.Request) {
 		"pairing_id": p.ID,
 		"account_id": sess.Account.ID,
 	}).Info("auth")
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &sess.Account.ID,
 		Factor:    audit.FactorSession,
 		Event:     audit.EventRevoke,

@@ -317,7 +317,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorUpstreamIDP,
 		Event:     audit.EventRegister,
@@ -416,7 +416,7 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorUpstreamIDP,
 		Event:     audit.EventUpdate,
@@ -464,7 +464,7 @@ func (s *Server) handleSetIdentityProviderDisabledHTTP(w http.ResponseWriter, r 
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorUpstreamIDP,
 		Event:     audit.EventUpdate,
@@ -530,7 +530,7 @@ func (s *Server) handleRotateIdentityProviderSecretHTTP(w http.ResponseWriter, r
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorUpstreamIDP,
 		Event:     audit.EventRotate,
@@ -584,7 +584,7 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorUpstreamIDP,
 		Event:     audit.EventRevoke,

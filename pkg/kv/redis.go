@@ -178,6 +178,36 @@ func (r *RedisStore) SetNX(ctx context.Context, key, value string, ttl time.Dura
 	return ok, nil
 }
 
+// casScript is a single Lua EVAL that atomically compares the current value
+// at key against ARGV[1] (oldValue) and, if byte-equal, replaces it with
+// ARGV[2] (newValue) with a millisecond expiry of ARGV[3]. Redis executes
+// Lua scripts atomically, so concurrent CAS callers with the same expected
+// value produce exactly one winner: the first to match swaps, and every
+// subsequent caller sees the new bytes (a mismatch) and returns 0.
+var casScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	redis.call("SET", KEYS[1], ARGV[2], "PX", ARGV[3])
+	return 1
+end
+return 0
+`)
+
+// CompareAndSwap atomically replaces the byte-exact oldValue at key with
+// newValue, resetting the TTL to ttl via a single Redis Lua EVAL. An
+// absent/expired key (GET returns nil) never equals the supplied oldValue,
+// so the script returns 0 — (false, nil), never an error, letting callers
+// fail closed. ttl must be > 0.
+func (r *RedisStore) CompareAndSwap(ctx context.Context, key, oldValue, newValue string, ttl time.Duration) (bool, error) {
+	if ttl <= 0 {
+		return false, ErrCASInvalidTTL
+	}
+	res, err := casScript.Run(ctx, r.client, []string{key}, oldValue, newValue, ttl.Milliseconds()).Int()
+	if err != nil {
+		return false, err
+	}
+	return res == 1, nil
+}
+
 func (r *RedisStore) Close() error {
 	return r.client.Close()
 }

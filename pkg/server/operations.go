@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 
@@ -106,8 +108,9 @@ func registerOpHTTP(
 			ae := authn.AsAuthError(err)
 			if ae == nil {
 				// authn.Check should only return AuthErrors, but guard against
-				// unexpected error types to avoid a nil-deref on ae.Status.
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				// unexpected error types by routing through writeAuthErr, which
+				// logs the detail server-side and returns canonical server_error.
+				writeAuthErr(w, err)
 				return
 			}
 			errResp := huma.NewError(ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
@@ -123,43 +126,125 @@ func registerOpHTTP(
 
 const maxAdminBody = 64 << 10 // 64 KiB
 
-// withFreshSudo wraps a raw handler so the fresh-sudo gate runs as route
-// policy, not the handler's first line. Single chokepoint for admin mutations.
+// withAdminBodyControls wraps a raw handler with the two request-shape
+// controls every JSON admin mutation needs, independent of sudo policy:
 //
-// Ordering: the content-type check runs BEFORE the sudo gate and short-circuits
-// on a bad type, so a wrong-content-type request never reaches hasFreshSudo.
-// The body-size limit (MaxBytesReader) is also installed before the gate, but
-// it is enforced lazily on read inside the handler — an oversized but
-// correctly-typed request still passes through the gate. This is safe: the
-// content-type 400 reveals nothing about grant state (no more informative than
-// the 401 hasFreshSudo would have emitted).
-func (s *Server) withFreshSudo(h http.HandlerFunc) http.HandlerFunc {
+//  1. Content-type check: a non-GET request with a body whose Content-Type
+//     is present but not application/json is rejected 400 bad_request before
+//     the handler runs. A missing Content-Type on a body is also rejected.
+//  2. Body-size limit: the body is capped at maxAdminBody (64 KiB).
+//
+// The size cap is enforced eagerly for unknown-length bodies and lazily for
+// advertised-length bodies:
+//
+//   - If Content-Length is present and exceeds maxAdminBody, reject 413
+//     before the handler runs (proactive check).
+//   - If Content-Length is -1 (chunked/unknown), the proactive check cannot
+//     fire. MaxBytesReader alone is insufficient here: a handler's
+//     json.Decode stops at the end of the first valid JSON value and never
+//     reads trailing bytes, so an oversized unknown-length body with a valid
+//     JSON prefix would slip past the lazy limit and reach the sudo gate /
+//     handler. To close that gap we read at most maxAdminBody+1 bytes into
+//     memory once, reject 413 if more than maxAdminBody arrived, and restore
+//     the buffered bytes as the request body for the handler. This bound is
+//     tiny (64 KiB+1) and avoids a second copy: MaxBytesReader would have
+//     re-read the same bytes, so we replace it rather than wrap on top.
+//   - For known-length bodies ≤ maxAdminBody, MaxBytesReader still guards
+//     against a client that lies (sends more than advertised).
+//
+// Routes through the shared writeBodyTooLarge so every 413 response is
+// identical. This wrapper installs BOTH controls exactly once. withFreshSudo
+// composes it and then adds the fresh-sudo gate; registerAdminBodyOpHTTP
+// uses it directly for intentional admin-only (no-sudo) raw JSON mutation
+// routes. Never double-wrap: a route registered through either helper
+// already has these controls.
+func withAdminBodyControls(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Content-type check first — short-circuit before the sudo gate on a
-		// clearly malformed request.
 		if r.Method != http.MethodGet && r.ContentLength != 0 {
 			ct := r.Header.Get("Content-Type")
-			if ct != "" && !strings.HasPrefix(ct, "application/json") {
+			if ct == "" || !strings.HasPrefix(ct, "application/json") {
 				writeAuthErr(w, authn.ErrBadRequest())
 				return
 			}
+			// Proactive size check: if Content-Length advertises a body
+			// larger than the cap, reject 413 before the handler runs.
+			if r.ContentLength > maxAdminBody {
+				writeBodyTooLarge(w)
+				return
+			}
+			// Unknown-length bodies (ContentLength == -1, e.g. chunked)
+			// defeat the proactive check and MaxBytesReader's lazy limit is
+			// not enough on its own: json.Decode stops after the first valid
+			// JSON value and never reads the trailing bytes, so an oversized
+			// unknown-length body with a valid prefix would reach the sudo
+			// gate / handler unchecked. Eagerly read at most maxAdminBody+1
+			// bytes once; reject 413 if more arrived; otherwise restore the
+			// buffered body for the handler. This replaces MaxBytesReader
+			// for this request (no avoidable duplicate copy) while still
+			// bounding memory to maxAdminBody+1.
+			if r.Body != nil && r.ContentLength < 0 {
+				buf, err := io.ReadAll(io.LimitReader(r.Body, maxAdminBody+1))
+				if err != nil {
+					writeBodyTooLarge(w)
+					return
+				}
+				if int64(len(buf)) > maxAdminBody {
+					writeBodyTooLarge(w)
+					return
+				}
+				r.Body = io.NopCloser(bytes.NewReader(buf))
+				r.ContentLength = int64(len(buf))
+			}
 		}
-		if r.Body != nil {
+		if r.Body != nil && r.ContentLength >= 0 {
+			// Known-length (including the now-resolved unknown-length case):
+			// keep MaxBytesReader as a defense-in-depth guard against a
+			// client that sends more than it advertised. The eager read above
+			// already capped unknown-length bodies, so this only wraps
+			// advertised-length ones.
 			r.Body = http.MaxBytesReader(w, r.Body, maxAdminBody)
 		}
+		h(w, r)
+	}
+}
+
+// withFreshSudo wraps a raw handler so the fresh-sudo gate runs as route
+// policy, not the handler's first line. Single chokepoint for admin mutations.
+//
+// Ordering: withAdminBodyControls runs first (content-type check + body-size
+// limit). The content-type check short-circuits on a bad type, so a wrong-
+// content-type request never reaches the sudo gate. The body-size limit is
+// enforced before the handler runs: advertised-length bodies are rejected
+// 413 by the proactive Content-Length check, and unknown-length bodies are
+// fully read (bounded to maxAdminBody+1) and rejected 413 if oversized —
+// so an oversized but correctly-typed request never reaches the gate.
+// This is safe: the content-type 400 and body-size 413 reveal nothing about
+// grant state (no more informative than the 401 hasFreshSudo would emit).
+func (s *Server) withFreshSudo(h http.HandlerFunc) http.HandlerFunc {
+	return withAdminBodyControls(func(w http.ResponseWriter, r *http.Request) {
 		// Sudo gate: verify fresh grant (pure read — multi-use).
 		sess := authn.SessionFromContext(r.Context())
 		if s.requireFreshSudo(r.Context(), w, sess) {
 			return
 		}
 		h(w, r)
-	}
+	})
 }
 
 // registerSudoOpHTTP = registerOpHTTP (admin auth check) + withFreshSudo
-// (content-type, body-size, fresh-sudo gate). Every admin mutation route MUST
-// use this instead of the bare registerOpHTTP so the sudo policy cannot drift
-// per-handler.
+// (content-type, body-size, fresh-sudo gate). Every sudo-gated admin mutation
+// route MUST use this instead of the bare registerOpHTTP so the sudo policy
+// cannot drift per-handler.
 func (s *Server) registerSudoOpHTTP(router chiRouter, method, path string, req contract.AuthRequirement, h http.HandlerFunc) {
 	registerOpHTTP(router, method, path, req, s.withFreshSudo(h))
+}
+
+// registerAdminBodyOpHTTP = registerOpHTTP (admin auth check) +
+// withAdminBodyControls (content-type, body-size). This is for intentional
+// admin-only raw-JSON mutation routes that do NOT require fresh sudo: SAML
+// CRUD, app-access management, and group CRUD. Using this helper ensures the
+// body + content-type controls cannot drift per-handler, mirroring the
+// registerSudoOpHTTP guarantee for the non-sudo tier.
+func (s *Server) registerAdminBodyOpHTTP(router chiRouter, method, path string, req contract.AuthRequirement, h http.HandlerFunc) {
+	registerOpHTTP(router, method, path, req, withAdminBodyControls(h))
 }

@@ -29,7 +29,7 @@ func (s *Server) handleForwardAuthSSOLogoutHTTP(w http.ResponseWriter, r *http.R
 				"client_ip":  s.clientIP.IP(r),
 				"via":        "forward_auth",
 			}).Info("auth")
-			_ = s.Audit.Record(r.Context(), audit.Record{
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &id,
 				Factor:    audit.FactorSession,
 				Event:     audit.EventSessionEnd,

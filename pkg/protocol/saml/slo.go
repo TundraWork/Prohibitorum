@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/beevik/etree"
 	crewjam "github.com/crewjam/saml"
@@ -31,6 +32,25 @@ var ErrSLOBadDestination = errors.New("saml: LogoutRequest Destination does not 
 
 // ErrSLOExpired is returned when a LogoutRequest's NotOnOrAfter is in the past.
 var ErrSLOExpired = errors.New("saml: LogoutRequest has expired (NotOnOrAfter)")
+
+// ErrSLOMissingID is returned when a signed LogoutRequest carries no @ID or one
+// that is not a valid NCName. The ID is the replay-reservation key suffix and
+// the LogoutResponse InResponseTo value, so an empty/invalid ID is rejected as
+// malformed before any session mutation — mirroring the AuthnRequest gate.
+var ErrSLOMissingID = errors.New("saml: LogoutRequest ID missing or not a valid NCName")
+
+// ErrSLOStaleIssueInstant is returned when a signed LogoutRequest's
+// IssueInstant falls outside ±AuthnRequestTTL of now. The bound is the same
+// freshness window as AuthnRequest: without it, a signed request could be
+// re-presented indefinitely once the replay-key TTL expires. A missing
+// IssueInstant is rejected (a signed request always carries one).
+var ErrSLOStaleIssueInstant = errors.New("saml: LogoutRequest IssueInstant missing or outside acceptable window")
+
+// ErrSLOReplayedRequest is returned when a LogoutRequest ID has already been
+// seen (within AuthnRequestTTL) for the same SP. The check is atomic via KV
+// SetNX and scoped by SP entity ID, so the same ID from a different SP is NOT a
+// replay.
+var ErrSLOReplayedRequest = errors.New("saml: LogoutRequest ID replayed")
 
 // HandleSLO implements IdP-local Single Logout at /saml/slo. It validates a
 // SIGNED SP LogoutRequest (signature is ALWAYS required for SLO, unlike the
@@ -136,6 +156,47 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		i.sloParseError(w, r, ErrSLOExpired)
 		return
 	}
+
+	// (5b) Freshness + replay protection. These checks run AFTER signature +
+	// destination/expiry verification so an unauthenticated attacker cannot
+	// poison the replay cache, and BEFORE any session lookup/mutation so a
+	// replayed/stale request can never revoke a session.
+	//
+	// ID: a signed LogoutRequest MUST carry a valid NCName @ID. The ID is the
+	// replay-key suffix and the LogoutResponse InResponseTo; an empty or invalid
+	// ID would collapse the replay namespace (mirroring the AuthnRequest gate).
+	if !isValidSAMLID(req.ID) {
+		i.sloParseError(w, r, ErrSLOMissingID)
+		return
+	}
+	// IssueInstant: a signed request always carries one. Require it and bound
+	// it to ±AuthnRequestTTL of now (the same freshness window as AuthnRequest),
+	// so a signed request cannot be re-presented indefinitely once the replay
+	// key expires.
+	if req.IssueInstant.IsZero() {
+		i.sloParseError(w, r, ErrSLOStaleIssueInstant)
+		return
+	}
+	if d := time.Since(req.IssueInstant); d > AuthnRequestTTL || d < -AuthnRequestTTL {
+		i.sloParseError(w, r, ErrSLOStaleIssueInstant)
+		return
+	}
+	// Reserve the single-use replay key, scoped by SP entity ID. SetNX is
+	// atomic: the first presentation sets the marker (TTL AuthnRequestTTL) and
+	// proceeds; a replay returns ErrSLOReplayedRequest; a KV error fails closed
+	// (server_error). Scoped by SP so the same ID from a different SP is NOT a
+	// replay.
+	replayKey := "saml:slo_request_replay:" + sp.EntityID + ":" + req.ID
+	ok, kverr := i.kv.SetNX(ctx, replayKey, "1", AuthnRequestTTL)
+	if kverr != nil {
+		i.sloParseError(w, r, kverr) // fail closed → server_error
+		return
+	}
+	if !ok {
+		i.sloEmitReplayFail(ctx, r, sp.EntityID)
+		i.sloParseError(w, r, ErrSLOReplayedRequest)
+		return
+	}
 	if req.NameID == nil {
 		i.errorPage(w, r, "saml_request_invalid")
 		return
@@ -236,7 +297,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 		if revokeFailed {
 			detail["partial"] = true
 		}
-		_ = i.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, i.audit, audit.Record{
 			Factor:    audit.FactorSAMLSP,
 			Event:     audit.EventSessionEnd,
 			AccountID: &acctID,
@@ -357,6 +418,33 @@ func parseLogoutRequestXML(raw []byte, out *crewjam.LogoutRequest) (*etree.Eleme
 		return nil, ErrMalformedRequest
 	}
 	return doc.Root(), nil
+}
+
+// isValidSAMLID reports whether id is a non-empty, conservative NCName subset
+// suitable as a replay-key suffix and InResponseTo value. SAML Core §1.3.4:
+// xsd:ID is a restriction of xsd:NCName — non-empty, starting with a name-start
+// character, and containing only name characters thereafter. This check
+// intentionally accepts a narrow, interoperable subset (letters, digits, and
+// the separators '-', '_', '.') and may reject IDs that rely on exotic
+// combining or extender characters allowed by the full NCName production. It
+// rejects empty IDs and IDs beginning with a digit (which would degenerate the
+// replay namespace).
+func isValidSAMLID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for i, r := range id {
+		if i == 0 {
+			if !unicode.IsLetter(r) && r != '_' {
+				return false
+			}
+			continue
+		}
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '-' && r != '_' && r != '.' {
+			return false
+		}
+	}
+	return true
 }
 
 // verifyPostLogoutSignature verifies the ENVELOPED signature on a POST-binding
@@ -568,7 +656,7 @@ func (i *IdP) sloEmitSigFail(ctx context.Context, r *http.Request, spEntityID st
 	case errors.Is(sigErr, errSigRefMismatch):
 		reason = "sig_ref_mismatch"
 	}
-	_ = i.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, i.audit, audit.Record{
 		AccountID: nil,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventFail,
@@ -581,18 +669,41 @@ func (i *IdP) sloEmitSigFail(ctx context.Context, r *http.Request, spEntityID st
 	})
 }
 
+// sloEmitReplayFail emits a saml_sp|fail audit record for a replayed
+// LogoutRequest ID on a KNOWN SP. It is called AFTER signature verification +
+// ID/freshness validation but BEFORE session lookup, so the AccountID is nil
+// (we have not yet discovered which account owns the session) and the NameID is
+// intentionally NOT recorded to avoid logging a sensitive identifier for a
+// request we are rejecting.
+func (i *IdP) sloEmitReplayFail(ctx context.Context, r *http.Request, spEntityID string) {
+	audit.RecordOrLog(ctx, i.audit, audit.Record{
+		AccountID: nil,
+		Factor:    audit.FactorSAMLSP,
+		Event:     audit.EventFail,
+		IP:        audit.ParseIPOrNil(i.auditIP(r)),
+		UserAgent: r.UserAgent(),
+		Detail: map[string]any{
+			"reason": "replayed_request",
+			"sp":     spEntityID,
+		},
+	})
+}
+
 // sloParseError maps an SLO parse/validation/signature error to a browser-
 // navigated /error redirect. The shared invariant across every case (including
 // ErrSLOBadDestination and ErrSLOExpired, which are raised AFTER the signature
 // gate) is that NONE of these paths redirect to an SP-supplied URL and NONE have
 // mutated a session: they all terminate before the revoke step, so they dead-end
 // at the SPA /error page. Client-class errors map to saml_request_invalid (an
-// unknown SP maps to saml_sp_unknown); anything else (e.g. a DB failure) maps to
-// server_error.
+// unknown SP maps to saml_sp_unknown); a replayed LogoutRequest maps to
+// saml_replayed (mirroring the SSO replay path); anything else (e.g. a DB or KV
+// failure) maps to server_error.
 func (i *IdP) sloParseError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrUnknownSP):
 		i.errorPage(w, r, "saml_sp_unknown")
+	case errors.Is(err, ErrSLOReplayedRequest):
+		i.errorPage(w, r, "saml_replayed")
 	case errors.Is(err, ErrMalformedRequest),
 		errors.Is(err, ErrOversizeRequest),
 		errors.Is(err, ErrMissingSAMLRequest),
@@ -605,7 +716,9 @@ func (i *IdP) sloParseError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, errXMLDTD),
 		errors.Is(err, errDuplicateID),
 		errors.Is(err, ErrSLOBadDestination),
-		errors.Is(err, ErrSLOExpired):
+		errors.Is(err, ErrSLOExpired),
+		errors.Is(err, ErrSLOMissingID),
+		errors.Is(err, ErrSLOStaleIssueInstant):
 		i.errorPage(w, r, "saml_request_invalid")
 	default:
 		i.errorPage(w, r, "server_error")

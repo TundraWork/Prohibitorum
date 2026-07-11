@@ -160,7 +160,7 @@ func (s *Server) auditBranding(r *http.Request, reason string) {
 		id := sess.Account.ID
 		acct = &id
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: acct,
 		Factor:    audit.FactorSettings,
 		Event:     audit.EventUpdate,

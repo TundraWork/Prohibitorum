@@ -286,7 +286,7 @@ func (i *IdP) issueAssertion(w http.ResponseWriter, r *http.Request, account db.
 		return
 	}
 	accountID := account.ID
-	_ = i.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, i.audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorSAMLSP,
 		Event:     audit.EventUse,

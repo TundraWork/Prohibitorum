@@ -66,7 +66,7 @@ func (s *Store) Set(ctx context.Context, accountID int32, pw string) error {
 	}); err != nil {
 		return fmt.Errorf("password.Set: upsert: %w", err)
 	}
-	_ = s.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorPassword,
 		Event:     audit.EventRegister,
@@ -97,7 +97,7 @@ func (s *Store) Verify(ctx context.Context, accountID int32, pw string) error {
 	)
 	if subtle.ConstantTimeCompare(candidate, decoded.Tag) != 1 {
 		_, _ = s.throttle.RegisterFailure(ctx, accountID, "password")
-		_ = s.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorPassword,
 			Event:     audit.EventFail,
@@ -106,7 +106,7 @@ func (s *Store) Verify(ctx context.Context, accountID int32, pw string) error {
 	}
 
 	_ = s.throttle.Reset(ctx, accountID, "password")
-	_ = s.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorPassword,
 		Event:     audit.EventUse,
@@ -131,7 +131,7 @@ func (s *Store) Delete(ctx context.Context, accountID int32) error {
 	if err := s.q.DeletePasswordCredential(ctx, accountID); err != nil {
 		return fmt.Errorf("password.Delete: %w", err)
 	}
-	_ = s.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorPassword,
 		Event:     audit.EventRevoke,

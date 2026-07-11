@@ -94,7 +94,7 @@ func (s *Server) handleRevokeAccountTokenHTTP(w http.ResponseWriter, r *http.Req
 	}
 	actor := faActorID(r.Context())
 	credRef := int64(body.ID)
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID:     actor,
 		Factor:        audit.FactorPAT,
 		Event:         audit.EventRevoke,

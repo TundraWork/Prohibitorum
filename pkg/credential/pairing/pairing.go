@@ -160,30 +160,144 @@ func (s *PairingStore) LookupByCode(ctx context.Context, code string) (*Pairing,
 }
 
 // Approve transitions a pending pairing to approved and binds it to
-// accountID. Idempotent within the same account; rejects re-approval by a
-// different account.
+// accountID, atomically replacing the exact pending JSON with the approved
+// JSON via KV CompareAndSwap while preserving the remaining TTL. This
+// serializes concurrent approvals: exactly one caller's CAS matches the
+// pending bytes and wins; every rival sees either the winner's approved
+// bytes (a mismatch) or no bytes (expired/consumed) and fails closed with
+// ErrPairingState.
+//
+// Idempotent within the winning account: if the canonical record already
+// records this account as approved, Approve is a no-op. A re-approval by a
+// different account is rejected — the CAS expected value is the pending
+// bytes (not the rival's approved bytes), so it cannot match.
 func (s *PairingStore) Approve(ctx context.Context, p *Pairing, accountID int32) error {
+	// Fast path: the caller already holds the canonical approved state for
+	// this account — idempotent no-op. We only trust this after the caller
+	// read the canonical record (not a stale pre-approve object), so the
+	// HTTP handler must reload via GetByID/LookupByCode before relying on
+	// this branch.
 	if p.Status == PairingApproved && p.ApprovedFor == accountID {
-		return nil // idempotent
+		return nil
 	}
 	if p.Status != PairingPending {
 		return authn.ErrPairingState()
 	}
-	p.Status = PairingApproved
-	p.ApprovedFor = accountID
-	return s.put(ctx, p)
-}
-
-// Consume marks the pairing consumed and deletes both KV keys. Called by
-// the new device after the WebAuthn registration ceremony completes
-// successfully; prevents the same pairing from being used twice.
-func (s *PairingStore) Consume(ctx context.Context, p *Pairing) error {
-	if p.Status != PairingApproved {
+	// Marshal the exact bytes the caller believes are stored (pending) and
+	// the bytes to swap in (approved). CAS is byte-exact, so a rival that
+	// approves between the caller's read and write changes the stored bytes
+	// and makes the caller's CAS mismatch.
+	expected, err := json.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("pairing: marshal pending: %w", err)
+	}
+	remaining := time.Until(p.ExpiresAt)
+	if remaining <= 0 {
+		return authn.ErrPairingExpired()
+	}
+	updated := *p
+	updated.Status = PairingApproved
+	updated.ApprovedFor = accountID
+	newRaw, err := json.Marshal(&updated)
+	if err != nil {
+		return fmt.Errorf("pairing: marshal approved: %w", err)
+	}
+	swapped, err := s.kv.CompareAndSwap(ctx, pairingIDKey(p.ID), string(expected), string(newRaw), remaining)
+	if err != nil {
+		return fmt.Errorf("pairing: cas approve: %w", err)
+	}
+	if !swapped {
+		// The canonical record no longer matches the pending bytes we
+		// read — a rival approved, it was consumed/cancelled, or it
+		// expired. Fail closed; the handler surfaces pairing_state.
 		return authn.ErrPairingState()
 	}
-	_ = s.kv.Del(ctx, pairingIDKey(p.ID))
-	_ = s.kv.Del(ctx, pairingCodeKey(p.Code))
+	// Reflect the transition in the caller's in-memory copy.
+	p.Status = PairingApproved
+	p.ApprovedFor = accountID
 	return nil
+}
+
+// Consume atomically transitions an approved pairing to consumed via KV
+// CompareAndSwap, replacing the exact approved JSON with a consumed marker
+// that carries the remaining TTL. This makes consume single-winner: only
+// the caller whose CAS matches the exact approved bytes wins; every rival
+// sees the consumed marker (a mismatch) or no key (expired/deleted) and
+// fails. The consumed marker remains in KV until TTL expiry to prevent
+// resurrection — a second Consume or a re-Approve cannot match the approved
+// bytes the marker replaced.
+//
+// A pending pairing is NOT mutated: Consume reads the canonical record to
+// check state, and a pending record's bytes never match the expected
+// approved JSON the CAS targets, so the CAS is a no-op and the caller
+// receives ErrPairingNotApproved. The ceremony is preserved for the user
+// to approve. A malformed record similarly fails the CAS (garbage never
+// matches approved JSON) and the key is left intact. The code-index key is
+// deleted only by the winner after the CAS succeeds.
+//
+// The handler must complete session issuance before responding; a failure
+// after Consume does NOT resurrect the consumed state — the consumed marker
+// persists until TTL.
+func (s *PairingStore) Consume(ctx context.Context, id string) (*Pairing, error) {
+	// Read the canonical record to get the exact approved bytes for CAS
+	// and to check state before attempting the swap. This read is not
+	// authoritative — the CAS is — but it lets us return precise errors
+	// (pairing_not_approved for pending, pairing_not_found for absent)
+	// without a destructive Pop.
+	raw, err := s.kv.Get(ctx, pairingIDKey(id))
+	if err != nil {
+		if err == kv.ErrKeyNotFound {
+			return nil, authn.ErrPairingNotFound()
+		}
+		return nil, fmt.Errorf("pairing: kv get: %w", err)
+	}
+	var p Pairing
+	if err := json.Unmarshal([]byte(raw), &p); err != nil {
+		// Malformed canonical record — fail closed. We do NOT Pop or CAS;
+		// the garbage key remains so a latent bug is observable, but it
+		// cannot be consumed (the CAS would never match anyway).
+		return nil, authn.ErrPairingNotFound()
+	}
+	if p.Status != PairingApproved {
+		// Pending or already-consumed. Do NOT mutate: a pending pairing
+		// must survive so the user can still approve it; a consumed
+		// marker is already terminal. Surface the precise error so the
+		// handler returns the correct HTTP status.
+		if p.Status == PairingPending {
+			return nil, authn.ErrPairingNotApproved()
+		}
+		return nil, authn.ErrPairingState()
+	}
+	// Marshal the exact approved bytes the caller read (CAS expected) and
+	// the consumed marker to swap in. CAS is byte-exact, so a concurrent
+	// winner that already consumed changes the stored bytes and makes
+	// this caller's CAS mismatch.
+	expected := raw // exact bytes from the Get — no re-marshal drift
+	remaining := time.Until(p.ExpiresAt)
+	if remaining <= 0 {
+		return nil, authn.ErrPairingExpired()
+	}
+	consumed := p
+	consumed.Status = PairingConsumed
+	newRaw, err := json.Marshal(&consumed)
+	if err != nil {
+		return nil, fmt.Errorf("pairing: marshal consumed: %w", err)
+	}
+	swapped, err := s.kv.CompareAndSwap(ctx, pairingIDKey(id), expected, string(newRaw), remaining)
+	if err != nil {
+		return nil, fmt.Errorf("pairing: cas consume: %w", err)
+	}
+	if !swapped {
+		// A rival won the CAS — either consumed (now consumed marker) or
+		// re-approved/cancelled (different bytes). Fail closed; the
+		// handler surfaces the error without issuing a session.
+		return nil, authn.ErrPairingState()
+	}
+	// Best-effort cleanup of the secondary code-index key. The consumed
+	// marker blocks a second consume, so this Del is defense-in-depth; if
+	// it fails the code key expires with its original TTL.
+	_ = s.kv.Del(ctx, pairingCodeKey(p.Code))
+	return &p, nil
 }
 
 // Cancel removes a pending pairing. Called when the user clicks "cancel"

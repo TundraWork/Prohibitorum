@@ -156,7 +156,7 @@ func (s *Server) handlePutAvatarHTTP(w http.ResponseWriter, r *http.Request) {
 
 	{
 		acctID := acctID
-		_ = s.Audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.Audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorAccount,
 			Event:     audit.EventUpdate,
@@ -222,7 +222,7 @@ func (s *Server) handlePutAvatarSelectionHTTP(w http.ResponseWriter, r *http.Req
 		sess.Account.AvatarContentType = pgtype.Text{}
 		{
 			acctIDAudit := acctID
-			_ = s.Audit.Record(ctx, audit.Record{
+			audit.RecordOrLog(ctx, s.Audit, audit.Record{
 				AccountID: &acctIDAudit,
 				Factor:    audit.FactorAccount,
 				Event:     audit.EventUpdate,
@@ -291,7 +291,7 @@ func (s *Server) handlePutAvatarSelectionHTTP(w http.ResponseWriter, r *http.Req
 	}
 	{
 		acctIDAudit := acctID
-		_ = s.Audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.Audit, audit.Record{
 			AccountID: &acctIDAudit,
 			Factor:    audit.FactorAccount,
 			Event:     audit.EventUpdate,
@@ -350,7 +350,7 @@ func (s *Server) handleDeleteAvatarHTTP(w http.ResponseWriter, r *http.Request) 
 
 	{
 		acctIDAudit := acctID
-		_ = s.Audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.Audit, audit.Record{
 			AccountID: &acctIDAudit,
 			Factor:    audit.FactorAccount,
 			Event:     audit.EventUpdate,

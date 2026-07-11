@@ -228,7 +228,7 @@ func (s *Server) handleMeIdentitiesUnlinkHTTP(w http.ResponseWriter, r *http.Req
 	// so a missed audit here costs us nothing structural — the unlink is
 	// already persisted.
 	acct := sess.Account.ID
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &acct,
 		Factor:    audit.FactorFederationOIDC,
 		Event:     audit.EventUnlink,
@@ -320,7 +320,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		// Detail and the /error redirect carry the same correlation token.
 		ref := weberr.NewRef()
 		acct := sess.Account.ID
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			AccountID: &acct,
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventFail,

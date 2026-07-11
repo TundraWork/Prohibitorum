@@ -335,8 +335,13 @@ func Parse() (*Config, error) {
 }
 
 // dataEncryptionKeyPattern scopes the key-version env var to a positive
-// integer suffix; cryptographic length validation happens at use time.
+// integer suffix. Each decoded key must be a 32-byte (256-bit) AES DEK; a
+// malformed length is rejected here at Parse startup rather than at first
+// use, and the error names both the version and the actual byte length so
+// an operator can identify the offending env var.
 var dataEncryptionKeyPattern = regexp.MustCompile(`^PROHIBITORUM_DATA_ENCRYPTION_KEY_V(\d+)=(.+)$`)
+
+const dataEncryptionKeyLen = 32 // AES-256 DEK length.
 
 func loadDataEncryptionKeys(env []string) (map[int][]byte, error) {
 	out := map[int][]byte{}
@@ -352,6 +357,9 @@ func loadDataEncryptionKeys(env []string) (map[int][]byte, error) {
 		raw, err := base64.StdEncoding.DecodeString(m[2])
 		if err != nil {
 			return nil, fmt.Errorf("decode data encryption key v%d: %w", version, err)
+		}
+		if len(raw) != dataEncryptionKeyLen {
+			return nil, fmt.Errorf("data encryption key v%d: must be %d bytes, got %d", version, dataEncryptionKeyLen, len(raw))
 		}
 		out[version] = raw
 	}

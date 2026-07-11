@@ -294,7 +294,7 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		for k, v := range changes {
 			detail[k] = v
 		}
-		_ = s.Audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, s.Audit, audit.Record{
 			AccountID: auditActor(sess),
 			Factor:    audit.FactorAccount,
 			Event:     audit.EventUpdate,
@@ -367,7 +367,7 @@ func (s *Server) handleSetAccountDisabledHTTP(w http.ResponseWriter, r *http.Req
 	}
 
 	sess := authn.SessionFromContext(ctx)
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorAccount,
 		Event:     audit.EventUpdate,
@@ -444,7 +444,7 @@ func (s *Server) handleDeleteAccount(ctx context.Context, in *deleteAccountIn) (
 		"actor_id":  actorID,
 		"target_id": in.Body.ID,
 	}).Info("auth")
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorAccount,
 		Event:     audit.EventRevoke,
@@ -515,7 +515,7 @@ func (s *Server) handleDeleteAccountCredential(ctx context.Context, in *deleteAc
 		"target_id":     in.Body.AccountID,
 		"credential_id": in.Body.CredentialID,
 	}).Info("auth")
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorWebAuthn,
 		Event:     audit.EventRevoke,
@@ -595,7 +595,7 @@ func (s *Server) handleDeleteAccountCredentialHTTP(w http.ResponseWriter, r *htt
 		"target_id":     body.AccountID,
 		"credential_id": body.CredentialID,
 	}).Info("auth")
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorWebAuthn,
 		Event:     audit.EventRevoke,
@@ -648,7 +648,7 @@ func (s *Server) handleRevokeAccountSessions(ctx context.Context, in *revokeAcco
 		"target_id": in.Body.ID,
 		"revoked":   revoked,
 	}).Info("auth")
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorAccount,
 		Event:     audit.EventRevoke,
@@ -699,7 +699,7 @@ func (s *Server) handleReissueEnrollment(ctx context.Context, in *reissueEnrollm
 		"target_id": in.Body.ID,
 		"intent":    "reset",
 	}).Info("auth")
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorEnrollment,
 		Event:     audit.EventEnrollmentIssued,
@@ -775,7 +775,7 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		"actor_id":      actorID,
 		"template_role": in.Body.Role,
 	}).Info("auth")
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorInvitation,
 		Event:     audit.EventRegister,
@@ -858,7 +858,7 @@ func (s *Server) handleRevokeInvitation(ctx context.Context, in *revokeInvitatio
 		"actor_id": actorID,
 		"token4":   tokenPrefix,
 	}).Info("auth")
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorInvitation,
 		Event:     audit.EventRevoke,
@@ -1008,7 +1008,7 @@ func (s *Server) handleRevokeAccountSessionHTTP(w http.ResponseWriter, r *http.R
 		"target_id":      accountID,
 		"target_session": body.SessionID,
 	}).Info("auth")
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: auditActor(sess),
 		Factor:    audit.FactorSession,
 		Event:     audit.EventSessionEnd,

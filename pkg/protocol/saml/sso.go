@@ -159,7 +159,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	if !authzed.Bool {
 		acctID := sess.Data.AccountID
-		_ = i.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, i.audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorSAMLSP,
 			Event:     audit.EventAccessDenied,
@@ -307,7 +307,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 				aid := sess.Data.AccountID
 				replayAcctID = &aid
 			}
-			_ = i.audit.Record(ctx, audit.Record{
+			audit.RecordOrLog(ctx, i.audit, audit.Record{
 				AccountID: replayAcctID,
 				Factor:    audit.FactorSAMLSP,
 				Event:     audit.EventFail,

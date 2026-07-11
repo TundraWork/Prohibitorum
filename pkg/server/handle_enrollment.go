@@ -195,7 +195,7 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		// Allowing the WebAuthn enrollment path here would silently override the
 		// admin's "must federate via this IdP" policy. Audit finding M1-int.
 		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
-			_ = s.Audit.Record(r.Context(), audit.Record{
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				Factor: audit.FactorEnrollment,
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "federation_required"},
@@ -271,7 +271,7 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		// the holder could wipe its credentials + plant a fresh passkey (T1.2).
 		// Every other credential path re-checks Disabled; mirror it here.
 		if a.Disabled {
-			_ = s.Audit.Record(r.Context(), audit.Record{
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &a.ID,
 				Factor:    audit.FactorEnrollment,
 				Event:     audit.EventFail,
@@ -419,7 +419,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		if consumed.ExpectedUpstreamIdpSlug.Valid && consumed.ExpectedUpstreamIdpSlug.String != "" {
 			// Use the outer writer: this error rolls back the tx, so a
 			// tx-scoped audit row would disappear with it.
-			_ = s.Audit.Record(r.Context(), audit.Record{
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				Factor: audit.FactorEnrollment,
 				Event:  audit.EventFail,
 				Detail: map[string]any{"reason": "federation_required"},
@@ -492,7 +492,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		if a.Disabled {
 			// Use the outer writer: this error rolls back the tx, so a
 			// tx-scoped audit row would disappear with it.
-			_ = s.Audit.Record(r.Context(), audit.Record{
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &a.ID,
 				Factor:    audit.FactorEnrollment,
 				Event:     audit.EventFail,
@@ -544,7 +544,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	// Emit enrollment_consumed AFTER commit: the account row is now visible on all
 	// connections so the credential_event.account_id FK resolves. Outer s.Audit is
 	// correct here — not a tx-scoped writer — because the tx has already committed.
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &acct.ID,
 		Factor:    audit.FactorEnrollment,
 		Event:     audit.EventEnrollmentConsumed,
@@ -568,7 +568,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, fmt.Errorf("enrollment/complete: session issue: %w", err))
 		return
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &acct.ID,
 		Factor:    audit.FactorSession,
 		Event:     audit.EventSessionStart,

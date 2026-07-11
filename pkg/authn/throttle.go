@@ -132,8 +132,8 @@ func (t *Throttle) RegisterFailure(ctx context.Context, accountID int32, factor 
 		return 0, nil
 	}
 	retry := row.LockedUntil.Time.Sub(t.now())
-	if !wasLocked && t.audit != nil {
-		_ = t.audit.Record(ctx, audit.Record{
+	if !wasLocked {
+		audit.RecordOrLog(ctx, t.audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.Factor(factor),
 			Event:     audit.EventFactorLocked,

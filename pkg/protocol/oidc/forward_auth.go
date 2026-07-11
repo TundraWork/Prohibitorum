@@ -254,7 +254,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 			// Session was valid but RBAC or account check denied access.
 			// Emit before falling through to the 302 login redirect.
 			acctID := sess.AccountID
-			_ = p.audit.Record(ctx, audit.Record{
+			audit.RecordOrLog(ctx, p.audit, audit.Record{
 				AccountID: &acctID,
 				Factor:    audit.FactorOIDCClient,
 				Event:     audit.EventAccessDenied,
@@ -304,7 +304,7 @@ func (p *Provider) HandleForwardAuthCallback(w http.ResponseWriter, r *http.Requ
 
 	st := popFAState(ctx, p.kv, stateID)
 	if st == nil || code == "" {
-		_ = p.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			Factor: audit.FactorOIDCClient,
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "invalid_state"},
@@ -314,7 +314,7 @@ func (p *Provider) HandleForwardAuthCallback(w http.ResponseWriter, r *http.Requ
 	}
 	ac, err := consumeCode(ctx, p.kv, code)
 	if err != nil {
-		_ = p.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			Factor: audit.FactorOIDCClient,
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "invalid_code", "client_id": st.ClientID},
@@ -324,7 +324,7 @@ func (p *Provider) HandleForwardAuthCallback(w http.ResponseWriter, r *http.Requ
 	}
 	expectedRedirect := schemeOf(r) + "://" + hostOf(r) + ForwardAuthPathPrefix + "/callback"
 	if ac.ClientID != st.ClientID || !verifyPKCE(st.Verifier, ac.CodeChallenge) || ac.RedirectURI != expectedRedirect {
-		_ = p.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			Factor: audit.FactorOIDCClient,
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "callback_mismatch", "client_id": st.ClientID},
@@ -428,7 +428,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	row, err := p.queries.GetPATByTokenHash(ctx, pat.HashToken(raw))
 	if err != nil {
-		_ = p.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			Factor: audit.FactorPAT,
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "pat_unknown", "client_id": client.ClientID},
@@ -439,7 +439,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 	acct, err := p.queries.GetAccountByID(ctx, row.AccountID)
 	if err != nil || acct.Disabled {
 		acctID := row.AccountID
-		_ = p.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorPAT,
 			Event:     audit.EventFail,
@@ -450,7 +450,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 	}
 	if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {
 		acctID := acct.ID
-		_ = p.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorPAT,
 			Event:     audit.EventFail,
@@ -465,7 +465,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		if len(row.AppGrants) > 0 {
 			if jerr := json.Unmarshal(row.AppGrants, &grants); jerr != nil {
 				acctID := acct.ID
-				_ = p.audit.Record(ctx, audit.Record{
+				audit.RecordOrLog(ctx, p.audit, audit.Record{
 					AccountID: &acctID,
 					Factor:    audit.FactorPAT,
 					Event:     audit.EventFail,
@@ -478,7 +478,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		s, ok := grants[client.ClientID]
 		if !ok {
 			acctID := acct.ID
-			_ = p.audit.Record(ctx, audit.Record{
+			audit.RecordOrLog(ctx, p.audit, audit.Record{
 				AccountID: &acctID,
 				Factor:    audit.FactorPAT,
 				Event:     audit.EventFail,
@@ -494,7 +494,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 	})
 	if aerr != nil || !ok.Bool {
 		acctID := acct.ID
-		_ = p.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorOIDCClient,
 			Event:     audit.EventAccessDenied,

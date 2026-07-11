@@ -177,7 +177,7 @@ func (s *Server) handleCreateMyToken(ctx context.Context, in *createMyTokenIn) (
 		return nil, fmt.Errorf("handleCreateMyToken: insert: %w", err)
 	}
 	credRef := int64(row.ID)
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID: &sess.Account.ID, Factor: audit.FactorPAT, Event: audit.EventRegister,
 		CredentialRef: &credRef, Detail: map[string]any{"name": name},
 	})
@@ -231,7 +231,7 @@ func (s *Server) handleRevokeMyToken(ctx context.Context, in *revokeMyTokenIn) (
 		return nil, authErrToHuma(authn.ErrCredentialNotFound())
 	}
 	credRef := int64(in.Body.ID)
-	_ = s.Audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
 		AccountID:     &sess.Account.ID,
 		Factor:        audit.FactorPAT,
 		Event:         audit.EventRevoke,

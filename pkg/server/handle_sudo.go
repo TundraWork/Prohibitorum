@@ -220,28 +220,24 @@ func (s *Server) handleSudoCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 	intentRaw, err := s.kvStore.Pop(r.Context(), sudoIntentKey(sess.Data.SessionID))
 	if err != nil {
 		accountID := sess.Account.ID
-		if s.Audit != nil {
-			_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &accountID,
 				Factor:    audit.FactorSession,
 				Event:     audit.EventSudoFailed,
 				Detail:    map[string]any{"reason": "ceremony_expired"},
 			})
-		}
 		writeAuthErr(w, authn.ErrCeremonyExpired())
 		return
 	}
 	var intent sudoIntent
 	if err := json.Unmarshal([]byte(intentRaw), &intent); err != nil {
 		accountID := sess.Account.ID
-		if s.Audit != nil {
-			_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &accountID,
 				Factor:    audit.FactorSession,
 				Event:     audit.EventSudoFailed,
 				Detail:    map[string]any{"reason": "ceremony_state"},
 			})
-		}
 		writeAuthErr(w, authn.ErrCeremonyState())
 		return
 	}
@@ -285,14 +281,12 @@ func (s *Server) completeSudoWebAuthn(w http.ResponseWriter, r *http.Request, se
 	credential, err := s.webauthn.FinishLogin(wu, sessionData, r)
 	if err != nil {
 		accountID := sess.Account.ID
-		if s.Audit != nil {
-			_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &accountID,
 				Factor:    audit.FactorWebAuthn,
 				Event:     audit.EventSudoFailed,
 				Detail:    map[string]any{"reason": "finish_login_failed", "method": string(authn.MethodWebAuthn)},
 			})
-		}
 		writeAuthErr(w, webauthnauth.MapLoginCeremonyError(r.Context(), err))
 		return
 	}
@@ -313,14 +307,12 @@ func (s *Server) completeSudoWebAuthn(w http.ResponseWriter, r *http.Request, se
 					"new_count":     newCount,
 				}).Warn("auth")
 				accountID := sess.Account.ID
-				if s.Audit != nil {
-					_ = s.Audit.Record(r.Context(), audit.Record{
+				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 						AccountID: &accountID,
 						Factor:    audit.FactorWebAuthn,
 						Event:     audit.EventCloneWarning,
 						Detail:    map[string]any{"reason": "clone_warning"},
 					})
-				}
 				break
 			}
 		}
@@ -356,14 +348,12 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 		// Sentinel collapse: ErrPasswordIncorrect / ErrPasswordNotSet →
 		// generic 401 so /complete doesn't leak which factor missed.
 		accountID := sess.Account.ID
-		if s.Audit != nil {
-			_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &accountID,
 				Factor:    audit.FactorPassword,
 				Event:     audit.EventSudoFailed,
 				Detail:    map[string]any{"reason": "bad_credentials", "method": string(authn.MethodPasswordTOTP)},
 			})
-		}
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
@@ -374,14 +364,12 @@ func (s *Server) completeSudoPasswordTOTP(w http.ResponseWriter, r *http.Request
 			return
 		}
 		accountID := sess.Account.ID
-		if s.Audit != nil {
-			_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &accountID,
 				Factor:    audit.FactorTOTP,
 				Event:     audit.EventSudoFailed,
 				Detail:    map[string]any{"reason": "bad_credentials", "method": string(authn.MethodPasswordTOTP)},
 			})
-		}
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
@@ -418,16 +406,14 @@ func (s *Server) applySudoGrant(ctx context.Context, w http.ResponseWriter, r *h
 	// Del on an absent key is a no-op.
 	_ = s.kvStore.Del(ctx, sudoStashKey(sess.Data.SessionID))
 
-	if s.Audit != nil {
-		accountID := sess.Account.ID
-		factor := sudoMethodFactor(method)
-		_ = s.Audit.Record(ctx, audit.Record{
-			AccountID: &accountID,
-			Factor:    factor,
-			Event:     audit.EventSudoGranted,
-			Detail:    map[string]any{"method": method},
-		})
-	}
+	accountID := sess.Account.ID
+	factor := sudoMethodFactor(method)
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
+		AccountID: &accountID,
+		Factor:    factor,
+		Event:     audit.EventSudoGranted,
+		Detail:    map[string]any{"method": method},
+	})
 
 	logx.WithContext(ctx).WithFields(logrus.Fields{
 		"event":      "auth.sudo_granted",

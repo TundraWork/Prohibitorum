@@ -88,7 +88,7 @@ func Resolve(
 		// re-login through this one, else a user provisioned via IdP-A could log
 		// in against IdP-B's slug and dodge B's provisioning gates. T4.3c.
 		if existing.UpstreamIdpID != idp.ID {
-			_ = w.Record(ctx, audit.Record{
+			audit.RecordOrLog(ctx, w, audit.Record{
 				AccountID: int32Ptr(existing.AccountID),
 				Factor:    audit.FactorFederationOIDC,
 				Event:     audit.EventFail,
@@ -112,7 +112,7 @@ func Resolve(
 		syncClaims(ctx, q, idp, &existing, tokens)
 		confirmed := existing.ConfirmedAt.Valid
 		if confirmed {
-			_ = w.Record(ctx, audit.Record{
+			audit.RecordOrLog(ctx, w, audit.Record{
 				AccountID: int32Ptr(existing.AccountID),
 				Factor:    audit.FactorFederationOIDC,
 				Event:     audit.EventUse,
@@ -293,7 +293,7 @@ func applyAutoProvision(
 		// uncommitted account row (different connection, MVCC snapshot
 		// doesn't yet see InsertAccount above) and fail silently. Same
 		// invariant as applyInviteOnly.
-		_ = txAudit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, txAudit, audit.Record{
 			AccountID: int32Ptr(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventRegister,
@@ -304,7 +304,7 @@ func applyAutoProvision(
 				"mode":     ModeAutoProvision,
 			},
 		})
-		_ = txAudit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, txAudit, audit.Record{
 			AccountID: int32Ptr(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventUse,
@@ -498,7 +498,7 @@ func applyInviteOnly(
 		// hands us txAudit bound to the same tx as InsertAccount; on
 		// rollback the audit rows revert too, which is the correct
 		// semantic — no orphan audit pointing at non-existent accounts.
-		_ = txAudit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, txAudit, audit.Record{
 			AccountID: int32Ptr(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventRegister,
@@ -511,7 +511,7 @@ func applyInviteOnly(
 				"username": enr.TemplateUsername.String,
 			},
 		})
-		_ = txAudit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, txAudit, audit.Record{
 			AccountID: int32Ptr(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventUse,
@@ -680,7 +680,7 @@ func emitFail(
 	for k, v := range extra {
 		detail[k] = v
 	}
-	_ = w.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, w, audit.Record{
 		Factor: audit.FactorFederationOIDC,
 		Event:  audit.EventFail,
 		Detail: detail,

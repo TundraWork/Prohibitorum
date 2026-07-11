@@ -120,7 +120,7 @@ func (i *IdP) HandleConsentResume(w http.ResponseWriter, r *http.Request) {
 	}
 	if !authzed.Bool {
 		acctID := sess.Data.AccountID
-		_ = i.audit.Record(ctx, audit.Record{
+		audit.RecordOrLog(ctx, i.audit, audit.Record{
 			AccountID: &acctID, Factor: audit.FactorSAMLSP, Event: audit.EventAccessDenied,
 			IP: audit.ParseIPOrNil(i.auditIP(r)), UserAgent: r.UserAgent(),
 			Detail: map[string]any{"reason": "app_access_denied", "sp": sp.EntityID},

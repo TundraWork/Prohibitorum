@@ -173,7 +173,7 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: faActorID(r.Context()),
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRegister,
@@ -241,7 +241,7 @@ func (s *Server) handleUpdateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: faActorID(r.Context()),
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventUpdate,
@@ -291,7 +291,7 @@ func (s *Server) handleSetForwardAuthAppDisabledHTTP(w http.ResponseWriter, r *h
 		return
 	}
 
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: faActorID(r.Context()),
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventUpdate,
@@ -344,7 +344,7 @@ func (s *Server) handleDeleteForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		OwnerKind: "oidc_client", OwnerID: body.ClientID,
 	})
 
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: faActorID(r.Context()),
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRevoke,

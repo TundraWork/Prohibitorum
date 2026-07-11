@@ -164,13 +164,57 @@ func hardenedHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
 	return &http.Client{
 		Transport: cappingTransport{base: transport, max: maxBytes},
 		Timeout:   federationHTTPTimeout,
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxFederationRedirects {
 				return fmt.Errorf("federation/oidc: too many redirects (>%d)", maxFederationRedirects)
 			}
-			return nil
+			return validateRedirectScheme(req, via, allowPrivate)
 		},
 	}
+}
+
+// validateRedirectScheme enforces the per-hop policy on followed redirects.
+// A redirect may never downgrade a hop from https to plaintext http — not in
+// production, and not in allowPrivate (trusted-internal / test) mode, where
+// http is only ever permitted when the immediately preceding hop was itself
+// http. A redirect to any scheme other than http/https is always rejected.
+//
+// In production (!allowPrivate) the redirect target must additionally satisfy
+// the single outbound-URL policy (validateOutboundURL): https-only, no IP
+// literal, no userinfo. This is a fail-fast before the dial-time resolved-IP
+// screen connects to the redirect target, and it makes redirect-to-internal
+// deterministic. The dial screen remains the runtime backstop and still
+// screens every hop regardless of allowPrivate.
+func validateRedirectScheme(req *http.Request, via []*http.Request, allowPrivate bool) error {
+	if req == nil || req.URL == nil {
+		return errors.New("federation/oidc: redirect target missing URL")
+	}
+	target := req.URL.Scheme
+	if target != "http" && target != "https" {
+		return fmt.Errorf("federation/oidc: redirect to non-http(s) scheme %q refused", target)
+	}
+	// Production: the redirect target must satisfy the single outbound-URL
+	// policy (https-only, domain host, no IP literal, no userinfo). This
+	// fail-fast rejects redirect-to-internal/IP-literal before dialing.
+	if !allowPrivate {
+		if err := validateOutboundURL(req.URL.String(), "redirect target"); err != nil {
+			return err
+		}
+		return nil
+	}
+	// allowPrivate: http is only permitted when the previous hop was http (no
+	// downgrade). https hops are always fine.
+	if target == "https" {
+		return nil
+	}
+	prevScheme := ""
+	if len(via) > 0 && via[len(via)-1] != nil && via[len(via)-1].URL != nil {
+		prevScheme = via[len(via)-1].URL.Scheme
+	}
+	if prevScheme != "http" {
+		return errors.New("federation/oidc: refusing http redirect downgrade from an https request")
+	}
+	return nil
 }
 
 // ValidateIssuerURL enforces the operator-facing rules for an upstream_idp
@@ -180,22 +224,56 @@ func hardenedHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
 // the fail-fast that stops an obviously-internal or plaintext issuer from ever
 // being stored.
 func ValidateIssuerURL(raw string) error {
+	return validateOutboundURL(raw, "issuer_url")
+}
+
+// ValidateOutboundURL enforces the same operator-facing rules as
+// ValidateIssuerURL but with a generic label, so non-issuer outbound fetches
+// (e.g. the CLI `saml-sp create --metadata-url` fetch) reuse the single
+// outbound policy rather than a divergent copy. It must be a parseable
+// absolute https:// URL with a non-empty, non-IP-literal domain host and no
+// userinfo.
+func ValidateOutboundURL(raw string) error {
+	return validateOutboundURL(raw, "metadata url")
+}
+
+// validateOutboundURL is the single shared outbound-URL policy. label appears
+// in error messages so callers get a meaningful identifier without a second,
+// divergent validation implementation.
+func validateOutboundURL(raw, label string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("federation/oidc: issuer_url is not a valid URL: %w", err)
+		return fmt.Errorf("federation/oidc: %s is not a valid URL: %w", label, err)
 	}
 	if u.Scheme != "https" {
-		return errors.New("federation/oidc: issuer_url must use https")
+		return fmt.Errorf("federation/oidc: %s must use https", label)
 	}
 	if u.User != nil {
-		return errors.New("federation/oidc: issuer_url must not contain userinfo")
+		return fmt.Errorf("federation/oidc: %s must not contain userinfo", label)
 	}
 	host := u.Hostname()
 	if host == "" {
-		return errors.New("federation/oidc: issuer_url must have a host")
+		return fmt.Errorf("federation/oidc: %s must have a host", label)
 	}
 	if net.ParseIP(host) != nil {
-		return errors.New("federation/oidc: issuer_url host must be a domain name, not an IP literal")
+		return fmt.Errorf("federation/oidc: %s host must be a domain name, not an IP literal", label)
+	}
+	if u.Host == "" || !u.IsAbs() {
+		return fmt.Errorf("federation/oidc: %s must be an absolute URL", label)
 	}
 	return nil
+}
+
+// NewOutboundHTTPClient returns the same SSRF-aware, redirect-scheme-checked,
+// size-capped outbound HTTP client used by federation/avatar fetches, for
+// reuse by operator-facing CLI fetches (e.g. `saml-sp create --metadata-url`).
+// This is the single hardened client/policy: it shares the dial-time
+// resolved-IP screen, the per-hop redirect scheme + hop-cap policy, and the
+// response-body size cap with the federation path, so the CLI does not
+// introduce a second, divergent HTTP security policy.
+// allowPrivate should be false for production CLI fetches (the dial screen
+// rejects internal/metadata IPs); tests pass true to reach a loopback server.
+// maxBytes caps every response body.
+func NewOutboundHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
+	return hardenedHTTPClient(allowPrivate, maxBytes)
 }

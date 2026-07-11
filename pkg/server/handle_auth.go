@@ -86,15 +86,66 @@ func (s *Server) sessionView(a *db.Account) contract.SessionView {
 	return v
 }
 
+// canonicalServerError is the stable, detail-free envelope returned to
+// clients when writeAuthErr receives a non-AuthError (a real internal
+// failure: DB, KV, crypto). The raw error is logged server-side with request
+// context; the client only sees code "server_error" and HTTP 500 — never the
+// underlying error string, which may carry connection strings or stack detail.
+const canonicalServerError = "server_error"
+
+// writeBodyTooLarge writes the canonical 413 response for an oversized admin
+// body. Both the proactive path (withAdminBodyControls Content-Length check)
+// and the lazy path (writeAuthErr detecting *http.MaxBytesError) route through
+// here, so the response shape cannot drift between them.
+func writeBodyTooLarge(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusRequestEntityTooLarge)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"message": "request body too large",
+		"code":    "request_too_large",
+		"details": []string{},
+	})
+}
+
 // writeAuthErr serializes an *authn.AuthError onto a raw http.ResponseWriter
 // using the project's error envelope. When the AuthError carries a
 // RetryAfter duration (rate-limit, factor lockout), the header is emitted
 // as integer seconds, rounded up so a sub-second remainder still nudges the
 // client past the lockout boundary.
+//
+// Non-AuthError values (DB/KV/crypto failures) are NEVER surfaced to the
+// client. They are logged at WARN with full detail and the response carries
+// only the canonical {code:"server_error", message:"..."} JSON with HTTP 500.
+// This prevents internal error strings — which may contain connection
+// strings, query text, or stack fragments — from leaking to callers.
 func writeAuthErr(w http.ResponseWriter, err error) {
+	// Detect an oversized admin body: MaxBytesReader (installed by
+	// withAdminBodyControls) wraps r.Body; when the handler's json.Decode
+	// reads past the limit, the error chains through wrapping as
+	// *http.MaxBytesError. Map it to 413 via the shared writer so the lazy
+	// path matches the proactive path exactly.
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		writeBodyTooLarge(w)
+		return
+	}
 	ae := authn.AsAuthError(err)
 	if ae == nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Internal (non-domain) error: log the full detail server-side, return
+		// a stable generic envelope. A nil err also lands here — err.Error()
+		// would panic, so guard explicitly.
+		if err != nil {
+			logrus.WithError(err).Warn("internal error")
+		} else {
+			logrus.Warn("internal error (nil)")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"message": "服务器内部错误",
+			"code":    canonicalServerError,
+			"details": []string{},
+		})
 		return
 	}
 	if ae.RetryAfter > 0 {
@@ -251,7 +302,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"reason":    "ceremony_state_missing",
 			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			Factor: audit.FactorWebAuthn,
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "ceremony_missing"},
@@ -266,7 +317,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"reason":    "ceremony_state_corrupt",
 			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			Factor: audit.FactorWebAuthn,
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "ceremony_corrupt"},
@@ -299,7 +350,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 
 	_, credential, err := s.webauthn.FinishPasskeyLogin(handler, sessionData, r)
 	if err != nil {
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			Factor: audit.FactorWebAuthn,
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "finish_failed"},
@@ -313,7 +364,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"reason":    "no_account",
 			"client_ip": s.clientIP.IP(r),
 		}).Warn("auth")
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			Factor: audit.FactorWebAuthn,
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "no_account"},
@@ -329,7 +380,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 			"client_ip":  s.clientIP.IP(r),
 		}).Warn("auth")
 		accountID := resolvedAccount.ID
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			AccountID: &accountID,
 			Factor:    audit.FactorWebAuthn,
 			Event:     audit.EventFail,
@@ -363,7 +414,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 				}).Warn("auth")
 				cloneAccountID := resolvedAccount.ID
 				cloneCredRef := int64(credRowID)
-				_ = s.Audit.Record(r.Context(), audit.Record{
+				audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 					AccountID:     &cloneAccountID,
 					Factor:        audit.FactorWebAuthn,
 					Event:         audit.EventCloneWarning,
@@ -403,14 +454,14 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 		ref := int64(credRowID)
 		successCredRef = &ref
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID:     &successAccountID,
 		Factor:        audit.FactorWebAuthn,
 		Event:         audit.EventUse,
 		CredentialRef: successCredRef,
 		Detail:        map[string]any{"reason": "login"},
 	})
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &successAccountID,
 		Factor:    audit.FactorSession,
 		Event:     audit.EventSessionStart,
@@ -434,7 +485,7 @@ func (s *Server) handleLogoutHTTP(w http.ResponseWriter, r *http.Request) {
 				"account_id": id,
 				"client_ip":  s.clientIP.IP(r),
 			}).Info("auth")
-			_ = s.Audit.Record(r.Context(), audit.Record{
+			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 				AccountID: &id,
 				Factor:    audit.FactorSession,
 				Event:     audit.EventSessionEnd,

@@ -106,7 +106,7 @@ func (s *Server) handleGenerateSigningKeyHTTP(w http.ResponseWriter, r *http.Req
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSigningKey,
 		Event:     audit.EventRegister,
@@ -151,7 +151,7 @@ func (s *Server) handleActivateSigningKeyHTTP(w http.ResponseWriter, r *http.Req
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSigningKey,
 		Event:     audit.EventUpdate,
@@ -200,7 +200,7 @@ func (s *Server) handleRetireSigningKeyHTTP(w http.ResponseWriter, r *http.Reque
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorSigningKey,
 		Event:     audit.EventRevoke,

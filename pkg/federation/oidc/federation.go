@@ -815,7 +815,7 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 	}
 
 	id := currentAccountID
-	_ = f.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, f.audit, audit.Record{
 		AccountID: &id,
 		Factor:    audit.FactorFederationOIDC,
 		Event:     audit.EventLink,
@@ -1136,7 +1136,7 @@ func (f *Federator) failNoAccount(ctx context.Context, idpSlug, reason string, e
 	for k, v := range extra {
 		detail[k] = v
 	}
-	_ = f.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, f.audit, audit.Record{
 		Factor: audit.FactorFederationOIDC,
 		Event:  audit.EventFail,
 		Detail: detail,
@@ -1155,7 +1155,7 @@ func (f *Federator) failWithAccount(ctx context.Context, accountID int32, idpSlu
 	for k, v := range extra {
 		detail[k] = v
 	}
-	_ = f.audit.Record(ctx, audit.Record{
+	audit.RecordOrLog(ctx, f.audit, audit.Record{
 		AccountID: &id,
 		Factor:    audit.FactorFederationOIDC,
 		Event:     audit.EventFail,

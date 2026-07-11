@@ -4,15 +4,16 @@
 //   GET  /groups                     — list all groups with member counts (admin, no sudo)
 //   GET  /groups/{id}                — get one group (admin, no sudo)
 //   GET  /groups/{id}/members        — list group members (admin, no sudo)
-//   POST /groups                     — create a group (admin + sudo)
-//   PUT  /groups/{id}                — update a group (admin + sudo)
-//   POST /groups/delete              — hard-delete a group (admin + sudo)
-//   POST /groups/{id}/members        — add a member (admin + sudo)
-//   POST /groups/{id}/members/remove — remove a member (admin + sudo)
+//   POST /groups                     — create a group (admin, no sudo)
+//   PUT  /groups/{id}                — update a group (admin, no sudo)
+//   POST /groups/delete              — hard-delete a group (admin, no sudo)
+//   POST /groups/{id}/members        — add a member (admin, no sudo)
+//   POST /groups/{id}/members/remove — remove a member (admin, no sudo)
 //
-// Mutations are registered via s.registerSudoOpHTTP — the sudo gate, content-type
-// check, and body-size limit are all enforced by the wrapper; handlers must NOT
-// call requireFreshSudo themselves.
+// Mutations are registered via s.registerAdminBodyOpHTTP — content-type check
+// and body-size limit are enforced by the wrapper (no sudo gate; group CRUD is
+// reversible and lower-impact per api.md). Handlers must NOT call
+// requireFreshSudo themselves.
 
 package server
 
@@ -200,7 +201,7 @@ func (s *Server) handleCreateGroupHTTP(w http.ResponseWriter, r *http.Request) {
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorGroup,
 		Event:     audit.EventRegister,
@@ -291,7 +292,7 @@ func (s *Server) handleUpdateGroupHTTP(w http.ResponseWriter, r *http.Request) {
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorGroup,
 		Event:     audit.EventUpdate,
@@ -336,7 +337,7 @@ func (s *Server) handleDeleteGroupHTTP(w http.ResponseWriter, r *http.Request) {
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorGroup,
 		Event:     audit.EventRevoke,
@@ -388,7 +389,7 @@ func (s *Server) handleAddGroupMemberHTTP(w http.ResponseWriter, r *http.Request
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorGroup,
 		Event:     audit.EventLink,
@@ -441,7 +442,7 @@ func (s *Server) handleRemoveGroupMemberHTTP(w http.ResponseWriter, r *http.Requ
 		if sess != nil {
 			actorID = &sess.Account.ID
 		}
-		_ = s.Audit.Record(r.Context(), audit.Record{
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 			AccountID: actorID,
 			Factor:    audit.FactorGroup,
 			Event:     audit.EventUnlink,

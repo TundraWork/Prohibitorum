@@ -3,6 +3,8 @@ package kv
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -155,5 +157,167 @@ func TestMemorySetNXConcurrentExactlyOneWinner(t *testing.T) {
 	wg.Wait()
 	if wins != 1 {
 		t.Fatalf("winners = %d, want exactly 1", wins)
+	}
+}
+
+// TestMemoryStore_CAS_RejectsNonPositiveTTL ensures CAS preserves the
+// positive-TTL contract shared with SetNX — a non-positive TTL is a
+// programmer error, not a silent no-op.
+func TestMemoryStore_CAS_RejectsNonPositiveTTL(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", "old"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CompareAndSwap(ctx, "k", "old", "new", 0); !errors.Is(err, ErrCASInvalidTTL) {
+		t.Fatalf("ttl=0: err=%v, want ErrCASInvalidTTL", err)
+	}
+	if _, err := s.CompareAndSwap(ctx, "k", "old", "new", -time.Second); !errors.Is(err, ErrCASInvalidTTL) {
+		t.Fatalf("ttl<0: err=%v, want ErrCASInvalidTTL", err)
+	}
+}
+
+// TestMemoryStore_CAS_SwapMatches ensures a matching expected value swaps
+// in the new value with the supplied TTL, preserving a positive remaining
+// window (not NoTTL).
+func TestMemoryStore_CAS_SwapMatches(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", "old"); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := s.CompareAndSwap(ctx, "k", "old", "new", time.Minute)
+	if err != nil || !ok {
+		t.Fatalf("CAS match: ok=%v err=%v, want (true,nil)", ok, err)
+	}
+	got, err := s.Get(ctx, "k")
+	if err != nil || got != "new" {
+		t.Fatalf("after CAS: got=%q err=%v, want %q", got, err, "new")
+	}
+	ttl, err := s.TTL(ctx, "k")
+	if err != nil || ttl <= 0 {
+		t.Fatalf("after CAS TTL: ttl=%d err=%v, want >0 (positive TTL preserved)", ttl, err)
+	}
+}
+
+// TestMemoryStore_CAS_MismatchNoSwap ensures a byte-exact mismatch leaves the
+// stored value untouched and returns (false, nil).
+func TestMemoryStore_CAS_MismatchNoSwap(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", "actual"); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := s.CompareAndSwap(ctx, "k", "stale", "new", time.Minute)
+	if err != nil || ok {
+		t.Fatalf("CAS mismatch: ok=%v err=%v, want (false,nil)", ok, err)
+	}
+	if got, _ := s.Get(ctx, "k"); got != "actual" {
+		t.Fatalf("value after mismatch CAS = %q, want %q (must not swap)", got, "actual")
+	}
+}
+
+// TestMemoryStore_CAS_MissingKey treats an absent/expired key as a mismatch
+// (the expected pending JSON is never present), returning (false, nil) —
+// never an error, so the caller fails closed without a backend fault.
+func TestMemoryStore_CAS_MissingKey(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	ok, err := s.CompareAndSwap(ctx, "absent", "old", "new", time.Minute)
+	if err != nil || ok {
+		t.Fatalf("CAS missing key: ok=%v err=%v, want (false,nil)", ok, err)
+	}
+}
+
+// TestMemoryStore_CAS_ByteExact ensures CAS compares raw bytes, not
+// semantic JSON equality — a re-ordered or re-marshalled record with the
+// same fields but different bytes must NOT match. This is what makes the
+// pending→approved swap race-safe: only the exact canonical pending blob
+// wins.
+func TestMemoryStore_CAS_ByteExact(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	// Same semantic content, different bytes (whitespace) — must not match.
+	if err := s.Set(ctx, "k", `{"a":1}`); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := s.CompareAndSwap(ctx, "k", `{"a": 1}`, `{"a":2}`, time.Minute)
+	if err != nil || ok {
+		t.Fatalf("byte-exact mismatch: ok=%v err=%v, want (false,nil)", ok, err)
+	}
+}
+
+// TestMemoryStore_CAS_ConcurrentExactlyOneWinner is the core race test:
+// many goroutines CAS the SAME expected value to distinct new values; only
+// one must succeed and the final stored value must be exactly that winner's
+// new value. Run under -race to catch lock-order violations.
+func TestMemoryStore_CAS_ConcurrentExactlyOneWinner(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	const expected = "pending"
+	if err := s.Set(ctx, "k", expected); err != nil {
+		t.Fatal(err)
+	}
+	const n = 100
+	var wins int64
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := range n {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			newVal := fmt.Sprintf("winner-%d", i)
+			ok, err := s.CompareAndSwap(ctx, "k", expected, newVal, time.Minute)
+			if err != nil {
+				t.Errorf("CAS %d: unexpected err %v", i, err)
+				return
+			}
+			if ok {
+				atomic.AddInt64(&wins, 1)
+			}
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	if wins != 1 {
+		t.Fatalf("winners = %d, want exactly 1", wins)
+	}
+	got, _ := s.Get(ctx, "k")
+	if !strings.HasPrefix(got, "winner-") {
+		t.Fatalf("final value = %q, want a winner-* value", got)
+	}
+}
+
+// TestMemoryStore_CAS_SerializesAgainstSet ensures CAS is serialized against
+// a concurrent plain Set on the same key — the final state is deterministic
+// (either the CAS won before Set, or Set won before CAS), never a torn write.
+func TestMemoryStore_CAS_SerializesAgainstSet(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", "pending"); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, _ = s.CompareAndSwap(ctx, "k", "pending", "cas-won", time.Minute)
+	}()
+	go func() {
+		defer wg.Done()
+		_ = s.Set(ctx, "k", "set-won")
+	}()
+	wg.Wait()
+	got, _ := s.Get(ctx, "k")
+	if got != "cas-won" && got != "set-won" {
+		t.Fatalf("final value = %q, want either cas-won or set-won", got)
 	}
 }

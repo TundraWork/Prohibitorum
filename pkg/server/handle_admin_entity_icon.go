@@ -88,7 +88,7 @@ func (s *Server) auditEntityIcon(r *http.Request, factor audit.Factor, kind, id,
 		v := sess.Account.ID
 		acct = &v
 	}
-	_ = s.Audit.Record(r.Context(), audit.Record{
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: acct,
 		Factor:    factor,
 		Event:     audit.EventUpdate,

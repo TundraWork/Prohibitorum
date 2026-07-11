@@ -12,6 +12,9 @@ var ErrKeyNotFound = errors.New("kv: key not found")
 // ErrSetNXInvalidTTL is returned by SetNX when ttl <= 0.
 var ErrSetNXInvalidTTL = errors.New("kv: SetNX ttl must be positive")
 
+// ErrCASInvalidTTL is returned by CompareAndSwap when ttl <= 0.
+var ErrCASInvalidTTL = errors.New("kv: CAS ttl must be positive")
+
 // KvEntry is a key-value entry with its remaining TTL.
 type KvEntry struct {
 	Key   string
@@ -59,6 +62,17 @@ type Store interface {
 	// the key, false if the key already existed. ttl MUST be > 0. A backend
 	// error returns (false, err) so callers can fail closed.
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
+
+	// CompareAndSwap atomically replaces the byte-exact oldValue at key with
+	// newValue and resets the TTL to ttl, returning true if the swap
+	// succeeded. Returns (false, nil) if the key is absent/expired or its
+	// current bytes do not equal oldValue — never an error for a clean
+	// mismatch, so callers fail closed. ttl MUST be > 0; a non-positive ttl
+	// returns (false, ErrCASInvalidTTL). Implementations MUST serialize CAS
+	// against all other mutating operations on the same key (Set, SetEx,
+	// Del, Pop, SetNX, other CAS) so concurrent callers with the same
+	// expected value produce exactly one winner.
+	CompareAndSwap(ctx context.Context, key, oldValue, newValue string, ttl time.Duration) (bool, error)
 
 	// ScanEntries returns entries (key + value + TTL) matching a Redis-style
 	// glob pattern. cursor=0 starts a new scan. count is a hint for batch
