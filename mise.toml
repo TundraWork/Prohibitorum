@@ -1,5 +1,5 @@
 [tools]
-go = "1.26"
+go = "1.26.5"
 node = "24"
 sqlc = "1.30.0"
 "aqua:pressly/goose" = "3.27.0"
