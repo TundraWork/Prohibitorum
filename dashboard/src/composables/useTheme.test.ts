@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useTheme } from './useTheme'
 
@@ -33,5 +33,15 @@ describe('useTheme', () => {
     await nextTick()
     expect(stored.value).toBe('auto')
     expect(localStorage.getItem('theme')).toBe('auto')
+  })
+
+  it('does not inject an inline style element when applying the theme', async () => {
+    const append = vi.spyOn(document.head, 'appendChild')
+    useTheme()
+    await nextTick()
+
+    const insertedStyle = append.mock.calls.some(([node]) => node instanceof HTMLStyleElement)
+    expect(insertedStyle).toBe(false)
+    append.mockRestore()
   })
 })

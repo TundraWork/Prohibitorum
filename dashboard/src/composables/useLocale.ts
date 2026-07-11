@@ -31,7 +31,9 @@ export function useLocale() {
   const locale = i18n.global.locale
   const initial = resolveInitial() as Locale
   if (locale.value !== initial) locale.value = initial
+  document.documentElement.lang = locale.value
   watch(locale, (v) => {
+    document.documentElement.lang = v
     try { localStorage.setItem(STORAGE_KEY, v) } catch { /* storage unavailable */ }
   }, { flush: 'sync' })
   function setLocale(l: string): void { locale.value = l as Locale }

@@ -29,6 +29,7 @@ export function useTheme() {
     selector: 'html',
     modes: { light: '', dark: 'dark' },
     initialValue: 'auto',
+    disableTransition: false,
   })
   function setMode(m: ThemeMode): void {
     mode.store.value = m

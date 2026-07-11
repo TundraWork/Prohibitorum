@@ -6,7 +6,7 @@
  * logo (object-cover) or a deterministic duotone gradient (`.app-cover`) carrying
  * a big white monogram. A slim footer holds the name. Two flush corner chips ride
  * the cover: the protocol glyph (top-left, tooltip) and the actions menu
- * (top-right, hover/focus-revealed). The whole tile launches via a stretched
+ * (top-right, persistently visible). The whole tile launches via a stretched
  * overlay anchor that owns the focus ring; the chips sit above it at z-[2] so
  * they stay interactive without nesting controls inside the link.
  */
@@ -110,11 +110,8 @@ const showImg = computed(() => !!props.app.iconUrl && !imgFailed.value)
       class="absolute left-1.5 top-1.5 z-[2] size-7 rounded-full bg-card/85 text-muted ring-1 ring-line backdrop-blur-sm hover:text-ink"
     />
 
-    <!-- Actions menu — flush top-right corner; revealed on hover/focus, pinned open. -->
-    <div
-      class="absolute right-1.5 top-1.5 z-[2] transition-opacity"
-      :class="menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'"
-    >
+    <!-- Actions menu — flush top-right corner and pinned above the launch overlay. -->
+    <div class="absolute right-1.5 top-1.5 z-[2]" :data-test="`actions-${app.id}`">
       <DropdownMenu v-model:open="menuOpen">
         <DropdownMenuTrigger as-child>
           <Button
@@ -139,7 +136,7 @@ const showImg = computed(() => !!props.app.iconUrl && !imgFailed.value)
             <DropdownMenuSeparator />
             <DropdownMenuItem
               :data-test="`revoke-${app.id}`"
-              class="text-rose-600 focus:text-rose-700 data-[highlighted]:text-rose-700"
+              class="text-rose-700 focus:text-rose-700 data-[highlighted]:text-rose-700"
               @select="emit('revoke', app)"
             >
               <Trash2 />

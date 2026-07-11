@@ -11,12 +11,14 @@ describe('useLocale', () => {
   beforeEach(() => {
     i18n.global.locale.value = 'en'
     localStorage.clear()
+    document.documentElement.lang = 'en'
   })
 
   it('uses a valid stored locale', () => {
     localStorage.setItem('locale', 'zh')
     useLocale()
     expect(i18n.global.locale.value).toBe('zh')
+    expect(document.documentElement.lang).toBe('zh')
   })
 
   it('detects zh from navigator.language when nothing stored', () => {
@@ -43,5 +45,10 @@ describe('useLocale', () => {
     setLocale('zh')
     await nextTick()
     expect(localStorage.getItem('locale')).toBe('zh')
+    expect(document.documentElement.lang).toBe('zh')
+
+    setLocale('en')
+    await nextTick()
+    expect(document.documentElement.lang).toBe('en')
   })
 })

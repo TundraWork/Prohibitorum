@@ -61,6 +61,20 @@ describe('AppTile', () => {
     expect(mountTile({ consent: CONSENT }).find(`[data-test="menu-${APP.id}"]`).exists()).toBe(true)
     expect(mountTile({ isAdmin: true }).find(`[data-test="menu-${APP.id}"]`).exists()).toBe(true)
   })
+  it('keeps the actions menu visible at rest', () => {
+    const actions = mountTile({}).find(`[data-test="actions-${APP.id}"]`)
+    expect(actions.exists()).toBe(true)
+    expect(actions.classes()).not.toContain('opacity-0')
+    expect(actions.classes()).not.toContain('transition-opacity')
+  })
+
+  it('uses the AA-rated dark-aware rose text for revoke at rest', async () => {
+    await mountOpen({ app: APP, consent: CONSENT })
+    const revoke = document.body.querySelector(`[data-test="revoke-${APP.id}"]`)
+    expect(revoke?.classList.contains('text-rose-700')).toBe(true)
+    expect(revoke?.classList.contains('text-rose-600')).toBe(false)
+  })
+
 
   it('exposes revoke for a consented OIDC app', async () => {
     await mountOpen({ app: APP, consent: CONSENT })

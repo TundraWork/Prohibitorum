@@ -91,6 +91,16 @@ describe('SettingsView', () => {
     expect(w.find('[data-test="upload-background"]').exists()).toBe(true)
   })
 
+  it('keeps icon and background previews from shrinking on narrow layouts', async () => {
+    const w = mountView(true)
+    await flushPromises()
+
+    const iconPreview = w.get('img[alt="TestInstance"]').element.parentElement
+    const backgroundPreview = w.get('img[alt="Login background"]').element.parentElement
+    expect(iconPreview?.classList.contains('shrink-0')).toBe(true)
+    expect(backgroundPreview?.classList.contains('shrink-0')).toBe(true)
+  })
+
   it('does not show Remove background when hasCustomBackground is false', async () => {
     const w = mountView(false)
     await flushPromises()

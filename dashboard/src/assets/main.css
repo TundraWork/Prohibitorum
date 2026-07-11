@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@fontsource-variable/hanken-grotesk";
 @import "@fontsource/ibm-plex-mono";
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* =============================================================================
    Cool Slate Design System — Tailwind v4 @theme

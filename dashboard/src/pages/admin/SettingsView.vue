@@ -243,7 +243,7 @@ async function removeBackground(): Promise<void> {
       <CardHeader><CardTitle>{{ t('admin.settings.iconLabel') }}</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-3">
         <div class="flex items-center gap-4">
-          <span class="inline-flex size-12 items-center justify-center overflow-hidden rounded-md bg-ember/10 ring-1 ring-inset ring-border">
+          <span class="inline-flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-ember/10 ring-1 ring-inset ring-border">
             <img :src="branding.iconSrc" :alt="branding.instanceName" class="size-full object-cover" />
           </span>
           <div class="flex flex-col gap-2">
@@ -263,7 +263,7 @@ async function removeBackground(): Promise<void> {
       <CardHeader><CardTitle>{{ t('admin.settings.backgroundLabel') }}</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-3">
         <div class="flex items-start gap-4">
-          <span class="inline-flex h-16 w-28 items-center justify-center overflow-hidden rounded-md bg-ember/10 ring-1 ring-inset ring-border">
+          <span class="inline-flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md bg-ember/10 ring-1 ring-inset ring-border">
             <img v-if="branding.hasCustomBackground" :src="branding.backgroundSrc" :alt="t('admin.settings.backgroundLabel')" class="size-full object-cover" />
           </span>
           <div class="flex flex-col gap-2">

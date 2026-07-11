@@ -1,14 +1,14 @@
 <script setup lang="ts">
 /** AdminSigningKeysView (/admin/signing-keys) — list + lifecycle (generate/activate/retire). */
 import { onMounted, ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { I18nT, useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
@@ -119,7 +119,13 @@ onMounted(load)
       <DialogContent class="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{{ t('admin.signingKeys.jwkTitle') }}</DialogTitle>
-          <p v-if="viewJwkKey" class="truncate font-mono text-xs text-muted" :title="viewJwkKey.kid">{{ viewJwkKey.kid }}</p>
+          <DialogDescription v-if="viewJwkKey" class="text-xs text-muted">
+            <I18nT keypath="admin.signingKeys.jwkDescription" tag="span">
+              <template #kid>
+                <span class="break-all font-mono text-ink" data-test="jwk-description-kid">{{ viewJwkKey.kid }}</span>
+              </template>
+            </I18nT>
+          </DialogDescription>
         </DialogHeader>
         <div v-if="viewJwkKey" class="max-h-[60vh] overflow-auto rounded-md bg-sunken p-3">
           <pre class="whitespace-pre-wrap break-all font-mono text-xs text-ink">{{ jwk(viewJwkKey) }}</pre>

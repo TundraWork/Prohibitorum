@@ -18,7 +18,7 @@ const stub = defineComponent({ template: '<div/>' })
 function makeRouter() {
   return createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/connected', component: stub }, { path: '/devices', component: stub }, { path: '/logout', component: stub }, { path: '/admin/accounts', component: stub }, { path: '/admin/invitations', component: stub }, { path: '/admin/groups', component: stub }, { path: '/admin/oidc-applications', component: stub }, { path: '/admin/saml-applications', component: stub }, { path: '/admin/identity-providers', component: stub }, { path: '/admin/signing-keys', component: stub }, { path: '/admin/audit', component: stub }],
+    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/connected', component: stub }, { path: '/devices', component: stub }, { path: '/app-access', component: stub }, { path: '/tokens', component: stub }, { path: '/logout', component: stub }, { path: '/admin/accounts', component: stub }, { path: '/admin/invitations', component: stub }, { path: '/admin/groups', component: stub }, { path: '/admin/oidc-applications', component: stub }, { path: '/admin/saml-applications', component: stub }, { path: '/admin/identity-providers', component: stub }, { path: '/admin/signing-keys', component: stub }, { path: '/admin/settings', component: stub }, { path: '/admin/forward-auth-apps', component: stub }, { path: '/admin/audit', component: stub }],
   })
 }
 function makeI18n() {

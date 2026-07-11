@@ -61,12 +61,30 @@ describe('AdminSigningKeysView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/signing-keys/k-decom/retire')
     expect(w.text()).toContain(en.errors.active_key_no_replacement)
   })
-  it('opens a dialog to show the public JWK', async () => {
-    get.mockResolvedValue(KEYS)
-    const w = mountView(); await flushPromises()
-    await w.find('[data-test="view-jwk-k-active"]').trigger('click')
-    await flushPromises()
-    expect(document.body.textContent).toContain('"kty": "RSA"')
+  it('describes the public JWK dialog with the selected key without warnings', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      get.mockResolvedValue(KEYS)
+      const w = mountView(); await flushPromises()
+      await w.find('[data-test="view-jwk-k-active"]').trigger('click')
+      await flushPromises()
+
+      const warnings = warn.mock.calls.flat().map(String).join('\n')
+      expect(warnings).not.toContain('Missing `Description`')
+      const dialog = document.body.querySelector('[role="dialog"]')
+      const descriptionId = dialog?.getAttribute('aria-describedby')
+      expect(descriptionId).toBeTruthy()
+      const description = document.getElementById(descriptionId!)
+      expect(description?.textContent).toContain('k-active')
+      expect(description?.classList.contains('truncate')).toBe(false)
+      const kid = description?.querySelector('[data-test="jwk-description-kid"]')
+      expect(kid?.textContent).toBe('k-active')
+      expect(kid?.classList.contains('break-all')).toBe(true)
+      expect(kid?.classList.contains('font-mono')).toBe(true)
+      expect(document.body.textContent).toContain('"kty": "RSA"')
+    } finally {
+      warn.mockRestore()
+    }
   })
   it('shows empty-state when no keys', async () => {
     get.mockResolvedValue([])
