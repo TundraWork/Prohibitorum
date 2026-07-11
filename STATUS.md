@@ -195,9 +195,12 @@ The web dashboard (Vue 3 + Vite + Tailwind v4).
 
 A full HTTP API for administering OIDC clients, SAML SPs, upstream IdPs, signing
 keys, audit events, and account credentials. All handlers are under
-`/api/prohibitorum` (admin-role gated); mutations are additionally fresh-sudo
-gated via a single chokepoint enforcing admin auth + fresh sudo + 64 KiB body
-limit + JSON content-type.
+`/api/prohibitorum` (admin-role gated); high-impact mutations (secrets, PKI,
+credentials, destructive actions) are additionally fresh-sudo gated via a
+single chokepoint enforcing admin auth + fresh sudo + 64 KiB body limit + JSON
+content-type. Lower-impact reversible mutations (SAML CRUD, group management,
+app-access grants) use an admin-only body-control wrapper (no sudo) per
+`api.md`.
 
 - OIDC client CRUD: create (secret revealed once, argon2id hash stored), update, rotate-secret (new secret once), delete. Reads never expose the hash/cleartext.
 - SAML SP CRUD: create (optional metadata XML ingestion), update, reingest-metadata, delete.
@@ -222,10 +225,10 @@ See `api.md` for the authoritative table. Summary:
 | POST | `/api/prohibitorum/oidc-applications/delete` | 🔐 |
 | GET | `/api/prohibitorum/saml-applications` | 🔓 |
 | GET | `/api/prohibitorum/saml-applications/{id}` | 🔓 |
-| POST | `/api/prohibitorum/saml-applications` | 🔐 |
-| PUT | `/api/prohibitorum/saml-applications/{id}` | 🔐 |
-| POST | `/api/prohibitorum/saml-applications/{id}/reingest-metadata` | 🔐 |
-| POST | `/api/prohibitorum/saml-applications/delete` | 🔐 |
+| POST | `/api/prohibitorum/saml-applications` | 🔓 |
+| PUT | `/api/prohibitorum/saml-applications/{id}` | 🔓 |
+| POST | `/api/prohibitorum/saml-applications/{id}/reingest-metadata` | 🔓 |
+| POST | `/api/prohibitorum/saml-applications/delete` | 🔓 |
 | GET | `/api/prohibitorum/identity-providers` | 🔓 |
 | GET | `/api/prohibitorum/identity-providers/{slug}` | 🔓 |
 | POST | `/api/prohibitorum/identity-providers` | 🔐 |
@@ -254,9 +257,9 @@ individual accounts; exposed groups additionally flow downstream as an OIDC
 you may obtain a token/assertion at all; the RP still gates in-app policy from
 claims.
 
+- Admin API: groups CRUD + membership; per-app `set-restricted` / `grant` / `revoke` + a combined `GET …/access`; `accessRestricted` in app detail views. GETs 🔓, mutations 🔓 (admin-only body-controlled, no sudo) + audited.
 - Schema (`015_rbac.sql`): `user_group`, `group_member`, `oidc_client_access`, `saml_sp_access` (each grant points at exactly one of group/account, enforced by a CHECK + partial unique indexes), and `access_restricted boolean NOT NULL DEFAULT false` on `oidc_client` + `saml_sp` (every existing app stays open).
 - Authorization predicate: one query per protocol (`NOT access_restricted OR direct grant OR via-group grant`).
-- Admin API: groups CRUD + membership; per-app `set-restricted` / `grant` / `revoke` + a combined `GET …/access`; `accessRestricted` in app detail views. GETs 🔓, mutations 🔐 (sudo) + audited.
 - Dashboard: `/admin/groups` list + detail (edit, exposed toggle, member management), a reusable per-app Access card (restrict toggle + group/account grants) on both app detail pages, and a group-membership card on account detail.
 - Enforcement: gate at OIDC `/authorize`, re-checked at the refresh-token grant (denial revokes the family → `invalid_grant`), and at SAML SSO (SP- + IdP-initiated). Denied interactive → IdP `/error?reason=app_access_denied`; OIDC `prompt=none` → `access_denied` to the RP; SAML passive → `RequestDenied`. Denials write an `access_denied` event.
 - Group exposure: two-level opt-in — `exposed_to_downstream` (default true) on the group AND a per-app ask via the OIDC `groups` scope (sorted claim in id_token + `/userinfo`, present-but-empty `[]`) or a SAML attribute-map `source: "groups"` entry (multi-valued, omitted when empty).

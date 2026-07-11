@@ -12,7 +12,6 @@
 | `PROHIBITORUM_HOST` | `""` (all interfaces) | Bind interface; set `127.0.0.1` to listen loopback-only behind a reverse proxy. |
 | `PROHIBITORUM_PORT` | `8080` | Bind port. |
 | `PROHIBITORUM_SESSION_TTL` | `8h` | Session lifetime (cookie + KV). |
-| `PROHIBITORUM_TRUST_PROXY` | `false` | Honor `X-Forwarded-For` / `X-Forwarded-Proto`. Enable only behind a trusted reverse proxy. |
 
 ## KV store
 
@@ -102,4 +101,4 @@ export PROHIBITORUM_KV_REDIS_PASSWORD="$REDIS_PASSWORD"
 
 Outbound federation fetches (discovery / JWKS / token exchange) run on an SSRF-hardened client that refuses loopback, private (RFC1918 / ULA), link-local, and cloud-metadata addresses; the admin API rejects non-`https` or IP-literal issuer URLs. To federate with an IdP on a private network, set `PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK=true`.
 
-Behind a TLS-terminating reverse proxy, set `PROHIBITORUM_TRUST_PROXY=true` and keep `PROHIBITORUM_PUBLIC_ORIGIN` on `https://…` so secure cookies are issued.
+Behind a TLS-terminating reverse proxy, keep `PROHIBITORUM_PUBLIC_ORIGIN` on `https://…` so session cookies are issued with the `Secure` flag. Client-IP resolution is no longer controlled by an env var — configure it in **Admin → Settings → Client IP**: the default `direct` strategy uses the TCP peer address; switch to `forwarded` (X-Forwarded-For) or a named header and specify trusted-proxy CIDRs so forwarding headers are honored only when the direct peer is a trusted proxy.

@@ -1,16 +1,16 @@
 # Prohibitorum — HTTP API reference
 
-Routes registered via `registerOpHTTP` / `registerSudoOpHTTP` in `pkg/server/operations.go`. These use raw chi handlers (need `Set-Cookie` writes and direct streaming control), so OpenAPI does not cover them.
+Routes registered via `registerOpHTTP` / `registerSudoOpHTTP` / `registerAdminBodyOpHTTP` in `pkg/server/operations.go`. These use raw chi handlers (need `Set-Cookie` writes and direct streaming control), so OpenAPI does not cover them.
 
 Route-to-source cross-reference:
-- `pkg/server/operations.go` — `registerOpHTTP`, `registerSudoOpHTTP`, `withFreshSudo`
+- `pkg/server/operations.go` — `registerOpHTTP`, `registerSudoOpHTTP`, `registerAdminBodyOpHTTP`, `withFreshSudo`, `withAdminBodyControls`
 - `pkg/server/server.go` — `registerOperations()` mounts every route
 
 **Gate notation:**
 - 🔓 = admin session required (`account.role = 'admin'`)
 - 🔐 = admin session + **fresh sudo grant** (valid for configured `sudo_ttl`, default 15 min; covers multiple gated actions until expiry — not consumed per call)
 
-`registerSudoOpHTTP` centralises the triple gate (admin auth + content-type check + 64 KiB body limit + fresh-sudo check) so it cannot drift per-handler. Reads are 🔓 only. High-impact mutations (secrets, PKI/trust config, credentials, irreversible destructive actions) are 🔐; lower-impact reversible mutations (group membership, access grants, SAML CRUD, session/invitation revoke) are 🔓. A route-policy test asserts that each 🔐 mutation returns `sudo_required` (HTTP 401) without a fresh sudo grant.
+`registerSudoOpHTTP` centralises the triple gate (admin auth + content-type check + 64 KiB body limit + fresh-sudo check) so it cannot drift per-handler. `registerAdminBodyOpHTTP` applies the same content-type + body-size controls without sudo, for reversible admin mutations. Reads are 🔓 only. High-impact mutations (secrets, PKI/trust config, credentials, irreversible destructive actions) are 🔐; lower-impact reversible mutations (group membership, access grants, SAML CRUD, session/invitation revoke) are 🔓. A route-policy test asserts that each 🔐 mutation returns `sudo_required` (HTTP 401) without a fresh sudo grant.
 
 All admin routes share the `/api/prohibitorum` prefix. Resource names use role-oriented terms (`oidc-applications`, `saml-applications`, `identity-providers`); CLI verbs use protocol-oriented names (`oidc-client`, `saml-sp`, `upstream-idp`).
 

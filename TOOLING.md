@@ -8,7 +8,7 @@
 
 | Tool | Pin | Backend | Notes |
 |------|-----|---------|-------|
-| Go | `go = "1.26"` | core | Language floor; mise owns the exact patch. `GOTOOLCHAIN=local` forbids auto-download |
+| Go | `go = "1.26.5"` | core | Pinned patch within the 1.26 line (GO-2026-5856). `GOTOOLCHAIN=local` forbids auto-download |
 | Node | `node = "24"` | core | Provides **npm** (no Corepack — removed in Node 25+) |
 | sqlc | `sqlc = "1.30.0"` | registry | `sqlc generate` → `pkg/db` (config `sqlc.yaml`) |
 | goose | `aqua:pressly/goose = "3.27.0"` | aqua | DB migrations (`db/migrations`) |
@@ -23,7 +23,7 @@
 ## Go
 
 - **mise is the single Go source of truth.** No goenv `.go-version` (deleted + gitignored).
-- `GOTOOLCHAIN=local` (set in mise `[env]`) — Go never auto-downloads a compiler behind mise's back (<https://go.dev/doc/toolchain>). `go.mod`'s `go 1.26` remains the language floor.
+- `GOTOOLCHAIN=local` (set in mise `[env]`) — Go never auto-downloads a compiler behind mise's back (<https://go.dev/doc/toolchain>). `go.mod`'s `go 1.26` remains the language floor; `mise.toml` pins the exact patch (1.26.5) to stay ahead of GO-2026-5856.
 - Reproducible build flags everywhere: `CGO_ENABLED=0 go build -tags nodynamic -trimpath -ldflags="-s -w"`.
 
 ## Frontend

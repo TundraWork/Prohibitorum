@@ -141,7 +141,7 @@ No admin bypass — `role='admin'` is not special-cased. The predicate is evalua
 
 ## Admin management API
 
-All routes under `/api/prohibitorum`, admin-role gated; mutations also fresh-sudo gated. The `registerSudoOpHTTP` wrapper in `pkg/server/operations.go` is the single chokepoint for admin mutations (admin auth + fresh sudo + 64 KiB body-size cap + JSON content-type check). See `api.md` for the full route table and gate notation.
+All routes under `/api/prohibitorum`, admin-role gated. High-impact mutations (secrets, PKI/trust config, credentials, irreversible destructive actions) are additionally fresh-sudo gated via `registerSudoOpHTTP` (admin auth + fresh sudo + 64 KiB body-size cap + JSON content-type check); lower-impact reversible mutations (SAML CRUD, group membership, app-access grants) use `registerAdminBodyOpHTTP` (admin auth + body controls, no sudo). See `api.md` for the full route table and gate notation.
 
 ### OIDC clients
 
@@ -154,18 +154,18 @@ All routes under `/api/prohibitorum`, admin-role gated; mutations also fresh-sud
 ### SAML service providers
 
 - `GET /saml-providers`, `GET /saml-providers/{id}` — read (🔓)
-- `POST /saml-providers` — create, optionally with metadata XML ingestion (🔐)
-- `PUT /saml-providers/{id}` — update (🔐)
-- `POST /saml-providers/{id}/reingest-metadata` — re-parse fresh SP metadata (🔐)
-- `POST /saml-providers/delete` — hard-delete (🔐)
+- `POST /saml-providers` — create, optionally with metadata XML ingestion (🔓)
+- `PUT /saml-providers/{id}` — update (🔓)
+- `POST /saml-providers/{id}/reingest-metadata` — re-parse fresh SP metadata (🔓)
+- `POST /saml-providers/delete` — hard-delete (🔓)
 
 ### Groups & per-app access (RBAC)
 
 - `GET /groups`, `GET /groups/{id}`, `GET /groups/{id}/members`, `GET /accounts/{id}/groups` — read (🔓)
-- `POST /groups`, `PUT /groups/{id}`, `POST /groups/delete` — group CRUD (🔐); slug validated `^[a-z0-9](-?[a-z0-9])*$`
-- `POST /groups/{id}/members`, `POST /groups/{id}/members/remove` — membership (🔐)
+- `POST /groups`, `PUT /groups/{id}`, `POST /groups/delete` — group CRUD (🔓); slug validated `^[a-z0-9](-?[a-z0-9])*$`
+- `POST /groups/{id}/members`, `POST /groups/{id}/members/remove` — membership (🔓)
 - `GET /oidc-applications/{clientId}/access`, `GET /saml-applications/{id}/access` — read the restricted flag + grants (🔓)
-- `POST …/access/set-restricted`, `…/access/grant`, `…/access/revoke` — toggle the gate and grant/revoke group/account access (🔐)
+- `POST …/access/set-restricted`, `…/access/grant`, `…/access/revoke` — toggle the gate and grant/revoke group/account access (🔓)
 
 CLI parity: a `group` verb (`create|list|update|delete|add-member|remove-member`) and `access` subcommands on `oidc-client`/`saml-sp` (`--access-restricted`, `--grant-group`/`--grant-account`, `--revoke-*`). The SPA surfaces a groups admin section, a reusable per-app **Access** card, and a group-membership card on the account-detail page.
 
@@ -196,7 +196,7 @@ The `status` column is the sole lifecycle. Partial unique index `one_active_sign
 
 - `GET /audit-events` — query `credential_event` (🔓), filterable by `factor`, `event`, `accountId`, `since`, `until`; keyset pagination
 
-Every admin mutation writes a `credential_event` row (`factor` ∈ `oidc_client` / `saml_sp` / `upstream_idp` / `signing_key`; `event` ∈ `register` / `update` / `rotate` / `revoke`). The `detail` JSONB contains redacted metadata only — no secret, hash, or private key material (enforced at the write site).
+Every admin mutation writes a `credential_event` row (`factor` ∈ `oidc_client` / `saml_sp` / `upstream_idp` / `signing_key`; `event` ∈ `register` / `update` / `rotate` / `revoke`). The `detail` JSONB contains redacted metadata only — no secret, hash, or private key material (enforced at the write site). Audit rows are **best-effort**: if the DB insert fails, `audit.RecordOrLog` emits a structured error log (factor, event, account_id, credential_ref — no `detail`) as a fallback so the event is never silently swallowed.
 
 ### Account credentials (admin)
 
