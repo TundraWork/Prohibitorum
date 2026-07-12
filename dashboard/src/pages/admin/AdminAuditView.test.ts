@@ -7,10 +7,13 @@ import { api } from '@/lib/api'
 const get = vi.mocked(api.get)
 import AdminAuditView from './AdminAuditView.vue'
 
-const page = (startId: number, n: number) => Array.from({ length: n }, (_, i) => ({
-  id: startId - i, at: '2026-01-01T00:00:00Z', accountId: 7, factor: 'signing_key', event: 'rotate',
-  ip: '10.0.0.1', userAgent: 'curl', detail: { kid: `k${startId - i}`, action: 'activate' },
-}))
+const page = (startId: number, n: number, nextCursor = '') => ({
+  items: Array.from({ length: n }, (_, i) => ({
+    id: startId - i, at: '2026-01-01T00:00:00Z', accountId: 7, factor: 'signing_key', event: 'rotate',
+    ip: '10.0.0.1', userAgent: 'curl', detail: { kid: `k${startId - i}`, action: 'activate' },
+  })),
+  nextCursor,
+})
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminAuditView, { global: { plugins: [i18n()] }, attachTo: document.body })
 beforeEach(() => { get.mockReset() })
@@ -59,7 +62,7 @@ describe('AdminAuditView', () => {
     await w.find('[data-test="next-page"]').trigger('click'); await flushPromises()
     const url = get.mock.calls.at(-1)![0] as string
     expect(url).toContain('cursor=')
-    expect(w.find('[data-test="next-page"]').exists()).toBe(false)
+    expect(w.find('[data-test="next-page"]').attributes('disabled')).toBeDefined()
     // replaced, not appended: only 3 rows from page 2
     expect(w.findAll('[data-test^="expand-"]').length).toBe(3)
     // page indicator shows page 2

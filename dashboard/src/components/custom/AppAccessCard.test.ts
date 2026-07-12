@@ -45,9 +45,10 @@ function mockGets(
   accounts = ALL_ACCOUNTS
 ) {
   get.mockImplementation(async (p: string) => {
-    if (String(p).endsWith('/access')) return access
-    if (String(p) === '/api/prohibitorum/groups') return groups
-    if (String(p) === '/api/prohibitorum/accounts') return accounts
+    const path = String(p).split('?')[0]
+    if (path.endsWith('/access')) return access
+    if (path === '/api/prohibitorum/groups') return { items: groups, nextCursor: '' }
+    if (path === '/api/prohibitorum/accounts') return { items: accounts, nextCursor: '' }
     return {}
   })
 }
@@ -71,8 +72,8 @@ describe('AppAccessCard', () => {
 
     // Verify all three fetches happened
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/client-abc/access')
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/groups')
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts')
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/groups'))
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/accounts'))
 
     // Verify data actually populated (not silently no-op'd by busy-guard race)
     const vm = w.vm as unknown as {
@@ -172,12 +173,13 @@ describe('AppAccessCard', () => {
     // After toggle, return the open state on refetch
     let accessCallCount = 0
     get.mockImplementation(async (p: string) => {
-      if (String(p).endsWith('/access')) {
+      const path = String(p).split('?')[0]
+      if (path.endsWith('/access')) {
         accessCallCount++
         return accessCallCount === 1 ? ACCESS_RESTRICTED : ACCESS_OPEN
       }
-      if (String(p) === '/api/prohibitorum/groups') return ALL_GROUPS
-      if (String(p) === '/api/prohibitorum/accounts') return ALL_ACCOUNTS
+      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
+      if (path === '/api/prohibitorum/accounts') return { items: ALL_ACCOUNTS, nextCursor: '' }
       return {}
     })
     const w = mountCard('oidc', 'client-abc')
@@ -207,20 +209,24 @@ describe('AppAccessCard', () => {
     post.mockResolvedValue({})
     let accessCallCount = 0
     get.mockImplementation(async (p: string) => {
-      if (String(p).endsWith('/access')) {
+      const path = String(p).split('?')[0]
+      if (path.endsWith('/access')) {
         accessCallCount++
         if (accessCallCount === 1) return { ...ACCESS_RESTRICTED, groups: { items: ACCESS_RESTRICTED.groups?.items ?? ACCESS_RESTRICTED.groups ?? [], nextCursor: '' }, accounts: { items: ACCESS_RESTRICTED.accounts?.items ?? ACCESS_RESTRICTED.accounts ?? [], nextCursor: '' } }
         return {
           accessRestricted: true,
-          groups: [
-            { id: 10, slug: 'eng', displayName: 'Engineering' },
-            { id: 20, slug: 'ops', displayName: 'Operations' },
-          ],
+          groups: {
+            items: [
+              { id: 10, slug: 'eng', displayName: 'Engineering' },
+              { id: 20, slug: 'ops', displayName: 'Operations' },
+            ],
+            nextCursor: '',
+          },
           accounts: ACCESS_RESTRICTED.accounts,
         }
       }
-      if (String(p) === '/api/prohibitorum/groups') return ALL_GROUPS
-      if (String(p) === '/api/prohibitorum/accounts') return ALL_ACCOUNTS
+      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
+      if (path === '/api/prohibitorum/accounts') return { items: ALL_ACCOUNTS, nextCursor: '' }
       return {}
     })
     const w = mountCard('oidc', 'client-abc')

@@ -87,8 +87,8 @@ describe('AdminGroupDetailView', () => {
     // After the fix: accountsApi is a separate useApi() instance, so both fire concurrently.
     mockGetByUrl({
       '/api/prohibitorum/groups/7': GROUP,
-      '/api/prohibitorum/groups/7/members': MEMBERS,   // alice only
-      '/api/prohibitorum/accounts': ACCOUNTS,           // alice + bob + carol
+      '/api/prohibitorum/groups/7/members': { items: MEMBERS, nextCursor: '' },   // alice only
+      '/api/prohibitorum/accounts': { items: ACCOUNTS, nextCursor: '' },           // alice + bob + carol
     })
     const w = mountView(); await flushPromises()
 
@@ -121,8 +121,8 @@ describe('AdminGroupDetailView', () => {
   it('delete confirm navigates away and calls the delete endpoint', async () => {
     mockGetByUrl({
       '/api/prohibitorum/groups/7': GROUP,
-      '/api/prohibitorum/groups/7/members': MEMBERS,
-      '/api/prohibitorum/accounts': ACCOUNTS,
+      '/api/prohibitorum/groups/7/members': { items: MEMBERS, nextCursor: '' },
+      '/api/prohibitorum/accounts': { items: ACCOUNTS, nextCursor: '' },
     })
     post.mockResolvedValue(undefined)
     const w = mountView(); await flushPromises()
@@ -137,8 +137,8 @@ describe('AdminGroupDetailView', () => {
   it('save calls PUT with updated fields and shows the Saved notice', async () => {
     mockGetByUrl({
       '/api/prohibitorum/groups/7': GROUP,
-      '/api/prohibitorum/groups/7/members': MEMBERS,
-      '/api/prohibitorum/accounts': ACCOUNTS,
+      '/api/prohibitorum/groups/7/members': { items: MEMBERS, nextCursor: '' },
+      '/api/prohibitorum/accounts': { items: ACCOUNTS, nextCursor: '' },
     })
     put.mockResolvedValue({ ...GROUP, displayName: 'Engineering Renamed' })
     const w = mountView(); await flushPromises()
@@ -153,8 +153,8 @@ describe('AdminGroupDetailView', () => {
   it('rejects an invalid slug client-side without calling the API', async () => {
     mockGetByUrl({
       '/api/prohibitorum/groups/7': GROUP,
-      '/api/prohibitorum/groups/7/members': MEMBERS,
-      '/api/prohibitorum/accounts': ACCOUNTS,
+      '/api/prohibitorum/groups/7/members': { items: MEMBERS, nextCursor: '' },
+      '/api/prohibitorum/accounts': { items: ACCOUNTS, nextCursor: '' },
     })
     const w = mountView(); await flushPromises()
     await w.find('input[name="slug"]').setValue('BAD SLUG!')

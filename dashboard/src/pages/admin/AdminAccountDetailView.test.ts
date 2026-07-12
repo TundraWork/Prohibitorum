@@ -43,11 +43,12 @@ const TOKENS = [
 // /accounts/7/groups → account groups; /groups (exact) → all groups (picker)
 function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, acctGroups = GROUPS_FOR_ACCOUNT, allGroupsList = ALL_GROUPS, toks = TOKENS) {
   get.mockImplementation(async (p: string) => {
-    if (p.endsWith('/credentials')) return { items: creds, nextCursor: '' }
-    if (p.endsWith('/sessions')) return { items: sess, nextCursor: '' }
-    if (p.endsWith('/tokens')) return { items: toks, nextCursor: '' }
-    if (p.startsWith('/api/prohibitorum/groups')) return { items: allGroupsList, nextCursor: '' }
-    if (p.endsWith('/groups')) return { items: acctGroups, nextCursor: '' }
+    const path = String(p).split('?')[0]
+    if (path.endsWith('/credentials')) return { items: creds, nextCursor: '' }
+    if (path.endsWith('/sessions')) return { items: sess, nextCursor: '' }
+    if (path.endsWith('/tokens')) return { items: toks, nextCursor: '' }
+    if (path === '/api/prohibitorum/groups') return { items: allGroupsList, nextCursor: '' }
+    if (path.endsWith('/groups')) return { items: acctGroups, nextCursor: '' }
     return account
   })
 }
@@ -64,7 +65,7 @@ describe('AdminAccountDetailView', () => {
     mockGets()
     const w = mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7')
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7/credentials')
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/accounts/7/credentials'))
     expect(w.text()).toContain('Carol Ng')
     expect(w.text()).toContain('Laptop')
     // string attr 'team' is seeded into the editable row editor
@@ -106,7 +107,7 @@ describe('AdminAccountDetailView', () => {
     await w.find('[data-test="revoke-cred-11"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.account.forceRevoke); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/credentials/delete', { accountId: 7, credentialId: 11 })
-    expect(get.mock.calls.filter((c) => String(c[0]).endsWith('/credentials')).length).toBe(2)
+    expect(get.mock.calls.filter((c) => String(c[0]).split('?')[0].endsWith('/credentials')).length).toBe(2)
   })
   it('revokes all sessions and shows the count', async () => {
     mockGets(); post.mockResolvedValue({ revoked: 3 })
@@ -143,7 +144,7 @@ describe('AdminAccountDetailView', () => {
   it('loads and renders session rows on mount', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    expect(get.mock.calls.some((c) => String(c[0]).endsWith('/sessions'))).toBe(true)
+    expect(get.mock.calls.some((c) => String(c[0]).split('?')[0].endsWith('/sessions'))).toBe(true)
     expect(w.find('[data-test="session-row-sess-aaa"]').exists()).toBe(true)
     expect(w.find('[data-test="session-row-sess-bbb"]').exists()).toBe(true)
     expect(w.find('[data-test="session-revoke-sess-aaa"]').exists()).toBe(true)
@@ -152,12 +153,12 @@ describe('AdminAccountDetailView', () => {
   it('per-row revoke posts with sessionId and re-fetches the session list', async () => {
     mockGets(); post.mockResolvedValue(undefined)
     const w = mountView(); await flushPromises()
-    const getSessionsBefore = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
+    const getSessionsBefore = get.mock.calls.filter((c) => String(c[0]).split('?')[0].endsWith('/sessions')).length
     await w.find('[data-test="session-revoke-sess-bbb"]').trigger('click'); await flushPromises()
     // confirm dialog must now appear — click the destructive confirm button
     clickConfirm(en.admin.account.sessions.revoke); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/7/sessions/revoke', { sessionId: 'sess-bbb' })
-    const getSessionsAfter = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
+    const getSessionsAfter = get.mock.calls.filter((c) => String(c[0]).split('?')[0].endsWith('/sessions')).length
     expect(getSessionsAfter).toBe(getSessionsBefore + 1)
   })
   it('shows session_not_found error when per-row revoke fails', async () => {
@@ -176,10 +177,10 @@ describe('AdminAccountDetailView', () => {
   it('revoke-all re-fetches the session list', async () => {
     mockGets(); post.mockResolvedValue({ revoked: 2 })
     const w = mountView(); await flushPromises()
-    const getSessionsBefore = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
+    const getSessionsBefore = get.mock.calls.filter((c) => String(c[0]).split('?')[0].endsWith('/sessions')).length
     await w.find('[data-test="revoke-all"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.account.revokeAllSessions); await flushPromises()
-    const getSessionsAfter = get.mock.calls.filter((c) => String(c[0]).endsWith('/sessions')).length
+    const getSessionsAfter = get.mock.calls.filter((c) => String(c[0]).split('?')[0].endsWith('/sessions')).length
     expect(getSessionsAfter).toBe(getSessionsBefore + 1)
   })
 
@@ -306,8 +307,8 @@ describe('AdminAccountDetailView', () => {
   it('loads and renders the account groups card on mount', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    expect(get.mock.calls.some((c) => String(c[0]).endsWith('/accounts/7/groups'))).toBe(true)
-    expect(get.mock.calls.some((c) => String(c[0]) === '/api/prohibitorum/groups')).toBe(true)
+    expect(get.mock.calls.some((c) => String(c[0]).split('?')[0].endsWith('/accounts/7/groups'))).toBe(true)
+    expect(get.mock.calls.some((c) => String(c[0]).split('?')[0] === '/api/prohibitorum/groups')).toBe(true)
     expect(w.find('[data-test="group-row-10"]').exists()).toBe(true)
     expect(w.text()).toContain('Engineering')
   })
@@ -353,11 +354,12 @@ describe('AdminAccountDetailView', () => {
     ]
     let groupsCallCount = 0
     get.mockImplementation(async (p: string) => {
-      if (p.endsWith('/credentials')) return CREDS
-      if (p.endsWith('/sessions')) return SESSIONS
-      if (p.endsWith('/tokens')) return TOKENS
-      if (p === '/api/prohibitorum/groups') return ALL_GROUPS
-      if (p.endsWith('/groups')) { groupsCallCount++; return groupsCallCount === 1 ? GROUPS_FOR_ACCOUNT : updatedGroups }
+      const path = String(p).split('?')[0]
+      if (path.endsWith('/credentials')) return { items: CREDS, nextCursor: '' }
+      if (path.endsWith('/sessions')) return { items: SESSIONS, nextCursor: '' }
+      if (path.endsWith('/tokens')) return { items: TOKENS, nextCursor: '' }
+      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
+      if (path.endsWith('/groups')) { groupsCallCount++; return { items: groupsCallCount === 1 ? GROUPS_FOR_ACCOUNT : updatedGroups, nextCursor: '' } }
       return ACCOUNT
     })
     const w = mountView(); await flushPromises()
@@ -393,7 +395,7 @@ describe('AdminAccountDetailView', () => {
   it('loads and renders token rows on mount', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    expect(get.mock.calls.some((c) => String(c[0]).endsWith('/tokens'))).toBe(true)
+    expect(get.mock.calls.some((c) => String(c[0]).split('?')[0].endsWith('/tokens'))).toBe(true)
     expect(w.find('[data-test="token-row-101"]').exists()).toBe(true)
     expect(w.find('[data-test="token-row-102"]').exists()).toBe(true)
     expect(w.find('[data-test="token-revoke-101"]').exists()).toBe(true)
@@ -411,11 +413,11 @@ describe('AdminAccountDetailView', () => {
   it('per-row revoke opens confirm dialog, POSTs revoke endpoint, and re-fetches tokens', async () => {
     mockGets(); post.mockResolvedValue(undefined)
     const w = mountView(); await flushPromises()
-    const getTokensBefore = get.mock.calls.filter((c) => String(c[0]).endsWith('/tokens')).length
+    const getTokensBefore = get.mock.calls.filter((c) => String(c[0]).split('?')[0].endsWith('/tokens')).length
     await w.find('[data-test="token-revoke-101"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.account.tokens.revoke); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/tokens/revoke', { id: 101 })
-    const getTokensAfter = get.mock.calls.filter((c) => String(c[0]).endsWith('/tokens')).length
+    const getTokensAfter = get.mock.calls.filter((c) => String(c[0]).split('?')[0].endsWith('/tokens')).length
     expect(getTokensAfter).toBe(getTokensBefore + 1)
   })
 })
