@@ -30,6 +30,7 @@ import (
 	"prohibitorum/pkg/credential/totp"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/diagnostic"
 	fedoidc "prohibitorum/pkg/federation/oidc"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
@@ -132,6 +133,11 @@ type Server struct {
 	// clientIP resolves the effective client IP under the DB-stored, peer-validated
 	// policy. Admin PUT handlers call Invalidate() after writes.
 	clientIP *clientip.Resolver
+	// diagStore persists and retrieves curated request-diagnostic records.
+	// The admin diagnostic lookup handler reads through it; no other path
+	// accesses the diagnostic_event table. Nil in NewHuma (openapi subcommand)
+	// — the handler is only called at runtime.
+	diagStore diagnostic.StoreReader
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -224,6 +230,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		publicOrigin,
 	)
 
+	diagStore := diagnostic.New(queries)
+
 	rateLimiter := authn.NewRateLimiter()
 
 	s := &Server{
@@ -246,6 +254,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		Audit:         auditWriter,
 		branding:      brandingResolver,
 		clientIP:      clientIPResolver,
+		diagStore:     diagStore,
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.
@@ -482,6 +491,10 @@ func (s *Server) registerOperations() {
 
 	// Admin: audit events (read-only, filterable, keyset-paginated)
 	registerOp(mgmt, contract.OperationListAuditEvents, s.handleListAuditEvents, admin)
+
+	// Admin: request-diagnostic lookup (exact-ID, fresh-sudo gated, rate-limited,
+	// audited). No list/bulk route — enumeration is impossible by design.
+	s.registerSudoOpHTTP(s.router, "GET", "/api/prohibitorum/diagnostics/{requestId}", admin, s.handleAdminDiagnosticLookupHTTP)
 
 	// Admin: accounts + invitations
 	registerOp(mgmt, contract.OperationListAccounts, s.handleListAccounts, admin)

@@ -97,6 +97,9 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "DELETE", path: "/api/prohibitorum/oidc-applications/test-client/icon", body: `{}`},
 	{method: "DELETE", path: "/api/prohibitorum/saml-applications/1/icon", body: `{}`},
 	{method: "DELETE", path: "/api/prohibitorum/identity-providers/test-idp/icon", body: `{}`},
+
+	// Admin request-diagnostic lookup — exact-ID, fresh-sudo gated
+	{method: "GET", path: "/api/prohibitorum/diagnostics/rid", body: ``},
 }
 
 // droppedSudoRoutes is a representative sample of routes that were removed from

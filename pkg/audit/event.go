@@ -38,6 +38,8 @@ const (
 	// FactorSettings covers instance-settings / branding / client-IP mutations
 	// (previously mis-filed under FactorSigningKey).
 	FactorSettings Factor = "settings"
+	// FactorDiagnostic covers admin request-diagnostic lookups.
+	FactorDiagnostic Factor = "diagnostic"
 )
 
 const (
@@ -69,6 +71,11 @@ const (
 
 	EventSudoGranted = "sudo_granted"
 	EventSudoFailed  = "sudo_failed"
+
+	// EventDiagnosticLookup is emitted by the admin diagnostic-lookup
+	// endpoint every time an admin retrieves a request-diagnostic record.
+	// The detail carries only the requestId (no raw cause/secrets).
+	EventDiagnosticLookup = "diagnostic_lookup"
 )
 
 type Record struct {

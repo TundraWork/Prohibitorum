@@ -60,6 +60,7 @@ type Querier interface {
 	// credential; handlers map that to credential_not_found.
 	DeleteCredentialByID(ctx context.Context, arg DeleteCredentialByIDParams) (int64, error)
 	DeleteEntityIcon(ctx context.Context, arg DeleteEntityIconParams) error
+	DeleteExpiredDiagnosticEvents(ctx context.Context) (int64, error)
 	DeleteExpiredSAMLSessions(ctx context.Context) (int64, error)
 	DeleteGroup(ctx context.Context, id int32) (int64, error)
 	DeleteOIDCClient(ctx context.Context, clientID string) (int64, error)
@@ -84,6 +85,9 @@ type Querier interface {
 	GetAvatarSourceBySubject(ctx context.Context, arg GetAvatarSourceBySubjectParams) (GetAvatarSourceBySubjectRow, error)
 	GetConsent(ctx context.Context, arg GetConsentParams) ([]string, error)
 	GetCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
+	// Exact-ID lookup. Filters on expires_at > now() so expired rows are
+	// invisible (return no rows → 404) even before the prune reaper deletes them.
+	GetDiagnosticEvent(ctx context.Context, requestID string) (DiagnosticEvent, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error)
 	GetEntityIcon(ctx context.Context, arg GetEntityIconParams) (GetEntityIconRow, error)
 	GetEntityIconEtag(ctx context.Context, arg GetEntityIconEtagParams) (string, error)
@@ -115,6 +119,7 @@ type Querier interface {
 	InsertAccountIdentity(ctx context.Context, arg InsertAccountIdentityParams) (AccountIdentity, error)
 	InsertCredential(ctx context.Context, arg InsertCredentialParams) (WebauthnCredential, error)
 	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
+	InsertDiagnosticEvent(ctx context.Context, arg InsertDiagnosticEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
 	InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalAccessToken, error)

@@ -68,6 +68,19 @@ type CredentialEvent struct {
 	At            pgtype.Timestamptz `json:"at"`
 }
 
+type DiagnosticEvent struct {
+	RequestID  string             `json:"requestId"`
+	OccurredAt pgtype.Timestamptz `json:"occurredAt"`
+	ExpiresAt  pgtype.Timestamptz `json:"expiresAt"`
+	AccountID  *int32             `json:"accountId"`
+	Method     string             `json:"method"`
+	Route      string             `json:"route"`
+	Operation  string             `json:"operation"`
+	Code       string             `json:"code"`
+	Retryable  bool               `json:"retryable"`
+	Fields     []byte             `json:"fields"`
+}
+
 type Enrollment struct {
 	Token                   string             `json:"token"`
 	Intent                  string             `json:"intent"`

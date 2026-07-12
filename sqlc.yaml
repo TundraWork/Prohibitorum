@@ -73,3 +73,7 @@ sql:
             go_type:
               type: "int64"
               pointer: true
+          - column: "diagnostic_event.account_id"
+            go_type:
+              type: "int32"
+              pointer: true
