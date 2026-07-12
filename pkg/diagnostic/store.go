@@ -70,6 +70,15 @@ type StorePruner interface {
 	PruneExpired(ctx context.Context) error
 }
 
+// StoreService is the combined read + prune surface the server uses. The
+// concrete *Store satisfies this; tests can inject fakes that implement both
+// methods. Write access (Record) is NOT included — the server only reads and
+// prunes; write callers (Task 3) construct the store directly.
+type StoreService interface {
+	StoreReader
+	PruneExpired(ctx context.Context) error
+}
+
 // Store is the concrete diagnostic store backed by a db.Querier. It
 // satisfies StoreWriter, StoreReader, and StorePruner.
 type Store struct {

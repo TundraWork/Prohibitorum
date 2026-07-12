@@ -28,7 +28,7 @@ import (
 	"prohibitorum/pkg/diagnostic"
 )
 
-// fakeDiagStore implements diagnostic.StoreReader for testing.
+// fakeDiagStore implements diagnostic.StoreService for testing.
 type fakeDiagStore struct {
 	rows map[string]diagnostic.Record
 }
@@ -44,6 +44,8 @@ func (f *fakeDiagStore) Lookup(_ context.Context, rid string) (diagnostic.Record
 	}
 	return rec, nil
 }
+
+func (f *fakeDiagStore) PruneExpired(_ context.Context) error { return nil }
 
 func (f *fakeDiagStore) addRow(rid, code string) {
 	now := time.Now()
@@ -69,7 +71,7 @@ func (w *captureAuditWriter) Record(_ context.Context, r audit.Record) error {
 	return nil
 }
 
-func diagHandlerServer(t *testing.T, store diagnostic.StoreReader) (*Server, *captureAuditWriter) {
+func diagHandlerServer(t *testing.T, store diagnostic.StoreService) (*Server, *captureAuditWriter) {
 	t.Helper()
 	aw := &captureAuditWriter{}
 	s := &Server{

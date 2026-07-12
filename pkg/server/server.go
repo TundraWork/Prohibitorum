@@ -137,7 +137,7 @@ type Server struct {
 	// The admin diagnostic lookup handler reads through it; no other path
 	// accesses the diagnostic_event table. Nil in NewHuma (openapi subcommand)
 	// — the handler is only called at runtime.
-	diagStore diagnostic.StoreReader
+	diagStore diagnostic.StoreService
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -298,6 +298,13 @@ func (s *Server) Serve() error {
 	// idempotent and never touches active/pending keys. Launched only from
 	// Serve() (not tests/openapi).
 	go s.reconcileSigningKeysLoop()
+	// Periodically reap expired diagnostic_event rows. These are the curated
+	// request-diagnostic records with a seven-day TTL; expired rows are
+	// already invisible to lookups (the GetDiagnosticEvent query filters on
+	// expires_at > now()), so this reaper is purely for storage reclamation.
+	// Launched only from Serve() (not tests/openapi). A nil diagStore
+	// (should not happen in production) makes the loop a safe no-op.
+	go s.pruneExpiredDiagnosticsLoop()
 
 	// Bind the configured host interface when set (e.g. 127.0.0.1 to listen
 	// loopback-only behind a reverse proxy); an empty host keeps the default
@@ -359,6 +366,29 @@ func (s *Server) reconcileSigningKeysLoop() {
 			logx.WithContext(ctx).WithError(err).Warn("reconcile signing keys")
 		case n > 0:
 			logx.WithContext(ctx).WithFields(logrus.Fields{"retired": n}).Info("reconciled signing keys")
+		}
+		<-t.C
+	}
+}
+
+// pruneExpiredDiagnosticsLoop deletes diagnostic_event rows whose expires_at
+// has passed, once at startup and then hourly. These rows are curated request-
+// diagnostic records with a seven-day TTL; the expires_at > now() filter in
+// GetDiagnosticEvent makes expired rows invisible to lookups before the reaper
+// deletes them, so this reaper is purely for storage reclamation. A nil
+// diagStore (NewHuma / openapi subcommand) is a safe no-op — the loop returns
+// immediately. A prune error is logged and retried on the next tick — it must
+// never crash the server.
+func (s *Server) pruneExpiredDiagnosticsLoop() {
+	if s.diagStore == nil {
+		return
+	}
+	ctx := context.Background()
+	t := time.NewTicker(1 * time.Hour)
+	defer t.Stop()
+	for {
+		if err := s.diagStore.PruneExpired(ctx); err != nil {
+			logx.WithContext(ctx).WithError(err).Warn("prune diagnostic_event")
 		}
 		<-t.C
 	}
