@@ -19,7 +19,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,7 +31,6 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
 
@@ -50,49 +48,7 @@ type setAccessRestrictedBody struct {
 	Restricted bool `json:"restricted"`
 }
 
-// ----- GET /oidc-applications/{clientId}/access (typed, role-only) --------------
-
-type getOIDCClientAccessIn struct {
-	ClientID string `path:"clientId"`
-}
-
-type getOIDCClientAccessOut struct {
-	Body contract.AppAccessView
-}
-
-func (s *Server) handleGetOIDCClientAccess(ctx context.Context, in *getOIDCClientAccessIn) (*getOIDCClientAccessOut, error) {
-	c, err := s.queries.GetOIDCClientAny(ctx, in.ClientID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrClientNotFound())
-		}
-		return nil, fmt.Errorf("handleGetOIDCClientAccess: get client: %w", err)
-	}
-
-	groupRows, err := s.queries.ListOIDCClientAccessGroups(ctx, in.ClientID)
-	if err != nil {
-		return nil, fmt.Errorf("handleGetOIDCClientAccess: list groups: %w", err)
-	}
-	accountRows, err := s.queries.ListOIDCClientAccessAccounts(ctx, in.ClientID)
-	if err != nil {
-		return nil, fmt.Errorf("handleGetOIDCClientAccess: list accounts: %w", err)
-	}
-
-	groups := make([]contract.GroupRef, 0, len(groupRows))
-	for _, r := range groupRows {
-		groups = append(groups, contract.GroupRef{ID: r.ID, Slug: r.Slug, DisplayName: r.DisplayName})
-	}
-	accounts := make([]contract.AccountRef, 0, len(accountRows))
-	for _, r := range accountRows {
-		accounts = append(accounts, contract.AccountRef{ID: r.ID, Username: r.Username, DisplayName: r.DisplayName})
-	}
-
-	return &getOIDCClientAccessOut{Body: contract.AppAccessView{
-		AccessRestricted: c.AccessRestricted,
-		Groups:           groups,
-		Accounts:         accounts,
-	}}, nil
-}
+// ----- GET /oidc-applications/{clientId}/access — paginated in handle_nested_pagination.go ----
 
 // ----- POST /oidc-applications/{clientId}/access/set-restricted (raw, sudo-gated) ----
 
@@ -249,49 +205,7 @@ func (s *Server) handleRevokeOIDCClientAccessHTTP(w http.ResponseWriter, r *http
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ----- GET /saml-applications/{id}/access (typed, role-only) --------------------
-
-type getSAMLSPAccessIn struct {
-	ID int64 `path:"id"`
-}
-
-type getSAMLSPAccessOut struct {
-	Body contract.AppAccessView
-}
-
-func (s *Server) handleGetSAMLSPAccess(ctx context.Context, in *getSAMLSPAccessIn) (*getSAMLSPAccessOut, error) {
-	sp, err := s.queries.GetSAMLSPByID(ctx, in.ID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(samlSPNotFound())
-		}
-		return nil, fmt.Errorf("handleGetSAMLSPAccess: get sp: %w", err)
-	}
-
-	groupRows, err := s.queries.ListSAMLSPAccessGroups(ctx, in.ID)
-	if err != nil {
-		return nil, fmt.Errorf("handleGetSAMLSPAccess: list groups: %w", err)
-	}
-	accountRows, err := s.queries.ListSAMLSPAccessAccounts(ctx, in.ID)
-	if err != nil {
-		return nil, fmt.Errorf("handleGetSAMLSPAccess: list accounts: %w", err)
-	}
-
-	groups := make([]contract.GroupRef, 0, len(groupRows))
-	for _, r := range groupRows {
-		groups = append(groups, contract.GroupRef{ID: r.ID, Slug: r.Slug, DisplayName: r.DisplayName})
-	}
-	accounts := make([]contract.AccountRef, 0, len(accountRows))
-	for _, r := range accountRows {
-		accounts = append(accounts, contract.AccountRef{ID: r.ID, Username: r.Username, DisplayName: r.DisplayName})
-	}
-
-	return &getSAMLSPAccessOut{Body: contract.AppAccessView{
-		AccessRestricted: sp.AccessRestricted,
-		Groups:           groups,
-		Accounts:         accounts,
-	}}, nil
-}
+// ----- GET /saml-applications/{id}/access — paginated in handle_nested_pagination.go ----
 
 // ----- POST /saml-applications/{id}/access/set-restricted (raw, sudo-gated) -----
 

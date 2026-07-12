@@ -1,6 +1,17 @@
 -- name: ListCredentialsByAccount :many
 SELECT * FROM webauthn_credential WHERE account_id = $1 ORDER BY created_at DESC;
 
+-- name: ListCredentialsByAccountPage :many
+-- Keyset-paginated credentials for an account, ordered by (created_at DESC, id DESC).
+-- The after_created_at / after_id pair is the keyset cursor from the last row
+-- of the previous page; NULL starts a new page. LIMIT is limit+1 so the handler
+-- can detect the presence of a next page without a separate count.
+SELECT * FROM webauthn_credential
+WHERE account_id = sqlc.arg(account_id)
+  AND (sqlc.arg(after_created_at)::timestamptz IS NULL OR (created_at, id) < (sqlc.arg(after_created_at), sqlc.arg(after_id)::integer))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(row_limit);
+
 -- name: GetCredentialByCredentialID :one
 SELECT * FROM webauthn_credential WHERE credential_id = $1;
 

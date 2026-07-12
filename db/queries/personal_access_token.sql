@@ -17,6 +17,15 @@ SELECT * FROM personal_access_token
 WHERE account_id = $1 AND revoked_at IS NULL
 ORDER BY created_at DESC;
 
+-- name: ListPATsByAccountPage :many
+-- Keyset-paginated non-revoked PATs for an account, ordered by (created_at DESC, id DESC).
+-- NULL after_created_at starts a new page. LIMIT is limit+1 for next-page detection.
+SELECT * FROM personal_access_token
+WHERE account_id = sqlc.arg(account_id) AND revoked_at IS NULL
+  AND (sqlc.arg(after_created_at)::timestamptz IS NULL OR (created_at, id) < (sqlc.arg(after_created_at), sqlc.arg(after_id)::integer))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(row_limit);
+
 -- name: GetPATByTokenHash :one
 SELECT * FROM personal_access_token
 WHERE token_hash = $1

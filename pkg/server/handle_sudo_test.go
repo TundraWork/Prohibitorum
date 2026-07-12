@@ -194,6 +194,10 @@ func (f *fakeSudoQueries) ListAccountIdentitiesByAccount(_ context.Context, _ in
 	return nil, nil
 }
 
+func (f *fakeSudoQueries) ListAccountIdentitiesByAccountPage(_ context.Context, _ db.ListAccountIdentitiesByAccountPageParams) ([]db.ListAccountIdentitiesByAccountPageRow, error) {
+	return nil, nil
+}
+
 // CountUsableSignInFederation returns f.fedCount (default 0). Tests that want
 // AvailableMethods to surface federation_oidc can set fedCount > 0 to
 // exercise the availableSudoMethods filter.

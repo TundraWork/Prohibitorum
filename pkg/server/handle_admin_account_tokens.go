@@ -11,50 +11,18 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/logx"
 )
 
-// ----- GET /accounts/{id}/tokens (admin, typed) ------------------------------
-
-type accountTokensOut struct {
-	Body []contract.PersonalAccessTokenView
-}
-
-// handleListAccountTokens lists all non-revoked PATs for a given account.
-// It reuses the same getAccountIn path-param struct that handleGetAccount and
-// handleListAccountSessions use; huma parses the int32 id from the URL.
-func (s *Server) handleListAccountTokens(ctx context.Context, in *getAccountIn) (*accountTokensOut, error) {
-	q := s.patQueriesFn()
-	// Account-existence guard (mirrors handleListAccountSessions /
-	// handleListAccountCredentials): a garbage id must 404, not return 200+[].
-	if _, err := q.GetAccountByID(ctx, in.ID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrAccountNotFound())
-		}
-		return nil, fmt.Errorf("handleListAccountTokens: load account: %w", err)
-	}
-	rows, err := q.ListPATsByAccount(ctx, in.ID)
-	if err != nil {
-		return nil, fmt.Errorf("handleListAccountTokens: %w", err)
-	}
-	out := make([]contract.PersonalAccessTokenView, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, patView(r))
-	}
-	return &accountTokensOut{Body: out}, nil
-}
+// ----- GET /accounts/{id}/tokens — paginated in handle_nested_pagination.go ----
 
 // ----- POST /accounts/tokens/revoke (admin + sudo, raw) ----------------------
 

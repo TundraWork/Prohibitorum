@@ -61,6 +61,7 @@ func identityProviderView(r db.UpstreamIdp) contract.IdentityProviderView {
 		UsernameClaim:        r.UsernameClaim,
 		DisplayNameClaim:     r.DisplayNameClaim,
 		EmailClaim:           r.EmailClaim,
+		PictureClaim:          r.PictureClaim,
 		RequireVerifiedEmail: r.RequireVerifiedEmail,
 		Disabled:             r.Disabled,
 		AllowPrivateNetwork:  r.AllowPrivateNetwork,

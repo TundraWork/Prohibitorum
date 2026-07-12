@@ -33,24 +33,24 @@ func TestAdminAppAccess_AccessViewGroups_OIDC(t *testing.T) {
 
 	view := contract.AppAccessView{
 		AccessRestricted: true,
-		Groups:           groups,
-		Accounts:         []contract.AccountRef{},
+		Groups:           contract.Page[contract.GroupRef]{Items: groups},
+		Accounts:         contract.Page[contract.AccountRef]{},
 	}
 
 	if !view.AccessRestricted {
 		t.Error("AccessRestricted: got false, want true")
 	}
-	if len(view.Groups) != 2 {
-		t.Fatalf("Groups len: got %d, want 2", len(view.Groups))
+	if len(view.Groups.Items) != 2 {
+		t.Fatalf("Groups len: got %d, want 2", len(view.Groups.Items))
 	}
-	if view.Groups[0].ID != 1 || view.Groups[0].Slug != "eng" || view.Groups[0].DisplayName != "Engineering" {
-		t.Errorf("Groups[0]: got %+v, want {1 eng Engineering}", view.Groups[0])
+	if view.Groups.Items[0].ID != 1 || view.Groups.Items[0].Slug != "eng" || view.Groups.Items[0].DisplayName != "Engineering" {
+		t.Errorf("Groups[0]: got %+v, want {1 eng Engineering}", view.Groups.Items[0])
 	}
-	if view.Groups[1].ID != 2 || view.Groups[1].Slug != "ops" {
-		t.Errorf("Groups[1]: got %+v, want {2 ops ...}", view.Groups[1])
+	if view.Groups.Items[1].ID != 2 || view.Groups.Items[1].Slug != "ops" {
+		t.Errorf("Groups[1]: got %+v, want {2 ops ...}", view.Groups.Items[1])
 	}
-	if len(view.Accounts) != 0 {
-		t.Errorf("Accounts len: got %d, want 0", len(view.Accounts))
+	if len(view.Accounts.Items) != 0 {
+		t.Errorf("Accounts len: got %d, want 0", len(view.Accounts.Items))
 	}
 }
 
@@ -71,24 +71,24 @@ func TestAdminAppAccess_AccessViewAccounts_OIDC(t *testing.T) {
 
 	view := contract.AppAccessView{
 		AccessRestricted: false,
-		Groups:           []contract.GroupRef{},
-		Accounts:         accounts,
+		Groups:           contract.Page[contract.GroupRef]{},
+		Accounts:         contract.Page[contract.AccountRef]{Items: accounts},
 	}
 
 	if view.AccessRestricted {
 		t.Error("AccessRestricted: got true, want false")
 	}
-	if len(view.Groups) != 0 {
-		t.Errorf("Groups len: got %d, want 0", len(view.Groups))
+	if len(view.Groups.Items) != 0 {
+		t.Errorf("Groups len: got %d, want 0", len(view.Groups.Items))
 	}
-	if len(view.Accounts) != 2 {
-		t.Fatalf("Accounts len: got %d, want 2", len(view.Accounts))
+	if len(view.Accounts.Items) != 2 {
+		t.Fatalf("Accounts len: got %d, want 2", len(view.Accounts.Items))
 	}
-	if view.Accounts[0].ID != 10 || view.Accounts[0].Username != "alice" {
-		t.Errorf("Accounts[0]: got %+v, want {10 alice ...}", view.Accounts[0])
+	if view.Accounts.Items[0].ID != 10 || view.Accounts.Items[0].Username != "alice" {
+		t.Errorf("Accounts[0]: got %+v, want {10 alice ...}", view.Accounts.Items[0])
 	}
-	if view.Accounts[1].ID != 20 || view.Accounts[1].Username != "bob" {
-		t.Errorf("Accounts[1]: got %+v, want {20 bob ...}", view.Accounts[1])
+	if view.Accounts.Items[1].ID != 20 || view.Accounts.Items[1].Username != "bob" {
+		t.Errorf("Accounts[1]: got %+v, want {20 bob ...}", view.Accounts.Items[1])
 	}
 }
 
@@ -108,15 +108,15 @@ func TestAdminAppAccess_AccessViewGroups_SAML(t *testing.T) {
 
 	view := contract.AppAccessView{
 		AccessRestricted: true,
-		Groups:           groups,
-		Accounts:         []contract.AccountRef{},
+		Groups:           contract.Page[contract.GroupRef]{Items: groups},
+		Accounts:         contract.Page[contract.AccountRef]{},
 	}
 
-	if len(view.Groups) != 1 {
-		t.Fatalf("Groups len: got %d, want 1", len(view.Groups))
+	if len(view.Groups.Items) != 1 {
+		t.Fatalf("Groups len: got %d, want 1", len(view.Groups.Items))
 	}
-	if view.Groups[0].ID != 5 || view.Groups[0].Slug != "hr" || view.Groups[0].DisplayName != "Human Resources" {
-		t.Errorf("Groups[0]: got %+v, want {5 hr Human Resources}", view.Groups[0])
+	if view.Groups.Items[0].ID != 5 || view.Groups.Items[0].Slug != "hr" || view.Groups.Items[0].DisplayName != "Human Resources" {
+		t.Errorf("Groups[0]: got %+v, want {5 hr Human Resources}", view.Groups.Items[0])
 	}
 }
 
@@ -136,15 +136,15 @@ func TestAdminAppAccess_AccessViewAccounts_SAML(t *testing.T) {
 
 	view := contract.AppAccessView{
 		AccessRestricted: false,
-		Groups:           []contract.GroupRef{},
-		Accounts:         accounts,
+		Groups:           contract.Page[contract.GroupRef]{},
+		Accounts:         contract.Page[contract.AccountRef]{Items: accounts},
 	}
 
-	if len(view.Accounts) != 1 {
-		t.Fatalf("Accounts len: got %d, want 1", len(view.Accounts))
+	if len(view.Accounts.Items) != 1 {
+		t.Fatalf("Accounts len: got %d, want 1", len(view.Accounts.Items))
 	}
-	if view.Accounts[0].ID != 99 || view.Accounts[0].Username != "carol" {
-		t.Errorf("Accounts[0]: got %+v, want {99 carol ...}", view.Accounts[0])
+	if view.Accounts.Items[0].ID != 99 || view.Accounts.Items[0].Username != "carol" {
+		t.Errorf("Accounts[0]: got %+v, want {99 carol ...}", view.Accounts.Items[0])
 	}
 }
 
@@ -158,21 +158,21 @@ func TestAdminAppAccess_EmptySlices_NonNil(t *testing.T) {
 
 	view := contract.AppAccessView{
 		AccessRestricted: false,
-		Groups:           groups,
-		Accounts:         accounts,
+		Groups:           contract.Page[contract.GroupRef]{Items: groups},
+		Accounts:         contract.Page[contract.AccountRef]{Items: accounts},
 	}
 
-	if view.Groups == nil {
+	if view.Groups.Items == nil {
 		t.Error("Groups: got nil, want non-nil empty slice")
 	}
-	if view.Accounts == nil {
+	if view.Accounts.Items == nil {
 		t.Error("Accounts: got nil, want non-nil empty slice")
 	}
-	if len(view.Groups) != 0 {
-		t.Errorf("Groups len: got %d, want 0", len(view.Groups))
+	if len(view.Groups.Items) != 0 {
+		t.Errorf("Groups len: got %d, want 0", len(view.Groups.Items))
 	}
-	if len(view.Accounts) != 0 {
-		t.Errorf("Accounts len: got %d, want 0", len(view.Accounts))
+	if len(view.Accounts.Items) != 0 {
+		t.Errorf("Accounts len: got %d, want 0", len(view.Accounts.Items))
 	}
 }
 
@@ -322,9 +322,9 @@ func TestAdminAppAccess_SAMLGroupRefMapping(t *testing.T) {
 	t.Parallel()
 
 	row := db.ListSAMLSPAccessGroupsRow{
-		ID:          12,
-		Slug:        "security",
-		DisplayName: "Security",
+		ID:          11,
+		Slug:        "saml-group",
+		DisplayName: "SAML Group",
 	}
 
 	ref := contract.GroupRef{
@@ -333,8 +333,11 @@ func TestAdminAppAccess_SAMLGroupRefMapping(t *testing.T) {
 		DisplayName: row.DisplayName,
 	}
 
-	if ref.ID != 12 || ref.Slug != "security" {
-		t.Errorf("GroupRef: got %+v, want {12 security Security}", ref)
+	if ref.ID != 11 {
+		t.Errorf("ID: got %d, want 11", ref.ID)
+	}
+	if ref.Slug != "saml-group" {
+		t.Errorf("Slug: got %q, want saml-group", ref.Slug)
 	}
 }
 
@@ -344,9 +347,9 @@ func TestAdminAppAccess_SAMLAccountRefMapping(t *testing.T) {
 	t.Parallel()
 
 	row := db.ListSAMLSPAccessAccountsRow{
-		ID:          55,
+		ID:          88,
 		Username:    "eve",
-		DisplayName: "Eve Wilson",
+		DisplayName: "Eve Adams",
 	}
 
 	ref := contract.AccountRef{
@@ -355,7 +358,10 @@ func TestAdminAppAccess_SAMLAccountRefMapping(t *testing.T) {
 		DisplayName: row.DisplayName,
 	}
 
-	if ref.ID != 55 || ref.Username != "eve" {
-		t.Errorf("AccountRef: got %+v, want {55 eve Eve Wilson}", ref)
+	if ref.ID != 88 {
+		t.Errorf("ID: got %d, want 88", ref.ID)
+	}
+	if ref.Username != "eve" {
+		t.Errorf("Username: got %q, want eve", ref.Username)
 	}
 }

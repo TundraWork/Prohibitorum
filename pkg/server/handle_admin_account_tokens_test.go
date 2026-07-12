@@ -35,6 +35,8 @@ import (
 // ---------------------------------------------------------------------------
 
 // adminFakePATQ is a minimal patQueries implementation for admin-token tests.
+// It also satisfies nestedQueries so the paginated list handler can use it
+// via nestedQueriesOverride.
 type adminFakePATQ struct {
 	rows []db.PersonalAccessToken
 	// accountMissing makes GetAccountByID return pgx.ErrNoRows, exercising the
@@ -49,18 +51,59 @@ func (f *adminFakePATQ) GetAccountByID(_ context.Context, id int32) (db.Account,
 	return db.Account{ID: id}, nil
 }
 
+func (f *adminFakePATQ) ListPATsByAccountPage(_ context.Context, arg db.ListPATsByAccountPageParams) ([]db.PersonalAccessToken, error) {
+	out := f.rows
+	if int32(len(out)) > arg.RowLimit {
+		out = out[:arg.RowLimit]
+	}
+	return out, nil
+}
+
+// Stubs for the nestedQueries interface methods not under test here.
+func (f *adminFakePATQ) GetGroup(_ context.Context, id int32) (db.UserGroup, error) {
+	return db.UserGroup{ID: id}, nil
+}
+func (f *adminFakePATQ) GetOIDCClientAny(_ context.Context, clientID string) (db.OidcClient, error) {
+	return db.OidcClient{ClientID: clientID}, nil
+}
+func (f *adminFakePATQ) GetSAMLSPByID(_ context.Context, id int64) (db.SamlSp, error) {
+	return db.SamlSp{ID: id}, nil
+}
+func (f *adminFakePATQ) ListCredentialsByAccountPage(_ context.Context, arg db.ListCredentialsByAccountPageParams) ([]db.WebauthnCredential, error) {
+	return nil, nil
+}
+func (f *adminFakePATQ) ListGroupsForAccountPage(_ context.Context, arg db.ListGroupsForAccountPageParams) ([]db.UserGroup, error) {
+	return nil, nil
+}
+func (f *adminFakePATQ) ListGroupMembersPage(_ context.Context, arg db.ListGroupMembersPageParams) ([]db.ListGroupMembersPageRow, error) {
+	return nil, nil
+}
+func (f *adminFakePATQ) ListOIDCClientAccessGroupsPage(_ context.Context, arg db.ListOIDCClientAccessGroupsPageParams) ([]db.ListOIDCClientAccessGroupsPageRow, error) {
+	return nil, nil
+}
+func (f *adminFakePATQ) ListOIDCClientAccessAccountsPage(_ context.Context, arg db.ListOIDCClientAccessAccountsPageParams) ([]db.ListOIDCClientAccessAccountsPageRow, error) {
+	return nil, nil
+}
+func (f *adminFakePATQ) ListSAMLSPAccessGroupsPage(_ context.Context, arg db.ListSAMLSPAccessGroupsPageParams) ([]db.ListSAMLSPAccessGroupsPageRow, error) {
+	return nil, nil
+}
+func (f *adminFakePATQ) ListSAMLSPAccessAccountsPage(_ context.Context, arg db.ListSAMLSPAccessAccountsPageParams) ([]db.ListSAMLSPAccessAccountsPageRow, error) {
+	return nil, nil
+}
+func (f *adminFakePATQ) ListAccountIdentitiesByAccountPage(_ context.Context, arg db.ListAccountIdentitiesByAccountPageParams) ([]db.ListAccountIdentitiesByAccountPageRow, error) {
+	return nil, nil
+}
+
+// Legacy patQueries methods (still needed for /me/tokens handler tests).
 func (f *adminFakePATQ) ListPATsByAccount(_ context.Context, _ int32) ([]db.PersonalAccessToken, error) {
 	return f.rows, nil
 }
-
 func (f *adminFakePATQ) InsertPAT(_ context.Context, _ db.InsertPATParams) (db.PersonalAccessToken, error) {
 	return db.PersonalAccessToken{}, nil
 }
-
 func (f *adminFakePATQ) RevokePAT(_ context.Context, _ db.RevokePATParams) (int64, error) {
 	return 0, nil
 }
-
 func (f *adminFakePATQ) ListAuthorizedForwardAuthAppsForAccount(_ context.Context, _ pgtype.Int4) ([]db.ListAuthorizedForwardAuthAppsForAccountRow, error) {
 	return nil, nil
 }
@@ -103,18 +146,18 @@ func TestHandleListAccountTokens_MapsRowsToViews(t *testing.T) {
 	}
 
 	fakeQ := &adminFakePATQ{rows: rows}
-	s := &Server{patQueriesOverride: fakeQ, Audit: noopAuditWriter{}}
+	s := &Server{nestedQueriesOverride: fakeQ, cursorCodec: testCodec(), Audit: noopAuditWriter{}}
 
-	out, err := s.handleListAccountTokens(context.Background(), &getAccountIn{ID: 42})
+	out, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{ID: 42})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(out.Body) != 2 {
-		t.Fatalf("len(out.Body) = %d; want 2", len(out.Body))
+	if len(out.Body.Items) != 2 {
+		t.Fatalf("len(out.Body.Items) = %d; want 2", len(out.Body.Items))
 	}
 
 	// First token: app-grant, no allApps.
-	v0 := out.Body[0]
+	v0 := out.Body.Items[0]
 	if v0.ID != 1 {
 		t.Errorf("v0.ID = %d; want 1", v0.ID)
 	}
@@ -129,7 +172,7 @@ func TestHandleListAccountTokens_MapsRowsToViews(t *testing.T) {
 	}
 
 	// Second token: allApps=true.
-	v1 := out.Body[1]
+	v1 := out.Body.Items[1]
 	if !v1.AllApps {
 		t.Error("v1.AllApps: want true")
 	}
@@ -156,14 +199,14 @@ func TestHandleListAccountTokens_NoSecret(t *testing.T) {
 	}
 
 	fakeQ := &adminFakePATQ{rows: []db.PersonalAccessToken{row}}
-	s := &Server{patQueriesOverride: fakeQ, Audit: noopAuditWriter{}}
+	s := &Server{nestedQueriesOverride: fakeQ, cursorCodec: testCodec(), Audit: noopAuditWriter{}}
 
-	out, err := s.handleListAccountTokens(context.Background(), &getAccountIn{ID: 7})
+	out, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{ID: 7})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	b, _ := json.Marshal(out.Body)
+	b, _ := json.Marshal(out.Body.Items)
 	if strings.Contains(string(b), "this-is-the-hash-and-must-not-appear") {
 		t.Error("response JSON must not contain the raw token hash")
 	}
@@ -176,9 +219,9 @@ func TestHandleListAccountTokens_UnknownAccount404(t *testing.T) {
 	t.Parallel()
 
 	fakeQ := &adminFakePATQ{accountMissing: true}
-	s := &Server{patQueriesOverride: fakeQ, Audit: noopAuditWriter{}}
+	s := &Server{nestedQueriesOverride: fakeQ, cursorCodec: testCodec(), Audit: noopAuditWriter{}}
 
-	_, err := s.handleListAccountTokens(context.Background(), &getAccountIn{ID: 999})
+	_, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{ID: 999})
 	if err == nil {
 		t.Fatal("expected a 404 error for an unknown account id, got nil")
 	}
@@ -270,17 +313,17 @@ func TestHandleListAccountTokens_EmptySlice(t *testing.T) {
 	t.Parallel()
 
 	fakeQ := &adminFakePATQ{rows: nil}
-	s := &Server{patQueriesOverride: fakeQ, Audit: noopAuditWriter{}}
+	s := &Server{nestedQueriesOverride: fakeQ, cursorCodec: testCodec(), Audit: noopAuditWriter{}}
 
-	out, err := s.handleListAccountTokens(context.Background(), &getAccountIn{ID: 1})
+	out, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{ID: 1})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if out.Body == nil {
-		t.Error("Body: want non-nil empty slice, got nil (would serialize as JSON null)")
+	if out.Body.Items == nil {
+		t.Error("Items: want non-nil empty slice, got nil (would serialize as JSON null)")
 	}
-	if len(out.Body) != 0 {
-		t.Errorf("Body: want 0 items, got %d", len(out.Body))
+	if len(out.Body.Items) != 0 {
+		t.Errorf("Items: want 0 items, got %d", len(out.Body.Items))
 	}
 }
 
