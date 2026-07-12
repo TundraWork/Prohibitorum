@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 1: Public error registry and request correlation",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Establish typed public errors and server-generated request IDs.\n\n**Files:** pkg/weberr/*, pkg/authn/errors.go, pkg/server/server.go, pkg/server/operations.go.\n\n**Acceptance Criteria:** Every response has an untrusted-input-independent X-Request-ID; JSON errors are {code,details,requestId}; registry codes/detail schemas are unique and validated.\n\n**Verify:** mise exec -- go test ./pkg/weberr ./pkg/server ./pkg/authn -run 'RequestID|PublicError|Registry|WriteAuthErr' -count=1\n\n```json:metadata\n{\"files\":[\"pkg/weberr\",\"pkg/authn/errors.go\",\"pkg/server/server.go\",\"pkg/server/operations.go\"],\"verifyCommand\":\"mise exec -- go test ./pkg/weberr ./pkg/server ./pkg/authn -run 'RequestID|PublicError|Registry|WriteAuthErr' -count=1\",\"acceptanceCriteria\":[\"server-generated request IDs\",\"typed public error envelope\",\"validated unique registry\"]}\n```"
     },
     {
@@ -82,5 +82,5 @@
       "description": "**Goal:** Add absolute/inactivity limits and bind refresh authority to the live originating session and current authorization.\n\n**Files:** pkg/configx, pkg/session, pkg/protocol/oidc/refresh.go/tests, server recovery/revocation handlers/tests.\n\n**Acceptance Criteria:** 30-day inactivity and 90-day absolute defaults; live session checked; definitive session/account/access/recovery denial revokes family; precise audit reasons.\n\n**Verify:** mise exec -- go test ./pkg/configx ./pkg/session ./pkg/protocol/oidc ./pkg/server -run 'Refresh|Session.*Revoke|Recovery|Access.*Revok|Absolute|Inactivity' -count=1\n\n```json:metadata\n{\"files\":[\"pkg/configx\",\"pkg/session\",\"pkg/protocol/oidc/refresh.go\",\"pkg/protocol/oidc/refresh_test.go\",\"pkg/server\"],\"verifyCommand\":\"mise exec -- go test ./pkg/configx ./pkg/session ./pkg/protocol/oidc ./pkg/server -run 'Refresh|Session.*Revoke|Recovery|Access.*Revok|Absolute|Inactivity' -count=1\",\"acceptanceCriteria\":[\"absolute and inactivity expiry\",\"live originating session binding\",\"security-state revocation\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-07-12T21:09:24+10:00"
+  "lastUpdated": "2026-07-12T22:50:23+10:00"
 }
