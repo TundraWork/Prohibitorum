@@ -6,7 +6,8 @@
  * The panel renders the localized message for the error's code (or the
  * unknown fallback), a collapsible details disclosure showing curated detail
  * fields and the copyable request ID, an optional recovery action button,
- * and an admin-only diagnostic lookup action.
+ * and an admin-only diagnostic lookup that fetches and renders the curated
+ * diagnostic record from /api/prohibitorum/diagnostics/{requestId}.
  *
  * Key contract guarantees:
  * - role="alert" so assistive tech announces it assertively.
@@ -16,15 +17,32 @@
  * - The requestId is hidden in the collapsed summary and only shown in the
  *   expanded details disclosure.
  * - Non-admin users never see the diagnostic action.
+ * - Admin diagnostic fetch is self-contained: the ErrorPanel fetches the
+ *   record, shows loading/error states, and renders it persistently in an
+ *   accessible region. Pages do NOT need to wire a handler — just pass
+ *   :is-admin="true" from admin routes (gated by the router).
  */
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { X, ChevronDown, Copy, Stethoscope, RotateCcw, LogIn } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { api } from '@/lib/api'
 import type { ApiError } from '@/lib/errors'
 import { errorTranslationKey, detailLabelKey, recoveryLabelKey, localizedDetailEntries } from '@/lib/errors'
 import { codeDefinition } from '@/lib/errorCodes'
+
+interface DiagnosticRecord {
+  requestId: string
+  code: string
+  operation: string
+  method: string
+  route: string
+  retryable: boolean
+  fields?: Record<string, unknown>
+  occurredAt: string
+  expiresAt: string
+}
 
 const props = withDefaults(defineProps<{
   error: ApiError | null
@@ -36,29 +54,23 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'dismiss'): void
   (e: 'recovery'): void
-  (e: 'diagnostic', payload: { requestId: string }): void
 }>()
 
 const { t, te } = useI18n()
 const detailsOpen = ref(false)
 const copied = ref(false)
 
+// --- diagnostic fetch state ---
+const diagState = ref<'idle' | 'loading' | 'loaded' | 'error'>('idle')
+const diagRecord = ref<DiagnosticRecord | null>(null)
+
 const hasError = computed(() => props.error !== null)
 
-/**
- * Codes owned by a global handler (redirect/toast). For these the summary
- * message is suppressed (errorText is '' in useApi) to avoid duplicating the
- * global UX. The ErrorPanel still renders — showing the unknown fallback and
- * the details/copy/diagnostic actions — but without the code-specific message.
- */
 const GLOBAL_CODES = new Set(['no_session', 'maintenance_mode', 'network_error', 'server_error'])
 
 const message = computed(() => {
   const e = props.error
   if (!e) return ''
-  // Globally-handled codes: suppress the code-specific message (the global
-  // handler owns the UX). Show the unknown fallback instead so the panel still
-  // provides actionable feedback without duplicating the redirect/toast.
   if (GLOBAL_CODES.has(e.code)) return t('errors.unknown')
   const key = errorTranslationKey(e.code)
   if (te(key)) return t(key)
@@ -115,10 +127,39 @@ function onRecovery(): void {
   emit('recovery')
 }
 
-function onDiagnostic(): void {
+async function fetchDiagnostic(): Promise<void> {
   const rid = props.error?.requestId
-  if (rid) emit('diagnostic', { requestId: rid })
+  if (!rid) return
+  diagState.value = 'loading'
+  diagRecord.value = null
+  try {
+    diagRecord.value = await api.get<DiagnosticRecord>(
+      `/api/prohibitorum/diagnostics/${encodeURIComponent(rid)}`,
+    )
+    diagState.value = 'loaded'
+  } catch {
+    diagState.value = 'error'
+  }
 }
+
+const diagFields = computed(() => {
+  const r = diagRecord.value
+  if (!r) return []
+  const entries: Array<{ key: string; label: string; value: string }> = [
+    { key: 'requestId', label: t('errors.diagnosticField_requestId'), value: r.requestId },
+    { key: 'code', label: t('errors.diagnosticField_code'), value: r.code },
+    { key: 'operation', label: t('errors.diagnosticField_operation'), value: r.operation },
+    { key: 'method', label: t('errors.diagnosticField_method'), value: r.method },
+    { key: 'route', label: t('errors.diagnosticField_route'), value: r.route },
+    { key: 'retryable', label: t('errors.diagnosticField_retryable'), value: r.retryable ? t('common.yes') : t('common.no') },
+    { key: 'occurredAt', label: t('errors.diagnosticField_occurredAt'), value: r.occurredAt },
+    { key: 'expiresAt', label: t('errors.diagnosticField_expiresAt'), value: r.expiresAt },
+  ]
+  if (r.fields && Object.keys(r.fields).length > 0) {
+    entries.push({ key: 'fields', label: t('errors.diagnosticField_fields'), value: JSON.stringify(r.fields) })
+  }
+  return entries
+})
 </script>
 
 <template>
@@ -198,7 +239,8 @@ function onDiagnostic(): void {
         </div>
       </div>
     </div>
-    <!-- Admin diagnostic action — always visible for admins with a requestId -->
+
+    <!-- Admin diagnostic action — visible for admins with a requestId -->
     <div v-if="showDiagnostic">
       <Button
         type="button"
@@ -206,11 +248,36 @@ function onDiagnostic(): void {
         variant="ghost"
         size="sm"
         class="text-xs"
-        @click="onDiagnostic"
+        @click="fetchDiagnostic"
       >
         <Stethoscope class="size-3.5" aria-hidden="true" />
         {{ t('errors.diagnostic') }}
       </Button>
+
+      <!-- Diagnostic loading state -->
+      <div v-if="diagState === 'loading'" data-test="diagnostic-loading" class="mt-2 text-xs text-muted" role="status">
+        {{ t('errors.diagnosticLoading') }}
+      </div>
+
+      <!-- Diagnostic error state -->
+      <div v-if="diagState === 'error'" data-test="diagnostic-error" class="mt-2 text-xs text-destructive" role="alert">
+        {{ t('errors.diagnosticError') }}
+      </div>
+
+      <!-- Diagnostic record — persistent, accessible -->
+      <div
+        v-if="diagState === 'loaded' && diagRecord"
+        data-test="diagnostic-record"
+        role="region"
+        :aria-label="t('errors.diagnosticRecord')"
+        class="mt-2 flex flex-col gap-1 rounded-md border border-border p-3 text-xs text-muted"
+      >
+        <p class="font-medium text-ink">{{ t('errors.diagnosticRecord') }}</p>
+        <div v-for="field in diagFields" :key="field.key" class="flex gap-1">
+          <span class="font-medium">{{ field.label }}:</span>
+          <span class="break-all">{{ field.value }}</span>
+        </div>
+      </div>
     </div>
   </Alert>
 </template>

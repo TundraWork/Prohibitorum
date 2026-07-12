@@ -85,4 +85,9 @@ describe('AdminAccountsView', () => {
     const w = mountView(); await flushPromises()
     expect(w.text()).not.toContain(en.errors.codes.server_error)
   })
+  it('shows the admin diagnostic action when an error with requestId occurs', async () => {
+    get.mockRejectedValue({ code: 'forbidden', requestId: 'rid-adm-1' })
+    const w = mountView(); await flushPromises()
+    expect(w.find('[data-test="error-diagnostic"]').exists()).toBe(true)
+  })
 })

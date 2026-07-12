@@ -22,6 +22,8 @@ export default {
     remove: '移除',
     add: '添加',
     dismiss: '忽略',
+    yes: '是',
+    no: '否',
   },
 
   scopeSelector: {
@@ -865,6 +867,18 @@ export default {
     copyRequestId: '复制请求 ID',
     copied: '已复制！',
     diagnostic: '查看诊断详情',
+    diagnosticLoading: '正在加载诊断详情…',
+    diagnosticError: '无法加载诊断详情。',
+    diagnosticRecord: '诊断记录',
+    diagnosticField_requestId: '请求 ID',
+    diagnosticField_code: '错误代码',
+    diagnosticField_operation: '操作',
+    diagnosticField_method: '方法',
+    diagnosticField_route: '路由',
+    diagnosticField_retryable: '可重试',
+    diagnosticField_occurredAt: '发生时间',
+    diagnosticField_expiresAt: '过期时间',
+    diagnosticField_fields: '详情',
 
     codes: {
       // 会话 / 授权

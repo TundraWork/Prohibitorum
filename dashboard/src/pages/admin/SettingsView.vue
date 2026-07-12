@@ -157,7 +157,7 @@ async function removeBackground(): Promise<void> {
       <p class="text-sm text-muted">{{ t('admin.settings.help') }}</p>
     </div>
 
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
 
     <Card>
       <CardHeader><CardTitle>{{ t('admin.settings.nameLabel') }}</CardTitle></CardHeader>

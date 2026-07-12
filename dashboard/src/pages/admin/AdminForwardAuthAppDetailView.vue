@@ -127,7 +127,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/forward-auth-apps" :label="t('admin.forwardAuth.back')" />
-    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.forwardAuth.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !app" />

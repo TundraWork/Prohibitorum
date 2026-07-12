@@ -160,7 +160,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.saml.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.saml.create') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
     <StatusMessage :show="created">{{ t('admin.saml.created') }}</StatusMessage>
 
     <Card v-if="createOpen">

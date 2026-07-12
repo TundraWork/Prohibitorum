@@ -26,6 +26,8 @@ export default {
     remove: 'Remove',
     add: 'Add',
     dismiss: 'Dismiss',
+    yes: 'Yes',
+    no: 'No',
   },
 
   scopeSelector: {
@@ -871,6 +873,18 @@ export default {
     copyRequestId: 'Copy request ID',
     copied: 'Copied!',
     diagnostic: 'View diagnostic details',
+    diagnosticLoading: 'Loading diagnostic details…',
+    diagnosticError: 'Could not load diagnostic details.',
+    diagnosticRecord: 'Diagnostic record',
+    diagnosticField_requestId: 'Request ID',
+    diagnosticField_code: 'Error code',
+    diagnosticField_operation: 'Operation',
+    diagnosticField_method: 'Method',
+    diagnosticField_route: 'Route',
+    diagnosticField_retryable: 'Retryable',
+    diagnosticField_occurredAt: 'Occurred at',
+    diagnosticField_expiresAt: 'Expires at',
+    diagnosticField_fields: 'Details',
 
     codes: {
       // Session / authorization

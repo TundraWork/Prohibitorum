@@ -24,11 +24,17 @@ describe('RecoveryCodesCard', () => {
     expect(w.findAll('li').map((l) => l.text())).toEqual(['x1', 'x2'])
   })
 
-  it('shows the need-TOTP hint on bad_request', async () => {
-    post.mockRejectedValue({ code: 'bad_request', message: '…' })
+  it('shows the need-TOTP hint on bad_request via ErrorPanel', async () => {
+    post.mockRejectedValue({ code: 'bad_request', requestId: 'rid-1' })
     const w = mountCard()
     await w.find('button').trigger('click'); await flushPromises()
+    // The contextual hint appears as inline guidance (separate from ErrorPanel)
     expect(w.text()).toContain(en.security.recovery.needTotp)
+    // ErrorPanel is rendered with the error (provides requestId/details/dismiss)
+    expect(w.find('[data-test="error-dismiss"]').exists()).toBe(true)
+    // Dismissing the ErrorPanel clears the error
+    await w.find('[data-test="error-dismiss"]').trigger('click')
+    expect(w.find('[data-test="error-dismiss"]').exists()).toBe(false)
   })
 
   it('hides the Regenerate button and shows hint when totpEnabled is false', async () => {

@@ -85,7 +85,7 @@ onMounted(load)
       </div>
       <Button type="button" data-test="generate" @click="confirmGenerate = true">{{ t('admin.signingKeys.generate') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
 
     <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="5" />
     <Table v-else-if="rows.length">

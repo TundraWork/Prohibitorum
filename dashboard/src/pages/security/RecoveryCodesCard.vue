@@ -3,6 +3,11 @@
  * RecoveryCodesCard — regenerate recovery codes (sudo-gated; needs confirmed TOTP).
  * When totpEnabled is false the Regenerate button is replaced with a hint so the
  * user cannot click into a server-side bad_request dead-end.
+ *
+ * Uses ErrorPanel for all API errors. The contextual need-TOTP hint is shown
+ * as separate inline guidance when the error code is bad_request (this
+ * endpoint's bad_request specifically means "no TOTP enrolled"), alongside the
+ * ErrorPanel which retains the requestId/details/dismiss behavior.
  */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -11,7 +16,7 @@ import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import RecoveryCodesDisplay from '@/components/custom/RecoveryCodesDisplay.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 
@@ -25,19 +30,14 @@ const props = withDefaults(defineProps<{
 }>(), { totpEnabled: undefined })
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const { busy, error, run, clear } = useApi()
 const codes = ref<string[]>([])
 
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  // bad_request on this endpoint specifically means "no TOTP enrolled" —
-  // show the context-specific hint rather than the generic bad_request message.
-  if (e.code === 'bad_request') return t('security.recovery.needTotp')
-  const key = `errors.codes.${e.code}`
-  return te(key) ? t(key) : ''
-})
+// Contextual hint: this endpoint's bad_request means "no TOTP enrolled".
+// Shown as separate inline guidance alongside ErrorPanel (which handles
+// the requestId/details/dismiss). Other error codes render ErrorPanel only.
+const showNeedTotpHint = computed(() => error.value?.code === 'bad_request')
 
 async function regenerate(): Promise<void> {
   const r = await run(() => withSudo(() =>
@@ -82,9 +82,9 @@ async function regenerate(): Promise<void> {
           {{ t('security.recovery.regenerate') }}
         </Button>
       </template>
-      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
+      <!-- Contextual need-TOTP hint shown when bad_request means "no TOTP" -->
+      <p v-if="showNeedTotpHint" class="text-sm text-muted">{{ t('security.recovery.needTotp') }}</p>
+      <ErrorPanel :error="error" @dismiss="clear" />
     </CardContent>
   </Card>
 </template>

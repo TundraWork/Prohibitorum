@@ -102,7 +102,7 @@ onMounted(load)
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.upstream.create') }}</Button>
     </div>
     <p class="text-sm text-muted">{{ t('admin.upstream.poweredNote') }}</p>
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
     <StatusMessage :show="created">{{ t('admin.upstream.created') }}</StatusMessage>
 
     <Card v-if="createOpen">

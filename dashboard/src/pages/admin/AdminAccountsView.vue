@@ -48,7 +48,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.accounts.title') }}</h1>
       <Button type="button" data-test="invite" @click="router.push('/admin/invitations')">{{ t('admin.accounts.invite') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
     <Input v-if="!busy || rows.length" v-model="filter" type="search" data-test="accounts-filter"
            :aria-label="t('admin.accounts.filterPlaceholder')"
            :placeholder="t('admin.accounts.filterPlaceholder')" class="max-w-xs" />

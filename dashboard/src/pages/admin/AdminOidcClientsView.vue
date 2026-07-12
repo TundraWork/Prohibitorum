@@ -115,7 +115,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.oidc.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
     <StatusMessage :show="created && !revealedSecret">{{ t('admin.oidc.created') }}</StatusMessage>
 
     <template v-if="created && revealedSecret">

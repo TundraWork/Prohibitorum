@@ -161,7 +161,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/saml-applications" :label="t('admin.saml.back')" />
-    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <Alert v-if="localError" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ localError }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.saml.notFound') }}</p>
 

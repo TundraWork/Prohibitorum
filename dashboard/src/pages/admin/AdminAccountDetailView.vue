@@ -275,7 +275,7 @@ onMounted(async () => {
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/accounts" :label="t('admin.account.back')" />
-    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.account.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !account" />
@@ -404,7 +404,7 @@ onMounted(async () => {
       <Card>
         <CardHeader><CardTitle>{{ t('admin.account.groupsTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
-          <ErrorPanel :error="groupsApi.error.value" @dismiss="groupsApi.clear" />
+          <ErrorPanel :error="groupsApi.error.value" @dismiss="groupsApi.clear" :is-admin="true" />
           <!-- Add to group row -->
           <div class="flex items-center gap-2">
             <Select v-model="selectedGroupId" data-test="group-select">

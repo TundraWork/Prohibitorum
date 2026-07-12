@@ -105,7 +105,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/identity-providers" :label="t('admin.upstream.back')" />
-    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.upstream.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !idp" />

@@ -160,7 +160,7 @@ onMounted(reload)
 <template>
   <div class="flex max-w-5xl flex-col gap-6">
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.audit.title') }}</h1>
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
 
     <!-- Time-range preset pills -->
     <div class="flex flex-wrap gap-1.5" role="group" :aria-label="t('admin.audit.filterSince')">

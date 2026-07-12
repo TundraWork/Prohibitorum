@@ -168,7 +168,7 @@ onMounted(async () => {
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/groups" :label="t('admin.groups.back')" />
-    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.groups.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !group" />
@@ -208,7 +208,7 @@ onMounted(async () => {
       <Card>
         <CardHeader><CardTitle>{{ t('admin.groups.members') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
-          <ErrorPanel :error="memberApi.error.value" @dismiss="memberApi.clear" />
+          <ErrorPanel :error="memberApi.error.value" @dismiss="memberApi.clear" :is-admin="true" />
 
           <!-- Add member row -->
           <div class="flex items-center gap-2">

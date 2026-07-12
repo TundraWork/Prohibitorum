@@ -82,7 +82,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.forwardAuth.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.forwardAuth.create') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
     <StatusMessage :show="created">{{ t('admin.forwardAuth.created') }}</StatusMessage>
 
     <Card v-if="createOpen">

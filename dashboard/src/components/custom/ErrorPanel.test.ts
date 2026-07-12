@@ -210,9 +210,26 @@ describe('ErrorPanel — recovery action', () => {
     expect(w.find('[data-test="error-recovery"]').exists()).toBe(false)
   })
 })
+// Mock api for diagnostic fetch tests
+vi.mock('@/lib/api', () => ({
+  api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn(), upload: vi.fn() },
+}))
+import { api } from '@/lib/api'
+
+const DIAGNOSTIC_RECORD = {
+  requestId: 'rid-123',
+  code: 'account_disabled',
+  operation: 'admin.update_account',
+  method: 'PUT',
+  route: '/api/prohibitorum/accounts/42',
+  retryable: false,
+  fields: { status: 'disabled' },
+  occurredAt: '2025-01-01T00:00:00Z',
+  expiresAt: '2025-01-08T00:00:00Z',
+}
 
 describe('ErrorPanel — admin diagnostic action', () => {
-  beforeEach(() => { vi.useFakeTimers() })
+  beforeEach(() => { vi.useFakeTimers(); vi.mocked(api.get).mockReset() })
   afterEach(() => { vi.useRealTimers() })
 
   it('shows the diagnostic action for admin users', () => {
@@ -231,22 +248,81 @@ describe('ErrorPanel — admin diagnostic action', () => {
     expect(w.find('[data-test="error-diagnostic"]').exists()).toBe(false)
   })
 
-  it('emits diagnostic when the admin diagnostic button is clicked', async () => {
-    const w = mount(ErrorPanel, {
-      props: { error: KNOWN_ERROR, isAdmin: true },
-      global: { plugins: [makeI18n()] },
-    })
-    await w.get('[data-test="error-diagnostic"]').trigger('click')
-    expect(w.emitted('diagnostic')).toBeTruthy()
-    expect(w.emitted('diagnostic')![0]).toEqual([{ requestId: 'rid-123' }])
-  })
-
   it('does not show the diagnostic action without a requestId', () => {
     const w = mount(ErrorPanel, {
       props: { error: { code: 'bad_request' }, isAdmin: true },
       global: { plugins: [makeI18n()] },
     })
     expect(w.find('[data-test="error-diagnostic"]').exists()).toBe(false)
+  })
+
+  it('fetches the diagnostic record when the button is clicked and renders it', async () => {
+    vi.mocked(api.get).mockResolvedValue(DIAGNOSTIC_RECORD)
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    expect(api.get).toHaveBeenCalledWith('/api/prohibitorum/diagnostics/rid-123')
+    // The diagnostic record is rendered persistently
+    expect(w.find('[data-test="diagnostic-record"]').exists()).toBe(true)
+    expect(w.text()).toContain('admin.update_account')
+    expect(w.text()).toContain('account_disabled')
+  })
+
+  it('shows a loading state while fetching the diagnostic record', async () => {
+    let resolveFn!: (v: typeof DIAGNOSTIC_RECORD) => void
+    vi.mocked(api.get).mockReturnValue(new Promise((r) => { resolveFn = r }))
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(true)
+    resolveFn(DIAGNOSTIC_RECORD)
+    await flushPromises()
+    expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(false)
+  })
+
+  it('shows an error state when the diagnostic lookup fails', async () => {
+    vi.mocked(api.get).mockRejectedValue({ code: 'account_not_found' })
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="diagnostic-error"]').exists()).toBe(true)
+    // The diagnostic error should be localized, not raw server prose
+    expect(w.text()).not.toContain('account_not_found')
+  })
+
+  it('renders the diagnostic record in an accessible region', async () => {
+    vi.mocked(api.get).mockResolvedValue(DIAGNOSTIC_RECORD)
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    const record = w.find('[data-test="diagnostic-record"]')
+    expect(record.exists()).toBe(true)
+    // The record region should be labeled for screen readers
+    expect(record.attributes('role')).toBeDefined()
+  })
+
+  it('persists the diagnostic record after 60 seconds (no auto-dismiss)', async () => {
+    vi.mocked(api.get).mockResolvedValue(DIAGNOSTIC_RECORD)
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    vi.advanceTimersByTime(60_000)
+    expect(w.find('[data-test="diagnostic-record"]').exists()).toBe(true)
   })
 })
 

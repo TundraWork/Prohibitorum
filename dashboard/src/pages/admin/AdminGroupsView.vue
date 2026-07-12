@@ -101,7 +101,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.groups.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.groups.create') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" />
+    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
     <StatusMessage :show="created">{{ t('admin.groups.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
