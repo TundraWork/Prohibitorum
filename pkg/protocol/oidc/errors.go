@@ -34,8 +34,15 @@ const (
 )
 
 // writeOIDCError renders an RFC 6749 §5.2 error response as JSON. Used for
-// the token endpoint and any direct (non-redirect) error surface.
-func writeOIDCError(w http.ResponseWriter, status int, code, desc string) {
+// the token endpoint and any direct (non-redirect) error surface. The wire
+// format is protocol-native: {error, error_description} — NOT the
+// application {code, details, requestId} envelope. The request ID from the
+// context is correlated in a structured log so operators can trace a
+// protocol error to the public application response, without exposing it
+// on the wire (which would violate RFC 6749).
+func writeOIDCError(w http.ResponseWriter, r *http.Request, status int, code, desc string) {
+	requestID := weberr.RequestIDFromContext(r.Context())
+	slog.Warn("oidc protocol error", "error_code", code, "status", status, "request_id", requestID, "path", r.URL.Path)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
@@ -44,14 +51,13 @@ func writeOIDCError(w http.ResponseWriter, status int, code, desc string) {
 		"error_description": desc,
 	})
 }
-
 // writeInvalidClient renders a 401 invalid_client per RFC 6749 §5.2, including
 // the WWW-Authenticate challenge when the caller used HTTP Basic auth.
 func writeInvalidClient(w http.ResponseWriter, r *http.Request, desc string) {
 	if _, _, ok := r.BasicAuth(); ok {
 		w.Header().Set("WWW-Authenticate", `Basic realm="oidc"`)
 	}
-	writeOIDCError(w, http.StatusUnauthorized, errCodeInvalidClient, desc)
+	writeOIDCError(w, r, http.StatusUnauthorized, errCodeInvalidClient, desc)
 }
 
 // redirectToErrorPage sends a browser-navigated authorize/logout error to the
@@ -75,7 +81,7 @@ func (p *Provider) redirectToErrorPage(w http.ResponseWriter, r *http.Request, c
 func redirectError(w http.ResponseWriter, r *http.Request, redirectURI, code, desc, state, iss string) {
 	u, err := url.Parse(redirectURI)
 	if err != nil {
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "invalid redirect_uri")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidRequest, "invalid redirect_uri")
 		return
 	}
 	q := u.Query()

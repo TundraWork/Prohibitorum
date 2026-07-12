@@ -62,10 +62,28 @@ type Definition struct {
 //
 // There is intentionally no "message" field — the server does not select a
 // display language. The frontend maps from the stable Code to localized copy.
+//
+// PublicError implements huma.StatusError (via GetStatus) so it can be
+// returned directly from typed Huma handlers — huma serializes it with
+// the same {code, details?, requestId} envelope and the HTTP status from
+// the registry definition.
 type PublicError struct {
 	Code      string         `json:"code"`
 	Details   map[string]any `json:"details,omitempty"`
 	RequestID string         `json:"requestId"`
+}
+
+// GetStatus returns the HTTP status for this error's registered code. This
+// makes *PublicError implement huma.StatusError, so typed Huma handlers can
+// return a *PublicError directly and huma will serialize it with the correct
+// status. If the code is unknown (should never happen — New validates),
+// falls back to 500.
+func (e *PublicError) GetStatus() int {
+	def, ok := DefinitionFor(e.Code)
+	if !ok {
+		return http.StatusInternalServerError
+	}
+	return def.Status
 }
 
 // Error returns a compact string for logging/debugging. It never includes
@@ -82,6 +100,14 @@ func (e *PublicError) Error() string {
 func (e *PublicError) MarshalJSON() ([]byte, error) {
 	type alias PublicError
 	return json.Marshal((*alias)(e))
+}
+
+// PublicErrorProvider is implemented by error types that carry a registered
+// code and optional details. The authn.AuthError type implements this so
+// AsPublic can extract a PublicError from it without a direct dependency
+// (authn imports weberr, not vice versa).
+type PublicErrorProvider interface {
+	PublicError() *PublicError
 }
 
 // --- registry ---
@@ -229,9 +255,11 @@ func New(code string, details map[string]any) error {
 	}
 }
 
-// AsPublic extracts a PublicError from an error value. If err is already a
-// *PublicError it returns it directly; otherwise it returns nil — the error
-// is either a validation failure from New or an unclassified internal error.
+// AsPublic extracts a PublicError from an error value. It handles:
+//   - *PublicError directly (or wrapped via errors.As).
+//   - Any error implementing PublicErrorProvider (e.g. *authn.AuthError),
+//     which carries a registered code and optional details.
+// Returns nil for errors that don't carry a public code (internal failures).
 // The request ID is NOT set here — it is stamped at the HTTP boundary where
 // the context is available.
 func AsPublic(err error) *PublicError {
@@ -241,6 +269,9 @@ func AsPublic(err error) *PublicError {
 	var pe *PublicError
 	if errors.As(err, &pe) {
 		return pe
+	}
+	if provider, ok := err.(PublicErrorProvider); ok {
+		return provider.PublicError()
 	}
 	return nil
 }

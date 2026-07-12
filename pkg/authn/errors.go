@@ -16,68 +16,68 @@ import (
 // truth for what may appear in a public response.
 func init() {
 	defs := []weberr.Definition{
-		{Code: "no_session", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Recovery: "reauth"},
-		{Code: "not_admin", Status: http.StatusForbidden, DiagnosticKind: "auth"},
-		{Code: "permission_denied", Status: http.StatusForbidden, DiagnosticKind: "auth"},
-		{Code: "account_disabled", Status: http.StatusForbidden, DiagnosticKind: "auth"},
-		{Code: "last_admin", Status: http.StatusConflict, DiagnosticKind: "policy"},
-		{Code: "admin_cannot_be_disabled", Status: http.StatusConflict, DiagnosticKind: "policy"},
-		{Code: "cannot_delete_self", Status: http.StatusConflict, DiagnosticKind: "policy"},
-		{Code: "username_taken", Status: http.StatusConflict, DiagnosticKind: "validation"},
-		{Code: "enrollment_expired", Status: http.StatusGone, DiagnosticKind: "enrollment"},
-		{Code: "enrollment_consumed", Status: http.StatusGone, DiagnosticKind: "enrollment"},
-		{Code: "enrollment_federation_required", Status: http.StatusBadRequest, DiagnosticKind: "enrollment"},
-		{Code: "bad_request", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
-		{Code: "invalid_consent_ticket", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
-		{Code: "invalid_role", Status: http.StatusBadRequest, DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"allowed": {}}},
-		{Code: "invalid_username", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
-		{Code: "invalid_nickname", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
-		{Code: "invalid_display_name", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
-		{Code: "username_immutable", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
-		{Code: "last_passkey", Status: http.StatusBadRequest, DiagnosticKind: "policy"},
-		{Code: "would_remove_last_factor", Status: http.StatusConflict, DiagnosticKind: "policy"},
-		{Code: "login_account_not_found", Status: http.StatusUnauthorized, DiagnosticKind: "auth"},
-		{Code: "login_verification_failed", Status: http.StatusUnauthorized, DiagnosticKind: "auth"},
-		{Code: "ceremony_expired", Status: http.StatusBadRequest, DiagnosticKind: "ceremony", Retryable: true, Recovery: "retry"},
-		{Code: "ceremony_missing", Status: http.StatusBadRequest, DiagnosticKind: "ceremony"},
-		{Code: "ceremony_state_invalid", Status: http.StatusInternalServerError, DiagnosticKind: "ceremony"},
-		{Code: "credential_already_registered", Status: http.StatusConflict, DiagnosticKind: "ceremony"},
-		{Code: "registration_failed", Status: http.StatusBadRequest, DiagnosticKind: "ceremony"},
-		{Code: "login_failed", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Retryable: true, Recovery: "retry"},
-		{Code: "bad_credentials", Status: http.StatusUnauthorized, DiagnosticKind: "auth"},
-		{Code: "partial_session_invalid", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Recovery: "reauth"},
-		{Code: "recovery_session_invalid", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Recovery: "reauth"},
-		{Code: "account_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
-		{Code: "credential_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
-		{Code: "invitation_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
-		{Code: "not_bootstrapped", Status: http.StatusServiceUnavailable, DiagnosticKind: "system"},
-		{Code: "maintenance_mode", Status: http.StatusServiceUnavailable, DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
-		{Code: "pairing_not_found", Status: http.StatusNotFound, DiagnosticKind: "pairing"},
-		{Code: "pairing_state", Status: http.StatusConflict, DiagnosticKind: "pairing"},
-		{Code: "pairing_expired", Status: http.StatusGone, DiagnosticKind: "pairing"},
-		{Code: "pairing_not_approved", Status: http.StatusPreconditionRequired, DiagnosticKind: "pairing"},
-		{Code: "rate_limited", Status: http.StatusTooManyRequests, DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
-		{Code: "factor_locked", Status: http.StatusTooManyRequests, DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
-		{Code: "sudo_required", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Recovery: "reauth"},
-		{Code: "sudo_method_unavailable", Status: http.StatusBadRequest, DiagnosticKind: "auth"},
-		{Code: "session_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
-		{Code: "cannot_revoke_current_session", Status: http.StatusConflict, DiagnosticKind: "policy"},
-		{Code: "email_not_verified", Status: http.StatusForbidden, DiagnosticKind: "federation"},
-		{Code: "username_collision", Status: http.StatusForbidden, DiagnosticKind: "federation"},
-		{Code: "invite_required", Status: http.StatusForbidden, DiagnosticKind: "federation"},
-		{Code: "link_required", Status: http.StatusForbidden, DiagnosticKind: "federation"},
-		{Code: "federation_state_invalid", Status: http.StatusUnauthorized, DiagnosticKind: "federation", Recovery: "retry"},
-		{Code: "last_sign_in_method", Status: http.StatusBadRequest, DiagnosticKind: "policy"},
-		{Code: "invalid_return_to", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
-		{Code: "upstream_error", Status: http.StatusBadRequest, DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"upstreamCode": {}}},
-		{Code: "active_key_no_replacement", Status: http.StatusConflict, DiagnosticKind: "policy"},
-		{Code: "client_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
-		{Code: "upstream_idp_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
-		{Code: "oidc_client_already_exists", Status: http.StatusConflict, DiagnosticKind: "validation"},
-		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, DiagnosticKind: "validation"},
-		{Code: "saml_application_already_exists", Status: http.StatusConflict, DiagnosticKind: "validation"},
-		{Code: "group_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
-		{Code: "group_slug_conflict", Status: http.StatusConflict, DiagnosticKind: "validation"},
+		{Code: "no_session", Status: http.StatusUnauthorized, LocaleKey: "errors.no_session", DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "not_admin", Status: http.StatusForbidden, LocaleKey: "errors.not_admin", DiagnosticKind: "auth"},
+		{Code: "permission_denied", Status: http.StatusForbidden, LocaleKey: "errors.permission_denied", DiagnosticKind: "auth"},
+		{Code: "account_disabled", Status: http.StatusForbidden, LocaleKey: "errors.account_disabled", DiagnosticKind: "auth"},
+		{Code: "last_admin", Status: http.StatusConflict, LocaleKey: "errors.last_admin", DiagnosticKind: "policy"},
+		{Code: "admin_cannot_be_disabled", Status: http.StatusConflict, LocaleKey: "errors.admin_cannot_be_disabled", DiagnosticKind: "policy"},
+		{Code: "cannot_delete_self", Status: http.StatusConflict, LocaleKey: "errors.cannot_delete_self", DiagnosticKind: "policy"},
+		{Code: "username_taken", Status: http.StatusConflict, LocaleKey: "errors.username_taken", DiagnosticKind: "validation"},
+		{Code: "enrollment_expired", Status: http.StatusGone, LocaleKey: "errors.enrollment_expired", DiagnosticKind: "enrollment"},
+		{Code: "enrollment_consumed", Status: http.StatusGone, LocaleKey: "errors.enrollment_consumed", DiagnosticKind: "enrollment"},
+		{Code: "enrollment_federation_required", Status: http.StatusBadRequest, LocaleKey: "errors.enrollment_federation_required", DiagnosticKind: "enrollment"},
+		{Code: "bad_request", Status: http.StatusBadRequest, LocaleKey: "errors.bad_request", DiagnosticKind: "validation"},
+		{Code: "invalid_consent_ticket", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_consent_ticket", DiagnosticKind: "validation"},
+		{Code: "invalid_role", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_role", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"allowed": {}}},
+		{Code: "invalid_username", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_username", DiagnosticKind: "validation"},
+		{Code: "invalid_nickname", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_nickname", DiagnosticKind: "validation"},
+		{Code: "invalid_display_name", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_display_name", DiagnosticKind: "validation"},
+		{Code: "username_immutable", Status: http.StatusBadRequest, LocaleKey: "errors.username_immutable", DiagnosticKind: "validation"},
+		{Code: "last_passkey", Status: http.StatusBadRequest, LocaleKey: "errors.last_passkey", DiagnosticKind: "policy"},
+		{Code: "would_remove_last_factor", Status: http.StatusConflict, LocaleKey: "errors.would_remove_last_factor", DiagnosticKind: "policy"},
+		{Code: "login_account_not_found", Status: http.StatusUnauthorized, LocaleKey: "errors.login_account_not_found", DiagnosticKind: "auth"},
+		{Code: "login_verification_failed", Status: http.StatusUnauthorized, LocaleKey: "errors.login_verification_failed", DiagnosticKind: "auth"},
+		{Code: "ceremony_expired", Status: http.StatusBadRequest, LocaleKey: "errors.ceremony_expired", DiagnosticKind: "ceremony", Retryable: true, Recovery: "retry"},
+		{Code: "ceremony_missing", Status: http.StatusBadRequest, LocaleKey: "errors.ceremony_missing", DiagnosticKind: "ceremony"},
+		{Code: "ceremony_state_invalid", Status: http.StatusInternalServerError, LocaleKey: "errors.ceremony_state_invalid", DiagnosticKind: "ceremony"},
+		{Code: "credential_already_registered", Status: http.StatusConflict, LocaleKey: "errors.credential_already_registered", DiagnosticKind: "ceremony"},
+		{Code: "registration_failed", Status: http.StatusBadRequest, LocaleKey: "errors.registration_failed", DiagnosticKind: "ceremony"},
+		{Code: "login_failed", Status: http.StatusUnauthorized, LocaleKey: "errors.login_failed", DiagnosticKind: "auth", Retryable: true, Recovery: "retry"},
+		{Code: "bad_credentials", Status: http.StatusUnauthorized, LocaleKey: "errors.bad_credentials", DiagnosticKind: "auth"},
+		{Code: "partial_session_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.partial_session_invalid", DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "recovery_session_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.recovery_session_invalid", DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "account_not_found", Status: http.StatusNotFound, LocaleKey: "errors.account_not_found", DiagnosticKind: "resource"},
+		{Code: "credential_not_found", Status: http.StatusNotFound, LocaleKey: "errors.credential_not_found", DiagnosticKind: "resource"},
+		{Code: "invitation_not_found", Status: http.StatusNotFound, LocaleKey: "errors.invitation_not_found", DiagnosticKind: "resource"},
+		{Code: "not_bootstrapped", Status: http.StatusServiceUnavailable, LocaleKey: "errors.not_bootstrapped", DiagnosticKind: "system"},
+		{Code: "maintenance_mode", Status: http.StatusServiceUnavailable, LocaleKey: "errors.maintenance_mode", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
+		{Code: "pairing_not_found", Status: http.StatusNotFound, LocaleKey: "errors.pairing_not_found", DiagnosticKind: "pairing"},
+		{Code: "pairing_state", Status: http.StatusConflict, LocaleKey: "errors.pairing_state", DiagnosticKind: "pairing"},
+		{Code: "pairing_expired", Status: http.StatusGone, LocaleKey: "errors.pairing_expired", DiagnosticKind: "pairing"},
+		{Code: "pairing_not_approved", Status: http.StatusPreconditionRequired, LocaleKey: "errors.pairing_not_approved", DiagnosticKind: "pairing"},
+		{Code: "rate_limited", Status: http.StatusTooManyRequests, LocaleKey: "errors.rate_limited", DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
+		{Code: "factor_locked", Status: http.StatusTooManyRequests, LocaleKey: "errors.factor_locked", DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
+		{Code: "sudo_required", Status: http.StatusUnauthorized, LocaleKey: "errors.sudo_required", DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "sudo_method_unavailable", Status: http.StatusBadRequest, LocaleKey: "errors.sudo_method_unavailable", DiagnosticKind: "auth"},
+		{Code: "session_not_found", Status: http.StatusNotFound, LocaleKey: "errors.session_not_found", DiagnosticKind: "resource"},
+		{Code: "cannot_revoke_current_session", Status: http.StatusConflict, LocaleKey: "errors.cannot_revoke_current_session", DiagnosticKind: "policy"},
+		{Code: "email_not_verified", Status: http.StatusForbidden, LocaleKey: "errors.email_not_verified", DiagnosticKind: "federation"},
+		{Code: "username_collision", Status: http.StatusForbidden, LocaleKey: "errors.username_collision", DiagnosticKind: "federation"},
+		{Code: "invite_required", Status: http.StatusForbidden, LocaleKey: "errors.invite_required", DiagnosticKind: "federation"},
+		{Code: "link_required", Status: http.StatusForbidden, LocaleKey: "errors.link_required", DiagnosticKind: "federation"},
+		{Code: "federation_state_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.federation_state_invalid", DiagnosticKind: "federation", Recovery: "retry"},
+		{Code: "last_sign_in_method", Status: http.StatusBadRequest, LocaleKey: "errors.last_sign_in_method", DiagnosticKind: "policy"},
+		{Code: "invalid_return_to", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_return_to", DiagnosticKind: "validation"},
+		{Code: "upstream_error", Status: http.StatusBadRequest, LocaleKey: "errors.upstream_error", DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"upstreamCode": {}}},
+		{Code: "active_key_no_replacement", Status: http.StatusConflict, LocaleKey: "errors.active_key_no_replacement", DiagnosticKind: "policy"},
+		{Code: "client_not_found", Status: http.StatusNotFound, LocaleKey: "errors.client_not_found", DiagnosticKind: "resource"},
+		{Code: "upstream_idp_not_found", Status: http.StatusNotFound, LocaleKey: "errors.upstream_idp_not_found", DiagnosticKind: "resource"},
+		{Code: "oidc_client_already_exists", Status: http.StatusConflict, LocaleKey: "errors.oidc_client_already_exists", DiagnosticKind: "validation"},
+		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, LocaleKey: "errors.upstream_idp_already_exists", DiagnosticKind: "validation"},
+		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
+		{Code: "group_not_found", Status: http.StatusNotFound, LocaleKey: "errors.group_not_found", DiagnosticKind: "resource"},
+		{Code: "group_slug_conflict", Status: http.StatusConflict, LocaleKey: "errors.group_slug_conflict", DiagnosticKind: "validation"},
 	}
 	if err := weberr.Register(defs); err != nil {
 		panic(fmt.Sprintf("authn: failed to register error definitions: %v", err))
@@ -85,8 +85,14 @@ func init() {
 }
 
 // AuthError is the canonical error type returned from auth checks and handlers.
-// HTTP status, machine-readable code, and human message are all surfaced together;
-// the registerOp helper and HTTP error writers project these into wire responses.
+// The Code is the registered weberr code (the single source of truth for
+// HTTP status, locale key, and diagnostic kind). Message is vestigial —
+// kept for internal logging only and NEVER serialized to the wire. The
+// typed Huma path and writeAuthErr both project AuthError into a
+// weberr.PublicError via the PublicError() method.
+//
+// Details carries curated safe detail values (e.g. allowed roles,
+// retryAfterSeconds) validated against the registry's DetailKeys.
 //
 // RetryAfter is optional; when non-zero, HTTP error writers emit a Retry-After
 // header with the duration rounded up to whole seconds. Used by 429 responses
@@ -95,10 +101,22 @@ type AuthError struct {
 	Status     int
 	Code       string
 	Message    string
+	Details    map[string]any
 	RetryAfter time.Duration
 }
 
 func (e *AuthError) Error() string { return fmt.Sprintf("%s: %s", e.Code, e.Message) }
+
+// PublicError projects this AuthError into a weberr.PublicError for the wire
+// envelope. Implements weberr.PublicErrorProvider so weberr.AsPublic can
+// extract the public error without importing authn. The details map is
+// validated against the registry at New time; here we trust it.
+func (e *AuthError) PublicError() *weberr.PublicError {
+	return &weberr.PublicError{
+		Code:    e.Code,
+		Details: e.Details,
+	}
+}
 
 func newErr(status int, code, message string) *AuthError {
 	return &AuthError{Status: status, Code: code, Message: message}
@@ -183,7 +201,12 @@ func ErrInvalidConsentTicket() *AuthError {
 }
 
 func ErrInvalidRole() *AuthError {
-	return newErr(http.StatusBadRequest, "invalid_role", "角色无效")
+	return &AuthError{
+		Status:  http.StatusBadRequest,
+		Code:    "invalid_role",
+		Message: "角色无效",
+		Details: map[string]any{"allowed": []string{"user", "admin"}},
+	}
 }
 
 func ErrInvalidUsername() *AuthError {
@@ -351,10 +374,15 @@ func ErrRateLimited() *AuthError {
 // for a (account, factor) pair. RetryAfter carries the remaining lockout
 // duration so the HTTP handler can set a Retry-After header.
 func ErrFactorLocked(retryAfter time.Duration) *AuthError {
+	secs := int((retryAfter + time.Second - 1) / time.Second)
+	if secs < 1 {
+		secs = 1
+	}
 	return &AuthError{
 		Status:     http.StatusTooManyRequests,
 		Code:       "factor_locked",
 		Message:    "尝试次数过多，请稍后再试",
+		Details:    map[string]any{"retryAfterSeconds": secs},
 		RetryAfter: retryAfter,
 	}
 }
@@ -441,20 +469,22 @@ func ErrInvalidReturnTo() *AuthError {
 }
 
 // ErrUpstreamError is returned by /federation/oidc/{slug}/callback (Task 7)
-// when the upstream OP responds with an error= query param. Embeds the
-// upstream code + description in the user-facing message; the raw values are
-// also emitted to the audit log by the handler.
+// when the upstream OP responds with an error= query param. The upstream
+// error code is carried in details (upstreamCode) so the frontend can
+// display it. The raw description is NOT included in details — it is
+// unchecked upstream text that may carry unsafe content. The description
+// is logged to the audit log by the handler.
 func ErrUpstreamError(upstreamCode, description string) *AuthError {
-	msg := "上游 IdP 拒绝授权"
-	switch {
-	case upstreamCode != "" && description != "":
-		msg = fmt.Sprintf("上游 IdP 拒绝授权 (%s)：%s", upstreamCode, description)
-	case upstreamCode != "":
-		msg = fmt.Sprintf("上游 IdP 拒绝授权：%s", upstreamCode)
-	case description != "":
-		msg = fmt.Sprintf("上游 IdP 拒绝授权：%s", description)
+	details := map[string]any{}
+	if upstreamCode != "" {
+		details["upstreamCode"] = upstreamCode
 	}
-	return newErr(http.StatusBadRequest, "upstream_error", msg)
+	return &AuthError{
+		Status:  http.StatusBadRequest,
+		Code:    "upstream_error",
+		Message: "上游 IdP 拒绝授权",
+		Details: details,
+	}
 }
 
 // ErrActiveKeyNoReplacement is returned when an admin tries to retire the

@@ -153,7 +153,7 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 		}
 		w.Header().Set("Retry-After", fmt.Sprintf("%d", secs))
 	}
-	weberr.WriteJSON(w, ae.Code, nil, requestID)
+	weberr.WriteJSON(w, ae.Code, ae.Details, requestID)
 }
 
 // logInternalError emits a curated log line for an internal (non-domain)

@@ -306,7 +306,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		if ra := p.rl.RetryAfter(rlKey); ra > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 		}
-		writeOIDCError(w, http.StatusTooManyRequests, errCodeServerError, "rate limit exceeded")
+		writeOIDCError(w, r, http.StatusTooManyRequests, errCodeServerError, "rate limit exceeded")
 		return
 	}
 

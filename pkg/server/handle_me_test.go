@@ -20,8 +20,8 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
-	"prohibitorum/pkg/errorx"
 	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/weberr"
 )
 
 // fakeUpdateMeQ is a minimal stub satisfying the updateMeQueries interface.
@@ -50,16 +50,18 @@ func updateMeCtx(accountID int32, displayName string) context.Context {
 	return authn.WithSession(context.Background(), sess)
 }
 
-// codeFromErr extracts the errorx code from an error returned by authErrToHuma.
+// codeFromErr extracts the code from an error returned by authErrToHuma.
+// The typed Huma path now returns a *weberr.PublicError (not *errorx.Error),
+// so we extract the code from that.
 func codeFromErr(t *testing.T, err error) string {
 	t.Helper()
 	if err == nil {
 		t.Fatal("expected non-nil error")
 	}
-	if e, ok := err.(*errorx.Error); ok {
+	if e, ok := err.(*weberr.PublicError); ok {
 		return e.Code
 	}
-	t.Fatalf("expected *errorx.Error, got %T: %v", err, err)
+	t.Fatalf("expected *weberr.PublicError, got %T: %v", err, err)
 	return ""
 }
 

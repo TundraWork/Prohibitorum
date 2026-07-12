@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"prohibitorum/pkg/weberr"
 )
 
 // userinfoRateMax / userinfoRateWindow cap /userinfo calls per subject. The
@@ -66,7 +69,9 @@ func (p *Provider) validateAccessToken(ctx context.Context, token string) (map[s
 // carrying the same code. The description is echoed in both. Used only by
 // /userinfo, where the caller presents a bearer access token rather than
 // client credentials.
-func writeBearerError(w http.ResponseWriter, status int, desc string) {
+func writeBearerError(w http.ResponseWriter, r *http.Request, status int, desc string) {
+	requestID := weberr.RequestIDFromContext(r.Context())
+	slog.Warn("oidc userinfo bearer error", "status", status, "request_id", requestID, "path", r.URL.Path)
 	w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token", error_description="`+desc+`"`)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -102,19 +107,19 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 
 	token := bearerToken(r)
 	if token == "" {
-		writeBearerError(w, http.StatusUnauthorized, "missing bearer token")
+		writeBearerError(w, r, http.StatusUnauthorized, "missing bearer token")
 		return
 	}
 
 	claims, err := p.validateAccessToken(ctx, token)
 	if err != nil {
-		writeBearerError(w, http.StatusUnauthorized, "invalid access token")
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
 
 	sub, _ := claims["sub"].(string)
 	if sub == "" {
-		writeBearerError(w, http.StatusUnauthorized, "invalid access token")
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
 
@@ -123,22 +128,22 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		if ra := p.rl.RetryAfter(rlKey); ra > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(int(ra.Seconds())+1))
 		}
-		writeOIDCError(w, http.StatusTooManyRequests, errCodeTemporarilyUnavailable, "rate limit exceeded")
+		writeOIDCError(w, r, http.StatusTooManyRequests, errCodeTemporarilyUnavailable, "rate limit exceeded")
 		return
 	}
 
 	var u pgtype.UUID
 	if err := u.Scan(sub); err != nil {
-		writeBearerError(w, http.StatusUnauthorized, "invalid access token")
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
 	acct, err := p.queries.GetAccountByOIDCSubject(ctx, u)
 	if err != nil {
-		writeBearerError(w, http.StatusUnauthorized, "invalid access token")
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
 	if acct.Disabled {
-		writeBearerError(w, http.StatusUnauthorized, "invalid access token")
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
 
@@ -151,7 +156,7 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 	if hasScope(scope, "groups") {
 		gs, gerr := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
 		if gerr != nil {
-			writeBearerError(w, http.StatusInternalServerError, "could not load groups")
+			writeBearerError(w, r, http.StatusInternalServerError, "could not load groups")
 			return
 		}
 		groups = gs

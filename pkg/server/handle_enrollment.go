@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -25,7 +24,6 @@ import (
 	"prohibitorum/pkg/credential/enrollment"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
-	"prohibitorum/pkg/errorx"
 	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -39,16 +37,18 @@ func enrollCeremonyKey(token string) string {
 	return "webauthn_ceremony:enroll:" + hex.EncodeToString(sum[:])
 }
 
-// authErrToHuma converts an *auth.AuthError into a huma.StatusError so typed
-// Huma handlers return the correct HTTP status code AND the project's
-// machine-readable code in the response envelope. Without errorx.ErrorCode,
-// huma.NewError defaults the code to "UNKNOWN".
+// authErrToHuma converts an *authn.AuthError into a *weberr.PublicError so
+// typed Huma handlers return the project's {code, details?, requestId}
+// envelope with the correct HTTP status (from the registry definition) and
+// no message field. PublicError implements huma.StatusError via GetStatus(),
+// so huma serializes it directly. Non-AuthError values are returned as-is
+// (huma will render them as a 500).
 func authErrToHuma(err error) error {
 	ae := authn.AsAuthError(err)
 	if ae == nil {
 		return err
 	}
-	return huma.NewError(ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
+	return ae.PublicError()
 }
 
 // ----- preview (typed) -----------------------------------------------------

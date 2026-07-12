@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/session"
+	"prohibitorum/pkg/weberr"
 )
 
 // Provider is the per-server OIDC handler. Constructed once by the
@@ -133,7 +135,9 @@ func (p *Provider) jwksCacheControl() string {
 func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 	issuer := p.cfg.OIDC.Issuer
 	if issuer == "" {
-		http.Error(w, "issuer not configured", http.StatusInternalServerError)
+		requestID := weberr.RequestIDFromContext(r.Context())
+		slog.Warn("oidc discovery: issuer not configured", "request_id", requestID)
+		weberr.WriteJSON(w, "server_error", nil, requestID)
 		return
 	}
 	authMethods := []string{

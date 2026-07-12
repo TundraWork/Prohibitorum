@@ -274,7 +274,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 			"reason":    "refresh_rotation_in_progress",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "refresh rotation in progress, retry")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "refresh rotation in progress, retry")
 		return
 	}
 	if errors.Is(err, errRefreshReuse) {
@@ -286,11 +286,11 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 			"reason":    "refresh_reuse",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "refresh token reuse detected")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "refresh token reuse detected")
 		return
 	}
 	if err != nil {
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "invalid refresh token")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "invalid refresh token")
 		return
 	}
 
@@ -305,7 +305,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 			"reason":    "code_client_mismatch",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "client mismatch")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "client mismatch")
 		return
 	}
 
@@ -319,7 +319,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 			"reason":    "account_unavailable",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account not found")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "account not found")
 		return
 	}
 	if acct.Disabled {
@@ -329,7 +329,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 			"reason":    "account_unavailable",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
 		return
 	}
 
@@ -345,7 +345,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		ClientID:  client.ClientID,
 	})
 	if aerr != nil {
-		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not evaluate access")
+		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not evaluate access")
 		return
 	}
 	if !authzed.Bool {
@@ -355,7 +355,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 			"reason":    "app_access_denied",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "not authorized for this application")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "not authorized for this application")
 		return
 	}
 
@@ -367,7 +367,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		// Fail closed: revoke the family so the client cleanly re-authenticates
 		// rather than wedging.
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
-		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
+		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
 		return
 	}
 

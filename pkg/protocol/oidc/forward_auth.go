@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
+	"prohibitorum/pkg/weberr"
 )
 
 const ForwardAuthPathPrefix = "/.prohibitorum-forward-auth"
@@ -270,6 +272,8 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 	original := proto + "://" + host + r.Header.Get("X-Forwarded-Uri")
 	verifier, verr := faRandToken()
 	if verr != nil {
+		requestID := weberr.RequestIDFromContext(ctx)
+		slog.Warn("forward-auth: state token generation failed", "request_id", requestID)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -277,6 +281,8 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 		OriginalURL: original, ClientID: client.ClientID, Verifier: verifier,
 	}, 5*time.Minute)
 	if serr != nil {
+		requestID := weberr.RequestIDFromContext(ctx)
+		slog.Warn("forward-auth: state mint failed", "request_id", requestID)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -433,7 +439,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 			Event:  audit.EventFail,
 			Detail: map[string]any{"reason": "pat_unknown", "client_id": client.ClientID},
 		})
-		writeBearerError(w, http.StatusUnauthorized, "invalid token")
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid token")
 		return
 	}
 	acct, err := p.queries.GetAccountByID(ctx, row.AccountID)
@@ -445,7 +451,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 			Event:     audit.EventFail,
 			Detail:    map[string]any{"reason": "account_disabled", "client_id": client.ClientID},
 		})
-		writeBearerError(w, http.StatusUnauthorized, "invalid token")
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid token")
 		return
 	}
 	if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {

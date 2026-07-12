@@ -574,7 +574,7 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 	if idp.Protocol == "steam" {
 		t, terr := f.steamTokens(ctx, &idp, callbackParams, f.steamCallbackURL(idp.Slug, stateToken))
 		if terr != nil {
-			f.failNoAccount(ctx, state.IDPSlug, "steam_verify_failed", map[string]any{"err": terr.Error()})
+			f.failNoAccount(ctx, state.IDPSlug, "steam_verify_failed", nil)
 			return nil, authn.ErrFederationStateInvalid()
 		}
 		tokens = t
@@ -602,9 +602,7 @@ func (f *Federator) HandleCallback(ctx context.Context, stateToken, code, issPar
 
 		t, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
 		if err != nil {
-			f.failNoAccount(ctx, state.IDPSlug, "code_exchange_failed", map[string]any{
-				"err": err.Error(),
-			})
+			f.failNoAccount(ctx, state.IDPSlug, "code_exchange_failed", nil)
 			return nil, authn.ErrFederationStateInvalid()
 		}
 		tokens = t
@@ -721,7 +719,7 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 	if idp.Protocol == "steam" {
 		t, terr := f.steamTokens(ctx, &idp, callbackParams, f.steamCallbackURL(idp.Slug, stateToken))
 		if terr != nil {
-			f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "steam_verify_failed", map[string]any{"err": terr.Error()})
+			f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "steam_verify_failed", nil)
 			return nil, authn.ErrFederationStateInvalid()
 		}
 		tokens = t
@@ -743,9 +741,7 @@ func (f *Federator) LinkCallback(ctx context.Context, stateToken, code, issParam
 
 		t, err := client.Exchange(ctx, code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
 		if err != nil {
-			f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "code_exchange_failed", map[string]any{
-				"err": err.Error(),
-			})
+			f.failWithAccount(ctx, currentAccountID, state.IDPSlug, "code_exchange_failed", nil)
 			return nil, authn.ErrFederationStateInvalid()
 		}
 		tokens = t

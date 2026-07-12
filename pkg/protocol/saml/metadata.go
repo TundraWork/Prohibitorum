@@ -5,12 +5,15 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/beevik/etree"
 	crewjam "github.com/crewjam/saml"
+
+	"prohibitorum/pkg/weberr"
 )
 
 // acsEntry is a parsed AssertionConsumerService endpoint extracted from an SP's
@@ -135,12 +138,13 @@ func (i *IdP) idpMetadata(ctx context.Context) ([]byte, error) {
 	}
 	return append([]byte(xml.Header), signedBytes...), nil
 }
-
 // HandleMetadata serves the IdP metadata document over HTTP.
 func (i *IdP) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	body, err := i.idpMetadata(r.Context())
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		requestID := weberr.RequestIDFromContext(r.Context())
+		slog.Warn("saml metadata generation failed", "request_id", requestID, "error_type", "internal")
+		weberr.WriteJSON(w, "server_error", nil, requestID)
 		return
 	}
 	w.Header().Set("Content-Type", "application/samlmetadata+xml")

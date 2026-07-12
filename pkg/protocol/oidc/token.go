@@ -87,7 +87,7 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 	// authenticateClient calls r.ParseForm(); ParseForm again defensively in
 	// case the auth path changes — it is idempotent and cheap.
 	if err := r.ParseForm(); err != nil {
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidRequest, "could not parse request body")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidRequest, "could not parse request body")
 		return
 	}
 
@@ -111,7 +111,7 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 			"reason":    "rate_limited",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusTooManyRequests, errCodeTemporarilyUnavailable, "rate limit exceeded")
+		writeOIDCError(w, r, http.StatusTooManyRequests, errCodeTemporarilyUnavailable, "rate limit exceeded")
 		return
 	}
 
@@ -121,7 +121,7 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 	case "refresh_token":
 		p.grantRefreshToken(w, r, client)
 	default:
-		writeOIDCError(w, http.StatusBadRequest, errCodeUnsupportedGrantType, "unsupported grant_type")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeUnsupportedGrantType, "unsupported grant_type")
 	}
 }
 
@@ -145,16 +145,16 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 					"reason":    "code_replay",
 					"client_id": client.ClientID,
 				})
-				writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "authorization code already used")
+				writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "authorization code already used")
 				return
 			}
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "invalid authorization code")
+			writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "invalid authorization code")
 			return
 		}
 		// A decode/storage error is not a client fault, but surfacing it as
 		// invalid_grant keeps the endpoint from leaking internal state and
 		// matches the not-found handling — the code is unusable either way.
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "invalid authorization code")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "invalid authorization code")
 		return
 	}
 
@@ -166,7 +166,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			"reason":    "code_client_mismatch",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "client mismatch")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "client mismatch")
 		return
 	}
 
@@ -177,7 +177,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			"reason":    "redirect_uri_mismatch",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "redirect_uri mismatch")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "redirect_uri mismatch")
 		return
 	}
 
@@ -196,7 +196,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			"reason":    "pkce_method_unsupported",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "unsupported PKCE method")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "unsupported PKCE method")
 		return
 	}
 	// Only run PKCE verification when a challenge was actually captured at
@@ -214,7 +214,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 				"reason":    "pkce_failed",
 				"client_id": client.ClientID,
 			})
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "PKCE verification failed")
+			writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "PKCE verification failed")
 			return
 		}
 	}
@@ -226,7 +226,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			"reason":    "account_unavailable",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account not found")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "account not found")
 		return
 	}
 	if acct.Disabled {
@@ -235,7 +235,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			"reason":    "account_unavailable",
 			"client_id": client.ClientID,
 		})
-		writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
 		return
 	}
 
@@ -252,7 +252,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 				"reason":    "session_revoked",
 				"client_id": client.ClientID,
 			})
-			writeOIDCError(w, http.StatusBadRequest, errCodeInvalidGrant, "originating session is no longer valid")
+			writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "originating session is no longer valid")
 			return
 		}
 	}
@@ -261,7 +261,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 
 	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, ac.Scope, ac.AuthTime, now)
 	if err != nil {
-		writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
+		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
 		return
 	}
 
@@ -281,7 +281,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			ACR:       ac.ACR,
 		}, p.refreshTokenTTL())
 		if err != nil {
-			writeOIDCError(w, http.StatusInternalServerError, errCodeServerError, "could not issue refresh token")
+			writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not issue refresh token")
 			return
 		}
 		_ = markCodeUsed(ctx, p.kv, code, fid, p.authCodeTTL())

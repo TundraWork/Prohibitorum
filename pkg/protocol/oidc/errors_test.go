@@ -13,7 +13,8 @@ import (
 
 func TestErrorsWriteOIDCError(t *testing.T) {
 	rec := httptest.NewRecorder()
-	writeOIDCError(rec, http.StatusBadRequest, errCodeInvalidGrant, "code expired")
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+	writeOIDCError(rec, req, http.StatusBadRequest, errCodeInvalidGrant, "code expired")
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
