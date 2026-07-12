@@ -2,12 +2,17 @@ package oidc
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,21 +32,16 @@ import (
 const RefreshTokenTTL = 30 * 24 * time.Hour
 
 // errRefreshInvalid is returned when a presented refresh token does not resolve
-// to a live family — it never existed, expired, or the family was revoked
-// (explicitly or by a reuse-detection trip). Callers map this to the OAuth
-// invalid_grant error.
+// to a live family — it never existed, expired, was revoked, or is a legacy
+// pre-prt1 token that is no longer accepted after deployment. Callers map this
+// to the OAuth invalid_grant error.
 var errRefreshInvalid = errors.New("oidc: refresh token invalid")
 
 // errRefreshReuse is returned when a superseded (already-rotated) refresh token
-// is presented. This is the reuse-detection trip: the entire family is revoked
-// as a side effect, defeating a stolen-token replay (OAuth 2.0 Security BCP
-// §4.13.2). Callers map this to invalid_grant.
+// is presented outside the idempotency grace window. This is the reuse-detection
+// trip: the entire family is revoked as a side effect, defeating a stolen-token
+// replay (OAuth 2.0 Security BCP §4.13.2). Callers map this to invalid_grant.
 var errRefreshReuse = errors.New("oidc: refresh token reuse detected")
-
-// errRotationInProgress is returned when a concurrent rotation holds the lock
-// for the presented token. It is BENIGN (not reuse): the caller maps it to a
-// retryable invalid_grant and does NOT revoke the family.
-var errRotationInProgress = errors.New("oidc: refresh rotation in progress")
 
 // refreshIdempotencyWindow bounds how long a just-rotated (previous) refresh
 // token may be re-presented to receive the SAME successor instead of tripping
@@ -51,17 +51,39 @@ var errRotationInProgress = errors.New("oidc: refresh rotation in progress")
 // case, and false family revocation is user-hostile).
 const refreshIdempotencyWindow = 10 * time.Second
 
-// refreshLockKey is the SetNX rotation-lock key for a presented token.
-func refreshLockKey(token string) string { return "oidc:refresh:lock:" + token }
+// refreshFamilyVersion is the family-record schema version. Increment if the
+// record shape changes incompatibly.
+const refreshFamilyVersion = 1
+
+// refreshTokenPrefix is the versioned token-format prefix. Tokens without it
+// are legacy and always rejected as invalid_grant after deployment.
+const refreshTokenPrefix = "prt1."
+
+// refreshSuccessorAADLabel prefixes the AES-GCM AAD used to bind the encrypted
+// successor to (family_id, revision) so a ciphertext from one family or
+// revision cannot be replayed against another.
+const refreshSuccessorAADLabel = "refresh_successor"
 
 // refreshFamily is the per-family record for a chain of rotated refresh tokens.
-// CurrentToken names the single token that may be exchanged; every prior token
-// in the chain resolves to this family but, being != CurrentToken, trips reuse
-// detection if presented. The remaining fields are the authentication snapshot
-// carried forward into each refreshed access/ID token.
+// It stores SHA-256 hashes of the current and previous token secrets (never
+// the plaintext secrets), an AES-256-GCM encrypted copy of the current
+// successor token (for idempotent replay recovery), the DEK version used to
+// seal that successor, and a monotonically increasing revision used as the CAS
+// guard. The remaining fields are the authentication snapshot carried forward
+// into each refreshed access/ID token.
 type refreshFamily struct {
+	Version            int       `json:"version"`
+	Revision           uint64    `json:"revision"`
 	FamilyID           string    `json:"family_id"`
-	CurrentToken       string    `json:"current_token"`
+	CurrentHash        [32]byte  `json:"current_hash"`
+	PreviousHash       [32]byte  `json:"previous_hash,omitempty"`
+	EncryptedSuccessor string    `json:"encrypted_successor,omitempty"`
+	DEKVersion         int32     `json:"dek_version,omitempty"`
+	PreviousValidUntil time.Time `json:"previous_valid_until,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	LastUsedAt         time.Time `json:"last_used_at"`
+	AbsoluteExpiresAt  time.Time `json:"absolute_expires_at"`
+	InactiveExpiresAt  time.Time `json:"inactive_expires_at"`
 	ClientID           string    `json:"client_id"`
 	AccountID          int32     `json:"account_id"`
 	SessionID          string    `json:"session_id"`
@@ -69,60 +91,168 @@ type refreshFamily struct {
 	AuthTime           time.Time `json:"auth_time"`
 	AMR                []string  `json:"amr"`
 	ACR                string    `json:"acr"`
-	IssuedAt           time.Time `json:"issued_at"`
-	PreviousToken      string    `json:"previous_token,omitempty"`
-	PreviousValidUntil time.Time `json:"previous_valid_until"`
 }
 
-// refreshFamilyKey is the KV key under which a family record is stored.
+// refreshFamilyKey is the KV key under which a family record is stored. This is
+// the ONLY key per family — there are no token→family mapping keys. The family
+// ID is embedded in the token (prt1.<fid>.<secret>), so the record can be
+// loaded directly without a mapping lookup.
 func refreshFamilyKey(fid string) string { return "oidc:refresh:family:" + fid }
 
-// refreshTokenKey is the KV key under which a token→family-id mapping is stored.
-func refreshTokenKey(token string) string { return "oidc:refresh:" + token }
-
-// randToken returns 32 bytes of cryptographic randomness, base64url-encoded
-// without padding so it is URL-safe. Used for both opaque refresh tokens and
-// family identifiers. (Kept local to refresh.go to keep this change scoped;
-// codes.go inlines the equivalent.)
-func randToken() (string, error) {
-	var buf [32]byte
-	if _, err := rand.Read(buf[:]); err != nil {
+// randBytes returns n bytes of cryptographic randomness, base64url-encoded
+// without padding so it is URL-safe. Used for family identifiers and token
+// secrets.
+func randBytes(n int) (string, error) {
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(buf[:]), nil
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// putFamily writes the family record (JSON) and a token→family-id mapping for
-// fam.CurrentToken, both with the given ttl (the caller passes the effective
-// p.refreshTokenTTL()). It is used both to seed a new family and to extend
-// (slide) an existing one on rotation.
+// hashSecret returns the SHA-256 hash of a refresh token secret.
+func hashSecret(secret []byte) [32]byte {
+	return sha256.Sum256(secret)
+}
+
+// parseRefreshToken splits a prt1.<base64url-family-id>.<base64url-secret>
+// token into its family ID (as the base64url string stored in the record) and
+// the raw secret bytes. Any token without the prt1 prefix or with an invalid
+// structure returns errRefreshInvalid — this is how legacy-format tokens are
+// rejected after deployment.
+func parseRefreshToken(token string) (familyID string, secret []byte, err error) {
+	if !strings.HasPrefix(token, refreshTokenPrefix) {
+		return "", nil, errRefreshInvalid
+	}
+	rest := token[len(refreshTokenPrefix):]
+	idx := strings.IndexByte(rest, '.')
+	if idx <= 0 || idx == len(rest)-1 {
+		return "", nil, errRefreshInvalid
+	}
+	familyID = rest[:idx]
+	secret, derr := base64.RawURLEncoding.DecodeString(rest[idx+1:])
+	if derr != nil {
+		return "", nil, errRefreshInvalid
+	}
+	if len(secret) != 32 {
+		return "", nil, errRefreshInvalid
+	}
+	return familyID, secret, nil
+}
+
+// buildRefreshToken assembles a prt1.<fid>.<base64url-secret> token from its
+// components.
+func buildRefreshToken(familyID string, secret []byte) string {
+	return refreshTokenPrefix + familyID + "." + base64.RawURLEncoding.EncodeToString(secret)
+}
+
+// mintRefreshSecret generates a fresh 32-byte secret and returns it as both
+// raw bytes (for hashing/encryption) and the full prt1 token string.
+func mintRefreshToken(familyID string) (token string, secret []byte, err error) {
+	secret = make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return "", nil, fmt.Errorf("oidc: generate refresh token secret: %w", err)
+	}
+	return buildRefreshToken(familyID, secret), secret, nil
+}
+
+// refreshSuccessorAAD builds the AES-GCM additional authenticated data that
+// binds an encrypted successor to its family ID and revision, so a ciphertext
+// lifted from one family or replayed under a different revision fails
+// decryption.
+func refreshSuccessorAAD(familyID string, revision uint64) []byte {
+	return []byte(refreshSuccessorAADLabel + ":" + familyID + ":" + strconv.FormatUint(revision, 10))
+}
+
+// sealSuccessor encrypts a successor refresh token under the DEK using
+// AES-256-GCM, returning base64url(nonce || ciphertext). The AAD binds the
+// ciphertext to (familyID, revision).
+func sealSuccessor(dek []byte, successor, familyID string, revision uint64) (string, error) {
+	if len(dek) != 32 {
+		return "", fmt.Errorf("oidc: DEK must be 32 bytes (AES-256), got %d", len(dek))
+	}
+	block, err := aes.NewCipher(dek)
+	if err != nil {
+		return "", err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+	aad := refreshSuccessorAAD(familyID, revision)
+	ciphertext := aead.Seal(nil, nonce, []byte(successor), aad)
+	combined := append(nonce, ciphertext...)
+	return base64.RawURLEncoding.EncodeToString(combined), nil
+}
+
+// openSuccessor reverses sealSuccessor, returning the plaintext successor
+// token. A GCM authentication failure (tampered ciphertext or wrong AAD/DEK)
+// returns the underlying error so the caller can classify it.
+func openSuccessor(dek []byte, encSuccessor, familyID string, revision uint64) (string, error) {
+	if len(dek) != 32 {
+		return "", fmt.Errorf("oidc: DEK must be 32 bytes (AES-256), got %d", len(dek))
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(encSuccessor)
+	if err != nil {
+		return "", fmt.Errorf("oidc: decode encrypted successor: %w", err)
+	}
+	block, err := aes.NewCipher(dek)
+	if err != nil {
+		return "", err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	ns := aead.NonceSize()
+	if len(raw) < ns {
+		return "", fmt.Errorf("oidc: encrypted successor too short")
+	}
+	nonce, ciphertext := raw[:ns], raw[ns:]
+	aad := refreshSuccessorAAD(familyID, revision)
+	pt, err := aead.Open(nil, nonce, ciphertext, aad)
+	if err != nil {
+		return "", fmt.Errorf("oidc: decrypt refresh successor: %w", err)
+	}
+	return string(pt), nil
+}
+
+// activeDEK returns the highest-version DEK and its version from the DEK map,
+// or (0, nil, false) if no DEKs are configured.
+func activeDEK(deks map[int][]byte) (int32, []byte, bool) {
+	if len(deks) == 0 {
+		return 0, nil, false
+	}
+	maxVer := 0
+	for v := range deks {
+		if v > maxVer {
+			maxVer = v
+		}
+	}
+	return int32(maxVer), deks[maxVer], true
+}
+
+// putFamily writes the family record (JSON) under refreshFamilyKey with the
+// given ttl. It is used to seed a new family on issue. Rotation uses CAS
+// (compare-and-swap) rather than putFamily so that concurrent rotations of the
+// same current token produce exactly one winner. Tests also use putFamily to
+// manipulate family records directly.
 func putFamily(ctx context.Context, store kv.Store, fam *refreshFamily, ttl time.Duration) error {
 	payload, err := json.Marshal(fam)
 	if err != nil {
 		return fmt.Errorf("oidc: marshal refresh family: %w", err)
 	}
-	if err := store.SetEx(ctx, refreshFamilyKey(fam.FamilyID), string(payload), ttl); err != nil {
-		return err
-	}
-	if err := store.SetEx(ctx, refreshTokenKey(fam.CurrentToken), fam.FamilyID, ttl); err != nil {
-		return err
-	}
-	return nil
+	return store.SetEx(ctx, refreshFamilyKey(fam.FamilyID), string(payload), ttl)
 }
 
-// loadFamily resolves a token→family mapping and loads the named family record.
-// A miss on either lookup (token unknown/expired, or family revoked/expired)
-// returns errRefreshInvalid; a malformed family payload is a wrapped decode
-// error, distinct from a miss, since it signals corruption rather than reuse.
-func loadFamily(ctx context.Context, store kv.Store, presented string) (*refreshFamily, error) {
-	fid, err := store.Get(ctx, refreshTokenKey(presented))
-	if err != nil {
-		if errors.Is(err, kv.ErrKeyNotFound) {
-			return nil, errRefreshInvalid
-		}
-		return nil, err
-	}
-	raw, err := store.Get(ctx, refreshFamilyKey(fid))
+// loadFamilyByFID loads a family record by family ID. A miss returns
+// errRefreshInvalid; a malformed payload is a wrapped decode error.
+func loadFamilyByFID(ctx context.Context, store kv.Store, familyID string) (*refreshFamily, error) {
+	raw, err := store.Get(ctx, refreshFamilyKey(familyID))
 	if err != nil {
 		if errors.Is(err, kv.ErrKeyNotFound) {
 			return nil, errRefreshInvalid
@@ -136,24 +266,42 @@ func loadFamily(ctx context.Context, store kv.Store, presented string) (*refresh
 	return &fam, nil
 }
 
+// loadFamily parses a presented prt1 token, extracts the family ID, and loads
+// the family record. A miss (family revoked/expired/never-existed) returns
+// errRefreshInvalid; a token without the prt1 prefix (legacy) also returns
+// errRefreshInvalid. A malformed family payload is a wrapped decode error.
+func loadFamily(ctx context.Context, store kv.Store, presented string) (*refreshFamily, error) {
+	fid, _, err := parseRefreshToken(presented)
+	if err != nil {
+		return nil, err
+	}
+	return loadFamilyByFID(ctx, store, fid)
+}
+
 // issueRefresh seeds a NEW refresh-token family. It takes fam by value,
-// generates a random FamilyID and an opaque CurrentToken, stamps IssuedAt, and
-// writes both the family record (oidc:refresh:family:<fid>) and the
-// token→family mapping (oidc:refresh:<token>) with TTL RefreshTokenTTL. It
-// returns the freshly minted token and the generated family id. The caller need
-// not pre-populate FamilyID/CurrentToken/IssuedAt; they are set here.
+// generates a random FamilyID and a 32-byte secret, builds a prt1 token,
+// stamps CreatedAt/LastUsedAt/AbsoluteExpiresAt/InactiveExpiresAt, and writes
+// the family record with the given ttl. It returns the freshly minted token and
+// the generated family id. The caller need not pre-populate FamilyID; it is set
+// here. No DEKs are needed at issue time (there is no successor to encrypt).
 func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl time.Duration) (token string, familyID string, err error) {
-	fid, err := randToken()
+	fid, err := randBytes(32)
 	if err != nil {
 		return "", "", fmt.Errorf("oidc: generate refresh family id: %w", err)
 	}
-	token, err = randToken()
-	if err != nil {
-		return "", "", fmt.Errorf("oidc: generate refresh token: %w", err)
-	}
 	fam.FamilyID = fid
-	fam.CurrentToken = token
-	fam.IssuedAt = time.Now().UTC()
+	fam.Version = refreshFamilyVersion
+	fam.CreatedAt = time.Now().UTC()
+	fam.LastUsedAt = fam.CreatedAt
+	fam.AbsoluteExpiresAt = fam.CreatedAt.Add(ttl)
+	fam.InactiveExpiresAt = fam.CreatedAt.Add(ttl)
+
+	token, secret, err := mintRefreshToken(fid)
+	if err != nil {
+		return "", "", err
+	}
+	fam.CurrentHash = hashSecret(secret)
+	fam.Revision = 0
 
 	if err := putFamily(ctx, store, &fam, ttl); err != nil {
 		return "", "", err
@@ -161,73 +309,167 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl ti
 	return token, fid, nil
 }
 
-// rotateRefresh performs a single-use exchange of a refresh token, made
-// atomic by a per-token SetNX rotation lock and made benign-concurrency-safe
-// by a previous-token idempotency window on the family record.
+// rotateRefresh performs a single-use exchange of a refresh token, made atomic
+// by compare-and-swap (CAS) on the family record. No SetNX lock is needed — CAS
+// ensures exactly one winner among concurrent rotations of the same current
+// token.
 //
-//   - Acquire the rotation lock (SetNX). If held, a concurrent rotation for
-//     this exact token is in flight → errRotationInProgress (retryable, no
-//     revoke).
-//   - Resolve the family; a miss → errRefreshInvalid.
-//   - presented == PreviousToken and within PreviousValidUntil → benign
-//     idempotent replay: return the already-rotated CurrentToken (caller
-//     re-mints access/ID tokens). No second mint.
-//   - presented != CurrentToken (and not valid-previous) → superseded/stolen
-//     → revoke family, errRefreshReuse. reuseAccountID carries the family's
-//     AccountID so the caller can attribute the refresh_reuse audit record.
-//   - presented == CurrentToken → mint newToken, record PreviousToken=presented,
-//     PreviousValidUntil, set CurrentToken=newToken, persist.
+//  1. Parse the presented token → (familyID, secret). A token without the
+//     prt1 prefix (legacy) → errRefreshInvalid.
+//  2. Load the family record by familyID. A miss → errRefreshInvalid.
+//  3. Hash the presented secret and constant-time compare against
+//     CurrentHash and PreviousHash:
+//     - Matches PreviousHash and within PreviousValidUntil → idempotent
+//       replay: decrypt the EncryptedSuccessor and return it (rotated=false).
+//       No second mint, no CAS.
+//     - Matches CurrentHash → mint a new successor, encrypt it under the
+//       active DEK, update hashes/revision/encrypted-successor, CAS the old
+//       record → new record. On CAS loss, reload and classify:
+//       • Family gone → errRefreshInvalid (someone revoked it).
+//       • Presented hash now matches PreviousHash and within window →
+//         concurrent exchange won by another caller; decrypt and return the
+//         successor (idempotent replay, rotated=false).
+//       • Otherwise → reuse: revoke family, errRefreshReuse.
+//     - Matches neither (or previous outside window) → reuse: revoke family,
+//       errRefreshReuse. reuseAccountID carries the family's AccountID for
+//       audit attribution.
 //
 // rotated reports whether this call performed a real rotation (true) vs served
-// an idempotent replay (false) — the caller uses it to pick the audit reason.
-// reuseAccountID is non-zero only when errRefreshReuse is returned.
-func rotateRefresh(ctx context.Context, store kv.Store, presented string, ttl time.Duration) (fam *refreshFamily, newToken string, rotated bool, reuseAccountID int32, err error) {
-	got, lockErr := store.SetNX(ctx, refreshLockKey(presented), "1", refreshIdempotencyWindow)
-	if lockErr != nil {
-		return nil, "", false, 0, lockErr // fail closed: no rotation, no revoke
+// an idempotent replay (false). reuseAccountID is non-zero only when
+// errRefreshReuse is returned.
+func rotateRefresh(ctx context.Context, store kv.Store, deks map[int][]byte, presented string, ttl time.Duration) (fam *refreshFamily, newToken string, rotated bool, reuseAccountID int32, err error) {
+	fid, secret, err := parseRefreshToken(presented)
+	if err != nil {
+		return nil, "", false, 0, err
 	}
-	if !got {
-		return nil, "", false, 0, errRotationInProgress
-	}
-	defer func() { _ = store.Del(ctx, refreshLockKey(presented)) }()
 
-	fam, err = loadFamily(ctx, store, presented)
+	fam, err = loadFamilyByFID(ctx, store, fid)
 	if err != nil {
 		return nil, "", false, 0, err
 	}
 
 	now := time.Now().UTC()
-	if presented == fam.PreviousToken && now.Before(fam.PreviousValidUntil) {
-		return fam, fam.CurrentToken, false, 0, nil
+	presentedHash := hashSecret(secret)
+
+	// Idempotent replay: the presented token is the previous token and still
+	// within the grace window. Return the already-rotated successor without a
+	// second mint.
+	if now.Before(fam.PreviousValidUntil) && subtle.ConstantTimeCompare(presentedHash[:], fam.PreviousHash[:]) == 1 {
+		successor, derr := decryptFamilySuccessor(deks, fam)
+		if derr != nil {
+			return nil, "", false, 0, derr
+		}
+		return fam, successor, false, 0, nil
 	}
 
-	if presented != fam.CurrentToken {
+	// Reuse detection: the presented token is neither the current token nor a
+	// valid in-window previous token. Revoke the whole family.
+	if subtle.ConstantTimeCompare(presentedHash[:], fam.CurrentHash[:]) != 1 {
 		accountID := fam.AccountID
-		if delErr := store.Del(ctx, refreshFamilyKey(fam.FamilyID)); delErr != nil {
-			return nil, "", false, 0, delErr
-		}
+		_ = store.Del(ctx, refreshFamilyKey(fam.FamilyID))
 		return nil, "", false, accountID, errRefreshReuse
 	}
 
-	minted, err := randToken()
-	if err != nil {
-		return nil, "", false, 0, fmt.Errorf("oidc: generate refresh token: %w", err)
+	// Current token: mint successor, encrypt it, CAS the record.
+	for {
+		oldPayload, mErr := marshalFamily(fam)
+		if mErr != nil {
+			return nil, "", false, 0, mErr
+		}
+
+		successorToken, successorSecret, mErr := mintRefreshToken(fid)
+		if mErr != nil {
+			return nil, "", false, 0, mErr
+		}
+
+		dekVer, dek, dekOK := activeDEK(deks)
+		if !dekOK {
+			return nil, "", false, 0, fmt.Errorf("oidc: no data encryption keys configured for refresh rotation")
+		}
+
+		newRev := fam.Revision + 1
+		encSuccessor, sErr := sealSuccessor(dek, successorToken, fid, newRev)
+		if sErr != nil {
+			return nil, "", false, 0, sErr
+		}
+
+		updated := *fam
+		updated.Revision = newRev
+		updated.CurrentHash = hashSecret(successorSecret)
+		updated.PreviousHash = fam.CurrentHash
+		updated.EncryptedSuccessor = encSuccessor
+		updated.DEKVersion = dekVer
+		updated.PreviousValidUntil = now.Add(refreshIdempotencyWindow)
+		updated.LastUsedAt = now
+		updated.InactiveExpiresAt = now.Add(ttl)
+
+		newPayload, mErr := marshalFamily(&updated)
+		if mErr != nil {
+			return nil, "", false, 0, mErr
+		}
+
+		swapped, casErr := store.CompareAndSwap(ctx, refreshFamilyKey(fid), oldPayload, newPayload, ttl)
+		if casErr != nil {
+			return nil, "", false, 0, casErr
+		}
+		if swapped {
+			return &updated, successorToken, true, 0, nil
+		}
+
+		// CAS lost: another caller modified the record. Reload and classify.
+		reloaded, rErr := loadFamilyByFID(ctx, store, fid)
+		if rErr != nil {
+			// Family gone (revoked/expired) → invalid.
+			return nil, "", false, 0, rErr
+		}
+
+		// If the presented token is now the previous token and within the
+		// grace window, a concurrent exchange won. Serve the idempotent
+		// successor from the reloaded record.
+		rNow := time.Now().UTC()
+		if rNow.Before(reloaded.PreviousValidUntil) && subtle.ConstantTimeCompare(presentedHash[:], reloaded.PreviousHash[:]) == 1 {
+			successor, derr := decryptFamilySuccessor(deks, reloaded)
+			if derr != nil {
+				return nil, "", false, 0, derr
+			}
+			return reloaded, successor, false, 0, nil
+		}
+
+		// The presented token no longer matches current or valid-previous.
+		// This is reuse (or the family was rotated further by another path).
+		accountID := reloaded.AccountID
+		_ = store.Del(ctx, refreshFamilyKey(fid))
+		return nil, "", false, accountID, errRefreshReuse
 	}
-	fam.PreviousToken = presented
-	fam.PreviousValidUntil = now.Add(refreshIdempotencyWindow)
-	fam.CurrentToken = minted
-	if err := putFamily(ctx, store, fam, ttl); err != nil {
-		return nil, "", false, 0, err
-	}
-	return fam, minted, true, 0, nil
 }
 
-// lookupRefresh resolves a presented token to its family WITHOUT mutating
-// anything — no rotation, no revocation, no TTL change. It returns
-// (family, true) when both the token mapping and family record resolve, else
-// (nil, false). Used by /introspect and /revoke, which must not consume the
-// token. Note this does not check presented == CurrentToken; a superseded
-// token still resolves to its (live) family here.
+// marshalFamily returns the canonical JSON bytes for a family record. Used to
+// produce the exact expected-value for CAS.
+func marshalFamily(fam *refreshFamily) (string, error) {
+	payload, err := json.Marshal(fam)
+	if err != nil {
+		return "", fmt.Errorf("oidc: marshal refresh family: %w", err)
+	}
+	return string(payload), nil
+}
+
+// decryptFamilySuccessor decrypts the family's EncryptedSuccessor using the
+// DEK version stored in the record (not the active DEK), so successors sealed
+// under an older DEK remain recoverable after DEK rotation.
+func decryptFamilySuccessor(deks map[int][]byte, fam *refreshFamily) (string, error) {
+	dek, ok := deks[int(fam.DEKVersion)]
+	if !ok {
+		return "", fmt.Errorf("oidc: missing DEK version %d for refresh family %q", fam.DEKVersion, fam.FamilyID)
+	}
+	return openSuccessor(dek, fam.EncryptedSuccessor, fam.FamilyID, fam.Revision)
+}
+
+// lookupRefresh resolves a presented prt1 token to its family WITHOUT mutating
+// anything — no rotation, no revocation, no TTL change. It parses the family
+// ID from the token and loads the record. Returns (family, true) when the
+// family record resolves, else (nil, false). Used by /introspect and /revoke,
+// which must not consume the token. A legacy token (no prt1 prefix) resolves
+// to (nil, false).
 func lookupRefresh(ctx context.Context, store kv.Store, presented string) (*refreshFamily, bool) {
 	fam, err := loadFamily(ctx, store, presented)
 	if err != nil {
@@ -237,21 +479,24 @@ func lookupRefresh(ctx context.Context, store kv.Store, presented string) (*refr
 }
 
 // isActiveToken reports whether the presented token is still a valid member of
-// the family for read-only purposes (introspection): it must be the current
-// token, or the previous token still inside the idempotency window. A token
-// that has been rotated further away resolves to the family (its mapping is
-// retained for /revoke + reuse detection) but is NOT active per RFC 7662 §2.2.
+// the family for read-only purposes (introspection): its secret hash must
+// match the current hash, or the previous hash while still inside the
+// idempotency window. A legacy token (no prt1 prefix) is never active.
 func (fam *refreshFamily) isActiveToken(presented string, now time.Time) bool {
-	if presented == fam.CurrentToken {
+	_, secret, err := parseRefreshToken(presented)
+	if err != nil {
+		return false
+	}
+	h := hashSecret(secret)
+	if subtle.ConstantTimeCompare(h[:], fam.CurrentHash[:]) == 1 {
 		return true
 	}
-	return presented == fam.PreviousToken && now.Before(fam.PreviousValidUntil)
+	return now.Before(fam.PreviousValidUntil) && subtle.ConstantTimeCompare(h[:], fam.PreviousHash[:]) == 1
 }
 
 // revokeFamily deletes a family record by id, invalidating every token in the
-// chain (subsequent rotate/lookup of any of them resolves the token mapping but
-// misses the family → errRefreshInvalid / false). Deleting an absent family is
-// a no-op.
+// chain (subsequent rotate/lookup of any of them misses the family →
+// errRefreshInvalid / false). Deleting an absent family is a no-op.
 func revokeFamily(ctx context.Context, store kv.Store, familyID string) error {
 	return store.Del(ctx, refreshFamilyKey(familyID))
 }
@@ -268,15 +513,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	ctx := r.Context()
 	presented := r.PostForm.Get("refresh_token")
 
-	fam, newToken, rotated, reuseAccountID, err := rotateRefresh(ctx, p.kv, presented, p.refreshTokenTTL())
-	if errors.Is(err, errRotationInProgress) {
-		p.auditTokenEvent(ctx, r, audit.EventFail, nil, map[string]any{
-			"reason":    "refresh_rotation_in_progress",
-			"client_id": client.ClientID,
-		})
-		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "refresh rotation in progress, retry")
-		return
-	}
+	fam, newToken, rotated, reuseAccountID, err := rotateRefresh(ctx, p.kv, p.deks, presented, p.refreshTokenTTL())
 	if errors.Is(err, errRefreshReuse) {
 		var acctPtr *int32
 		if reuseAccountID != 0 {
@@ -298,6 +535,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	// than the one it was issued to is anomalous. The family is live (rotated or
 	// served an idempotent replay) — revoke the whole family (treat the mismatch
 	// as an attack) before refusing.
+
 	if fam.ClientID != client.ClientID {
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
 		famAcctID := fam.AccountID

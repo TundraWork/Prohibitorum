@@ -100,13 +100,18 @@ func TestTokenGrantHonorsConfiguredTTLs(t *testing.T) {
 	}
 
 	// The refresh family's KV entry must carry the configured 48h TTL, not the
-	// 30d default const. Allow a small delta for elapsed wall-clock.
-	ttl, err := h.p.kv.TTL(ctx, refreshTokenKey(resp.RefreshToken))
+	// 30d default const. Allow a small delta for elapsed wall-clock. The token
+	// embeds the family ID, so we parse it and check the family record's TTL.
+	fid, _, perr := parseRefreshToken(resp.RefreshToken)
+	if perr != nil {
+		t.Fatalf("parse refresh token: %v", perr)
+	}
+	ttl, err := h.p.kv.TTL(ctx, refreshFamilyKey(fid))
 	if err != nil {
-		t.Fatalf("read refresh token TTL: %v", err)
+		t.Fatalf("read refresh family TTL: %v", err)
 	}
 	want := int64(wantRefresh.Seconds())
 	if ttl < want-30 || ttl > want {
-		t.Errorf("refresh token KV TTL = %ds, want ≈%ds (configured refresh TTL not honored)", ttl, want)
+		t.Errorf("refresh family KV TTL = %ds, want ≈%ds (configured refresh TTL not honored)", ttl, want)
 	}
 }

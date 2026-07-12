@@ -123,6 +123,7 @@ func newEndpointHarness(t *testing.T) *endpointHarness {
 		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}, PublicOrigins: []string{testIssuer}},
 		queries: q,
 		kv:      kv.NewMemoryStore(),
+		deks:    oidcTestDEKs,
 		audit:   ra,
 		rl:      authn.NewRateLimiter(),
 		keys:    newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs),

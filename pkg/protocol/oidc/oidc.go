@@ -35,6 +35,7 @@ type Provider struct {
 	cfg         *configx.Config
 	queries     db.Querier
 	kv          kv.Store
+	deks        map[int][]byte
 	sessions    *session.SessionStore
 	audit       audit.Writer
 	rl          *authn.RateLimiter
@@ -59,6 +60,7 @@ func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *se
 		cfg:      cfg,
 		queries:  queries,
 		kv:       kvStore,
+		deks:     cfg.DataEncryptionKeys,
 		sessions: sessions,
 		audit:    auditW,
 		rl:       rl,
