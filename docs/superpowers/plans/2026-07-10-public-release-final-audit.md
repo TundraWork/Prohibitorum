@@ -38,7 +38,7 @@ Coverage included:
 | OPS-01 | Best-effort audit insert failures could disappear without operational evidence | P2 | **Fixed for observability.** `RecordOrLog` emits a safe structured error without secret-bearing detail; callsites migrated; failure/success/nil tests added. Database audit rows remain intentionally best-effort. |
 | DOC-01 | `PROHIBITORUM_TRUST_PROXY` documentation no longer matched runtime configuration | P3 | **Fixed.** Removed obsolete variable/script usage; documented admin-managed client-IP strategies and trusted proxy CIDRs. |
 | TOOL-01 | Local Go 1.26.4 matched GO-2026-5856's vulnerable patch range | P2 | **Fixed.** Go/mise/tool lock pinned to 1.26.5 with `GOTOOLCHAIN=local`; release and vulnerability gates run on the patched compiler. |
-| AUTH-01 | Reported OIDC refresh-token family reuse weakness | P1 candidate | **Refuted.** The service intentionally issues offline, independently revocable refresh tokens rather than a rotating token family. Current code and docs agree; no misleading partial rotation was added. |
+| AUTH-01 | Reported OIDC refresh-token family reuse weakness | P1 candidate | **Refuted after source verification.** The service already rotates refresh tokens as single-use families, returns a successor on each successful refresh, detects superseded-token reuse, and revokes the family. A short idempotency window handles benign duplicate submissions without minting a second successor. |
 
 ## Remediation plans executed
 
@@ -91,10 +91,9 @@ The release workflow itself was linted and its GoReleaser configuration validate
 These are current design tradeoffs, not hidden defects:
 
 1. **Database audit rows are best-effort.** A failed audit insert is now always represented by safe structured error telemetry, but it is not transactionally coupled to the protected mutation. Operators requiring immutable compliance evidence must collect and retain structured logs or add an external transactional audit pipeline.
-2. **Refresh tokens are offline bearer credentials.** They are independently revocable, not family-rotated. Compromise detection must use explicit revocation and audit monitoring.
-3. **Administrative list APIs are sized for the documented small-organization deployment profile.** They use bounded operational assumptions rather than full cursor pagination everywhere.
-4. **Outbound fetching permits validated public redirects.** Each hop is SSRF-filtered and bounded, but availability still depends on external endpoints and deployment DNS/network policy.
-5. **Some API human-readable error text remains Chinese while machine-readable codes are stable.** The bundled UI localizes from codes. Fully localized third-party API prose would be a new compatibility/product feature, not a correctness fix.
+2. **Administrative list APIs are sized for the documented small-organization deployment profile.** They use bounded operational assumptions rather than full cursor pagination everywhere.
+3. **Outbound fetching permits validated public redirects.** Each hop is SSRF-filtered and bounded, but availability still depends on external endpoints and deployment DNS/network policy.
+4. **Some API human-readable error text remains Chinese while machine-readable codes are stable.** The bundled UI localizes from codes. Fully localized third-party API prose would be a new compatibility/product feature, not a correctness fix.
 
 ## Release decision
 
