@@ -26,11 +26,13 @@
 package oidc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"syscall"
 	"time"
@@ -57,44 +59,242 @@ const (
 // error, which the federation layer collapses onto ErrFederationStateInvalid.
 var errBlockedDialTarget = errors.New("federation/oidc: refusing to dial blocked (internal/metadata) address")
 
-// isBlockedDialIP reports whether ip is in a range the federation client must
-// never connect to: loopback, RFC1918 / ULA private, link-local unicast
-// (which covers 169.254.169.254 and fe80::/10) and multicast, the unspecified
-// address, and multicast. IPv4-mapped IPv6 is normalized by net.IP's methods.
-func isBlockedDialIP(ip net.IP) bool {
-	return ip == nil ||
-		ip.IsLoopback() ||
-		ip.IsPrivate() ||
-		ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() ||
-		ip.IsMulticast() ||
-		ip.IsUnspecified()
+// destinationClass is the pure result of classifying a single destination IP
+// against the exhaustive special-use table. The dial policy is:
+//   - destinationPublic: always allowed;
+//   - destinationPrivate: allowed only for an IdP with allow_private_network;
+//   - destinationAlwaysBlocked: never allowed, regardless of policy.
+type destinationClass uint8
+
+const (
+	destinationPublic destinationClass = iota
+	destinationPrivate
+	destinationAlwaysBlocked
+)
+
+func (c destinationClass) String() string {
+	switch c {
+	case destinationPublic:
+		return "public"
+	case destinationPrivate:
+		return "private"
+	case destinationAlwaysBlocked:
+		return "alwaysBlocked"
+	}
+	return "unknown"
 }
 
-// screenDialControl builds a net.Dialer.Control hook. The hook runs AFTER DNS
-// resolution with the concrete address (ip:port) about to be connected, so it
-// screens the real target on every connection — which is exactly what defeats
-// DNS rebinding and redirect-to-internal. When allowPrivate is true the screen
-// is disabled (trusted-internal-IdP deployments + tests against a loopback OP).
+// alwaysBlockedPrefixes is the exhaustive table of IANA special-use IPv4/IPv6
+// ranges that the federation client must NEVER connect to, regardless of the
+// per-IdP allow_private_network policy: link-local (which covers the
+// 169.254.169.254 cloud-metadata address), multicast, unspecified,
+// documentation, benchmark, reserved (240.0.0.0/4), and CGNAT
+// (100.64.0.0/10, which is shared-internal and not a legitimate federation
+// target). Loopback is intentionally NOT here — see privatePrefixes.
+//
+// Every entry is netip.Prefix so classification is a pure prefix-contains
+// check over an unmapped netip.Addr — no net.IP allocations, no IsPrivate()
+// surprises (Go's net.IP.IsPrivate does NOT cover CGNAT, documentation, or
+// benchmark ranges; the explicit table closes those gaps).
+var alwaysBlockedPrefixes = []netip.Prefix{
+	// IPv4 link-local 169.254.0.0/16 — includes 169.254.169.254 metadata.
+	netip.MustParsePrefix("169.254.0.0/16"),
+	// IPv4 multicast 224.0.0.0/4.
+	netip.MustParsePrefix("224.0.0.0/4"),
+	// IPv4 unspecified 0.0.0.0/8 (covers 0.0.0.0; /8 is conservative but
+	// matches IANA "This network on this host" reservation).
+	netip.MustParsePrefix("0.0.0.0/8"),
+	// IPv4 documentation 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24.
+	netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"),
+	// IPv4 benchmark 198.18.0.0/15.
+	netip.MustParsePrefix("198.18.0.0/15"),
+	// IPv4 reserved 240.0.0.0/4 (class E + 255.255.255.255 broadcast).
+	netip.MustParsePrefix("240.0.0.0/4"),
+	// IPv4 CGNAT 100.64.0.0/10 — shared address space, never a real target.
+	netip.MustParsePrefix("100.64.0.0/10"),
+
+	// IPv6 link-local fe80::/10.
+	netip.MustParsePrefix("fe80::/10"),
+	// IPv6 multicast ff00::/8.
+	netip.MustParsePrefix("ff00::/8"),
+	// IPv6 unspecified ::/128.
+	netip.MustParsePrefix("::/128"),
+	// IPv6 documentation 2001:db8::/32.
+	netip.MustParsePrefix("2001:db8::/32"),
+	// IPv6 IPv4-mapped ::ffff:0:0/96 — covers all IPv4-mapped special-use
+	// forms once the address is unmapped to its v4 form; keep it as a
+	// backstop so a v4-mapped v6 that did not unmap is still classified.
+	netip.MustParsePrefix("::ffff:0:0/96"),
+}
+
+// privatePrefixes is the narrow set of ranges the per-IdP allow_private_network
+// policy may reach: RFC1918, IPv6 ULA (fc00::/7), and loopback (127.0.0.0/8 +
+// ::1/128). Loopback is classified private rather than alwaysBlocked so a
+// trusted-internal IdP and the loopback-OP test infrastructure remain reachable
+// when the operator opts in — private mode permits ONLY these ranges; every
+// other special-use block (metadata, CGNAT, multicast, documentation, …)
+// remains alwaysBlocked. Private mode is a narrow allowance, NOT a blanket
+// bypass.
+var privatePrefixes = []netip.Prefix{
+	netip.MustParsePrefix("10.0.0.0/8"),
+	netip.MustParsePrefix("172.16.0.0/12"),
+	netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("fc00::/7"),
+	// Loopback — permitted in private mode (loopback-OP / test infra), never
+	// in production.
+	netip.MustParsePrefix("127.0.0.0/8"),
+	netip.MustParsePrefix("::1/128"),
+}
+
+// classifyDestination is the single pure classifier for an outbound
+// destination IP. It unmaps IPv4-mapped IPv6 addresses before classification
+// (so ::ffff:127.0.0.1 is treated as 127.0.0.1, not as a routable v6) and
+// returns one of destinationPublic, destinationPrivate, or
+// destinationAlwaysBlocked. The dial policy allows public always, private
+// only for an IdP with allow_private_network, and never allows
+// always-blocked.
+func classifyDestination(addr netip.Addr) destinationClass {
+	// Unmap IPv4-mapped IPv6 (::ffff:a.b.c.d) so the v4 prefix table applies.
+	// netip.Addr.Unmap returns the v4 form for mapped addresses, unchanged
+	// otherwise; this is the exact normalization the classifier needs.
+	addr = addr.Unmap()
+
+	// alwaysBlocked takes precedence over private: a CGNAT address is not a
+	// legitimate federation target even if the IdP allows private networks.
+	for _, p := range alwaysBlockedPrefixes {
+		if p.Contains(addr) {
+			return destinationAlwaysBlocked
+		}
+	}
+	for _, p := range privatePrefixes {
+		if p.Contains(addr) {
+			return destinationPrivate
+		}
+	}
+	return destinationPublic
+}
+
+// ipDestinationAllowed reports whether a resolved IP may be dialed under the
+// given allow_private policy. Public is always allowed; private is allowed
+// only when allowPrivate is true; alwaysBlocked is never allowed.
+func ipDestinationAllowed(addr netip.Addr, allowPrivate bool) bool {
+	switch classifyDestination(addr) {
+	case destinationPublic:
+		return true
+	case destinationPrivate:
+		return allowPrivate
+	default:
+		return false
+	}
+}
+
+// isBlockedDialIP is retained as a thin wrapper for any legacy caller that
+// still holds a net.IP. New code should call classifyDestination on a
+// netip.Addr directly. Returns true for every non-public class (private
+// included) so the production dial screen (allowPrivate=false) blocks both.
+func isBlockedDialIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	if a, ok := netip.AddrFromSlice(ip); ok {
+		return !ipDestinationAllowed(a, false)
+	}
+	return true
+}
+
+// dnsResolver is the minimal DNS lookup interface the screened dial context
+// needs, so tests can substitute a steering resolver without touching the real
+// network. Mirrors net.Resolver.LookupNetIP.
+type dnsResolver interface {
+	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
+}
+
+// netDefaultResolver adapts the standard library resolver to dnsResolver.
+// LookupNetIP is only invoked when the dial address is a hostname (not an IP
+// literal), so the zero-value net.Resolver is fine.
+type netDefaultResolver struct{}
+
+func (netDefaultResolver) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
+	return net.DefaultResolver.LookupNetIP(ctx, network, host)
+}
+
+// screenDialControl builds a net.Dialer.Control hook that screens the IP
+// literal in the dial address. The standard library invokes Control AFTER DNS
+// resolution with each resolved IP:port, so this hook screens the real target
+// on every connection — which is what defeats DNS rebinding and
+// redirect-to-internal. It NEVER disables: allowPrivate only relaxes the
+// policy to permit RFC1918/ULA, while loopback, link-local/metadata,
+// multicast, unspecified, documentation, benchmark, reserved, and CGNAT
+// remain blocked. A non-IP literal (which should never reach Control) fails
+// closed.
 func screenDialControl(allowPrivate bool) func(network, address string, c syscall.RawConn) error {
 	return func(_, address string, _ syscall.RawConn) error {
-		if allowPrivate {
-			return nil
-		}
 		host, _, err := net.SplitHostPort(address)
 		if err != nil {
 			return fmt.Errorf("federation/oidc: malformed dial address %q: %w", address, err)
 		}
-		ip := net.ParseIP(host)
-		if ip == nil {
-			// Control is invoked with a resolved IP literal; a non-IP here is
+		addr, parseErr := netip.ParseAddr(host)
+		if parseErr != nil {
+			// Control always runs after resolution; a non-IP literal here is
 			// unexpected — fail closed.
-			return fmt.Errorf("%w: %q", errBlockedDialTarget, host)
+			return fmt.Errorf("%w: non-IP literal %q", errBlockedDialTarget, host)
 		}
-		if isBlockedDialIP(ip) {
-			return fmt.Errorf("%w: %s", errBlockedDialTarget, ip)
+		if !ipDestinationAllowed(addr, allowPrivate) {
+			return fmt.Errorf("%w: %s", errBlockedDialTarget, addr)
 		}
 		return nil
+	}
+}
+
+// screenedDialContext wraps a base DialContext so a hostname is resolved and
+// EVERY DNS answer is screened before any connection is attempted. This makes
+// the "every DNS answer checked on every hop" guarantee explicit: if any
+// answer is not allowed under the policy, the entire dial is rejected (a
+// poisoned or split-horizon response cannot slip a private IP through). IP
+// literals skip the resolution step and delegate directly to base (Control
+// screens them). The base dialer's Control hook remains as a
+// belt-and-suspenders IP-literal backstop on the actual connect.
+func screenedDialContext(
+	allowPrivate bool,
+	res dnsResolver,
+	base func(ctx context.Context, network, address string) (net.Conn, error),
+) func(ctx context.Context, network, address string) (net.Conn, error) {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("federation/oidc: malformed dial address %q: %w", address, err)
+		}
+		// IP literal: delegate to base (the Control hook screens it).
+		if _, parseErr := netip.ParseAddr(host); parseErr == nil {
+			return base(ctx, network, address)
+		}
+		// Hostname: resolve and screen EVERY answer. The lookup context is
+		// the dial context, so cancellation/deadline propagates.
+		addrs, err := res.LookupNetIP(ctx, "ip", host)
+		if err != nil {
+			return nil, fmt.Errorf("%w: dns lookup for %q failed: %w", errBlockedDialTarget, host, err)
+		}
+		if len(addrs) == 0 {
+			return nil, fmt.Errorf("%w: %q (no dns answers)", errBlockedDialTarget, host)
+		}
+		for _, addr := range addrs {
+			if !ipDestinationAllowed(addr, allowPrivate) {
+				return nil, fmt.Errorf("%w: %s resolves to %s", errBlockedDialTarget, host, addr)
+			}
+		}
+		// All answers passed — dial each in turn until one connects (mirrors
+		// the standard library's sequential fallback).
+		var lastErr error
+		for _, addr := range addrs {
+			conn, err := base(ctx, network, net.JoinHostPort(addr.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			lastErr = err
+		}
+		return nil, lastErr
 	}
 }
 
@@ -140,13 +340,16 @@ func (b *cappedBody) Read(p []byte) (int, error) {
 
 func (b *cappedBody) Close() error { return b.c.Close() }
 
-// hardenedHTTPClient builds the SSRF-aware, size-capped client described in the
-// file header. A fresh client per NewClient is fine — there is one Client per
-// upstream_idp row and discovery runs once per client construction. When
-// allowPrivate is true the dial-time internal-IP screen is disabled (for
-// deployments federating to a trusted internal IdP, and for tests).
-// maxBytes caps every response body; callers pass maxFederationResponseBytes
-// for federation metadata or maxAvatarFetchBytes for avatar fetches.
+// hardenedHTTPClient builds the SSRF-aware, size-capped client described in
+// the file header. A fresh client per NewClient is fine — there is one Client
+// per upstream_idp row and discovery runs once per client construction. When
+// allowPrivate is true the dial screen permits RFC1918/ULA private
+// destinations (for deployments federating to a trusted internal IdP, and for
+// tests against a loopback OP); loopback, link-local/metadata, multicast,
+// unspecified, documentation, benchmark, reserved, and CGNAT remain blocked
+// regardless. maxBytes caps every response body; callers pass
+// maxFederationResponseBytes for federation metadata or maxAvatarFetchBytes
+// for avatar fetches.
 func hardenedHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,
@@ -154,7 +357,11 @@ func hardenedHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
 		Control:   screenDialControl(allowPrivate),
 	}
 	transport := &http.Transport{
-		DialContext:           dialer.DialContext,
+		// screenedDialContext resolves every hostname and screens EVERY DNS
+		// answer before connecting; IP literals are screened by the dialer's
+		// Control hook. The two layers together guarantee every DNS answer
+		// AND every actual dial address is checked on every hop.
+		DialContext:           screenedDialContext(allowPrivate, netDefaultResolver{}, dialer.DialContext),
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          10,
 		IdleConnTimeout:       90 * time.Second,

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	fedoidc "prohibitorum/pkg/federation/oidc"
 )
 
 // metadataXML is a minimal but well-formed SAML SP metadata document used as the
@@ -152,5 +154,42 @@ func TestFetchMetadata_AcceptsInlineFileBranchUntouched(t *testing.T) {
 	// https fetch (fetchMetadata rejects non-https schemes).
 	if _, err := fetchMetadata(context.Background(), "file:///tmp/nope"); err == nil {
 		t.Error("fetchMetadata accepted a file:// URL; remote fetch should reject non-https schemes")
+	}
+}
+
+// TestFetchMetadata_HardenedClientBlocksMetadataIP asserts the CLI's shared
+// hardened client (NewOutboundHTTPClient) rejects a dial to the cloud metadata
+// address. The URL validation gate (https + domain host) passes for a domain
+// that resolves to 169.254.169.254, but the dial screen must block the
+// resolved IP. This test uses a test server on loopback with allowPrivate=true
+// to confirm the metadata address is still blocked (alwaysBlocked class).
+func TestFetchMetadata_HardenedClientBlocksMetadataIP(t *testing.T) {
+	// The hardened client with allowPrivate=true still blocks metadata (169.254.169.254)
+	// because it is alwaysBlocked, not private.
+	client := fedoidc.NewOutboundHTTPClient(true, metadataMaxBytes)
+	// Dial the metadata address directly — the dial screen must reject it.
+	// We use a request to a URL with the metadata IP literal; the URL
+	// validation in fetchMetadata would reject an IP literal, so we test the
+	// client dial path directly.
+	_, err := client.Get("https://169.254.169.254/latest/meta-data")
+	if err == nil {
+		t.Fatal("hardened client dialed the cloud metadata address; want always-blocked")
+	}
+	if !strings.Contains(err.Error(), "blocked") {
+		t.Errorf("error %q does not mention the dial block", err)
+	}
+}
+
+// TestFetchMetadata_HardenedClientBlocksCGNAT asserts the CLI's shared hardened
+// client rejects CGNAT (100.64.0.0/10) addresses — a range Go's net.IP.IsPrivate
+// does NOT cover but the exhaustive classifier does.
+func TestFetchMetadata_HardenedClientBlocksCGNAT(t *testing.T) {
+	client := fedoidc.NewOutboundHTTPClient(true, metadataMaxBytes)
+	_, err := client.Get("https://100.64.0.1/metadata")
+	if err == nil {
+		t.Fatal("hardened client dialed a CGNAT address; want always-blocked")
+	}
+	if !strings.Contains(err.Error(), "blocked") {
+		t.Errorf("error %q does not mention the dial block", err)
 	}
 }
