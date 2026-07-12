@@ -11,6 +11,7 @@
 package contract
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"prohibitorum/pkg/weberr"
@@ -26,6 +27,16 @@ import (
 type Page[T any] struct {
 	Items      []T   `json:"items"`
 	NextCursor string `json:"nextCursor"`
+}
+
+// MarshalJSON ensures a nil Items slice serializes as [] rather than null,
+// matching pagination.Page[T]'s wire shape. Clients never see items:null.
+func (p Page[T]) MarshalJSON() ([]byte, error) {
+	type alias Page[T]
+	if p.Items == nil {
+		p.Items = []T{}
+	}
+	return json.Marshal(alias(p))
 }
 
 // CodeCursorInvalid is the registered public-error code returned when a

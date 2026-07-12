@@ -19,6 +19,20 @@ type Page[T any] struct {
 	NextCursor string `json:"nextCursor"`
 }
 
+// MarshalJSON ensures a nil Items slice serializes as [] rather than null,
+// so the wire shape is always {"items":[...],"nextCursor":"..."} — clients
+// never branch on items === null vs items === []. A zero-value Page emits
+// {"items":[],"nextCursor":""}.
+func (p Page[T]) MarshalJSON() ([]byte, error) {
+	// alias avoids recursion into MarshalJSON; the inner type uses the
+	// default struct marshaling.
+	type alias Page[T]
+	if p.Items == nil {
+		p.Items = []T{}
+	}
+	return json.Marshal(alias(p))
+}
+
 // Limit clamps the requested page size into the allowed 1–100 range. A
 // non-positive value yields the default (50); values above the maximum are
 // clamped to the maximum. Limits are clamped, never rejected, so a misbehaving

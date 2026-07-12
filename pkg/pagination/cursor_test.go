@@ -262,6 +262,19 @@ func TestPageNonEmptyWithEmptyNextCursor(t *testing.T) {
 	}
 }
 
+// A zero-value Page (nil Items) must serialize items as [] not null, so
+// clients never have to branch on items === null vs items === [].
+func TestPageNilItemsSerializesAsEmptyArray(t *testing.T) {
+	b, err := jsonMarshalPage(Page[int]{})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	want := `{"items":[],"nextCursor":""}`
+	if string(b) != want {
+		t.Errorf("nil-items page JSON = %s, want %s", string(b), want)
+	}
+}
+
 // --- Limit clamp ---
 
 func TestClampLimit(t *testing.T) {
