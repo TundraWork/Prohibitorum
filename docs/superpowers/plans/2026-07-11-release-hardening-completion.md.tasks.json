@@ -37,14 +37,14 @@
     {
       "id": 5,
       "subject": "Task 6: Paginate top-level admin collections",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Convert every top-level admin index to deterministic keyset pagination.\n\n**Files:** db/queries/{account,enrollment,rbac,oidc,saml_sp,upstream_idp,credential_event}.sql, generated pkg/db, admin list handlers/tests.\n\n**Acceptance Criteria:** All top-level indexes return Page<T>; stable limit+1 keysets; cursor/filter binding; no bare arrays.\n\n**Verify:** mise exec -- go test ./pkg/server ./pkg/db -run 'List.*Page|Cursor|Admin.*List' -count=1\n\n```json:metadata\n{\"files\":[\"db/queries\",\"pkg/db\",\"pkg/server\"],\"verifyCommand\":\"mise exec -- go test ./pkg/server ./pkg/db -run 'List.*Page|Cursor|Admin.*List' -count=1\",\"acceptanceCriteria\":[\"all top-level indexes paginated\",\"stable keysets\",\"no bare arrays\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 7: Paginate nested administrative collections",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Paginate account, group, session, token, identity, and access-assignment collections.\n\n**Files:** db/queries account/account_identity/personal_access_token/rbac/webauthn, generated pkg/db, pkg/session, nested server handlers/tests.\n\n**Acceptance Criteria:** Every nested admin collection returns Page<T>; session scans are bounded; parent 404 semantics remain; cursors bind parent ID.\n\n**Verify:** mise exec -- go test ./pkg/session ./pkg/server -run 'Account.*Page|Group.*Page|Access.*Page|Session.*Page' -count=1\n\n```json:metadata\n{\"files\":[\"db/queries\",\"pkg/db\",\"pkg/session\",\"pkg/server\"],\"verifyCommand\":\"mise exec -- go test ./pkg/session ./pkg/server -run 'Account.*Page|Group.*Page|Access.*Page|Session.*Page' -count=1\",\"acceptanceCriteria\":[\"all nested collections paginated\",\"bounded session scans\",\"parent-bound cursors\"]}\n```"
     },
@@ -58,7 +58,7 @@
     {
       "id": 8,
       "subject": "Task 9: Per-IdP private-network configuration",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Replace the global bypass with audited per-IdP private fetching.\n\n**Files:** db/migrations/030_upstream_idp_private_network.sql, db/queries/upstream_idp.sql, pkg/db, pkg/configx, pkg/federation/oidc, pkg/server, dashboard IdP views/locales.\n\n**Acceptance Criteria:** Per-IdP default false; fresh-sudo and audit on change; global switch removed; client cache keys include policy; explicit UI warning.\n\n**Verify:** mise exec -- go test ./pkg/configx ./pkg/federation/oidc ./pkg/server -run 'PrivateNetwork|UpstreamIDP' -count=1 && cd dashboard && npm test -- src/pages/admin/AdminUpstreamIdpDetailView.test.ts src/pages/admin/AdminUpstreamIdpsView.test.ts\n\n```json:metadata\n{\"files\":[\"db/migrations/030_upstream_idp_private_network.sql\",\"db/queries/upstream_idp.sql\",\"pkg/configx\",\"pkg/federation/oidc\",\"pkg/server\",\"dashboard/src/pages/admin\"],\"verifyCommand\":\"mise exec -- go test ./pkg/configx ./pkg/federation/oidc ./pkg/server -run 'PrivateNetwork|UpstreamIDP' -count=1\",\"acceptanceCriteria\":[\"per-IdP private policy\",\"fresh-sudo audited changes\",\"global bypass removed\"]}\n```"
     },
     {
@@ -77,10 +77,10 @@
     {
       "id": 11,
       "subject": "Task 12: Refresh lifetime and originating-session enforcement",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "**Goal:** Add absolute/inactivity limits and bind refresh authority to the live originating session and current authorization.\n\n**Files:** pkg/configx, pkg/session, pkg/protocol/oidc/refresh.go/tests, server recovery/revocation handlers/tests.\n\n**Acceptance Criteria:** 30-day inactivity and 90-day absolute defaults; live session checked; definitive session/account/access/recovery denial revokes family; precise audit reasons.\n\n**Verify:** mise exec -- go test ./pkg/configx ./pkg/session ./pkg/protocol/oidc ./pkg/server -run 'Refresh|Session.*Revoke|Recovery|Access.*Revok|Absolute|Inactivity' -count=1\n\n```json:metadata\n{\"files\":[\"pkg/configx\",\"pkg/session\",\"pkg/protocol/oidc/refresh.go\",\"pkg/protocol/oidc/refresh_test.go\",\"pkg/server\"],\"verifyCommand\":\"mise exec -- go test ./pkg/configx ./pkg/session ./pkg/protocol/oidc ./pkg/server -run 'Refresh|Session.*Revoke|Recovery|Access.*Revok|Absolute|Inactivity' -count=1\",\"acceptanceCriteria\":[\"absolute and inactivity expiry\",\"live originating session binding\",\"security-state revocation\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-07-13T03:28:27+10:00"
+  "lastUpdated": "2026-07-13T04:25:29+10:00"
 }
