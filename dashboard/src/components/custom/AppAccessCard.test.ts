@@ -21,13 +21,13 @@ const mountCard = (kind: 'oidc' | 'saml' = 'oidc', appId = 'my-app') =>
 
 const ACCESS_RESTRICTED = {
   accessRestricted: true,
-  groups: [{ id: 10, slug: 'eng', displayName: 'Engineering' }],
-  accounts: [{ id: 7, username: 'carol', displayName: 'Carol Ng' }],
+  groups: { items: [{ id: 10, slug: 'eng', displayName: 'Engineering' }], nextCursor: '' },
+      accounts: { items: [{ id: 7, username: 'carol', displayName: 'Carol Ng' }], nextCursor: '' },
 }
 const ACCESS_OPEN = {
   accessRestricted: false,
-  groups: [],
-  accounts: [],
+  groups: { items: [], nextCursor: '' },
+      accounts: { items: [], nextCursor: '' },
 }
 const ALL_GROUPS = [
   { id: 10, slug: 'eng', displayName: 'Engineering' },
@@ -209,7 +209,7 @@ describe('AppAccessCard', () => {
     get.mockImplementation(async (p: string) => {
       if (String(p).endsWith('/access')) {
         accessCallCount++
-        if (accessCallCount === 1) return ACCESS_RESTRICTED
+        if (accessCallCount === 1) return { ...ACCESS_RESTRICTED, groups: { items: ACCESS_RESTRICTED.groups?.items ?? ACCESS_RESTRICTED.groups ?? [], nextCursor: '' }, accounts: { items: ACCESS_RESTRICTED.accounts?.items ?? ACCESS_RESTRICTED.accounts ?? [], nextCursor: '' } }
         return {
           accessRestricted: true,
           groups: [

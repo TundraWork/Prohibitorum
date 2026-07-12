@@ -20,19 +20,19 @@ beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
 describe('AdminOidcClientsView', () => {
   it('lists clients with type badges', async () => {
-    get.mockResolvedValue(CLIENTS)
+    get.mockResolvedValue({ items: CLIENTS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications')
     expect(w.text()).toContain('Web App'); expect(w.text()).toContain(en.admin.oidc.confidential); expect(w.text()).toContain(en.admin.oidc.public)
   })
   it('row click navigates to detail', async () => {
-    get.mockResolvedValue(CLIENTS)
+    get.mockResolvedValue({ items: CLIENTS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="client-row-spa"]').trigger('click')
     expect(push).toHaveBeenCalledWith('/admin/oidc-applications/spa')
   })
   it('creates a confidential client and reveals the secret', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockResolvedValue({ clientId: 'new', secret: 's3cr3t', tokenEndpointAuthMethod: 'client_secret_basic' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
@@ -47,7 +47,7 @@ describe('AdminOidcClientsView', () => {
     expect(w.text()).toContain('s3cr3t')
   })
   it('creates a public client (no secret) and shows the created note', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockResolvedValue({ clientId: 'spa', tokenEndpointAuthMethod: 'none' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
@@ -60,7 +60,7 @@ describe('AdminOidcClientsView', () => {
     expect(w.text()).toContain(en.admin.oidc.created)
   })
   it('surfaces oidc_client_already_exists', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockRejectedValue({ code: 'oidc_client_already_exists', message: 'zh' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')

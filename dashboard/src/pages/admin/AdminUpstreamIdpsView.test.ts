@@ -20,13 +20,13 @@ beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
 describe('AdminUpstreamIdpsView', () => {
   it('lists providers with mode + state', async () => {
-    get.mockResolvedValue(IDPS)
+    get.mockResolvedValue({ items: IDPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/identity-providers')
     expect(w.text()).toContain('Okta'); expect(w.text()).toContain(en.admin.upstream.modeInviteOnly)
   })
   it('shows name + slug stacked in the first cell, with both named in its header', async () => {
-    get.mockResolvedValue(IDPS)
+    get.mockResolvedValue({ items: IDPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     // The first column header names both lines (Provider · Slug).
     const firstHeader = w.findAll('th')[0].text()
@@ -40,7 +40,7 @@ describe('AdminUpstreamIdpsView', () => {
     expect(cells.length).toBe(3)
   })
   it('row click navigates to detail', async () => {
-    get.mockResolvedValue(IDPS)
+    get.mockResolvedValue({ items: IDPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="idp-row-okta"]').trigger('click')
     expect(push).toHaveBeenCalledWith('/admin/identity-providers/okta')

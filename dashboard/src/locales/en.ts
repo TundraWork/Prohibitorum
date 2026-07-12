@@ -28,6 +28,12 @@ export default {
     dismiss: 'Dismiss',
     yes: 'Yes',
     no: 'No',
+    pagination: {
+      label: 'Pagination',
+      previous: 'Previous',
+      next: 'Next',
+      page: 'Page {n}',
+    },
   },
 
   scopeSelector: {

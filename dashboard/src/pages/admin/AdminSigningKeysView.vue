@@ -1,10 +1,13 @@
 <script setup lang="ts">
 /** AdminSigningKeysView (/admin/signing-keys) — list + lifecycle (generate/activate/retire). */
-import { onMounted, ref, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { I18nT, useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useCursorPage } from '@/composables/useCursorPage'
+import { type Page, buildPagePath } from '@/lib/pagination'
 import { withSudo } from '@/lib/sudo'
+import { formatDateTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -13,7 +16,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
-import { formatDateTime } from '@/lib/time'
+import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { KeyRound } from 'lucide-vue-next'
 
 interface SigningKey {
@@ -26,11 +29,16 @@ type Variant = 'neutral' | 'success' | 'caution' | 'danger' | 'info'
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
 
-const rows = ref<SigningKey[]>([])
+const page = useCursorPage<SigningKey>((cursor) =>
+  api.get<Page<SigningKey>>(buildPagePath('/api/prohibitorum/signing-keys', { cursor })),
+)
+const rows = page.items
 const viewJwkKid = ref<string | null>(null)
 const confirmGenerate = ref(false)
 const confirmActivate = ref('')
 const confirmRetire = ref('')
+const displayError = computed(() => page.error.value ?? error.value)
+function clearError(): void { page.clear(); clear() }
 
 const viewJwkKey = computed(() => rows.value.find((k) => k.kid === viewJwkKid.value) ?? null)
 const viewJwkOpen = computed({
@@ -49,31 +57,25 @@ function statusLabel(s: string): string {
 }
 function jwk(k: SigningKey): string { return JSON.stringify(k.publicJwk, null, 2) }
 
-async function load(): Promise<void> {
-  const res = await run(() => api.get<SigningKey[]>('/api/prohibitorum/signing-keys'))
-  if (res) rows.value = res
-}
 async function generate(): Promise<void> {
   const ok = await run(() => withSudo(async () => { await api.post('/api/prohibitorum/signing-keys/generate'); return true as const }))
   confirmGenerate.value = false
-  if (ok) await load()
+  if (ok) await page.reload()
 }
 async function activate(kid: string): Promise<void> {
   const ok = await run(() => withSudo(async () => { await api.post(`/api/prohibitorum/signing-keys/${kid}/activate`); return true as const }))
   confirmActivate.value = ''
-  if (ok) await load()
+  if (ok) await page.reload()
 }
 async function retire(kid: string): Promise<void> {
   const ok = await run(() => withSudo(async () => { await api.post(`/api/prohibitorum/signing-keys/${kid}/retire`); return true as const }))
   confirmRetire.value = ''
-  if (ok) await load()
+  if (ok) await page.reload()
 }
 
 function closeGenerate(v: boolean): void { if (!v) confirmGenerate.value = false }
 function closeActivate(v: boolean): void { if (!v) confirmActivate.value = '' }
 function closeRetire(v: boolean): void { if (!v) confirmRetire.value = '' }
-
-onMounted(load)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -84,9 +86,9 @@ onMounted(load)
       </div>
       <Button type="button" data-test="generate" @click="confirmGenerate = true">{{ t('admin.signingKeys.generate') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
 
-    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="5" />
+    <TableSkeleton v-if="page.busy.value && !rows.length" :rows="5" :cols="5" />
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
@@ -113,7 +115,7 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!error" :icon="KeyRound" :title="t('admin.signingKeys.empty')" />
+    <EmptyState v-else-if="!displayError" :icon="KeyRound" :title="t('admin.signingKeys.empty')" />
 
     <Dialog v-model:open="viewJwkOpen">
       <DialogContent class="max-w-2xl">
@@ -145,5 +147,14 @@ onMounted(load)
       @update:open="closeRetire" @cancel="confirmRetire = ''" @confirm="retire(confirmRetire)">
       {{ t('admin.signingKeys.retireBody') }}
     </ConfirmDialog>
+    <PaginationControls
+      v-if="rows.length || page.pageIndex.value > 0"
+      :page-index="page.pageIndex.value"
+      :has-more="page.hasMore.value"
+      :busy="page.busy.value"
+      :has-items="rows.length > 0"
+      @next="page.next"
+      @previous="page.previous"
+    />
   </div>
 </template>

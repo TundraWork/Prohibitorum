@@ -1,11 +1,13 @@
 <script setup lang="ts">
 /** AdminForwardAuthAppsView (/admin/forward-auth-apps) — list of forward-auth services; inline create. */
-import { onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Waypoints } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useCursorPage } from '@/composables/useCursorPage'
+import { type Page, buildPagePath } from '@/lib/pagination'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,6 +21,7 @@ import FormSection from '@/components/custom/FormSection.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ScopeVocabularyEditor, { type ScopeEntry } from '@/components/custom/ScopeVocabularyEditor.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import PaginationControls from '@/components/custom/PaginationControls.vue'
 
 interface ForwardAuthApp {
   clientId: string
@@ -33,7 +36,12 @@ const { t } = useI18n()
 const router = useRouter()
 const { busy, run, error, clear } = useApi()
 
-const rows = ref<ForwardAuthApp[]>([])
+const page = useCursorPage<ForwardAuthApp>((cursor) =>
+  api.get<Page<ForwardAuthApp>>(buildPagePath('/api/prohibitorum/forward-auth-apps', { cursor })),
+)
+const rows = page.items
+const displayError = computed(() => page.error.value ?? error.value)
+function clearError(): void { page.clear(); clear() }
 const createOpen = ref(false)
 const created = ref(false)
 
@@ -42,10 +50,7 @@ const host = ref('')
 const displayName = ref('')
 const scopes = ref<ScopeEntry[]>([])
 
-async function load(): Promise<void> {
-  const res = await run(() => api.get<ForwardAuthApp[]>('/api/prohibitorum/forward-auth-apps'))
-  if (res) rows.value = res
-}
+
 
 function go(id: string): void { router.push(`/admin/forward-auth-apps/${id}`) }
 
@@ -69,11 +74,10 @@ async function create(): Promise<void> {
   if (res) {
     createOpen.value = false
     created.value = true
-    await load()
+    await page.reload()
   }
 }
 
-onMounted(load)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -81,7 +85,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.forwardAuth.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.forwardAuth.create') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
     <StatusMessage :show="created">{{ t('admin.forwardAuth.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -113,7 +117,7 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="3" />
+    <TableSkeleton v-if="page.busy.value && !rows.length" :rows="5" :cols="3" />
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
@@ -141,6 +145,15 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!error && !createOpen" :icon="Waypoints" :title="t('admin.forwardAuth.empty')" />
+    <EmptyState v-else-if="!displayError && !createOpen" :icon="Waypoints" :title="t('admin.forwardAuth.empty')" />
+    <PaginationControls
+      v-if="rows.length || page.pageIndex.value > 0"
+      :page-index="page.pageIndex.value"
+      :has-more="page.hasMore.value"
+      :busy="page.busy.value"
+      :has-items="rows.length > 0"
+      @next="page.next"
+      @previous="page.previous"
+    />
   </div>
 </template>

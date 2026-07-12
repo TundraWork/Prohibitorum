@@ -17,29 +17,29 @@ beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
 describe('AdminSamlProvidersView', () => {
   it('lists providers', async () => {
-    get.mockResolvedValue(SPS)
+    get.mockResolvedValue({ items: SPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-applications')
     expect(w.text()).toContain('GHES'); expect(w.text()).toContain('https://sp/meta')
   })
   it('shows the active status badge for an enabled provider', async () => {
-    get.mockResolvedValue(SPS)
+    get.mockResolvedValue({ items: SPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.saml.active)
   })
   it('shows the disabled status badge for a disabled provider', async () => {
-    get.mockResolvedValue([{ ...SPS[0], disabled: true }])
+    get.mockResolvedValue({ items: [{ ...SPS[0], disabled: true }], nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.saml.disabled)
   })
   it('row click navigates to detail', async () => {
-    get.mockResolvedValue(SPS)
+    get.mockResolvedValue({ items: SPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="sp-row-1"]').trigger('click')
     expect(push).toHaveBeenCalledWith('/admin/saml-applications/1')
   })
   it('creates via metadata paste', async () => {
-    get.mockResolvedValue([]); post.mockResolvedValue({ id: 2 })
+    get.mockResolvedValue({ items: [], nextCursor: '' }); post.mockResolvedValue({ id: 2 })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     // metadata mode is default
@@ -48,7 +48,7 @@ describe('AdminSamlProvidersView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-applications', expect.objectContaining({ metadataXml: '<xml/>' }))
   })
   it('creates via manual ACS', async () => {
-    get.mockResolvedValue([]); post.mockResolvedValue({ id: 3 })
+    get.mockResolvedValue({ items: [], nextCursor: '' }); post.mockResolvedValue({ id: 3 })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     // reka Tabs activates on mousedown (not click).
@@ -65,7 +65,7 @@ describe('AdminSamlProvidersView', () => {
     }))
   })
   it('surfaces saml_application_already_exists', async () => {
-    get.mockResolvedValue([]); post.mockRejectedValue({ code: 'saml_application_already_exists', message: 'zh' })
+    get.mockResolvedValue({ items: [], nextCursor: '' }); post.mockRejectedValue({ code: 'saml_application_already_exists', message: 'zh' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     await w.find('textarea[name="metadataXml"]').setValue('<xml/>')

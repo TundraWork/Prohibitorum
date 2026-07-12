@@ -24,14 +24,14 @@ beforeEach(() => { get.mockReset(); post.mockReset() })
 
 describe('AdminSigningKeysView', () => {
   it('lists keys with status badges', async () => {
-    get.mockResolvedValue(KEYS)
+    get.mockResolvedValue({ items: KEYS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/signing-keys')
     expect(w.text()).toContain('k-active'); expect(w.text()).toContain(en.admin.signingKeys.statusActive)
     expect(w.text()).toContain(en.admin.signingKeys.statusPending); expect(w.text()).toContain(en.admin.signingKeys.statusDecommissioning)
   })
   it('generates a key via withSudo + confirm', async () => {
-    get.mockResolvedValueOnce(KEYS).mockResolvedValueOnce(KEYS)
+    get.mockResolvedValueOnce({ items: KEYS, nextCursor: '' }).mockResolvedValueOnce({ items: KEYS, nextCursor: '' })
     post.mockResolvedValue({ kid: 'k-new', status: 'pending' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="generate"]').trigger('click')
@@ -39,7 +39,7 @@ describe('AdminSigningKeysView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/signing-keys/generate')
   })
   it('activates only a pending key', async () => {
-    get.mockResolvedValue(KEYS); post.mockResolvedValue({ kid: 'k-pending', status: 'active' })
+    get.mockResolvedValue({ items: KEYS, nextCursor: '' }); post.mockResolvedValue({ kid: 'k-pending', status: 'active' })
     const w = mountView(); await flushPromises()
     expect(w.find('[data-test="activate-k-pending"]').exists()).toBe(true)
     expect(w.find('[data-test="activate-k-active"]').exists()).toBe(false)
@@ -50,7 +50,7 @@ describe('AdminSigningKeysView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/signing-keys/k-pending/activate')
   })
   it('retires only a decommissioning key and surfaces active_key_no_replacement', async () => {
-    get.mockResolvedValue(KEYS); post.mockRejectedValue({ code: 'active_key_no_replacement', message: 'zh' })
+    get.mockResolvedValue({ items: KEYS, nextCursor: '' }); post.mockRejectedValue({ code: 'active_key_no_replacement', message: 'zh' })
     const w = mountView(); await flushPromises()
     expect(w.find('[data-test="retire-k-decom"]').exists()).toBe(true)
     expect(w.find('[data-test="retire-k-pending"]').exists()).toBe(false)
@@ -64,7 +64,7 @@ describe('AdminSigningKeysView', () => {
   it('describes the public JWK dialog with the selected key without warnings', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      get.mockResolvedValue(KEYS)
+      get.mockResolvedValue({ items: KEYS, nextCursor: '' })
       const w = mountView(); await flushPromises()
       await w.find('[data-test="view-jwk-k-active"]').trigger('click')
       await flushPromises()
@@ -87,7 +87,7 @@ describe('AdminSigningKeysView', () => {
     }
   })
   it('shows empty-state when no keys', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.signingKeys.empty)
   })

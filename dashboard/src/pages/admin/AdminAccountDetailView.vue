@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
+import { type Page, buildPagePath, unwrap } from '@/lib/pagination'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
@@ -129,24 +130,24 @@ const reissueExpires = ref('')
 const hasComplexAttrs = computed(() => Object.keys(attrComplex.value).length > 0)
 
 async function loadCredentials(): Promise<void> {
-  const creds = await run(() => api.get<Credential[]>(`/api/prohibitorum/accounts/${id}/credentials`))
-  if (creds) credentials.value = creds
+  const creds = await run(() => api.get<Page<Credential>>(buildPagePath(`/api/prohibitorum/accounts/${id}/credentials`, { limit: 100 })))
+  if (creds) credentials.value = unwrap(creds).items
 }
 async function loadSessions(): Promise<void> {
-  const res = await run(() => api.get<SessionListItem[]>(`/api/prohibitorum/accounts/${id}/sessions`))
-  if (res) sessions.value = res
+  const res = await run(() => api.get<Page<SessionListItem>>(buildPagePath(`/api/prohibitorum/accounts/${id}/sessions`, { limit: 100 })))
+  if (res) sessions.value = unwrap(res).items
 }
 async function loadTokens(): Promise<void> {
-  const res = await run(() => api.get<PersonalAccessTokenView[]>(`/api/prohibitorum/accounts/${id}/tokens`))
-  if (res) tokens.value = res
+  const res = await run(() => api.get<Page<PersonalAccessTokenView>>(buildPagePath(`/api/prohibitorum/accounts/${id}/tokens`, { limit: 100 })))
+  if (res) tokens.value = unwrap(res).items
 }
 async function loadAccountGroups(): Promise<void> {
-  const res = await groupsApi.run(() => api.get<GroupView[]>(`/api/prohibitorum/accounts/${id}/groups`))
-  if (res) accountGroups.value = res
+  const res = await groupsApi.run(() => api.get<Page<GroupView>>(buildPagePath(`/api/prohibitorum/accounts/${id}/groups`, { limit: 100 })))
+  if (res) accountGroups.value = unwrap(res).items
 }
 async function loadAllGroups(): Promise<void> {
-  const res = await allGroupsApi.run(() => api.get<GroupView[]>('/api/prohibitorum/groups'))
-  if (res) allGroups.value = res
+  const res = await allGroupsApi.run(() => api.get<Page<GroupView>>(buildPagePath('/api/prohibitorum/groups', { limit: 100 })))
+  if (res) allGroups.value = unwrap(res).items
 }
 async function load(): Promise<void> {
   const acc = await run(() => api.get<Account>(`/api/prohibitorum/accounts/${id}`))

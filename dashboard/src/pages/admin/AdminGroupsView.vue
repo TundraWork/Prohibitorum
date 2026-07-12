@@ -1,11 +1,13 @@
 <script setup lang="ts">
 /** AdminGroupsView (/admin/groups) — table of groups; inline create; row → detail. */
-import { onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useCursorPage } from '@/composables/useCursorPage'
+import { type Page, buildPagePath } from '@/lib/pagination'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,7 +22,7 @@ import FormSection from '@/components/custom/FormSection.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
-import { UsersRound } from 'lucide-vue-next'
+import PaginationControls from '@/components/custom/PaginationControls.vue'
 
 interface GroupView {
   id: number
@@ -37,8 +39,14 @@ const router = useRouter()
 const { busy, run, error, clear } = useApi()
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
-const rows = ref<GroupView[]>([])
+const page = useCursorPage<GroupView>((cursor) =>
+  api.get<Page<GroupView>>(buildPagePath('/api/prohibitorum/groups', { cursor })),
+)
+const rows = page.items
 const createOpen = ref(false)
+const displayError = computed(() => page.error.value ?? error.value)
+const displayBusy = computed(() => page.busy.value || busy)
+function clearError(): void { page.clear(); clear() }
 
 // Create form state
 const slug = ref('')
@@ -59,11 +67,6 @@ function onSlugInput(): void {
   slugError.value = validateSlug(slug.value)
 }
 
-async function load(): Promise<void> {
-  const res = await run(() => api.get<GroupView[]>('/api/prohibitorum/groups'))
-  if (res) rows.value = res
-}
-
 function go(id: number): void { router.push(`/admin/groups/${id}`) }
 
 async function create(): Promise<void> {
@@ -79,7 +82,7 @@ async function create(): Promise<void> {
   if (res) {
     createOpen.value = false
     triggerCreated()
-    await load()
+    await page.reload()
   }
 }
 
@@ -91,8 +94,6 @@ function openCreate(): void {
   slugError.value = ''
   createOpen.value = true
 }
-
-onMounted(load)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -100,7 +101,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.groups.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.groups.create') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
     <StatusMessage :show="created">{{ t('admin.groups.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -133,7 +134,7 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="3" />
+    <TableSkeleton v-if="page.busy.value && !rows.length" :rows="5" :cols="3" />
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
@@ -161,6 +162,15 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!error && !createOpen" :icon="UsersRound" :title="t('admin.groups.empty')" />
+    <EmptyState v-else-if="!displayError && !createOpen" :icon="UsersRound" :title="t('admin.groups.empty')" />
+    <PaginationControls
+      v-if="rows.length || page.pageIndex.value > 0"
+      :page-index="page.pageIndex.value"
+      :has-more="page.hasMore.value"
+      :busy="page.busy.value"
+      :has-items="rows.length > 0"
+      @next="page.next"
+      @previous="page.previous"
+    />
   </div>
 </template>

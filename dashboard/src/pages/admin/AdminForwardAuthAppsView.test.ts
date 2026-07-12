@@ -18,9 +18,9 @@ describe('AdminForwardAuthAppsView', () => {
   beforeEach(() => { vi.clearAllMocks(); push.mockReset() })
 
   it('lists forward-auth services', async () => {
-    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue([
+    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [
       { clientId: 'fa1', displayName: 'App One', forwardAuthHost: 'app.example.test', accessRestricted: false, disabled: false, createdAt: '' },
-    ])
+    ], nextCursor: '' })
     const w = mountView()
     await flushPromises()
     expect(w.html()).toContain('App One')
@@ -28,16 +28,16 @@ describe('AdminForwardAuthAppsView', () => {
   })
 
   it('shows the empty state when there are no services', async () => {
-    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue([])
+    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView()
     await flushPromises()
     expect(w.html()).toContain(en.admin.forwardAuth.empty)
   })
 
   it('row click navigates to detail', async () => {
-    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue([
+    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [
       { clientId: 'fa1', displayName: 'App One', forwardAuthHost: 'app.example.test', accessRestricted: false, disabled: false, createdAt: '' },
-    ])
+    ], nextCursor: '' })
     const w = mountView()
     await flushPromises()
     await w.find('[data-test="fa-row-fa1"]').trigger('click')
@@ -45,7 +45,7 @@ describe('AdminForwardAuthAppsView', () => {
   })
 
   it('registers a new service and reloads the list', async () => {
-    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue([])
+    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], nextCursor: '' })
     ;(api.post as ReturnType<typeof vi.fn>).mockResolvedValue(
       { clientId: 'new-svc', displayName: 'New Service', forwardAuthHost: 'new.example.test', accessRestricted: false, disabled: false, createdAt: '' },
     )
@@ -56,9 +56,9 @@ describe('AdminForwardAuthAppsView', () => {
     await w.find('input[name="host"]').setValue('new.example.test')
     await w.find('input[name="displayName"]').setValue('New Service')
     // reload returns the new service
-    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue([
+    ;(api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [
       { clientId: 'new-svc', displayName: 'New Service', forwardAuthHost: 'new.example.test', accessRestricted: false, disabled: false, createdAt: '' },
-    ])
+    ], nextCursor: '' })
     await w.find('[data-test="create-confirm"]').trigger('click')
     await flushPromises()
     expect(api.post).toHaveBeenCalledWith('/api/prohibitorum/forward-auth-apps', expect.objectContaining({

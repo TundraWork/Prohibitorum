@@ -1,11 +1,13 @@
 <script setup lang="ts">
 /** AdminUpstreamIdpsView (/admin/identity-providers) — list upstream IdPs; inline create (sudo). */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useCursorPage } from '@/composables/useCursorPage'
+import { type Page, buildPagePath } from '@/lib/pagination'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,6 +26,7 @@ import FormSection from '@/components/custom/FormSection.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { Link2 } from 'lucide-vue-next'
 
 export interface IdentityProvider {
@@ -39,7 +42,12 @@ const { t } = useI18n()
 const router = useRouter()
 const { busy, run, error, clear } = useApi()
 
-const rows = ref<IdentityProvider[]>([])
+const page = useCursorPage<IdentityProvider>((cursor) =>
+  api.get<Page<IdentityProvider>>(buildPagePath('/api/prohibitorum/identity-providers', { cursor })),
+)
+const rows = page.items
+const displayError = computed(() => page.error.value ?? error.value)
+function clearError(): void { page.clear(); clear() }
 const createOpen = ref(false)
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
@@ -62,10 +70,7 @@ function modeLabel(m: string): string {
 }
 function go(s: string): void { router.push(`/admin/identity-providers/${s}`) }
 
-async function load(): Promise<void> {
-  const res = await run(() => api.get<IdentityProvider[]>('/api/prohibitorum/identity-providers'))
-  if (res) rows.value = res
-}
+
 
 function openCreate(): void {
   slug.value = ''; displayName.value = ''; issuerUrl.value = ''; clientId.value = ''
@@ -90,10 +95,9 @@ async function create(): Promise<void> {
     body.requireVerifiedEmail = requireVerifiedEmail.value
   }
   const res = await run(() => withSudo(() => api.post<IdentityProvider>('/api/prohibitorum/identity-providers', body)))
-  if (res) { createOpen.value = false; triggerCreated(); await load() }
+  if (res) { createOpen.value = false; triggerCreated(); await page.reload() }
 }
 
-onMounted(load)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -102,7 +106,7 @@ onMounted(load)
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.upstream.create') }}</Button>
     </div>
     <p class="text-sm text-muted">{{ t('admin.upstream.poweredNote') }}</p>
-    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
     <StatusMessage :show="created">{{ t('admin.upstream.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -190,7 +194,7 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="3" />
+    <TableSkeleton v-if="page.busy.value && !rows.length" :rows="5" :cols="3" />
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
@@ -218,6 +222,15 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!error && !createOpen" :icon="Link2" :title="t('admin.upstream.empty')" />
+    <EmptyState v-else-if="!displayError && !createOpen" :icon="Link2" :title="t('admin.upstream.empty')" />
+    <PaginationControls
+      v-if="rows.length || page.pageIndex.value > 0"
+      :page-index="page.pageIndex.value"
+      :has-more="page.hasMore.value"
+      :busy="page.busy.value"
+      :has-items="rows.length > 0"
+      @next="page.next"
+      @previous="page.previous"
+    />
   </div>
 </template>

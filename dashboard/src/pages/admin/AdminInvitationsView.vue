@@ -4,11 +4,13 @@
  * invitations. Create is an inline form (not a ConfirmDialog — creating isn't
  * destructive). The list returns the full URL, so it stays copyable per row.
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useCursorPage } from '@/composables/useCursorPage'
+import { type Page, buildPagePath, unwrap } from '@/lib/pagination'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
@@ -24,6 +26,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { Mail } from 'lucide-vue-next'
 
 interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string }
@@ -31,30 +34,30 @@ interface Idp { slug: string; displayName: string; disabled: boolean }
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
 const IDP_NONE = '__none__'
-const rows = ref<Invitation[]>([])
+const page = useCursorPage<Invitation>((cursor) =>
+  api.get<Page<Invitation>>(buildPagePath('/api/prohibitorum/invitations', { cursor })),
+)
+const rows = page.items
 const idps = ref<Idp[]>([])
 const createOpen = ref(false)
 const newRole = ref<'admin' | 'user'>('user')
 const newIdp = ref(IDP_NONE)
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 const revokeToken = ref<string | null>(null)
+const displayError = computed(() => page.error.value ?? error.value)
+function clearError(): void { page.clear(); clear() }
 function idpDisplayName(slug: string | undefined): string {
   if (!slug) return '—'
   const found = idps.value.find((i) => i.slug === slug)
   return found ? found.displayName : slug
 }
-async function load(): Promise<void> {
-  const [res] = await Promise.all([
-    run(() => api.get<Invitation[]>('/api/prohibitorum/invitations')),
-    (async () => {
-      try {
-        idps.value = (await api.get<Idp[]>('/api/prohibitorum/identity-providers')).filter((i) => !i.disabled)
-      } catch {
-        idps.value = []
-      }
-    })(),
-  ])
-  if (res) rows.value = res
+async function loadIdps(): Promise<void> {
+  try {
+    const res = await api.get<Page<Idp>>(buildPagePath('/api/prohibitorum/identity-providers', { limit: 100 }))
+    idps.value = unwrap(res).items.filter((i) => !i.disabled)
+  } catch {
+    idps.value = []
+  }
 }
 async function create(): Promise<void> {
   const body: Record<string, unknown> = { role: newRole.value }
@@ -64,7 +67,7 @@ async function create(): Promise<void> {
     await api.post('/api/prohibitorum/invitations', body)
     return true as const
   }))
-  if (ok) { createOpen.value = false; triggerCreated(); newIdp.value = IDP_NONE; await load() }
+  if (ok) { createOpen.value = false; triggerCreated(); newIdp.value = IDP_NONE; await page.reload() }
 }
 async function revoke(): Promise<void> {
   const token = revokeToken.value
@@ -74,9 +77,10 @@ async function revoke(): Promise<void> {
     return true as const
   }))
   revokeToken.value = null
-  if (ok) await load()
+  if (ok) await page.reload()
 }
-onMounted(load)
+
+onMounted(loadIdps)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -84,7 +88,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.invitations.title') }}</h1>
       <Button type="button" data-test="create" @click="createOpen = true">{{ t('admin.invitations.create') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
     <StatusMessage :show="created">{{ t('admin.invitations.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -114,7 +118,7 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="6" />
+    <TableSkeleton v-if="page.busy.value && !rows.length" :rows="5" :cols="6" />
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
@@ -137,11 +141,20 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!error" :icon="Mail" :title="t('admin.invitations.empty')" />
+    <EmptyState v-else-if="!displayError" :icon="Mail" :title="t('admin.invitations.empty')" />
 
     <ConfirmDialog :open="revokeToken !== null" :title="t('admin.invitations.revokeConfirmTitle')" :confirm-label="t('admin.invitations.revoke')" :busy="busy"
       @update:open="(v) => { if (!v) revokeToken = null }" @cancel="revokeToken = null" @confirm="revoke">
       {{ t('admin.invitations.revokeConfirmBody') }}
     </ConfirmDialog>
+    <PaginationControls
+      v-if="rows.length || page.pageIndex.value > 0"
+      :page-index="page.pageIndex.value"
+      :has-more="page.hasMore.value"
+      :busy="page.busy.value"
+      :has-items="rows.length > 0"
+      @next="page.next"
+      @previous="page.previous"
+    />
   </div>
 </template>

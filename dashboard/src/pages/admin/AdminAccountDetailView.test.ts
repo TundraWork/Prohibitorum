@@ -43,11 +43,11 @@ const TOKENS = [
 // /accounts/7/groups → account groups; /groups (exact) → all groups (picker)
 function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, acctGroups = GROUPS_FOR_ACCOUNT, allGroupsList = ALL_GROUPS, toks = TOKENS) {
   get.mockImplementation(async (p: string) => {
-    if (p.endsWith('/credentials')) return creds
-    if (p.endsWith('/sessions')) return sess
-    if (p.endsWith('/tokens')) return toks
-    if (p === '/api/prohibitorum/groups') return allGroupsList
-    if (p.endsWith('/groups')) return acctGroups
+    if (p.endsWith('/credentials')) return { items: creds, nextCursor: '' }
+    if (p.endsWith('/sessions')) return { items: sess, nextCursor: '' }
+    if (p.endsWith('/tokens')) return { items: toks, nextCursor: '' }
+    if (p.startsWith('/api/prohibitorum/groups')) return { items: allGroupsList, nextCursor: '' }
+    if (p.endsWith('/groups')) return { items: acctGroups, nextCursor: '' }
     return account
   })
 }
@@ -329,7 +329,7 @@ describe('AdminAccountDetailView', () => {
     // addableGroups must contain only group 20.
     mockGets()
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/groups')
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/groups'))
     const vm = w.vm as unknown as {
       accountGroups: Array<{ id: number }>
       allGroups: Array<{ id: number; displayName: string }>

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-/** AdminAccountsView (/admin/accounts) — table of accounts; row → detail. */
-import { computed, onMounted, ref } from 'vue'
+/** AdminAccountsView (/admin/accounts) — paginated table of accounts; row → detail. */
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
-import { useApi } from '@/composables/useApi'
+import { useCursorPage } from '@/composables/useCursorPage'
+import { type Page, buildPagePath } from '@/lib/pagination'
 import { relativeTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +15,7 @@ import UserAvatar from '@/components/custom/UserAvatar.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { Users } from 'lucide-vue-next'
 
 interface Account {
@@ -22,9 +24,12 @@ interface Account {
 }
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, error, clear } = useApi()
-const rows = ref<Account[]>([])
 const filter = ref('')
+
+const page = useCursorPage<Account>((cursor) =>
+  api.get<Page<Account>>(buildPagePath('/api/prohibitorum/accounts', { cursor })),
+)
+const rows = page.items
 
 const filteredRows = computed(() => {
   const q = filter.value.trim().toLowerCase()
@@ -34,12 +39,7 @@ const filteredRows = computed(() => {
   )
 })
 
-async function load(): Promise<void> {
-  const res = await run(() => api.get<Account[]>('/api/prohibitorum/accounts'))
-  if (res) rows.value = res
-}
 function go(id: number): void { router.push(`/admin/accounts/${id}`) }
-onMounted(load)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -47,11 +47,11 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.accounts.title') }}</h1>
       <Button type="button" data-test="invite" @click="router.push('/admin/invitations')">{{ t('admin.accounts.invite') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
-    <Input v-if="!busy || rows.length" v-model="filter" type="search" data-test="accounts-filter"
+    <ErrorPanel :error="page.error.value" @dismiss="page.clear" :is-admin="true" />
+    <Input v-if="!page.busy.value || rows.length" v-model="filter" type="search" data-test="accounts-filter"
            :aria-label="t('admin.accounts.filterPlaceholder')"
            :placeholder="t('admin.accounts.filterPlaceholder')" class="max-w-xs" />
-    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="4" />
+    <TableSkeleton v-if="page.busy.value && !rows.length" :rows="5" :cols="4" />
     <template v-else-if="rows.length">
       <Table v-if="filteredRows.length">
         <TableHeader>
@@ -83,6 +83,15 @@ onMounted(load)
       </Table>
       <p v-else class="text-sm text-muted" data-test="accounts-no-matches">{{ t('admin.accounts.noMatches') }}</p>
     </template>
-    <EmptyState v-else-if="!error" :icon="Users" :title="t('admin.accounts.empty')" />
+    <EmptyState v-else-if="!page.error.value" :icon="Users" :title="t('admin.accounts.empty')" />
+    <PaginationControls
+      v-if="rows.length || page.pageIndex.value > 0"
+      :page-index="page.pageIndex.value"
+      :has-more="page.hasMore.value"
+      :busy="page.busy.value"
+      :has-items="rows.length > 0"
+      @next="page.next"
+      @previous="page.previous"
+    />
   </div>
 </template>

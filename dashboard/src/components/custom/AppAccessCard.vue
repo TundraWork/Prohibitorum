@@ -21,6 +21,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { api } from '@/lib/api'
+import { type Page, buildPagePath, unwrap } from '@/lib/pagination'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
@@ -48,8 +49,8 @@ interface AccessAccount {
 
 interface AccessView {
   accessRestricted: boolean
-  groups: AccessGroup[]
-  accounts: AccessAccount[]
+  groups: Page<AccessGroup>
+  accounts: Page<AccessAccount>
 }
 
 const props = defineProps<{
@@ -108,19 +109,19 @@ async function loadAccess(): Promise<void> {
   const res = await accessApi.run(() => api.get<AccessView>(`${basePath.value}/access`))
   if (res) {
     accessRestricted.value = res.accessRestricted ?? false
-    assignedGroups.value = res.groups ?? []
-    assignedAccounts.value = res.accounts ?? []
+    assignedGroups.value = res.groups?.items ?? []
+    assignedAccounts.value = res.accounts?.items ?? []
   }
 }
 
 async function loadAllGroups(): Promise<void> {
-  const res = await groupsApi.run(() => api.get<AccessGroup[]>('/api/prohibitorum/groups'))
-  if (Array.isArray(res)) allGroups.value = res
+  const res = await groupsApi.run(() => api.get<Page<AccessGroup>>(buildPagePath('/api/prohibitorum/groups', { limit: 100 })))
+  if (res) allGroups.value = unwrap(res).items
 }
 
 async function loadAllAccounts(): Promise<void> {
-  const res = await accountsApi.run(() => api.get<AccessAccount[]>('/api/prohibitorum/accounts'))
-  if (Array.isArray(res)) allAccounts.value = res
+  const res = await accountsApi.run(() => api.get<Page<AccessAccount>>(buildPagePath('/api/prohibitorum/accounts', { limit: 100 })))
+  if (res) allAccounts.value = unwrap(res).items
 }
 
 async function toggleRestricted(): Promise<void> {

@@ -24,6 +24,12 @@ export default {
     dismiss: '忽略',
     yes: '是',
     no: '否',
+    pagination: {
+      label: '分页',
+      previous: '上一页',
+      next: '下一页',
+      page: '第 {n} 页',
+    },
   },
 
   scopeSelector: {

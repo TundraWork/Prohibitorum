@@ -22,7 +22,7 @@ beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
 describe('AdminGroupsView', () => {
   it('lists groups with stacked name/slug cells and exposed badge', async () => {
-    get.mockResolvedValue(GROUPS)
+    get.mockResolvedValue({ items: GROUPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/groups')
     expect(w.text()).toContain('Engineering')
@@ -33,27 +33,27 @@ describe('AdminGroupsView', () => {
   })
 
   it('row click navigates to detail', async () => {
-    get.mockResolvedValue(GROUPS)
+    get.mockResolvedValue({ items: GROUPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="group-row-1"]').trigger('click')
     expect(push).toHaveBeenCalledWith('/admin/groups/1')
   })
 
   it('row is keyboard-activatable (Enter)', async () => {
-    get.mockResolvedValue(GROUPS)
+    get.mockResolvedValue({ items: GROUPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="group-row-2"]').trigger('keydown.enter')
     expect(push).toHaveBeenCalledWith('/admin/groups/2')
   })
 
   it('shows empty state when no groups', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.groups.empty)
   })
 
   it('creates a group and shows created note', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockResolvedValue({ id: 3, slug: 'admins', displayName: 'Admins', exposedToDownstream: false, memberCount: 0, createdAt: '2026-01-03T00:00:00Z' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
@@ -67,7 +67,7 @@ describe('AdminGroupsView', () => {
   })
 
   it('rejects invalid slug client-side', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     await w.find('input[name="slug"]').setValue('BAD SLUG!')
@@ -77,7 +77,7 @@ describe('AdminGroupsView', () => {
   })
 
   it('surfaces group_slug_conflict error', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockRejectedValue({ code: 'group_slug_conflict', message: 'zh' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')

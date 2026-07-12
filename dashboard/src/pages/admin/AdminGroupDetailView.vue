@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
+import { type Page, buildPagePath, unwrap } from '@/lib/pagination'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
@@ -106,13 +107,13 @@ async function load(): Promise<void> {
 }
 
 async function loadMembers(): Promise<void> {
-  const res = await memberApi.run(() => api.get<GroupMemberView[]>(`/api/prohibitorum/groups/${groupId}/members`))
-  if (res) members.value = res
+  const res = await memberApi.run(() => api.get<Page<GroupMemberView>>(buildPagePath(`/api/prohibitorum/groups/${groupId}/members`, { limit: 100 })))
+  if (res) members.value = unwrap(res).items
 }
 
 async function loadAccounts(): Promise<void> {
-  const res = await accountsApi.run(() => api.get<Account[]>('/api/prohibitorum/accounts'))
-  if (res) allAccounts.value = res
+  const res = await accountsApi.run(() => api.get<Page<Account>>(buildPagePath('/api/prohibitorum/accounts', { limit: 100 })))
+  if (res) allAccounts.value = unwrap(res).items
 }
 
 async function save(): Promise<void> {

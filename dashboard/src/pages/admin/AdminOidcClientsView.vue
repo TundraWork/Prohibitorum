@@ -1,11 +1,13 @@
 <script setup lang="ts">
 /** AdminOidcClientsView (/admin/oidc-applications) — table of OIDC clients; inline create with reveal-once secret. */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
+import { useCursorPage } from '@/composables/useCursorPage'
+import { type Page, buildPagePath } from '@/lib/pagination'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,6 +25,7 @@ import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { AppWindow } from 'lucide-vue-next'
 
 interface OidcApplication {
@@ -43,7 +46,12 @@ const router = useRouter()
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
 const { busy, run, error, clear } = useApi()
 
-const rows = ref<OidcApplication[]>([])
+const page = useCursorPage<OidcApplication>((cursor) =>
+  api.get<Page<OidcApplication>>(buildPagePath('/api/prohibitorum/oidc-applications', { cursor })),
+)
+const rows = page.items
+const displayError = computed(() => page.error.value ?? error.value)
+function clearError(): void { page.clear(); clear() }
 const createOpen = ref(false)
 const created = ref(false)
 const revealedSecret = ref('')
@@ -66,10 +74,7 @@ function validateUri(s: string): string | null {
   }
 }
 
-async function load(): Promise<void> {
-  const res = await run(() => api.get<OidcApplication[]>('/api/prohibitorum/oidc-applications'))
-  if (res) rows.value = res
-}
+
 
 function go(id: string): void { router.push(`/admin/oidc-applications/${id}`) }
 
@@ -88,7 +93,7 @@ async function create(): Promise<void> {
     createOpen.value = false
     revealedSecret.value = res.secret ?? ''
     created.value = true
-    await load()
+    await page.reload()
   }
 }
 
@@ -106,7 +111,6 @@ function openCreate(): void {
   createOpen.value = true
 }
 
-onMounted(load)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -114,7 +118,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.oidc.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
     </div>
-    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
     <StatusMessage :show="created && !revealedSecret">{{ t('admin.oidc.created') }}</StatusMessage>
 
     <template v-if="created && revealedSecret">
@@ -169,7 +173,7 @@ onMounted(load)
       </CardContent>
     </Card>
 
-    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="3" />
+    <TableSkeleton v-if="page.busy.value && !rows.length" :rows="5" :cols="3" />
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
@@ -201,6 +205,15 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!error && !createOpen" :icon="AppWindow" :title="t('admin.oidc.empty')" />
+    <EmptyState v-else-if="!displayError && !createOpen" :icon="AppWindow" :title="t('admin.oidc.empty')" />
+    <PaginationControls
+      v-if="rows.length || page.pageIndex.value > 0"
+      :page-index="page.pageIndex.value"
+      :has-more="page.hasMore.value"
+      :busy="page.busy.value"
+      :has-items="rows.length > 0"
+      @next="page.next"
+      @previous="page.previous"
+    />
   </div>
 </template>

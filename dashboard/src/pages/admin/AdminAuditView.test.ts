@@ -22,7 +22,7 @@ describe('AdminAuditView', () => {
     const url = get.mock.calls[0]![0] as string
     expect(url).toContain('limit=50')
     expect(url).toContain('since=')   // 24h preset adds since
-    expect(url).not.toContain('before=')
+    expect(url).not.toContain('cursor=')
     expect(w.text()).toContain('rotate')
   })
 
@@ -44,7 +44,7 @@ describe('AdminAuditView', () => {
     await w.find('[data-test="preset-1h"]').trigger('click'); await flushPromises()
     const url = get.mock.calls.at(-1)![0] as string
     expect(url).toContain('limit=50')
-    expect(url).not.toContain('before=')
+    expect(url).not.toContain('cursor=')
     const sinceMatch = url.match(/since=([^&]+)/)
     expect(sinceMatch).not.toBeNull()
     const sinceMs = new Date(decodeURIComponent(sinceMatch![1])).getTime()
@@ -52,13 +52,13 @@ describe('AdminAuditView', () => {
     expect(sinceMs).toBeLessThan(before)
   })
 
-  it('Next page sends before=<lastId> and REPLACES rows (not appends)', async () => {
-    get.mockResolvedValueOnce(page(100, 50)).mockResolvedValueOnce(page(50, 3))
+  it('Next page sends cursor and REPLACES rows and REPLACES rows (not appends)', async () => {
+    get.mockResolvedValueOnce(page(100, 50, 'cursor-2')).mockResolvedValueOnce(page(50, 3))
     const w = mountView(); await flushPromises()
     expect(w.find('[data-test="next-page"]').exists()).toBe(true)
     await w.find('[data-test="next-page"]').trigger('click'); await flushPromises()
     const url = get.mock.calls.at(-1)![0] as string
-    expect(url).toContain('before=51')
+    expect(url).toContain('cursor=')
     expect(w.find('[data-test="next-page"]').exists()).toBe(false)
     // replaced, not appended: only 3 rows from page 2
     expect(w.findAll('[data-test^="expand-"]').length).toBe(3)
@@ -67,7 +67,7 @@ describe('AdminAuditView', () => {
   })
 
   it('Prev page returns to page 1 using the stored cursor', async () => {
-    get.mockResolvedValueOnce(page(100, 50)).mockResolvedValueOnce(page(50, 10))
+    get.mockResolvedValueOnce(page(100, 50, 'cursor-2')).mockResolvedValueOnce(page(50, 10))
     const w = mountView(); await flushPromises()
     // go to page 2
     await w.find('[data-test="next-page"]').trigger('click'); await flushPromises()
@@ -76,21 +76,21 @@ describe('AdminAuditView', () => {
     get.mockResolvedValueOnce(page(100, 50))
     await w.find('[data-test="prev-page"]').trigger('click'); await flushPromises()
     const url = get.mock.calls.at(-1)![0] as string
-    expect(url).not.toContain('before=')
+    expect(url).not.toContain('cursor=')
     // restored to 50 rows
     expect(w.findAll('[data-test^="expand-"]').length).toBe(50)
     expect(w.find('[data-test="page-indicator"]').text()).toContain('1')
   })
 
   it('applying a filter resets to page 1', async () => {
-    get.mockResolvedValueOnce(page(100, 50)).mockResolvedValueOnce(page(50, 10))
+    get.mockResolvedValueOnce(page(100, 50, 'cursor-2')).mockResolvedValueOnce(page(50, 10))
     const w = mountView(); await flushPromises()
     await w.find('[data-test="next-page"]').trigger('click'); await flushPromises()
     // apply filter resets
     get.mockResolvedValue(page(100, 5))
     await w.find('[data-test="apply"]').trigger('click'); await flushPromises()
     const url = get.mock.calls.at(-1)![0] as string
-    expect(url).not.toContain('before=')
+    expect(url).not.toContain('cursor=')
     expect(w.find('[data-test="page-indicator"]').text()).toContain('1')
   })
 
@@ -138,7 +138,7 @@ describe('AdminAuditView', () => {
   })
 
   it('shows empty-state when no events', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.audit.empty)
   })

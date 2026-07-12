@@ -1,9 +1,10 @@
 <script setup lang="ts">
-/** AdminAuditView (/admin/audit) — filterable, keyset-paginated audit log. */
-import { computed, onMounted, ref } from 'vue'
+/** AdminAuditView (/admin/audit) — filterable, cursor-paginated audit log. */
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
-import { useApi } from '@/composables/useApi'
+import { useCursorPage } from '@/composables/useCursorPage'
+import { type Page, buildPagePath } from '@/lib/pagination'
 import { AUDIT_FACTORS, AUDIT_EVENTS } from '@/lib/audit'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,21 +15,18 @@ import { formatDateTime } from '@/lib/time'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { FileX, X } from 'lucide-vue-next'
 
 interface AuditEvent {
   id: number; at: string; accountId?: number; factor: string; event: string
   ip?: string; userAgent?: string; detail?: Record<string, unknown>
 }
-const LIMIT = 50
 
 type Preset = '15m' | '1h' | '24h' | '7d' | 'custom' | 'all'
 
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
 
-const rows = ref<AuditEvent[]>([])
-const hasMore = ref(false)
 const expanded = ref<Record<number, boolean>>({})
 
 // Enumerated filters
@@ -40,11 +38,6 @@ const accountId = ref('')
 const preset = ref<Preset>('24h')
 const since = ref('')
 const until = ref('')
-
-// Pagination cursor stack: pageCursors[i] = the `before` param to fetch page i.
-// Page 0 uses undefined (no before = newest).
-const pageCursors = ref<(number | undefined)[]>([undefined])
-const pageIndex = ref(0)
 
 // Derive since/until from preset (at query time)
 function presetSince(): string {
@@ -62,7 +55,8 @@ function presetSince(): string {
   return new Date(now - delta).toISOString()
 }
 
-function buildQuery(before?: number): string {
+function buildAuditPath(cursor: string): string {
+  let base = '/api/prohibitorum/audit-events'
   const p = new URLSearchParams()
   if (factor.value) p.set('factor', factor.value)
   if (event.value) p.set('event', event.value)
@@ -70,44 +64,20 @@ function buildQuery(before?: number): string {
   const s = presetSince()
   if (s) p.set('since', s)
   if (preset.value === 'custom' && until.value) p.set('until', new Date(until.value).toISOString())
-  if (before !== undefined) p.set('before', String(before))
-  p.set('limit', String(LIMIT))
-  return `/api/prohibitorum/audit-events?${p.toString()}`
+  const qs = p.toString()
+  if (qs) base += `?${qs}`
+  return buildPagePath(base, { cursor, limit: 50 })
 }
 
-async function fetchPage(before?: number): Promise<AuditEvent[] | undefined> {
-  return run(() => api.get<AuditEvent[]>(buildQuery(before)))
-}
+const page = useCursorPage<AuditEvent>((cursor) =>
+  api.get<Page<AuditEvent>>(buildAuditPath(cursor)),
+)
+const rows = page.items
+const displayError = page.error
+const displayBusy = page.busy
+function clearError(): void { page.clear() }
 
-async function reload(): Promise<void> {
-  expanded.value = {}
-  hasMore.value = false
-  pageCursors.value = [undefined]
-  pageIndex.value = 0
-  const res = await fetchPage()
-  if (res) { rows.value = res; hasMore.value = res.length === LIMIT }
-}
-
-async function goNext(): Promise<void> {
-  const last = rows.value.at(-1)
-  if (!last) return
-  const nextBefore = last.id
-  const newIndex = pageIndex.value + 1
-  pageCursors.value = [...pageCursors.value.slice(0, pageIndex.value + 1), nextBefore]
-  pageIndex.value = newIndex
-  expanded.value = {}
-  const res = await fetchPage(nextBefore)
-  if (res) { rows.value = res; hasMore.value = res.length === LIMIT }
-}
-
-async function goPrev(): Promise<void> {
-  if (pageIndex.value <= 0) return
-  pageIndex.value--
-  expanded.value = {}
-  const before = pageCursors.value[pageIndex.value]
-  const res = await fetchPage(before)
-  if (res) { rows.value = res; hasMore.value = res.length === LIMIT }
-}
+function reload(): Promise<void> { return page.reset() }
 
 function applyPreset(p: Preset): void {
   preset.value = p
@@ -153,13 +123,11 @@ const presets: { value: Preset; labelKey: string }[] = [
   { value: 'all', labelKey: 'admin.audit.presetAll' },
   { value: 'custom', labelKey: 'admin.audit.presetCustom' },
 ]
-
-onMounted(reload)
 </script>
 <template>
   <div class="flex max-w-5xl flex-col gap-6">
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.audit.title') }}</h1>
-    <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
+    <ErrorPanel :error="displayError" @dismiss="clearError" :is-admin="true" />
 
     <!-- Time-range preset pills -->
     <div class="flex flex-wrap gap-1.5" role="group" :aria-label="t('admin.audit.filterSince')">
@@ -225,8 +193,8 @@ onMounted(reload)
     </div>
 
     <div class="flex gap-2">
-      <Button type="button" :disabled="busy" data-test="apply" @click="reload">{{ t('admin.audit.apply') }}</Button>
-      <Button type="button" variant="outline" :disabled="busy" data-test="clear" @click="clearFilters">{{ t('admin.audit.clear') }}</Button>
+      <Button type="button" :disabled="displayBusy" data-test="apply" @click="reload">{{ t('admin.audit.apply') }}</Button>
+      <Button type="button" variant="outline" :disabled="displayBusy" data-test="clear" @click="clearFilters">{{ t('admin.audit.clear') }}</Button>
     </div>
 
     <!-- Active filter pills -->
@@ -250,7 +218,7 @@ onMounted(reload)
       </span>
     </div>
 
-    <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="5" />
+    <TableSkeleton v-if="displayBusy && !rows.length" :rows="5" :cols="5" />
     <Table v-else-if="rows.length">
       <TableHeader>
         <TableRow>
@@ -292,27 +260,15 @@ onMounted(reload)
         </template>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!error" :icon="FileX" :title="t('admin.audit.empty')" />
+    <EmptyState v-else-if="!displayError" :icon="FileX" :title="t('admin.audit.empty')" />
 
-    <!-- Prev / Next pagination -->
-    <div class="flex items-center gap-3">
-      <Button
-        v-if="pageIndex > 0"
-        type="button"
-        variant="outline"
-        :disabled="busy"
-        data-test="prev-page"
-        @click="goPrev"
-      >{{ t('admin.audit.prevPage') }}</Button>
-      <span v-if="rows.length" class="text-sm text-muted" data-test="page-indicator">{{ t('admin.audit.pageIndicator', { n: pageIndex + 1 }) }}</span>
-      <Button
-        v-if="hasMore"
-        type="button"
-        variant="outline"
-        :disabled="busy"
-        data-test="next-page"
-        @click="goNext"
-      >{{ t('admin.audit.nextPage') }}</Button>
-    </div>
+    <PaginationControls
+      :page-index="page.pageIndex.value"
+      :has-more="page.hasMore.value"
+      :busy="displayBusy"
+      :has-items="rows.length > 0"
+      @next="page.next"
+      @previous="page.previous"
+    />
   </div>
 </template>

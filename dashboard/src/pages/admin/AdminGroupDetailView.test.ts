@@ -53,7 +53,9 @@ const ACCOUNTS = [
 /** Wire get() to dispatch by URL so concurrent calls resolve independently */
 function mockGetByUrl(map: Record<string, unknown>) {
   get.mockImplementation((url: string) => {
-    if (url in map) return Promise.resolve(map[url])
+    // Match by path without query params (buildPagePath adds ?limit=100 etc.)
+    const path = url.split('?')[0]
+    if (path in map) return Promise.resolve(map[path])
     return Promise.reject({ code: 'server_error', message: `unmocked GET ${url}` })
   })
 }
@@ -64,8 +66,8 @@ describe('AdminGroupDetailView', () => {
   it('group load populates the edit fields (displayName, slug, description, exposed)', async () => {
     mockGetByUrl({
       '/api/prohibitorum/groups/7': GROUP,
-      '/api/prohibitorum/groups/7/members': MEMBERS,
-      '/api/prohibitorum/accounts': ACCOUNTS,
+      '/api/prohibitorum/groups/7/members': { items: MEMBERS, nextCursor: '' },
+      '/api/prohibitorum/accounts': { items: ACCOUNTS, nextCursor: '' },
     })
     const w = mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/groups/7')
@@ -91,7 +93,7 @@ describe('AdminGroupDetailView', () => {
     const w = mountView(); await flushPromises()
 
     // The key assertion: GET /accounts must have been called (not skipped by the busy guard)
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts')
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/accounts'))
 
     // Verify allAccounts and addableAccounts via the component's reactive state.
     // vue-test-utils exposes <script setup> variables on the vm instance.
