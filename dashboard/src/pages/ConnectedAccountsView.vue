@@ -21,6 +21,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import AppIcon from '@/components/custom/AppIcon.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface Identity {
   id: number
@@ -32,7 +33,7 @@ interface Identity {
 interface Provider { slug: string; displayName: string; iconUrl?: string | null }
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const identities = ref<Identity[]>([])
 const providers = ref<Provider[]>([])
@@ -79,9 +80,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('connected.title') }}</h1>
     <p class="text-sm text-muted">{{ t('connected.help') }}</p>
 
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
 
     <TableSkeleton v-if="busy && !identities.length" :rows="3" :cols="1" />
     <template v-else-if="identities.length">
@@ -104,7 +103,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
       </Card>
     </template>
 
-    <EmptyState v-else-if="!errorText" :title="t('connected.empty')" />
+    <EmptyState v-else-if="!error" :title="t('connected.empty')" />
 
     <Card>
       <CardHeader>

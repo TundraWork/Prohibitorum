@@ -13,6 +13,7 @@
  * errors.<code> (fallback message). `busy` reflects both the network calls
  * and the in-browser ceremony, so the button is disabled throughout.
  */
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'
@@ -34,13 +35,6 @@ const { busy: waBusy, error: waError, authenticate } = useWebauthn()
 
 const busy = computed(() => netBusy.value || waBusy.value)
 const error = computed(() => netError.value ?? waError.value)
-
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 
 async function signIn(): Promise<void> {
   // 1) begin — fetch the WebAuthn request options.
@@ -75,8 +69,6 @@ async function signIn(): Promise<void> {
     </Button>
     <p class="text-center text-sm text-muted">{{ t('login.passkeyHint') }}</p>
 
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <ErrorPanel :error="error" @dismiss="() => { netError = null; waError = null }" />
   </div>
 </template>

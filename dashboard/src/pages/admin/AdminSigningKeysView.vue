@@ -13,6 +13,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { formatDateTime } from '@/lib/time'
 import { KeyRound } from 'lucide-vue-next'
 
@@ -24,7 +25,7 @@ interface SigningKey {
 type Variant = 'neutral' | 'success' | 'caution' | 'danger' | 'info'
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const rows = ref<SigningKey[]>([])
 const viewJwkKid = ref<string | null>(null)
@@ -84,7 +85,7 @@ onMounted(load)
       </div>
       <Button type="button" data-test="generate" @click="confirmGenerate = true">{{ t('admin.signingKeys.generate') }}</Button>
     </div>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
 
     <TableSkeleton v-if="busy && !rows.length" :rows="5" :cols="5" />
     <Table v-else-if="rows.length">
@@ -113,7 +114,7 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText" :icon="KeyRound" :title="t('admin.signingKeys.empty')" />
+    <EmptyState v-else-if="!error" :icon="KeyRound" :title="t('admin.signingKeys.empty')" />
 
     <Dialog v-model:open="viewJwkOpen">
       <DialogContent class="max-w-2xl">

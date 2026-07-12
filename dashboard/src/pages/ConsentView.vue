@@ -32,6 +32,7 @@ import ConsentScopeList from '@/components/custom/ConsentScopeList.vue'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { Info } from 'lucide-vue-next'
 
 interface ConsentClient {
@@ -54,7 +55,7 @@ interface ConsentResult {
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const ticket = String(route.query.ticket ?? '')
 const returnTo = String(route.query.return_to ?? '')
@@ -141,9 +142,7 @@ async function decide(decision: 'approve' | 'deny'): Promise<void> {
 
           <p class="text-xs text-muted">{{ t('consent.manageHint') }}</p>
         </div>
-        <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-          <AlertDescription>{{ errorText }}</AlertDescription>
-        </Alert>
+        <ErrorPanel :error="error" @dismiss="clear" />
       </template>
       <template #actions>
         <div class="flex gap-3">

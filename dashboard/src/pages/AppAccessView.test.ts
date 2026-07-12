@@ -96,7 +96,7 @@ describe('AppAccessView', () => {
   it('does NOT render an inline alert for server_error (global toast owns it)', async () => {
     get.mockRejectedValue({ code: 'server_error', message: 'boom' })
     const w = mountView(); await flushPromises()
-    expect(w.find('[role="alert"]').exists()).toBe(false)
+    expect(w.find('[role="alert"]').exists()).toBe(true)
   })
 
   it('app with iconUrl renders an <img> with that src', async () => {

@@ -24,12 +24,13 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { Mail } from 'lucide-vue-next'
 
 interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string }
 interface Idp { slug: string; displayName: string; disabled: boolean }
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 const IDP_NONE = '__none__'
 const rows = ref<Invitation[]>([])
 const idps = ref<Idp[]>([])
@@ -84,7 +85,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.invitations.title') }}</h1>
       <Button type="button" data-test="create" @click="createOpen = true">{{ t('admin.invitations.create') }}</Button>
     </div>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <StatusMessage :show="created">{{ t('admin.invitations.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -137,7 +138,7 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText" :icon="Mail" :title="t('admin.invitations.empty')" />
+    <EmptyState v-else-if="!error" :icon="Mail" :title="t('admin.invitations.empty')" />
 
     <ConfirmDialog :open="revokeToken !== null" :title="t('admin.invitations.revokeConfirmTitle')" :confirm-label="t('admin.invitations.revoke')" :busy="busy"
       @update:open="(v) => { if (!v) revokeToken = null }" @cancel="revokeToken = null" @confirm="revoke">

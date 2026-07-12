@@ -16,12 +16,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import TotpQr from '@/components/custom/TotpQr.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import RecoveryCodesDisplay from '@/components/custom/RecoveryCodesDisplay.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 const props = defineProps<{ partialToken: string }>()
 const emit = defineEmits<{ success: []; restart: [] }>()
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const phase = ref<'code' | 'reenroll' | 'done'>('code')
 const recoveryCode = ref('')
@@ -55,7 +56,7 @@ async function verifyReenroll(): Promise<void> {
 </script>
 <template>
   <div class="flex flex-col gap-4">
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
 
     <template v-if="phase === 'code'">
       <h2 class="text-base font-semibold text-ink">{{ t('recovery.title') }}</h2>

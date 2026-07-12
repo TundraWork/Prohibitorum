@@ -55,7 +55,7 @@ describe('AdminSamlProviderDetailView', () => {
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.saml.delete); await flushPromises()
     expect(push).not.toHaveBeenCalled()
-    expect(w.text()).toContain(en.errors.credential_not_found)
+    expect(w.text()).toContain(en.errors.codes.credential_not_found)
   })
   it('disables the provider via set-disabled and flips the badge', async () => {
     get.mockResolvedValue(SP); post.mockResolvedValue({ ...SP, disabled: true })

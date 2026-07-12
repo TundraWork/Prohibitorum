@@ -73,6 +73,6 @@ describe('AccountRecovery', () => {
     await w.find('input[name="reenroll-code"]').setValue('000000')
     await w.find('[data-test="confirm-reenroll"]').trigger('click'); await flushPromises()
     expect(w.find('input[name="reenroll-code"]').exists()).toBe(true) // still in reenroll
-    expect(w.text()).toContain(en.errors.bad_credentials)
+    expect(w.text()).toContain(en.errors.codes.bad_credentials)
   })
 })

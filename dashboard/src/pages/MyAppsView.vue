@@ -16,6 +16,7 @@ import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 // A record from /me/consent. `kind` distinguishes OIDC consents from SAML
 // acknowledgements (unified in the consent-experience work); payloads without
@@ -23,7 +24,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 interface Consent { kind?: 'oidc' | 'saml'; clientId: string; scopes: string[] }
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 const auth = useAuthStore()
 const router = useRouter()
 
@@ -184,9 +185,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </div>
     </div>
 
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <StatusMessage :show="copied">{{ t('myApps.copied') }}</StatusMessage>
 
     <!-- Loading: placeholder tiles in the same grid the real apps use, so there's
@@ -238,7 +237,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <p v-else-if="!connectedApps.length && availableApps.length" role="status" class="text-sm text-muted">{{ t('myApps.connectFirst') }}</p>
     </template>
 
-    <EmptyState v-else-if="!errorText" :icon="LayoutGrid" :title="t('myApps.empty')" :description="t('myApps.emptyHelp')" />
+    <EmptyState v-else-if="!error" :icon="LayoutGrid" :title="t('myApps.empty')" :description="t('myApps.emptyHelp')" />
 
     <!-- Connect-an-app picker: authorized apps the user hasn't connected yet. -->
     <Dialog :open="pickerOpen" @update:open="pickerOpen = $event">

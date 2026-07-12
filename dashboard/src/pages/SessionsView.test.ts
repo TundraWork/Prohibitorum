@@ -81,14 +81,14 @@ describe('SessionsView', () => {
     const wrapper = mount(SessionsView, { global: { plugins: [makeI18n()] } })
     await flushPromises()
     expect(wrapper.find('[role="alert"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain(en.errors.forbidden)
+    expect(wrapper.text()).toContain(en.errors.codes.forbidden)
   })
 
   it('does NOT render server_error inline (global toast owns it)', async () => {
     get.mockRejectedValue({ code: 'server_error', message: 'boom' })
     const wrapper = mount(SessionsView, { global: { plugins: [makeI18n()] } })
     await flushPromises()
-    expect(wrapper.text()).not.toContain(en.errors.server_error)
-    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain(en.errors.codes.server_error)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
   })
 })

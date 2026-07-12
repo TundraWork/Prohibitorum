@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { Trash2, Plus } from 'lucide-vue-next'
 
 interface CredentialView {
@@ -35,17 +36,12 @@ interface CredentialView {
 }
 
 const { t, te } = useI18n()
-const { busy: netBusy, error: netError, run } = useApi()
+const { busy: netBusy, error: netError, run, clear: clearNet } = useApi()
 const { busy: waBusy, error: waError, register } = useWebauthn()
 
 const busy = computed(() => netBusy.value || waBusy.value)
-const errorText = computed(() => {
-  const e = netError.value ?? waError.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
-
+const error = computed(() => netError.value ?? waError.value)
+function clear(): void { clearNet(); waError.value = null }
 const rows = ref<CredentialView[]>([])
 const loaded = ref(false)
 const editingId = ref<number | null>(null)
@@ -111,11 +107,9 @@ onMounted(load)
     <CardContent class="flex flex-col gap-3">
       <p class="text-sm text-muted">{{ t('security.passkeys.help') }}</p>
 
-      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
+      <ErrorPanel :error="error" @dismiss="clear" />
 
-      <EmptyState v-if="loaded && rows.length === 0 && !errorText" :title="t('security.passkeys.empty')" />
+      <EmptyState v-if="loaded && rows.length === 0 && !error" :title="t('security.passkeys.empty')" />
 
       <div v-for="c in rows" :key="c.id" class="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
         <div class="flex min-w-0 flex-col gap-1">

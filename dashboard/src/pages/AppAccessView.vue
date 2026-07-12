@@ -11,11 +11,12 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import AppIcon from '@/components/custom/AppIcon.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface ConsentedApp { kind: 'oidc' | 'saml'; clientId: string; name: string; iconUrl?: string | null; scopes: string[]; grantedAt: string }
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 const apps = ref<ConsentedApp[]>([])
 const revokeTarget = ref<ConsentedApp | null>(null)
 
@@ -38,9 +39,7 @@ onMounted(load)
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('appAccess.title') }}</h1>
     <p class="text-sm text-muted">{{ t('appAccess.help') }}</p>
 
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
 
     <TableSkeleton v-if="busy && !apps.length" :rows="2" :cols="1" />
     <template v-else-if="apps.length">
@@ -64,7 +63,7 @@ onMounted(load)
         </CardContent>
       </Card>
     </template>
-    <EmptyState v-else-if="!errorText" :title="t('appAccess.empty')" />
+    <EmptyState v-else-if="!error" :title="t('appAccess.empty')" />
 
     <ConfirmDialog
       :open="revokeTarget !== null"

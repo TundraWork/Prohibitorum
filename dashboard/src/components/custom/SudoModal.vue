@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import OrDivider from '@/components/custom/OrDivider.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 const { t, te } = useI18n()
 const { busy: netBusy, error: netError, run } = useApi()
@@ -50,12 +51,6 @@ const code = ref('')
 
 const busy = computed(() => netBusy.value || waBusy.value)
 const error = computed<ApiError | null>(() => netError.value ?? waError.value)
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 const hasPasskey = computed(() => methods.value?.includes('webauthn') ?? false)
 const hasPwTotp = computed(() => methods.value?.includes('password_totp') ?? false)
 
@@ -151,9 +146,7 @@ async function doPasswordTotp(): Promise<void> {
           <Button type="submit" class="w-full" :disabled="busy">{{ t('sudo.verify') }}</Button>
         </form>
 
-        <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-          <AlertDescription>{{ errorText }}</AlertDescription>
-        </Alert>
+        <ErrorPanel :error="error" @dismiss="() => { netError = null; waError = null }" />
       </div>
 
       <DialogFooter>

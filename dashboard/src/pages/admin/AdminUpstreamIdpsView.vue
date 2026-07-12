@@ -24,6 +24,7 @@ import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { Link2 } from 'lucide-vue-next'
 
 export interface IdentityProvider {
@@ -36,7 +37,7 @@ export interface IdentityProvider {
 
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const rows = ref<IdentityProvider[]>([])
 const createOpen = ref(false)
@@ -101,7 +102,7 @@ onMounted(load)
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.upstream.create') }}</Button>
     </div>
     <p class="text-sm text-muted">{{ t('admin.upstream.poweredNote') }}</p>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <StatusMessage :show="created">{{ t('admin.upstream.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -217,6 +218,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText && !createOpen" :icon="Link2" :title="t('admin.upstream.empty')" />
+    <EmptyState v-else-if="!error && !createOpen" :icon="Link2" :title="t('admin.upstream.empty')" />
   </div>
 </template>

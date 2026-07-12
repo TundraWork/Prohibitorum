@@ -10,6 +10,7 @@ import ConsentCard from '@/components/custom/ConsentCard.vue'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface SamlConsentContext {
   sp: { id: string; displayName: string; logoUri?: string }
@@ -21,7 +22,7 @@ interface ConsentResult { redirect: string }
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const ticket = String(route.query.ticket ?? '')
 const ctx = ref<SamlConsentContext | null>(null)
@@ -74,9 +75,7 @@ async function decide(decision: 'approve' | 'decline'): Promise<void> {
           <p v-else class="text-sm text-ink">{{ t('samlConsent.genericAttributes') }}</p>
           <p class="text-xs text-muted">{{ t('samlConsent.remembered') }}</p>
         </div>
-        <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-          <AlertDescription>{{ errorText }}</AlertDescription>
-        </Alert>
+        <ErrorPanel :error="error" @dismiss="clear" />
       </template>
       <template #actions>
         <div class="flex gap-3">

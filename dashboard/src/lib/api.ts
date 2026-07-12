@@ -6,24 +6,22 @@
  * - `credentials: 'include'` is non-negotiable; enforced unconditionally.
  * - Response body is read as text first, then JSON-parsed (defensive). This
  *   means a truncated or non-JSON 5xx still produces a usable error object.
- * - Errors always conform to `ApiError` — callers get `{code, message}` regardless
- *   of what the server actually sent. Unknown error bodies get `code: 'server_error'`.
+ * - Errors always conform to `ApiError` — callers get `{code, details?,
+ *   requestId?}` regardless of what the server actually sent. The server NEVER
+ *   sends a display message; unknown/unparseable bodies get `code: 'server_error'`
+ *   with no details. The requestId is extracted from the `X-Request-ID` response
+ *   header so operators can correlate failures to diagnostic records.
  * - No global state or interceptors; composables own the busy/error lifecycle.
  */
 
-export interface ApiError {
-  code: string
-  message: string
-}
-
-function isApiError(v: unknown): v is ApiError {
-  return (
-    typeof v === 'object' &&
-    v !== null &&
-    typeof (v as Record<string, unknown>).code === 'string' &&
-    typeof (v as Record<string, unknown>).message === 'string'
-  )
-}
+/**
+ * Re-exported so callers that imported ApiError/isApiError from './api' still
+ * resolve. The canonical definitions live in errors.ts.
+ */
+export type { ApiError } from './errors'
+export { isApiError } from './errors'
+import { isApiError } from './errors'
+import { parseApiError, type ApiError } from './errors'
 
 const REQUEST_TIMEOUT_MS = 15000
 
@@ -101,7 +99,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   } catch {
     // Network failure (server down/unreachable) or AbortError (timeout). Surface
     // a typed network_error instead of leaking an uncaught TypeError/DOMException.
-    const err: ApiError = { code: 'network_error', message: 'network request failed' }
+    const err: ApiError = { code: 'network_error' }
     signalConnectionError(err)
     throw err
   } finally {
@@ -111,8 +109,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const text = await res.text()
 
   // Attempt to parse the body as JSON regardless of status.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let data: any = undefined
+  let data: unknown = undefined
   if (text) {
     try {
       data = JSON.parse(text)
@@ -122,14 +119,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 
   if (!res.ok) {
-    const err: ApiError = isApiError(data)
-      ? data
-      : { code: 'server_error', message: text || res.statusText }
+    const requestId = res.headers.get('X-Request-ID') ?? undefined
+    const err: ApiError = parseApiError(data, requestId)
     maybeSignalUnauthorized(res.status, err, method)
     maybeSignalMaintenance(res.status, err)
-    // 5xx → global connection toast, EXCEPT maintenance (503 maintenance_mode is
-    // owned by the maintenance handler, which redirects to the maintenance screen
-    // — a "server error" toast on top of that would be wrong).
+    // 5xx → global connection handler, EXCEPT maintenance (503 maintenance_mode
+    // is owned by the maintenance handler, which redirects to the maintenance
+    // screen — a connection toast on top of that would be wrong).
     if (res.status >= 500 && err.code !== 'maintenance_mode') signalConnectionError(err)
     throw err
   }
@@ -148,7 +144,7 @@ async function upload<T>(path: string, body: Blob): Promise<T> {
   try {
     res = await fetch(path, { method: 'PUT', credentials: 'include', body, signal: controller.signal })
   } catch {
-    const err: ApiError = { code: 'network_error', message: 'network request failed' }
+    const err: ApiError = { code: 'network_error' }
     signalConnectionError(err)
     throw err
   } finally {
@@ -161,17 +157,19 @@ async function upload<T>(path: string, body: Blob): Promise<T> {
     try { data = JSON.parse(text) } catch { /* non-JSON body */ }
   }
   if (!res.ok) {
-    const err: ApiError = isApiError(data) ? data : { code: 'server_error', message: text || res.statusText }
+    const requestId = res.headers.get('X-Request-ID') ?? undefined
+    const err: ApiError = parseApiError(data, requestId)
     maybeSignalUnauthorized(res.status, err, 'PUT')
     maybeSignalMaintenance(res.status, err)
-    // 5xx → global connection toast, EXCEPT maintenance (503 maintenance_mode is
-    // owned by the maintenance handler, which redirects to the maintenance screen
-    // — a "server error" toast on top of that would be wrong).
+    // 5xx → global connection handler, EXCEPT maintenance (503 maintenance_mode
+    // is owned by the maintenance handler, which redirects to the maintenance
+    // screen — a connection toast on top of that would be wrong).
     if (res.status >= 500 && err.code !== 'maintenance_mode') signalConnectionError(err)
     throw err
   }
   return (data ?? {}) as T
 }
+
 
 export const api = {
   get: <T>(path: string): Promise<T> => request<T>('GET', path),

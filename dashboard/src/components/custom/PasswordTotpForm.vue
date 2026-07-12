@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import AccountRecovery from '@/components/custom/AccountRecovery.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 // Raw return_to passthrough — forwarded to the server, which is the
 // authoritative validator (validateReturnTo). Not guarded client-side here.
@@ -33,7 +34,7 @@ const props = defineProps<{ returnTo?: string }>()
 const emit = defineEmits<{ success: [redirect?: string] }>()
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const phase = ref<'password' | 'totp'>('password')
 const username = ref('')
@@ -138,9 +139,7 @@ async function submitTotp(): Promise<void> {
     </template>
 
     <template v-if="!recovering">
-      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
+      <ErrorPanel :error="error" @dismiss="clear" />
 
       <Button type="submit" class="w-full" :disabled="busy">
         {{ phase === 'password' ? t('login.passwordSubmit') : t('login.totpSubmit') }}

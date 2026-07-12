@@ -16,12 +16,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import AppIcon from '@/components/custom/AppIcon.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 const props = defineProps<{ basePath: string; name: string; iconUrl?: string | null }>()
 const emit = defineEmits<{ changed: [] }>()
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 const fileInput = ref<HTMLInputElement | null>(null)
 
 async function onPick(e: Event): Promise<void> {
@@ -48,7 +49,7 @@ async function remove(): Promise<void> {
   <Card>
     <CardHeader><CardTitle>{{ t('entityIcon.title') }}</CardTitle></CardHeader>
     <CardContent class="flex flex-col gap-3">
-      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+      <ErrorPanel :error="error" @dismiss="clear" />
       <div class="flex items-center gap-4">
         <span class="rounded-md ring-1 ring-inset ring-border">
           <AppIcon :src="iconUrl" :name="name" size="lg" />

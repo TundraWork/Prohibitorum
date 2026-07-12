@@ -14,6 +14,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { formatDateTime } from '@/lib/time'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { FileX, X } from 'lucide-vue-next'
 
 interface AuditEvent {
@@ -25,7 +26,7 @@ const LIMIT = 50
 type Preset = '15m' | '1h' | '24h' | '7d' | 'custom' | 'all'
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const rows = ref<AuditEvent[]>([])
 const hasMore = ref(false)
@@ -159,7 +160,7 @@ onMounted(reload)
 <template>
   <div class="flex max-w-5xl flex-col gap-6">
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.audit.title') }}</h1>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
 
     <!-- Time-range preset pills -->
     <div class="flex flex-wrap gap-1.5" role="group" :aria-label="t('admin.audit.filterSince')">
@@ -292,7 +293,7 @@ onMounted(reload)
         </template>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText" :icon="FileX" :title="t('admin.audit.empty')" />
+    <EmptyState v-else-if="!error" :icon="FileX" :title="t('admin.audit.empty')" />
 
     <!-- Prev / Next pagination -->
     <div class="flex items-center gap-3">

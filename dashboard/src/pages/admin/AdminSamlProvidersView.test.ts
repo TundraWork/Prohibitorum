@@ -70,6 +70,6 @@ describe('AdminSamlProvidersView', () => {
     await w.find('[data-test="create"]').trigger('click')
     await w.find('textarea[name="metadataXml"]').setValue('<xml/>')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(w.text()).toContain(en.errors.saml_application_already_exists)
+    expect(w.text()).toContain(en.errors.codes.saml_application_already_exists)
   })
 })

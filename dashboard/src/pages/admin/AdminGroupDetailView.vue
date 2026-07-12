@@ -24,6 +24,7 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { UserMinus } from 'lucide-vue-next'
 
 interface GroupView {
@@ -55,7 +56,7 @@ const route = useRoute()
 const router = useRouter()
 
 const groupId = Number(route.params.id)
-const { busy, error, run, errorText } = useApi()
+const { busy, error, run, clear, errorText } = useApi()
 // Separate composable for member operations so errors surface independently
 const memberApi = useApi()
 // Separate composable for accounts list — must NOT share memberApi (busy-guard race in Promise.all)
@@ -167,7 +168,7 @@ onMounted(async () => {
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/groups" :label="t('admin.groups.back')" />
-    <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.groups.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !group" />
@@ -207,9 +208,7 @@ onMounted(async () => {
       <Card>
         <CardHeader><CardTitle>{{ t('admin.groups.members') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
-          <Alert v-if="memberApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
-            <AlertDescription>{{ memberApi.errorText.value }}</AlertDescription>
-          </Alert>
+          <ErrorPanel :error="memberApi.error.value" @dismiss="memberApi.clear" />
 
           <!-- Add member row -->
           <div class="flex items-center gap-2">

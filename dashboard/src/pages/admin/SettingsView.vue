@@ -1,5 +1,6 @@
 <script setup lang="ts">
 /** SettingsView (/admin/settings) — edit instance name + icon + maintenance mode (admin + sudo). */
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
@@ -17,7 +18,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 const branding = useBrandingStore()
 const name = ref(branding.instanceName)
 const { flag: savedFlag, trigger: triggerSaved } = useTransientFlag(2000)
@@ -156,9 +157,7 @@ async function removeBackground(): Promise<void> {
       <p class="text-sm text-muted">{{ t('admin.settings.help') }}</p>
     </div>
 
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
 
     <Card>
       <CardHeader><CardTitle>{{ t('admin.settings.nameLabel') }}</CardTitle></CardHeader>

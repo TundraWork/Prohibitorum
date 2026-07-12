@@ -52,7 +52,7 @@ describe('AdminInvitationsView', () => {
     await w.find('[data-test="create"]').trigger('click')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(w.find('[data-test="create-confirm"]').exists()).toBe(true)
-    expect(w.text()).toContain(en.errors.invalid_role)
+    expect(w.text()).toContain(en.errors.codes.invalid_role)
   })
   it('revokes an invitation (confirm → post → refresh)', async () => {
     get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? IDPS : INVITES)

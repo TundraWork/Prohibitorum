@@ -79,7 +79,7 @@ describe('AdminAccountDetailView', () => {
   it('shows the error banner when the initial load fails (non-404)', async () => {
     get.mockRejectedValue({ code: 'forbidden', message: 'zh' })
     const w = mountView(); await flushPromises()
-    expect(w.text()).toContain(en.errors.forbidden)
+    expect(w.text()).toContain(en.errors.codes.forbidden)
   })
   it('saves identity, round-tripping existing attributes', async () => {
     mockGets()
@@ -98,7 +98,7 @@ describe('AdminAccountDetailView', () => {
     put.mockRejectedValue({ code: 'last_admin', message: 'zh' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
-    expect(w.text()).toContain(en.errors.last_admin)
+    expect(w.text()).toContain(en.errors.codes.last_admin)
   })
   it('force-revokes a passkey (confirm → post → refresh)', async () => {
     mockGets(); post.mockResolvedValue(undefined)
@@ -138,7 +138,7 @@ describe('AdminAccountDetailView', () => {
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.account.delete); await flushPromises()
     expect(push).not.toHaveBeenCalled()
-    expect(w.text()).toContain(en.errors.cannot_delete_self)
+    expect(w.text()).toContain(en.errors.codes.cannot_delete_self)
   })
   it('loads and renders session rows on mount', async () => {
     mockGets()
@@ -166,7 +166,7 @@ describe('AdminAccountDetailView', () => {
     const w = mountView(); await flushPromises()
     await w.find('[data-test="session-revoke-sess-bbb"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.account.sessions.revoke); await flushPromises()
-    expect(w.text()).toContain(en.errors.session_not_found)
+    expect(w.text()).toContain(en.errors.codes.session_not_found)
   })
   it('shows empty state when sessions list is empty', async () => {
     mockGets(ACCOUNT, CREDS, [])

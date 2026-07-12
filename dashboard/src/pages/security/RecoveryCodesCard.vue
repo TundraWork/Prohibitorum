@@ -26,15 +26,17 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { busy, error, run, clear } = useApi()
 const codes = ref<string[]>([])
 
 const errorText = computed(() => {
   const e = error.value
   if (!e) return ''
+  // bad_request on this endpoint specifically means "no TOTP enrolled" —
+  // show the context-specific hint rather than the generic bad_request message.
   if (e.code === 'bad_request') return t('security.recovery.needTotp')
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
+  const key = `errors.codes.${e.code}`
+  return te(key) ? t(key) : ''
 })
 
 async function regenerate(): Promise<void> {
@@ -57,7 +59,9 @@ async function regenerate(): Promise<void> {
       </StatusBadge>
     </CardHeader>
     <CardContent class="flex flex-col gap-4">
-      <RecoveryCodesDisplay v-if="codes.length" :codes="codes" regenerated @confirmed="codes = []" />
+      <template v-if="codes.length > 0">
+        <RecoveryCodesDisplay :codes="codes" />
+      </template>
       <template v-else>
         <p class="text-sm text-muted">{{ t('security.recovery.help') }}</p>
         <!-- Guard: server rejects regeneration without a confirmed TOTP; show a

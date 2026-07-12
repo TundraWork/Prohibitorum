@@ -68,7 +68,7 @@ describe('DevicesView', () => {
     await enterCodeAndLookup(w)
     await w.find('[data-test="cancel"]').trigger('click'); await flushPromises()
     expect(w.find('[data-test="approve"]').exists()).toBe(true)
-    expect(w.text()).toContain(en.errors.pairing_state)
+    expect(w.text()).toContain(en.errors.codes.pairing_state)
   })
 
   it('shows an already-approved note with no approve button and no cancel', async () => {
@@ -98,6 +98,6 @@ describe('DevicesView', () => {
     get.mockRejectedValue({ code: 'pairing_not_found', message: 'zh' })
     const w = mountView()
     await enterCodeAndLookup(w, 'ZZZZ-ZZZZ')
-    expect(w.text()).toContain(en.errors.pairing_not_found)
+    expect(w.text()).toContain(en.errors.codes.pairing_not_found)
   })
 })

@@ -28,12 +28,13 @@ import CodeField from '@/components/custom/CodeField.vue'
 import TotpQr from '@/components/custom/TotpQr.vue'
 import RecoveryCodesDisplay from '@/components/custom/RecoveryCodesDisplay.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 const props = defineProps<{ enrolled?: boolean }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t } = useI18n()
-const { busy, error, run, errorText } = useApi()
+const { busy, error, run, clear, errorText } = useApi()
 const secret = ref('')
 const otpauth = ref('')
 const code = ref('')
@@ -106,9 +107,7 @@ function cancelSetup(): void {
         </form>
       </template>
 
-      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
+      <ErrorPanel :error="error" @dismiss="clear" />
     </CardContent>
   </Card>
 </template>

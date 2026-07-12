@@ -17,6 +17,7 @@ import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { MonitorSmartphone } from 'lucide-vue-next'
 
 interface SessionListItem {
@@ -29,7 +30,7 @@ interface SessionListItem {
 }
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const rows = ref<SessionListItem[]>([])
 const confirmRevokeId = ref<string | null>(null)
@@ -54,9 +55,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('sessions.title') }}</h1>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <TableSkeleton v-if="busy && !rows.length" :rows="3" :cols="1" />
     <template v-else-if="rows.length">
       <Card v-for="r in rows" :key="r.id">
@@ -77,7 +76,7 @@ onMounted(load)
         </CardContent>
       </Card>
     </template>
-    <EmptyState v-else-if="!errorText" :icon="MonitorSmartphone" :title="t('sessions.empty')" />
+    <EmptyState v-else-if="!error" :icon="MonitorSmartphone" :title="t('sessions.empty')" />
 
     <ConfirmDialog
       :open="confirmRevokeId !== null"

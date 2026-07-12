@@ -30,6 +30,7 @@ import CodeBlock from '@/components/custom/CodeBlock.vue'
 import AppAccessCard from '@/components/custom/AppAccessCard.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import ScopeVocabularyEditor, { type ScopeEntry } from '@/components/custom/ScopeVocabularyEditor.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface ForwardAuthApp {
   clientId: string
@@ -45,7 +46,7 @@ interface ForwardAuthApp {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, errorText } = useApi()
+const { busy, error, run, clear, errorText } = useApi()
 
 const clientId = String(route.params.clientId)
 const app = ref<ForwardAuthApp | null>(null)
@@ -126,7 +127,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/forward-auth-apps" :label="t('admin.forwardAuth.back')" />
-    <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.forwardAuth.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !app" />

@@ -69,6 +69,6 @@ describe('AdminOidcClientsView', () => {
     await w.find('[data-test="redirectUris-add"]').trigger('click')
     await w.find('[data-test="redirectUris-input-0"]').setValue('https://w/cb')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(w.text()).toContain(en.errors.oidc_client_already_exists)
+    expect(w.text()).toContain(en.errors.codes.oidc_client_already_exists)
   })
 })

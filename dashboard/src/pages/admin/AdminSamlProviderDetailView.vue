@@ -31,6 +31,7 @@ import BackLink from '@/components/custom/BackLink.vue'
 import AttributeMapEditor, { type AttributeMapEntry } from '@/components/custom/AttributeMapEditor.vue'
 import AppAccessCard from '@/components/custom/AppAccessCard.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface AcsEndpoint {
   binding: string
@@ -63,7 +64,7 @@ interface SamlApplication {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, errorText } = useApi()
+const { busy, error, run, clear, errorText } = useApi()
 
 const id = Number(route.params.id)
 const sp = ref<SamlApplication | null>(null)
@@ -160,7 +161,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/saml-applications" :label="t('admin.saml.back')" />
-    <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
     <Alert v-if="localError" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ localError }}</AlertDescription></Alert>
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.saml.notFound') }}</p>
 

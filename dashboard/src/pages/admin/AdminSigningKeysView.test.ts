@@ -59,7 +59,7 @@ describe('AdminSigningKeysView', () => {
     await w.find('[data-test="retire-k-decom"]').trigger('click')
     await clickConfirm(en.admin.signingKeys.retireConfirm)
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/signing-keys/k-decom/retire')
-    expect(w.text()).toContain(en.errors.active_key_no_replacement)
+    expect(w.text()).toContain(en.errors.codes.active_key_no_replacement)
   })
   it('describes the public JWK dialog with the selected key without warnings', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

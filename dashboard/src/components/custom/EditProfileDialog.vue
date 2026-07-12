@@ -28,13 +28,14 @@ import { Separator } from '@/components/ui/separator'
 // Label is intentionally omitted — section headings use plain <p> elements.
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import AvatarCropper from '@/components/custom/AvatarCropper.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
 
 const { t } = useI18n()
 const auth = useAuthStore()
-const { busy, error, run, errorText } = useApi()
+const { busy, error, run, clear, errorText } = useApi()
 
 const draft = ref('')
 const inputRef = ref<{ $el?: HTMLElement }>()
@@ -106,7 +107,7 @@ async function onFile(e: Event): Promise<void> {
   if (!f) return
   if (f.size > 5 * 1024 * 1024) {
     errorZone.value = 'avatar'
-    error.value = { code: 'avatar_too_large_client', message: t('accountMenu.avatarTooLargeClient') }
+    error.value = { code: 'avatar_too_large' }
     return
   }
   error.value = null
@@ -261,9 +262,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
           </div>
 
           <!-- Avatar-zone error (selection/upload/remove errors surface here) -->
-          <Alert v-if="errorText && errorZone === 'avatar'" variant="destructive" aria-live="polite" data-test="avatar-error">
-            <AlertDescription>{{ errorText }}</AlertDescription>
-          </Alert>
+          <ErrorPanel v-if="error && errorZone === 'avatar'" :error="error" data-test="avatar-error" @dismiss="clear" />
         </div>
 
         <Separator />
@@ -277,8 +276,8 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
             v-model="draft"
             data-test="edit-displayname-input"
             :maxlength="128"
-            :aria-invalid="errorText ? true : undefined"
-            :aria-describedby="errorText ? 'edit-displayName-error' : undefined"
+            :aria-invalid="error && errorZone === 'name' ? true : undefined"
+            :aria-describedby="error && errorZone === 'name' ? 'edit-displayName-error' : undefined"
           />
           <!-- Unsaved-name hint when the user has typed but not yet saved -->
           <span v-if="dirty" class="text-xs text-muted-foreground" data-test="unsaved-name-hint">
@@ -287,9 +286,7 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
         </div>
 
         <!-- Name-field error (PUT /me errors surface here) -->
-        <Alert v-if="errorText && errorZone === 'name'" id="edit-displayName-error" variant="destructive" aria-live="polite">
-          <AlertDescription>{{ errorText }}</AlertDescription>
-        </Alert>
+        <ErrorPanel v-if="error && errorZone === 'name'" :error="error" @dismiss="clear" />
 
         <DialogFooter class="gap-2">
           <!-- "Close" replaces "Cancel": avatar changes are already applied,

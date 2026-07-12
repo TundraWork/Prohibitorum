@@ -43,7 +43,7 @@ describe('ErrorView', () => {
     _routeQuery = { error: 'upstream_error' }
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.text()).toContain(en.errors.upstream_error)
+    expect(wrapper.text()).toContain(en.errors.codes.upstream_error)
   })
 
   it('renders the reference line when ref is present', async () => {
@@ -51,7 +51,7 @@ describe('ErrorView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain(en.errors.upstream_error)
+    expect(wrapper.text()).toContain(en.errors.codes.upstream_error)
     expect(wrapper.text()).toContain('Reference: abc123')
     // Unauthenticated: button should be returnToLogin → /login
     const link = wrapper.find('a')

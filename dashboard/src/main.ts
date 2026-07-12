@@ -9,7 +9,6 @@ import {
   registerConnectionErrorHandler,
 } from './lib/api'
 import { createUnauthorizedHandler } from './lib/sessionExpiry'
-import { pushToast } from './lib/toast'
 import { useAuthStore } from './stores/auth'
 import { useBrandingStore } from './stores/branding'
 import { useSessionExpiry } from './composables/useSessionExpiry'
@@ -34,12 +33,14 @@ registerMaintenanceHandler(() => {
   void router.push({ name: 'maintenance' })
 })
 
-registerConnectionErrorHandler((err) => {
-  // A dropped/hung server or a 5xx surfaces as a global, non-blocking toast.
-  // Dedup by code so a burst of failing requests collapses into one toast.
-  const t = i18n.global.t
-  const code = err.code === 'network_error' ? 'errors.network_error' : 'errors.server_error'
-  pushToast({ variant: 'error', message: t(code), key: err.code })
+registerConnectionErrorHandler(() => {
+  // A dropped/hung server or a 5xx previously surfaced as a global timed
+  // toast. Per Task 4, API failures are now persistent and code-driven via
+  // ErrorPanel — the connection-error handler no longer pushes a toast.
+  // Success/info toasts remain (they are not API failures). The error is
+  // surfaced inline by useApi → ErrorPanel wherever the failing request was
+  // issued. This handler is retained as a seam for future global connectivity
+  // indicators but does not display a transient toast.
 })
 
 app.mount('#app')

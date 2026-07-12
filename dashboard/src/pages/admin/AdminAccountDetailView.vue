@@ -35,6 +35,7 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
@@ -63,7 +64,7 @@ interface GroupView {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, errorText } = useApi()
+const { busy, error, run, clear, errorText } = useApi()
 // Separate composable for group membership operations — avoid busy-guard race.
 const groupsApi = useApi()
 // Separate composable for the all-groups list used in the picker.
@@ -274,7 +275,7 @@ onMounted(async () => {
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/accounts" :label="t('admin.account.back')" />
-    <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.account.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !account" />
@@ -403,9 +404,7 @@ onMounted(async () => {
       <Card>
         <CardHeader><CardTitle>{{ t('admin.account.groupsTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-4">
-          <Alert v-if="groupsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
-            <AlertDescription>{{ groupsApi.errorText.value }}</AlertDescription>
-          </Alert>
+          <ErrorPanel :error="groupsApi.error.value" @dismiss="groupsApi.clear" />
           <!-- Add to group row -->
           <div class="flex items-center gap-2">
             <Select v-model="selectedGroupId" data-test="group-select">

@@ -33,6 +33,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface AccessGroup {
   id: number
@@ -201,9 +202,7 @@ onMounted(async () => {
     <CardContent class="flex flex-col gap-5">
       <!-- Restrict toggle -->
       <div class="flex flex-col gap-4">
-        <Alert v-if="accessApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
-          <AlertDescription>{{ accessApi.errorText.value }}</AlertDescription>
-        </Alert>
+        <ErrorPanel :error="accessApi.error.value" @dismiss="accessApi.clear" />
 
         <SettingRow
           :label="t('admin.access.restrictedLabel')"
@@ -228,9 +227,7 @@ onMounted(async () => {
 
       <!-- Groups subsection -->
       <FormSection :title="t('admin.access.groups')">
-        <Alert v-if="groupsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
-          <AlertDescription>{{ groupsApi.errorText.value }}</AlertDescription>
-        </Alert>
+        <ErrorPanel :error="groupsApi.error.value" @dismiss="groupsApi.clear" />
 
         <!-- Add group picker -->
         <div class="flex items-center gap-2">
@@ -287,9 +284,7 @@ onMounted(async () => {
 
       <!-- Accounts subsection -->
       <FormSection :title="t('admin.access.accounts')">
-        <Alert v-if="accountsApi.errorText.value" variant="destructive" role="alert" aria-live="polite">
-          <AlertDescription>{{ accountsApi.errorText.value }}</AlertDescription>
-        </Alert>
+        <ErrorPanel :error="accountsApi.error.value" @dismiss="accountsApi.clear" />
 
         <!-- Add account picker -->
         <div class="flex items-center gap-2">

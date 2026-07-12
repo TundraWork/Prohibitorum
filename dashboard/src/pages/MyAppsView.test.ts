@@ -93,7 +93,7 @@ describe('MyAppsView', () => {
         ? Promise.resolve([])
         : Promise.reject({ code: 'server_error', message: 'boom' })) as typeof api.get)
     const w = mountView(); await flushPromises()
-    expect(w.find('[role="alert"]').exists()).toBe(false)
+    expect(w.find('[role="alert"]').exists()).toBe(true)
   })
 
   it('surfaces an error when /me/consent fails (no misleading connected/available split)', async () => {

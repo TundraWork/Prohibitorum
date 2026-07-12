@@ -28,6 +28,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface FAApp {
   clientId: string
@@ -47,7 +48,7 @@ interface PersonalAccessTokenView {
 }
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 // Separate instance so the apps prefetch never collides with the token-list
 // busy-guard (opening the dialog mid-prefetch must not no-op the apps fetch).
 const appsApi = useApi()
@@ -196,9 +197,7 @@ onMounted(async () => {
 
     <p class="text-sm text-muted">{{ t('tokens.intro') }}</p>
 
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
 
     <TableSkeleton v-if="busy && !rows.length" :rows="3" :cols="1" />
     <template v-else-if="rows.length">
@@ -244,7 +243,7 @@ onMounted(async () => {
         </CardContent>
       </Card>
     </template>
-    <EmptyState v-else-if="!errorText" :icon="Terminal" :title="t('tokens.empty')" />
+    <EmptyState v-else-if="!error" :icon="Terminal" :title="t('tokens.empty')" />
 
     <ConfirmDialog
       :open="confirmRevokeId !== null"
@@ -329,9 +328,7 @@ onMounted(async () => {
               </template>
             </div>
 
-            <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-              <AlertDescription>{{ errorText }}</AlertDescription>
-            </Alert>
+            <ErrorPanel :error="error" @dismiss="clear" />
 
             <div class="flex gap-2">
               <Button

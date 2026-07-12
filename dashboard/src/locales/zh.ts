@@ -840,119 +840,159 @@ export default {
   },
 
   /**
-   * errors.* — map backend error codes to user-facing English messages.
-   * Usage: te('errors.'+code) ? t('errors.'+code) : err.message
+   * errors.* — 代码驱动的本地化错误消息。
    *
-   * IMPORTANT: the backend AuthError messages are authored in Chinese, so the
-   * te()/fallback MUST resolve a key here for every code a user can reach —
-   * the err.message fallback is a last resort, not the happy path. Codes below
-   * are the real values from pkg/authn/errors.go (verified against the
-   * catalogue), plus two client-synthesized codes: `webauthn_error`
-   * (useWebauthn) and `server_error` (api.ts / useApi).
+   * 结构：
+   *   errors.codes.<code>     — 已知代码的用户消息
+   *   errors.unknown            — 未知代码的回退消息
+   *   errors.dismiss             — 关闭按钮 aria-label
+   *   errors.detailsLabel        — 展开详情触发器标签
+   *   errors.requestId            — "请求 ID" 标签
+   *   errors.copyRequestId       — 复制按钮 aria-label
+   *   errors.copied               — "已复制！"确认
+   *   errors.diagnostic           — 管理员诊断按钮标签
+   *   errors.details.<field>      — 详情字段标签
+   *   errors.recovery.<hint>      — 恢复操作按钮标签
+   *
+   * codes.* 键镜像 Go weberr 注册表（69 个代码）加上客户端合成的代码。
+   * 一致性测试遍历清单以确保每个代码在 en 和 zh 中都有条目。
    */
   errors: {
-    // Session / authorization
-    no_session: '请先登录后再继续。',
-    not_admin: '此操作需要管理员权限。',
-    permission_denied: '你没有执行该操作的权限。',
-    account_disabled: '此账户已被禁用，请联系管理员。',
-    rate_limited: '尝试过于频繁，请稍候再试。',
-    factor_locked: '失败次数过多，此登录方式已被临时锁定。',
-    sudo_method_unavailable: '你的账户不支持此验证方式。',
+    unknown: '发生了错误，请重试。',
+    dismiss: '关闭',
+    detailsLabel: '显示详情',
+    requestId: '请求 ID',
+    copyRequestId: '复制请求 ID',
+    copied: '已复制！',
+    diagnostic: '查看诊断详情',
 
-    // Login (passkey + password/TOTP)
-    not_bootstrapped:
-      '尚未设置任何账户。运行 `prohibitorum enroll-admin` 创建第一个管理员。',
-    bad_credentials: '用户名、密码或验证码不正确。',
-    partial_session_invalid: '登录会话已过期，请重新开始。',
-    ceremony_missing: '登录尝试已超时，请重试。',
-    ceremony_expired: '登录尝试已超时，请重试。',
-    ceremony_state_invalid: '无法验证此次登录，请重试。',
-    login_account_not_found: '找不到与该通行密钥匹配的账户。',
-    login_failed: '登录未能完成，请重试。',
-    login_verification_failed: '无法验证你的通行密钥，请重试。',
-    webauthn_error: '通行密钥步骤未完成，请重试。',
+    codes: {
+      // 会话 / 授权
+      no_session: '请先登录后再继续。',
+      not_admin: '此操作需要管理员权限。',
+      permission_denied: '你没有执行该操作的权限。',
+      account_disabled: '此账户已被禁用，请联系管理员。',
+      rate_limited: '尝试过于频繁，请稍候再试。',
+      factor_locked: '失败次数过多，此登录方式已被临时锁定。',
+      sudo_method_unavailable: '你的账户不支持此验证方式。',
+      sudo_required: '此操作需要近期验证，请重新认证。',
 
-    // Consent
-    invalid_consent_ticket:
-      '此授权请求已过期，请从应用重新开始。',
-    bad_request: '请求无效。',
+      // 登录（通行密钥 + 密码/TOTP）
+      not_bootstrapped:
+        '尚未设置任何账户。运行 `prohibitorum enroll-admin` 创建第一个管理员。',
+      bad_credentials: '用户名、密码或验证码不正确。',
+      partial_session_invalid: '登录会话已过期，请重新开始。',
+      recovery_session_invalid: '恢复流程已失效，请重新使用恢复码。',
+      ceremony_missing: '登录尝试已超时，请重试。',
+      ceremony_expired: '登录尝试已超时，请重试。',
+      ceremony_state_invalid: '无法验证此次登录，请重试。',
+      ceremony_internal_error: '验证过程中出现问题，请重试。',
+      login_account_not_found: '找不到与该通行密钥匹配的账户。',
+      login_failed: '登录未能完成，请重试。',
+      login_verification_failed: '无法验证你的通行密钥，请重试。',
+      webauthn_error: '通行密钥步骤未完成，请重试。',
 
-    // Enrollment
-    enrollment_expired: '此邀请链接已过期。',
-    enrollment_consumed: '此邀请链接已被使用。',
-    enrollment_federation_required:
-      '此邀请需要通过你的身份提供商完成注册。',
-    invite_required: '创建账户需要邀请码。',
-    link_required: '此身份源尚未关联任何账户。请先以其他方式登录，然后在 设置 → 关联账户 中绑定。',
-    username_taken: '该用户名已被占用。',
-    username_collision: '该用户名已被占用。',
-    invalid_username:
-      '用户名须为 2–32 个小写字母、数字、下划线或连字符。',
-    invalid_display_name: '请输入有效的显示名称。',
-    credential_already_registered: '该通行密钥已注册。',
-    registration_failed: '通行密钥设置未能完成，请重试。',
+      // 授权
+      invalid_consent_ticket:
+        '此授权请求已过期，请从应用重新开始。',
+      bad_request: '请求无效。',
 
-    // Federation (upstream IdP)
-    upstream_error: '身份提供商返回了错误，请重试。',
-    email_not_verified: '身份提供商尚未验证你的邮箱地址。',
-    federation_state_invalid: '登录尝试已超时，请重试。',
-    invalid_return_to: '返回地址无效。',
+      // 注册
+      enrollment_expired: '此邀请链接已过期。',
+      enrollment_consumed: '此邀请链接已被使用。',
+      enrollment_federation_required:
+        '此邀请需要通过你的身份提供商完成注册。',
+      invite_required: '创建账户需要邀请码。',
+      link_required: '此身份源尚未关联任何账户。请先以其他方式登录，然后在 设置 → 关联账户 中绑定。',
+      username_taken: '该用户名已被占用。',
+      username_collision: '该用户名已被占用。',
+      invalid_username:
+        '用户名须为 2–32 个小写字母、数字、下划线或连字符。',
+      invalid_display_name: '请输入有效的显示名称。',
+      invalid_nickname: '请输入有效的昵称。',
+      credential_already_registered: '该通行密钥已注册。',
+      registration_failed: '通行密钥设置未能完成，请重试。',
 
-    // OIDC authorize / logout (browser-facing protocol errors)
-    invalid_request: '登录请求无效或不完整，请从应用重新发起。',
-    invalid_client: '无法识别该应用，请联系应用所有者。',
-    invalid_redirect_uri: '该应用配置有误（返回地址未注册），请联系应用所有者。',
-    // SAML (browser-facing protocol errors)
-    saml_request_invalid: '单点登录请求无效，请从应用重新发起。',
-    saml_sp_unknown: '该应用尚未在此配置单点登录，请联系管理员。',
-    saml_sp_disabled: '该应用的单点登录当前已停用，请联系管理员。',
-    saml_idp_init_disabled: '该应用不支持从这里发起登录，请改为从应用打开。',
-    saml_replayed: '该登录请求已被使用，请从应用重新发起。',
+      // 联合身份（上游 IdP）
+      upstream_error: '身份提供商返回了错误，请重试。',
+      email_not_verified: '身份提供商尚未验证你的邮箱地址。',
+      federation_state_invalid: '登录尝试已超时，请重试。',
+      invalid_return_to: '返回地址无效。',
 
-    // Generic / client-synthesized
-    server_error: '我们这边出了点问题，请重试。',
-    network_error: '无法连接到服务器，请检查你的网络连接后重试。',
-    not_found: '找不到请求的页面。',
+      // 通用 / 客户端合成
+      server_error: '我们这边出了点问题，请重试。',
+      network_error: '无法连接到服务器，请检查你的网络连接后重试。',
+      not_found: '找不到请求的页面。',
+      forbidden: '你没有查看此内容的权限。',
 
-    // Passkey management
-    last_passkey: '无法移除最后一个通行密钥，请先添加另一个。',
+      // 通行密钥管理
+      last_passkey: '无法移除最后一个通行密钥，请先添加另一个。',
 
-    // Connected accounts
-    last_sign_in_method: '无法移除最后一种登录方式，请先添加另一种。',
-    credential_not_found: '该关联已不存在。',
+      // 关联账户
+      last_sign_in_method: '无法移除最后一种登录方式，请先添加另一种。',
+      credential_not_found: '该关联已不存在。',
 
-    // Device pairing
-    pairing_not_found: '该配对码无效、已被使用或已过期。',
-    pairing_expired: '该配对码已过期，请让设备重新生成一个。',
-    pairing_not_approved: '此设备尚未获得批准。',
-    pairing_state: '当前无法更改此配对状态。',
+      // 设备配对
+      pairing_not_found: '该配对码无效、已被使用或已过期。',
+      pairing_expired: '该配对码已过期，请让设备重新生成一个。',
+      pairing_not_approved: '此设备尚未获得批准。',
+      pairing_state: '当前无法更改此配对状态。',
 
-    last_admin: '无法移除最后一位管理员。',
-    admin_cannot_be_disabled: '无法禁用管理员账户，请先将其角色改为普通用户。',
-    cannot_delete_self: '无法删除自己的账户。',
-    invalid_role: '请选择有效的角色。',
-    username_immutable: '用户名不可更改。',
-    account_not_found: '该账户已不存在。',
-    session_not_found: '该会话已不存在。',
-    invitation_not_found: '该邀请已不存在。',
-    forbidden: '你没有查看此内容的权限。',
-    client_not_found: '该客户端已不存在。',
-    oidc_client_already_exists: '已存在使用该 ID 的客户端。',
-    saml_application_already_exists: '已存在使用该 Entity ID 的应用。',
-    upstream_idp_not_found: '该身份提供商已不存在。',
-    upstream_idp_already_exists: '已存在使用该 slug 的身份提供商。',
-    active_key_no_replacement: '请先激活替代密钥，再退役当前活动密钥。',
+      // 策略
+      last_admin: '无法移除最后一位管理员。',
+      admin_cannot_be_disabled: '无法禁用管理员账户，请先将其角色改为普通用户。',
+      cannot_delete_self: '无法删除自己的账户。',
+      would_remove_last_factor: '无法移除最后一个登录因素，请先添加另一个。',
+      cannot_revoke_current_session: '无法从此处撤销当前会话，请使用退出登录。',
 
-    // Avatar upload
-    avatar_too_large: '该图片过大。',
-    avatar_invalid_image: '该文件不是受支持的图片格式。',
-    avatar_source_unavailable: '该头像暂不可用。',
+      // 验证
+      invalid_role: '请选择有效的角色。',
+      username_immutable: '用户名不可更改。',
+      validation_failed: '请求无法处理，请检查你的输入。',
+      unsupported_media_type: '不支持此请求格式。',
+      request_too_large: '请求过大，请减小大小后重试。',
 
-    group_not_found: '该用户组已不存在。',
-    group_slug_conflict: '已存在使用该 slug 的用户组。',
+      // 资源
+      account_not_found: '该账户已不存在。',
+      session_not_found: '该会话已不存在。',
+      invitation_not_found: '该邀请已不存在。',
+      client_not_found: '该客户端已不存在。',
+      upstream_idp_not_found: '该身份提供商已不存在。',
+      group_not_found: '该用户组已不存在。',
 
-    maintenance_mode: '系统正在维护中，请稍后再试。',
+      // 冲突
+      oidc_client_already_exists: '已存在使用该 ID 的客户端。',
+      saml_application_already_exists: '已存在使用该 Entity ID 的应用。',
+      upstream_idp_already_exists: '已存在使用该 slug 的身份提供商。',
+      group_slug_conflict: '已存在使用该 slug 的用户组。',
+      active_key_no_replacement: '请先激活替代密钥，再退役当前活动密钥。',
+
+      // 头像上传
+      avatar_too_large: '该图片过大。',
+      avatar_invalid_image: '该文件不是受支持的图片格式。',
+      avatar_source_unavailable: '该头像暂不可用。',
+
+      // 系统
+      maintenance_mode: '系统正在维护中，请稍后再试。',
+      database_unavailable: '数据库暂时不可用，请重试。',
+      kv_unavailable: '发生了临时服务问题，请重试。',
+    },
+
+    details: {
+      allowed: '允许的值',
+      retryAfterSeconds: '重试等待（秒）',
+      upstreamCode: '上游错误代码',
+      location: '位置',
+      reason: '原因',
+    },
+
+    recovery: {
+      retry: '重试',
+      reauth: '重新认证',
+      reduce_payload: '减小大小',
+      fix_content_type: '更改格式',
+      fix_input: '修正输入',
+    },
   },
 
   offline: {

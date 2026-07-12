@@ -77,12 +77,12 @@ describe('AdminAccountsView', () => {
     // suppressed here and surfaced via the global toast instead.
     get.mockRejectedValue({ code: 'forbidden', message: 'zh' })
     const w = mountView(); await flushPromises()
-    expect(w.text()).toContain(en.errors.forbidden)
+    expect(w.text()).toContain(en.errors.codes.forbidden)
   })
 
   it('does NOT render server_error inline (global toast owns it)', async () => {
     get.mockRejectedValue({ code: 'server_error', message: 'boom' })
     const w = mountView(); await flushPromises()
-    expect(w.text()).not.toContain(en.errors.server_error)
+    expect(w.text()).not.toContain(en.errors.codes.server_error)
   })
 })

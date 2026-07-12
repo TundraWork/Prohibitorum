@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import CodeField from '@/components/custom/CodeField.vue'
 import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface Lookup {
   pairingId: string
@@ -31,7 +32,7 @@ interface Lookup {
 }
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const code = ref('')
 const found = ref<Lookup | null>(null)
@@ -68,9 +69,7 @@ async function cancel(): Promise<void> {
     <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('devices.title') }}</h1>
     <p class="text-sm text-muted">{{ t('devices.help') }}</p>
 
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-      <AlertDescription>{{ errorText }}</AlertDescription>
-    </Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
 
     <StatusMessage :show="approved">{{ t('devices.approved') }}</StatusMessage>
 

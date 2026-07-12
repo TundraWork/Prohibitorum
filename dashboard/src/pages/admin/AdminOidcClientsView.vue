@@ -23,6 +23,7 @@ import ListInput from '@/components/custom/ListInput.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { AppWindow } from 'lucide-vue-next'
 
 interface OidcApplication {
@@ -41,7 +42,7 @@ const { t } = useI18n()
 const router = useRouter()
 
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const rows = ref<OidcApplication[]>([])
 const createOpen = ref(false)
@@ -114,7 +115,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.oidc.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.oidc.create') }}</Button>
     </div>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <StatusMessage :show="created && !revealedSecret">{{ t('admin.oidc.created') }}</StatusMessage>
 
     <template v-if="created && revealedSecret">
@@ -201,6 +202,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText && !createOpen" :icon="AppWindow" :title="t('admin.oidc.empty')" />
+    <EmptyState v-else-if="!error && !createOpen" :icon="AppWindow" :title="t('admin.oidc.empty')" />
   </div>
 </template>

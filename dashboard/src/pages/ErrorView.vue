@@ -48,7 +48,7 @@ const title = computed(() =>
 
 const message = computed(() => {
   if (appAccessDenied.value) return t('error.appAccessDenied', { app: app.value })
-  const key = `errors.${code.value}`
+  const key = `errors.codes.${code.value}`
   if (code.value && te(key)) return t(key)
   if (description.value) return description.value
   return t('error.defaultMessage')

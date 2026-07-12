@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { defineComponent, ref } from 'vue'
+import { defineComponent } from 'vue'
 import { useApi } from './useApi'
 import type { ApiError } from '@/lib/api'
 
 // Mock i18n with a minimal implementation that mirrors the real error-lookup logic.
-// We keep te/t returning simple values so we can assert the mapping without real
-// message files.  Overrides are set per-test via mockI18n.te / mockI18n.t.
 const mockTe = vi.fn((_key: string) => false)
 const mockT = vi.fn((key: string) => key)
 
@@ -16,14 +14,11 @@ vi.mock('vue-i18n', () => ({
   createI18n: vi.fn(() => ({ install: vi.fn() })),
 }))
 
-// Helper: mount a test component that exposes useApi() state/methods via the
-// component instance.  Providing i18n is not strictly needed here because we
-// mocked useI18n above, but we pass the plugin for completeness.
 function makeWrapper() {
   const TestComp = defineComponent({
     setup() {
-      const { busy, error, run, errorText } = useApi()
-      return { busy, error, run, errorText }
+      const { busy, error, run, clear, errorText } = useApi()
+      return { busy, error, run, clear, errorText }
     },
     template: '<div>{{ errorText }}</div>',
   })
@@ -59,7 +54,7 @@ describe('useApi', () => {
 
   it('returns undefined and sets error when run throws an ApiError', async () => {
     const w = makeWrapper()
-    const err: ApiError = { code: 'not_found', message: 'resource not found' }
+    const err: ApiError = { code: 'not_found', requestId: 'rid' }
     const result = await w.vm.run(() => Promise.reject(err))
     expect(result).toBeUndefined()
     expect(w.vm.error).toEqual(err)
@@ -73,12 +68,37 @@ describe('useApi', () => {
     expect(w.vm.error).toBeNull()
   })
 
-  it('clears error on the next run call', async () => {
+  it('clears error on a successful retry (run succeeds after failure)', async () => {
     const w = makeWrapper()
-    const err: ApiError = { code: 'server_error', message: 'oops' }
+    const err: ApiError = { code: 'server_error' }
     await w.vm.run(() => Promise.reject(err))
     expect(w.vm.error).not.toBeNull()
     await w.vm.run(() => Promise.resolve('ok'))
+    expect(w.vm.error).toBeNull()
+  })
+
+  it('does NOT clear error on entry — error persists until success or clear', async () => {
+    const w = makeWrapper()
+    const err: ApiError = { code: 'bad_request' }
+    await w.vm.run(() => Promise.reject(err))
+    expect(w.vm.error).not.toBeNull()
+    // Starting another run does NOT clear the error until it succeeds
+    let resolveFn!: () => void
+    const slowFn = () => new Promise<void>((r) => { resolveFn = r })
+    const p = w.vm.run(slowFn as unknown as () => Promise<void>)
+    await flushPromises()
+    expect(w.vm.error).not.toBeNull() // still there during the run
+    resolveFn()
+    await p
+    expect(w.vm.error).toBeNull() // cleared on success
+  })
+
+  it('clear() explicitly clears the error', async () => {
+    const w = makeWrapper()
+    const err: ApiError = { code: 'bad_request' }
+    await w.vm.run(() => Promise.reject(err))
+    expect(w.vm.error).not.toBeNull()
+    w.vm.clear()
     expect(w.vm.error).toBeNull()
   })
 
@@ -94,39 +114,47 @@ describe('useApi', () => {
     expect(w.vm.busy).toBe(false)
   })
 
-  describe('errorText', () => {
-    it('is empty when error is null', () => {
-      const w = makeWrapper()
-      expect(w.vm.errorText).toBe('')
-    })
+  it('maps non-ApiError throws to network_error (no message)', async () => {
+    const w = makeWrapper()
+    await w.vm.run(() => Promise.reject(new Error('boom')))
+    expect(w.vm.error).not.toBeNull()
+    expect(w.vm.error!.code).toBe('network_error')
+    expect((w.vm.error as Record<string, unknown>).message).toBeUndefined()
+  })
+})
 
-    it('returns the translated key when te() recognises it', async () => {
-      const w = makeWrapper()
-      const err: ApiError = { code: 'bad_credentials', message: 'raw' }
-      mockTe.mockReturnValue(true)
-      mockT.mockImplementation((key: string) => key === 'errors.bad_credentials' ? 'Wrong password' : key)
-      await w.vm.run(() => Promise.reject(err))
-      await flushPromises()
-      expect(w.vm.errorText).toBe('Wrong password')
-    })
+describe('errorText', () => {
+  it('is empty when error is null', () => {
+    const w = makeWrapper()
+    expect(w.vm.errorText).toBe('')
+  })
 
-    it('falls back to error.message when te() returns false and message is set', async () => {
-      const w = makeWrapper()
-      const err: ApiError = { code: 'unknown_code', message: 'Server said nope' }
-      mockTe.mockReturnValue(false)
-      await w.vm.run(() => Promise.reject(err))
-      await flushPromises()
-      expect(w.vm.errorText).toBe('Server said nope')
-    })
+  it('returns the translated key when te() recognises it', async () => {
+    const w = makeWrapper()
+    const err: ApiError = { code: 'bad_credentials' }
+    mockTe.mockReturnValue(true)
+    mockT.mockImplementation((key: string) => key === 'errors.codes.bad_credentials' ? 'Wrong password' : key)
+    await w.vm.run(() => Promise.reject(err))
+    await flushPromises()
+    expect(w.vm.errorText).toBe('Wrong password')
+  })
 
-    it('falls back to common.error when te() is false and message is empty', async () => {
-      const w = makeWrapper()
-      const err: ApiError = { code: 'unknown_code', message: '' }
-      mockTe.mockReturnValue(false)
-      mockT.mockImplementation((key: string) => key === 'common.error' ? 'An error occurred' : key)
-      await w.vm.run(() => Promise.reject(err))
-      await flushPromises()
-      expect(w.vm.errorText).toBe('An error occurred')
-    })
+  it('returns empty string for unknown codes (ErrorPanel renders the fallback)', async () => {
+    const w = makeWrapper()
+    const err: ApiError = { code: 'unknown_code_xyz' }
+    mockTe.mockReturnValue(false)
+    await w.vm.run(() => Promise.reject(err))
+    await flushPromises()
+    expect(w.vm.errorText).toBe('')
+  })
+
+  it('returns empty for globally-handled codes (redirect/toast)', async () => {
+    const w = makeWrapper()
+    const err: ApiError = { code: 'server_error' }
+    mockTe.mockReturnValue(true)
+    mockT.mockImplementation((key: string) => key === 'errors.codes.server_error' ? 'Server error' : key)
+    await w.vm.run(() => Promise.reject(err))
+    await flushPromises()
+    expect(w.vm.errorText).toBe('')
   })
 })

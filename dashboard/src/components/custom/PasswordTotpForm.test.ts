@@ -74,7 +74,7 @@ describe('PasswordTotpForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.find('[role=alert]').text()).toBe(en.errors.bad_credentials)
+    expect(wrapper.find('[role=alert]').text()).toBe(en.errors.codes.bad_credentials)
     expect(wrapper.find('input[name=code]').exists()).toBe(false)
   })
 

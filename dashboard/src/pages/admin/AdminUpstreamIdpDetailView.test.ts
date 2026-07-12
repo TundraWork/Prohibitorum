@@ -111,7 +111,7 @@ describe('AdminUpstreamIdpDetailView', () => {
     // (server_error) is now suppressed here and shown via the global toast.
     get.mockRejectedValue({ code: 'forbidden', message: 'zh' })
     const w = mountView(); await flushPromises()
-    expect(w.text()).toContain(en.errors.forbidden)
+    expect(w.text()).toContain(en.errors.codes.forbidden)
     expect(w.text()).not.toContain(en.admin.upstream.notFound)
   })
   it('does not navigate when delete fails', async () => {

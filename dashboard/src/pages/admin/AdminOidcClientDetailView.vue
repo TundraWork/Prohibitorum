@@ -31,6 +31,7 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import AppAccessCard from '@/components/custom/AppAccessCard.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface OidcApplication {
   clientId: string
@@ -51,7 +52,7 @@ const route = useRoute()
 const router = useRouter()
 
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
-const { busy, error, run, errorText } = useApi()
+const { busy, error, run, clear, errorText } = useApi()
 
 const clientId = String(route.params.clientId)
 const client = ref<OidcApplication | null>(null)
@@ -142,7 +143,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/oidc-applications" :label="t('admin.oidc.back')" />
-    <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.oidc.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !client" />

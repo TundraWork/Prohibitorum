@@ -27,12 +27,13 @@ import FormSection from '@/components/custom/FormSection.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, errorText } = useApi()
+const { busy, error, run, clear, errorText } = useApi()
 
 const slug = String(route.params.slug)
 const idp = ref<IdentityProvider | null>(null)
@@ -104,7 +105,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/identity-providers" :label="t('admin.upstream.back')" />
-    <Alert v-if="errorText && !notFound" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.upstream.notFound') }}</p>
 
     <CardSkeleton v-else-if="busy && !idp" />

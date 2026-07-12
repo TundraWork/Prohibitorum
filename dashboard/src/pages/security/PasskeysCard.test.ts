@@ -74,7 +74,7 @@ describe('PasskeysCard', () => {
     await flushPromises()
     const confirmBtn = Array.from(document.body.querySelectorAll('button')).find((b) => b.getAttribute('data-variant') === 'destructive')!
     confirmBtn.click(); await flushPromises()
-    expect(w.text()).toContain(en.errors.last_passkey)
+    expect(w.text()).toContain(en.errors.codes.last_passkey)
   })
 
   it('shows empty state when loaded with no passkeys', async () => {

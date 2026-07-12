@@ -14,6 +14,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { Users } from 'lucide-vue-next'
 
 interface Account {
@@ -22,7 +23,7 @@ interface Account {
 }
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 const rows = ref<Account[]>([])
 const filter = ref('')
 
@@ -47,7 +48,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.accounts.title') }}</h1>
       <Button type="button" data-test="invite" @click="router.push('/admin/invitations')">{{ t('admin.accounts.invite') }}</Button>
     </div>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <Input v-if="!busy || rows.length" v-model="filter" type="search" data-test="accounts-filter"
            :aria-label="t('admin.accounts.filterPlaceholder')"
            :placeholder="t('admin.accounts.filterPlaceholder')" class="max-w-xs" />
@@ -83,6 +84,6 @@ onMounted(load)
       </Table>
       <p v-else class="text-sm text-muted" data-test="accounts-no-matches">{{ t('admin.accounts.noMatches') }}</p>
     </template>
-    <EmptyState v-else-if="!errorText" :icon="Users" :title="t('admin.accounts.empty')" />
+    <EmptyState v-else-if="!error" :icon="Users" :title="t('admin.accounts.empty')" />
   </div>
 </template>

@@ -151,7 +151,7 @@ describe('PairDeviceView', () => {
     const w = mountView(); await flushPromises()
     await vi.advanceTimersByTimeAsync(2600); await flushPromises()
     await w.find('[data-test="add-passkey"]').trigger('click'); await flushPromises()
-    expect(w.text()).toContain(en.errors.webauthn_error)
+    expect(w.text()).toContain(en.errors.codes.webauthn_error)
     expect(push).not.toHaveBeenCalled()
   })
 })

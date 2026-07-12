@@ -175,7 +175,7 @@ describe('EditProfileDialog — display name', () => {
     const w = mountOpen(); await flushPromises()
     setInput('Bad'); await flushPromises()
     saveBtn().click(); await flushPromises()
-    expect(document.body.textContent).toContain(en.errors.invalid_display_name)
+    expect(document.body.textContent).toContain(en.errors.codes.invalid_display_name)
     expect(input().value).toBe('Bad')
     expect((w.emitted('update:open') ?? []).some((e) => e[0] === false)).toBe(false)
   })
@@ -220,7 +220,7 @@ describe('EditProfileDialog — avatar', () => {
     await flushPromises()
     expect(upload).not.toHaveBeenCalled()
     expect(document.body.querySelector('[data-test="cropper-stub"]')).toBeNull()
-    expect(document.body.textContent).toContain(en.accountMenu.avatarTooLargeClient)
+    expect(document.body.textContent).toContain(en.errors.codes.avatar_too_large)
   })
 
   it('selecting a valid file shows the crop UI and does NOT upload yet', async () => {
@@ -359,12 +359,12 @@ describe('EditProfileDialog — avatar source picker', () => {
     upstreamOption().click()
     await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'upstream' })
-    expect(document.body.textContent).toContain(en.errors.avatar_source_unavailable)
+    expect(document.body.textContent).toContain(en.errors.codes.avatar_source_unavailable)
     expect(vi.mocked(api.get)).not.toHaveBeenCalled()
     // Error must appear in the avatar zone (data-test="avatar-error"), not only in some shared area
     const avatarError = document.body.querySelector('[data-test="avatar-error"]')
     expect(avatarError).not.toBeNull()
-    expect(avatarError?.textContent).toContain(en.errors.avatar_source_unavailable)
+    expect(avatarError?.textContent).toContain(en.errors.codes.avatar_source_unavailable)
   })
 
   it('marks the clicked source card with aria-busy during the pending selection', async () => {

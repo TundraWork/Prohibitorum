@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PasskeysCard from '@/pages/security/PasskeysCard.vue'
 import PasswordCard from '@/pages/security/PasswordCard.vue'
 import TotpCard from '@/pages/security/TotpCard.vue'
@@ -25,7 +26,7 @@ interface MeFactors {
 }
 
 const { t } = useI18n()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 const confirmOpen = ref(false)
 const { flag: done, trigger: triggerDone } = useTransientFlag()
 const factors = ref<MeFactors | null>(null)
@@ -72,9 +73,7 @@ async function revoke(): Promise<void> {
       </CardHeader>
       <CardContent class="flex flex-col gap-3">
         <p class="text-sm text-muted">{{ t('security.revoke.help') }}</p>
-        <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-          <AlertDescription>{{ errorText }}</AlertDescription>
-        </Alert>
+        <ErrorPanel :error="error" @dismiss="clear" />
         <StatusMessage :show="done">{{ t('security.revoke.done') }}</StatusMessage>
         <Button type="button" variant="destructive" class="w-fit" :disabled="busy" @click="confirmOpen = true">
           {{ t('security.revoke.button') }}

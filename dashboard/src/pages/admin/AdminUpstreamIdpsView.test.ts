@@ -102,7 +102,7 @@ describe('AdminUpstreamIdpsView', () => {
     await w.find('input[name="clientId"]').setValue('c')
     await w.find('input[name="clientSecret"]').setValue('s')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(w.text()).toContain(en.errors.upstream_idp_already_exists)
+    expect(w.text()).toContain(en.errors.codes.upstream_idp_already_exists)
   })
   it('hides the empty-state while the create form is open', async () => {
     get.mockResolvedValue([])

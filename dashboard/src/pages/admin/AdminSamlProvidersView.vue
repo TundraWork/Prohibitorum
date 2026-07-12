@@ -24,6 +24,7 @@ import SegmentedControl from '@/components/custom/SegmentedControl.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { Building2 } from 'lucide-vue-next'
 
 const POST_URN = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
@@ -51,7 +52,7 @@ interface AcsRow {
 
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const rows = ref<SamlApplication[]>([])
 const createOpen = ref(false)
@@ -159,7 +160,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.saml.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.saml.create') }}</Button>
     </div>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <StatusMessage :show="created">{{ t('admin.saml.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -281,6 +282,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText && !createOpen" :icon="Building2" :title="t('admin.saml.empty')" />
+    <EmptyState v-else-if="!error && !createOpen" :icon="Building2" :title="t('admin.saml.empty')" />
   </div>
 </template>

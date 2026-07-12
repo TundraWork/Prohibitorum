@@ -18,19 +18,13 @@ const props = defineProps<{ set?: boolean }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t, te } = useI18n()
-const { busy, error, run } = useApi()
+const { busy, error, run, clear } = useApi()
 const pw = ref('')
 const confirm = ref('')
 const localError = ref('')
 const { flag: done, trigger: triggerDone } = useTransientFlag()
 
-const errorText = computed(() => {
-  if (localError.value) return localError.value
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
+// localError handles client-side validation; API errors go through ErrorPanel
 
 async function submit(): Promise<void> {
   localError.value = ''
@@ -64,9 +58,10 @@ async function submit(): Promise<void> {
           <Label for="pw-confirm">{{ t('security.password.confirmLabel') }}</Label>
           <Input id="pw-confirm" v-model="confirm" name="confirm_password" type="password" autocomplete="new-password" required />
         </div>
-        <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-          <AlertDescription>{{ errorText }}</AlertDescription>
+        <Alert v-if="localError" variant="destructive" role="alert" aria-live="polite">
+          <AlertDescription>{{ localError }}</AlertDescription>
         </Alert>
+        <ErrorPanel :error="error" @dismiss="clear" />
         <StatusMessage :show="done">{{ t('security.password.saved') }}</StatusMessage>
         <Button type="submit" :disabled="busy">{{ t('security.password.submit') }}</Button>
       </form>

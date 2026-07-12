@@ -105,6 +105,6 @@ describe('AdminOidcClientDetailView', () => {
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
     clickConfirm(en.admin.oidc.delete); await flushPromises()
     expect(push).not.toHaveBeenCalled()
-    expect(w.text()).toContain(en.errors.client_not_found)
+    expect(w.text()).toContain(en.errors.codes.client_not_found)
   })
 })

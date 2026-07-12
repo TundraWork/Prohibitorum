@@ -19,6 +19,7 @@ import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ScopeVocabularyEditor, { type ScopeEntry } from '@/components/custom/ScopeVocabularyEditor.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface ForwardAuthApp {
   clientId: string
@@ -31,7 +32,7 @@ interface ForwardAuthApp {
 
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 
 const rows = ref<ForwardAuthApp[]>([])
 const createOpen = ref(false)
@@ -81,7 +82,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.forwardAuth.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.forwardAuth.create') }}</Button>
     </div>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <StatusMessage :show="created">{{ t('admin.forwardAuth.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -141,6 +142,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText && !createOpen" :icon="Waypoints" :title="t('admin.forwardAuth.empty')" />
+    <EmptyState v-else-if="!error && !createOpen" :icon="Waypoints" :title="t('admin.forwardAuth.empty')" />
   </div>
 </template>

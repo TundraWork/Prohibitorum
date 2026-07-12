@@ -20,6 +20,7 @@ import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import FormSection from '@/components/custom/FormSection.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { UsersRound } from 'lucide-vue-next'
 
 interface GroupView {
@@ -34,7 +35,7 @@ interface GroupView {
 
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, errorText } = useApi()
+const { busy, run, error, clear, errorText } = useApi()
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
 const rows = ref<GroupView[]>([])
@@ -100,7 +101,7 @@ onMounted(load)
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ t('admin.groups.title') }}</h1>
       <Button type="button" data-test="create" @click="openCreate">{{ t('admin.groups.create') }}</Button>
     </div>
-    <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ errorText }}</AlertDescription></Alert>
+    <ErrorPanel :error="error" @dismiss="clear" />
     <StatusMessage :show="created">{{ t('admin.groups.created') }}</StatusMessage>
 
     <Card v-if="createOpen">
@@ -161,6 +162,6 @@ onMounted(load)
         </TableRow>
       </TableBody>
     </Table>
-    <EmptyState v-else-if="!errorText && !createOpen" :icon="UsersRound" :title="t('admin.groups.empty')" />
+    <EmptyState v-else-if="!error && !createOpen" :icon="UsersRound" :title="t('admin.groups.empty')" />
   </div>
 </template>

@@ -30,6 +30,7 @@
  * shows the read-only target username (identity is fixed, only the passkey is
  * replaced).
  */
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -91,13 +92,6 @@ const heading = computed(() => {
   }
 })
 
-const errorText = computed(() => {
-  const e = error.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
-
 function startFederationURL(): string {
   return (
     `/api/prohibitorum/enrollments/${encodeURIComponent(token)}/start-federation` +
@@ -132,7 +126,7 @@ async function enroll(): Promise<void> {
     if (netError.value?.code === 'enrollment_federation_required') {
       federationRedirectUrl.value = startFederationURL()
     }
-    return // other errors render via errorText
+    return // other errors render via ErrorPanel
   }
 
   // 2) ceremony — navigator.credentials.create. undefined = user-cancel / error.
@@ -216,9 +210,7 @@ async function enroll(): Promise<void> {
         </div>
       </template>
 
-      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
+      <ErrorPanel :error="error" @dismiss="clear" />
 
       <p class="text-xs text-muted">{{ t('enroll.passkeyForeshadow') }}</p>
 

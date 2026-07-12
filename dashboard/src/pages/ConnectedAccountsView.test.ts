@@ -91,7 +91,7 @@ describe('ConnectedAccountsView', () => {
     const w = mountView(); await flushPromises()
     await w.find('[data-test="unlink-1"]').trigger('click'); await flushPromises()
     clickConfirm(); await flushPromises()
-    expect(w.text()).toContain(en.errors.last_sign_in_method)
+    expect(w.text()).toContain(en.errors.codes.last_sign_in_method)
   })
 
   it('surfaces credential_not_found on unlink failure', async () => {
@@ -100,7 +100,7 @@ describe('ConnectedAccountsView', () => {
     const w = mountView(); await flushPromises()
     await w.find('[data-test="unlink-1"]').trigger('click'); await flushPromises()
     clickConfirm(); await flushPromises()
-    expect(w.text()).toContain(en.errors.credential_not_found)
+    expect(w.text()).toContain(en.errors.codes.credential_not_found)
   })
 
   it('disables already-linked providers in the link picker', async () => {

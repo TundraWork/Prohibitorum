@@ -5,6 +5,7 @@
  * session cookie) → offer a skippable local-passkey registration → dashboard.
  * The poll timer is cleared on unmount, approval, and expiry.
  */
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -24,7 +25,7 @@ interface Status { status: 'pending' | 'approved' | 'expired'; expiresAt?: strin
 
 const { t, te } = useI18n()
 const router = useRouter()
-const { busy, error, run } = useApi()
+const { busy, error, run, clear } = useApi()
 const { register, error: waError } = useWebauthn()
 
 type Phase = 'pending' | 'expired' | 'success'
@@ -37,12 +38,6 @@ let timer: ReturnType<typeof setInterval> | null = null
 let polling = false
 let mounted = false
 
-const errorText = computed(() => {
-  const e = error.value || waError.value
-  if (!e) return ''
-  const key = `errors.${e.code}`
-  return te(key) ? t(key) : e.message || t('common.error')
-})
 const secondsLeft = computed(() => {
   const ms = Date.parse(expiresAt.value)
   if (Number.isNaN(ms)) return 0
@@ -120,9 +115,7 @@ onUnmounted(() => { mounted = false; stopTimer() })
     </template>
 
     <div class="flex flex-col gap-6">
-      <Alert v-if="errorText" variant="destructive" role="alert" aria-live="polite">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
+      <ErrorPanel :error="error || waError" @dismiss="clear" />
 
       <template v-if="phase === 'pending'">
         <p class="text-center text-sm text-muted">{{ t('pair.intro') }}</p>

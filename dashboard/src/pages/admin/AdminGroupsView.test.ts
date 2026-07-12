@@ -84,7 +84,7 @@ describe('AdminGroupsView', () => {
     await w.find('input[name="slug"]').setValue('dupe')
     await w.find('input[name="displayName"]').setValue('Dupe')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(w.text()).toContain(en.errors.group_slug_conflict)
+    expect(w.text()).toContain(en.errors.codes.group_slug_conflict)
   })
 
   it('surfaces an app load error inline', async () => {
@@ -92,12 +92,12 @@ describe('AdminGroupsView', () => {
     // suppressed here and surfaced via the global toast instead.
     get.mockRejectedValue({ code: 'forbidden', message: 'zh' })
     const w = mountView(); await flushPromises()
-    expect(w.text()).toContain(en.errors.forbidden)
+    expect(w.text()).toContain(en.errors.codes.forbidden)
   })
 
   it('does NOT render server_error inline (global toast owns it)', async () => {
     get.mockRejectedValue({ code: 'server_error', message: 'boom' })
     const w = mountView(); await flushPromises()
-    expect(w.text()).not.toContain(en.errors.server_error)
+    expect(w.text()).not.toContain(en.errors.codes.server_error)
   })
 })
