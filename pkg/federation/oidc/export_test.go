@@ -40,6 +40,13 @@ func ClearClientCacheForTest(f *Federator) {
 	})
 }
 
+// InvalidateClientCacheForSlug exposes the per-slug cache invalidation so
+// tests can verify that changing allow_private_network clears the cached
+// client for that IdP.
+func InvalidateClientCacheForSlug(f *Federator, slug string) {
+	f.InvalidateClientCache(slug)
+}
+
 // ApplyInviteOnlyForTest exposes the unexported applyInviteOnly to the
 // _test package so we can drive happy-path + negative branches directly
 // (Resolve always routes invite_only with an empty token, which is the

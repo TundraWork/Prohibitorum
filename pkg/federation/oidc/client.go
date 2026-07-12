@@ -114,9 +114,9 @@ type Client struct {
 // calls to Exchange reuse the cached endpoints and the JWKS cache
 // managed by zitadel/oidc internally.
 // allowPrivateNetwork, when true, disables the outbound client's dial-time
-// internal-IP screen. Production passes the Federation.AllowPrivateNetwork
-// config flag (default false) — set it true only when the upstream issuer is a
-// trusted IdP on a private/internal network.
+// internal-IP screen. Sourced from the per-IdP upstream_idp.allow_private_network
+// column (default false) — set true only when the upstream issuer is a trusted
+// IdP on a private/internal network.
 func NewClient(
 	ctx context.Context,
 	clientID, clientSecret, redirectURI string,

@@ -138,9 +138,12 @@ type Querier interface {
 	IsAccountAuthorizedForSAMLSP(ctx context.Context, arg IsAccountAuthorizedForSAMLSPParams) (pgtype.Bool, error)
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
-	ListAccounts(ctx context.Context) ([]ListAccountsRow, error)
-	ListAllSigningKeys(ctx context.Context) ([]SigningKey, error)
-	ListAllUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error)
+	// Keyset-paginated identities for an account, ordered by (linked_at DESC, id DESC).
+	// NULL after_linked_at starts a new page. LIMIT is limit+1 for next-page detection.
+	ListAccountIdentitiesByAccountPage(ctx context.Context, arg ListAccountIdentitiesByAccountPageParams) ([]ListAccountIdentitiesByAccountPageRow, error)
+	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
+	ListAllSigningKeys(ctx context.Context, arg ListAllSigningKeysParams) ([]SigningKey, error)
+	ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamIDPsParams) ([]UpstreamIdp, error)
 	ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedForwardAuthAppsForAccountRow, error)
 	ListAuthorizedOIDCClientsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedOIDCClientsForAccountRow, error)
 	ListAuthorizedSAMLSPsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedSAMLSPsForAccountRow, error)
@@ -153,26 +156,48 @@ type Querier interface {
 	ListCredentialEventsByAccount(ctx context.Context, arg ListCredentialEventsByAccountParams) ([]CredentialEvent, error)
 	ListCredentialEventsByFactor(ctx context.Context, arg ListCredentialEventsByFactorParams) ([]CredentialEvent, error)
 	ListCredentialsByAccount(ctx context.Context, accountID int32) ([]WebauthnCredential, error)
+	// Keyset-paginated credentials for an account, ordered by (created_at DESC, id DESC).
+	// The after_created_at / after_id pair is the keyset cursor from the last row
+	// of the previous page; NULL starts a new page. LIMIT is limit+1 so the handler
+	// can detect the presence of a next page without a separate count.
+	ListCredentialsByAccountPage(ctx context.Context, arg ListCredentialsByAccountPageParams) ([]WebauthnCredential, error)
 	ListEntityIconEtags(ctx context.Context, ownerKind string) ([]ListEntityIconEtagsRow, error)
 	ListExposedGroupSlugsByAccount(ctx context.Context, accountID int32) ([]string, error)
-	ListForwardAuthClients(ctx context.Context) ([]ListForwardAuthClientsRow, error)
+	ListForwardAuthClients(ctx context.Context, arg ListForwardAuthClientsParams) ([]ListForwardAuthClientsRow, error)
 	ListGroupMembers(ctx context.Context, groupID int32) ([]ListGroupMembersRow, error)
-	ListGroups(ctx context.Context) ([]ListGroupsRow, error)
+	// Keyset-paginated group members, ordered by (username ASC, account_id ASC).
+	// NULL after_username starts a new page. LIMIT is limit+1 for next-page detection.
+	ListGroupMembersPage(ctx context.Context, arg ListGroupMembersPageParams) ([]ListGroupMembersPageRow, error)
+	ListGroups(ctx context.Context, arg ListGroupsParams) ([]ListGroupsRow, error)
 	ListGroupsForAccount(ctx context.Context, accountID int32) ([]UserGroup, error)
-	ListNonForwardAuthOIDCClients(ctx context.Context) ([]ListNonForwardAuthOIDCClientsRow, error)
+	// Keyset-paginated groups for an account, ordered by (display_name ASC, id ASC).
+	// NULL after_display_name starts a new page. LIMIT is limit+1 for next-page detection.
+	ListGroupsForAccountPage(ctx context.Context, arg ListGroupsForAccountPageParams) ([]UserGroup, error)
+	ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNonForwardAuthOIDCClientsParams) ([]ListNonForwardAuthOIDCClientsRow, error)
 	ListOIDCClientAccessAccounts(ctx context.Context, clientID string) ([]ListOIDCClientAccessAccountsRow, error)
+	// Keyset-paginated access accounts for an OIDC client, ordered by (username ASC, id ASC).
+	ListOIDCClientAccessAccountsPage(ctx context.Context, arg ListOIDCClientAccessAccountsPageParams) ([]ListOIDCClientAccessAccountsPageRow, error)
 	ListOIDCClientAccessGroups(ctx context.Context, clientID string) ([]ListOIDCClientAccessGroupsRow, error)
+	// Keyset-paginated access groups for an OIDC client, ordered by (display_name ASC, id ASC).
+	ListOIDCClientAccessGroupsPage(ctx context.Context, arg ListOIDCClientAccessGroupsPageParams) ([]ListOIDCClientAccessGroupsPageRow, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
 	ListPATsByAccount(ctx context.Context, accountID int32) ([]PersonalAccessToken, error)
-	ListPendingInvitations(ctx context.Context) ([]Enrollment, error)
+	// Keyset-paginated non-revoked PATs for an account, ordered by (created_at DESC, id DESC).
+	// NULL after_created_at starts a new page. LIMIT is limit+1 for next-page detection.
+	ListPATsByAccountPage(ctx context.Context, arg ListPATsByAccountPageParams) ([]PersonalAccessToken, error)
+	ListPendingInvitations(ctx context.Context, arg ListPendingInvitationsParams) ([]Enrollment, error)
 	ListPublishableSigningKeys(ctx context.Context) ([]SigningKey, error)
 	ListRecoveryCodesByAccount(ctx context.Context, accountID int32) ([]RecoveryCode, error)
 	ListSAMLConsentsByAccount(ctx context.Context, accountID int32) ([]ListSAMLConsentsByAccountRow, error)
 	ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]SamlSpAc, error)
 	ListSAMLSPAccessAccounts(ctx context.Context, samlSpID int64) ([]ListSAMLSPAccessAccountsRow, error)
+	// Keyset-paginated access accounts for a SAML SP, ordered by (username ASC, id ASC).
+	ListSAMLSPAccessAccountsPage(ctx context.Context, arg ListSAMLSPAccessAccountsPageParams) ([]ListSAMLSPAccessAccountsPageRow, error)
 	ListSAMLSPAccessGroups(ctx context.Context, samlSpID int64) ([]ListSAMLSPAccessGroupsRow, error)
+	// Keyset-paginated access groups for a SAML SP, ordered by (display_name ASC, id ASC).
+	ListSAMLSPAccessGroupsPage(ctx context.Context, arg ListSAMLSPAccessGroupsPageParams) ([]ListSAMLSPAccessGroupsPageRow, error)
 	ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) ([]SamlSpKey, error)
-	ListSAMLSPs(ctx context.Context) ([]SamlSp, error)
+	ListSAMLSPs(ctx context.Context, arg ListSAMLSPsParams) ([]SamlSp, error)
 	ListSAMLSessionsByNameID(ctx context.Context, arg ListSAMLSessionsByNameIDParams) ([]SamlSession, error)
 	ListSAMLSessionsBySession(ctx context.Context, sessionID string) ([]SamlSession, error)
 	ListSessionsByAccount(ctx context.Context, accountID int32) ([]Session, error)

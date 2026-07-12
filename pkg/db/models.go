@@ -330,6 +330,7 @@ type UpstreamIdp struct {
 	RequireVerifiedEmail bool               `json:"requireVerifiedEmail"`
 	PictureClaim         string             `json:"pictureClaim"`
 	Protocol             string             `json:"protocol"`
+	AllowPrivateNetwork  bool               `json:"allowPrivateNetwork"`
 }
 
 type UserGroup struct {

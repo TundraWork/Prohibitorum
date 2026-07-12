@@ -313,6 +313,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		UsernameClaim:    "preferred_username",
 		DisplayNameClaim: "name",
 		EmailClaim:       "email",
+		AllowPrivateNetwork: true, // mock OP is on loopback
 	}
 	q := newFakeFedQueries()
 	q.idpBySlug[idp.Slug] = idp
@@ -329,9 +330,8 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 
 	// 4. Federator. publicOrigin is filled in below after we start srvTS.
 	fedCfg := configx.FederationConfig{
-		StateTTL:            5 * time.Minute,
-		DefaultScopes:       []string{"openid", "profile", "email"},
-		AllowPrivateNetwork: true, // mock OP is on loopback
+		StateTTL:      5 * time.Minute,
+		DefaultScopes: []string{"openid", "profile", "email"},
 	}
 	deks := map[int][]byte{1: fedTestDEK}
 

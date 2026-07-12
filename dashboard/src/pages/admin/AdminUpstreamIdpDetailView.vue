@@ -41,7 +41,7 @@ const notFound = ref(false)
 const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
 const mode = ref('auto_provision'); const scopes = ref<string[]>([]); const allowedDomains = ref<string[]>([])
 const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClaim = ref(''); const pictureClaim = ref('')
-const requireVerifiedEmail = ref(false); const disabled = ref(false)
+const requireVerifiedEmail = ref(false); const disabled = ref(false); const allowPrivateNetwork = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
 const isSteam = computed(() => idp.value?.protocol === 'steam')
@@ -59,7 +59,7 @@ async function load(): Promise<void> {
   displayName.value = i.displayName; issuerUrl.value = i.issuerUrl; clientId.value = i.clientId
   mode.value = i.mode; scopes.value = [...i.scopes]; allowedDomains.value = [...i.allowedDomains]
   usernameClaim.value = i.usernameClaim; displayNameClaim.value = i.displayNameClaim; emailClaim.value = i.emailClaim; pictureClaim.value = i.pictureClaim
-  requireVerifiedEmail.value = i.requireVerifiedEmail; disabled.value = i.disabled
+  requireVerifiedEmail.value = i.requireVerifiedEmail; disabled.value = i.disabled; allowPrivateNetwork.value = i.allowPrivateNetwork ?? false
 }
 
 async function save(): Promise<void> {
@@ -68,6 +68,7 @@ async function save(): Promise<void> {
     scopes: scopes.value, allowedDomains: allowedDomains.value, usernameClaim: usernameClaim.value,
     displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value, pictureClaim: pictureClaim.value,
     requireVerifiedEmail: requireVerifiedEmail.value, disabled: disabled.value,
+    allowPrivateNetwork: allowPrivateNetwork.value,
   }), t('sudo.reason.saveChanges')))
   if (updated) { idp.value = updated; triggerSaved() }
 }
@@ -162,6 +163,14 @@ onMounted(load)
             </div>
             <SettingRow v-if="!isSteam" :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
               <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />
+            </SettingRow>
+          </FormSection>
+          <FormSection :title="t('admin.upstream.sectionSecurity')">
+            <Alert variant="destructive" data-test="private-network-warning">
+              <AlertDescription>{{ t('admin.upstream.allowPrivateNetworkWarning') }}</AlertDescription>
+            </Alert>
+            <SettingRow :label="t('admin.upstream.allowPrivateNetwork')" :description="t('admin.upstream.allowPrivateNetworkDesc')" for="allowPrivateNetwork">
+              <Switch id="allowPrivateNetwork" v-model="allowPrivateNetwork" data-test="allowPrivateNetwork" />
             </SettingRow>
           </FormSection>
           <FormSection v-if="!isSteam" :title="t('admin.upstream.sectionClaims')">

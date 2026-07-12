@@ -696,9 +696,8 @@ func mountLinkRoutes(h *fedTestHarness) *httptest.Server {
 
 func fedTestFedCfg() configx.FederationConfig {
 	return configx.FederationConfig{
-		StateTTL:            5 * time.Minute,
-		DefaultScopes:       []string{"openid", "profile", "email"},
-		AllowPrivateNetwork: true, // mock OP is on loopback
+		StateTTL:      5 * time.Minute,
+		DefaultScopes: []string{"openid", "profile", "email"},
 	}
 }
 

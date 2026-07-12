@@ -10,7 +10,7 @@ const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ params: { slug: 'okta' } }), useRouter: () => ({ push }), RouterLink: { template: '<a><slot/></a>' } }))
 import AdminUpstreamIdpDetailView from './AdminUpstreamIdpDetailView.vue'
 
-const IDP = { slug: 'okta', displayName: 'Okta', issuerUrl: 'https://okta/', clientId: 'c1', scopes: ['openid','email'], mode: 'auto_provision', allowedDomains: ['ex.com'], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', pictureClaim: 'picture', requireVerifiedEmail: false, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
+const IDP = { slug: 'okta', displayName: 'Okta', issuerUrl: 'https://okta/', clientId: 'c1', scopes: ['openid','email'], mode: 'auto_provision', allowedDomains: ['ex.com'], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', pictureClaim: 'picture', requireVerifiedEmail: false, disabled: false, createdAt: '2026-01-01T00:00:00Z', allowPrivateNetwork: false }
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminUpstreamIdpDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
 const clickConfirm = async (_w: ReturnType<typeof mountView>, label: string) => {
@@ -120,5 +120,22 @@ describe('AdminUpstreamIdpDetailView', () => {
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
     await clickConfirm(w, en.admin.upstream.delete)
     expect(push).not.toHaveBeenCalled()
+  })
+  it('renders the private network toggle with a security warning', async () => {
+    get.mockResolvedValue(IDP)
+    const w = mountView(); await flushPromises()
+    expect(w.find('[data-test="allowPrivateNetwork"]').exists()).toBe(true)
+    expect(w.find('[data-test="private-network-warning"]').exists()).toBe(true)
+    expect(w.text()).toContain(en.admin.upstream.allowPrivateNetworkWarning)
+  })
+  it('includes allowPrivateNetwork in the save payload', async () => {
+    get.mockResolvedValue({ ...IDP, allowPrivateNetwork: false })
+    put.mockResolvedValue({ ...IDP, allowPrivateNetwork: true })
+    const w = mountView(); await flushPromises()
+    // Toggle the switch on
+    await w.find('[data-test="allowPrivateNetwork"]').trigger('click')
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    const body = put.mock.calls[0][1] as Record<string, unknown>
+    expect(body).toHaveProperty('allowPrivateNetwork', true)
   })
 })

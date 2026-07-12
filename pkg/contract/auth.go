@@ -639,6 +639,7 @@ type IdentityProviderView struct {
 	PictureClaim         string    `json:"pictureClaim"`
 	RequireVerifiedEmail bool      `json:"requireVerifiedEmail"`
 	Disabled             bool      `json:"disabled"`
+	AllowPrivateNetwork  bool      `json:"allowPrivateNetwork"`
 	CreatedAt            time.Time `json:"createdAt"`
 }
 
@@ -752,12 +753,14 @@ var OperationListGroupMembers = huma.Operation{
 }
 
 // AppAccessView is the response body for the GET …/access endpoints. It
-// combines the access_restricted flag with the lists of groups and accounts
-// that have been explicitly granted access to the application.
+// combines the access_restricted flag with paginated lists of groups and
+// accounts that have been explicitly granted access to the application.
+// Each sub-collection (groups, accounts) is independently paginated with
+// its own cursor, both bound to the parent application identifier.
 type AppAccessView struct {
-	AccessRestricted bool         `json:"accessRestricted"`
-	Groups           []GroupRef   `json:"groups"`
-	Accounts         []AccountRef `json:"accounts"`
+	AccessRestricted bool               `json:"accessRestricted"`
+	Groups           Page[GroupRef]     `json:"groups"`
+	Accounts         Page[AccountRef]   `json:"accounts"`
 }
 
 var OperationGetOIDCClientAccess = huma.Operation{

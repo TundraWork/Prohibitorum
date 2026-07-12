@@ -29,14 +29,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
 	"prohibitorum/pkg/federation/oidc"
 )
 
@@ -57,9 +61,9 @@ func identityProviderView(r db.UpstreamIdp) contract.IdentityProviderView {
 		UsernameClaim:        r.UsernameClaim,
 		DisplayNameClaim:     r.DisplayNameClaim,
 		EmailClaim:           r.EmailClaim,
-		PictureClaim:         r.PictureClaim,
 		RequireVerifiedEmail: r.RequireVerifiedEmail,
 		Disabled:             r.Disabled,
+		AllowPrivateNetwork:  r.AllowPrivateNetwork,
 	}
 	if r.CreatedAt.Valid {
 		v.CreatedAt = r.CreatedAt.Time
@@ -85,11 +89,12 @@ func (s *Server) currentDEK() (int32, []byte, error) {
 
 // validateUpstreamIssuer enforces the SSRF-hardening rule (audit follow-up N2)
 // that an upstream issuer_url must be an https:// URL with a non-IP-literal
-// host. It is SKIPPED when federation.allow_private_network is set — that
-// deployment has explicitly opted into trusting internal IdPs (and the runtime
-// dial screen is off to match), so an IP-literal / http issuer is permitted.
-func (s *Server) validateUpstreamIssuer(issuerURL string) error {
-	if s.config != nil && s.config.Federation.AllowPrivateNetwork {
+// host. It is SKIPPED when the per-IdP allowPrivateNetwork flag is set — that
+// IdP has explicitly opted into trusting an internal issuer (and the runtime
+// dial screen is off for that IdP to match), so an IP-literal / http issuer
+// is permitted for it.
+func validateUpstreamIssuer(issuerURL string, allowPrivate bool) error {
+	if allowPrivate {
 		return nil
 	}
 	if err := oidc.ValidateIssuerURL(issuerURL); err != nil {
@@ -111,20 +116,54 @@ func (s *Server) defaultFederationScopes() []string {
 
 // ----- GET /identity-providers (typed, role-only) ------------------------------------
 
-type listIdentityProvidersOut struct {
-	Body []contract.IdentityProviderView
+type listIdentityProvidersIn struct {
+	pageInput
 }
 
-func (s *Server) handleListIdentityProviders(ctx context.Context, _ *struct{}) (*listIdentityProvidersOut, error) {
-	rows, err := s.queries.ListAllUpstreamIDPs(ctx)
+type listIdentityProvidersOut struct {
+	Body contract.Page[contract.IdentityProviderView]
+}
+
+func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdentityProvidersIn) (*listIdentityProvidersOut, error) {
+	lim := pagination.Limit(in.Limit)
+	const collection = "identity_providers"
+	const sort = "created_at"
+	filters := map[string]string{}
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+	params := db.ListAllUpstreamIDPsParams{Limit: int32(lim + 1)}
+	if len(payload.Keys) == 2 {
+		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
+			params.AfterCreatedAt = tsToPgType(t)
+		}
+		var id int64
+		if _, serr := fmt.Sscanf(payload.Keys[1], "%d", &id); serr == nil {
+			params.AfterID = pgtype.Int8{Int64: id, Valid: true}
+		}
+	}
+	rows, err := s.listQ().ListAllUpstreamIDPs(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handleListIdentityProviders: query: %w", err)
+	}
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
 	}
 	views := make([]contract.IdentityProviderView, 0, len(rows))
 	for _, r := range rows {
 		views = append(views, identityProviderView(r))
 	}
-	return &listIdentityProvidersOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			last.CreatedAt.Time.Format(time.RFC3339Nano),
+			fmt.Sprintf("%d", last.ID),
+		})
+	}
+	return &listIdentityProvidersOut{Body: buildPage(views, nextCursor)}, nil
 }
 
 // ----- GET /identity-providers/{slug} (typed, role-only) ----------------------------
@@ -168,6 +207,7 @@ type createIdentityProviderBody struct {
 	EmailClaim           string   `json:"emailClaim"`
 	PictureClaim         string   `json:"pictureClaim"`
 	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
+	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
 }
 
 func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http.Request) {
@@ -206,7 +246,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 			writeAuthErr(w, authn.ErrBadRequest())
 			return
 		}
-		if err := s.validateUpstreamIssuer(body.IssuerUrl); err != nil {
+		if err := validateUpstreamIssuer(body.IssuerUrl, body.AllowPrivateNetwork); err != nil {
 			writeAuthErr(w, err)
 			return
 		}
@@ -278,6 +318,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		PictureClaim:         pictureClaim,
 		RequireVerifiedEmail: requireVerifiedEmail,
 		Protocol:             protocol,
+		AllowPrivateNetwork:  body.AllowPrivateNetwork,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -321,7 +362,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		AccountID: actorID,
 		Factor:    audit.FactorUpstreamIDP,
 		Event:     audit.EventRegister,
-		Detail:    map[string]any{"slug": row.Slug, "mode": row.Mode},
+		Detail:    map[string]any{"slug": row.Slug, "mode": row.Mode, "allow_private_network": body.AllowPrivateNetwork},
 	})
 
 	// Re-query so the view reflects the committed secret fields (not placeholder).
@@ -351,6 +392,7 @@ type updateIdentityProviderBody struct {
 	PictureClaim         string   `json:"pictureClaim"`
 	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
 	Disabled             bool     `json:"disabled"`
+	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
 }
 
 func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http.Request) {
@@ -365,7 +407,25 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if err := s.validateUpstreamIssuer(body.IssuerUrl); err != nil {
+
+	// Fetch the current row so we can (a) validate the issuer against the
+	// per-IdP allow_private_network policy that applies to THIS IdP, and
+	// (b) audit old→new when that policy changes.
+	existing, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeAuthErr(w, authn.ErrUpstreamIDPNotFound())
+			return
+		}
+		writeAuthErr(w, fmt.Errorf("handleUpdateIdentityProvider: lookup: %w", err))
+		return
+	}
+
+	// The issuer validation uses the per-IdP allow_private_network value
+	// from the request body (the value the admin is setting now), not the
+	// global config. For Steam IdPs issuerUrl is empty and validation is
+	// skipped naturally.
+	if err := validateUpstreamIssuer(body.IssuerUrl, body.AllowPrivateNetwork); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
@@ -401,6 +461,7 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		PictureClaim:         updatePictureClaim,
 		RequireVerifiedEmail: body.RequireVerifiedEmail,
 		Disabled:             body.Disabled,
+		AllowPrivateNetwork:  body.AllowPrivateNetwork,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -411,16 +472,29 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		return
 	}
 
+	// Invalidate the federator's cached client for this slug so the next
+	// federation request rebuilds with the updated allow_private_network
+	// policy (the cache key includes the policy, but a pre-existing entry
+	// for the old value would linger until TTL expiry without this).
+	if s.federator != nil {
+		s.federator.InvalidateClientCache(slug)
+	}
+
 	sess := authn.SessionFromContext(r.Context())
 	var actorID *int32
 	if sess != nil {
 		actorID = &sess.Account.ID
 	}
+	auditDetail := map[string]any{"slug": slug}
+	if existing.AllowPrivateNetwork != body.AllowPrivateNetwork {
+		auditDetail["allow_private_network_old"] = existing.AllowPrivateNetwork
+		auditDetail["allow_private_network_new"] = body.AllowPrivateNetwork
+	}
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: actorID,
 		Factor:    audit.FactorUpstreamIDP,
 		Event:     audit.EventUpdate,
-		Detail:    map[string]any{"slug": slug},
+		Detail:    auditDetail,
 	})
 
 	writeJSON(w, identityProviderView(updated))

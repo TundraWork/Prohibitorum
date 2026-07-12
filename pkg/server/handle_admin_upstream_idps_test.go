@@ -312,9 +312,6 @@ func newMinimalServer(t *testing.T) *Server {
 	dek := make([]byte, 32)
 	cfg := &configx.Config{
 		DataEncryptionKeys: map[int][]byte{1: dek},
-		Federation: configx.FederationConfig{
-			AllowPrivateNetwork: true, // skip SSRF validation in OIDC path
-		},
 	}
 	return &Server{config: cfg}
 }
@@ -387,5 +384,79 @@ func TestIdentityProviderCreate_Steam_MissingSlug(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+
+// TestAdminUpstreamIDPs_ViewProjection_AllowPrivateNetwork verifies that
+// the per-IdP allow_private_network field is projected from the db row
+// into the wire view for both true and false values.
+func TestAdminUpstreamIDPs_ViewProjection_AllowPrivateNetwork(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		input bool
+		want  bool
+	}{
+		{"default_false", false, false},
+		{"enabled", true, true},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			row := db.UpstreamIdp{
+				Slug:                "idp",
+				DisplayName:         "IdP",
+				AllowPrivateNetwork: tc.input,
+			}
+			view := identityProviderView(row)
+			if view.AllowPrivateNetwork != tc.want {
+				t.Errorf("AllowPrivateNetwork: got %v, want %v", view.AllowPrivateNetwork, tc.want)
+			}
+		})
+	}
+}
+
+// TestValidateUpstreamIssuer_PerIdpPolicy verifies that the SSRF issuer
+// validation is now controlled by the per-IdP allowPrivateNetwork parameter,
+// not a global config flag. When allowPrivate=true, an http://loopback issuer
+// is accepted; when false, it is rejected.
+func TestValidateUpstreamIssuer_PerIdpPolicy(t *testing.T) {
+	t.Parallel()
+
+	// allowPrivate=true → internal/http issuer permitted.
+	if err := validateUpstreamIssuer("http://127.0.0.1:8080", true); err != nil {
+		t.Errorf("allowPrivate=true: got %v, want nil (per-IdP bypass)", err)
+	}
+	// allowPrivate=false → http issuer rejected.
+	if err := validateUpstreamIssuer("http://127.0.0.1:8080", false); err == nil {
+		t.Error("allowPrivate=false: got nil, want error (SSRF screen active)")
+	}
+	// allowPrivate=false → valid https issuer accepted.
+	if err := validateUpstreamIssuer("https://accounts.google.com", false); err != nil {
+		t.Errorf("allowPrivate=false with https: got %v, want nil", err)
+	}
+}
+
+// TestIdentityProviderCreate_AcceptsAllowPrivateNetwork verifies that the
+// create handler accepts the allowPrivateNetwork field in the request body
+// without rejecting it. Since newMinimalServer has no DB pool, the handler
+// will fail at the tx.Begin step — but it must NOT fail at the validation
+// step (400). We assert the status is NOT 400.
+func TestIdentityProviderCreate_AcceptsAllowPrivateNetwork(t *testing.T) {
+	t.Parallel()
+
+	s := newMinimalServer(t)
+	body := `{"slug":"test","displayName":"Test","mode":"auto_provision","protocol":"oidc","issuerUrl":"https://idp.example.com","clientId":"c","clientSecret":"s","allowPrivateNetwork":true}`
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
+		strings.NewReader(body))
+	w := httptest.NewRecorder()
+	s.handleCreateIdentityProviderHTTP(w, req)
+
+	// Not 400 → the body parsed, validation passed, and allowPrivateNetwork
+	// was accepted. (500/other is expected since newMinimalServer has no DB.)
+	if w.Code == http.StatusBadRequest {
+		t.Fatalf("status: got 400 (body=%s), want non-400 (allowPrivateNetwork should be accepted)", w.Body.String())
 	}
 }

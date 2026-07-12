@@ -227,7 +227,8 @@ func newFixture(t *testing.T, mode string) *fixtureFederator {
 		// explicitly so modes.go / LinkCallback can extract via ClaimString.
 		UsernameClaim:    "preferred_username",
 		DisplayNameClaim: "name",
-		EmailClaim:       "email",
+		EmailClaim:           "email",
+		AllowPrivateNetwork:  true, // mock OP is on loopback
 	}
 
 	q := newFakeFederatorQueries()
@@ -239,9 +240,8 @@ func newFixture(t *testing.T, mode string) *fixtureFederator {
 	au := &recordingAudit{}
 
 	cfg := configx.FederationConfig{
-		StateTTL:            5 * time.Minute,
-		DefaultScopes:       []string{"openid", "profile", "email"},
-		AllowPrivateNetwork: true, // mock OP is on loopback
+		StateTTL:      5 * time.Minute,
+		DefaultScopes: []string{"openid", "profile", "email"},
 	}
 	deks := map[int][]byte{1: testDEK}
 	origin := "https://idp.example.test"
@@ -1158,6 +1158,7 @@ func newCachingFixture(t *testing.T) (fx *fixtureFederator, discoveryHits *int32
 		UsernameClaim:        "preferred_username",
 		DisplayNameClaim:     "name",
 		EmailClaim:           "email",
+		AllowPrivateNetwork:  true, // mock OP is on loopback
 	}
 
 	q := newFakeFederatorQueries()
@@ -1168,9 +1169,8 @@ func newCachingFixture(t *testing.T) (fx *fixtureFederator, discoveryHits *int32
 
 	au := &recordingAudit{}
 	cfg := configx.FederationConfig{
-		StateTTL:            5 * time.Minute,
-		DefaultScopes:       []string{"openid", "profile", "email"},
-		AllowPrivateNetwork: true, // mock OP is on loopback
+		StateTTL:      5 * time.Minute,
+		DefaultScopes: []string{"openid", "profile", "email"},
 	}
 	deks := map[int][]byte{1: testDEK}
 	origin := "https://idp.example.test"
@@ -1950,5 +1950,131 @@ func TestFederator_LinkCallback_Steam_HappyPath(t *testing.T) {
 	}
 	if link.Detail["idp_slug"] != "steam" {
 		t.Errorf("Link detail idp_slug = %v, want steam", link.Detail["idp_slug"])
+	}
+}
+
+
+// TestFederator_BuildClient_CacheKeyIncludesPrivateNetwork verifies that
+// toggling idp.AllowPrivateNetwork produces a fresh cache key and forces
+// re-discovery. The per-IdP policy follows the IdP through cached client
+// construction; a policy change must not serve a stale client with the
+// wrong dial-screen setting.
+func TestFederator_BuildClient_CacheKeyIncludesPrivateNetwork(t *testing.T) {
+	fx, hits := newCachingFixture(t)
+
+	// First call — allow_private_network=true (the fixture default, since
+	// the mock OP is on loopback) → cache miss → 1 discovery hit.
+	if _, err := fx.f.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("first BeginLogin (private=true): %v", err)
+	}
+	if got := atomic.LoadInt32(hits); got != 1 {
+		t.Fatalf("discovery hits after first call = %d, want 1", got)
+	}
+
+	// Flip allow_private_network to false on the IdP row. The mock OP is on
+	// loopback, so the dial screen now blocks discovery — but the fact that
+	// discovery is ATTEMPTED (not served from cache) proves the cache key
+	// includes the policy value.
+	idp2 := fx.idp
+	idp2.AllowPrivateNetwork = false
+	fx.q.idpBySlug["mockop"] = idp2
+
+	// Second call — cache key differs → fresh discovery attempt (which fails
+	// because the dial screen blocks loopback). The error proves the cached
+	// client from the first call (private=true) was NOT served.
+	_, err := fx.f.BeginLogin(context.Background(), "mockop", "/me")
+	if err == nil {
+		t.Fatal("second BeginLogin (private=false): expected dial-screen error, got nil (cache served stale client)")
+	}
+	if got := atomic.LoadInt32(hits); got != 1 {
+		t.Fatalf("discovery hits after private toggle = %d, want 1 (dial blocked before discovery completed)", got)
+	}
+
+	// Cache should hold the entry from the first call only (the second call
+	// failed, so nothing was cached for false).
+	if n := federationoidc.ClientCacheLenForTest(fx.f); n != 1 {
+		t.Errorf("cache len = %d, want 1 (true entry; false call failed and was not cached)", n)
+	}
+}
+
+// TestFederator_InvalidateClientCache clears all cached clients for a
+// given slug so that the next buildClient call re-runs discovery with the
+// current IdP row. This is the mechanism the admin handler uses when the
+// per-IdP allow_private_network setting changes.
+func TestFederator_InvalidateClientCache(t *testing.T) {
+	fx, hits := newCachingFixture(t)
+
+	// Prime the cache.
+	if _, err := fx.f.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("first BeginLogin: %v", err)
+	}
+	if got := atomic.LoadInt32(hits); got != 1 {
+		t.Fatalf("discovery hits after first call = %d, want 1", got)
+	}
+	if n := federationoidc.ClientCacheLenForTest(fx.f); n != 1 {
+		t.Fatalf("cache len before invalidate = %d, want 1", n)
+	}
+
+	// Invalidate by slug.
+	federationoidc.InvalidateClientCacheForSlug(fx.f, "mockop")
+	if n := federationoidc.ClientCacheLenForTest(fx.f); n != 0 {
+		t.Fatalf("cache len after invalidate = %d, want 0", n)
+	}
+
+	// Next call re-runs discovery.
+	if _, err := fx.f.BeginLogin(context.Background(), "mockop", "/me"); err != nil {
+		t.Fatalf("second BeginLogin after invalidate: %v", err)
+	}
+	if got := atomic.LoadInt32(hits); got != 2 {
+		t.Fatalf("discovery hits after invalidate + rebuild = %d, want 2", got)
+	}
+}
+
+// TestFederator_AvatarFetchUsesPerIdPPolicy verifies that the avatar fetch
+// receives the per-IdP allowPrivateNetwork value, not a global config flag.
+// When the IdP has allow_private_network=false, the fetcher is called with
+// allowPrivate=false; when true, allowPrivate=true.
+func TestFederator_AvatarFetchUsesPerIdPPolicy(t *testing.T) {
+	fx := newFixture(t, federationoidc.ModeAutoProvision)
+
+	var seenAllowPrivate *bool
+	federationoidc.SetAvatarFetchForTest(fx.f, func(_ context.Context, _ string, allowPrivate bool) ([]byte, error) {
+		seenAllowPrivate = &allowPrivate
+		return nil, nil
+	})
+
+	idp := fx.idp
+	idp.AllowPrivateNetwork = false
+	idp.PictureClaim = "picture"
+	fx.q.idpBySlug["mockop"] = idp
+
+	tokens := avatarFetchTokens()
+	federationoidc.RunAvatarInheritForTest(fx.f, context.Background(), nil, idp, tokens, 1)
+
+	if seenAllowPrivate == nil {
+		t.Fatal("avatar fetch was not called")
+	}
+	if *seenAllowPrivate != false {
+		t.Errorf("avatar fetch allowPrivate = %v, want false (per-IdP policy)", *seenAllowPrivate)
+	}
+
+	// Flip the per-IdP policy to true and verify the fetcher sees it.
+	idp2 := idp
+	idp2.AllowPrivateNetwork = true
+	fx.q.idpBySlug["mockop"] = idp2
+
+	var seenAllowPrivate2 *bool
+	federationoidc.SetAvatarFetchForTest(fx.f, func(_ context.Context, _ string, allowPrivate bool) ([]byte, error) {
+		seenAllowPrivate2 = &allowPrivate
+		return nil, nil
+	})
+
+	federationoidc.RunAvatarInheritForTest(fx.f, context.Background(), nil, idp2, tokens, 1)
+
+	if seenAllowPrivate2 == nil {
+		t.Fatal("avatar fetch was not called on second run")
+	}
+	if *seenAllowPrivate2 != true {
+		t.Errorf("avatar fetch allowPrivate = %v, want true (per-IdP policy)", *seenAllowPrivate2)
 	}
 }

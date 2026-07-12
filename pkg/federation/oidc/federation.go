@@ -178,21 +178,19 @@ type Federator struct {
 	dbPool *pgxpool.Pool
 
 	// clientCache memoizes *Client instances keyed by
-	// slug + ":" + key_version + ":flow=" + flow.label(). sync.Map fits the
-	// read-heavy access pattern (one entry per (idp, flow) pair, populated
-	// once per TTL window, hit on every subsequent request). Values are
-	// *cachedClient. Eviction happens lazily on access — admins configure
-	// few upstream_idp rows, so the map stays bounded without a sweeper.
+	// slug + ":" + key_version + ":flow=" + flow.label() + ":priv=" + allowPrivate.
+	// sync.Map fits the read-heavy access pattern (one entry per (idp, flow)
+	// pair, populated once per TTL window, hit on every subsequent request).
+	// Values are *cachedClient. Eviction happens lazily on access — admins
+	// configure few upstream_idp rows, so the map stays bounded without a
+	// sweeper. The per-IdP allow_private_network value is part of the key so
+	// toggling it naturally invalidates the cache (a policy change must not
+	// serve a stale client with the wrong dial-screen setting).
 	clientCache sync.Map
 
 	// clientCacheTTL defaults to the package-level clientCacheTTL constant;
 	// tests override via export_test.go to exercise expiry behavior.
 	clientCacheTTL time.Duration
-
-	// allowPrivateNetwork disables the outbound client's dial-time internal-IP
-	// SSRF screen. Sourced from cfg.AllowPrivateNetwork (default false). Set true
-	// only when the upstream IdP is on a trusted private/internal network.
-	allowPrivateNetwork bool
 
 	// avatarFetch resolves an upstream picture URL to its raw bytes (SSRF-
 	// screened, https-only, image/* only, size-capped). Defaults to
@@ -232,17 +230,16 @@ func NewFederator(
 	publicOrigin string,
 ) *Federator {
 	f := &Federator{
-		q:                   q,
-		kvStore:             kvStore,
-		audit:               aud,
-		cfg:                 cfg,
-		deks:                deks,
-		publicOrigin:        publicOrigin,
-		dbPool:              dbPool,
-		clientCacheTTL:      clientCacheTTL,
-		allowPrivateNetwork: cfg.AllowPrivateNetwork,
-		avatarFetch:         fetchUpstreamAvatar,
-		steamHTTP:           &http.Client{Timeout: 10 * time.Second},
+		q:              q,
+		kvStore:        kvStore,
+		audit:          aud,
+		cfg:            cfg,
+		deks:           deks,
+		publicOrigin:   publicOrigin,
+		dbPool:         dbPool,
+		clientCacheTTL: clientCacheTTL,
+		avatarFetch:    fetchUpstreamAvatar,
+		steamHTTP:      &http.Client{Timeout: 10 * time.Second},
 	}
 	f.steamVerify = func(ctx context.Context, params url.Values, expectedReturnTo string) (string, error) {
 		return steam.Verify(ctx, f.steamHTTP, params, expectedReturnTo)
@@ -970,7 +967,7 @@ func (f *Federator) runAvatarInherit(parent context.Context, client *Client, idp
 		return
 	}
 
-	raw, err := f.avatarFetch(ctx, pic, f.allowPrivateNetwork)
+	raw, err := f.avatarFetch(ctx, pic, idp.AllowPrivateNetwork)
 	if err != nil {
 		slog.WarnContext(ctx, "federation: upstream avatar fetch failed", "account_id", accountID, "err", err)
 		return
@@ -1055,12 +1052,14 @@ func (f *Federator) decryptSecret(idp *db.UpstreamIdp) ([]byte, error) {
 //
 // Results are memoized in f.clientCache for clientCacheTTL. A DEK rotation that
 // bumps key_version is reflected in the cache key and naturally invalidates
-// the entry; admin edits to other fields (client_id, scopes, issuer_url) are
-// NOT reflected — D8 accepts that staleness window. Errors are never cached:
-// a transient network blip during discovery should not poison subsequent
+// the entry; the per-IdP allow_private_network value is also in the cache key
+// so toggling it forces a fresh client with the correct dial-screen setting.
+// Admin edits to other fields (client_id, scopes, issuer_url) are NOT
+// reflected — D8 accepts that staleness window. Errors are never cached: a
+// transient network blip during discovery should not poison subsequent
 // requests.
 func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, flow fedFlow) (*Client, error) {
-	key := clientCacheKey(idp.Slug, idp.KeyVersion, flow)
+	key := clientCacheKey(idp.Slug, idp.KeyVersion, flow, idp.AllowPrivateNetwork)
 	if v, ok := f.clientCache.Load(key); ok {
 		entry := v.(*cachedClient)
 		if time.Now().Before(entry.expiresAt) {
@@ -1083,7 +1082,7 @@ func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, flow f
 		idp.Scopes,
 		idp.IssuerUrl,
 		DefaultAllowedAlgs(),
-		f.allowPrivateNetwork,
+		idp.AllowPrivateNetwork,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("federation/oidc: build RP client: %w", err)
@@ -1096,12 +1095,28 @@ func (f *Federator) buildClient(ctx context.Context, idp *db.UpstreamIdp, flow f
 	return client, nil
 }
 
+// InvalidateClientCache evicts every cached client entry for the given slug,
+// regardless of key_version, flow, or allow_private_network value. Called
+// by the admin handler when allow_private_network changes so the next
+// federation request rebuilds with the updated policy.
+func (f *Federator) InvalidateClientCache(slug string) {
+	prefix := slug + ":"
+	f.clientCache.Range(func(k, _ any) bool {
+		if key, ok := k.(string); ok && strings.HasPrefix(key, prefix) {
+			f.clientCache.Delete(key)
+		}
+		return true
+	})
+}
+
 // clientCacheKey builds the composite key for clientCache. KeyVersion is
 // included so a DEK rotation forces a fresh client (the decrypted secret may
 // change); flow is included because login and link flows use different
-// redirect_uri values, which are baked into the *Client.
-func clientCacheKey(slug string, keyVersion int32, flow fedFlow) string {
-	return slug + ":" + strconv.Itoa(int(keyVersion)) + ":flow=" + flow.label()
+// redirect_uri values, which are baked into the *Client; allowPrivate is
+// included so toggling the per-IdP allow_private_network policy invalidates
+// the cache and forces a client with the correct dial-screen setting.
+func clientCacheKey(slug string, keyVersion int32, flow fedFlow, allowPrivate bool) string {
+	return slug + ":" + strconv.Itoa(int(keyVersion)) + ":flow=" + flow.label() + ":priv=" + strconv.FormatBool(allowPrivate)
 }
 
 // redirectURI builds the upstream-facing redirect_uri for the given flow,

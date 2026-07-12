@@ -31,6 +31,7 @@ export interface IdentityProvider {
   scopes: string[]; mode: 'auto_provision' | 'invite_only' | 'link_only'; allowedDomains: string[]
   usernameClaim: string; displayNameClaim: string; emailClaim: string; pictureClaim: string
   requireVerifiedEmail: boolean; disabled: boolean; createdAt: string
+  allowPrivateNetwork: boolean
   iconUrl?: string | null; protocol?: string
 }
 
