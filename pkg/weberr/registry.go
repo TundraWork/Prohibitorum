@@ -118,6 +118,34 @@ func init() {
 			Recovery:       "reduce_payload",
 			DiagnosticKind: "validation",
 		},
+		// Operation-specific internal codes for raw-boundary failures.
+		// These let writeAuthErrForCode emit a more specific code than the
+		// generic server_error at raw HTTP boundaries (DB/KV/crypto), without
+		// migrating typed Huma handler returns (Task 3).
+		Definition{
+			Code:           "database_unavailable",
+			Status:         http.StatusServiceUnavailable,
+			LocaleKey:      "errors.database_unavailable",
+			Retryable:      true,
+			Recovery:       "retry",
+			DiagnosticKind: "internal",
+		},
+		Definition{
+			Code:           "kv_unavailable",
+			Status:         http.StatusServiceUnavailable,
+			LocaleKey:      "errors.kv_unavailable",
+			Retryable:      true,
+			Recovery:       "retry",
+			DiagnosticKind: "internal",
+		},
+		Definition{
+			Code:           "ceremony_internal_error",
+			Status:         http.StatusInternalServerError,
+			LocaleKey:      "errors.ceremony_internal_error",
+			Retryable:      true,
+			Recovery:       "retry",
+			DiagnosticKind: "internal",
+		},
 	)
 }
 
@@ -146,6 +174,11 @@ func ValidateDefinitions(defs []Definition) error {
 // Code that already exists in the registry (from a prior Register call or the
 // built-in init). Safe for concurrent use; typical callers pass a fixed slice
 // at package init time.
+//
+// Atomicity: all collision checks run under the write lock BEFORE any
+// insertion. If any code in the batch is already registered (or duplicated
+// within the batch), the entire batch is rejected and the registry is left
+// untouched — a failed Register never leaves a partial batch behind.
 func Register(defs []Definition) error {
 	if err := ValidateDefinitions(defs); err != nil {
 		return err
@@ -156,6 +189,8 @@ func Register(defs []Definition) error {
 		if _, exists := reg[d.Code]; exists {
 			return fmt.Errorf("weberr: code %q already registered", d.Code)
 		}
+	}
+	for _, d := range defs {
 		reg[d.Code] = d
 	}
 	return nil

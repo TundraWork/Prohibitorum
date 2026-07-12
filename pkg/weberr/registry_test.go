@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -161,4 +162,97 @@ func TestPublicErrorIsError(t *testing.T) {
 		// just ensure it doesn't panic
 	}
 	_ = e.Error()
+}
+
+// TestRegisterAtomicOnPartialCollision proves that when a batch contains a
+// mix of new and already-registered codes, Register rejects the entire batch
+// atomically — the new codes in the batch must NOT be inserted. This guards
+// against a partial-register leaving the registry in an inconsistent state.
+func TestRegisterAtomicOnPartialCollision(t *testing.T) {
+	// Register a unique code we will then attempt to collide against.
+	newCode := "test_atomic_new"
+	err := Register([]Definition{{Code: newCode, Status: 400}})
+	if err != nil {
+		t.Fatalf("first Register failed: %v", err)
+	}
+	// Batch: one new code + one colliding code. The entire batch must fail.
+	err = Register([]Definition{
+		{Code: "test_atomic_other_new", Status: 400},
+		{Code: newCode, Status: 400}, // collides with the registered code
+	})
+	if err == nil {
+		t.Fatal("Register accepted a batch with a colliding code")
+	}
+	// The non-colliding code in the batch must NOT be present — Register
+	// must be atomic.
+	if _, ok := DefinitionFor("test_atomic_other_new"); ok {
+		t.Fatal("Register was not atomic: a code from a rejected batch was inserted")
+	}
+}
+
+// TestWriteJSONRoutesThroughRegistry proves that WriteJSON validates the code
+// against the registry: an unregistered code falls back to server_error with
+// the registered status, and the caller cannot inject an arbitrary status.
+func TestWriteJSONRoutesThroughRegistry(t *testing.T) {
+	rr := httptest.NewRecorder()
+	// Pass an unregistered code — WriteJSON must fall back to server_error.
+	WriteJSON(rr, "this_code_is_not_registered", nil, "req-123")
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 (server_error)", rr.Code)
+	}
+	var pe PublicError
+	if err := json.Unmarshal(rr.Body.Bytes(), &pe); err != nil {
+		t.Fatalf("unmarshal: %v\nbody: %s", err, rr.Body.String())
+	}
+	if pe.Code != "server_error" {
+		t.Errorf("code = %q, want server_error", pe.Code)
+	}
+	if pe.RequestID != "req-123" {
+		t.Errorf("requestId = %q, want req-123", pe.RequestID)
+	}
+}
+
+// TestWriteJSONUsesRegisteredStatus proves WriteJSON takes the HTTP status
+// from the registered definition, not from the caller. Registering a code
+// with status 429 and calling WriteJSON without a status argument must emit
+// 429.
+func TestWriteJSONUsesRegisteredStatus(t *testing.T) {
+	code := "test_wj_status_429"
+	if err := Register([]Definition{{Code: code, Status: 429}}); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	rr := httptest.NewRecorder()
+	WriteJSON(rr, code, nil, "")
+	if rr.Code != 429 {
+		t.Fatalf("status = %d, want 429 from registered definition", rr.Code)
+	}
+}
+
+// TestWriteJSONFiltersUndeclaredDetails proves WriteJSON drops detail keys not
+// in the definition's DetailKeys whitelist, preventing raw cause leakage.
+func TestWriteJSONFiltersUndeclaredDetails(t *testing.T) {
+	code := "test_wj_filter_details"
+	if err := Register([]Definition{{
+		Code:       code,
+		Status:     400,
+		DetailKeys: map[string]struct{}{"field": {}},
+	}}); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	rr := httptest.NewRecorder()
+	// Pass a declared key + an undeclared key carrying a secret.
+	WriteJSON(rr, code, map[string]any{
+		"field":    "status",
+		"rawCause": "postgres://secret@db:5432",
+	}, "")
+	var pe PublicError
+	if err := json.Unmarshal(rr.Body.Bytes(), &pe); err != nil {
+		t.Fatalf("unmarshal: %v\nbody: %s", err, rr.Body.String())
+	}
+	if _, has := pe.Details["rawCause"]; has {
+		t.Errorf("undeclared detail key 'rawCause' leaked to response: %s", rr.Body.String())
+	}
+	if pe.Details["field"] != "status" {
+		t.Errorf("declared detail key 'field' was dropped: %v", pe.Details)
+	}
 }

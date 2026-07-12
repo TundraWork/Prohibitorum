@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/audit"
@@ -21,6 +23,7 @@ import (
 	"prohibitorum/pkg/contract"
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/weberr"
@@ -88,18 +91,20 @@ func (s *Server) sessionView(a *db.Account) contract.SessionView {
 
 // canonicalServerError is the stable code returned to clients when
 // writeAuthErr receives a non-AuthError (a real internal failure: DB, KV,
-// crypto). The raw error is logged server-side with request context; the
-// client only sees code "server_error" and HTTP 500 — never the underlying
-// error string, which may carry connection strings or stack detail.
+// crypto). The raw error is logged server-side with the request ID and a
+// curated set of safe fields; the client only sees code "server_error" and
+// HTTP 500 — never the underlying error string, which may carry connection
+// strings or stack detail.
 const canonicalServerError = "server_error"
 
 // writeBodyTooLarge writes the canonical 413 response for an oversized admin
 // body. Both the proactive path (withAdminBodyControls Content-Length check)
 // and the lazy path (writeAuthErr detecting *http.MaxBytesError) route through
 // here, so the response shape cannot drift between them. Uses the public-error
-// envelope {code, requestId} — no message field.
+// envelope {code, requestId} — no message field. The registry authoritatively
+// maps "request_too_large" to HTTP 413.
 func writeBodyTooLarge(w http.ResponseWriter) {
-	weberr.WriteJSON(w, http.StatusRequestEntityTooLarge, "request_too_large", nil, w.Header().Get(weberr.HeaderRequestID))
+	weberr.WriteJSON(w, "request_too_large", nil, w.Header().Get(weberr.HeaderRequestID))
 }
 
 // writeAuthErr serializes an *authn.AuthError onto a raw http.ResponseWriter
@@ -115,10 +120,10 @@ func writeBodyTooLarge(w http.ResponseWriter) {
 // the field is still present in the JSON.
 //
 // Non-AuthError values (DB/KV/crypto failures) are NEVER surfaced to the
-// client. They are logged at WARN with full detail and the response carries
-// only {code:"server_error", requestId} with HTTP 500. This prevents internal
-// error strings — which may contain connection strings, query text, or stack
-// fragments — from leaking to callers.
+// client. They are logged at WARN with the request ID, registered code, and a
+// curated safe category — never WithError(err) which would log the raw
+// error string (connection strings, query text, stack fragments) to the same
+// line. The response carries only {code:"server_error", requestId}.
 func writeAuthErr(w http.ResponseWriter, err error) {
 	requestID := w.Header().Get(weberr.HeaderRequestID)
 	// Detect an oversized admin body: MaxBytesReader (installed by
@@ -133,15 +138,12 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 	}
 	ae := authn.AsAuthError(err)
 	if ae == nil {
-		// Internal (non-domain) error: log the full detail server-side, return
-		// a stable generic envelope. A nil err also lands here — err.Error()
-		// would panic, so guard explicitly.
-		if err != nil {
-			logrus.WithError(err).Warn("internal error")
-		} else {
-			logrus.Warn("internal error (nil)")
-		}
-		weberr.WriteJSON(w, http.StatusInternalServerError, canonicalServerError, nil, requestID)
+		// Internal (non-domain) error: log with request ID + curated fields
+		// only — never WithError(err), which would persist the raw error
+		// string (may contain secrets) to structured logs. A nil err also
+		// lands here.
+		logInternalError(requestID, err)
+		weberr.WriteJSON(w, canonicalServerError, nil, requestID)
 		return
 	}
 	if ae.RetryAfter > 0 {
@@ -151,15 +153,72 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 		}
 		w.Header().Set("Retry-After", fmt.Sprintf("%d", secs))
 	}
-	// Look up the registered definition to validate the code is known. If an
-	// unregistered code somehow reaches here, fall back to server_error so the
-	// public envelope never carries an unvetted code.
-	code := ae.Code
-	if _, ok := weberr.DefinitionFor(code); !ok {
-		logrus.WithField("unregistered_code", code).Warn("writeAuthErr: unregistered AuthError code, falling back to server_error")
-		code = canonicalServerError
+	weberr.WriteJSON(w, ae.Code, nil, requestID)
+}
+
+// logInternalError emits a curated log line for an internal (non-domain)
+// error. It logs the request ID (so operators can correlate the public
+// server_error response to structured records), the registered code
+// ("server_error"), and a safe diagnostic category. It deliberately does NOT
+// call WithError(err) — err.Error() may contain connection strings, query
+// text, or stack fragments that must not be persisted to structured logs.
+// Callers that need the raw detail for debugging should add a separate
+// debug-level entry with an explicit, reviewed field if warranted.
+func logInternalError(requestID string, err error) {
+	entry := logrus.WithField("code", "server_error").
+		WithField("category", "internal").
+		WithField("request_id", requestID)
+	if err == nil {
+		entry.Warn("internal error (nil)")
+		return
 	}
-	weberr.WriteJSON(w, ae.Status, code, nil, requestID)
+	// Determine a safe diagnostic kind from the error type — never log err.Error().
+	entry = entry.WithField("error_type", errorTypeLabel(err))
+	entry.Warn("internal error")
+}
+
+// errorTypeLabel returns a short, safe diagnostic label for an error value
+// suitable for structured logs. It inspects the error's concrete type (via
+// errors.As) — never err.Error() — so connection strings and stack fragments
+// in the error message are never persisted.
+func errorTypeLabel(err error) string {
+	if err == nil {
+		return "nil"
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return "pg_" + pgErr.Code
+	}
+	if errors.Is(err, kv.ErrKeyNotFound) {
+		return "kv_key_not_found"
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return "net"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "ctx_canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "ctx_deadline"
+	}
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		return "max_bytes"
+	}
+	return "other"
+}
+
+// writeAuthErrForCode writes a registered public-error envelope for a known
+// code, used at raw HTTP boundaries where the caller knows the operation-
+// specific internal code (e.g. "kv_unavailable") rather than collapsing every
+// unexpected failure to generic "server_error". The code MUST be registered;
+// if it is not, WriteJSON falls back to server_error. The raw err is logged
+// with the request ID and curated fields only (never WithError).
+func writeAuthErrForCode(w http.ResponseWriter, code string, err error) {
+	requestID := w.Header().Get(weberr.HeaderRequestID)
+	logInternalError(requestID, err)
+	weberr.WriteJSON(w, code, nil, requestID)
 }
 
 // redirectAuthErrToError sends a browser-navigated flow error to the SPA
@@ -184,12 +243,20 @@ func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err er
 	}
 	ref := weberr.NewRef()
 	// Correlate the user-facing ref with the cause. A non-AuthError is a real
-	// server-side failure → log it at warn WITH the detail, so the ref printed on
-	// the /error page is diagnosable (previously these refs hit no log or audit).
-	// An AuthError is an expected outcome (bad_credentials, link_required, …) → debug.
-	entry := logx.WithContext(r.Context()).WithField("ref", ref).WithField("code", code)
+	// server-side failure → log it at warn with the ref, code, request ID, and
+	// a safe error_type label — never WithError(err), which would persist the
+	// raw error string (may contain secrets) to structured logs. An AuthError
+	// is an expected outcome (bad_credentials, link_required, …) → debug.
+	requestID := weberr.RequestIDFromContext(r.Context())
+	entry := logx.WithContext(r.Context()).
+		WithField("ref", ref).
+		WithField("code", code).
+		WithField("request_id", requestID)
 	if ae == nil {
-		entry.WithError(err).Warn("auth error redirect")
+		if err != nil {
+			entry = entry.WithField("error_type", errorTypeLabel(err))
+		}
+		entry.Warn("auth error redirect")
 	} else {
 		entry.Debug("auth error redirect")
 	}

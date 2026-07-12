@@ -50,24 +50,51 @@ func RedirectToErrorWithReturn(w http.ResponseWriter, r *http.Request, code, ref
 	http.Redirect(w, r, u, http.StatusFound)
 }
 
-// WriteJSON writes a PublicError envelope to an http.ResponseWriter with the
-// given HTTP status. The request ID is stamped from the context so the
-// response carries the server-generated correlation ID. This is the shared
-// chokepoint for raw chi handler error responses — the huma typed path writes
-// the same envelope through the adapter in pkg/server/operations.go.
+// WriteJSON writes a PublicError envelope to an http.ResponseWriter. The code
+// and details are validated against the registry (DefinitionFor + DetailKeys),
+// so an unregistered code or an undeclared detail key falls back to the
+// canonical "server_error" rather than emitting an unvetted envelope. The
+// status is taken from the registered definition, not the caller — callers
+// pass code + details, the registry authoritatively maps to status.
+//
+// The request ID is stamped from the context so the response carries the
+// server-generated correlation ID. This is the shared chokepoint for raw chi
+// handler error responses — the huma typed path writes the same envelope
+// through the adapter in pkg/server/operations.go.
 //
 // The X-Request-ID response header is set by the RequestID middleware, not
 // here, so it appears on every response regardless of success or failure.
-func WriteJSON(w http.ResponseWriter, status int, code string, details map[string]any, requestID string) {
-	var detailsArg map[string]any
-	if len(details) > 0 {
-		detailsArg = details
+func WriteJSON(w http.ResponseWriter, code string, details map[string]any, requestID string) {
+	def, ok := DefinitionFor(code)
+	if !ok {
+		// Unregistered code: never emit an unvetted code to the wire. Fall back
+		// to server_error, which is always registered at init.
+		def, _ = DefinitionFor("server_error")
+		code = "server_error"
+		details = nil
+	}
+	// Validate detail keys against the definition's whitelist.
+	if len(details) > 0 && len(def.DetailKeys) > 0 {
+		filtered := make(map[string]any, len(details))
+		for k, v := range details {
+			if _, allowed := def.DetailKeys[k]; allowed {
+				filtered[k] = v
+			}
+		}
+		if len(filtered) == 0 {
+			details = nil
+		} else {
+			details = filtered
+		}
+	} else if len(def.DetailKeys) == 0 {
+		// Definition declares no detail keys — drop everything.
+		details = nil
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(def.Status)
 	_ = json.NewEncoder(w).Encode(PublicError{
 		Code:      code,
-		Details:   detailsArg,
+		Details:   details,
 		RequestID: requestID,
 	})
 }

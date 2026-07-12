@@ -17,12 +17,20 @@ import (
 
 // writeHumaPublicErr writes a {code, requestId} public-error envelope through
 // a huma.Context, bypassing huma's default RFC 9457 / errorx serialization so
-// the wire contract matches the raw chi handler path (writeAuthErr). The
-// request ID is read from the context (set by the RequestID middleware).
-func writeHumaPublicErr(ctx huma.Context, status int, code string) {
+// the wire contract matches the raw chi handler path (writeAuthErr). The code
+// is validated against the registry (DefinitionFor); the status is taken
+// from the registered definition, not the caller. An unregistered code falls
+// back to server_error. The request ID is read from the context (set by the
+// RequestID middleware).
+func writeHumaPublicErr(ctx huma.Context, code string) {
+	def, ok := weberr.DefinitionFor(code)
+	if !ok {
+		def, _ = weberr.DefinitionFor("server_error")
+		code = "server_error"
+	}
 	requestID := weberr.RequestIDFromContext(ctx.Context())
 	ctx.SetHeader("Content-Type", "application/json")
-	ctx.SetStatus(status)
+	ctx.SetStatus(def.Status)
 	_ = json.NewEncoder(ctx.BodyWriter()).Encode(weberr.PublicError{
 		Code:      code,
 		RequestID: requestID,
@@ -53,7 +61,7 @@ func registerOp[I, O any](
 		sess := authn.SessionFromContext(ctx.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
-			writeHumaPublicErr(ctx, ae.Status, ae.Code)
+			writeHumaPublicErr(ctx, ae.Code)
 			return
 		}
 		next(ctx)
@@ -85,12 +93,12 @@ func registerSudoOp[I, O any](
 		sess := authn.SessionFromContext(ctx.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
-			writeHumaPublicErr(ctx, ae.Status, ae.Code)
+			writeHumaPublicErr(ctx, ae.Code)
 			return
 		}
 		if !s.hasFreshSudo(sess) {
 			ae := authn.ErrSudoRequired()
-			writeHumaPublicErr(ctx, ae.Status, ae.Code)
+			writeHumaPublicErr(ctx, ae.Code)
 			return
 		}
 		next(ctx)
