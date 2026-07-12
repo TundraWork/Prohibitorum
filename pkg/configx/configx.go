@@ -87,11 +87,13 @@ type KVConfig struct {
 // should be the public-facing origin (e.g. https://auth.example.com)
 // and is embedded in every signed token + the discovery doc.
 type OIDCConfig struct {
-	Issuer               string        `mapstructure:"issuer"`
-	AccessTokenTTL       time.Duration `mapstructure:"access_token_ttl"`
-	IDTokenTTL           time.Duration `mapstructure:"id_token_ttl"`
-	RefreshTokenTTL      time.Duration `mapstructure:"refresh_token_ttl"`
-	AuthorizationCodeTTL time.Duration `mapstructure:"authorization_code_ttl"`
+	Issuer                       string        `mapstructure:"issuer"`
+	AccessTokenTTL               time.Duration `mapstructure:"access_token_ttl"`
+	IDTokenTTL                   time.Duration `mapstructure:"id_token_ttl"`
+	RefreshTokenTTL              time.Duration `mapstructure:"refresh_token_ttl"`
+	RefreshTokenInactivityTTL    time.Duration `mapstructure:"refresh_token_inactivity_ttl"`
+	RefreshTokenAbsoluteTTL      time.Duration `mapstructure:"refresh_token_absolute_ttl"`
+	AuthorizationCodeTTL         time.Duration `mapstructure:"authorization_code_ttl"`
 	// JWKSCacheMaxAge sets the Cache-Control max-age on the JWKS
 	// (/oauth/jwks) and discovery responses — the hint RPs use to decide how
 	// long to cache the signing keys. Kept short so a signing-key rotation
@@ -104,15 +106,9 @@ type FederationConfig struct {
 	StateTTL time.Duration `mapstructure:"state_ttl"`
 	// DefaultScopes is the scope set requested from an upstream OIDC IdP when an
 	// admin registers/updates one without specifying scopes (per-IdP scopes
-	// override this).
+	// override this). Per-IdP allow_private_network is stored in the
+	// upstream_idp table (migration 030), not in global config.
 	DefaultScopes []string `mapstructure:"default_scopes"`
-	// AllowPrivateNetwork disables the outbound federation client's dial-time
-	// SSRF screen, which otherwise refuses to connect to loopback / RFC1918 /
-	// link-local (incl. cloud-metadata) / ULA addresses during OIDC discovery,
-	// JWKS, and token exchange. Default false. Set true ONLY when the upstream
-	// IdP legitimately lives on a trusted private/internal network — it removes
-	// the protection against issuer-driven SSRF (audit follow-up N2).
-	AllowPrivateNetwork bool `mapstructure:"allow_private_network"`
 }
 
 // TOTPConfig holds RFC 6238 enrollment defaults + the drift window used
@@ -209,7 +205,12 @@ func Parse() (*Config, error) {
 	viper.SetDefault("oidc.access_token_ttl", 10*time.Minute)
 	viper.SetDefault("oidc.id_token_ttl", 10*time.Minute)
 	viper.SetDefault("oidc.refresh_token_ttl", 720*time.Hour) // 30d
-	viper.SetDefault("oidc.authorization_code_ttl", 60*time.Second)
+	// Inactivity (sliding) and absolute (hard) lifetime caps for refresh-token
+	// families. Inactivity slides forward on each rotation but never past the
+	// absolute deadline; absolute is fixed at issue time and never extended.
+	// Defaults: 30d inactivity / 90d absolute (OAuth 2.0 Security BCP §4.12.2).
+	viper.SetDefault("oidc.refresh_token_inactivity_ttl", 720*time.Hour)  // 30d
+	viper.SetDefault("oidc.refresh_token_absolute_ttl", 2160*time.Hour)    // 90d
 	// 5m matches the historical hardcoded JWKS Cache-Control; kept short so a
 	// signing-key rotation reaches RPs quickly.
 	viper.SetDefault("oidc.jwks_cache_max_age", 5*time.Minute)
@@ -217,9 +218,8 @@ func Parse() (*Config, error) {
 	// Federation defaults.
 	viper.SetDefault("federation.state_ttl", 10*time.Minute)
 	viper.SetDefault("federation.default_scopes", []string{"openid", "profile", "email"})
-	// Secure by default: the outbound federation client refuses internal/metadata
-	// IPs unless an operator explicitly opts in for a trusted internal IdP.
-	viper.SetDefault("federation.allow_private_network", false)
+	// Per-IdP allow_private_network lives in the database (migration 030) —
+	// there is no global config bypass for the SSRF dial screen.
 
 	// TOTP defaults — RFC 6238 §5.2 baseline, ±1 step drift window,
 	// 10 recovery codes per account. Issuer defaults to empty so the
@@ -280,6 +280,13 @@ func Parse() (*Config, error) {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	bindEnvs(Config{})
 	_ = viper.Unmarshal(&config)
+
+	// Refresh-token lifetime validation: inactivity and absolute must both be
+	// positive, and the absolute cap must be at least as long as the inactivity
+	// window (otherwise every family would be dead-on-arrival).
+	if err := validateRefreshTTLs(config.OIDC); err != nil {
+		return nil, err
+	}
 
 	if viper.IsSet("trust_proxy") {
 		logx.New().Warn("config: 'trust_proxy' is removed — configure client IP handling in Admin → Settings → Client IP; the direct connection IP is used until then")
@@ -383,4 +390,22 @@ func bindEnvs(iface interface{}, parts ...string) {
 			_ = viper.BindEnv(strings.Join(append(parts, tv), "."))
 		}
 	}
+}
+
+// validateRefreshTTLs checks the refresh-token inactivity and absolute lifetime
+// caps. Both must be positive, and the absolute cap must be at least as long as
+// the inactivity window — otherwise every family would hit the absolute deadline
+// before its inactivity window could ever slide.
+func validateRefreshTTLs(oidc OIDCConfig) error {
+	if oidc.RefreshTokenInactivityTTL <= 0 {
+		return errors.New("oidc.refresh_token_inactivity_ttl must be positive")
+	}
+	if oidc.RefreshTokenAbsoluteTTL <= 0 {
+		return errors.New("oidc.refresh_token_absolute_ttl must be positive")
+	}
+	if oidc.RefreshTokenAbsoluteTTL < oidc.RefreshTokenInactivityTTL {
+		return fmt.Errorf("oidc.refresh_token_absolute_ttl (%v) must be >= oidc.refresh_token_inactivity_ttl (%v)",
+			oidc.RefreshTokenAbsoluteTTL, oidc.RefreshTokenInactivityTTL)
+	}
+	return nil
 }

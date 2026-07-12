@@ -67,7 +67,7 @@ func TestIntrospectRefreshTokenActive(t *testing.T) {
 		ClientID:  testClientID,
 		AccountID: 7,
 		Scope:     []string{"openid", "offline_access"},
-	}, RefreshTokenTTL)
+	}, RefreshTokenTTL, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestIntrospectOtherClientsRefreshTokenInactive(t *testing.T) {
 		ClientID:  "other",
 		AccountID: 7,
 		Scope:     []string{"openid"},
-	}, RefreshTokenTTL)
+	}, RefreshTokenTTL, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
@@ -177,16 +177,16 @@ func TestIntrospectSupersededRefreshTokenInactive(t *testing.T) {
 		ClientID:  testClientID,
 		AccountID: 7,
 		Scope:     []string{"openid", "offline_access"},
-	}, RefreshTokenTTL)
+	}, RefreshTokenTTL, RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("issueRefresh: %v", err)
 	}
 
-	_, rt1, rotated, _, err := rotateRefresh(ctx, h.p.kv, oidcTestDEKs, rt0, RefreshTokenTTL)
+	_, rt1, rotated, _, err := rotateRefresh(ctx, h.p.kv, oidcTestDEKs, rt0, RefreshTokenTTL, RefreshTokenTTL)
 	if err != nil || !rotated {
 		t.Fatalf("rotate rt0->rt1: rotated=%v err=%v", rotated, err)
 	}
-	_, rt2, rotated, _, err := rotateRefresh(ctx, h.p.kv, oidcTestDEKs, rt1, RefreshTokenTTL)
+	_, rt2, rotated, _, err := rotateRefresh(ctx, h.p.kv, oidcTestDEKs, rt1, RefreshTokenTTL, RefreshTokenTTL)
 	if err != nil || !rotated {
 		t.Fatalf("rotate rt1->rt2: rotated=%v err=%v", rotated, err)
 	}

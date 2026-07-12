@@ -43,6 +43,20 @@ var errRefreshInvalid = errors.New("oidc: refresh token invalid")
 // replay (OAuth 2.0 Security BCP §4.13.2). Callers map this to invalid_grant.
 var errRefreshReuse = errors.New("oidc: refresh token reuse detected")
 
+// errRefreshExpiredInactivity is returned when a refresh token family has
+// exceeded its inactivity (sliding) lifetime — no rotation has occurred within
+// the configured window. Callers map this to invalid_grant with a
+// refresh_expired_inactivity audit reason. The family record may already be
+// gone from KV (TTL expired); this error is for the case where the record still
+// exists but InactiveExpiresAt has passed.
+var errRefreshExpiredInactivity = errors.New("oidc: refresh token inactivity expired")
+
+// errRefreshExpiredAbsolute is returned when a refresh token family has
+// exceeded its absolute (hard) lifetime — the deadline fixed at issue time,
+// never extended. Callers map this to invalid_grant with a
+// refresh_expired_absolute audit reason.
+var errRefreshExpiredAbsolute = errors.New("oidc: refresh token absolute lifetime expired")
+
 // refreshIdempotencyWindow bounds how long a just-rotated (previous) refresh
 // token may be re-presented to receive the SAME successor instead of tripping
 // reuse detection. Covers benign client double-submit / network retry. Kept
@@ -281,10 +295,12 @@ func loadFamily(ctx context.Context, store kv.Store, presented string) (*refresh
 // issueRefresh seeds a NEW refresh-token family. It takes fam by value,
 // generates a random FamilyID and a 32-byte secret, builds a prt1 token,
 // stamps CreatedAt/LastUsedAt/AbsoluteExpiresAt/InactiveExpiresAt, and writes
-// the family record with the given ttl. It returns the freshly minted token and
-// the generated family id. The caller need not pre-populate FamilyID; it is set
-// here. No DEKs are needed at issue time (there is no successor to encrypt).
-func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl time.Duration) (token string, familyID string, err error) {
+// the family record with a KV TTL equal to the absolute lifetime (so the record
+// survives until the hard deadline, not just the inactivity window). It returns
+// the freshly minted token and the generated family id. The caller need not
+// pre-populate FamilyID; it is set here. No DEKs are needed at issue time (there
+// is no successor to encrypt).
+func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, inactivityTTL, absoluteTTL time.Duration) (token string, familyID string, err error) {
 	fid, err := randBytes(32)
 	if err != nil {
 		return "", "", fmt.Errorf("oidc: generate refresh family id: %w", err)
@@ -293,8 +309,8 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl ti
 	fam.Version = refreshFamilyVersion
 	fam.CreatedAt = time.Now().UTC()
 	fam.LastUsedAt = fam.CreatedAt
-	fam.AbsoluteExpiresAt = fam.CreatedAt.Add(ttl)
-	fam.InactiveExpiresAt = fam.CreatedAt.Add(ttl)
+	fam.AbsoluteExpiresAt = fam.CreatedAt.Add(absoluteTTL)
+	fam.InactiveExpiresAt = fam.CreatedAt.Add(inactivityTTL)
 
 	token, secret, err := mintRefreshToken(fid)
 	if err != nil {
@@ -303,7 +319,7 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl ti
 	fam.CurrentHash = hashSecret(secret)
 	fam.Revision = 0
 
-	if err := putFamily(ctx, store, &fam, ttl); err != nil {
+	if err := putFamily(ctx, store, &fam, absoluteTTL); err != nil {
 		return "", "", err
 	}
 	return token, fid, nil
@@ -317,14 +333,19 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl ti
 //  1. Parse the presented token → (familyID, secret). A token without the
 //     prt1 prefix (legacy) → errRefreshInvalid.
 //  2. Load the family record by familyID. A miss → errRefreshInvalid.
-//  3. Hash the presented secret and constant-time compare against
+//  3. Check lifetime deadlines: if AbsoluteExpiresAt has passed → delete
+//     the family and return errRefreshExpiredAbsolute; if InactiveExpiresAt
+//     has passed → delete and return errRefreshExpiredInactivity.
+//  4. Hash the presented secret and constant-time compare against
 //     CurrentHash and PreviousHash:
 //     - Matches PreviousHash and within PreviousValidUntil → idempotent
 //       replay: decrypt the EncryptedSuccessor and return it (rotated=false).
 //       No second mint, no CAS.
 //     - Matches CurrentHash → mint a new successor, encrypt it under the
 //       active DEK, update hashes/revision/encrypted-successor, CAS the old
-//       record → new record. On CAS loss, reload and classify:
+//       record → new record. InactiveExpiresAt slides forward (now +
+//       inactivityTTL) but is capped at AbsoluteExpiresAt. On CAS loss,
+//       reload and classify:
 //       • Family gone → errRefreshInvalid (someone revoked it).
 //       • Presented hash now matches PreviousHash and within window →
 //         concurrent exchange won by another caller; decrypt and return the
@@ -335,9 +356,9 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, ttl ti
 //       audit attribution.
 //
 // rotated reports whether this call performed a real rotation (true) vs served
-// an idempotent replay (false). reuseAccountID is non-zero only when
-// errRefreshReuse is returned.
-func rotateRefresh(ctx context.Context, store kv.Store, deks map[int][]byte, presented string, ttl time.Duration) (fam *refreshFamily, newToken string, rotated bool, reuseAccountID int32, err error) {
+// an idempotent replay (false). reuseAccountID carries the family's AccountID
+// for audit attribution whenever an error deletes the family (reuse or expiry).
+func rotateRefresh(ctx context.Context, store kv.Store, deks map[int][]byte, presented string, inactivityTTL, absoluteTTL time.Duration) (fam *refreshFamily, newToken string, rotated bool, reuseAccountID int32, err error) {
 	fid, secret, err := parseRefreshToken(presented)
 	if err != nil {
 		return nil, "", false, 0, err
@@ -350,6 +371,21 @@ func rotateRefresh(ctx context.Context, store kv.Store, deks map[int][]byte, pre
 
 	now := time.Now().UTC()
 	presentedHash := hashSecret(secret)
+
+	// Lifetime deadline checks: the absolute deadline is a hard cap fixed at
+	// issue time; the inactivity deadline slides forward on each rotation but
+	// never past the absolute. If either has passed the family is dead — delete
+	// it and return a distinct expiry error so the caller can attribute the
+	// audit reason. (These checks run before reuse/idempotency classification
+	// so an expired family never serves a replay.)
+	if !now.Before(fam.AbsoluteExpiresAt) {
+		_ = store.Del(ctx, refreshFamilyKey(fam.FamilyID))
+		return nil, "", false, fam.AccountID, errRefreshExpiredAbsolute
+	}
+	if !now.Before(fam.InactiveExpiresAt) {
+		_ = store.Del(ctx, refreshFamilyKey(fam.FamilyID))
+		return nil, "", false, fam.AccountID, errRefreshExpiredInactivity
+	}
 
 	// Idempotent replay: the presented token is the previous token and still
 	// within the grace window. Return the already-rotated successor without a
@@ -369,6 +405,7 @@ func rotateRefresh(ctx context.Context, store kv.Store, deks map[int][]byte, pre
 		_ = store.Del(ctx, refreshFamilyKey(fam.FamilyID))
 		return nil, "", false, accountID, errRefreshReuse
 	}
+
 
 	// Current token: mint successor, encrypt it, CAS the record.
 	for {
@@ -401,14 +438,24 @@ func rotateRefresh(ctx context.Context, store kv.Store, deks map[int][]byte, pre
 		updated.DEKVersion = dekVer
 		updated.PreviousValidUntil = now.Add(refreshIdempotencyWindow)
 		updated.LastUsedAt = now
-		updated.InactiveExpiresAt = now.Add(ttl)
+		// Slide the inactivity window forward, but never past the absolute deadline.
+		newInactive := now.Add(inactivityTTL)
+		if newInactive.After(fam.AbsoluteExpiresAt) {
+			newInactive = fam.AbsoluteExpiresAt
+		}
+		updated.InactiveExpiresAt = newInactive
 
 		newPayload, mErr := marshalFamily(&updated)
 		if mErr != nil {
 			return nil, "", false, 0, mErr
 		}
 
-		swapped, casErr := store.CompareAndSwap(ctx, refreshFamilyKey(fid), oldPayload, newPayload, ttl)
+		// KV TTL: keep the record alive until the absolute deadline.
+		kvTTL := time.Until(fam.AbsoluteExpiresAt)
+		if kvTTL <= 0 {
+			kvTTL = absoluteTTL
+		}
+		swapped, casErr := store.CompareAndSwap(ctx, refreshFamilyKey(fid), oldPayload, newPayload, kvTTL)
 		if casErr != nil {
 			return nil, "", false, 0, casErr
 		}
@@ -513,7 +560,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	ctx := r.Context()
 	presented := r.PostForm.Get("refresh_token")
 
-	fam, newToken, rotated, reuseAccountID, err := rotateRefresh(ctx, p.kv, p.deks, presented, p.refreshTokenTTL())
+	fam, newToken, rotated, reuseAccountID, err := rotateRefresh(ctx, p.kv, p.deks, presented, p.refreshInactivityTTL(), p.refreshAbsoluteTTL())
 	if errors.Is(err, errRefreshReuse) {
 		var acctPtr *int32
 		if reuseAccountID != 0 {
@@ -524,6 +571,32 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 			"client_id": client.ClientID,
 		})
 		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "refresh token reuse detected")
+		return
+	}
+	if errors.Is(err, errRefreshExpiredAbsolute) {
+		famAcctID := reuseAccountID
+		var acctPtr *int32
+		if famAcctID != 0 {
+			acctPtr = &famAcctID
+		}
+		p.auditTokenEvent(ctx, r, audit.EventFail, acctPtr, map[string]any{
+			"reason":    "refresh_expired_absolute",
+			"client_id": client.ClientID,
+		})
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "refresh token expired")
+		return
+	}
+	if errors.Is(err, errRefreshExpiredInactivity) {
+		famAcctID := reuseAccountID
+		var acctPtr *int32
+		if famAcctID != 0 {
+			acctPtr = &famAcctID
+		}
+		p.auditTokenEvent(ctx, r, audit.EventFail, acctPtr, map[string]any{
+			"reason":    "refresh_expired_inactivity",
+			"client_id": client.ClientID,
+		})
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "refresh token expired")
 		return
 	}
 	if err != nil {
@@ -554,7 +627,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
 		famAcctID := fam.AccountID
 		p.auditTokenEvent(ctx, r, audit.EventFail, &famAcctID, map[string]any{
-			"reason":    "account_unavailable",
+			"reason":    "account_deleted",
 			"client_id": client.ClientID,
 		})
 		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "account not found")
@@ -564,11 +637,36 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
 		acctID := acct.ID
 		p.auditTokenEvent(ctx, r, audit.EventFail, &acctID, map[string]any{
-			"reason":    "account_unavailable",
+			"reason":    "account_disabled",
 			"client_id": client.ClientID,
 		})
 		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
 		return
+	}
+
+	// Verify the originating session is still live. The KV entry is the
+	// authoritative live marker — PG session rows persist (soft-deleted) after
+	// revocation, so GetSession alone is insufficient. A revoked session
+	// (logout, admin revoke, revoke-all, recovery) kills the KV entry
+	// immediately, so this check observes it on the very next refresh.
+	if p.sessions != nil && fam.SessionID != "" {
+		live, lerr := p.sessions.IsSessionIDLive(ctx, fam.AccountID, fam.SessionID)
+		if lerr != nil {
+			// Transient KV error: preserve the family (no authorization
+			// decision was made).
+			writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not verify session")
+			return
+		}
+		if !live {
+			_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+			famAcctID := fam.AccountID
+			p.auditTokenEvent(ctx, r, audit.EventFail, &famAcctID, map[string]any{
+				"reason":    "session_revoked",
+				"client_id": client.ClientID,
+			})
+			writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "originating session is no longer valid")
+			return
+		}
 	}
 
 	// Re-check per-app access on every refresh (RBAC): a grant that was revoked

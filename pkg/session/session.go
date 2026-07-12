@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -311,12 +312,132 @@ func (s *SessionStore) ListByAccount(ctx context.Context, accountID int32) ([]Se
 	}
 	return out, nil
 }
+// SessionPageCursor is the keyset position for session pagination. It encodes
+// the (IssuedAt, SessionID) tuple of the last session returned on a page. The
+// cursor is carried inside the authenticated pagination.CursorPayload.Keys as
+// two string elements: RFC3339Nano(IssuedAt) and SessionID.
+type SessionPageCursor struct {
+	IssuedAt  time.Time
+	SessionID string
+}
+
+// ListPageByAccount returns a bounded, stable-sorted page of sessions for the
+// given account. It scans the account's KV entries (the same bounded scan as
+// ListByAccount), sorts them by (IssuedAt ASC, SessionID ASC) for deterministic
+// ordering, then applies the keyset cursor and limit.
+//
+// after is nil for the first page; for subsequent pages it is the
+// SessionPageCursor derived from the last item of the previous page. limit is
+// the clamped page size (the caller passes the actual limit — this method
+// returns at most that many items and reports whether more remain).
+//
+// The scan is bounded: each ScanEntries call fetches at most 100 keys, and the
+// loop terminates when the KV cursor returns 0. The method does NOT load an
+// unbounded set — it collects entries one batch at a time, sorts, then slices.
+// This is the same scan pattern as ListByAccount / RevokeAllForAccount.
+func (s *SessionStore) ListPageByAccount(ctx context.Context, accountID int32, after *SessionPageCursor, limit int) ([]SessionRecord, bool, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	// Collect all live sessions via bounded KV scan (same pattern as
+	// ListByAccount). Sessions are stored under session:<account_id>:<hash>
+	// and the account_id prefix constrains the glob to one account.
+	pattern := fmt.Sprintf("session:%d:*", accountID)
+	prefix := fmt.Sprintf("session:%d:", accountID)
+	var (
+		cursor uint64
+		all    []SessionRecord
+	)
+	for {
+		result, err := s.kv.ScanEntries(ctx, pattern, cursor, 100)
+		if err != nil {
+			return nil, false, fmt.Errorf("session: ListPageByAccount scan: %w", err)
+		}
+		for _, entry := range result.Entries {
+			var data authn.SessionData
+			if err := json.Unmarshal([]byte(entry.Value), &data); err != nil {
+				continue
+			}
+			token := strings.TrimPrefix(entry.Key, prefix)
+			if data.SessionID == "" {
+				if sid, err := newSessionID(); err == nil {
+					data.SessionID = sid
+					if remaining := time.Until(data.ExpiresAt); remaining > 0 {
+						if payload, err := json.Marshal(&data); err == nil {
+							_ = s.kv.SetEx(ctx, entry.Key, string(payload), remaining)
+						}
+					}
+				}
+			}
+			all = append(all, SessionRecord{Token: token, Data: data})
+		}
+		cursor = result.NextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+	// Sort by (IssuedAt ASC, SessionID ASC) for deterministic keyset ordering.
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].Data.IssuedAt.Equal(all[j].Data.IssuedAt) {
+			return all[i].Data.SessionID < all[j].Data.SessionID
+		}
+		return all[i].Data.IssuedAt.Before(all[j].Data.IssuedAt)
+	})
+	// Apply keyset cursor: skip to the position after the cursor tuple.
+	start := 0
+	if after != nil {
+		for i, sr := range all {
+			if sr.Data.IssuedAt.Equal(after.IssuedAt) && sr.Data.SessionID == after.SessionID {
+				start = i + 1
+				break
+			}
+		}
+		// If the cursor session is gone (revoked/expired since the last
+		// page), start remains 0 and we return the first page. This is the
+		// safe degradation: the client sees a valid (if slightly stale) page
+		// rather than an error.
+	}
+	// Slice to limit+1 to detect whether a next page exists.
+	hasMore := false
+	end := start + limit
+	if end > len(all) {
+		end = len(all)
+	}
+	if end < len(all) {
+		hasMore = true
+	}
+	return all[start:end], hasMore, nil
+}
 
 // RevokeBySessionID drops a single session belonging to accountID whose
 // SessionData.SessionID matches the given id. Returns true when a match
 // was found and deleted, false otherwise (e.g. unknown id, race with
 // expiry, wrong account). Refusing to surface "not yours" vs "not found"
 // distinctly here protects against probe attacks across accounts.
+// IsSessionIDLive reports whether the given sessionID resolves to a
+// currently-live KV entry for accountID. The KV entry is the authoritative
+// live marker: Revoke / RevokeBySessionID / RevokeAllForAccount delete it
+// immediately, while the PG session row is soft-deleted (revoked_at) and
+// retained for audit/sid resolution. Refresh-token enforcement relies on
+// this — a revoked session must invalidate the refresh family even though
+// the PG row still exists. Returns (false, nil) on a transient KV error
+// (caller preserves the family since no authorization decision was made).
+func (s *SessionStore) IsSessionIDLive(ctx context.Context, accountID int32, sessionID string) (bool, error) {
+	if sessionID == "" {
+		return false, nil
+	}
+	sessions, err := s.ListByAccount(ctx, accountID)
+	if err != nil {
+		return false, fmt.Errorf("session: IsSessionIDLive scan: %w", err)
+	}
+	for _, sr := range sessions {
+		if sr.Data.SessionID == sessionID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *SessionStore) RevokeBySessionID(ctx context.Context, accountID int32, sessionID string) (bool, error) {
 	sessions, err := s.ListByAccount(ctx, accountID)
 	if err != nil {

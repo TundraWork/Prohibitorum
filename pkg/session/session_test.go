@@ -318,3 +318,82 @@ func TestParseCookieValue_Malformed(t *testing.T) {
 		}
 	}
 }
+
+// TestSession_IsSessionIDLive verifies that IsSessionIDLive returns true for a
+// live session and false after the session is revoked (KV entry deleted). The
+// PG session row persists (soft-deleted), so this check must not rely on it.
+func TestSession_IsSessionIDLive(t *testing.T) {
+	s := newTestStore(t, time.Hour)
+	ctx := context.Background()
+
+	token, data, err := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+
+	// Live session → true.
+	live, err := s.IsSessionIDLive(ctx, 42, data.SessionID)
+	if err != nil {
+		t.Fatalf("IsSessionIDLive: %v", err)
+	}
+	if !live {
+		t.Error("IsSessionIDLive: want true for live session, got false")
+	}
+
+	// Wrong account → false (session belongs to 42, not 99).
+	live, _ = s.IsSessionIDLive(ctx, 99, data.SessionID)
+	if live {
+		t.Error("IsSessionIDLive: want false for wrong account, got true")
+	}
+
+	// Unknown session ID → false.
+	live, _ = s.IsSessionIDLive(ctx, 42, "never-issued-sid")
+	if live {
+		t.Error("IsSessionIDLive: want false for unknown session, got true")
+	}
+
+	// Empty session ID → false.
+	live, _ = s.IsSessionIDLive(ctx, 42, "")
+	if live {
+		t.Error("IsSessionIDLive: want false for empty session ID, got true")
+	}
+
+	// Revoke the session → false.
+	if err := s.Revoke(ctx, 42, token); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	live, _ = s.IsSessionIDLive(ctx, 42, data.SessionID)
+	if live {
+		t.Error("IsSessionIDLive: want false after revoke, got true")
+	}
+}
+
+// TestSession_IsSessionIDLiveAfterRevokeAll verifies that IsSessionIDLive
+// returns false for every session after RevokeAllForAccount.
+func TestSession_IsSessionIDLiveAfterRevokeAll(t *testing.T) {
+	s := newTestStore(t, time.Hour)
+	ctx := context.Background()
+
+	token1, data1, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	_, data2, _ := s.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+
+	// Both live.
+	if live, _ := s.IsSessionIDLive(ctx, 42, data1.SessionID); !live {
+		t.Fatal("data1 should be live")
+	}
+	if live, _ := s.IsSessionIDLive(ctx, 42, data2.SessionID); !live {
+		t.Fatal("data2 should be live")
+	}
+
+	// Revoke all → both dead.
+	if _, err := s.RevokeAllForAccount(ctx, 42); err != nil {
+		t.Fatalf("RevokeAllForAccount: %v", err)
+	}
+	if live, _ := s.IsSessionIDLive(ctx, 42, data1.SessionID); live {
+		t.Error("data1 should be dead after revoke-all")
+	}
+	if live, _ := s.IsSessionIDLive(ctx, 42, data2.SessionID); live {
+		t.Error("data2 should be dead after revoke-all")
+	}
+	_ = token1
+}

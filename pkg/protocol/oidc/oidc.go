@@ -118,6 +118,12 @@ func (p *Provider) idTokenTTL() time.Duration {
 func (p *Provider) refreshTokenTTL() time.Duration {
 	return effectiveDuration(p.oidcConf().RefreshTokenTTL, RefreshTokenTTL)
 }
+func (p *Provider) refreshInactivityTTL() time.Duration {
+	return effectiveDuration(p.oidcConf().RefreshTokenInactivityTTL, RefreshTokenTTL)
+}
+func (p *Provider) refreshAbsoluteTTL() time.Duration {
+	return effectiveDuration(p.oidcConf().RefreshTokenAbsoluteTTL, 90*24*time.Hour)
+}
 func (p *Provider) authCodeTTL() time.Duration {
 	return effectiveDuration(p.oidcConf().AuthorizationCodeTTL, AuthorizationCodeTTL)
 }

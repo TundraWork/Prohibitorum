@@ -24,6 +24,8 @@ func TestTTLResolversHonorConfigElseDefault(t *testing.T) {
 		{"access", pd.accessTokenTTL(), AccessTokenTTL},
 		{"id", pd.idTokenTTL(), IDTokenTTL},
 		{"refresh", pd.refreshTokenTTL(), RefreshTokenTTL},
+		{"refresh_inactivity", pd.refreshInactivityTTL(), RefreshTokenTTL},
+		{"refresh_absolute", pd.refreshAbsoluteTTL(), 90 * 24 * time.Hour},
 		{"code", pd.authCodeTTL(), AuthorizationCodeTTL},
 		{"jwks", pd.jwksCacheMaxAge(), defaultJWKSCacheMaxAge},
 	}
@@ -41,11 +43,13 @@ func TestTTLResolversHonorConfigElseDefault(t *testing.T) {
 
 	// Configured values are honored.
 	pc := &Provider{cfg: &configx.Config{OIDC: configx.OIDCConfig{
-		AccessTokenTTL:       5 * time.Minute,
-		IDTokenTTL:           7 * time.Minute,
-		RefreshTokenTTL:      48 * time.Hour,
-		AuthorizationCodeTTL: 90 * time.Second,
-		JWKSCacheMaxAge:      2 * time.Minute,
+		AccessTokenTTL:             5 * time.Minute,
+		IDTokenTTL:                 7 * time.Minute,
+		RefreshTokenTTL:            48 * time.Hour,
+		RefreshTokenInactivityTTL:  24 * time.Hour,
+		RefreshTokenAbsoluteTTL:    96 * time.Hour,
+		AuthorizationCodeTTL:       90 * time.Second,
+		JWKSCacheMaxAge:            2 * time.Minute,
 	}}}
 	for _, c := range []struct {
 		name string
@@ -55,8 +59,9 @@ func TestTTLResolversHonorConfigElseDefault(t *testing.T) {
 		{"access", pc.accessTokenTTL(), 5 * time.Minute},
 		{"id", pc.idTokenTTL(), 7 * time.Minute},
 		{"refresh", pc.refreshTokenTTL(), 48 * time.Hour},
+		{"refresh_inactivity", pc.refreshInactivityTTL(), 24 * time.Hour},
+		{"refresh_absolute", pc.refreshAbsoluteTTL(), 96 * time.Hour},
 		{"code", pc.authCodeTTL(), 90 * time.Second},
-		{"jwks", pc.jwksCacheMaxAge(), 2 * time.Minute},
 	} {
 		if c.got != c.want {
 			t.Errorf("configured %s TTL = %v, want %v", c.name, c.got, c.want)
@@ -77,9 +82,12 @@ func TestTokenGrantHonorsConfiguredTTLs(t *testing.T) {
 	ctx := context.Background()
 
 	const wantAccess = 5 * time.Minute
-	const wantRefresh = 48 * time.Hour
+	const wantInactivity = 48 * time.Hour
+	const wantAbsolute = 72 * time.Hour
 	h.p.cfg.OIDC.AccessTokenTTL = wantAccess
-	h.p.cfg.OIDC.RefreshTokenTTL = wantRefresh
+	h.p.cfg.OIDC.RefreshTokenTTL = wantInactivity
+	h.p.cfg.OIDC.RefreshTokenInactivityTTL = wantInactivity
+	h.p.cfg.OIDC.RefreshTokenAbsoluteTTL = wantAbsolute
 
 	code := h.mintTestCode(t, baseAuthCode())
 	rec := httptest.NewRecorder()
@@ -106,12 +114,9 @@ func TestTokenGrantHonorsConfiguredTTLs(t *testing.T) {
 	if perr != nil {
 		t.Fatalf("parse refresh token: %v", perr)
 	}
-	ttl, err := h.p.kv.TTL(ctx, refreshFamilyKey(fid))
-	if err != nil {
-		t.Fatalf("read refresh family TTL: %v", err)
-	}
-	want := int64(wantRefresh.Seconds())
+	ttl, _ := h.p.kv.TTL(ctx, refreshFamilyKey(fid))
+	want := int64(wantAbsolute.Seconds())
 	if ttl < want-30 || ttl > want {
-		t.Errorf("refresh family KV TTL = %ds, want ≈%ds (configured refresh TTL not honored)", ttl, want)
+		t.Errorf("refresh family KV TTL = %ds, want ≈%ds (configured absolute TTL not honored)", ttl, want)
 	}
 }

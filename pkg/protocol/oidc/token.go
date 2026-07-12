@@ -279,7 +279,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 			AuthTime:  ac.AuthTime,
 			AMR:       ac.AMR,
 			ACR:       ac.ACR,
-		}, p.refreshTokenTTL())
+		}, p.refreshInactivityTTL(), p.refreshAbsoluteTTL())
 		if err != nil {
 			writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not issue refresh token")
 			return

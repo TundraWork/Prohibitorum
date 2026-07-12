@@ -163,3 +163,88 @@ func TestParse_AcceptsValidDEKLengths(t *testing.T) {
 		t.Errorf("DataEncryptionKeys: want 2, got %d", len(cfg.DataEncryptionKeys))
 	}
 }
+
+// TestParse_FederationHasNoGlobalAllowPrivateNetwork verifies that the global
+// federation.allow_private_network config bypass has been removed in favor of
+// the per-IdP database column (migration 030). The FederationConfig struct
+// must not carry the field, and Parse must not register a default for it.
+func TestParse_FederationHasNoGlobalAllowPrivateNetwork(t *testing.T) {
+	resetViper(t)
+
+	cfg, err := Parse()
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	// FederationConfig must not carry AllowPrivateNetwork — the field is
+	// gone (per-IdP DB column replaces it). StateTTL and DefaultScopes
+	// remain.
+	_ = cfg.Federation.StateTTL
+	_ = cfg.Federation.DefaultScopes
+
+	// Viper must not carry a registered default for the removed key.
+	// (AutomaticEnv means an explicit env var can still make IsSet return
+	// true, but with no env var set and no default registered, the key
+	// should be absent.)
+	if viper.IsSet("federation.allow_private_network") {
+		t.Fatal("federation.allow_private_network is still registered as a config key — global bypass should be removed")
+	}
+}
+
+// TestParse_RefreshTTLDefaults verifies the inactivity/absolute refresh-token
+// lifetime defaults: 30d inactivity / 90d absolute.
+func TestParse_RefreshTTLDefaults(t *testing.T) {
+	resetViper(t)
+	cfg, err := Parse()
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.OIDC.RefreshTokenInactivityTTL != 30*24*time.Hour {
+		t.Errorf("RefreshTokenInactivityTTL default: want 30d, got %v", cfg.OIDC.RefreshTokenInactivityTTL)
+	}
+	if cfg.OIDC.RefreshTokenAbsoluteTTL != 90*24*time.Hour {
+		t.Errorf("RefreshTokenAbsoluteTTL default: want 90d, got %v", cfg.OIDC.RefreshTokenAbsoluteTTL)
+	}
+}
+
+// TestParse_RefreshTTLValidation rejects non-positive values and an absolute
+// lifetime shorter than the inactivity window.
+func TestParse_RefreshTTLValidation(t *testing.T) {
+	t.Run("non_positive_inactivity", func(t *testing.T) {
+		resetViper(t)
+		t.Setenv("PROHIBITORUM_OIDC_REFRESH_TOKEN_INACTIVITY_TTL", "0")
+		_, err := Parse()
+		if err == nil {
+			t.Fatal("Parse accepted zero inactivity TTL")
+		}
+	})
+	t.Run("non_positive_absolute", func(t *testing.T) {
+		resetViper(t)
+		t.Setenv("PROHIBITORUM_OIDC_REFRESH_TOKEN_ABSOLUTE_TTL", "0")
+		_, err := Parse()
+		if err == nil {
+			t.Fatal("Parse accepted zero absolute TTL")
+		}
+	})
+	t.Run("absolute_shorter_than_inactivity", func(t *testing.T) {
+		resetViper(t)
+		t.Setenv("PROHIBITORUM_OIDC_REFRESH_TOKEN_INACTIVITY_TTL", "48h")
+		t.Setenv("PROHIBITORUM_OIDC_REFRESH_TOKEN_ABSOLUTE_TTL", "24h")
+		_, err := Parse()
+		if err == nil {
+			t.Fatal("Parse accepted absolute TTL shorter than inactivity TTL")
+		}
+	})
+	t.Run("absolute_equal_to_inactivity", func(t *testing.T) {
+		resetViper(t)
+		t.Setenv("PROHIBITORUM_OIDC_REFRESH_TOKEN_INACTIVITY_TTL", "48h")
+		t.Setenv("PROHIBITORUM_OIDC_REFRESH_TOKEN_ABSOLUTE_TTL", "48h")
+		cfg, err := Parse()
+		if err != nil {
+			t.Fatalf("Parse rejected absolute == inactivity: %v", err)
+		}
+		if cfg.OIDC.RefreshTokenAbsoluteTTL != 48*time.Hour {
+			t.Errorf("absolute TTL: want 48h, got %v", cfg.OIDC.RefreshTokenAbsoluteTTL)
+		}
+	})
+}
