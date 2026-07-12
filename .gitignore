@@ -17,6 +17,7 @@
 
 # Brainstorm visual-companion artifacts
 .superpowers/
+/.worktrees/
 
 # Impeccable design-skill artifacts + installed skill copies (tooling, not source)
 /.impeccable/
