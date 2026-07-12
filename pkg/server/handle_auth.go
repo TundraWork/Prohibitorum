@@ -142,7 +142,7 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 		// only — never WithError(err), which would persist the raw error
 		// string (may contain secrets) to structured logs. A nil err also
 		// lands here.
-		logInternalError(requestID, err)
+		logInternalError(requestID, canonicalServerError, err)
 		weberr.WriteJSON(w, canonicalServerError, nil, requestID)
 		return
 	}
@@ -158,14 +158,16 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 
 // logInternalError emits a curated log line for an internal (non-domain)
 // error. It logs the request ID (so operators can correlate the public
-// server_error response to structured records), the registered code
-// ("server_error"), and a safe diagnostic category. It deliberately does NOT
-// call WithError(err) — err.Error() may contain connection strings, query
-// text, or stack fragments that must not be persisted to structured logs.
+// response to structured records), the registered code passed by the
+// caller (e.g. "database_unavailable", "kv_unavailable",
+// "ceremony_internal_error", or "server_error" for the generic fallback),
+// and a safe diagnostic category. It deliberately does NOT call
+// WithError(err) — err.Error() may contain connection strings, query text,
+// or stack fragments that must not be persisted to structured logs.
 // Callers that need the raw detail for debugging should add a separate
 // debug-level entry with an explicit, reviewed field if warranted.
-func logInternalError(requestID string, err error) {
-	entry := logrus.WithField("code", "server_error").
+func logInternalError(requestID, code string, err error) {
+	entry := logrus.WithField("code", code).
 		WithField("category", "internal").
 		WithField("request_id", requestID)
 	if err == nil {
@@ -214,10 +216,12 @@ func errorTypeLabel(err error) string {
 // specific internal code (e.g. "kv_unavailable") rather than collapsing every
 // unexpected failure to generic "server_error". The code MUST be registered;
 // if it is not, WriteJSON falls back to server_error. The raw err is logged
-// with the request ID and curated fields only (never WithError).
+// with the request ID, the selected registered code, and curated fields
+// only (never WithError) — so the response code and log code correlate via
+// the shared request ID.
 func writeAuthErrForCode(w http.ResponseWriter, code string, err error) {
 	requestID := w.Header().Get(weberr.HeaderRequestID)
-	logInternalError(requestID, err)
+	logInternalError(requestID, code, err)
 	weberr.WriteJSON(w, code, nil, requestID)
 }
 
@@ -301,7 +305,7 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 
 	bootstrapped, err := s.queries.HasAnyActiveAdmin(r.Context())
 	if err != nil {
-		writeAuthErr(w, fmt.Errorf("login/begin: %w", err))
+		writeAuthErrForCode(w, "database_unavailable", fmt.Errorf("login/begin: %w", err))
 		return
 	}
 	if !bootstrapped {
@@ -326,7 +330,7 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.kvStore.SetEx(r.Context(), "webauthn_ceremony:login:"+token, string(payload), ceremonyTTL); err != nil {
-		writeAuthErr(w, fmt.Errorf("login/begin setex: %w", err))
+		writeAuthErrForCode(w, "kv_unavailable", fmt.Errorf("login/begin setex: %w", err))
 		return
 	}
 
@@ -501,7 +505,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	ip := s.clientIP.IP(r)
 	token, _, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil)
 	if err != nil {
-		writeAuthErr(w, fmt.Errorf("session issue: %w", err))
+		writeAuthErrForCode(w, "ceremony_internal_error", fmt.Errorf("session issue: %w", err))
 		return
 	}
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, resolvedAccount.ID, token, s.config.SessionTTL))

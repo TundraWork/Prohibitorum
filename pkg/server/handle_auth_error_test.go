@@ -2,16 +2,24 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/kv"
+	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/weberr"
 )
 
@@ -348,11 +356,11 @@ func TestWriteAuthErrForCode_OperationSpecificCode(t *testing.T) {
 	if !strings.Contains(logOut, "req-op-specific-003") {
 		t.Errorf("log missing request_id:\n%s", logOut)
 	}
-	// Operation-specific code must be in logs (not just server_error).
-	if !strings.Contains(logOut, "server_error") {
-		// logInternalError always logs code=server_error for the canonical
-		// envelope; the operation-specific code is in the response.
-		// This is acceptable — the key invariant is that raw error is absent.
+	// Operation-specific code MUST be in logs (not just server_error) —
+	// logInternalError now logs the selected registered code so operators
+	// can correlate the response code to the structured log entry.
+	if !strings.Contains(logOut, "kv_unavailable") {
+		t.Errorf("log missing operation-specific code kv_unavailable:\n%s", logOut)
 	}
 }
 
@@ -406,4 +414,294 @@ func TestWriteHumaPublicErr_RoutesThroughRegistry(t *testing.T) {
 	if def.Status != http.StatusUnauthorized {
 		t.Errorf("sudo_required status = %d, want 401", def.Status)
 	}
+}
+// TestLogInternalError_LogsSelectedCodeAndRequestID proves logInternalError
+// logs the selected registered operation-specific code (not a hardcoded
+// "server_error") and the request ID, so operators can correlate the public
+// response to structured logs even for operation-specific internal failures
+// (database_unavailable, kv_unavailable, ceremony_internal_error).
+func TestLogInternalError_LogsSelectedCodeAndRequestID(t *testing.T) {
+	cases := []struct {
+		name string
+		code string
+		err  error
+	}{
+		{"database_unavailable", "database_unavailable", errors.New("pg: connection refused")},
+		{"kv_unavailable", "kv_unavailable", errors.New("kv.SetEx: dial tcp: secret@kv:6379")},
+		{"ceremony_internal_error", "ceremony_internal_error", errors.New("session issue: ceremony state corrupt")},
+		{"server_error fallback", "server_error", errors.New("unknown internal failure")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf, restore := captureLogrusOutput(t)
+			defer restore()
+
+			logInternalError("req-log-code-001", tc.code, tc.err)
+
+			logOut := buf.String()
+			// The selected registered code MUST be in the log — not a
+			// hardcoded "server_error" when the caller passed an
+			// operation-specific code.
+			if !strings.Contains(logOut, tc.code) {
+				t.Errorf("log missing selected code %q:\n%s", tc.code, logOut)
+			}
+			// The request ID MUST be in the log for correlation.
+			if !strings.Contains(logOut, "req-log-code-001") {
+				t.Errorf("log missing request_id:\n%s", logOut)
+			}
+			// The raw error string must NOT be in the log.
+			if tc.err != nil && strings.Contains(logOut, tc.err.Error()) {
+				t.Errorf("log leaked raw error string:\n%s", logOut)
+			}
+		})
+	}
+}
+
+// TestLogInternalError_NilErrorLogsCode proves that a nil error still logs
+// the selected registered code (not panicking) and degrades safely.
+func TestLogInternalError_NilErrorLogsCode(t *testing.T) {
+	buf, restore := captureLogrusOutput(t)
+	defer restore()
+
+	logInternalError("req-nil-002", "database_unavailable", nil)
+
+	logOut := buf.String()
+	if !strings.Contains(logOut, "database_unavailable") {
+		t.Errorf("log missing selected code:\n%s", logOut)
+	}
+	if !strings.Contains(logOut, "req-nil-002") {
+		t.Errorf("log missing request_id:\n%s", logOut)
+	}
+}
+
+// TestWriteAuthErrForCode_LogsSelectedCode proves that writeAuthErrForCode
+// logs the operation-specific code passed to it (not a hardcoded
+// "server_error"), and that the log code matches the response code — so a
+// single correlation ID links the public response to the structured log.
+func TestWriteAuthErrForCode_LogsSelectedCode(t *testing.T) {
+	buf, restore := captureLogrusOutput(t)
+	defer restore()
+
+	rr := httptest.NewRecorder()
+	rr.Header().Set(weberr.HeaderRequestID, "req-correlate-code-004")
+	writeAuthErrForCode(rr, "database_unavailable", errors.New("pg: connection refused"))
+
+	var env weberr.PublicError
+	if err := json.Unmarshal(rr.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal body: %v\nbody: %s", err, rr.Body.String())
+	}
+	if env.Code != "database_unavailable" {
+		t.Errorf("response code = %q, want database_unavailable", env.Code)
+	}
+
+	logOut := buf.String()
+	// The log MUST carry the same code as the response — not a hardcoded
+	// "server_error" — so operators can correlate the two.
+	if !strings.Contains(logOut, "database_unavailable") {
+		t.Errorf("log missing response code database_unavailable:\n%s", logOut)
+	}
+	if !strings.Contains(logOut, "req-correlate-code-004") {
+		t.Errorf("log missing request_id:\n%s", logOut)
+	}
+	// Raw error string must NOT be in logs.
+	if strings.Contains(logOut, "pg: connection refused") {
+		t.Errorf("log leaked raw error string:\n%s", logOut)
+	}
+}
+
+// --- Production callsite tests ---
+//
+// These tests prove that the real raw chi handlers in handle_auth.go emit
+// operation-specific registered codes (database_unavailable, kv_unavailable,
+// ceremony_internal_error) instead of collapsing every internal failure to
+// generic "server_error". They use injectable KV/DB seams that fail on cue.
+
+// failingKVStore wraps a kv.Store and returns a configurable error on SetEx,
+// simulating a Redis/Valkey backend outage. All other operations delegate to
+// the underlying store so the handler can reach the SetEx callsite.
+type failingKVStore struct {
+	kv.Store
+	setExErr error
+}
+
+func (f *failingKVStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	if f.setExErr != nil {
+		return f.setExErr
+	}
+	return f.Store.SetEx(ctx, key, value, ttl)
+}
+
+// failingDBTX implements db.DBTX so that *db.Queries built from it returns
+// errors on every QueryRow/Query/Exec call — simulating a database outage.
+type failingDBTX struct{}
+
+func (failingDBTX) Exec(_ context.Context, _ string, _ ...interface{}) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, errors.New("db: connection refused")
+}
+func (failingDBTX) Query(_ context.Context, _ string, _ ...interface{}) (pgx.Rows, error) {
+	return nil, errors.New("db: connection refused")
+}
+func (failingDBTX) QueryRow(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+	return failingRow{}
+}
+
+// failingRow implements pgx.Row to return an error on every Scan.
+type failingRow struct{}
+
+func (failingRow) Scan(_ ...interface{}) error {
+	return errors.New("db: connection refused")
+}
+
+// newLoginBeginTestServer builds a Server wired for handleLoginBeginHTTP:
+// a real *db.Queries backed by a failingDBTX (so HasAnyActiveAdmin errors),
+// a memory KV store, and a real webauthn.WebAuthn with test RP config so
+// BeginDiscoverableLogin can succeed (reaching the KV SetEx callsite when
+// the KV store is configured to fail).
+func newLoginBeginTestServer(t *testing.T) *Server {
+	t.Helper()
+	cfg := &configx.Config{
+		WebAuthn: configx.WebAuthnConfig{
+			RPID:          "test.example.com",
+			RPDisplayName: "Test",
+			RPOrigins:     []string{"https://test.example.com"},
+		},
+		SessionTTL: time.Hour,
+	}
+	wa, err := webauthnauth.NewWebAuthn(cfg.WebAuthn)
+	if err != nil {
+		t.Fatalf("NewWebAuthn: %v", err)
+	}
+	s := &Server{
+		config:      cfg,
+		queries:     db.New(failingDBTX{}),
+		kvStore:     kv.NewMemoryStore(),
+		rateLimiter: authn.NewRateLimiter(),
+		webauthn:    wa,
+		clientIP:    newDirectResolver(),
+	}
+	return s
+}
+
+// postLoginBegin fires POST /auth/login/begin against the handler directly.
+func postLoginBegin(t *testing.T, s *Server) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	rec.Header().Set(weberr.HeaderRequestID, "req-login-begin-001")
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/login/begin", nil)
+	s.handleLoginBeginHTTP(rec, req)
+	return rec
+}
+
+// TestLoginBegin_DBFailure_EmitsDatabaseUnavailable proves that when the
+// HasAnyActiveAdmin query fails (DB outage), the handler emits the registered
+// "database_unavailable" code (HTTP 503) instead of collapsing to generic
+// "server_error" (HTTP 500). The response and log share the request ID.
+func TestLoginBegin_DBFailure_EmitsDatabaseUnavailable(t *testing.T) {
+	buf, restore := captureLogrusOutput(t)
+	defer restore()
+
+	s := newLoginBeginTestServer(t)
+	rec := postLoginBegin(t, s)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (database_unavailable)", rec.Code)
+	}
+	var env weberr.PublicError
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal body: %v\nbody: %s", err, rec.Body.String())
+	}
+	if env.Code != "database_unavailable" {
+		t.Errorf("response code = %q, want database_unavailable", env.Code)
+	}
+	if env.RequestID != "req-login-begin-001" {
+		t.Errorf("requestId = %q, want req-login-begin-001", env.RequestID)
+	}
+	assertNoMessageField(t, rec.Body.Bytes())
+
+	// The log MUST carry the same code and request ID — no raw error string.
+	logOut := buf.String()
+	if !strings.Contains(logOut, "database_unavailable") {
+		t.Errorf("log missing code database_unavailable:\n%s", logOut)
+	}
+	if !strings.Contains(logOut, "req-login-begin-001") {
+		t.Errorf("log missing request_id:\n%s", logOut)
+	}
+	if strings.Contains(logOut, "connection refused") {
+		t.Errorf("log leaked raw error string:\n%s", logOut)
+	}
+}
+
+// TestLoginBegin_KVFailure_EmitsKVUnavailable proves that when the ceremony
+// stash SetEx fails (KV backend outage), the handler emits the registered
+// "kv_unavailable" code (HTTP 503) instead of collapsing to generic
+// "server_error".
+func TestLoginBegin_KVFailure_EmitsKVUnavailable(t *testing.T) {
+	buf, restore := captureLogrusOutput(t)
+	defer restore()
+
+	s := newLoginBeginTestServer(t)
+	// Swap in a KV store that fails on SetEx, simulating a Redis outage.
+	// The underlying memory store is still used for non-SetEx ops.
+	s.kvStore = &failingKVStore{
+		Store:    s.kvStore,
+		setExErr: errors.New("kv.SetEx: dial tcp: secret@kv:6379: connect: connection refused"),
+	}
+	// The DB must succeed (return bootstrapped=true) so the handler reaches
+	// the webauthn begin + KV SetEx path. We swap in a real queries backed
+	// by a memory DBTX that returns bootstrapped=true.
+	s.queries = db.New(bootstrappedDBTX{})
+
+	rec := postLoginBegin(t, s)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (kv_unavailable)", rec.Code)
+	}
+	var env weberr.PublicError
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal body: %v\nbody: %s", err, rec.Body.String())
+	}
+	if env.Code != "kv_unavailable" {
+		t.Errorf("response code = %q, want kv_unavailable", env.Code)
+	}
+	if env.RequestID != "req-login-begin-001" {
+		t.Errorf("requestId = %q, want req-login-begin-001", env.RequestID)
+	}
+	assertNoMessageField(t, rec.Body.Bytes())
+
+	// The log MUST carry the same code and request ID — no raw error string.
+	logOut := buf.String()
+	if !strings.Contains(logOut, "kv_unavailable") {
+		t.Errorf("log missing code kv_unavailable:\n%s", logOut)
+	}
+	if !strings.Contains(logOut, "req-login-begin-001") {
+		t.Errorf("log missing request_id:\n%s", logOut)
+	}
+	if strings.Contains(logOut, "secret@kv") {
+		t.Errorf("log leaked raw error string:\n%s", logOut)
+	}
+}
+
+// bootstrappedDBTX implements db.DBTX so HasAnyActiveAdmin returns true
+// (bootstrapped) without a real database — lets the handler proceed past
+// the bootstrap check to reach the KV SetEx callsite.
+type bootstrappedDBTX struct{}
+
+func (bootstrappedDBTX) Exec(_ context.Context, _ string, _ ...interface{}) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+func (bootstrappedDBTX) Query(_ context.Context, _ string, _ ...interface{}) (pgx.Rows, error) {
+	return nil, pgx.ErrNoRows
+}
+func (bootstrappedDBTX) QueryRow(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+	return bootstrappedRow{}
+}
+
+// bootstrappedRow scans HasAnyActiveAdmin's single bool column as true.
+type bootstrappedRow struct{}
+
+func (bootstrappedRow) Scan(dest ...interface{}) error {
+	if b, ok := dest[0].(*bool); ok {
+		*b = true
+	}
+	return nil
 }
