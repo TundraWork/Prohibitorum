@@ -184,6 +184,17 @@ func init() {
 			DiagnosticKind: "validation",
 			DetailKeys:     map[string]struct{}{"location": {}, "reason": {}},
 		},
+		// unsupported_media_type is the code for huma's 415 response when the
+		// Content-Type is not application/json. No details — the status is
+		// self-explanatory.
+		Definition{
+			Code:           "unsupported_media_type",
+			Status:         http.StatusUnsupportedMediaType,
+			LocaleKey:      "errors.unsupported_media_type",
+			Retryable:      false,
+			Recovery:       "fix_content_type",
+			DiagnosticKind: "validation",
+		},
 	)
 }
 
@@ -286,4 +297,18 @@ func AsPublic(err error) *PublicError {
 		return provider.PublicError()
 	}
 	return nil
+}
+
+// AllDefinitions returns a snapshot copy of every registered definition.
+// Tests use this to walk the full registry without a hardcoded list, so
+// every registration — including ones added by authn.init and future
+// packages — is automatically covered.
+func AllDefinitions() []Definition {
+	regMu.RLock()
+	defer regMu.RUnlock()
+	out := make([]Definition, 0, len(reg))
+	for _, d := range reg {
+		out = append(out, d)
+	}
+	return out
 }

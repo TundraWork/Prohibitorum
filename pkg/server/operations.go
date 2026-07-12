@@ -24,13 +24,18 @@ import (
 // envelope instead of RFC 9457 Problem Details.
 func humaConfig() huma.Config {
 	// Override huma.NewError so validation errors produce a *PublicError with
-	// code "validation_failed" and safe location/reason details — never the
-	// raw input value or an RFC 9457 message/detail/title/errors shape.
+	// a registered code — never RFC 9457 message/detail/title/errors shape.
 	huma.NewError = newHumaValidationError
 	huma.NewErrorWithContext = func(_ huma.Context, status int, msg string, errs ...error) huma.StatusError {
 		return newHumaValidationError(status, msg, errs...)
 	}
 	cfg := huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")
+	// Disable the SchemaLinkTransformer (the default CreateHook) so responses
+	// do not carry a $schema field — the wire envelope must be exactly
+	// {code, details?, requestId} and nothing else.
+	cfg.CreateHooks = nil
+	// Install the request-ID transformer that stamps RequestID on
+	// *PublicError values before serialization.
 	cfg.Transformers = append(cfg.Transformers, func(ctx huma.Context, status string, v any) (any, error) {
 		if pe, ok := v.(*weberr.PublicError); ok {
 			pe.RequestID = weberr.RequestIDFromContext(ctx.Context())
@@ -40,61 +45,108 @@ func humaConfig() huma.Config {
 	return cfg
 }
 
-// newHumaValidationError replaces huma.NewError so validation failures produce
-// a *weberr.PublicError with code "validation_failed" (422) and safe details.
-// The details map carries at most a "location" and "reason" — never the raw
-// input value, which may contain sensitive data. The request ID is stamped
-// later by the response transformer.
+// newHumaValidationError replaces huma.NewError so every framework error
+// produces a *weberr.PublicError with a registered code. The mapping is
+// status-aware:
+//
+//   - 422 (schema validation): validation_failed with safe location/reason
+//     details extracted from the first huma.ErrorDetailer. Never echoes raw
+//     input values.
+//   - 400 (malformed JSON / bad request): bad_request, no details.
+//   - 413 (body too large): request_too_large, no details.
+//   - 415 (unsupported media type): unsupported_media_type, no details.
+//   - >=500 (internal): server_error, no details. Never maps to 422 and
+//     never serializes the raw error string.
+//
+// Non-ErrorDetailer errors are NEVER serialized — their Error() string may
+// contain raw input or internal state. Only huma.ErrorDetailer values (which
+// carry a curated Message + Location) are used for safe details.
 func newHumaValidationError(status int, msg string, errs ...error) huma.StatusError {
-	details := map[string]any{}
-	for _, e := range errs {
-		if e == nil {
-			continue
-		}
-		// huma.ErrorDetailer types carry a safe location + message.
-		if detailer, ok := e.(huma.ErrorDetailer); ok {
-			ed := detailer.ErrorDetail()
-			if ed.Location != "" {
-				details["location"] = ed.Location
+	switch {
+	case status >= 500:
+		// Internal failure — never expose details or raw error text.
+		return &weberr.PublicError{Code: "server_error"}
+	case status == http.StatusUnprocessableEntity:
+		// Schema validation failure — extract safe location/reason from the
+		// first ErrorDetailer. Non-ErrorDetailer errors are skipped (their
+		// Error() string is never serialized).
+		details := map[string]any{}
+		for _, e := range errs {
+			if e == nil {
+				continue
 			}
-			if ed.Message != "" {
-				details["reason"] = ed.Message
+			if detailer, ok := e.(huma.ErrorDetailer); ok {
+				ed := detailer.ErrorDetail()
+				if ed.Location != "" {
+					details["location"] = ed.Location
+				}
+				if ed.Message != "" {
+					details["reason"] = ed.Message
+				}
+				break
 			}
-			// Take only the first detail to avoid a details array — the
-			// envelope uses a flat map, not a list.
-			break
 		}
-		// Non-ErrorDetailer: use the error string as the reason, but only if
-		// it's safe (huma validation messages are framework-generated, not raw
-		// input or internal state).
-		details["reason"] = e.Error()
-		break
+		if len(details) == 0 {
+			details = nil
+		}
+		return &weberr.PublicError{
+			Code:    "validation_failed",
+			Details: details,
+		}
+	case status == http.StatusBadRequest:
+		return &weberr.PublicError{Code: "bad_request"}
+	case status == http.StatusRequestEntityTooLarge:
+		return &weberr.PublicError{Code: "request_too_large"}
+	case status == http.StatusUnsupportedMediaType:
+		return &weberr.PublicError{Code: "unsupported_media_type"}
+	default:
+		// Any other 4xx without a specific mapping falls back to bad_request.
+		if status >= 400 && status < 500 {
+			return &weberr.PublicError{Code: "bad_request"}
+		}
+		// Unknown status — safe fallback.
+		return &weberr.PublicError{Code: "server_error"}
 	}
-	pe := &weberr.PublicError{
-		Code:    "validation_failed",
-		Details: details,
-	}
-	return pe
 }
 
-// writeHumaPublicErr writes a {code, requestId} public-error envelope through
-// a huma.Context, bypassing huma's default RFC 9457 serialization so
-// the wire contract matches the raw chi handler path (writeAuthErr). The code
-// is validated against the registry (DefinitionFor); the status is taken
-// from the registered definition, not the caller. An unregistered code falls
-// back to server_error. The request ID is read from the context (set by the
-// RequestID middleware).
-func writeHumaPublicErr(ctx huma.Context, code string) {
+// writeHumaPublicErr writes a {code, details?, requestId} public-error
+// envelope through a huma.Context, bypassing huma's default RFC 9457
+// serialization so the wire contract matches the raw chi handler path
+// (writeAuthErr). The code is validated against the registry (DefinitionFor);
+// the status is taken from the registered definition, not the caller. Details
+// are filtered against the definition's DetailKeys whitelist — undeclared
+// keys are dropped. An unregistered code falls back to server_error with no
+// details. The request ID is read from the context (set by the RequestID
+// middleware).
+func writeHumaPublicErr(ctx huma.Context, code string, details map[string]any) {
 	def, ok := weberr.DefinitionFor(code)
 	if !ok {
 		def, _ = weberr.DefinitionFor("server_error")
 		code = "server_error"
+		details = nil
+	}
+	// Filter details against the definition's whitelist.
+	if len(details) > 0 && len(def.DetailKeys) > 0 {
+		filtered := make(map[string]any, len(details))
+		for k, v := range details {
+			if _, allowed := def.DetailKeys[k]; allowed {
+				filtered[k] = v
+			}
+		}
+		if len(filtered) == 0 {
+			details = nil
+		} else {
+			details = filtered
+		}
+	} else if len(def.DetailKeys) == 0 {
+		details = nil
 	}
 	requestID := weberr.RequestIDFromContext(ctx.Context())
 	ctx.SetHeader("Content-Type", "application/json")
 	ctx.SetStatus(def.Status)
 	_ = json.NewEncoder(ctx.BodyWriter()).Encode(weberr.PublicError{
 		Code:      code,
+		Details:   details,
 		RequestID: requestID,
 	})
 }
@@ -123,7 +175,7 @@ func registerOp[I, O any](
 		sess := authn.SessionFromContext(ctx.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
-			writeHumaPublicErr(ctx, ae.Code)
+			writeHumaPublicErr(ctx, ae.Code, ae.Details)
 			return
 		}
 		next(ctx)
@@ -155,12 +207,12 @@ func registerSudoOp[I, O any](
 		sess := authn.SessionFromContext(ctx.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
-			writeHumaPublicErr(ctx, ae.Code)
+			writeHumaPublicErr(ctx, ae.Code, ae.Details)
 			return
 		}
 		if !s.hasFreshSudo(sess) {
 			ae := authn.ErrSudoRequired()
-			writeHumaPublicErr(ctx, ae.Code)
+			writeHumaPublicErr(ctx, ae.Code, ae.Details)
 			return
 		}
 		next(ctx)

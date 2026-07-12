@@ -22,27 +22,30 @@ import (
 // localization key and a diagnostic kind, proving the registry is the
 // single source of truth for wire status, i18n, and diagnostics.
 func TestRegistryDefinitionsAreComplete(t *testing.T) {
-	codes := allRegisteredCodes(t)
-	if len(codes) < 50 {
-		t.Fatalf("expected at least 50 registered codes, got %d", len(codes))
-	}
-	for _, code := range codes {
-		def, ok := weberr.DefinitionFor(code)
-		if !ok {
-			t.Fatalf("DefinitionFor(%q) returned false after enumeration", code)
+	defs := weberr.AllDefinitions()
+	// Exclude test-registered codes (they are used only to test the registry
+	// API itself and don't need the full Definition contract).
+	var checked int
+	for _, def := range defs {
+		if strings.HasPrefix(def.Code, "test_") {
+			continue
 		}
+		checked++
 		if def.Code == "" {
 			t.Errorf("definition has empty Code")
 		}
 		if def.Status < 100 || def.Status > 599 {
-			t.Errorf("code %q: status %d out of range", code, def.Status)
+			t.Errorf("code %q: status %d out of range", def.Code, def.Status)
 		}
 		if def.LocaleKey == "" {
-			t.Errorf("code %q: LocaleKey is empty — frontend cannot map", code)
+			t.Errorf("code %q: LocaleKey is empty — frontend cannot map", def.Code)
 		}
 		if def.DiagnosticKind == "" {
-			t.Errorf("code %q: DiagnosticKind is empty", code)
+			t.Errorf("code %q: DiagnosticKind is empty", def.Code)
 		}
+	}
+	if checked < 50 {
+		t.Fatalf("expected at least 50 non-test registered definitions, got %d", checked)
 	}
 }
 
@@ -305,51 +308,3 @@ func TestWriteJSONPassesDetails(t *testing.T) {
 	}
 }
 
-// allRegisteredCodes returns all registered codes. We test the known set
-// registered by weberr.init + authn.init.
-func allRegisteredCodes(t *testing.T) []string {
-	t.Helper()
-	known := []string{
-		// weberr built-ins
-		"server_error", "request_too_large",
-		"database_unavailable", "kv_unavailable", "ceremony_internal_error",
-		// authn codes
-		"no_session", "not_admin", "permission_denied", "account_disabled",
-		"last_admin", "admin_cannot_be_disabled", "cannot_delete_self",
-		"username_taken", "enrollment_expired", "enrollment_consumed",
-		"enrollment_federation_required", "bad_request",
-		"invalid_consent_ticket", "invalid_role", "invalid_username",
-		"invalid_nickname", "invalid_display_name", "username_immutable",
-		"last_passkey", "would_remove_last_factor",
-		"login_account_not_found", "login_verification_failed",
-		"ceremony_expired", "ceremony_missing", "ceremony_state_invalid",
-		"credential_already_registered", "registration_failed",
-		"login_failed", "bad_credentials",
-		"partial_session_invalid", "recovery_session_invalid",
-		"account_not_found", "credential_not_found", "invitation_not_found",
-		"not_bootstrapped", "maintenance_mode",
-		"pairing_not_found", "pairing_state", "pairing_expired",
-		"pairing_not_approved",
-		"rate_limited", "factor_locked",
-		"sudo_required", "sudo_method_unavailable",
-		"session_not_found", "cannot_revoke_current_session",
-		"email_not_verified", "username_collision",
-		"invite_required", "link_required", "federation_state_invalid",
-		"last_sign_in_method", "invalid_return_to", "upstream_error",
-		"active_key_no_replacement", "client_not_found",
-		"upstream_idp_not_found", "oidc_client_already_exists",
-		"upstream_idp_already_exists", "saml_application_already_exists",
-		"group_not_found", "group_slug_conflict",
-	}
-	// Verify each is registered.
-	var registered []string
-	for _, code := range known {
-		if _, ok := weberr.DefinitionFor(code); ok {
-			registered = append(registered, code)
-		}
-	}
-	return registered
-}
-
-// Ensure unused imports are referenced.
-var _ = http.StatusOK

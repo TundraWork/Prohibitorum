@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
@@ -125,7 +124,7 @@ func TestTrimmedAdminRoutesAreAdminOnlyNotSudo(t *testing.T) {
 	router := chi.NewMux()
 	s := &Server{
 		router: router,
-		api:    humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")),
+		api:    humachi.New(router, humaConfig()),
 	}
 	registerSecurityScheme(s.api, sessstore.SessionCookieName)
 	s.registerOperations()
@@ -180,7 +179,7 @@ func TestAdminMutationRoutesRequireSudo(t *testing.T) {
 	router := chi.NewMux()
 	s := &Server{
 		router: router,
-		api:    humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")),
+		api:    humachi.New(router, humaConfig()),
 	}
 	registerSecurityScheme(s.api, sessstore.SessionCookieName)
 	s.registerOperations()
@@ -211,7 +210,7 @@ func realAdminOnlyRouter(t *testing.T) (*chi.Mux, *Server) {
 	router := chi.NewMux()
 	s := &Server{
 		router: router,
-		api:    humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")),
+		api:    humachi.New(router, humaConfig()),
 	}
 	registerSecurityScheme(s.api, sessstore.SessionCookieName)
 	s.registerOperations()
