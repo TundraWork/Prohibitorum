@@ -34,6 +34,7 @@ import (
 	fedoidc "prohibitorum/pkg/federation/oidc"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
+	"prohibitorum/pkg/pagination"
 	oidcop "prohibitorum/pkg/protocol/oidc"
 	samlidp "prohibitorum/pkg/protocol/saml"
 	sessstore "prohibitorum/pkg/session"
@@ -138,6 +139,19 @@ type Server struct {
 	// accesses the diagnostic_event table. Nil in NewHuma (openapi subcommand)
 	// — the handler is only called at runtime.
 	diagStore diagnostic.StoreService
+	// cursorCodec seals/opens the opaque admin pagination cursors with the
+	// configured DEK set. Nil in NewHuma (openapi subcommand) — paginated
+	// handlers are only called at runtime.
+	cursorCodec *pagination.Codec
+	// nestedQueriesOverride lets tests inject a fake nestedQueries for the
+	// nested pagination handlers (credentials, sessions, PATs, groups, group
+	// members, OIDC/SAML access) without standing up *db.Queries. Nil in
+	// production — handlers fall back to s.queries.
+	nestedQueriesOverride nestedQueries
+	// topLevelQueriesOverride lets tests inject a fake topLevelQueries for
+	// the top-level paginated list handlers without standing up *db.Queries.
+	// Nil in production — handlers fall back to s.queries.
+	topLevelQueriesOverride topLevelQueries
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -232,6 +246,18 @@ func NewServer(ctx context.Context) (*Server, error) {
 
 	diagStore := diagnostic.New(queries)
 
+	// Build the admin pagination cursor codec from the configured DEK set.
+	// The active version is the highest-numbered key; all versions remain
+	// available for decode so cursors issued before a rotation keep working
+	// until they expire (24h).
+	activeDEKVer := 1
+	for v := range config.DataEncryptionKeys {
+		if v > activeDEKVer {
+			activeDEKVer = v
+		}
+	}
+	cursorCodec := pagination.NewCodec(config.DataEncryptionKeys, activeDEKVer, time.Now)
+
 	rateLimiter := authn.NewRateLimiter()
 
 	s := &Server{
@@ -255,6 +281,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		branding:      brandingResolver,
 		clientIP:      clientIPResolver,
 		diagStore:     diagStore,
+		cursorCodec:   cursorCodec,
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.

@@ -24,6 +24,7 @@ import (
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
+	"prohibitorum/pkg/pagination"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -128,21 +129,56 @@ func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin strin
 
 // ----- GET /accounts ---------------------------------------------------------
 
-type listAccountsOut struct {
-	Body []contract.AccountView
+type listAccountsIn struct {
+	pageInput
 }
 
-func (s *Server) handleListAccounts(ctx context.Context, _ *struct{}) (*listAccountsOut, error) {
-	rows, err := s.queries.ListAccounts(ctx)
+type listAccountsOut struct {
+	Body contract.Page[contract.AccountView]
+}
+
+func (s *Server) handleListAccounts(ctx context.Context, in *listAccountsIn) (*listAccountsOut, error) {
+	lim := pagination.Limit(in.Limit)
+	const collection = "accounts"
+	const sort = "created_at"
+	filters := map[string]string{}
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+	params := db.ListAccountsParams{Limit: int32(lim + 1)}
+	if len(payload.Keys) == 2 {
+		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
+			params.AfterCreatedAt = tsToPgType(t)
+		}
+		params.AfterID = pgtype.Int4{}
+		var id int32
+		if _, serr := fmt.Sscanf(payload.Keys[1], "%d", &id); serr == nil {
+			params.AfterID = pgtype.Int4{Int32: id, Valid: true}
+		}
+	}
+	rows, err := s.listQ().ListAccounts(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handleListAccounts: query: %w", err)
+	}
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
 	}
 	origin := s.config.PublicOrigins[0]
 	views := make([]contract.AccountView, 0, len(rows))
 	for i := range rows {
 		views = append(views, accountViewFromRow(&rows[i], origin))
 	}
-	return &listAccountsOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			last.CreatedAt.Time.Format(time.RFC3339Nano),
+			fmt.Sprintf("%d", last.ID),
+		})
+	}
+	return &listAccountsOut{Body: buildPage(views, nextCursor)}, nil
 }
 
 // ----- GET /accounts/{id} ----------------------------------------------------
@@ -793,14 +829,37 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 
 // ----- GET /invitations ------------------------------------------------------
 
-type listInvitationsOut struct {
-	Body []contract.InvitationView
+type listInvitationsIn struct {
+	pageInput
 }
 
-func (s *Server) handleListInvitations(ctx context.Context, _ *struct{}) (*listInvitationsOut, error) {
-	rows, err := s.invitationQ().ListPendingInvitations(ctx)
+type listInvitationsOut struct {
+	Body contract.Page[contract.InvitationView]
+}
+
+func (s *Server) handleListInvitations(ctx context.Context, in *listInvitationsIn) (*listInvitationsOut, error) {
+	lim := pagination.Limit(in.Limit)
+	const collection = "invitations"
+	const sort = "created_at"
+	filters := map[string]string{}
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+	params := db.ListPendingInvitationsParams{Limit: int32(lim + 1)}
+	if len(payload.Keys) == 2 {
+		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
+			params.AfterCreatedAt = tsToPgType(t)
+		}
+		params.AfterToken = pgtype.Text{String: payload.Keys[1], Valid: payload.Keys[1] != ""}
+	}
+	rows, err := s.invitationQ().ListPendingInvitations(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handleListInvitations: %w", err)
+	}
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
 	}
 	views := make([]contract.InvitationView, 0, len(rows))
 	for _, r := range rows {
@@ -823,7 +882,15 @@ func (s *Server) handleListInvitations(ctx context.Context, _ *struct{}) (*listI
 		}
 		views = append(views, view)
 	}
-	return &listInvitationsOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			last.CreatedAt.Time.Format(time.RFC3339Nano),
+			last.Token,
+		})
+	}
+	return &listInvitationsOut{Body: buildPage(views, nextCursor)}, nil
 }
 
 // ----- POST /invitations/revoke ----------------------------------------------
@@ -867,31 +934,10 @@ func (s *Server) handleRevokeInvitation(ctx context.Context, in *revokeInvitatio
 	return &struct{}{}, nil
 }
 
-// ----- GET /accounts/{id}/credentials ----------------------------------------
-
-type accountCredentialsOut struct {
-	Body []contract.CredentialView
-}
-
-func (s *Server) handleListAccountCredentials(ctx context.Context, in *getAccountIn) (*accountCredentialsOut, error) {
-	if _, err := s.queries.GetAccountByID(ctx, in.ID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrAccountNotFound())
-		}
-		return nil, fmt.Errorf("handleListAccountCredentials: load account: %w", err)
-	}
-	rows, err := s.queries.ListCredentialsByAccount(ctx, in.ID)
-	if err != nil {
-		return nil, fmt.Errorf("handleListAccountCredentials: list: %w", err)
-	}
-	views := make([]contract.CredentialView, 0, len(rows))
-	for i := range rows {
-		views = append(views, credentialView(&rows[i]))
-	}
-	return &accountCredentialsOut{Body: views}, nil
-}
-
-// ----- GET /accounts/{id}/sessions ------------------------------------------
+// ----- GET /accounts/{id}/credentials, sessions, groups ---------------------
+// These nested collection handlers are paginated and live in
+// handle_nested_pagination.go. The sessionRecordToItem helper below is shared
+// between the paginated admin handler and handleListMySessions in handle_me.go.
 
 // sessionRecordToItem maps a session record to the wire view with IsCurrent=false
 // (admin viewing another account). handleListMySessions in handle_me.go keeps an
@@ -905,52 +951,6 @@ func sessionRecordToItem(r sessstore.SessionRecord) contract.SessionListItem {
 		LastSeenIP: r.Data.LastSeenIP,
 		UserAgent:  r.Data.UserAgent,
 	}
-}
-
-type accountSessionsOut struct {
-	Body []contract.SessionListItem
-}
-
-func (s *Server) handleListAccountSessions(ctx context.Context, in *getAccountIn) (*accountSessionsOut, error) {
-	if _, err := s.queries.GetAccountByID(ctx, in.ID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrAccountNotFound())
-		}
-		return nil, fmt.Errorf("handleListAccountSessions: load: %w", err)
-	}
-	records, err := s.sessionStore.ListByAccount(ctx, in.ID)
-	if err != nil {
-		return nil, fmt.Errorf("handleListAccountSessions: list: %w", err)
-	}
-	items := make([]contract.SessionListItem, 0, len(records))
-	for _, r := range records {
-		items = append(items, sessionRecordToItem(r))
-	}
-	return &accountSessionsOut{Body: items}, nil
-}
-
-// ----- GET /accounts/{id}/groups --------------------------------------------
-
-type accountGroupsOut struct {
-	Body []contract.GroupView
-}
-
-func (s *Server) handleListAccountGroups(ctx context.Context, in *getAccountIn) (*accountGroupsOut, error) {
-	if _, err := s.queries.GetAccountByID(ctx, in.ID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrAccountNotFound())
-		}
-		return nil, fmt.Errorf("handleListAccountGroups: load: %w", err)
-	}
-	groups, err := s.queries.ListGroupsForAccount(ctx, in.ID)
-	if err != nil {
-		return nil, fmt.Errorf("handleListAccountGroups: list: %w", err)
-	}
-	views := make([]contract.GroupView, 0, len(groups))
-	for _, g := range groups {
-		views = append(views, groupView(g, 0))
-	}
-	return &accountGroupsOut{Body: views}, nil
 }
 
 // ----- POST /accounts/{id}/sessions/revoke (raw sudo) ------------------------

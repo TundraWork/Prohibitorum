@@ -186,6 +186,68 @@ func (q *Queries) ListCredentialsByAccount(ctx context.Context, accountID int32)
 	return items, nil
 }
 
+const listCredentialsByAccountPage = `-- name: ListCredentialsByAccountPage :many
+SELECT id, account_id, credential_id, public_key, cose_alg, user_handle, sign_count, transports, aaguid, attestation_type, backup_eligible, backup_state, uv_initialized, nickname, last_used_at, clone_warning_at, created_at FROM webauthn_credential
+WHERE account_id = $1
+  AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3::integer))
+ORDER BY created_at DESC, id DESC
+LIMIT $4
+`
+
+type ListCredentialsByAccountPageParams struct {
+	AccountID      int32              `json:"accountId"`
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterID        int32              `json:"afterId"`
+	RowLimit       int32              `json:"rowLimit"`
+}
+
+// Keyset-paginated credentials for an account, ordered by (created_at DESC, id DESC).
+// The after_created_at / after_id pair is the keyset cursor from the last row
+// of the previous page; NULL starts a new page. LIMIT is limit+1 so the handler
+// can detect the presence of a next page without a separate count.
+func (q *Queries) ListCredentialsByAccountPage(ctx context.Context, arg ListCredentialsByAccountPageParams) ([]WebauthnCredential, error) {
+	rows, err := q.db.Query(ctx, listCredentialsByAccountPage,
+		arg.AccountID,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WebauthnCredential
+	for rows.Next() {
+		var i WebauthnCredential
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.CredentialID,
+			&i.PublicKey,
+			&i.CoseAlg,
+			&i.UserHandle,
+			&i.SignCount,
+			&i.Transports,
+			&i.Aaguid,
+			&i.AttestationType,
+			&i.BackupEligible,
+			&i.BackupState,
+			&i.UvInitialized,
+			&i.Nickname,
+			&i.LastUsedAt,
+			&i.CloneWarningAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setCredentialCloneWarning = `-- name: SetCredentialCloneWarning :exec
 UPDATE webauthn_credential
 SET clone_warning_at = now()

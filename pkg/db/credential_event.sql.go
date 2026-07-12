@@ -58,7 +58,7 @@ type ListCredentialEventsParams struct {
 	AccountID pgtype.Int4        `json:"accountId"`
 	Since     pgtype.Timestamptz `json:"since"`
 	Until     pgtype.Timestamptz `json:"until"`
-	BeforeID  pgtype.Int8        `json:"beforeId"`
+	AfterID   pgtype.Int8        `json:"afterId"`
 	Lim       int32              `json:"lim"`
 }
 
@@ -69,7 +69,7 @@ func (q *Queries) ListCredentialEvents(ctx context.Context, arg ListCredentialEv
 		arg.AccountID,
 		arg.Since,
 		arg.Until,
-		arg.BeforeID,
+		arg.AfterID,
 		arg.Lim,
 	)
 	if err != nil {

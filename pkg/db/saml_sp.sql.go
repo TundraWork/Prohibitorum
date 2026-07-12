@@ -383,11 +383,20 @@ func (q *Queries) ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) 
 }
 
 const listSAMLSPs = `-- name: ListSAMLSPs :many
-SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled, access_restricted FROM saml_sp ORDER BY display_name
+SELECT id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled, access_restricted FROM saml_sp
+WHERE ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2::int8))
+ORDER BY created_at DESC, id DESC
+LIMIT $3
 `
 
-func (q *Queries) ListSAMLSPs(ctx context.Context) ([]SamlSp, error) {
-	rows, err := q.db.Query(ctx, listSAMLSPs)
+type ListSAMLSPsParams struct {
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterID        pgtype.Int8        `json:"afterId"`
+	Limit          int32              `json:"limit"`
+}
+
+func (q *Queries) ListSAMLSPs(ctx context.Context, arg ListSAMLSPsParams) ([]SamlSp, error) {
+	rows, err := q.db.Query(ctx, listSAMLSPs, arg.AfterCreatedAt, arg.AfterID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

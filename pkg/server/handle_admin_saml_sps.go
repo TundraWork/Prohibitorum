@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -38,6 +39,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
 	saml "prohibitorum/pkg/protocol/saml"
 )
 
@@ -100,21 +102,54 @@ func samlSPNotFound() *authn.AuthError {
 
 // ----- GET /saml-applications (typed, role-only) --------------------------------
 
-type listSAMLApplicationsOut struct {
-	Body []contract.SAMLApplicationView
+type listSAMLApplicationsIn struct {
+	pageInput
 }
 
-func (s *Server) handleListSAMLApplications(ctx context.Context, _ *struct{}) (*listSAMLApplicationsOut, error) {
-	rows, err := s.queries.ListSAMLSPs(ctx)
+type listSAMLApplicationsOut struct {
+	Body contract.Page[contract.SAMLApplicationView]
+}
+
+func (s *Server) handleListSAMLApplications(ctx context.Context, in *listSAMLApplicationsIn) (*listSAMLApplicationsOut, error) {
+	lim := pagination.Limit(in.Limit)
+	const collection = "saml_applications"
+	const sort = "created_at"
+	filters := map[string]string{}
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+	params := db.ListSAMLSPsParams{Limit: int32(lim + 1)}
+	if len(payload.Keys) == 2 {
+		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
+			params.AfterCreatedAt = tsToPgType(t)
+		}
+		var id int64
+		if _, serr := fmt.Sscanf(payload.Keys[1], "%d", &id); serr == nil {
+			params.AfterID = pgtype.Int8{Int64: id, Valid: true}
+		}
+	}
+	rows, err := s.listQ().ListSAMLSPs(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handleListSAMLApplications: query: %w", err)
 	}
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
+	}
 	views := make([]contract.SAMLApplicationView, 0, len(rows))
 	for _, sp := range rows {
-		// List omits ACS + key details (summary only — id, entityId, displayName, flags).
 		views = append(views, samlApplicationView(sp, nil, nil))
 	}
-	return &listSAMLApplicationsOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			last.CreatedAt.Time.Format(time.RFC3339Nano),
+			fmt.Sprintf("%d", last.ID),
+		})
+	}
+	return &listSAMLApplicationsOut{Body: buildPage(views, nextCursor)}, nil
 }
 
 // ----- GET /saml-applications/{id} (typed, role-only) ---------------------------

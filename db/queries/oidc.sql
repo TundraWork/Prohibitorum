@@ -46,7 +46,11 @@ WHERE use = 'sig' AND status IN ('pending','active','decommissioning')
 ORDER BY created_at DESC;
 
 -- name: ListAllSigningKeys :many
-SELECT * FROM signing_key WHERE use = 'sig' ORDER BY created_at DESC;
+SELECT * FROM signing_key
+WHERE use = 'sig'
+  AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, kid) < (sqlc.narg('after_created_at'), sqlc.narg('after_kid')::text))
+ORDER BY created_at DESC, kid DESC
+LIMIT sqlc.arg('limit');
 
 -- name: GetSigningKeyByKID :one
 SELECT * FROM signing_key WHERE kid = $1;
@@ -103,7 +107,9 @@ WHERE client_id = $1;
 SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at
 FROM oidc_client
 WHERE forward_auth_enabled = true
-ORDER BY created_at DESC;
+  AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, client_id) < (sqlc.narg('after_created_at'), sqlc.narg('after_client_id')::text))
+ORDER BY created_at DESC, client_id DESC
+LIMIT sqlc.arg('limit');
 
 -- name: GetForwardAuthAppByID :one
 SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at
@@ -125,7 +131,9 @@ SELECT client_id, display_name, redirect_uris, allowed_scopes,
        token_endpoint_auth_method, disabled, access_restricted, created_at
 FROM oidc_client
 WHERE forward_auth_enabled = false
-ORDER BY created_at DESC;
+  AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, client_id) < (sqlc.narg('after_created_at'), sqlc.narg('after_client_id')::text))
+ORDER BY created_at DESC, client_id DESC
+LIMIT sqlc.arg('limit');
 
 -- name: SetOIDCClientLaunchURL :exec
 UPDATE oidc_client SET launch_url = $2 WHERE client_id = $1;

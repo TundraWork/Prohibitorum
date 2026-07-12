@@ -70,7 +70,7 @@ func (f *fakeInvitationQ) InsertEnrollment(_ context.Context, p db.InsertEnrollm
 	}, nil
 }
 
-func (f *fakeInvitationQ) ListPendingInvitations(_ context.Context) ([]db.Enrollment, error) {
+func (f *fakeInvitationQ) ListPendingInvitations(_ context.Context, _ db.ListPendingInvitationsParams) ([]db.Enrollment, error) {
 	return f.seedRows, nil
 }
 
@@ -209,15 +209,15 @@ func TestListInvitations_SlugRoundTrip(t *testing.T) {
 	}
 	s := minimalServerForInvitations(q)
 
-	out, err := s.handleListInvitations(context.Background(), nil)
+	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{pageInput: pageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListInvitations: %v", err)
 	}
 
-	if len(out.Body) != 1 {
-		t.Fatalf("list length: want 1, got %d", len(out.Body))
+	if len(out.Body.Items) != 1 {
+		t.Fatalf("list length: want 1, got %d", len(out.Body.Items))
 	}
-	view := out.Body[0]
+	view := out.Body.Items[0]
 
 	// URL must be constructed from origin + token.
 	wantURL := origin + "/enroll/" + token
@@ -255,15 +255,15 @@ func TestListInvitations_NoSlugOmitted(t *testing.T) {
 	}
 	s := minimalServerForInvitations(q)
 
-	out, err := s.handleListInvitations(context.Background(), nil)
+	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{pageInput: pageInput{Limit: 10}})
 	if err != nil {
 		t.Fatalf("handleListInvitations: %v", err)
 	}
-	if len(out.Body) != 1 {
-		t.Fatalf("list length: want 1, got %d", len(out.Body))
+	if len(out.Body.Items) != 1 {
+		t.Fatalf("list length: want 1, got %d", len(out.Body.Items))
 	}
 
-	view := out.Body[0]
+	view := out.Body.Items[0]
 	if view.ExpectedUpstreamIdpSlug != nil {
 		t.Errorf("ExpectedUpstreamIdpSlug: want nil for unbound invite, got %q", *view.ExpectedUpstreamIdpSlug)
 	}

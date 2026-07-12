@@ -24,7 +24,9 @@ SELECT
   a.*,
   (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at
 FROM account a
-ORDER BY a.created_at ASC, a.id ASC;
+WHERE (sqlc.narg('after_created_at')::timestamptz IS NULL OR (a.created_at, a.id) < (sqlc.narg('after_created_at'), sqlc.narg('after_id')::int4))
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT sqlc.arg('limit');
 
 -- name: UpdateAccount :one
 UPDATE account SET

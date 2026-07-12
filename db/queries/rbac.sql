@@ -12,7 +12,9 @@ SELECT * FROM user_group WHERE slug = $1;
 -- name: ListGroups :many
 SELECT g.*, (SELECT count(*) FROM group_member m WHERE m.group_id = g.id) AS member_count
 FROM user_group g
-ORDER BY g.display_name;
+WHERE (sqlc.narg('after_created_at')::timestamptz IS NULL OR (g.created_at, g.id) < (sqlc.narg('after_created_at'), sqlc.narg('after_id')::int4))
+ORDER BY g.created_at DESC, g.id DESC
+LIMIT sqlc.arg('limit');
 
 -- name: UpdateGroup :one
 UPDATE user_group
@@ -38,12 +40,34 @@ JOIN account a ON a.id = m.account_id
 WHERE m.group_id = $1
 ORDER BY a.username;
 
+-- name: ListGroupMembersPage :many
+-- Keyset-paginated group members, ordered by (username ASC, account_id ASC).
+-- NULL after_username starts a new page. LIMIT is limit+1 for next-page detection.
+SELECT a.id, a.username, a.display_name
+FROM group_member m
+JOIN account a ON a.id = m.account_id
+WHERE m.group_id = sqlc.arg(group_id)
+  AND (sqlc.arg(after_username)::text IS NULL OR (a.username, a.id) > (sqlc.arg(after_username), sqlc.arg(after_account_id)::int4))
+ORDER BY a.username ASC, a.id ASC
+LIMIT sqlc.arg(row_limit);
+
 -- name: ListGroupsForAccount :many
 SELECT g.*
 FROM group_member m
 JOIN user_group g ON g.id = m.group_id
 WHERE m.account_id = $1
 ORDER BY g.display_name;
+
+-- name: ListGroupsForAccountPage :many
+-- Keyset-paginated groups for an account, ordered by (display_name ASC, id ASC).
+-- NULL after_display_name starts a new page. LIMIT is limit+1 for next-page detection.
+SELECT g.*
+FROM group_member m
+JOIN user_group g ON g.id = m.group_id
+WHERE m.account_id = sqlc.arg(account_id)
+  AND (sqlc.arg(after_display_name)::text IS NULL OR (g.display_name, g.id) > (sqlc.arg(after_display_name), sqlc.arg(after_group_id)::int4))
+ORDER BY g.display_name ASC, g.id ASC
+LIMIT sqlc.arg(row_limit);
 
 -- name: ListExposedGroupSlugsByAccount :many
 SELECT g.slug
@@ -71,10 +95,28 @@ SELECT g.id, g.slug, g.display_name
 FROM oidc_client_access a JOIN user_group g ON g.id = a.group_id
 WHERE a.client_id = $1 ORDER BY g.display_name;
 
+-- name: ListOIDCClientAccessGroupsPage :many
+-- Keyset-paginated access groups for an OIDC client, ordered by (display_name ASC, id ASC).
+SELECT g.id, g.slug, g.display_name
+FROM oidc_client_access a JOIN user_group g ON g.id = a.group_id
+WHERE a.client_id = sqlc.arg(client_id)
+  AND (sqlc.arg(after_display_name)::text IS NULL OR (g.display_name, g.id) > (sqlc.arg(after_display_name), sqlc.arg(after_group_id)::int4))
+ORDER BY g.display_name ASC, g.id ASC
+LIMIT sqlc.arg(row_limit);
+
 -- name: ListOIDCClientAccessAccounts :many
 SELECT acc.id, acc.username, acc.display_name
 FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
 WHERE a.client_id = $1 ORDER BY acc.username;
+
+-- name: ListOIDCClientAccessAccountsPage :many
+-- Keyset-paginated access accounts for an OIDC client, ordered by (username ASC, id ASC).
+SELECT acc.id, acc.username, acc.display_name
+FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
+WHERE a.client_id = sqlc.arg(client_id)
+  AND (sqlc.arg(after_username)::text IS NULL OR (acc.username, acc.id) > (sqlc.arg(after_username), sqlc.arg(after_account_id)::int4))
+ORDER BY acc.username ASC, acc.id ASC
+LIMIT sqlc.arg(row_limit);
 
 -- name: GrantSAMLSPAccessGroup :exec
 INSERT INTO saml_sp_access (saml_sp_id, group_id) VALUES ($1, $2)
@@ -95,10 +137,28 @@ SELECT g.id, g.slug, g.display_name
 FROM saml_sp_access a JOIN user_group g ON g.id = a.group_id
 WHERE a.saml_sp_id = $1 ORDER BY g.display_name;
 
+-- name: ListSAMLSPAccessGroupsPage :many
+-- Keyset-paginated access groups for a SAML SP, ordered by (display_name ASC, id ASC).
+SELECT g.id, g.slug, g.display_name
+FROM saml_sp_access a JOIN user_group g ON g.id = a.group_id
+WHERE a.saml_sp_id = sqlc.arg(saml_sp_id)
+  AND (sqlc.arg(after_display_name)::text IS NULL OR (g.display_name, g.id) > (sqlc.arg(after_display_name), sqlc.arg(after_group_id)::int4))
+ORDER BY g.display_name ASC, g.id ASC
+LIMIT sqlc.arg(row_limit);
+
 -- name: ListSAMLSPAccessAccounts :many
 SELECT acc.id, acc.username, acc.display_name
 FROM saml_sp_access a JOIN account acc ON acc.id = a.account_id
 WHERE a.saml_sp_id = $1 ORDER BY acc.username;
+
+-- name: ListSAMLSPAccessAccountsPage :many
+-- Keyset-paginated access accounts for a SAML SP, ordered by (username ASC, id ASC).
+SELECT acc.id, acc.username, acc.display_name
+FROM saml_sp_access a JOIN account acc ON acc.id = a.account_id
+WHERE a.saml_sp_id = sqlc.arg(saml_sp_id)
+  AND (sqlc.arg(after_username)::text IS NULL OR (acc.username, acc.id) > (sqlc.arg(after_username), sqlc.arg(after_account_id)::int4))
+ORDER BY acc.username ASC, acc.id ASC
+LIMIT sqlc.arg(row_limit);
 
 -- name: SetOIDCClientAccessRestricted :one
 UPDATE oidc_client SET access_restricted = $2 WHERE client_id = $1 RETURNING *;

@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -29,6 +30,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
@@ -82,23 +84,53 @@ func faActorID(ctx context.Context) *int32 {
 	}
 	return nil
 }
-
 // ----- GET /forward-auth-apps (typed, role-only) -----------------------------
 
-type listForwardAuthAppsOut struct {
-	Body []contract.ForwardAuthAppView
+type listForwardAuthAppsIn struct {
+	pageInput
 }
 
-func (s *Server) handleListForwardAuthApps(ctx context.Context, _ *struct{}) (*listForwardAuthAppsOut, error) {
-	rows, err := s.queries.ListForwardAuthClients(ctx)
+type listForwardAuthAppsOut struct {
+	Body contract.Page[contract.ForwardAuthAppView]
+}
+
+func (s *Server) handleListForwardAuthApps(ctx context.Context, in *listForwardAuthAppsIn) (*listForwardAuthAppsOut, error) {
+	lim := pagination.Limit(in.Limit)
+	const collection = "forward_auth_apps"
+	const sort = "created_at"
+	filters := map[string]string{}
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+	params := db.ListForwardAuthClientsParams{Limit: int32(lim + 1)}
+	if len(payload.Keys) == 2 {
+		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
+			params.AfterCreatedAt = tsToPgType(t)
+		}
+		params.AfterClientID = pgtype.Text{String: payload.Keys[1], Valid: payload.Keys[1] != ""}
+	}
+	rows, err := s.listQ().ListForwardAuthClients(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handler: listForwardAuthApps: %w", err)
+	}
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
 	}
 	views := make([]contract.ForwardAuthAppView, 0, len(rows))
 	for _, r := range rows {
 		views = append(views, forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt))
 	}
-	return &listForwardAuthAppsOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			last.CreatedAt.Time.Format(time.RFC3339Nano),
+			last.ClientID,
+		})
+	}
+	return &listForwardAuthAppsOut{Body: buildPage(views, nextCursor)}, nil
 }
 
 // ----- GET /forward-auth-apps/{clientId} (typed, role-only) ------------------

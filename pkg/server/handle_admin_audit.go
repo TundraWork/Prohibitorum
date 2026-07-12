@@ -21,30 +21,26 @@ import (
 
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
 )
 
 // ----- input / output types --------------------------------------------------
 
 // listAuditEventsIn holds the filterable, pageable query parameters for
 // GET /audit-events. Zero values mean "no filter" / "use default".
-//
-// since and until are accepted as RFC3339 strings; huma parses them via the
-// time.Time type automatically when using the `query` tag on time.Time fields
-// because huma registers a time format handler. If huma does not handle them,
-// the field is left as string and parsed manually — but the huma/v2 library
-// supports time.Time query params natively.
+// Cursor is the opaque pagination cursor from a prior response (bound to the
+// active filter set); Before is deprecated and replaced by Cursor.
 type listAuditEventsIn struct {
 	Factor    string    `query:"factor"    doc:"Filter by factor (e.g. 'webauthn', 'password', 'signing_key')."`
 	Event     string    `query:"event"     doc:"Filter by event type (e.g. 'register', 'revoke')."`
 	AccountID int32     `query:"accountId" doc:"Filter to events for a specific account ID."`
 	Since     time.Time `query:"since"     doc:"Return events at or after this RFC3339 timestamp."`
 	Until     time.Time `query:"until"     doc:"Return events at or before this RFC3339 timestamp."`
-	Before    int64     `query:"before"    doc:"Keyset cursor: return events with id < before (newest-first)."`
-	Limit     int32     `query:"limit"     doc:"Page size (default 50, max 200)."`
+	pageInput
 }
 
 type listAuditEventsOut struct {
-	Body []contract.AuditEventView
+	Body contract.Page[contract.AuditEventView]
 }
 
 // ----- projection helper -----------------------------------------------------
@@ -74,32 +70,39 @@ func auditEventView(r db.CredentialEvent) contract.AuditEventView {
 	return v
 }
 
-// clampLimit normalises the caller-supplied limit to [1, 200], defaulting to
-// 50 when the caller supplies 0 (omitted).
-func clampLimit(n int32) int32 {
-	const defaultLimit = 50
-	const maxLimit = 200
-	if n <= 0 {
-		return defaultLimit
-	}
-	if n > maxLimit {
-		return maxLimit
-	}
-	return n
-}
-
 // ----- GET /audit-events -----------------------------------------------------
 
 func (s *Server) handleListAuditEvents(ctx context.Context, in *listAuditEventsIn) (*listAuditEventsOut, error) {
-	lim := clampLimit(in.Limit)
+	lim := pagination.Limit(in.Limit)
+	const collection = "audit_events"
+	const sort = "id"
 
-	// Build nullable filter params. Zero/empty values map to NULL in the query,
-	// meaning "no filter on this column". The sqlc-generated struct uses pgtype
-	// nullable types for the optional parameters.
-	params := db.ListCredentialEventsParams{
-		Lim: lim,
+	// Build the normalized filter map for cursor binding. Only non-zero
+	// filters are included so an omitted filter and an explicitly-empty
+	// filter produce the same cursor binding.
+	filters := map[string]string{}
+	if in.Factor != "" {
+		filters["factor"] = in.Factor
+	}
+	if in.Event != "" {
+		filters["event"] = in.Event
+	}
+	if in.AccountID != 0 {
+		filters["accountId"] = fmt.Sprintf("%d", in.AccountID)
+	}
+	if !in.Since.IsZero() {
+		filters["since"] = in.Since.Format(time.RFC3339Nano)
+	}
+	if !in.Until.IsZero() {
+		filters["until"] = in.Until.Format(time.RFC3339Nano)
 	}
 
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+
+	params := db.ListCredentialEventsParams{Lim: int32(lim + 1)}
 	if in.Factor != "" {
 		params.Factor = pgtype.Text{String: in.Factor, Valid: true}
 	}
@@ -115,18 +118,32 @@ func (s *Server) handleListAuditEvents(ctx context.Context, in *listAuditEventsI
 	if !in.Until.IsZero() {
 		params.Until = pgtype.Timestamptz{Time: in.Until, Valid: true}
 	}
-	if in.Before != 0 {
-		params.BeforeID = pgtype.Int8{Int64: in.Before, Valid: true}
+	if len(payload.Keys) == 1 {
+		var afterID int64
+		if _, serr := fmt.Sscanf(payload.Keys[0], "%d", &afterID); serr == nil {
+			params.AfterID = pgtype.Int8{Int64: afterID, Valid: true}
+		}
 	}
 
-	rows, err := s.queries.ListCredentialEvents(ctx, params)
+	rows, err := s.listQ().ListCredentialEvents(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handleListAuditEvents: query: %w", err)
 	}
 
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
+	}
 	views := make([]contract.AuditEventView, 0, len(rows))
 	for _, r := range rows {
 		views = append(views, auditEventView(r))
 	}
-	return &listAuditEventsOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			fmt.Sprintf("%d", last.ID),
+		})
+	}
+	return &listAuditEventsOut{Body: buildPage(views, nextCursor)}, nil
 }

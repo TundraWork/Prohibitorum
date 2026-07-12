@@ -34,7 +34,9 @@ SELECT * FROM enrollment
 WHERE intent = 'invite'
   AND consumed_at IS NULL
   AND expires_at > now()
-ORDER BY created_at DESC;
+  AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, token) < (sqlc.narg('after_created_at'), sqlc.narg('after_token')::text))
+ORDER BY created_at DESC, token DESC
+LIMIT sqlc.arg('limit');
 
 -- name: RevokeInvitation :one
 -- Same DB effect as ConsumeEnrollment but intent-restricted to 'invite' so an

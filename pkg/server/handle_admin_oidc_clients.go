@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -39,6 +40,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
@@ -82,18 +84,40 @@ func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
 
 // ----- GET /oidc-applications (typed, role-only) -----------------------------------
 
-type listOIDCApplicationsOut struct {
-	Body []contract.OIDCApplicationView
+type listOIDCApplicationsIn struct {
+	pageInput
 }
 
-func (s *Server) handleListOIDCApplications(ctx context.Context, _ *struct{}) (*listOIDCApplicationsOut, error) {
-	rows, err := s.queries.ListNonForwardAuthOIDCClients(ctx)
+type listOIDCApplicationsOut struct {
+	Body contract.Page[contract.OIDCApplicationView]
+}
+
+func (s *Server) handleListOIDCApplications(ctx context.Context, in *listOIDCApplicationsIn) (*listOIDCApplicationsOut, error) {
+	lim := pagination.Limit(in.Limit)
+	const collection = "oidc_applications"
+	const sort = "created_at"
+	filters := map[string]string{}
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+	params := db.ListNonForwardAuthOIDCClientsParams{Limit: int32(lim + 1)}
+	if len(payload.Keys) == 2 {
+		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
+			params.AfterCreatedAt = tsToPgType(t)
+		}
+		params.AfterClientID = pgtype.Text{String: payload.Keys[1], Valid: payload.Keys[1] != ""}
+	}
+	rows, err := s.listQ().ListNonForwardAuthOIDCClients(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handler: listOIDCApplications: %w", err)
 	}
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
+	}
 	views := make([]contract.OIDCApplicationView, 0, len(rows))
 	for _, r := range rows {
-		// ListNonForwardAuthOIDCClients returns a summary row — project the subset fields.
 		v := contract.OIDCApplicationView{
 			ClientID:                r.ClientID,
 			DisplayName:             r.DisplayName,
@@ -107,7 +131,15 @@ func (s *Server) handleListOIDCApplications(ctx context.Context, _ *struct{}) (*
 		}
 		views = append(views, v)
 	}
-	return &listOIDCApplicationsOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			last.CreatedAt.Time.Format(time.RFC3339Nano),
+			last.ClientID,
+		})
+	}
+	return &listOIDCApplicationsOut{Body: buildPage(views, nextCursor)}, nil
 }
 
 // ----- GET /oidc-applications/{clientId} (typed, role-only) -----------------------

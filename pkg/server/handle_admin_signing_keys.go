@@ -23,11 +23,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
 	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
@@ -68,23 +70,53 @@ func writeSigningKeyJSON(w http.ResponseWriter, status int, v contract.SigningKe
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
-
 // ----- GET /signing-keys (typed, role-only) ----------------------------------
 
-type listSigningKeysOut struct {
-	Body []contract.SigningKeyView
+type listSigningKeysIn struct {
+	pageInput
 }
 
-func (s *Server) handleListSigningKeys(ctx context.Context, _ *struct{}) (*listSigningKeysOut, error) {
-	rows, err := s.queries.ListAllSigningKeys(ctx)
+type listSigningKeysOut struct {
+	Body contract.Page[contract.SigningKeyView]
+}
+
+func (s *Server) handleListSigningKeys(ctx context.Context, in *listSigningKeysIn) (*listSigningKeysOut, error) {
+	lim := pagination.Limit(in.Limit)
+	const collection = "signing_keys"
+	const sort = "created_at"
+	filters := map[string]string{}
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+	params := db.ListAllSigningKeysParams{Limit: int32(lim + 1)}
+	if len(payload.Keys) == 2 {
+		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
+			params.AfterCreatedAt = tsToPgType(t)
+		}
+		params.AfterKid = pgtype.Text{String: payload.Keys[1], Valid: payload.Keys[1] != ""}
+	}
+	rows, err := s.listQ().ListAllSigningKeys(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handler: listSigningKeys: %w", err)
+	}
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
 	}
 	views := make([]contract.SigningKeyView, 0, len(rows))
 	for _, r := range rows {
 		views = append(views, signingKeyView(r))
 	}
-	return &listSigningKeysOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			last.CreatedAt.Time.Format(time.RFC3339Nano),
+			last.Kid,
+		})
+	}
+	return &listSigningKeysOut{Body: buildPage(views, nextCursor)}, nil
 }
 
 // ----- POST /signing-keys/generate (raw, sudo-gated) ------------------------

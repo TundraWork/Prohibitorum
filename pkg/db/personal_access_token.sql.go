@@ -142,6 +142,60 @@ func (q *Queries) ListPATsByAccount(ctx context.Context, accountID int32) ([]Per
 	return items, nil
 }
 
+const listPATsByAccountPage = `-- name: ListPATsByAccountPage :many
+SELECT id, account_id, name, token_hash, token_hint, all_apps, app_grants, created_at, expires_at, last_used_at, revoked_at FROM personal_access_token
+WHERE account_id = $1 AND revoked_at IS NULL
+  AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3::integer))
+ORDER BY created_at DESC, id DESC
+LIMIT $4
+`
+
+type ListPATsByAccountPageParams struct {
+	AccountID      int32              `json:"accountId"`
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterID        int32              `json:"afterId"`
+	RowLimit       int32              `json:"rowLimit"`
+}
+
+// Keyset-paginated non-revoked PATs for an account, ordered by (created_at DESC, id DESC).
+// NULL after_created_at starts a new page. LIMIT is limit+1 for next-page detection.
+func (q *Queries) ListPATsByAccountPage(ctx context.Context, arg ListPATsByAccountPageParams) ([]PersonalAccessToken, error) {
+	rows, err := q.db.Query(ctx, listPATsByAccountPage,
+		arg.AccountID,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PersonalAccessToken
+	for rows.Next() {
+		var i PersonalAccessToken
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.Name,
+			&i.TokenHash,
+			&i.TokenHint,
+			&i.AllApps,
+			&i.AppGrants,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.LastUsedAt,
+			&i.RevokedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokePAT = `-- name: RevokePAT :execrows
 UPDATE personal_access_token
 SET revoked_at = now()

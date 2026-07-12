@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -34,6 +35,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
 )
 
 // slugRe is the valid group-slug pattern: lowercase alphanumeric segments
@@ -70,14 +72,40 @@ func groupView(g db.UserGroup, memberCount int64) contract.GroupView {
 
 // ----- GET /groups (typed, role-only) ------------------------------------------------
 
-type listGroupsOut struct {
-	Body []contract.GroupView
+type listGroupsIn struct {
+	pageInput
 }
 
-func (s *Server) handleListGroups(ctx context.Context, _ *struct{}) (*listGroupsOut, error) {
-	rows, err := s.queries.ListGroups(ctx)
+type listGroupsOut struct {
+	Body contract.Page[contract.GroupView]
+}
+
+func (s *Server) handleListGroups(ctx context.Context, in *listGroupsIn) (*listGroupsOut, error) {
+	lim := pagination.Limit(in.Limit)
+	const collection = "groups"
+	const sort = "created_at"
+	filters := map[string]string{}
+	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
+	if err != nil {
+		return nil, cursorInvalidErr(err)
+	}
+	params := db.ListGroupsParams{Limit: int32(lim + 1)}
+	if len(payload.Keys) == 2 {
+		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
+			params.AfterCreatedAt = tsToPgType(t)
+		}
+		var id int32
+		if _, serr := fmt.Sscanf(payload.Keys[1], "%d", &id); serr == nil {
+			params.AfterID = pgtype.Int4{Int32: id, Valid: true}
+		}
+	}
+	rows, err := s.listQ().ListGroups(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("handleListGroups: query: %w", err)
+	}
+	more := hasMore(len(rows), lim)
+	if more {
+		rows = rows[:lim]
 	}
 	views := make([]contract.GroupView, 0, len(rows))
 	for _, r := range rows {
@@ -92,7 +120,15 @@ func (s *Server) handleListGroups(ctx context.Context, _ *struct{}) (*listGroups
 		}
 		views = append(views, groupView(g, r.MemberCount))
 	}
-	return &listGroupsOut{Body: views}, nil
+	var nextCursor string
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
+			last.CreatedAt.Time.Format(time.RFC3339Nano),
+			fmt.Sprintf("%d", last.ID),
+		})
+	}
+	return &listGroupsOut{Body: buildPage(views, nextCursor)}, nil
 }
 
 // ----- GET /groups/{id} (typed, role-only) -------------------------------------------
@@ -116,39 +152,7 @@ func (s *Server) handleGetGroup(ctx context.Context, in *getGroupIn) (*getGroupO
 	return &getGroupOut{Body: groupView(g, 0)}, nil
 }
 
-// ----- GET /groups/{id}/members (typed, role-only) -----------------------------------
-
-type listGroupMembersIn struct {
-	ID int32 `path:"id"`
-}
-
-type listGroupMembersOut struct {
-	Body []contract.GroupMemberView
-}
-
-func (s *Server) handleListGroupMembers(ctx context.Context, in *listGroupMembersIn) (*listGroupMembersOut, error) {
-	// Pre-check: return 404 for a nonexistent group rather than 200 [].
-	if _, err := s.queries.GetGroup(ctx, in.ID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrGroupNotFound())
-		}
-		return nil, fmt.Errorf("handleListGroupMembers: existence check: %w", err)
-	}
-
-	rows, err := s.queries.ListGroupMembers(ctx, in.ID)
-	if err != nil {
-		return nil, fmt.Errorf("handleListGroupMembers: query: %w", err)
-	}
-	views := make([]contract.GroupMemberView, 0, len(rows))
-	for _, r := range rows {
-		views = append(views, contract.GroupMemberView{
-			ID:          r.ID,
-			Username:    r.Username,
-			DisplayName: r.DisplayName,
-		})
-	}
-	return &listGroupMembersOut{Body: views}, nil
-}
+// ----- GET /groups/{id}/members — paginated in handle_nested_pagination.go ----
 
 // ----- POST /groups (raw, sudo-gated) ------------------------------------------------
 

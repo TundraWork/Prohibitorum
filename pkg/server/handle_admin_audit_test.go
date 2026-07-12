@@ -29,42 +29,45 @@ import (
 
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
 )
 
-// ---- clampLimit tests -------------------------------------------------------
+// ---- limit clamping tests --------------------------------------------------
+// The audit handler now uses the shared pagination.Limit (1-100) instead of
+// the legacy clampLimit (1-200). These tests verify the shared clamp behavior.
 
 func TestAdminAuditEvents_ClampLimit_Default(t *testing.T) {
 	t.Parallel()
-	if got := clampLimit(0); got != 50 {
-		t.Errorf("clampLimit(0): got %d, want 50 (default)", got)
+	if got := pagination.Limit(0); got != 50 {
+		t.Errorf("Limit(0): got %d, want 50 (default)", got)
 	}
 }
 
 func TestAdminAuditEvents_ClampLimit_Negative(t *testing.T) {
 	t.Parallel()
-	if got := clampLimit(-1); got != 50 {
-		t.Errorf("clampLimit(-1): got %d, want 50 (default)", got)
+	if got := pagination.Limit(-1); got != 50 {
+		t.Errorf("Limit(-1): got %d, want 50 (default)", got)
 	}
 }
 
 func TestAdminAuditEvents_ClampLimit_Cap(t *testing.T) {
 	t.Parallel()
-	if got := clampLimit(500); got != 200 {
-		t.Errorf("clampLimit(500): got %d, want 200 (cap)", got)
+	if got := pagination.Limit(500); got != 100 {
+		t.Errorf("Limit(500): got %d, want 100 (cap)", got)
 	}
 }
 
 func TestAdminAuditEvents_ClampLimit_ExactMax(t *testing.T) {
 	t.Parallel()
-	if got := clampLimit(200); got != 200 {
-		t.Errorf("clampLimit(200): got %d, want 200", got)
+	if got := pagination.Limit(100); got != 100 {
+		t.Errorf("Limit(100): got %d, want 100", got)
 	}
 }
 
 func TestAdminAuditEvents_ClampLimit_MidRange(t *testing.T) {
 	t.Parallel()
-	if got := clampLimit(75); got != 75 {
-		t.Errorf("clampLimit(75): got %d, want 75", got)
+	if got := pagination.Limit(75); got != 75 {
+		t.Errorf("Limit(75): got %d, want 75", got)
 	}
 }
 

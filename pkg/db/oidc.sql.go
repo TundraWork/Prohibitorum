@@ -371,11 +371,21 @@ func (q *Queries) IsJTIRevoked(ctx context.Context, jti string) (bool, error) {
 }
 
 const listAllSigningKeys = `-- name: ListAllSigningKeys :many
-SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at FROM signing_key WHERE use = 'sig' ORDER BY created_at DESC
+SELECT kid, algorithm, use, public_jwk, x509_cert_pem, private_pem_enc, private_pem_nonce, key_version, status, activated_at, decommissioned_at, retire_after, created_at FROM signing_key
+WHERE use = 'sig'
+  AND ($1::timestamptz IS NULL OR (created_at, kid) < ($1, $2::text))
+ORDER BY created_at DESC, kid DESC
+LIMIT $3
 `
 
-func (q *Queries) ListAllSigningKeys(ctx context.Context) ([]SigningKey, error) {
-	rows, err := q.db.Query(ctx, listAllSigningKeys)
+type ListAllSigningKeysParams struct {
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterKid       pgtype.Text        `json:"afterKid"`
+	Limit          int32              `json:"limit"`
+}
+
+func (q *Queries) ListAllSigningKeys(ctx context.Context, arg ListAllSigningKeysParams) ([]SigningKey, error) {
+	rows, err := q.db.Query(ctx, listAllSigningKeys, arg.AfterCreatedAt, arg.AfterKid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -412,8 +422,16 @@ const listForwardAuthClients = `-- name: ListForwardAuthClients :many
 SELECT client_id, display_name, forward_auth_host, forward_auth_scopes, access_restricted, disabled, created_at
 FROM oidc_client
 WHERE forward_auth_enabled = true
-ORDER BY created_at DESC
+  AND ($1::timestamptz IS NULL OR (created_at, client_id) < ($1, $2::text))
+ORDER BY created_at DESC, client_id DESC
+LIMIT $3
 `
+
+type ListForwardAuthClientsParams struct {
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterClientID  pgtype.Text        `json:"afterClientId"`
+	Limit          int32              `json:"limit"`
+}
 
 type ListForwardAuthClientsRow struct {
 	ClientID          string             `json:"clientId"`
@@ -425,8 +443,8 @@ type ListForwardAuthClientsRow struct {
 	CreatedAt         pgtype.Timestamptz `json:"createdAt"`
 }
 
-func (q *Queries) ListForwardAuthClients(ctx context.Context) ([]ListForwardAuthClientsRow, error) {
-	rows, err := q.db.Query(ctx, listForwardAuthClients)
+func (q *Queries) ListForwardAuthClients(ctx context.Context, arg ListForwardAuthClientsParams) ([]ListForwardAuthClientsRow, error) {
+	rows, err := q.db.Query(ctx, listForwardAuthClients, arg.AfterCreatedAt, arg.AfterClientID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -458,8 +476,16 @@ SELECT client_id, display_name, redirect_uris, allowed_scopes,
        token_endpoint_auth_method, disabled, access_restricted, created_at
 FROM oidc_client
 WHERE forward_auth_enabled = false
-ORDER BY created_at DESC
+  AND ($1::timestamptz IS NULL OR (created_at, client_id) < ($1, $2::text))
+ORDER BY created_at DESC, client_id DESC
+LIMIT $3
 `
+
+type ListNonForwardAuthOIDCClientsParams struct {
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterClientID  pgtype.Text        `json:"afterClientId"`
+	Limit          int32              `json:"limit"`
+}
 
 type ListNonForwardAuthOIDCClientsRow struct {
 	ClientID                string             `json:"clientId"`
@@ -472,8 +498,8 @@ type ListNonForwardAuthOIDCClientsRow struct {
 	CreatedAt               pgtype.Timestamptz `json:"createdAt"`
 }
 
-func (q *Queries) ListNonForwardAuthOIDCClients(ctx context.Context) ([]ListNonForwardAuthOIDCClientsRow, error) {
-	rows, err := q.db.Query(ctx, listNonForwardAuthOIDCClients)
+func (q *Queries) ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNonForwardAuthOIDCClientsParams) ([]ListNonForwardAuthOIDCClientsRow, error) {
+	rows, err := q.db.Query(ctx, listNonForwardAuthOIDCClients, arg.AfterCreatedAt, arg.AfterClientID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

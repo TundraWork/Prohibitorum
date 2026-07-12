@@ -149,11 +149,19 @@ SELECT token, intent, target_account_id, template_username, template_display_nam
 WHERE intent = 'invite'
   AND consumed_at IS NULL
   AND expires_at > now()
-ORDER BY created_at DESC
+  AND ($1::timestamptz IS NULL OR (created_at, token) < ($1, $2::text))
+ORDER BY created_at DESC, token DESC
+LIMIT $3
 `
 
-func (q *Queries) ListPendingInvitations(ctx context.Context) ([]Enrollment, error) {
-	rows, err := q.db.Query(ctx, listPendingInvitations)
+type ListPendingInvitationsParams struct {
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterToken     pgtype.Text        `json:"afterToken"`
+	Limit          int32              `json:"limit"`
+}
+
+func (q *Queries) ListPendingInvitations(ctx context.Context, arg ListPendingInvitationsParams) ([]Enrollment, error) {
+	rows, err := q.db.Query(ctx, listPendingInvitations, arg.AfterCreatedAt, arg.AfterToken, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

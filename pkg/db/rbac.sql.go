@@ -419,11 +419,69 @@ func (q *Queries) ListGroupMembers(ctx context.Context, groupID int32) ([]ListGr
 	return items, nil
 }
 
+const listGroupMembersPage = `-- name: ListGroupMembersPage :many
+SELECT a.id, a.username, a.display_name
+FROM group_member m
+JOIN account a ON a.id = m.account_id
+WHERE m.group_id = $1
+  AND ($2::text IS NULL OR (a.username, a.id) > ($2, $3::int4))
+ORDER BY a.username ASC, a.id ASC
+LIMIT $4
+`
+
+type ListGroupMembersPageParams struct {
+	GroupID        int32  `json:"groupId"`
+	AfterUsername  string `json:"afterUsername"`
+	AfterAccountID int32  `json:"afterAccountId"`
+	RowLimit       int32  `json:"rowLimit"`
+}
+
+type ListGroupMembersPageRow struct {
+	ID          int32  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+}
+
+// Keyset-paginated group members, ordered by (username ASC, account_id ASC).
+// NULL after_username starts a new page. LIMIT is limit+1 for next-page detection.
+func (q *Queries) ListGroupMembersPage(ctx context.Context, arg ListGroupMembersPageParams) ([]ListGroupMembersPageRow, error) {
+	rows, err := q.db.Query(ctx, listGroupMembersPage,
+		arg.GroupID,
+		arg.AfterUsername,
+		arg.AfterAccountID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGroupMembersPageRow
+	for rows.Next() {
+		var i ListGroupMembersPageRow
+		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGroups = `-- name: ListGroups :many
 SELECT g.id, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.created_at, g.updated_at, (SELECT count(*) FROM group_member m WHERE m.group_id = g.id) AS member_count
 FROM user_group g
-ORDER BY g.display_name
+WHERE ($1::timestamptz IS NULL OR (g.created_at, g.id) < ($1, $2::int4))
+ORDER BY g.created_at DESC, g.id DESC
+LIMIT $3
 `
+
+type ListGroupsParams struct {
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterID        pgtype.Int4        `json:"afterId"`
+	Limit          int32              `json:"limit"`
+}
 
 type ListGroupsRow struct {
 	ID                  int32              `json:"id"`
@@ -436,8 +494,8 @@ type ListGroupsRow struct {
 	MemberCount         int64              `json:"memberCount"`
 }
 
-func (q *Queries) ListGroups(ctx context.Context) ([]ListGroupsRow, error) {
-	rows, err := q.db.Query(ctx, listGroups)
+func (q *Queries) ListGroups(ctx context.Context, arg ListGroupsParams) ([]ListGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listGroups, arg.AfterCreatedAt, arg.AfterID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -501,6 +559,58 @@ func (q *Queries) ListGroupsForAccount(ctx context.Context, accountID int32) ([]
 	return items, nil
 }
 
+const listGroupsForAccountPage = `-- name: ListGroupsForAccountPage :many
+SELECT g.id, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.created_at, g.updated_at
+FROM group_member m
+JOIN user_group g ON g.id = m.group_id
+WHERE m.account_id = $1
+  AND ($2::text IS NULL OR (g.display_name, g.id) > ($2, $3::int4))
+ORDER BY g.display_name ASC, g.id ASC
+LIMIT $4
+`
+
+type ListGroupsForAccountPageParams struct {
+	AccountID        int32  `json:"accountId"`
+	AfterDisplayName string `json:"afterDisplayName"`
+	AfterGroupID     int32  `json:"afterGroupId"`
+	RowLimit         int32  `json:"rowLimit"`
+}
+
+// Keyset-paginated groups for an account, ordered by (display_name ASC, id ASC).
+// NULL after_display_name starts a new page. LIMIT is limit+1 for next-page detection.
+func (q *Queries) ListGroupsForAccountPage(ctx context.Context, arg ListGroupsForAccountPageParams) ([]UserGroup, error) {
+	rows, err := q.db.Query(ctx, listGroupsForAccountPage,
+		arg.AccountID,
+		arg.AfterDisplayName,
+		arg.AfterGroupID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserGroup
+	for rows.Next() {
+		var i UserGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.DisplayName,
+			&i.Description,
+			&i.ExposedToDownstream,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOIDCClientAccessAccounts = `-- name: ListOIDCClientAccessAccounts :many
 SELECT acc.id, acc.username, acc.display_name
 FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
@@ -522,6 +632,54 @@ func (q *Queries) ListOIDCClientAccessAccounts(ctx context.Context, clientID str
 	var items []ListOIDCClientAccessAccountsRow
 	for rows.Next() {
 		var i ListOIDCClientAccessAccountsRow
+		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOIDCClientAccessAccountsPage = `-- name: ListOIDCClientAccessAccountsPage :many
+SELECT acc.id, acc.username, acc.display_name
+FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
+WHERE a.client_id = $1
+  AND ($2::text IS NULL OR (acc.username, acc.id) > ($2, $3::int4))
+ORDER BY acc.username ASC, acc.id ASC
+LIMIT $4
+`
+
+type ListOIDCClientAccessAccountsPageParams struct {
+	ClientID       string `json:"clientId"`
+	AfterUsername  string `json:"afterUsername"`
+	AfterAccountID int32  `json:"afterAccountId"`
+	RowLimit       int32  `json:"rowLimit"`
+}
+
+type ListOIDCClientAccessAccountsPageRow struct {
+	ID          int32  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+}
+
+// Keyset-paginated access accounts for an OIDC client, ordered by (username ASC, id ASC).
+func (q *Queries) ListOIDCClientAccessAccountsPage(ctx context.Context, arg ListOIDCClientAccessAccountsPageParams) ([]ListOIDCClientAccessAccountsPageRow, error) {
+	rows, err := q.db.Query(ctx, listOIDCClientAccessAccountsPage,
+		arg.ClientID,
+		arg.AfterUsername,
+		arg.AfterAccountID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOIDCClientAccessAccountsPageRow
+	for rows.Next() {
+		var i ListOIDCClientAccessAccountsPageRow
 		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
 			return nil, err
 		}
@@ -565,6 +723,54 @@ func (q *Queries) ListOIDCClientAccessGroups(ctx context.Context, clientID strin
 	return items, nil
 }
 
+const listOIDCClientAccessGroupsPage = `-- name: ListOIDCClientAccessGroupsPage :many
+SELECT g.id, g.slug, g.display_name
+FROM oidc_client_access a JOIN user_group g ON g.id = a.group_id
+WHERE a.client_id = $1
+  AND ($2::text IS NULL OR (g.display_name, g.id) > ($2, $3::int4))
+ORDER BY g.display_name ASC, g.id ASC
+LIMIT $4
+`
+
+type ListOIDCClientAccessGroupsPageParams struct {
+	ClientID         string `json:"clientId"`
+	AfterDisplayName string `json:"afterDisplayName"`
+	AfterGroupID     int32  `json:"afterGroupId"`
+	RowLimit         int32  `json:"rowLimit"`
+}
+
+type ListOIDCClientAccessGroupsPageRow struct {
+	ID          int32  `json:"id"`
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+}
+
+// Keyset-paginated access groups for an OIDC client, ordered by (display_name ASC, id ASC).
+func (q *Queries) ListOIDCClientAccessGroupsPage(ctx context.Context, arg ListOIDCClientAccessGroupsPageParams) ([]ListOIDCClientAccessGroupsPageRow, error) {
+	rows, err := q.db.Query(ctx, listOIDCClientAccessGroupsPage,
+		arg.ClientID,
+		arg.AfterDisplayName,
+		arg.AfterGroupID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOIDCClientAccessGroupsPageRow
+	for rows.Next() {
+		var i ListOIDCClientAccessGroupsPageRow
+		if err := rows.Scan(&i.ID, &i.Slug, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSAMLSPAccessAccounts = `-- name: ListSAMLSPAccessAccounts :many
 SELECT acc.id, acc.username, acc.display_name
 FROM saml_sp_access a JOIN account acc ON acc.id = a.account_id
@@ -597,6 +803,54 @@ func (q *Queries) ListSAMLSPAccessAccounts(ctx context.Context, samlSpID int64) 
 	return items, nil
 }
 
+const listSAMLSPAccessAccountsPage = `-- name: ListSAMLSPAccessAccountsPage :many
+SELECT acc.id, acc.username, acc.display_name
+FROM saml_sp_access a JOIN account acc ON acc.id = a.account_id
+WHERE a.saml_sp_id = $1
+  AND ($2::text IS NULL OR (acc.username, acc.id) > ($2, $3::int4))
+ORDER BY acc.username ASC, acc.id ASC
+LIMIT $4
+`
+
+type ListSAMLSPAccessAccountsPageParams struct {
+	SamlSpID       int64  `json:"samlSpId"`
+	AfterUsername  string `json:"afterUsername"`
+	AfterAccountID int32  `json:"afterAccountId"`
+	RowLimit       int32  `json:"rowLimit"`
+}
+
+type ListSAMLSPAccessAccountsPageRow struct {
+	ID          int32  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+}
+
+// Keyset-paginated access accounts for a SAML SP, ordered by (username ASC, id ASC).
+func (q *Queries) ListSAMLSPAccessAccountsPage(ctx context.Context, arg ListSAMLSPAccessAccountsPageParams) ([]ListSAMLSPAccessAccountsPageRow, error) {
+	rows, err := q.db.Query(ctx, listSAMLSPAccessAccountsPage,
+		arg.SamlSpID,
+		arg.AfterUsername,
+		arg.AfterAccountID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSAMLSPAccessAccountsPageRow
+	for rows.Next() {
+		var i ListSAMLSPAccessAccountsPageRow
+		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSAMLSPAccessGroups = `-- name: ListSAMLSPAccessGroups :many
 SELECT g.id, g.slug, g.display_name
 FROM saml_sp_access a JOIN user_group g ON g.id = a.group_id
@@ -618,6 +872,54 @@ func (q *Queries) ListSAMLSPAccessGroups(ctx context.Context, samlSpID int64) ([
 	var items []ListSAMLSPAccessGroupsRow
 	for rows.Next() {
 		var i ListSAMLSPAccessGroupsRow
+		if err := rows.Scan(&i.ID, &i.Slug, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSAMLSPAccessGroupsPage = `-- name: ListSAMLSPAccessGroupsPage :many
+SELECT g.id, g.slug, g.display_name
+FROM saml_sp_access a JOIN user_group g ON g.id = a.group_id
+WHERE a.saml_sp_id = $1
+  AND ($2::text IS NULL OR (g.display_name, g.id) > ($2, $3::int4))
+ORDER BY g.display_name ASC, g.id ASC
+LIMIT $4
+`
+
+type ListSAMLSPAccessGroupsPageParams struct {
+	SamlSpID         int64  `json:"samlSpId"`
+	AfterDisplayName string `json:"afterDisplayName"`
+	AfterGroupID     int32  `json:"afterGroupId"`
+	RowLimit         int32  `json:"rowLimit"`
+}
+
+type ListSAMLSPAccessGroupsPageRow struct {
+	ID          int32  `json:"id"`
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+}
+
+// Keyset-paginated access groups for a SAML SP, ordered by (display_name ASC, id ASC).
+func (q *Queries) ListSAMLSPAccessGroupsPage(ctx context.Context, arg ListSAMLSPAccessGroupsPageParams) ([]ListSAMLSPAccessGroupsPageRow, error) {
+	rows, err := q.db.Query(ctx, listSAMLSPAccessGroupsPage,
+		arg.SamlSpID,
+		arg.AfterDisplayName,
+		arg.AfterGroupID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSAMLSPAccessGroupsPageRow
+	for rows.Next() {
+		var i ListSAMLSPAccessGroupsPageRow
 		if err := rows.Scan(&i.ID, &i.Slug, &i.DisplayName); err != nil {
 			return nil, err
 		}

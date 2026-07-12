@@ -21,6 +21,6 @@ WHERE (sqlc.narg('factor')::text IS NULL OR factor = sqlc.narg('factor'))
   AND (sqlc.narg('account_id')::int IS NULL OR account_id = sqlc.narg('account_id'))
   AND (sqlc.narg('since')::timestamptz IS NULL OR at >= sqlc.narg('since'))
   AND (sqlc.narg('until')::timestamptz IS NULL OR at <= sqlc.narg('until'))
-  AND (sqlc.narg('before_id')::bigint IS NULL OR id < sqlc.narg('before_id'))
+  AND (sqlc.narg('after_id')::bigint IS NULL OR id < sqlc.narg('after_id'))
 ORDER BY id DESC
 LIMIT sqlc.arg('lim');

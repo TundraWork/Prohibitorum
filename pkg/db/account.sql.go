@@ -289,8 +289,16 @@ SELECT
   a.id, a.username, a.display_name, a.webauthn_user_handle, a.oidc_subject, a.role, a.attributes, a.disabled, a.created_at, a.updated_at, a.email, a.email_verified, a.avatar_content_type, a.avatar_etag, a.avatar_source,
   (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at
 FROM account a
-ORDER BY a.created_at ASC, a.id ASC
+WHERE ($1::timestamptz IS NULL OR (a.created_at, a.id) < ($1, $2::int4))
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT $3
 `
+
+type ListAccountsParams struct {
+	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
+	AfterID        pgtype.Int4        `json:"afterId"`
+	Limit          int32              `json:"limit"`
+}
 
 type ListAccountsRow struct {
 	ID                 int32              `json:"id"`
@@ -311,8 +319,8 @@ type ListAccountsRow struct {
 	LastSignInAt       pgtype.Timestamptz `json:"lastSignInAt"`
 }
 
-func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
-	rows, err := q.db.Query(ctx, listAccounts)
+func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error) {
+	rows, err := q.db.Query(ctx, listAccounts, arg.AfterCreatedAt, arg.AfterID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
