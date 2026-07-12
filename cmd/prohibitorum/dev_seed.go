@@ -459,7 +459,7 @@ func seedTokens(ctx context.Context, q *db.Queries) {
 // seedInvitations issues 2 pending invitations, but only if there are currently
 // zero outstanding invitations (idempotent across re-runs).
 func seedInvitations(ctx context.Context, q *db.Queries, origin string) {
-	existing, err := q.ListPendingInvitations(ctx)
+	existing, err := q.ListPendingInvitations(ctx, db.ListPendingInvitationsParams{Limit: 10000})
 	if err != nil {
 		log.Fatalf("list pending invitations: %v", err)
 	}

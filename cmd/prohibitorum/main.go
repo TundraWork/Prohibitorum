@@ -633,7 +633,7 @@ signed AuthnRequests. Explicit flags (--entity-id, --display-name,
 			defer conn.Close()
 			q := db.New(conn)
 
-			sps, err := q.ListSAMLSPs(ctx)
+			sps, err := q.ListSAMLSPs(ctx, db.ListSAMLSPsParams{Limit: 10000})
 			if err != nil {
 				log.Fatalf("list saml sps: %v", err)
 			}
@@ -956,7 +956,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			ctx := context.Background()
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
-			idps, err := q.ListAllUpstreamIDPs(ctx)
+			idps, err := q.ListAllUpstreamIDPs(ctx, db.ListAllUpstreamIDPsParams{Limit: 10000})
 			if err != nil {
 				log.Fatalf("upstream-idp list: %v", err)
 			}
@@ -1249,7 +1249,7 @@ func addGroupCommands(root *cobra.Command) {
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
 
-			groups, err := q.ListGroups(ctx)
+			groups, err := q.ListGroups(ctx, db.ListGroupsParams{Limit: 10000})
 			if err != nil {
 				log.Fatalf("group list: %v", err)
 			}
