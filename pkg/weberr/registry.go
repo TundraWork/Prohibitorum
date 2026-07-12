@@ -172,6 +172,18 @@ func init() {
 			Recovery:       "retry",
 			DiagnosticKind: "internal",
 		},
+		// validation_failed is the code for huma request validation errors
+		// (malformed JSON, schema violations). Details carry safe location +
+		// reason, never raw input values.
+		Definition{
+			Code:           "validation_failed",
+			Status:         http.StatusUnprocessableEntity,
+			LocaleKey:      "errors.validation_failed",
+			Retryable:      false,
+			Recovery:       "fix_input",
+			DiagnosticKind: "validation",
+			DetailKeys:     map[string]struct{}{"location": {}, "reason": {}},
+		},
 	)
 }
 

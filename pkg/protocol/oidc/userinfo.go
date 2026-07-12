@@ -156,7 +156,9 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 	if hasScope(scope, "groups") {
 		gs, gerr := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
 		if gerr != nil {
-			writeBearerError(w, r, http.StatusInternalServerError, "could not load groups")
+			requestID := weberr.RequestIDFromContext(ctx)
+			slog.Warn("oidc userinfo: internal failure loading groups", "request_id", requestID, "error_type", "internal")
+			writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "internal error")
 			return
 		}
 		groups = gs

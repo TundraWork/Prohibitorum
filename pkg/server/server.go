@@ -207,7 +207,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	router.Use(requestMetaMW(clientIPResolver.IP))
 	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
 	router.Use(maintenanceGateMW(brandingResolver))
-	api := humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0"))
+	api := humachi.New(router, humaConfig())
 	registerSecurityScheme(api, sessstore.SessionCookieNameFor(config))
 
 	auditWriter := audit.NewWriter(queries)
@@ -274,7 +274,7 @@ func NewHuma() huma.API {
 	router := chi.NewMux()
 	s := &Server{
 		router: router,
-		api:    humachi.New(router, huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")),
+		api:    humachi.New(router, humaConfig()),
 	}
 	registerSecurityScheme(s.api, sessstore.SessionCookieName)
 	s.registerOperations()

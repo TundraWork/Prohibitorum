@@ -3,6 +3,7 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -42,6 +43,7 @@ type fakeEndpointQueries struct {
 	bySubject   map[string]db.Account
 	revokedJTIs map[string]bool
 	inserted    []db.InsertRevokedJTIParams
+	groupsErr   error
 }
 
 func (f *fakeEndpointQueries) GetOIDCClient(_ context.Context, clientID string) (db.OidcClient, error) {
@@ -79,6 +81,13 @@ func (f *fakeEndpointQueries) InsertRevokedJTI(_ context.Context, arg db.InsertR
 	}
 	f.revokedJTIs[arg.Jti] = true
 	return nil
+}
+
+func (f *fakeEndpointQueries) ListExposedGroupSlugsByAccount(_ context.Context, _ int32) ([]string, error) {
+	if f.groupsErr != nil {
+		return nil, f.groupsErr
+	}
+	return nil, nil
 }
 
 // endpointHarness wires a Provider with a working signing key, the fake query
@@ -313,5 +322,51 @@ func TestUserinfoEmptyPublicOriginsNoPanic(t *testing.T) {
 	}
 	if body["sub"] != testSubject {
 		t.Fatalf("sub = %v, want %s", body["sub"], testSubject)
+	}
+}
+
+// TestUserinfoGroupLoadFailure_NoInvalidTokenLeak proves that when the groups
+// scope is requested but the DB group-load fails, the response does NOT
+// claim invalid_token (the token is valid), does NOT leak operation prose
+// like "could not load groups", and emits a protocol-conformant server_error
+// with request-ID correlation.
+func TestUserinfoGroupLoadFailure_NoInvalidTokenLeak(t *testing.T) {
+	h := newEndpointHarness(t)
+	// Inject a failing ListExposedGroupSlugsByAccount.
+	h.q.groupsErr = errors.New("db: connection refused")
+
+	at := h.mintAccessToken(t, testSubject, testClientID, "openid groups", "jti-grp-fail", time.Now().Add(time.Hour))
+	rec := httptest.NewRecorder()
+	h.p.HandleUserinfo(rec, userinfoReq(at))
+
+	// The response must NOT be 401 (the token is valid) — it should be 500.
+	if rec.Code == http.StatusUnauthorized {
+		t.Fatalf("status = 401 — a valid token must not be reported as invalid_token\nbody: %s", rec.Body.String())
+	}
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500\nbody: %s", rec.Code, rec.Body.String())
+	}
+
+	// The body must NOT contain invalid_token or "could not load groups".
+	body := rec.Body.String()
+	if strings.Contains(body, "invalid_token") {
+		t.Errorf("body leaked invalid_token for a valid token: %s", body)
+	}
+	if strings.Contains(body, "could not load groups") {
+		t.Errorf("body leaked operation prose: %s", body)
+	}
+
+	// The body must contain a server_error code (RFC 6749 server_error is the
+	// protocol-native way to signal an internal failure at /userinfo).
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if resp["error"] != "server_error" {
+		t.Errorf("error = %q, want server_error", resp["error"])
+	}
+	// error_description must NOT contain the raw DB error.
+	if strings.Contains(resp["error_description"], "connection refused") {
+		t.Errorf("error_description leaked raw DB error: %s", resp["error_description"])
 	}
 }

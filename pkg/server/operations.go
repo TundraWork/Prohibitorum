@@ -15,8 +15,70 @@ import (
 	"prohibitorum/pkg/weberr"
 )
 
+//humaConfig returns a huma.Config with the project's response transformer
+// installed. The transformer stamps the request ID onto *weberr.PublicError
+// values before serialization so typed Huma handler errors carry the same
+// {code, details?, requestId} envelope as the raw chi handler path. It also
+// overrides huma.NewError / huma.NewErrorWithContext so huma's internal
+// validation errors (malformed JSON, schema violations) produce the same
+// envelope instead of RFC 9457 Problem Details.
+func humaConfig() huma.Config {
+	// Override huma.NewError so validation errors produce a *PublicError with
+	// code "validation_failed" and safe location/reason details — never the
+	// raw input value or an RFC 9457 message/detail/title/errors shape.
+	huma.NewError = newHumaValidationError
+	huma.NewErrorWithContext = func(_ huma.Context, status int, msg string, errs ...error) huma.StatusError {
+		return newHumaValidationError(status, msg, errs...)
+	}
+	cfg := huma.DefaultConfig("Prohibitorum Identity API", "1.0.0")
+	cfg.Transformers = append(cfg.Transformers, func(ctx huma.Context, status string, v any) (any, error) {
+		if pe, ok := v.(*weberr.PublicError); ok {
+			pe.RequestID = weberr.RequestIDFromContext(ctx.Context())
+		}
+		return v, nil
+	})
+	return cfg
+}
+
+// newHumaValidationError replaces huma.NewError so validation failures produce
+// a *weberr.PublicError with code "validation_failed" (422) and safe details.
+// The details map carries at most a "location" and "reason" — never the raw
+// input value, which may contain sensitive data. The request ID is stamped
+// later by the response transformer.
+func newHumaValidationError(status int, msg string, errs ...error) huma.StatusError {
+	details := map[string]any{}
+	for _, e := range errs {
+		if e == nil {
+			continue
+		}
+		// huma.ErrorDetailer types carry a safe location + message.
+		if detailer, ok := e.(huma.ErrorDetailer); ok {
+			ed := detailer.ErrorDetail()
+			if ed.Location != "" {
+				details["location"] = ed.Location
+			}
+			if ed.Message != "" {
+				details["reason"] = ed.Message
+			}
+			// Take only the first detail to avoid a details array — the
+			// envelope uses a flat map, not a list.
+			break
+		}
+		// Non-ErrorDetailer: use the error string as the reason, but only if
+		// it's safe (huma validation messages are framework-generated, not raw
+		// input or internal state).
+		details["reason"] = e.Error()
+		break
+	}
+	pe := &weberr.PublicError{
+		Code:    "validation_failed",
+		Details: details,
+	}
+	return pe
+}
+
 // writeHumaPublicErr writes a {code, requestId} public-error envelope through
-// a huma.Context, bypassing huma's default RFC 9457 / errorx serialization so
+// a huma.Context, bypassing huma's default RFC 9457 serialization so
 // the wire contract matches the raw chi handler path (writeAuthErr). The code
 // is validated against the registry (DefinitionFor); the status is taken
 // from the registered definition, not the caller. An unregistered code falls
