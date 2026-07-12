@@ -382,6 +382,33 @@ describe('ErrorPanel — diagnostic fetch staleness guard', () => {
     // ErrorPanel is gone
     expect(w.find('[role="alert"]').exists()).toBe(false)
   })
+
+  it('does not write state when unmounted during in-flight diagnostic fetch', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let resolveFetch!: (v: typeof DIAGNOSTIC_RECORD) => void
+    vi.mocked(api.get).mockReturnValueOnce(new Promise((r) => { resolveFetch = r }))
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(true)
+
+    // Unmount the component entirely while the fetch is in-flight
+    w.unmount()
+
+    // The pending fetch resolves — must NOT throw, warn, or write state
+    resolveFetch(DIAGNOSTIC_RECORD)
+    await flushPromises()
+
+    // No Vue warning about writing to unmounted component
+    const vueWarnings = warnSpy.mock.calls
+      .map((c) => String(c))
+      .filter((s) => s.includes('unmounted') || s.includes('unmount'))
+    expect(vueWarnings).toEqual([])
+    warnSpy.mockRestore()
+  })
 })
 
 describe('ErrorPanel — recovery button (M6)', () => {

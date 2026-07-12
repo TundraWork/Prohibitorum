@@ -25,7 +25,7 @@
  * - Recovery guidance text is always shown when a recovery hint exists, but
  *   the action button only renders when the parent wires @recovery.
  */
-import { ref, computed, watch, getCurrentInstance } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, getCurrentInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { X, ChevronDown, Copy, Stethoscope, RotateCcw, LogIn } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -67,17 +67,18 @@ const copied = ref(false)
 const diagState = ref<'idle' | 'loading' | 'loaded' | 'error'>('idle')
 const diagRecord = ref<DiagnosticRecord | null>(null)
 
-// M1: sequence/alive guard — each fetch gets a unique token; only the latest
-// token may write state. If the error changes or the panel is dismissed while
-// a fetch is in-flight, the stale fetch result is silently discarded.
+// M1: sequence guard — each fetch gets a unique token; only the latest token
+// may write state. The error watcher bumps diagSeq when the error changes or
+// is cleared; onBeforeUnmount bumps it when the panel is removed. Together
+// these cover every path where a stale fetch result must be discarded.
 let diagSeq = 0
-let diagAlive = true
-// M1: When the error changes (different code/requestId) or is cleared,
-// bump diagSeq to invalidate any in-flight fetch and reset diagnostic state.
 watch(() => props.error, () => {
   diagSeq++
   diagState.value = 'idle'
   diagRecord.value = null
+})
+onBeforeUnmount(() => {
+  diagSeq++
 })
 
 const hasError = computed(() => props.error !== null)
@@ -161,12 +162,12 @@ async function fetchDiagnostic(): Promise<void> {
       `/api/prohibitorum/diagnostics/${encodeURIComponent(rid)}`,
     )
     // M1: discard stale results — the error may have changed or the panel
-    // may have been dismissed while the fetch was in-flight.
-    if (seq !== diagSeq || !diagAlive) return
+    // may have been unmounted while the fetch was in-flight.
+    if (seq !== diagSeq) return
     diagRecord.value = result
     diagState.value = 'loaded'
   } catch {
-    if (seq !== diagSeq || !diagAlive) return
+    if (seq !== diagSeq) return
     diagState.value = 'error'
   }
 }
