@@ -208,3 +208,23 @@ func TestStore_PruneExpiredDeletesOldRecords(t *testing.T) {
 		t.Fatal("PruneExpired did not call DeleteExpiredDiagnosticEvents")
 	}
 }
+
+func TestStore_RecordNilFieldsProducesEmptyJSONObject(t *testing.T) {
+	fq := &fakeQ{}
+	s := New(fq)
+	rec := Record{
+		RequestID: "rid-nil",
+		Code:      "bad_request",
+		Operation: "oidc.exchange",
+		Method:    "POST",
+		Route:     "/oauth/token",
+		Fields:    nil, // nil map must become {}, not null
+	}
+	if err := s.Record(context.Background(), rec); err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+	got := string(fq.inserted.Fields)
+	if got != `{}` {
+		t.Fatalf("nil Fields stored as %q, want `{}`", got)
+	}
+}

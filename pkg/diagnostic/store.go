@@ -120,12 +120,13 @@ func (s *Store) Record(ctx context.Context, rec Record) error {
 		}
 	}
 
-	fieldsJSON, err := json.Marshal(rec.Fields)
+	fields := rec.Fields
+	if fields == nil {
+		fields = map[string]any{}
+	}
+	fieldsJSON, err := json.Marshal(fields)
 	if err != nil {
 		return fmt.Errorf("diagnostic: marshal fields: %w", err)
-	}
-	if fieldsJSON == nil {
-		fieldsJSON = []byte(`{}`)
 	}
 
 	now := time.Now()

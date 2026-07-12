@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -65,7 +66,7 @@ func (s *Server) handleAdminDiagnosticLookupHTTP(w http.ResponseWriter, r *http.
 
 	// Per-account rate limit: bounds the lookup surface so an admin (or a
 	// compromised admin session) cannot enumerate request IDs at scale.
-	rlKey := "diag:" + string(sess.Account.ID)
+	rlKey := diagnosticRateLimitKey(sess.Account.ID)
 	if !s.rateLimiter.Allow(rlKey, diagnosticLookupLimit, diagnosticLookupWindow) {
 		ae := authn.ErrRateLimited()
 		ae.RetryAfter = s.rateLimiter.RetryAfter(rlKey)
@@ -114,4 +115,11 @@ func (s *Server) handleAdminDiagnosticLookupHTTP(w http.ResponseWriter, r *http.
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(view)
+}
+
+// diagnosticRateLimitKey builds the per-account rate-limit key for diagnostic
+// lookups. It formats the account ID as decimal (not a rune) so the key is
+// deterministic and human-readable in logs: "diag:42", not "diag:*".
+func diagnosticRateLimitKey(accountID int32) string {
+	return "diag:" + strconv.FormatInt(int64(accountID), 10)
 }

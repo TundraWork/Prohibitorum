@@ -302,3 +302,20 @@ func TestDiagnosticLookup_NoBulkRouteRegistered(t *testing.T) {
 		t.Fatalf("list route returned %d, want 404 (no bulk endpoint)", rec2.Code)
 	}
 }
+
+func TestDiagnosticRateLimitKey_DecimalFormat(t *testing.T) {
+	cases := []struct {
+		accountID int32
+		want      string
+	}{
+		{42, "diag:42"},
+		{1, "diag:1"},
+		{0, "diag:0"},
+		{2147483647, "diag:2147483647"},
+	}
+	for _, c := range cases {
+		if got := diagnosticRateLimitKey(c.accountID); got != c.want {
+			t.Errorf("diagnosticRateLimitKey(%d) = %q, want %q", c.accountID, got, c.want)
+		}
+	}
+}
