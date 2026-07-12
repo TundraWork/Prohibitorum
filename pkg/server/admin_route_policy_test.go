@@ -277,8 +277,9 @@ func TestAdminMutationBodyControls_OversizedJSONReturns413(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "request_too_large") {
 		t.Errorf("body = %q, want request_too_large code", rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "request body too large") {
-		t.Errorf("body = %q, want 'request body too large' message", rr.Body.String())
+	// The new public-error envelope has no message field.
+	if strings.Contains(rr.Body.String(), "request body too large") {
+		t.Errorf("body leaked 'request body too large' message: %s", rr.Body.String())
 	}
 }
 

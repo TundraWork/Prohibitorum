@@ -302,7 +302,8 @@ func TestWriteAuthErr_MaxBytesError_Returns413(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "request_too_large") {
 		t.Fatalf("body = %q, want request_too_large code", rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "request body too large") {
-		t.Fatalf("body = %q, want 'request body too large' message", rr.Body.String())
+	// The new public-error envelope has no message field.
+	if strings.Contains(rr.Body.String(), "request body too large") {
+		t.Fatalf("body leaked 'request body too large' message: %s", rr.Body.String())
 	}
 }

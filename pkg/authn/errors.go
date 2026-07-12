@@ -5,7 +5,84 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"prohibitorum/pkg/weberr"
 )
+
+// init registers every AuthError code with the weberr registry so that the
+// public-error envelope ({code, details?, requestId}) can validate detail keys
+// and look up HTTP status / diagnostic metadata. Codes here must match the
+// Code field in the constructors below — the registry is the single source of
+// truth for what may appear in a public response.
+func init() {
+	defs := []weberr.Definition{
+		{Code: "no_session", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "not_admin", Status: http.StatusForbidden, DiagnosticKind: "auth"},
+		{Code: "permission_denied", Status: http.StatusForbidden, DiagnosticKind: "auth"},
+		{Code: "account_disabled", Status: http.StatusForbidden, DiagnosticKind: "auth"},
+		{Code: "last_admin", Status: http.StatusConflict, DiagnosticKind: "policy"},
+		{Code: "admin_cannot_be_disabled", Status: http.StatusConflict, DiagnosticKind: "policy"},
+		{Code: "cannot_delete_self", Status: http.StatusConflict, DiagnosticKind: "policy"},
+		{Code: "username_taken", Status: http.StatusConflict, DiagnosticKind: "validation"},
+		{Code: "enrollment_expired", Status: http.StatusGone, DiagnosticKind: "enrollment"},
+		{Code: "enrollment_consumed", Status: http.StatusGone, DiagnosticKind: "enrollment"},
+		{Code: "enrollment_federation_required", Status: http.StatusBadRequest, DiagnosticKind: "enrollment"},
+		{Code: "bad_request", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
+		{Code: "invalid_consent_ticket", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
+		{Code: "invalid_role", Status: http.StatusBadRequest, DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"allowed": {}}},
+		{Code: "invalid_username", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
+		{Code: "invalid_nickname", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
+		{Code: "invalid_display_name", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
+		{Code: "username_immutable", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
+		{Code: "last_passkey", Status: http.StatusBadRequest, DiagnosticKind: "policy"},
+		{Code: "would_remove_last_factor", Status: http.StatusConflict, DiagnosticKind: "policy"},
+		{Code: "login_account_not_found", Status: http.StatusUnauthorized, DiagnosticKind: "auth"},
+		{Code: "login_verification_failed", Status: http.StatusUnauthorized, DiagnosticKind: "auth"},
+		{Code: "ceremony_expired", Status: http.StatusBadRequest, DiagnosticKind: "ceremony", Retryable: true, Recovery: "retry"},
+		{Code: "ceremony_missing", Status: http.StatusBadRequest, DiagnosticKind: "ceremony"},
+		{Code: "ceremony_state_invalid", Status: http.StatusInternalServerError, DiagnosticKind: "ceremony"},
+		{Code: "credential_already_registered", Status: http.StatusConflict, DiagnosticKind: "ceremony"},
+		{Code: "registration_failed", Status: http.StatusBadRequest, DiagnosticKind: "ceremony"},
+		{Code: "login_failed", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Retryable: true, Recovery: "retry"},
+		{Code: "bad_credentials", Status: http.StatusUnauthorized, DiagnosticKind: "auth"},
+		{Code: "partial_session_invalid", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "recovery_session_invalid", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "account_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
+		{Code: "credential_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
+		{Code: "invitation_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
+		{Code: "not_bootstrapped", Status: http.StatusServiceUnavailable, DiagnosticKind: "system"},
+		{Code: "maintenance_mode", Status: http.StatusServiceUnavailable, DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
+		{Code: "pairing_not_found", Status: http.StatusNotFound, DiagnosticKind: "pairing"},
+		{Code: "pairing_state", Status: http.StatusConflict, DiagnosticKind: "pairing"},
+		{Code: "pairing_expired", Status: http.StatusGone, DiagnosticKind: "pairing"},
+		{Code: "pairing_not_approved", Status: http.StatusPreconditionRequired, DiagnosticKind: "pairing"},
+		{Code: "rate_limited", Status: http.StatusTooManyRequests, DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
+		{Code: "factor_locked", Status: http.StatusTooManyRequests, DiagnosticKind: "throttle", Retryable: true, Recovery: "retry", DetailKeys: map[string]struct{}{"retryAfterSeconds": {}}},
+		{Code: "sudo_required", Status: http.StatusUnauthorized, DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "sudo_method_unavailable", Status: http.StatusBadRequest, DiagnosticKind: "auth"},
+		{Code: "session_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
+		{Code: "cannot_revoke_current_session", Status: http.StatusConflict, DiagnosticKind: "policy"},
+		{Code: "email_not_verified", Status: http.StatusForbidden, DiagnosticKind: "federation"},
+		{Code: "username_collision", Status: http.StatusForbidden, DiagnosticKind: "federation"},
+		{Code: "invite_required", Status: http.StatusForbidden, DiagnosticKind: "federation"},
+		{Code: "link_required", Status: http.StatusForbidden, DiagnosticKind: "federation"},
+		{Code: "federation_state_invalid", Status: http.StatusUnauthorized, DiagnosticKind: "federation", Recovery: "retry"},
+		{Code: "last_sign_in_method", Status: http.StatusBadRequest, DiagnosticKind: "policy"},
+		{Code: "invalid_return_to", Status: http.StatusBadRequest, DiagnosticKind: "validation"},
+		{Code: "upstream_error", Status: http.StatusBadRequest, DiagnosticKind: "federation", DetailKeys: map[string]struct{}{"upstreamCode": {}}},
+		{Code: "active_key_no_replacement", Status: http.StatusConflict, DiagnosticKind: "policy"},
+		{Code: "client_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
+		{Code: "upstream_idp_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
+		{Code: "oidc_client_already_exists", Status: http.StatusConflict, DiagnosticKind: "validation"},
+		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, DiagnosticKind: "validation"},
+		{Code: "saml_application_already_exists", Status: http.StatusConflict, DiagnosticKind: "validation"},
+		{Code: "group_not_found", Status: http.StatusNotFound, DiagnosticKind: "resource"},
+		{Code: "group_slug_conflict", Status: http.StatusConflict, DiagnosticKind: "validation"},
+	}
+	if err := weberr.Register(defs); err != nil {
+		panic(fmt.Sprintf("authn: failed to register error definitions: %v", err))
+	}
+}
 
 // AuthError is the canonical error type returned from auth checks and handlers.
 // HTTP status, machine-readable code, and human message are all surfaced together;

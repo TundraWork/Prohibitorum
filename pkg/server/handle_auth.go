@@ -86,39 +86,41 @@ func (s *Server) sessionView(a *db.Account) contract.SessionView {
 	return v
 }
 
-// canonicalServerError is the stable, detail-free envelope returned to
-// clients when writeAuthErr receives a non-AuthError (a real internal
-// failure: DB, KV, crypto). The raw error is logged server-side with request
-// context; the client only sees code "server_error" and HTTP 500 — never the
-// underlying error string, which may carry connection strings or stack detail.
+// canonicalServerError is the stable code returned to clients when
+// writeAuthErr receives a non-AuthError (a real internal failure: DB, KV,
+// crypto). The raw error is logged server-side with request context; the
+// client only sees code "server_error" and HTTP 500 — never the underlying
+// error string, which may carry connection strings or stack detail.
 const canonicalServerError = "server_error"
 
 // writeBodyTooLarge writes the canonical 413 response for an oversized admin
 // body. Both the proactive path (withAdminBodyControls Content-Length check)
 // and the lazy path (writeAuthErr detecting *http.MaxBytesError) route through
-// here, so the response shape cannot drift between them.
+// here, so the response shape cannot drift between them. Uses the public-error
+// envelope {code, requestId} — no message field.
 func writeBodyTooLarge(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusRequestEntityTooLarge)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"message": "request body too large",
-		"code":    "request_too_large",
-		"details": []string{},
-	})
+	weberr.WriteJSON(w, http.StatusRequestEntityTooLarge, "request_too_large", nil, w.Header().Get(weberr.HeaderRequestID))
 }
 
 // writeAuthErr serializes an *authn.AuthError onto a raw http.ResponseWriter
-// using the project's error envelope. When the AuthError carries a
-// RetryAfter duration (rate-limit, factor lockout), the header is emitted
-// as integer seconds, rounded up so a sub-second remainder still nudges the
-// client past the lockout boundary.
+// using the project's public-error envelope: {code, details?, requestId}.
+// When the AuthError carries a RetryAfter duration (rate-limit, factor
+// lockout), the header is emitted as integer seconds, rounded up so a
+// sub-second remainder still nudges the client past the lockout boundary.
+//
+// The response's X-Request-ID header is set by the RequestID middleware
+// (installed before session/auth routing); writeAuthErr reads it back so the
+// JSON body's requestId matches the header. When the middleware did not run
+// (e.g. a unit test calling writeAuthErr directly), requestId is empty but
+// the field is still present in the JSON.
 //
 // Non-AuthError values (DB/KV/crypto failures) are NEVER surfaced to the
 // client. They are logged at WARN with full detail and the response carries
-// only the canonical {code:"server_error", message:"..."} JSON with HTTP 500.
-// This prevents internal error strings — which may contain connection
-// strings, query text, or stack fragments — from leaking to callers.
+// only {code:"server_error", requestId} with HTTP 500. This prevents internal
+// error strings — which may contain connection strings, query text, or stack
+// fragments — from leaking to callers.
 func writeAuthErr(w http.ResponseWriter, err error) {
+	requestID := w.Header().Get(weberr.HeaderRequestID)
 	// Detect an oversized admin body: MaxBytesReader (installed by
 	// withAdminBodyControls) wraps r.Body; when the handler's json.Decode
 	// reads past the limit, the error chains through wrapping as
@@ -139,13 +141,7 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 		} else {
 			logrus.Warn("internal error (nil)")
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"message": "服务器内部错误",
-			"code":    canonicalServerError,
-			"details": []string{},
-		})
+		weberr.WriteJSON(w, http.StatusInternalServerError, canonicalServerError, nil, requestID)
 		return
 	}
 	if ae.RetryAfter > 0 {
@@ -155,13 +151,15 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 		}
 		w.Header().Set("Retry-After", fmt.Sprintf("%d", secs))
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(ae.Status)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"message": ae.Message,
-		"code":    ae.Code,
-		"details": []string{},
-	})
+	// Look up the registered definition to validate the code is known. If an
+	// unregistered code somehow reaches here, fall back to server_error so the
+	// public envelope never carries an unvetted code.
+	code := ae.Code
+	if _, ok := weberr.DefinitionFor(code); !ok {
+		logrus.WithField("unregistered_code", code).Warn("writeAuthErr: unregistered AuthError code, falling back to server_error")
+		code = canonicalServerError
+	}
+	weberr.WriteJSON(w, ae.Status, code, nil, requestID)
 }
 
 // redirectAuthErrToError sends a browser-navigated flow error to the SPA

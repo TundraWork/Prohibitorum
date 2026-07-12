@@ -36,6 +36,7 @@ import (
 	oidcop "prohibitorum/pkg/protocol/oidc"
 	samlidp "prohibitorum/pkg/protocol/saml"
 	sessstore "prohibitorum/pkg/session"
+	"prohibitorum/pkg/weberr"
 	"prohibitorum/pkg/webui"
 )
 
@@ -193,6 +194,10 @@ func NewServer(ctx context.Context) (*Server, error) {
 	clientIPResolver := clientip.NewResolver(clientip.NewPGStore(conn))
 
 	router := chi.NewMux()
+	// Request ID middleware runs first so every response — including auth
+	// rejections and maintenance-gate 503s — carries a server-generated
+	// X-Request-ID. Inbound values are never trusted as the server ID.
+	router.Use(weberr.RequestID)
 	router.Use(requestMetaMW(clientIPResolver.IP))
 	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
 	router.Use(maintenanceGateMW(brandingResolver))

@@ -12,8 +12,22 @@ import (
 
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
-	"prohibitorum/pkg/errorx"
+	"prohibitorum/pkg/weberr"
 )
+
+// writeHumaPublicErr writes a {code, requestId} public-error envelope through
+// a huma.Context, bypassing huma's default RFC 9457 / errorx serialization so
+// the wire contract matches the raw chi handler path (writeAuthErr). The
+// request ID is read from the context (set by the RequestID middleware).
+func writeHumaPublicErr(ctx huma.Context, status int, code string) {
+	requestID := weberr.RequestIDFromContext(ctx.Context())
+	ctx.SetHeader("Content-Type", "application/json")
+	ctx.SetStatus(status)
+	_ = json.NewEncoder(ctx.BodyWriter()).Encode(weberr.PublicError{
+		Code:      code,
+		RequestID: requestID,
+	})
+}
 
 // registerOp wraps huma.Register so every operation declares its auth
 // requirement at the call site. The wrapper appends a per-operation
@@ -39,7 +53,7 @@ func registerOp[I, O any](
 		sess := authn.SessionFromContext(ctx.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
-			_ = huma.WriteErr(api, ctx, ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
+			writeHumaPublicErr(ctx, ae.Status, ae.Code)
 			return
 		}
 		next(ctx)
@@ -71,12 +85,12 @@ func registerSudoOp[I, O any](
 		sess := authn.SessionFromContext(ctx.Context())
 		if err := authn.Check(sess, req); err != nil {
 			ae := authn.AsAuthError(err)
-			_ = huma.WriteErr(api, ctx, ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
+			writeHumaPublicErr(ctx, ae.Status, ae.Code)
 			return
 		}
 		if !s.hasFreshSudo(sess) {
 			ae := authn.ErrSudoRequired()
-			_ = huma.WriteErr(api, ctx, ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
+			writeHumaPublicErr(ctx, ae.Status, ae.Code)
 			return
 		}
 		next(ctx)
@@ -113,10 +127,9 @@ func registerOpHTTP(
 				writeAuthErr(w, err)
 				return
 			}
-			errResp := huma.NewError(ae.Status, ae.Message, errorx.ErrorCode(ae.Code))
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(errResp.GetStatus())
-			_ = json.NewEncoder(w).Encode(errResp)
+			// Use the shared writeAuthErr path so the envelope matches the
+			// raw handler path exactly: {code, requestId} with no message.
+			writeAuthErr(w, ae)
 			return
 		}
 		h(w, r)
