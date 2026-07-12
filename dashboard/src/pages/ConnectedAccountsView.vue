@@ -15,7 +15,6 @@ import { relativeTime } from '@/lib/time'
 import { Link2 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
@@ -33,7 +32,7 @@ interface Identity {
 interface Provider { slug: string; displayName: string; iconUrl?: string | null }
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const identities = ref<Identity[]>([])
 const providers = ref<Provider[]>([])

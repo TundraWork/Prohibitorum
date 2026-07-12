@@ -999,6 +999,24 @@ export default {
       location: '位置',
       reason: '原因',
     },
+    reasons: {
+      reason: {
+        too_short: '过短',
+        too_long: '过长',
+        invalid_format: '格式无效',
+        required: '此字段为必填',
+        out_of_range: '超出范围',
+        not_registered: '未注册',
+      },
+      upstreamCode: {
+        access_denied: '访问被拒绝',
+        invalid_request: '请求无效',
+        unauthorized_client: '客户端未授权',
+        unsupported_response_type: '不支持的响应类型',
+        server_error: '服务器错误',
+        temporarily_unavailable: '暂时不可用',
+      },
+    },
 
     recovery: {
       retry: '重试',

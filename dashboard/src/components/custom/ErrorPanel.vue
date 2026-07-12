@@ -5,9 +5,10 @@
  * Replaces every inline `<Alert v-if="errorText">{{ errorText }}</Alert>` block.
  * The panel renders the localized message for the error's code (or the
  * unknown fallback), a collapsible details disclosure showing curated detail
- * fields and the copyable request ID, an optional recovery action button,
- * and an admin-only diagnostic lookup that fetches and renders the curated
- * diagnostic record from /api/prohibitorum/diagnostics/{requestId}.
+ * fields and the copyable request ID, optional recovery guidance (an action
+ * button only when a @recovery listener is attached), and an admin-only
+ * diagnostic lookup that fetches and renders the curated diagnostic record
+ * from /api/prohibitorum/diagnostics/{requestId}.
  *
  * Key contract guarantees:
  * - role="alert" so assistive tech announces it assertively.
@@ -19,10 +20,12 @@
  * - Non-admin users never see the diagnostic action.
  * - Admin diagnostic fetch is self-contained: the ErrorPanel fetches the
  *   record, shows loading/error states, and renders it persistently in an
- *   accessible region. Pages do NOT need to wire a handler — just pass
- *   :is-admin="true" from admin routes (gated by the router).
+ *   accessible region. A sequence guard prevents stale fetches (dismissed,
+ *   unmounted, or changed-error) from writing state.
+ * - Recovery guidance text is always shown when a recovery hint exists, but
+ *   the action button only renders when the parent wires @recovery.
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch, getCurrentInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { X, ChevronDown, Copy, Stethoscope, RotateCcw, LogIn } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -30,7 +33,7 @@ import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import type { ApiError } from '@/lib/errors'
 import { errorTranslationKey, detailLabelKey, recoveryLabelKey, localizedDetailEntries } from '@/lib/errors'
-import { codeDefinition } from '@/lib/errorCodes'
+import { codeDefinition, GLOBAL_ERROR_CODES } from '@/lib/errorCodes'
 
 interface DiagnosticRecord {
   requestId: string
@@ -64,14 +67,25 @@ const copied = ref(false)
 const diagState = ref<'idle' | 'loading' | 'loaded' | 'error'>('idle')
 const diagRecord = ref<DiagnosticRecord | null>(null)
 
-const hasError = computed(() => props.error !== null)
+// M1: sequence/alive guard — each fetch gets a unique token; only the latest
+// token may write state. If the error changes or the panel is dismissed while
+// a fetch is in-flight, the stale fetch result is silently discarded.
+let diagSeq = 0
+let diagAlive = true
+// M1: When the error changes (different code/requestId) or is cleared,
+// bump diagSeq to invalidate any in-flight fetch and reset diagnostic state.
+watch(() => props.error, () => {
+  diagSeq++
+  diagState.value = 'idle'
+  diagRecord.value = null
+})
 
-const GLOBAL_CODES = new Set(['no_session', 'maintenance_mode', 'network_error', 'server_error'])
+const hasError = computed(() => props.error !== null)
 
 const message = computed(() => {
   const e = props.error
   if (!e) return ''
-  if (GLOBAL_CODES.has(e.code)) return t('errors.unknown')
+  if (GLOBAL_ERROR_CODES.has(e.code)) return t('errors.unknown')
   const key = errorTranslationKey(e.code)
   if (te(key)) return t(key)
   return t('errors.unknown')
@@ -83,7 +97,16 @@ const recoveryHint = computed(() => {
   return codeDefinition(e.code)?.recovery ?? ''
 })
 
-const showRecovery = computed(() => recoveryHint.value !== '')
+const showRecoveryGuidance = computed(() => recoveryHint.value !== '')
+
+// M6: only show the recovery action button when the parent actually wires
+// @recovery. This avoids dead buttons that emit into a void.
+const hasRecoveryListener = computed(() => {
+  const instance = getCurrentInstance()
+  return !!instance?.vnode.props?.onRecovery
+})
+
+const showRecoveryButton = computed(() => showRecoveryGuidance.value && hasRecoveryListener.value)
 
 const recoveryLabel = computed(() => {
   const hint = recoveryHint.value
@@ -130,14 +153,20 @@ function onRecovery(): void {
 async function fetchDiagnostic(): Promise<void> {
   const rid = props.error?.requestId
   if (!rid) return
+  const seq = ++diagSeq
   diagState.value = 'loading'
   diagRecord.value = null
   try {
-    diagRecord.value = await api.get<DiagnosticRecord>(
+    const result = await api.get<DiagnosticRecord>(
       `/api/prohibitorum/diagnostics/${encodeURIComponent(rid)}`,
     )
+    // M1: discard stale results — the error may have changed or the panel
+    // may have been dismissed while the fetch was in-flight.
+    if (seq !== diagSeq || !diagAlive) return
+    diagRecord.value = result
     diagState.value = 'loaded'
   } catch {
+    if (seq !== diagSeq || !diagAlive) return
     diagState.value = 'error'
   }
 }
@@ -183,9 +212,11 @@ const diagFields = computed(() => {
       </button>
     </div>
 
-    <!-- Recovery action -->
-    <div v-if="showRecovery" class="flex items-center gap-2">
+    <!-- Recovery guidance: text always shown; button only when @recovery is wired -->
+    <div v-if="showRecoveryGuidance" class="flex items-center gap-2">
+      <span v-if="!showRecoveryButton" class="text-xs text-muted">{{ recoveryLabel }}</span>
       <Button
+        v-else
         type="button"
         data-test="error-recovery"
         variant="outline"
@@ -216,10 +247,14 @@ const diagFields = computed(() => {
       </button>
 
       <div v-if="detailsOpen" id="error-details-content" class="mt-2 flex flex-col gap-1.5 text-xs text-muted">
-        <!-- Curated detail fields -->
+        <!-- Curated detail fields — use localized reason when available, raw value otherwise -->
         <div v-for="entry in detailEntries" :key="entry.field" class="flex gap-1">
           <span class="font-medium">{{ t(entry.labelKey) }}:</span>
-          <span>{{ Array.isArray(entry.value) ? entry.value.join(', ') : String(entry.value) }}</span>
+          <span>{{
+            entry.reasonKey && te(entry.reasonKey)
+              ? t(entry.reasonKey)
+              : Array.isArray(entry.value) ? entry.value.join(', ') : String(entry.value)
+          }}</span>
         </div>
 
         <!-- Request ID + copy -->

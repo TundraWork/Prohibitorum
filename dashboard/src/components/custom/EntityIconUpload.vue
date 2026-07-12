@@ -14,7 +14,6 @@ import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import AppIcon from '@/components/custom/AppIcon.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
@@ -22,7 +21,7 @@ const props = defineProps<{ basePath: string; name: string; iconUrl?: string | n
 const emit = defineEmits<{ changed: [] }>()
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 const fileInput = ref<HTMLInputElement | null>(null)
 
 async function onPick(e: Event): Promise<void> {

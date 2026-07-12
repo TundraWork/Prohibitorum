@@ -16,7 +16,6 @@ import { MonitorSmartphone } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import CodeField from '@/components/custom/CodeField.vue'
 import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
@@ -32,7 +31,7 @@ interface Lookup {
 }
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const code = ref('')
 const found = ref<Lookup | null>(null)

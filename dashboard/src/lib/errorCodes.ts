@@ -161,3 +161,16 @@ export function codeDefinition(code: string): ErrorCodeDef | undefined {
  * Derived from: go test ./pkg/weberr → AllDefinitions() count.
  */
 export const EXPECTED_REGISTRY_CODE_COUNT = 69
+/**
+ * Error codes owned by a GLOBAL handler — a redirect (no_session →
+ * sessionExpiry), a full-screen redirect (maintenance_mode), or a connection
+ * error (network_error / server_error). Shared between useApi (errorText
+ * suppression) and ErrorPanel (message suppression) so both use the same
+ * definition.
+ */
+export const GLOBAL_ERROR_CODES: ReadonlySet<string> = new Set([
+  'no_session',
+  'maintenance_mode',
+  'network_error',
+  'server_error',
+])

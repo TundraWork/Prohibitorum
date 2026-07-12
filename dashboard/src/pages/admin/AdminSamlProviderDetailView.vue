@@ -64,7 +64,7 @@ interface SamlApplication {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, clear, errorText } = useApi()
+const { busy, error, run, clear } = useApi()
 
 const id = Number(route.params.id)
 const sp = ref<SamlApplication | null>(null)

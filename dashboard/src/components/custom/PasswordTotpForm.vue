@@ -24,7 +24,6 @@ import { useApi } from '@/composables/useApi'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import AccountRecovery from '@/components/custom/AccountRecovery.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
@@ -34,7 +33,7 @@ const props = defineProps<{ returnTo?: string }>()
 const emit = defineEmits<{ success: [redirect?: string] }>()
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const phase = ref<'password' | 'totp'>('password')
 const username = ref('')

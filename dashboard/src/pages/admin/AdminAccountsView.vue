@@ -8,7 +8,6 @@ import { useApi } from '@/composables/useApi'
 import { relativeTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
@@ -23,7 +22,7 @@ interface Account {
 }
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 const rows = ref<Account[]>([])
 const filter = ref('')
 

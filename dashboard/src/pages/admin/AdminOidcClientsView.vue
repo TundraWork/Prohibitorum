@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
@@ -42,7 +41,7 @@ const { t } = useI18n()
 const router = useRouter()
 
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const rows = ref<OidcApplication[]>([])
 const createOpen = ref(false)

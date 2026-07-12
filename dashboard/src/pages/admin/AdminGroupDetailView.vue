@@ -15,7 +15,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
@@ -56,7 +55,7 @@ const route = useRoute()
 const router = useRouter()
 
 const groupId = Number(route.params.id)
-const { busy, error, run, clear, errorText } = useApi()
+const { busy, error, run, clear } = useApi()
 // Separate composable for member operations so errors surface independently
 const memberApi = useApi()
 // Separate composable for accounts list — must NOT share memberApi (busy-guard race in Promise.all)

@@ -16,7 +16,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import ScopeSelector from '@/components/custom/ScopeSelector.vue'
 import { OIDC_SCOPES } from '@/lib/scopes'
@@ -52,7 +51,7 @@ const route = useRoute()
 const router = useRouter()
 
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
-const { busy, error, run, clear, errorText } = useApi()
+const { busy, error, run, clear } = useApi()
 
 const clientId = String(route.params.clientId)
 const client = ref<OidcApplication | null>(null)

@@ -46,7 +46,7 @@ interface ForwardAuthApp {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, clear, errorText } = useApi()
+const { busy, error, run, clear } = useApi()
 
 const clientId = String(route.params.clientId)
 const app = ref<ForwardAuthApp | null>(null)

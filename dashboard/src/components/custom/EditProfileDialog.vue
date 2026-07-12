@@ -23,7 +23,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 // Label is intentionally omitted — section headings use plain <p> elements.
 import UserAvatar from '@/components/custom/UserAvatar.vue'
@@ -35,7 +34,7 @@ const emit = defineEmits<{ 'update:open': [boolean] }>()
 
 const { t } = useI18n()
 const auth = useAuthStore()
-const { busy, error, run, clear, errorText } = useApi()
+const { busy, error, run, clear } = useApi()
 
 const draft = ref('')
 const inputRef = ref<{ $el?: HTMLElement }>()

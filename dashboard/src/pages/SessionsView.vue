@@ -11,7 +11,6 @@ import { useApi } from '@/composables/useApi'
 import { relativeTime, formatDateTime } from '@/lib/time'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
@@ -30,7 +29,7 @@ interface SessionListItem {
 }
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const rows = ref<SessionListItem[]>([])
 const confirmRevokeId = ref<string | null>(null)

@@ -8,7 +8,6 @@ import { AUDIT_FACTORS, AUDIT_EVENTS } from '@/lib/audit'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { formatDateTime } from '@/lib/time'
@@ -26,7 +25,7 @@ const LIMIT = 50
 type Preset = '15m' | '1h' | '24h' | '7d' | 'custom' | 'all'
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const rows = ref<AuditEvent[]>([])
 const hasMore = ref(false)

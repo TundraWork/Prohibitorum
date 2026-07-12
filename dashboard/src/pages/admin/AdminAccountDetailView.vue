@@ -21,7 +21,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
@@ -64,7 +63,7 @@ interface GroupView {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, clear, errorText } = useApi()
+const { busy, error, run, clear } = useApi()
 // Separate composable for group membership operations — avoid busy-guard race.
 const groupsApi = useApi()
 // Separate composable for the all-groups list used in the picker.

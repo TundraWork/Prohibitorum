@@ -18,7 +18,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
@@ -35,7 +34,7 @@ interface CredentialView {
   lastUsedAt?: string
 }
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const { busy: netBusy, error: netError, run, clear: clearNet } = useApi()
 const { busy: waBusy, error: waError, register } = useWebauthn()
 

@@ -1006,6 +1006,24 @@ export default {
       location: 'Location',
       reason: 'Reason',
     },
+    reasons: {
+      reason: {
+        too_short: 'Too short',
+        too_long: 'Too long',
+        invalid_format: 'Invalid format',
+        required: 'This field is required',
+        out_of_range: 'Out of range',
+        not_registered: 'Not registered',
+      },
+      upstreamCode: {
+        access_denied: 'Access denied',
+        invalid_request: 'Invalid request',
+        unauthorized_client: 'Unauthorized client',
+        unsupported_response_type: 'Unsupported response type',
+        server_error: 'Server error',
+        temporarily_unavailable: 'Temporarily unavailable',
+      },
+    },
 
     recovery: {
       retry: 'Try again',

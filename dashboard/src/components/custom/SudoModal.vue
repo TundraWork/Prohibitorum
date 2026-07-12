@@ -29,11 +29,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import OrDivider from '@/components/custom/OrDivider.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const { busy: netBusy, error: netError, run } = useApi()
 const { busy: waBusy, error: waError, authenticate } = useWebauthn()
 const route = useRoute()

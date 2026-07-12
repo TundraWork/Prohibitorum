@@ -6,7 +6,6 @@ import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
@@ -25,7 +24,7 @@ interface SigningKey {
 type Variant = 'neutral' | 'success' | 'caution' | 'danger' | 'info'
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const rows = ref<SigningKey[]>([])
 const viewJwkKid = ref<string | null>(null)

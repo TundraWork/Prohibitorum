@@ -12,7 +12,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
@@ -33,7 +32,7 @@ import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, clear, errorText } = useApi()
+const { busy, error, run, clear } = useApi()
 
 const slug = String(route.params.slug)
 const idp = ref<IdentityProvider | null>(null)

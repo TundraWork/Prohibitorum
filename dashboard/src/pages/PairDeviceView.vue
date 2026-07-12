@@ -15,7 +15,6 @@ import { useWebauthn } from '@/composables/useWebauthn'
 import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const POLL_MS = 2500
@@ -23,7 +22,7 @@ const POLL_MS = 2500
 interface Begin { pairingId: string; code: string; displayCode: string; expiresAt: string }
 interface Status { status: 'pending' | 'approved' | 'expired'; expiresAt?: string }
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const router = useRouter()
 const { busy, error, run, clear } = useApi()
 const { register, error: waError } = useWebauthn()

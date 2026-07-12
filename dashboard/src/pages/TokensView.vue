@@ -21,7 +21,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
@@ -48,7 +47,7 @@ interface PersonalAccessTokenView {
 }
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 // Separate instance so the apps prefetch never collides with the token-list
 // busy-guard (opening the dialog mid-prefetch must not no-op the apps fetch).
 const appsApi = useApi()

@@ -72,7 +72,27 @@ describe('error locale parity — recovery hints have labels in en+zh', () => {
 })
 
 describe('error locale parity — meta keys exist in en+zh', () => {
-  const metaKeys = ['errors.unknown', 'errors.dismiss', 'errors.detailsLabel', 'errors.requestId', 'errors.copyRequestId', 'errors.copied', 'errors.diagnostic']
+  const metaKeys = [
+    'errors.unknown',
+    'errors.dismiss',
+    'errors.detailsLabel',
+    'errors.requestId',
+    'errors.copyRequestId',
+    'errors.copied',
+    'errors.diagnostic',
+    'errors.diagnosticLoading',
+    'errors.diagnosticError',
+    'errors.diagnosticRecord',
+    'errors.diagnosticField_requestId',
+    'errors.diagnosticField_code',
+    'errors.diagnosticField_operation',
+    'errors.diagnosticField_method',
+    'errors.diagnosticField_route',
+    'errors.diagnosticField_retryable',
+    'errors.diagnosticField_occurredAt',
+    'errors.diagnosticField_expiresAt',
+    'errors.diagnosticField_fields',
+  ]
 
   for (const key of metaKeys) {
     it(`en has ${key}`, () => {
@@ -84,6 +104,27 @@ describe('error locale parity — meta keys exist in en+zh', () => {
       const val = get(zh, key)
       expect(typeof val, `zh missing ${key}`).toBe('string')
     })
+  }
+})
+describe('error locale parity — reason catalogs exist in en+zh', () => {
+  const reasonCatalogs: Record<string, string[]> = {
+    'errors.reasons.reason': ['too_short', 'too_long', 'invalid_format', 'required', 'out_of_range', 'not_registered'],
+    'errors.reasons.upstreamCode': ['access_denied', 'invalid_request', 'unauthorized_client', 'unsupported_response_type', 'server_error', 'temporarily_unavailable'],
+  }
+
+  for (const [baseKey, values] of Object.entries(reasonCatalogs)) {
+    for (const value of values) {
+      const key = `${baseKey}.${value}`
+      it(`en has ${key}`, () => {
+        const val = get(en, key)
+        expect(typeof val, `en missing ${key}`).toBe('string')
+      })
+
+      it(`zh has ${key}`, () => {
+        const val = get(zh, key)
+        expect(typeof val, `zh missing ${key}`).toBe('string')
+      })
+    }
   }
 })
 

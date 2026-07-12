@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
@@ -32,7 +31,7 @@ interface ForwardAuthApp {
 
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const rows = ref<ForwardAuthApp[]>([])
 const createOpen = ref(false)

@@ -23,7 +23,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import CodeField from '@/components/custom/CodeField.vue'
 import TotpQr from '@/components/custom/TotpQr.vue'
 import RecoveryCodesDisplay from '@/components/custom/RecoveryCodesDisplay.vue'
@@ -34,7 +33,7 @@ const props = defineProps<{ enrolled?: boolean }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t } = useI18n()
-const { busy, error, run, clear, errorText } = useApi()
+const { busy, error, run, clear } = useApi()
 const secret = ref('')
 const otpauth = ref('')
 const code = ref('')

@@ -12,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
@@ -35,7 +34,7 @@ interface GroupView {
 
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
 const rows = ref<GroupView[]>([])

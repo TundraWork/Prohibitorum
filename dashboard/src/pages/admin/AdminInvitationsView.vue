@@ -15,7 +15,6 @@ import { relativeTime, formatDateTime } from '@/lib/time'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import SegmentedControl from '@/components/custom/SegmentedControl.vue'
@@ -30,7 +29,7 @@ import { Mail } from 'lucide-vue-next'
 interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string }
 interface Idp { slug: string; displayName: string; disabled: boolean }
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 const IDP_NONE = '__none__'
 const rows = ref<Invitation[]>([])
 const idps = ref<Idp[]>([])

@@ -9,7 +9,15 @@ import {
   parseApiError,
   localizedDetailEntries,
 } from './errors'
-import { REGISTRY_CODES, CLIENT_CODES, ALL_CODES, ALL_DETAIL_KEYS, ALL_RECOVERY_HINTS, EXPECTED_REGISTRY_CODE_COUNT } from './errorCodes'
+import {
+  REGISTRY_CODES,
+  CLIENT_CODES,
+  ALL_CODES,
+  ALL_DETAIL_KEYS,
+  ALL_RECOVERY_HINTS,
+  EXPECTED_REGISTRY_CODE_COUNT,
+  GLOBAL_ERROR_CODES,
+} from './errorCodes'
 
 describe('ApiError contract', () => {
   it('ApiError has code, optional details and requestId, and no message', () => {
@@ -111,6 +119,7 @@ describe('localizedDetailEntries', () => {
       field: 'allowed',
       labelKey: 'errors.details.allowed',
       value: ['user', 'admin'],
+      reasonKey: undefined,
     })
   })
 
@@ -139,6 +148,62 @@ describe('localizedDetailEntries', () => {
 
   it('returns empty when details is missing', () => {
     expect(localizedDetailEntries({ code: 'invalid_role' })).toEqual([])
+  })
+})
+
+describe('localizedDetailEntries — reason translation (M7)', () => {
+  it('includes a reasonKey for string detail values that have a known reason catalog', () => {
+    const err: ApiError = {
+      code: 'validation_failed',
+      details: { location: 'body', reason: 'too_short' },
+    }
+    const entries = localizedDetailEntries(err)
+    const reasonEntry = entries.find((e) => e.field === 'reason')
+    expect(reasonEntry).toBeDefined()
+    expect(reasonEntry!.reasonKey).toBe('errors.reasons.reason.too_short')
+  })
+
+  it('leaves reasonKey undefined when the value has no known reason catalog entry', () => {
+    const err: ApiError = {
+      code: 'validation_failed',
+      details: { location: 'body', reason: 'some_unknown_reason' },
+    }
+    const entries = localizedDetailEntries(err)
+    const reasonEntry = entries.find((e) => e.field === 'reason')
+    expect(reasonEntry).toBeDefined()
+    expect(reasonEntry!.reasonKey).toBeUndefined()
+  })
+
+  it('leaves reasonKey undefined for non-string detail values', () => {
+    const err: ApiError = {
+      code: 'rate_limited',
+      details: { retryAfterSeconds: 30 },
+    }
+    const entries = localizedDetailEntries(err)
+    const entry = entries.find((e) => e.field === 'retryAfterSeconds')
+    expect(entry).toBeDefined()
+    expect(entry!.reasonKey).toBeUndefined()
+  })
+
+  it('includes reasonKey for upstreamCode detail values', () => {
+    const err: ApiError = {
+      code: 'upstream_error',
+      details: { upstreamCode: 'access_denied' },
+    }
+    const entries = localizedDetailEntries(err)
+    const entry = entries.find((e) => e.field === 'upstreamCode')
+    expect(entry).toBeDefined()
+    expect(entry!.reasonKey).toBe('errors.reasons.upstreamCode.access_denied')
+  })
+})
+
+describe('shared GLOBAL_ERROR_CODES (M5)', () => {
+  it('is exported from errorCodes and contains the global codes', () => {
+    expect(GLOBAL_ERROR_CODES.has('no_session')).toBe(true)
+    expect(GLOBAL_ERROR_CODES.has('maintenance_mode')).toBe(true)
+    expect(GLOBAL_ERROR_CODES.has('network_error')).toBe(true)
+    expect(GLOBAL_ERROR_CODES.has('server_error')).toBe(true)
+    expect(GLOBAL_ERROR_CODES.has('bad_request')).toBe(false)
   })
 })
 

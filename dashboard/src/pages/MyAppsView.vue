@@ -13,7 +13,6 @@ import ProtocolBadge from '@/components/custom/ProtocolBadge.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
@@ -24,7 +23,7 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 interface Consent { kind?: 'oidc' | 'saml'; clientId: string; scopes: string[] }
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 const auth = useAuthStore()
 const router = useRouter()
 

@@ -184,23 +184,28 @@ describe('ErrorPanel — recovery action', () => {
   afterEach(() => { vi.useRealTimers() })
 
   it('emits recovery when the recovery button is clicked', async () => {
+    const onRecovery = vi.fn()
     const w = mount(ErrorPanel, {
       props: { error: { code: 'rate_limited', requestId: 'rid' } },
+      attrs: { onRecovery },
       global: { plugins: [makeI18n()] },
     })
     const btn = w.find('[data-test="error-recovery"]')
     expect(btn.exists()).toBe(true)
     await btn.trigger('click')
-    expect(w.emitted('recovery')).toBeTruthy()
+    expect(onRecovery).toHaveBeenCalled()
   })
 
   it('shows a reauth recovery for sudo_required', async () => {
+    const onRecovery = vi.fn()
     const w = mount(ErrorPanel, {
       props: { error: { code: 'sudo_required', requestId: 'rid' } },
+      attrs: { onRecovery },
       global: { plugins: [makeI18n()] },
     })
     expect(w.get('[data-test="error-recovery"]').text()).toContain(en.errors.recovery.reauth)
   })
+
 
   it('does not show recovery button when no recovery hint', () => {
     const w = mount(ErrorPanel, {
@@ -323,6 +328,96 @@ describe('ErrorPanel — admin diagnostic action', () => {
     await flushPromises()
     vi.advanceTimersByTime(60_000)
     expect(w.find('[data-test="diagnostic-record"]').exists()).toBe(true)
+  })
+})
+describe('ErrorPanel — diagnostic fetch staleness guard', () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.mocked(api.get).mockReset() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('does not write stale state when the error changes during fetch', async () => {
+    let resolveFirst!: (v: typeof DIAGNOSTIC_RECORD) => void
+    vi.mocked(api.get).mockReturnValueOnce(new Promise((r) => { resolveFirst = r }))
+    const w = mount(ErrorPanel, {
+      props: { error: { code: 'forbidden', requestId: 'rid-first' }, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    // Start fetch for rid-first
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(true)
+
+    // Error changes to a different requestId while the first fetch is in-flight
+    await w.setProps({ error: { code: 'bad_request', requestId: 'rid-second' } })
+    await flushPromises()
+
+    // The first fetch resolves — but its result must NOT be written to state
+    resolveFirst(DIAGNOSTIC_RECORD)
+    await flushPromises()
+
+    // No diagnostic record should be shown — the requestId changed
+    expect(w.find('[data-test="diagnostic-record"]').exists()).toBe(false)
+    // Loading state should be cleared (stale fetch was discarded)
+    expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(false)
+  })
+
+  it('does not write stale state when dismissed during fetch', async () => {
+    let resolveFetch!: (v: typeof DIAGNOSTIC_RECORD) => void
+    vi.mocked(api.get).mockReturnValueOnce(new Promise((r) => { resolveFetch = r }))
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(true)
+
+    // Dismiss the error (parent clears error → ErrorPanel unmounts)
+    await w.setProps({ error: null })
+    await flushPromises()
+
+    // The pending fetch resolves — must NOT crash or write state
+    resolveFetch(DIAGNOSTIC_RECORD)
+    await flushPromises()
+
+    // ErrorPanel is gone
+    expect(w.find('[role="alert"]').exists()).toBe(false)
+  })
+})
+
+describe('ErrorPanel — recovery button (M6)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('shows recovery guidance text but NOT a button when no @recovery listener is attached', () => {
+    const w = mount(ErrorPanel, {
+      props: { error: { code: 'rate_limited', requestId: 'rid' } },
+      global: { plugins: [makeI18n()] },
+    })
+    // Recovery guidance text is present
+    expect(w.text()).toContain(en.errors.recovery.retry)
+    // But NO action button (no @recovery listener wired)
+    expect(w.find('[data-test="error-recovery"]').exists()).toBe(false)
+  })
+
+  it('shows a recovery action button when an @recovery listener is attached', () => {
+    const onRecovery = vi.fn()
+    const w = mount(ErrorPanel, {
+      props: { error: { code: 'rate_limited', requestId: 'rid' } },
+      attrs: { onRecovery },
+      global: { plugins: [makeI18n()] },
+    })
+    expect(w.find('[data-test="error-recovery"]').exists()).toBe(true)
+  })
+
+  it('clicking the recovery button emits recovery when listener is attached', async () => {
+    const onRecovery = vi.fn()
+    const w = mount(ErrorPanel, {
+      props: { error: { code: 'rate_limited', requestId: 'rid' } },
+      attrs: { onRecovery },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-recovery"]').trigger('click')
+    expect(onRecovery).toHaveBeenCalled()
   })
 })
 

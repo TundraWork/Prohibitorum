@@ -22,7 +22,7 @@ const props = defineProps<{ partialToken: string }>()
 const emit = defineEmits<{ success: []; restart: [] }>()
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const phase = ref<'code' | 'reenroll' | 'done'>('code')
 const recoveryCode = ref('')

@@ -90,24 +90,52 @@ export function parseApiError(
 }
 
 /**
- * Build a list of `{label, value}` entries for the details disclosure.
- * Each declared detail key that exists on the error produces an entry whose
- * `label` is the i18n key for that field and `value` is the raw detail value
- * (for the component to localize/display).
+ * Known enum reason values per detail field. Only values listed here have a
+ * `reasonKey` set — the locale files define `errors.reasons.<field>.<value>`
+ * for each entry. Values not in the catalog fall back to the raw curated
+ * value (still safe to display, just not localized as an enum).
+ */
+const KNOWN_REASONS: Record<string, Set<string>> = {
+  reason: new Set([
+    'too_short', 'too_long', 'invalid_format', 'required', 'out_of_range', 'not_registered',
+  ]),
+  upstreamCode: new Set([
+    'access_denied', 'invalid_request', 'unauthorized_client', 'unsupported_response_type',
+    'server_error', 'temporarily_unavailable',
+  ]),
+}
+
+/**
+ * Build a list of `{label, value, reasonKey?}` entries for the details
+ * disclosure. Each declared detail key that exists on the error produces an
+ * entry whose `label` is the i18n key for that field and `value` is the raw
+ * detail value. For string-valued fields whose value is in the KNOWN_REASONS
+ * catalog, `reasonKey` is set to the i18n key for
+ * `errors.reasons.<field>.<value>` so the component can translate known enum
+ * values; it stays undefined when no catalog entry exists (the component
+ * falls back to the raw curated value).
  *
  * Only declared detail keys (from the manifest) are included — undeclared
  * keys are silently dropped to prevent leaking unexpected server data.
  */
 export function localizedDetailEntries(
   error: ApiError,
-): ReadonlyArray<{ field: string; labelKey: string; value: string | number | boolean | string[] }> {
+): ReadonlyArray<{ field: string; labelKey: string; value: string | number | boolean | string[]; reasonKey?: string }> {
   const def: ErrorCodeDef | undefined = codeDefinition(error.code)
   if (!def || !error.details) return []
   return def.details
     .filter((field) => error.details![field] !== undefined && error.details![field] !== null)
-    .map((field) => ({
-      field,
-      labelKey: detailLabelKey(field),
-      value: error.details![field],
-    }))
+    .map((field) => {
+      const rawValue = error.details![field]
+      let reasonKey: string | undefined
+      if (typeof rawValue === 'string' && KNOWN_REASONS[field]?.has(rawValue)) {
+        reasonKey = detailReasonKey(field, rawValue)
+      }
+      return {
+        field,
+        labelKey: detailLabelKey(field),
+        value: rawValue,
+        reasonKey,
+      }
+    })
 }

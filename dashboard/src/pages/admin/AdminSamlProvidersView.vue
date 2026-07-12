@@ -12,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -52,7 +51,7 @@ interface AcsRow {
 
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const rows = ref<SamlApplication[]>([])
 const createOpen = ref(false)

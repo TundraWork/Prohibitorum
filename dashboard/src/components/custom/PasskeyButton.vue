@@ -21,7 +21,6 @@ import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Fingerprint } from 'lucide-vue-next'
 
 // Raw return_to passthrough — forwarded to the server, which is the
@@ -29,7 +28,7 @@ import { Fingerprint } from 'lucide-vue-next'
 const props = defineProps<{ returnTo?: string }>()
 const emit = defineEmits<{ success: [redirect: string] }>()
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const { busy: netBusy, error: netError, run } = useApi()
 const { busy: waBusy, error: waError, authenticate } = useWebauthn()
 

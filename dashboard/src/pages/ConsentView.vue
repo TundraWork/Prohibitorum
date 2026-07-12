@@ -30,7 +30,6 @@ import CenteredLayout from '@/pages/CenteredLayout.vue'
 import ConsentCard from '@/components/custom/ConsentCard.vue'
 import ConsentScopeList from '@/components/custom/ConsentScopeList.vue'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { Info } from 'lucide-vue-next'
@@ -55,7 +54,7 @@ interface ConsentResult {
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const ticket = String(route.query.ticket ?? '')
 const returnTo = String(route.query.return_to ?? '')

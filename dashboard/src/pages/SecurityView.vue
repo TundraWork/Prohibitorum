@@ -26,7 +26,7 @@ interface MeFactors {
 }
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 const confirmOpen = ref(false)
 const { flag: done, trigger: triggerDone } = useTransientFlag()
 const factors = ref<MeFactors | null>(null)

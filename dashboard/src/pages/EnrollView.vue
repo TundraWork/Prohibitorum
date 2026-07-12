@@ -42,7 +42,6 @@ import CenteredLayout from '@/pages/CenteredLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface EnrollmentTarget {
   username: string
@@ -60,7 +59,7 @@ interface EnrollCompleteResponse {
 
 const route = useRoute()
 const router = useRouter()
-const { t, te } = useI18n()
+const { t } = useI18n()
 
 const token = String(route.params.token ?? '')
 

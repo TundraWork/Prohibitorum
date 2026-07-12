@@ -8,7 +8,6 @@ import { hardRedirect } from '@/lib/navigate'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import ConsentCard from '@/components/custom/ConsentCard.vue'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
@@ -22,7 +21,7 @@ interface ConsentResult { redirect: string }
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 
 const ticket = String(route.query.ticket ?? '')
 const ctx = ref<SamlConsentContext | null>(null)

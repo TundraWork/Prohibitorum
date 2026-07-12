@@ -6,7 +6,6 @@ import { useApi } from '@/composables/useApi'
 import { relativeTime } from '@/lib/time'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
@@ -16,7 +15,7 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 interface ConsentedApp { kind: 'oidc' | 'saml'; clientId: string; name: string; iconUrl?: string | null; scopes: string[]; grantedAt: string }
 
 const { t } = useI18n()
-const { busy, run, error, clear, errorText } = useApi()
+const { busy, run, error, clear } = useApi()
 const apps = ref<ConsentedApp[]>([])
 const revokeTarget = ref<ConsentedApp | null>(null)
 
