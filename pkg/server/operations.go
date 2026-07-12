@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/pagination"
 	"prohibitorum/pkg/weberr"
 )
 
@@ -382,4 +384,28 @@ func (s *Server) registerSudoOpHTTP(router chiRouter, method, path string, req c
 // registerSudoOpHTTP guarantee for the non-sudo tier.
 func (s *Server) registerAdminBodyOpHTTP(router chiRouter, method, path string, req contract.AuthRequirement, h http.HandlerFunc) {
 	registerOpHTTP(router, method, path, req, withAdminBodyControls(h))
+}
+
+// writeCursorInvalidErr writes the canonical pagination_cursor_invalid
+// response for a raw HTTP boundary where a cursor failed validation. Any
+// pagination error (Codec.Decode failure, ErrCursorInvalid, malformed input)
+// routes through here so the response shape cannot drift per-handler: the
+// client sees {code, requestId} with HTTP 400 and never the underlying
+// crypto / decode detail.
+//
+// The raw err is logged server-side with the request ID (for correlation) but
+// is never serialized; pagination.ErrCursorInvalid intentionally does not
+// distinguish tamper vs expiry vs binding mismatch on the wire. Non-cursor
+// errors fall through to writeAuthErrForCode with the generic server_error
+// code, preserving the existing boundary contract.
+func writeCursorInvalidErr(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+	if errors.Is(err, pagination.ErrCursorInvalid) {
+		writeAuthErrForCode(w, contract.CodeCursorInvalid, err)
+		return
+	}
+	// Unexpected failure on a cursor path: surface server_error, log raw.
+	writeAuthErrForCode(w, "server_error", err)
 }
