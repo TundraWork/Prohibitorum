@@ -635,8 +635,20 @@ func TestSudoComplete_PasswordTOTPSuccess(t *testing.T) {
 	_, sess := issueSudoTestSession(t, s, accountID)
 	stashIntent(t, s, sess.Data.SessionID, "password_totp")
 
-	// Step forward past the seed Verify's consumed step.
-	at := time.Now().Add(31 * time.Second)
+	// Step one TOTP counter PAST the seed Verify's consumed step. The seed
+	// verify ran against now_step = now.Unix()/30 and recorded it as the
+	// credential's LastStep; we compute the code for the *immediately next*
+	// counter (LastStep+1) by using its period-aligned start timestamp.
+	//
+	// This replaces the old time.Now().Add(31s) computation, which when the
+	// wall clock sat near the end of a 30s period (now.Unix()%30 >= 29) landed
+	// two counters ahead of the seed step while the verifier only accepts ±1
+	// drift — producing an intermittent 401 bad_credentials failure. Anchoring
+	// on LastStep (rather than the clock) makes the consumed-step/replay
+	// intent exact and wall-clock-independent: the code is always exactly one
+	// step ahead, within drift, and strictly greater than LastStep.
+	period := int64(f.totpRow.Period) // 30s (established test period)
+	at := time.Unix((f.totpRow.LastStep+1)*period, 0)
 	code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, *f.totpRow, accountID), at.Unix(), 6)
 
 	body := fmt.Sprintf(`{"current_password":"correct-horse","totp_code":%q}`, code)
