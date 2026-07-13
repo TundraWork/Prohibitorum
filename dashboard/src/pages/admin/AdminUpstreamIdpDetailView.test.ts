@@ -125,8 +125,11 @@ describe('AdminUpstreamIdpDetailView', () => {
     get.mockResolvedValue(IDP)
     const w = mountView(); await flushPromises()
     expect(w.find('[data-test="allowPrivateNetwork"]').exists()).toBe(true)
-    expect(w.find('[data-test="private-network-warning"]').exists()).toBe(true)
-    expect(w.text()).toContain(en.admin.upstream.allowPrivateNetworkWarning)
+    const warning = w.get('[data-test="private-network-warning"]')
+    expect(warning.attributes('data-slot')).toBe('alert')
+    expect(warning.get('[data-slot="alert-description"]').text()).toContain(
+      en.admin.upstream.allowPrivateNetworkWarning,
+    )
   })
   it('includes allowPrivateNetwork in the save payload', async () => {
     get.mockResolvedValue({ ...IDP, allowPrivateNetwork: false })
