@@ -1874,11 +1874,11 @@ func main() {
 			ID       int64  `json:"id"`
 			EntityID string `json:"entityId"`
 		}
-		var apps []samlApp
-		if err := c.get("/api/prohibitorum/saml-applications", &apps); err != nil {
+		var apps page[samlApp]
+		if err := c.get("/api/prohibitorum/saml-applications?limit=100", &apps); err != nil {
 			log.Fatalf("saml: GET /saml-applications to find SP id: %v", err)
 		}
-		for _, a := range apps {
+		for _, a := range apps.Items {
 			if a.EntityID == mockSPEntityID {
 				samlSPID = fmt.Sprintf("%d", a.ID)
 				break
@@ -3110,20 +3110,18 @@ func main() {
 		createdClientSecret = created.Secret
 
 		// GET list → secret/hash NEVER present (verify on the raw bytes too).
-		listRaw, err := c.getBytes("/api/prohibitorum/oidc-applications")
+		listRaw, err := c.getBytes("/api/prohibitorum/oidc-applications?limit=100")
 		if err != nil {
 			log.Fatalf("GET /oidc-clients: %v", err)
 		}
 		assertNoSecretLeak("GET /oidc-clients", listRaw)
 		// And the created client appears in the list.
-		var list []struct {
-			ClientID string `json:"clientId"`
-		}
+		var list page[struct{ ClientID string `json:"clientId"` }]
 		if err := json.Unmarshal(listRaw, &list); err != nil {
 			log.Fatalf("GET /oidc-clients decode: %v", err)
 		}
 		var found bool
-		for _, c := range list {
+		for _, c := range list.Items {
 			if c.ClientID == adminClientID {
 				found = true
 			}
@@ -3348,21 +3346,21 @@ func main() {
 		}
 
 		// (b) GET /signing-keys shows oldKID=decommissioning, newKID=active.
-		keysRaw, err := c.getBytes("/api/prohibitorum/signing-keys")
+		keysRaw, err := c.getBytes("/api/prohibitorum/signing-keys?limit=100")
 		if err != nil {
 			log.Fatalf("GET /signing-keys: %v", err)
 		}
 		// (e) no private_pem-like field present in the JSON.
 		assertNoSecretLeak("GET /signing-keys", keysRaw)
-		var keys []struct {
+		var keys page[struct {
 			Kid    string `json:"kid"`
 			Status string `json:"status"`
-		}
+		}]
 		if err := json.Unmarshal(keysRaw, &keys); err != nil {
 			log.Fatalf("GET /signing-keys decode: %v", err)
 		}
 		statusByKID := map[string]string{}
-		for _, k := range keys {
+		for _, k := range keys.Items {
 			statusByKID[k.Kid] = k.Status
 		}
 		if statusByKID[oldKID] != "decommissioning" {
@@ -3390,12 +3388,12 @@ func main() {
 
 	step(fmt.Sprintf("admin %d/%d — admin: GET /audit-events?factor=oidc_client|signing_key shows the mutations; light redaction spot-check", 7, nAdmin))
 	{
-		var oidcEvents []contractAuditEvent
-		if err := c.get("/api/prohibitorum/audit-events?factor=oidc_client&limit=200", &oidcEvents); err != nil {
+		var oidcEvents page[contractAuditEvent]
+		if err := c.get("/api/prohibitorum/audit-events?factor=oidc_client&limit=100", &oidcEvents); err != nil {
 			log.Fatalf("GET /audit-events?factor=oidc_client: %v", err)
 		}
 		var sawClientRegister bool
-		for _, e := range oidcEvents {
+		for _, e := range oidcEvents.Items {
 			if e.Factor != "oidc_client" {
 				log.Fatalf("audit filter leaked a non-oidc_client factor: %q", e.Factor)
 			}
@@ -3407,15 +3405,15 @@ func main() {
 			assertAuditDetailNoSecret("oidc_client", e.Event, e.Detail)
 		}
 		if !sawClientRegister {
-			log.Fatalf("audit: no oidc_client register event for %q found in %d events", adminClientID, len(oidcEvents))
+			log.Fatalf("audit: no oidc_client register event for %q found in %d events", adminClientID, len(oidcEvents.Items))
 		}
 
-		var keyEvents []contractAuditEvent
-		if err := c.get("/api/prohibitorum/audit-events?factor=signing_key&limit=200", &keyEvents); err != nil {
+		var keyEvents page[contractAuditEvent]
+		if err := c.get("/api/prohibitorum/audit-events?factor=signing_key&limit=100", &keyEvents); err != nil {
 			log.Fatalf("GET /audit-events?factor=signing_key: %v", err)
 		}
 		var sawKeyMutation bool
-		for _, e := range keyEvents {
+		for _, e := range keyEvents.Items {
 			if e.Factor != "signing_key" {
 				log.Fatalf("audit filter leaked a non-signing_key factor: %q", e.Factor)
 			}
@@ -3428,7 +3426,7 @@ func main() {
 			assertAuditDetailNoSecret("signing_key", e.Event, e.Detail)
 		}
 		if !sawKeyMutation {
-			log.Fatalf("audit: no signing_key register/update event for newKID=%q found in %d events", newKID, len(keyEvents))
+			log.Fatalf("audit: no signing_key register/update event for newKID=%q found in %d events", newKID, len(keyEvents.Items))
 		}
 		log.Printf("  audit-events: oidc_client register(%q) + signing_key mutation(newKID) present; no secret in any detail ✓", adminClientID)
 	}
@@ -3439,21 +3437,21 @@ func main() {
 		if err != nil {
 			log.Fatalf("admin credentials: getMe: %v", err)
 		}
-		credsRaw, err := c.getBytes(fmt.Sprintf("/api/prohibitorum/accounts/%d/credentials", me.ID))
+		credsRaw, err := c.getBytes(fmt.Sprintf("/api/prohibitorum/accounts/%d/credentials?limit=100", me.ID))
 		if err != nil {
 			log.Fatalf("GET /accounts/%d/credentials: %v", me.ID, err)
 		}
-		var creds []struct {
+		var creds page[struct {
 			ID                 int32  `json:"id"`
 			CredentialIDSuffix string `json:"credentialIdSuffix"`
-		}
+		}]
 		if err := json.Unmarshal(credsRaw, &creds); err != nil {
 			log.Fatalf("GET /accounts/{id}/credentials decode: %v (body=%s)", err, credsRaw)
 		}
-		if len(creds) == 0 {
+		if len(creds.Items) == 0 {
 			log.Fatalf("admin credentials: account %d should have >=1 registered passkey, got 0", me.ID)
 		}
-		for _, cr := range creds {
+		for _, cr := range creds.Items {
 			if len(cr.CredentialIDSuffix) != 4 {
 				log.Fatalf("admin credentials: credentialIdSuffix must be exactly 4 chars, got %q (len=%d)", cr.CredentialIDSuffix, len(cr.CredentialIDSuffix))
 			}
@@ -3472,7 +3470,7 @@ func main() {
 		// created_at DESC, so creds[0] is the most recently added passkey
 		// (the step-16 second credential / auth2). We revoke that one to keep
 		// the original passkey (auth, creds[len-1]) intact for later logins.
-		revokeTarget := creds[0]
+		revokeTarget := creds.Items[0]
 		resp, err := c.postJSONRaw("/api/prohibitorum/accounts/credentials/delete",
 			map[string]any{"accountId": me.ID, "credentialId": revokeTarget.ID})
 		if err != nil {
@@ -3483,7 +3481,7 @@ func main() {
 		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 			log.Fatalf("admin credentials: force-revoke WITH sudo must succeed (204/200), got %d (body=%s)", resp.StatusCode, body)
 		}
-		log.Printf("  /accounts/%d/credentials: %d passkey(s), 4-char suffix only, no full id; force-revoke (sudo window from the activate step) → %d ✓", me.ID, len(creds), resp.StatusCode)
+		log.Printf("  /accounts/%d/credentials: %d passkey(s), 4-char suffix only, no full id; force-revoke (sudo window from the activate step) → %d ✓", me.ID, len(creds.Items), resp.StatusCode)
 	}
 
 	// =========================================================================
@@ -3570,27 +3568,27 @@ func main() {
 
 	step("Tier-1 3/4 — admin GET /accounts/{id}/sessions: len>=1, all isCurrent==false")
 	{
-		var sessions []struct {
+		var sessions page[struct {
 			ID         string `json:"id"`
 			IsCurrent  bool   `json:"isCurrent"`
 			IssuedAt   string `json:"issuedAt"`
 			ExpiresAt  string `json:"expiresAt"`
 			LastSeenIP string `json:"lastSeenIp"`
 			UserAgent  string `json:"userAgent"`
-		}
-		path := fmt.Sprintf("/api/prohibitorum/accounts/%d/sessions", me2.ID)
+		}]
+		path := fmt.Sprintf("/api/prohibitorum/accounts/%d/sessions?limit=100", me2.ID)
 		if err := c.get(path, &sessions); err != nil {
 			log.Fatalf("Tier-1 3/4: GET %s: %v", path, err)
 		}
-		if len(sessions) < 1 {
+		if len(sessions.Items) < 1 {
 			log.Fatalf("Tier-1 3/4: admin sessions: want >=1, got 0 for account %d", me2.ID)
 		}
-		for _, s := range sessions {
+		for _, s := range sessions.Items {
 			if s.IsCurrent {
 				log.Fatalf("Tier-1 3/4: admin sessions: isCurrent=true for session %q — admin route must always return false", s.ID)
 			}
 		}
-		log.Printf("  /accounts/%d/sessions → %d session(s), all isCurrent=false ✓", me2.ID, len(sessions))
+		log.Printf("  /accounts/%d/sessions → %d session(s), all isCurrent=false ✓", me2.ID, len(sessions.Items))
 	}
 
 	step("Tier-1 4/4 — SAML provider PUT attr_map round-trip")
@@ -3609,19 +3607,19 @@ func main() {
 		}
 
 		// List all SAML providers to find the mock SP's id.
-		var providers []samlProviderItem
-		if err := c.get("/api/prohibitorum/saml-applications", &providers); err != nil {
+		var providers page[samlProviderItem]
+		if err := c.get("/api/prohibitorum/saml-applications?limit=100", &providers); err != nil {
 			log.Fatalf("Tier-1 4/4: GET /saml-providers: %v", err)
 		}
 		var spID int64
-		for _, p := range providers {
+		for _, p := range providers.Items {
 			if p.EntityID == mockSPEntityID {
 				spID = p.ID
 				break
 			}
 		}
 		if spID == 0 {
-			log.Fatalf("Tier-1 4/4: mock SP %q not found in /saml-providers list (%d providers)", mockSPEntityID, len(providers))
+			log.Fatalf("Tier-1 4/4: mock SP %q not found in /saml-providers list (%d providers)", mockSPEntityID, len(providers.Items))
 		}
 		log.Printf("  mock SP id=%d found in list", spID)
 
@@ -4376,14 +4374,14 @@ func main() {
 		}
 
 		step(fmt.Sprintf("pat %d/%d — admin GET /accounts/%d/tokens lists the created PATs", 6, nPAT, patMe.ID))
-		var adminTokens []struct {
-			ID int32 `json:"id"`
-		}
-		if err := c.get(fmt.Sprintf("/api/prohibitorum/accounts/%d/tokens", patMe.ID), &adminTokens); err != nil {
-			log.Fatalf("pat: admin GET /accounts/%d/tokens: %v", patMe.ID, err)
-		}
-		foundPerApp, foundAll := false, false
-		for _, t := range adminTokens {
+	var adminTokens page[struct {
+		ID int32 `json:"id"`
+	}]
+	if err := c.get(fmt.Sprintf("/api/prohibitorum/accounts/%d/tokens?limit=100", patMe.ID), &adminTokens); err != nil {
+		log.Fatalf("pat: admin GET /accounts/%d/tokens: %v", patMe.ID, err)
+	}
+	foundPerApp, foundAll := false, false
+	for _, t := range adminTokens.Items {
 			if t.ID == created.PAT.ID {
 				foundPerApp = true
 			}
@@ -4393,10 +4391,10 @@ func main() {
 		}
 		if !foundPerApp || !foundAll {
 			log.Fatalf("pat: admin token list missing created ids: per-app(id=%d) found=%v, all-apps(id=%d) found=%v, list=%v",
-				created.PAT.ID, foundPerApp, createdAll.PAT.ID, foundAll, adminTokens)
+				created.PAT.ID, foundPerApp, createdAll.PAT.ID, foundAll, adminTokens.Items)
 		}
-		log.Printf("  admin GET /accounts/%d/tokens lists %d PAT(s) incl. per-app id=%d + all-apps id=%d ✓",
-			patMe.ID, len(adminTokens), created.PAT.ID, createdAll.PAT.ID)
+	log.Printf("  admin GET /accounts/%d/tokens lists %d PAT(s) incl. per-app id=%d + all-apps id=%d ✓",
+		patMe.ID, len(adminTokens.Items), created.PAT.ID, createdAll.PAT.ID)
 
 		step(fmt.Sprintf("pat %d/%d — admin POST /accounts/tokens/revoke {id:%d} → re-verify host=%s → 401", 7, nPAT, created.PAT.ID, faHost1))
 		{
@@ -4708,15 +4706,15 @@ func main() {
 
 		step(fmt.Sprintf("steam %d/%d — GET /identity-providers lists the steam provider", 2, nSteam))
 		{
-			var list []struct {
+			var list page[struct {
 				Slug     string `json:"slug"`
 				Protocol string `json:"protocol"`
-			}
-			if err := c.get("/api/prohibitorum/identity-providers", &list); err != nil {
+			}]
+			if err := c.get("/api/prohibitorum/identity-providers?limit=100", &list); err != nil {
 				log.Fatalf("steam: GET /identity-providers: %v", err)
 			}
 			var found bool
-			for _, p := range list {
+			for _, p := range list.Items {
 				if p.Slug == steamSlug && p.Protocol == "steam" {
 					found = true
 					break
@@ -4724,7 +4722,7 @@ func main() {
 			}
 			if !found {
 				log.Fatalf("steam: GET /identity-providers: slug=%s protocol=steam not found in list (%d items)",
-					steamSlug, len(list))
+					steamSlug, len(list.Items))
 			}
 			log.Printf("  GET /identity-providers: slug=%s protocol=steam present ✓", steamSlug)
 		}
@@ -5238,6 +5236,14 @@ type meResponse struct {
 	AvatarSource       *string           `json:"avatarSource,omitempty"`
 	AvatarSourceUrls   map[string]string `json:"avatarSourceUrls,omitempty"`
 	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
+}
+
+// page[T] mirrors the server's pagination.Page[T] wire envelope
+// {"items":[...],"nextCursor":"..."} used by every paginated admin list
+// endpoint. Self-service /me/* lists remain bare arrays and do NOT use this.
+type page[T any] struct {
+	Items      []T    `json:"items"`
+	NextCursor string `json:"nextCursor"`
 }
 
 func (c *client) beginEnrollment(token, username, display, nickname string) (*creationOptions, error) {
@@ -7802,19 +7808,19 @@ func verifyNewAuditEvents(accountID int32) error {
 // a non-empty ip value. The smoke runs against localhost so the IP will be
 // a loopback address; the assertion is presence, not value.
 func verifyAuditIPPopulated(c *client) error {
-	var events []contractAuditEvent
-	if err := c.get("/api/prohibitorum/audit-events?factor=session&event=session_start&limit=20", &events); err != nil {
+	var events page[contractAuditEvent]
+	if err := c.get("/api/prohibitorum/audit-events?factor=session&event=session_start&limit=100", &events); err != nil {
 		return fmt.Errorf("GET /audit-events?factor=session&event=session_start: %w", err)
 	}
-	if len(events) == 0 {
+	if len(events.Items) == 0 {
 		return errors.New("verifyAuditIPPopulated: no session:session_start events returned — new session_start emission not wired?")
 	}
-	for _, e := range events {
+	for _, e := range events.Items {
 		if e.IP != "" {
 			log.Printf("  audit IP populated: session:session_start event id=%d ip=%s ✓", e.ID, e.IP)
 			return nil
 		}
 	}
 	return fmt.Errorf("verifyAuditIPPopulated: %d session:session_start events but all have empty ip (ctx seam not wired?)",
-		len(events))
+		len(events.Items))
 }
