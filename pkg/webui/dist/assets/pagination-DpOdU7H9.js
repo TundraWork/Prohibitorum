@@ -1,0 +1,1 @@
+function u(r){return r?{items:r.items??[],nextCursor:r.nextCursor??""}:{items:[],nextCursor:""}}function c(r,t){const n=new URL(r,"http://localhost");t.cursor&&n.searchParams.set("cursor",t.cursor),t.limit!=null&&n.searchParams.set("limit",String(t.limit));const s=n.searchParams.toString(),e=r.indexOf("?"),i=e>=0?r.slice(0,e):r;return s?`${i}?${s}`:i}export{c as b,u};
