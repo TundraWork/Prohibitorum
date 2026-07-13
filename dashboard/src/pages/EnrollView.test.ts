@@ -15,12 +15,14 @@ vi.mock('@/lib/webauthn', () => ({
   passkeyRegister: vi.fn(async () => ({ id: 'cred', response: {} })),
   isUserCancel: () => false,
 }))
+import { passkeyRegister } from '@/lib/webauthn'
 
 const { hardRedirect } = vi.hoisted(() => ({ hardRedirect: vi.fn() }))
 vi.mock('@/lib/navigate', () => ({ hardRedirect }))
 
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
+const registerPasskey = vi.mocked(passkeyRegister)
 
 const stub = defineComponent({ template: '<div/>' })
 const TOKEN = 'tok_abc'
@@ -52,6 +54,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   get.mockReset()
   post.mockReset()
+  registerPasskey.mockClear()
   hardRedirect.mockReset()
 })
 
@@ -164,6 +167,41 @@ describe('EnrollView', () => {
     const wrapper = await mountView(await makeRouter())
 
     expect(wrapper.text()).toContain('your device will ask you to create a passkey')
+  })
+
+  it('clears a displayed enrollment error when dismissed', async () => {
+    get.mockResolvedValue({ intent: 'invite', expiresAt: '2099-01-01T00:00:00Z' })
+    post.mockRejectedValue({ code: 'forbidden' })
+    const wrapper = await mountView(await makeRouter())
+
+    await wrapper.find('input[name=username]').setValue('alex')
+    await wrapper.find('input[name=displayName]').setValue('Alex Smith')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+
+    await wrapper.get('[data-test="error-dismiss"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('clears a displayed WebAuthn error when dismissed', async () => {
+    get.mockResolvedValue({ intent: 'invite', expiresAt: '2099-01-01T00:00:00Z' })
+    post.mockResolvedValue({ challenge: 'c' })
+    registerPasskey.mockRejectedValueOnce(new Error('browser failure'))
+    const wrapper = await mountView(await makeRouter())
+
+    await wrapper.find('input[name=username]').setValue('alex')
+    await wrapper.find('input[name=displayName]').setValue('Alex Smith')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain(en.errors.codes.webauthn_error)
+
+    await wrapper.get('[data-test="error-dismiss"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
   it('routes to /error when the preview fails', async () => {

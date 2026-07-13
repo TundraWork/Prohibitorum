@@ -46,10 +46,15 @@ describe('AdminGroupsView', () => {
     expect(push).toHaveBeenCalledWith('/admin/groups/2')
   })
 
-  it('shows empty state when no groups', async () => {
+  it('shows the empty state with a resolved icon and no Vue warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     get.mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
+    const warnings = warn.mock.calls.flat().join(' ')
+    warn.mockRestore()
+
     expect(w.text()).toContain(en.admin.groups.empty)
+    expect(warnings).not.toContain('UsersRound')
   })
 
   it('creates a group and shows created note', async () => {

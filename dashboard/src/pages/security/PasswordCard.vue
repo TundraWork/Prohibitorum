@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /** PasswordCard — set/replace the password (always sudo-gated server-side). */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
+import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -17,7 +18,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 const props = defineProps<{ set?: boolean }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const { busy, error, run, clear } = useApi()
 const pw = ref('')
 const confirm = ref('')

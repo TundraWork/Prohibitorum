@@ -24,6 +24,7 @@
 
 import { ref, computed, onMounted, type Ref } from 'vue'
 import type { Page } from '@/lib/pagination'
+import { isApiError, type ApiError } from '@/lib/errors'
 
 export type { Page }
 
@@ -33,7 +34,7 @@ export interface CursorPage<T> {
   pageIndex: Ref<number>
   hasMore: Ref<boolean>
   busy: Ref<boolean>
-  error: Ref<{ code: string; details?: Record<string, unknown>; requestId?: string } | null>
+  error: Ref<ApiError | null>
   next: () => Promise<void>
   previous: () => Promise<void>
   reset: () => Promise<void>
@@ -48,7 +49,7 @@ export function useCursorPage<T>(fetcher: CursorFetcher<T>): CursorPage<T> {
   const nextCursor = ref('')
   const pageIndex = ref(0)
   const busy = ref(false)
-  const error = ref<CursorPage<T>['error']['value']>(null)
+  const error: Ref<ApiError | null> = ref(null)
 
   // Cursor history: pageCursors[i] = the cursor used to fetch page i.
   // pageCursors[0] = '' (first page, no cursor).
@@ -78,9 +79,11 @@ export function useCursorPage<T>(fetcher: CursorFetcher<T>): CursorPage<T> {
       }
     } catch (err: unknown) {
       if (myId !== requestId) return
-      const apiErr = err as { code?: string; details?: Record<string, unknown>; requestId?: string }
-      if (apiErr && typeof apiErr.code === 'string') {
-        error.value = { code: apiErr.code, details: apiErr.details, requestId: apiErr.requestId }
+      if (isApiError(err)) {
+        const apiError: ApiError = { code: err.code }
+        if (err.details !== undefined) apiError.details = err.details
+        if (err.requestId !== undefined) apiError.requestId = err.requestId
+        error.value = apiError
       } else {
         error.value = { code: 'network_error' }
       }

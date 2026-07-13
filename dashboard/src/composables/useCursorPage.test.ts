@@ -4,6 +4,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { useCursorPage, type Page } from './useCursorPage'
 import type { Page as PageType } from '@/lib/pagination'
+import { isApiError } from '@/lib/errors'
 
 // Mock i18n minimally — useCursorPage does not use i18n, but Vue component
 // mounting requires the plugin for components that use useI18n.
@@ -211,13 +212,28 @@ describe('useCursorPage', () => {
     expect(w.vm.page.items.value).toEqual([42])
   })
 
-  it('sets error when the fetcher throws', async () => {
-    const fetcher = vi.fn().mockRejectedValue({ code: 'forbidden' })
+  it('keeps ApiError failures typed, prose-free, and explicitly clearable', async () => {
+    const thrown = {
+      code: 'forbidden',
+      details: { reason: 'not_registered' },
+      requestId: 'rid-cursor',
+      message: 'raw server prose',
+    }
+    const fetcher = vi.fn().mockRejectedValue(thrown)
     const Host = makeHost(fetcher)
     const w = mount(Host, { global: { plugins: [i18n] } })
     await flushPromises()
-    expect(w.vm.page.error.value).toEqual({ code: 'forbidden' })
+    expect(isApiError(w.vm.page.error.value)).toBe(true)
+    expect(w.vm.page.error.value).toEqual({
+      code: 'forbidden',
+      details: { reason: 'not_registered' },
+      requestId: 'rid-cursor',
+    })
     expect(w.vm.page.items.value).toEqual([])
+
+    w.vm.page.clear()
+
+    expect(w.vm.page.error.value).toBeNull()
   })
 
   it('clears error on a successful fetch after failure', async () => {

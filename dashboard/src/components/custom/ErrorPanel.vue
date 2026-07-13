@@ -32,7 +32,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import type { ApiError } from '@/lib/errors'
-import { errorTranslationKey, detailLabelKey, recoveryLabelKey, localizedDetailEntries } from '@/lib/errors'
+import { errorTranslationKey, recoveryLabelKey, localizedDetailEntries } from '@/lib/errors'
 import { codeDefinition, GLOBAL_ERROR_CODES } from '@/lib/errorCodes'
 
 interface DiagnosticRecord {

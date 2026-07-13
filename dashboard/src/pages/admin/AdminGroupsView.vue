@@ -23,6 +23,7 @@ import SettingRow from '@/components/custom/SettingRow.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PaginationControls from '@/components/custom/PaginationControls.vue'
+import { UsersRound } from 'lucide-vue-next'
 
 interface GroupView {
   id: number
@@ -45,7 +46,6 @@ const page = useCursorPage<GroupView>((cursor) =>
 const rows = page.items
 const createOpen = ref(false)
 const displayError = computed(() => page.error.value ?? error.value)
-const displayBusy = computed(() => page.busy.value || busy)
 function clearError(): void { page.clear(); clear() }
 
 // Create form state

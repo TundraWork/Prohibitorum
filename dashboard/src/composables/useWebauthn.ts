@@ -39,10 +39,7 @@ export function useWebauthn() {
       return await passkeyGet(optionsJSON)
     } catch (err: unknown) {
       if (!isUserCancel(err)) {
-        error.value = {
-          code: 'webauthn_error',
-          message: err instanceof Error ? err.message : 'Authentication failed',
-        }
+        error.value = { code: 'webauthn_error' }
       }
       // User-cancel: reset silently (no error banner)
       return undefined
@@ -61,10 +58,7 @@ export function useWebauthn() {
       return await passkeyRegister(optionsJSON)
     } catch (err: unknown) {
       if (!isUserCancel(err)) {
-        error.value = {
-          code: 'webauthn_error',
-          message: err instanceof Error ? err.message : 'Registration failed',
-        }
+        error.value = { code: 'webauthn_error' }
       }
       return undefined
     } finally {
@@ -72,5 +66,9 @@ export function useWebauthn() {
     }
   }
 
-  return { busy, error, authenticate, register }
+  function clear(): void {
+    error.value = null
+  }
+
+  return { busy, error, authenticate, register, clear }
 }

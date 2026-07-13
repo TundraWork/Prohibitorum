@@ -63,10 +63,15 @@ const { t } = useI18n()
 
 const token = String(route.params.token ?? '')
 
-const { busy: netBusy, error: netError, run } = useApi()
-const { busy: waBusy, error: waError, register } = useWebauthn()
+const { busy: netBusy, error: netError, run, clear: clearNetError } = useApi()
+const { busy: waBusy, error: waError, register, clear: clearWebauthnError } = useWebauthn()
 const busy = computed(() => netBusy.value || waBusy.value)
 const error = computed<ApiError | null>(() => netError.value ?? waError.value)
+
+function clearError(): void {
+  clearNetError()
+  clearWebauthnError()
+}
 
 const preview = ref<EnrollmentPreview | null>(null)
 const loading = ref(true)
@@ -209,7 +214,7 @@ async function enroll(): Promise<void> {
         </div>
       </template>
 
-      <ErrorPanel :error="error" @dismiss="clear" />
+      <ErrorPanel :error="error" @dismiss="clearError" />
 
       <p class="text-xs text-muted">{{ t('enroll.passkeyForeshadow') }}</p>
 

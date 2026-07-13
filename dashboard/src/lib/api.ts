@@ -20,7 +20,6 @@
  */
 export type { ApiError } from './errors'
 export { isApiError } from './errors'
-import { isApiError } from './errors'
 import { parseApiError, type ApiError } from './errors'
 
 const REQUEST_TIMEOUT_MS = 15000

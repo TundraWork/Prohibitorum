@@ -13,6 +13,15 @@ beforeEach(() => post.mockReset())
 const mountCard = () => mount(PasswordCard, { global: { plugins: [i18n()] } })
 
 describe('PasswordCard', () => {
+  it('resolves the error panel without a Vue warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mountCard()
+    const warnings = warn.mock.calls.flat().join(' ')
+    warn.mockRestore()
+
+    expect(warnings).not.toContain('Failed to resolve component: ErrorPanel')
+  })
+
   it('rejects a short password before calling the API', async () => {
     const w = mountCard()
     await w.find('input[name=new_password]').setValue('short')
