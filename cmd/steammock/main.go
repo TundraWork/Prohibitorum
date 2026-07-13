@@ -127,9 +127,9 @@ func handleSummaries(w http.ResponseWriter, r *http.Request) {
 					"steamid":     steamID,
 					"personaname": "SmokeGaben",
 					// avatarfull must be a reachable URL; the avatar-inherit goroutine
-					// will fetch it. Use the same mock host (the smoke sets
-					// PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK=true so localhost
-					// URLs are permitted).
+					// will fetch it. Use the same mock host (the smoke seeds the
+					// upstream IdP with allow_private_network=true so localhost URLs
+					// are permitted).
 					"avatarfull": "http://" + r.Host + "/avatar.png",
 				},
 			},

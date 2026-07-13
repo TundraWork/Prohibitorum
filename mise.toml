@@ -153,7 +153,6 @@ scripts/db.sh recreate-db prohibitorum_smoke
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_smoke?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
-export PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK="true"
 # Steam mock: build + start before the main server so the env vars that redirect
 # the Steam endpoints are set when the server binary reads them at startup.
 STEAM_MOCK_BIN="$(mktemp -d)/steammock"

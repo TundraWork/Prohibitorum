@@ -48,7 +48,6 @@
 |----------|---------|---------|
 | `PROHIBITORUM_FEDERATION_STATE_TTL` | `10m` | Lifetime of the single-use federation state blob. |
 | `PROHIBITORUM_FEDERATION_DEFAULT_SCOPES` | `openid,profile,email` | Scopes requested from an upstream when none are set per-IdP. (List value — prefer `config.yaml`.) |
-| `PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK` | `false` | Disable the outbound federation client's SSRF dial-screen. Set `true` only for a trusted internal upstream IdP (or the loopback mock OP in tests). |
 
 ## TOTP
 
@@ -99,6 +98,6 @@ export PROHIBITORUM_KV_REDIS_USERNAME="prohibitorum"   # Redis 6+ ACL (optional)
 export PROHIBITORUM_KV_REDIS_PASSWORD="$REDIS_PASSWORD"
 ```
 
-Outbound federation fetches (discovery / JWKS / token exchange) run on an SSRF-hardened client that refuses loopback, private (RFC1918 / ULA), link-local, and cloud-metadata addresses; the admin API rejects non-`https` or IP-literal issuer URLs. To federate with an IdP on a private network, set `PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK=true`.
+Outbound federation fetches (discovery / JWKS / token exchange) run on an SSRF-hardened client that refuses loopback, private (RFC1918 / ULA), link-local, and cloud-metadata addresses; the admin API rejects non-`https` or IP-literal issuer URLs. To federate with an IdP on a private network, enable **Admin → Identity Providers → allowPrivateNetwork** for that IdP (default `false`); the per-IdP policy narrowly screens the dial-time internal-IP check so only RFC1918 / IPv6 ULA / loopback destinations become eligible, while link-local, cloud-metadata, multicast, and other special-use addresses remain blocked unconditionally.
 
 Behind a TLS-terminating reverse proxy, keep `PROHIBITORUM_PUBLIC_ORIGIN` on `https://…` so session cookies are issued with the `Secure` flag. Client-IP resolution is no longer controlled by an env var — configure it in **Admin → Settings → Client IP**: the default `direct` strategy uses the TCP peer address; switch to `forwarded` (X-Forwarded-For) or a named header and specify trusted-proxy CIDRs so forwarding headers are honored only when the direct peer is a trusted proxy.

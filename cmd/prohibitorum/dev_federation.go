@@ -235,6 +235,7 @@ func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mo
 			Scopes: scopes, Mode: mode, AllowedDomains: []string{},
 			UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
 			RequireVerifiedEmail: false, Disabled: false, PictureClaim: "picture",
+			AllowPrivateNetwork: true, // loopback-only dev harness upstream
 		}); err != nil {
 			log.Fatalf("dev-federation: update idp %q: %v", slug, err)
 		}
@@ -247,6 +248,7 @@ func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mo
 			Scopes: scopes, Mode: mode, AllowedDomains: []string{},
 			UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
 			RequireVerifiedEmail: false, PictureClaim: "picture",
+			AllowPrivateNetwork: true, // loopback-only dev harness upstream
 		})
 		if err != nil {
 			log.Fatalf("dev-federation: insert idp %q: %v", slug, err)

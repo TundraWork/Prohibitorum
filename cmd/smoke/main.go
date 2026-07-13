@@ -626,7 +626,7 @@ func main() {
 	dek := loadDEK()
 	mockopIDPID, err := seedUpstreamIDP(dek, "mockop", "Mock OP", opTS.URL,
 		"test-client", "test-client-secret", "auto_provision",
-		[]string{"example.com"}, true)
+		[]string{"example.com"}, true, true)
 	if err != nil {
 		log.Fatalf("seed upstream_idp 'mockop': %v", err)
 	}
@@ -802,7 +802,7 @@ func main() {
 	step(fmt.Sprintf("federation %d/%d — seed upstream_idp 'mockop-link' (link_only mode)", 15, nFederation))
 	linkIDPID, err := seedUpstreamIDP(dek, "mockop-link", "Mock OP (link-only)", opTS.URL,
 		"test-client", "test-client-secret", "link_only",
-		[]string{"example.com"}, true)
+		[]string{"example.com"}, true, true)
 	if err != nil {
 		log.Fatalf("seed mockop-link: %v", err)
 	}
@@ -1041,8 +1041,8 @@ func main() {
 	//   avatar-fed 3 — userinfo fallback: picture only in /userinfo → inherited.
 	//
 	// The avatar fetch hits the mockop /avatar.png image endpoint (Part B) and
-	// is SSRF-allowed because mockop is on 127.0.0.1 and the server runs with
-	// PROHIBITORUM_FEDERATION_ALLOW_PRIVATE_NETWORK=true.
+	// is SSRF-allowed because mockop is on 127.0.0.1 and seeded with
+	// allow_private_network=true (per-IdP seedUpstreamIDP policy).
 	// =========================================================================
 
 	step("avatar-fed 1/4 — federated first login inherits upstream id_token picture")
@@ -6361,10 +6361,12 @@ func loadDEK() []byte {
 }
 
 // seedUpstreamIDP INSERTs an upstream_idp row with the supplied policy
-// fields, then re-encrypts the client_secret using the returned row id
-// (the AAD binds the ciphertext to the id) and UPDATEs the row. Returns
-// the row id.
-func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecret, mode string, allowedDomains []string, requireVerifiedEmail bool) (int64, error) {
+// fields (including the per-IdP allow_private_network flag, which controls
+// whether the outbound federation dial-time internal-IP screen is disabled
+// for this IdP only), then re-encrypts the client_secret using the returned
+// row id (the AAD binds the ciphertext to the id) and UPDATEs the row.
+// Returns the row id.
+func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecret, mode string, allowedDomains []string, requireVerifiedEmail, allowPrivateNetwork bool) (int64, error) {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
 		return 0, errors.New("PROHIBITORUM_DATABASE_URL not set")
@@ -6391,13 +6393,13 @@ func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecr
 	if err := conn.QueryRow(ctx, `INSERT INTO upstream_idp
 		(slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce,
 		 key_version, scopes, mode, allowed_domains, username_claim, display_name_claim,
-		 email_claim, require_verified_email)
+		 email_claim, require_verified_email, allow_private_network)
 		VALUES ($1, $2, $3, $4, $5, $6, 1,
 		  ARRAY['openid','profile','email']::text[], $7, $8,
-		  'preferred_username', 'name', 'email', $9)
+		  'preferred_username', 'name', 'email', $9, $10)
 		RETURNING id`,
 		slug, displayName, issuer, clientID, []byte{0}, []byte{0},
-		mode, allowedDomains, requireVerifiedEmail).Scan(&id); err != nil {
+		mode, allowedDomains, requireVerifiedEmail, allowPrivateNetwork).Scan(&id); err != nil {
 		return 0, fmt.Errorf("insert: %w", err)
 	}
 	ct, nonce, err := fedoidc.EncryptClientSecret(dek, []byte(clientSecret), id, 1)
