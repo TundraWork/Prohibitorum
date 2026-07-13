@@ -41,7 +41,6 @@ type nestedQueries interface {
 	ListOIDCClientAccessAccountsPage(ctx context.Context, arg db.ListOIDCClientAccessAccountsPageParams) ([]db.ListOIDCClientAccessAccountsPageRow, error)
 	ListSAMLSPAccessGroupsPage(ctx context.Context, arg db.ListSAMLSPAccessGroupsPageParams) ([]db.ListSAMLSPAccessGroupsPageRow, error)
 	ListSAMLSPAccessAccountsPage(ctx context.Context, arg db.ListSAMLSPAccessAccountsPageParams) ([]db.ListSAMLSPAccessAccountsPageRow, error)
-	ListAccountIdentitiesByAccountPage(ctx context.Context, arg db.ListAccountIdentitiesByAccountPageParams) ([]db.ListAccountIdentitiesByAccountPageRow, error)
 }
 
 // nestedQ resolves the nested query surface: override (tests) or production.
@@ -121,28 +120,6 @@ func decodeASCTextIntKey(keys []string) (string, int32) {
 		return "", 0
 	}
 	return keys[0], int32(id)
-}
-
-// encodeIdentityKeyset encodes a (linked_at, id) DESC keyset position for
-// identity pagination. Returns [rfc3339Nano(linkedAt), strconv(id)].
-func encodeIdentityKeyset(t pgtype.Timestamptz, id int64) []string {
-	return []string{t.Time.UTC().Format(time.RFC3339Nano), strconv.FormatInt(id, 10)}
-}
-
-// decodeIdentityKeyset decodes a DESC (linked_at, id) keyset position.
-func decodeIdentityKeyset(keys []string) (pgtype.Timestamptz, int64) {
-	if len(keys) < 2 {
-		return pgtype.Timestamptz{}, 0
-	}
-	t, err := time.Parse(time.RFC3339Nano, keys[0])
-	if err != nil {
-		return pgtype.Timestamptz{}, 0
-	}
-	id, err := strconv.ParseInt(keys[1], 10, 64)
-	if err != nil {
-		return pgtype.Timestamptz{}, 0
-	}
-	return pgtype.Timestamptz{Time: t, Valid: true}, id
 }
 
 // ---------------------------------------------------------------------------

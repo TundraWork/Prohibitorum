@@ -127,10 +127,6 @@ func (f *fakeFedQueries) ListAccountIdentitiesByAccount(_ context.Context, _ int
 	return nil, nil
 }
 
-func (f *fakeFedQueries) ListAccountIdentitiesByAccountPage(_ context.Context, _ db.ListAccountIdentitiesByAccountPageParams) ([]db.ListAccountIdentitiesByAccountPageRow, error) {
-	return nil, nil
-}
-
 func (f *fakeFedQueries) GetAccountIdentityByIssuerSub(_ context.Context, _ db.GetAccountIdentityByIssuerSubParams) (db.AccountIdentity, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

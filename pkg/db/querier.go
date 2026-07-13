@@ -138,9 +138,6 @@ type Querier interface {
 	IsAccountAuthorizedForSAMLSP(ctx context.Context, arg IsAccountAuthorizedForSAMLSPParams) (pgtype.Bool, error)
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
-	// Keyset-paginated identities for an account, ordered by (linked_at DESC, id DESC).
-	// NULL after_linked_at starts a new page. LIMIT is limit+1 for next-page detection.
-	ListAccountIdentitiesByAccountPage(ctx context.Context, arg ListAccountIdentitiesByAccountPageParams) ([]ListAccountIdentitiesByAccountPageRow, error)
 	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
 	ListAllSigningKeys(ctx context.Context, arg ListAllSigningKeysParams) ([]SigningKey, error)
 	ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamIDPsParams) ([]UpstreamIdp, error)

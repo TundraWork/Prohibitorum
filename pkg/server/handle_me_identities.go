@@ -34,7 +34,6 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
-	"prohibitorum/pkg/pagination"
 	fedoidc "prohibitorum/pkg/federation/oidc"
 	"prohibitorum/pkg/weberr"
 )
@@ -53,7 +52,6 @@ import (
 type meIdentitiesQueries interface {
 	authn.FlowQueries
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]db.ListAccountIdentitiesByAccountRow, error)
-	ListAccountIdentitiesByAccountPage(ctx context.Context, arg db.ListAccountIdentitiesByAccountPageParams) ([]db.ListAccountIdentitiesByAccountPageRow, error)
 	DeleteAccountIdentity(ctx context.Context, arg db.DeleteAccountIdentityParams) (int64, error)
 	GetAccountByIDForUpdate(ctx context.Context, id int32) (db.Account, error)
 }
@@ -83,74 +81,29 @@ type identityView struct {
 }
 
 // GET /api/prohibitorum/me/identities
+//
+// Returns a bare JSON array of the account's federated identities (no
+// pagination envelope). Self-service identity listing is bounded by the
+// small number of IdPs an account links, so keyset pagination is
+// unnecessary here; the admin nested collections keep their own page
+// contract. The empty case serializes as [] (never null) so JS clients
+// can .map() without a nil-guard.
 func (s *Server) handleMeIdentitiesListHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
-	q := r.URL.Query()
-	lim := pagination.Limit(0)
-	if l := q.Get("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil {
-			lim = pagination.Limit(v)
-		}
-	}
-	cursorStr := q.Get("cursor")
-	const collection = "me_identities"
-	const sortID = "linked_at"
-	filters := map[string]string{"accountId": strconv.FormatInt(int64(sess.Account.ID), 10)}
-	payload, err := s.decodeCursor(cursorStr, collection, sortID, filters)
-	if err != nil {
-		writeCursorInvalidErr(w, err)
-		return
-	}
-	afterLinkedAt, afterID := decodeIdentityKeyset(payload.Keys)
-	rows, err := s.meIdentitiesQ().ListAccountIdentitiesByAccountPage(r.Context(), db.ListAccountIdentitiesByAccountPageParams{
-		AccountID:     sess.Account.ID,
-		AfterLinkedAt: afterLinkedAt,
-		AfterID:       afterID,
-		RowLimit:      int32(lim + 1),
-	})
+	rows, err := s.meIdentitiesQ().ListAccountIdentitiesByAccount(r.Context(), sess.Account.ID)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	hasMore := len(rows) > lim
-	if hasMore {
-		rows = rows[:lim]
-	}
-	// Empty result must be [], not null — JS clients .map() the response
-	// without a nil-guard.
 	out := make([]identityView, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, projectIdentityPageRow(row))
+		out = append(out, projectIdentityRow(row))
 	}
-	nextCursor := ""
-	if hasMore && len(rows) > 0 {
-		last := rows[len(rows)-1]
-		nextCursor = s.encodeNextCursor(collection, sortID, filters, encodeIdentityKeyset(last.LinkedAt, last.ID))
-	}
-	page := buildPage(out, nextCursor)
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(page)
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func projectIdentityRow(row db.ListAccountIdentitiesByAccountRow) identityView {
-	v := identityView{
-		ID:             row.ID,
-		IdpSlug:        row.IdpSlug,
-		IdpDisplayName: row.IdpDisplayName,
-	}
-	if row.UpstreamEmail.Valid {
-		s := row.UpstreamEmail.String
-		v.UpstreamEmail = &s
-	}
-	v.LinkedAt = row.LinkedAt.Time.UTC().Format(time.RFC3339)
-	return v
-}
-
-// projectIdentityPageRow projects a ListAccountIdentitiesByAccountPageRow into
-// the wire view. The page query returns the same columns as the non-page query
-// but as a distinct sqlc-generated type; this wrapper avoids an explicit
-// conversion by duplicating the field mapping.
-func projectIdentityPageRow(row db.ListAccountIdentitiesByAccountPageRow) identityView {
 	v := identityView{
 		ID:             row.ID,
 		IdpSlug:        row.IdpSlug,

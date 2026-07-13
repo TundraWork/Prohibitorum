@@ -90,9 +90,6 @@ func (f *adminFakePATQ) ListSAMLSPAccessGroupsPage(_ context.Context, arg db.Lis
 func (f *adminFakePATQ) ListSAMLSPAccessAccountsPage(_ context.Context, arg db.ListSAMLSPAccessAccountsPageParams) ([]db.ListSAMLSPAccessAccountsPageRow, error) {
 	return nil, nil
 }
-func (f *adminFakePATQ) ListAccountIdentitiesByAccountPage(_ context.Context, arg db.ListAccountIdentitiesByAccountPageParams) ([]db.ListAccountIdentitiesByAccountPageRow, error) {
-	return nil, nil
-}
 
 // Legacy patQueries methods (still needed for /me/tokens handler tests).
 func (f *adminFakePATQ) ListPATsByAccount(_ context.Context, _ int32) ([]db.PersonalAccessToken, error) {

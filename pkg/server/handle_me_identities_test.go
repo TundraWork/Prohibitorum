@@ -136,24 +136,6 @@ func (f *fakeIdentitiesQueries) ListAccountIdentitiesByAccount(_ context.Context
 	return out, nil
 }
 
-func (f *fakeIdentitiesQueries) ListAccountIdentitiesByAccountPage(ctx context.Context, arg db.ListAccountIdentitiesByAccountPageParams) ([]db.ListAccountIdentitiesByAccountPageRow, error) {
-	// Reuse the same filtering as ListAccountIdentitiesByAccount, converting
-	// to the page row type (identical fields).
-	rows, _ := f.ListAccountIdentitiesByAccount(ctx, arg.AccountID)
-	out := make([]db.ListAccountIdentitiesByAccountPageRow, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, db.ListAccountIdentitiesByAccountPageRow{
-			ID: r.ID, AccountID: r.AccountID, UpstreamIdpID: r.UpstreamIdpID,
-			UpstreamIss: r.UpstreamIss, UpstreamSub: r.UpstreamSub,
-			UpstreamEmail: r.UpstreamEmail, LinkedAt: r.LinkedAt,
-			ConfirmedAt: r.ConfirmedAt, IdpSlug: r.IdpSlug, IdpDisplayName: r.IdpDisplayName,
-		})
-	}
-	if int32(len(out)) > arg.RowLimit {
-		out = out[:arg.RowLimit]
-	}
-	return out, nil
-}
 
 // CountUsableSignInFederation counts identity rows for the account whose
 // upstream IdP is ENABLED (i.e., whose ID appears in usableIdentityIDs).
@@ -342,8 +324,8 @@ func TestMeIdentities_List_Empty(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
 	}
-	if got := strings.TrimSpace(w.Body.String()); got != `{"items":[],"nextCursor":""}` {
-		t.Errorf("body: want {\"items\":[],\"nextCursor\":\"\"}, got %q", got)
+	if got := strings.TrimSpace(w.Body.String()); got != `[]` {
+		t.Errorf("body: want [], got %q", got)
 	}
 }
 
@@ -360,14 +342,10 @@ func TestMeIdentities_List_TwoRows(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
 	}
-	var page struct {
-		Items      []identityView `json:"items"`
-		NextCursor string         `json:"nextCursor"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
+	var got []identityView
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v (body=%s)", err, w.Body.String())
 	}
-	got := page.Items
 	if len(got) != 2 {
 		t.Fatalf("rows: want 2, got %d (body=%s)", len(got), w.Body.String())
 	}
@@ -385,9 +363,6 @@ func TestMeIdentities_List_TwoRows(t *testing.T) {
 	}
 	if got[0].LinkedAt == "" {
 		t.Errorf("linkedAt empty")
-	}
-	if page.NextCursor != "" {
-		t.Errorf("nextCursor: want empty, got %q", page.NextCursor)
 	}
 }
 

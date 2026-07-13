@@ -1,7 +1,7 @@
 // Package server — handle_nested_pagination_test.go
 //
 // Tests for nested admin collection pagination: credentials, sessions, PATs,
-// identities, groups, group members, and OIDC/SAML access groups/accounts.
+// groups, group members, and OIDC/SAML access groups/accounts.
 //
 // These tests verify the cursor page contract on nested collections:
 //   - Parent-not-found returns 404 (not 200 + empty page).
@@ -363,10 +363,6 @@ func (f *fakeNestedQ) ListSAMLSPAccessAccountsPage(_ context.Context, arg db.Lis
 		out = out[:arg.RowLimit]
 	}
 	return out, nil
-}
-
-func (f *fakeNestedQ) ListAccountIdentitiesByAccountPage(_ context.Context, arg db.ListAccountIdentitiesByAccountPageParams) ([]db.ListAccountIdentitiesByAccountPageRow, error) {
-	return nil, nil
 }
 
 // noopSessionQueriesForServer is a no-op SessionQueries for server tests.
@@ -976,39 +972,6 @@ func TestNestedPage_NoBareArray(t *testing.T) {
 	}
 	if _, ok := raw["items"]; !ok {
 		t.Fatalf("response missing 'items' field: %s", b)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// /me/identities handler — page shape
-// ---------------------------------------------------------------------------
-
-func TestHandleMeIdentities_PageShape(t *testing.T) {
-	t.Parallel()
-
-	fakeQ := &fakeNestedQ{}
-	s := &Server{
-		cursorCodec:           testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:                 noopAuditWriter{},
-	}
-
-	// /me/identities is a raw HTTP handler, so we test via the projection
-	// and page construction logic. The handler requires a session context.
-	_ = s // handler needs session context; projection covered by existing tests
-
-	// Verify contract.Page[identityView] serializes correctly.
-	page := buildPage([]identityView{{ID: 1, IdpSlug: "test", IdpDisplayName: "Test", LinkedAt: "2024-01-01T00:00:00Z"}}, "")
-	b, _ := json.Marshal(page)
-	var raw map[string]any
-	if err := json.Unmarshal(b, &raw); err != nil {
-		t.Fatalf("identity page is not a JSON object: %v", err)
-	}
-	if _, ok := raw["items"]; !ok {
-		t.Fatal("identity page missing 'items' field")
-	}
-	if raw["nextCursor"] != "" {
-		t.Errorf("nextCursor should be empty, got %v", raw["nextCursor"])
 	}
 }
 
