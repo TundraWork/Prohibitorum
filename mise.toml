@@ -110,7 +110,7 @@ run = "scripts/db.sh"
 
 [tasks.ci]
 description = "CI: the full fast gate (ci:go + ci:frontend) — the same task the CI `gate` job runs."
-depends = ["ci:go", "ci:frontend"]
+run = "mise run ci:go && mise run ci:frontend"
 
 [tasks."ci:go"]
 hide = true
