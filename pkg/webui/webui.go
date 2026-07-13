@@ -56,10 +56,28 @@ func Handler(instanceName string) http.Handler {
 func setSecurityHeaders(w http.ResponseWriter) {
 	// Style CSP is split into the two finer-grained directives now that the
 	// frontend is Tailwind v4 + shadcn-vue (no Nuxt UI runtime <style> injection):
-	//   style-src-elem 'self'      — all CSS ships as a static, same-origin
-	//                                <link> stylesheet; NO inline <style> elements
-	//                                are emitted (verified: dist/index.html has
-	//                                zero <style> tags), so stylesheets stay strict.
+	//   style-src-elem 'self' 'sha256-…' — all CSS ships as a static, same-origin
+	//                                <link> stylesheet. The ONE exception is a
+	//                                runtime <style> element Reka UI's Select
+	//                                component injects to hide scrollbars on the
+	//                                viewport:
+	//                                  [data-reka-select-viewport] {
+	//                                    scrollbar-width:none;
+	//                                    -ms-overflow-style: none;
+	//                                    -webkit-overflow-scrolling: touch;
+	//                                  }
+	//                                  [data-reka-select-viewport]::-webkit-scrollbar {
+	//                                    display: none;
+	//                                  }
+	//                                whose browser-confirmed hash is
+	//                                sha256-60LHlRjW/B3CtzIoE/Lf1/NEDvko9efWMFaGVhHu/cs=
+	//                                (bound to the installed reka-ui version).
+	//                                A narrow hash allows ONLY that exact style
+	//                                element; any other inline <style> — including
+	//                                a changed scrollbar rule from a dependency
+	//                                bump — is blocked. This is strictly tighter
+	//                                than 'unsafe-inline', which would permit any
+	//                                inline style content.
 	//   style-src-attr 'unsafe-inline' — Reka UI writes inline style *attributes*
 	//                                for popover/dialog positioning, and a few of
 	//                                our components bind :style (e.g. the card's
@@ -80,7 +98,7 @@ func setSecurityHeaders(w http.ResponseWriter) {
 	// check (e.g. a dependency starts emitting inline <style> elements), revert to
 	// "style-src 'self' 'unsafe-inline'" — no worse than the pre-rebuild policy.
 	w.Header().Set("Content-Security-Policy",
-		"default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; img-src 'self' data: blob:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
+		"default-src 'self'; script-src 'self'; style-src-elem 'self' 'sha256-60LHlRjW/B3CtzIoE/Lf1/NEDvko9efWMFaGVhHu/cs='; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; img-src 'self' data: blob:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
