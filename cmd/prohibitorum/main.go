@@ -14,7 +14,7 @@ import (
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
 	"prohibitorum/pkg/logx"
 	"prohibitorum/pkg/protocol/oidc"
 	"prohibitorum/pkg/protocol/saml"
@@ -916,15 +916,15 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			if err != nil {
 				log.Fatalf("upstream-idp create: insert: %v", err)
 			}
-			ciphertext, nonce, err := fedoidc.EncryptClientSecret(dek, []byte(uClientSecret), row.ID, keyVer)
+			sealed, err := federation.SealProviderSecret(dek, []byte(uClientSecret), row.ID, keyVer)
 			if err != nil {
 				_ = q.DeleteUpstreamIDP(ctx, row.ID)
 				log.Fatalf("upstream-idp create: seal: %v", err)
 			}
 			if err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
 				Slug:            row.Slug,
-				ClientSecretEnc: ciphertext,
-				SecretNonce:     nonce,
+				ClientSecretEnc: sealed.Ciphertext,
+				SecretNonce:     sealed.Nonce,
 				KeyVersion:      keyVer,
 			}); err != nil {
 				_ = q.DeleteUpstreamIDP(ctx, row.ID)
@@ -1086,14 +1086,14 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				}
 				log.Fatalf("upstream-idp rotate-secret: lookup: %v", err)
 			}
-			ciphertext, nonce, err := fedoidc.EncryptClientSecret(dek, []byte(rSecret), row.ID, keyVer)
+			sealed, err := federation.SealProviderSecret(dek, []byte(rSecret), row.ID, keyVer)
 			if err != nil {
 				log.Fatalf("upstream-idp rotate-secret: seal: %v", err)
 			}
 			if err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
 				Slug:            rSlug,
-				ClientSecretEnc: ciphertext,
-				SecretNonce:     nonce,
+				ClientSecretEnc: sealed.Ciphertext,
+				SecretNonce:     sealed.Nonce,
 				KeyVersion:      keyVer,
 			}); err != nil {
 				log.Fatalf("upstream-idp rotate-secret: update: %v", err)
@@ -1159,10 +1159,10 @@ const metadataMaxBytes = 1 << 20 // 1 MiB
 // response body is capped at metadataMaxBytes; the caller's context governs
 // cancellation.
 func fetchMetadata(ctx context.Context, rawURL string) ([]byte, error) {
-	if err := fedoidc.ValidateOutboundURL(rawURL); err != nil {
+	if err := federation.ValidateOutboundURL(rawURL); err != nil {
 		return nil, err
 	}
-	return fetchMetadataWithClient(ctx, rawURL, fedoidc.NewOutboundHTTPClient(false, metadataMaxBytes))
+	return fetchMetadataWithClient(ctx, rawURL, federation.NewOutboundHTTPClient(false, metadataMaxBytes))
 }
 
 // fetchMetadataWithClient is the testable seam for fetchMetadata: it runs the

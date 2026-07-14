@@ -34,7 +34,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
 	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/weberr"
 )
@@ -65,11 +65,11 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	req, err := s.federator.BeginLogin(r.Context(), slug, returnTo)
+	req, err := s.federationService.BeginLogin(r.Context(), slug, returnTo)
 	if err != nil {
 		// returnTo is validated + same-origin — forward it so the /error
 		// "go back" link can resume where the user started.
-		if errors.Is(err, fedoidc.ErrUnknownIDP) {
+		if errors.Is(err, federation.ErrUnknownProvider) {
 			// Collapse "no such slug" onto the generic state-invalid code so
 			// callers can't enumerate configured upstream IdP slugs.
 			redirectAuthErrToErrorReturn(w, r, authn.ErrFederationStateInvalid(), returnTo)
@@ -82,8 +82,8 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 	// Bind the flow to this browser (N4): the anti-forgery cookie must come
 	// back on the cross-site callback navigation, where it is matched against
 	// the state's BrowserBinding.
-	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.AntiForgeryToken))
-	http.Redirect(w, r, req.AuthorizeURL, http.StatusFound)
+	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
+	http.Redirect(w, r, req.Action.URL, http.StatusFound)
 }
 
 // handleFederationCallbackHTTP serves
@@ -132,7 +132,15 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		browserToken = c.Value
 	}
 
-	result, err := s.federator.HandleCallback(r.Context(), state, code, iss, browserToken, r.URL.Query())
+	provider, providerErr := s.federationService.ProviderBySlug(r.Context(), chi.URLParam(r, "slug"))
+	if providerErr != nil {
+		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
+		return
+	}
+	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
+		FlowID: state, BrowserToken: browserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol,
+		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
+	})
 	if err != nil {
 		// HandleCallback returns structured *authn.AuthError for every
 		// expected failure (federation_state_invalid, bad_credentials,
@@ -148,7 +156,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		// the federation-state pattern) and park the user on /welcome, where the
 		// confirm/decline endpoints read it. The fed-state cookie carries
 		// "<grant-token>.<anti-forgery>"; only the anti-forgery hash is in KV.
-		token, antiForgery, gerr := s.federator.CreateConfirmGrant(r.Context(), result.AccountID, result.IdentityID, result.IDPID, result.IDPSlug, result.ReturnTo, result.AMR)
+		token, antiForgery, gerr := s.federationService.CreateConfirmGrant(r.Context(), result.AccountID, result.IdentityID, result.ProviderID, result.ProviderSlug, result.ReturnTo, result.AMR)
 		if gerr != nil {
 			redirectAuthErrToError(w, r, gerr)
 			return
@@ -179,7 +187,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	}
 	// H1-sch: stamp the upstream IdP onto the session row so the OIDC OP can
 	// surface a "federated" discriminator in downstream id_token claims.
-	idpID := result.IDPID
+	idpID := result.ProviderID
 	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, ua, amr, &idpID)
 	if err != nil {
 		redirectAuthErrToError(w, r, err)
@@ -211,7 +219,7 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 		// generic "sign in with" button — a plain login on one is rejected
 		// pre-auth in begin(). Omit them so the login page never offers a
 		// doomed button.
-		if idp.Mode == fedoidc.ModeInviteOnly {
+		if idp.Mode == federation.ModeInviteOnly {
 			continue
 		}
 		out = append(out, contract.FederationProvider{

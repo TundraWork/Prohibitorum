@@ -1,4 +1,4 @@
-package oidc
+package federation
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -15,6 +16,8 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 )
+
+var ErrLocalUsernameRequired = errors.New("federation: local username required")
 
 // ModesQueries is the narrow DB surface modes.go needs. db.Queries (which
 // implements db.Querier) satisfies it implicitly; tests inject a fake.
@@ -33,13 +36,12 @@ type ModesQueries interface {
 	ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error)
 }
 
-// ResolveOutcome is the result of identity resolution. Confirmed=false routes the
-// HTTP layer to the /welcome confirmation gate (no session yet); Confirmed=true
-// means issue a durable session now. IdentityID is the account_identity row to
-// confirm on YES.
+// ResolveOutcome is the result of identity resolution.
 type ResolveOutcome struct {
 	AccountID  int32
 	IdentityID int64
+	ProviderID int64
+	AMR        []string
 	IsNew      bool
 	Confirmed  bool
 }
@@ -69,16 +71,16 @@ func Resolve(
 	q ModesQueries,
 	w audit.Writer,
 	idp *db.UpstreamIdp,
-	tokens *Tokens,
+	identity *VerifiedIdentity,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	if idp == nil || tokens == nil {
-		return ResolveOutcome{}, errors.New("federation/oidc: Resolve: nil idp or tokens")
+	if idp == nil || identity == nil {
+		return ResolveOutcome{}, errors.New("federation: Resolve: nil provider or identity")
 	}
 
 	existing, err := q.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
-		UpstreamIss: tokens.Issuer,
-		UpstreamSub: tokens.Subject,
+		UpstreamIss: identity.Issuer,
+		UpstreamSub: identity.Subject,
 	})
 	switch {
 	case err == nil:
@@ -89,7 +91,7 @@ func Resolve(
 		// in against IdP-B's slug and dodge B's provisioning gates. T4.3c.
 		if existing.UpstreamIdpID != idp.ID {
 			audit.RecordOrLog(ctx, w, audit.Record{
-				AccountID: int32Ptr(existing.AccountID),
+				AccountID: new(existing.AccountID),
 				Factor:    audit.FactorFederationOIDC,
 				Event:     audit.EventFail,
 				Detail: map[string]any{
@@ -97,8 +99,8 @@ func Resolve(
 					"idp_slug":         idp.Slug,
 					"bound_idp_id":     existing.UpstreamIdpID,
 					"attempted_idp_id": idp.ID,
-					"iss":              tokens.Issuer,
-					"sub":              tokens.Subject,
+					"iss":              identity.Issuer,
+					"sub":              identity.Subject,
 				},
 			})
 			return ResolveOutcome{}, authn.ErrFederationStateInvalid()
@@ -109,23 +111,25 @@ func Resolve(
 		//     (or a federated invite is still pending). Report Confirmed=false so
 		//     the HTTP layer routes back to the gate; do NOT emit Use — that's
 		//     recorded on confirm (Task 6) — and do NOT re-insert anything.
-		syncClaims(ctx, q, idp, &existing, tokens)
+		syncClaims(ctx, q, idp, &existing, identity)
 		confirmed := existing.ConfirmedAt.Valid
 		if confirmed {
 			audit.RecordOrLog(ctx, w, audit.Record{
-				AccountID: int32Ptr(existing.AccountID),
+				AccountID: new(existing.AccountID),
 				Factor:    audit.FactorFederationOIDC,
 				Event:     audit.EventUse,
 				Detail: map[string]any{
 					"idp_slug": idp.Slug,
-					"iss":      tokens.Issuer,
-					"sub":      tokens.Subject,
+					"iss":      identity.Issuer,
+					"sub":      identity.Subject,
 				},
 			})
 		}
 		return ResolveOutcome{
 			AccountID:  existing.AccountID,
 			IdentityID: existing.ID,
+			ProviderID: idp.ID,
+			AMR:        append([]string(nil), identity.AMR...),
 			IsNew:      false,
 			Confirmed:  confirmed,
 		}, nil
@@ -137,16 +141,16 @@ func Resolve(
 
 	switch idp.Mode {
 	case ModeAutoProvision:
-		return applyAutoProvision(ctx, q, w, idp, tokens, pool)
+		return applyAutoProvision(ctx, q, w, idp, identity, identity.Username, pool)
 	case ModeInviteOnly:
 		// Reaching invite_only via Resolve means HandleCallback did NOT see an
 		// EnrollmentToken on the FedState — i.e. someone hit /federation/{slug}/login
 		// directly on an invite_only IdP. Dispatch into applyInviteOnly with an
 		// empty token; the top of that function audits invite_required_no_token
 		// and rejects. Pool is nil — no DB writes happen on the rejection path.
-		return applyInviteOnly(ctx, q, w, idp, tokens, "", nil)
+		return applyInviteOnly(ctx, q, w, idp, identity, "", nil)
 	case ModeLinkOnly:
-		return applyLinkOnly(ctx, w, idp, tokens)
+		return applyLinkOnly(ctx, w, idp, identity)
 	default:
 		return ResolveOutcome{}, fmt.Errorf("federation/oidc: unknown idp.mode %q", idp.Mode)
 	}
@@ -170,30 +174,27 @@ func applyAutoProvision(
 	q ModesQueries,
 	w audit.Writer,
 	idp *db.UpstreamIdp,
-	tokens *Tokens,
+	identity *VerifiedIdentity,
+	localUsername string,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	// Per-IdP claim-name overrides (schema defaults: preferred_username/name/email).
-	// Admins can point these at non-OIDC-default keys (e.g. Entra ID's "upn")
-	// without code changes. Read once at the top so the same values are used
-	// for collision check, allowlist check, and the inserts below.
-	username := ClaimString(tokens.Raw, idp.UsernameClaim)
-	displayName := ClaimString(tokens.Raw, idp.DisplayNameClaim)
-	email := ClaimString(tokens.Raw, idp.EmailClaim)
+	username := localUsername
+	displayName := identity.DisplayName
+	email := identityEmail(identity)
 
 	// GATES — pure read-only / claim-only checks. Run outside the tx
 	// because they don't touch the DB and would otherwise widen the
 	// transaction window for no benefit.
-	if idp.RequireVerifiedEmail && !tokens.EmailVerified {
+	if idp.RequireVerifiedEmail && !identity.EmailVerified {
 		// EmailVerified is the typed bool; no override (it's a JWT
 		// standard claim with a fixed boolean shape).
-		emitFail(ctx, w, idp, tokens, "email_not_verified", nil)
+		emitFail(ctx, w, idp, identity, "email_not_verified", nil)
 		return ResolveOutcome{}, authn.ErrEmailNotVerified()
 	}
 
 	if len(idp.AllowedDomains) > 0 {
 		if !domainAllowed(email, idp.AllowedDomains) {
-			emitFail(ctx, w, idp, tokens, "domain_not_allowed", nil)
+			emitFail(ctx, w, idp, identity, "domain_not_allowed", nil)
 			// Reuse invite_required: from the caller's perspective both
 			// "no invite" and "wrong domain" mean "auto-provisioning
 			// refused; ask the admin". Distinct codes would help an
@@ -202,18 +203,42 @@ func applyAutoProvision(
 		}
 	}
 
-	if username == "" {
-		// Config bug, not a user error: the IdP's username_claim mapping
-		// is wrong or the OP doesn't ship the expected claim. Surface
-		// as a 500 so operators see it in logs.
-		return ResolveOutcome{}, fmt.Errorf("federation/oidc: upstream provided no %q claim (idp=%q, sub=%q)", idp.UsernameClaim, idp.Slug, tokens.Subject)
-	}
 
 	if displayName == "" {
 		displayName = username
 	}
 
 	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+		finalIdentity, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
+			UpstreamIss: identity.Issuer,
+			UpstreamSub: identity.Subject,
+		})
+		switch {
+		case err == nil:
+			if finalIdentity.UpstreamIdpID != idp.ID {
+				return ResolveOutcome{}, authn.ErrFederationStateInvalid()
+			}
+			account, accountErr := qtx.GetAccountByID(ctx, finalIdentity.AccountID)
+			if accountErr != nil {
+				return ResolveOutcome{}, fmt.Errorf("federation: lookup resolved account: %w", accountErr)
+			}
+			if account.Disabled {
+				return ResolveOutcome{}, authn.ErrAccountDisabled()
+			}
+			return ResolveOutcome{
+				AccountID: finalIdentity.AccountID, IdentityID: finalIdentity.ID,
+				ProviderID: idp.ID, AMR: append([]string(nil), identity.AMR...),
+				Confirmed: finalIdentity.ConfirmedAt.Valid,
+			}, nil
+		case !errors.Is(err, pgx.ErrNoRows):
+			return ResolveOutcome{}, fmt.Errorf("federation: authoritative identity lookup: %w", err)
+		}
+		if username == "" {
+			return ResolveOutcome{}, ErrLocalUsernameRequired
+		}
+		if err := acctpkg.ValidateUsername(username); err != nil {
+			return ResolveOutcome{}, err
+		}
 		// Username collision check. We don't try to merge — admin must
 		// resolve manually (rename, link, or reject). READ COMMITTED
 		// means another tx can still claim the same username between
@@ -225,7 +250,7 @@ func applyAutoProvision(
 			// audit row would roll back with it — losing the forensic
 			// record of the rejected sign-in. The outer writer commits on
 			// its own pooled connection, independent of this rollback.
-			emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
+			emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
 				"username": username,
 			})
 			return ResolveOutcome{}, authn.ErrUsernameCollision()
@@ -248,7 +273,7 @@ func applyAutoProvision(
 			// Seed the account email from the upstream (T3.2); email_verified
 			// only when an address is present AND the OP asserted it verified.
 			Email:         pgtype.Text{String: email, Valid: email != ""},
-			EmailVerified: email != "" && tokens.EmailVerified,
+			EmailVerified: email != "" && identity.EmailVerified,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -257,7 +282,7 @@ func applyAutoProvision(
 				// register). Emit a clean username_collision audit + AuthError
 				// instead of a wrapped 500. Outer writer (w) so the audit
 				// survives the tx rollback triggered by the error return.
-				emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
+				emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
 					"username": username,
 				})
 				return ResolveOutcome{}, authn.ErrUsernameCollision()
@@ -268,8 +293,8 @@ func applyAutoProvision(
 		ident, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
 			AccountID:     acct.ID,
 			UpstreamIdpID: idp.ID,
-			UpstreamIss:   tokens.Issuer,
-			UpstreamSub:   tokens.Subject,
+			UpstreamIss:   identity.Issuer,
+			UpstreamSub:   identity.Subject,
 			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
 		})
 		if err != nil {
@@ -281,7 +306,7 @@ func applyAutoProvision(
 				// enumeration treatment as LinkCallback's link_conflict).
 				// Tx rollback drops the just-inserted account row above; the
 				// fail audit uses the outer writer (w) so it survives.
-				emitFail(ctx, w, idp, tokens, "identity_conflict", nil)
+				emitFail(ctx, w, idp, identity, "identity_conflict", nil)
 				return ResolveOutcome{}, authn.ErrInviteRequired()
 			}
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
@@ -294,24 +319,24 @@ func applyAutoProvision(
 		// doesn't yet see InsertAccount above) and fail silently. Same
 		// invariant as applyInviteOnly.
 		audit.RecordOrLog(ctx, txAudit, audit.Record{
-			AccountID: int32Ptr(acct.ID),
+			AccountID: new(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventRegister,
 			Detail: map[string]any{
 				"idp_slug": idp.Slug,
-				"iss":      tokens.Issuer,
-				"sub":      tokens.Subject,
+				"iss":      identity.Issuer,
+				"sub":      identity.Subject,
 				"mode":     ModeAutoProvision,
 			},
 		})
 		audit.RecordOrLog(ctx, txAudit, audit.Record{
-			AccountID: int32Ptr(acct.ID),
+			AccountID: new(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventUse,
 			Detail: map[string]any{
 				"idp_slug": idp.Slug,
-				"iss":      tokens.Issuer,
-				"sub":      tokens.Subject,
+				"iss":      identity.Issuer,
+				"sub":      identity.Subject,
 			},
 		})
 		// PENDING by design: the inserted identity has confirmed_at=NULL, so the
@@ -320,6 +345,8 @@ func applyAutoProvision(
 		return ResolveOutcome{
 			AccountID:  acct.ID,
 			IdentityID: ident.ID,
+			ProviderID: idp.ID,
+			AMR:        append([]string(nil), identity.AMR...),
 			IsNew:      true,
 			Confirmed:  false,
 		}, nil
@@ -345,14 +372,14 @@ func applyInviteOnly(
 	q ModesQueries,
 	w audit.Writer,
 	idp *db.UpstreamIdp,
-	tokens *Tokens,
+	identity *VerifiedIdentity,
 	enrollmentToken string,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
 	if enrollmentToken == "" {
 		// Reached this branch via Resolve's mode-dispatch — i.e. an
 		// invite_only IdP was hit without an invite. Reject and audit.
-		emitFail(ctx, w, idp, tokens, "invite_required_no_token", nil)
+		emitFail(ctx, w, idp, identity, "invite_required_no_token", nil)
 		return ResolveOutcome{}, authn.ErrInviteRequired()
 	}
 
@@ -367,7 +394,7 @@ func applyInviteOnly(
 		// pgx.ErrNoRows.
 		enr, err := qtx.ConsumeInviteEnrollment(ctx, enrollmentToken)
 		if errors.Is(err, pgx.ErrNoRows) {
-			emitFail(ctx, w, idp, tokens, "invite_consumed_or_expired", nil)
+			emitFail(ctx, w, idp, identity, "invite_consumed_or_expired", nil)
 			return ResolveOutcome{}, authn.ErrInviteRequired()
 		}
 		if err != nil {
@@ -377,7 +404,7 @@ func applyInviteOnly(
 		// Defense in depth: the invite must have been minted for THIS IdP.
 		// Catches admin slug edits mid-flight, malformed FedState, etc.
 		if !enr.ExpectedUpstreamIdpSlug.Valid || enr.ExpectedUpstreamIdpSlug.String != idp.Slug {
-			emitFail(ctx, w, idp, tokens, "invite_slug_mismatch", map[string]any{
+			emitFail(ctx, w, idp, identity, "invite_slug_mismatch", map[string]any{
 				"enrollment_expected_slug": enr.ExpectedUpstreamIdpSlug.String,
 			})
 			return ResolveOutcome{}, authn.ErrInviteRequired()
@@ -403,7 +430,7 @@ func applyInviteOnly(
 		// redeemable), and a tx-scoped audit row would roll back with it —
 		// losing the forensic record. The outer writer commits independently.
 		if _, err := qtx.GetAccountByUsername(ctx, enr.TemplateUsername.String); err == nil {
-			emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
+			emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
 				"username": enr.TemplateUsername.String,
 			})
 			return ResolveOutcome{}, authn.ErrUsernameCollision()
@@ -426,9 +453,7 @@ func applyInviteOnly(
 			displayName = enr.TemplateUsername.String
 		}
 
-		// Honor the per-IdP email_claim override (matches applyAutoProvision);
-		// used for both the account email (T3.2) and account_identity below.
-		email := ClaimString(tokens.Raw, idp.EmailClaim)
+		email := identityEmail(identity)
 
 		acct, err := qtx.InsertAccount(ctx, db.InsertAccountParams{
 			Username:           enr.TemplateUsername.String,
@@ -438,7 +463,7 @@ func applyInviteOnly(
 			Attributes:         attrs,
 			Disabled:           false,
 			Email:              pgtype.Text{String: email, Valid: email != ""},
-			EmailVerified:      email != "" && tokens.EmailVerified,
+			EmailVerified:      email != "" && identity.EmailVerified,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -449,7 +474,7 @@ func applyInviteOnly(
 				// Tx rollback un-does ConsumeEnrollment, so the invite is
 				// re-redeemable — matches the previous-step collision branch.
 				// Outer writer (w) so the audit survives the rollback.
-				emitFail(ctx, w, idp, tokens, "username_collision", map[string]any{
+				emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
 					"username": enr.TemplateUsername.String,
 				})
 				return ResolveOutcome{}, authn.ErrUsernameCollision()
@@ -460,8 +485,8 @@ func applyInviteOnly(
 		ident, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
 			AccountID:     acct.ID,
 			UpstreamIdpID: idp.ID,
-			UpstreamIss:   tokens.Issuer,
-			UpstreamSub:   tokens.Subject,
+			UpstreamIss:   identity.Issuer,
+			UpstreamSub:   identity.Subject,
 			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
 		})
 		if err != nil {
@@ -472,7 +497,7 @@ func applyInviteOnly(
 				// identity_conflict. Tx rollback drops the just-inserted
 				// account row and the ConsumeEnrollment, so the invite is
 				// re-redeemable. Outer writer (w) so the audit survives.
-				emitFail(ctx, w, idp, tokens, "identity_conflict", nil)
+				emitFail(ctx, w, idp, identity, "identity_conflict", nil)
 				return ResolveOutcome{}, authn.ErrInviteRequired()
 			}
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
@@ -499,26 +524,26 @@ func applyInviteOnly(
 		// rollback the audit rows revert too, which is the correct
 		// semantic — no orphan audit pointing at non-existent accounts.
 		audit.RecordOrLog(ctx, txAudit, audit.Record{
-			AccountID: int32Ptr(acct.ID),
+			AccountID: new(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventRegister,
 			Detail: map[string]any{
 				"idp_slug": idp.Slug,
-				"iss":      tokens.Issuer,
-				"sub":      tokens.Subject,
+				"iss":      identity.Issuer,
+				"sub":      identity.Subject,
 				"mode":     ModeInviteOnly,
 				"reason":   "invite_only_redemption",
 				"username": enr.TemplateUsername.String,
 			},
 		})
 		audit.RecordOrLog(ctx, txAudit, audit.Record{
-			AccountID: int32Ptr(acct.ID),
+			AccountID: new(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventUse,
 			Detail: map[string]any{
 				"idp_slug": idp.Slug,
-				"iss":      tokens.Issuer,
-				"sub":      tokens.Subject,
+				"iss":      identity.Issuer,
+				"sub":      identity.Subject,
 			},
 		})
 
@@ -527,6 +552,8 @@ func applyInviteOnly(
 		return ResolveOutcome{
 			AccountID:  acct.ID,
 			IdentityID: ident.ID,
+			ProviderID: idp.ID,
+			AMR:        append([]string(nil), identity.AMR...),
 			IsNew:      true,
 			Confirmed:  true,
 		}, nil
@@ -583,9 +610,9 @@ func applyLinkOnly(
 	ctx context.Context,
 	w audit.Writer,
 	idp *db.UpstreamIdp,
-	tokens *Tokens,
+	identity *VerifiedIdentity,
 ) (ResolveOutcome, error) {
-	emitFail(ctx, w, idp, tokens, "link_required", nil)
+	emitFail(ctx, w, idp, identity, "link_required", nil)
 	return ResolveOutcome{}, authn.ErrLinkRequired()
 }
 
@@ -600,25 +627,21 @@ func syncClaims(
 	ctx context.Context,
 	q ModesQueries,
 	idp *db.UpstreamIdp,
-	identity *db.AccountIdentity,
-	tokens *Tokens,
+	stored *db.AccountIdentity,
+	identity *VerifiedIdentity,
 ) {
-	// Honor per-IdP claim-name overrides on the drift-sync path too,
-	// otherwise an Entra-style OP's existing user would re-login and see
-	// their display_name reset to "" (because tokens.Name is the typed
-	// OIDC "name" claim, which Entra doesn't ship).
-	displayName := ClaimString(tokens.Raw, idp.DisplayNameClaim)
-	email := ClaimString(tokens.Raw, idp.EmailClaim)
+	displayName := identity.DisplayName
+	email := identityEmail(identity)
 	newEmail := pgtype.Text{String: email, Valid: email != ""}
-	newVerified := newEmail.Valid && tokens.EmailVerified
+	newVerified := newEmail.Valid && identity.EmailVerified
 
 	// Fetch the current account once (cheap PK lookup) for both the display_name
 	// and email drift checks — conditional UPDATEs avoid firing the updated_at
 	// trigger on a no-op login.
-	if acct, err := q.GetAccountByID(ctx, identity.AccountID); err == nil {
+	if acct, err := q.GetAccountByID(ctx, stored.AccountID); err == nil {
 		if displayName != "" && acct.DisplayName != displayName {
 			_ = q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
-				ID:          identity.AccountID,
+				ID:          stored.AccountID,
 				DisplayName: displayName,
 			})
 		}
@@ -627,20 +650,157 @@ func syncClaims(
 		// sync below.
 		if acct.Email.String != newEmail.String || acct.Email.Valid != newEmail.Valid || acct.EmailVerified != newVerified {
 			_ = q.UpdateAccountEmail(ctx, db.UpdateAccountEmailParams{
-				ID:            identity.AccountID,
+				ID:            stored.AccountID,
 				Email:         newEmail,
 				EmailVerified: newVerified,
 			})
 		}
 	}
 
-	if newEmail.String != identity.UpstreamEmail.String || newEmail.Valid != identity.UpstreamEmail.Valid {
+	if newEmail.String != stored.UpstreamEmail.String || newEmail.Valid != stored.UpstreamEmail.Valid {
 		_ = q.UpdateAccountIdentityEmail(ctx, db.UpdateAccountIdentityEmailParams{
-			ID:            identity.ID,
+			ID:            stored.ID,
 			UpstreamEmail: newEmail,
 		})
 	}
 }
+
+type ResolveContext struct {
+	Intent          Intent
+	EnrollmentToken string
+	LocalUsername   string
+	LinkAccountID   *int32
+}
+
+type IdentityResolver interface {
+	IdentityKnown(context.Context, IdentityKey) (bool, error)
+	ResolveIdentity(context.Context, Provider, VerifiedIdentity, ResolveContext) (ResolveOutcome, error)
+}
+
+type Resolver struct {
+	queries ModesQueries
+	audit   audit.Writer
+	pool    *pgxpool.Pool
+}
+
+func NewResolver(queries ModesQueries, writer audit.Writer, pool *pgxpool.Pool) *Resolver {
+	return &Resolver{queries: queries, audit: writer, pool: pool}
+}
+
+func (r *Resolver) IdentityKnown(ctx context.Context, key IdentityKey) (bool, error) {
+	if key.Issuer == "" || key.Subject == "" {
+		return false, errors.New("federation: incomplete identity key")
+	}
+	_, err := r.queries.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
+		UpstreamIss: key.Issuer,
+		UpstreamSub: key.Subject,
+	})
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return false, fmt.Errorf("federation: identity lookup: %w", err)
+}
+
+func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, identity VerifiedIdentity, resolution ResolveContext) (ResolveOutcome, error) {
+	if identity.Issuer == "" || identity.Subject == "" {
+		return ResolveOutcome{}, errors.New("federation: verified identity missing issuer or subject")
+	}
+	row, err := providerRow(provider)
+	if err != nil {
+		return ResolveOutcome{}, err
+	}
+	switch resolution.Intent {
+	case IntentLink:
+		if resolution.LinkAccountID == nil || *resolution.LinkAccountID <= 0 {
+			return ResolveOutcome{}, authn.ErrFederationStateInvalid()
+		}
+		return r.resolveLink(ctx, &row, &identity, *resolution.LinkAccountID)
+	case IntentInvite:
+		return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, r.pool)
+	case IntentLogin:
+		known, err := r.IdentityKnown(ctx, IdentityKey{Issuer: identity.Issuer, Subject: identity.Subject})
+		if err != nil {
+			return ResolveOutcome{}, err
+		}
+		if known {
+			return Resolve(ctx, r.queries, r.audit, &row, &identity, r.pool)
+		}
+		switch row.Mode {
+		case ModeAutoProvision:
+			username := resolution.LocalUsername
+			if username == "" {
+				username = identity.Username
+			}
+			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
+		case ModeInviteOnly:
+			return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, "", r.pool)
+		case ModeLinkOnly:
+			return applyLinkOnly(ctx, r.audit, &row, &identity)
+		default:
+			return ResolveOutcome{}, fmt.Errorf("federation: unknown provider mode %q", row.Mode)
+		}
+	default:
+		return ResolveOutcome{}, authn.ErrFederationStateInvalid()
+	}
+}
+
+func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, identity *VerifiedIdentity, accountID int32) (ResolveOutcome, error) {
+	email := identityEmail(identity)
+	if provider.RequireVerifiedEmail && !identity.EmailVerified {
+		return ResolveOutcome{}, authn.ErrEmailNotVerified()
+	}
+	if len(provider.AllowedDomains) > 0 && !domainAllowed(email, provider.AllowedDomains) {
+		return ResolveOutcome{}, authn.ErrInviteRequired()
+	}
+	return runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+		existing, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
+			UpstreamIss: identity.Issuer,
+			UpstreamSub: identity.Subject,
+		})
+		switch {
+		case err == nil:
+			if existing.AccountID != accountID || existing.UpstreamIdpID != provider.ID {
+				return ResolveOutcome{}, authn.ErrFederationStateInvalid()
+			}
+			return ResolveOutcome{
+				AccountID: accountID, IdentityID: existing.ID, ProviderID: provider.ID,
+				AMR: append([]string(nil), identity.AMR...), Confirmed: existing.ConfirmedAt.Valid,
+			}, nil
+		case !errors.Is(err, pgx.ErrNoRows):
+			return ResolveOutcome{}, fmt.Errorf("federation: authoritative link lookup: %w", err)
+		}
+		account, err := qtx.GetAccountByID(ctx, accountID)
+		if err != nil {
+			return ResolveOutcome{}, fmt.Errorf("federation: lookup linking account: %w", err)
+		}
+		if account.Disabled {
+			return ResolveOutcome{}, authn.ErrAccountDisabled()
+		}
+		linked, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
+			AccountID: accountID, UpstreamIdpID: provider.ID,
+			UpstreamIss: identity.Issuer, UpstreamSub: identity.Subject,
+			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
+		})
+		if err != nil {
+			return ResolveOutcome{}, authn.ErrFederationStateInvalid()
+		}
+		if err := qtx.ConfirmAccountIdentity(ctx, linked.ID); err != nil {
+			return ResolveOutcome{}, fmt.Errorf("federation: confirm linked identity: %w", err)
+		}
+		audit.RecordOrLog(ctx, txAudit, audit.Record{
+			AccountID: new(accountID), Factor: audit.FactorFederationOIDC, Event: audit.EventLink,
+			Detail: map[string]any{"idp_slug": provider.Slug, "upstream_iss": identity.Issuer, "upstream_sub": identity.Subject},
+		})
+		return ResolveOutcome{
+			AccountID: accountID, IdentityID: linked.ID, ProviderID: provider.ID,
+			AMR: append([]string(nil), identity.AMR...), Confirmed: true,
+		}, nil
+	})
+}
+
 
 // domainAllowed splits on the last @, lowercases the domain part, and
 // checks membership in allowed (case-insensitive). Empty email returns
@@ -666,14 +826,14 @@ func emitFail(
 	ctx context.Context,
 	w audit.Writer,
 	idp *db.UpstreamIdp,
-	tokens *Tokens,
+	identity *VerifiedIdentity,
 	reason string,
 	extra map[string]any,
 ) {
 	detail := map[string]any{
 		"idp_slug": idp.Slug,
-		"iss":      tokens.Issuer,
-		"sub":      tokens.Subject,
+		"iss":      identity.Issuer,
+		"sub":      identity.Subject,
 		"mode":     idp.Mode,
 		"reason":   reason,
 	}
@@ -687,4 +847,14 @@ func emitFail(
 	})
 }
 
-func int32Ptr(v int32) *int32 { return &v }
+func identityEmail(identity *VerifiedIdentity) string {
+	if identity == nil || identity.Email == nil {
+		return ""
+	}
+	return *identity.Email
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}

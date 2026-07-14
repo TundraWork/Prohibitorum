@@ -27,7 +27,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
 	"prohibitorum/pkg/kv"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -691,7 +691,7 @@ func mountLinkRoutes(h *fedTestHarness) *httptest.Server {
 	h.t.Cleanup(srv.Close)
 	// Rewire the federator's publicOrigin to the new server URL so the
 	// link-callback redirect_uri targets this httptest origin.
-	h.s.federator = fedoidc.NewFederator(h.q, h.s.kvStore, h.s.Audit, fedTestFedCfg(), map[int][]byte{1: fedTestDEK}, nil, srv.URL)
+	h.s.federationService = newTestFederationService(h.t, h.q, h.s.kvStore, h.s.Audit, map[int][]byte{1: fedTestDEK}, srv.URL, fedTestFedCfg().StateTTL)
 	return srv
 }
 
@@ -762,7 +762,7 @@ func (h *fedTestHarness) driveLinkBegin(t *testing.T, slug, returnTo string) (st
 	if returnTo != "" {
 		u += "?return_to=" + url.QueryEscape(returnTo)
 	}
-	resp, err := noFollow().Get(u)
+	resp, err := h.client.Get(u)
 	if err != nil {
 		t.Fatalf("GET %s: %v", u, err)
 	}
@@ -777,7 +777,7 @@ func (h *fedTestHarness) driveLinkBegin(t *testing.T, slug, returnTo string) (st
 func (h *fedTestHarness) hitLinkCallback(t *testing.T, slug string, q url.Values) *http.Response {
 	t.Helper()
 	u := h.srvTS.URL + "/api/prohibitorum/me/identities/link/" + slug + "/callback?" + q.Encode()
-	resp, err := noFollow().Get(u)
+	resp, err := h.client.Get(u)
 	if err != nil {
 		t.Fatalf("GET /link/callback: %v", err)
 	}
@@ -817,19 +817,16 @@ func TestMeIdentities_LinkBegin_HappyPath(t *testing.T) {
 	if state == "" {
 		t.Fatal("state missing from authorize URL")
 	}
-	if _, err := h.s.kvStore.Get(context.Background(), fedoidc.LoginKey(state)); err == nil {
-		t.Errorf("link-flow state must NOT be under LoginKey")
-	}
-	blob, err := h.s.kvStore.Get(context.Background(), fedoidc.LinkKey(state))
+	blob, err := h.s.kvStore.Get(context.Background(), fedoidc.FlowKey(state))
 	if err != nil {
 		t.Fatalf("state not under LinkKey: %v", err)
 	}
-	fs, err := fedoidc.DecodeFedState(blob)
+	fs, err := fedoidc.DecodeFlowState(blob)
 	if err != nil {
 		t.Fatalf("DecodeFedState: %v", err)
 	}
-	if fs.LinkingAccountID == nil || *fs.LinkingAccountID != h.linkAccountID {
-		t.Errorf("LinkingAccountID: want %d, got %v", h.linkAccountID, fs.LinkingAccountID)
+	if fs.LinkAccountID == nil || *fs.LinkAccountID != h.linkAccountID {
+		t.Errorf("LinkAccountID: want %d, got %v", h.linkAccountID, fs.LinkAccountID)
 	}
 }
 

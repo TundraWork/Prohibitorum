@@ -54,7 +54,7 @@ import (
 
 	"prohibitorum/cmd/smoke/mockop"
 	totppkg "prohibitorum/pkg/credential/totp"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
 )
 
 // Per-group step totals for the progress headers. Each arc numbers its own
@@ -6408,13 +6408,13 @@ func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecr
 		mode, allowedDomains, requireVerifiedEmail, allowPrivateNetwork).Scan(&id); err != nil {
 		return 0, fmt.Errorf("insert: %w", err)
 	}
-	ct, nonce, err := fedoidc.EncryptClientSecret(dek, []byte(clientSecret), id, 1)
+	sealed, err := fedoidc.SealProviderSecret(dek, []byte(clientSecret), id, 1)
 	if err != nil {
 		return 0, fmt.Errorf("EncryptClientSecret: %w", err)
 	}
 	if _, err := conn.Exec(ctx,
 		"UPDATE upstream_idp SET client_secret_enc=$1, secret_nonce=$2 WHERE id=$3",
-		ct, nonce, id); err != nil {
+		sealed.Ciphertext, sealed.Nonce, id); err != nil {
 		return 0, fmt.Errorf("update secret: %w", err)
 	}
 	return id, nil

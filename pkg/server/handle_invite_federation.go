@@ -44,7 +44,7 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 		return
 	}
 
-	req, err := s.federator.BeginInviteRedemption(r.Context(), token, returnTo)
+	req, err := s.federationService.BeginInvite(r.Context(), token, returnTo)
 	if err != nil {
 		redirectAuthErrToError(w, r, err)
 		return
@@ -58,6 +58,6 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 
 	// Invite redemption shares the federation /callback, so bind the flow to
 	// this browser with the same anti-forgery cookie the login flow uses (N4).
-	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.AntiForgeryToken))
-	http.Redirect(w, r, req.AuthorizeURL, http.StatusFound)
+	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
+	http.Redirect(w, r, req.Action.URL, http.StatusFound)
 }

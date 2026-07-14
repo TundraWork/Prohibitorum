@@ -41,7 +41,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/pagination"
-	"prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
 )
 
 // identityProviderView projects a db.UpstreamIdp row into the wire-safe contract
@@ -98,7 +98,7 @@ func validateUpstreamIssuer(issuerURL string, allowPrivate bool) error {
 	if allowPrivate {
 		return nil
 	}
-	if err := oidc.ValidateIssuerURL(issuerURL); err != nil {
+	if err := federation.ValidateIssuerURL(issuerURL); err != nil {
 		return authn.ErrBadRequest()
 	}
 	return nil
@@ -332,7 +332,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 
 	// Seal the real secret (clientSecret for oidc, apiKey for steam) using
 	// the row id for AAD.
-	ciphertext, nonce, err := oidc.EncryptClientSecret(dek, []byte(secretPlaintext), row.ID, keyVer)
+	sealed, err := federation.SealProviderSecret(dek, []byte(secretPlaintext), row.ID, keyVer)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: seal: %w", err))
 		return
@@ -341,8 +341,8 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 	// Write the real sealed secret back within the same transaction.
 	if err := qtx.UpdateUpstreamIDPSecret(r.Context(), db.UpdateUpstreamIDPSecretParams{
 		Slug:            row.Slug,
-		ClientSecretEnc: ciphertext,
-		SecretNonce:     nonce,
+		ClientSecretEnc: sealed.Ciphertext,
+		SecretNonce:     sealed.Nonce,
 		KeyVersion:      keyVer,
 	}); err != nil {
 		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: seal-update: %w", err))
@@ -473,13 +473,6 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		return
 	}
 
-	// Invalidate the federator's cached client for this slug so the next
-	// federation request rebuilds with the updated allow_private_network
-	// policy (the cache key includes the policy, but a pre-existing entry
-	// for the old value would linger until TTL expiry without this).
-	if s.federator != nil {
-		s.federator.InvalidateClientCache(slug)
-	}
 
 	sess := authn.SessionFromContext(r.Context())
 	var actorID *int32
@@ -584,7 +577,7 @@ func (s *Server) handleRotateIdentityProviderSecretHTTP(w http.ResponseWriter, r
 		return
 	}
 
-	ciphertext, nonce, err := oidc.EncryptClientSecret(dek, []byte(body.ClientSecret), row.ID, keyVer)
+	sealed, err := federation.SealProviderSecret(dek, []byte(body.ClientSecret), row.ID, keyVer)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleRotateIdentityProviderSecret: seal: %w", err))
 		return
@@ -592,8 +585,8 @@ func (s *Server) handleRotateIdentityProviderSecretHTTP(w http.ResponseWriter, r
 
 	if err := s.queries.UpdateUpstreamIDPSecret(r.Context(), db.UpdateUpstreamIDPSecretParams{
 		Slug:            body.Slug,
-		ClientSecretEnc: ciphertext,
-		SecretNonce:     nonce,
+		ClientSecretEnc: sealed.Ciphertext,
+		SecretNonce:     sealed.Nonce,
 		KeyVersion:      keyVer,
 	}); err != nil {
 		writeAuthErr(w, fmt.Errorf("handleRotateIdentityProviderSecret: update: %w", err))

@@ -27,7 +27,7 @@ import (
 
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -115,7 +115,7 @@ func seedConfirmGrant(t *testing.T, h *fedTestHarness) confirmFixture {
 	}
 	// h.idp is already seeded under slug "mockop" by the harness.
 
-	token, anti, err := h.s.federator.CreateConfirmGrant(
+	token, anti, err := h.s.federationService.CreateConfirmGrant(
 		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil,
 	)
 	if err != nil {

@@ -27,6 +27,8 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/oauth2"
+
+	federationcore "prohibitorum/pkg/federation"
 )
 
 // DefaultAllowedAlgs returns the JWT signing-alg allowlist used when NewClient
@@ -144,7 +146,7 @@ func NewClient(
 		// (no internal-IP screen, follows redirects, unbounded body) against the
 		// operator-supplied — and publicly-triggerable — issuer URL. See
 		// httpclient.go (audit follow-up N2 + N3).
-		rp.WithHTTPClient(hardenedHTTPClient(allowPrivateNetwork, maxFederationResponseBytes)),
+		rp.WithHTTPClient(federationcore.NewOutboundHTTPClient(allowPrivateNetwork, 2<<20)),
 		rp.WithVerifierOpts(
 			rp.WithSupportedSigningAlgorithms(allowedAlgs...),
 			// Thread the per-flow expected nonce through the

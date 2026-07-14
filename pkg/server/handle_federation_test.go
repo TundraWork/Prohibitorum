@@ -44,7 +44,8 @@ import (
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 	"prohibitorum/pkg/kv"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -121,6 +122,10 @@ func (f *fakeFedQueries) GetUpstreamIDPBySlug(_ context.Context, slug string) (d
 		return v, nil
 	}
 	return db.UpstreamIdp{}, pgx.ErrNoRows
+}
+
+func (f *fakeFedQueries) GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (db.UpstreamIdp, error) {
+	return f.GetUpstreamIDPBySlug(ctx, slug)
 }
 
 func (f *fakeFedQueries) ListAccountIdentitiesByAccount(_ context.Context, _ int32) ([]db.ListAccountIdentitiesByAccountRow, error) {
@@ -240,8 +245,6 @@ func (f *fakeFedQueries) ListEntityIconEtags(_ context.Context, _ string) ([]db.
 	return f.iconEtags, nil
 }
 
-// Compile-time guard: must satisfy the federator's query surface.
-var _ fedoidc.FederatorQueries = (*fakeFedQueries)(nil)
 
 // --- harness --------------------------------------------------------------
 
@@ -291,7 +294,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 	// 2. Fake querier seeded with one IdP row.
 	const idpID int64 = 42
 	const keyVersion int32 = 1
-	ct, nonce, err := fedoidc.EncryptClientSecret(fedTestDEK, []byte("test-secret"), idpID, keyVersion)
+	sealed, err := fedoidc.SealProviderSecret(fedTestDEK, []byte("test-secret"), idpID, keyVersion)
 	if err != nil {
 		t.Fatalf("EncryptClientSecret: %v", err)
 	}
@@ -301,11 +304,13 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		DisplayName:          "Mock OP",
 		IssuerUrl:            opTS.URL,
 		ClientID:             "test-client",
-		ClientSecretEnc:      ct,
-		SecretNonce:          nonce,
+		ClientSecretEnc:      sealed.Ciphertext,
+		SecretNonce:          sealed.Nonce,
 		KeyVersion:           keyVersion,
 		Scopes:               []string{"openid", "profile", "email"},
 		Mode:                 fedoidc.ModeAutoProvision,
+		Protocol:             federationoidc.Protocol,
+		PictureClaim:         "picture",
 		RequireVerifiedEmail: true,
 		// Schema defaults from migration 004 — DB-side DEFAULTs don't apply
 		// to in-memory fakes, so seed them explicitly so modes.go can
@@ -328,11 +333,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 	}
 	sessionStore := sessstore.NewSessionStore(kvStore, q, cfg.SessionTTL)
 
-	// 4. Federator. publicOrigin is filled in below after we start srvTS.
-	fedCfg := configx.FederationConfig{
-		StateTTL:      5 * time.Minute,
-		DefaultScopes: []string{"openid", "profile", "email"},
-	}
+	fedCfg := configx.FederationConfig{StateTTL: 5 * time.Minute}
 	deks := map[int][]byte{1: fedTestDEK}
 
 	// 5. Mount handlers behind a chi router served by httptest.
@@ -358,7 +359,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 
 	// Now we know our own origin — federator can build redirect_uri's that
 	// the test http.Client can dial back into.
-	s.federator = fedoidc.NewFederator(q, kvStore, auditWriter, fedCfg, deks, nil, srvTS.URL)
+	s.federationService = newTestFederationService(t, q, kvStore, auditWriter, deks, srvTS.URL, fedCfg.StateTTL)
 	cfg.PublicOrigins = []string{srvTS.URL}
 
 	jar, err := cookiejar.New(nil)
@@ -384,6 +385,18 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		client: client,
 	}
 }
+
+func newTestFederationService(t *testing.T, q *fakeFedQueries, store kv.Store, writer audit.Writer, deks map[int][]byte, origin string, ttl time.Duration) *fedoidc.Service {
+	t.Helper()
+	registry := fedoidc.NewRegistry()
+	adapter := federationoidc.NewAdapter(fedoidc.NewSecretStore(deks))
+	if err := registry.RegisterDefinition(federationoidc.Definition{}); err != nil { t.Fatal(err) }
+	if err := registry.RegisterAdapter(adapter); err != nil { t.Fatal(err) }
+	service := fedoidc.NewService(registry, fedoidc.NewProviderStore(q), store, fedoidc.NewResolver(q, writer, nil), fedoidc.ServiceConfig{StateTTL: ttl, PublicOrigin: origin, Audit: writer})
+	service.SetAvatarManager(fedoidc.NewAvatarManager(q, store))
+	return service
+}
+
 
 // noFollow returns an http.Client that captures every 302 instead of chasing it.
 // This is the entire driver mechanism — we step manually through login → authorize
@@ -479,7 +492,7 @@ func TestFederationLogin_RedirectsToUpstream(t *testing.T) {
 	if state == "" {
 		t.Fatal("state missing from authorize URL")
 	}
-	if _, err := h.s.kvStore.Get(context.Background(), fedoidc.LoginKey(state)); err != nil {
+	if _, err := h.s.kvStore.Get(context.Background(), fedoidc.FlowKey(state)); err != nil {
 		t.Errorf("state not stashed under LoginKey: %v", err)
 	}
 }
@@ -506,11 +519,11 @@ func TestFederationLogin_EmptyReturnToDefaultsToSlash(t *testing.T) {
 	}
 	u, _ := url.Parse(loc)
 	state := u.Query().Get("state")
-	blob, err := h.s.kvStore.Get(context.Background(), fedoidc.LoginKey(state))
+	blob, err := h.s.kvStore.Get(context.Background(), fedoidc.FlowKey(state))
 	if err != nil {
 		t.Fatalf("state not in KV: %v", err)
 	}
-	fs, err := fedoidc.DecodeFedState(blob)
+	fs, err := fedoidc.DecodeFlowState(blob)
 	if err != nil {
 		t.Fatalf("DecodeFedState: %v", err)
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
 )
 
 // metadataXML is a minimal but well-formed SAML SP metadata document used as the

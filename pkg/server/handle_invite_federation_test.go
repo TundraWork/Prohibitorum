@@ -28,7 +28,7 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -169,19 +169,19 @@ func TestEnrollmentStartFederation_HappyPath(t *testing.T) {
 	if state == "" {
 		t.Fatal("state missing from authorize URL")
 	}
-	blob, err := h.s.kvStore.Get(context.Background(), fedoidc.LoginKey(state))
+	blob, err := h.s.kvStore.Get(context.Background(), fedoidc.FlowKey(state))
 	if err != nil {
 		t.Fatalf("state not stashed under LoginKey: %v", err)
 	}
-	fs, err := fedoidc.DecodeFedState(blob)
+	fs, err := fedoidc.DecodeFlowState(blob)
 	if err != nil {
 		t.Fatalf("DecodeFedState: %v", err)
 	}
 	if fs.EnrollmentToken != "tok-happy" {
 		t.Errorf("FedState.EnrollmentToken = %q, want tok-happy", fs.EnrollmentToken)
 	}
-	if fs.LinkingAccountID != nil {
-		t.Errorf("LinkingAccountID = %v, want nil (invite flow has no account yet)", *fs.LinkingAccountID)
+	if fs.LinkAccountID != nil {
+		t.Errorf("LinkAccountID = %v, want nil (invite flow has no account yet)", *fs.LinkAccountID)
 	}
 	if fs.ReturnTo != "/me" {
 		t.Errorf("ReturnTo = %q, want /me", fs.ReturnTo)

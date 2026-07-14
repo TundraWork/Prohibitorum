@@ -25,7 +25,7 @@ import (
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
 	"prohibitorum/pkg/protocol/oidc"
 
 	"github.com/jackc/pgx/v5"
@@ -257,12 +257,12 @@ func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mo
 	default:
 		log.Fatalf("dev-federation: check idp %q: %v", slug, err)
 	}
-	ciphertext, nonce, err := fedoidc.EncryptClientSecret(dek, []byte(plaintext), rowID, keyVer)
+	sealed, err := federation.SealProviderSecret(dek, []byte(plaintext), rowID, keyVer)
 	if err != nil {
 		log.Fatalf("dev-federation: seal idp %q: %v", slug, err)
 	}
 	if err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
-		Slug: slug, ClientSecretEnc: ciphertext, SecretNonce: nonce, KeyVersion: keyVer,
+		Slug: slug, ClientSecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce, KeyVersion: keyVer,
 	}); err != nil {
 		log.Fatalf("dev-federation: reseal idp %q: %v", slug, err)
 	}

@@ -34,7 +34,8 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
+	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/weberr"
 )
 
@@ -287,11 +288,11 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 		return
 	}
 
-	req, err := s.federator.LinkBegin(r.Context(), sess.Account.ID, slug, returnTo)
+	req, err := s.federationService.BeginLink(r.Context(), slug, returnTo, sess.Account.ID, sess.Data.SessionID)
 	if err != nil {
 		// returnTo is validated + same-origin (e.g. /connected) — forward it so
 		// the /error "go back" link returns the user to where they started.
-		if errors.Is(err, fedoidc.ErrUnknownIDP) {
+		if errors.Is(err, federation.ErrUnknownProvider) {
 			// Collapse "no such slug" onto the generic state-invalid code —
 			// mirrors handleFederationLoginHTTP so admins can't enumerate
 			// configured IdPs via the link surface either.
@@ -302,7 +303,8 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 		return
 	}
 
-	http.Redirect(w, r, req.AuthorizeURL, http.StatusFound)
+	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
+	http.Redirect(w, r, req.Action.URL, http.StatusFound)
 }
 
 // GET /api/prohibitorum/me/identities/link/{slug}/callback
@@ -352,7 +354,20 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	result, err := s.federator.LinkCallback(r.Context(), state, code, iss, sess.Account.ID, r.URL.Query())
+	browserToken := ""
+	if cookie, cookieErr := r.Cookie(sessstore.FedStateCookieName); cookieErr == nil {
+		browserToken = cookie.Value
+	}
+	provider, providerErr := s.federationService.ProviderBySlug(r.Context(), chi.URLParam(r, "slug"))
+	if providerErr != nil {
+		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
+		return
+	}
+	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
+		FlowID: state, BrowserToken: browserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol,
+		AccountID: new(sess.Account.ID), SessionID: sess.Data.SessionID,
+		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
+	})
 	if err != nil {
 		// Federator already emitted a fail audit row for each structured
 		// failure mode (state_invalid, session_swap, iss_mismatch_callback,

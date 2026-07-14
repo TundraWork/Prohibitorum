@@ -31,7 +31,9 @@ import (
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/diagnostic"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
+	federationsteam "prohibitorum/pkg/federation/providers/steam"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
 	"prohibitorum/pkg/pagination"
@@ -58,11 +60,7 @@ type Server struct {
 	passwordStore *password.Store
 	totpStore     *totp.Store
 	throttle      *authn.Throttle
-	// federator orchestrates upstream OIDC federation. The Federation HTTP
-	// handlers (handle_federation.go, Task 7) and /me/identities handlers
-	// (Task 8) reach through it. Construction lives in NewServer wiring —
-	// Task 9 owns that; this field is nil until Task 9 lands.
-	federator *fedoidc.Federator
+	federationService *federation.Service
 	// Audit records credential lifecycle events.
 	Audit audit.Writer
 	// sudoFlowOverride lets tests inject a fake sudoFlowQueries for the
@@ -234,15 +232,31 @@ func NewServer(ctx context.Context) (*Server, error) {
 	if len(config.PublicOrigins) > 0 {
 		publicOrigin = config.PublicOrigins[0]
 	}
-	federator := fedoidc.NewFederator(
-		queries,
+	federationRegistry := federation.NewRegistry()
+	oidcAdapter := federationoidc.NewAdapter(federation.NewSecretStore(config.DataEncryptionKeys))
+	steamAdapter := federationsteam.NewAdapter(federation.NewSecretStore(config.DataEncryptionKeys))
+	for _, registration := range []struct {
+		definition federation.Definition
+		adapter    federation.Adapter
+	}{
+		{definition: federationoidc.Definition{}, adapter: oidcAdapter},
+		{definition: federationsteam.Definition{}, adapter: steamAdapter},
+	} {
+		if err := federationRegistry.RegisterDefinition(registration.definition); err != nil {
+			return nil, fmt.Errorf("federation definition: %w", err)
+		}
+		if err := federationRegistry.RegisterAdapter(registration.adapter); err != nil {
+			return nil, fmt.Errorf("federation adapter: %w", err)
+		}
+	}
+	federationService := federation.NewService(
+		federationRegistry,
+		federation.NewProviderStore(queries),
 		kvStore,
-		auditWriter,
-		config.Federation,
-		config.DataEncryptionKeys,
-		conn,
-		publicOrigin,
+		federation.NewResolver(queries, auditWriter, conn),
+		federation.ServiceConfig{StateTTL: config.Federation.StateTTL, PublicOrigin: publicOrigin, Audit: auditWriter},
 	)
+	federationService.SetAvatarManager(federation.NewAvatarManager(queries, kvStore))
 
 	diagStore := diagnostic.New(queries)
 
@@ -276,7 +290,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		passwordStore: passwordStore,
 		totpStore:     totpStore,
 		throttle:      throttle,
-		federator:     federator,
+		federationService: federationService,
 		Audit:         auditWriter,
 		branding:      brandingResolver,
 		clientIP:      clientIPResolver,

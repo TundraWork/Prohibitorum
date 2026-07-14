@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	federationoidc "prohibitorum/pkg/federation/oidc"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 
 	"prohibitorum/cmd/smoke/mockop"
 

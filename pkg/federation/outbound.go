@@ -23,7 +23,7 @@
 //   - A response-body size cap bounds memory per fetch (and transitively the
 //     JWKS key count, so no separate key-count cap is needed).
 //   - A redirect-hop cap and an overall timeout bound the rest.
-package oidc
+package federation
 
 import (
 	"context"

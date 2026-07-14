@@ -1,4 +1,4 @@
-package oidc_test
+package federation_test
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
-	federationoidc "prohibitorum/pkg/federation/oidc"
+	federationoidc "prohibitorum/pkg/federation"
 )
 
 // fakeModesQueries is the test-only subset of db.Querier the mode
@@ -250,25 +250,18 @@ func newIDP(mode string) *db.UpstreamIdp {
 	}
 }
 
-func goodTokens() *federationoidc.Tokens {
-	return &federationoidc.Tokens{
-		Issuer:            "https://issuer.example/",
-		Subject:           "sub-1",
-		Email:             "alice@example.com",
-		EmailVerified:     true,
-		PreferredUsername: "alice",
-		Name:              "Alice Example",
-		// Raw mirrors what client.Exchange would build for an OIDC-default
-		// OP: typed standard claims hoisted under their JSON-tag keys.
-		Raw: map[string]any{
-			"sub":                "sub-1",
-			"iss":                "https://issuer.example/",
-			"preferred_username": "alice",
-			"name":               "Alice Example",
-			"email":              "alice@example.com",
-		},
+func goodTokens() *federationoidc.VerifiedIdentity {
+	return &federationoidc.VerifiedIdentity{
+		Issuer:        "https://issuer.example/",
+		Subject:       "sub-1",
+		Email:         new("alice@example.com"),
+		EmailVerified: true,
+		Username:      "alice",
+		DisplayName:   "Alice Example",
+		AMR:           []string{"pwd", "mfa"},
 	}
 }
+
 
 func findEvent(records []audit.Record, event string) *audit.Record {
 	for i := range records {
@@ -324,7 +317,7 @@ func TestApplyAutoProvision_HappyPath(t *testing.T) {
 		q.insertedIdentity.UpstreamIss != tok.Issuer ||
 		q.insertedIdentity.UpstreamSub != tok.Subject ||
 		!q.insertedIdentity.UpstreamEmail.Valid ||
-		q.insertedIdentity.UpstreamEmail.String != tok.Email {
+		q.insertedIdentity.UpstreamEmail.String != *tok.Email {
 		t.Fatalf("InsertAccountIdentity args wrong: %+v", q.insertedIdentity)
 	}
 
@@ -434,10 +427,7 @@ func TestApplyAutoProvision_MissingPreferredUsername(t *testing.T) {
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
 	tok := goodTokens()
-	tok.PreferredUsername = ""
-	// modes.go reads via ClaimString(tokens.Raw, idp.UsernameClaim) now;
-	// clear the Raw entry too so the "claim genuinely absent" branch fires.
-	delete(tok.Raw, "preferred_username")
+	tok.Username = ""
 
 	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err == nil {
@@ -1037,10 +1027,7 @@ func TestApplyAutoProvision_HonorsUsernameClaimOverride(t *testing.T) {
 	idp.UsernameClaim = "upn"
 
 	tok := goodTokens()
-	// Simulate Entra: no preferred_username in raw, but upn is shipped.
-	delete(tok.Raw, "preferred_username")
-	tok.PreferredUsername = ""
-	tok.Raw["upn"] = "alice-upn"
+	tok.Username = "alice-upn"
 
 	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
@@ -1067,9 +1054,7 @@ func TestApplyAutoProvision_HonorsEmailClaimOverride(t *testing.T) {
 	idp.AllowedDomains = []string{"corp.example"}
 
 	tok := goodTokens()
-	delete(tok.Raw, "email")
-	tok.Email = ""
-	tok.Raw["mail"] = "alice@corp.example"
+	tok.Email = new("alice@corp.example")
 
 	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
 	if err != nil {
@@ -1094,9 +1079,7 @@ func TestApplyAutoProvision_HonorsDisplayNameClaimOverride(t *testing.T) {
 	idp.DisplayNameClaim = "given_name"
 
 	tok := goodTokens()
-	delete(tok.Raw, "name")
-	tok.Name = ""
-	tok.Raw["given_name"] = "Alice From Override"
+	tok.DisplayName = "Alice From Override"
 
 	if _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("Resolve: %v", err)
@@ -1131,12 +1114,8 @@ func TestResolve_SyncClaims_HonorsOverrides(t *testing.T) {
 	idp.EmailClaim = "mail"
 
 	tok := goodTokens()
-	delete(tok.Raw, "name")
-	delete(tok.Raw, "email")
-	tok.Name = ""
-	tok.Email = ""
-	tok.Raw["given_name"] = "Alice Override"
-	tok.Raw["mail"] = "alice-new@corp.example"
+	tok.DisplayName = "Alice Override"
+	tok.Email = new("alice-new@corp.example")
 
 	if _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
 		t.Fatalf("Resolve: %v", err)

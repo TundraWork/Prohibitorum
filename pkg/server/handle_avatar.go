@@ -412,8 +412,8 @@ func (s *Server) applyDeleteFallback(
 func (s *Server) handleAvatarStatusHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
 	pending := false
-	if s.federator != nil {
-		pending = s.federator.AvatarPending(r.Context(), sess.Account.ID)
+	if s.federationService != nil {
+		pending = s.federationService.AvatarPending(r.Context(), sess.Account.ID)
 	}
 	writeJSON(w, map[string]bool{"pending": pending})
 }

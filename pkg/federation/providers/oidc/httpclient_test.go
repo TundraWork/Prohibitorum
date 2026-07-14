@@ -5,7 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	federationoidc "prohibitorum/pkg/federation/oidc"
+	federationcore "prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 )
 
 // TestHardenedClient_BlocksInternalIssuer guards N2: with the dial screen on
@@ -42,7 +43,7 @@ func TestValidateIssuerURL(t *testing.T) {
 		"https://login.microsoftonline.com/tenant/v2.0",
 	}
 	for _, u := range good {
-		if err := federationoidc.ValidateIssuerURL(u); err != nil {
+		if err := federationcore.ValidateIssuerURL(u); err != nil {
 			t.Errorf("ValidateIssuerURL(%q) = %v, want nil", u, err)
 		}
 	}
@@ -59,7 +60,7 @@ func TestValidateIssuerURL(t *testing.T) {
 		"://nope",                    // unparseable
 	}
 	for _, u := range bad {
-		if err := federationoidc.ValidateIssuerURL(u); err == nil {
+		if err := federationcore.ValidateIssuerURL(u); err == nil {
 			t.Errorf("ValidateIssuerURL(%q) = nil, want error", u)
 		}
 	}
