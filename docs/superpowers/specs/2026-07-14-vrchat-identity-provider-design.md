@@ -92,7 +92,7 @@ The old `pkg/federation/oidc` orchestration path is removed after OIDC and Steam
 
 ### Adapter state machine
 
-Adapters implement a state-machine contract rather than a redirect-only contract. Conceptually:
+Adapters implement this state-machine contract rather than a redirect-only contract:
 
 ```go
 type Adapter interface {
@@ -112,14 +112,15 @@ Protocol behavior:
 - Steam: begin returns the OpenID redirect; callback verification and summary fetch advance to a verified identity.
 - VRChat: begin returns a local identifier form; preparation returns the one-time bio-link instruction; explicit profile verification advances to a verified identity.
 
-Existing public entry points remain stable where useful:
+These existing public entry points remain:
 
-- `/auth/federation/{slug}/login`
-- `/auth/federation/{slug}/callback`
-- invite federation start
-- authenticated `/me` identity-link start
+- `GET /auth/federation/{slug}/login`
+- `GET /auth/federation/{slug}/callback`
+- `GET /enrollments/{token}/start-federation`
+- `GET /me/identities/link/{slug}/begin`
+- `GET /me/identities/link/{slug}/callback`
 
-The core may redirect those entry points to a local challenge route when an adapter does not use an external redirect.
+OIDC and Steam login/invite/link begin routes redirect externally. VRChat login/invite/link begin routes redirect to the local browser-bound challenge page. OIDC and Steam complete through their existing callback routes; VRChat completes through the local flow actions defined below.
 
 ### Verified identity contract
 
@@ -176,6 +177,8 @@ upstream_idp
   secret_enc
   secret_nonce
   key_version
+  secret_status
+  secret_validated_at
   disabled
   created_at
 ```
@@ -184,7 +187,7 @@ upstream_idp
 
 - OIDC: issuer URL, client ID, scopes, allowed domains, claim mappings, verified-email policy, private-network policy.
 - Steam: currently no public configuration beyond common fields; its API key occupies the encrypted secret payload.
-- VRChat: fixed production API origin and any non-secret operator-session display/status metadata. The API origin is not admin-configurable.
+- VRChat: no admin-configurable API origin; the adapter derives its identifying User-Agent from the build version and public origin.
 
 Rename `client_secret_enc` to `secret_enc`; retain the existing nonce, key version, AES-256-GCM scheme, and row/version-bound AAD. The adapter defines the plaintext envelope:
 
@@ -192,7 +195,7 @@ Rename `client_secret_enc` to `secret_enc`; retain the existing nonce, key versi
 - Steam API key string;
 - VRChat JSON cookie jar.
 
-Read contracts expose `secretConfigured` and adapter health only. They never serialize plaintext or ciphertext.
+`secret_status` is `unconfigured`, `configured`, `valid`, or `invalid`; `secret_validated_at` records the last successful adapter validation. Existing OIDC/Steam rows migrate to `configured`, while a completed VRChat operator wizard sets `valid` and a later operator-session `401/403` sets `invalid`. Read contracts expose those derived health fields and `secretConfigured` only. They never serialize plaintext or ciphertext.
 
 ### Upstream identity data
 
@@ -217,7 +220,7 @@ Metadata belongs to `account_identity`, not `account.attributes`, because it des
 
 A single clean-cutover migration:
 
-1. Adds `provider_config` and `account_identity.upstream_data` with checks/indexes.
+1. Adds `provider_config`, common secret-health columns, and `account_identity.upstream_data` with checks/indexes.
 2. Renames the encrypted secret column generically without decrypting or rewriting ciphertext.
 3. Backfills OIDC config JSON from current OIDC columns.
 4. Backfills Steam config and `upstream_data.steamId` from existing Steam subjects.
@@ -230,7 +233,7 @@ There is no production deployment and no compatibility requirement. Nevertheless
 
 ### Setup and renewal
 
-A VRChat provider is not usable until its dedicated operator verification-account session is configured. Provider creation may leave it disabled/unready; the admin completes the wizard and then enables it.
+A newly created VRChat provider starts disabled with `secret_status='unconfigured'`. It is not usable until the admin completes the operator-session wizard; only then can the admin enable it.
 
 The sudo-gated wizard has two phases:
 
@@ -321,7 +324,7 @@ Admin create/update payloads use a discriminated shape:
 }
 ```
 
-OIDC and Steam use the same outer shape with adapter-specific `config`. Secret inputs remain write-only operations. VRChat adds sudo-gated operator-session start/verify/validate actions under the provider resource. The exact routes follow existing role-oriented admin naming and raw sudo-handler conventions.
+OIDC and Steam use the same outer shape with adapter-specific `config`; secret inputs remain write-only operations. VRChat operator-session actions are `POST /identity-providers/{slug}/operator-session/start`, `POST /identity-providers/{slug}/operator-session/verify`, and `POST /identity-providers/{slug}/operator-session/validate`. All three are sudo-gated raw handlers under the existing admin API prefix.
 
 Provider reads include:
 
@@ -335,9 +338,9 @@ The provider protocol and slug are immutable after creation.
 
 ### Federation challenge actions
 
-The core exposes generic flow reads/actions for the local challenge UI. Browser-bound flow handles are opaque. The server determines protocol, allowed next action, and intent from KV state; clients cannot choose another adapter or skip a step by changing request fields.
+The local challenge UI reads `GET /auth/federation/flows/{flow}` and advances only the action named by the server through `POST /auth/federation/flows/{flow}/prepare` or `POST /auth/federation/flows/{flow}/verify`. Browser-bound flow handles are opaque. The server determines protocol, allowed next action, and intent from KV state; clients cannot choose another adapter or skip a step by changing request fields.
 
-OIDC/Steam callbacks continue through `/auth/federation/{slug}/callback`. VRChat preparation and verification are POST actions on the opaque local flow. Successful login follows the existing confirmation/session/return-target behavior; successful explicit linking returns to connected accounts without minting a new session.
+OIDC/Steam callbacks continue through `/auth/federation/{slug}/callback`. VRChat uses the two local POST actions above. Successful login follows the existing confirmation/session/return-target behavior; successful explicit linking returns to connected accounts without minting a new session. The public explanatory route is `GET /verify/vrchat/{proof}` outside the admin/API route group.
 
 ### Accounts and identities
 
@@ -406,7 +409,7 @@ Steam · Persona Name · 7656…
 
 Account detail shows all linked identities and verified metadata read-only. Metadata editing remains adapter-owned; admins cannot forge upstream data through account edit APIs.
 
-English and Chinese translations cover all new labels, instructions, warnings, and error states. A VRChat-specific icon/button may use a repository-owned asset that meets existing icon and contrast conventions; no visual redesign is required.
+English and Chinese translations cover all new labels, instructions, warnings, and error states. VRChat uses the existing configurable provider-icon mechanism and generic accessible provider button; this feature does not bundle or restyle a VRChat trademark asset.
 
 ## Security and privacy
 
@@ -432,7 +435,7 @@ English and Chinese translations cover all new labels, instructions, warnings, a
 
 - VRChat API origin and paths are constants.
 - User profile URLs are parsed only to extract a validated `usr_…` ID; they are never requested.
-- Avatar retrieval, if retained for VRChat, uses the existing bounded/SSRF-screened avatar pipeline and only the approved image URL field.
+- VRChat avatar inheritance uses only `currentAvatarThumbnailImageUrl` from the verified public-user response and the existing bounded/SSRF-screened avatar pipeline.
 - JSON bodies and metadata are size bounded before decoding/persistence.
 
 ### Rate limiting
@@ -452,7 +455,7 @@ English and Chinese translations cover all new labels, instructions, warnings, a
 - Unknown/expired/replayed/browser-swapped flow: generic invalid/expired flow.
 - Identity linked elsewhere: generic identity conflict; no account enumeration.
 - Unknown identity in `link_only`: existing link-required behavior.
-- Local username collision: conflict before account creation; user may choose another username while the proof flow remains valid if policy permits.
+- Local username collision: conflict before account creation. The unconsumed flow remains valid until its normal expiry so the user can choose another local username and explicitly retry verification.
 - Operator `401/403`: provider requires re-authentication; end-user flow temporarily unavailable.
 - VRChat `429`: retry time returned; provider backoff recorded.
 - VRChat network/5xx/malformed/oversized response: temporary upstream failure; flow remains until expiry.
