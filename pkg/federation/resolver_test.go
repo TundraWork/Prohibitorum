@@ -1200,6 +1200,35 @@ func genericProvider(mode string) federationoidc.Provider {
 	}
 }
 
+func TestResolverResolveIdentityPreflightKnownThenAuthoritativeUnknownRequiresSubmittedUsername(t *testing.T) {
+	q := newFakeModesQueries()
+	q.identitySequence = []identityLookup{
+		{identity: db.AccountIdentity{ID: 300, AccountID: 50, UpstreamIdpID: 42}},
+		{err: pgx.ErrNoRows},
+		{err: pgx.ErrNoRows},
+	}
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+
+	_, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeAutoProvision),
+		*goodTokens(),
+		federationoidc.ResolveContext{
+			Intent:               federationoidc.IntentLogin,
+			RequireLocalUsername: true,
+		},
+	)
+	if !errors.Is(err, federationoidc.ErrLocalUsernameRequired) {
+		t.Fatalf("ResolveIdentity error = %v, want ErrLocalUsernameRequired", err)
+	}
+	if len(q.identitySequence) != 0 {
+		t.Fatalf("identity lookups left unread: %d", len(q.identitySequence))
+	}
+	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
+		t.Fatalf("known-to-unknown identity race mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+	}
+}
+
 func TestResolverResolveIdentityUnknownAfterPrepareRequiresSubmittedUsername(t *testing.T) {
 	q := newFakeModesQueries()
 	q.identitySequence = []identityLookup{
@@ -1222,6 +1251,30 @@ func TestResolverResolveIdentityUnknownAfterPrepareRequiresSubmittedUsername(t *
 	}
 	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
 		t.Fatalf("unknown identity race mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+	}
+}
+
+func TestResolverResolveIdentityUnknownRedirectUsesVerifiedUsername(t *testing.T) {
+	q := newFakeModesQueries()
+	q.identitySequence = []identityLookup{
+		{err: pgx.ErrNoRows},
+		{err: pgx.ErrNoRows},
+	}
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+	identity := *goodTokens()
+	identity.Username = "steam_76561198000000000"
+
+	outcome, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeAutoProvision),
+		identity,
+		federationoidc.ResolveContext{Intent: federationoidc.IntentLogin},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !outcome.IsNew || len(q.insertedAccounts) != 1 || q.insertedAccounts[0].Username != identity.Username {
+		t.Fatalf("outcome=%+v accounts=%+v, want auto-provisioned username %q", outcome, q.insertedAccounts, identity.Username)
 	}
 }
 

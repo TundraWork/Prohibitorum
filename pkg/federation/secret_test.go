@@ -2,17 +2,27 @@ package federation
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"testing"
 )
 
 func TestProviderSecretKeepsLegacyAAD(t *testing.T) {
 	dek := bytes.Repeat([]byte{0x42}, 32)
-	sealed, err := SealProviderSecret(dek, []byte("secret"), 41, 3)
+	block, err := aes.NewCipher(dek)
 	if err != nil { t.Fatal(err) }
-	got, err := OpenProviderSecret(dek, *sealed, 41)
+	aead, err := cipher.NewGCM(block)
+	if err != nil { t.Fatal(err) }
+	nonce := bytes.Repeat([]byte{0x17}, aead.NonceSize())
+	sealed := SealedSecret{
+		Ciphertext: aead.Seal(nil, nonce, []byte("secret"), []byte("upstream_idp:41:3")),
+		Nonce:      nonce,
+		KeyVersion: 3,
+	}
+	got, err := OpenProviderSecret(dek, sealed, 41)
 	if err != nil { t.Fatal(err) }
 	if string(got) != "secret" { t.Fatalf("plaintext = %q", got) }
-	if _, err := OpenProviderSecret(dek, *sealed, 42); err == nil { t.Fatal("row-swapped secret opened") }
+	if _, err := OpenProviderSecret(dek, sealed, 42); err == nil { t.Fatal("row-swapped secret opened") }
 }
 
 func TestTemporarySecretUsesChallengeAAD(t *testing.T) {

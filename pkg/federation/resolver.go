@@ -74,6 +74,22 @@ func Resolve(
 	identity *VerifiedIdentity,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
+	localUsername := ""
+	if identity != nil {
+		localUsername = identity.Username
+	}
+	return resolve(ctx, q, w, idp, identity, localUsername, pool)
+}
+
+func resolve(
+	ctx context.Context,
+	q ModesQueries,
+	w audit.Writer,
+	idp *db.UpstreamIdp,
+	identity *VerifiedIdentity,
+	localUsername string,
+	pool *pgxpool.Pool,
+) (ResolveOutcome, error) {
 	if idp == nil || identity == nil {
 		return ResolveOutcome{}, errors.New("federation: Resolve: nil provider or identity")
 	}
@@ -156,7 +172,7 @@ func Resolve(
 
 	switch idp.Mode {
 	case ModeAutoProvision:
-		return applyAutoProvision(ctx, q, w, idp, identity, identity.Username, pool)
+		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, pool)
 	case ModeInviteOnly:
 		// Reaching invite_only via Resolve means HandleCallback did NOT see an
 		// EnrollmentToken on the FedState — i.e. someone hit /federation/{slug}/login
@@ -737,19 +753,19 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 	case IntentInvite:
 		return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, r.pool)
 	case IntentLogin:
+		username := resolution.LocalUsername
+		if username == "" && !resolution.RequireLocalUsername {
+			username = identity.Username
+		}
 		known, err := r.IdentityKnown(ctx, IdentityKey{Issuer: identity.Issuer, Subject: identity.Subject})
 		if err != nil {
 			return ResolveOutcome{}, err
 		}
 		if known {
-			return Resolve(ctx, r.queries, r.audit, &row, &identity, r.pool)
+			return resolve(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
 		}
 		switch row.Mode {
 		case ModeAutoProvision:
-			username := resolution.LocalUsername
-			if username == "" && !resolution.RequireLocalUsername {
-				username = identity.Username
-			}
 			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
 		case ModeLinkOnly:
 			return applyLinkOnly(ctx, r.audit, &row, &identity)
