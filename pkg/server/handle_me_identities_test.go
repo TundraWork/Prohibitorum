@@ -1028,7 +1028,7 @@ func TestMeIdentities_LinkCallback_SessionSwap(t *testing.T) {
 	}
 }
 
-func TestMeIdentities_LinkCallback_MissingState(t *testing.T) {
+func TestMeIdentities_LinkCallback_MissingStateDoesNotAudit(t *testing.T) {
 	h := newLinkTestHarness(t)
 
 	q := url.Values{}
@@ -1043,7 +1043,26 @@ func TestMeIdentities_LinkCallback_MissingState(t *testing.T) {
 	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
 		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", loc)
 	}
-	found := false
+	for _, ev := range h.q.events {
+		if ev.Factor == string(audit.FactorFederationOIDC) && ev.Event == audit.EventFail {
+			t.Fatalf("empty callback emitted federation failure audit: %+v", h.q.events)
+		}
+	}
+}
+
+func TestMeIdentities_LinkCallback_NonemptyUnknownStateAuditsAccount(t *testing.T) {
+	h := newLinkTestHarness(t)
+
+	q := url.Values{}
+	q.Set("state", "nonempty-unknown-state")
+	q.Set("code", "abc")
+	resp := h.hitLinkCallback(t, "mockop", q)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
+		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", loc)
+	}
 	for _, ev := range h.q.events {
 		if ev.Factor != string(audit.FactorFederationOIDC) || ev.Event != audit.EventFail {
 			continue
@@ -1052,20 +1071,12 @@ func TestMeIdentities_LinkCallback_MissingState(t *testing.T) {
 		if err := json.Unmarshal(ev.Detail, &detail); err != nil {
 			t.Fatal(err)
 		}
-		if detail["reason"] != string(fedoidc.FailureStateInvalid) {
-			continue
+		if detail["reason"] == string(fedoidc.FailureStateInvalid) &&
+			ev.AccountID != nil && *ev.AccountID == h.linkAccountID {
+			return
 		}
-		if ev.AccountID == nil || *ev.AccountID != h.linkAccountID {
-			t.Fatalf("audit account_id: want %d, got %v", h.linkAccountID, ev.AccountID)
-		}
-		if len(detail) != 1 {
-			t.Fatalf("missing-state audit leaked detail: %+v", detail)
-		}
-		found = true
 	}
-	if !found {
-		t.Fatalf("audit: missing account-attributed state_invalid row; events=%+v", h.q.events)
-	}
+	t.Fatalf("audit: missing account-attributed state_invalid row; events=%+v", h.q.events)
 }
 
 func TestMeIdentities_LinkCallback_UpstreamError(t *testing.T) {

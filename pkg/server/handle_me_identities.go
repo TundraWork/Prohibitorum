@@ -347,13 +347,9 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	// handle_federation.go handleFederationLoginCallbackHTTP.
 	isSteamCallback := code == "" && q.Get("openid.mode") == "id_res"
 	if state == "" || (code == "" && !isSteamCallback) {
-		acct := sess.Account.ID
-		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-			AccountID: &acct,
-			Factor:    audit.FactorFederationOIDC,
-			Event:     audit.EventFail,
-			Detail:    map[string]any{"reason": string(federation.FailureStateInvalid)},
-		})
+		// Stray callbacks have no flow to attribute. Reject them without an
+		// audit row; nonempty malformed or replayed state reaches the service,
+		// which records the account-attributed structured failure.
 		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 		return
 	}

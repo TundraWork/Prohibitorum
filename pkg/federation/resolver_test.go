@@ -160,10 +160,10 @@ func (f *fakeModesQueries) InsertAccountIdentity(_ context.Context, arg db.Inser
 func (f *fakeModesQueries) ConfirmAccountIdentity(_ context.Context, id int64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.confirmedIdentityID = id
 	if f.confirmIdentityErr != nil {
 		return f.confirmIdentityErr
 	}
-	f.confirmedIdentityID = id
 	return nil
 }
 
@@ -1534,6 +1534,7 @@ func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
 }
 
 func TestResolverLinkInfrastructureFailuresAreOpaqueAndClassified(t *testing.T) {
+
 	tests := []struct {
 		name  string
 		setup func(*fakeModesQueries)
@@ -1557,10 +1558,10 @@ func TestResolverLinkInfrastructureFailuresAreOpaqueAndClassified(t *testing.T) 
 			},
 		},
 		{
-			name: "confirmation",
+			name: "identity insert",
 			setup: func(q *fakeModesQueries) {
 				q.accountByIDResults[9] = db.Account{ID: 9}
-				q.confirmIdentityErr = errors.New("database-secret: confirmation")
+				q.insertIdentityErr = errors.New("database-secret: identity insert")
 			},
 		},
 	}
@@ -1586,5 +1587,33 @@ func TestResolverLinkInfrastructureFailuresAreOpaqueAndClassified(t *testing.T) 
 				t.Fatalf("error leaked infrastructure detail: %v", err)
 			}
 		})
+	}
+}
+
+func TestResolverLinkConfirmationFailureRemainsSuccessful(t *testing.T) {
+	q := newFakeModesQueries()
+	q.accountByIDResults[9] = db.Account{ID: 9}
+	q.confirmIdentityErr = errors.New("database-secret: confirmation")
+	a := &recordingAudit{}
+	resolver := federationoidc.NewResolver(q, a, nil)
+
+	outcome, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeAutoProvision),
+		*goodTokens(),
+		federationoidc.ResolveContext{Intent: federationoidc.IntentLink, LinkAccountID: new(int32(9))},
+	)
+	if err != nil {
+		t.Fatalf("confirmation failure rejected inserted link: %v", err)
+	}
+	if outcome.AccountID != 9 || outcome.IdentityID == 0 || outcome.ProviderID != 42 || outcome.Confirmed {
+		t.Fatalf("outcome = %+v, want successful pending link", outcome)
+	}
+	if q.insertedIdentity.AccountID != 9 || q.confirmedIdentityID != outcome.IdentityID {
+		t.Fatalf("link mutation = %+v, confirmation attempt=%d", q.insertedIdentity, q.confirmedIdentityID)
+	}
+	record := findEvent(a.snapshot(), audit.EventLink)
+	if record == nil || record.AccountID == nil || *record.AccountID != 9 {
+		t.Fatalf("link audit = %+v", a.snapshot())
 	}
 }

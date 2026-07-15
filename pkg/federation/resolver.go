@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -822,7 +823,8 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, id
 	if len(provider.AllowedDomains) > 0 && !domainAllowed(email, provider.AllowedDomains) {
 		return ResolveOutcome{}, NewFailure(FailureDomainNotAllowed, nil)
 	}
-	return runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+
+	outcome, err := runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, _ audit.Writer) (ResolveOutcome, error) {
 		_, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
 			UpstreamIss: identity.Issuer,
 			UpstreamSub: identity.Subject,
@@ -857,20 +859,31 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, id
 				"iss": identity.Issuer, "sub": identity.Subject,
 			})
 		}
-		if err := qtx.ConfirmAccountIdentity(ctx, linked.ID); err != nil {
-			return ResolveOutcome{}, NewFailure(FailureLinkInsert, map[string]any{
-				"iss": identity.Issuer, "sub": identity.Subject,
-			})
-		}
-		audit.RecordOrLog(ctx, txAudit, audit.Record{
-			AccountID: new(accountID), Factor: audit.FactorFederationOIDC, Event: audit.EventLink,
-			Detail: map[string]any{"idp_slug": provider.Slug, "upstream_iss": identity.Issuer, "upstream_sub": identity.Subject},
-		})
 		return ResolveOutcome{
 			AccountID: accountID, IdentityID: linked.ID, ProviderID: provider.ID,
-			AMR: append([]string(nil), identity.AMR...), Confirmed: true,
+			AMR: append([]string(nil), identity.AMR...),
 		}, nil
 	})
+	if err != nil {
+		return ResolveOutcome{}, err
+	}
+
+	// Match the original explicit-link sequence: the identity insert commits
+	// before confirmation is attempted. Confirmation is best-effort because a
+	// failed confirm leaves a valid pending link that can be confirmed at the
+	// welcome gate on a later federated login.
+	if err := r.queries.ConfirmAccountIdentity(ctx, outcome.IdentityID); err != nil {
+		slog.WarnContext(ctx, "federation: confirm linked identity failed (will re-confirm at /welcome on next login)",
+			"account_id", accountID, "err", err)
+	} else {
+		outcome.Confirmed = true
+	}
+
+	audit.RecordOrLog(ctx, r.audit, audit.Record{
+		AccountID: new(accountID), Factor: audit.FactorFederationOIDC, Event: audit.EventLink,
+		Detail: map[string]any{"idp_slug": provider.Slug, "upstream_iss": identity.Issuer, "upstream_sub": identity.Subject},
+	})
+	return outcome, nil
 }
 
 
