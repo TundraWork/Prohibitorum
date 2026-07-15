@@ -9,12 +9,17 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sync"
+	"time"
 
 	"prohibitorum/pkg/authn"
 	federationcore "prohibitorum/pkg/federation"
 )
 
-const Protocol = "oidc"
+const (
+	Protocol       = "oidc"
+	clientCacheTTL = 15 * time.Minute
+)
 
 type Config struct {
 	IssuerURL           string   `json:"issuerUrl"`
@@ -78,13 +83,28 @@ func (c clientWrapper) UserInfo(ctx context.Context, accessToken, subject string
 	return c.client.UserInfo(ctx, accessToken, subject)
 }
 
+type clientCacheKey struct {
+	slug                string
+	keyVersion          int32
+	callbackURL         string
+	allowPrivateNetwork bool
+}
+
+type cachedClient struct {
+	client    clientAPI
+	expiresAt time.Time
+}
+
 type Adapter struct {
-	secrets *federationcore.SecretStore
-	newClient func(context.Context, Config, string, string) (clientAPI, error)
+	secrets    *federationcore.SecretStore
+	newClient  func(context.Context, Config, string, string) (clientAPI, error)
+	clientCache sync.Map
+	cacheTTL    time.Duration
+	now         func() time.Time
 }
 
 func NewAdapter(secrets *federationcore.SecretStore) *Adapter {
-	adapter := &Adapter{secrets: secrets}
+	adapter := &Adapter{secrets: secrets, cacheTTL: clientCacheTTL, now: time.Now}
 	adapter.newClient = func(ctx context.Context, config Config, secret, callbackURL string) (clientAPI, error) {
 		client, err := NewClient(ctx, config.ClientID, secret, callbackURL, config.Scopes, config.IssuerURL, config.AllowedAlgorithms, config.AllowPrivateNetwork)
 		if err != nil { return nil, err }
@@ -104,9 +124,7 @@ type adapterState struct {
 }
 
 func (a *Adapter) Begin(ctx context.Context, provider federationcore.Provider, begin federationcore.BeginContext) (json.RawMessage, federationcore.NextAction, error) {
-	config, secret, err := a.open(provider)
-	if err != nil { return nil, federationcore.NextAction{}, err }
-	client, err := a.newClient(ctx, config, secret, begin.CallbackURL)
+	_, client, err := a.client(ctx, provider, begin.CallbackURL)
 	if err != nil { return nil, federationcore.NextAction{}, err }
 	verifier, err := randomB64(32); if err != nil { return nil, federationcore.NextAction{}, err }
 	nonce, err := randomB64(16); if err != nil { return nil, federationcore.NextAction{}, err }
@@ -124,9 +142,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 	if state.CallbackURL == "" || state.ExpectedIss == "" || state.Nonce == "" || state.CodeVerifier == "" || input.Issuer != "" && input.Issuer != state.ExpectedIss {
 		return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid()
 	}
-	config, secret, err := a.open(provider)
-	if err != nil { return federationcore.AdvanceResult{}, err }
-	client, err := a.newClient(ctx, config, secret, state.CallbackURL)
+	config, client, err := a.client(ctx, provider, state.CallbackURL)
 	if err != nil { return federationcore.AdvanceResult{}, err }
 	if client.Issuer() != state.ExpectedIss || client.TokenEndpoint() != state.TokenURL {
 		return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid()
@@ -152,6 +168,53 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		AMR: append([]string(nil), tokens.AMR...), AvatarURL: avatarURL,
 	}
 	return federationcore.AdvanceResult{Identity: identity}, nil
+}
+
+// InvalidateClientCache evicts every cached client for slug. Administrative
+// provider updates call this after commit so policy/config changes take effect
+// on the next flow rather than after the bounded cache window.
+func (a *Adapter) InvalidateClientCache(slug string) {
+	a.clientCache.Range(func(key, _ any) bool {
+		if cacheKey, ok := key.(clientCacheKey); ok && cacheKey.slug == slug {
+			a.clientCache.Delete(key)
+		}
+		return true
+	})
+}
+
+func (a *Adapter) client(ctx context.Context, provider federationcore.Provider, callbackURL string) (Config, clientAPI, error) {
+	config, err := decodeConfig(provider.Config)
+	if err != nil {
+		return Config{}, nil, err
+	}
+	var keyVersion int32
+	if provider.Secret != nil {
+		keyVersion = provider.Secret.KeyVersion
+	}
+	key := clientCacheKey{
+		slug:                provider.Slug,
+		keyVersion:          keyVersion,
+		callbackURL:         callbackURL,
+		allowPrivateNetwork: config.AllowPrivateNetwork,
+	}
+	if value, ok := a.clientCache.Load(key); ok {
+		entry := value.(*cachedClient)
+		if a.now().Before(entry.expiresAt) {
+			return config, entry.client, nil
+		}
+		a.clientCache.Delete(key)
+	}
+
+	config, secret, err := a.open(provider)
+	if err != nil {
+		return Config{}, nil, err
+	}
+	client, err := a.newClient(ctx, config, secret, callbackURL)
+	if err != nil {
+		return Config{}, nil, err
+	}
+	a.clientCache.Store(key, &cachedClient{client: client, expiresAt: a.now().Add(a.cacheTTL)})
+	return config, client, nil
 }
 
 func (a *Adapter) open(provider federationcore.Provider) (Config, string, error) {

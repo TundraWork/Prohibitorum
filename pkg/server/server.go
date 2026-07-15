@@ -61,6 +61,7 @@ type Server struct {
 	totpStore     *totp.Store
 	throttle      *authn.Throttle
 	federationService *federation.Service
+	federationOIDCAdapter *federationoidc.Adapter
 	// Audit records credential lifecycle events.
 	Audit audit.Writer
 	// sudoFlowOverride lets tests inject a fake sudoFlowQueries for the
@@ -290,7 +291,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		passwordStore: passwordStore,
 		totpStore:     totpStore,
 		throttle:      throttle,
-		federationService: federationService,
+		federationService:     federationService,
+		federationOIDCAdapter: oidcAdapter,
 		Audit:         auditWriter,
 		branding:      brandingResolver,
 		clientIP:      clientIPResolver,

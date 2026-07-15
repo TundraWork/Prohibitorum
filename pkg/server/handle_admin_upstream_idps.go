@@ -473,6 +473,9 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		return
 	}
 
+	if s.federationOIDCAdapter != nil {
+		s.federationOIDCAdapter.InvalidateClientCache(slug)
+	}
 
 	sess := authn.SessionFromContext(r.Context())
 	var actorID *int32

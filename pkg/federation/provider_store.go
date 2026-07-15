@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
 	"prohibitorum/pkg/db"
 )
 
@@ -31,10 +29,10 @@ func NewProviderStore(queries ProviderQueries) *ProviderStore {
 func (s *ProviderStore) BySlug(ctx context.Context, slug string) (Provider, error) {
 	row, err := s.queries.GetUpstreamIDPBySlugAny(ctx, slug)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Provider{}, ErrUnknownProvider
-		}
-		return Provider{}, fmt.Errorf("federation: lookup provider: %w", err)
+		// The slug is public input. Collapse absence and database failures to the
+		// same opaque classification so begin/link cannot disclose store health
+		// or configured-provider membership through their redirect codes.
+		return Provider{}, ErrUnknownProvider
 	}
 	return providerFromRow(row)
 }

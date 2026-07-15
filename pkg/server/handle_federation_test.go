@@ -25,6 +25,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -67,6 +68,7 @@ type fakeFedQueries struct {
 
 	// upstream_idp
 	idpBySlug map[string]db.UpstreamIdp
+	idpSlugErr error
 
 	// account_identity (auto-provision: ErrNoRows on first lookup)
 	identityResult db.AccountIdentity
@@ -121,6 +123,9 @@ func newFakeFedQueries() *fakeFedQueries {
 func (f *fakeFedQueries) GetUpstreamIDPBySlug(_ context.Context, slug string) (db.UpstreamIdp, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.idpSlugErr != nil {
+		return db.UpstreamIdp{}, f.idpSlugErr
+	}
 	if v, ok := f.idpBySlug[slug]; ok {
 		return v, nil
 	}
@@ -639,6 +644,23 @@ func TestFederationLogin_UnknownSlugReturnsStateInvalid(t *testing.T) {
 	loc := resp.Header.Get("Location")
 	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
 		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", loc)
+	}
+}
+
+func TestFederationLogin_LookupFailureReturnsStateInvalid(t *testing.T) {
+	h := newFederationTestServer(t)
+	h.q.idpSlugErr = errors.New("database unavailable")
+
+	_, resp := h.driveLogin(t, "mockop", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
+		t.Fatalf("Location = %q, want opaque federation_state_invalid redirect", loc)
+	}
+	if strings.Contains(loc, "server_error") {
+		t.Fatalf("Location exposed provider-store failure as server_error: %q", loc)
 	}
 }
 

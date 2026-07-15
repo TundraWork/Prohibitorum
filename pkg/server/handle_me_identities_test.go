@@ -11,6 +11,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -828,6 +829,24 @@ func TestMeIdentities_LinkBegin_HappyPath(t *testing.T) {
 	}
 	if fs.LinkAccountID == nil || *fs.LinkAccountID != h.linkAccountID {
 		t.Errorf("LinkAccountID: want %d, got %v", h.linkAccountID, fs.LinkAccountID)
+	}
+}
+
+func TestMeIdentities_LinkBegin_LookupFailureReturnsStateInvalid(t *testing.T) {
+	h := newLinkTestHarness(t)
+	h.grantSudoOnSession(t)
+	h.q.idpSlugErr = errors.New("database unavailable")
+
+	_, resp := h.driveLinkBegin(t, "mockop", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status: want 302, got %d", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
+		t.Fatalf("Location = %q, want opaque federation_state_invalid redirect", loc)
+	}
+	if strings.Contains(loc, "server_error") {
+		t.Fatalf("Location exposed provider-store failure as server_error: %q", loc)
 	}
 }
 
