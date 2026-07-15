@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"prohibitorum/pkg/authn"
 	federationcore "prohibitorum/pkg/federation"
 )
 
@@ -123,6 +122,13 @@ type adapterState struct {
 	CodeVerifier string `json:"codeVerifier"`
 }
 
+type avatarReference struct {
+	client       clientAPI
+	accessToken string
+	subject     string
+	pictureClaim string
+}
+
 func (a *Adapter) Begin(ctx context.Context, provider federationcore.Provider, begin federationcore.BeginContext) (json.RawMessage, federationcore.NextAction, error) {
 	_, client, err := a.client(ctx, provider, begin.CallbackURL)
 	if err != nil { return nil, federationcore.NextAction{}, err }
@@ -136,38 +142,93 @@ func (a *Adapter) Begin(ctx context.Context, provider federationcore.Provider, b
 }
 
 func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider, raw json.RawMessage, input federationcore.ActionInput) (federationcore.AdvanceResult, error) {
-	if input.Kind != federationcore.ActionRedirect { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
+	if input.Kind != federationcore.ActionRedirect {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
+	}
 	var state adapterState
-	if err := json.Unmarshal(raw, &state); err != nil { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
-	if state.CallbackURL == "" || state.ExpectedIss == "" || state.Nonce == "" || state.CodeVerifier == "" || input.Issuer != "" && input.Issuer != state.ExpectedIss {
-		return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid()
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
+	}
+	if state.CallbackURL == "" || state.ExpectedIss == "" || state.Nonce == "" || state.CodeVerifier == "" {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
+	}
+	if input.Issuer != "" && input.Issuer != state.ExpectedIss {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureIssuerMismatch, map[string]any{
+			"expected_iss": state.ExpectedIss,
+			"got_iss":      input.Issuer,
+		})
 	}
 	config, client, err := a.client(ctx, provider, state.CallbackURL)
-	if err != nil { return federationcore.AdvanceResult{}, err }
-	if client.Issuer() != state.ExpectedIss || client.TokenEndpoint() != state.TokenURL {
-		return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid()
+	if err != nil {
+		return federationcore.AdvanceResult{}, err
+	}
+	if client.Issuer() != state.ExpectedIss {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureIssuerMismatch, map[string]any{
+			"expected_iss": state.ExpectedIss,
+			"got_iss":      client.Issuer(),
+		})
+	}
+	if client.TokenEndpoint() != state.TokenURL {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureTokenEndpointDrift, map[string]any{
+			"expected": state.TokenURL,
+			"got":      client.TokenEndpoint(),
+		})
 	}
 	tokens, err := client.Exchange(ctx, input.Code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
-	if err != nil { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
-	usernameClaim := config.UsernameClaim; if usernameClaim == "" { usernameClaim = "preferred_username" }
-	displayClaim := config.DisplayNameClaim; if displayClaim == "" { displayClaim = "name" }
-	emailClaim := config.EmailClaim; if emailClaim == "" { emailClaim = "email" }
-	pictureClaim := config.PictureClaim; if pictureClaim == "" { pictureClaim = "picture" }
+	if err != nil {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureCodeExchange, nil)
+	}
+	usernameClaim := config.UsernameClaim
+	if usernameClaim == "" {
+		usernameClaim = "preferred_username"
+	}
+	displayClaim := config.DisplayNameClaim
+	if displayClaim == "" {
+		displayClaim = "name"
+	}
+	emailClaim := config.EmailClaim
+	if emailClaim == "" {
+		emailClaim = "email"
+	}
+	pictureClaim := config.PictureClaim
+	if pictureClaim == "" {
+		pictureClaim = "picture"
+	}
 	emailValue := ClaimString(tokens.Raw, emailClaim)
 	var email *string
-	if emailValue != "" { email = new(emailValue) }
-	avatarURL := ClaimString(tokens.Raw, pictureClaim)
-	if avatarURL == "" && tokens.AccessToken != "" {
-		if userInfo, userInfoErr := client.UserInfo(ctx, tokens.AccessToken, tokens.Subject); userInfoErr == nil {
-			avatarURL = ClaimString(userInfo, pictureClaim)
-		}
+	if emailValue != "" {
+		email = new(emailValue)
 	}
+	avatarURL := ClaimString(tokens.Raw, pictureClaim)
 	identity := &federationcore.VerifiedIdentity{
-		Issuer: tokens.Issuer, Subject: tokens.Subject, Email: email, EmailVerified: tokens.EmailVerified,
+		Issuer: tokens.Issuer, Subject: tokens.Subject, Email: email,
+		EmailVerified: tokens.EmailVerified, EmailVerificationSupported: true,
 		Username: ClaimString(tokens.Raw, usernameClaim), DisplayName: ClaimString(tokens.Raw, displayClaim),
 		AMR: append([]string(nil), tokens.AMR...), AvatarURL: avatarURL,
 	}
-	return federationcore.AdvanceResult{Identity: identity}, nil
+	result := federationcore.AdvanceResult{Identity: identity}
+	if avatarURL == "" && tokens.AccessToken != "" {
+		result.Avatar = &federationcore.AvatarDelivery{Opaque: &avatarReference{
+			client: client, accessToken: tokens.AccessToken,
+			subject: tokens.Subject, pictureClaim: pictureClaim,
+		}}
+	}
+	return result, nil
+}
+
+func (a *Adapter) ResolveAvatar(ctx context.Context, _ federationcore.Provider, delivery federationcore.AvatarDelivery) (string, error) {
+	if delivery.URL != "" {
+		return delivery.URL, nil
+	}
+	reference, ok := delivery.Opaque.(*avatarReference)
+	if !ok || reference.client == nil || reference.accessToken == "" || reference.subject == "" || reference.pictureClaim == "" {
+		return "", errors.New("federation/oidc: invalid avatar reference")
+	}
+	userInfo, err := reference.client.UserInfo(ctx, reference.accessToken, reference.subject)
+	if err != nil {
+		return "", err
+	}
+	return ClaimString(userInfo, reference.pictureClaim), nil
 }
 
 // InvalidateClientCache evicts every cached client for slug. Administrative
@@ -241,3 +302,4 @@ func randomB64(size int) (string, error) {
 
 var _ federationcore.Definition = Definition{}
 var _ federationcore.Adapter = (*Adapter)(nil)
+var _ federationcore.AvatarResolver = (*Adapter)(nil)

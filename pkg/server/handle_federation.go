@@ -132,13 +132,8 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		browserToken = c.Value
 	}
 
-	provider, providerErr := s.federationService.ProviderBySlug(r.Context(), chi.URLParam(r, "slug"))
-	if providerErr != nil {
-		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
-		return
-	}
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
-		FlowID: state, BrowserToken: browserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol,
+		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
 		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
 	})
 	if err != nil {

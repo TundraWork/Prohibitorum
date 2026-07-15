@@ -97,11 +97,11 @@ func NewAvatarManager(queries AvatarQueries, store kv.Store) *AvatarManager {
 	return &AvatarManager{queries: queries, kv: store, fetch: fetchUpstreamAvatar}
 }
 
-func (m *AvatarManager) Inherit(accountID int32, provider Provider, avatarURL string) {
-	if avatarURL == "" {
+func (m *AvatarManager) Inherit(accountID int32, provider Provider, delivery AvatarDelivery, resolver AvatarResolver) {
+	if delivery.URL == "" && (resolver == nil || delivery.Opaque == nil) {
 		return
 	}
-	go m.run(context.Background(), accountID, provider, avatarURL)
+	go m.run(context.Background(), accountID, provider, delivery, resolver)
 }
 
 func (m *AvatarManager) Pending(ctx context.Context, accountID int32) bool {
@@ -122,7 +122,7 @@ func (m *AvatarManager) Pending(ctx context.Context, accountID int32) bool {
 	}
 }
 
-func (m *AvatarManager) run(parent context.Context, accountID int32, provider Provider, avatarURL string) {
+func (m *AvatarManager) run(parent context.Context, accountID int32, provider Provider, delivery AvatarDelivery, resolver AvatarResolver) {
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 	key := AvatarFetchKey(accountID, provider.ID)
@@ -132,6 +132,17 @@ func (m *AvatarManager) run(parent context.Context, accountID int32, provider Pr
 	}
 	defer func() { _ = m.kv.Del(ctx, key) }()
 
+	avatarURL := delivery.URL
+	if avatarURL == "" {
+		avatarURL, err = resolver.ResolveAvatar(ctx, provider, delivery)
+		if err != nil {
+			slog.WarnContext(ctx, "federation: upstream avatar resolution failed", "account_id", accountID, "err", err)
+			return
+		}
+	}
+	if avatarURL == "" {
+		return
+	}
 	var config providerConfig
 	if err := json.Unmarshal(provider.Config, &config); err != nil {
 		return

@@ -98,6 +98,80 @@ func avatarManagerPNG(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
+type avatarFallbackResolver struct {
+	calls    int
+	delivery AvatarDelivery
+}
+
+func (r *avatarFallbackResolver) ResolveAvatar(_ context.Context, _ Provider, delivery AvatarDelivery) (string, error) {
+	r.calls++
+	r.delivery = delivery
+	return "https://cdn.test/fallback.png", nil
+}
+
+type blockingAvatarResolver struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (r *blockingAvatarResolver) ResolveAvatar(context.Context, Provider, AvatarDelivery) (string, error) {
+	close(r.started)
+	<-r.release
+	return "", nil
+}
+
+func TestAvatarManagerInheritDoesNotWaitForFallback(t *testing.T) {
+	store := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = store.Close() })
+	manager := NewAvatarManager(&avatarManagerQueries{}, store)
+	resolver := &blockingAvatarResolver{started: make(chan struct{}), release: make(chan struct{})}
+	returned := make(chan struct{})
+
+	go func() {
+		manager.Inherit(7, Provider{ID: 11, Slug: "corp"}, AvatarDelivery{Opaque: new(int)}, resolver)
+		close(returned)
+	}()
+	select {
+	case <-resolver.started:
+	case <-time.After(time.Second):
+		t.Fatal("detached fallback did not start")
+	}
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		close(resolver.release)
+		t.Fatal("Inherit synchronously waited for avatar fallback")
+	}
+	close(resolver.release)
+}
+
+func TestAvatarManagerResolvesFallbackInsideInheritanceWorker(t *testing.T) {
+	queries := &avatarManagerQueries{account: db.Account{ID: 7}}
+	store := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = store.Close() })
+	manager := NewAvatarManager(queries, store)
+	resolver := &avatarFallbackResolver{}
+	var fetchedURL string
+	manager.fetch = func(_ context.Context, rawURL string, _ bool) ([]byte, error) {
+		fetchedURL = rawURL
+		return avatarManagerPNG(t), nil
+	}
+	opaque := &struct{ accessToken string }{accessToken: "opaque"}
+	delivery := AvatarDelivery{Opaque: opaque}
+
+	manager.run(context.Background(), 7, Provider{
+		ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
+	}, delivery, resolver)
+
+	if resolver.calls != 1 || fetchedURL != "https://cdn.test/fallback.png" ||
+		resolver.delivery.Opaque != opaque {
+		t.Fatalf("resolver calls=%d fetched=%q delivery=%v", resolver.calls, fetchedURL, resolver.delivery.Opaque)
+	}
+	if len(queries.upserts) != 1 {
+		t.Fatalf("fallback delivery upserts = %d, want 1", len(queries.upserts))
+	}
+}
+
 func TestAvatarManagerInheritanceSelectionPolicy(t *testing.T) {
 	const accountID int32 = 7
 	const source = "upstream:corp"
@@ -136,7 +210,7 @@ func TestAvatarManagerInheritanceSelectionPolicy(t *testing.T) {
 			}
 			provider := Provider{ID: 11, Slug: "corp", Config: json.RawMessage(`{"allowPrivateNetwork":true}`)}
 
-			manager.run(context.Background(), accountID, provider, "https://cdn.test/avatar.png")
+			manager.run(context.Background(), accountID, provider, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
 
 			if got := len(queries.upserts); got != boolCount(test.wantUpsert) {
 				t.Fatalf("upserts = %d, want %d", got, boolCount(test.wantUpsert))
@@ -185,7 +259,7 @@ func TestAvatarManagerSkipsUnchangedETagRefresh(t *testing.T) {
 		return pngBytes, nil
 	}
 
-	manager.run(context.Background(), accountID, Provider{ID: 11, Slug: "corp", Config: json.RawMessage(`{}`)}, "https://cdn.test/avatar.png")
+	manager.run(context.Background(), accountID, Provider{ID: 11, Slug: "corp", Config: json.RawMessage(`{}`)}, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
 
 	if len(queries.upserts) != 0 {
 		t.Fatalf("unchanged avatar caused %d upserts", len(queries.upserts))
@@ -211,7 +285,7 @@ func TestAvatarManagerDedupesConcurrentProviderRefresh(t *testing.T) {
 		return avatarManagerPNG(t), nil
 	}
 
-	manager.run(context.Background(), accountID, provider, "https://cdn.test/avatar.png")
+	manager.run(context.Background(), accountID, provider, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
 
 	if fetched {
 		t.Fatal("deduped refresh fetched the avatar")
@@ -237,7 +311,7 @@ func TestAvatarManagerUsesProviderPrivateNetworkPolicy(t *testing.T) {
 
 	manager.run(context.Background(), 7, Provider{
 		ID: 11, Slug: "corp", Config: json.RawMessage(`{"allowPrivateNetwork":true}`),
-	}, "https://cdn.test/avatar.png")
+	}, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
 
 	if !got {
 		t.Fatal("avatar fetch did not receive provider allowPrivateNetwork policy")

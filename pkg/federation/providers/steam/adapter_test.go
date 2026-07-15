@@ -60,6 +60,9 @@ func TestAdapterClassifiesOpenIDVerificationFailureAsStateInvalid(t *testing.T) 
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 		t.Fatalf("Advance error = %v, want federation_state_invalid", err)
 	}
+	if reason, ok := federationcore.FailureReasonOf(err); !ok || reason != federationcore.FailureSteamVerification {
+		t.Fatalf("failure reason = %q, want steam_verify_failed", reason)
+	}
 }
 
 func TestDefinitionRequiresValidatedSecret(t *testing.T) {

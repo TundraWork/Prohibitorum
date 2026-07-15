@@ -3,6 +3,7 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,9 +15,13 @@ import (
 )
 
 type adapterFakeClient struct {
-	tokens        *Tokens
-	tokenEndpoint string
-	exchanges     *int
+	tokens         *Tokens
+	tokenEndpoint  string
+	exchanges      *int
+	userInfo       map[string]any
+	userInfoCalls  int
+	userInfoErr    error
+	exchangeErr    error
 }
 
 func (c *adapterFakeClient) Issuer() string { return "https://issuer.test" }
@@ -31,9 +36,12 @@ func (c *adapterFakeClient) Exchange(context.Context, string, string, string, st
 	if c.exchanges != nil {
 		*c.exchanges = *c.exchanges + 1
 	}
-	return c.tokens, nil
+	return c.tokens, c.exchangeErr
 }
-func (c *adapterFakeClient) UserInfo(context.Context, string, string) (map[string]any, error) { return nil, nil }
+func (c *adapterFakeClient) UserInfo(context.Context, string, string) (map[string]any, error) {
+	c.userInfoCalls++
+	return c.userInfo, c.userInfoErr
+}
 
 func TestAdapterBeginAndAdvanceVerifiedIdentity(t *testing.T) {
 	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
@@ -48,10 +56,62 @@ func TestAdapterBeginAndAdvanceVerifiedIdentity(t *testing.T) {
 	if action.Kind != federationcore.ActionRedirect || action.URL == "" { t.Fatalf("action = %+v", action) }
 	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: "code", Issuer: "https://issuer.test"})
 	if err != nil { t.Fatal(err) }
-	if result.Identity == nil || result.Identity.Username != "alice" || result.Identity.DisplayName != "Alice" || result.Identity.Email == nil || *result.Identity.Email != "alice@example.com" || result.Identity.AvatarURL != "https://cdn.test/a.png" {
+	if result.Identity == nil || result.Identity.Username != "alice" || result.Identity.DisplayName != "Alice" || result.Identity.Email == nil || *result.Identity.Email != "alice@example.com" || !result.Identity.EmailVerificationSupported || result.Identity.AvatarURL != "https://cdn.test/a.png" {
 		t.Fatalf("identity = %+v", result.Identity)
 	}
 	if len(result.State) != 0 || result.Next != nil { t.Fatalf("terminal result carried state/action: %+v", result) }
+}
+
+func TestAdapterDefersUserInfoAvatarFallback(t *testing.T) {
+	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := federationcore.Provider{
+		ID: 7, Slug: "corp", Protocol: Protocol,
+		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"],"pictureClaim":"picture"}`),
+		Secret:       secret,
+		SecretStatus: "valid",
+	}
+	adapter := NewAdapter(store)
+	client := &adapterFakeClient{
+		tokens: &Tokens{
+			Issuer: "https://issuer.test", Subject: "sub", AccessToken: "access-token",
+			Raw: map[string]any{},
+		},
+		userInfo: map[string]any{"picture": "https://cdn.test/fallback.png"},
+	}
+	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+		return client, nil
+	}
+	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+		Kind: federationcore.ActionRedirect, Code: "code",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.userInfoCalls != 0 {
+		t.Fatalf("Advance made %d synchronous UserInfo calls", client.userInfoCalls)
+	}
+	if result.Identity == nil || result.Identity.AvatarURL != "" || result.Avatar == nil {
+		t.Fatalf("terminal avatar delivery = %+v identity=%+v", result.Avatar, result.Identity)
+	}
+
+	avatarURL, err := adapter.ResolveAvatar(context.Background(), provider, *result.Avatar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if avatarURL != "https://cdn.test/fallback.png" || client.userInfoCalls != 1 {
+		t.Fatalf("detached fallback URL = %q, UserInfo calls = %d", avatarURL, client.userInfoCalls)
+	}
 }
 
 func TestAdapterAdvanceAllowsOptionalAuthorizationResponseIssuer(t *testing.T) {
@@ -299,6 +359,55 @@ func TestAdapterClientCacheSeparatesPrivateNetworkPolicy(t *testing.T) {
 	}
 }
 
+func TestAdapterAdvanceClassifiesIssuerAndExchangeFailures(t *testing.T) {
+	tests := []struct {
+		name        string
+		issuer      string
+		exchangeErr error
+		wantReason  federationcore.FailureReason
+	}{
+		{name: "authorization response issuer", issuer: "https://attacker.test", wantReason: federationcore.FailureIssuerMismatch},
+		{name: "code exchange", exchangeErr: errors.New("token endpoint refused code"), wantReason: federationcore.FailureCodeExchange},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+			secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider := federationcore.Provider{
+				ID: 7, Slug: "corp", Protocol: Protocol,
+				Config: json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+				Secret: secret, SecretStatus: "valid",
+			}
+			adapter := NewAdapter(store)
+			client := &adapterFakeClient{
+				tokens:      &Tokens{Issuer: "https://issuer.test", Subject: "sub"},
+				exchangeErr: test.exchangeErr,
+			}
+			adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+				return client, nil
+			}
+			state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+				Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+				Kind: federationcore.ActionRedirect, Code: "code", Issuer: test.issuer,
+			})
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if reason, ok := federationcore.FailureReasonOf(err); !ok || reason != test.wantReason {
+				t.Fatalf("failure reason = %q, want %q", reason, test.wantReason)
+			}
+		})
+	}
+}
+
 func TestAdapterAdvanceRejectsTokenEndpointDriftBeforeExchange(t *testing.T) {
 	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
 	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
@@ -341,6 +450,9 @@ func TestAdapterAdvanceRejectsTokenEndpointDriftBeforeExchange(t *testing.T) {
 	})
 	if authErr := authn.AsAuthError(err); authErr == nil || authErr.Code != "federation_state_invalid" {
 		t.Fatalf("Advance error = %v, want federation_state_invalid", err)
+	}
+	if reason, ok := federationcore.FailureReasonOf(err); !ok || reason != federationcore.FailureTokenEndpointDrift {
+		t.Fatalf("Advance failure reason = %q, want token_endpoint_drift", reason)
 	}
 	if exchanges != 0 {
 		t.Fatalf("token exchanges = %d, want 0 on endpoint drift", exchanges)

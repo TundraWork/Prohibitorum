@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+
+	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/kv"
 )
 
@@ -80,12 +83,21 @@ type serviceFakeAvatar struct {
 	calls int
 }
 
-func (a *serviceFakeAvatar) Inherit(int32, Provider, string) {
+func (a *serviceFakeAvatar) Inherit(int32, Provider, AvatarDelivery, AvatarResolver) {
 	a.calls++
 }
 
 func (*serviceFakeAvatar) Pending(context.Context, int32) bool {
 	return false
+}
+
+type serviceRecordingAudit struct {
+	records []audit.Record
+}
+
+func (w *serviceRecordingAudit) Record(_ context.Context, record audit.Record) error {
+	w.records = append(w.records, record)
+	return nil
 }
 
 type failingRestoreStore struct {
@@ -522,6 +534,21 @@ func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
 	}
 }
 
+func TestServiceDisabledInviteOnlyProviderStaysOpaqueBeforeModeGate(t *testing.T) {
+	service, adapter, _, _ := newServiceHarness(t)
+	service.providers = fakeProviderLoader{provider: Provider{
+		ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeInviteOnly, Disabled: true,
+	}}
+
+	_, err := service.BeginLogin(context.Background(), "corp", "/")
+	if !errors.Is(err, ErrUnknownProvider) {
+		t.Fatalf("BeginLogin error = %v, want opaque ErrUnknownProvider", err)
+	}
+	if adapter.calls != 0 {
+		t.Fatalf("disabled invite-only provider invoked adapter %d times", adapter.calls)
+	}
+}
+
 func TestServiceKnownAtPrepareBecomingUnknownRestoresUsernamePromptOnly(t *testing.T) {
 	service, adapter, resolver, store := newServiceHarness(t)
 	resolver.known = true
@@ -615,5 +642,200 @@ func TestServiceLinkCompletionDoesNotInheritAvatar(t *testing.T) {
 	}
 	if avatars.calls != 0 {
 		t.Fatalf("link completion inherited avatar %d times", avatars.calls)
+	}
+}
+
+func TestServiceAuditsBrowserAndProviderFailures(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(*Service, *BeginResult)
+		browser    func(*BeginResult) string
+		wantReason FailureReason
+	}{
+		{
+			name: "browser binding",
+			mutate: func(*Service, *BeginResult) {},
+			browser: func(*BeginResult) string { return "wrong-browser" },
+			wantReason: FailureBrowserBindingMismatch,
+		},
+		{
+			name: "provider disabled after begin",
+			mutate: func(service *Service, _ *BeginResult) {
+				service.providers = fakeProviderLoader{provider: Provider{
+					ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision, Disabled: true,
+				}}
+			},
+			browser: func(begin *BeginResult) string { return begin.BrowserToken },
+			wantReason: FailureProviderUnavailable,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, _, _, _ := newServiceHarness(t)
+			writer := &serviceRecordingAudit{}
+			service.audit = writer
+			begin, err := service.BeginLogin(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(service, begin)
+
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: test.browser(begin),
+				ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+			})
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if len(writer.records) != 1 || writer.records[0].Detail["reason"] != string(test.wantReason) {
+				t.Fatalf("audit records = %+v, want reason %q", writer.records, test.wantReason)
+			}
+			if writer.records[0].AccountID != nil {
+				t.Fatalf("login failure attached account: %+v", writer.records[0])
+			}
+		})
+	}
+}
+
+func TestServiceAuditsAllowlistedAdapterFailuresForEveryIntent(t *testing.T) {
+	tests := []struct {
+		name  string
+		begin func(*Service) (*BeginResult, error)
+		request func(*BeginResult) AdvanceRequest
+		wantAccountID *int32
+	}{
+		{
+			name: "login",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect}}
+			},
+		},
+		{
+			name: "invite",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect}}
+			},
+		},
+		{
+			name: "link",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake",
+					AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+			wantAccountID: new(int32(9)),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, _ := newServiceHarness(t)
+			writer := &serviceRecordingAudit{}
+			service.audit = writer
+			adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{}, NewFailure(FailureTokenEndpointDrift, map[string]any{
+					"expected": "https://issuer.test/token",
+					"got":      "https://other.test/token",
+					"secret":   "must-not-be-audited",
+				})
+			}
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = service.VerifyFlow(context.Background(), test.request(begin))
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if len(writer.records) != 1 {
+				t.Fatalf("audit records = %+v", writer.records)
+			}
+			record := writer.records[0]
+			if record.Detail["reason"] != string(FailureTokenEndpointDrift) ||
+				record.Detail["idp_slug"] != "corp" ||
+				record.Detail["expected"] != "https://issuer.test/token" ||
+				record.Detail["got"] != "https://other.test/token" {
+				t.Fatalf("audit detail = %+v", record.Detail)
+			}
+			if _, leaked := record.Detail["secret"]; leaked {
+				t.Fatalf("audit detail leaked non-allowlisted field: %+v", record.Detail)
+			}
+			if test.wantAccountID == nil && record.AccountID != nil ||
+				test.wantAccountID != nil && (record.AccountID == nil || *record.AccountID != *test.wantAccountID) {
+				t.Fatalf("audit account = %v, want %v", record.AccountID, test.wantAccountID)
+			}
+		})
+	}
+}
+
+func TestServiceAuditsInviteStartFailureWithoutLeakingDetails(t *testing.T) {
+	service, adapter, _, _ := newServiceHarness(t)
+	service.providers = fakeProviderLoader{inviteErr: NewFailure(FailureInviteExpired, map[string]any{
+		"token": "must-not-be-audited",
+	})}
+	writer := &serviceRecordingAudit{}
+	service.audit = writer
+
+	_, err := service.BeginInvite(context.Background(), "secret-invite", "/")
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("public error = %v, want invite_required", err)
+	}
+	if adapter.calls != 0 {
+		t.Fatalf("invalid invite invoked adapter %d times", adapter.calls)
+	}
+	if len(writer.records) != 1 || writer.records[0].Detail["reason"] != string(FailureInviteExpired) {
+		t.Fatalf("audit records = %+v", writer.records)
+	}
+	if _, leaked := writer.records[0].Detail["token"]; leaked {
+		t.Fatalf("audit leaked invite token: %+v", writer.records[0].Detail)
+	}
+}
+
+func TestServiceAuditsLinkResolverFailureClassification(t *testing.T) {
+	service, adapter, resolver, _ := newServiceHarness(t)
+	writer := &serviceRecordingAudit{}
+	service.audit = writer
+	adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{
+			Issuer: "https://issuer.test", Subject: "sub", EmailVerificationSupported: true,
+		}}, nil
+	}
+	resolver.err = NewFailure(FailureEmailNotVerified, map[string]any{
+		"upstream_iss": "https://issuer.test",
+		"email":        "must-not-be-audited@example.test",
+	})
+	begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake",
+		AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect},
+	})
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
+		t.Fatalf("public error = %v, want email_not_verified", err)
+	}
+	if len(writer.records) != 1 {
+		t.Fatalf("audit records = %+v", writer.records)
+	}
+	record := writer.records[0]
+	if record.AccountID == nil || *record.AccountID != 9 ||
+		record.Detail["reason"] != string(FailureEmailNotVerified) ||
+		record.Detail["upstream_iss"] != "https://issuer.test" {
+		t.Fatalf("audit record = %+v", record)
+	}
+	if _, leaked := record.Detail["email"]; leaked {
+		t.Fatalf("audit leaked email: %+v", record.Detail)
 	}
 }

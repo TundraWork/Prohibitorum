@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"prohibitorum/pkg/authn"
 	federationcore "prohibitorum/pkg/federation"
 )
 
@@ -58,22 +57,30 @@ func (a *Adapter) Begin(_ context.Context, _ federationcore.Provider, begin fede
 }
 
 func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider, raw json.RawMessage, input federationcore.ActionInput) (federationcore.AdvanceResult, error) {
-	if input.Kind != federationcore.ActionRedirect { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
+	if input.Kind != federationcore.ActionRedirect {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
+	}
 	var state adapterState
-	if err := json.Unmarshal(raw, &state); err != nil || state.ReturnTo == "" { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
+	if err := json.Unmarshal(raw, &state); err != nil || state.ReturnTo == "" {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
+	}
 	config, apiKey, err := a.open(provider)
 	if err != nil { return federationcore.AdvanceResult{}, err }
 	client := federationcore.NewOutboundHTTPClient(config.AllowPrivateNetwork, 2<<20)
 	var steamID string
 	if a.verify != nil { steamID, err = a.verify(ctx, input.Params, state.ReturnTo) } else { steamID, err = Verify(ctx, client, input.Params, state.ReturnTo) }
-	if err != nil { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
+	if err != nil {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureSteamVerification, nil)
+	}
 	var player Summary
 	if a.summary != nil { player, err = a.summary(ctx, apiKey, steamID) } else { player, err = FetchSummary(ctx, client, apiKey, steamID) }
-	if err != nil { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
+	if err != nil {
+		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureSteamVerification, nil)
+	}
 	avatarURL := player.AvatarURL
 	return federationcore.AdvanceResult{Identity: &federationcore.VerifiedIdentity{
 		Issuer: Issuer, Subject: steamID, Username: "steam_" + steamID, DisplayName: player.PersonaName,
-		AMR: []string{"steam"}, AvatarURL: avatarURL,
+		EmailVerificationSupported: false, AMR: []string{"steam"}, AvatarURL: avatarURL,
 		UpstreamData: map[string]string{
 			"steamId": steamID, "personaName": player.PersonaName,
 			"profileUrl": "https://steamcommunity.com/profiles/" + steamID, "avatarUrl": avatarURL,

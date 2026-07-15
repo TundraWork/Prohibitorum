@@ -424,11 +424,11 @@ type serverAvatarRecorder struct {
 	url      string
 }
 
-func (r *serverAvatarRecorder) Inherit(accountID int32, provider fedoidc.Provider, avatarURL string) {
+func (r *serverAvatarRecorder) Inherit(accountID int32, provider fedoidc.Provider, delivery fedoidc.AvatarDelivery, _ fedoidc.AvatarResolver) {
 	r.calls++
 	r.account = accountID
 	r.provider = provider
-	r.url = avatarURL
+	r.url = delivery.URL
 }
 
 func (*serverAvatarRecorder) Pending(context.Context, int32) bool {

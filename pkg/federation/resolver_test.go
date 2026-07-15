@@ -1190,6 +1190,29 @@ func TestResolverResolveIdentityRejectsDisabledExistingAccount(t *testing.T) {
 	}
 }
 
+func TestResolverLinkAllowsIdentityWithoutVerifiedEmailCapability(t *testing.T) {
+	q := newFakeModesQueries()
+	q.accountByIDResults[9] = db.Account{ID: 9, Username: "steam-user"}
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+	provider := genericProvider(federationoidc.ModeAutoProvision)
+	provider.Protocol = "steam"
+	identity := *goodTokens()
+	identity.Email = nil
+	identity.EmailVerified = false
+	identity.EmailVerificationSupported = false
+	accountID := int32(9)
+
+	outcome, err := resolver.ResolveIdentity(context.Background(), provider, identity, federationoidc.ResolveContext{
+		Intent: federationoidc.IntentLink, LinkAccountID: &accountID,
+	})
+	if err != nil {
+		t.Fatalf("Steam-like link with inapplicable email verification: %v", err)
+	}
+	if outcome.AccountID != accountID || q.insertedIdentity.UpstreamEmail.Valid {
+		t.Fatalf("link outcome=%+v identity=%+v", outcome, q.insertedIdentity)
+	}
+}
+
 func genericProvider(mode string) federationoidc.Provider {
 	return federationoidc.Provider{
 		ID:       42,

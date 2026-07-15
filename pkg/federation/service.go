@@ -58,7 +58,7 @@ type AdvanceRequest struct {
 }
 
 type avatarInheritor interface {
-	Inherit(int32, Provider, string)
+	Inherit(int32, Provider, AvatarDelivery, AvatarResolver)
 	Pending(context.Context, int32) bool
 }
 
@@ -83,14 +83,18 @@ func (s *Service) SetAvatarManager(manager avatarInheritor) {
 	s.avatar = manager
 }
 
-func (s *Service) ProviderBySlug(ctx context.Context, slug string) (Provider, error) {
-	return s.providers.BySlug(ctx, slug)
-}
 
 func (s *Service) BeginLogin(ctx context.Context, providerSlug, returnTo string) (*BeginResult, error) {
 	provider, err := s.providers.BySlug(ctx, providerSlug)
-	if err != nil { return nil, err }
-	if provider.Mode == ModeInviteOnly { return nil, authn.ErrInviteRequired() }
+	if err != nil {
+		return nil, err
+	}
+	if provider.Disabled {
+		return nil, ErrUnknownProvider
+	}
+	if provider.Mode == ModeInviteOnly {
+		return nil, s.recordFailure(ctx, nil, nil, provider.Slug, NewFailure(FailureInviteRequiredPreAuth, nil))
+	}
 	return s.begin(ctx, provider, IntentLogin, returnTo, nil, "", "")
 }
 
@@ -101,7 +105,12 @@ func (s *Service) BeginLink(ctx context.Context, providerSlug, returnTo string, 
 
 func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, returnTo string) (*BeginResult, error) {
 	provider, err := s.providers.InviteProvider(ctx, enrollmentToken)
-	if err != nil { return nil, authn.ErrInviteRequired() }
+	if err != nil {
+		if _, _, _, ok := failureProjection(err); ok {
+			return nil, s.recordFailure(ctx, nil, nil, "", err)
+		}
+		return nil, authn.ErrInviteRequired()
+	}
 	return s.begin(ctx, provider, IntentInvite, returnTo, nil, "", enrollmentToken)
 }
 
@@ -161,9 +170,12 @@ func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*Flo
 	raw, state, provider, adapter, err := s.loadForAdvance(ctx, request)
 	if err != nil { return nil, err }
 	result, err := adapter.Advance(ctx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
-	if err != nil { return nil, err }
-	if result.Identity != nil || result.Next == nil || result.Candidate != nil && (result.Candidate.Issuer == "" || result.Candidate.Subject == "") {
-		return nil, authn.ErrFederationStateInvalid()
+	if err != nil {
+		return nil, s.recordFailure(ctx, state, &request, provider.Slug, err)
+	}
+	if result.Identity != nil || result.Next == nil || result.Avatar != nil ||
+		result.Candidate != nil && (result.Candidate.Issuer == "" || result.Candidate.Subject == "") {
+		return nil, s.recordFailure(ctx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
 	}
 	if err := validateAdapterState(result.State); err != nil { return nil, err }
 	if err := validateAdapterAction(*result.Next); err != nil { return nil, err }
@@ -199,10 +211,12 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 
 	result, err := adapter.Advance(ctx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
 	if err != nil {
-		return nil, s.restore(ctx, request.FlowID, state, raw, err, false)
+		publicErr := s.recordFailure(ctx, state, &request, provider.Slug, err)
+		return nil, s.restore(ctx, request.FlowID, state, raw, publicErr, false)
 	}
 	if result.Identity == nil || result.Next != nil || len(result.State) != 0 || result.Candidate != nil {
-		return nil, s.restore(ctx, request.FlowID, state, raw, authn.ErrFederationStateInvalid(), false)
+		publicErr := s.recordFailure(ctx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
+		return nil, s.restore(ctx, request.FlowID, state, raw, publicErr, false)
 	}
 	outcome, err := s.resolver.ResolveIdentity(ctx, provider, *result.Identity, ResolveContext{
 		Intent: state.Intent, EnrollmentToken: state.EnrollmentToken, LocalUsername: request.Input.LocalUsername,
@@ -210,7 +224,8 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		RequireLocalUsername: state.Intent == IntentLogin && state.CurrentAction.Kind != ActionRedirect,
 	})
 	if err != nil {
-		return nil, s.restore(ctx, request.FlowID, state, raw, err, errors.Is(err, ErrLocalUsernameRequired))
+		publicErr := s.recordFailure(ctx, state, &request, provider.Slug, err)
+		return nil, s.restore(ctx, request.FlowID, state, raw, publicErr, errors.Is(err, ErrLocalUsernameRequired))
 	}
 	completion := &CompletionResult{
 		Intent: state.Intent, AccountID: outcome.AccountID, IdentityID: outcome.IdentityID,
@@ -219,7 +234,12 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		Confirmed: outcome.Confirmed, AvatarURL: result.Identity.AvatarURL,
 	}
 	if s.avatar != nil && state.Intent != IntentLink {
-		s.avatar.Inherit(outcome.AccountID, provider, result.Identity.AvatarURL)
+		delivery := AvatarDelivery{URL: result.Identity.AvatarURL}
+		if result.Avatar != nil {
+			delivery = *result.Avatar
+		}
+		avatarResolver, _ := adapter.(AvatarResolver)
+		s.avatar.Inherit(outcome.AccountID, provider, delivery, avatarResolver)
 	}
 	return completion, nil
 }
@@ -268,34 +288,66 @@ func (s *Service) AvatarPending(ctx context.Context, accountID int32) bool {
 
 func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (string, *FlowState, Provider, Adapter, error) {
 	raw, err := s.kv.Get(ctx, FlowKey(request.FlowID))
-	if err != nil { return "", nil, Provider{}, nil, authn.ErrFederationStateInvalid() }
-	state, err := DecodeFlowState(raw)
-	if err != nil || !state.ExpiresAt.After(s.now()) || !BrowserBindingOK(state.BrowserDigest, request.BrowserToken) {
-		return "", nil, Provider{}, nil, authn.ErrFederationStateInvalid()
+	if err != nil {
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
 	}
-	if state.ProviderSlug != request.ProviderSlug || state.Protocol != request.Protocol || state.CurrentAction.Kind != request.Input.Kind {
-		return "", nil, Provider{}, nil, authn.ErrFederationStateInvalid()
+	state, err := DecodeFlowState(raw)
+	if err != nil || !state.ExpiresAt.After(s.now()) {
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+	}
+	if !BrowserBindingOK(state.BrowserDigest, request.BrowserToken) {
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureBrowserBindingMismatch, nil))
+	}
+	if state.ProviderSlug != request.ProviderSlug ||
+		request.Protocol != "" && state.Protocol != request.Protocol ||
+		state.CurrentAction.Kind != request.Input.Kind {
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureStateInvalid, nil))
 	}
 	if state.Intent == IntentLink {
 		if request.AccountID == nil || state.LinkAccountID == nil || *request.AccountID != *state.LinkAccountID || request.SessionID == "" || request.SessionID != state.LinkSessionID {
-			var accountID *int32
-			if request.AccountID != nil {
-				accountID = new(*request.AccountID)
+			var stateAccountID any
+			if state.LinkAccountID != nil {
+				stateAccountID = *state.LinkAccountID
 			}
-			audit.RecordOrLog(ctx, s.audit, audit.Record{
-				AccountID: accountID,
-				Factor: audit.FactorFederationOIDC,
-				Event: audit.EventFail,
-				Detail: map[string]any{"idp_slug": state.ProviderSlug, "reason": "session_swap"},
-			})
-			return "", nil, Provider{}, nil, authn.ErrFederationStateInvalid()
+			return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureSessionSwap, map[string]any{
+				"state_account_id": stateAccountID,
+			}))
 		}
 	}
 	provider, err := s.providers.ByBinding(ctx, state.ProviderID, state.ProviderSlug, state.Protocol)
-	if err != nil || provider.Disabled { return "", nil, Provider{}, nil, authn.ErrFederationStateInvalid() }
+	if err != nil || provider.Disabled {
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureProviderUnavailable, nil))
+	}
 	definition, adapter, err := s.flowProvider(provider)
-	if err != nil || !definition.Ready(provider) { return "", nil, Provider{}, nil, authn.ErrFederationStateInvalid() }
+	if err != nil || !definition.Ready(provider) {
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureProviderUnavailable, nil))
+	}
 	return raw, state, provider, adapter, nil
+}
+
+func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *AdvanceRequest, providerSlug string, err error) error {
+	reason, extra, publicErr, ok := failureProjection(err)
+	if !ok {
+		return err
+	}
+	detail := map[string]any{"reason": string(reason)}
+	if providerSlug != "" {
+		detail["idp_slug"] = providerSlug
+	}
+	for key, value := range extra {
+		detail[key] = value
+	}
+	var accountID *int32
+	if state != nil && state.Intent == IntentLink && request != nil && request.AccountID != nil {
+		accountID = new(*request.AccountID)
+	}
+	audit.RecordOrLog(ctx, s.audit, audit.Record{
+		AccountID: accountID,
+		Factor:    audit.FactorFederationOIDC,
+		Event:     audit.EventFail,
+		Detail:    detail,
+	})
+	return publicErr
 }
 
 func (s *Service) restore(ctx context.Context, flowID string, state *FlowState, originalRaw string, cause error, requireUsername bool) error {

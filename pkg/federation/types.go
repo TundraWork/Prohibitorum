@@ -93,22 +93,38 @@ type IdentityKey struct {
 }
 
 type AdvanceResult struct {
-	Next       *NextAction
-	Identity   *VerifiedIdentity
-	Candidate  *IdentityKey
-	State      json.RawMessage
+	Next      *NextAction
+	Identity  *VerifiedIdentity
+	Candidate *IdentityKey
+	State     json.RawMessage
+	Avatar    *AvatarDelivery
+}
+
+// AvatarDelivery carries avatar-only data from a terminal adapter result to the
+// detached inheritance worker. Opaque is never passed to identity resolution or
+// persisted in flow state.
+type AvatarDelivery struct {
+	URL    string
+	Opaque any
+}
+
+// AvatarResolver is an optional adapter capability used only by the detached
+// avatar inheritance path when the verified identity has no direct avatar URL.
+type AvatarResolver interface {
+	ResolveAvatar(context.Context, Provider, AvatarDelivery) (string, error)
 }
 
 type VerifiedIdentity struct {
-	Issuer        string
-	Subject       string
-	Email         *string
-	EmailVerified bool
-	Username      string
-	DisplayName   string
-	AMR           []string
-	AvatarURL     string
-	UpstreamData  map[string]string
+	Issuer                     string
+	Subject                    string
+	Email                      *string
+	EmailVerified              bool
+	EmailVerificationSupported bool
+	Username                   string
+	DisplayName                string
+	AMR                        []string
+	AvatarURL                  string
+	UpstreamData               map[string]string
 }
 
 type CompletionResult struct {

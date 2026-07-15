@@ -358,13 +358,8 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	if cookie, cookieErr := r.Cookie(sessstore.FedStateCookieName); cookieErr == nil {
 		browserToken = cookie.Value
 	}
-	provider, providerErr := s.federationService.ProviderBySlug(r.Context(), chi.URLParam(r, "slug"))
-	if providerErr != nil {
-		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
-		return
-	}
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
-		FlowID: state, BrowserToken: browserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol,
+		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
 		AccountID: new(sess.Account.ID), SessionID: sess.Data.SessionID,
 		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
 	})

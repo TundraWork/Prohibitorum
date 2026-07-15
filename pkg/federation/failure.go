@@ -1,0 +1,133 @@
+package federation
+
+import (
+	"errors"
+
+	"prohibitorum/pkg/authn"
+)
+
+// FailureReason is an allowlisted operator-facing federation failure
+// classification. The corresponding public error is fixed by failurePolicy so
+// protocol adapters cannot weaken the non-oracular wire contract.
+type FailureReason string
+
+const (
+	FailureStateInvalid           FailureReason = "state_invalid"
+	FailureBrowserBindingMismatch FailureReason = "browser_binding_mismatch"
+	FailureProviderUnavailable    FailureReason = "idp_disabled_or_deleted"
+	FailureIssuerMismatch         FailureReason = "iss_mismatch_callback"
+	FailureTokenEndpointDrift     FailureReason = "token_endpoint_drift"
+	FailureCodeExchange           FailureReason = "code_exchange_failed"
+	FailureSteamVerification      FailureReason = "steam_verify_failed"
+	FailureSessionSwap            FailureReason = "session_swap"
+	FailureEmailNotVerified       FailureReason = "email_not_verified"
+	FailureDomainNotAllowed       FailureReason = "domain_not_allowed"
+	FailureLinkConflict           FailureReason = "link_conflict"
+	FailureLinkInsert             FailureReason = "link_insert_failed"
+	FailureInviteLookup           FailureReason = "invite_lookup_failed"
+	FailureInviteWrongIntent      FailureReason = "invite_wrong_intent"
+	FailureInviteConsumed         FailureReason = "invite_already_consumed"
+	FailureInviteExpired          FailureReason = "invite_expired"
+	FailureInviteNotFederated     FailureReason = "invite_not_federated"
+	FailureInviteRequiredPreAuth  FailureReason = "invite_required_pre_auth"
+)
+
+type failurePolicy struct {
+	public     func() error
+	detailKeys map[string]struct{}
+}
+
+var failurePolicies = map[FailureReason]failurePolicy{
+	FailureStateInvalid:            {public: stateInvalid},
+	FailureBrowserBindingMismatch:  {public: stateInvalid},
+	FailureProviderUnavailable:     {public: stateInvalid},
+	FailureIssuerMismatch: {
+		public: stateInvalid,
+		detailKeys: keys("expected_iss", "got_iss"),
+	},
+	FailureTokenEndpointDrift: {
+		public: stateInvalid,
+		detailKeys: keys("expected", "got"),
+	},
+	FailureCodeExchange:      {public: stateInvalid},
+	FailureSteamVerification: {public: stateInvalid},
+	FailureSessionSwap: {
+		public: stateInvalid,
+		detailKeys: keys("state_account_id"),
+	},
+	FailureEmailNotVerified: {
+		public: func() error { return authn.ErrEmailNotVerified() },
+		detailKeys: keys("upstream_iss"),
+	},
+	FailureDomainNotAllowed: {public: func() error { return authn.ErrInviteRequired() }},
+	FailureLinkConflict: {
+		public: stateInvalid,
+		detailKeys: keys("iss", "sub"),
+	},
+	FailureLinkInsert: {
+		public: stateInvalid,
+		detailKeys: keys("iss", "sub"),
+	},
+	FailureInviteLookup:      {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteWrongIntent: {public: func() error { return authn.ErrInviteRequired() }, detailKeys: keys("intent")},
+	FailureInviteConsumed:    {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteExpired:     {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteNotFederated: {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteRequiredPreAuth: {public: func() error { return authn.ErrInviteRequired() }},
+}
+
+func stateInvalid() error { return authn.ErrFederationStateInvalid() }
+
+func keys(values ...string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		out[value] = struct{}{}
+	}
+	return out
+}
+
+type flowFailure struct {
+	reason FailureReason
+	detail map[string]any
+	public error
+}
+
+func (e *flowFailure) Error() string { return "federation flow failed" }
+func (e *flowFailure) Unwrap() error { return e.public }
+
+// NewFailure creates an opaque public federation error carrying only
+// allowlisted audit detail. Unknown reasons collapse to state_invalid.
+func NewFailure(reason FailureReason, detail map[string]any) error {
+	policy, ok := failurePolicies[reason]
+	if !ok {
+		reason = FailureStateInvalid
+		policy = failurePolicies[reason]
+	}
+	filtered := make(map[string]any, len(policy.detailKeys))
+	for key := range policy.detailKeys {
+		if value, exists := detail[key]; exists {
+			filtered[key] = value
+		}
+	}
+	return &flowFailure{reason: reason, detail: filtered, public: policy.public()}
+}
+
+func FailureReasonOf(err error) (FailureReason, bool) {
+	var failure *flowFailure
+	if !errors.As(err, &failure) {
+		return "", false
+	}
+	return failure.reason, true
+}
+
+func failureProjection(err error) (FailureReason, map[string]any, error, bool) {
+	var failure *flowFailure
+	if !errors.As(err, &failure) {
+		return "", nil, nil, false
+	}
+	detail := make(map[string]any, len(failure.detail))
+	for key, value := range failure.detail {
+		detail[key] = value
+	}
+	return failure.reason, detail, failure.public, true
+}

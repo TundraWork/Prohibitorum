@@ -50,8 +50,20 @@ func (s *ProviderStore) ByBinding(ctx context.Context, id int64, slug, protocol 
 
 func (s *ProviderStore) InviteProvider(ctx context.Context, token string) (Provider, error) {
 	enrollment, err := s.queries.GetEnrollmentByToken(ctx, token)
-	if err != nil || enrollment.Intent != "invite" || enrollment.ConsumedAt.Valid || !enrollment.ExpiresAt.Valid || !enrollment.ExpiresAt.Time.After(s.now()) || !enrollment.ExpectedUpstreamIdpSlug.Valid || enrollment.ExpectedUpstreamIdpSlug.String == "" {
-		return Provider{}, ErrUnknownProvider
+	if err != nil {
+		return Provider{}, NewFailure(FailureInviteLookup, nil)
+	}
+	if enrollment.Intent != "invite" {
+		return Provider{}, NewFailure(FailureInviteWrongIntent, map[string]any{"intent": enrollment.Intent})
+	}
+	if enrollment.ConsumedAt.Valid {
+		return Provider{}, NewFailure(FailureInviteConsumed, nil)
+	}
+	if !enrollment.ExpiresAt.Valid || !enrollment.ExpiresAt.Time.After(s.now()) {
+		return Provider{}, NewFailure(FailureInviteExpired, nil)
+	}
+	if !enrollment.ExpectedUpstreamIdpSlug.Valid || enrollment.ExpectedUpstreamIdpSlug.String == "" {
+		return Provider{}, NewFailure(FailureInviteNotFederated, nil)
 	}
 	return s.BySlug(ctx, enrollment.ExpectedUpstreamIdpSlug.String)
 }

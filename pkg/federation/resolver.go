@@ -779,11 +779,11 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 
 func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, identity *VerifiedIdentity, accountID int32) (ResolveOutcome, error) {
 	email := identityEmail(identity)
-	if provider.RequireVerifiedEmail && !identity.EmailVerified {
-		return ResolveOutcome{}, authn.ErrEmailNotVerified()
+	if provider.RequireVerifiedEmail && identity.EmailVerificationSupported && !identity.EmailVerified {
+		return ResolveOutcome{}, NewFailure(FailureEmailNotVerified, map[string]any{"upstream_iss": identity.Issuer})
 	}
 	if len(provider.AllowedDomains) > 0 && !domainAllowed(email, provider.AllowedDomains) {
-		return ResolveOutcome{}, authn.ErrInviteRequired()
+		return ResolveOutcome{}, NewFailure(FailureDomainNotAllowed, nil)
 	}
 	return runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
 		existing, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
@@ -793,7 +793,9 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, id
 		switch {
 		case err == nil:
 			if existing.AccountID != accountID || existing.UpstreamIdpID != provider.ID {
-				return ResolveOutcome{}, authn.ErrFederationStateInvalid()
+				return ResolveOutcome{}, NewFailure(FailureLinkConflict, map[string]any{
+					"iss": identity.Issuer, "sub": identity.Subject,
+				})
 			}
 			return ResolveOutcome{
 				AccountID: accountID, IdentityID: existing.ID, ProviderID: provider.ID,
@@ -815,7 +817,13 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, id
 			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
 		})
 		if err != nil {
-			return ResolveOutcome{}, authn.ErrFederationStateInvalid()
+			reason := FailureLinkInsert
+			if isUniqueViolation(err) {
+				reason = FailureLinkConflict
+			}
+			return ResolveOutcome{}, NewFailure(reason, map[string]any{
+				"iss": identity.Issuer, "sub": identity.Subject,
+			})
 		}
 		if err := qtx.ConfirmAccountIdentity(ctx, linked.ID); err != nil {
 			return ResolveOutcome{}, fmt.Errorf("federation: confirm linked identity: %w", err)
