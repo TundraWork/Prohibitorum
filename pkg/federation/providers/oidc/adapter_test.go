@@ -34,6 +34,41 @@ func TestAdapterBeginAndAdvanceVerifiedIdentity(t *testing.T) {
 	if len(result.State) != 0 || result.Next != nil { t.Fatalf("terminal result carried state/action: %+v", result) }
 }
 
+func TestAdapterAdvanceAllowsOptionalAuthorizationResponseIssuer(t *testing.T) {
+	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := federationcore.Provider{
+		ID: 7, Slug: "corp", Protocol: Protocol,
+		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+		Secret:       secret,
+		SecretStatus: "valid",
+	}
+	adapter := NewAdapter(store)
+	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub"}}, nil
+	}
+	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+		Kind: federationcore.ActionRedirect,
+		Code: "code",
+	})
+	if err != nil {
+		t.Fatalf("Advance without authorization-response iss: %v", err)
+	}
+	if result.Identity == nil || result.Identity.Issuer != "https://issuer.test" {
+		t.Fatalf("identity = %+v", result.Identity)
+	}
+}
+
 func TestDefinitionReadiness(t *testing.T) {
 	definition := Definition{}
 	provider := federationcore.Provider{Protocol: Protocol, Config: json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`), Secret: &federationcore.SealedSecret{Ciphertext: []byte{1}, Nonce: []byte{2}, KeyVersion: 1}, SecretStatus: "valid"}

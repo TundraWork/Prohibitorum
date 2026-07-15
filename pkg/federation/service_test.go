@@ -10,39 +10,105 @@ import (
 	"prohibitorum/pkg/kv"
 )
 
-type fakeProviderLoader struct{ provider Provider }
-func (s fakeProviderLoader) BySlug(context.Context, string) (Provider, error) { return s.provider, nil }
+type fakeProviderLoader struct {
+	provider  Provider
+	bySlugErr error
+	inviteErr error
+}
+
+func (s fakeProviderLoader) BySlug(context.Context, string) (Provider, error) {
+	return s.provider, s.bySlugErr
+}
+
 func (s fakeProviderLoader) ByBinding(_ context.Context, id int64, slug, protocol string) (Provider, error) {
-	if s.provider.ID != id || s.provider.Slug != slug || s.provider.Protocol != protocol { return Provider{}, ErrUnknownProvider }
+	if s.bySlugErr != nil {
+		return Provider{}, s.bySlugErr
+	}
+	if s.provider.ID != id || s.provider.Slug != slug || s.provider.Protocol != protocol {
+		return Provider{}, ErrUnknownProvider
+	}
 	return s.provider, nil
 }
-func (s fakeProviderLoader) InviteProvider(context.Context, string) (Provider, error) { return s.provider, nil }
+
+func (s fakeProviderLoader) InviteProvider(context.Context, string) (Provider, error) {
+	return s.provider, s.inviteErr
+}
 
 type serviceFakeAdapter struct {
-	beginState json.RawMessage
-	beginAction NextAction
-	advance func(json.RawMessage, ActionInput) (AdvanceResult, error)
-	calls int
+	beginState    json.RawMessage
+	beginAction   NextAction
+	beginContexts []BeginContext
+	advance       func(json.RawMessage, ActionInput) (AdvanceResult, error)
+	calls         int
 }
+
 func (a *serviceFakeAdapter) Protocol() string { return "fake" }
-func (a *serviceFakeAdapter) Begin(context.Context, Provider, BeginContext) (json.RawMessage, NextAction, error) {
-	a.calls++; return a.beginState, a.beginAction, nil
+
+func (a *serviceFakeAdapter) Begin(_ context.Context, _ Provider, begin BeginContext) (json.RawMessage, NextAction, error) {
+	a.calls++
+	a.beginContexts = append(a.beginContexts, begin)
+	return a.beginState, a.beginAction, nil
 }
+
 func (a *serviceFakeAdapter) Advance(_ context.Context, _ Provider, state json.RawMessage, input ActionInput) (AdvanceResult, error) {
-	a.calls++; return a.advance(state, input)
+	a.calls++
+	return a.advance(state, input)
 }
 
 type serviceFakeResolver struct {
-	known bool
-	knownErr error
-	outcome ResolveOutcome
-	err error
+	known           bool
+	knownErr        error
+	knownCalls      int
+	outcome         ResolveOutcome
+	err             error
+	calls           int
+	resolveContexts []ResolveContext
+}
+
+func (r *serviceFakeResolver) IdentityKnown(context.Context, IdentityKey) (bool, error) {
+	r.knownCalls++
+	return r.known, r.knownErr
+}
+
+func (r *serviceFakeResolver) ResolveIdentity(_ context.Context, _ Provider, _ VerifiedIdentity, resolution ResolveContext) (ResolveOutcome, error) {
+	r.calls++
+	r.resolveContexts = append(r.resolveContexts, resolution)
+	return r.outcome, r.err
+}
+
+type serviceFakeAvatar struct {
 	calls int
 }
-func (r *serviceFakeResolver) IdentityKnown(context.Context, IdentityKey) (bool, error) { return r.known, r.knownErr }
-func (r *serviceFakeResolver) ResolveIdentity(context.Context, Provider, VerifiedIdentity, ResolveContext) (ResolveOutcome, error) {
-	r.calls++; return r.outcome, r.err
+
+func (a *serviceFakeAvatar) Inherit(int32, Provider, string) {
+	a.calls++
 }
+
+func (*serviceFakeAvatar) Pending(context.Context, int32) bool {
+	return false
+}
+
+type failingRestoreStore struct {
+	kv.Store
+	failSetEx bool
+}
+
+func (s *failingRestoreStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	if s.failSetEx {
+		return errors.New("setex unavailable")
+	}
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+type serviceDefinition struct {
+	ready bool
+}
+
+func (serviceDefinition) Protocol() string                      { return "fake" }
+func (serviceDefinition) Descriptor() Descriptor                { return descriptor("fake") }
+func (serviceDefinition) ValidateConfig(json.RawMessage) error  { return nil }
+func (serviceDefinition) ValidateSecret([]byte) error            { return nil }
+func (d serviceDefinition) Ready(Provider) bool                  { return d.ready }
 
 func newServiceHarness(t *testing.T) (*Service, *serviceFakeAdapter, *serviceFakeResolver, kv.Store) {
 	t.Helper()
@@ -58,16 +124,76 @@ func newServiceHarness(t *testing.T) (*Service, *serviceFakeAdapter, *serviceFak
 }
 
 func TestServiceBeginStoresExactBindings(t *testing.T) {
-	service, _, _, store := newServiceHarness(t)
-	link, err := service.BeginLink(context.Background(), "corp", "/identities", 9, "session-1")
-	if err != nil { t.Fatal(err) }
-	raw, err := store.Get(context.Background(), FlowKey(link.FlowID)); if err != nil { t.Fatal(err) }
-	state, err := DecodeFlowState(raw); if err != nil { t.Fatal(err) }
-	if state.Intent != IntentLink || state.ProviderID != 7 || state.ProviderSlug != "corp" || state.Protocol != "fake" || state.LinkAccountID == nil || *state.LinkAccountID != 9 || state.LinkSessionID != "session-1" || state.ReturnTo != "/identities" {
-		t.Fatalf("stored bindings = %+v", state)
+	tests := []struct {
+		name       string
+		intent     Intent
+		returnTo   string
+		begin      func(*Service) (*BeginResult, error)
+		accountID  *int32
+		sessionID  string
+		enrollment string
+	}{
+		{
+			name: "login", intent: IntentLogin, returnTo: "/me",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/me")
+			},
+		},
+		{
+			name: "link", intent: IntentLink, returnTo: "/identities",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/identities", 9, "session-1")
+			},
+			accountID: new(int32(9)), sessionID: "session-1",
+		},
+		{
+			name: "invite", intent: IntentInvite, returnTo: "/welcome",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/welcome")
+			},
+			enrollment: "invite-token",
+		},
 	}
-	if state.BrowserDigest == link.BrowserToken || !BrowserBindingOK(state.BrowserDigest, link.BrowserToken) { t.Fatal("browser token was not hashed and bound") }
-	if state.CurrentAction.URL != link.Action.URL { t.Fatal("current action not persisted") }
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, store := newServiceHarness(t)
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := store.Get(context.Background(), FlowKey(begin.FlowID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, err := DecodeFlowState(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.Intent != test.intent || state.ProviderID != 7 || state.ProviderSlug != "corp" ||
+				state.Protocol != "fake" || state.ReturnTo != test.returnTo ||
+				state.LinkSessionID != test.sessionID || state.EnrollmentToken != test.enrollment {
+				t.Fatalf("stored bindings = %+v", state)
+			}
+			if test.accountID == nil && state.LinkAccountID != nil ||
+				test.accountID != nil && (state.LinkAccountID == nil || *state.LinkAccountID != *test.accountID) {
+				t.Fatalf("stored link account = %v, want %v", state.LinkAccountID, test.accountID)
+			}
+			if state.BrowserDigest == begin.BrowserToken || !BrowserBindingOK(state.BrowserDigest, begin.BrowserToken) {
+				t.Fatal("browser token was not hashed and bound")
+			}
+			if string(state.AdapterState) != `{"step":1}` || state.CurrentAction.URL != begin.Action.URL {
+				t.Fatalf("stored adapter projection = %+v", state)
+			}
+			if len(adapter.beginContexts) != 1 {
+				t.Fatalf("adapter begin calls = %d", len(adapter.beginContexts))
+			}
+			ctx := adapter.beginContexts[0]
+			if ctx.Intent != test.intent || ctx.ReturnTo != test.returnTo ||
+				ctx.LinkSessionID != test.sessionID || ctx.EnrollmentToken != test.enrollment {
+				t.Fatalf("adapter begin context = %+v", ctx)
+			}
+		})
+	}
 }
 
 func TestServiceReadFlowProjectsPersistedLocalAction(t *testing.T) {
@@ -105,30 +231,389 @@ func TestServiceNonTerminalAdvanceReplacesStateAndAction(t *testing.T) {
 	if resolver.calls != 0 { t.Fatal("non-terminal prepare resolved identity") }
 }
 
-func TestServiceTerminalFailureRestoresAndCommitConsumes(t *testing.T) {
-	service, adapter, resolver, store := newServiceHarness(t)
-	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) { return AdvanceResult{}, errors.New("upstream temporary") }
-	begin, err := service.BeginLogin(context.Background(), "corp", "/"); if err != nil { t.Fatal(err) }
-	request := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect}}
-	if _, err := service.VerifyFlow(context.Background(), request); err == nil { t.Fatal("adapter failure accepted") }
-	if _, err := store.Get(context.Background(), FlowKey(begin.FlowID)); err != nil { t.Fatalf("flow not restored: %v", err) }
-
-	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) { return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub", AMR: []string{"fake"}}}, nil }
-	completion, err := service.VerifyFlow(context.Background(), request); if err != nil { t.Fatal(err) }
-	if completion.AccountID != 5 || completion.ProviderSlug != "corp" { t.Fatalf("completion = %+v", completion) }
-	if resolver.calls != 1 { t.Fatalf("resolver calls = %d", resolver.calls) }
-	if _, err := service.VerifyFlow(context.Background(), request); err == nil { t.Fatal("terminal flow replayed") }
+func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
+	tests := []struct {
+		name       string
+		known      bool
+		begin      func(*Service) (*BeginResult, error)
+		request    func(*BeginResult) AdvanceRequest
+		wantLookup bool
+		wantPrompt bool
+	}{
+		{
+			name: "known login", known: true,
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+			wantLookup: true,
+		},
+		{
+			name: "invite", known: false,
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+		},
+		{
+			name: "link", known: false,
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", AccountID: new(int32(9)), SessionID: "session-1",
+					Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, resolver, _ := newServiceHarness(t)
+			resolver.known = test.known
+			adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{
+					State: json.RawMessage(`{"step":2}`),
+					Next:  &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}},
+					Candidate: &IdentityKey{Issuer: "iss", Subject: "candidate"},
+				}, nil
+			}
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			view, err := service.PrepareFlow(context.Background(), test.request(begin))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, prompted := view.Action.Public["requiresLocalUsername"]
+			if prompted != test.wantPrompt {
+				t.Fatalf("requiresLocalUsername present = %v, want %v; action=%+v", prompted, test.wantPrompt, view.Action)
+			}
+			wantCalls := 0
+			if test.wantLookup {
+				wantCalls = 1
+			}
+			if resolver.knownCalls != wantCalls {
+				t.Fatalf("identity lookup calls = %d, want %d", resolver.knownCalls, wantCalls)
+			}
+		})
+	}
 }
 
-func TestServiceLocalUsernameRequiredRestoresOnlyPublicProjection(t *testing.T) {
+func TestServiceTerminalFailureRestoresAndCommitConsumes(t *testing.T) {
 	service, adapter, resolver, store := newServiceHarness(t)
-	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) { return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil }
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{}, errors.New("upstream temporary")
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeTTL, err := store.TTL(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+	}
+	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+		t.Fatal("adapter failure accepted")
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatalf("flow not restored: %v", err)
+	}
+	afterTTL, err := store.TTL(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before || afterTTL > beforeTTL {
+		t.Fatalf("restored flow changed: rawEqual=%v ttlBefore=%d ttlAfter=%d", after == before, beforeTTL, afterTTL)
+	}
+
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub", AMR: []string{"fake"}}}, nil
+	}
+	completion, err := service.VerifyFlow(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completion.AccountID != 5 || completion.ProviderSlug != "corp" {
+		t.Fatalf("completion = %+v", completion)
+	}
+	if resolver.calls != 1 {
+		t.Fatalf("resolver calls = %d", resolver.calls)
+	}
+	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+		t.Fatal("terminal flow replayed")
+	}
+}
+
+func TestServicePrepareFailuresPreserveExactFlow(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+	}
+
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{}, errors.New("adapter failed")
+	}
+	if _, err := service.PrepareFlow(context.Background(), request); err == nil {
+		t.Fatal("adapter failure accepted")
+	}
+	afterAdapter, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterAdapter != before {
+		t.Fatal("adapter failure changed persisted flow")
+	}
+
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{
+			State: json.RawMessage(`{"step":2}`),
+			Next: &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}},
+			Candidate: &IdentityKey{Issuer: "iss", Subject: "sub"},
+		}, nil
+	}
+	resolver.knownErr = errors.New("identity lookup failed")
+	if _, err := service.PrepareFlow(context.Background(), request); err == nil {
+		t.Fatal("identity lookup failure accepted")
+	}
+	afterLookup, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterLookup != before {
+		t.Fatal("identity lookup failure changed persisted flow")
+	}
+}
+
+func TestServiceResolverFailureRestoresExactFlow(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+	}
+	resolver.err = errors.New("transaction rolled back")
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+	}
+	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+		t.Fatal("resolver failure accepted")
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatal("rolled-back resolver failure changed persisted flow")
+	}
+}
+
+func TestServiceRestoreFailureReturnsKVUnavailableAndConsumesFlow(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{}, errors.New("adapter failed")
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.kv = &failingRestoreStore{Store: baseStore, failSetEx: true}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+	}
+	if _, err := service.VerifyFlow(context.Background(), request); !errors.Is(err, ErrKVUnavailable) {
+		t.Fatalf("VerifyFlow error = %v, want kv unavailable", err)
+	}
+	if _, err := baseStore.Get(context.Background(), FlowKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("flow survived failed restoration: %v", err)
+	}
+}
+
+func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
+	provider := Provider{ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision}
+	tests := []struct {
+		name       string
+		loader     fakeProviderLoader
+		definition serviceDefinition
+	}{
+		{
+			name: "unknown",
+			loader: fakeProviderLoader{provider: provider, bySlugErr: ErrUnknownProvider},
+			definition: serviceDefinition{ready: true},
+		},
+		{
+			name: "disabled",
+			loader: fakeProviderLoader{provider: func() Provider {
+				disabled := provider
+				disabled.Disabled = true
+				return disabled
+			}()},
+			definition: serviceDefinition{ready: true},
+		},
+		{
+			name: "unready",
+			loader: fakeProviderLoader{provider: provider},
+			definition: serviceDefinition{ready: false},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			registry := NewRegistry()
+			if err := registry.RegisterDefinition(test.definition); err != nil {
+				t.Fatal(err)
+			}
+			adapter := &serviceFakeAdapter{
+				beginState: json.RawMessage(`{"step":1}`),
+				beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"},
+			}
+			if err := registry.RegisterAdapter(adapter); err != nil {
+				t.Fatal(err)
+			}
+			service := NewService(registry, test.loader, kv.NewMemoryStore(), &serviceFakeResolver{}, ServiceConfig{})
+			if _, err := service.BeginLogin(context.Background(), "corp", "/"); err == nil {
+				t.Fatal("unavailable provider began a flow")
+			}
+			if adapter.calls != 0 {
+				t.Fatalf("adapter called %d times", adapter.calls)
+			}
+		})
+	}
+}
+
+func TestServiceKnownAtPrepareBecomingUnknownRestoresUsernamePromptOnly(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	resolver.known = true
+	adapter.advance = func(_ json.RawMessage, input ActionInput) (AdvanceResult, error) {
+		if input.Kind == ActionRedirect {
+			return AdvanceResult{
+				State: json.RawMessage(`{"proof":"private"}`),
+				Next: &NextAction{Kind: ActionPublishProof, Public: map[string]any{"challenge": "public"}},
+				Candidate: &IdentityKey{Issuer: "iss", Subject: "sub"},
+			}, nil
+		}
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseRequest := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+	}
+	view, err := service.PrepareFlow(context.Background(), baseRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := view.Action.Public["requiresLocalUsername"]; exists {
+		t.Fatalf("known identity prompted before race: %+v", view.Action)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeState, err := DecodeFlowState(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	resolver.err = ErrLocalUsernameRequired
-	begin, err := service.BeginLogin(context.Background(), "corp", "/"); if err != nil { t.Fatal(err) }
-	before, _ := store.Get(context.Background(), FlowKey(begin.FlowID))
-	request := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect}}
-	if _, err := service.VerifyFlow(context.Background(), request); !errors.Is(err, ErrLocalUsernameRequired) { t.Fatalf("error = %v", err) }
-	after, err := store.Get(context.Background(), FlowKey(begin.FlowID)); if err != nil { t.Fatal(err) }
-	beforeState, _ := DecodeFlowState(before); afterState, _ := DecodeFlowState(after)
-	if string(beforeState.AdapterState) != string(afterState.AdapterState) || !beforeState.ExpiresAt.Equal(afterState.ExpiresAt) || afterState.CurrentAction.Public["requiresLocalUsername"] != true { t.Fatalf("restored state = %+v", afterState) }
+	baseRequest.Input.Kind = ActionPublishProof
+	if _, err := service.VerifyFlow(context.Background(), baseRequest); !errors.Is(err, ErrLocalUsernameRequired) {
+		t.Fatalf("error = %v, want local username required", err)
+	}
+	if len(resolver.resolveContexts) != 1 || !resolver.resolveContexts[0].RequireLocalUsername {
+		t.Fatalf("resolver context did not preserve prepared local-username contract: %+v", resolver.resolveContexts)
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterState, err := DecodeFlowState(after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(beforeState.AdapterState) != string(afterState.AdapterState) ||
+		beforeState.ProviderID != afterState.ProviderID ||
+		beforeState.ProviderSlug != afterState.ProviderSlug ||
+		beforeState.Protocol != afterState.Protocol ||
+		beforeState.Intent != afterState.Intent ||
+		beforeState.ReturnTo != afterState.ReturnTo ||
+		beforeState.BrowserDigest != afterState.BrowserDigest ||
+		!beforeState.ExpiresAt.Equal(afterState.ExpiresAt) ||
+		beforeState.CurrentAction.Kind != afterState.CurrentAction.Kind ||
+		beforeState.CurrentAction.Public["challenge"] != afterState.CurrentAction.Public["challenge"] ||
+		afterState.CurrentAction.Public["requiresLocalUsername"] != true {
+		t.Fatalf("restored state changed beyond username prompt:\nbefore=%+v\nafter=%+v", beforeState, afterState)
+	}
+}
+
+func TestServiceLinkCompletionDoesNotInheritAvatar(t *testing.T) {
+	service, adapter, _, _ := newServiceHarness(t)
+	avatars := &serviceFakeAvatar{}
+	service.SetAvatarManager(avatars)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{
+			Issuer: "iss", Subject: "sub", AvatarURL: "https://cdn.test/avatar.png",
+		}}, nil
+	}
+	begin, err := service.BeginLink(context.Background(), "corp", "/identities", 9, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake",
+		AccountID: new(int32(9)), SessionID: "session-1",
+		Input: ActionInput{Kind: ActionRedirect},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if avatars.calls != 0 {
+		t.Fatalf("link completion inherited avatar %d times", avatars.calls)
+	}
 }

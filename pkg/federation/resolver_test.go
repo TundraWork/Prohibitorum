@@ -22,11 +22,17 @@ import (
 // ModesQueries interface, so the fake only needs those seven methods.
 // If a future change to modes.go reaches for a query we didn't fake,
 // the compiler will surface it the moment we update the interface.
+type identityLookup struct {
+	identity db.AccountIdentity
+	err      error
+}
+
 type fakeModesQueries struct {
 	mu sync.Mutex
 
-	identityResult db.AccountIdentity
-	identityErr    error
+	identityResult   db.AccountIdentity
+	identityErr      error
+	identitySequence []identityLookup
 
 	accountByIDResults map[int32]db.Account
 	accountByIDErr     error
@@ -79,6 +85,11 @@ func newFakeModesQueries() *fakeModesQueries {
 func (f *fakeModesQueries) GetAccountIdentityByIssuerSub(_ context.Context, _ db.GetAccountIdentityByIssuerSubParams) (db.AccountIdentity, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if len(f.identitySequence) > 0 {
+		result := f.identitySequence[0]
+		f.identitySequence = f.identitySequence[1:]
+		return result.identity, result.err
+	}
 	return f.identityResult, f.identityErr
 }
 
@@ -1140,5 +1151,162 @@ func TestResolve_PropagatesUnknownLookupError(t *testing.T) {
 	a := &recordingAudit{}
 	if _, err := federationoidc.Resolve(context.Background(), q, a, newIDP(federationoidc.ModeAutoProvision), goodTokens(), nil); err == nil {
 		t.Fatal("want error to propagate")
+	}
+}
+
+func TestResolverResolveIdentityRejectsDisabledExistingAccount(t *testing.T) {
+	q := newFakeModesQueries()
+	q.identityErr = nil
+	q.identityResult = db.AccountIdentity{
+		ID:            300,
+		AccountID:     50,
+		UpstreamIdpID: 42,
+		UpstreamIss:   "https://issuer.example/",
+		UpstreamSub:   "sub-1",
+		UpstreamEmail: pgtype.Text{String: "old@example.com", Valid: true},
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+	q.accountByIDResults[50] = db.Account{
+		ID:          50,
+		Username:    "alice",
+		DisplayName: "Alice Old",
+		Disabled:    true,
+	}
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+	provider := federationoidc.Provider{
+		ID:       42,
+		Slug:     "test-idp",
+		Protocol: "oidc",
+		Mode:     federationoidc.ModeAutoProvision,
+		Config:   []byte(`{"issuerUrl":"https://issuer.example/","clientId":"client","scopes":["openid"]}`),
+	}
+
+	_, err := resolver.ResolveIdentity(context.Background(), provider, *goodTokens(), federationoidc.ResolveContext{Intent: federationoidc.IntentLogin})
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "bad_credentials" {
+		t.Fatalf("ResolveIdentity error = %v, want bad_credentials", err)
+	}
+	if len(q.displayNameCalls) != 0 || len(q.emailCalls) != 0 || len(q.accountEmailCalls) != 0 {
+		t.Fatalf("disabled account claims were mutated: display=%+v identityEmail=%+v accountEmail=%+v", q.displayNameCalls, q.emailCalls, q.accountEmailCalls)
+	}
+}
+
+func genericProvider(mode string) federationoidc.Provider {
+	return federationoidc.Provider{
+		ID:       42,
+		Slug:     "test-idp",
+		Protocol: "oidc",
+		Mode:     mode,
+		Config:   []byte(`{"issuerUrl":"https://issuer.example/","clientId":"client","scopes":["openid"],"requireVerifiedEmail":true}`),
+	}
+}
+
+func TestResolverResolveIdentityUnknownAfterPrepareRequiresSubmittedUsername(t *testing.T) {
+	q := newFakeModesQueries()
+	q.identitySequence = []identityLookup{
+		{err: pgx.ErrNoRows},
+		{err: pgx.ErrNoRows},
+	}
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+
+	_, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeAutoProvision),
+		*goodTokens(),
+		federationoidc.ResolveContext{
+			Intent:               federationoidc.IntentLogin,
+			RequireLocalUsername: true,
+		},
+	)
+	if !errors.Is(err, federationoidc.ErrLocalUsernameRequired) {
+		t.Fatalf("ResolveIdentity error = %v, want ErrLocalUsernameRequired", err)
+	}
+	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
+		t.Fatalf("unknown identity race mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+	}
+}
+
+func TestResolverResolveIdentityNewlyKnownIgnoresSubmittedUsername(t *testing.T) {
+	q := newFakeModesQueries()
+	existing := db.AccountIdentity{
+		ID:            300,
+		AccountID:     50,
+		UpstreamIdpID: 42,
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+	q.identitySequence = []identityLookup{
+		{err: pgx.ErrNoRows},
+		{identity: existing},
+	}
+	q.accountByIDResults[50] = db.Account{ID: 50, Username: "existing"}
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+	identity := *goodTokens()
+
+	outcome, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeAutoProvision),
+		identity,
+		federationoidc.ResolveContext{
+			Intent:               federationoidc.IntentLogin,
+			LocalUsername:        "attacker-chosen",
+			RequireLocalUsername: true,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.AccountID != 50 || outcome.IdentityID != 300 || outcome.ProviderID != 42 ||
+		!outcome.Confirmed || outcome.IsNew ||
+		len(outcome.AMR) != len(identity.AMR) || outcome.AMR[0] != identity.AMR[0] || outcome.AMR[1] != identity.AMR[1] {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
+		t.Fatalf("newly-known identity was reprovisioned: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+	}
+}
+
+func TestResolverResolveIdentityLinkOutcome(t *testing.T) {
+	q := newFakeModesQueries()
+	q.accountByIDResults[9] = db.Account{ID: 9, Username: "linker"}
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+	identity := *goodTokens()
+
+	outcome, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeLinkOnly),
+		identity,
+		federationoidc.ResolveContext{Intent: federationoidc.IntentLink, LinkAccountID: new(int32(9))},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.AccountID != 9 || outcome.IdentityID == 0 || outcome.ProviderID != 42 ||
+		!outcome.Confirmed || outcome.IsNew ||
+		len(outcome.AMR) != len(identity.AMR) || outcome.AMR[0] != identity.AMR[0] || outcome.AMR[1] != identity.AMR[1] {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	if q.insertedIdentity.AccountID != 9 || q.confirmedIdentityID != outcome.IdentityID {
+		t.Fatalf("link mutation = %+v, confirmed=%d", q.insertedIdentity, q.confirmedIdentityID)
+	}
+}
+
+func TestResolverResolveIdentityInviteOutcome(t *testing.T) {
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "invited", "Invited User", "user", nil)
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+	identity := *goodTokens()
+
+	outcome, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeInviteOnly),
+		identity,
+		federationoidc.ResolveContext{Intent: federationoidc.IntentInvite, EnrollmentToken: "invite-token"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.AccountID == 0 || outcome.IdentityID == 0 || outcome.ProviderID != 42 ||
+		!outcome.Confirmed || !outcome.IsNew ||
+		len(outcome.AMR) != len(identity.AMR) || outcome.AMR[0] != identity.AMR[0] || outcome.AMR[1] != identity.AMR[1] {
+		t.Fatalf("outcome = %+v", outcome)
 	}
 }

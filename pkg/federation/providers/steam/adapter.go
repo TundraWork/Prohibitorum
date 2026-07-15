@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"prohibitorum/pkg/authn"
 	federationcore "prohibitorum/pkg/federation"
 )
 
@@ -57,18 +58,18 @@ func (a *Adapter) Begin(_ context.Context, _ federationcore.Provider, begin fede
 }
 
 func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider, raw json.RawMessage, input federationcore.ActionInput) (federationcore.AdvanceResult, error) {
-	if input.Kind != federationcore.ActionRedirect { return federationcore.AdvanceResult{}, errors.New("federation/steam: unexpected action") }
+	if input.Kind != federationcore.ActionRedirect { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
 	var state adapterState
-	if err := json.Unmarshal(raw, &state); err != nil || state.ReturnTo == "" { return federationcore.AdvanceResult{}, errors.New("federation/steam: invalid adapter state") }
+	if err := json.Unmarshal(raw, &state); err != nil || state.ReturnTo == "" { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
 	config, apiKey, err := a.open(provider)
 	if err != nil { return federationcore.AdvanceResult{}, err }
 	client := federationcore.NewOutboundHTTPClient(config.AllowPrivateNetwork, 2<<20)
 	var steamID string
 	if a.verify != nil { steamID, err = a.verify(ctx, input.Params, state.ReturnTo) } else { steamID, err = Verify(ctx, client, input.Params, state.ReturnTo) }
-	if err != nil { return federationcore.AdvanceResult{}, err }
+	if err != nil { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
 	var player Summary
 	if a.summary != nil { player, err = a.summary(ctx, apiKey, steamID) } else { player, err = FetchSummary(ctx, client, apiKey, steamID) }
-	if err != nil { return federationcore.AdvanceResult{}, err }
+	if err != nil { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
 	avatarURL := player.AvatarURL
 	return federationcore.AdvanceResult{Identity: &federationcore.VerifiedIdentity{
 		Issuer: Issuer, Subject: steamID, Username: "steam_" + steamID, DisplayName: player.PersonaName,

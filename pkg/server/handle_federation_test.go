@@ -22,6 +22,8 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -46,6 +48,7 @@ import (
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation"
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
+	federationsteam "prohibitorum/pkg/federation/providers/steam"
 	"prohibitorum/pkg/kv"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -386,12 +389,55 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 	}
 }
 
+type serverSteamAdapter struct{}
+
+func (serverSteamAdapter) Protocol() string {
+	return federationsteam.Protocol
+}
+
+func (serverSteamAdapter) Begin(_ context.Context, _ fedoidc.Provider, begin fedoidc.BeginContext) (json.RawMessage, fedoidc.NextAction, error) {
+	state := json.RawMessage(`{"step":"steam"}`)
+	action := fedoidc.NextAction{
+		Kind: fedoidc.ActionRedirect,
+		URL:  "https://steam.test/openid?state=" + url.QueryEscape(begin.FlowID),
+	}
+	return state, action, nil
+}
+
+func (serverSteamAdapter) Advance(context.Context, fedoidc.Provider, json.RawMessage, fedoidc.ActionInput) (fedoidc.AdvanceResult, error) {
+	return fedoidc.AdvanceResult{Identity: &fedoidc.VerifiedIdentity{
+		Issuer: federationsteam.Issuer, Subject: "76561198000000000",
+		Username: "steam_76561198000000000", DisplayName: "Steam User",
+		AMR: []string{"steam"}, AvatarURL: "https://cdn.test/steam-avatar.jpg",
+	}}, nil
+}
+
+type serverAvatarRecorder struct {
+	calls    int
+	account  int32
+	provider fedoidc.Provider
+	url      string
+}
+
+func (r *serverAvatarRecorder) Inherit(accountID int32, provider fedoidc.Provider, avatarURL string) {
+	r.calls++
+	r.account = accountID
+	r.provider = provider
+	r.url = avatarURL
+}
+
+func (*serverAvatarRecorder) Pending(context.Context, int32) bool {
+	return false
+}
+
 func newTestFederationService(t *testing.T, q *fakeFedQueries, store kv.Store, writer audit.Writer, deks map[int][]byte, origin string, ttl time.Duration) *fedoidc.Service {
 	t.Helper()
 	registry := fedoidc.NewRegistry()
 	adapter := federationoidc.NewAdapter(fedoidc.NewSecretStore(deks))
 	if err := registry.RegisterDefinition(federationoidc.Definition{}); err != nil { t.Fatal(err) }
 	if err := registry.RegisterAdapter(adapter); err != nil { t.Fatal(err) }
+	if err := registry.RegisterDefinition(federationsteam.Definition{}); err != nil { t.Fatal(err) }
+	if err := registry.RegisterAdapter(serverSteamAdapter{}); err != nil { t.Fatal(err) }
 	service := fedoidc.NewService(registry, fedoidc.NewProviderStore(q), store, fedoidc.NewResolver(q, writer, nil), fedoidc.ServiceConfig{StateTTL: ttl, PublicOrigin: origin, Audit: writer})
 	service.SetAvatarManager(fedoidc.NewAvatarManager(q, store))
 	return service
@@ -497,6 +543,57 @@ func TestFederationLogin_RedirectsToUpstream(t *testing.T) {
 	}
 }
 
+func TestFederationOIDCStateRetainsSecurityBindings(t *testing.T) {
+	h := newFederationTestServer(t)
+	loc, resp := h.driveLogin(t, "mockop", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d, want 302", resp.StatusCode)
+	}
+	authorizeURL, err := url.Parse(loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateToken := authorizeURL.Query().Get("state")
+	raw, err := h.s.kvStore.Get(context.Background(), fedoidc.FlowKey(stateToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := fedoidc.DecodeFlowState(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var private struct {
+		CallbackURL  string `json:"callbackUrl"`
+		ExpectedIss  string `json:"expectedIssuer"`
+		TokenURL     string `json:"tokenEndpoint"`
+		Nonce        string `json:"nonce"`
+		CodeVerifier string `json:"codeVerifier"`
+	}
+	if err := json.Unmarshal(state.AdapterState, &private); err != nil {
+		t.Fatal(err)
+	}
+	challengeDigest := sha256.Sum256([]byte(private.CodeVerifier))
+	wantChallenge := base64.RawURLEncoding.EncodeToString(challengeDigest[:])
+	if private.CallbackURL != h.srvTS.URL+"/api/prohibitorum/auth/federation/mockop/callback" ||
+		private.ExpectedIss != h.opTS.URL || private.TokenURL != h.opTS.URL+"/token" ||
+		private.Nonce == "" || private.Nonce != authorizeURL.Query().Get("nonce") ||
+		private.CodeVerifier == "" || wantChallenge != authorizeURL.Query().Get("code_challenge") {
+		t.Fatalf("OIDC private state/action mismatch: state=%+v authorize=%v", private, authorizeURL.Query())
+	}
+	var browserToken string
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == sessstore.FedStateCookieName {
+			browserToken = cookie.Value
+			break
+		}
+	}
+	if !fedoidc.BrowserBindingOK(state.BrowserDigest, browserToken) ||
+		state.CurrentAction.Kind != fedoidc.ActionRedirect || state.CurrentAction.URL != loc {
+		t.Fatalf("browser/action binding mismatch: state=%+v cookieSet=%v", state, browserToken != "")
+	}
+}
+
+
 func TestFederationLogin_InvalidReturnTo(t *testing.T) {
 	h := newFederationTestServer(t)
 
@@ -550,6 +647,24 @@ func TestFederationLogin_UnknownSlugReturnsStateInvalid(t *testing.T) {
 // issues a durable session immediately (Confirmed=true). Without this, a fresh
 // auto-provision yields Confirmed=false and the callback parks the user on
 // /welcome (see TestFederationCallback_UnconfirmedRedirectsToWelcome).
+func seedSteamProvider(t *testing.T, h *fedTestHarness) db.UpstreamIdp {
+	t.Helper()
+	const providerID int64 = 99
+	sealed, err := fedoidc.SealProviderSecret(fedTestDEK, []byte("steam-api-key"), providerID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := db.UpstreamIdp{
+		ID: providerID, Slug: "steam", DisplayName: "Steam",
+		Protocol: federationsteam.Protocol, Mode: fedoidc.ModeAutoProvision,
+		ClientSecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce, KeyVersion: 1,
+		UsernameClaim: "preferred_username", DisplayNameClaim: "name",
+		EmailClaim: "email", PictureClaim: "picture",
+	}
+	h.q.idpBySlug[provider.Slug] = provider
+	return provider
+}
+
 func seedConfirmedIdentity(h *fedTestHarness) {
 	const acctID int32 = 777
 	h.q.accountByIDResults[acctID] = db.Account{
@@ -586,6 +701,7 @@ func TestFederationCallback_HappyPath(t *testing.T) {
 		body, _ := readAll(resp.Body)
 		t.Fatalf("callback: want 302, got %d (body=%s)", resp.StatusCode, body)
 	}
+
 	if got := resp.Header.Get("Location"); got != "/me" {
 		t.Errorf("Location: want /me, got %q", got)
 	}
@@ -624,6 +740,72 @@ func TestFederationCallback_HappyPath(t *testing.T) {
 		}
 	}
 }
+
+func TestFederationCallback_DisabledExistingAccountRejectsWithoutSession(t *testing.T) {
+	h := newFederationTestServer(t)
+	seedConfirmedIdentity(h)
+	account := h.q.accountByIDResults[777]
+	account.Disabled = true
+	h.q.accountByIDResults[777] = account
+
+	loc, resp := h.driveLogin(t, "mockop", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("login status = %d, want 302", resp.StatusCode)
+	}
+	code, state, iss := driveAuthorize(t, loc)
+	q := url.Values{}
+	q.Set("code", code)
+	q.Set("state", state)
+	q.Set("iss", iss)
+	resp = h.hitCallback(t, "mockop", q)
+
+	if resp.StatusCode != http.StatusFound ||
+		!strings.HasPrefix(resp.Header.Get("Location"), "/error?error=bad_credentials&ref=") {
+		t.Fatalf("callback status/location = %d %q, want bad_credentials redirect", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if len(h.q.sessions) != 0 {
+		t.Fatalf("disabled account inserted %d sessions", len(h.q.sessions))
+	}
+	var disabledAudit bool
+	for _, event := range h.q.events {
+		if event.Event != audit.EventFail {
+			continue
+		}
+		var detail map[string]any
+		if err := json.Unmarshal(event.Detail, &detail); err != nil {
+			t.Fatal(err)
+		}
+		if detail["reason"] == "account_disabled" {
+			disabledAudit = true
+			break
+		}
+	}
+	if !disabledAudit {
+		t.Fatal("disabled-account failure audit missing")
+	}
+}
+
+func TestFederationCallback_AllowsMissingAuthorizationResponseIssuer(t *testing.T) {
+	h := newFederationTestServer(t)
+	seedConfirmedIdentity(h)
+	loc, resp := h.driveLogin(t, "mockop", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("login status = %d, want 302", resp.StatusCode)
+	}
+	code, state, _ := driveAuthorize(t, loc)
+	q := url.Values{}
+	q.Set("code", code)
+	q.Set("state", state)
+
+	resp = h.hitCallback(t, "mockop", q)
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/me" {
+		t.Fatalf("callback status/location = %d %q, want 302 /me", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("sessions inserted = %d, want 1", len(h.q.sessions))
+	}
+}
+
 
 // TestFederationCallback_PersistsUpstreamIdpID guards H1-sch: the federation
 // callback must stamp the upstream IdP's id onto the session row so the OIDC
@@ -742,6 +924,34 @@ func TestFederationCallback_UpstreamError(t *testing.T) {
 	}
 	if detail["upstream_code"] != "access_denied" {
 		t.Errorf("audit upstream_code: got %v", detail["upstream_code"])
+	}
+}
+
+func TestFederationCallback_InvalidAuthorizationCodeIsStateInvalid(t *testing.T) {
+	h := newFederationTestServer(t)
+	loc, resp := h.driveLogin(t, "mockop", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("login status = %d, want 302", resp.StatusCode)
+	}
+	authorizeURL, err := url.Parse(loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := authorizeURL.Query().Get("state")
+
+	q := url.Values{}
+	q.Set("code", "not-issued-by-the-op")
+	q.Set("state", state)
+	resp = h.hitCallback(t, "mockop", q)
+
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); !strings.HasPrefix(got, "/error?error=federation_state_invalid&ref=") {
+		t.Fatalf("Location = %q, want federation_state_invalid redirect", got)
+	}
+	if _, err := h.s.kvStore.Get(context.Background(), fedoidc.FlowKey(state)); err != nil {
+		t.Fatalf("failed callback did not restore flow: %v", err)
 	}
 }
 

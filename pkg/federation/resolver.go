@@ -111,7 +111,22 @@ func Resolve(
 		//     (or a federated invite is still pending). Report Confirmed=false so
 		//     the HTTP layer routes back to the gate; do NOT emit Use — that's
 		//     recorded on confirm (Task 6) — and do NOT re-insert anything.
-		syncClaims(ctx, q, idp, &existing, identity)
+		if err := syncClaims(ctx, q, idp, &existing, identity); err != nil {
+			if ae := authn.AsAuthError(err); ae != nil && ae.Code == "bad_credentials" {
+				audit.RecordOrLog(ctx, w, audit.Record{
+					AccountID: new(existing.AccountID),
+					Factor:    audit.FactorFederationOIDC,
+					Event:     audit.EventFail,
+					Detail: map[string]any{
+						"reason":   "account_disabled",
+						"idp_slug": idp.Slug,
+						"iss":      identity.Issuer,
+						"sub":      identity.Subject,
+					},
+				})
+			}
+			return ResolveOutcome{}, err
+		}
 		confirmed := existing.ConfirmedAt.Valid
 		if confirmed {
 			audit.RecordOrLog(ctx, w, audit.Record{
@@ -223,7 +238,7 @@ func applyAutoProvision(
 				return ResolveOutcome{}, fmt.Errorf("federation: lookup resolved account: %w", accountErr)
 			}
 			if account.Disabled {
-				return ResolveOutcome{}, authn.ErrAccountDisabled()
+				return ResolveOutcome{}, authn.ErrBadCredentials()
 			}
 			return ResolveOutcome{
 				AccountID: finalIdentity.AccountID, IdentityID: finalIdentity.ID,
@@ -616,53 +631,50 @@ func applyLinkOnly(
 	return ResolveOutcome{}, authn.ErrLinkRequired()
 }
 
-// syncClaims propagates upstream display_name and upstream_email drift
-// into the local account / account_identity rows. Errors are non-fatal:
-// the user has already authenticated, and a transient DB hiccup on a
-// best-effort sync should not deny the session. Writes are conditional
-// on a diff against the current row — avoids burning row-level write
-// amplification on no-op updates and (incidentally) avoids touching
-// updated_at when nothing actually changed.
+// syncClaims first verifies that the identity's owning account is enabled,
+// then propagates upstream display_name and upstream_email drift into the local
+// account / account_identity rows. Drift updates remain best-effort, but the
+// account lookup is load-bearing: authentication must fail closed when account
+// status cannot be established.
 func syncClaims(
 	ctx context.Context,
 	q ModesQueries,
 	idp *db.UpstreamIdp,
 	stored *db.AccountIdentity,
 	identity *VerifiedIdentity,
-) {
+) error {
 	displayName := identity.DisplayName
 	email := identityEmail(identity)
 	newEmail := pgtype.Text{String: email, Valid: email != ""}
 	newVerified := newEmail.Valid && identity.EmailVerified
 
-	// Fetch the current account once (cheap PK lookup) for both the display_name
-	// and email drift checks — conditional UPDATEs avoid firing the updated_at
-	// trigger on a no-op login.
-	if acct, err := q.GetAccountByID(ctx, stored.AccountID); err == nil {
-		if displayName != "" && acct.DisplayName != displayName {
-			_ = q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
-				ID:          stored.AccountID,
-				DisplayName: displayName,
-			})
-		}
-		// account.email drift (T3.2): keep the account email + verified flag in
-		// lockstep with the upstream on re-login, mirroring the upstream_email
-		// sync below.
-		if acct.Email.String != newEmail.String || acct.Email.Valid != newEmail.Valid || acct.EmailVerified != newVerified {
-			_ = q.UpdateAccountEmail(ctx, db.UpdateAccountEmailParams{
-				ID:            stored.AccountID,
-				Email:         newEmail,
-				EmailVerified: newVerified,
-			})
-		}
+	acct, err := q.GetAccountByID(ctx, stored.AccountID)
+	if err != nil {
+		return fmt.Errorf("federation: lookup resolved account: %w", err)
 	}
-
+	if acct.Disabled {
+		return authn.ErrBadCredentials()
+	}
+	if displayName != "" && acct.DisplayName != displayName {
+		_ = q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
+			ID:          stored.AccountID,
+			DisplayName: displayName,
+		})
+	}
+	if acct.Email.String != newEmail.String || acct.Email.Valid != newEmail.Valid || acct.EmailVerified != newVerified {
+		_ = q.UpdateAccountEmail(ctx, db.UpdateAccountEmailParams{
+			ID:            stored.AccountID,
+			Email:         newEmail,
+			EmailVerified: newVerified,
+		})
+	}
 	if newEmail.String != stored.UpstreamEmail.String || newEmail.Valid != stored.UpstreamEmail.Valid {
 		_ = q.UpdateAccountIdentityEmail(ctx, db.UpdateAccountIdentityEmailParams{
 			ID:            stored.ID,
 			UpstreamEmail: newEmail,
 		})
 	}
+	return nil
 }
 
 type ResolveContext struct {
@@ -670,6 +682,10 @@ type ResolveContext struct {
 	EnrollmentToken string
 	LocalUsername   string
 	LinkAccountID   *int32
+	// RequireLocalUsername marks a prepared local adapter action. When true,
+	// auto-provisioning must not silently fall back to an upstream username if
+	// the identity became unknown after its prepare-time lookup.
+	RequireLocalUsername bool
 }
 
 type IdentityResolver interface {
@@ -731,12 +747,10 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 		switch row.Mode {
 		case ModeAutoProvision:
 			username := resolution.LocalUsername
-			if username == "" {
+			if username == "" && !resolution.RequireLocalUsername {
 				username = identity.Username
 			}
 			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
-		case ModeInviteOnly:
-			return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, "", r.pool)
 		case ModeLinkOnly:
 			return applyLinkOnly(ctx, r.audit, &row, &identity)
 		default:

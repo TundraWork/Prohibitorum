@@ -28,6 +28,7 @@ import (
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation"
+	federationsteam "prohibitorum/pkg/federation/providers/steam"
 	"prohibitorum/pkg/kv"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -902,6 +903,45 @@ func TestMeIdentities_LinkCallback_HappyPath(t *testing.T) {
 	// No NEW session insert — link flow never calls sessionStore.Issue.
 	if len(h.q.sessions) != sessionsBefore {
 		t.Errorf("sessions inserted by link flow: want 0, got %d", len(h.q.sessions)-sessionsBefore)
+	}
+}
+
+func TestMeIdentities_SteamLinkHTTPFlow(t *testing.T) {
+	h := newLinkTestHarness(t)
+	provider := seedSteamProvider(t, h)
+	h.grantSudoOnSession(t)
+	h.q.accountByIDResults[h.linkAccountID] = db.Account{ID: h.linkAccountID, Username: "alice"}
+	avatars := &serverAvatarRecorder{}
+	h.s.federationService.SetAvatarManager(avatars)
+	sessionsBefore := len(h.q.sessions)
+
+	loc, resp := h.driveLinkBegin(t, provider.Slug, "/me/identities")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("begin status = %d, want 302", resp.StatusCode)
+	}
+	actionURL, err := url.Parse(loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := url.Values{
+		"state":       {actionURL.Query().Get("state")},
+		"openid.mode": {"id_res"},
+	}
+	resp = h.hitLinkCallback(t, provider.Slug, q)
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/me/identities" {
+		t.Fatalf("callback status/location = %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if len(h.q.insertIdentitys) != 1 ||
+		h.q.insertIdentitys[0].AccountID != h.linkAccountID ||
+		h.q.insertIdentitys[0].UpstreamIss != federationsteam.Issuer ||
+		h.q.insertIdentitys[0].UpstreamSub != "76561198000000000" {
+		t.Fatalf("linked Steam identity = %+v", h.q.insertIdentitys)
+	}
+	if len(h.q.sessions) != sessionsBefore {
+		t.Fatalf("Steam link inserted %d sessions", len(h.q.sessions)-sessionsBefore)
+	}
+	if avatars.calls != 0 {
+		t.Fatalf("Steam link inherited avatar %d times", avatars.calls)
 	}
 }
 

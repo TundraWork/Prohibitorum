@@ -6,10 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"net/url"
 	"errors"
 	"fmt"
+	"net/url"
 
+	"prohibitorum/pkg/authn"
 	federationcore "prohibitorum/pkg/federation"
 )
 
@@ -117,21 +118,21 @@ func (a *Adapter) Begin(ctx context.Context, provider federationcore.Provider, b
 }
 
 func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider, raw json.RawMessage, input federationcore.ActionInput) (federationcore.AdvanceResult, error) {
-	if input.Kind != federationcore.ActionRedirect { return federationcore.AdvanceResult{}, errors.New("federation/oidc: unexpected action") }
+	if input.Kind != federationcore.ActionRedirect { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
 	var state adapterState
-	if err := json.Unmarshal(raw, &state); err != nil { return federationcore.AdvanceResult{}, fmt.Errorf("federation/oidc: decode adapter state: %w", err) }
-	if state.CallbackURL == "" || state.ExpectedIss == "" || state.Nonce == "" || state.CodeVerifier == "" || input.Issuer != state.ExpectedIss {
-		return federationcore.AdvanceResult{}, errors.New("federation/oidc: issuer or state mismatch")
+	if err := json.Unmarshal(raw, &state); err != nil { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
+	if state.CallbackURL == "" || state.ExpectedIss == "" || state.Nonce == "" || state.CodeVerifier == "" || input.Issuer != "" && input.Issuer != state.ExpectedIss {
+		return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid()
 	}
 	config, secret, err := a.open(provider)
 	if err != nil { return federationcore.AdvanceResult{}, err }
 	client, err := a.newClient(ctx, config, secret, state.CallbackURL)
 	if err != nil { return federationcore.AdvanceResult{}, err }
 	if client.Issuer() != state.ExpectedIss || client.TokenEndpoint() != state.TokenURL {
-		return federationcore.AdvanceResult{}, errors.New("federation/oidc: discovery endpoint changed during flow")
+		return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid()
 	}
 	tokens, err := client.Exchange(ctx, input.Code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
-	if err != nil { return federationcore.AdvanceResult{}, err }
+	if err != nil { return federationcore.AdvanceResult{}, authn.ErrFederationStateInvalid() }
 	usernameClaim := config.UsernameClaim; if usernameClaim == "" { usernameClaim = "preferred_username" }
 	displayClaim := config.DisplayNameClaim; if displayClaim == "" { displayClaim = "name" }
 	emailClaim := config.EmailClaim; if emailClaim == "" { emailClaim = "email" }

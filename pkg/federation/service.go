@@ -57,12 +57,17 @@ type AdvanceRequest struct {
 	Input        ActionInput
 }
 
+type avatarInheritor interface {
+	Inherit(int32, Provider, string)
+	Pending(context.Context, int32) bool
+}
+
 type Service struct {
 	registry  *Registry
 	providers ProviderLoader
 	kv        kv.Store
 	resolver  IdentityResolver
-	avatar    *AvatarManager
+	avatar    avatarInheritor
 	audit     audit.Writer
 	config    ServiceConfig
 	now       func() time.Time
@@ -74,7 +79,7 @@ func NewService(registry *Registry, providers ProviderLoader, store kv.Store, re
 	return &Service{registry: registry, providers: providers, kv: store, resolver: resolver, audit: config.Audit, config: config, now: time.Now}
 }
 
-func (s *Service) SetAvatarManager(manager *AvatarManager) {
+func (s *Service) SetAvatarManager(manager avatarInheritor) {
 	s.avatar = manager
 }
 
@@ -202,6 +207,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	outcome, err := s.resolver.ResolveIdentity(ctx, provider, *result.Identity, ResolveContext{
 		Intent: state.Intent, EnrollmentToken: state.EnrollmentToken, LocalUsername: request.Input.LocalUsername,
 		LinkAccountID: state.LinkAccountID,
+		RequireLocalUsername: state.Intent == IntentLogin && state.CurrentAction.Kind != ActionRedirect,
 	})
 	if err != nil {
 		return nil, s.restore(ctx, request.FlowID, state, raw, err, errors.Is(err, ErrLocalUsernameRequired))
@@ -212,7 +218,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		AMR: append([]string(nil), outcome.AMR...), IsNew: outcome.IsNew,
 		Confirmed: outcome.Confirmed, AvatarURL: result.Identity.AvatarURL,
 	}
-	if s.avatar != nil {
+	if s.avatar != nil && state.Intent != IntentLink {
 		s.avatar.Inherit(outcome.AccountID, provider, result.Identity.AvatarURL)
 	}
 	return completion, nil
