@@ -538,6 +538,52 @@ func TestServiceResolverFailureRestoresExactFlow(t *testing.T) {
 	}
 }
 
+func TestServiceRedirectLocalUsernameErrorRestoresOriginalAction(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+	}
+	resolver.err = ErrLocalUsernameRequired
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+		Input: ActionInput{Kind: ActionRedirect},
+	})
+	if !errors.Is(err, ErrLocalUsernameRequired) {
+		t.Fatalf("VerifyFlow error = %v, want ErrLocalUsernameRequired", err)
+	}
+	if len(resolver.resolveContexts) != 1 || resolver.resolveContexts[0].RequireLocalUsername {
+		t.Fatalf("redirect resolution context requested a local username: %+v", resolver.resolveContexts)
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatal("redirect action was rewritten during restoration")
+	}
+	restored, err := DecodeFlowState(after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.CurrentAction.Kind != ActionRedirect {
+		t.Fatalf("restored action kind = %q, want redirect", restored.CurrentAction.Kind)
+	}
+	if _, prompted := restored.CurrentAction.Public["requiresLocalUsername"]; prompted {
+		t.Fatalf("redirect action restored with unusable local-username prompt: %+v", restored.CurrentAction)
+	}
+}
+
 func TestServiceRestoreFailureReturnsKVUnavailableAndConsumesFlow(t *testing.T) {
 	service, adapter, _, baseStore := newServiceHarness(t)
 	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {

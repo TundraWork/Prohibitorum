@@ -258,15 +258,16 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		publicErr := s.recordFailure(operationCtx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
 		return nil, s.restore(operationCtx, request.FlowID, state, raw, publicErr, false)
 	}
+	requireLocalUsername := state.Intent == IntentLogin && state.CurrentAction.Kind != ActionRedirect
 	outcome, err := s.resolver.ResolveIdentity(operationCtx, provider, *result.Identity, ResolveContext{
 		Intent: state.Intent, EnrollmentToken: state.EnrollmentToken, LocalUsername: request.Input.LocalUsername,
 		LinkAccountID: state.LinkAccountID,
-		RequireLocalUsername: state.Intent == IntentLogin && state.CurrentAction.Kind != ActionRedirect,
+		RequireLocalUsername: requireLocalUsername,
 	})
 	if leaseErr := lease.check(); leaseErr != nil { return nil, leaseErr }
 	if err != nil {
 		publicErr := s.recordFailure(operationCtx, state, &request, provider.Slug, err)
-		return nil, s.restore(operationCtx, request.FlowID, state, raw, publicErr, errors.Is(err, ErrLocalUsernameRequired))
+		return nil, s.restore(operationCtx, request.FlowID, state, raw, publicErr, requireLocalUsername && errors.Is(err, ErrLocalUsernameRequired))
 	}
 	completion := &CompletionResult{
 		Intent: state.Intent, AccountID: outcome.AccountID, IdentityID: outcome.IdentityID,

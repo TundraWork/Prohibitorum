@@ -1340,6 +1340,100 @@ func TestResolverResolveIdentityUnknownAfterPrepareRequiresUsernameBeforeProvisi
 	}
 }
 
+func TestResolverResolveIdentityUnknownRedirectPreservesProvisioningGateOrder(t *testing.T) {
+	tests := []struct {
+		name       string
+		provider   federationoidc.Provider
+		identity   federationoidc.VerifiedIdentity
+		wantCode   string
+		wantError  string
+		wantAudit  string
+	}{
+		{
+			name:     "unverified email before missing username claim",
+			provider: genericProvider(federationoidc.ModeAutoProvision),
+			identity: func() federationoidc.VerifiedIdentity {
+				identity := *goodTokens()
+				identity.Username = ""
+				identity.EmailVerified = false
+				return identity
+			}(),
+			wantCode:  "email_not_verified",
+			wantAudit: "email_not_verified",
+		},
+		{
+			name: "disallowed domain before missing username claim",
+			provider: federationoidc.Provider{
+				ID:       42,
+				Slug:     "test-idp",
+				Protocol: "oidc",
+				Mode:     federationoidc.ModeAutoProvision,
+				Config:   []byte(`{"issuerUrl":"https://issuer.example/","clientId":"client","scopes":["openid"],"requireVerifiedEmail":true,"allowedDomains":["allowed.example"],"usernameClaim":"preferred_username"}`),
+			},
+			identity: func() federationoidc.VerifiedIdentity {
+				identity := *goodTokens()
+				identity.Username = ""
+				identity.Email = new("alice@outside.example")
+				return identity
+			}(),
+			wantCode:  "invite_required",
+			wantAudit: "domain_not_allowed",
+		},
+		{
+			name: "missing configured username claim",
+			provider: federationoidc.Provider{
+				ID:       42,
+				Slug:     "test-idp",
+				Protocol: "oidc",
+				Mode:     federationoidc.ModeAutoProvision,
+				Config:   []byte(`{"issuerUrl":"https://issuer.example/","clientId":"client","scopes":["openid"],"requireVerifiedEmail":true,"usernameClaim":"preferred_username"}`),
+			},
+			identity: func() federationoidc.VerifiedIdentity {
+				identity := *goodTokens()
+				identity.Username = ""
+				return identity
+			}(),
+			wantError: `federation/oidc: upstream provided no "preferred_username" claim (idp="test-idp", sub="sub-1")`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			q := newFakeModesQueries()
+			q.identitySequence = []identityLookup{{err: pgx.ErrNoRows}}
+			a := &recordingAudit{}
+			resolver := federationoidc.NewResolver(q, a, nil)
+
+			_, err := resolver.ResolveIdentity(
+				context.Background(),
+				test.provider,
+				test.identity,
+				federationoidc.ResolveContext{Intent: federationoidc.IntentLogin},
+			)
+			if errors.Is(err, federationoidc.ErrLocalUsernameRequired) {
+				t.Fatalf("redirect resolution returned ErrLocalUsernameRequired: %v", err)
+			}
+			if test.wantCode != "" {
+				if authErr := authn.AsAuthError(err); authErr == nil || authErr.Code != test.wantCode {
+					t.Fatalf("ResolveIdentity error = %v, want auth code %q", err, test.wantCode)
+				}
+			} else if err == nil || err.Error() != test.wantError {
+				t.Fatalf("ResolveIdentity error = %v, want %q", err, test.wantError)
+			}
+			if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
+				t.Fatalf("rejected redirect mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+			}
+			if test.wantAudit != "" {
+				if !a.hasFail(test.wantAudit) {
+					t.Fatalf("missing %q failure audit: %+v", test.wantAudit, a.snapshot())
+				}
+			} else if records := a.snapshot(); len(records) != 0 {
+				t.Fatalf("missing-claim operator error emitted audit: %+v", records)
+			}
+		})
+	}
+}
+
 func TestResolverResolveIdentityUnknownRedirectUsesVerifiedUsername(t *testing.T) {
 	q := newFakeModesQueries()
 	q.identitySequence = []identityLookup{{err: pgx.ErrNoRows}}

@@ -10,8 +10,8 @@
 //
 // Per RFC 9700 §4.4.2.1 (mix-up resistance) we snapshot the issuer and
 // token endpoint at NewClient time and expose them as Issuer() and
-// TokenEndpoint() so the Federator can compare against the per-state
-// "expected_iss" without re-running discovery. We also re-check
+// TokenEndpoint() so the adapter can compare against the expected issuer
+// captured in its flow state without re-running discovery. We also re-check
 // nonce and issuer on the decoded ID token claims; zitadel/oidc
 // already enforces these against the discovery values, but the
 // caller-supplied expectedIss/expectedNonce is the actual security
@@ -51,9 +51,9 @@ func DefaultAllowedAlgs() []string {
 // OIDC-typed standard claims hoisted under their JSON-tag keys). It is
 // the source of truth for the per-IdP claim-name overrides — admins can
 // point upstream_idp.{username,display_name,email}_claim at non-default
-// keys like Entra ID's "upn", and modes.go / federation.go read those
-// via ClaimString(tokens.Raw, idp.UsernameClaim). The typed fields
-// above are kept for backwards-compat and convenience — they remain the
+// keys like Entra ID's "upn", and the adapter reads those through
+// ClaimString. The typed fields above are kept for backwards-compat and
+// convenience — they remain the
 // right place to read fields with no override knob (Subject, Issuer,
 // EmailVerified, AMR, Nonce).
 type Tokens struct {
@@ -167,17 +167,17 @@ func NewClient(
 }
 
 // Issuer returns the issuer URL as it was reported by discovery at
-// NewClient time. This is the value the Federator compares against
-// the id_token's iss claim and against the per-state expected_iss
-// blob. It is intentionally a snapshot: admin edits to upstream_idp
-// must not retroactively change what an in-flight Exchange call
-// considers a valid issuer.
+// NewClient time. This is the value the adapter compares against the
+// id_token's iss claim and against the expected issuer in its flow state.
+// It is intentionally a snapshot: admin edits to upstream_idp must not
+// retroactively change what an in-flight Exchange call considers a valid
+// issuer.
 func (c *Client) Issuer() string {
 	return c.issuer
 }
 
 // TokenEndpoint returns the token endpoint URL snapshotted at
-// NewClient time. Exposed for logging and for the Federator's
+// NewClient time. Exposed for logging and for the adapter's
 // mix-up-resistance bookkeeping; Exchange uses it internally via
 // the embedded RelyingParty.
 func (c *Client) TokenEndpoint() string {

@@ -20,7 +20,7 @@ import (
 
 var ErrLocalUsernameRequired = errors.New("federation: local username required")
 
-// ModesQueries is the narrow DB surface modes.go needs. db.Queries (which
+// ModesQueries is the narrow DB surface resolver.go needs. db.Queries (which
 // implements db.Querier) satisfies it implicitly; tests inject a fake.
 // Kept minimal so a fake test querier can be written by hand without
 // stubbing the full ~70-method db.Querier interface.
@@ -173,11 +173,10 @@ func resolve(
 
 	switch idp.Mode {
 	case ModeAutoProvision:
-		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, pool)
+		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, false, pool)
 	case ModeInviteOnly:
-		// Reaching invite_only via Resolve means HandleCallback did NOT see an
-		// EnrollmentToken on the FedState — i.e. someone hit /federation/{slug}/login
-		// directly on an invite_only IdP. Dispatch into applyInviteOnly with an
+		// Reaching invite_only via resolve means the login flow carried no
+		// EnrollmentToken in its FlowState. Dispatch into applyInviteOnly with an
 		// empty token; the top of that function audits invite_required_no_token
 		// and rejects. Pool is nil — no DB writes happen on the rejection path.
 		return applyInviteOnly(ctx, q, w, idp, identity, "", nil)
@@ -208,6 +207,7 @@ func applyAutoProvision(
 	idp *db.UpstreamIdp,
 	identity *VerifiedIdentity,
 	localUsername string,
+	requireLocalUsername bool,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
 	username := localUsername
@@ -284,7 +284,7 @@ func applyAutoProvision(
 		// this identity is still unknown. Existing identities must remain able
 		// to sign in when upstream claims later drift outside provisioning
 		// policy.
-		if username == "" {
+		if requireLocalUsername && username == "" {
 			return ResolveOutcome{}, ErrLocalUsernameRequired
 		}
 		if idp.RequireVerifiedEmail && !identity.EmailVerified {
@@ -294,6 +294,9 @@ func applyAutoProvision(
 		if len(idp.AllowedDomains) > 0 && !domainAllowed(email, idp.AllowedDomains) {
 			emitFail(ctx, w, idp, identity, "domain_not_allowed", nil)
 			return ResolveOutcome{}, authn.ErrInviteRequired()
+		}
+		if username == "" {
+			return ResolveOutcome{}, fmt.Errorf("federation/oidc: upstream provided no %q claim (idp=%q, sub=%q)", idp.UsernameClaim, idp.Slug, identity.Subject)
 		}
 		if err := acctpkg.ValidateUsername(username); err != nil {
 			return ResolveOutcome{}, err
@@ -461,7 +464,7 @@ func applyInviteOnly(
 		}
 
 		// Defense in depth: the invite must have been minted for THIS IdP.
-		// Catches admin slug edits mid-flight, malformed FedState, etc.
+		// Catches admin slug edits mid-flight, malformed flow state, etc.
 		if !enr.ExpectedUpstreamIdpSlug.Valid || enr.ExpectedUpstreamIdpSlug.String != idp.Slug {
 			emitFail(ctx, w, idp, identity, "invite_slug_mismatch", map[string]any{
 				"enrollment_expected_slug": enr.ExpectedUpstreamIdpSlug.String,
@@ -791,7 +794,7 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 			// lookup inside the provisioning transaction. It handles both a
 			// newly-known identity and an unknown identity without a preflight
 			// query that can immediately go stale.
-			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
+			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, resolution.RequireLocalUsername, r.pool)
 		case ModeInviteOnly, ModeLinkOnly:
 			return resolve(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
 		default:

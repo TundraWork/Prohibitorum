@@ -361,9 +361,10 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
 	})
 	if err != nil {
-		// Federator already emitted a fail audit row for each structured
-		// failure mode (state_invalid, session_swap, iss_mismatch_callback,
-		// code_exchange_failed, link_insert_failed, link_conflict).
+		// The federation service already emitted a fail audit row for each
+		// structured failure mode (state_invalid, session_swap,
+		// iss_mismatch_callback, code_exchange_failed, link_insert_failed,
+		// link_conflict).
 		// Redirect to /error — this is a full-page browser-navigated flow.
 		redirectAuthErrToError(w, r, err)
 		return
