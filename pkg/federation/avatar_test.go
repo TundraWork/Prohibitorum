@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/png"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -68,24 +70,28 @@ type avatarManagerQueries struct {
 	sources     []db.ListAvatarSourcesByAccountRow
 	upserts     []db.UpsertAvatarSourceParams
 	activations []db.SetActiveAvatarParams
+	getErr      error
+	listErr     error
+	upsertErr   error
+	activateErr error
 }
 
 func (q *avatarManagerQueries) GetAccountByID(context.Context, int32) (db.Account, error) {
-	return q.account, nil
+	return q.account, q.getErr
 }
 
 func (q *avatarManagerQueries) ListAvatarSourcesByAccount(context.Context, int32) ([]db.ListAvatarSourcesByAccountRow, error) {
-	return q.sources, nil
+	return q.sources, q.listErr
 }
 
 func (q *avatarManagerQueries) UpsertAvatarSource(_ context.Context, params db.UpsertAvatarSourceParams) error {
 	q.upserts = append(q.upserts, params)
-	return nil
+	return q.upsertErr
 }
 
 func (q *avatarManagerQueries) SetActiveAvatar(_ context.Context, params db.SetActiveAvatarParams) error {
 	q.activations = append(q.activations, params)
-	return nil
+	return q.activateErr
 }
 
 func avatarManagerPNG(t *testing.T) []byte {
@@ -266,6 +272,65 @@ func TestAvatarManagerSkipsUnchangedETagRefresh(t *testing.T) {
 	}
 	if len(queries.activations) != 0 {
 		t.Fatalf("unchanged avatar caused %d activations", len(queries.activations))
+	}
+}
+
+func TestAvatarManagerLogsPersistenceFailuresWithSafeContext(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*avatarManagerQueries)
+		message   string
+	}{
+		{
+			name: "account lookup",
+			configure: func(q *avatarManagerQueries) { q.getErr = errors.New("database failed") },
+			message: "account lookup failed",
+		},
+		{
+			name: "source list",
+			configure: func(q *avatarManagerQueries) { q.listErr = errors.New("database failed") },
+			message: "source list failed",
+		},
+		{
+			name: "source upsert",
+			configure: func(q *avatarManagerQueries) { q.upsertErr = errors.New("database failed") },
+			message: "source upsert failed",
+		},
+		{
+			name: "activation",
+			configure: func(q *avatarManagerQueries) { q.activateErr = errors.New("database failed") },
+			message: "activation failed",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			queries := &avatarManagerQueries{account: db.Account{ID: 7}}
+			test.configure(queries)
+			store := kv.NewMemoryStore()
+			t.Cleanup(func() { _ = store.Close() })
+			manager := NewAvatarManager(queries, store)
+			var logs bytes.Buffer
+			manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+			manager.fetch = func(context.Context, string, bool) ([]byte, error) {
+				return avatarManagerPNG(t), nil
+			}
+
+			manager.run(context.Background(), 7, Provider{
+				ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
+			}, AvatarDelivery{URL: "https://private.example/avatar.png"}, nil)
+
+			logged := logs.String()
+			for _, want := range []string{
+				test.message, `"account_id":7`, `"provider_id":11`, `"provider_slug":"corp"`,
+			} {
+				if !strings.Contains(logged, want) {
+					t.Fatalf("log = %q, want %q", logged, want)
+				}
+			}
+			if strings.Contains(logged, "private.example") {
+				t.Fatalf("log leaked avatar URL: %q", logged)
+			}
+		})
 	}
 }
 

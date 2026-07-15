@@ -895,11 +895,19 @@ func TestMeIdentities_LinkCallback_HappyPath(t *testing.T) {
 	if got := resp.Header.Get("Location"); got != "/me/identities" {
 		t.Errorf("Location: want /me/identities, got %q", got)
 	}
-	// NO session cookie — link callback must not issue a new session.
+	// The terminal success clears the anti-forgery cookie but never issues a
+	// replacement session.
+	clearedFedState := false
 	for _, c := range resp.Cookies() {
 		if c.Name == sessstore.SessionCookieName {
 			t.Errorf("link callback must not set session cookie; got %s=%s", c.Name, c.Value)
 		}
+		if c.Name == sessstore.FedStateCookieName && c.MaxAge < 0 && c.Value == "" {
+			clearedFedState = true
+		}
+	}
+	if !clearedFedState {
+		t.Fatal("successful link callback did not clear federation state cookie")
 	}
 	// One identity insert for our session account.
 	if len(h.q.insertIdentitys) != 1 {
@@ -1005,6 +1013,11 @@ func TestMeIdentities_LinkCallback_SessionSwap(t *testing.T) {
 	callbackLoc := resp.Header.Get("Location")
 	if !strings.HasPrefix(callbackLoc, "/error?error=federation_state_invalid&ref=") {
 		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", callbackLoc)
+	}
+	for _, c := range resp.Cookies() {
+		if c.Name == sessstore.FedStateCookieName && c.MaxAge < 0 {
+			t.Fatal("retryable link failure cleared federation state cookie")
+		}
 	}
 	// Federator emits a fail audit row with reason=session_swap.
 	found := false

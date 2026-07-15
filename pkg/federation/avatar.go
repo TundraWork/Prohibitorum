@@ -1,25 +1,22 @@
-// Package oidc — avatar_fetch.go
-//
-// fetchUpstreamAvatar GETs an upstream OIDC picture URL through the same
-// SSRF-hardened dial screen as the rest of federation. It is https-only,
-// rejects non-image content types, and caps the body to maxAvatarFetchBytes
-// (5 MiB), matching the input cap enforced by pkg/avatar.Process. The
-// returned bytes are ready to pass directly to avatar.Process.
+// Package federation owns protocol-neutral avatar inheritance from verified
+// upstream identities. Avatar fetches use the shared hardened outbound policy,
+// reject non-image responses, and cap bodies to the avatar processor's input
+// limit.
 package federation
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-	
+
 	"github.com/jackc/pgx/v5/pgtype"
-	
+
 	avatarpkg "prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -91,10 +88,11 @@ type AvatarManager struct {
 	queries AvatarQueries
 	kv      kv.Store
 	fetch   func(context.Context, string, bool) ([]byte, error)
+	logger  *slog.Logger
 }
 
 func NewAvatarManager(queries AvatarQueries, store kv.Store) *AvatarManager {
-	return &AvatarManager{queries: queries, kv: store, fetch: fetchUpstreamAvatar}
+	return &AvatarManager{queries: queries, kv: store, fetch: fetchUpstreamAvatar, logger: slog.Default()}
 }
 
 func (m *AvatarManager) Inherit(accountID int32, provider Provider, delivery AvatarDelivery, resolver AvatarResolver) {
@@ -136,7 +134,7 @@ func (m *AvatarManager) run(parent context.Context, accountID int32, provider Pr
 	if avatarURL == "" {
 		avatarURL, err = resolver.ResolveAvatar(ctx, provider, delivery)
 		if err != nil {
-			slog.WarnContext(ctx, "federation: upstream avatar resolution failed", "account_id", accountID, "err", err)
+			m.logger.WarnContext(ctx, "federation: upstream avatar resolution failed", "account_id", accountID, "err", err)
 			return
 		}
 	}
@@ -149,20 +147,22 @@ func (m *AvatarManager) run(parent context.Context, accountID int32, provider Pr
 	}
 	raw, err := m.fetch(ctx, avatarURL, config.AllowPrivateNetwork)
 	if err != nil {
-		slog.WarnContext(ctx, "federation: upstream avatar fetch failed", "account_id", accountID, "err", err)
+		m.logger.WarnContext(ctx, "federation: upstream avatar fetch failed", "account_id", accountID, "err", err)
 		return
 	}
 	processed, etag, err := avatarpkg.Process(raw)
 	if err != nil {
-		slog.WarnContext(ctx, "federation: upstream avatar process failed", "account_id", accountID, "err", err)
+		m.logger.WarnContext(ctx, "federation: upstream avatar process failed", "account_id", accountID, "err", err)
 		return
 	}
 	account, err := m.queries.GetAccountByID(ctx, accountID)
 	if err != nil {
+		m.logPersistenceFailure(ctx, "account lookup failed", accountID, provider, err)
 		return
 	}
 	sources, err := m.queries.ListAvatarSourcesByAccount(ctx, accountID)
 	if err != nil {
+		m.logPersistenceFailure(ctx, "source list failed", accountID, provider, err)
 		return
 	}
 	source := "upstream:" + provider.Slug
@@ -181,10 +181,22 @@ func (m *AvatarManager) run(parent context.Context, accountID int32, provider Pr
 			ContentType: pgtype.Text{String: "image/webp", Valid: true},
 			Etag: pgtype.Text{String: etag, Valid: true}, IdpID: &providerID,
 		}); err != nil {
+			m.logPersistenceFailure(ctx, "source upsert failed", accountID, provider, err)
 			return
 		}
 	}
 	if (!account.AvatarSource.Valid || account.AvatarSource.String == source) && (changed || !account.AvatarSource.Valid) {
-		_ = m.queries.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: source, AccountID: accountID})
+		if err := m.queries.SetActiveAvatar(ctx, db.SetActiveAvatarParams{Source: source, AccountID: accountID}); err != nil {
+			m.logPersistenceFailure(ctx, "activation failed", accountID, provider, err)
+		}
 	}
+}
+
+func (m *AvatarManager) logPersistenceFailure(ctx context.Context, operation string, accountID int32, provider Provider, err error) {
+	m.logger.WarnContext(ctx, "federation: upstream avatar "+operation,
+		"account_id", accountID,
+		"provider_id", provider.ID,
+		"provider_slug", provider.Slug,
+		"err", err,
+	)
 }

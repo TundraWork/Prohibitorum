@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
+	"sync"
 
 	federationcore "prohibitorum/pkg/federation"
 )
@@ -35,13 +37,24 @@ func (d Definition) Ready(provider federationcore.Provider) bool {
 	return provider.Protocol == Protocol && !provider.Disabled && provider.Secret != nil && provider.SecretStatus == "valid" && d.ValidateConfig(provider.Config) == nil
 }
 
-type Adapter struct {
-	secrets *federationcore.SecretStore
-	verify func(context.Context, url.Values, string) (string, error)
-	summary func(context.Context, string, string) (Summary, error)
+type clientSlot struct {
+	once   sync.Once
+	client *http.Client
 }
 
-func NewAdapter(secrets *federationcore.SecretStore) *Adapter { return &Adapter{secrets: secrets} }
+type Adapter struct {
+	secrets       *federationcore.SecretStore
+	verify        func(context.Context, url.Values, string) (string, error)
+	summary       func(context.Context, string, string) (Summary, error)
+	newHTTPClient func(bool) *http.Client
+	clients       [2]clientSlot
+}
+
+func NewAdapter(secrets *federationcore.SecretStore) *Adapter {
+	return &Adapter{secrets: secrets, newHTTPClient: func(allowPrivate bool) *http.Client {
+		return federationcore.NewOutboundHTTPClient(allowPrivate, 2<<20)
+	}}
+}
 func (*Adapter) Protocol() string { return Protocol }
 
 type adapterState struct { ReturnTo string `json:"returnTo"` }
@@ -66,7 +79,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 	}
 	config, apiKey, err := a.open(provider)
 	if err != nil { return federationcore.AdvanceResult{}, err }
-	client := federationcore.NewOutboundHTTPClient(config.AllowPrivateNetwork, 2<<20)
+	client := a.outboundClient(config.AllowPrivateNetwork)
 	var steamID string
 	if a.verify != nil { steamID, err = a.verify(ctx, input.Params, state.ReturnTo) } else { steamID, err = Verify(ctx, client, input.Params, state.ReturnTo) }
 	if err != nil {
@@ -86,6 +99,18 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 			"profileUrl": "https://steamcommunity.com/profiles/" + steamID, "avatarUrl": avatarURL,
 		},
 	}}, nil
+}
+
+func (a *Adapter) outboundClient(allowPrivate bool) *http.Client {
+	index := 0
+	if allowPrivate {
+		index = 1
+	}
+	slot := &a.clients[index]
+	slot.once.Do(func() {
+		slot.client = a.newHTTPClient(allowPrivate)
+	})
+	return slot.client
 }
 
 func (a *Adapter) open(provider federationcore.Provider) (Config, string, error) {

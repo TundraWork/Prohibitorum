@@ -233,6 +233,31 @@ func TestMemoryStore_CAS_MissingKey(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreCompareAndDeleteRequiresExactOwner(t *testing.T) {
+	s := NewMemoryStore()
+	defer s.Close()
+	ctx := context.Background()
+	if err := s.Set(ctx, "lease", "new-owner"); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted, err := s.CompareAndDelete(ctx, "lease", "expired-owner")
+	if err != nil || deleted {
+		t.Fatalf("stale owner delete = (%v, %v), want (false, nil)", deleted, err)
+	}
+	if got, err := s.Get(ctx, "lease"); err != nil || got != "new-owner" {
+		t.Fatalf("lease after stale delete = (%q, %v), want new-owner", got, err)
+	}
+
+	deleted, err = s.CompareAndDelete(ctx, "lease", "new-owner")
+	if err != nil || !deleted {
+		t.Fatalf("current owner delete = (%v, %v), want (true, nil)", deleted, err)
+	}
+	if _, err := s.Get(ctx, "lease"); !errors.Is(err, ErrKeyNotFound) {
+		t.Fatalf("lease survived owner delete: %v", err)
+	}
+}
+
 // TestMemoryStore_CAS_ByteExact ensures CAS compares raw bytes, not
 // semantic JSON equality — a re-ordered or re-marshalled record with the
 // same fields but different bytes must NOT match. This is what makes the

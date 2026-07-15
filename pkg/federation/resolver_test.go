@@ -33,6 +33,7 @@ type fakeModesQueries struct {
 	identityResult   db.AccountIdentity
 	identityErr      error
 	identitySequence []identityLookup
+	identityCalls    int
 
 	accountByIDResults map[int32]db.Account
 	accountByIDErr     error
@@ -85,6 +86,7 @@ func newFakeModesQueries() *fakeModesQueries {
 func (f *fakeModesQueries) GetAccountIdentityByIssuerSub(_ context.Context, _ db.GetAccountIdentityByIssuerSubParams) (db.AccountIdentity, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.identityCalls++
 	if len(f.identitySequence) > 0 {
 		result := f.identitySequence[0]
 		f.identitySequence = f.identitySequence[1:]
@@ -1223,41 +1225,46 @@ func genericProvider(mode string) federationoidc.Provider {
 	}
 }
 
-func TestResolverResolveIdentityPreflightKnownThenAuthoritativeUnknownRequiresSubmittedUsername(t *testing.T) {
-	q := newFakeModesQueries()
-	q.identitySequence = []identityLookup{
-		{identity: db.AccountIdentity{ID: 300, AccountID: 50, UpstreamIdpID: 42}},
-		{err: pgx.ErrNoRows},
-		{err: pgx.ErrNoRows},
+func TestResolverResolveIdentityUsesSingleAuthoritativeIdentityLookup(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing *db.AccountIdentity
+	}{
+		{name: "known", existing: &db.AccountIdentity{
+			ID: 300, AccountID: 50, UpstreamIdpID: 42,
+			ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		}},
+		{name: "unknown"},
 	}
-	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			q := newFakeModesQueries()
+			if test.existing != nil {
+				q.identityResult = *test.existing
+				q.identityErr = nil
+				q.accountByIDResults[test.existing.AccountID] = db.Account{ID: test.existing.AccountID, Username: "existing"}
+			}
+			resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
 
-	_, err := resolver.ResolveIdentity(
-		context.Background(),
-		genericProvider(federationoidc.ModeAutoProvision),
-		*goodTokens(),
-		federationoidc.ResolveContext{
-			Intent:               federationoidc.IntentLogin,
-			RequireLocalUsername: true,
-		},
-	)
-	if !errors.Is(err, federationoidc.ErrLocalUsernameRequired) {
-		t.Fatalf("ResolveIdentity error = %v, want ErrLocalUsernameRequired", err)
-	}
-	if len(q.identitySequence) != 0 {
-		t.Fatalf("identity lookups left unread: %d", len(q.identitySequence))
-	}
-	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
-		t.Fatalf("known-to-unknown identity race mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+			if _, err := resolver.ResolveIdentity(
+				context.Background(),
+				genericProvider(federationoidc.ModeAutoProvision),
+				*goodTokens(),
+				federationoidc.ResolveContext{Intent: federationoidc.IntentLogin},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if q.identityCalls != 1 {
+				t.Fatalf("identity lookups = %d, want one authoritative lookup", q.identityCalls)
+			}
+		})
 	}
 }
 
+
 func TestResolverResolveIdentityUnknownAfterPrepareRequiresSubmittedUsername(t *testing.T) {
 	q := newFakeModesQueries()
-	q.identitySequence = []identityLookup{
-		{err: pgx.ErrNoRows},
-		{err: pgx.ErrNoRows},
-	}
+	q.identitySequence = []identityLookup{{err: pgx.ErrNoRows}}
 	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
 
 	_, err := resolver.ResolveIdentity(
@@ -1279,10 +1286,7 @@ func TestResolverResolveIdentityUnknownAfterPrepareRequiresSubmittedUsername(t *
 
 func TestResolverResolveIdentityUnknownRedirectUsesVerifiedUsername(t *testing.T) {
 	q := newFakeModesQueries()
-	q.identitySequence = []identityLookup{
-		{err: pgx.ErrNoRows},
-		{err: pgx.ErrNoRows},
-	}
+	q.identitySequence = []identityLookup{{err: pgx.ErrNoRows}}
 	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
 	identity := *goodTokens()
 	identity.Username = "steam_76561198000000000"
@@ -1309,10 +1313,7 @@ func TestResolverResolveIdentityNewlyKnownIgnoresSubmittedUsername(t *testing.T)
 		UpstreamIdpID: 42,
 		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
-	q.identitySequence = []identityLookup{
-		{err: pgx.ErrNoRows},
-		{identity: existing},
-	}
+	q.identitySequence = []identityLookup{{identity: existing}}
 	q.accountByIDResults[50] = db.Account{ID: 50, Username: "existing"}
 	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
 	identity := *goodTokens()
@@ -1493,10 +1494,7 @@ func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			q := newFakeModesQueries()
-			q.identitySequence = []identityLookup{
-				{err: pgx.ErrNoRows},
-				{identity: test.existing},
-			}
+			q.identitySequence = []identityLookup{{identity: test.existing}}
 			q.accountByIDResults[test.account.ID] = test.account
 			a := &recordingAudit{}
 			resolver := federationoidc.NewResolver(q, a, nil)

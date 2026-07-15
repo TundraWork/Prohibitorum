@@ -123,6 +123,20 @@ func (m *MemoryStore) CompareAndSwap(_ context.Context, key, oldValue, newValue 
 	return true, nil
 }
 
+// CompareAndDelete atomically removes key only when expectedValue still owns
+// it. This is used for lease release so an expired holder cannot delete a
+// replacement holder's lease.
+func (m *MemoryStore) CompareAndDelete(_ context.Context, key, expectedValue string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	item := m.cache.Get(key)
+	if item == nil || item.Value() != expectedValue {
+		return false, nil
+	}
+	m.cache.Delete(key)
+	return true, nil
+}
+
 // ScanEntries implements Store.ScanEntries by iterating in-memory items
 // with glob matching. Returns all matching entries in one shot (NextCursor=0).
 func (m *MemoryStore) ScanEntries(_ context.Context, pattern string, _ uint64, _ int64) (ScanEntriesResult, error) {

@@ -42,6 +42,7 @@ type serviceFakeAdapter struct {
 	beginAction   NextAction
 	beginContexts []BeginContext
 	advance       func(json.RawMessage, ActionInput) (AdvanceResult, error)
+	advanceContext func(context.Context, json.RawMessage, ActionInput) (AdvanceResult, error)
 	calls         int
 }
 
@@ -53,8 +54,11 @@ func (a *serviceFakeAdapter) Begin(_ context.Context, _ Provider, begin BeginCon
 	return a.beginState, a.beginAction, nil
 }
 
-func (a *serviceFakeAdapter) Advance(_ context.Context, _ Provider, state json.RawMessage, input ActionInput) (AdvanceResult, error) {
+func (a *serviceFakeAdapter) Advance(ctx context.Context, _ Provider, state json.RawMessage, input ActionInput) (AdvanceResult, error) {
 	a.calls++
+	if a.advanceContext != nil {
+		return a.advanceContext(ctx, state, input)
+	}
 	return a.advance(state, input)
 }
 
@@ -110,6 +114,16 @@ func (s *failingRestoreStore) SetEx(ctx context.Context, key, value string, ttl 
 		return errors.New("setex unavailable")
 	}
 	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+type setNXRecordingStore struct {
+	kv.Store
+	keys []string
+}
+
+func (s *setNXRecordingStore) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	s.keys = append(s.keys, key)
+	return s.Store.SetNX(ctx, key, value, ttl)
 }
 
 type serviceDefinition struct {
@@ -1016,5 +1030,117 @@ func TestServiceAttributesInvalidLinkStateToRequestAccount(t *testing.T) {
 				t.Fatalf("invalid state audit leaked detail: %+v", record.Detail)
 			}
 		})
+	}
+}
+
+func TestServiceRejectsInvalidOrMissingFlowBeforeLeaseWrite(t *testing.T) {
+	const (
+		missingCanonicalFlowID = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+		oversizedFlowID        = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	)
+	for _, flowID := range []string{missingCanonicalFlowID, oversizedFlowID} {
+		t.Run(flowID, func(t *testing.T) {
+			service, _, _, baseStore := newServiceHarness(t)
+			store := &setNXRecordingStore{Store: baseStore}
+			service.kv = store
+			request := AdvanceRequest{
+				FlowID: flowID, CallbackRoute: CallbackRoutePublic,
+				ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+			}
+
+			if _, err := service.PrepareFlow(context.Background(), request); err == nil {
+				t.Fatal("PrepareFlow accepted invalid or missing flow")
+			}
+			if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+				t.Fatal("VerifyFlow accepted invalid or missing flow")
+			}
+			if len(store.keys) != 0 {
+				t.Fatalf("lease writes = %v, want none", store.keys)
+			}
+		})
+	}
+}
+
+func TestServiceLeaseReleaseCannotDeleteNewOwner(t *testing.T) {
+	const flowID = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	service, _, _, store := newServiceHarness(t)
+	oldLease, err := service.lock(context.Background(), flowID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockKey := FlowLockKey(flowID)
+	oldOwner, err := store.Get(context.Background(), lockKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldOwner == "" || oldOwner == "1" {
+		t.Fatalf("lease owner = %q, want unique owner token", oldOwner)
+	}
+	if err := store.Del(context.Background(), lockKey); err != nil {
+		t.Fatal(err)
+	}
+	locked, err := store.SetNX(context.Background(), lockKey, "new-owner", time.Minute)
+	if err != nil || !locked {
+		t.Fatalf("replacement lease = (%v, %v), want acquired", locked, err)
+	}
+
+	oldLease.release()
+
+	if got, err := store.Get(context.Background(), lockKey); err != nil || got != "new-owner" {
+		t.Fatalf("replacement lease after stale release = (%q, %v), want new-owner", got, err)
+	}
+}
+
+func TestServiceRenewsLeaseDuringLongAdapterOperation(t *testing.T) {
+	service, adapter, _, store := newServiceHarness(t)
+	service.config.LockTTL = 30 * time.Millisecond
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	adapter.advanceContext = func(ctx context.Context, _ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		close(entered)
+		select {
+		case <-proceed:
+			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+		case <-ctx.Done():
+			return AdvanceResult{}, ctx.Err()
+		}
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	go func() {
+		_, verifyErr := service.VerifyFlow(context.Background(), AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+			Input: ActionInput{Kind: ActionRedirect},
+		})
+		result <- verifyErr
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("adapter did not start")
+	}
+	time.Sleep(75 * time.Millisecond)
+	competing, competingErr := store.SetNX(context.Background(), FlowLockKey(begin.FlowID), "competing-owner", time.Minute)
+	close(proceed)
+	select {
+	case verifyErr := <-result:
+		if verifyErr != nil {
+			t.Fatalf("VerifyFlow after long operation: %v", verifyErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("VerifyFlow did not stop")
+	}
+	if competingErr != nil {
+		t.Fatal(competingErr)
+	}
+	if competing {
+		t.Fatal("lease expired while adapter operation was active")
+	}
+	if _, err := store.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("lease survived operation: %v", err)
 	}
 }

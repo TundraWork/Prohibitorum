@@ -74,6 +74,12 @@ type Store interface {
 	// expected value produce exactly one winner.
 	CompareAndSwap(ctx context.Context, key, oldValue, newValue string, ttl time.Duration) (bool, error)
 
+	// CompareAndDelete atomically deletes key only when its current value is
+	// byte-exact expectedValue. It returns (false, nil) when the key is absent,
+	// expired, or owned by another value. Implementations MUST serialize it
+	// against every mutating operation on the same key.
+	CompareAndDelete(ctx context.Context, key, expectedValue string) (bool, error)
+
 	// ScanEntries returns entries (key + value + TTL) matching a Redis-style
 	// glob pattern. cursor=0 starts a new scan. count is a hint for batch
 	// size. Returns entries and the next cursor (0 = complete).

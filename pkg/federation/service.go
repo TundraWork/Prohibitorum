@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"prohibitorum/pkg/audit"
@@ -72,6 +74,19 @@ type Service struct {
 	audit     audit.Writer
 	config    ServiceConfig
 	now       func() time.Time
+}
+
+type flowLease struct {
+	ctx         context.Context
+	cancel      context.CancelFunc
+	store       kv.Store
+	key         string
+	owner       string
+	ttl         time.Duration
+	stop        chan struct{}
+	done        chan struct{}
+	lost        chan struct{}
+	releaseOnce sync.Once
 }
 
 func NewService(registry *Registry, providers ProviderLoader, store kv.Store, resolver IdentityResolver, config ServiceConfig) *Service {
@@ -150,6 +165,9 @@ func (s *Service) begin(ctx context.Context, provider Provider, intent Intent, r
 }
 
 func (s *Service) ReadFlow(ctx context.Context, flowID, browserToken string) (*FlowView, error) {
+	if !validFlowID(flowID) {
+		return nil, authn.ErrFederationStateInvalid()
+	}
 	raw, err := s.kv.Get(ctx, FlowKey(flowID))
 	if err != nil { return nil, authn.ErrFederationStateInvalid() }
 	state, err := DecodeFlowState(raw)
@@ -164,16 +182,21 @@ func (s *Service) AdvanceCallback(ctx context.Context, request AdvanceRequest) (
 }
 
 func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*FlowView, error) {
-	if request.FlowID == "" || !validCallbackRoute(request.CallbackRoute) {
+	if !validFlowID(request.FlowID) || !validCallbackRoute(request.CallbackRoute) {
 		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
 	}
-	unlock, err := s.lock(ctx, request.FlowID)
+	if _, err := s.kv.Get(ctx, FlowKey(request.FlowID)); err != nil {
+		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+	}
+	lease, err := s.lock(ctx, request.FlowID)
 	if err != nil { return nil, err }
-	defer unlock()
+	defer lease.release()
+	operationCtx := lease.ctx
 
-	raw, state, provider, adapter, err := s.loadForAdvance(ctx, request)
+	raw, state, provider, adapter, err := s.loadForAdvance(operationCtx, request)
 	if err != nil { return nil, err }
-	result, err := adapter.Advance(ctx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
+	result, err := adapter.Advance(operationCtx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
+	if leaseErr := lease.check(); leaseErr != nil { return nil, leaseErr }
 	if err != nil {
 		return nil, s.recordFailure(ctx, state, &request, provider.Slug, err)
 	}
@@ -185,7 +208,8 @@ func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*Flo
 	if err := validateAdapterAction(*result.Next); err != nil { return nil, err }
 	next := cloneAction(*result.Next)
 	if result.Candidate != nil && state.Intent == IntentLogin && provider.Mode == ModeAutoProvision {
-		known, lookupErr := s.resolver.IdentityKnown(ctx, *result.Candidate)
+		known, lookupErr := s.resolver.IdentityKnown(operationCtx, *result.Candidate)
+		if leaseErr := lease.check(); leaseErr != nil { return nil, leaseErr }
 		if lookupErr != nil { return nil, lookupErr }
 		if !known {
 			if next.Public == nil { next.Public = make(map[string]any) }
@@ -197,42 +221,48 @@ func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*Flo
 	updated, err := state.Encode(); if err != nil { return nil, err }
 	remaining := state.ExpiresAt.Sub(s.now())
 	if remaining <= 0 { return nil, authn.ErrFederationStateInvalid() }
-	swapped, err := s.kv.CompareAndSwap(ctx, FlowKey(request.FlowID), raw, updated, remaining)
+	swapped, err := s.kv.CompareAndSwap(operationCtx, FlowKey(request.FlowID), raw, updated, remaining)
 	if err != nil { return nil, fmt.Errorf("%w: advance flow: %v", ErrKVUnavailable, err) }
 	if !swapped { return nil, authn.ErrFederationStateInvalid() }
 	return flowView(request.FlowID, state), nil
 }
 
 func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*CompletionResult, error) {
-	if request.FlowID == "" || !validCallbackRoute(request.CallbackRoute) {
+	if !validFlowID(request.FlowID) || !validCallbackRoute(request.CallbackRoute) {
 		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
 	}
-	unlock, err := s.lock(ctx, request.FlowID)
+	if _, err := s.kv.Get(ctx, FlowKey(request.FlowID)); err != nil {
+		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+	}
+	lease, err := s.lock(ctx, request.FlowID)
 	if err != nil { return nil, err }
-	defer unlock()
+	defer lease.release()
+	operationCtx := lease.ctx
 
-	raw, state, provider, adapter, err := s.loadForAdvance(ctx, request)
+	raw, state, provider, adapter, err := s.loadForAdvance(operationCtx, request)
 	if err != nil { return nil, err }
-	popped, err := s.kv.Pop(ctx, FlowKey(request.FlowID))
+	popped, err := s.kv.Pop(operationCtx, FlowKey(request.FlowID))
 	if err != nil || popped != raw { return nil, authn.ErrFederationStateInvalid() }
 
-	result, err := adapter.Advance(ctx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
+	result, err := adapter.Advance(operationCtx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
+	if leaseErr := lease.check(); leaseErr != nil { return nil, leaseErr }
 	if err != nil {
-		publicErr := s.recordFailure(ctx, state, &request, provider.Slug, err)
-		return nil, s.restore(ctx, request.FlowID, state, raw, publicErr, false)
+		publicErr := s.recordFailure(operationCtx, state, &request, provider.Slug, err)
+		return nil, s.restore(operationCtx, request.FlowID, state, raw, publicErr, false)
 	}
 	if result.Identity == nil || result.Next != nil || len(result.State) != 0 || result.Candidate != nil {
-		publicErr := s.recordFailure(ctx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
-		return nil, s.restore(ctx, request.FlowID, state, raw, publicErr, false)
+		publicErr := s.recordFailure(operationCtx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
+		return nil, s.restore(operationCtx, request.FlowID, state, raw, publicErr, false)
 	}
-	outcome, err := s.resolver.ResolveIdentity(ctx, provider, *result.Identity, ResolveContext{
+	outcome, err := s.resolver.ResolveIdentity(operationCtx, provider, *result.Identity, ResolveContext{
 		Intent: state.Intent, EnrollmentToken: state.EnrollmentToken, LocalUsername: request.Input.LocalUsername,
 		LinkAccountID: state.LinkAccountID,
 		RequireLocalUsername: state.Intent == IntentLogin && state.CurrentAction.Kind != ActionRedirect,
 	})
+	if leaseErr := lease.check(); leaseErr != nil { return nil, leaseErr }
 	if err != nil {
-		publicErr := s.recordFailure(ctx, state, &request, provider.Slug, err)
-		return nil, s.restore(ctx, request.FlowID, state, raw, publicErr, errors.Is(err, ErrLocalUsernameRequired))
+		publicErr := s.recordFailure(operationCtx, state, &request, provider.Slug, err)
+		return nil, s.restore(operationCtx, request.FlowID, state, raw, publicErr, errors.Is(err, ErrLocalUsernameRequired))
 	}
 	completion := &CompletionResult{
 		Intent: state.Intent, AccountID: outcome.AccountID, IdentityID: outcome.IdentityID,
@@ -381,12 +411,84 @@ func (s *Service) restore(ctx context.Context, flowID string, state *FlowState, 
 }
 
 
-func (s *Service) lock(ctx context.Context, flowID string) (func(), error) {
-	if flowID == "" { return nil, authn.ErrFederationStateInvalid() }
-	locked, err := s.kv.SetNX(ctx, FlowLockKey(flowID), "1", s.config.LockTTL)
-	if err != nil { return nil, fmt.Errorf("%w: lock flow: %v", ErrKVUnavailable, err) }
-	if !locked { return nil, authn.ErrFederationStateInvalid() }
-	return func() { _ = s.kv.Del(context.Background(), FlowLockKey(flowID)) }, nil
+func (s *Service) lock(ctx context.Context, flowID string) (*flowLease, error) {
+	if !validFlowID(flowID) {
+		return nil, authn.ErrFederationStateInvalid()
+	}
+	owner, err := randomToken()
+	if err != nil {
+		return nil, err
+	}
+	leaseCtx, cancel := context.WithCancel(ctx)
+	key := FlowLockKey(flowID)
+	locked, err := s.kv.SetNX(ctx, key, owner, s.config.LockTTL)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("%w: lock flow: %v", ErrKVUnavailable, err)
+	}
+	if !locked {
+		cancel()
+		return nil, authn.ErrFederationStateInvalid()
+	}
+	lease := &flowLease{
+		ctx: leaseCtx, cancel: cancel, store: s.kv, key: key, owner: owner,
+		ttl: s.config.LockTTL, stop: make(chan struct{}), done: make(chan struct{}),
+		lost: make(chan struct{}),
+	}
+	go lease.renew()
+	return lease, nil
+}
+
+func (l *flowLease) renew() {
+	defer close(l.done)
+	interval := l.ttl / 3
+	if interval <= 0 {
+		interval = l.ttl
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			renewCtx, cancel := context.WithTimeout(l.ctx, l.ttl)
+			renewed, err := l.store.CompareAndSwap(renewCtx, l.key, l.owner, l.owner, l.ttl)
+			cancel()
+			if err != nil || !renewed {
+				select {
+				case <-l.stop:
+					return
+				default:
+					close(l.lost)
+					l.cancel()
+					return
+				}
+			}
+		case <-l.stop:
+			return
+		case <-l.ctx.Done():
+			return
+		}
+	}
+}
+
+func (l *flowLease) check() error {
+	select {
+	case <-l.lost:
+		return fmt.Errorf("%w: flow lease lost", ErrKVUnavailable)
+	default:
+		return nil
+	}
+}
+
+func (l *flowLease) release() {
+	l.releaseOnce.Do(func() {
+		close(l.stop)
+		l.cancel()
+		<-l.done
+		releaseCtx, cancel := context.WithTimeout(context.Background(), l.ttl)
+		defer cancel()
+		_, _ = l.store.CompareAndDelete(releaseCtx, l.key, l.owner)
+	})
 }
 
 func (s *Service) flowProvider(provider Provider) (Definition, Adapter, error) {
@@ -413,8 +515,9 @@ func callbackRouteAllowsIntent(route CallbackRoute, intent Intent) bool {
 
 func (s *Service) callbackURL(slug string, intent Intent) string {
 	origin := strings.TrimRight(s.config.PublicOrigin, "/")
-	if intent == IntentLink { return origin + "/api/prohibitorum/me/identities/link/" + slug + "/callback" }
-	return origin + "/api/prohibitorum/auth/federation/" + slug + "/callback"
+	escapedSlug := url.PathEscape(slug)
+	if intent == IntentLink { return origin + "/api/prohibitorum/me/identities/link/" + escapedSlug + "/callback" }
+	return origin + "/api/prohibitorum/auth/federation/" + escapedSlug + "/callback"
 }
 
 func flowView(flowID string, state *FlowState) *FlowView {
@@ -428,6 +531,14 @@ func cloneAction(action NextAction) NextAction {
 		for key, value := range action.Public { clone.Public[key] = value }
 	}
 	return clone
+}
+
+func validFlowID(flowID string) bool {
+	if len(flowID) != 43 {
+		return false
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(flowID)
+	return err == nil && len(decoded) == 32
 }
 
 func randomToken() (string, error) {

@@ -1,28 +1,11 @@
-// Package oidc — httpclient.go
+// Package federation provides the protocol-neutral outbound HTTP policy used
+// by provider adapters, avatar inheritance, and operator-facing metadata
+// fetches.
 //
-// hardenedHTTPClient is the single outbound HTTP client every upstream-OIDC
-// federation fetch rides on: OIDC discovery
-// ({issuer}/.well-known/openid-configuration), the JWKS fetch, and the
-// authorization-code token-exchange POST. It is injected into the zitadel/oidc
-// RelyingParty via rp.WithHTTPClient in NewClient.
-//
-// Why it exists (audit follow-up N2 + N3): the issuer URL is operator-supplied
-// AND the fetch trigger is unauthenticated (GET /federation/{slug}/login and
-// /callback are public). Without hardening, an issuer of
-// http://169.254.169.254/… or an https:// issuer that 302s discovery to an
-// internal address turns the federation path into an SSRF primitive (cloud
-// metadata exfil / internal port scan), and an unbounded io.ReadAll on the
-// response body turns a malicious "IdP" into an OOM DoS. This client closes
-// both:
-//
-//   - A dial-time IP screen rejects loopback / RFC1918+ULA / link-local /
-//     metadata IPs. Because it screens the RESOLVED IP on every connection
-//     (including redirected hops), it defeats DNS rebinding and
-//     redirect-to-internal without a brittle host allowlist, and it transitively
-//     re-screens the discovery-returned token_endpoint / jwks_uri hosts.
-//   - A response-body size cap bounds memory per fetch (and transitively the
-//     JWKS key count, so no separate key-count cap is needed).
-//   - A redirect-hop cap and an overall timeout bound the rest.
+// Every client built here screens resolved destinations on each connection,
+// caps response bodies, limits redirect hops, and applies an overall timeout.
+// This prevents operator-supplied or unauthenticated federation URLs from
+// becoming SSRF or unbounded-memory primitives.
 package federation
 
 import (
@@ -340,16 +323,13 @@ func (b *cappedBody) Read(p []byte) (int, error) {
 
 func (b *cappedBody) Close() error { return b.c.Close() }
 
-// hardenedHTTPClient builds the SSRF-aware, size-capped client described in
-// the file header. A fresh client per NewClient is fine — there is one Client
-// per upstream_idp row and discovery runs once per client construction. When
-// allowPrivate is true the dial screen permits RFC1918/ULA private
-// destinations (for deployments federating to a trusted internal IdP, and for
-// tests against a loopback OP); loopback, link-local/metadata, multicast,
-// unspecified, documentation, benchmark, reserved, and CGNAT remain blocked
-// regardless. maxBytes caps every response body; callers pass
-// maxFederationResponseBytes for federation metadata or maxAvatarFetchBytes
-// for avatar fetches.
+// hardenedHTTPClient builds an SSRF-aware, size-capped client. Callers retain
+// and reuse returned clients for each network policy; http.Transport is safe
+// for concurrent use and owns a connection pool. When allowPrivate is true,
+// the dial screen permits RFC1918/ULA private destinations for trusted internal
+// providers and tests, while link-local/metadata, multicast, unspecified,
+// documentation, benchmark, reserved, and CGNAT ranges remain blocked.
+// maxBytes caps every response body.
 func hardenedHTTPClient(allowPrivate bool, maxBytes int64) *http.Client {
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,

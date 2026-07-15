@@ -8,15 +8,11 @@
 //	GET  /api/prohibitorum/me/identities/link/{slug}/begin     — sudo; → upstream
 //	GET  /api/prohibitorum/me/identities/link/{slug}/callback  — bind upstream
 //
-// The link/begin + link/callback pair runs the same OIDC RP dance as the
-// public /auth/federation/{slug}/* handlers, but stashed under LinkKey(state)
-// and bound to the current account_id so the federator can refuse a
-// session-swap mid-flow. The callback does NOT issue a new session — the
-// user is already signed in; we only insert account_identity.
-//
-// Route mounting lives in Task 9 (server.go). This file defines only the
-// handlers and a couple of narrowly-scoped helpers (last-sign-in-method
-// check, response-shape projection).
+// The link/begin + link/callback pair uses the protocol-neutral federation
+// service shared by public login and invite flows. Persisted state binds the
+// current account and session so callback processing rejects a session swap.
+// A successful callback links the verified identity without issuing a new
+// session.
 
 package server
 
@@ -373,8 +369,8 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Federator's LinkCallback already emitted EventLink on success
-	// (pkg/federation/oidc/federation.go ~line 368). Do NOT double-audit.
-	// No session.Issue — the user is already logged in.
+	// The federation resolver already emitted EventLink on success. Do not
+	// double-audit or issue a new session for the already-authenticated user.
+	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
 	http.Redirect(w, r, result.ReturnTo, http.StatusFound)
 }

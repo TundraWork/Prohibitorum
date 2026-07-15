@@ -214,26 +214,6 @@ func applyAutoProvision(
 	displayName := identity.DisplayName
 	email := identityEmail(identity)
 
-	// GATES — pure read-only / claim-only checks. Run outside the tx
-	// because they don't touch the DB and would otherwise widen the
-	// transaction window for no benefit.
-	if idp.RequireVerifiedEmail && !identity.EmailVerified {
-		// EmailVerified is the typed bool; no override (it's a JWT
-		// standard claim with a fixed boolean shape).
-		emitFail(ctx, w, idp, identity, "email_not_verified", nil)
-		return ResolveOutcome{}, authn.ErrEmailNotVerified()
-	}
-
-	if len(idp.AllowedDomains) > 0 {
-		if !domainAllowed(email, idp.AllowedDomains) {
-			emitFail(ctx, w, idp, identity, "domain_not_allowed", nil)
-			// Reuse invite_required: from the caller's perspective both
-			// "no invite" and "wrong domain" mean "auto-provisioning
-			// refused; ask the admin". Distinct codes would help an
-			// attacker enumerate domains.
-			return ResolveOutcome{}, authn.ErrInviteRequired()
-		}
-	}
 
 
 	if displayName == "" {
@@ -299,6 +279,18 @@ func applyAutoProvision(
 			}, nil
 		case !errors.Is(err, pgx.ErrNoRows):
 			return ResolveOutcome{}, fmt.Errorf("federation: authoritative identity lookup: %w", err)
+		}
+		// Provisioning gates apply only after the authoritative lookup proves
+		// this identity is still unknown. Existing identities must remain able
+		// to sign in when upstream claims later drift outside provisioning
+		// policy.
+		if idp.RequireVerifiedEmail && !identity.EmailVerified {
+			emitFail(ctx, w, idp, identity, "email_not_verified", nil)
+			return ResolveOutcome{}, authn.ErrEmailNotVerified()
+		}
+		if len(idp.AllowedDomains) > 0 && !domainAllowed(email, idp.AllowedDomains) {
+			emitFail(ctx, w, idp, identity, "domain_not_allowed", nil)
+			return ResolveOutcome{}, authn.ErrInviteRequired()
 		}
 		if username == "" {
 			return ResolveOutcome{}, ErrLocalUsernameRequired
@@ -793,20 +785,15 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 		if username == "" && !resolution.RequireLocalUsername {
 			username = identity.Username
 		}
-		known, err := r.IdentityKnown(ctx, IdentityKey{Issuer: identity.Issuer, Subject: identity.Subject})
-		if err != nil {
-			return ResolveOutcome{}, err
-		}
-		if known {
-			return resolve(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
-		}
 		switch row.Mode {
 		case ModeAutoProvision:
+			// applyAutoProvision performs the single authoritative identity
+			// lookup inside the provisioning transaction. It handles both a
+			// newly-known identity and an unknown identity without a preflight
+			// query that can immediately go stale.
 			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
-		case ModeInviteOnly:
-			return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, "", nil)
-		case ModeLinkOnly:
-			return applyLinkOnly(ctx, r.audit, &row, &identity)
+		case ModeInviteOnly, ModeLinkOnly:
+			return resolve(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
 		default:
 			return ResolveOutcome{}, fmt.Errorf("federation: unknown provider mode %q", row.Mode)
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -29,6 +30,43 @@ func TestAdapterMapsVerifiedSteamIdentity(t *testing.T) {
 	identity := result.Identity
 	if identity == nil || identity.Issuer != Issuer || identity.Subject != "76561198000000000" || identity.Username != "steam_76561198000000000" || identity.DisplayName != "Gaben" || identity.AvatarURL != "https://cdn/avatar.jpg" || identity.UpstreamData["profileUrl"] != "https://steamcommunity.com/profiles/76561198000000000" {
 		t.Fatalf("identity = %+v", identity)
+	}
+}
+
+func TestAdapterReusesOneHardenedClientPerNetworkPolicy(t *testing.T) {
+	secrets := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+	sealed, err := secrets.SealProviderSecret([]byte("api-key"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := NewAdapter(secrets)
+	created := map[bool]int{}
+	adapter.newHTTPClient = func(allowPrivate bool) *http.Client {
+		created[allowPrivate]++
+		return &http.Client{}
+	}
+	adapter.verify = func(context.Context, url.Values, string) (string, error) {
+		return "76561198000000000", nil
+	}
+	adapter.summary = func(context.Context, string, string) (Summary, error) {
+		return Summary{PersonaName: "Player"}, nil
+	}
+	state := json.RawMessage(`{"returnTo":"https://idp.test/callback?state=flow"}`)
+	input := federationcore.ActionInput{Kind: federationcore.ActionRedirect}
+
+	for _, allowPrivate := range []bool{false, true} {
+		provider := federationcore.Provider{
+			ID: 7, Protocol: Protocol, Secret: sealed, SecretStatus: "valid",
+			Config: json.RawMessage(`{"allowPrivateNetwork":` + fmt.Sprint(allowPrivate) + `}`),
+		}
+		for range 3 {
+			if _, err := adapter.Advance(context.Background(), provider, state, input); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if created[false] != 1 || created[true] != 1 {
+		t.Fatalf("hardened client constructions = %v, want one per policy", created)
 	}
 }
 
@@ -109,7 +147,10 @@ func (r *steamServiceResolver) ResolveIdentity(_ context.Context, provider feder
 }
 
 func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
-	const steamID = "76561198000000000"
+	const (
+		steamID     = "76561198000000000"
+		providerSlug = "steam?#primary"
+	)
 	var checkAuthenticationCalls, summaryCalls int
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -145,7 +186,7 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := federationcore.Provider{
-		ID: 7, Slug: "steam", Protocol: Protocol, Mode: federationcore.ModeAutoProvision,
+		ID: 7, Slug: providerSlug, Protocol: Protocol, Mode: federationcore.ModeAutoProvision,
 		Config: json.RawMessage(`{"allowPrivateNetwork":true}`),
 		Secret: sealed, SecretStatus: "valid",
 	}
@@ -166,7 +207,7 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 		resolver,
 		federationcore.ServiceConfig{PublicOrigin: "https://idp.test"},
 	)
-	begin, err := service.BeginLogin(context.Background(), "steam", "/me")
+	begin, err := service.BeginLogin(context.Background(), providerSlug, "/me")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,10 +219,18 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 	if authorizeURL.Host != upstream.Listener.Addr().String() || returnTo == "" {
 		t.Fatalf("authorize action = %s", begin.Action.URL)
 	}
+	callbackURL, err := url.Parse(returnTo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if callbackURL.EscapedPath() != "/api/prohibitorum/auth/federation/steam%3F%23primary/callback" ||
+		callbackURL.Query().Get("state") != begin.FlowID || callbackURL.Fragment != "" {
+		t.Fatalf("callback URL did not round-trip reserved slug: %s", returnTo)
+	}
 	claimedID := Issuer + "/id/" + steamID
 	completion, err := service.VerifyFlow(context.Background(), federationcore.AdvanceRequest{
 		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "steam", Protocol: Protocol, CallbackRoute: federationcore.CallbackRoutePublic,
+		ProviderSlug: providerSlug, Protocol: Protocol, CallbackRoute: federationcore.CallbackRoutePublic,
 		Input: federationcore.ActionInput{
 			Kind: federationcore.ActionRedirect,
 			Params: url.Values{
