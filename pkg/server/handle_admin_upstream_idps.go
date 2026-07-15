@@ -422,10 +422,10 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		return
 	}
 
-	// The issuer validation uses the per-IdP allow_private_network value
-	// from the request body (the value the admin is setting now), not the
-	// global config. For Steam IdPs issuerUrl is empty and validation is
-	// skipped naturally.
+	// This legacy update body is OIDC-shaped, so issuer validation applies to
+	// every request unless private networking is enabled. Protocol-owned config
+	// validation replaces this path with the generic provider persistence and
+	// administration cutover.
 	if err := validateUpstreamIssuer(body.IssuerUrl, body.AllowPrivateNetwork); err != nil {
 		writeAuthErr(w, err)
 		return

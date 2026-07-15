@@ -42,7 +42,7 @@ func fetchUpstreamAvatar(ctx context.Context, rawURL string, allowPrivate bool) 
 func validateAvatarURL(rawURL string, allowPrivate bool) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("federation/oidc: avatar url parse: %w", err)
+		return &avatarFetchError{category: "invalid url"}
 	}
 	if u.Scheme == "https" {
 		return nil
@@ -50,21 +50,17 @@ func validateAvatarURL(rawURL string, allowPrivate bool) error {
 	if u.Scheme == "http" && allowPrivate {
 		return nil
 	}
-	return fmt.Errorf("federation/oidc: avatar url must be https, got %q", u.Scheme)
+	return &avatarFetchError{category: "url scheme rejected"}
 }
 
 type avatarFetchError struct {
 	category string
-	cause    error
 }
 
 func (e *avatarFetchError) Error() string {
 	return "federation/oidc: avatar fetch " + e.category
 }
 
-func (e *avatarFetchError) Unwrap() error {
-	return e.cause
-}
 
 func sanitizeAvatarFetchError(err error) error {
 	category := "transport error"
@@ -81,7 +77,7 @@ func sanitizeAvatarFetchError(err error) error {
 			category = "timeout"
 		}
 	}
-	return &avatarFetchError{category: category, cause: err}
+	return &avatarFetchError{category: category}
 }
 
 func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *http.Client, allowPrivate bool) ([]byte, error) {
@@ -90,7 +86,7 @@ func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *h
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: avatar request: %w", err)
+		return nil, &avatarFetchError{category: "request error"}
 	}
 	resp, err := client.Do(req)
 	if err != nil {

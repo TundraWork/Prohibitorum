@@ -830,8 +830,8 @@ func mustCurrentDEK() (int32, []byte) {
 // addUpstreamIDPCommands registers the `upstream-idp` command group:
 // create | list | update | rotate-secret | delete. These mirror the admin
 // HTTP handlers (handle_admin_upstream_idps.go) and share the SAME db queries
-// and the SAME AES-GCM sealing path (fedoidc.EncryptClientSecret, AAD bound to
-// the row id + key version). Net-new: there was no upstream-idp CLI before.
+// and the SAME AES-GCM sealing path (federation.SealProviderSecret, with AAD
+// bound to the row id + key version). Net-new: there was no upstream-idp CLI before.
 func addUpstreamIDPCommands(root *cobra.Command) {
 	upstreamCmd := &cobra.Command{
 		Use:   "upstream-idp",
@@ -1151,7 +1151,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 const metadataMaxBytes = 1 << 20 // 1 MiB
 
 // fetchMetadata fetches SP metadata XML from an operator-supplied --metadata-url.
-// It reuses the single hardened outbound client/policy from pkg/federation/oidc
+// It reuses the single hardened outbound client/policy from pkg/federation
 // (dial-time resolved-IP screen, per-hop redirect scheme + hop-cap, overall
 // timeout) so the CLI does not introduce a second, divergent HTTP security
 // policy. The URL must be an absolute https:// URL with a domain host and no

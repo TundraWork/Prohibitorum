@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	fedoidc "prohibitorum/pkg/federation"
+	"prohibitorum/pkg/federation"
 )
 
 // metadataXML is a minimal but well-formed SAML SP metadata document used as the
@@ -34,12 +34,12 @@ func metadataTLSServer(t *testing.T, body string, status int) *httptest.Server {
 }
 
 // These tests cover the CLI fetchMetadata URL-validation gate (which uses the
-// shared fedoidc.ValidateOutboundURL policy) and the fetchMetadataWithClient
+// shared federation.ValidateOutboundURL policy) and the fetchMetadataWithClient
 // fetch/size/cancellation parsing behavior. The redirect scheme/hop/internal-
-// target policy and the response-body size-cap enforcement are exercised in
-// pkg/federation/oidc, where the unexported hardened client lives. CLI tests
-// inject an httptest.Server.Client() through fetchMetadataWithClient so no
-// test-only export or transport-internal type assertion is needed.
+// target policy and response-body size-cap enforcement are exercised in
+// pkg/federation. CLI tests inject an httptest.Server.Client() through
+// fetchMetadataWithClient so no test-only export or transport-internal type
+// assertion is needed.
 
 func TestFetchMetadata_RejectsPlainHTTP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -100,8 +100,7 @@ func TestFetchMetadata_AcceptsValidHTTPSDomain(t *testing.T) {
 	defer srv.Close()
 	// Use the test server's own client (trusts its self-signed cert) through
 	// the fetchMetadataWithClient seam to exercise the fetch + status/body
-	// parsing path. The shared redirect/size policy is tested in
-	// pkg/federation/oidc.
+	// parsing path. The shared redirect/size policy is tested in pkg/federation.
 	b, err := fetchMetadataWithClient(context.Background(), srv.URL, srv.Client())
 	if err != nil {
 		t.Fatalf("fetchMetadata rejected a valid https metadata response: %v", err)
@@ -166,7 +165,7 @@ func TestFetchMetadata_AcceptsInlineFileBranchUntouched(t *testing.T) {
 func TestFetchMetadata_HardenedClientBlocksMetadataIP(t *testing.T) {
 	// The hardened client with allowPrivate=true still blocks metadata (169.254.169.254)
 	// because it is alwaysBlocked, not private.
-	client := fedoidc.NewOutboundHTTPClient(true, metadataMaxBytes)
+	client := federation.NewOutboundHTTPClient(true, metadataMaxBytes)
 	// Dial the metadata address directly — the dial screen must reject it.
 	// We use a request to a URL with the metadata IP literal; the URL
 	// validation in fetchMetadata would reject an IP literal, so we test the
@@ -184,7 +183,7 @@ func TestFetchMetadata_HardenedClientBlocksMetadataIP(t *testing.T) {
 // client rejects CGNAT (100.64.0.0/10) addresses — a range Go's net.IP.IsPrivate
 // does NOT cover but the exhaustive classifier does.
 func TestFetchMetadata_HardenedClientBlocksCGNAT(t *testing.T) {
-	client := fedoidc.NewOutboundHTTPClient(true, metadataMaxBytes)
+	client := federation.NewOutboundHTTPClient(true, metadataMaxBytes)
 	_, err := client.Get("https://100.64.0.1/metadata")
 	if err == nil {
 		t.Fatal("hardened client dialed a CGNAT address; want always-blocked")

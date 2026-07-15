@@ -42,6 +42,59 @@ func TestAvatarFetch_RejectsNonHTTPS(t *testing.T) {
 	}
 }
 
+func TestAvatarFetchSanitizesURLFailureErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		rawURL  string
+		fetch   func(string) error
+		want    string
+		secrets []string
+	}{
+		{
+			name:   "validation",
+			rawURL: "https://userinfo-sentinel:password-sentinel@raw-url-sentinel.example/%zz?query=query-sentinel#fragment-sentinel",
+			fetch: func(rawURL string) error {
+				return validateAvatarURL(rawURL, false)
+			},
+			want: "avatar fetch invalid url",
+			secrets: []string{
+				"userinfo-sentinel", "password-sentinel", "raw-url-sentinel",
+				"query-sentinel", "fragment-sentinel", "%zz",
+			},
+		},
+		{
+			name:   "request construction",
+			rawURL: "https://userinfo-sentinel:password-sentinel@raw-url-sentinel.example/avatar.png?query=query-sentinel#fragment-sentinel",
+			fetch: func(rawURL string) error {
+				_, err := fetchUpstreamAvatarWithClient(nil, rawURL, http.DefaultClient, false)
+				return err
+			},
+			want: "avatar fetch request error",
+			secrets: []string{
+				"userinfo-sentinel", "password-sentinel", "raw-url-sentinel",
+				"query-sentinel", "fragment-sentinel", "nil Context",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.fetch(tt.rawURL)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %v, want safe category %q", err, tt.want)
+			}
+			if errors.Unwrap(err) != nil {
+				t.Fatalf("safe avatar error exposes nested cause: %v", errors.Unwrap(err))
+			}
+			for _, secret := range tt.secrets {
+				if strings.Contains(err.Error(), secret) {
+					t.Fatalf("avatar error leaked %q: %q", secret, err)
+				}
+			}
+		})
+	}
+}
+
 type failingAvatarTransport struct{}
 
 func (failingAvatarTransport) RoundTrip(*http.Request) (*http.Response, error) {
@@ -56,13 +109,24 @@ func TestAvatarManagerSanitizesNetworkFailureLogs(t *testing.T) {
 	var logs bytes.Buffer
 	manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 	client := &http.Client{Transport: failingAvatarTransport{}}
+	var fetchErr error
 	manager.fetch = func(ctx context.Context, avatarURL string, allowPrivate bool) ([]byte, error) {
-		return fetchUpstreamAvatarWithClient(ctx, avatarURL, client, allowPrivate)
+		_, fetchErr = fetchUpstreamAvatarWithClient(ctx, avatarURL, client, allowPrivate)
+		return nil, fetchErr
 	}
 
 	manager.run(context.Background(), 7, Provider{
 		ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
 	}, AvatarDelivery{URL: rawURL}, nil)
+	if fetchErr == nil {
+		t.Fatal("avatar fetch unexpectedly succeeded")
+	}
+	if errors.Unwrap(fetchErr) != nil {
+		t.Fatalf("safe avatar error exposes nested transport cause: %v", errors.Unwrap(fetchErr))
+	}
+	if strings.Contains(fetchErr.Error(), "bearer-sentinel") {
+		t.Fatalf("avatar error leaked nested transport text: %q", fetchErr)
+	}
 
 	logged := logs.String()
 	for _, want := range []string{
@@ -77,6 +141,36 @@ func TestAvatarManagerSanitizesNetworkFailureLogs(t *testing.T) {
 	} {
 		if strings.Contains(logged, secret) {
 			t.Fatalf("network failure log leaked %q: %q", secret, logged)
+		}
+	}
+}
+
+func TestAvatarManagerSanitizesMalformedURLLogs(t *testing.T) {
+	const rawURL = "https://userinfo-sentinel:password-sentinel@raw-url-sentinel.example/%zz?query=query-sentinel&transport=nested-transport-sentinel#fragment-sentinel"
+	store := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = store.Close() })
+	manager := NewAvatarManager(&avatarManagerQueries{}, store)
+	var logs bytes.Buffer
+	manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	manager.run(context.Background(), 7, Provider{
+		ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
+	}, AvatarDelivery{URL: rawURL}, nil)
+
+	logged := logs.String()
+	for _, want := range []string{
+		"upstream avatar fetch failed", "avatar fetch invalid url", `"account_id":7`,
+	} {
+		if !strings.Contains(logged, want) {
+			t.Fatalf("log = %q, want safe context %q", logged, want)
+		}
+	}
+	for _, secret := range []string{
+		"userinfo-sentinel", "password-sentinel", "raw-url-sentinel", "%zz",
+		"query-sentinel", "fragment-sentinel", "nested-transport-sentinel",
+	} {
+		if strings.Contains(logged, secret) {
+			t.Fatalf("malformed URL log leaked %q: %q", secret, logged)
 		}
 	}
 }

@@ -1,6 +1,6 @@
 // Package server — handle_federation.go
 //
-// Public HTTP entrypoints for upstream OIDC federation login.
+// Public HTTP entrypoints for protocol-neutral upstream federation login.
 //
 //	GET /api/prohibitorum/auth/federation/{slug}/login?return_to=…
 //	    → 302 to the upstream OP's /authorize URL.
@@ -11,15 +11,15 @@
 //	    → on missing/bad state : writes ErrFederationStateInvalid (no audit row —
 //	      stray browser hits should not flood the audit log).
 //
-// The state token is the upstream OP's state parameter. The secret blob is keyed
-// by it inside KV (LoginKey(token)), Pop'd once at callback time. All replay /
-// iss-mismatch / code-exchange-failure paths collapse onto the single
-// federation_state_invalid code to avoid leaking a side channel into the
-// federation pipeline.
+// The opaque flow ID is sent as the upstream state parameter. Its browser-bound
+// FlowState is stored at FlowKey(flowID), then acquired under an owner-fenced
+// lease for callback processing. Replay, issuer-mismatch, and protocol
+// verification failures collapse onto the single federation_state_invalid code
+// to avoid leaking a side channel into the federation pipeline.
 //
-// Route mounting is owned by Task 9 (server.go's registerOperations). The
-// Server.federator field is populated there; this file defines only the
-// handlers + the return_to validator.
+// Routes are mounted by server.go's registerOperations. NewServer populates
+// Server.federationService; this file defines the handlers and return_to
+// validator.
 package server
 
 import (
