@@ -43,20 +43,34 @@ type SessionView struct {
 	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
 }
 
+// AccountIdentityView is the common secret-free projection used by admin and
+// self-service identity lists.
+type AccountIdentityView struct {
+	ID                  int64             `json:"id"`
+	ProviderSlug        string            `json:"providerSlug"`
+	ProviderDisplayName string            `json:"providerDisplayName"`
+	Protocol            string            `json:"protocol"`
+	Subject             string            `json:"subject"`
+	Email               *string           `json:"email,omitempty"`
+	Data                map[string]string `json:"data"`
+	LinkedAt            time.Time         `json:"linkedAt"`
+}
+
 // AccountView is admin-facing; lastSignInAt is derived from the account's credentials.
 type AccountView struct {
-	ID            int32          `json:"id"`
-	Username      string         `json:"username"`
-	DisplayName   string         `json:"displayName"`
-	Email         *string        `json:"email,omitempty"`
-	EmailVerified bool           `json:"emailVerified"`
-	Role          string         `json:"role"`
-	Attributes    map[string]any `json:"attributes,omitempty"`
-	Disabled      bool           `json:"disabled"`
-	CreatedAt     time.Time      `json:"createdAt"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
-	LastSignInAt  *time.Time     `json:"lastSignInAt,omitempty"`
-	AvatarURL     *string        `json:"avatarUrl,omitempty"`
+	ID                 int32                 `json:"id"`
+	Username           string                `json:"username"`
+	DisplayName        string                `json:"displayName"`
+	Email              *string               `json:"email,omitempty"`
+	EmailVerified      bool                  `json:"emailVerified"`
+	Role               string                `json:"role"`
+	Attributes         map[string]any        `json:"attributes,omitempty"`
+	Disabled           bool                  `json:"disabled"`
+	CreatedAt          time.Time             `json:"createdAt"`
+	UpdatedAt          time.Time             `json:"updatedAt"`
+	LastSignInAt       *time.Time            `json:"lastSignInAt,omitempty"`
+	AvatarURL          *string               `json:"avatarUrl,omitempty"`
+	MatchingIdentities []AccountIdentityView `json:"matchingIdentities"`
 }
 
 // SessionListItem is a single row in /me/sessions. Token is intentionally
@@ -345,6 +359,13 @@ var OperationGetAccount = huma.Operation{
 	Method:      http.MethodGet,
 	Path:        "/accounts/{id}",
 	Summary:     "Get one account by id (admin only).",
+}
+
+var OperationListAccountIdentities = huma.Operation{
+	OperationID: "listAccountIdentities",
+	Method:      http.MethodGet,
+	Path:        "/accounts/{id}/identities",
+	Summary:     "List an account's linked upstream identities (admin only).",
 }
 
 var OperationUpdateAccount = huma.Operation{

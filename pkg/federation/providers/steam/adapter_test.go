@@ -38,7 +38,17 @@ func TestAdapterMapsVerifiedSteamIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	identity := result.Identity
-	if identity == nil || identity.Issuer != Issuer || identity.Subject != "76561198000000000" || identity.Username != "steam_76561198000000000" || identity.DisplayName != "Gaben" || identity.AvatarURL != "https://cdn/avatar.jpg" || identity.UpstreamData["profileUrl"] != "https://steamcommunity.com/profiles/76561198000000000" {
+	if identity == nil ||
+		identity.Issuer != Issuer ||
+		identity.Subject != "76561198000000000" ||
+		identity.Username != "steam_76561198000000000" ||
+		identity.DisplayName != "Gaben" ||
+		identity.AvatarURL != "https://cdn/avatar.jpg" ||
+		len(identity.UpstreamData) != 4 ||
+		identity.UpstreamData["steamId"] != "76561198000000000" ||
+		identity.UpstreamData["personaName"] != "Gaben" ||
+		identity.UpstreamData["profileUrl"] != "https://steamcommunity.com/profiles/76561198000000000" ||
+		identity.UpstreamData["avatarUrl"] != "https://cdn/avatar.jpg" {
 		t.Fatalf("identity = %+v", identity)
 	}
 }

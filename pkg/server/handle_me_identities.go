@@ -22,15 +22,17 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
+	"prohibitorum/pkg/logx"
 	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/weberr"
 )
@@ -65,16 +67,33 @@ func (s *Server) meIdentitiesQ() meIdentitiesQueries {
 	return s.queries
 }
 
-// identityView is the JSON projection of ListAccountIdentitiesByAccountRow
-// returned by GET /me/identities. UpstreamEmail is a *string so absent
-// addresses serialize as null rather than the empty string — UI code that
-// branches on "has the OP given us an email?" reads the null cleanly.
-type identityView struct {
-	ID             int64   `json:"id"`
-	IdpSlug        string  `json:"idpSlug"`
-	IdpDisplayName string  `json:"idpDisplayName"`
-	UpstreamEmail  *string `json:"upstreamEmail"`
-	LinkedAt       string  `json:"linkedAt"`
+// projectIdentityRow returns the shared secret-free identity projection. A
+// malformed stored metadata object cannot block the account page: it is
+// replaced with an empty object and logged without the raw value.
+func projectIdentityRow(ctx context.Context, row db.ListAccountIdentitiesByAccountRow) contract.AccountIdentityView {
+	data := make(map[string]string)
+	if len(row.UpstreamData) > 0 {
+		var decoded map[string]string
+		if err := json.Unmarshal(row.UpstreamData, &decoded); err != nil || decoded == nil {
+			logx.WithContext(ctx).WithFields(logrus.Fields{
+				"event":       "identity_metadata_invalid",
+				"identity_id": row.ID,
+				"provider_id": row.UpstreamIdpID,
+			}).Error("identity metadata invalid")
+		} else {
+			data = decoded
+		}
+	}
+	return contract.AccountIdentityView{
+		ID:                  row.ID,
+		ProviderSlug:        row.IdpSlug,
+		ProviderDisplayName: row.IdpDisplayName,
+		Protocol:            row.Protocol,
+		Subject:             row.UpstreamSub,
+		Email:               textPtr(row.UpstreamEmail),
+		Data:                data,
+		LinkedAt:            row.LinkedAt.Time,
+	}
 }
 
 // GET /api/prohibitorum/me/identities
@@ -92,26 +111,12 @@ func (s *Server) handleMeIdentitiesListHTTP(w http.ResponseWriter, r *http.Reque
 		writeAuthErr(w, err)
 		return
 	}
-	out := make([]identityView, 0, len(rows))
+	out := make([]contract.AccountIdentityView, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, projectIdentityRow(row))
+		out = append(out, projectIdentityRow(r.Context(), row))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
-}
-
-func projectIdentityRow(row db.ListAccountIdentitiesByAccountRow) identityView {
-	v := identityView{
-		ID:             row.ID,
-		IdpSlug:        row.IdpSlug,
-		IdpDisplayName: row.IdpDisplayName,
-	}
-	if row.UpstreamEmail.Valid {
-		s := row.UpstreamEmail.String
-		v.UpstreamEmail = &s
-	}
-	v.LinkedAt = row.LinkedAt.Time.UTC().Format(time.RFC3339)
-	return v
 }
 
 // POST /api/prohibitorum/me/identities/{id}/unlink
@@ -357,7 +362,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
 		CallbackRoute: federation.CallbackRouteLink,
-		AccountID: new(sess.Account.ID), SessionID: sess.Data.SessionID,
+		AccountID:     new(sess.Account.ID), SessionID: sess.Data.SessionID,
 		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
 	})
 	if err != nil {

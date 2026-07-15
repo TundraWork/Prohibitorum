@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -23,10 +24,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation"
 	federationsteam "prohibitorum/pkg/federation/providers/steam"
@@ -137,7 +140,6 @@ func (f *fakeIdentitiesQueries) ListAccountIdentitiesByAccount(_ context.Context
 	}
 	return out, nil
 }
-
 
 // CountUsableSignInFederation counts identity rows for the account whose
 // upstream IdP is ENABLED (i.e., whose ID appears in usableIdentityIDs).
@@ -283,6 +285,8 @@ func seedIdentity(q *fakeIdentitiesQueries, id, idpID int64, accountID int32, sl
 		IdpSlug:        slug,
 		IdpDisplayName: name,
 		LinkedAt:       pgtype.Timestamptz{Time: time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC), Valid: true},
+		Protocol:       "oidc",
+		UpstreamData:   []byte("{}"),
 	}
 	if email != "" {
 		row.UpstreamEmail = pgtype.Text{String: email, Valid: true}
@@ -305,6 +309,8 @@ func seedDisabledIdentity(q *fakeIdentitiesQueries, id, idpID int64, accountID i
 		IdpSlug:        slug,
 		IdpDisplayName: name,
 		LinkedAt:       pgtype.Timestamptz{Time: time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC), Valid: true},
+		Protocol:       "oidc",
+		UpstreamData:   []byte("{}"),
 	}
 	if email != "" {
 		row.UpstreamEmail = pgtype.Text{String: email, Valid: true}
@@ -314,6 +320,26 @@ func seedDisabledIdentity(q *fakeIdentitiesQueries, id, idpID int64, accountID i
 }
 
 // --- list tests ------------------------------------------------------------
+
+type identityMetadataLogHook struct {
+	mu      sync.Mutex
+	entries []logrus.Fields
+}
+
+func (h *identityMetadataLogHook) Levels() []logrus.Level {
+	return []logrus.Level{logrus.ErrorLevel}
+}
+
+func (h *identityMetadataLogHook) Fire(entry *logrus.Entry) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	fields := make(logrus.Fields, len(entry.Data))
+	for key, value := range entry.Data {
+		fields[key] = value
+	}
+	h.entries = append(h.entries, fields)
+	return nil
+}
 
 func TestMeIdentities_List_Empty(t *testing.T) {
 	s, _ := newIdentitiesTestServer(t)
@@ -335,6 +361,7 @@ func TestMeIdentities_List_TwoRows(t *testing.T) {
 	s, q := newIdentitiesTestServer(t)
 	const accountID int32 = 42
 	seedIdentity(q, 1, 100, accountID, "google", "Google", "alice@example.com")
+	q.identityRows[0].UpstreamData = []byte(`{"tenant":"example"}`)
 	seedIdentity(q, 2, 101, accountID, "github", "GitHub", "")
 	_, sess := issueIdentitiesTestSession(t, s, accountID)
 
@@ -344,27 +371,81 @@ func TestMeIdentities_List_TwoRows(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
 	}
-	var got []identityView
+	var got []contract.AccountIdentityView
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v (body=%s)", err, w.Body.String())
 	}
 	if len(got) != 2 {
 		t.Fatalf("rows: want 2, got %d (body=%s)", len(got), w.Body.String())
 	}
-	if got[0].IdpSlug != "google" || got[0].IdpDisplayName != "Google" {
+	if got[0].ProviderSlug != "google" || got[0].ProviderDisplayName != "Google" || got[0].Protocol != "oidc" {
 		t.Errorf("row[0]: %+v", got[0])
 	}
-	if got[0].UpstreamEmail == nil || *got[0].UpstreamEmail != "alice@example.com" {
-		t.Errorf("row[0] email: want alice@example.com, got %v", got[0].UpstreamEmail)
+	if got[0].Email == nil || *got[0].Email != "alice@example.com" {
+		t.Errorf("row[0] email: want alice@example.com, got %v", got[0].Email)
 	}
-	if got[1].IdpSlug != "github" {
-		t.Errorf("row[1] slug: %s", got[1].IdpSlug)
+	if got[0].Data["tenant"] != "example" {
+		t.Errorf("row[0] data: %+v", got[0].Data)
 	}
-	if got[1].UpstreamEmail != nil {
-		t.Errorf("row[1] email: want nil, got %v", *got[1].UpstreamEmail)
+	if got[1].ProviderSlug != "github" {
+		t.Errorf("row[1] slug: %s", got[1].ProviderSlug)
 	}
-	if got[0].LinkedAt == "" {
-		t.Errorf("linkedAt empty")
+	if got[1].Email != nil {
+		t.Errorf("row[1] email: want nil, got %v", got[1].Email)
+	}
+	if got[0].LinkedAt.IsZero() {
+		t.Error("linkedAt is zero")
+	}
+}
+
+func TestMeIdentities_List_MalformedMetadataContinuesAndLogsSafeFields(t *testing.T) {
+	s, q := newIdentitiesTestServer(t)
+	const accountID int32 = 42
+	seedIdentity(q, 1, 100, accountID, "vrchat", "VRChat", "")
+	seedIdentity(q, 2, 101, accountID, "steam", "Steam", "")
+	q.identityRows[0].Protocol = "vrchat"
+	q.identityRows[0].UpstreamData = []byte(`{"token":{"secret":"must-not-log"}}`)
+	q.identityRows[1].Protocol = "steam"
+	q.identityRows[1].UpstreamData = []byte(`{"steamId":"76561198000000000"}`)
+	_, sess := issueIdentitiesTestSession(t, s, accountID)
+
+	logger := logrus.StandardLogger()
+	oldHooks := logger.ReplaceHooks(make(logrus.LevelHooks))
+	hook := &identityMetadataLogHook{}
+	logger.AddHook(hook)
+	defer logger.ReplaceHooks(oldHooks)
+
+	r := identitiesReq(t, sess, http.MethodGet, "/api/prohibitorum/me/identities", "")
+	w := httptest.NewRecorder()
+	s.handleMeIdentitiesListHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	var got []contract.AccountIdentityView
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 2 || len(got[0].Data) != 0 || got[1].Data["steamId"] != "76561198000000000" {
+		t.Fatalf("projected identities = %+v", got)
+	}
+	if strings.Contains(w.Body.String(), "must-not-log") {
+		t.Fatalf("malformed raw metadata leaked to response: %s", w.Body.String())
+	}
+
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+	if len(hook.entries) != 1 {
+		t.Fatalf("metadata error logs = %d, want 1", len(hook.entries))
+	}
+	fields := hook.entries[0]
+	if len(fields) != 3 ||
+		fields["event"] != "identity_metadata_invalid" ||
+		fields["identity_id"] != int64(1) ||
+		fields["provider_id"] != int64(100) {
+		t.Fatalf("metadata log fields = %+v", fields)
+	}
+	if strings.Contains(fmt.Sprint(fields), "must-not-log") {
+		t.Fatalf("raw metadata leaked to log fields: %+v", fields)
 	}
 }
 

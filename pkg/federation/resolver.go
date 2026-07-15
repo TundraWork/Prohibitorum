@@ -34,7 +34,7 @@ type ModesQueries interface {
 	ConfirmAccountIdentity(ctx context.Context, id int64) error
 	UpdateAccountDisplayName(ctx context.Context, arg db.UpdateAccountDisplayNameParams) error
 	UpdateAccountEmail(ctx context.Context, arg db.UpdateAccountEmailParams) error
-	UpdateAccountIdentityEmail(ctx context.Context, arg db.UpdateAccountIdentityEmailParams) error
+	UpdateAccountIdentityVerifiedData(ctx context.Context, arg db.UpdateAccountIdentityVerifiedDataParams) error
 	ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error)
 }
 
@@ -107,18 +107,18 @@ func Resolve(
 	identity *VerifiedIdentity,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	if idp == nil {
+	if idp == nil || identity == nil {
 		return ResolveOutcome{}, errors.New("federation: Resolve: nil provider or identity")
+	}
+	upstreamData, err := ValidateUpstreamData(identity.UpstreamData)
+	if err != nil {
+		return ResolveOutcome{}, err
 	}
 	resolverIDP, err := resolverProviderFromProvider(*idp)
 	if err != nil {
 		return ResolveOutcome{}, err
 	}
-	localUsername := ""
-	if identity != nil {
-		localUsername = identity.Username
-	}
-	return resolve(ctx, q, w, &resolverIDP, identity, localUsername, pool)
+	return resolve(ctx, q, w, &resolverIDP, identity, identity.Username, upstreamData, pool)
 }
 
 func resolve(
@@ -128,6 +128,7 @@ func resolve(
 	idp *resolverProvider,
 	identity *VerifiedIdentity,
 	localUsername string,
+	upstreamData []byte,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
 	if idp == nil || identity == nil {
@@ -161,16 +162,44 @@ func resolve(
 			})
 			return ResolveOutcome{}, authn.ErrFederationStateInvalid()
 		}
-		// Re-login path. Sync claim drift, then branch on confirmed_at:
-		//   - confirmed (confirmed_at NOT NULL): audit Use + issue a session now.
-		//   - pending (confirmed_at NULL): the user abandoned the /welcome gate
-		//     (or a federated invite is still pending). Report Confirmed=false so
-		//     the HTTP layer routes back to the gate; do NOT emit Use — that's
-		//     recorded on confirm (Task 6) — and do NOT re-insert anything.
-		if err := syncClaims(ctx, q, idp, &existing, identity); err != nil {
+		return resolveExisting(ctx, q, w, idp, &existing, identity, upstreamData, pool)
+	case errors.Is(err, pgx.ErrNoRows):
+		// Fall through to mode dispatch.
+	default:
+		return ResolveOutcome{}, fmt.Errorf("federation/oidc: lookup identity: %w", err)
+	}
+
+	switch idp.Mode {
+	case ModeAutoProvision:
+		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, false, upstreamData, pool)
+	case ModeInviteOnly:
+		// Reaching invite_only via resolve means the login flow carried no
+		// EnrollmentToken in its FlowState. Dispatch into applyInviteOnly with an
+		// empty token; the top of that function audits invite_required_no_token
+		// and rejects. Pool is nil — no DB writes happen on the rejection path.
+		return applyInviteOnly(ctx, q, w, idp, identity, "", upstreamData, nil)
+	case ModeLinkOnly:
+		return applyLinkOnly(ctx, w, idp, identity)
+	default:
+		return ResolveOutcome{}, fmt.Errorf("federation/oidc: unknown idp.mode %q", idp.Mode)
+	}
+}
+
+func resolveExisting(
+	ctx context.Context,
+	q ModesQueries,
+	w audit.Writer,
+	idp *resolverProvider,
+	stored *db.AccountIdentity,
+	identity *VerifiedIdentity,
+	upstreamData []byte,
+	pool *pgxpool.Pool,
+) (ResolveOutcome, error) {
+	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+		if err := syncClaims(ctx, qtx, idp, stored, identity, upstreamData); err != nil {
 			if ae := authn.AsAuthError(err); ae != nil && ae.Code == "bad_credentials" {
 				audit.RecordOrLog(ctx, w, audit.Record{
-					AccountID: new(existing.AccountID),
+					AccountID: new(stored.AccountID),
 					Factor:    audit.FactorFederationOIDC,
 					Event:     audit.EventFail,
 					Detail: map[string]any{
@@ -183,10 +212,10 @@ func resolve(
 			}
 			return ResolveOutcome{}, err
 		}
-		confirmed := existing.ConfirmedAt.Valid
+		confirmed := stored.ConfirmedAt.Valid
 		if confirmed {
-			audit.RecordOrLog(ctx, w, audit.Record{
-				AccountID: new(existing.AccountID),
+			audit.RecordOrLog(ctx, txAudit, audit.Record{
+				AccountID: new(stored.AccountID),
 				Factor:    audit.FactorFederationOIDC,
 				Event:     audit.EventUse,
 				Detail: map[string]any{
@@ -197,33 +226,14 @@ func resolve(
 			})
 		}
 		return ResolveOutcome{
-			AccountID:  existing.AccountID,
-			IdentityID: existing.ID,
+			AccountID:  stored.AccountID,
+			IdentityID: stored.ID,
 			ProviderID: idp.ID,
 			AMR:        append([]string(nil), identity.AMR...),
 			IsNew:      false,
 			Confirmed:  confirmed,
 		}, nil
-	case errors.Is(err, pgx.ErrNoRows):
-		// Fall through to mode dispatch.
-	default:
-		return ResolveOutcome{}, fmt.Errorf("federation/oidc: lookup identity: %w", err)
-	}
-
-	switch idp.Mode {
-	case ModeAutoProvision:
-		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, false, pool)
-	case ModeInviteOnly:
-		// Reaching invite_only via resolve means the login flow carried no
-		// EnrollmentToken in its FlowState. Dispatch into applyInviteOnly with an
-		// empty token; the top of that function audits invite_required_no_token
-		// and rejects. Pool is nil — no DB writes happen on the rejection path.
-		return applyInviteOnly(ctx, q, w, idp, identity, "", nil)
-	case ModeLinkOnly:
-		return applyLinkOnly(ctx, w, idp, identity)
-	default:
-		return ResolveOutcome{}, fmt.Errorf("federation/oidc: unknown idp.mode %q", idp.Mode)
-	}
+	})
 }
 
 // applyAutoProvision creates a fresh local account from the upstream
@@ -247,6 +257,7 @@ func applyAutoProvision(
 	identity *VerifiedIdentity,
 	localUsername string,
 	requireLocalUsername bool,
+	upstreamData []byte,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
 	username := localUsername
@@ -279,7 +290,7 @@ func applyAutoProvision(
 				})
 				return ResolveOutcome{}, authn.ErrFederationStateInvalid()
 			}
-			if err := syncClaims(ctx, qtx, idp, &finalIdentity, identity); err != nil {
+			if err := syncClaims(ctx, qtx, idp, &finalIdentity, identity, upstreamData); err != nil {
 				if ae := authn.AsAuthError(err); ae != nil && ae.Code == "bad_credentials" {
 					audit.RecordOrLog(ctx, w, audit.Record{
 						AccountID: new(finalIdentity.AccountID),
@@ -394,6 +405,7 @@ func applyAutoProvision(
 			UpstreamIss:   identity.Issuer,
 			UpstreamSub:   identity.Subject,
 			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
+			UpstreamData:  upstreamData,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -472,6 +484,7 @@ func applyInviteOnly(
 	idp *resolverProvider,
 	identity *VerifiedIdentity,
 	enrollmentToken string,
+	upstreamData []byte,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
 	if enrollmentToken == "" {
@@ -586,6 +599,7 @@ func applyInviteOnly(
 			UpstreamIss:   identity.Issuer,
 			UpstreamSub:   identity.Subject,
 			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
+			UpstreamData:  upstreamData,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -714,17 +728,17 @@ func applyLinkOnly(
 	return ResolveOutcome{}, authn.ErrLinkRequired()
 }
 
-// syncClaims first verifies that the identity's owning account is enabled,
-// then propagates upstream display_name and upstream_email drift into the local
-// account / account_identity rows. Drift updates remain best-effort, but the
-// account lookup is load-bearing: authentication must fail closed when account
-// status cannot be established.
+// syncClaims verifies that the identity's owning account is enabled, then
+// transactionally refreshes local claims and the adapter-approved identity
+// metadata. Any write failure rejects authentication so verified data cannot
+// be partially refreshed.
 func syncClaims(
 	ctx context.Context,
 	q ModesQueries,
-	idp *resolverProvider,
+	_ *resolverProvider,
 	stored *db.AccountIdentity,
 	identity *VerifiedIdentity,
+	upstreamData []byte,
 ) error {
 	displayName := identity.DisplayName
 	email := identityEmail(identity)
@@ -739,23 +753,28 @@ func syncClaims(
 		return authn.ErrBadCredentials()
 	}
 	if displayName != "" && acct.DisplayName != displayName {
-		_ = q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
+		if err := q.UpdateAccountDisplayName(ctx, db.UpdateAccountDisplayNameParams{
 			ID:          stored.AccountID,
 			DisplayName: displayName,
-		})
+		}); err != nil {
+			return fmt.Errorf("federation: update account display name: %w", err)
+		}
 	}
 	if acct.Email.String != newEmail.String || acct.Email.Valid != newEmail.Valid || acct.EmailVerified != newVerified {
-		_ = q.UpdateAccountEmail(ctx, db.UpdateAccountEmailParams{
+		if err := q.UpdateAccountEmail(ctx, db.UpdateAccountEmailParams{
 			ID:            stored.AccountID,
 			Email:         newEmail,
 			EmailVerified: newVerified,
-		})
+		}); err != nil {
+			return fmt.Errorf("federation: update account email: %w", err)
+		}
 	}
-	if newEmail.String != stored.UpstreamEmail.String || newEmail.Valid != stored.UpstreamEmail.Valid {
-		_ = q.UpdateAccountIdentityEmail(ctx, db.UpdateAccountIdentityEmailParams{
-			ID:            stored.ID,
-			UpstreamEmail: newEmail,
-		})
+	if err := q.UpdateAccountIdentityVerifiedData(ctx, db.UpdateAccountIdentityVerifiedDataParams{
+		ID:            stored.ID,
+		UpstreamEmail: newEmail,
+		UpstreamData:  upstreamData,
+	}); err != nil {
+		return fmt.Errorf("federation: update account identity data: %w", err)
 	}
 	return nil
 }
@@ -807,6 +826,10 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 	if identity.Issuer == "" || identity.Subject == "" {
 		return ResolveOutcome{}, errors.New("federation: verified identity missing issuer or subject")
 	}
+	upstreamData, err := ValidateUpstreamData(identity.UpstreamData)
+	if err != nil {
+		return ResolveOutcome{}, err
+	}
 	row, err := resolverProviderFromProvider(provider)
 	if err != nil {
 		return ResolveOutcome{}, err
@@ -816,9 +839,9 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 		if resolution.LinkAccountID == nil || *resolution.LinkAccountID <= 0 {
 			return ResolveOutcome{}, authn.ErrFederationStateInvalid()
 		}
-		return r.resolveLink(ctx, &row, &identity, *resolution.LinkAccountID)
+		return r.resolveLink(ctx, &row, &identity, *resolution.LinkAccountID, upstreamData)
 	case IntentInvite:
-		return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, r.pool)
+		return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, upstreamData, r.pool)
 	case IntentLogin:
 		username := resolution.LocalUsername
 		if username == "" && !resolution.RequireLocalUsername {
@@ -830,9 +853,9 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 			// lookup inside the provisioning transaction. It handles both a
 			// newly-known identity and an unknown identity without a preflight
 			// query that can immediately go stale.
-			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, resolution.RequireLocalUsername, r.pool)
+			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, resolution.RequireLocalUsername, upstreamData, r.pool)
 		case ModeInviteOnly, ModeLinkOnly:
-			return resolve(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
+			return resolve(ctx, r.queries, r.audit, &row, &identity, username, upstreamData, r.pool)
 		default:
 			return ResolveOutcome{}, fmt.Errorf("federation: unknown provider mode %q", row.Mode)
 		}
@@ -841,7 +864,7 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 	}
 }
 
-func (r *Resolver) resolveLink(ctx context.Context, provider *resolverProvider, identity *VerifiedIdentity, accountID int32) (ResolveOutcome, error) {
+func (r *Resolver) resolveLink(ctx context.Context, provider *resolverProvider, identity *VerifiedIdentity, accountID int32, upstreamData []byte) (ResolveOutcome, error) {
 	email := identityEmail(identity)
 	if provider.RequireVerifiedEmail && identity.EmailVerificationSupported && !identity.EmailVerified {
 		return ResolveOutcome{}, NewFailure(FailureEmailNotVerified, map[string]any{"upstream_iss": identity.Issuer})
@@ -875,6 +898,7 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *resolverProvider, 
 			AccountID: accountID, UpstreamIdpID: provider.ID,
 			UpstreamIss: identity.Issuer, UpstreamSub: identity.Subject,
 			UpstreamEmail: pgtype.Text{String: email, Valid: email != ""},
+			UpstreamData:  upstreamData,
 		})
 		if err != nil {
 			reason := FailureLinkInsert
@@ -955,6 +979,37 @@ func emitFail(
 		Event:  audit.EventFail,
 		Detail: detail,
 	})
+}
+
+// ValidateUpstreamData enforces the storage boundary for adapter-approved
+// identity metadata and returns the compact JSON object persisted to jsonb.
+func ValidateUpstreamData(data map[string]string) ([]byte, error) {
+	if len(data) > 16 {
+		return nil, errors.New("federation: upstream identity data has too many keys")
+	}
+	for key, value := range data {
+		if len(key) > 128 {
+			return nil, errors.New("federation: upstream identity data key is too long")
+		}
+		if len(value) > 1024 {
+			return nil, errors.New("federation: upstream identity data value is too long")
+		}
+	}
+	indented, err := json.MarshalIndent(data, "", " ")
+	if err != nil {
+		return nil, fmt.Errorf("federation: encode upstream identity data: %w", err)
+	}
+	if len(indented) > 4096 {
+		return nil, errors.New("federation: upstream identity data is too large")
+	}
+	if data == nil {
+		return []byte(`{}`), nil
+	}
+	compact, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("federation: encode upstream identity data: %w", err)
+	}
+	return compact, nil
 }
 
 func identityEmail(identity *VerifiedIdentity) string {

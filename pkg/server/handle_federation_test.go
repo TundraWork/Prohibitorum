@@ -195,6 +195,7 @@ func (f *fakeFedQueries) InsertAccountIdentity(_ context.Context, arg db.InsertA
 		UpstreamIss:   arg.UpstreamIss,
 		UpstreamSub:   arg.UpstreamSub,
 		UpstreamEmail: arg.UpstreamEmail,
+		UpstreamData:  append([]byte(nil), arg.UpstreamData...),
 	}, nil
 }
 
@@ -209,7 +210,7 @@ func (f *fakeFedQueries) UpdateAccountDisplayName(_ context.Context, _ db.Update
 	return nil
 }
 
-func (f *fakeFedQueries) UpdateAccountIdentityEmail(_ context.Context, _ db.UpdateAccountIdentityEmailParams) error {
+func (f *fakeFedQueries) UpdateAccountIdentityVerifiedData(_ context.Context, _ db.UpdateAccountIdentityVerifiedDataParams) error {
 	return nil
 }
 

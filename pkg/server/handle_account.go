@@ -84,17 +84,18 @@ func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountVi
 		lsi = &v
 	}
 	v := contract.AccountView{
-		ID:            r.ID,
-		Username:      r.Username,
-		DisplayName:   r.DisplayName,
-		Email:         textPtr(r.Email),
-		EmailVerified: r.EmailVerified,
-		Role:          r.Role,
-		Attributes:    decodeAttributes(r.Attributes),
-		Disabled:      r.Disabled,
-		CreatedAt:     r.CreatedAt.Time,
-		UpdatedAt:     r.UpdatedAt.Time,
-		LastSignInAt:  lsi,
+		ID:                 r.ID,
+		Username:           r.Username,
+		DisplayName:        r.DisplayName,
+		Email:              textPtr(r.Email),
+		EmailVerified:      r.EmailVerified,
+		Role:               r.Role,
+		Attributes:         decodeAttributes(r.Attributes),
+		Disabled:           r.Disabled,
+		CreatedAt:          r.CreatedAt.Time,
+		UpdatedAt:          r.UpdatedAt.Time,
+		LastSignInAt:       lsi,
+		MatchingIdentities: make([]contract.AccountIdentityView, 0),
 	}
 	if r.AvatarEtag.Valid {
 		if u := avatar.PublicURL(r.OidcSubject.String(), r.AvatarEtag.String, origin); u != "" {
@@ -109,17 +110,18 @@ func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountVi
 // credential subquery).
 func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin string) contract.AccountView {
 	v := contract.AccountView{
-		ID:            a.ID,
-		Username:      a.Username,
-		DisplayName:   a.DisplayName,
-		Email:         textPtr(a.Email),
-		EmailVerified: a.EmailVerified,
-		Role:          a.Role,
-		Attributes:    decodeAttributes(a.Attributes),
-		Disabled:      a.Disabled,
-		CreatedAt:     a.CreatedAt.Time,
-		UpdatedAt:     a.UpdatedAt.Time,
-		LastSignInAt:  lastSignInAt,
+		ID:                 a.ID,
+		Username:           a.Username,
+		DisplayName:        a.DisplayName,
+		Email:              textPtr(a.Email),
+		EmailVerified:      a.EmailVerified,
+		Role:               a.Role,
+		Attributes:         decodeAttributes(a.Attributes),
+		Disabled:           a.Disabled,
+		CreatedAt:          a.CreatedAt.Time,
+		UpdatedAt:          a.UpdatedAt.Time,
+		LastSignInAt:       lastSignInAt,
+		MatchingIdentities: make([]contract.AccountIdentityView, 0),
 	}
 	if u := avatar.AccountURL(*a, origin); u != "" {
 		v.AvatarURL = &u
@@ -196,6 +198,32 @@ func (s *Server) handleGetAccount(ctx context.Context, in *getAccountIn) (*accou
 		return nil, fmt.Errorf("handleGetAccount: query: %w", err)
 	}
 	return &accountOut{Body: accountViewFromAccount(&a, nil, s.config.PublicOrigins[0])}, nil
+}
+
+type listAccountIdentitiesIn struct {
+	ID int32 `path:"id"`
+}
+
+type listAccountIdentitiesOut struct {
+	Body []contract.AccountIdentityView
+}
+
+func (s *Server) handleListAccountIdentities(ctx context.Context, in *listAccountIdentitiesIn) (*listAccountIdentitiesOut, error) {
+	if _, err := s.queries.GetAccountByID(ctx, in.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleListAccountIdentities: account lookup: %w", err)
+	}
+	rows, err := s.queries.ListAccountIdentitiesByAccount(ctx, in.ID)
+	if err != nil {
+		return nil, fmt.Errorf("handleListAccountIdentities: query: %w", err)
+	}
+	views := make([]contract.AccountIdentityView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, projectIdentityRow(ctx, row))
+	}
+	return &listAccountIdentitiesOut{Body: views}, nil
 }
 
 // ----- PUT /accounts/{id} ----------------------------------------------------

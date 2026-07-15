@@ -239,7 +239,7 @@ type Querier interface {
 	// Refreshes an account's email from a verified upstream on re-login (federation
 	// claim drift), keeping it in lockstep with account_identity.upstream_email.
 	UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmailParams) error
-	UpdateAccountIdentityEmail(ctx context.Context, arg UpdateAccountIdentityEmailParams) error
+	UpdateAccountIdentityVerifiedData(ctx context.Context, arg UpdateAccountIdentityVerifiedDataParams) error
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
 	UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAuthAppParams) (UpdateForwardAuthAppRow, error)
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (UserGroup, error)

@@ -83,9 +83,9 @@ func (q *Queries) GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAcco
 
 const insertAccountIdentity = `-- name: InsertAccountIdentity :one
 INSERT INTO account_identity (
-  account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email
+  account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, upstream_data
 )
-VALUES ($1, $2, $3, $4, $5)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at, confirmed_at, upstream_data
 `
 
@@ -95,6 +95,7 @@ type InsertAccountIdentityParams struct {
 	UpstreamIss   string      `json:"upstreamIss"`
 	UpstreamSub   string      `json:"upstreamSub"`
 	UpstreamEmail pgtype.Text `json:"upstreamEmail"`
+	UpstreamData  []byte      `json:"upstreamData"`
 }
 
 func (q *Queries) InsertAccountIdentity(ctx context.Context, arg InsertAccountIdentityParams) (AccountIdentity, error) {
@@ -104,6 +105,7 @@ func (q *Queries) InsertAccountIdentity(ctx context.Context, arg InsertAccountId
 		arg.UpstreamIss,
 		arg.UpstreamSub,
 		arg.UpstreamEmail,
+		arg.UpstreamData,
 	)
 	var i AccountIdentity
 	err := row.Scan(
@@ -121,7 +123,7 @@ func (q *Queries) InsertAccountIdentity(ctx context.Context, arg InsertAccountId
 }
 
 const listAccountIdentitiesByAccount = `-- name: ListAccountIdentitiesByAccount :many
-SELECT ai.id, ai.account_id, ai.upstream_idp_id, ai.upstream_iss, ai.upstream_sub, ai.upstream_email, ai.linked_at, ai.confirmed_at, ai.upstream_data, ip.slug AS idp_slug, ip.display_name AS idp_display_name
+SELECT ai.id, ai.account_id, ai.upstream_idp_id, ai.upstream_iss, ai.upstream_sub, ai.upstream_email, ai.linked_at, ai.confirmed_at, ai.upstream_data, ip.slug AS idp_slug, ip.display_name AS idp_display_name, ip.protocol
 FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
 WHERE ai.account_id = $1
@@ -139,6 +141,7 @@ type ListAccountIdentitiesByAccountRow struct {
 	UpstreamData   []byte             `json:"upstreamData"`
 	IdpSlug        string             `json:"idpSlug"`
 	IdpDisplayName string             `json:"idpDisplayName"`
+	Protocol       string             `json:"protocol"`
 }
 
 func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error) {
@@ -162,6 +165,7 @@ func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID 
 			&i.UpstreamData,
 			&i.IdpSlug,
 			&i.IdpDisplayName,
+			&i.Protocol,
 		); err != nil {
 			return nil, err
 		}
@@ -173,18 +177,19 @@ func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID 
 	return items, nil
 }
 
-const updateAccountIdentityEmail = `-- name: UpdateAccountIdentityEmail :exec
+const updateAccountIdentityVerifiedData = `-- name: UpdateAccountIdentityVerifiedData :exec
 UPDATE account_identity
-SET upstream_email = $2
+SET upstream_email = $2, upstream_data = $3
 WHERE id = $1
 `
 
-type UpdateAccountIdentityEmailParams struct {
+type UpdateAccountIdentityVerifiedDataParams struct {
 	ID            int64       `json:"id"`
 	UpstreamEmail pgtype.Text `json:"upstreamEmail"`
+	UpstreamData  []byte      `json:"upstreamData"`
 }
 
-func (q *Queries) UpdateAccountIdentityEmail(ctx context.Context, arg UpdateAccountIdentityEmailParams) error {
-	_, err := q.db.Exec(ctx, updateAccountIdentityEmail, arg.ID, arg.UpstreamEmail)
+func (q *Queries) UpdateAccountIdentityVerifiedData(ctx context.Context, arg UpdateAccountIdentityVerifiedDataParams) error {
+	_, err := q.db.Exec(ctx, updateAccountIdentityVerifiedData, arg.ID, arg.UpstreamEmail, arg.UpstreamData)
 	return err
 }

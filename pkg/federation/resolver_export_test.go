@@ -17,9 +17,13 @@ func ApplyInviteOnlyForTest(
 	enrollmentToken string,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
+	upstreamData, err := ValidateUpstreamData(identity.UpstreamData)
+	if err != nil {
+		return ResolveOutcome{}, err
+	}
 	resolverIDP, err := resolverProviderFromProvider(*idp)
 	if err != nil {
 		return ResolveOutcome{}, err
 	}
-	return applyInviteOnly(ctx, q, w, &resolverIDP, identity, enrollmentToken, pool)
+	return applyInviteOnly(ctx, q, w, &resolverIDP, identity, enrollmentToken, upstreamData, pool)
 }

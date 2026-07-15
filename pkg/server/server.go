@@ -579,6 +579,7 @@ func (s *Server) registerOperations() {
 	// Admin: accounts + invitations
 	registerOp(mgmt, contract.OperationListAccounts, s.handleListAccounts, admin)
 	registerOp(mgmt, contract.OperationGetAccount, s.handleGetAccount, admin)
+	registerOp(mgmt, contract.OperationListAccountIdentities, s.handleListAccountIdentities, admin)
 	// UpdateAccount, DeleteAccount, set-disabled, credential delete,
 	// reissue-enrollment, and invitation CREATE remain fresh-sudo gated:
 	// UpdateAccount can escalate user→admin, the others are destructive or

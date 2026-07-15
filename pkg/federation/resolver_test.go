@@ -59,7 +59,8 @@ type fakeModesQueries struct {
 	confirmIdentityErr  error
 
 	displayNameCalls  []db.UpdateAccountDisplayNameParams
-	emailCalls        []db.UpdateAccountIdentityEmailParams
+	identityDataCalls []db.UpdateAccountIdentityVerifiedDataParams
+	identityUpdateErr error
 	accountEmailCalls []db.UpdateAccountEmailParams
 
 	// Enrollment state for invite_only tests. consumeEnrollmentResult is
@@ -157,6 +158,7 @@ func (f *fakeModesQueries) InsertAccountIdentity(_ context.Context, arg db.Inser
 		UpstreamIss:   arg.UpstreamIss,
 		UpstreamSub:   arg.UpstreamSub,
 		UpstreamEmail: arg.UpstreamEmail,
+		UpstreamData:  append([]byte(nil), arg.UpstreamData...),
 	}, nil
 }
 
@@ -177,11 +179,11 @@ func (f *fakeModesQueries) UpdateAccountDisplayName(_ context.Context, arg db.Up
 	return nil
 }
 
-func (f *fakeModesQueries) UpdateAccountIdentityEmail(_ context.Context, arg db.UpdateAccountIdentityEmailParams) error {
+func (f *fakeModesQueries) UpdateAccountIdentityVerifiedData(_ context.Context, arg db.UpdateAccountIdentityVerifiedDataParams) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.emailCalls = append(f.emailCalls, arg)
-	return nil
+	f.identityDataCalls = append(f.identityDataCalls, arg)
+	return f.identityUpdateErr
 }
 
 func (f *fakeModesQueries) UpdateAccountEmail(_ context.Context, arg db.UpdateAccountEmailParams) error {
@@ -358,7 +360,8 @@ func TestApplyAutoProvision_HappyPath(t *testing.T) {
 		q.insertedIdentity.UpstreamIss != tok.Issuer ||
 		q.insertedIdentity.UpstreamSub != tok.Subject ||
 		!q.insertedIdentity.UpstreamEmail.Valid ||
-		q.insertedIdentity.UpstreamEmail.String != *tok.Email {
+		q.insertedIdentity.UpstreamEmail.String != *tok.Email ||
+		string(q.insertedIdentity.UpstreamData) != `{"providerUserId":"usr_123"}` {
 		t.Fatalf("InsertAccountIdentity args wrong: %+v", q.insertedIdentity)
 	}
 
@@ -379,6 +382,19 @@ func TestApplyAutoProvision_HappyPath(t *testing.T) {
 		if d := r.Detail; d["idp_slug"] != "test-idp" || d["iss"] != tok.Issuer || d["sub"] != tok.Subject {
 			t.Fatalf("detail missing iss/sub/slug: %+v", d)
 		}
+	}
+}
+
+func TestApplyAutoProvision_EmptyMetadataPersistsJSONObject(t *testing.T) {
+	q := newFakeModesQueries()
+	identity := goodTokens()
+	identity.UpstreamData = nil
+
+	if _, err := federationoidc.Resolve(context.Background(), q, &recordingAudit{}, newIDP(federationoidc.ModeAutoProvision), identity, nil); err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if string(q.insertedIdentity.UpstreamData) != `{}` {
+		t.Fatalf("upstream data = %s, want {}", q.insertedIdentity.UpstreamData)
 	}
 }
 
@@ -656,7 +672,8 @@ func TestApplyInviteOnly_HappyPath(t *testing.T) {
 	}
 	if q.insertedIdentity.AccountID != 100 ||
 		q.insertedIdentity.UpstreamIss != tok.Issuer ||
-		q.insertedIdentity.UpstreamSub != tok.Subject {
+		q.insertedIdentity.UpstreamSub != tok.Subject ||
+		string(q.insertedIdentity.UpstreamData) != `{"providerUserId":"usr_123"}` {
 		t.Fatalf("InsertAccountIdentity args wrong: %+v", q.insertedIdentity)
 	}
 
@@ -827,13 +844,14 @@ func TestResolve_ExistingIdentitySyncsClaims(t *testing.T) {
 	if q.displayNameCalls[0].ID != 50 || q.displayNameCalls[0].DisplayName != "Alice Example" {
 		t.Fatalf("display-name args wrong: %+v", q.displayNameCalls[0])
 	}
-	if len(q.emailCalls) != 1 {
-		t.Fatalf("want 1 UpdateAccountIdentityEmail call, got %d", len(q.emailCalls))
+	if len(q.identityDataCalls) != 1 {
+		t.Fatalf("want 1 UpdateAccountIdentityVerifiedData call, got %d", len(q.identityDataCalls))
 	}
-	if q.emailCalls[0].ID != 300 ||
-		!q.emailCalls[0].UpstreamEmail.Valid ||
-		q.emailCalls[0].UpstreamEmail.String != "alice@example.com" {
-		t.Fatalf("email-update args wrong: %+v", q.emailCalls[0])
+	if q.identityDataCalls[0].ID != 300 ||
+		!q.identityDataCalls[0].UpstreamEmail.Valid ||
+		q.identityDataCalls[0].UpstreamEmail.String != "alice@example.com" ||
+		string(q.identityDataCalls[0].UpstreamData) != `{"providerUserId":"usr_123"}` {
+		t.Fatalf("identity-data update args wrong: %+v", q.identityDataCalls[0])
 	}
 
 	recs := a.snapshot()
@@ -845,7 +863,7 @@ func TestResolve_ExistingIdentitySyncsClaims(t *testing.T) {
 	}
 }
 
-func TestResolve_ExistingIdentityNoChangesSkipsSync(t *testing.T) {
+func TestResolve_ExistingIdentityAlwaysRefreshesVerifiedData(t *testing.T) {
 	q := newFakeModesQueries()
 	q.identityErr = nil
 	q.identityResult = db.AccountIdentity{
@@ -855,8 +873,9 @@ func TestResolve_ExistingIdentityNoChangesSkipsSync(t *testing.T) {
 		UpstreamIss:   "https://issuer.example/",
 		UpstreamSub:   "sub-1",
 		UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true},
-		// Confirmed so this stays a pure "no drift -> no sync" test rather than
-		// silently exercising the unconfirmed re-login branch.
+		UpstreamData:  []byte(`{"providerUserId":"usr_123"}`),
+		// Confirmed so this exercises a successful re-login rather than the
+		// unconfirmed welcome-gate branch.
 		ConfirmedAt: pgtype.Timestamptz{Time: time.Unix(1, 0), Valid: true},
 	}
 	q.accountByIDResults[50] = db.Account{ID: 50, Username: "alice", DisplayName: "Alice Example"}
@@ -872,8 +891,56 @@ func TestResolve_ExistingIdentityNoChangesSkipsSync(t *testing.T) {
 	if len(q.displayNameCalls) != 0 {
 		t.Fatalf("want 0 display-name updates (no diff), got %d", len(q.displayNameCalls))
 	}
-	if len(q.emailCalls) != 0 {
-		t.Fatalf("want 0 email updates (no diff), got %d", len(q.emailCalls))
+	if len(q.identityDataCalls) != 1 {
+		t.Fatalf("want verified identity data refreshed once, got %d", len(q.identityDataCalls))
+	}
+}
+
+func TestResolverRejectsOversizeUpstreamDataBeforeQueries(t *testing.T) {
+	q := newFakeModesQueries()
+	identity := *goodTokens()
+	identity.UpstreamData = map[string]string{"key": string(make([]byte, 1025))}
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+
+	if _, err := resolver.ResolveIdentity(context.Background(), genericProvider(federationoidc.ModeAutoProvision), identity, federationoidc.ResolveContext{Intent: federationoidc.IntentLogin}); err == nil {
+		t.Fatal("expected oversized upstream data rejection")
+	}
+	if q.identityCalls != 0 {
+		t.Fatalf("identity queries = %d, want 0", q.identityCalls)
+	}
+}
+
+func TestResolve_IdentityDataUpdateFailureRejectsResolution(t *testing.T) {
+	q := newFakeModesQueries()
+	q.identityErr = nil
+	q.identityResult = db.AccountIdentity{
+		ID:            300,
+		AccountID:     50,
+		UpstreamIdpID: 42,
+		UpstreamIss:   "https://issuer.example/",
+		UpstreamSub:   "sub-1",
+		UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true},
+		UpstreamData:  []byte(`{"providerUserId":"stale"}`),
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Unix(1, 0), Valid: true},
+	}
+	q.accountByIDResults[50] = db.Account{
+		ID:            50,
+		Username:      "alice",
+		DisplayName:   "Alice Example",
+		Email:         pgtype.Text{String: "alice@example.com", Valid: true},
+		EmailVerified: true,
+	}
+	q.identityUpdateErr = errors.New("identity update failed")
+	a := &recordingAudit{}
+
+	if _, err := federationoidc.Resolve(context.Background(), q, a, newIDP(federationoidc.ModeAutoProvision), goodTokens(), nil); err == nil {
+		t.Fatal("expected identity metadata update failure")
+	}
+	if len(q.identityDataCalls) != 1 {
+		t.Fatalf("identity data calls = %d, want 1", len(q.identityDataCalls))
+	}
+	if len(a.snapshot()) != 0 {
+		t.Fatalf("failed resolution emitted audit success: %+v", a.snapshot())
 	}
 }
 
@@ -1163,10 +1230,10 @@ func TestResolve_SyncClaims_HonorsOverrides(t *testing.T) {
 	if len(q.displayNameCalls) != 1 || q.displayNameCalls[0].DisplayName != "Alice Override" {
 		t.Errorf("display-name update should have used override claim, got %+v", q.displayNameCalls)
 	}
-	if len(q.emailCalls) != 1 ||
-		!q.emailCalls[0].UpstreamEmail.Valid ||
-		q.emailCalls[0].UpstreamEmail.String != "alice-new@corp.example" {
-		t.Errorf("email update should have used override claim, got %+v", q.emailCalls)
+	if len(q.identityDataCalls) != 1 ||
+		!q.identityDataCalls[0].UpstreamEmail.Valid ||
+		q.identityDataCalls[0].UpstreamEmail.String != "alice-new@corp.example" {
+		t.Errorf("identity data update should have used override claim, got %+v", q.identityDataCalls)
 	}
 }
 
@@ -1213,8 +1280,8 @@ func TestResolverResolveIdentityRejectsDisabledExistingAccount(t *testing.T) {
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "bad_credentials" {
 		t.Fatalf("ResolveIdentity error = %v, want bad_credentials", err)
 	}
-	if len(q.displayNameCalls) != 0 || len(q.emailCalls) != 0 || len(q.accountEmailCalls) != 0 {
-		t.Fatalf("disabled account claims were mutated: display=%+v identityEmail=%+v accountEmail=%+v", q.displayNameCalls, q.emailCalls, q.accountEmailCalls)
+	if len(q.displayNameCalls) != 0 || len(q.identityDataCalls) != 0 || len(q.accountEmailCalls) != 0 {
+		t.Fatalf("disabled account claims were mutated: display=%+v identityData=%+v accountEmail=%+v", q.displayNameCalls, q.identityDataCalls, q.accountEmailCalls)
 	}
 }
 
@@ -1236,7 +1303,9 @@ func TestResolverLinkAllowsIdentityWithoutVerifiedEmailCapability(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Steam-like link with inapplicable email verification: %v", err)
 	}
-	if outcome.AccountID != accountID || q.insertedIdentity.UpstreamEmail.Valid {
+	if outcome.AccountID != accountID ||
+		q.insertedIdentity.UpstreamEmail.Valid ||
+		string(q.insertedIdentity.UpstreamData) != `{"providerUserId":"usr_123"}` {
 		t.Fatalf("link outcome=%+v identity=%+v", outcome, q.insertedIdentity)
 	}
 }
