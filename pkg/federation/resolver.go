@@ -284,6 +284,9 @@ func applyAutoProvision(
 		// this identity is still unknown. Existing identities must remain able
 		// to sign in when upstream claims later drift outside provisioning
 		// policy.
+		if username == "" {
+			return ResolveOutcome{}, ErrLocalUsernameRequired
+		}
 		if idp.RequireVerifiedEmail && !identity.EmailVerified {
 			emitFail(ctx, w, idp, identity, "email_not_verified", nil)
 			return ResolveOutcome{}, authn.ErrEmailNotVerified()
@@ -291,9 +294,6 @@ func applyAutoProvision(
 		if len(idp.AllowedDomains) > 0 && !domainAllowed(email, idp.AllowedDomains) {
 			emitFail(ctx, w, idp, identity, "domain_not_allowed", nil)
 			return ResolveOutcome{}, authn.ErrInviteRequired()
-		}
-		if username == "" {
-			return ResolveOutcome{}, ErrLocalUsernameRequired
 		}
 		if err := acctpkg.ValidateUsername(username); err != nil {
 			return ResolveOutcome{}, err

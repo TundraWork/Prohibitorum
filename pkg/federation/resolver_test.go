@@ -1284,6 +1284,62 @@ func TestResolverResolveIdentityUnknownAfterPrepareRequiresSubmittedUsername(t *
 	}
 }
 
+func TestResolverResolveIdentityUnknownAfterPrepareRequiresUsernameBeforeProvisioningGates(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider federationoidc.Provider
+		identity federationoidc.VerifiedIdentity
+	}{
+		{
+			name:     "unverified email",
+			provider: genericProvider(federationoidc.ModeAutoProvision),
+			identity: func() federationoidc.VerifiedIdentity {
+				identity := *goodTokens()
+				identity.EmailVerified = false
+				return identity
+			}(),
+		},
+		{
+			name: "disallowed email domain",
+			provider: federationoidc.Provider{
+				ID:       42,
+				Slug:     "test-idp",
+				Protocol: "oidc",
+				Mode:     federationoidc.ModeAutoProvision,
+				Config:   []byte(`{"issuerUrl":"https://issuer.example/","clientId":"client","scopes":["openid"],"requireVerifiedEmail":true,"allowedDomains":["allowed.example"]}`),
+			},
+			identity: func() federationoidc.VerifiedIdentity {
+				identity := *goodTokens()
+				identity.Email = new("alice@outside.example")
+				return identity
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			q := newFakeModesQueries()
+			q.identitySequence = []identityLookup{{err: pgx.ErrNoRows}}
+			resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+
+			_, err := resolver.ResolveIdentity(
+				context.Background(),
+				test.provider,
+				test.identity,
+				federationoidc.ResolveContext{
+					Intent:               federationoidc.IntentLogin,
+					RequireLocalUsername: true,
+				},
+			)
+			if !errors.Is(err, federationoidc.ErrLocalUsernameRequired) {
+				t.Fatalf("ResolveIdentity error = %v, want ErrLocalUsernameRequired", err)
+			}
+			if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
+				t.Fatalf("unknown identity race mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+			}
+		})
+	}
+}
+
 func TestResolverResolveIdentityUnknownRedirectUsesVerifiedUsername(t *testing.T) {
 	q := newFakeModesQueries()
 	q.identitySequence = []identityLookup{{err: pgx.ErrNoRows}}

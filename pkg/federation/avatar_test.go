@@ -42,6 +42,45 @@ func TestAvatarFetch_RejectsNonHTTPS(t *testing.T) {
 	}
 }
 
+type failingAvatarTransport struct{}
+
+func (failingAvatarTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("dial failed with Authorization: Bearer bearer-sentinel")
+}
+
+func TestAvatarManagerSanitizesNetworkFailureLogs(t *testing.T) {
+	const rawURL = "https://avatar-user:avatar-password@cdn.example/avatar.png?signed=query-sentinel#fragment-sentinel"
+	store := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = store.Close() })
+	manager := NewAvatarManager(&avatarManagerQueries{}, store)
+	var logs bytes.Buffer
+	manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	client := &http.Client{Transport: failingAvatarTransport{}}
+	manager.fetch = func(ctx context.Context, avatarURL string, allowPrivate bool) ([]byte, error) {
+		return fetchUpstreamAvatarWithClient(ctx, avatarURL, client, allowPrivate)
+	}
+
+	manager.run(context.Background(), 7, Provider{
+		ID: 11, Slug: "corp", Config: json.RawMessage(`{}`),
+	}, AvatarDelivery{URL: rawURL}, nil)
+
+	logged := logs.String()
+	for _, want := range []string{
+		"upstream avatar fetch failed", "avatar fetch transport error", `"account_id":7`,
+	} {
+		if !strings.Contains(logged, want) {
+			t.Fatalf("log = %q, want safe context %q", logged, want)
+		}
+	}
+	for _, secret := range []string{
+		"avatar-user", "avatar-password", "query-sentinel", "fragment-sentinel", "bearer-sentinel",
+	} {
+		if strings.Contains(logged, secret) {
+			t.Fatalf("network failure log leaked %q: %q", secret, logged)
+		}
+	}
+}
+
 func TestAvatarFetch_RejectsNonImage(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")

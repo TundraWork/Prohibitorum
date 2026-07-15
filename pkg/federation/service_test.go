@@ -126,6 +126,69 @@ func (s *setNXRecordingStore) SetNX(ctx context.Context, key, value string, ttl 
 	return s.Store.SetNX(ctx, key, value, ttl)
 }
 
+type contextRespectingStore struct {
+	kv.Store
+}
+
+func (s *contextRespectingStore) Get(ctx context.Context, key string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return s.Store.Get(ctx, key)
+}
+
+func (s *contextRespectingStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+func (s *contextRespectingStore) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return s.Store.SetNX(ctx, key, value, ttl)
+}
+
+func (s *contextRespectingStore) Pop(ctx context.Context, key string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return s.Store.Pop(ctx, key)
+}
+
+func (s *contextRespectingStore) CompareAndSwap(ctx context.Context, key, expectedValue, newValue string, ttl time.Duration) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return s.Store.CompareAndSwap(ctx, key, expectedValue, newValue, ttl)
+}
+
+func (s *contextRespectingStore) CompareAndDelete(ctx context.Context, key, expectedValue string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return s.Store.CompareAndDelete(ctx, key, expectedValue)
+}
+
+type leaseLossStore struct {
+	kv.Store
+	leaseKey        string
+	renewalAttempts chan struct{}
+}
+
+func (s *leaseLossStore) CompareAndSwap(ctx context.Context, key, expectedValue, newValue string, ttl time.Duration) (bool, error) {
+	if key == s.leaseKey {
+		select {
+		case s.renewalAttempts <- struct{}{}:
+		default:
+		}
+		return false, nil
+	}
+	return s.Store.CompareAndSwap(ctx, key, expectedValue, newValue, ttl)
+}
+
 type serviceDefinition struct {
 	ready bool
 }
@@ -1142,5 +1205,182 @@ func TestServiceRenewsLeaseDuringLongAdapterOperation(t *testing.T) {
 	}
 	if _, err := store.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
 		t.Fatalf("lease survived operation: %v", err)
+	}
+}
+
+func TestServiceCancellationKeepsLeaseUntilBlockedNonTerminalAdapterReturns(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	store := &contextRespectingStore{Store: baseStore}
+	service.kv = store
+	service.config.LockTTL = 30 * time.Millisecond
+	entered := make(chan struct{})
+	canceled := make(chan struct{})
+	unblock := make(chan struct{})
+	adapter.advanceContext = func(ctx context.Context, _ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		close(entered)
+		<-ctx.Done()
+		close(canceled)
+		<-unblock
+		return AdvanceResult{}, ctx.Err()
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestCtx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, prepareErr := service.PrepareFlow(requestCtx, AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+			Input: ActionInput{Kind: ActionRedirect},
+		})
+		result <- prepareErr
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("adapter did not start")
+	}
+	cancel()
+	select {
+	case <-canceled:
+	case <-time.After(time.Second):
+		t.Fatal("adapter operation context was not canceled")
+	}
+
+	time.Sleep(75 * time.Millisecond)
+	competing, err := store.SetNX(context.Background(), FlowLockKey(begin.FlowID), "competing-owner", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if competing {
+		t.Fatal("lease expired while canceled adapter operation was still unwinding")
+	}
+
+	close(unblock)
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("PrepareFlow error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("PrepareFlow did not return")
+	}
+	if _, err := store.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("lease survived release: %v", err)
+	}
+}
+
+func TestServiceTerminalCancellationRestoresFlowWithDetachedContext(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	store := &contextRespectingStore{Store: baseStore}
+	service.kv = store
+	entered := make(chan struct{})
+	adapter.advanceContext = func(ctx context.Context, _ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		close(entered)
+		<-ctx.Done()
+		return AdvanceResult{}, ctx.Err()
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestCtx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, verifyErr := service.VerifyFlow(requestCtx, AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+			Input: ActionInput{Kind: ActionRedirect},
+		})
+		result <- verifyErr
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("adapter did not start")
+	}
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("VerifyFlow error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("VerifyFlow did not return")
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatalf("canceled terminal flow was not restored: %v", err)
+	}
+	if after != before {
+		t.Fatal("canceled terminal restoration changed flow state")
+	}
+	if _, err := store.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("lease survived release: %v", err)
+	}
+}
+
+func TestServiceLeaseLossCancelsAdapterOperationContext(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	store := &leaseLossStore{
+		Store:           baseStore,
+		renewalAttempts: make(chan struct{}, 1),
+	}
+	service.kv = store
+	service.config.LockTTL = 30 * time.Millisecond
+	entered := make(chan struct{})
+	canceled := make(chan struct{})
+	adapter.advanceContext = func(ctx context.Context, _ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		close(entered)
+		<-ctx.Done()
+		close(canceled)
+		return AdvanceResult{}, ctx.Err()
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.leaseKey = FlowLockKey(begin.FlowID)
+	result := make(chan error, 1)
+	go func() {
+		_, prepareErr := service.PrepareFlow(context.Background(), AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+			Input: ActionInput{Kind: ActionRedirect},
+		})
+		result <- prepareErr
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("adapter did not start")
+	}
+	select {
+	case <-store.renewalAttempts:
+	case <-time.After(time.Second):
+		t.Fatal("lease renewal was not attempted")
+	}
+	select {
+	case <-canceled:
+	case <-time.After(time.Second):
+		t.Fatal("lease loss did not cancel adapter operation context")
+	}
+	select {
+	case err := <-result:
+		if !errors.Is(err, ErrKVUnavailable) {
+			t.Fatalf("PrepareFlow error = %v, want ErrKVUnavailable", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("PrepareFlow did not return after lease loss")
+	}
+	if _, err := baseStore.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("lease survived release: %v", err)
 	}
 }

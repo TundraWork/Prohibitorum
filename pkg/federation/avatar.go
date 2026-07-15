@@ -7,9 +7,11 @@ package federation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -51,6 +53,37 @@ func validateAvatarURL(rawURL string, allowPrivate bool) error {
 	return fmt.Errorf("federation/oidc: avatar url must be https, got %q", u.Scheme)
 }
 
+type avatarFetchError struct {
+	category string
+	cause    error
+}
+
+func (e *avatarFetchError) Error() string {
+	return "federation/oidc: avatar fetch " + e.category
+}
+
+func (e *avatarFetchError) Unwrap() error {
+	return e.cause
+}
+
+func sanitizeAvatarFetchError(err error) error {
+	category := "transport error"
+	switch {
+	case errors.Is(err, errHTTPRedirectDowngrade):
+		category = "redirect downgrade blocked"
+	case errors.Is(err, context.Canceled):
+		category = "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		category = "timeout"
+	default:
+		var networkError net.Error
+		if errors.As(err, &networkError) && networkError.Timeout() {
+			category = "timeout"
+		}
+	}
+	return &avatarFetchError{category: category, cause: err}
+}
+
 func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *http.Client, allowPrivate bool) ([]byte, error) {
 	if err := validateAvatarURL(rawURL, allowPrivate); err != nil {
 		return nil, err
@@ -61,7 +94,7 @@ func fetchUpstreamAvatarWithClient(ctx context.Context, rawURL string, client *h
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: avatar fetch: %w", err)
+		return nil, sanitizeAvatarFetchError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {

@@ -37,10 +37,12 @@ const (
 	maxFederationRedirects = 5
 )
 
-// errBlockedDialTarget is returned by the dialer's Control hook when a resolved
-// IP falls in a blocked range. Surfaced through the http.Client as a dial
-// error, which the federation layer collapses onto ErrFederationStateInvalid.
-var errBlockedDialTarget = errors.New("federation/oidc: refusing to dial blocked (internal/metadata) address")
+var (
+	// errBlockedDialTarget is returned by the dialer's Control hook when a
+	// resolved IP falls in a blocked range.
+	errBlockedDialTarget = errors.New("federation/oidc: refusing to dial blocked (internal/metadata) address")
+	errHTTPRedirectDowngrade = errors.New("federation/oidc: refusing http redirect downgrade from an https request")
+)
 
 // destinationClass is the pure result of classifying a single destination IP
 // against the exhaustive special-use table. The dial policy is:
@@ -399,7 +401,7 @@ func validateRedirectScheme(req *http.Request, via []*http.Request, allowPrivate
 		prevScheme = via[len(via)-1].URL.Scheme
 	}
 	if prevScheme != "http" {
-		return errors.New("federation/oidc: refusing http redirect downgrade from an https request")
+		return errHTTPRedirectDowngrade
 	}
 	return nil
 }

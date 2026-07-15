@@ -17,6 +17,8 @@ import (
 	"prohibitorum/pkg/kv"
 )
 
+const maxLeaseCleanupTimeout = 5 * time.Second
+
 var (
 	ErrKVUnavailable = errors.New("federation: kv unavailable")
 	ErrProviderUnready = errors.New("federation: provider unready")
@@ -77,16 +79,18 @@ type Service struct {
 }
 
 type flowLease struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	store       kv.Store
-	key         string
-	owner       string
-	ttl         time.Duration
-	stop        chan struct{}
-	done        chan struct{}
-	lost        chan struct{}
-	releaseOnce sync.Once
+	ctx               context.Context
+	cancel            context.CancelFunc
+	maintenanceCtx    context.Context
+	cancelMaintenance context.CancelFunc
+	store             kv.Store
+	key               string
+	owner             string
+	ttl               time.Duration
+	stop              chan struct{}
+	done              chan struct{}
+	lost              chan struct{}
+	releaseOnce       sync.Once
 }
 
 func NewService(registry *Registry, providers ProviderLoader, store kv.Store, resolver IdentityResolver, config ServiceConfig) *Service {
@@ -404,7 +408,9 @@ func (s *Service) restore(ctx context.Context, flowID string, state *FlowState, 
 		if err != nil { return fmt.Errorf("%w: restore encoding: %v", ErrKVUnavailable, err) }
 		raw = encoded
 	}
-	if err := s.kv.SetEx(ctx, FlowKey(flowID), raw, remaining); err != nil {
+	cleanupCtx, cancel := detachedCleanupContext(ctx, s.config.LockTTL)
+	defer cancel()
+	if err := s.kv.SetEx(cleanupCtx, FlowKey(flowID), raw, remaining); err != nil {
 		return fmt.Errorf("%w: restore flow: %v", ErrKVUnavailable, err)
 	}
 	return cause
@@ -419,19 +425,24 @@ func (s *Service) lock(ctx context.Context, flowID string) (*flowLease, error) {
 	if err != nil {
 		return nil, err
 	}
-	leaseCtx, cancel := context.WithCancel(ctx)
+	operationCtx, cancelOperation := context.WithCancel(ctx)
+	maintenanceCtx, cancelMaintenance := context.WithCancel(context.WithoutCancel(ctx))
 	key := FlowLockKey(flowID)
 	locked, err := s.kv.SetNX(ctx, key, owner, s.config.LockTTL)
 	if err != nil {
-		cancel()
+		cancelMaintenance()
+		cancelOperation()
 		return nil, fmt.Errorf("%w: lock flow: %v", ErrKVUnavailable, err)
 	}
 	if !locked {
-		cancel()
+		cancelMaintenance()
+		cancelOperation()
 		return nil, authn.ErrFederationStateInvalid()
 	}
 	lease := &flowLease{
-		ctx: leaseCtx, cancel: cancel, store: s.kv, key: key, owner: owner,
+		ctx: operationCtx, cancel: cancelOperation,
+		maintenanceCtx: maintenanceCtx, cancelMaintenance: cancelMaintenance,
+		store: s.kv, key: key, owner: owner,
 		ttl: s.config.LockTTL, stop: make(chan struct{}), done: make(chan struct{}),
 		lost: make(chan struct{}),
 	}
@@ -450,7 +461,7 @@ func (l *flowLease) renew() {
 	for {
 		select {
 		case <-ticker.C:
-			renewCtx, cancel := context.WithTimeout(l.ctx, l.ttl)
+			renewCtx, cancel := context.WithTimeout(l.maintenanceCtx, boundedLeaseCleanupTimeout(l.ttl))
 			renewed, err := l.store.CompareAndSwap(renewCtx, l.key, l.owner, l.owner, l.ttl)
 			cancel()
 			if err != nil || !renewed {
@@ -465,7 +476,7 @@ func (l *flowLease) renew() {
 			}
 		case <-l.stop:
 			return
-		case <-l.ctx.Done():
+		case <-l.maintenanceCtx.Done():
 			return
 		}
 	}
@@ -483,12 +494,24 @@ func (l *flowLease) check() error {
 func (l *flowLease) release() {
 	l.releaseOnce.Do(func() {
 		close(l.stop)
+		l.cancelMaintenance()
 		l.cancel()
 		<-l.done
-		releaseCtx, cancel := context.WithTimeout(context.Background(), l.ttl)
+		releaseCtx, cancel := detachedCleanupContext(l.ctx, l.ttl)
 		defer cancel()
 		_, _ = l.store.CompareAndDelete(releaseCtx, l.key, l.owner)
 	})
+}
+
+func detachedCleanupContext(parent context.Context, ttl time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(parent), boundedLeaseCleanupTimeout(ttl))
+}
+
+func boundedLeaseCleanupTimeout(ttl time.Duration) time.Duration {
+	if ttl > 0 && ttl < maxLeaseCleanupTimeout {
+		return ttl
+	}
+	return maxLeaseCleanupTimeout
 }
 
 func (s *Service) flowProvider(provider Provider) (Definition, Adapter, error) {
