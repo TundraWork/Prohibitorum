@@ -1386,3 +1386,205 @@ func TestResolverResolveIdentityInviteOutcome(t *testing.T) {
 		t.Fatalf("outcome = %+v", outcome)
 	}
 }
+
+func TestResolverLoginModeDriftToInviteOnlyRejectsWithAudit(t *testing.T) {
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	resolver := federationoidc.NewResolver(q, a, nil)
+
+	_, err := resolver.ResolveIdentity(
+		context.Background(),
+		genericProvider(federationoidc.ModeInviteOnly),
+		*goodTokens(),
+		federationoidc.ResolveContext{Intent: federationoidc.IntentLogin},
+	)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("ResolveIdentity error = %v, want invite_required", err)
+	}
+	if !a.hasFail("invite_required_no_token") {
+		t.Fatalf("audit records = %+v, want invite_required_no_token", a.snapshot())
+	}
+	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
+		t.Fatalf("mode drift mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+	}
+}
+
+func TestResolverLinkExistingSameAccountRemainsConflict(t *testing.T) {
+	for _, confirmed := range []bool{false, true} {
+		name := "pending"
+		confirmedAt := pgtype.Timestamptz{}
+		if confirmed {
+			name = "confirmed"
+			confirmedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+		}
+		t.Run(name, func(t *testing.T) {
+			q := newFakeModesQueries()
+			q.identityErr = nil
+			q.identityResult = db.AccountIdentity{
+				ID: 300, AccountID: 9, UpstreamIdpID: 42,
+				UpstreamIss: "https://issuer.example/", UpstreamSub: "sub-1",
+				ConfirmedAt: confirmedAt,
+			}
+			a := &recordingAudit{}
+			resolver := federationoidc.NewResolver(q, a, nil)
+
+			_, err := resolver.ResolveIdentity(
+				context.Background(),
+				genericProvider(federationoidc.ModeAutoProvision),
+				*goodTokens(),
+				federationoidc.ResolveContext{Intent: federationoidc.IntentLink, LinkAccountID: new(int32(9))},
+			)
+			if reason, ok := federationoidc.FailureReasonOf(err); !ok || reason != federationoidc.FailureLinkConflict {
+				t.Fatalf("ResolveIdentity error = %v, reason = %q", err, reason)
+			}
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if q.confirmedIdentityID != 0 || q.insertedIdentity.AccountID != 0 {
+				t.Fatalf("same-account conflict mutated identity: inserted=%+v confirmed=%d", q.insertedIdentity, q.confirmedIdentityID)
+			}
+			if findEvent(a.snapshot(), audit.EventLink) != nil {
+				t.Fatalf("same-account conflict emitted link success: %+v", a.snapshot())
+			}
+		})
+	}
+}
+
+func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
+	tests := []struct {
+		name         string
+		existing     db.AccountIdentity
+		account      db.Account
+		wantCode     string
+		wantEvent    string
+		wantReason   string
+		wantAccount  int32
+	}{
+		{
+			name: "confirmed existing emits use",
+			existing: db.AccountIdentity{
+				ID: 300, AccountID: 50, UpstreamIdpID: 42,
+				ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			},
+			account: db.Account{ID: 50, Username: "existing"},
+			wantEvent: audit.EventUse, wantAccount: 50,
+		},
+		{
+			name: "provider mismatch emits failure",
+			existing: db.AccountIdentity{
+				ID: 300, AccountID: 50, UpstreamIdpID: 99,
+				ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			},
+			account: db.Account{ID: 50, Username: "existing"},
+			wantCode: "federation_state_invalid", wantEvent: audit.EventFail,
+			wantReason: "idp_mismatch_relogin", wantAccount: 50,
+		},
+		{
+			name: "disabled account emits failure",
+			existing: db.AccountIdentity{
+				ID: 300, AccountID: 50, UpstreamIdpID: 42,
+				ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			},
+			account: db.Account{ID: 50, Username: "existing", Disabled: true},
+			wantCode: "bad_credentials", wantEvent: audit.EventFail,
+			wantReason: "account_disabled", wantAccount: 50,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			q := newFakeModesQueries()
+			q.identitySequence = []identityLookup{
+				{err: pgx.ErrNoRows},
+				{identity: test.existing},
+			}
+			q.accountByIDResults[test.account.ID] = test.account
+			a := &recordingAudit{}
+			resolver := federationoidc.NewResolver(q, a, nil)
+
+			_, err := resolver.ResolveIdentity(
+				context.Background(),
+				genericProvider(federationoidc.ModeAutoProvision),
+				*goodTokens(),
+				federationoidc.ResolveContext{Intent: federationoidc.IntentLogin},
+			)
+			if test.wantCode == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if ae := authn.AsAuthError(err); ae == nil || ae.Code != test.wantCode {
+				t.Fatalf("public error = %v, want %s", err, test.wantCode)
+			}
+			records := a.snapshot()
+			if len(records) != 1 {
+				t.Fatalf("audit records = %+v", records)
+			}
+			record := records[0]
+			if record.Event != test.wantEvent || record.AccountID == nil || *record.AccountID != test.wantAccount {
+				t.Fatalf("audit record = %+v", record)
+			}
+			if test.wantReason == "" {
+				if _, exists := record.Detail["reason"]; exists {
+					t.Fatalf("success audit has failure reason: %+v", record.Detail)
+				}
+			} else if record.Detail["reason"] != test.wantReason {
+				t.Fatalf("audit reason = %v, want %q", record.Detail["reason"], test.wantReason)
+			}
+		})
+	}
+}
+
+func TestResolverLinkInfrastructureFailuresAreOpaqueAndClassified(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*fakeModesQueries)
+	}{
+		{
+			name: "identity lookup",
+			setup: func(q *fakeModesQueries) {
+				q.identityErr = errors.New("database-secret: identity lookup")
+			},
+		},
+		{
+			name: "account lookup",
+			setup: func(q *fakeModesQueries) {
+				q.accountByIDErr = errors.New("database-secret: account lookup")
+			},
+		},
+		{
+			name: "disabled account",
+			setup: func(q *fakeModesQueries) {
+				q.accountByIDResults[9] = db.Account{ID: 9, Disabled: true}
+			},
+		},
+		{
+			name: "confirmation",
+			setup: func(q *fakeModesQueries) {
+				q.accountByIDResults[9] = db.Account{ID: 9}
+				q.confirmIdentityErr = errors.New("database-secret: confirmation")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			q := newFakeModesQueries()
+			test.setup(q)
+			resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+
+			_, err := resolver.ResolveIdentity(
+				context.Background(),
+				genericProvider(federationoidc.ModeAutoProvision),
+				*goodTokens(),
+				federationoidc.ResolveContext{Intent: federationoidc.IntentLink, LinkAccountID: new(int32(9))},
+			)
+			if reason, ok := federationoidc.FailureReasonOf(err); !ok || reason != federationoidc.FailureLinkInsert {
+				t.Fatalf("ResolveIdentity error = %v, reason = %q", err, reason)
+			}
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if err.Error() != "federation flow failed" {
+				t.Fatalf("error leaked infrastructure detail: %v", err)
+			}
+		})
+	}
+}

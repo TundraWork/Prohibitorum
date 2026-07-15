@@ -52,6 +52,7 @@ type AdvanceRequest struct {
 	BrowserToken string
 	ProviderSlug string
 	Protocol     string
+	CallbackRoute CallbackRoute
 	AccountID    *int32
 	SessionID    string
 	Input        ActionInput
@@ -163,6 +164,9 @@ func (s *Service) AdvanceCallback(ctx context.Context, request AdvanceRequest) (
 }
 
 func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*FlowView, error) {
+	if request.FlowID == "" || !validCallbackRoute(request.CallbackRoute) {
+		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+	}
 	unlock, err := s.lock(ctx, request.FlowID)
 	if err != nil { return nil, err }
 	defer unlock()
@@ -200,6 +204,9 @@ func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*Flo
 }
 
 func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*CompletionResult, error) {
+	if request.FlowID == "" || !validCallbackRoute(request.CallbackRoute) {
+		return nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
+	}
 	unlock, err := s.lock(ctx, request.FlowID)
 	if err != nil { return nil, err }
 	defer unlock()
@@ -295,6 +302,9 @@ func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (s
 	if err != nil || !state.ExpiresAt.After(s.now()) {
 		return "", nil, Provider{}, nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
 	}
+	if !callbackRouteAllowsIntent(request.CallbackRoute, state.Intent) {
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureStateInvalid, nil))
+	}
 	if !BrowserBindingOK(state.BrowserDigest, request.BrowserToken) {
 		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureBrowserBindingMismatch, nil))
 	}
@@ -338,7 +348,7 @@ func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *
 		detail[key] = value
 	}
 	var accountID *int32
-	if state != nil && state.Intent == IntentLink && request != nil && request.AccountID != nil {
+	if request != nil && request.CallbackRoute == CallbackRouteLink && request.AccountID != nil {
 		accountID = new(*request.AccountID)
 	}
 	audit.RecordOrLog(ctx, s.audit, audit.Record{
@@ -384,6 +394,21 @@ func (s *Service) flowProvider(provider Provider) (Definition, Adapter, error) {
 	definition, err := s.registry.Definition(provider.Protocol); if err != nil { return nil, nil, err }
 	adapter, err := s.registry.Adapter(provider.Protocol); if err != nil { return nil, nil, err }
 	return definition, adapter, nil
+}
+
+func validCallbackRoute(route CallbackRoute) bool {
+	return route == CallbackRoutePublic || route == CallbackRouteLink
+}
+
+func callbackRouteAllowsIntent(route CallbackRoute, intent Intent) bool {
+	switch route {
+	case CallbackRoutePublic:
+		return intent == IntentLogin || intent == IntentInvite
+	case CallbackRouteLink:
+		return intent == IntentLink
+	default:
+		return false
+	}
 }
 
 func (s *Service) callbackURL(slug string, intent Intent) string {

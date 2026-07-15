@@ -181,7 +181,7 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 	claimedID := Issuer + "/id/" + steamID
 	completion, err := service.VerifyFlow(context.Background(), federationcore.AdvanceRequest{
 		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "steam", Protocol: Protocol,
+		ProviderSlug: "steam", Protocol: Protocol, CallbackRoute: federationcore.CallbackRoutePublic,
 		Input: federationcore.ActionInput{
 			Kind: federationcore.ActionRedirect,
 			Params: url.Values{

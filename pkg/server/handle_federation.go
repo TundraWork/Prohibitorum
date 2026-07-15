@@ -134,6 +134,7 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
+		CallbackRoute: federation.CallbackRoutePublic,
 		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
 	})
 	if err != nil {

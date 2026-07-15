@@ -347,9 +347,13 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	// handle_federation.go handleFederationLoginCallbackHTTP.
 	isSteamCallback := code == "" && q.Get("openid.mode") == "id_res"
 	if state == "" || (code == "" && !isSteamCallback) {
-		// Stray / replayed callback. Federator's LinkCallback would also
-		// reject this on the KV Pop, but short-circuiting here keeps the
-		// audit log clean of accidental hits.
+		acct := sess.Account.ID
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
+			AccountID: &acct,
+			Factor:    audit.FactorFederationOIDC,
+			Event:     audit.EventFail,
+			Detail:    map[string]any{"reason": string(federation.FailureStateInvalid)},
+		})
 		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 		return
 	}
@@ -360,6 +364,7 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	}
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
+		CallbackRoute: federation.CallbackRouteLink,
 		AccountID: new(sess.Account.ID), SessionID: sess.Data.SessionID,
 		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
 	})

@@ -219,7 +219,7 @@ func TestServiceReadFlowProjectsPersistedLocalAction(t *testing.T) {
 func TestServiceRejectsRouteActionAndLinkBindingMismatch(t *testing.T) {
 	service, _, _, _ := newServiceHarness(t)
 	begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1"); if err != nil { t.Fatal(err) }
-	base := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect}}
+	base := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink, AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect}}
 	for name, mutate := range map[string]func(*AdvanceRequest){
 		"slug": func(r *AdvanceRequest){ r.ProviderSlug = "other" },
 		"protocol": func(r *AdvanceRequest){ r.Protocol = "other" },
@@ -237,7 +237,7 @@ func TestServiceNonTerminalAdvanceReplacesStateAndAction(t *testing.T) {
 		return AdvanceResult{State: json.RawMessage(`{"step":2}`), Next: &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}}, Candidate: &IdentityKey{Issuer: "iss", Subject: "unknown"}}, nil
 	}
 	begin, err := service.BeginLogin(context.Background(), "corp", "/"); if err != nil { t.Fatal(err) }
-	view, err := service.PrepareFlow(context.Background(), AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect}})
+	view, err := service.PrepareFlow(context.Background(), AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}})
 	if err != nil { t.Fatal(err) }
 	if view.Action.Kind != ActionPublishProof || view.Action.Public["requiresLocalUsername"] != true { t.Fatalf("action = %+v", view.Action) }
 	if resolver.calls != 0 { t.Fatal("non-terminal prepare resolved identity") }
@@ -260,7 +260,7 @@ func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{
 					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-					ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
 				}
 			},
 			wantLookup: true,
@@ -273,7 +273,7 @@ func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{
 					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-					ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
 				}
 			},
 		},
@@ -285,7 +285,7 @@ func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{
 					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-					ProviderSlug: "corp", Protocol: "fake", AccountID: new(int32(9)), SessionID: "session-1",
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink, AccountID: new(int32(9)), SessionID: "session-1",
 					Input: ActionInput{Kind: ActionRedirect},
 				}
 			},
@@ -345,7 +345,7 @@ func TestServiceTerminalFailureRestoresAndCommitConsumes(t *testing.T) {
 	}
 	request := AdvanceRequest{
 		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
 	}
 	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
 		t.Fatal("adapter failure accepted")
@@ -393,7 +393,7 @@ func TestServicePrepareFailuresPreserveExactFlow(t *testing.T) {
 	}
 	request := AdvanceRequest{
 		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
 	}
 
 	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
@@ -447,7 +447,7 @@ func TestServiceResolverFailureRestoresExactFlow(t *testing.T) {
 	}
 	request := AdvanceRequest{
 		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
 	}
 	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
 		t.Fatal("resolver failure accepted")
@@ -473,7 +473,7 @@ func TestServiceRestoreFailureReturnsKVUnavailableAndConsumesFlow(t *testing.T) 
 	service.kv = &failingRestoreStore{Store: baseStore, failSetEx: true}
 	request := AdvanceRequest{
 		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
 	}
 	if _, err := service.VerifyFlow(context.Background(), request); !errors.Is(err, ErrKVUnavailable) {
 		t.Fatalf("VerifyFlow error = %v, want kv unavailable", err)
@@ -568,7 +568,7 @@ func TestServiceKnownAtPrepareBecomingUnknownRestoresUsernamePromptOnly(t *testi
 	}
 	baseRequest := AdvanceRequest{
 		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
 	}
 	view, err := service.PrepareFlow(context.Background(), baseRequest)
 	if err != nil {
@@ -633,7 +633,7 @@ func TestServiceLinkCompletionDoesNotInheritAvatar(t *testing.T) {
 	}
 	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
 		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
-		ProviderSlug: "corp", Protocol: "fake",
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink,
 		AccountID: new(int32(9)), SessionID: "session-1",
 		Input: ActionInput{Kind: ActionRedirect},
 	})
@@ -682,7 +682,7 @@ func TestServiceAuditsBrowserAndProviderFailures(t *testing.T) {
 
 			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
 				FlowID: begin.FlowID, BrowserToken: test.browser(begin),
-				ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+				ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
 			})
 			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
 				t.Fatalf("public error = %v, want federation_state_invalid", err)
@@ -710,7 +710,7 @@ func TestServiceAuditsAllowlistedAdapterFailuresForEveryIntent(t *testing.T) {
 				return service.BeginLogin(context.Background(), "corp", "/")
 			},
 			request: func(begin *BeginResult) AdvanceRequest {
-				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect}}
+				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}}
 			},
 		},
 		{
@@ -719,7 +719,7 @@ func TestServiceAuditsAllowlistedAdapterFailuresForEveryIntent(t *testing.T) {
 				return service.BeginInvite(context.Background(), "invite-token", "/")
 			},
 			request: func(begin *BeginResult) AdvanceRequest {
-				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect}}
+				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}}
 			},
 		},
 		{
@@ -729,7 +729,7 @@ func TestServiceAuditsAllowlistedAdapterFailuresForEveryIntent(t *testing.T) {
 			},
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{
-					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake",
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink,
 					AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect},
 				}
 			},
@@ -820,7 +820,7 @@ func TestServiceAuditsLinkResolverFailureClassification(t *testing.T) {
 	}
 
 	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
-		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake",
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink,
 		AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect},
 	})
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
@@ -837,5 +837,184 @@ func TestServiceAuditsLinkResolverFailureClassification(t *testing.T) {
 	}
 	if _, leaked := record.Detail["email"]; leaked {
 		t.Fatalf("audit leaked email: %+v", record.Detail)
+	}
+}
+
+func TestServiceEnforcesCallbackRouteIntent(t *testing.T) {
+	tests := []struct {
+		name          string
+		begin         func(*Service) (*BeginResult, error)
+		route         CallbackRoute
+		accountID     *int32
+		sessionID     string
+		wantAccountID *int32
+	}{
+		{
+			name: "login state on link route",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/")
+			},
+			route: CallbackRouteLink, accountID: new(int32(9)), sessionID: "session-1",
+			wantAccountID: new(int32(9)),
+		},
+		{
+			name: "invite state on link route",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/")
+			},
+			route: CallbackRouteLink, accountID: new(int32(9)), sessionID: "session-1",
+			wantAccountID: new(int32(9)),
+		},
+		{
+			name: "link state on public route",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+			},
+			route: CallbackRoutePublic,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, resolver, _ := newServiceHarness(t)
+			writer := &serviceRecordingAudit{}
+			service.audit = writer
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			beginCalls := adapter.calls
+
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+				ProviderSlug: "corp", Protocol: "fake", CallbackRoute: test.route,
+				AccountID: test.accountID, SessionID: test.sessionID,
+				Input: ActionInput{Kind: ActionRedirect},
+			})
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if adapter.calls != beginCalls || resolver.calls != 0 {
+				t.Fatalf("route mismatch reached adapter/resolver: adapter=%d resolver=%d", adapter.calls, resolver.calls)
+			}
+			if len(writer.records) != 1 || writer.records[0].Detail["reason"] != string(FailureStateInvalid) {
+				t.Fatalf("audit records = %+v", writer.records)
+			}
+			record := writer.records[0]
+			if test.wantAccountID == nil && record.AccountID != nil ||
+				test.wantAccountID != nil && (record.AccountID == nil || *record.AccountID != *test.wantAccountID) {
+				t.Fatalf("audit account = %v, want %v", record.AccountID, test.wantAccountID)
+			}
+		})
+	}
+}
+
+func TestServicePublicCallbackAcceptsLoginAndInvite(t *testing.T) {
+	tests := []struct {
+		name  string
+		begin func(*Service) (*BeginResult, error)
+	}{
+		{
+			name: "login",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/")
+			},
+		},
+		{
+			name: "invite",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, _ := newServiceHarness(t)
+			adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+			}
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+				ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+				Input: ActionInput{Kind: ActionRedirect},
+			}); err != nil {
+				t.Fatalf("public callback rejected %s state: %v", test.name, err)
+			}
+		})
+	}
+}
+
+func TestServiceAttributesInvalidLinkStateToRequestAccount(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*Service, kv.Store) AdvanceRequest
+	}{
+		{
+			name: "missing",
+			setup: func(_ *Service, _ kv.Store) AdvanceRequest {
+				return AdvanceRequest{FlowID: "missing-flow"}
+			},
+		},
+		{
+			name: "malformed",
+			setup: func(_ *Service, store kv.Store) AdvanceRequest {
+				if err := store.SetEx(context.Background(), FlowKey("malformed-flow"), "database-secret", time.Minute); err != nil {
+					t.Fatal(err)
+				}
+				return AdvanceRequest{FlowID: "malformed-flow"}
+			},
+		},
+		{
+			name: "replayed",
+			setup: func(service *Service, _ kv.Store) AdvanceRequest {
+				begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+				if err != nil {
+					t.Fatal(err)
+				}
+				request := AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake",
+					CallbackRoute: CallbackRouteLink, AccountID: new(int32(9)), SessionID: "session-1",
+					Input: ActionInput{Kind: ActionRedirect},
+				}
+				if _, err := service.VerifyFlow(context.Background(), request); err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, store := newServiceHarness(t)
+			adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+			}
+			request := test.setup(service, store)
+			request.CallbackRoute = CallbackRouteLink
+			request.AccountID = new(int32(9))
+			request.SessionID = "session-1"
+			request.Input.Kind = ActionRedirect
+			writer := &serviceRecordingAudit{}
+			service.audit = writer
+
+			_, err := service.VerifyFlow(context.Background(), request)
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if len(writer.records) != 1 {
+				t.Fatalf("audit records = %+v", writer.records)
+			}
+			record := writer.records[0]
+			if record.AccountID == nil || *record.AccountID != 9 ||
+				record.Detail["reason"] != string(FailureStateInvalid) {
+				t.Fatalf("audit record = %+v", record)
+			}
+			if len(record.Detail) != 1 {
+				t.Fatalf("invalid state audit leaked detail: %+v", record.Detail)
+			}
+		})
 	}
 }

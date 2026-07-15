@@ -247,19 +247,54 @@ func applyAutoProvision(
 		switch {
 		case err == nil:
 			if finalIdentity.UpstreamIdpID != idp.ID {
+				audit.RecordOrLog(ctx, w, audit.Record{
+					AccountID: new(finalIdentity.AccountID),
+					Factor:    audit.FactorFederationOIDC,
+					Event:     audit.EventFail,
+					Detail: map[string]any{
+						"reason":           "idp_mismatch_relogin",
+						"idp_slug":         idp.Slug,
+						"bound_idp_id":     finalIdentity.UpstreamIdpID,
+						"attempted_idp_id": idp.ID,
+						"iss":              identity.Issuer,
+						"sub":              identity.Subject,
+					},
+				})
 				return ResolveOutcome{}, authn.ErrFederationStateInvalid()
 			}
-			account, accountErr := qtx.GetAccountByID(ctx, finalIdentity.AccountID)
-			if accountErr != nil {
-				return ResolveOutcome{}, fmt.Errorf("federation: lookup resolved account: %w", accountErr)
+			if err := syncClaims(ctx, qtx, idp, &finalIdentity, identity); err != nil {
+				if ae := authn.AsAuthError(err); ae != nil && ae.Code == "bad_credentials" {
+					audit.RecordOrLog(ctx, w, audit.Record{
+						AccountID: new(finalIdentity.AccountID),
+						Factor:    audit.FactorFederationOIDC,
+						Event:     audit.EventFail,
+						Detail: map[string]any{
+							"reason":   "account_disabled",
+							"idp_slug": idp.Slug,
+							"iss":      identity.Issuer,
+							"sub":      identity.Subject,
+						},
+					})
+				}
+				return ResolveOutcome{}, err
 			}
-			if account.Disabled {
-				return ResolveOutcome{}, authn.ErrBadCredentials()
+			confirmed := finalIdentity.ConfirmedAt.Valid
+			if confirmed {
+				audit.RecordOrLog(ctx, txAudit, audit.Record{
+					AccountID: new(finalIdentity.AccountID),
+					Factor:    audit.FactorFederationOIDC,
+					Event:     audit.EventUse,
+					Detail: map[string]any{
+						"idp_slug": idp.Slug,
+						"iss":      identity.Issuer,
+						"sub":      identity.Subject,
+					},
+				})
 			}
 			return ResolveOutcome{
 				AccountID: finalIdentity.AccountID, IdentityID: finalIdentity.ID,
 				ProviderID: idp.ID, AMR: append([]string(nil), identity.AMR...),
-				Confirmed: finalIdentity.ConfirmedAt.Valid,
+				Confirmed: confirmed,
 			}, nil
 		case !errors.Is(err, pgx.ErrNoRows):
 			return ResolveOutcome{}, fmt.Errorf("federation: authoritative identity lookup: %w", err)
@@ -767,6 +802,8 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 		switch row.Mode {
 		case ModeAutoProvision:
 			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, r.pool)
+		case ModeInviteOnly:
+			return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, "", nil)
 		case ModeLinkOnly:
 			return applyLinkOnly(ctx, r.audit, &row, &identity)
 		default:
@@ -786,30 +823,25 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, id
 		return ResolveOutcome{}, NewFailure(FailureDomainNotAllowed, nil)
 	}
 	return runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
-		existing, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
+		_, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
 			UpstreamIss: identity.Issuer,
 			UpstreamSub: identity.Subject,
 		})
 		switch {
 		case err == nil:
-			if existing.AccountID != accountID || existing.UpstreamIdpID != provider.ID {
-				return ResolveOutcome{}, NewFailure(FailureLinkConflict, map[string]any{
-					"iss": identity.Issuer, "sub": identity.Subject,
-				})
-			}
-			return ResolveOutcome{
-				AccountID: accountID, IdentityID: existing.ID, ProviderID: provider.ID,
-				AMR: append([]string(nil), identity.AMR...), Confirmed: existing.ConfirmedAt.Valid,
-			}, nil
+			return ResolveOutcome{}, NewFailure(FailureLinkConflict, map[string]any{
+				"iss": identity.Issuer, "sub": identity.Subject,
+			})
 		case !errors.Is(err, pgx.ErrNoRows):
-			return ResolveOutcome{}, fmt.Errorf("federation: authoritative link lookup: %w", err)
+			return ResolveOutcome{}, NewFailure(FailureLinkInsert, map[string]any{
+				"iss": identity.Issuer, "sub": identity.Subject,
+			})
 		}
 		account, err := qtx.GetAccountByID(ctx, accountID)
-		if err != nil {
-			return ResolveOutcome{}, fmt.Errorf("federation: lookup linking account: %w", err)
-		}
-		if account.Disabled {
-			return ResolveOutcome{}, authn.ErrAccountDisabled()
+		if err != nil || account.Disabled {
+			return ResolveOutcome{}, NewFailure(FailureLinkInsert, map[string]any{
+				"iss": identity.Issuer, "sub": identity.Subject,
+			})
 		}
 		linked, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
 			AccountID: accountID, UpstreamIdpID: provider.ID,
@@ -826,7 +858,9 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, id
 			})
 		}
 		if err := qtx.ConfirmAccountIdentity(ctx, linked.ID); err != nil {
-			return ResolveOutcome{}, fmt.Errorf("federation: confirm linked identity: %w", err)
+			return ResolveOutcome{}, NewFailure(FailureLinkInsert, map[string]any{
+				"iss": identity.Issuer, "sub": identity.Subject,
+			})
 		}
 		audit.RecordOrLog(ctx, txAudit, audit.Record{
 			AccountID: new(accountID), Factor: audit.FactorFederationOIDC, Event: audit.EventLink,

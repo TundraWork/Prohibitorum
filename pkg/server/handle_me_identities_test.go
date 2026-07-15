@@ -1043,6 +1043,29 @@ func TestMeIdentities_LinkCallback_MissingState(t *testing.T) {
 	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
 		t.Errorf("Location: want /error?error=federation_state_invalid&ref=…, got %q", loc)
 	}
+	found := false
+	for _, ev := range h.q.events {
+		if ev.Factor != string(audit.FactorFederationOIDC) || ev.Event != audit.EventFail {
+			continue
+		}
+		var detail map[string]any
+		if err := json.Unmarshal(ev.Detail, &detail); err != nil {
+			t.Fatal(err)
+		}
+		if detail["reason"] != string(fedoidc.FailureStateInvalid) {
+			continue
+		}
+		if ev.AccountID == nil || *ev.AccountID != h.linkAccountID {
+			t.Fatalf("audit account_id: want %d, got %v", h.linkAccountID, ev.AccountID)
+		}
+		if len(detail) != 1 {
+			t.Fatalf("missing-state audit leaked detail: %+v", detail)
+		}
+		found = true
+	}
+	if !found {
+		t.Fatalf("audit: missing account-attributed state_invalid row; events=%+v", h.q.events)
+	}
 }
 
 func TestMeIdentities_LinkCallback_UpstreamError(t *testing.T) {

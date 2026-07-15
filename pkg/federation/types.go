@@ -15,6 +15,13 @@ const (
 	IntentInvite Intent = "invite"
 )
 
+type CallbackRoute string
+
+const (
+	CallbackRoutePublic CallbackRoute = "public"
+	CallbackRouteLink   CallbackRoute = "link"
+)
+
 type ActionKind string
 
 const (
