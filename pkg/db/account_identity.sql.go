@@ -56,7 +56,7 @@ func (q *Queries) DeleteAccountIdentity(ctx context.Context, arg DeleteAccountId
 }
 
 const getAccountIdentityByIssuerSub = `-- name: GetAccountIdentityByIssuerSub :one
-SELECT id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at, confirmed_at FROM account_identity WHERE upstream_iss = $1 AND upstream_sub = $2
+SELECT id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at, confirmed_at, upstream_data FROM account_identity WHERE upstream_iss = $1 AND upstream_sub = $2
 `
 
 type GetAccountIdentityByIssuerSubParams struct {
@@ -76,14 +76,17 @@ func (q *Queries) GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAcco
 		&i.UpstreamEmail,
 		&i.LinkedAt,
 		&i.ConfirmedAt,
+		&i.UpstreamData,
 	)
 	return i, err
 }
 
 const insertAccountIdentity = `-- name: InsertAccountIdentity :one
-INSERT INTO account_identity (account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email)
+INSERT INTO account_identity (
+  account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email
+)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at, confirmed_at
+RETURNING id, account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, linked_at, confirmed_at, upstream_data
 `
 
 type InsertAccountIdentityParams struct {
@@ -112,12 +115,13 @@ func (q *Queries) InsertAccountIdentity(ctx context.Context, arg InsertAccountId
 		&i.UpstreamEmail,
 		&i.LinkedAt,
 		&i.ConfirmedAt,
+		&i.UpstreamData,
 	)
 	return i, err
 }
 
 const listAccountIdentitiesByAccount = `-- name: ListAccountIdentitiesByAccount :many
-SELECT ai.id, ai.account_id, ai.upstream_idp_id, ai.upstream_iss, ai.upstream_sub, ai.upstream_email, ai.linked_at, ai.confirmed_at, ip.slug AS idp_slug, ip.display_name AS idp_display_name
+SELECT ai.id, ai.account_id, ai.upstream_idp_id, ai.upstream_iss, ai.upstream_sub, ai.upstream_email, ai.linked_at, ai.confirmed_at, ai.upstream_data, ip.slug AS idp_slug, ip.display_name AS idp_display_name
 FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
 WHERE ai.account_id = $1
@@ -132,6 +136,7 @@ type ListAccountIdentitiesByAccountRow struct {
 	UpstreamEmail  pgtype.Text        `json:"upstreamEmail"`
 	LinkedAt       pgtype.Timestamptz `json:"linkedAt"`
 	ConfirmedAt    pgtype.Timestamptz `json:"confirmedAt"`
+	UpstreamData   []byte             `json:"upstreamData"`
 	IdpSlug        string             `json:"idpSlug"`
 	IdpDisplayName string             `json:"idpDisplayName"`
 }
@@ -154,6 +159,7 @@ func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID 
 			&i.UpstreamEmail,
 			&i.LinkedAt,
 			&i.ConfirmedAt,
+			&i.UpstreamData,
 			&i.IdpSlug,
 			&i.IdpDisplayName,
 		); err != nil {
@@ -168,7 +174,9 @@ func (q *Queries) ListAccountIdentitiesByAccount(ctx context.Context, accountID 
 }
 
 const updateAccountIdentityEmail = `-- name: UpdateAccountIdentityEmail :exec
-UPDATE account_identity SET upstream_email = $2 WHERE id = $1
+UPDATE account_identity
+SET upstream_email = $2
+WHERE id = $1
 `
 
 type UpdateAccountIdentityEmailParams struct {

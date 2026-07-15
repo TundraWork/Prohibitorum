@@ -14,6 +14,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -26,9 +27,11 @@ import (
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 	"prohibitorum/pkg/protocol/oidc"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 )
@@ -225,30 +228,28 @@ func ensureTestRP(ctx context.Context, q *db.Queries, label string) string {
 }
 
 func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mode, issuer, plaintext string, dek []byte, keyVer int32) {
-	scopes := []string{"openid", "email", "profile"}
+	configRaw, err := json.Marshal(federationoidc.Config{
+		IssuerURL: issuer, ClientID: fedClientID, Scopes: []string{"openid", "email", "profile"},
+		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
+		EmailClaim: "email", PictureClaim: "picture", AllowPrivateNetwork: true,
+	})
+	if err != nil {
+		log.Fatalf("dev-federation: encode idp %q config: %v", slug, err)
+	}
 	var rowID int64
 	existing, err := q.GetUpstreamIDPBySlugAny(ctx, slug)
 	switch {
 	case err == nil:
 		if _, err := q.UpdateUpstreamIDPConfig(ctx, db.UpdateUpstreamIDPConfigParams{
-			Slug: slug, DisplayName: displayName, IssuerUrl: issuer, ClientID: fedClientID,
-			Scopes: scopes, Mode: mode, AllowedDomains: []string{},
-			UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
-			RequireVerifiedEmail: false, Disabled: false, PictureClaim: "picture",
-			AllowPrivateNetwork: true, // loopback-only dev harness upstream
+			Slug: slug, DisplayName: displayName, Mode: mode, ProviderConfig: configRaw,
 		}); err != nil {
 			log.Fatalf("dev-federation: update idp %q: %v", slug, err)
 		}
 		rowID = existing.ID
 	case errors.Is(err, pgx.ErrNoRows):
-		placeholder := make([]byte, 1)
 		row, err := q.InsertUpstreamIDP(ctx, db.InsertUpstreamIDPParams{
-			Slug: slug, DisplayName: displayName, IssuerUrl: issuer, ClientID: fedClientID,
-			ClientSecretEnc: placeholder, SecretNonce: placeholder, KeyVersion: keyVer,
-			Scopes: scopes, Mode: mode, AllowedDomains: []string{},
-			UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email",
-			RequireVerifiedEmail: false, PictureClaim: "picture",
-			AllowPrivateNetwork: true, // loopback-only dev harness upstream
+			Slug: slug, DisplayName: displayName, Protocol: federationoidc.Protocol, Mode: mode,
+			ProviderConfig: configRaw, SecretStatus: "unconfigured",
 		})
 		if err != nil {
 			log.Fatalf("dev-federation: insert idp %q: %v", slug, err)
@@ -261,10 +262,15 @@ func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mo
 	if err != nil {
 		log.Fatalf("dev-federation: seal idp %q: %v", slug, err)
 	}
-	if err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
-		Slug: slug, ClientSecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce, KeyVersion: keyVer,
+	if _, err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
+		Slug: slug, SecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce,
+		KeyVersion: pgtype.Int4{Int32: keyVer, Valid: true}, SecretStatus: "valid",
+		SecretValidatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}); err != nil {
 		log.Fatalf("dev-federation: reseal idp %q: %v", slug, err)
+	}
+	if _, err := q.SetUpstreamIDPDisabled(ctx, db.SetUpstreamIDPDisabledParams{Slug: slug, Disabled: false}); err != nil {
+		log.Fatalf("dev-federation: enable idp %q: %v", slug, err)
 	}
 	fmt.Printf("    [downstream] upstream_idp %q (mode=%s, issuer=%s) wired\n", slug, mode, issuer)
 }

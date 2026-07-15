@@ -1005,6 +1005,7 @@ export default {
 
       // System
       maintenance_mode: 'The system is under maintenance. Please try again later.',
+      provider_not_ready: 'That identity provider is not ready to be enabled.',
       database_unavailable: 'The database is temporarily unavailable. Please try again.',
       kv_unavailable: 'A temporary service issue occurred. Please try again.',
     },

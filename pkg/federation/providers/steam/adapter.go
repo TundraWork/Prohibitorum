@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
@@ -14,27 +13,38 @@ import (
 
 const Protocol = "steam"
 
-type Config struct {
-	AllowPrivateNetwork bool `json:"allowPrivateNetwork,omitempty"`
-}
+type Config struct{}
 
 type Definition struct{}
+
 func (Definition) Protocol() string { return Protocol }
 func (Definition) Descriptor() federationcore.Descriptor {
-	return federationcore.Descriptor{Protocol: Protocol, SearchFields: []federationcore.SearchField{{Key: "steamId", Operators: []federationcore.SearchOperator{federationcore.SearchExact}}}, RequiresSecret: true}
+	return federationcore.Descriptor{Protocol: Protocol, SearchFields: []federationcore.SearchField{
+		{Key: "steamId", Operators: []federationcore.SearchOperator{federationcore.SearchExact}},
+		{Key: "personaName", Operators: []federationcore.SearchOperator{federationcore.SearchExact, federationcore.SearchPrefix, federationcore.SearchContains}},
+	}, RequiresSecret: true}
 }
 func (Definition) ValidateConfig(raw json.RawMessage) error {
-	var config Config
-	if len(raw) == 0 { return errors.New("federation/steam: missing config") }
-	if err := json.Unmarshal(raw, &config); err != nil { return fmt.Errorf("federation/steam: decode config: %w", err) }
+	if len(raw) == 0 {
+		return errors.New("federation/steam: missing config")
+	}
+	var config map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &config); err != nil || config == nil || len(config) != 0 {
+		return errors.New("federation/steam: config must be an empty object")
+	}
 	return nil
 }
 func (Definition) ValidateSecret(secret []byte) error {
-	if len(secret) == 0 { return errors.New("federation/steam: API key is required") }
+	if len(secret) == 0 {
+		return errors.New("federation/steam: API key is required")
+	}
 	return nil
 }
 func (d Definition) Ready(provider federationcore.Provider) bool {
-	return provider.Protocol == Protocol && !provider.Disabled && provider.Secret != nil && provider.SecretStatus == "valid" && d.ValidateConfig(provider.Config) == nil
+	return provider.Protocol == Protocol &&
+		provider.Secret != nil &&
+		(provider.SecretStatus == "configured" || provider.SecretStatus == "valid") &&
+		d.ValidateConfig(provider.Config) == nil
 }
 
 type clientSlot struct {
@@ -57,14 +67,23 @@ func NewAdapter(secrets *federationcore.SecretStore) *Adapter {
 }
 func (*Adapter) Protocol() string { return Protocol }
 
-type adapterState struct { ReturnTo string `json:"returnTo"` }
+type adapterState struct {
+	ReturnTo string `json:"returnTo"`
+}
 
 func (a *Adapter) Begin(_ context.Context, _ federationcore.Provider, begin federationcore.BeginContext) (json.RawMessage, federationcore.NextAction, error) {
 	callback, err := url.Parse(begin.CallbackURL)
-	if err != nil || callback.Scheme == "" || callback.Host == "" { return nil, federationcore.NextAction{}, errors.New("federation/steam: invalid callback URL") }
-	query := callback.Query(); query.Set("state", begin.FlowID); callback.RawQuery = query.Encode()
+	if err != nil || callback.Scheme == "" || callback.Host == "" {
+		return nil, federationcore.NextAction{}, errors.New("federation/steam: invalid callback URL")
+	}
+	query := callback.Query()
+	query.Set("state", begin.FlowID)
+	callback.RawQuery = query.Encode()
 	returnTo := callback.String()
-	raw, err := json.Marshal(adapterState{ReturnTo: returnTo}); if err != nil { return nil, federationcore.NextAction{}, err }
+	raw, err := json.Marshal(adapterState{ReturnTo: returnTo})
+	if err != nil {
+		return nil, federationcore.NextAction{}, err
+	}
 	realm := callback.Scheme + "://" + callback.Host
 	return raw, federationcore.NextAction{Kind: federationcore.ActionRedirect, URL: BuildAuthURL(realm, returnTo)}, nil
 }
@@ -77,16 +96,26 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 	if err := json.Unmarshal(raw, &state); err != nil || state.ReturnTo == "" {
 		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
 	}
-	config, apiKey, err := a.open(provider)
-	if err != nil { return federationcore.AdvanceResult{}, err }
-	client := a.outboundClient(config.AllowPrivateNetwork)
+	_, apiKey, err := a.open(provider)
+	if err != nil {
+		return federationcore.AdvanceResult{}, err
+	}
+	client := a.outboundClient(false)
 	var steamID string
-	if a.verify != nil { steamID, err = a.verify(ctx, input.Params, state.ReturnTo) } else { steamID, err = Verify(ctx, client, input.Params, state.ReturnTo) }
+	if a.verify != nil {
+		steamID, err = a.verify(ctx, input.Params, state.ReturnTo)
+	} else {
+		steamID, err = Verify(ctx, client, input.Params, state.ReturnTo)
+	}
 	if err != nil {
 		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureSteamVerification, nil)
 	}
 	var player Summary
-	if a.summary != nil { player, err = a.summary(ctx, apiKey, steamID) } else { player, err = FetchSummary(ctx, client, apiKey, steamID) }
+	if a.summary != nil {
+		player, err = a.summary(ctx, apiKey, steamID)
+	} else {
+		player, err = FetchSummary(ctx, client, apiKey, steamID)
+	}
 	if err != nil {
 		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureSteamVerification, nil)
 	}
@@ -98,7 +127,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 			"steamId": steamID, "personaName": player.PersonaName,
 			"profileUrl": "https://steamcommunity.com/profiles/" + steamID, "avatarUrl": avatarURL,
 		},
-	}}, nil
+	}, Avatar: &federationcore.AvatarDelivery{URL: avatarURL}}, nil
 }
 
 func (a *Adapter) outboundClient(allowPrivate bool) *http.Client {
@@ -115,11 +144,19 @@ func (a *Adapter) outboundClient(allowPrivate bool) *http.Client {
 
 func (a *Adapter) open(provider federationcore.Provider) (Config, string, error) {
 	var config Config
-	if err := json.Unmarshal(provider.Config, &config); err != nil { return Config{}, "", err }
-	if provider.Secret == nil { return Config{}, "", errors.New("federation/steam: provider secret is missing") }
+	if err := (Definition{}).ValidateConfig(provider.Config); err != nil {
+		return Config{}, "", err
+	}
+	if provider.Secret == nil {
+		return Config{}, "", errors.New("federation/steam: provider secret is missing")
+	}
 	secret, err := a.secrets.OpenProviderSecret(*provider.Secret, provider.ID)
-	if err != nil { return Config{}, "", err }
-	if err := (Definition{}).ValidateSecret(secret); err != nil { return Config{}, "", err }
+	if err != nil {
+		return Config{}, "", err
+	}
+	if err := (Definition{}).ValidateSecret(secret); err != nil {
+		return Config{}, "", err
+	}
 	return config, string(secret), nil
 }
 

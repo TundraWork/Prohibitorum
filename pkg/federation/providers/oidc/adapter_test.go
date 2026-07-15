@@ -15,13 +15,13 @@ import (
 )
 
 type adapterFakeClient struct {
-	tokens         *Tokens
-	tokenEndpoint  string
-	exchanges      *int
-	userInfo       map[string]any
-	userInfoCalls  int
-	userInfoErr    error
-	exchangeErr    error
+	tokens        *Tokens
+	tokenEndpoint string
+	exchanges     *int
+	userInfo      map[string]any
+	userInfoCalls int
+	userInfoErr   error
+	exchangeErr   error
 }
 
 func (c *adapterFakeClient) Issuer() string { return "https://issuer.test" }
@@ -31,7 +31,9 @@ func (c *adapterFakeClient) TokenEndpoint() string {
 	}
 	return "https://issuer.test/token"
 }
-func (c *adapterFakeClient) AuthURL(state, nonce, challenge string) string { return "https://issuer.test/auth?state=" + state + "&nonce=" + nonce + "&challenge=" + challenge }
+func (c *adapterFakeClient) AuthURL(state, nonce, challenge string) string {
+	return "https://issuer.test/auth?state=" + state + "&nonce=" + nonce + "&challenge=" + challenge
+}
 func (c *adapterFakeClient) Exchange(context.Context, string, string, string, string) (*Tokens, error) {
 	if c.exchanges != nil {
 		*c.exchanges = *c.exchanges + 1
@@ -43,23 +45,44 @@ func (c *adapterFakeClient) UserInfo(context.Context, string, string) (map[strin
 	return c.userInfo, c.userInfoErr
 }
 
+func adapterTestConfig(issuer string, allowPrivate bool) json.RawMessage {
+	raw, _ := json.Marshal(Config{
+		IssuerURL: issuer, ClientID: "client", Scopes: []string{"openid"},
+		AllowedDomains: []string{}, UsernameClaim: "preferred_username",
+		DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture",
+		RequireVerifiedEmail: true, AllowPrivateNetwork: allowPrivate,
+	})
+	return raw
+}
+
 func TestAdapterBeginAndAdvanceVerifiedIdentity(t *testing.T) {
 	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
-	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1); if err != nil { t.Fatal(err) }
-	provider := federationcore.Provider{ID: 7, Slug: "corp", Protocol: Protocol, Config: json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture"}`), Secret: secret, SecretStatus: "valid"}
+	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := federationcore.Provider{ID: 7, Slug: "corp", Protocol: Protocol, Config: adapterTestConfig("https://issuer.test", false), Secret: secret, SecretStatus: "valid"}
 	adapter := NewAdapter(store)
 	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
-		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub", EmailVerified: true, AMR: []string{"pwd"}, Raw: map[string]any{"preferred_username":"alice","name":"Alice","email":"alice@example.com","picture":"https://cdn.test/a.png"}}}, nil
+		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub", EmailVerified: true, AMR: []string{"pwd"}, Raw: map[string]any{"preferred_username": "alice", "name": "Alice", "email": "alice@example.com", "picture": "https://cdn.test/a.png"}}}, nil
 	}
 	state, action, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback"})
-	if err != nil { t.Fatal(err) }
-	if action.Kind != federationcore.ActionRedirect || action.URL == "" { t.Fatalf("action = %+v", action) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if action.Kind != federationcore.ActionRedirect || action.URL == "" {
+		t.Fatalf("action = %+v", action)
+	}
 	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Code: "code", Issuer: "https://issuer.test"})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if result.Identity == nil || result.Identity.Username != "alice" || result.Identity.DisplayName != "Alice" || result.Identity.Email == nil || *result.Identity.Email != "alice@example.com" || !result.Identity.EmailVerificationSupported || result.Identity.AvatarURL != "https://cdn.test/a.png" {
 		t.Fatalf("identity = %+v", result.Identity)
 	}
-	if len(result.State) != 0 || result.Next != nil { t.Fatalf("terminal result carried state/action: %+v", result) }
+	if len(result.State) != 0 || result.Next != nil {
+		t.Fatalf("terminal result carried state/action: %+v", result)
+	}
 }
 
 func TestAdapterDefersUserInfoAvatarFallback(t *testing.T) {
@@ -70,7 +93,7 @@ func TestAdapterDefersUserInfoAvatarFallback(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"],"pictureClaim":"picture"}`),
+		Config:       adapterTestConfig("https://issuer.test", false),
 		Secret:       secret,
 		SecretStatus: "valid",
 	}
@@ -122,7 +145,7 @@ func TestAdapterAdvanceAllowsOptionalAuthorizationResponseIssuer(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+		Config:       adapterTestConfig("https://issuer.test", false),
 		Secret:       secret,
 		SecretStatus: "valid",
 	}
@@ -157,7 +180,7 @@ func TestAdapterCachesClientAcrossBeginAndAdvance(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+		Config:       adapterTestConfig("https://issuer.test", false),
 		Secret:       secret,
 		SecretStatus: "valid",
 	}
@@ -197,7 +220,7 @@ func TestAdapterInvalidateClientCacheEvictsOnlyProviderSlug(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+		Config:       adapterTestConfig("https://issuer.test", false),
 		Secret:       secret,
 		SecretStatus: "valid",
 	}
@@ -248,7 +271,7 @@ func TestAdapterClientCacheRebuildsOnKeyVersionChange(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+		Config:       adapterTestConfig("https://issuer.test", false),
 		Secret:       secretV1,
 		SecretStatus: "valid",
 	}
@@ -284,7 +307,7 @@ func TestAdapterClientCacheExpiresAfterFifteenMinutes(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+		Config:       adapterTestConfig("https://issuer.test", false),
 		Secret:       secret,
 		SecretStatus: "valid",
 	}
@@ -326,7 +349,7 @@ func TestAdapterClientCacheSeparatesPrivateNetworkPolicy(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"],"allowPrivateNetwork":true}`),
+		Config:       adapterTestConfig("https://issuer.test", true),
 		Secret:       secret,
 		SecretStatus: "valid",
 	}
@@ -348,7 +371,7 @@ func TestAdapterClientCacheSeparatesPrivateNetworkPolicy(t *testing.T) {
 	}
 
 	begin()
-	provider.Config = json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"],"allowPrivateNetwork":false}`)
+	provider.Config = adapterTestConfig("https://issuer.test", false)
 	begin()
 	begin()
 	if builds != 2 {
@@ -378,7 +401,7 @@ func TestAdapterAdvanceClassifiesIssuerAndExchangeFailures(t *testing.T) {
 			}
 			provider := federationcore.Provider{
 				ID: 7, Slug: "corp", Protocol: Protocol,
-				Config: json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+				Config: adapterTestConfig("https://issuer.test", false),
 				Secret: secret, SecretStatus: "valid",
 			}
 			adapter := NewAdapter(store)
@@ -416,7 +439,7 @@ func TestAdapterAdvanceRejectsTokenEndpointDriftBeforeExchange(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config:       json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`),
+		Config:       adapterTestConfig("https://issuer.test", false),
 		Secret:       secret,
 		SecretStatus: "valid",
 	}
@@ -482,12 +505,7 @@ func TestAdapterCachePreventsRepeatedOIDCDiscovery(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: "corp", Protocol: Protocol,
-		Config: json.RawMessage(`{
-			"issuerUrl":"` + server.URL + `",
-			"clientId":"client",
-			"scopes":["openid"],
-			"allowPrivateNetwork":true
-		}`),
+		Config:       adapterTestConfig(server.URL, true),
 		Secret:       secret,
 		SecretStatus: "valid",
 	}
@@ -506,10 +524,18 @@ func TestAdapterCachePreventsRepeatedOIDCDiscovery(t *testing.T) {
 
 func TestDefinitionReadiness(t *testing.T) {
 	definition := Definition{}
-	provider := federationcore.Provider{Protocol: Protocol, Config: json.RawMessage(`{"issuerUrl":"https://issuer.test","clientId":"client","scopes":["openid"]}`), Secret: &federationcore.SealedSecret{Ciphertext: []byte{1}, Nonce: []byte{2}, KeyVersion: 1}, SecretStatus: "valid"}
-	if !definition.Ready(provider) { t.Fatal("valid provider not ready") }
+	provider := federationcore.Provider{Protocol: Protocol, Config: json.RawMessage(validDefinitionConfig), Secret: &federationcore.SealedSecret{Ciphertext: []byte{1}, Nonce: []byte{2}, KeyVersion: 1}, SecretStatus: "valid"}
+	if !definition.Ready(provider) {
+		t.Fatal("valid provider not ready")
+	}
 	provider.SecretStatus = "invalid"
-	if definition.Ready(provider) { t.Fatal("invalid secret status ready") }
-	if err := definition.ValidateSecret(nil); err == nil { t.Fatal("empty secret accepted") }
-	if err := definition.ValidateConfig(json.RawMessage(`{"issuerUrl":"http://issuer.test"}`)); err == nil { t.Fatal("invalid config accepted") }
+	if definition.Ready(provider) {
+		t.Fatal("invalid secret status ready")
+	}
+	if err := definition.ValidateSecret(nil); err == nil {
+		t.Fatal("empty secret accepted")
+	}
+	if err := definition.ValidateConfig(json.RawMessage(`{"issuerUrl":"http://issuer.test"}`)); err == nil {
+		t.Fatal("invalid config accepted")
+	}
 }

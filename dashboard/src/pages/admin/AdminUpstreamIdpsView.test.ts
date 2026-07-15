@@ -12,9 +12,21 @@ import AdminUpstreamIdpsView from './AdminUpstreamIdpsView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminUpstreamIdpsView, { global: { plugins: [i18n()] }, attachTo: document.body })
+const OIDC_CONFIG = {
+  issuerUrl: 'https://okta/',
+  clientId: 'c1',
+  scopes: ['openid'],
+  allowedDomains: [],
+  usernameClaim: 'preferred_username',
+  displayNameClaim: 'name',
+  emailClaim: 'email',
+  pictureClaim: 'picture',
+  requireVerifiedEmail: false,
+  allowPrivateNetwork: false,
+}
 const IDPS = [
-  { slug: 'okta', displayName: 'Okta', issuerUrl: 'https://okta/', clientId: 'c1', scopes: ['openid'], mode: 'auto_provision', allowedDomains: [], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', pictureClaim: 'picture', requireVerifiedEmail: false, disabled: false, createdAt: '2026-01-01T00:00:00Z' },
-  { slug: 'entra', displayName: 'Entra', issuerUrl: 'https://entra/', clientId: 'c2', scopes: ['openid'], mode: 'invite_only', allowedDomains: [], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', pictureClaim: 'picture', requireVerifiedEmail: true, disabled: true, createdAt: '2026-01-02T00:00:00Z' },
+  { slug: 'okta', displayName: 'Okta', protocol: 'oidc', mode: 'auto_provision', config: OIDC_CONFIG, disabled: false, secretConfigured: true, secretStatus: 'valid', secretValidatedAt: null, ready: true, supportsOperator: false, searchFields: [], createdAt: '2026-01-01T00:00:00Z' },
+  { slug: 'entra', displayName: 'Entra', protocol: 'oidc', mode: 'invite_only', config: { ...OIDC_CONFIG, issuerUrl: 'https://entra/', clientId: 'c2', requireVerifiedEmail: true }, disabled: true, secretConfigured: true, secretStatus: 'configured', secretValidatedAt: null, ready: false, supportsOperator: false, searchFields: [], createdAt: '2026-01-02T00:00:00Z' },
 ]
 beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
@@ -45,7 +57,7 @@ describe('AdminUpstreamIdpsView', () => {
     await w.find('[data-test="idp-row-okta"]').trigger('click')
     expect(push).toHaveBeenCalledWith('/admin/identity-providers/okta')
   })
-  it('creates a provider with mode + secret via withSudo', async () => {
+  it('creates an OIDC provider with adapter config and a generic secret', async () => {
     get.mockResolvedValue([])
     post.mockResolvedValue({ slug: 'new', displayName: 'New', mode: 'link_only' })
     const w = mountView(); await flushPromises()
@@ -57,14 +69,49 @@ describe('AdminUpstreamIdpsView', () => {
     await w.find('input[name="clientSecret"]').setValue('sek')
     await w.find('[data-test="radio-card-link_only"]').trigger('click'); await flushPromises()
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({
-      slug: 'new', displayName: 'New', issuerUrl: 'https://new/', clientId: 'cid', clientSecret: 'sek', mode: 'link_only',
-    }))
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', {
+      slug: 'new',
+      displayName: 'New',
+      protocol: 'oidc',
+      mode: 'link_only',
+      config: {
+        issuerUrl: 'https://new/',
+        clientId: 'cid',
+        scopes: ['openid', 'profile', 'email'],
+        allowedDomains: [],
+        usernameClaim: 'preferred_username',
+        displayNameClaim: 'name',
+        emailClaim: 'email',
+        pictureClaim: 'picture',
+        requireVerifiedEmail: false,
+        allowPrivateNetwork: false,
+      },
+      secret: 'sek',
+    })
     expect(w.text()).toContain(en.admin.upstream.created)
+  })
+  it('creates a Steam provider with empty adapter config and a generic secret', async () => {
+    get.mockResolvedValue([])
+    post.mockResolvedValue({ slug: 'steam', displayName: 'Steam', protocol: 'steam', mode: 'auto_provision', config: {} })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    await w.find('[data-test="radio-card-steam"]').trigger('click'); await flushPromises()
+    await w.find('input[name="slug"]').setValue('steam')
+    await w.find('input[name="displayName"]').setValue('Steam')
+    await w.find('input[name="apiKey"]').setValue('api-key')
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', {
+      slug: 'steam',
+      displayName: 'Steam',
+      protocol: 'steam',
+      mode: 'auto_provision',
+      config: {},
+      secret: 'api-key',
+    })
   })
   it('includes pictureClaim in create payload and renders the input', async () => {
     get.mockResolvedValue([])
-    post.mockResolvedValue({ slug: 'new', displayName: 'New', mode: 'auto_provision', pictureClaim: 'avatar' })
+    post.mockResolvedValue({ slug: 'new', displayName: 'New', mode: 'auto_provision', config: { ...OIDC_CONFIG, pictureClaim: 'avatar' } })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     expect(w.find('input[name="pictureClaim"]').exists()).toBe(true)
@@ -75,7 +122,9 @@ describe('AdminUpstreamIdpsView', () => {
     await w.find('input[name="clientSecret"]').setValue('sek')
     await w.find('input[name="pictureClaim"]').setValue('avatar')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({ pictureClaim: 'avatar' }))
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({
+      config: expect.objectContaining({ pictureClaim: 'avatar' }),
+    }))
   })
   it('renders claim inputs as a compact grid with default-value placeholders and pre-filled defaults', async () => {
     get.mockResolvedValue([])

@@ -2,6 +2,7 @@ package federation_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -248,19 +249,46 @@ func (r *recordingAudit) hasFail(reason string) bool {
 
 // helpers --------------------------------------------------------------
 
-func newIDP(mode string) *db.UpstreamIdp {
-	return &db.UpstreamIdp{
-		ID:                   42,
-		Slug:                 "test-idp",
-		IssuerUrl:            "https://issuer.example/",
-		Mode:                 mode,
-		RequireVerifiedEmail: true,
-		// Schema defaults (migration 004): pass them explicitly because the
-		// fake row construction here doesn't run the DB-side defaults.
-		UsernameClaim:    "preferred_username",
-		DisplayNameClaim: "name",
-		EmailClaim:       "email",
+func newIDP(mode string) *federationoidc.Provider {
+	return &federationoidc.Provider{
+		ID:       42,
+		Slug:     "test-idp",
+		Protocol: "oidc",
+		Mode:     mode,
+		Config:   idpConfig(nil, "", "", ""),
 	}
+}
+
+func idpConfig(allowedDomains []string, usernameClaim, displayNameClaim, emailClaim string) []byte {
+	if allowedDomains == nil {
+		allowedDomains = []string{}
+	}
+	if usernameClaim == "" {
+		usernameClaim = "preferred_username"
+	}
+	if displayNameClaim == "" {
+		displayNameClaim = "name"
+	}
+	if emailClaim == "" {
+		emailClaim = "email"
+	}
+	raw, _ := json.Marshal(struct {
+		IssuerURL            string   `json:"issuerUrl"`
+		ClientID             string   `json:"clientId"`
+		Scopes               []string `json:"scopes"`
+		AllowedDomains       []string `json:"allowedDomains"`
+		UsernameClaim        string   `json:"usernameClaim"`
+		DisplayNameClaim     string   `json:"displayNameClaim"`
+		EmailClaim           string   `json:"emailClaim"`
+		PictureClaim         string   `json:"pictureClaim"`
+		RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
+		AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
+	}{
+		IssuerURL: "https://issuer.example/", ClientID: "client", Scopes: []string{"openid"},
+		AllowedDomains: allowedDomains, UsernameClaim: usernameClaim, DisplayNameClaim: displayNameClaim,
+		EmailClaim: emailClaim, PictureClaim: "picture", RequireVerifiedEmail: true,
+	})
+	return raw
 }
 
 func goodTokens() *federationoidc.VerifiedIdentity {
@@ -272,9 +300,9 @@ func goodTokens() *federationoidc.VerifiedIdentity {
 		Username:      "alice",
 		DisplayName:   "Alice Example",
 		AMR:           []string{"pwd", "mfa"},
+		UpstreamData:  map[string]string{"providerUserId": "usr_123"},
 	}
 }
-
 
 func findEvent(records []audit.Record, event string) *audit.Record {
 	for i := range records {
@@ -382,7 +410,7 @@ func TestApplyAutoProvision_DomainNotAllowedRejected(t *testing.T) {
 	q := newFakeModesQueries()
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
-	idp.AllowedDomains = []string{"corp.example", "other.example"}
+	idp.Config = idpConfig([]string{"corp.example", "other.example"}, "", "", "")
 	tok := goodTokens() // alice@example.com
 
 	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
@@ -403,7 +431,7 @@ func TestApplyAutoProvision_DomainAllowedCaseInsensitive(t *testing.T) {
 	q := newFakeModesQueries()
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
-	idp.AllowedDomains = []string{"EXAMPLE.com"}
+	idp.Config = idpConfig([]string{"EXAMPLE.com"}, "", "", "")
 	tok := goodTokens() // alice@example.com
 
 	if _, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil); err != nil {
@@ -1037,7 +1065,7 @@ func TestApplyAutoProvision_HonorsUsernameClaimOverride(t *testing.T) {
 	q := newFakeModesQueries()
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
-	idp.UsernameClaim = "upn"
+	idp.Config = idpConfig(nil, "upn", "", "")
 
 	tok := goodTokens()
 	tok.Username = "alice-upn"
@@ -1063,8 +1091,7 @@ func TestApplyAutoProvision_HonorsEmailClaimOverride(t *testing.T) {
 	q := newFakeModesQueries()
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
-	idp.EmailClaim = "mail"
-	idp.AllowedDomains = []string{"corp.example"}
+	idp.Config = idpConfig([]string{"corp.example"}, "", "", "mail")
 
 	tok := goodTokens()
 	tok.Email = new("alice@corp.example")
@@ -1089,7 +1116,7 @@ func TestApplyAutoProvision_HonorsDisplayNameClaimOverride(t *testing.T) {
 	q := newFakeModesQueries()
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
-	idp.DisplayNameClaim = "given_name"
+	idp.Config = idpConfig(nil, "", "given_name", "")
 
 	tok := goodTokens()
 	tok.DisplayName = "Alice From Override"
@@ -1123,8 +1150,7 @@ func TestResolve_SyncClaims_HonorsOverrides(t *testing.T) {
 
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeAutoProvision)
-	idp.DisplayNameClaim = "given_name"
-	idp.EmailClaim = "mail"
+	idp.Config = idpConfig(nil, "", "given_name", "mail")
 
 	tok := goodTokens()
 	tok.DisplayName = "Alice Override"
@@ -1261,7 +1287,6 @@ func TestResolverResolveIdentityUsesSingleAuthoritativeIdentityLookup(t *testing
 	}
 }
 
-
 func TestResolverResolveIdentityUnknownAfterPrepareRequiresSubmittedUsername(t *testing.T) {
 	q := newFakeModesQueries()
 	q.identitySequence = []identityLookup{{err: pgx.ErrNoRows}}
@@ -1342,12 +1367,12 @@ func TestResolverResolveIdentityUnknownAfterPrepareRequiresUsernameBeforeProvisi
 
 func TestResolverResolveIdentityUnknownRedirectPreservesProvisioningGateOrder(t *testing.T) {
 	tests := []struct {
-		name       string
-		provider   federationoidc.Provider
-		identity   federationoidc.VerifiedIdentity
-		wantCode   string
-		wantError  string
-		wantAudit  string
+		name      string
+		provider  federationoidc.Provider
+		identity  federationoidc.VerifiedIdentity
+		wantCode  string
+		wantError string
+		wantAudit string
 	}{
 		{
 			name:     "unverified email before missing username claim",
@@ -1603,13 +1628,13 @@ func TestResolverLinkExistingSameAccountRemainsConflict(t *testing.T) {
 
 func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
 	tests := []struct {
-		name         string
-		existing     db.AccountIdentity
-		account      db.Account
-		wantCode     string
-		wantEvent    string
-		wantReason   string
-		wantAccount  int32
+		name        string
+		existing    db.AccountIdentity
+		account     db.Account
+		wantCode    string
+		wantEvent   string
+		wantReason  string
+		wantAccount int32
 	}{
 		{
 			name: "confirmed existing emits use",
@@ -1617,7 +1642,7 @@ func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
 				ID: 300, AccountID: 50, UpstreamIdpID: 42,
 				ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			},
-			account: db.Account{ID: 50, Username: "existing"},
+			account:   db.Account{ID: 50, Username: "existing"},
 			wantEvent: audit.EventUse, wantAccount: 50,
 		},
 		{
@@ -1626,7 +1651,7 @@ func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
 				ID: 300, AccountID: 50, UpstreamIdpID: 99,
 				ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			},
-			account: db.Account{ID: 50, Username: "existing"},
+			account:  db.Account{ID: 50, Username: "existing"},
 			wantCode: "federation_state_invalid", wantEvent: audit.EventFail,
 			wantReason: "idp_mismatch_relogin", wantAccount: 50,
 		},
@@ -1636,7 +1661,7 @@ func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
 				ID: 300, AccountID: 50, UpstreamIdpID: 42,
 				ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			},
-			account: db.Account{ID: 50, Username: "existing", Disabled: true},
+			account:  db.Account{ID: 50, Username: "existing", Disabled: true},
 			wantCode: "bad_credentials", wantEvent: audit.EventFail,
 			wantReason: "account_disabled", wantAccount: 50,
 		},

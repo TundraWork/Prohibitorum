@@ -111,8 +111,9 @@ type AdvanceResult struct {
 // detached inheritance worker. Opaque is never passed to identity resolution or
 // persisted in flow state.
 type AvatarDelivery struct {
-	URL    string
-	Opaque any
+	URL                 string
+	Opaque              any
+	AllowPrivateNetwork bool
 }
 
 // AvatarResolver is an optional adapter capability used only by the detached

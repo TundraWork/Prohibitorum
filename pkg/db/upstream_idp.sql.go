@@ -21,7 +21,7 @@ func (q *Queries) DeleteUpstreamIDP(ctx context.Context, id int64) error {
 }
 
 const getUpstreamIDPBySlug = `-- name: GetUpstreamIDPBySlug :one
-SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email, picture_claim, protocol, allow_private_network FROM upstream_idp WHERE slug = $1 AND NOT disabled
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE slug = $1 AND NOT disabled
 `
 
 func (q *Queries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error) {
@@ -31,29 +31,22 @@ func (q *Queries) GetUpstreamIDPBySlug(ctx context.Context, slug string) (Upstre
 		&i.ID,
 		&i.Slug,
 		&i.DisplayName,
-		&i.IssuerUrl,
-		&i.ClientID,
-		&i.ClientSecretEnc,
+		&i.SecretEnc,
 		&i.SecretNonce,
 		&i.KeyVersion,
-		&i.Scopes,
 		&i.Mode,
-		&i.AllowedDomains,
-		&i.UsernameClaim,
-		&i.DisplayNameClaim,
-		&i.EmailClaim,
 		&i.Disabled,
 		&i.CreatedAt,
-		&i.RequireVerifiedEmail,
-		&i.PictureClaim,
 		&i.Protocol,
-		&i.AllowPrivateNetwork,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
 	)
 	return i, err
 }
 
 const getUpstreamIDPBySlugAny = `-- name: GetUpstreamIDPBySlugAny :one
-SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email, picture_claim, protocol, allow_private_network FROM upstream_idp WHERE slug = $1
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE slug = $1
 `
 
 func (q *Queries) GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (UpstreamIdp, error) {
@@ -63,104 +56,79 @@ func (q *Queries) GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (Ups
 		&i.ID,
 		&i.Slug,
 		&i.DisplayName,
-		&i.IssuerUrl,
-		&i.ClientID,
-		&i.ClientSecretEnc,
+		&i.SecretEnc,
 		&i.SecretNonce,
 		&i.KeyVersion,
-		&i.Scopes,
 		&i.Mode,
-		&i.AllowedDomains,
-		&i.UsernameClaim,
-		&i.DisplayNameClaim,
-		&i.EmailClaim,
 		&i.Disabled,
 		&i.CreatedAt,
-		&i.RequireVerifiedEmail,
-		&i.PictureClaim,
 		&i.Protocol,
-		&i.AllowPrivateNetwork,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
 	)
 	return i, err
 }
 
 const insertUpstreamIDP = `-- name: InsertUpstreamIDP :one
-INSERT INTO upstream_idp (slug, display_name, issuer_url, client_id,
-  client_secret_enc, secret_nonce, key_version, scopes, mode,
-  allowed_domains, username_claim, display_name_claim, email_claim,
-  require_verified_email, picture_claim, protocol, allow_private_network)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-RETURNING id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email, picture_claim, protocol, allow_private_network
+INSERT INTO upstream_idp (
+  slug, display_name, protocol, mode, provider_config,
+  secret_enc, secret_nonce, key_version, secret_status,
+  secret_validated_at, disabled
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
 `
 
 type InsertUpstreamIDPParams struct {
-	Slug                 string   `json:"slug"`
-	DisplayName          string   `json:"displayName"`
-	IssuerUrl            string   `json:"issuerUrl"`
-	ClientID             string   `json:"clientId"`
-	ClientSecretEnc      []byte   `json:"clientSecretEnc"`
-	SecretNonce          []byte   `json:"secretNonce"`
-	KeyVersion           int32    `json:"keyVersion"`
-	Scopes               []string `json:"scopes"`
-	Mode                 string   `json:"mode"`
-	AllowedDomains       []string `json:"allowedDomains"`
-	UsernameClaim        string   `json:"usernameClaim"`
-	DisplayNameClaim     string   `json:"displayNameClaim"`
-	EmailClaim           string   `json:"emailClaim"`
-	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
-	PictureClaim         string   `json:"pictureClaim"`
-	Protocol             string   `json:"protocol"`
-	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
+	Slug              string             `json:"slug"`
+	DisplayName       string             `json:"displayName"`
+	Protocol          string             `json:"protocol"`
+	Mode              string             `json:"mode"`
+	ProviderConfig    []byte             `json:"providerConfig"`
+	SecretEnc         []byte             `json:"secretEnc"`
+	SecretNonce       []byte             `json:"secretNonce"`
+	KeyVersion        pgtype.Int4        `json:"keyVersion"`
+	SecretStatus      string             `json:"secretStatus"`
+	SecretValidatedAt pgtype.Timestamptz `json:"secretValidatedAt"`
+	Disabled          bool               `json:"disabled"`
 }
 
 func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPParams) (UpstreamIdp, error) {
 	row := q.db.QueryRow(ctx, insertUpstreamIDP,
 		arg.Slug,
 		arg.DisplayName,
-		arg.IssuerUrl,
-		arg.ClientID,
-		arg.ClientSecretEnc,
+		arg.Protocol,
+		arg.Mode,
+		arg.ProviderConfig,
+		arg.SecretEnc,
 		arg.SecretNonce,
 		arg.KeyVersion,
-		arg.Scopes,
-		arg.Mode,
-		arg.AllowedDomains,
-		arg.UsernameClaim,
-		arg.DisplayNameClaim,
-		arg.EmailClaim,
-		arg.RequireVerifiedEmail,
-		arg.PictureClaim,
-		arg.Protocol,
-		arg.AllowPrivateNetwork,
+		arg.SecretStatus,
+		arg.SecretValidatedAt,
+		arg.Disabled,
 	)
 	var i UpstreamIdp
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
 		&i.DisplayName,
-		&i.IssuerUrl,
-		&i.ClientID,
-		&i.ClientSecretEnc,
+		&i.SecretEnc,
 		&i.SecretNonce,
 		&i.KeyVersion,
-		&i.Scopes,
 		&i.Mode,
-		&i.AllowedDomains,
-		&i.UsernameClaim,
-		&i.DisplayNameClaim,
-		&i.EmailClaim,
 		&i.Disabled,
 		&i.CreatedAt,
-		&i.RequireVerifiedEmail,
-		&i.PictureClaim,
 		&i.Protocol,
-		&i.AllowPrivateNetwork,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
 	)
 	return i, err
 }
 
 const listAllUpstreamIDPs = `-- name: ListAllUpstreamIDPs :many
-SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email, picture_claim, protocol, allow_private_network FROM upstream_idp
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp
 WHERE ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2::int8))
 ORDER BY created_at DESC, id DESC
 LIMIT $3
@@ -185,23 +153,16 @@ func (q *Queries) ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamID
 			&i.ID,
 			&i.Slug,
 			&i.DisplayName,
-			&i.IssuerUrl,
-			&i.ClientID,
-			&i.ClientSecretEnc,
+			&i.SecretEnc,
 			&i.SecretNonce,
 			&i.KeyVersion,
-			&i.Scopes,
 			&i.Mode,
-			&i.AllowedDomains,
-			&i.UsernameClaim,
-			&i.DisplayNameClaim,
-			&i.EmailClaim,
 			&i.Disabled,
 			&i.CreatedAt,
-			&i.RequireVerifiedEmail,
-			&i.PictureClaim,
 			&i.Protocol,
-			&i.AllowPrivateNetwork,
+			&i.ProviderConfig,
+			&i.SecretStatus,
+			&i.SecretValidatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -214,7 +175,7 @@ func (q *Queries) ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamID
 }
 
 const listUpstreamIDPs = `-- name: ListUpstreamIDPs :many
-SELECT id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email, picture_claim, protocol, allow_private_network FROM upstream_idp WHERE NOT disabled ORDER BY display_name
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE NOT disabled ORDER BY display_name
 `
 
 func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
@@ -230,23 +191,16 @@ func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
 			&i.ID,
 			&i.Slug,
 			&i.DisplayName,
-			&i.IssuerUrl,
-			&i.ClientID,
-			&i.ClientSecretEnc,
+			&i.SecretEnc,
 			&i.SecretNonce,
 			&i.KeyVersion,
-			&i.Scopes,
 			&i.Mode,
-			&i.AllowedDomains,
-			&i.UsernameClaim,
-			&i.DisplayNameClaim,
-			&i.EmailClaim,
 			&i.Disabled,
 			&i.CreatedAt,
-			&i.RequireVerifiedEmail,
-			&i.PictureClaim,
 			&i.Protocol,
-			&i.AllowPrivateNetwork,
+			&i.ProviderConfig,
+			&i.SecretStatus,
+			&i.SecretValidatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -259,7 +213,7 @@ func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
 }
 
 const setUpstreamIDPDisabled = `-- name: SetUpstreamIDPDisabled :one
-UPDATE upstream_idp SET disabled = $2 WHERE slug = $1 RETURNING id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email, picture_claim, protocol, allow_private_network
+UPDATE upstream_idp SET disabled = $2 WHERE slug = $1 RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
 `
 
 type SetUpstreamIDPDisabledParams struct {
@@ -274,169 +228,134 @@ func (q *Queries) SetUpstreamIDPDisabled(ctx context.Context, arg SetUpstreamIDP
 		&i.ID,
 		&i.Slug,
 		&i.DisplayName,
-		&i.IssuerUrl,
-		&i.ClientID,
-		&i.ClientSecretEnc,
+		&i.SecretEnc,
 		&i.SecretNonce,
 		&i.KeyVersion,
-		&i.Scopes,
 		&i.Mode,
-		&i.AllowedDomains,
-		&i.UsernameClaim,
-		&i.DisplayNameClaim,
-		&i.EmailClaim,
 		&i.Disabled,
 		&i.CreatedAt,
-		&i.RequireVerifiedEmail,
-		&i.PictureClaim,
 		&i.Protocol,
-		&i.AllowPrivateNetwork,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
 	)
 	return i, err
 }
 
-const updateUpstreamIDP = `-- name: UpdateUpstreamIDP :exec
-UPDATE upstream_idp
-SET display_name = $2, issuer_url = $3, client_id = $4,
-    client_secret_enc = $5, secret_nonce = $6, key_version = $7,
-    scopes = $8, mode = $9, allowed_domains = $10,
-    username_claim = $11, display_name_claim = $12, email_claim = $13,
-    disabled = $14, require_verified_email = $15, picture_claim = $16,
-    allow_private_network = $17
-WHERE id = $1
-`
-
-type UpdateUpstreamIDPParams struct {
-	ID                   int64    `json:"id"`
-	DisplayName          string   `json:"displayName"`
-	IssuerUrl            string   `json:"issuerUrl"`
-	ClientID             string   `json:"clientId"`
-	ClientSecretEnc      []byte   `json:"clientSecretEnc"`
-	SecretNonce          []byte   `json:"secretNonce"`
-	KeyVersion           int32    `json:"keyVersion"`
-	Scopes               []string `json:"scopes"`
-	Mode                 string   `json:"mode"`
-	AllowedDomains       []string `json:"allowedDomains"`
-	UsernameClaim        string   `json:"usernameClaim"`
-	DisplayNameClaim     string   `json:"displayNameClaim"`
-	EmailClaim           string   `json:"emailClaim"`
-	Disabled             bool     `json:"disabled"`
-	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
-	PictureClaim         string   `json:"pictureClaim"`
-	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
-}
-
-func (q *Queries) UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error {
-	_, err := q.db.Exec(ctx, updateUpstreamIDP,
-		arg.ID,
-		arg.DisplayName,
-		arg.IssuerUrl,
-		arg.ClientID,
-		arg.ClientSecretEnc,
-		arg.SecretNonce,
-		arg.KeyVersion,
-		arg.Scopes,
-		arg.Mode,
-		arg.AllowedDomains,
-		arg.UsernameClaim,
-		arg.DisplayNameClaim,
-		arg.EmailClaim,
-		arg.Disabled,
-		arg.RequireVerifiedEmail,
-		arg.PictureClaim,
-		arg.AllowPrivateNetwork,
-	)
-	return err
-}
-
 const updateUpstreamIDPConfig = `-- name: UpdateUpstreamIDPConfig :one
 UPDATE upstream_idp SET
-  display_name = $2, issuer_url = $3, client_id = $4, scopes = $5, mode = $6,
-  allowed_domains = $7, username_claim = $8, display_name_claim = $9,
-  email_claim = $10, require_verified_email = $11, disabled = $12,
-  picture_claim = $13, allow_private_network = $14
+  display_name = $2, mode = $3, provider_config = $4
 WHERE slug = $1
-RETURNING id, slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce, key_version, scopes, mode, allowed_domains, username_claim, display_name_claim, email_claim, disabled, created_at, require_verified_email, picture_claim, protocol, allow_private_network
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
 `
 
 type UpdateUpstreamIDPConfigParams struct {
-	Slug                 string   `json:"slug"`
-	DisplayName          string   `json:"displayName"`
-	IssuerUrl            string   `json:"issuerUrl"`
-	ClientID             string   `json:"clientId"`
-	Scopes               []string `json:"scopes"`
-	Mode                 string   `json:"mode"`
-	AllowedDomains       []string `json:"allowedDomains"`
-	UsernameClaim        string   `json:"usernameClaim"`
-	DisplayNameClaim     string   `json:"displayNameClaim"`
-	EmailClaim           string   `json:"emailClaim"`
-	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
-	Disabled             bool     `json:"disabled"`
-	PictureClaim         string   `json:"pictureClaim"`
-	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
+	Slug           string `json:"slug"`
+	DisplayName    string `json:"displayName"`
+	Mode           string `json:"mode"`
+	ProviderConfig []byte `json:"providerConfig"`
 }
 
 func (q *Queries) UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error) {
 	row := q.db.QueryRow(ctx, updateUpstreamIDPConfig,
 		arg.Slug,
 		arg.DisplayName,
-		arg.IssuerUrl,
-		arg.ClientID,
-		arg.Scopes,
 		arg.Mode,
-		arg.AllowedDomains,
-		arg.UsernameClaim,
-		arg.DisplayNameClaim,
-		arg.EmailClaim,
-		arg.RequireVerifiedEmail,
-		arg.Disabled,
-		arg.PictureClaim,
-		arg.AllowPrivateNetwork,
+		arg.ProviderConfig,
 	)
 	var i UpstreamIdp
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
 		&i.DisplayName,
-		&i.IssuerUrl,
-		&i.ClientID,
-		&i.ClientSecretEnc,
+		&i.SecretEnc,
 		&i.SecretNonce,
 		&i.KeyVersion,
-		&i.Scopes,
 		&i.Mode,
-		&i.AllowedDomains,
-		&i.UsernameClaim,
-		&i.DisplayNameClaim,
-		&i.EmailClaim,
 		&i.Disabled,
 		&i.CreatedAt,
-		&i.RequireVerifiedEmail,
-		&i.PictureClaim,
 		&i.Protocol,
-		&i.AllowPrivateNetwork,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
 	)
 	return i, err
 }
 
-const updateUpstreamIDPSecret = `-- name: UpdateUpstreamIDPSecret :exec
-UPDATE upstream_idp SET client_secret_enc = $2, secret_nonce = $3, key_version = $4
+const updateUpstreamIDPHealth = `-- name: UpdateUpstreamIDPHealth :one
+UPDATE upstream_idp SET secret_status = $2, secret_validated_at = $3
 WHERE slug = $1
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+`
+
+type UpdateUpstreamIDPHealthParams struct {
+	Slug              string             `json:"slug"`
+	SecretStatus      string             `json:"secretStatus"`
+	SecretValidatedAt pgtype.Timestamptz `json:"secretValidatedAt"`
+}
+
+func (q *Queries) UpdateUpstreamIDPHealth(ctx context.Context, arg UpdateUpstreamIDPHealthParams) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, updateUpstreamIDPHealth, arg.Slug, arg.SecretStatus, arg.SecretValidatedAt)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.SecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Mode,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.Protocol,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
+	)
+	return i, err
+}
+
+const updateUpstreamIDPSecret = `-- name: UpdateUpstreamIDPSecret :one
+UPDATE upstream_idp SET
+  secret_enc = $2, secret_nonce = $3, key_version = $4,
+  secret_status = $5, secret_validated_at = $6
+WHERE slug = $1
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
 `
 
 type UpdateUpstreamIDPSecretParams struct {
-	Slug            string `json:"slug"`
-	ClientSecretEnc []byte `json:"clientSecretEnc"`
-	SecretNonce     []byte `json:"secretNonce"`
-	KeyVersion      int32  `json:"keyVersion"`
+	Slug              string             `json:"slug"`
+	SecretEnc         []byte             `json:"secretEnc"`
+	SecretNonce       []byte             `json:"secretNonce"`
+	KeyVersion        pgtype.Int4        `json:"keyVersion"`
+	SecretStatus      string             `json:"secretStatus"`
+	SecretValidatedAt pgtype.Timestamptz `json:"secretValidatedAt"`
 }
 
-func (q *Queries) UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) error {
-	_, err := q.db.Exec(ctx, updateUpstreamIDPSecret,
+func (q *Queries) UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, updateUpstreamIDPSecret,
 		arg.Slug,
-		arg.ClientSecretEnc,
+		arg.SecretEnc,
 		arg.SecretNonce,
 		arg.KeyVersion,
+		arg.SecretStatus,
+		arg.SecretValidatedAt,
 	)
-	return err
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.SecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Mode,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.Protocol,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
+	)
+	return i, err
 }

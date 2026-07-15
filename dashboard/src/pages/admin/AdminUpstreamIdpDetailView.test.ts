@@ -10,10 +10,36 @@ const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ params: { slug: 'okta' } }), useRouter: () => ({ push }), RouterLink: { template: '<a><slot/></a>' } }))
 import AdminUpstreamIdpDetailView from './AdminUpstreamIdpDetailView.vue'
 
-const IDP = { slug: 'okta', displayName: 'Okta', issuerUrl: 'https://okta/', clientId: 'c1', scopes: ['openid','email'], mode: 'auto_provision', allowedDomains: ['ex.com'], usernameClaim: 'preferred_username', displayNameClaim: 'name', emailClaim: 'email', pictureClaim: 'picture', requireVerifiedEmail: false, disabled: false, createdAt: '2026-01-01T00:00:00Z', allowPrivateNetwork: false }
+const OIDC_CONFIG = {
+  issuerUrl: 'https://okta/',
+  clientId: 'c1',
+  scopes: ['openid', 'email'],
+  allowedDomains: ['ex.com'],
+  usernameClaim: 'preferred_username',
+  displayNameClaim: 'name',
+  emailClaim: 'email',
+  pictureClaim: 'picture',
+  requireVerifiedEmail: false,
+  allowPrivateNetwork: false,
+}
+const IDP = {
+  slug: 'okta',
+  displayName: 'Okta',
+  protocol: 'oidc',
+  mode: 'auto_provision',
+  config: OIDC_CONFIG,
+  disabled: false,
+  secretConfigured: true,
+  secretStatus: 'valid',
+  secretValidatedAt: null,
+  ready: true,
+  supportsOperator: false,
+  searchFields: [],
+  createdAt: '2026-01-01T00:00:00Z',
+}
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminUpstreamIdpDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
-const clickConfirm = async (_w: ReturnType<typeof mountView>, label: string) => {
+const clickConfirm = async (label: string) => {
   const btns = Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent?.trim() === label && b.classList.contains('bg-destructive'))
   btns[btns.length - 1]!.click(); await flushPromises()
 }
@@ -35,13 +61,19 @@ describe('AdminUpstreamIdpDetailView', () => {
     // No input has name="slug" (slug is the immutable identifier, not editable)
     expect(w.find('input[name="slug"]').exists()).toBe(false)
   })
-  it('saves config via PUT without clientSecret', async () => {
+  it('saves adapter config via PUT without disabled state or secret', async () => {
     get.mockResolvedValue(IDP); put.mockResolvedValue({ ...IDP, displayName: 'Okta 2' })
     const w = mountView(); await flushPromises()
     await w.find('input[name="displayName"]').setValue('Okta 2')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', {
+      displayName: 'Okta 2',
+      mode: 'auto_provision',
+      config: OIDC_CONFIG,
+    })
     const body = put.mock.calls[0][1] as Record<string, unknown>
-    expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', expect.objectContaining({ displayName: 'Okta 2', disabled: false }))
+    expect(body).not.toHaveProperty('disabled')
+    expect(body).not.toHaveProperty('secret')
     expect(body).not.toHaveProperty('clientSecret')
     expect(w.text()).toContain(en.admin.upstream.saved)
   })
@@ -72,12 +104,14 @@ describe('AdminUpstreamIdpDetailView', () => {
     expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.upstream.disabled) // now "Disabled"
   })
   it('includes pictureClaim in save payload and renders the input', async () => {
-    get.mockResolvedValue(IDP); put.mockResolvedValue({ ...IDP, pictureClaim: 'avatar_url' })
+    get.mockResolvedValue(IDP); put.mockResolvedValue({ ...IDP, config: { ...OIDC_CONFIG, pictureClaim: 'avatar_url' } })
     const w = mountView(); await flushPromises()
     expect(w.find('input[name="pictureClaim"]').exists()).toBe(true)
     await w.find('input[name="pictureClaim"]').setValue('avatar_url')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
-    expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', expect.objectContaining({ pictureClaim: 'avatar_url' }))
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', expect.objectContaining({
+      config: expect.objectContaining({ pictureClaim: 'avatar_url' }),
+    }))
   })
   it('renders claim inputs as a compact grid with default-value placeholders', async () => {
     get.mockResolvedValue(IDP)
@@ -95,14 +129,14 @@ describe('AdminUpstreamIdpDetailView', () => {
     const w = mountView(); await flushPromises()
     await w.find('input[name="newSecret"]').setValue('newsek')
     await w.find('[data-test="rotate"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/rotate-secret', { slug: 'okta', clientSecret: 'newsek' })
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/rotate-secret', { slug: 'okta', secret: 'newsek' })
     expect(w.text()).toContain(en.admin.upstream.rotated)
   })
   it('deletes and navigates back to the list', async () => {
     get.mockResolvedValue(IDP); post.mockResolvedValue(undefined)
     const w = mountView(); await flushPromises()
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
-    await clickConfirm(w, en.admin.upstream.delete)
+    await clickConfirm(en.admin.upstream.delete)
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/delete', { slug: 'okta' })
     expect(push).toHaveBeenCalledWith('/admin/identity-providers')
   })
@@ -118,7 +152,7 @@ describe('AdminUpstreamIdpDetailView', () => {
     get.mockResolvedValue(IDP); post.mockRejectedValue({ code: 'server_error', message: 'boom' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="delete"]').trigger('click'); await flushPromises()
-    await clickConfirm(w, en.admin.upstream.delete)
+    await clickConfirm(en.admin.upstream.delete)
     expect(push).not.toHaveBeenCalled()
   })
   it('renders the private network toggle with a security warning', async () => {
@@ -139,6 +173,48 @@ describe('AdminUpstreamIdpDetailView', () => {
     await w.find('[data-test="allowPrivateNetwork"]').trigger('click')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
     const body = put.mock.calls[0][1] as Record<string, unknown>
-    expect(body).toHaveProperty('allowPrivateNetwork', true)
+    expect(body).toHaveProperty('config')
+    expect(body.config).toEqual(expect.objectContaining({ allowPrivateNetwork: true }))
+  })
+  it('saves Steam with an exact empty adapter config and no OIDC controls', async () => {
+    const steam = { ...IDP, slug: 'steam', displayName: 'Steam', protocol: 'steam', config: {} }
+    get.mockResolvedValue(steam)
+    put.mockResolvedValue(steam)
+    const w = mountView(); await flushPromises()
+    expect(w.find('input[name="issuerUrl"]').exists()).toBe(false)
+    expect(w.find('input[name="allowedDomains"]').exists()).toBe(false)
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/okta', {
+      displayName: 'Steam',
+      mode: 'auto_provision',
+      config: {},
+    })
+  })
+  it('does not render OIDC or secret controls for a non-OIDC, non-Steam provider', async () => {
+    get.mockResolvedValue({
+      ...IDP,
+      slug: 'vrchat',
+      displayName: 'VRChat',
+      protocol: 'vrchat',
+      config: {},
+      disabled: true,
+      secretConfigured: false,
+      secretStatus: 'unconfigured',
+      ready: false,
+      supportsOperator: true,
+    })
+    const w = mountView(); await flushPromises()
+    expect(w.find('input[name="issuerUrl"]').exists()).toBe(false)
+    expect(w.find('input[name="usernameClaim"]').exists()).toBe(false)
+    expect(w.find('[data-test="allowPrivateNetwork"]').exists()).toBe(false)
+    expect(w.find('input[name="newSecret"]').exists()).toBe(false)
+  })
+  it('localizes provider_not_ready when enabling is rejected', async () => {
+    get.mockResolvedValue({ ...IDP, disabled: true, ready: false, secretStatus: 'configured' })
+    post.mockRejectedValue({ code: 'provider_not_ready', message: 'raw server message' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="disable-toggle"]').trigger('click'); await flushPromises()
+    expect(w.text()).toContain(en.errors.codes.provider_not_ready)
+    expect(w.find('[data-test="status-badge"]').text()).toBe(en.admin.upstream.disabled)
   })
 })

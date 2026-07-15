@@ -21,15 +21,16 @@ const (
 )
 
 type Config struct {
-	IssuerURL           string   `json:"issuerUrl"`
-	ClientID            string   `json:"clientId"`
-	Scopes              []string `json:"scopes"`
-	AllowedAlgorithms   []string `json:"allowedAlgorithms,omitempty"`
-	UsernameClaim       string   `json:"usernameClaim,omitempty"`
-	DisplayNameClaim    string   `json:"displayNameClaim,omitempty"`
-	EmailClaim          string   `json:"emailClaim,omitempty"`
-	PictureClaim        string   `json:"pictureClaim,omitempty"`
-	AllowPrivateNetwork bool     `json:"allowPrivateNetwork,omitempty"`
+	IssuerURL            string   `json:"issuerUrl"`
+	ClientID             string   `json:"clientId"`
+	Scopes               []string `json:"scopes"`
+	AllowedDomains       []string `json:"allowedDomains"`
+	UsernameClaim        string   `json:"usernameClaim"`
+	DisplayNameClaim     string   `json:"displayNameClaim"`
+	EmailClaim           string   `json:"emailClaim"`
+	PictureClaim         string   `json:"pictureClaim"`
+	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
+	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
 }
 
 type Definition struct{}
@@ -43,9 +44,18 @@ func (Definition) Descriptor() federationcore.Descriptor {
 }
 func (Definition) ValidateConfig(raw json.RawMessage) error {
 	config, err := decodeConfig(raw)
-	if err != nil { return err }
-	if config.ClientID == "" { return errors.New("federation/oidc: client id is required") }
-	if len(config.Scopes) == 0 { return errors.New("federation/oidc: scopes are required") }
+	if err != nil {
+		return err
+	}
+	if config.ClientID == "" {
+		return errors.New("federation/oidc: client id is required")
+	}
+	if len(config.Scopes) == 0 {
+		return errors.New("federation/oidc: scopes are required")
+	}
+	if config.UsernameClaim == "" || config.DisplayNameClaim == "" || config.EmailClaim == "" || config.PictureClaim == "" {
+		return errors.New("federation/oidc: claim names are required")
+	}
 	if !config.AllowPrivateNetwork {
 		return federationcore.ValidateIssuerURL(config.IssuerURL)
 	}
@@ -56,11 +66,16 @@ func (Definition) ValidateConfig(raw json.RawMessage) error {
 	return nil
 }
 func (Definition) ValidateSecret(secret []byte) error {
-	if len(secret) == 0 { return errors.New("federation/oidc: client secret is required") }
+	if len(secret) == 0 {
+		return errors.New("federation/oidc: client secret is required")
+	}
 	return nil
 }
 func (d Definition) Ready(provider federationcore.Provider) bool {
-	return provider.Protocol == Protocol && !provider.Disabled && provider.Secret != nil && provider.SecretStatus == "valid" && d.ValidateConfig(provider.Config) == nil
+	return provider.Protocol == Protocol &&
+		provider.Secret != nil &&
+		(provider.SecretStatus == "configured" || provider.SecretStatus == "valid") &&
+		d.ValidateConfig(provider.Config) == nil
 }
 
 type clientAPI interface {
@@ -72,9 +87,12 @@ type clientAPI interface {
 }
 
 type clientWrapper struct{ client *Client }
-func (c clientWrapper) Issuer() string { return c.client.Issuer() }
+
+func (c clientWrapper) Issuer() string        { return c.client.Issuer() }
 func (c clientWrapper) TokenEndpoint() string { return c.client.TokenEndpoint() }
-func (c clientWrapper) AuthURL(state, nonce, challenge string) string { return c.client.AuthURL(state, nonce, challenge) }
+func (c clientWrapper) AuthURL(state, nonce, challenge string) string {
+	return c.client.AuthURL(state, nonce, challenge)
+}
 func (c clientWrapper) Exchange(ctx context.Context, code, verifier, issuer, nonce string) (*Tokens, error) {
 	return c.client.Exchange(ctx, code, verifier, issuer, nonce)
 }
@@ -95,8 +113,8 @@ type cachedClient struct {
 }
 
 type Adapter struct {
-	secrets    *federationcore.SecretStore
-	newClient  func(context.Context, Config, string, string) (clientAPI, error)
+	secrets     *federationcore.SecretStore
+	newClient   func(context.Context, Config, string, string) (clientAPI, error)
 	clientCache sync.Map
 	cacheTTL    time.Duration
 	now         func() time.Time
@@ -105,8 +123,10 @@ type Adapter struct {
 func NewAdapter(secrets *federationcore.SecretStore) *Adapter {
 	adapter := &Adapter{secrets: secrets, cacheTTL: clientCacheTTL, now: time.Now}
 	adapter.newClient = func(ctx context.Context, config Config, secret, callbackURL string) (clientAPI, error) {
-		client, err := NewClient(ctx, config.ClientID, secret, callbackURL, config.Scopes, config.IssuerURL, config.AllowedAlgorithms, config.AllowPrivateNetwork)
-		if err != nil { return nil, err }
+		client, err := NewClient(ctx, config.ClientID, secret, callbackURL, config.Scopes, config.IssuerURL, nil, config.AllowPrivateNetwork)
+		if err != nil {
+			return nil, err
+		}
 		return clientWrapper{client: client}, nil
 	}
 	return adapter
@@ -124,18 +144,28 @@ type adapterState struct {
 
 type avatarReference struct {
 	client       clientAPI
-	accessToken string
-	subject     string
+	accessToken  string
+	subject      string
 	pictureClaim string
 }
 
 func (a *Adapter) Begin(ctx context.Context, provider federationcore.Provider, begin federationcore.BeginContext) (json.RawMessage, federationcore.NextAction, error) {
 	_, client, err := a.client(ctx, provider, begin.CallbackURL)
-	if err != nil { return nil, federationcore.NextAction{}, err }
-	verifier, err := randomB64(32); if err != nil { return nil, federationcore.NextAction{}, err }
-	nonce, err := randomB64(16); if err != nil { return nil, federationcore.NextAction{}, err }
+	if err != nil {
+		return nil, federationcore.NextAction{}, err
+	}
+	verifier, err := randomB64(32)
+	if err != nil {
+		return nil, federationcore.NextAction{}, err
+	}
+	nonce, err := randomB64(16)
+	if err != nil {
+		return nil, federationcore.NextAction{}, err
+	}
 	state, err := json.Marshal(adapterState{CallbackURL: begin.CallbackURL, ExpectedIss: client.Issuer(), TokenURL: client.TokenEndpoint(), Nonce: nonce, CodeVerifier: verifier})
-	if err != nil { return nil, federationcore.NextAction{}, err }
+	if err != nil {
+		return nil, federationcore.NextAction{}, err
+	}
 	challengeDigest := sha256.Sum256([]byte(verifier))
 	challenge := base64.RawURLEncoding.EncodeToString(challengeDigest[:])
 	return state, federationcore.NextAction{Kind: federationcore.ActionRedirect, URL: client.AuthURL(begin.FlowID, nonce, challenge)}, nil
@@ -206,12 +236,18 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		Username: ClaimString(tokens.Raw, usernameClaim), DisplayName: ClaimString(tokens.Raw, displayClaim),
 		AMR: append([]string(nil), tokens.AMR...), AvatarURL: avatarURL,
 	}
-	result := federationcore.AdvanceResult{Identity: identity}
+	result := federationcore.AdvanceResult{
+		Identity: identity,
+		Avatar: &federationcore.AvatarDelivery{
+			URL:                 avatarURL,
+			AllowPrivateNetwork: config.AllowPrivateNetwork,
+		},
+	}
 	if avatarURL == "" && tokens.AccessToken != "" {
-		result.Avatar = &federationcore.AvatarDelivery{Opaque: &avatarReference{
+		result.Avatar.Opaque = &avatarReference{
 			client: client, accessToken: tokens.AccessToken,
 			subject: tokens.Subject, pictureClaim: pictureClaim,
-		}}
+		}
 	}
 	return result, nil
 }
@@ -280,23 +316,55 @@ func (a *Adapter) client(ctx context.Context, provider federationcore.Provider, 
 
 func (a *Adapter) open(provider federationcore.Provider) (Config, string, error) {
 	config, err := decodeConfig(provider.Config)
-	if err != nil { return Config{}, "", err }
-	if provider.Secret == nil { return Config{}, "", errors.New("federation/oidc: provider secret is missing") }
+	if err != nil {
+		return Config{}, "", err
+	}
+	if provider.Secret == nil {
+		return Config{}, "", errors.New("federation/oidc: provider secret is missing")
+	}
 	secret, err := a.secrets.OpenProviderSecret(*provider.Secret, provider.ID)
-	if err != nil { return Config{}, "", err }
-	if err := (Definition{}).ValidateSecret(secret); err != nil { return Config{}, "", err }
+	if err != nil {
+		return Config{}, "", err
+	}
+	if err := (Definition{}).ValidateSecret(secret); err != nil {
+		return Config{}, "", err
+	}
 	return config, string(secret), nil
 }
 
 func decodeConfig(raw json.RawMessage) (Config, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
+		if err == nil {
+			err = errors.New("config must be an object")
+		}
+		return Config{}, fmt.Errorf("federation/oidc: decode config: %w", err)
+	}
+	required := []string{
+		"issuerUrl", "clientId", "scopes", "allowedDomains", "usernameClaim",
+		"displayNameClaim", "emailClaim", "pictureClaim", "requireVerifiedEmail",
+		"allowPrivateNetwork",
+	}
+	if len(fields) != len(required) {
+		return Config{}, errors.New("federation/oidc: config fields do not match schema")
+	}
+	for _, key := range required {
+		if _, ok := fields[key]; !ok {
+			return Config{}, fmt.Errorf("federation/oidc: missing config field %q", key)
+		}
+	}
 	var config Config
-	if err := json.Unmarshal(raw, &config); err != nil { return Config{}, fmt.Errorf("federation/oidc: decode config: %w", err) }
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return Config{}, fmt.Errorf("federation/oidc: decode config: %w", err)
+	}
 	return config, nil
 }
 
 func randomB64(size int) (string, error) {
 	bytes := make([]byte, size)
-	if _, err := rand.Read(bytes); err != nil { return "", err }
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
 	return base64.RawURLEncoding.EncodeToString(bytes), nil
 }
 

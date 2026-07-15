@@ -1,26 +1,3 @@
-// Package server — handle_admin_upstream_idps.go
-//
-// Admin identity provider endpoints:
-//   GET  /identity-providers           — list all identity providers including disabled (admin role, no sudo)
-//   GET  /identity-providers/{slug}    — get one identity provider by slug (admin role, no sudo)
-//   POST /identity-providers           — create a new identity provider (admin + sudo)
-//   PUT  /identity-providers/{slug}    — update config fields, EXCLUDING secret (admin + sudo)
-//   POST /identity-providers/rotate-secret — replace the sealed secret (admin + sudo)
-//   POST /identity-providers/delete    — hard-delete an identity provider (admin + sudo)
-//
-// client_secret_enc and secret_nonce are NEVER serialized or included in any
-// response or audit detail. The secret is accepted on input (create and
-// rotate-secret), AES-GCM-sealed server-side, and stored as ciphertext.
-//
-// The AES-GCM AAD is bound to (idp_id, key_version), which means the create
-// path must: insert the row first (to get the auto-assigned id), then seal
-// using that id, then call UpdateUpstreamIDPSecret. The placeholder bytes
-// in the initial insert are immediately overwritten.
-//
-// Mutations are registered via s.registerSudoOpHTTP, so the sudo gate,
-// content-type check, and body-size limit are all enforced by the wrapper —
-// handlers must NOT call requireFreshSudo themselves.
-
 package server
 
 import (
@@ -35,87 +12,173 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
-	"prohibitorum/pkg/pagination"
 	"prohibitorum/pkg/federation"
+	"prohibitorum/pkg/pagination"
 )
 
-// identityProviderView projects a db.UpstreamIdp row into the wire-safe contract
-// view. ClientSecretEnc and SecretNonce are explicitly excluded — this function
-// is the single chokepoint that prevents accidental leakage of sealed secret
-// material.
-func identityProviderView(r db.UpstreamIdp) contract.IdentityProviderView {
-	v := contract.IdentityProviderView{
-		Slug:                 r.Slug,
-		DisplayName:          r.DisplayName,
-		Protocol:             r.Protocol,
-		IssuerUrl:            r.IssuerUrl,
-		ClientID:             r.ClientID,
-		Scopes:               r.Scopes,
-		Mode:                 r.Mode,
-		AllowedDomains:       r.AllowedDomains,
-		UsernameClaim:        r.UsernameClaim,
-		DisplayNameClaim:     r.DisplayNameClaim,
-		EmailClaim:           r.EmailClaim,
-		PictureClaim:          r.PictureClaim,
-		RequireVerifiedEmail: r.RequireVerifiedEmail,
-		Disabled:             r.Disabled,
-		AllowPrivateNetwork:  r.AllowPrivateNetwork,
-	}
-	if r.CreatedAt.Valid {
-		v.CreatedAt = r.CreatedAt.Time
-	}
-	return v
+const providerConfigLimit = 8 * 1024
+
+type providerWriteBody struct {
+	Slug        string          `json:"slug,omitempty"`
+	DisplayName string          `json:"displayName"`
+	Protocol    string          `json:"protocol,omitempty"`
+	Mode        string          `json:"mode"`
+	Config      json.RawMessage `json:"config"`
+	Secret      string          `json:"secret,omitempty"`
 }
 
-// currentDEK returns the highest-versioned DEK from the config key set.
-// Returns (version, key, error). The create and rotate-secret handlers use
-// this to pick which DEK to seal with.
-func (s *Server) currentDEK() (int32, []byte, error) {
-	if len(s.config.DataEncryptionKeys) == 0 {
-		return 0, nil, fmt.Errorf("handle_admin_upstream_idps: no data encryption keys configured")
+type providerStateQueries interface {
+	GetUpstreamIDPBySlugAny(context.Context, string) (db.UpstreamIdp, error)
+	SetUpstreamIDPDisabled(context.Context, db.SetUpstreamIDPDisabledParams) (db.UpstreamIdp, error)
+}
+
+func (s *Server) providerStateQ() providerStateQueries {
+	if s.providerStateQueriesOverride != nil {
+		return s.providerStateQueriesOverride
 	}
-	var maxVer int
-	for v := range s.config.DataEncryptionKeys {
-		if v > maxVer {
-			maxVer = v
+	return s.queries
+}
+
+func providerFromDB(row db.UpstreamIdp) federation.Provider {
+	provider := federation.Provider{
+		ID:           row.ID,
+		Slug:         row.Slug,
+		DisplayName:  row.DisplayName,
+		Protocol:     row.Protocol,
+		Mode:         row.Mode,
+		Config:       append(json.RawMessage(nil), row.ProviderConfig...),
+		SecretStatus: row.SecretStatus,
+		Disabled:     row.Disabled,
+	}
+	if row.SecretValidatedAt.Valid {
+		validatedAt := row.SecretValidatedAt.Time
+		provider.SecretValidatedAt = &validatedAt
+	}
+	if row.KeyVersion.Valid {
+		provider.Secret = &federation.SealedSecret{
+			Ciphertext: append([]byte(nil), row.SecretEnc...),
+			Nonce:      append([]byte(nil), row.SecretNonce...),
+			KeyVersion: row.KeyVersion.Int32,
 		}
 	}
-	return int32(maxVer), s.config.DataEncryptionKeys[maxVer], nil
+	return provider
 }
 
-// validateUpstreamIssuer enforces the SSRF-hardening rule (audit follow-up N2)
-// that an upstream issuer_url must be an https:// URL with a non-IP-literal
-// host. It is SKIPPED when the per-IdP allowPrivateNetwork flag is set — that
-// IdP has explicitly opted into trusting an internal issuer (and the runtime
-// dial screen is off for that IdP to match), so an IP-literal / http issuer
-// is permitted for it.
-func validateUpstreamIssuer(issuerURL string, allowPrivate bool) error {
-	if allowPrivate {
-		return nil
+func (s *Server) identityProviderView(row db.UpstreamIdp) (contract.IdentityProviderView, error) {
+	if s.federationRegistry == nil {
+		return contract.IdentityProviderView{}, errors.New("identity provider registry is not configured")
 	}
-	if err := federation.ValidateIssuerURL(issuerURL); err != nil {
-		return authn.ErrBadRequest()
+	definition, err := s.federationRegistry.Definition(row.Protocol)
+	if err != nil {
+		return contract.IdentityProviderView{}, err
 	}
-	return nil
+	descriptor := definition.Descriptor()
+	searchFields := make([]contract.IdentitySearchFieldView, len(descriptor.SearchFields))
+	for i, field := range descriptor.SearchFields {
+		operators := make([]string, len(field.Operators))
+		for j, operator := range field.Operators {
+			operators[j] = string(operator)
+		}
+		searchFields[i] = contract.IdentitySearchFieldView{Key: field.Key, Operators: operators}
+	}
+	provider := providerFromDB(row)
+	view := contract.IdentityProviderView{
+		Slug:              row.Slug,
+		DisplayName:       row.DisplayName,
+		Protocol:          row.Protocol,
+		Mode:              row.Mode,
+		Config:            append(json.RawMessage(nil), row.ProviderConfig...),
+		Disabled:          row.Disabled,
+		SecretConfigured:  provider.Secret != nil,
+		SecretStatus:      row.SecretStatus,
+		SecretValidatedAt: provider.SecretValidatedAt,
+		Ready:             definition.Ready(provider),
+		SupportsOperator:  descriptor.SupportsOperator,
+		SearchFields:      searchFields,
+	}
+	if row.CreatedAt.Valid {
+		view.CreatedAt = row.CreatedAt.Time
+	}
+	return view, nil
 }
 
-// defaultFederationScopes is the scope set applied to a new/updated upstream IdP
-// when the admin supplies none: the deployment-wide federation.default_scopes
-// (C6), or a minimal OIDC-valid fallback if that is somehow empty (an upstream
-// authorize request must at least carry "openid").
-func (s *Server) defaultFederationScopes() []string {
-	if s.config != nil && len(s.config.Federation.DefaultScopes) > 0 {
-		return s.config.Federation.DefaultScopes
+func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.UpstreamIdp, creating bool) (federation.Definition, error) {
+	if body.DisplayName == "" || body.Mode == "" || len(body.Config) == 0 || len(body.Config) > providerConfigLimit {
+		return nil, authn.ErrBadRequest()
 	}
-	return []string{"openid", "profile", "email"}
+	switch body.Mode {
+	case federation.ModeAutoProvision, federation.ModeInviteOnly, federation.ModeLinkOnly:
+	default:
+		return nil, authn.ErrBadRequest()
+	}
+
+	protocol := body.Protocol
+	if creating {
+		if body.Slug == "" || protocol == "" {
+			return nil, authn.ErrBadRequest()
+		}
+	} else {
+		if existing == nil || body.Secret != "" {
+			return nil, authn.ErrBadRequest()
+		}
+		if body.Slug != "" && body.Slug != existing.Slug {
+			return nil, authn.ErrBadRequest()
+		}
+		if protocol != "" && protocol != existing.Protocol {
+			return nil, authn.ErrBadRequest()
+		}
+		protocol = existing.Protocol
+	}
+	if s.federationRegistry == nil {
+		return nil, authn.ErrBadRequest()
+	}
+	definition, err := s.federationRegistry.Definition(protocol)
+	if err != nil || definition.ValidateConfig(body.Config) != nil {
+		return nil, authn.ErrBadRequest()
+	}
+	if creating {
+		if definition.Descriptor().RequiresSecret && body.Secret == "" {
+			return nil, authn.ErrBadRequest()
+		}
+		if err := definition.ValidateSecret([]byte(body.Secret)); err != nil {
+			return nil, authn.ErrBadRequest()
+		}
+	}
+	return definition, nil
 }
 
-// ----- GET /identity-providers (typed, role-only) ------------------------------------
+func providerInsertParams(body providerWriteBody) db.InsertUpstreamIDPParams {
+	return db.InsertUpstreamIDPParams{
+		Slug:           body.Slug,
+		DisplayName:    body.DisplayName,
+		Protocol:       body.Protocol,
+		Mode:           body.Mode,
+		ProviderConfig: append([]byte(nil), body.Config...),
+		SecretStatus:   "unconfigured",
+		Disabled:       body.Protocol == "vrchat",
+	}
+}
+
+func providerWriteAuditDetail(body providerWriteBody) map[string]any {
+	return map[string]any{"slug": body.Slug, "protocol": body.Protocol, "mode": body.Mode}
+}
+
+func (s *Server) currentDEK() (int32, []byte, error) {
+	if s.config == nil || len(s.config.DataEncryptionKeys) == 0 {
+		return 0, nil, errors.New("handle_admin_upstream_idps: no data encryption keys configured")
+	}
+	var maxVersion int
+	for version := range s.config.DataEncryptionKeys {
+		if version > maxVersion {
+			maxVersion = version
+		}
+	}
+	return int32(maxVersion), s.config.DataEncryptionKeys[maxVersion], nil
+}
 
 type listIdentityProvidersIn struct {
 	pageInput
@@ -126,7 +189,7 @@ type listIdentityProvidersOut struct {
 }
 
 func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdentityProvidersIn) (*listIdentityProvidersOut, error) {
-	lim := pagination.Limit(in.Limit)
+	limit := pagination.Limit(in.Limit)
 	const collection = "identity_providers"
 	const sort = "created_at"
 	filters := map[string]string{}
@@ -134,13 +197,13 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 	if err != nil {
 		return nil, cursorInvalidErr(err)
 	}
-	params := db.ListAllUpstreamIDPsParams{Limit: int32(lim + 1)}
+	params := db.ListAllUpstreamIDPsParams{Limit: int32(limit + 1)}
 	if len(payload.Keys) == 2 {
-		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
-			params.AfterCreatedAt = tsToPgType(t)
+		if createdAt, parseErr := time.Parse(time.RFC3339Nano, payload.Keys[0]); parseErr == nil {
+			params.AfterCreatedAt = tsToPgType(createdAt)
 		}
 		var id int64
-		if _, serr := fmt.Sscanf(payload.Keys[1], "%d", &id); serr == nil {
+		if _, scanErr := fmt.Sscanf(payload.Keys[1], "%d", &id); scanErr == nil {
 			params.AfterID = pgtype.Int8{Int64: id, Valid: true}
 		}
 	}
@@ -148,26 +211,27 @@ func (s *Server) handleListIdentityProviders(ctx context.Context, in *listIdenti
 	if err != nil {
 		return nil, fmt.Errorf("handleListIdentityProviders: query: %w", err)
 	}
-	more := hasMore(len(rows), lim)
+	more := hasMore(len(rows), limit)
 	if more {
-		rows = rows[:lim]
+		rows = rows[:limit]
 	}
 	views := make([]contract.IdentityProviderView, 0, len(rows))
-	for _, r := range rows {
-		views = append(views, identityProviderView(r))
+	for _, row := range rows {
+		view, viewErr := s.identityProviderView(row)
+		if viewErr != nil {
+			return nil, fmt.Errorf("handleListIdentityProviders: view: %w", viewErr)
+		}
+		views = append(views, view)
 	}
 	var nextCursor string
 	if more && len(rows) > 0 {
 		last := rows[len(rows)-1]
 		nextCursor = s.encodeNextCursor(collection, sort, filters, []string{
-			last.CreatedAt.Time.Format(time.RFC3339Nano),
-			fmt.Sprintf("%d", last.ID),
+			last.CreatedAt.Time.Format(time.RFC3339Nano), fmt.Sprintf("%d", last.ID),
 		})
 	}
 	return &listIdentityProvidersOut{Body: buildPage(views, nextCursor)}, nil
 }
-
-// ----- GET /identity-providers/{slug} (typed, role-only) ----------------------------
 
 type getIdentityProviderIn struct {
 	Slug string `path:"slug"`
@@ -178,149 +242,40 @@ type identityProviderOut struct {
 }
 
 func (s *Server) handleGetIdentityProvider(ctx context.Context, in *getIdentityProviderIn) (*identityProviderOut, error) {
-	r, err := s.queries.GetUpstreamIDPBySlugAny(ctx, in.Slug)
+	row, err := s.queries.GetUpstreamIDPBySlugAny(ctx, in.Slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, authErrToHuma(authn.ErrUpstreamIDPNotFound())
 		}
 		return nil, fmt.Errorf("handleGetIdentityProvider: query: %w", err)
 	}
-	view := identityProviderView(r)
-	view.IconURL = entityIconURLPtr("upstream_idp", r.Slug, s.lookupEntityIconEtag(ctx, "upstream_idp", r.Slug))
+	view, err := s.identityProviderView(row)
+	if err != nil {
+		return nil, fmt.Errorf("handleGetIdentityProvider: view: %w", err)
+	}
+	view.IconURL = entityIconURLPtr("upstream_idp", row.Slug, s.lookupEntityIconEtag(ctx, "upstream_idp", row.Slug))
 	return &identityProviderOut{Body: view}, nil
 }
 
-// ----- POST /identity-providers (raw, sudo-gated) ------------------------------------
-
-type createIdentityProviderBody struct {
-	Slug                 string   `json:"slug"`
-	DisplayName          string   `json:"displayName"`
-	Protocol             string   `json:"protocol"`
-	IssuerUrl            string   `json:"issuerUrl"`
-	ClientID             string   `json:"clientId"`
-	ClientSecret         string   `json:"clientSecret"`
-	ApiKey               string   `json:"apiKey"`
-	Scopes               []string `json:"scopes"`
-	Mode                 string   `json:"mode"`
-	AllowedDomains       []string `json:"allowedDomains"`
-	UsernameClaim        string   `json:"usernameClaim"`
-	DisplayNameClaim     string   `json:"displayNameClaim"`
-	EmailClaim           string   `json:"emailClaim"`
-	PictureClaim         string   `json:"pictureClaim"`
-	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
-	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
-}
-
 func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http.Request) {
-	var body createIdentityProviderBody
+	var body providerWriteBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-
-	// Normalize protocol; default to oidc when omitted.
-	protocol := body.Protocol
-	if protocol == "" {
-		protocol = "oidc"
-	}
-	// slug, displayName, and mode are required for all protocols.
-	if body.Slug == "" || body.DisplayName == "" || body.Mode == "" {
-		writeAuthErr(w, authn.ErrBadRequest())
+	if _, err := s.validateProviderWrite(body, nil, true); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 
-	// Protocol-branched validation and variable setup.
-	var issuerURL, clientID, secretPlaintext string
-	var scopes []string
-	requireVerifiedEmail := body.RequireVerifiedEmail
-	switch protocol {
-	case "steam":
-		if body.ApiKey == "" {
-			writeAuthErr(w, authn.ErrBadRequest())
-			return
-		}
-		secretPlaintext = body.ApiKey
-		scopes = []string{}
-		requireVerifiedEmail = false
-	case "oidc":
-		if body.IssuerUrl == "" || body.ClientID == "" || body.ClientSecret == "" {
-			writeAuthErr(w, authn.ErrBadRequest())
-			return
-		}
-		if err := validateUpstreamIssuer(body.IssuerUrl, body.AllowPrivateNetwork); err != nil {
-			writeAuthErr(w, err)
-			return
-		}
-		issuerURL, clientID, secretPlaintext = body.IssuerUrl, body.ClientID, body.ClientSecret
-		scopes = body.Scopes
-		if len(scopes) == 0 {
-			scopes = s.defaultFederationScopes()
-		}
-	default:
-		writeAuthErr(w, authn.ErrBadRequest())
-		return
-	}
-
-	keyVer, dek, err := s.currentDEK()
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: dek: %w", err))
-		return
-	}
-
-	allowedDomains := body.AllowedDomains
-	if allowedDomains == nil {
-		allowedDomains = []string{}
-	}
-	usernameClaim := body.UsernameClaim
-	if usernameClaim == "" {
-		usernameClaim = "preferred_username"
-	}
-	displayNameClaim := body.DisplayNameClaim
-	if displayNameClaim == "" {
-		displayNameClaim = "name"
-	}
-	emailClaim := body.EmailClaim
-	if emailClaim == "" {
-		emailClaim = "email"
-	}
-	pictureClaim := body.PictureClaim
-	if pictureClaim == "" {
-		pictureClaim = "picture"
-	}
-
-	// Execute insert → seal → secret-update inside a single transaction.
-	// The AAD is bound to (idp_id, key_version), so we insert first to obtain
-	// the auto-assigned row id, then seal using that id, then update — all
-	// within the transaction so a seal or update failure rolls back the insert
-	// (no orphan-row window).
 	tx, err := s.dbPool.Begin(r.Context())
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: begin tx: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context()) //nolint:errcheck
-
-	placeholder := make([]byte, 1)
 	qtx := s.queries.WithTx(tx)
-	row, err := qtx.InsertUpstreamIDP(r.Context(), db.InsertUpstreamIDPParams{
-		Slug:                 body.Slug,
-		DisplayName:          body.DisplayName,
-		IssuerUrl:            issuerURL,
-		ClientID:             clientID,
-		ClientSecretEnc:      placeholder,
-		SecretNonce:          placeholder,
-		KeyVersion:           keyVer,
-		Scopes:               scopes,
-		Mode:                 body.Mode,
-		AllowedDomains:       allowedDomains,
-		UsernameClaim:        usernameClaim,
-		DisplayNameClaim:     displayNameClaim,
-		EmailClaim:           emailClaim,
-		PictureClaim:         pictureClaim,
-		RequireVerifiedEmail: requireVerifiedEmail,
-		Protocol:             protocol,
-		AllowPrivateNetwork:  body.AllowPrivateNetwork,
-	})
+	row, err := qtx.InsertUpstreamIDP(r.Context(), providerInsertParams(body))
 	if err != nil {
 		if isUniqueViolation(err) {
 			writeAuthErr(w, authn.ErrUpstreamIDPAlreadyExists())
@@ -329,71 +284,44 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: insert: %w", err))
 		return
 	}
-
-	// Seal the real secret (clientSecret for oidc, apiKey for steam) using
-	// the row id for AAD.
-	sealed, err := federation.SealProviderSecret(dek, []byte(secretPlaintext), row.ID, keyVer)
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: seal: %w", err))
-		return
+	if body.Secret != "" {
+		keyVersion, dek, keyErr := s.currentDEK()
+		if keyErr != nil {
+			writeAuthErr(w, keyErr)
+			return
+		}
+		sealed, sealErr := federation.SealProviderSecret(dek, []byte(body.Secret), row.ID, keyVersion)
+		if sealErr != nil {
+			writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: seal: %w", sealErr))
+			return
+		}
+		row, err = qtx.UpdateUpstreamIDPSecret(r.Context(), db.UpdateUpstreamIDPSecretParams{
+			Slug: row.Slug, SecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce,
+			KeyVersion: pgtype.Int4{Int32: keyVersion, Valid: true}, SecretStatus: "configured",
+		})
+		if err != nil {
+			writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: secret update: %w", err))
+			return
+		}
 	}
-
-	// Write the real sealed secret back within the same transaction.
-	if err := qtx.UpdateUpstreamIDPSecret(r.Context(), db.UpdateUpstreamIDPSecretParams{
-		Slug:            row.Slug,
-		ClientSecretEnc: sealed.Ciphertext,
-		SecretNonce:     sealed.Nonce,
-		KeyVersion:      keyVer,
-	}); err != nil {
-		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: seal-update: %w", err))
-		return
-	}
-
 	if err := tx.Commit(r.Context()); err != nil {
 		writeAuthErr(w, fmt.Errorf("handleCreateIdentityProvider: commit: %w", err))
 		return
 	}
 
-	sess := authn.SessionFromContext(r.Context())
-	var actorID *int32
-	if sess != nil {
-		actorID = &sess.Account.ID
-	}
+	body.Protocol = row.Protocol
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-		AccountID: actorID,
-		Factor:    audit.FactorUpstreamIDP,
-		Event:     audit.EventRegister,
-		Detail:    map[string]any{"slug": row.Slug, "mode": row.Mode, "allow_private_network": body.AllowPrivateNetwork},
+		AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP,
+		Event: audit.EventRegister, Detail: providerWriteAuditDetail(body),
 	})
-
-	// Re-query so the view reflects the committed secret fields (not placeholder).
-	final, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), row.Slug)
+	view, err := s.identityProviderView(row)
 	if err != nil {
-		// View is still safe to return from the insert row; secret not exposed.
-		final = row
+		writeAuthErr(w, err)
+		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(identityProviderView(final))
-}
-
-// ----- PUT /identity-providers/{slug} (raw, sudo-gated) ----------------------------
-
-type updateIdentityProviderBody struct {
-	DisplayName          string   `json:"displayName"`
-	IssuerUrl            string   `json:"issuerUrl"`
-	ClientID             string   `json:"clientId"`
-	Scopes               []string `json:"scopes"`
-	Mode                 string   `json:"mode"`
-	AllowedDomains       []string `json:"allowedDomains"`
-	UsernameClaim        string   `json:"usernameClaim"`
-	DisplayNameClaim     string   `json:"displayNameClaim"`
-	EmailClaim           string   `json:"emailClaim"`
-	PictureClaim         string   `json:"pictureClaim"`
-	RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
-	Disabled             bool     `json:"disabled"`
-	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
+	_ = json.NewEncoder(w).Encode(view)
 }
 
 func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http.Request) {
@@ -402,16 +330,11 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-
-	var body updateIdentityProviderBody
+	var body providerWriteBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-
-	// Fetch the current row so we can (a) validate the issuer against the
-	// per-IdP allow_private_network policy that applies to THIS IdP, and
-	// (b) audit old→new when that policy changes.
 	existing, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -421,48 +344,12 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, fmt.Errorf("handleUpdateIdentityProvider: lookup: %w", err))
 		return
 	}
-
-	// This legacy update body is OIDC-shaped, so issuer validation applies to
-	// every request unless private networking is enabled. Protocol-owned config
-	// validation replaces this path with the generic provider persistence and
-	// administration cutover.
-	if err := validateUpstreamIssuer(body.IssuerUrl, body.AllowPrivateNetwork); err != nil {
+	if _, err := s.validateProviderWrite(body, &existing, false); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-
-	scopes := body.Scopes
-	if len(scopes) == 0 {
-		scopes = s.defaultFederationScopes()
-	}
-	allowedDomains := body.AllowedDomains
-	if allowedDomains == nil {
-		allowedDomains = []string{}
-	}
-	// Intentionally default an empty picture_claim back to "picture" (unlike the
-	// other claims above, which pass through as-is). An empty picture_claim would
-	// silently disable upstream avatar inheritance; defaulting here keeps the
-	// NOT NULL DEFAULT meaningful even if the UI ever sends a blank field.
-	updatePictureClaim := body.PictureClaim
-	if updatePictureClaim == "" {
-		updatePictureClaim = "picture"
-	}
-
 	updated, err := s.queries.UpdateUpstreamIDPConfig(r.Context(), db.UpdateUpstreamIDPConfigParams{
-		Slug:                 slug,
-		DisplayName:          body.DisplayName,
-		IssuerUrl:            body.IssuerUrl,
-		ClientID:             body.ClientID,
-		Scopes:               scopes,
-		Mode:                 body.Mode,
-		AllowedDomains:       allowedDomains,
-		UsernameClaim:        body.UsernameClaim,
-		DisplayNameClaim:     body.DisplayNameClaim,
-		EmailClaim:           body.EmailClaim,
-		PictureClaim:         updatePictureClaim,
-		RequireVerifiedEmail: body.RequireVerifiedEmail,
-		Disabled:             body.Disabled,
-		AllowPrivateNetwork:  body.AllowPrivateNetwork,
+		Slug: slug, DisplayName: body.DisplayName, Mode: body.Mode, ProviderConfig: append([]byte(nil), body.Config...),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -472,55 +359,52 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, fmt.Errorf("handleUpdateIdentityProvider: update: %w", err))
 		return
 	}
-
-	if s.federationOIDCAdapter != nil {
+	if s.federationOIDCAdapter != nil && existing.Protocol == "oidc" {
 		s.federationOIDCAdapter.InvalidateClientCache(slug)
 	}
-
-	sess := authn.SessionFromContext(r.Context())
-	var actorID *int32
-	if sess != nil {
-		actorID = &sess.Account.ID
-	}
-	auditDetail := map[string]any{"slug": slug}
-	if existing.AllowPrivateNetwork != body.AllowPrivateNetwork {
-		auditDetail["allow_private_network_old"] = existing.AllowPrivateNetwork
-		auditDetail["allow_private_network_new"] = body.AllowPrivateNetwork
-	}
+	body.Slug = existing.Slug
+	body.Protocol = existing.Protocol
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-		AccountID: actorID,
-		Factor:    audit.FactorUpstreamIDP,
-		Event:     audit.EventUpdate,
-		Detail:    auditDetail,
+		AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP,
+		Event: audit.EventUpdate, Detail: providerWriteAuditDetail(body),
 	})
-
-	writeJSON(w, identityProviderView(updated))
+	view, err := s.identityProviderView(updated)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	writeJSON(w, view)
 }
-
-// ----- POST /identity-providers/set-disabled (raw, sudo-gated) --------------------
 
 type setIdentityProviderDisabledBody struct {
 	Slug     string `json:"slug"`
 	Disabled bool   `json:"disabled"`
 }
 
-// handleSetIdentityProviderDisabledHTTP flips ONLY the disabled flag, independent
-// of the config form's Save. Returns the updated provider view.
 func (s *Server) handleSetIdentityProviderDisabledHTTP(w http.ResponseWriter, r *http.Request) {
 	var body setIdentityProviderDisabledBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Slug == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if body.Slug == "" {
-		writeAuthErr(w, authn.ErrBadRequest())
-		return
+	queries := s.providerStateQ()
+	if !body.Disabled {
+		row, err := queries.GetUpstreamIDPBySlugAny(r.Context(), body.Slug)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeAuthErr(w, authn.ErrUpstreamIDPNotFound())
+				return
+			}
+			writeAuthErr(w, fmt.Errorf("handleSetIdentityProviderDisabled: lookup: %w", err))
+			return
+		}
+		definition, err := s.federationRegistry.Definition(row.Protocol)
+		if err != nil || !definition.Ready(providerFromDB(row)) {
+			writeAuthErr(w, authn.ErrProviderNotReady())
+			return
+		}
 	}
-
-	updated, err := s.queries.SetUpstreamIDPDisabled(r.Context(), db.SetUpstreamIDPDisabledParams{
-		Slug:     body.Slug,
-		Disabled: body.Disabled,
-	})
+	updated, err := queries.SetUpstreamIDPDisabled(r.Context(), db.SetUpstreamIDPDisabledParams{Slug: body.Slug, Disabled: body.Disabled})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeAuthErr(w, authn.ErrUpstreamIDPNotFound())
@@ -529,41 +413,29 @@ func (s *Server) handleSetIdentityProviderDisabledHTTP(w http.ResponseWriter, r 
 		writeAuthErr(w, fmt.Errorf("handleSetIdentityProviderDisabled: update: %w", err))
 		return
 	}
-
-	sess := authn.SessionFromContext(r.Context())
-	var actorID *int32
-	if sess != nil {
-		actorID = &sess.Account.ID
-	}
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-		AccountID: actorID,
-		Factor:    audit.FactorUpstreamIDP,
-		Event:     audit.EventUpdate,
-		Detail:    map[string]any{"slug": body.Slug, "disabled": body.Disabled},
+		AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP,
+		Event: audit.EventUpdate, Detail: map[string]any{"slug": body.Slug, "disabled": body.Disabled},
 	})
-
-	writeJSON(w, identityProviderView(updated))
+	view, err := s.identityProviderView(updated)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	writeJSON(w, view)
 }
 
-// ----- POST /identity-providers/rotate-secret (raw, sudo-gated) -------------------
-
 type rotateIdentityProviderSecretBody struct {
-	Slug         string `json:"slug"`
-	ClientSecret string `json:"clientSecret"`
+	Slug   string `json:"slug"`
+	Secret string `json:"secret"`
 }
 
 func (s *Server) handleRotateIdentityProviderSecretHTTP(w http.ResponseWriter, r *http.Request) {
 	var body rotateIdentityProviderSecretBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Slug == "" || body.Secret == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if body.Slug == "" || body.ClientSecret == "" {
-		writeAuthErr(w, authn.ErrBadRequest())
-		return
-	}
-
-	// Resolve the row to get the id for AAD.
 	row, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), body.Slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -573,45 +445,34 @@ func (s *Server) handleRotateIdentityProviderSecretHTTP(w http.ResponseWriter, r
 		writeAuthErr(w, fmt.Errorf("handleRotateIdentityProviderSecret: lookup: %w", err))
 		return
 	}
-
-	keyVer, dek, err := s.currentDEK()
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleRotateIdentityProviderSecret: dek: %w", err))
+	definition, err := s.federationRegistry.Definition(row.Protocol)
+	if err != nil || definition.ValidateSecret([]byte(body.Secret)) != nil {
+		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-
-	sealed, err := federation.SealProviderSecret(dek, []byte(body.ClientSecret), row.ID, keyVer)
+	keyVersion, dek, err := s.currentDEK()
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	sealed, err := federation.SealProviderSecret(dek, []byte(body.Secret), row.ID, keyVersion)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("handleRotateIdentityProviderSecret: seal: %w", err))
 		return
 	}
-
-	if err := s.queries.UpdateUpstreamIDPSecret(r.Context(), db.UpdateUpstreamIDPSecretParams{
-		Slug:            body.Slug,
-		ClientSecretEnc: sealed.Ciphertext,
-		SecretNonce:     sealed.Nonce,
-		KeyVersion:      keyVer,
+	if _, err := s.queries.UpdateUpstreamIDPSecret(r.Context(), db.UpdateUpstreamIDPSecretParams{
+		Slug: body.Slug, SecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce,
+		KeyVersion: pgtype.Int4{Int32: keyVersion, Valid: true}, SecretStatus: "configured",
 	}); err != nil {
 		writeAuthErr(w, fmt.Errorf("handleRotateIdentityProviderSecret: update: %w", err))
 		return
 	}
-
-	sess := authn.SessionFromContext(r.Context())
-	var actorID *int32
-	if sess != nil {
-		actorID = &sess.Account.ID
-	}
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-		AccountID: actorID,
-		Factor:    audit.FactorUpstreamIDP,
-		Event:     audit.EventRotate,
-		Detail:    map[string]any{"slug": body.Slug, "action": "rotate_secret"},
+		AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP,
+		Event: audit.EventRotate, Detail: map[string]any{"slug": body.Slug, "action": "rotate_secret"},
 	})
-
 	w.WriteHeader(http.StatusNoContent)
 }
-
-// ----- POST /identity-providers/delete (raw, sudo-gated) --------------------------
 
 type deleteIdentityProviderBody struct {
 	Slug string `json:"slug"`
@@ -619,16 +480,10 @@ type deleteIdentityProviderBody struct {
 
 func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http.Request) {
 	var body deleteIdentityProviderBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Slug == "" {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if body.Slug == "" {
-		writeAuthErr(w, authn.ErrBadRequest())
-		return
-	}
-
-	// Resolve slug → id for proper 404 and to use the id-based delete query.
 	row, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), body.Slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -638,49 +493,22 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: lookup: %w", err))
 		return
 	}
-
 	if err := s.queries.DeleteUpstreamIDP(r.Context(), row.ID); err != nil {
 		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete: %w", err))
 		return
 	}
-
-	// Remove the entity icon row if one was uploaded. Errors are silently
-	// ignored — the icon is orphaned data, not a consistency risk.
-	_ = s.queries.DeleteEntityIcon(r.Context(), db.DeleteEntityIconParams{
-		OwnerKind: "upstream_idp", OwnerID: body.Slug,
-	})
-
-	sess := authn.SessionFromContext(r.Context())
-	var actorID *int32
-	if sess != nil {
-		actorID = &sess.Account.ID
-	}
+	_ = s.queries.DeleteEntityIcon(r.Context(), db.DeleteEntityIconParams{OwnerKind: "upstream_idp", OwnerID: body.Slug})
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-		AccountID: actorID,
-		Factor:    audit.FactorUpstreamIDP,
-		Event:     audit.EventRevoke,
-		Detail:    map[string]any{"slug": body.Slug},
+		AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP,
+		Event: audit.EventRevoke, Detail: map[string]any{"slug": body.Slug},
 	})
-
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Compile-time check: ensure identityProviderView never exposes ClientSecretEnc
-// or SecretNonce. db.UpstreamIdp.ClientSecretEnc and SecretNonce are []byte
-// fields that are deliberately absent from contract.IdentityProviderView — the
-// compiler enforces this structurally. The runtime check verifies no []byte
-// field was accidentally smuggled through as a string alias.
-var _ = func() bool {
-	secretBytes := []byte("SECRET_BYTES_MUST_NOT_APPEAR")
-	row := db.UpstreamIdp{
-		ClientSecretEnc: secretBytes,
-		SecretNonce:     secretBytes,
-		Slug:            "test",
-		DisplayName:     "Test",
+func sessionAccountID(ctx context.Context) *int32 {
+	session := authn.SessionFromContext(ctx)
+	if session == nil {
+		return nil
 	}
-	v := identityProviderView(row)
-	_ = v
-	// contract.IdentityProviderView has no ClientSecretEnc or SecretNonce fields.
-	// This init func failing to compile catches any regression.
-	return true
-}()
+	return &session.Account.ID
+}

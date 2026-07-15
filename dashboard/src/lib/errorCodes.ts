@@ -80,6 +80,7 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'pairing_state', details: [], recovery: '' },
   { code: 'partial_session_invalid', details: [], recovery: 'reauth' },
   { code: 'permission_denied', details: [], recovery: '' },
+  { code: 'provider_not_ready', details: [], recovery: '' },
   { code: 'rate_limited', details: ['retryAfterSeconds'], recovery: 'retry' },
   { code: 'recovery_session_invalid', details: [], recovery: 'reauth' },
   { code: 'registration_failed', details: [], recovery: '' },
@@ -160,7 +161,7 @@ export function codeDefinition(code: string): ErrorCodeDef | undefined {
  *
  * Derived from: go test ./pkg/weberr → AllDefinitions() count.
  */
-export const EXPECTED_REGISTRY_CODE_COUNT = 69
+export const EXPECTED_REGISTRY_CODE_COUNT = 70
 /**
  * Error codes owned by a GLOBAL handler — a redirect (no_session →
  * sessionExpiry), a full-screen redirect (maintenance_mode), or a connection

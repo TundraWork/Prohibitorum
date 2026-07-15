@@ -6,17 +6,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"prohibitorum/pkg/audit"
-	"prohibitorum/pkg/db"
 )
 
 func ApplyInviteOnlyForTest(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
-	idp *db.UpstreamIdp,
+	idp *Provider,
 	identity *VerifiedIdentity,
 	enrollmentToken string,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	return applyInviteOnly(ctx, q, w, idp, identity, enrollmentToken, pool)
+	resolverIDP, err := resolverProviderFromProvider(*idp)
+	if err != nil {
+		return ResolveOutcome{}, err
+	}
+	return applyInviteOnly(ctx, q, w, &resolverIDP, identity, enrollmentToken, pool)
 }

@@ -34,6 +34,7 @@ import (
 	"prohibitorum/pkg/federation"
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 	federationsteam "prohibitorum/pkg/federation/providers/steam"
+	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
 	"prohibitorum/pkg/pagination"
@@ -45,29 +46,31 @@ import (
 )
 
 type Server struct {
-	queries       *db.Queries
-	dbPool        *pgxpool.Pool
-	router        *chi.Mux
-	api           huma.API
-	config        *configx.Config
-	kvStore       kv.Store
-	sessionStore  *sessstore.SessionStore
-	pairingStore  *pairing.PairingStore
-	rateLimiter   *authn.RateLimiter
-	webauthn      *webauthn.WebAuthn
-	oidcOP        *oidcop.Provider
-	samlIdP       *samlidp.IdP
-	passwordStore *password.Store
-	totpStore     *totp.Store
-	throttle      *authn.Throttle
-	federationService *federation.Service
+	queries               *db.Queries
+	dbPool                *pgxpool.Pool
+	router                *chi.Mux
+	api                   huma.API
+	config                *configx.Config
+	kvStore               kv.Store
+	sessionStore          *sessstore.SessionStore
+	pairingStore          *pairing.PairingStore
+	rateLimiter           *authn.RateLimiter
+	webauthn              *webauthn.WebAuthn
+	oidcOP                *oidcop.Provider
+	samlIdP               *samlidp.IdP
+	passwordStore         *password.Store
+	totpStore             *totp.Store
+	throttle              *authn.Throttle
+	federationService     *federation.Service
 	federationOIDCAdapter *federationoidc.Adapter
+	federationRegistry    *federation.Registry
 	// Audit records credential lifecycle events.
 	Audit audit.Writer
 	// sudoFlowOverride lets tests inject a fake sudoFlowQueries for the
 	// /me/sudo/methods computation without standing up *db.Queries. Nil in
 	// production — handlers fall back to s.queries.
-	sudoFlowOverride sudoFlowQueries
+	sudoFlowOverride             sudoFlowQueries
+	providerStateQueriesOverride providerStateQueries
 	// meTOTPFlowOverride lets tests inject a fake meTOTPFlowQueries for the
 	// /me/totp/* conditional-sudo branch (which reads totp_credential.
 	// ConfirmedAt directly). Nil in production — handlers fall back to
@@ -250,6 +253,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 			return nil, fmt.Errorf("federation adapter: %w", err)
 		}
 	}
+	if err := federationRegistry.RegisterDefinition(federationvrchat.Definition{}); err != nil {
+		return nil, fmt.Errorf("federation definition: %w", err)
+	}
 	federationService := federation.NewService(
 		federationRegistry,
 		federation.NewProviderStore(queries),
@@ -276,28 +282,29 @@ func NewServer(ctx context.Context) (*Server, error) {
 	rateLimiter := authn.NewRateLimiter()
 
 	s := &Server{
-		queries:       queries,
-		dbPool:        conn,
-		router:        router,
-		api:           api,
-		config:        config,
-		kvStore:       kvStore,
-		sessionStore:  sessionStore,
-		pairingStore:  pairing.NewPairingStore(kvStore),
-		rateLimiter:   rateLimiter,
-		webauthn:      wa,
-		oidcOP:        oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
-		samlIdP:       samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
-		passwordStore: passwordStore,
-		totpStore:     totpStore,
-		throttle:      throttle,
+		queries:               queries,
+		dbPool:                conn,
+		router:                router,
+		api:                   api,
+		config:                config,
+		kvStore:               kvStore,
+		sessionStore:          sessionStore,
+		pairingStore:          pairing.NewPairingStore(kvStore),
+		rateLimiter:           rateLimiter,
+		webauthn:              wa,
+		oidcOP:                oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
+		samlIdP:               samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
+		passwordStore:         passwordStore,
+		totpStore:             totpStore,
+		throttle:              throttle,
 		federationService:     federationService,
 		federationOIDCAdapter: oidcAdapter,
-		Audit:         auditWriter,
-		branding:      brandingResolver,
-		clientIP:      clientIPResolver,
-		diagStore:     diagStore,
-		cursorCodec:   cursorCodec,
+		federationRegistry:    federationRegistry,
+		Audit:                 auditWriter,
+		branding:              brandingResolver,
+		clientIP:              clientIPResolver,
+		diagStore:             diagStore,
+		cursorCodec:           cursorCodec,
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.

@@ -998,6 +998,7 @@ export default {
 
       // 系统
       maintenance_mode: '系统正在维护中，请稍后再试。',
+      provider_not_ready: '该身份提供商尚未就绪，无法启用。',
       database_unavailable: '数据库暂时不可用，请重试。',
       kv_unavailable: '发生了临时服务问题，请重试。',
     },

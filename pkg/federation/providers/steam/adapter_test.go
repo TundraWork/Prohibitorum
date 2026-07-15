@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,23 +16,34 @@ import (
 
 func TestAdapterMapsVerifiedSteamIdentity(t *testing.T) {
 	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
-	secret, err := store.SealProviderSecret([]byte("api-key"), 7, 1); if err != nil { t.Fatal(err) }
+	secret, err := store.SealProviderSecret([]byte("api-key"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	provider := federationcore.Provider{ID: 7, Slug: "steam", Protocol: Protocol, Config: json.RawMessage(`{}`), Secret: secret, SecretStatus: "valid"}
 	adapter := NewAdapter(store)
 	adapter.verify = func(context.Context, url.Values, string) (string, error) { return "76561198000000000", nil }
-	adapter.summary = func(context.Context, string, string) (Summary, error) { return Summary{PersonaName: "Gaben", AvatarURL: "https://cdn/avatar.jpg"}, nil }
+	adapter.summary = func(context.Context, string, string) (Summary, error) {
+		return Summary{PersonaName: "Gaben", AvatarURL: "https://cdn/avatar.jpg"}, nil
+	}
 	state, action, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{FlowID: "flow", CallbackURL: "https://idp.test/api/prohibitorum/auth/federation/steam/callback"})
-	if err != nil { t.Fatal(err) }
-	if action.Kind != federationcore.ActionRedirect || action.URL == "" { t.Fatalf("action = %+v", action) }
-	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Params: url.Values{"openid.mode":{"id_res"}}})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if action.Kind != federationcore.ActionRedirect || action.URL == "" {
+		t.Fatalf("action = %+v", action)
+	}
+	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{Kind: federationcore.ActionRedirect, Params: url.Values{"openid.mode": {"id_res"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	identity := result.Identity
 	if identity == nil || identity.Issuer != Issuer || identity.Subject != "76561198000000000" || identity.Username != "steam_76561198000000000" || identity.DisplayName != "Gaben" || identity.AvatarURL != "https://cdn/avatar.jpg" || identity.UpstreamData["profileUrl"] != "https://steamcommunity.com/profiles/76561198000000000" {
 		t.Fatalf("identity = %+v", identity)
 	}
 }
 
-func TestAdapterReusesOneHardenedClientPerNetworkPolicy(t *testing.T) {
+func TestAdapterReusesHardenedClient(t *testing.T) {
 	secrets := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
 	sealed, err := secrets.SealProviderSecret([]byte("api-key"), 7, 1)
 	if err != nil {
@@ -54,19 +64,17 @@ func TestAdapterReusesOneHardenedClientPerNetworkPolicy(t *testing.T) {
 	state := json.RawMessage(`{"returnTo":"https://idp.test/callback?state=flow"}`)
 	input := federationcore.ActionInput{Kind: federationcore.ActionRedirect}
 
-	for _, allowPrivate := range []bool{false, true} {
-		provider := federationcore.Provider{
-			ID: 7, Protocol: Protocol, Secret: sealed, SecretStatus: "valid",
-			Config: json.RawMessage(`{"allowPrivateNetwork":` + fmt.Sprint(allowPrivate) + `}`),
-		}
-		for range 3 {
-			if _, err := adapter.Advance(context.Background(), provider, state, input); err != nil {
-				t.Fatal(err)
-			}
+	provider := federationcore.Provider{
+		ID: 7, Protocol: Protocol, Secret: sealed, SecretStatus: "valid",
+		Config: json.RawMessage(`{}`),
+	}
+	for range 3 {
+		if _, err := adapter.Advance(context.Background(), provider, state, input); err != nil {
+			t.Fatal(err)
 		}
 	}
-	if created[false] != 1 || created[true] != 1 {
-		t.Fatalf("hardened client constructions = %v, want one per policy", created)
+	if created[false] != 1 || created[true] != 0 {
+		t.Fatalf("hardened client constructions = %v, want one public client", created)
 	}
 }
 
@@ -92,7 +100,7 @@ func TestAdapterClassifiesOpenIDVerificationFailureAsStateInvalid(t *testing.T) 
 	}
 
 	_, err = adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
-		Kind: federationcore.ActionRedirect,
+		Kind:   federationcore.ActionRedirect,
 		Params: url.Values{"openid.mode": {"id_res"}},
 	})
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
@@ -106,9 +114,13 @@ func TestAdapterClassifiesOpenIDVerificationFailureAsStateInvalid(t *testing.T) 
 func TestDefinitionRequiresValidatedSecret(t *testing.T) {
 	definition := Definition{}
 	provider := federationcore.Provider{Protocol: Protocol, Config: json.RawMessage(`{}`), Secret: &federationcore.SealedSecret{Ciphertext: []byte{1}, Nonce: []byte{2}, KeyVersion: 1}, SecretStatus: "valid"}
-	if !definition.Ready(provider) { t.Fatal("valid Steam provider not ready") }
+	if !definition.Ready(provider) {
+		t.Fatal("valid Steam provider not ready")
+	}
 	provider.SecretStatus = "invalid"
-	if definition.Ready(provider) { t.Fatal("invalid secret status ready") }
+	if definition.Ready(provider) {
+		t.Fatal("invalid secret status ready")
+	}
 }
 
 type steamServiceProviders struct {
@@ -148,7 +160,7 @@ func (r *steamServiceResolver) ResolveIdentity(_ context.Context, provider feder
 
 func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 	const (
-		steamID     = "76561198000000000"
+		steamID      = "76561198000000000"
 		providerSlug = "steam?#primary"
 	)
 	var checkAuthenticationCalls, summaryCalls int
@@ -187,11 +199,12 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 	}
 	provider := federationcore.Provider{
 		ID: 7, Slug: providerSlug, Protocol: Protocol, Mode: federationcore.ModeAutoProvision,
-		Config: json.RawMessage(`{"allowPrivateNetwork":true}`),
+		Config: json.RawMessage(`{}`),
 		Secret: sealed, SecretStatus: "valid",
 	}
 	registry := federationcore.NewRegistry()
 	adapter := NewAdapter(secrets)
+	adapter.newHTTPClient = func(bool) *http.Client { return upstream.Client() }
 	if err := registry.RegisterDefinition(Definition{}); err != nil {
 		t.Fatal(err)
 	}

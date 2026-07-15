@@ -347,7 +347,7 @@ func TestAvatarManagerInheritanceSelectionPolicy(t *testing.T) {
 			manager.fetch = func(context.Context, string, bool) ([]byte, error) {
 				return pngBytes, nil
 			}
-			provider := Provider{ID: 11, Slug: "corp", Config: json.RawMessage(`{"allowPrivateNetwork":true}`)}
+			provider := Provider{ID: 11, Slug: "corp"}
 
 			manager.run(context.Background(), accountID, provider, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
 
@@ -415,24 +415,24 @@ func TestAvatarManagerLogsPersistenceFailuresWithSafeContext(t *testing.T) {
 		message   string
 	}{
 		{
-			name: "account lookup",
+			name:      "account lookup",
 			configure: func(q *avatarManagerQueries) { q.getErr = errors.New("database failed") },
-			message: "account lookup failed",
+			message:   "account lookup failed",
 		},
 		{
-			name: "source list",
+			name:      "source list",
 			configure: func(q *avatarManagerQueries) { q.listErr = errors.New("database failed") },
-			message: "source list failed",
+			message:   "source list failed",
 		},
 		{
-			name: "source upsert",
+			name:      "source upsert",
 			configure: func(q *avatarManagerQueries) { q.upsertErr = errors.New("database failed") },
-			message: "source upsert failed",
+			message:   "source upsert failed",
 		},
 		{
-			name: "activation",
+			name:      "activation",
 			configure: func(q *avatarManagerQueries) { q.activateErr = errors.New("database failed") },
-			message: "activation failed",
+			message:   "activation failed",
 		},
 	}
 	for _, test := range tests {
@@ -496,7 +496,7 @@ func TestAvatarManagerDedupesConcurrentProviderRefresh(t *testing.T) {
 	}
 }
 
-func TestAvatarManagerUsesProviderPrivateNetworkPolicy(t *testing.T) {
+func TestAvatarManagerUsesAdapterPrivateNetworkPolicy(t *testing.T) {
 	queries := &avatarManagerQueries{account: db.Account{ID: 7}}
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
@@ -508,8 +508,8 @@ func TestAvatarManagerUsesProviderPrivateNetworkPolicy(t *testing.T) {
 	}
 
 	manager.run(context.Background(), 7, Provider{
-		ID: 11, Slug: "corp", Config: json.RawMessage(`{"allowPrivateNetwork":true}`),
-	}, AvatarDelivery{URL: "https://cdn.test/avatar.png"}, nil)
+		ID: 11, Slug: "corp",
+	}, AvatarDelivery{URL: "https://cdn.test/avatar.png", AllowPrivateNetwork: true}, nil)
 
 	if !got {
 		t.Fatal("avatar fetch did not receive provider allowPrivateNetwork policy")

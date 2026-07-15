@@ -214,6 +214,10 @@ describe('error code manifest integrity', () => {
     expect(REGISTRY_CODES.length).toBe(EXPECTED_REGISTRY_CODE_COUNT)
   })
 
+  it('includes provider_not_ready from the Go registry', () => {
+    expect(REGISTRY_CODES.map((definition) => definition.code)).toContain('provider_not_ready')
+  })
+
   it('all codes are unique', () => {
     const codes = ALL_CODES.map((d) => d.code)
     const seen = new Set<string>()

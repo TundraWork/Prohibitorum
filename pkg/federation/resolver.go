@@ -2,6 +2,7 @@ package federation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -54,6 +55,37 @@ const (
 	ModeLinkOnly      = "link_only"
 )
 
+type resolverProvider struct {
+	ID                   int64
+	Slug                 string
+	Mode                 string
+	AllowedDomains       []string
+	UsernameClaim        string
+	RequireVerifiedEmail bool
+}
+
+func resolverProviderFromProvider(provider Provider) (resolverProvider, error) {
+	var config struct {
+		AllowedDomains       []string `json:"allowedDomains"`
+		UsernameClaim        string   `json:"usernameClaim"`
+		RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
+	}
+	if err := json.Unmarshal(provider.Config, &config); err != nil {
+		return resolverProvider{}, fmt.Errorf("federation: decode provider config: %w", err)
+	}
+	if config.UsernameClaim == "" {
+		config.UsernameClaim = "preferred_username"
+	}
+	return resolverProvider{
+		ID:                   provider.ID,
+		Slug:                 provider.Slug,
+		Mode:                 provider.Mode,
+		AllowedDomains:       append([]string(nil), config.AllowedDomains...),
+		UsernameClaim:        config.UsernameClaim,
+		RequireVerifiedEmail: config.RequireVerifiedEmail,
+	}, nil
+}
+
 // Resolve is the entry point called by the callback handler. Given the
 // upstream IdP row and the verified token claims, it returns the local
 // account_id that should be signed in.
@@ -71,22 +103,29 @@ func Resolve(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
-	idp *db.UpstreamIdp,
+	idp *Provider,
 	identity *VerifiedIdentity,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
+	if idp == nil {
+		return ResolveOutcome{}, errors.New("federation: Resolve: nil provider or identity")
+	}
+	resolverIDP, err := resolverProviderFromProvider(*idp)
+	if err != nil {
+		return ResolveOutcome{}, err
+	}
 	localUsername := ""
 	if identity != nil {
 		localUsername = identity.Username
 	}
-	return resolve(ctx, q, w, idp, identity, localUsername, pool)
+	return resolve(ctx, q, w, &resolverIDP, identity, localUsername, pool)
 }
 
 func resolve(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
-	idp *db.UpstreamIdp,
+	idp *resolverProvider,
 	identity *VerifiedIdentity,
 	localUsername string,
 	pool *pgxpool.Pool,
@@ -204,7 +243,7 @@ func applyAutoProvision(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
-	idp *db.UpstreamIdp,
+	idp *resolverProvider,
 	identity *VerifiedIdentity,
 	localUsername string,
 	requireLocalUsername bool,
@@ -213,9 +252,6 @@ func applyAutoProvision(
 	username := localUsername
 	displayName := identity.DisplayName
 	email := identityEmail(identity)
-
-
-
 	if displayName == "" {
 		displayName = username
 	}
@@ -433,7 +469,7 @@ func applyInviteOnly(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
-	idp *db.UpstreamIdp,
+	idp *resolverProvider,
 	identity *VerifiedIdentity,
 	enrollmentToken string,
 	pool *pgxpool.Pool,
@@ -671,7 +707,7 @@ func runProvisionTx(
 func applyLinkOnly(
 	ctx context.Context,
 	w audit.Writer,
-	idp *db.UpstreamIdp,
+	idp *resolverProvider,
 	identity *VerifiedIdentity,
 ) (ResolveOutcome, error) {
 	emitFail(ctx, w, idp, identity, "link_required", nil)
@@ -686,7 +722,7 @@ func applyLinkOnly(
 func syncClaims(
 	ctx context.Context,
 	q ModesQueries,
-	idp *db.UpstreamIdp,
+	idp *resolverProvider,
 	stored *db.AccountIdentity,
 	identity *VerifiedIdentity,
 ) error {
@@ -771,7 +807,7 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 	if identity.Issuer == "" || identity.Subject == "" {
 		return ResolveOutcome{}, errors.New("federation: verified identity missing issuer or subject")
 	}
-	row, err := providerRow(provider)
+	row, err := resolverProviderFromProvider(provider)
 	if err != nil {
 		return ResolveOutcome{}, err
 	}
@@ -805,7 +841,7 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 	}
 }
 
-func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, identity *VerifiedIdentity, accountID int32) (ResolveOutcome, error) {
+func (r *Resolver) resolveLink(ctx context.Context, provider *resolverProvider, identity *VerifiedIdentity, accountID int32) (ResolveOutcome, error) {
 	email := identityEmail(identity)
 	if provider.RequireVerifiedEmail && identity.EmailVerificationSupported && !identity.EmailVerified {
 		return ResolveOutcome{}, NewFailure(FailureEmailNotVerified, map[string]any{"upstream_iss": identity.Issuer})
@@ -876,7 +912,6 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *db.UpstreamIdp, id
 	return outcome, nil
 }
 
-
 // domainAllowed splits on the last @, lowercases the domain part, and
 // checks membership in allowed (case-insensitive). Empty email returns
 // false — callers should not call this with an empty email.
@@ -900,7 +935,7 @@ func domainAllowed(email string, allowed []string) bool {
 func emitFail(
 	ctx context.Context,
 	w audit.Writer,
-	idp *db.UpstreamIdp,
+	idp *resolverProvider,
 	identity *VerifiedIdentity,
 	reason string,
 	extra map[string]any,

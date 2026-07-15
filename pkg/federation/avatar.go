@@ -6,7 +6,6 @@ package federation
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -60,7 +59,6 @@ type avatarFetchError struct {
 func (e *avatarFetchError) Error() string {
 	return "federation/oidc: avatar fetch " + e.category
 }
-
 
 func sanitizeAvatarFetchError(err error) error {
 	category := "transport error"
@@ -170,11 +168,7 @@ func (m *AvatarManager) run(parent context.Context, accountID int32, provider Pr
 	if avatarURL == "" {
 		return
 	}
-	var config providerConfig
-	if err := json.Unmarshal(provider.Config, &config); err != nil {
-		return
-	}
-	raw, err := m.fetch(ctx, avatarURL, config.AllowPrivateNetwork)
+	raw, err := m.fetch(ctx, avatarURL, delivery.AllowPrivateNetwork)
 	if err != nil {
 		m.logger.WarnContext(ctx, "federation: upstream avatar fetch failed", "account_id", accountID, "err", err)
 		return
@@ -208,7 +202,7 @@ func (m *AvatarManager) run(parent context.Context, accountID int32, provider Pr
 		if err := m.queries.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
 			AccountID: accountID, Source: source, Bytes: processed,
 			ContentType: pgtype.Text{String: "image/webp", Valid: true},
-			Etag: pgtype.Text{String: etag, Valid: true}, IdpID: &providerID,
+			Etag:        pgtype.Text{String: etag, Valid: true}, IdpID: &providerID,
 		}); err != nil {
 			m.logPersistenceFailure(ctx, "source upsert failed", accountID, provider, err)
 			return

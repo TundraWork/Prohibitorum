@@ -1,17 +1,8 @@
-// Package server — handle_admin_upstream_idps_test.go
-//
-// Unit tests for the upstream-IdP admin surface (Task 6). These tests are
-// intentionally DB-free: the view projection (identityProviderView) is the primary
-// unit under test, with assertions on sealed-secret exclusion and correct field
-// mapping. Route-level sudo gating is covered centrally in Task 9.
-//
-// Handler-level validation tests (400 paths) are also included; they exercise
-// request-body parsing and protocol-branch validation, which return before
-// touching the DB pool.
-
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,454 +11,259 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
+	federationsteam "prohibitorum/pkg/federation/providers/steam"
+	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 )
 
-// TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes verifies that
-// identityProviderView never copies ClientSecretEnc or SecretNonce into the wire
-// view. The contract.IdentityProviderView type has no such fields — the test
-// additionally verifies the value-exclusion at runtime.
-func TestAdminUpstreamIDPs_ViewProjection_NeverExposesSecretBytes(t *testing.T) {
-	t.Parallel()
+const exactOIDCConfig = `{
+  "issuerUrl":"https://issuer.example",
+  "clientId":"client-id",
+  "scopes":["openid","profile","email"],
+  "allowedDomains":[],
+  "usernameClaim":"preferred_username",
+  "displayNameClaim":"name",
+  "emailClaim":"email",
+  "pictureClaim":"picture",
+  "requireVerifiedEmail":true,
+  "allowPrivateNetwork":false
+}`
 
-	secretBytes := []byte("AES_GCM_CIPHERTEXT_MUST_NOT_LEAK")
-	nonceBytes := []byte("NONCE_MUST_NOT_LEAK_123456789012")
-
-	row := db.UpstreamIdp{
-		Slug:                 "google",
-		DisplayName:          "Google",
-		IssuerUrl:            "https://accounts.google.com",
-		ClientID:             "client-id-123",
-		ClientSecretEnc:      secretBytes,
-		SecretNonce:          nonceBytes,
-		KeyVersion:           1,
-		Scopes:               []string{"openid", "email"},
-		Mode:                 "auto_provision",
-		AllowedDomains:       []string{"example.com"},
-		UsernameClaim:        "email",
-		DisplayNameClaim:     "name",
-		EmailClaim:           "email",
-		PictureClaim:         "picture",
-		RequireVerifiedEmail: true,
-		Disabled:             false,
-		CreatedAt:            pgtype.Timestamptz{Time: time.Now(), Valid: true},
-	}
-
-	view := identityProviderView(row)
-
-	// contract.IdentityProviderView has no ClientSecretEnc or SecretNonce fields —
-	// the compiler structurally prevents it. Runtime check: none of the string
-	// fields carry the secret or nonce bytes interpreted as string.
-	secretStr := string(secretBytes)
-	nonceStr := string(nonceBytes)
-
-	for _, fieldVal := range []string{
-		view.Slug,
-		view.DisplayName,
-		view.IssuerUrl,
-		view.ClientID,
-		view.Mode,
-		view.UsernameClaim,
-		view.DisplayNameClaim,
-		view.EmailClaim,
-		view.PictureClaim,
-	} {
-		if fieldVal == secretStr {
-			t.Errorf("a string field carries the secret ciphertext: %q", fieldVal)
-		}
-		if fieldVal == nonceStr {
-			t.Errorf("a string field carries the nonce bytes: %q", fieldVal)
-		}
-	}
-	for _, s := range view.Scopes {
-		if s == secretStr || s == nonceStr {
-			t.Errorf("Scopes entry carries secret/nonce bytes: %q", s)
-		}
-	}
-	for _, d := range view.AllowedDomains {
-		if d == secretStr || d == nonceStr {
-			t.Errorf("AllowedDomains entry carries secret/nonce bytes: %q", d)
-		}
-	}
-}
-
-// TestAdminUpstreamIDPs_ViewProjection_FieldMapping verifies correct projection
-// of all public fields including the optional timestamp.
-func TestAdminUpstreamIDPs_ViewProjection_FieldMapping(t *testing.T) {
-	t.Parallel()
-
-	createdAt := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
-	row := db.UpstreamIdp{
-		Slug:                 "my-idp",
-		DisplayName:          "My IdP",
-		IssuerUrl:            "https://idp.example.com",
-		ClientID:             "client-xyz",
-		ClientSecretEnc:      []byte("SEALED"),
-		SecretNonce:          []byte("NONCE"),
-		KeyVersion:           2,
-		Scopes:               []string{"openid", "profile"},
-		Mode:                 "invite_only",
-		AllowedDomains:       []string{"corp.example.com"},
-		UsernameClaim:        "preferred_username",
-		DisplayNameClaim:     "name",
-		EmailClaim:           "email",
-		PictureClaim:         "picture_url",
-		RequireVerifiedEmail: true,
-		Disabled:             true,
-		CreatedAt:            pgtype.Timestamptz{Time: createdAt, Valid: true},
-	}
-
-	view := identityProviderView(row)
-
-	if view.Slug != "my-idp" {
-		t.Errorf("Slug: got %q, want %q", view.Slug, "my-idp")
-	}
-	if view.DisplayName != "My IdP" {
-		t.Errorf("DisplayName: got %q, want %q", view.DisplayName, "My IdP")
-	}
-	if view.IssuerUrl != "https://idp.example.com" {
-		t.Errorf("IssuerUrl: got %q, want %q", view.IssuerUrl, "https://idp.example.com")
-	}
-	if view.ClientID != "client-xyz" {
-		t.Errorf("ClientID: got %q, want %q", view.ClientID, "client-xyz")
-	}
-	if len(view.Scopes) != 2 || view.Scopes[0] != "openid" {
-		t.Errorf("Scopes: got %v, want [openid profile]", view.Scopes)
-	}
-	if view.Mode != "invite_only" {
-		t.Errorf("Mode: got %q, want %q", view.Mode, "invite_only")
-	}
-	if len(view.AllowedDomains) != 1 || view.AllowedDomains[0] != "corp.example.com" {
-		t.Errorf("AllowedDomains: got %v", view.AllowedDomains)
-	}
-	if view.UsernameClaim != "preferred_username" {
-		t.Errorf("UsernameClaim: got %q", view.UsernameClaim)
-	}
-	if view.DisplayNameClaim != "name" {
-		t.Errorf("DisplayNameClaim: got %q", view.DisplayNameClaim)
-	}
-	if view.EmailClaim != "email" {
-		t.Errorf("EmailClaim: got %q", view.EmailClaim)
-	}
-	if view.PictureClaim != "picture_url" {
-		t.Errorf("PictureClaim: got %q", view.PictureClaim)
-	}
-	if !view.RequireVerifiedEmail {
-		t.Error("RequireVerifiedEmail: got false, want true")
-	}
-	if !view.Disabled {
-		t.Error("Disabled: got false, want true")
-	}
-	if !view.CreatedAt.Equal(createdAt) {
-		t.Errorf("CreatedAt: got %v, want %v", view.CreatedAt, createdAt)
-	}
-}
-
-// TestAdminUpstreamIDPs_ViewProjection_InvalidTimestamp verifies that a row
-// with an invalid (NULL) CreatedAt column yields a zero-value time.Time
-// rather than panicking.
-func TestAdminUpstreamIDPs_ViewProjection_InvalidTimestamp(t *testing.T) {
-	t.Parallel()
-
-	row := db.UpstreamIdp{
-		Slug:        "no-ts-idp",
-		DisplayName: "No Timestamp",
-		// CreatedAt intentionally left as zero value (Valid=false)
-	}
-
-	view := identityProviderView(row)
-
-	if !view.CreatedAt.IsZero() {
-		t.Errorf("CreatedAt: got %v, want zero time for invalid column", view.CreatedAt)
-	}
-}
-
-// TestAdminUpstreamIDPs_ErrUpstreamIDPNotFound verifies the 404 constructor
-// returns the correct status code and machine-readable code.
-func TestAdminUpstreamIDPs_ErrUpstreamIDPNotFound(t *testing.T) {
-	t.Parallel()
-
-	err := authn.ErrUpstreamIDPNotFound()
-	if err == nil {
-		t.Fatal("ErrUpstreamIDPNotFound: got nil")
-	}
-	if err.Status != 404 {
-		t.Errorf("Status: got %d, want 404", err.Status)
-	}
-	if err.Code != "upstream_idp_not_found" {
-		t.Errorf("Code: got %q, want %q", err.Code, "upstream_idp_not_found")
-	}
-	if err.Message == "" {
-		t.Error("Message: got empty string")
-	}
-}
-
-// TestAdminUpstreamIDPs_ContractType_NoSecretFields verifies at compile time
-// that contract.IdentityProviderView does not declare ClientSecretEnc or
-// SecretNonce fields. This catches any future refactor that might accidentally
-// add one.
-func TestAdminUpstreamIDPs_ContractType_NoSecretFields(t *testing.T) {
-	t.Parallel()
-
-	v := contract.IdentityProviderView{
-		Slug:        "test",
-		DisplayName: "Test",
-		IssuerUrl:   "https://idp.test",
-		ClientID:    "client-1",
-		Mode:        "auto_provision",
-	}
-	// If contract.IdentityProviderView ever grew a ClientSecretEnc or SecretNonce
-	// field this test would fail to compile — keeping the guarantee in the
-	// test suite.
-	_ = v
-}
-
-// TestAdminUpstreamIDPs_ViewProjection_EmptySlices verifies that nil slices
-// in the db row (AllowedDomains, Scopes) do not cause panics and are projected
-// faithfully (nil is acceptable since JSON encoding emits null; callers handle).
-func TestAdminUpstreamIDPs_ViewProjection_EmptySlices(t *testing.T) {
-	t.Parallel()
-
-	row := db.UpstreamIdp{
-		Slug:           "minimal",
-		DisplayName:    "Minimal",
-		AllowedDomains: nil,
-		Scopes:         nil,
-	}
-
-	// Must not panic.
-	view := identityProviderView(row)
-	_ = view.AllowedDomains
-	_ = view.Scopes
-}
-
-// TestAdminUpstreamIDPs_ViewProjection_PictureClaim verifies that PictureClaim
-// is projected from the db row into the view, and that a custom claim value
-// round-trips correctly (distinct from the "picture" default).
-func TestAdminUpstreamIDPs_ViewProjection_PictureClaim(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{"default", "picture", "picture"},
-		{"custom", "avatar_url", "avatar_url"},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			row := db.UpstreamIdp{
-				Slug:         "idp",
-				DisplayName:  "IdP",
-				PictureClaim: tc.input,
-			}
-			view := identityProviderView(row)
-			if view.PictureClaim != tc.want {
-				t.Errorf("PictureClaim: got %q, want %q", view.PictureClaim, tc.want)
-			}
-		})
-	}
-}
-
-// TestAdminUpstreamIDPs_ViewProjection_Protocol verifies that the Protocol
-// field is projected from the db row into the view for both oidc and steam
-// protocol values.
-func TestAdminUpstreamIDPs_ViewProjection_Protocol(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name     string
-		protocol string
-	}{
-		{"oidc", "oidc"},
-		{"steam", "steam"},
-		{"empty", ""},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			row := db.UpstreamIdp{
-				Slug:        "idp",
-				DisplayName: "IdP",
-				Protocol:    tc.protocol,
-			}
-			view := identityProviderView(row)
-			if view.Protocol != tc.protocol {
-				t.Errorf("Protocol: got %q, want %q", view.Protocol, tc.protocol)
-			}
-		})
-	}
-}
-
-// newMinimalServer builds a Server with only the config wired — no DB pool,
-// no queries. Sufficient for handler tests that exercise validation paths
-// returning 400 before any DB access.
-func newMinimalServer(t *testing.T) *Server {
+func newProviderAdminTestServer(t *testing.T) *Server {
 	t.Helper()
-	dek := make([]byte, 32)
-	cfg := &configx.Config{
-		DataEncryptionKeys: map[int][]byte{1: dek},
-	}
-	return &Server{config: cfg}
-}
-
-// TestIdentityProviderCreate_Steam_MissingApiKey verifies that a Steam create
-// request without an apiKey is rejected with 400.
-func TestIdentityProviderCreate_Steam_MissingApiKey(t *testing.T) {
-	t.Parallel()
-
-	s := newMinimalServer(t)
-	body := `{"slug":"steam-test","displayName":"Steam","mode":"auto_provision","protocol":"steam"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
-		strings.NewReader(body))
-	w := httptest.NewRecorder()
-	s.handleCreateIdentityProviderHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
-	}
-}
-
-// TestIdentityProviderCreate_UnknownProtocol verifies that an unknown protocol
-// value is rejected with 400.
-func TestIdentityProviderCreate_UnknownProtocol(t *testing.T) {
-	t.Parallel()
-
-	s := newMinimalServer(t)
-	body := `{"slug":"test","displayName":"Test","mode":"auto_provision","protocol":"oauth1"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
-		strings.NewReader(body))
-	w := httptest.NewRecorder()
-	s.handleCreateIdentityProviderHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
-	}
-}
-
-// TestIdentityProviderCreate_OIDC_MissingFields verifies that an OIDC create
-// request without required fields (issuerUrl, clientId, clientSecret) is
-// rejected with 400. This preserves the existing OIDC validation behavior.
-func TestIdentityProviderCreate_OIDC_MissingFields(t *testing.T) {
-	t.Parallel()
-
-	s := newMinimalServer(t)
-	// protocol omitted → defaults to oidc
-	body := `{"slug":"test","displayName":"Test","mode":"auto_provision"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
-		strings.NewReader(body))
-	w := httptest.NewRecorder()
-	s.handleCreateIdentityProviderHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
-	}
-}
-
-// TestIdentityProviderCreate_Steam_MissingSlug verifies that a Steam create
-// request missing the required slug is rejected with 400 (common-field check
-// runs before the protocol branch).
-func TestIdentityProviderCreate_Steam_MissingSlug(t *testing.T) {
-	t.Parallel()
-
-	s := newMinimalServer(t)
-	body := `{"displayName":"Steam","mode":"auto_provision","protocol":"steam","apiKey":"KEY"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
-		strings.NewReader(body))
-	w := httptest.NewRecorder()
-	s.handleCreateIdentityProviderHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
-	}
-}
-
-
-// TestAdminUpstreamIDPs_ViewProjection_AllowPrivateNetwork verifies that
-// the per-IdP allow_private_network field is projected from the db row
-// into the wire view for both true and false values.
-func TestAdminUpstreamIDPs_ViewProjection_AllowPrivateNetwork(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name  string
-		input bool
-		want  bool
-	}{
-		{"default_false", false, false},
-		{"enabled", true, true},
+	registry := federation.NewRegistry()
+	for _, definition := range []federation.Definition{
+		federationoidc.Definition{}, federationsteam.Definition{}, federationvrchat.Definition{},
 	} {
-		tc := tc
+		if err := registry.RegisterDefinition(definition); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return &Server{
+		config:             &configx.Config{DataEncryptionKeys: map[int][]byte{1: make([]byte, 32)}},
+		federationRegistry: registry,
+	}
+}
+
+func readyOIDCRow(status string) db.UpstreamIdp {
+	return db.UpstreamIdp{
+		ID:             42,
+		Slug:           "corp",
+		DisplayName:    "Corporate",
+		Protocol:       federationoidc.Protocol,
+		Mode:           federation.ModeAutoProvision,
+		ProviderConfig: []byte(exactOIDCConfig),
+		SecretEnc:      []byte("ciphertext-must-not-leak"),
+		SecretNonce:    []byte("nonce-must-not-leak"),
+		KeyVersion:     pgtype.Int4{Int32: 1, Valid: true},
+		SecretStatus:   status,
+		Disabled:       true,
+		CreatedAt:      pgtype.Timestamptz{Time: time.Date(2026, 7, 16, 1, 2, 3, 0, time.UTC), Valid: true},
+	}
+}
+
+func TestIdentityProviderViewUsesGenericConfigHealthAndDescriptor(t *testing.T) {
+	t.Parallel()
+	s := newProviderAdminTestServer(t)
+	validatedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
+	row := readyOIDCRow("valid")
+	row.SecretValidatedAt = pgtype.Timestamptz{Time: validatedAt, Valid: true}
+
+	view, err := s.identityProviderView(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(view.Config) != exactOIDCConfig {
+		t.Fatalf("Config = %s, want raw validated config", view.Config)
+	}
+	if !view.SecretConfigured || view.SecretStatus != "valid" || view.SecretValidatedAt == nil || !view.SecretValidatedAt.Equal(validatedAt) {
+		t.Fatalf("secret health = configured:%v status:%q validated:%v", view.SecretConfigured, view.SecretStatus, view.SecretValidatedAt)
+	}
+	if !view.Ready {
+		t.Fatal("Ready = false for valid sealed provider")
+	}
+	if len(view.SearchFields) != 2 || view.SearchFields[0].Key != "subject" || len(view.SearchFields[1].Operators) != 3 || view.SearchFields[1].Operators[2] != "contains" {
+		t.Fatalf("SearchFields = %#v", view.SearchFields)
+	}
+
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"ciphertext-must-not-leak", "nonce-must-not-leak", "secretEnc", "secretNonce", "keyVersion"} {
+		if strings.Contains(string(encoded), forbidden) {
+			t.Fatalf("response leaked %q: %s", forbidden, encoded)
+		}
+	}
+}
+
+func TestIdentityProviderViewUnconfiguredSecretIsNullable(t *testing.T) {
+	t.Parallel()
+	s := newProviderAdminTestServer(t)
+	view, err := s.identityProviderView(db.UpstreamIdp{
+		Slug: "vrchat", DisplayName: "VRChat", Protocol: federationvrchat.Protocol,
+		Mode: federation.ModeLinkOnly, ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", Disabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.SecretConfigured || view.SecretValidatedAt != nil || view.Ready {
+		t.Fatalf("unconfigured view = %#v", view)
+	}
+	if !view.SupportsOperator || len(view.SearchFields) != 2 || view.SearchFields[0].Key != "userId" {
+		t.Fatalf("VRChat descriptor = operator:%v fields:%#v", view.SupportsOperator, view.SearchFields)
+	}
+}
+
+func TestValidateProviderWrite(t *testing.T) {
+	t.Parallel()
+	s := newProviderAdminTestServer(t)
+	validOIDC := providerWriteBody{
+		Slug: "corp", DisplayName: "Corporate", Protocol: "oidc", Mode: federation.ModeAutoProvision,
+		Config: json.RawMessage(exactOIDCConfig), Secret: "client-secret",
+	}
+	for _, tc := range []struct {
+		name    string
+		body    providerWriteBody
+		wantErr bool
+	}{
+		{name: "valid OIDC", body: validOIDC},
+		{name: "invalid OIDC config", body: providerWriteBody{Slug: "corp", DisplayName: "Corporate", Protocol: "oidc", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{"issuerUrl":"http://127.0.0.1"}`), Secret: "secret"}, wantErr: true},
+		{name: "Steam exact empty config", body: providerWriteBody{Slug: "steam", DisplayName: "Steam", Protocol: "steam", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`), Secret: "api-key"}},
+		{name: "Steam rejects non-empty config", body: providerWriteBody{Slug: "steam", DisplayName: "Steam", Protocol: "steam", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{"unexpected":true}`), Secret: "api-key"}, wantErr: true},
+		{name: "VRChat exact empty config", body: providerWriteBody{Slug: "vrchat", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}},
+		{name: "VRChat rejects non-empty config", body: providerWriteBody{Slug: "vrchat", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{"unexpected":true}`)}, wantErr: true},
+		{name: "unknown protocol", body: providerWriteBody{Slug: "unknown", DisplayName: "Unknown", Protocol: "oauth1", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`), Secret: "secret"}, wantErr: true},
+		{name: "oversize config", body: providerWriteBody{Slug: "vrchat", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{"padding":"` + strings.Repeat("x", 8192) + `"}`)}, wantErr: true},
+		{name: "OIDC missing secret", body: providerWriteBody{Slug: "corp", DisplayName: "Corporate", Protocol: "oidc", Mode: federation.ModeAutoProvision, Config: json.RawMessage(exactOIDCConfig)}, wantErr: true},
+		{name: "Steam missing secret", body: providerWriteBody{Slug: "steam", DisplayName: "Steam", Protocol: "steam", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`)}, wantErr: true},
+		{name: "VRChat rejects generic secret", body: providerWriteBody{Slug: "vrchat", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`), Secret: "not-allowed"}, wantErr: true},
+		{name: "missing common field", body: providerWriteBody{Slug: "corp", Protocol: "oidc", Mode: federation.ModeAutoProvision, Config: json.RawMessage(exactOIDCConfig), Secret: "secret"}, wantErr: true},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			row := db.UpstreamIdp{
-				Slug:                "idp",
-				DisplayName:         "IdP",
-				AllowPrivateNetwork: tc.input,
-			}
-			view := identityProviderView(row)
-			if view.AllowPrivateNetwork != tc.want {
-				t.Errorf("AllowPrivateNetwork: got %v, want %v", view.AllowPrivateNetwork, tc.want)
+			_, err := s.validateProviderWrite(tc.body, nil, true)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateProviderWrite() error = %v, wantErr %v", err, tc.wantErr)
 			}
 		})
 	}
 }
 
-// TestValidateUpstreamIssuer_PerIdpPolicy verifies that the SSRF issuer
-// validation is now controlled by the per-IdP allowPrivateNetwork parameter,
-// not a global config flag. When allowPrivate=true, an http://loopback issuer
-// is accepted; when false, it is rejected.
-func TestValidateUpstreamIssuer_PerIdpPolicy(t *testing.T) {
+func TestValidateProviderUpdateEnforcesImmutableBindingAndDedicatedSecretRoute(t *testing.T) {
 	t.Parallel()
-
-	// allowPrivate=true → internal/http issuer permitted.
-	if err := validateUpstreamIssuer("http://127.0.0.1:8080", true); err != nil {
-		t.Errorf("allowPrivate=true: got %v, want nil (per-IdP bypass)", err)
+	s := newProviderAdminTestServer(t)
+	existing := readyOIDCRow("configured")
+	valid := providerWriteBody{DisplayName: "Renamed", Mode: federation.ModeInviteOnly, Config: json.RawMessage(exactOIDCConfig)}
+	if _, err := s.validateProviderWrite(valid, &existing, false); err != nil {
+		t.Fatalf("valid update rejected: %v", err)
 	}
-	// allowPrivate=false → http issuer rejected.
-	if err := validateUpstreamIssuer("http://127.0.0.1:8080", false); err == nil {
-		t.Error("allowPrivate=false: got nil, want error (SSRF screen active)")
-	}
-	// allowPrivate=false → valid https issuer accepted.
-	if err := validateUpstreamIssuer("https://accounts.google.com", false); err != nil {
-		t.Errorf("allowPrivate=false with https: got %v, want nil", err)
+	for _, body := range []providerWriteBody{
+		{Slug: "other", DisplayName: valid.DisplayName, Mode: valid.Mode, Config: valid.Config},
+		{Protocol: "steam", DisplayName: valid.DisplayName, Mode: valid.Mode, Config: valid.Config},
+		{DisplayName: valid.DisplayName, Mode: valid.Mode, Config: valid.Config, Secret: "rotate-here"},
+	} {
+		if _, err := s.validateProviderWrite(body, &existing, false); err == nil {
+			t.Fatalf("immutable/secret update accepted: %#v", body)
+		}
 	}
 }
 
-// TestIdentityProviderCreate_AcceptsAllowPrivateNetwork verifies that the
-// create handler accepts the allowPrivateNetwork field in the request body
-// without rejecting it. Since newMinimalServer has no DB pool, the handler
-// will fail at the tx.Begin step — but it must NOT fail at the validation
-// step (400). We assert the status is NOT 400.
-func TestIdentityProviderCreate_AcceptsAllowPrivateNetwork(t *testing.T) {
+func TestVRChatCreateDefaultsUseNullSecretTuple(t *testing.T) {
 	t.Parallel()
-
-	s := newMinimalServer(t)
-	body := `{"slug":"test","displayName":"Test","mode":"auto_provision","protocol":"oidc","issuerUrl":"https://idp.example.com","clientId":"c","clientSecret":"s","allowPrivateNetwork":true}`
-	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers",
-		strings.NewReader(body))
-	w := httptest.NewRecorder()
-
-	// The handler will reach dbPool.Begin (nil in newMinimalServer) and panic.
-	// Wrap in recover so the test asserts validation acceptance, not DB availability.
-	func() {
-		defer func() { _ = recover() }()
-		s.handleCreateIdentityProviderHTTP(w, req)
-	}()
-
-	// Not 400 → the body parsed, validation passed, and allowPrivateNetwork
-	// was accepted. A panic/500 at the DB step is expected and acceptable.
-	if w.Code == http.StatusBadRequest {
-		t.Fatalf("status: got 400 (body=%s), want non-400 (allowPrivateNetwork should be accepted)", w.Body.String())
+	params := providerInsertParams(providerWriteBody{
+		Slug: "vrchat", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`),
+	})
+	if !params.Disabled || params.SecretStatus != "unconfigured" {
+		t.Fatalf("VRChat defaults = disabled:%v status:%q", params.Disabled, params.SecretStatus)
 	}
-	// If Code is still 0 (handler panicked before WriteHeader), the validation
-	// passed — the panic was at dbPool.Begin, not at validation.
-	if w.Code == 0 {
-		return // validation passed; panic was at the nil DB pool, as expected
+	if params.SecretEnc != nil || params.SecretNonce != nil || params.KeyVersion.Valid {
+		t.Fatalf("VRChat secret tuple = (%v, %v, %#v), want all null", params.SecretEnc, params.SecretNonce, params.KeyVersion)
 	}
+}
+
+func TestProviderWriteAuditDetailExcludesSecret(t *testing.T) {
+	t.Parallel()
+	detail := providerWriteAuditDetail(providerWriteBody{
+		Slug: "corp", DisplayName: "Corporate", Protocol: "oidc", Mode: federation.ModeAutoProvision,
+		Config: json.RawMessage(exactOIDCConfig), Secret: "plaintext-must-not-leak",
+	})
+	encoded, err := json.Marshal(detail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "plaintext-must-not-leak") || strings.Contains(string(encoded), "secret") {
+		t.Fatalf("audit detail leaked secret: %s", encoded)
+	}
+}
+
+type fakeProviderStateQueries struct {
+	row      db.UpstreamIdp
+	setCalls int
+}
+
+func (f *fakeProviderStateQueries) GetUpstreamIDPBySlugAny(context.Context, string) (db.UpstreamIdp, error) {
+	return f.row, nil
+}
+
+func (f *fakeProviderStateQueries) SetUpstreamIDPDisabled(_ context.Context, arg db.SetUpstreamIDPDisabledParams) (db.UpstreamIdp, error) {
+	f.setCalls++
+	f.row.Disabled = arg.Disabled
+	return f.row, nil
+}
+
+func TestSetIdentityProviderDisabledReadinessContract(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		status     string
+		disabled   bool
+		wantStatus int
+		wantCode   string
+		wantSets   int
+	}{
+		{name: "disabling is always allowed", status: "configured", disabled: true, wantStatus: http.StatusOK, wantSets: 1},
+		{name: "unready enable is rejected", status: "invalid", disabled: false, wantStatus: http.StatusServiceUnavailable, wantCode: "provider_not_ready"},
+		{name: "configured provider enable succeeds", status: "configured", disabled: false, wantStatus: http.StatusOK, wantSets: 1},
+		{name: "ready enable succeeds", status: "valid", disabled: false, wantStatus: http.StatusOK, wantSets: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newProviderAdminTestServer(t)
+			row := readyOIDCRow(tc.status)
+			row.Disabled = true
+			queries := &fakeProviderStateQueries{row: row}
+			s.providerStateQueriesOverride = queries
+			req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers/set-disabled", strings.NewReader(`{"slug":"corp","disabled":`+jsonBool(tc.disabled)+`}`))
+			w := httptest.NewRecorder()
+
+			s.handleSetIdentityProviderDisabledHTTP(w, req)
+
+			if w.Code != tc.wantStatus {
+				t.Fatalf("status = %d body=%s, want %d", w.Code, w.Body.String(), tc.wantStatus)
+			}
+			if queries.setCalls != tc.wantSets {
+				t.Fatalf("SetUpstreamIDPDisabled calls = %d, want %d", queries.setCalls, tc.wantSets)
+			}
+			if tc.wantCode != "" {
+				var body struct {
+					Code string `json:"code"`
+				}
+				if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+					t.Fatal(err)
+				}
+				if body.Code != tc.wantCode {
+					t.Fatalf("code = %q, want %q", body.Code, tc.wantCode)
+				}
+			}
+		})
+	}
+}
+
+func jsonBool(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
 }

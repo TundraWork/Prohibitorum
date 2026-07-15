@@ -291,7 +291,7 @@ func TestWriteJSONPassesDetails(t *testing.T) {
 	if err := weberr.Register([]weberr.Definition{{
 		Code:       code,
 		Status:     http.StatusBadRequest,
-		DetailKeys:  map[string]struct{}{"field": {}, "reason": {}},
+		DetailKeys: map[string]struct{}{"field": {}, "reason": {}},
 	}}); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
@@ -308,3 +308,16 @@ func TestWriteJSONPassesDetails(t *testing.T) {
 	}
 }
 
+func TestProviderNotReadyContract(t *testing.T) {
+	err := authn.ErrProviderNotReady()
+	if err.Status != http.StatusServiceUnavailable || err.Code != "provider_not_ready" {
+		t.Fatalf("error = status:%d code:%q", err.Status, err.Code)
+	}
+	definition, ok := weberr.DefinitionFor(err.Code)
+	if !ok {
+		t.Fatal("provider_not_ready is not registered")
+	}
+	if definition.Status != http.StatusServiceUnavailable || definition.DiagnosticKind != "federation" {
+		t.Fatalf("definition = %#v", definition)
+	}
+}

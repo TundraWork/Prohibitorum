@@ -67,7 +67,7 @@ type fakeFedQueries struct {
 	mu sync.Mutex
 
 	// upstream_idp
-	idpBySlug map[string]db.UpstreamIdp
+	idpBySlug  map[string]db.UpstreamIdp
 	idpSlugErr error
 
 	// account_identity (auto-provision: ErrNoRows on first lookup)
@@ -253,7 +253,6 @@ func (f *fakeFedQueries) ListEntityIconEtags(_ context.Context, _ string) ([]db.
 	return f.iconEtags, nil
 }
 
-
 // --- harness --------------------------------------------------------------
 
 type fedTestHarness struct {
@@ -306,27 +305,26 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 	if err != nil {
 		t.Fatalf("EncryptClientSecret: %v", err)
 	}
+	providerConfig, err := json.Marshal(federationoidc.Config{
+		IssuerURL: opTS.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"},
+		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
+		EmailClaim: "email", PictureClaim: "picture", RequireVerifiedEmail: true,
+		AllowPrivateNetwork: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	idp := db.UpstreamIdp{
-		ID:                   idpID,
-		Slug:                 "mockop",
-		DisplayName:          "Mock OP",
-		IssuerUrl:            opTS.URL,
-		ClientID:             "test-client",
-		ClientSecretEnc:      sealed.Ciphertext,
-		SecretNonce:          sealed.Nonce,
-		KeyVersion:           keyVersion,
-		Scopes:               []string{"openid", "profile", "email"},
-		Mode:                 fedoidc.ModeAutoProvision,
-		Protocol:             federationoidc.Protocol,
-		PictureClaim:         "picture",
-		RequireVerifiedEmail: true,
-		// Schema defaults from migration 004 — DB-side DEFAULTs don't apply
-		// to in-memory fakes, so seed them explicitly so modes.go can
-		// resolve the per-IdP claim names via ClaimString(...).
-		UsernameClaim:    "preferred_username",
-		DisplayNameClaim: "name",
-		EmailClaim:       "email",
-		AllowPrivateNetwork: true, // mock OP is on loopback
+		ID:             idpID,
+		Slug:           "mockop",
+		DisplayName:    "Mock OP",
+		SecretEnc:      sealed.Ciphertext,
+		SecretNonce:    sealed.Nonce,
+		KeyVersion:     pgtype.Int4{Int32: keyVersion, Valid: true},
+		Mode:           fedoidc.ModeAutoProvision,
+		Protocol:       federationoidc.Protocol,
+		ProviderConfig: providerConfig,
+		SecretStatus:   "valid",
 	}
 	q := newFakeFedQueries()
 	q.idpBySlug[idp.Slug] = idp
@@ -439,15 +437,22 @@ func newTestFederationService(t *testing.T, q *fakeFedQueries, store kv.Store, w
 	t.Helper()
 	registry := fedoidc.NewRegistry()
 	adapter := federationoidc.NewAdapter(fedoidc.NewSecretStore(deks))
-	if err := registry.RegisterDefinition(federationoidc.Definition{}); err != nil { t.Fatal(err) }
-	if err := registry.RegisterAdapter(adapter); err != nil { t.Fatal(err) }
-	if err := registry.RegisterDefinition(federationsteam.Definition{}); err != nil { t.Fatal(err) }
-	if err := registry.RegisterAdapter(serverSteamAdapter{}); err != nil { t.Fatal(err) }
+	if err := registry.RegisterDefinition(federationoidc.Definition{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.RegisterDefinition(federationsteam.Definition{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.RegisterAdapter(serverSteamAdapter{}); err != nil {
+		t.Fatal(err)
+	}
 	service := fedoidc.NewService(registry, fedoidc.NewProviderStore(q), store, fedoidc.NewResolver(q, writer, nil), fedoidc.ServiceConfig{StateTTL: ttl, PublicOrigin: origin, Audit: writer})
 	service.SetAvatarManager(fedoidc.NewAvatarManager(q, store))
 	return service
 }
-
 
 // noFollow returns an http.Client that captures every 302 instead of chasing it.
 // This is the entire driver mechanism — we step manually through login → authorize
@@ -598,7 +603,6 @@ func TestFederationOIDCStateRetainsSecurityBindings(t *testing.T) {
 	}
 }
 
-
 func TestFederationLogin_InvalidReturnTo(t *testing.T) {
 	h := newFederationTestServer(t)
 
@@ -679,9 +683,9 @@ func seedSteamProvider(t *testing.T, h *fedTestHarness) db.UpstreamIdp {
 	provider := db.UpstreamIdp{
 		ID: providerID, Slug: "steam", DisplayName: "Steam",
 		Protocol: federationsteam.Protocol, Mode: fedoidc.ModeAutoProvision,
-		ClientSecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce, KeyVersion: 1,
-		UsernameClaim: "preferred_username", DisplayNameClaim: "name",
-		EmailClaim: "email", PictureClaim: "picture",
+		SecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce,
+		KeyVersion:     pgtype.Int4{Int32: 1, Valid: true},
+		ProviderConfig: []byte(`{}`), SecretStatus: "valid",
 	}
 	h.q.idpBySlug[provider.Slug] = provider
 	return provider
@@ -827,7 +831,6 @@ func TestFederationCallback_AllowsMissingAuthorizationResponseIssuer(t *testing.
 		t.Fatalf("sessions inserted = %d, want 1", len(h.q.sessions))
 	}
 }
-
 
 // TestFederationCallback_PersistsUpstreamIdpID guards H1-sch: the federation
 // callback must stamp the upstream IdP's id onto the session row so the OIDC

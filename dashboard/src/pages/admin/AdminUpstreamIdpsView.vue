@@ -29,13 +29,39 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { Link2 } from 'lucide-vue-next'
 
-export interface IdentityProvider {
-  slug: string; displayName: string; issuerUrl: string; clientId: string
-  scopes: string[]; mode: 'auto_provision' | 'invite_only' | 'link_only'; allowedDomains: string[]
-  usernameClaim: string; displayNameClaim: string; emailClaim: string; pictureClaim: string
-  requireVerifiedEmail: boolean; disabled: boolean; createdAt: string
+export interface OIDCProviderConfig {
+  issuerUrl: string
+  clientId: string
+  scopes: string[]
+  allowedDomains: string[]
+  usernameClaim: string
+  displayNameClaim: string
+  emailClaim: string
+  pictureClaim: string
+  requireVerifiedEmail: boolean
   allowPrivateNetwork: boolean
-  iconUrl?: string | null; protocol?: string
+}
+
+export interface IdentitySearchField {
+  key: string
+  operators: string[]
+}
+
+export interface IdentityProvider {
+  slug: string
+  displayName: string
+  protocol: string
+  mode: 'auto_provision' | 'invite_only' | 'link_only'
+  config: Record<string, unknown>
+  disabled: boolean
+  secretConfigured: boolean
+  secretStatus: 'unconfigured' | 'configured' | 'valid' | 'invalid'
+  secretValidatedAt: string | null
+  ready: boolean
+  supportsOperator: boolean
+  searchFields: IdentitySearchField[]
+  createdAt: string
+  iconUrl?: string | null
 }
 
 const { t } = useI18n()
@@ -81,18 +107,27 @@ function openCreate(): void {
 }
 
 async function create(): Promise<void> {
-  const body: Record<string, unknown> = {
-    slug: slug.value, displayName: displayName.value, protocol: protocol.value,
-    mode: mode.value, allowedDomains: allowedDomains.value,
-  }
-  if (protocol.value === 'steam') {
-    body.apiKey = apiKey.value
-  } else {
-    body.issuerUrl = issuerUrl.value; body.clientId = clientId.value
-    body.clientSecret = clientSecret.value; body.scopes = scopes.value
-    body.usernameClaim = usernameClaim.value; body.displayNameClaim = displayNameClaim.value
-    body.emailClaim = emailClaim.value; body.pictureClaim = pictureClaim.value
-    body.requireVerifiedEmail = requireVerifiedEmail.value
+  const config: OIDCProviderConfig | Record<string, never> = protocol.value === 'oidc'
+    ? {
+        issuerUrl: issuerUrl.value,
+        clientId: clientId.value,
+        scopes: scopes.value,
+        allowedDomains: allowedDomains.value,
+        usernameClaim: usernameClaim.value,
+        displayNameClaim: displayNameClaim.value,
+        emailClaim: emailClaim.value,
+        pictureClaim: pictureClaim.value,
+        requireVerifiedEmail: requireVerifiedEmail.value,
+        allowPrivateNetwork: false,
+      }
+    : {}
+  const body = {
+    slug: slug.value,
+    displayName: displayName.value,
+    protocol: protocol.value,
+    mode: mode.value,
+    config,
+    secret: protocol.value === 'steam' ? apiKey.value : clientSecret.value,
   }
   const res = await run(() => withSudo(() => api.post<IdentityProvider>('/api/prohibitorum/identity-providers', body)))
   if (res) { createOpen.value = false; triggerCreated(); await page.reload() }
@@ -164,7 +199,7 @@ async function create(): Promise<void> {
               {value:'invite_only',title:t('admin.upstream.modeInviteOnly'),description:t('admin.upstream.modeInviteOnlyDesc')},
               {value:'link_only',title:t('admin.upstream.modeLinkOnly'),description:t('admin.upstream.modeLinkOnlyDesc')}]" />
           </div>
-          <div class="flex flex-col gap-1.5">
+          <div v-if="protocol === 'oidc'" class="flex flex-col gap-1.5">
             <Label>{{ t('admin.upstream.allowedDomains') }}</Label>
             <ListInput v-model="allowedDomains" name="allowedDomains"
               :add-label="t('admin.upstream.addDomain')" :placeholder="t('admin.upstream.domainPlaceholder')" :validate="validateDomain" />

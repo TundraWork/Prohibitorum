@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,8 @@ import (
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
+	federationsteam "prohibitorum/pkg/federation/providers/steam"
 	"prohibitorum/pkg/logx"
 	"prohibitorum/pkg/protocol/oidc"
 	"prohibitorum/pkg/protocol/saml"
@@ -827,6 +830,76 @@ func mustCurrentDEK() (int32, []byte) {
 	return int32(maxVer), config.DataEncryptionKeys[maxVer]
 }
 
+func upstreamCLIDefinition(protocol string) (federation.Definition, error) {
+	switch protocol {
+	case federationoidc.Protocol:
+		return federationoidc.Definition{}, nil
+	case federationsteam.Protocol:
+		return federationsteam.Definition{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported protocol %q (want oidc or steam)", protocol)
+	}
+}
+
+func upstreamCLIConfig(
+	protocol, issuerURL, clientID string,
+	scopes, allowedDomains []string,
+	usernameClaim, displayNameClaim, emailClaim, pictureClaim string,
+	requireVerifiedEmail, allowPrivateNetwork bool,
+) (json.RawMessage, federation.Definition, error) {
+	definition, err := upstreamCLIDefinition(protocol)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch protocol {
+	case federationoidc.Protocol:
+		if issuerURL == "" || clientID == "" {
+			return nil, nil, errors.New("--issuer-url and --client-id are required for OIDC")
+		}
+		if len(scopes) == 0 {
+			scopes = []string{"openid", "profile", "email"}
+		}
+		if allowedDomains == nil {
+			allowedDomains = []string{}
+		}
+		if usernameClaim == "" {
+			usernameClaim = "preferred_username"
+		}
+		if displayNameClaim == "" {
+			displayNameClaim = "name"
+		}
+		if emailClaim == "" {
+			emailClaim = "email"
+		}
+		if pictureClaim == "" {
+			pictureClaim = "picture"
+		}
+		raw, err := json.Marshal(federationoidc.Config{
+			IssuerURL: issuerURL, ClientID: clientID, Scopes: scopes, AllowedDomains: allowedDomains,
+			UsernameClaim: usernameClaim, DisplayNameClaim: displayNameClaim, EmailClaim: emailClaim,
+			PictureClaim: pictureClaim, RequireVerifiedEmail: requireVerifiedEmail,
+			AllowPrivateNetwork: allowPrivateNetwork,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := definition.ValidateConfig(raw); err != nil {
+			return nil, nil, err
+		}
+		return raw, definition, nil
+	case federationsteam.Protocol:
+		if issuerURL != "" || clientID != "" || len(scopes) != 0 || len(allowedDomains) != 0 ||
+			usernameClaim != "" || displayNameClaim != "" || emailClaim != "" || pictureClaim != "" ||
+			requireVerifiedEmail || allowPrivateNetwork {
+			return nil, nil, errors.New("OIDC configuration flags are not valid for Steam")
+		}
+		raw := json.RawMessage(`{}`)
+		return raw, definition, definition.ValidateConfig(raw)
+	default:
+		return nil, nil, fmt.Errorf("unsupported protocol %q (want oidc or steam)", protocol)
+	}
+}
+
 // addUpstreamIDPCommands registers the `upstream-idp` command group:
 // create | list | update | rotate-secret | delete. These mirror the admin
 // HTTP handlers (handle_admin_upstream_idps.go) and share the SAME db queries
@@ -835,15 +908,14 @@ func mustCurrentDEK() (int32, []byte) {
 func addUpstreamIDPCommands(root *cobra.Command) {
 	upstreamCmd := &cobra.Command{
 		Use:   "upstream-idp",
-		Short: "Manage upstream OIDC identity providers (federation)",
+		Short: "Manage upstream OIDC and Steam identity providers (federation)",
 	}
-
-	defaultScopes := []string{"openid", "email", "profile"}
 
 	// create
 	var (
 		uSlug          string
 		uDisplayName   string
+		uProtocol      string
 		uIssuerURL     string
 		uClientID      string
 		uClientSecret  string
@@ -855,63 +927,34 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 		uEmailClaim    string
 		uPictureClaim  string
 		uRequireVerEml bool
+		uAllowPrivate  bool
 	)
 	createUpstreamCmd := &cobra.Command{
 		Use:   "create",
-		Short: "Register a new upstream OIDC IdP (secret is AES-GCM sealed at rest)",
+		Short: "Register a new upstream identity provider (secret is AES-GCM sealed at rest)",
 		Run: func(_ *cobra.Command, _ []string) {
 			ctx := context.Background()
-			if uSlug == "" || uDisplayName == "" || uIssuerURL == "" || uClientID == "" || uClientSecret == "" || uMode == "" {
-				log.Fatalf("--slug, --display-name, --issuer-url, --client-id, --client-secret, --mode are all required")
+			if uSlug == "" || uDisplayName == "" || uClientSecret == "" || uMode == "" {
+				log.Fatalf("--slug, --display-name, --client-secret, --mode are all required")
+			}
+			configRaw, definition, err := upstreamCLIConfig(
+				uProtocol, uIssuerURL, uClientID, uScopes, uAllowedDomain,
+				uUsernameClaim, uDisplayClaim, uEmailClaim, uPictureClaim,
+				uRequireVerEml, uAllowPrivate,
+			)
+			if err != nil {
+				log.Fatalf("upstream-idp create: config: %v", err)
+			}
+			if err := definition.ValidateSecret([]byte(uClientSecret)); err != nil {
+				log.Fatalf("upstream-idp create: secret: %v", err)
 			}
 			keyVer, dek := mustCurrentDEK()
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
 
-			scopes := uScopes
-			if len(scopes) == 0 {
-				scopes = defaultScopes
-			}
-			allowed := uAllowedDomain
-			if allowed == nil {
-				allowed = []string{}
-			}
-			usernameClaim := uUsernameClaim
-			if usernameClaim == "" {
-				usernameClaim = "preferred_username"
-			}
-			displayClaim := uDisplayClaim
-			if displayClaim == "" {
-				displayClaim = "name"
-			}
-			emailClaim := uEmailClaim
-			if emailClaim == "" {
-				emailClaim = "email"
-			}
-			pictureClaim := uPictureClaim
-			if pictureClaim == "" {
-				pictureClaim = "picture"
-			}
-
-			// Insert with placeholder secret bytes to get the auto-assigned id
-			// (the AAD is bound to id + key_version), then seal and write back.
-			placeholder := make([]byte, 1)
 			row, err := q.InsertUpstreamIDP(ctx, db.InsertUpstreamIDPParams{
-				Slug:                 uSlug,
-				DisplayName:          uDisplayName,
-				IssuerUrl:            uIssuerURL,
-				ClientID:             uClientID,
-				ClientSecretEnc:      placeholder,
-				SecretNonce:          placeholder,
-				KeyVersion:           keyVer,
-				Scopes:               scopes,
-				Mode:                 uMode,
-				AllowedDomains:       allowed,
-				UsernameClaim:        usernameClaim,
-				DisplayNameClaim:     displayClaim,
-				EmailClaim:           emailClaim,
-				PictureClaim:         pictureClaim,
-				RequireVerifiedEmail: uRequireVerEml,
+				Slug: uSlug, DisplayName: uDisplayName, Protocol: uProtocol, Mode: uMode,
+				ProviderConfig: configRaw, SecretStatus: "unconfigured",
 			})
 			if err != nil {
 				log.Fatalf("upstream-idp create: insert: %v", err)
@@ -921,20 +964,19 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				_ = q.DeleteUpstreamIDP(ctx, row.ID)
 				log.Fatalf("upstream-idp create: seal: %v", err)
 			}
-			if err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
-				Slug:            row.Slug,
-				ClientSecretEnc: sealed.Ciphertext,
-				SecretNonce:     sealed.Nonce,
-				KeyVersion:      keyVer,
+			if _, err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
+				Slug: row.Slug, SecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce,
+				KeyVersion: pgtype.Int4{Int32: keyVer, Valid: true}, SecretStatus: "configured",
 			}); err != nil {
 				_ = q.DeleteUpstreamIDP(ctx, row.ID)
 				log.Fatalf("upstream-idp create: seal-update: %v", err)
 			}
-			fmt.Printf("Registered upstream IdP %q (mode=%s, issuer=%s; secret sealed at rest)\n", row.Slug, row.Mode, row.IssuerUrl)
+			fmt.Printf("Registered upstream IdP %q (protocol=%s, mode=%s; secret sealed at rest)\n", row.Slug, row.Protocol, row.Mode)
 		},
 	}
 	createUpstreamCmd.Flags().StringVar(&uSlug, "slug", "", "Stable slug identifier (required).")
 	createUpstreamCmd.Flags().StringVar(&uDisplayName, "display-name", "", "Human-readable IdP name (required).")
+	createUpstreamCmd.Flags().StringVar(&uProtocol, "protocol", federationoidc.Protocol, "Provider protocol: oidc or steam.")
 	createUpstreamCmd.Flags().StringVar(&uIssuerURL, "issuer-url", "", "OIDC issuer URL (required).")
 	createUpstreamCmd.Flags().StringVar(&uClientID, "client-id", "", "OAuth client_id at the upstream (required).")
 	createUpstreamCmd.Flags().StringVar(&uClientSecret, "client-secret", "", "OAuth client secret at the upstream (required; sealed at rest).")
@@ -946,6 +988,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	createUpstreamCmd.Flags().StringVar(&uEmailClaim, "email-claim", "", "Claim to map to email (default email).")
 	createUpstreamCmd.Flags().StringVar(&uPictureClaim, "picture-claim", "", "Claim to map to avatar picture URL (default picture).")
 	createUpstreamCmd.Flags().BoolVar(&uRequireVerEml, "require-verified-email", false, "Require email_verified=true from the upstream.")
+	createUpstreamCmd.Flags().BoolVar(&uAllowPrivate, "allow-private-network", false, "Allow private-network OIDC endpoints.")
 	upstreamCmd.AddCommand(createUpstreamCmd)
 
 	// list
@@ -964,9 +1007,9 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				fmt.Println("No upstream IdPs registered.")
 				return
 			}
-			fmt.Printf("%-24s %-24s %-16s %-10s %s\n", "SLUG", "DISPLAY_NAME", "MODE", "DISABLED", "ISSUER_URL")
-			for _, i := range idps {
-				fmt.Printf("%-24s %-24s %-16s %-10t %s\n", i.Slug, i.DisplayName, i.Mode, i.Disabled, i.IssuerUrl)
+			fmt.Printf("%-24s %-24s %-10s %-16s %-10s %s\n", "SLUG", "DISPLAY_NAME", "PROTOCOL", "MODE", "DISABLED", "SECRET_STATUS")
+			for _, provider := range idps {
+				fmt.Printf("%-24s %-24s %-10s %-16s %-10t %s\n", provider.Slug, provider.DisplayName, provider.Protocol, provider.Mode, provider.Disabled, provider.SecretStatus)
 			}
 		},
 	}
@@ -986,65 +1029,40 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 		upEmailClaim    string
 		upPictureClaim  string
 		upRequireVerEml bool
-		upDisabled      bool
+		upAllowPrivate  bool
 	)
 	updateUpstreamCmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update an upstream IdP's config (full-replace; secret untouched)",
 		Run: func(_ *cobra.Command, _ []string) {
 			ctx := context.Background()
-			if upSlug == "" || upDisplayName == "" || upIssuerURL == "" || upClientID == "" || upMode == "" {
-				log.Fatalf("--slug, --display-name, --issuer-url, --client-id, --mode are all required (full-replace update)")
+			if upSlug == "" || upDisplayName == "" || upMode == "" {
+				log.Fatalf("--slug, --display-name, --mode are required (full-replace update)")
 			}
 			q, conn := mustOpenDB(ctx)
 			defer conn.Close()
-
-			scopes := upScopes
-			if len(scopes) == 0 {
-				scopes = defaultScopes
-			}
-			allowed := upAllowedDomain
-			if allowed == nil {
-				allowed = []string{}
-			}
-			usernameClaim := upUsernameClaim
-			if usernameClaim == "" {
-				usernameClaim = "preferred_username"
-			}
-			displayClaim := upDisplayClaim
-			if displayClaim == "" {
-				displayClaim = "name"
-			}
-			emailClaim := upEmailClaim
-			if emailClaim == "" {
-				emailClaim = "email"
-			}
-			pictureClaim := upPictureClaim
-			if pictureClaim == "" {
-				pictureClaim = "picture"
-			}
-			updated, err := q.UpdateUpstreamIDPConfig(ctx, db.UpdateUpstreamIDPConfigParams{
-				Slug:                 upSlug,
-				DisplayName:          upDisplayName,
-				IssuerUrl:            upIssuerURL,
-				ClientID:             upClientID,
-				Scopes:               scopes,
-				Mode:                 upMode,
-				AllowedDomains:       allowed,
-				UsernameClaim:        usernameClaim,
-				DisplayNameClaim:     displayClaim,
-				EmailClaim:           emailClaim,
-				PictureClaim:         pictureClaim,
-				RequireVerifiedEmail: upRequireVerEml,
-				Disabled:             upDisabled,
-			})
+			existing, err := q.GetUpstreamIDPBySlugAny(ctx, upSlug)
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					log.Fatalf("upstream-idp update: IdP %q not found", upSlug)
 				}
+				log.Fatalf("upstream-idp update: lookup: %v", err)
+			}
+			configRaw, _, err := upstreamCLIConfig(
+				existing.Protocol, upIssuerURL, upClientID, upScopes, upAllowedDomain,
+				upUsernameClaim, upDisplayClaim, upEmailClaim, upPictureClaim,
+				upRequireVerEml, upAllowPrivate,
+			)
+			if err != nil {
+				log.Fatalf("upstream-idp update: config: %v", err)
+			}
+			updated, err := q.UpdateUpstreamIDPConfig(ctx, db.UpdateUpstreamIDPConfigParams{
+				Slug: upSlug, DisplayName: upDisplayName, Mode: upMode, ProviderConfig: configRaw,
+			})
+			if err != nil {
 				log.Fatalf("upstream-idp update: %v", err)
 			}
-			fmt.Printf("Updated upstream IdP %q (mode=%s, disabled=%t)\n", updated.Slug, updated.Mode, updated.Disabled)
+			fmt.Printf("Updated upstream IdP %q (protocol=%s, mode=%s)\n", updated.Slug, updated.Protocol, updated.Mode)
 		},
 	}
 	updateUpstreamCmd.Flags().StringVar(&upSlug, "slug", "", "Slug of the IdP to update (required).")
@@ -1059,7 +1077,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 	updateUpstreamCmd.Flags().StringVar(&upEmailClaim, "email-claim", "", "Claim to map to email (default email).")
 	updateUpstreamCmd.Flags().StringVar(&upPictureClaim, "picture-claim", "", "Claim to map to avatar picture URL (default picture).")
 	updateUpstreamCmd.Flags().BoolVar(&upRequireVerEml, "require-verified-email", false, "Require email_verified=true from the upstream.")
-	updateUpstreamCmd.Flags().BoolVar(&upDisabled, "disabled", false, "Disable this IdP.")
+	updateUpstreamCmd.Flags().BoolVar(&upAllowPrivate, "allow-private-network", false, "Allow private-network OIDC endpoints.")
 	upstreamCmd.AddCommand(updateUpstreamCmd)
 
 	// rotate-secret (re-seal a new secret under the current DEK)
@@ -1086,15 +1104,20 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				}
 				log.Fatalf("upstream-idp rotate-secret: lookup: %v", err)
 			}
+			definition, err := upstreamCLIDefinition(row.Protocol)
+			if err != nil {
+				log.Fatalf("upstream-idp rotate-secret: protocol: %v", err)
+			}
+			if err := definition.ValidateSecret([]byte(rSecret)); err != nil {
+				log.Fatalf("upstream-idp rotate-secret: secret: %v", err)
+			}
 			sealed, err := federation.SealProviderSecret(dek, []byte(rSecret), row.ID, keyVer)
 			if err != nil {
 				log.Fatalf("upstream-idp rotate-secret: seal: %v", err)
 			}
-			if err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
-				Slug:            rSlug,
-				ClientSecretEnc: sealed.Ciphertext,
-				SecretNonce:     sealed.Nonce,
-				KeyVersion:      keyVer,
+			if _, err := q.UpdateUpstreamIDPSecret(ctx, db.UpdateUpstreamIDPSecretParams{
+				Slug: rSlug, SecretEnc: sealed.Ciphertext, SecretNonce: sealed.Nonce,
+				KeyVersion: pgtype.Int4{Int32: keyVer, Valid: true}, SecretStatus: "configured",
 			}); err != nil {
 				log.Fatalf("upstream-idp rotate-secret: update: %v", err)
 			}

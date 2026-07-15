@@ -8,7 +8,9 @@ JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
 WHERE ai.account_id = $1;
 
 -- name: InsertAccountIdentity :one
-INSERT INTO account_identity (account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email)
+INSERT INTO account_identity (
+  account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email
+)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
@@ -19,7 +21,9 @@ RETURNING *;
 DELETE FROM account_identity WHERE id = $1 AND account_id = $2 RETURNING id;
 
 -- name: UpdateAccountIdentityEmail :exec
-UPDATE account_identity SET upstream_email = $2 WHERE id = $1;
+UPDATE account_identity
+SET upstream_email = $2
+WHERE id = $1;
 
 -- name: CountUsableSignInFederation :one
 -- Linked identities the account can actually sign in / step up with: the

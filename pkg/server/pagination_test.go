@@ -26,9 +26,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/federation"
+	federationsteam "prohibitorum/pkg/federation/providers/steam"
 	"prohibitorum/pkg/pagination"
 	"prohibitorum/pkg/weberr"
 )
@@ -137,10 +139,15 @@ func (f *fakeListQ) InsertCredentialEvent(_ context.Context, _ db.InsertCredenti
 // test cursor codec. PublicOrigins is set so projection helpers that reference
 // it don't panic.
 func newPaginationTestServer(q *fakeListQ) *Server {
+	registry := federation.NewRegistry()
+	if err := registry.RegisterDefinition(federationsteam.Definition{}); err != nil {
+		panic(err)
+	}
 	return &Server{
 		topLevelQueriesOverride: q,
 		invitationOverride:      q,
 		cursorCodec:             testCodec(),
+		federationRegistry:      registry,
 		config: &configx.Config{
 			PublicOrigins: []string{"https://test.example.com"},
 		},
@@ -535,6 +542,7 @@ func TestListGroups_TamperedCursor_ReturnsCursorInvalid(t *testing.T) {
 		t.Fatalf("expected pagination_cursor_invalid, got %T: %v", err, err)
 	}
 }
+
 // =====================================================================
 // Signing keys, OIDC apps, SAML SPs, upstream IdPs, forward-auth apps
 // share the same cursor pattern; verify each returns a Page and handles
@@ -592,7 +600,7 @@ func TestListSAMLApplications_ReturnsPage(t *testing.T) {
 func TestListIdentityProviders_ReturnsPage(t *testing.T) {
 	q := &fakeListQ{}
 	q.idpRows = []db.UpstreamIdp{
-		{ID: 1, Slug: "google", DisplayName: "Google", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
+		{ID: 1, Slug: "steam", DisplayName: "Steam", Protocol: "steam", ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
 	out, err := s.handleListIdentityProviders(context.Background(), &listIdentityProvidersIn{pageInput: pageInput{Limit: 10}})

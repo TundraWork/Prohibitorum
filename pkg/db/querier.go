@@ -262,9 +262,9 @@ type Querier interface {
 	// caller's RETURNING row populates. The remaining racers see pgx.ErrNoRows
 	// and the Verify path translates that to ErrTOTPReplay.
 	UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) (int64, error)
-	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
 	UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error)
-	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) error
+	UpdateUpstreamIDPHealth(ctx context.Context, arg UpdateUpstreamIDPHealthParams) (UpstreamIdp, error)
+	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) (UpstreamIdp, error)
 	// idp_id records the source upstream for an inherited avatar (NULL for a user
 	// upload); source carries the upstream slug ("upstream:<slug>") so the
 	// (account_id, source) PK yields one row per (account, upstream).

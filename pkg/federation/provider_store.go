@@ -2,10 +2,10 @@ package federation
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/db"
 )
@@ -68,58 +68,49 @@ func (s *ProviderStore) InviteProvider(ctx context.Context, token string) (Provi
 	return s.BySlug(ctx, enrollment.ExpectedUpstreamIdpSlug.String)
 }
 
-type providerConfig struct {
-	IssuerURL            string   `json:"issuerUrl,omitempty"`
-	ClientID             string   `json:"clientId,omitempty"`
-	Scopes               []string `json:"scopes,omitempty"`
-	AllowedDomains       []string `json:"allowedDomains,omitempty"`
-	UsernameClaim        string   `json:"usernameClaim,omitempty"`
-	DisplayNameClaim     string   `json:"displayNameClaim,omitempty"`
-	EmailClaim           string   `json:"emailClaim,omitempty"`
-	PictureClaim         string   `json:"pictureClaim,omitempty"`
-	RequireVerifiedEmail bool     `json:"requireVerifiedEmail,omitempty"`
-	AllowPrivateNetwork  bool     `json:"allowPrivateNetwork,omitempty"`
-}
-
 func providerFromRow(row db.UpstreamIdp) (Provider, error) {
-	config, err := json.Marshal(providerConfig{
-		IssuerURL: row.IssuerUrl, ClientID: row.ClientID, Scopes: row.Scopes,
-		AllowedDomains: row.AllowedDomains, UsernameClaim: row.UsernameClaim,
-		DisplayNameClaim: row.DisplayNameClaim, EmailClaim: row.EmailClaim,
-		PictureClaim: row.PictureClaim, RequireVerifiedEmail: row.RequireVerifiedEmail,
-		AllowPrivateNetwork: row.AllowPrivateNetwork,
-	})
-	if err != nil {
-		return Provider{}, fmt.Errorf("federation: encode provider config: %w", err)
-	}
 	provider := Provider{
-		ID: row.ID, Slug: row.Slug, DisplayName: row.DisplayName, Protocol: row.Protocol,
-		Mode: row.Mode, Config: config, Disabled: row.Disabled,
+		ID:           row.ID,
+		Slug:         row.Slug,
+		DisplayName:  row.DisplayName,
+		Protocol:     row.Protocol,
+		Mode:         row.Mode,
+		Config:       append([]byte(nil), row.ProviderConfig...),
+		SecretStatus: row.SecretStatus,
+		Disabled:     row.Disabled,
 	}
-	if len(row.ClientSecretEnc) > 0 || len(row.SecretNonce) > 0 {
-		provider.Secret = &SealedSecret{Ciphertext: append([]byte(nil), row.ClientSecretEnc...), Nonce: append([]byte(nil), row.SecretNonce...), KeyVersion: row.KeyVersion}
-		provider.SecretStatus = "valid"
+	if row.SecretValidatedAt.Valid {
+		validatedAt := row.SecretValidatedAt.Time
+		provider.SecretValidatedAt = &validatedAt
+	}
+	if row.KeyVersion.Valid {
+		provider.Secret = &SealedSecret{
+			Ciphertext: append([]byte(nil), row.SecretEnc...),
+			Nonce:      append([]byte(nil), row.SecretNonce...),
+			KeyVersion: row.KeyVersion.Int32,
+		}
 	}
 	return provider, nil
 }
 
 func providerRow(provider Provider) (db.UpstreamIdp, error) {
-	var config providerConfig
-	if err := json.Unmarshal(provider.Config, &config); err != nil {
-		return db.UpstreamIdp{}, fmt.Errorf("federation: decode provider config: %w", err)
-	}
 	row := db.UpstreamIdp{
-		ID: provider.ID, Slug: provider.Slug, DisplayName: provider.DisplayName,
-		Protocol: provider.Protocol, Mode: provider.Mode, Disabled: provider.Disabled,
-		IssuerUrl: config.IssuerURL, ClientID: config.ClientID, Scopes: append([]string(nil), config.Scopes...),
-		AllowedDomains: append([]string(nil), config.AllowedDomains...), UsernameClaim: config.UsernameClaim,
-		DisplayNameClaim: config.DisplayNameClaim, EmailClaim: config.EmailClaim, PictureClaim: config.PictureClaim,
-		RequireVerifiedEmail: config.RequireVerifiedEmail, AllowPrivateNetwork: config.AllowPrivateNetwork,
+		ID:             provider.ID,
+		Slug:           provider.Slug,
+		DisplayName:    provider.DisplayName,
+		Protocol:       provider.Protocol,
+		Mode:           provider.Mode,
+		ProviderConfig: append([]byte(nil), provider.Config...),
+		SecretStatus:   provider.SecretStatus,
+		Disabled:       provider.Disabled,
+	}
+	if provider.SecretValidatedAt != nil {
+		row.SecretValidatedAt = pgtype.Timestamptz{Time: *provider.SecretValidatedAt, Valid: true}
 	}
 	if provider.Secret != nil {
-		row.ClientSecretEnc = append([]byte(nil), provider.Secret.Ciphertext...)
+		row.SecretEnc = append([]byte(nil), provider.Secret.Ciphertext...)
 		row.SecretNonce = append([]byte(nil), provider.Secret.Nonce...)
-		row.KeyVersion = provider.Secret.KeyVersion
+		row.KeyVersion = pgtype.Int4{Int32: provider.Secret.KeyVersion, Valid: true}
 	}
 	return row, nil
 }

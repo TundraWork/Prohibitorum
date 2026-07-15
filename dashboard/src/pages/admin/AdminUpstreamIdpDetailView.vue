@@ -28,7 +28,7 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
-import type { IdentityProvider } from './AdminUpstreamIdpsView.vue'
+import type { IdentityProvider, OIDCProviderConfig } from './AdminUpstreamIdpsView.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -45,6 +45,7 @@ const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClai
 const requireVerifiedEmail = ref(false); const disabled = ref(false); const allowPrivateNetwork = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
+const isOIDC = computed(() => idp.value?.protocol === 'oidc')
 const isSteam = computed(() => idp.value?.protocol === 'steam')
 const newSecret = ref(''); const { flag: rotated, trigger: triggerRotated } = useTransientFlag()
 const confirmDelete = ref(false)
@@ -57,26 +58,61 @@ async function load(): Promise<void> {
   const i = await run(() => api.get<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`))
   if (!i) { if (error.value?.code === 'upstream_idp_not_found') notFound.value = true; return }
   idp.value = i
-  displayName.value = i.displayName; issuerUrl.value = i.issuerUrl; clientId.value = i.clientId
-  mode.value = i.mode; scopes.value = [...i.scopes]; allowedDomains.value = [...i.allowedDomains]
-  usernameClaim.value = i.usernameClaim; displayNameClaim.value = i.displayNameClaim; emailClaim.value = i.emailClaim; pictureClaim.value = i.pictureClaim
-  requireVerifiedEmail.value = i.requireVerifiedEmail; disabled.value = i.disabled; allowPrivateNetwork.value = i.allowPrivateNetwork ?? false
+  displayName.value = i.displayName
+  mode.value = i.mode
+  disabled.value = i.disabled
+  if (i.protocol === 'oidc') {
+    const config = i.config as unknown as OIDCProviderConfig
+    issuerUrl.value = config.issuerUrl
+    clientId.value = config.clientId
+    scopes.value = [...config.scopes]
+    allowedDomains.value = [...config.allowedDomains]
+    usernameClaim.value = config.usernameClaim
+    displayNameClaim.value = config.displayNameClaim
+    emailClaim.value = config.emailClaim
+    pictureClaim.value = config.pictureClaim
+    requireVerifiedEmail.value = config.requireVerifiedEmail
+    allowPrivateNetwork.value = config.allowPrivateNetwork
+  } else {
+    issuerUrl.value = ''
+    clientId.value = ''
+    scopes.value = []
+    allowedDomains.value = []
+    usernameClaim.value = ''
+    displayNameClaim.value = ''
+    emailClaim.value = ''
+    pictureClaim.value = ''
+    requireVerifiedEmail.value = false
+    allowPrivateNetwork.value = false
+  }
 }
 
 async function save(): Promise<void> {
+  const config: OIDCProviderConfig | Record<string, never> = isOIDC.value
+    ? {
+        issuerUrl: issuerUrl.value,
+        clientId: clientId.value,
+        scopes: scopes.value,
+        allowedDomains: allowedDomains.value,
+        usernameClaim: usernameClaim.value,
+        displayNameClaim: displayNameClaim.value,
+        emailClaim: emailClaim.value,
+        pictureClaim: pictureClaim.value,
+        requireVerifiedEmail: requireVerifiedEmail.value,
+        allowPrivateNetwork: allowPrivateNetwork.value,
+      }
+    : {}
   const updated = await run(() => withSudo(() => api.put<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`, {
-    displayName: displayName.value, issuerUrl: issuerUrl.value, clientId: clientId.value, mode: mode.value,
-    scopes: scopes.value, allowedDomains: allowedDomains.value, usernameClaim: usernameClaim.value,
-    displayNameClaim: displayNameClaim.value, emailClaim: emailClaim.value, pictureClaim: pictureClaim.value,
-    requireVerifiedEmail: requireVerifiedEmail.value, disabled: disabled.value,
-    allowPrivateNetwork: allowPrivateNetwork.value,
+    displayName: displayName.value,
+    mode: mode.value,
+    config,
   }), t('sudo.reason.saveChanges')))
   if (updated) { idp.value = updated; triggerSaved() }
 }
 
 async function rotate(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
-    await api.post('/api/prohibitorum/identity-providers/rotate-secret', { slug, clientSecret: newSecret.value })
+    await api.post('/api/prohibitorum/identity-providers/rotate-secret', { slug, secret: newSecret.value })
     return true as const
   }, t('sudo.reason.rotateSecret')))
   if (ok) { triggerRotated(); newSecret.value = '' }
@@ -131,7 +167,7 @@ onMounted(load)
               <Label for="displayName">{{ t('admin.upstream.displayName') }}</Label>
               <Input id="displayName" name="displayName" v-model="displayName" autocomplete="off" />
             </div>
-            <template v-if="!isSteam">
+            <template v-if="isOIDC">
               <div class="flex flex-col gap-1.5">
                 <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
                 <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
@@ -156,17 +192,17 @@ onMounted(load)
                 {value:'invite_only',title:t('admin.upstream.modeInviteOnly'),description:t('admin.upstream.modeInviteOnlyDesc')},
                 {value:'link_only',title:t('admin.upstream.modeLinkOnly'),description:t('admin.upstream.modeLinkOnlyDesc')}]" />
             </div>
-            <div class="flex flex-col gap-1.5">
+            <div v-if="isOIDC" class="flex flex-col gap-1.5">
               <Label>{{ t('admin.upstream.allowedDomains') }}</Label>
               <ListInput v-model="allowedDomains" name="allowedDomains"
                 :add-label="t('admin.upstream.addDomain')" :placeholder="t('admin.upstream.domainPlaceholder')" :validate="validateDomain" />
               <p class="text-xs text-muted">{{ t('admin.upstream.domainsHint') }}</p>
             </div>
-            <SettingRow v-if="!isSteam" :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
+            <SettingRow v-if="isOIDC" :label="t('admin.upstream.requireVerifiedEmail')" :description="t('admin.upstream.requireVerifiedEmailDesc')" for="requireVerifiedEmail">
               <Switch id="requireVerifiedEmail" v-model="requireVerifiedEmail" data-test="requireVerifiedEmail" />
             </SettingRow>
           </FormSection>
-          <FormSection :title="t('admin.upstream.sectionSecurity')">
+          <FormSection v-if="isOIDC" :title="t('admin.upstream.sectionSecurity')">
             <Alert variant="destructive" data-test="private-network-warning">
               <AlertDescription>{{ t('admin.upstream.allowPrivateNetworkWarning') }}</AlertDescription>
             </Alert>
@@ -174,7 +210,7 @@ onMounted(load)
               <Switch id="allowPrivateNetwork" v-model="allowPrivateNetwork" data-test="allowPrivateNetwork" />
             </SettingRow>
           </FormSection>
-          <FormSection v-if="!isSteam" :title="t('admin.upstream.sectionClaims')">
+          <FormSection v-if="isOIDC" :title="t('admin.upstream.sectionClaims')">
             <div class="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-3 gap-y-2">
               <Label class="text-sm" for="usernameClaim">{{ t('admin.upstream.usernameClaim') }}</Label>
               <Input id="usernameClaim" name="usernameClaim" class="h-8" v-model="usernameClaim" placeholder="preferred_username" autocomplete="off" data-test="claim-username" />
@@ -218,17 +254,19 @@ onMounted(load)
             </Button>
           </div>
 
-          <Separator />
-          <div class="flex flex-col gap-2">
-            <SectionTitle as="h3">{{ isSteam ? t('admin.upstream.rotateTitleSteam') : t('admin.upstream.rotateTitle') }}</SectionTitle>
-            <p class="text-xs text-muted">{{ isSteam ? t('admin.upstream.rotateBodySteam') : t('admin.upstream.rotateBody') }}</p>
-            <div class="flex flex-col gap-1.5">
-              <Label for="newSecret">{{ isSteam ? t('admin.upstream.steamApiKey') : t('admin.upstream.clientSecret') }}</Label>
-              <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
+          <template v-if="isOIDC || isSteam">
+            <Separator />
+            <div class="flex flex-col gap-2">
+              <SectionTitle as="h3">{{ isSteam ? t('admin.upstream.rotateTitleSteam') : t('admin.upstream.rotateTitle') }}</SectionTitle>
+              <p class="text-xs text-muted">{{ isSteam ? t('admin.upstream.rotateBodySteam') : t('admin.upstream.rotateBody') }}</p>
+              <div class="flex flex-col gap-1.5">
+                <Label for="newSecret">{{ isSteam ? t('admin.upstream.steamApiKey') : t('admin.upstream.clientSecret') }}</Label>
+                <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
+              </div>
+              <StatusMessage :show="rotated">{{ t('admin.upstream.rotated') }}</StatusMessage>
+              <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ isSteam ? t('admin.upstream.rotateConfirmSteam') : t('admin.upstream.rotateConfirm') }}</Button>
             </div>
-            <StatusMessage :show="rotated">{{ t('admin.upstream.rotated') }}</StatusMessage>
-            <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ isSteam ? t('admin.upstream.rotateConfirmSteam') : t('admin.upstream.rotateConfirm') }}</Button>
-          </div>
+          </template>
 
           <Separator />
           <div class="flex flex-col gap-2">

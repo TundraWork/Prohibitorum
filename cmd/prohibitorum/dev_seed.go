@@ -21,6 +21,7 @@ import (
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 	"prohibitorum/pkg/protocol/oidc"
 
 	"github.com/jackc/pgx/v5"
@@ -155,59 +156,43 @@ func runDevSeed(_ *cobra.Command, _ []string) {
 	fmt.Println("==> dev-seed: done")
 }
 
-// seedProviders inserts 3 upstream IdP rows, skipping any that already exist.
+// seedProviders inserts 3 disabled example providers, skipping existing rows.
 func seedProviders(ctx context.Context, q *db.Queries) {
+	oidcConfig := func(issuerURL, clientID string, scopes, allowedDomains []string, usernameClaim string, requireVerifiedEmail bool) []byte {
+		raw, err := json.Marshal(federationoidc.Config{
+			IssuerURL: issuerURL, ClientID: clientID, Scopes: scopes, AllowedDomains: allowedDomains,
+			UsernameClaim: usernameClaim, DisplayNameClaim: "name", EmailClaim: "email",
+			PictureClaim: "picture", RequireVerifiedEmail: requireVerifiedEmail,
+		})
+		if err != nil {
+			log.Fatalf("encode provider config: %v", err)
+		}
+		return raw
+	}
 	providers := []db.InsertUpstreamIDPParams{
 		{
-			Slug:                 "google",
-			DisplayName:          "Google",
-			IssuerUrl:            "https://accounts.google.com",
-			ClientID:             "dev-google",
-			ClientSecretEnc:      []byte("dev-seed-placeholder"),
-			SecretNonce:          make([]byte, 12),
-			KeyVersion:           1,
-			Scopes:               []string{"openid", "email", "profile"},
-			Mode:                 "auto_provision",
-			AllowedDomains:       []string{"example.com"},
-			UsernameClaim:        "email",
-			DisplayNameClaim:     "name",
-			EmailClaim:           "email",
-			PictureClaim:         "picture",
-			RequireVerifiedEmail: true,
+			Slug: "google", DisplayName: "Google", Protocol: federationoidc.Protocol,
+			Mode: "auto_provision", SecretStatus: "unconfigured", Disabled: true,
+			ProviderConfig: oidcConfig(
+				"https://accounts.google.com", "dev-google", []string{"openid", "email", "profile"},
+				[]string{"example.com"}, "email", true,
+			),
 		},
 		{
-			Slug:                 "github",
-			DisplayName:          "GitHub",
-			IssuerUrl:            "https://github.com",
-			ClientID:             "dev-github",
-			ClientSecretEnc:      []byte("dev-seed-placeholder"),
-			SecretNonce:          make([]byte, 12),
-			KeyVersion:           1,
-			Scopes:               []string{"openid", "email"},
-			Mode:                 "link_only",
-			AllowedDomains:       []string{"example.com"},
-			UsernameClaim:        "preferred_username",
-			DisplayNameClaim:     "name",
-			EmailClaim:           "email",
-			PictureClaim:         "picture",
-			RequireVerifiedEmail: false,
+			Slug: "github", DisplayName: "GitHub", Protocol: federationoidc.Protocol,
+			Mode: "link_only", SecretStatus: "unconfigured", Disabled: true,
+			ProviderConfig: oidcConfig(
+				"https://github.com", "dev-github", []string{"openid", "email"},
+				[]string{"example.com"}, "preferred_username", false,
+			),
 		},
 		{
-			Slug:                 "microsoft",
-			DisplayName:          "Microsoft",
-			IssuerUrl:            "https://login.microsoftonline.com/common/v2.0",
-			ClientID:             "dev-microsoft",
-			ClientSecretEnc:      []byte("dev-seed-placeholder"),
-			SecretNonce:          make([]byte, 12),
-			KeyVersion:           1,
-			Scopes:               []string{"openid", "email", "profile"},
-			Mode:                 "invite_only",
-			AllowedDomains:       []string{"example.com"},
-			UsernameClaim:        "email",
-			DisplayNameClaim:     "name",
-			EmailClaim:           "email",
-			PictureClaim:         "picture",
-			RequireVerifiedEmail: false,
+			Slug: "microsoft", DisplayName: "Microsoft", Protocol: federationoidc.Protocol,
+			Mode: "invite_only", SecretStatus: "unconfigured", Disabled: true,
+			ProviderConfig: oidcConfig(
+				"https://login.microsoftonline.com/common/v2.0", "dev-microsoft",
+				[]string{"openid", "email", "profile"}, []string{"example.com"}, "email", false,
+			),
 		},
 	}
 
