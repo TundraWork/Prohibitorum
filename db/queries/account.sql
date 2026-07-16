@@ -89,20 +89,24 @@ SELECT
 FROM account a
 WHERE (
     sqlc.narg('q')::text IS NULL
-    OR a.username ILIKE '%' || sqlc.narg('q')::text || '%'
-    OR a.display_name ILIKE '%' || sqlc.narg('q')::text || '%'
-    OR COALESCE(a.email, '') ILIKE '%' || sqlc.narg('q')::text || '%'
-    OR EXISTS (
-      SELECT 1
+    OR a.id IN (
+      SELECT searched.id
+      FROM account searched
+      WHERE (
+        searched.username || E'\n' ||
+        searched.display_name || E'\n' ||
+        COALESCE(searched.email, '')
+      ) ILIKE '%' || sqlc.narg('q')::text || '%'
+      UNION
+      SELECT ai.account_id
       FROM account_identity ai
-      WHERE ai.account_id = a.id
-        AND (
-          ai.upstream_sub ILIKE '%' || sqlc.narg('q')::text || '%'
-          OR COALESCE(ai.upstream_email, '') ILIKE '%' || sqlc.narg('q')::text || '%'
-          OR COALESCE(ai.upstream_data->>'personaName', '') ILIKE '%' || sqlc.narg('q')::text || '%'
-          OR COALESCE(ai.upstream_data->>'displayName', '') ILIKE '%' || sqlc.narg('q')::text || '%'
-          OR COALESCE(ai.upstream_data->>'profileUrl', '') ILIKE '%' || sqlc.narg('q')::text || '%'
-        )
+      WHERE (
+        ai.upstream_sub || E'\n' ||
+        COALESCE(ai.upstream_email, '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'personaName', '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'displayName', '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'profileUrl', '')
+      ) ILIKE '%' || sqlc.narg('q')::text || '%'
     )
   )
   AND (

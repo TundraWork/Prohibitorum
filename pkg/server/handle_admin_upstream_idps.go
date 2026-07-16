@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -118,7 +119,7 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 
 	protocol := body.Protocol
 	if creating {
-		if body.Slug == "" || protocol == "" {
+		if body.Slug == "" || body.Slug != strings.TrimSpace(body.Slug) || body.Slug != strings.ToLower(body.Slug) || protocol == "" {
 			return nil, authn.ErrBadRequest()
 		}
 	} else {

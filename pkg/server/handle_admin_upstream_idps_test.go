@@ -141,6 +141,8 @@ func TestValidateProviderWrite(t *testing.T) {
 		{name: "OIDC missing secret", body: providerWriteBody{Slug: "corp", DisplayName: "Corporate", Protocol: "oidc", Mode: federation.ModeAutoProvision, Config: json.RawMessage(exactOIDCConfig)}, wantErr: true},
 		{name: "Steam missing secret", body: providerWriteBody{Slug: "steam", DisplayName: "Steam", Protocol: "steam", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`)}, wantErr: true},
 		{name: "VRChat rejects generic secret", body: providerWriteBody{Slug: "vrchat", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`), Secret: "not-allowed"}, wantErr: true},
+		{name: "mixed-case slug", body: providerWriteBody{Slug: "VRChat-Main", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}, wantErr: true},
+		{name: "slug with surrounding whitespace", body: providerWriteBody{Slug: " vrchat ", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}, wantErr: true},
 		{name: "missing common field", body: providerWriteBody{Slug: "corp", Protocol: "oidc", Mode: federation.ModeAutoProvision, Config: json.RawMessage(exactOIDCConfig), Secret: "secret"}, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
