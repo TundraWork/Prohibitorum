@@ -49,7 +49,7 @@ func validateResponseCookies(origin *url.URL, header http.Header, now time.Time)
 			return nil, errInvalidCookie
 		}
 		cookie := parsed[0]
-		if !validAuthenticationCookie(cookie, now) {
+		if !normalizeResponseCookie(cookie, now) {
 			return nil, errInvalidCookie
 		}
 		if _, duplicate := seen[cookie.Name]; duplicate {
@@ -61,7 +61,28 @@ func validateResponseCookies(origin *url.URL, header http.Header, now time.Time)
 	return cookies, nil
 }
 
-func EncodeCookies(cookies []http.Cookie) ([]byte, error) {
+func normalizeResponseCookie(cookie *http.Cookie, now time.Time) bool {
+	if cookie == nil || (cookie.Name != "auth" && cookie.Name != "twoFactorAuth") ||
+		cookie.Path != "/" || !cookie.Secure || !cookie.HttpOnly ||
+		len(cookie.Unparsed) != 0 || !validSameSite(cookie.SameSite) || cookie.Valid() != nil {
+		return false
+	}
+	if cookie.Domain != "" && !strings.EqualFold(cookie.Domain, "api.vrchat.cloud") {
+		return false
+	}
+	cookie.Domain = ""
+	if cookie.MaxAge < 0 {
+		cookie.Expires = time.Time{}
+		return true
+	}
+	if cookie.MaxAge > 0 {
+		cookie.Expires = now.Add(time.Duration(cookie.MaxAge) * time.Second)
+		cookie.MaxAge = 0
+	}
+	return cookie.Expires.IsZero() || cookie.Expires.After(now)
+}
+
+func encodeCookies(cookies []http.Cookie) ([]byte, error) {
 	stored := make([]storedCookie, 0, len(cookies))
 	seen := make(map[string]struct{}, len(cookies))
 	now := time.Now()
@@ -92,12 +113,9 @@ func EncodeCookies(cookies []http.Cookie) ([]byte, error) {
 	return encoded, nil
 }
 
-func DecodeCookies(encoded []byte, origin *url.URL, now time.Time) ([]http.Cookie, error) {
+func decodeCookies(encoded []byte, now time.Time) ([]http.Cookie, error) {
 	if len(encoded) > maxEncodedCookiesSize {
 		return nil, errCookiePayloadTooLarge
-	}
-	if !validCookieOrigin(origin) {
-		return nil, errInvalidCookieOrigin
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
@@ -130,12 +148,38 @@ func DecodeCookies(encoded []byte, origin *url.URL, now time.Time) ([]http.Cooki
 	return cookies, nil
 }
 
+func (c *Client) EncodeCookies(cookies []http.Cookie) ([]byte, error) {
+	if err := validateOutboundCookies(c.baseURL, cookies, time.Now()); err != nil {
+		return nil, err
+	}
+	return encodeCookies(cookies)
+}
+
+func (c *Client) DecodeCookies(encoded []byte, now time.Time) ([]http.Cookie, error) {
+	if !validClientCookieOrigin(c.baseURL) {
+		return nil, errInvalidCookieOrigin
+	}
+	return decodeCookies(encoded, now)
+}
+
 func validCookieOrigin(origin *url.URL) bool {
-	if origin == nil || !strings.EqualFold(origin.Scheme, "https") {
+	return validClientCookieOrigin(origin)
+}
+
+func validClientCookieOrigin(origin *url.URL) bool {
+	if origin == nil {
 		return false
 	}
-	host := origin.Hostname()
-	if strings.EqualFold(host, "api.vrchat.cloud") || strings.EqualFold(host, "localhost") {
+	if origin.String() == productionOrigin {
+		return true
+	}
+	return origin.Scheme == "https" && origin.Host != "" && origin.User == nil &&
+		origin.RawQuery == "" && !origin.ForceQuery && origin.Fragment == "" &&
+		origin.Path == "/api/1" && isLoopbackHost(origin.Hostname())
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
 		return true
 	}
 	ip := net.ParseIP(host)
@@ -144,11 +188,82 @@ func validCookieOrigin(origin *url.URL) bool {
 
 func validAuthenticationCookie(cookie *http.Cookie, now time.Time) bool {
 	if cookie == nil || (cookie.Name != "auth" && cookie.Name != "twoFactorAuth") ||
-		cookie.Path != "/" || !cookie.Secure || !cookie.HttpOnly || cookie.MaxAge < 0 ||
+		cookie.Path != "/" || !cookie.Secure || !cookie.HttpOnly || cookie.MaxAge != 0 ||
 		(!cookie.Expires.IsZero() && !cookie.Expires.After(now)) || len(cookie.Unparsed) != 0 || !validSameSite(cookie.SameSite) {
 		return false
 	}
 	return cookie.Valid() == nil
+}
+
+func validateOutboundCookies(origin *url.URL, cookies []http.Cookie, now time.Time) error {
+	if len(cookies) == 0 {
+		return nil
+	}
+	if !validClientCookieOrigin(origin) {
+		return errInvalidCookieOrigin
+	}
+	seen := make(map[string]struct{}, len(cookies))
+	for i := range cookies {
+		cookie := &cookies[i]
+		if !validAuthenticationCookie(cookie, now) ||
+			(cookie.Domain != "" && !strings.EqualFold(cookie.Domain, origin.Hostname())) {
+			return errInvalidCookiePayload
+		}
+		if _, duplicate := seen[cookie.Name]; duplicate {
+			return errInvalidCookiePayload
+		}
+		seen[cookie.Name] = struct{}{}
+	}
+	return nil
+}
+
+func mergeCookies(prior, updates []http.Cookie, now time.Time) ([]http.Cookie, error) {
+	if err := validateOutboundCookiesForMerge(prior, now); err != nil {
+		return nil, err
+	}
+	merged := append([]http.Cookie(nil), prior...)
+	index := make(map[string]int, len(merged))
+	for i := range merged {
+		merged[i].Domain = ""
+		merged[i].MaxAge = 0
+		index[merged[i].Name] = i
+	}
+	for i := range updates {
+		update := updates[i]
+		if update.MaxAge < 0 {
+			if position, ok := index[update.Name]; ok {
+				merged = append(merged[:position], merged[position+1:]...)
+				index = make(map[string]int, len(merged))
+				for j := range merged {
+					index[merged[j].Name] = j
+				}
+			}
+			continue
+		}
+		update.Domain = ""
+		update.MaxAge = 0
+		if position, ok := index[update.Name]; ok {
+			merged[position] = update
+		} else {
+			index[update.Name] = len(merged)
+			merged = append(merged, update)
+		}
+	}
+	return merged, nil
+}
+
+func validateOutboundCookiesForMerge(cookies []http.Cookie, now time.Time) error {
+	seen := make(map[string]struct{}, len(cookies))
+	for i := range cookies {
+		if !validAuthenticationCookie(&cookies[i], now) {
+			return errInvalidCookiePayload
+		}
+		if _, duplicate := seen[cookies[i].Name]; duplicate {
+			return errInvalidCookiePayload
+		}
+		seen[cookies[i].Name] = struct{}{}
+	}
+	return nil
 }
 
 func validSameSite(sameSite http.SameSite) bool {

@@ -135,6 +135,7 @@ func TestClientCurrentUserUnionBoundaries(t *testing.T) {
 		{"invalid authenticated ID", `{"id":"usr_x","displayName":"Name"}`, false, nil},
 		{"long display name", `{"id":"usr_12345678-1234-1234-1234-123456789abc","displayName":"` + strings.Repeat("x", 257) + `"}`, false, nil},
 		{"too many methods", `{"requiresTwoFactorAuth":["totp","emailOtp","otp","totp"]}`, false, nil},
+		{"duplicate methods", `{"requiresTwoFactorAuth":["totp","totp"]}`, false, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,7 +159,7 @@ func TestClientPublicUserBoundariesAndIDValidation(t *testing.T) {
 		ok                    bool
 	}{
 		{"valid", id, valid, true},
-		{"safe noncanonical segment", "usr_x", `{"id":"usr_x","displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, true},
+		{"safe noncanonical segment", "usr_x", `{"id":"usr_x","displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, false},
 		{"missing id", id, `{"displayName":"Name","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, false},
 		{"missing display", id, `{"id":"` + id + `","bioLinks":[],"currentAvatarThumbnailImageUrl":"x"}`, false},
 		{"missing links", id, `{"id":"` + id + `","displayName":"Name","currentAvatarThumbnailImageUrl":"x"}`, false},
@@ -180,7 +181,7 @@ func TestClientPublicUserBoundariesAndIDValidation(t *testing.T) {
 			if (err == nil) != tt.ok {
 				t.Fatalf("error = %v", err)
 			}
-			if !tt.ok && (tt.name == "path escape" || tt.name == "encoded slash") && called {
+			if !tt.ok && (tt.name == "path escape" || tt.name == "encoded slash" || tt.name == "safe noncanonical segment") && called {
 				t.Fatal("invalid ID reached transport")
 			}
 		})
@@ -228,34 +229,48 @@ func TestClientTwoFactorMethodsCodesAndVerification(t *testing.T) {
 func TestClientStatusDecodeAndBodyCapsAreSanitized(t *testing.T) {
 	secret := "RAW_SECRET_NEVER_EXPOSE"
 	tests := []struct {
-		name    string
-		status  int
-		headers http.Header
-		body    string
-		target  any
+		name, kind, category string
+		status               int
+		headers              http.Header
+		body                 string
 	}{
-		{"unauthorized", 401, nil, secret, &HTTPError{}}, {"forbidden", 403, nil, secret, &HTTPError{}},
-		{"rate seconds", 429, http.Header{"Retry-After": []string{"120"}}, secret, &HTTPError{}},
-		{"server", 503, nil, secret, &HTTPError{}}, {"unexpected", 418, nil, secret, &HTTPError{}},
-		{"decode", 200, nil, "{" + secret, &DecodeError{}},
-		{"oversize user", 200, nil, strings.Repeat("x", 1<<20+1) + secret, &OversizeError{}},
+		{"unauthorized", "http", "authentication", 401, http.Header{"Set-Cookie": []string{"auth=gone; Path=/; Secure; HttpOnly; Max-Age=0"}}, secret},
+		{"forbidden", "http", "authentication", 403, http.Header{"Set-Cookie": []string{"other=bad"}}, secret},
+		{"rate seconds", "http", "rate_limited", 429, http.Header{"Retry-After": []string{"120"}, "Set-Cookie": []string{"malformed"}}, secret},
+		{"server", "http", "upstream", 503, nil, secret},
+		{"unexpected", "http", "unexpected_status", 418, nil, secret},
+		{"decode", "decode", "current-user", 200, nil, "{" + secret},
+		{"oversize user", "oversize", "current-user response", 200, nil, strings.Repeat("x", 1<<20+1) + secret},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := testClient(t, func(*http.Request) (*http.Response, error) { return response(tt.status, tt.body, tt.headers), nil })
 			_, _, err := client.CurrentUser(context.Background(), nil)
-			if err == nil || !errors.As(err, &tt.target) {
-				t.Fatalf("error = %#v", err)
+			if err == nil {
+				t.Fatal("error = nil")
+			}
+			switch tt.kind {
+			case "http":
+				var typed *HTTPError
+				if !errors.As(err, &typed) || typed.Status != tt.status || typed.Category != tt.category {
+					t.Fatalf("HTTP error = %#v", err)
+				}
+				if tt.status == 429 && typed.RetryAfter != 120*time.Second {
+					t.Fatalf("RetryAfter = %v", typed.RetryAfter)
+				}
+			case "decode":
+				var typed *DecodeError
+				if !errors.As(err, &typed) || typed.Category != tt.category {
+					t.Fatalf("decode error = %#v", err)
+				}
+			case "oversize":
+				var typed *OversizeError
+				if !errors.As(err, &typed) || typed.Category != tt.category {
+					t.Fatalf("oversize error = %#v", err)
+				}
 			}
 			if strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), "120") {
 				t.Fatalf("error leaked data: %v", err)
-			}
-			if tt.name == "rate seconds" {
-				var e *HTTPError
-				errors.As(err, &e)
-				if e.RetryAfter != 120*time.Second {
-					t.Fatalf("RetryAfter = %v", e.RetryAfter)
-				}
 			}
 		})
 	}
@@ -271,7 +286,7 @@ func TestClientStatusDecodeAndBodyCapsAreSanitized(t *testing.T) {
 	client = testClient(t, func(*http.Request) (*http.Response, error) { return response(200, strings.Repeat("x", 4097)), nil })
 	_, err = client.VerifyTwoFactor(context.Background(), "totp", "x", nil)
 	var oe *OversizeError
-	if !errors.As(err, &oe) {
+	if !errors.As(err, &oe) || oe.Category != "verification response" {
 		t.Fatalf("2FA oversize error = %#v", err)
 	}
 }
@@ -293,6 +308,50 @@ func TestClientTransportAndHeaderErrorsAreSanitized(t *testing.T) {
 	_, _, err = client.CurrentUser(context.Background(), nil)
 	if err == nil || strings.Contains(err.Error(), secret) {
 		t.Fatalf("cookie error = %v", err)
+	}
+}
+
+func TestClientValidatesAndMergesCookieJar(t *testing.T) {
+	now := time.Now()
+	auth := http.Cookie{Name: "auth", Value: "first", Path: "/", Secure: true, HttpOnly: true, Expires: now.Add(time.Hour)}
+	var calls int
+	client := testClient(t, func(r *http.Request) (*http.Response, error) {
+		calls++
+		if got := r.Header.Get("Cookie"); !strings.Contains(got, "auth=first") || strings.Contains(got, "other=") {
+			t.Fatalf("Cookie = %q", got)
+		}
+		switch calls {
+		case 1:
+			return response(200, `{"id":"usr_12345678-1234-1234-1234-123456789abc","displayName":"Name"}`), nil
+		case 2:
+			return response(200, `{"id":"usr_12345678-1234-1234-1234-123456789abc","displayName":"Name"}`, http.Header{"Set-Cookie": []string{"twoFactorAuth=second; Path=/; Secure; HttpOnly; Max-Age=60"}}), nil
+		default:
+			return response(200, `{"id":"usr_12345678-1234-1234-1234-123456789abc","displayName":"Name"}`, http.Header{"Set-Cookie": []string{"auth=gone; Path=/; Secure; HttpOnly; Max-Age=0"}}), nil
+		}
+	})
+	_, jar, err := client.CurrentUser(context.Background(), []http.Cookie{auth})
+	if err != nil || len(jar) != 1 || jar[0].Name != "auth" {
+		t.Fatalf("preserved jar = %#v, err %v", jar, err)
+	}
+	_, jar, err = client.CurrentUser(context.Background(), jar)
+	if err != nil || len(jar) != 2 || jar[0].Name != "auth" || jar[1].Name != "twoFactorAuth" {
+		t.Fatalf("merged jar = %#v, err %v", jar, err)
+	}
+	_, jar, err = client.CurrentUser(context.Background(), jar)
+	if err != nil || len(jar) != 1 || jar[0].Name != "twoFactorAuth" {
+		t.Fatalf("deleted jar = %#v, err %v", jar, err)
+	}
+
+	for _, invalid := range []http.Cookie{
+		{Name: "other", Value: "secret", Path: "/", Secure: true, HttpOnly: true},
+		{Name: "auth", Value: "secret", Path: "/", Secure: true, HttpOnly: true, Expires: now.Add(-time.Minute)},
+		{Name: "auth", Value: "secret", Path: "/", Secure: true, HttpOnly: true, MaxAge: 60},
+	} {
+		called := false
+		rejecting := testClient(t, func(*http.Request) (*http.Response, error) { called = true; return response(200, `{}`), nil })
+		if _, _, err := rejecting.CurrentUser(context.Background(), []http.Cookie{invalid}); err == nil || called {
+			t.Fatalf("invalid outbound cookie reached transport: %#v, err %v", invalid, err)
+		}
 	}
 }
 

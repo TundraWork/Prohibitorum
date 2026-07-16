@@ -12,7 +12,7 @@ import (
 
 func cookieTestOrigin(t *testing.T) *url.URL {
 	t.Helper()
-	origin, err := url.Parse("https://api.vrchat.cloud")
+	origin, err := url.Parse("https://api.vrchat.cloud/api/1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,14 +44,27 @@ func TestCookieValidateAcceptsHostOnlyAndExactDomain(t *testing.T) {
 	if cookies[0].Name != "auth" || cookies[0].Domain != "" {
 		t.Fatalf("host-only cookie = %#v", cookies[0])
 	}
-	if cookies[1].Name != "twoFactorAuth" || !strings.EqualFold(cookies[1].Domain, "api.vrchat.cloud") {
+	if cookies[1].Name != "twoFactorAuth" || cookies[1].Domain != "" {
 		t.Fatalf("domain cookie name/domain = %q/%q", cookies[1].Name, cookies[1].Domain)
+	}
+}
+
+func TestCookieValidateNormalizesPositiveMaxAge(t *testing.T) {
+	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	later := now.Add(24 * time.Hour).Format(http.TimeFormat)
+	cookies, err := validateResponseCookies(cookieTestOrigin(t), cookieTestHeader(
+		"auth=secret; Path=/; Secure; HttpOnly; Max-Age=60; Expires="+later,
+	), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cookies) != 1 || cookies[0].MaxAge != 0 || !cookies[0].Expires.Equal(now.Add(time.Minute)) || cookies[0].Domain != "" {
+		t.Fatalf("normalized cookie = %#v", cookies)
 	}
 }
 
 func TestCookieValidateRejectsUnsafeCookies(t *testing.T) {
 	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
-	future := now.Add(time.Hour).Format(http.TimeFormat)
 	past := now.Add(-time.Hour).Format(http.TimeFormat)
 	tests := map[string][]string{
 		"unexpected name":    {"session=value; Path=/; Secure; HttpOnly"},
@@ -64,7 +77,6 @@ func TestCookieValidateRejectsUnsafeCookies(t *testing.T) {
 		"missing secure":     {"auth=value; Path=/; HttpOnly"},
 		"missing httponly":   {"auth=value; Path=/; Secure"},
 		"expired":            {"auth=value; Path=/; Secure; HttpOnly; Expires=" + past},
-		"deletion":           {"auth=value; Path=/; Secure; HttpOnly; Max-Age=0; Expires=" + future},
 		"duplicate": {
 			"auth=first; Path=/; Secure; HttpOnly",
 			"auth=second; Path=/; Secure; HttpOnly",
@@ -108,7 +120,8 @@ func TestCookieEncodingOmitsDomainAndRoundTrips(t *testing.T) {
 		{Name: "twoFactorAuth", Value: "second-secret", Path: "/", Domain: "api.vrchat.cloud", Secure: true, HttpOnly: true, SameSite: http.SameSiteNoneMode},
 	}
 
-	encoded, err := EncodeCookies(input)
+	client := testClient(t, func(*http.Request) (*http.Response, error) { t.Fatal("transport called"); return nil, nil })
+	encoded, err := client.EncodeCookies(input)
 	if err != nil {
 		t.Fatalf("EncodeCookies() error = %v", err)
 	}
@@ -116,7 +129,7 @@ func TestCookieEncodingOmitsDomainAndRoundTrips(t *testing.T) {
 		t.Fatalf("encoded cookies contain domain: %s", encoded)
 	}
 
-	decoded, err := DecodeCookies(encoded, cookieTestOrigin(t), now)
+	decoded, err := client.DecodeCookies(encoded, now)
 	if err != nil {
 		t.Fatalf("DecodeCookies() error = %v", err)
 	}
@@ -150,7 +163,7 @@ func TestCookieDecodeRejectsInvalidPayloads(t *testing.T) {
 
 	for name, payload := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := DecodeCookies(payload, cookieTestOrigin(t), now)
+			_, err := testClient(t, func(*http.Request) (*http.Response, error) { t.Fatal("transport called"); return nil, nil }).DecodeCookies(payload, now)
 			if err == nil {
 				t.Fatal("DecodeCookies() error = nil")
 			}
@@ -161,41 +174,26 @@ func TestCookieDecodeRejectsInvalidPayloads(t *testing.T) {
 	}
 }
 
-func TestCookieDecodeBindsOnlyToPermittedOrigins(t *testing.T) {
+func TestCookieDecodeUsesClientResolvedOrigin(t *testing.T) {
 	payload, err := json.Marshal([]map[string]any{{
 		"name": "auth", "value": "secret", "path": "/", "secure": true, "httpOnly": true, "sameSite": 0,
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	loopback, err := url.Parse("https://127.0.0.1:1234/api/1")
+	client := testClient(t, func(*http.Request) (*http.Response, error) { t.Fatal("transport called"); return nil, nil })
+	decoded, err := client.DecodeCookies(payload, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := DecodeCookies(payload, loopback, time.Now())
-	if err != nil {
-		t.Fatalf("DecodeCookies(loopback) error = %v", err)
-	}
 	if len(decoded) != 1 || decoded[0].Domain != "" {
-		t.Fatalf("DecodeCookies(loopback) = %#v", decoded)
-	}
-
-	for _, rawOrigin := range []string{"https://example.com", "https://sub.api.vrchat.cloud", "http://127.0.0.1:1234"} {
-		t.Run(rawOrigin, func(t *testing.T) {
-			origin, parseErr := url.Parse(rawOrigin)
-			if parseErr != nil {
-				t.Fatal(parseErr)
-			}
-			if _, decodeErr := DecodeCookies(payload, origin, time.Now()); decodeErr == nil {
-				t.Fatal("DecodeCookies() error = nil")
-			}
-		})
+		t.Fatalf("DecodeCookies() = %#v", decoded)
 	}
 }
 
 func TestCookieEncodeRejectsOversizedPayload(t *testing.T) {
 	cookies := []http.Cookie{{Name: "auth", Value: strings.Repeat("x", 16*1024), Path: "/", Secure: true, HttpOnly: true}}
-	if _, err := EncodeCookies(cookies); err == nil {
+	if _, err := testClient(t, func(*http.Request) (*http.Response, error) { t.Fatal("transport called"); return nil, nil }).EncodeCookies(cookies); err == nil {
 		t.Fatal("EncodeCookies() error = nil")
 	}
 }

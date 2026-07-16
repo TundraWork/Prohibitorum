@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,7 +19,7 @@ const (
 func resolveOrigin() (originConfig, error) {
 	rawOrigin := os.Getenv(smokeOriginEnvironment)
 	baseURL, err := url.Parse(rawOrigin)
-	if err != nil || rawOrigin == "" || baseURL.Scheme != "https" || baseURL.Host == "" || baseURL.User != nil || baseURL.RawQuery != "" || baseURL.Fragment != "" || baseURL.Path != "/api/1" || !isLoopbackHost(baseURL.Hostname()) {
+	if err != nil || rawOrigin == "" || baseURL.Scheme != "https" || baseURL.Host == "" || baseURL.User != nil || baseURL.RawQuery != "" || baseURL.ForceQuery || baseURL.Fragment != "" || baseURL.Path != "/api/1" || !isLoopbackHost(baseURL.Hostname()) {
 		return originConfig{}, errors.New("vrchat: invalid smoke origin")
 	}
 	caFile := os.Getenv(smokeCAEnvironment)
@@ -37,12 +36,4 @@ func resolveOrigin() (originConfig, error) {
 	}
 	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}}
 	return originConfig{BaseURL: baseURL, Transport: transport}, nil
-}
-
-func isLoopbackHost(host string) bool {
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
 }

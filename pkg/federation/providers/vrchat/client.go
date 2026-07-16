@@ -15,13 +15,13 @@ import (
 )
 
 const (
+	productionOrigin    = "https://api.vrchat.cloud/api/1"
 	userResponseLimit   = int64(1 << 20)
 	verifyResponseLimit = int64(4 << 10)
 	requestBodyLimit    = 4 << 10
 	verificationCodeMax = 256
 )
 
-var safeUserIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 var canonicalUserIDPattern = regexp.MustCompile(`^usr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 type originConfig struct {
@@ -82,14 +82,11 @@ func (c *Client) currentUser(ctx context.Context, cookies []http.Cookie, authori
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
 	}
-	resp, newCookies, err := c.do(req)
+	resp, newCookies, err := c.do(req, cookies)
 	if err != nil {
 		return CurrentUser{}, nil, err
 	}
 	defer resp.Body.Close()
-	if err := statusError(resp, time.Now()); err != nil {
-		return CurrentUser{}, newCookies, err
-	}
 	body, err := readBounded(resp.Body, userResponseLimit, "current-user response")
 	if err != nil {
 		return CurrentUser{}, newCookies, err
@@ -99,21 +96,18 @@ func (c *Client) currentUser(ctx context.Context, cookies []http.Cookie, authori
 }
 
 func (c *Client) PublicUser(ctx context.Context, userID string, cookies []http.Cookie) (PublicUser, []http.Cookie, error) {
-	if len(userID) > 256 || !safeUserIDPattern.MatchString(userID) {
+	if !canonicalUserIDPattern.MatchString(userID) {
 		return PublicUser{}, nil, &ValidationError{Category: "user ID"}
 	}
 	req, err := c.request(ctx, http.MethodGet, "/users/"+userID, nil, cookies)
 	if err != nil {
 		return PublicUser{}, nil, err
 	}
-	resp, newCookies, err := c.do(req)
+	resp, newCookies, err := c.do(req, cookies)
 	if err != nil {
 		return PublicUser{}, nil, err
 	}
 	defer resp.Body.Close()
-	if err := statusError(resp, time.Now()); err != nil {
-		return PublicUser{}, newCookies, err
-	}
 	body, err := readBounded(resp.Body, userResponseLimit, "public-user response")
 	if err != nil {
 		return PublicUser{}, newCookies, err
@@ -151,14 +145,11 @@ func (c *Client) VerifyTwoFactor(ctx context.Context, method, code string, cooki
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, newCookies, err := c.do(req)
+	resp, newCookies, err := c.do(req, cookies)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if err := statusError(resp, time.Now()); err != nil {
-		return newCookies, err
-	}
 	responseBody, err := readBounded(resp.Body, verifyResponseLimit, "verification response")
 	if err != nil {
 		return newCookies, err
@@ -174,6 +165,9 @@ func (c *Client) VerifyTwoFactor(ctx context.Context, method, code string, cooki
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body io.Reader, cookies []http.Cookie) (*http.Request, error) {
+	if err := validateOutboundCookies(c.baseURL, cookies, time.Now()); err != nil {
+		return nil, err
+	}
 	target := *c.baseURL
 	target.Path = strings.TrimSuffix(target.Path, "/") + path
 	target.RawPath = ""
@@ -188,15 +182,25 @@ func (c *Client) request(ctx context.Context, method, path string, body io.Reade
 	return req, nil
 }
 
-func (c *Client) do(req *http.Request) (*http.Response, []http.Cookie, error) {
+func (c *Client) do(req *http.Request, prior []http.Cookie) (*http.Response, []http.Cookie, error) {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, nil, &RequestError{}
 	}
-	cookies, cookieErr := validateResponseCookies(c.baseURL, resp.Header, time.Now())
-	if cookieErr != nil {
+	now := time.Now()
+	if err := statusError(resp, now); err != nil {
 		resp.Body.Close()
-		return nil, nil, cookieErr
+		return nil, nil, err
+	}
+	updates, err := validateResponseCookies(c.baseURL, resp.Header, now)
+	if err != nil {
+		resp.Body.Close()
+		return nil, nil, err
+	}
+	cookies, err := mergeCookies(prior, updates, now)
+	if err != nil {
+		resp.Body.Close()
+		return nil, nil, err
 	}
 	return resp, cookies, nil
 }
@@ -266,9 +270,14 @@ func decodeCurrentUser(body []byte) (CurrentUser, error) {
 		return CurrentUser{}, &DecodeError{Category: "current-user"}
 	}
 	filtered := make([]string, 0, len(methods))
+	seen := make(map[string]struct{}, len(methods))
 	for _, method := range methods {
 		switch method {
 		case "totp", "emailOtp", "otp":
+			if _, duplicate := seen[method]; duplicate {
+				return CurrentUser{}, &DecodeError{Category: "current-user"}
+			}
+			seen[method] = struct{}{}
 			filtered = append(filtered, method)
 		}
 	}
@@ -284,7 +293,7 @@ func decodePublicUser(body []byte, requestedID string) (PublicUser, error) {
 		return PublicUser{}, &DecodeError{Category: "public-user"}
 	}
 	if wire.ID == nil || wire.DisplayName == nil || wire.CurrentAvatarThumbnailImageURL == nil ||
-		*wire.ID == "" || *wire.ID != requestedID || len(*wire.DisplayName) == 0 || len(*wire.DisplayName) > 256 || len(*wire.CurrentAvatarThumbnailImageURL) == 0 || len(*wire.CurrentAvatarThumbnailImageURL) > 4096 || wire.BioLinks == nil || bytes.Equal(bytes.TrimSpace(wire.BioLinks), []byte("null")) {
+		!canonicalUserIDPattern.MatchString(*wire.ID) || *wire.ID != requestedID || len(*wire.DisplayName) == 0 || len(*wire.DisplayName) > 256 || len(*wire.CurrentAvatarThumbnailImageURL) == 0 || len(*wire.CurrentAvatarThumbnailImageURL) > 4096 || wire.BioLinks == nil || bytes.Equal(bytes.TrimSpace(wire.BioLinks), []byte("null")) {
 		return PublicUser{}, &DecodeError{Category: "public-user"}
 	}
 	var links []string

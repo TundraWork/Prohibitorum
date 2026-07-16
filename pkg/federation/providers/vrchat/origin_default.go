@@ -7,8 +7,6 @@ import (
 	"net/url"
 )
 
-const productionOrigin = "https://api.vrchat.cloud/api/1"
-
 func resolveOrigin() (originConfig, error) {
 	baseURL, err := url.Parse(productionOrigin)
 	if err != nil {

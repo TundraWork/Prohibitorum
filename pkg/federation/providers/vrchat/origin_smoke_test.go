@@ -70,8 +70,12 @@ func TestSmokeOriginValidationAndTrustedRequest(t *testing.T) {
 		if _, err := x509.ParseCertificate(cert.Raw); err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("PROHIBITORUM_VRCHAT_SMOKE_ORIGIN", server.URL+"/api/1")
 		t.Setenv("PROHIBITORUM_VRCHAT_SMOKE_CA_FILE", caFile)
+		t.Setenv("PROHIBITORUM_VRCHAT_SMOKE_ORIGIN", server.URL+"/api/1?")
+		if _, err := NewClient("test", "https://public.test"); err == nil {
+			t.Fatal("trailing empty query accepted")
+		}
+		t.Setenv("PROHIBITORUM_VRCHAT_SMOKE_ORIGIN", server.URL+"/api/1")
 		client, err := NewClient("test", "https://public.test")
 		if err != nil {
 			t.Fatal(err)

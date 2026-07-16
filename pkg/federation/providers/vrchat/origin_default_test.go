@@ -11,7 +11,7 @@ func TestDefaultOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := origin.BaseURL.String(), "https://api.vrchat.cloud/api/1"; got != want {
+	if got, want := origin.BaseURL.String(), productionOrigin; got != want {
 		t.Fatalf("origin = %q, want %q", got, want)
 	}
 }
