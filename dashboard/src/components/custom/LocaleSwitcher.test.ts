@@ -50,4 +50,14 @@ describe('LocaleSwitcher', () => {
     const { wrapper } = mountSwitcher()
     expect(wrapper.find('[data-test="locale-trigger"]').attributes('aria-label')).toBe('Language')
   })
+
+  it('can expose a 44px trigger on keyboard-first threshold pages', () => {
+    const i18n = makeI18n()
+    const wrapper = mount(LocaleSwitcher, {
+      props: { largeTarget: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.get('[data-test="locale-trigger"]').classes()).toContain('h-11')
+  })
 })

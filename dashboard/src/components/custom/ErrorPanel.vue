@@ -50,8 +50,10 @@ interface DiagnosticRecord {
 const props = withDefaults(defineProps<{
   error: ApiError | null
   isAdmin?: boolean
+  dismissible?: boolean
 }>(), {
   isAdmin: false,
+  dismissible: true,
 })
 
 const emit = defineEmits<{
@@ -203,9 +205,10 @@ const diagFields = computed(() => {
     <div class="flex items-start gap-2">
       <AlertDescription class="flex-1">{{ message }}</AlertDescription>
       <button
+        v-if="dismissible"
         type="button"
         data-test="error-dismiss"
-        class="-mr-1 shrink-0 rounded p-0.5 text-destructive hover:text-destructive/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="-m-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded text-destructive hover:text-destructive/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         :aria-label="t('errors.dismiss')"
         @click="onDismiss"
       >
@@ -222,6 +225,7 @@ const diagFields = computed(() => {
         data-test="error-recovery"
         variant="outline"
         size="sm"
+        class="min-h-11"
         @click="onRecovery"
       >
         <component :is="recoveryIcon" class="size-3.5" aria-hidden="true" />
@@ -234,7 +238,7 @@ const diagFields = computed(() => {
       <button
         type="button"
         data-test="error-details-trigger"
-        class="flex items-center gap-1 text-xs font-medium text-destructive/80 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+        class="flex min-h-11 items-center gap-1 rounded text-xs font-medium text-destructive/80 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         :aria-expanded="detailsOpen"
         aria-controls="error-details-content"
         @click="detailsOpen = !detailsOpen"
@@ -265,7 +269,7 @@ const diagFields = computed(() => {
           <button
             type="button"
             data-test="error-copy-request-id"
-            class="rounded p-0.5 text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :aria-label="t('errors.copyRequestId')"
             @click="copyRequestId"
           >
@@ -283,7 +287,7 @@ const diagFields = computed(() => {
         data-test="error-diagnostic"
         variant="ghost"
         size="sm"
-        class="text-xs"
+        class="min-h-11 text-xs"
         @click="fetchDiagnostic"
       >
         <Stethoscope class="size-3.5" aria-hidden="true" />

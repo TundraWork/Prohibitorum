@@ -39,6 +39,7 @@ describe('VRChatProofView', () => {
     expect(wrapper.get('h1').text()).toBe('VRChat verification link')
     expect(wrapper.text()).toContain('Visiting this page does not sign anyone in, verify profile ownership, or approve access.')
     expect(wrapper.text()).not.toMatch(/valid|approved|verified owner/i)
+    expect(wrapper.get('[data-test="locale-trigger"]').classes()).toContain('h-11')
   })
 
   it('gives the profile owner the same instructions for every token', async () => {

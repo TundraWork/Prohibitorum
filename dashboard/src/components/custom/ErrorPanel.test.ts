@@ -97,6 +97,33 @@ describe('ErrorPanel — persistence', () => {
     await w.get('[data-test="error-dismiss"]').trigger('click')
     expect(w.emitted('dismiss')).toBeTruthy()
   })
+
+  it('can keep a terminal error mounted without a dismiss action', () => {
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, dismissible: false },
+      global: { plugins: [makeI18n()] },
+    })
+
+    expect(w.find('[data-test="error-dismiss"]').exists()).toBe(false)
+    expect(w.get('[role="alert"]').text()).toContain(en.errors.codes.account_disabled)
+  })
+
+  it('gives every error-panel control a 44px hit target', async () => {
+    const w = mount(ErrorPanel, {
+      props: { error: RATE_LIMIT_ERROR, isAdmin: true },
+      attrs: { onRecovery: vi.fn() },
+      global: { plugins: [makeI18n()] },
+    })
+
+    expect(w.get('[data-test="error-dismiss"]').classes()).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+    expect(w.get('[data-test="error-recovery"]').classes()).toContain('min-h-11')
+    expect(w.get('[data-test="error-details-trigger"]').classes()).toContain('min-h-11')
+    expect(w.get('[data-test="error-diagnostic"]').classes()).toContain('min-h-11')
+
+    await w.get('[data-test="error-details-trigger"]').trigger('click')
+    await nextTick()
+    expect(w.get('[data-test="error-copy-request-id"]').classes()).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+  })
 })
 
 describe('ErrorPanel — details disclosure', () => {

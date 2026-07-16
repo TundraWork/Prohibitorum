@@ -106,6 +106,9 @@ describe('FederationFlowView', () => {
     const profile = wrapper.get('[data-test="profile-link"]')
     expect(profile.attributes('href')).toBe(proofFlow.profileUrl)
     expect(profile.attributes('target')).toBe('_blank')
+    expect(profile.text()).toContain(proofFlow.profileUrl)
+    expect(profile.get('.font-mono').classes()).toContain('break-all')
+    expect(wrapper.get('[data-test="locale-trigger"]').classes()).toContain('h-11')
     expect(wrapper.get('code').text()).toBe(proofFlow.proofUrl)
     expect(wrapper.findAll('ol li')).toHaveLength(3)
     expect(wrapper.text()).toContain('Expires')
@@ -187,6 +190,8 @@ describe('FederationFlowView', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('expired')
     expect(wrapper.find('form').exists()).toBe(false)
+    expect(wrapper.find('[data-test="error-dismiss"]').exists()).toBe(false)
+    expect(wrapper.get('[role="alert"]').text()).toContain('expired')
   })
 
   it('announces clipboard success and failure while leaving the URL visible', async () => {
@@ -231,7 +236,7 @@ describe('FederationFlowView', () => {
 
     await wrapper.get('input[name="localUsername"]').setValue('alex')
     expect(wrapper.get('[data-test="verify-profile"]').text()).toBe('Verify profile')
-    expect(wrapper.get('[data-test="profile-link"]').text()).toContain('Open VRChat profile')
+    expect(wrapper.get('[data-test="profile-link"]').attributes('aria-label')).toBe(`Open VRChat profile: ${proofFlow.profileUrl}`)
     expect(wrapper.get('[data-test="copy-code"]').attributes('aria-label')).toBe('Copy one-time proof URL')
     await wrapper.get('form').trigger('submit')
     await flushPromises()

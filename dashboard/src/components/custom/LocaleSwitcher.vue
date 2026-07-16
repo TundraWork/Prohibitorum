@@ -15,6 +15,10 @@ import { useI18n } from 'vue-i18n'
 import { Languages } from 'lucide-vue-next'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
+const props = withDefaults(defineProps<{ largeTarget?: boolean }>(), {
+  largeTarget: false,
+})
+
 const { t, locale, availableLocales } = useI18n({ useScope: 'global' })
 
 /** Human-readable names for known locales; unknown codes fall back to the code. */
@@ -26,7 +30,11 @@ const options = computed(() =>
 
 <template>
   <Select v-model="locale">
-    <SelectTrigger class="h-8 w-fit gap-1.5" :aria-label="t('common.language')" data-test="locale-trigger">
+    <SelectTrigger
+      :class="['w-fit gap-1.5', props.largeTarget ? 'h-11 min-w-11' : 'h-8']"
+      :aria-label="t('common.language')"
+      data-test="locale-trigger"
+    >
       <Languages class="size-4 text-muted" aria-hidden="true" />
       <SelectValue />
     </SelectTrigger>

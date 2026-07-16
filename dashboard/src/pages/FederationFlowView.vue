@@ -175,7 +175,7 @@ function continueFlow(): void {
 </script>
 
 <template>
-  <CenteredLayout>
+  <CenteredLayout large-interactive-targets>
     <template #title>
       <h1 class="text-xl font-semibold tracking-tight text-ink">{{ heading }}</h1>
     </template>
@@ -196,7 +196,7 @@ function continueFlow(): void {
     <ErrorPanel
       v-else-if="terminal"
       :error="error"
-      @dismiss="dismissError"
+      :dismissible="false"
     />
 
     <form
@@ -255,9 +255,10 @@ function continueFlow(): void {
             :href="flow.profileUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex min-h-11 w-fit max-w-full items-center gap-2 rounded-md text-sm font-medium text-tide-strong underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            :aria-label="`${t('federationFlow.openProfile')}: ${flow.profileUrl}`"
+            class="inline-flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md text-tide-strong underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <span>{{ t('federationFlow.openProfile') }}</span>
+            <span class="min-w-0 break-all font-mono text-xs">{{ flow.profileUrl }}</span>
             <ExternalLink class="size-4 shrink-0" aria-hidden="true" />
           </a>
         </div>

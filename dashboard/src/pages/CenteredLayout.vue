@@ -23,6 +23,9 @@ import AuthBackdrop from '@/components/custom/AuthBackdrop.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import { Card } from '@/components/ui/card'
 import { useBrandingStore } from '@/stores/branding'
+const props = withDefaults(defineProps<{ largeInteractiveTargets?: boolean }>(), {
+  largeInteractiveTargets: false,
+})
 const branding = useBrandingStore()
 </script>
 
@@ -32,7 +35,7 @@ const branding = useBrandingStore()
 
     <!-- Corner chrome — legible via the switcher's own surface chip + the scrim. -->
     <div class="absolute right-4 top-4 z-20">
-      <LocaleSwitcher />
+      <LocaleSwitcher :large-target="props.largeInteractiveTargets" />
     </div>
 
     <main class="relative z-10 flex min-h-screen items-center justify-center p-4">

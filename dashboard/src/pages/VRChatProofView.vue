@@ -6,7 +6,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <CenteredLayout>
+  <CenteredLayout large-interactive-targets>
     <template #title>
       <h1 class="text-xl font-semibold tracking-tight text-ink">
         {{ t('vrchatProof.title') }}
