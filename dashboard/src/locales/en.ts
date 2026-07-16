@@ -475,7 +475,7 @@ export default {
       operatorMethod: {
         totp: 'Authenticator code',
         emailOtp: 'Email code',
-        recoveryOtp: 'Recovery code',
+        otp: 'Recovery code',
       },
       operatorCode: 'Verification code',
       operatorVerify: 'Verify code',
@@ -1076,6 +1076,7 @@ export default {
 
     recovery: {
       retry: 'Try again',
+      restart: 'Start again',
       reauth: 'Re-authenticate',
       reduce_payload: 'Reduce size',
       fix_content_type: 'Change format',

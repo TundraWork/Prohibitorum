@@ -471,7 +471,7 @@ export default {
       operatorMethod: {
         totp: '身份验证器验证码',
         emailOtp: '邮箱验证码',
-        recoveryOtp: '恢复码',
+        otp: '恢复码',
       },
       operatorCode: '验证码',
       operatorVerify: '验证代码',
@@ -1069,6 +1069,7 @@ export default {
 
     recovery: {
       retry: '重试',
+      restart: '重新开始',
       reauth: '重新认证',
       reduce_payload: '减小大小',
       fix_content_type: '更改格式',

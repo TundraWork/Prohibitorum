@@ -52,12 +52,12 @@ const isVRChat = computed(() => idp.value?.protocol === 'vrchat')
 const newSecret = ref(''); const { flag: rotated, trigger: triggerRotated } = useTransientFlag()
 const confirmDelete = ref(false)
 
-type OperatorMethod = 'totp' | 'emailOtp' | 'recoveryOtp'
+type OperatorMethod = 'totp' | 'emailOtp' | 'otp'
 type OperatorSessionResult =
   | { status: 'challenge'; challenge: string; methods: string[]; expiresAt: string }
   | { status: 'valid'; provider: IdentityProvider }
 
-const supportedOperatorMethods: readonly OperatorMethod[] = ['totp', 'emailOtp', 'recoveryOtp']
+const supportedOperatorMethods: readonly OperatorMethod[] = ['totp', 'emailOtp', 'otp']
 const operatorUsername = ref('')
 const operatorPassword = ref('')
 const operatorCode = ref('')
@@ -224,7 +224,27 @@ async function validateOperatorSession(): Promise<void> {
       `/api/prohibitorum/identity-providers/${slug}/operator-session/validate`,
     ),
   t('sudo.reason.validateOperatorSession')))
-  if (result?.status === 'valid') acceptValidOperatorProvider(result.provider)
+  if (result?.status === 'valid') {
+    acceptValidOperatorProvider(result.provider)
+    return
+  }
+  if (error.value?.code !== 'vrchat_operator_credentials_invalid') return
+
+  const validationError = error.value
+  try {
+    const provider = await api.get<IdentityProvider>(
+      `/api/prohibitorum/identity-providers/${slug}`,
+    )
+    idp.value = provider
+    disabled.value = provider.disabled
+    operatorUsername.value = ''
+    operatorPassword.value = ''
+    clearOperatorChallenge()
+    operatorSetupActive.value = provider.secretStatus !== 'valid'
+  } catch {
+    // Keep the validation error visible if the follow-up status refresh fails.
+  }
+  error.value = validationError
 }
 
 function replaceOperatorSession(): void {
@@ -357,7 +377,7 @@ onMounted(load)
       <Card v-if="isVRChat" data-test="operator-session-card">
         <CardHeader><CardTitle>{{ t('admin.upstream.operatorSessionTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-5">
-          <div class="flex flex-col gap-1" role="status" aria-live="polite">
+          <div class="flex flex-col gap-1" role="status" aria-live="polite" data-test="operator-live-region">
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-sm font-medium text-ink">{{ t('admin.upstream.operatorStatusLabel') }}</span>
               <StatusBadge :variant="operatorStatusVariant" data-test="operator-status-badge">
@@ -371,14 +391,21 @@ onMounted(load)
             </p>
           </div>
 
+          <Alert data-test="operator-risk-warning">
+            <AlertDescription class="max-w-[75ch]">
+              {{ t('admin.upstream.vrchatCreateWarning') }}
+            </AlertDescription>
+          </Alert>
+
           <Alert data-test="operator-session-notice">
-            <AlertDescription>{{ t('admin.upstream.operatorSessionNotice') }}</AlertDescription>
+            <AlertDescription class="max-w-[75ch]">{{ t('admin.upstream.operatorSessionNotice') }}</AlertDescription>
           </Alert>
 
           <form
             v-if="operatorSetupActive && !operatorChallenge"
             class="flex flex-col gap-4"
             @submit.prevent="startOperatorSession"
+            data-test="operator-credentials-form"
           >
             <div class="flex flex-col gap-1.5">
               <Label for="operatorUsername">{{ t('admin.upstream.operatorUsername') }}</Label>
@@ -415,6 +442,7 @@ onMounted(load)
             v-else-if="operatorChallenge"
             class="flex flex-col gap-4"
             @submit.prevent="verifyOperatorSession"
+            data-test="operator-code-form"
           >
             <div class="flex flex-col gap-1.5">
               <Label>{{ t('admin.upstream.operatorMethodLabel') }}</Label>

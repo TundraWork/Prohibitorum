@@ -94,10 +94,15 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'upstream_error', details: ['upstreamCode'], recovery: '' },
   { code: 'upstream_idp_already_exists', details: [], recovery: '' },
   { code: 'upstream_idp_not_found', details: [], recovery: '' },
+  { code: 'upstream_rate_limited', details: [], recovery: 'retry' },
+  { code: 'upstream_temporarily_unavailable', details: [], recovery: 'retry' },
   { code: 'username_collision', details: [], recovery: '' },
   { code: 'username_immutable', details: [], recovery: '' },
   { code: 'username_taken', details: [], recovery: '' },
   { code: 'validation_failed', details: ['location', 'reason'], recovery: 'fix_input' },
+  { code: 'vrchat_operator_challenge_invalid', details: [], recovery: 'restart' },
+  { code: 'vrchat_operator_code_invalid', details: [], recovery: 'retry' },
+  { code: 'vrchat_operator_credentials_invalid', details: [], recovery: '' },
   { code: 'would_remove_last_factor', details: [], recovery: '' },
 ] as const
 
@@ -137,6 +142,7 @@ export const ALL_DETAIL_KEYS: readonly string[] = [
 /** Every recovery hint referenced by any code (for locale recovery-label parity). */
 export const ALL_RECOVERY_HINTS: readonly string[] = [
   'retry',
+  'restart',
   'reauth',
   'reduce_payload',
   'fix_content_type',
@@ -161,7 +167,7 @@ export function codeDefinition(code: string): ErrorCodeDef | undefined {
  *
  * Derived from: go test ./pkg/weberr → AllDefinitions() count.
  */
-export const EXPECTED_REGISTRY_CODE_COUNT = 70
+export const EXPECTED_REGISTRY_CODE_COUNT = 75
 /**
  * Error codes owned by a GLOBAL handler — a redirect (no_session →
  * sessionExpiry), a full-screen redirect (maintenance_mode), or a connection

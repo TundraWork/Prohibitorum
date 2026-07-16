@@ -42,22 +42,40 @@ describe('error locale parity — every manifest code has en+zh entries', () => 
     })
   }
 })
-describe('VRChat operator error recovery copy', () => {
-  const stableCodes = [
-    'vrchat_operator_credentials_invalid',
-    'vrchat_operator_challenge_invalid',
-    'vrchat_operator_code_invalid',
-    'upstream_rate_limited',
-    'upstream_temporarily_unavailable',
-  ] as const
+describe('VRChat operator errors match the canonical manifest and public copy', () => {
+  const stableErrors = {
+    vrchat_operator_credentials_invalid: {
+      recovery: '',
+      en: 'Those operator credentials were rejected. Check them and try again.',
+      zh: '操作员凭据被拒绝。请检查后重试。',
+    },
+    vrchat_operator_challenge_invalid: {
+      recovery: 'restart',
+      en: 'That verification challenge expired. Start the operator session again.',
+      zh: '验证挑战已过期。请重新启动操作员会话。',
+    },
+    vrchat_operator_code_invalid: {
+      recovery: 'retry',
+      en: 'That verification code was rejected. Try another code.',
+      zh: '验证码被拒绝。请尝试另一个验证码。',
+    },
+    upstream_rate_limited: {
+      recovery: 'retry',
+      en: 'VRChat is limiting requests. Wait a moment, then try again.',
+      zh: 'VRChat 正在限制请求。请稍等片刻后重试。',
+    },
+    upstream_temporarily_unavailable: {
+      recovery: 'retry',
+      en: 'VRChat is temporarily unavailable. Try again in a moment.',
+      zh: 'VRChat 暂时不可用。请稍后重试。',
+    },
+  } as const
 
-  for (const code of stableCodes) {
-    it(`has public recovery copy for ${code} in en and zh`, () => {
-      const enValue = get(en, `errors.codes.${code}`)
-      const zhValue = get(zh, `errors.codes.${code}`)
-      expect(typeof enValue, `en missing errors.codes.${code}`).toBe('string')
-      expect(typeof zhValue, `zh missing errors.codes.${code}`).toBe('string')
-      expect(enValue).not.toBe(zhValue)
+  for (const [code, expected] of Object.entries(stableErrors)) {
+    it(`defines ${code} with exact recovery metadata and localized copy`, () => {
+      expect(REGISTRY_CODES.find((definition) => definition.code === code)?.recovery).toBe(expected.recovery)
+      expect(get(en, `errors.codes.${code}`)).toBe(expected.en)
+      expect(get(zh, `errors.codes.${code}`)).toBe(expected.zh)
     })
   }
 })

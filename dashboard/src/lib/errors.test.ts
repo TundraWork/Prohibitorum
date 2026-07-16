@@ -218,6 +218,22 @@ describe('error code manifest integrity', () => {
     expect(REGISTRY_CODES.map((definition) => definition.code)).toContain('provider_not_ready')
   })
 
+  it('includes Task 6 VRChat operator recovery metadata', () => {
+    expect(REGISTRY_CODES.filter((definition) => [
+      'vrchat_operator_credentials_invalid',
+      'vrchat_operator_challenge_invalid',
+      'vrchat_operator_code_invalid',
+      'upstream_rate_limited',
+      'upstream_temporarily_unavailable',
+    ].includes(definition.code))).toEqual([
+      { code: 'upstream_rate_limited', details: [], recovery: 'retry' },
+      { code: 'upstream_temporarily_unavailable', details: [], recovery: 'retry' },
+      { code: 'vrchat_operator_challenge_invalid', details: [], recovery: 'restart' },
+      { code: 'vrchat_operator_code_invalid', details: [], recovery: 'retry' },
+      { code: 'vrchat_operator_credentials_invalid', details: [], recovery: '' },
+    ])
+  })
+
   it('all codes are unique', () => {
     const codes = ALL_CODES.map((d) => d.code)
     const seen = new Set<string>()

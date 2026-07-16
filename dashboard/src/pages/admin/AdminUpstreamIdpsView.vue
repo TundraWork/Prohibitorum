@@ -56,7 +56,7 @@ export interface IdentityProvider {
   config: Record<string, unknown>
   disabled: boolean
   secretConfigured: boolean
-  secretStatus: 'unconfigured' | 'valid' | 'invalid'
+  secretStatus: 'unconfigured' | 'configured' | 'valid' | 'invalid'
   secretValidatedAt: string | null
   ready: boolean
   supportsOperator: boolean

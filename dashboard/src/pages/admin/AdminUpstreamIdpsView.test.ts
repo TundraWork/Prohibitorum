@@ -29,7 +29,7 @@ const OIDC_CONFIG = {
 }
 const IDPS = [
   { slug: 'okta', displayName: 'Okta', protocol: 'oidc', mode: 'auto_provision', config: OIDC_CONFIG, disabled: false, secretConfigured: true, secretStatus: 'valid', secretValidatedAt: null, ready: true, supportsOperator: false, searchFields: [], createdAt: '2026-01-01T00:00:00Z' },
-  { slug: 'entra', displayName: 'Entra', protocol: 'oidc', mode: 'invite_only', config: { ...OIDC_CONFIG, issuerUrl: 'https://entra/', clientId: 'c2', requireVerifiedEmail: true }, disabled: true, secretConfigured: true, secretStatus: 'invalid', secretValidatedAt: null, ready: false, supportsOperator: false, searchFields: [], createdAt: '2026-01-02T00:00:00Z' },
+  { slug: 'entra', displayName: 'Entra', protocol: 'oidc', mode: 'invite_only', config: { ...OIDC_CONFIG, issuerUrl: 'https://entra/', clientId: 'c2', requireVerifiedEmail: true }, disabled: true, secretConfigured: true, secretStatus: 'configured', secretValidatedAt: null, ready: false, supportsOperator: false, searchFields: [], createdAt: '2026-01-02T00:00:00Z' },
 ]
 beforeEach(() => {
   get.mockReset(); post.mockReset(); push.mockReset(); withSudo.mockClear()
