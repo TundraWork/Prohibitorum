@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -244,14 +247,93 @@ func TestAccountFilterSchemaPostgres(t *testing.T) {
 		}
 	}
 
+	if _, err := tx.Exec(ctx, "SET LOCAL enable_seqscan = off"); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name      string
+		indexName string
+		query     string
+	}{
+		{
+			name:      "local text search",
+			indexName: "account_search_trgm_idx",
+			query: `EXPLAIN (COSTS OFF)
+				SELECT id FROM account
+				WHERE (
+					username || E'\n' || display_name || E'\n' || COALESCE(email, '')
+				) ILIKE '%selective-local-needle%'`,
+		},
+		{
+			name:      "identity text search",
+			indexName: "account_identity_search_trgm_idx",
+			query: `EXPLAIN (COSTS OFF)
+				SELECT account_id FROM account_identity
+				WHERE (
+					upstream_sub || E'\n' ||
+					COALESCE(upstream_email, '') || E'\n' ||
+					COALESCE(upstream_data->>'personaName', '') || E'\n' ||
+					COALESCE(upstream_data->>'displayName', '') || E'\n' ||
+					COALESCE(upstream_data->>'profileUrl', '')
+				) ILIKE '%selective-identity-needle%'`,
+		},
+		{
+			name:      "provider filter",
+			indexName: "account_identity_upstream_idp_account_idx",
+			query: `EXPLAIN (COSTS OFF)
+				SELECT account_id FROM account_identity WHERE upstream_idp_id = 1`,
+		},
+		{
+			name:      "exact metadata filter",
+			indexName: "account_identity_upstream_data_gin_idx",
+			query: `EXPLAIN (COSTS OFF)
+				SELECT account_id FROM account_identity
+				WHERE upstream_data @> '{"displayName":"selective-metadata-needle"}'::jsonb`,
+		},
+		{
+			name:      "keyset page",
+			indexName: "account_created_at_id_idx",
+			query: `EXPLAIN (COSTS OFF)
+				SELECT id FROM account
+				WHERE (created_at, id) < (now(), 2147483647)
+				ORDER BY created_at DESC, id DESC LIMIT 50`,
+		},
+	} {
+		rows, err := tx.Query(ctx, tc.query)
+		if err != nil {
+			t.Fatalf("%s explain: %v", tc.name, err)
+		}
+		var plan strings.Builder
+		for rows.Next() {
+			var line string
+			if err := rows.Scan(&line); err != nil {
+				rows.Close()
+				t.Fatalf("%s explain row: %v", tc.name, err)
+			}
+			plan.WriteString(line)
+			plan.WriteByte('\n')
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			t.Fatalf("%s explain rows: %v", tc.name, err)
+		}
+		if !strings.Contains(plan.String(), tc.indexName) {
+			t.Errorf("%s plan does not use %s:\n%s", tc.name, tc.indexName, plan.String())
+		}
+	}
+
 	_, err = tx.Exec(ctx, `
 		INSERT INTO upstream_idp (
 			slug, display_name, protocol, mode, provider_config, secret_status,
 			secret_enc, secret_nonce, key_version, disabled
 		)
-		VALUES ('MixedCaseSlug', 'Mixed case', 'vrchat', 'auto_provision',
+		VALUES (' whitespace-slug ', 'Whitespace slug', 'vrchat', 'auto_provision',
 			'{}'::jsonb, 'unconfigured', NULL, NULL, NULL, false)`)
 	if err == nil {
-		t.Fatal("mixed-case provider slug was accepted")
+		t.Fatal("whitespace provider slug was accepted")
+	}
+	var constraintErr *pgconn.PgError
+	if !errors.As(err, &constraintErr) || constraintErr.ConstraintName != "upstream_idp_slug_lowercase_check" {
+		t.Fatalf("slug rejection = %v, want upstream_idp_slug_lowercase_check", err)
 	}
 }

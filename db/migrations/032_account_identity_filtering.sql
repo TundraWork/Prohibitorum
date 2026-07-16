@@ -5,26 +5,46 @@
 DO $$
 BEGIN
   IF EXISTS (
-    SELECT lower(slug)
+    SELECT lower(btrim(slug))
     FROM upstream_idp
-    GROUP BY lower(slug)
+    GROUP BY lower(btrim(slug))
     HAVING count(*) > 1
   ) THEN
-    RAISE EXCEPTION 'cannot canonicalize upstream provider slugs: case-insensitive collision';
+    RAISE EXCEPTION 'cannot canonicalize upstream provider slugs: normalized collision';
   END IF;
 END $$;
 -- +goose StatementEnd
 
+-- Avatar source keys embed the provider slug. Move the active pointer first,
+-- then its composite-primary-key row, while the original provider slug is
+-- still available for an exact join.
+UPDATE account a
+SET avatar_source = 'upstream:' || lower(btrim(ip.slug))
+FROM account_avatar av
+JOIN upstream_idp ip ON ip.id = av.idp_id
+WHERE a.id = av.account_id
+  AND a.avatar_source = av.source
+  AND av.source = 'upstream:' || ip.slug
+  AND ip.slug <> lower(btrim(ip.slug));
+
+UPDATE account_avatar av
+SET source = 'upstream:' || lower(btrim(ip.slug))
+FROM upstream_idp ip
+WHERE av.idp_id = ip.id
+  AND av.source = 'upstream:' || ip.slug
+  AND ip.slug <> lower(btrim(ip.slug));
+
 UPDATE enrollment
-SET expected_upstream_idp_slug = lower(expected_upstream_idp_slug)
+SET expected_upstream_idp_slug = lower(btrim(expected_upstream_idp_slug))
 WHERE expected_upstream_idp_slug IS NOT NULL;
 
 UPDATE upstream_idp
-SET slug = lower(slug)
-WHERE slug <> lower(slug);
+SET slug = lower(btrim(slug))
+WHERE slug <> lower(btrim(slug));
 
 ALTER TABLE upstream_idp
-  ADD CONSTRAINT upstream_idp_slug_lowercase_check CHECK (slug = lower(slug));
+  ADD CONSTRAINT upstream_idp_slug_lowercase_check
+  CHECK (slug = lower(btrim(slug)));
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 

@@ -171,6 +171,12 @@ for _ in $(seq 1 60); do
   curl -sf http://localhost:8080/.well-known/openid-configuration >/dev/null 2>&1 && break
   sleep 1
 done
+# Exercise the PostgreSQL-only account filtering and 031→032 upgrade contracts
+# against the same migrated throwaway database used by this required CI job.
+export PROHIBITORUM_TEST_DATABASE_URL="$PROHIBITORUM_DATABASE_URL"
+go test ./db/migrations ./pkg/server \
+  -run '^(TestAccountIdentityFilteringMigrationPostgres|TestAccountFilterSchemaPostgres|TestListAccountsIdentityFiltersPostgres)$' \
+  -count=1
 go run ./cmd/smoke --base-url http://localhost:8080
 """
 
