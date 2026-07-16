@@ -416,6 +416,31 @@ func (serverSteamAdapter) Advance(context.Context, fedoidc.Provider, json.RawMes
 	}}, nil
 }
 
+type serverProtocolAdapter struct{ protocol string }
+
+func (a serverProtocolAdapter) Protocol() string { return a.protocol }
+func (serverProtocolAdapter) Begin(context.Context, fedoidc.Provider, fedoidc.BeginContext) (json.RawMessage, fedoidc.NextAction, error) {
+	return json.RawMessage(`{"step":"test"}`), fedoidc.NextAction{Kind: fedoidc.ActionCollectIdentity}, nil
+}
+func (serverProtocolAdapter) Advance(context.Context, fedoidc.Provider, json.RawMessage, fedoidc.ActionInput) (fedoidc.AdvanceResult, error) {
+	return fedoidc.AdvanceResult{}, nil
+}
+
+func TestVRChatProductionRegistryConstructionRegistersAdapter(t *testing.T) {
+	registry, err := newFederationRegistry(
+		serverProtocolAdapter{protocol: federationoidc.Protocol},
+		serverProtocolAdapter{protocol: federationsteam.Protocol},
+		serverProtocolAdapter{protocol: "vrchat"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := registry.Adapter("vrchat")
+	if err != nil || adapter.Protocol() != "vrchat" {
+		t.Fatalf("VRChat adapter = %T, %v", adapter, err)
+	}
+}
+
 type serverAvatarRecorder struct {
 	calls    int
 	account  int32

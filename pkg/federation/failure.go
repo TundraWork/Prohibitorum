@@ -2,6 +2,7 @@ package federation
 
 import (
 	"errors"
+	"time"
 
 	"prohibitorum/pkg/authn"
 )
@@ -30,6 +31,11 @@ const (
 	FailureInviteExpired          FailureReason = "invite_expired"
 	FailureInviteNotFederated     FailureReason = "invite_not_federated"
 	FailureInviteRequiredPreAuth  FailureReason = "invite_required_pre_auth"
+	FailureVRChatIdentityInvalid  FailureReason = "vrchat_identity_invalid"
+	FailureVRChatProofMissing     FailureReason = "vrchat_proof_missing"
+	FailureVRChatProviderNotReady FailureReason = "vrchat_provider_not_ready"
+	FailureUpstreamRateLimited    FailureReason = "upstream_rate_limited"
+	FailureUpstreamUnavailable    FailureReason = "upstream_temporarily_unavailable"
 )
 
 type failurePolicy struct {
@@ -38,42 +44,47 @@ type failurePolicy struct {
 }
 
 var failurePolicies = map[FailureReason]failurePolicy{
-	FailureStateInvalid:            {public: stateInvalid},
-	FailureBrowserBindingMismatch:  {public: stateInvalid},
-	FailureProviderUnavailable:     {public: stateInvalid},
+	FailureStateInvalid:           {public: stateInvalid},
+	FailureBrowserBindingMismatch: {public: stateInvalid},
+	FailureProviderUnavailable:    {public: stateInvalid},
 	FailureIssuerMismatch: {
-		public: stateInvalid,
+		public:     stateInvalid,
 		detailKeys: keys("expected_iss", "got_iss"),
 	},
 	FailureTokenEndpointDrift: {
-		public: stateInvalid,
+		public:     stateInvalid,
 		detailKeys: keys("expected", "got"),
 	},
 	FailureCodeExchange:      {public: stateInvalid},
 	FailureSteamVerification: {public: stateInvalid},
 	FailureSessionSwap: {
-		public: stateInvalid,
+		public:     stateInvalid,
 		detailKeys: keys("state_account_id"),
 	},
 	FailureEmailNotVerified: {
-		public: func() error { return authn.ErrEmailNotVerified() },
+		public:     func() error { return authn.ErrEmailNotVerified() },
 		detailKeys: keys("upstream_iss"),
 	},
 	FailureDomainNotAllowed: {public: func() error { return authn.ErrInviteRequired() }},
 	FailureLinkConflict: {
-		public: stateInvalid,
+		public:     stateInvalid,
 		detailKeys: keys("iss", "sub"),
 	},
 	FailureLinkInsert: {
-		public: stateInvalid,
+		public:     stateInvalid,
 		detailKeys: keys("iss", "sub"),
 	},
-	FailureInviteLookup:      {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteWrongIntent: {public: func() error { return authn.ErrInviteRequired() }, detailKeys: keys("intent")},
-	FailureInviteConsumed:    {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteExpired:     {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteNotFederated: {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteRequiredPreAuth: {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteLookup:           {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteWrongIntent:      {public: func() error { return authn.ErrInviteRequired() }, detailKeys: keys("intent")},
+	FailureInviteConsumed:         {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteExpired:          {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteNotFederated:     {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteRequiredPreAuth:  {public: func() error { return authn.ErrInviteRequired() }},
+	FailureVRChatIdentityInvalid:  {public: func() error { return authn.ErrVRChatIdentityInvalid() }},
+	FailureVRChatProofMissing:     {public: func() error { return authn.ErrVRChatProofMissing() }},
+	FailureVRChatProviderNotReady: {public: func() error { return authn.ErrProviderNotReady() }},
+	FailureUpstreamRateLimited:    {public: func() error { return authn.ErrUpstreamRateLimited(0) }},
+	FailureUpstreamUnavailable:    {public: func() error { return authn.ErrUpstreamTemporarilyUnavailable() }},
 }
 
 func stateInvalid() error { return authn.ErrFederationStateInvalid() }
@@ -110,6 +121,14 @@ func NewFailure(reason FailureReason, detail map[string]any) error {
 		}
 	}
 	return &flowFailure{reason: reason, detail: filtered, public: policy.public()}
+}
+
+// NewRateLimitedFailure preserves the bounded Retry-After value while retaining
+// the allowlisted federation failure classification used by audit.
+func NewRateLimitedFailure(retryAfter time.Duration) error {
+	failure := NewFailure(FailureUpstreamRateLimited, nil).(*flowFailure)
+	failure.public = authn.ErrUpstreamRateLimited(retryAfter)
+	return failure
 }
 
 func FailureReasonOf(err error) (FailureReason, bool) {

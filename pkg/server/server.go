@@ -168,6 +168,26 @@ type accountLookupQueries interface {
 	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
 }
 
+func newFederationRegistry(oidcAdapter, steamAdapter, vrchatAdapter federation.Adapter) (*federation.Registry, error) {
+	registry := federation.NewRegistry()
+	for _, registration := range []struct {
+		definition federation.Definition
+		adapter    federation.Adapter
+	}{
+		{definition: federationoidc.Definition{}, adapter: oidcAdapter},
+		{definition: federationsteam.Definition{}, adapter: steamAdapter},
+		{definition: federationvrchat.Definition{}, adapter: vrchatAdapter},
+	} {
+		if err := registry.RegisterDefinition(registration.definition); err != nil {
+			return nil, fmt.Errorf("federation definition: %w", err)
+		}
+		if err := registry.RegisterAdapter(registration.adapter); err != nil {
+			return nil, fmt.Errorf("federation adapter: %w", err)
+		}
+	}
+	return registry, nil
+}
+
 func NewServer(ctx context.Context) (*Server, error) {
 	config, err := configx.Parse()
 	if err != nil {
@@ -248,26 +268,13 @@ func NewServer(ctx context.Context) (*Server, error) {
 	totpTxRunner := &totp.PoolTxRunner{Pool: conn, Queries: queries}
 	totpStore := totp.NewStore(queries, totpTxRunner, config.DataEncryptionKeys, config.TOTP, throttle, auditWriter)
 
-	federationRegistry := federation.NewRegistry()
 	federationSecrets := federation.NewSecretStore(config.DataEncryptionKeys)
 	oidcAdapter := federationoidc.NewAdapter(federationSecrets)
 	steamAdapter := federationsteam.NewAdapter(federationSecrets)
-	for _, registration := range []struct {
-		definition federation.Definition
-		adapter    federation.Adapter
-	}{
-		{definition: federationoidc.Definition{}, adapter: oidcAdapter},
-		{definition: federationsteam.Definition{}, adapter: steamAdapter},
-	} {
-		if err := federationRegistry.RegisterDefinition(registration.definition); err != nil {
-			return nil, fmt.Errorf("federation definition: %w", err)
-		}
-		if err := federationRegistry.RegisterAdapter(registration.adapter); err != nil {
-			return nil, fmt.Errorf("federation adapter: %w", err)
-		}
-	}
-	if err := federationRegistry.RegisterDefinition(federationvrchat.Definition{}); err != nil {
-		return nil, fmt.Errorf("federation definition: %w", err)
+	vrchatAdapter := federationvrchat.NewAdapter(vrchatClient, federationSecrets, kvStore, queries, publicOrigin, auditWriter)
+	federationRegistry, err := newFederationRegistry(oidcAdapter, steamAdapter, vrchatAdapter)
+	if err != nil {
+		return nil, err
 	}
 	federationService := federation.NewService(
 		federationRegistry,

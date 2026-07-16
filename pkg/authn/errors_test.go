@@ -19,6 +19,8 @@ func TestVRChatOperatorErrorDefinitions(t *testing.T) {
 		{ErrVRChatOperatorCodeInvalid(), http.StatusUnprocessableEntity, true},
 		{ErrUpstreamRateLimited(5 * time.Second), http.StatusTooManyRequests, true},
 		{ErrUpstreamTemporarilyUnavailable(), http.StatusServiceUnavailable, true},
+		{ErrVRChatIdentityInvalid(), http.StatusUnprocessableEntity, false},
+		{ErrVRChatProofMissing(), http.StatusUnprocessableEntity, false},
 	}
 	for _, test := range tests {
 		t.Run(test.err.Code, func(t *testing.T) {

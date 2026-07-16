@@ -79,6 +79,8 @@ func init() {
 		{Code: "vrchat_operator_code_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_operator_code_invalid", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
 		{Code: "upstream_rate_limited", Status: http.StatusTooManyRequests, LocaleKey: "errors.upstream_rate_limited", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
 		{Code: "upstream_temporarily_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.upstream_temporarily_unavailable", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "vrchat_identity_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_identity_invalid", DiagnosticKind: "federation"},
+		{Code: "vrchat_proof_missing", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_proof_missing", DiagnosticKind: "federation"},
 		{Code: "oidc_client_already_exists", Status: http.StatusConflict, LocaleKey: "errors.oidc_client_already_exists", DiagnosticKind: "validation"},
 		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, LocaleKey: "errors.upstream_idp_already_exists", DiagnosticKind: "validation"},
 		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
@@ -535,6 +537,14 @@ func ErrUpstreamRateLimited(retryAfter time.Duration) *AuthError {
 
 func ErrUpstreamTemporarilyUnavailable() *AuthError {
 	return newErr(http.StatusServiceUnavailable, "upstream_temporarily_unavailable", "The upstream provider is temporarily unavailable.")
+}
+
+func ErrVRChatIdentityInvalid() *AuthError {
+	return newErr(http.StatusUnprocessableEntity, "vrchat_identity_invalid", "The VRChat identity is invalid.")
+}
+
+func ErrVRChatProofMissing() *AuthError {
+	return newErr(http.StatusUnprocessableEntity, "vrchat_proof_missing", "The VRChat profile proof is missing.")
 }
 
 // ErrClientAlreadyExists is returned when an OIDC client insert violates the

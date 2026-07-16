@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/kv"
@@ -38,15 +37,21 @@ func (s fakeProviderLoader) InviteProvider(context.Context, string) (Provider, e
 }
 
 type serviceFakeAdapter struct {
-	beginState    json.RawMessage
-	beginAction   NextAction
-	beginContexts []BeginContext
-	advance       func(json.RawMessage, ActionInput) (AdvanceResult, error)
+	protocol       string
+	beginState     json.RawMessage
+	beginAction    NextAction
+	beginContexts  []BeginContext
+	advance        func(json.RawMessage, ActionInput) (AdvanceResult, error)
 	advanceContext func(context.Context, json.RawMessage, ActionInput) (AdvanceResult, error)
-	calls         int
+	calls          int
 }
 
-func (a *serviceFakeAdapter) Protocol() string { return "fake" }
+func (a *serviceFakeAdapter) Protocol() string {
+	if a.protocol != "" {
+		return a.protocol
+	}
+	return "fake"
+}
 
 func (a *serviceFakeAdapter) Begin(_ context.Context, _ Provider, begin BeginContext) (json.RawMessage, NextAction, error) {
 	a.calls++
@@ -193,23 +198,81 @@ type serviceDefinition struct {
 	ready bool
 }
 
-func (serviceDefinition) Protocol() string                      { return "fake" }
-func (serviceDefinition) Descriptor() Descriptor                { return descriptor("fake") }
-func (serviceDefinition) ValidateConfig(json.RawMessage) error  { return nil }
-func (serviceDefinition) ValidateSecret([]byte) error            { return nil }
-func (d serviceDefinition) Ready(Provider) bool                  { return d.ready }
+func (serviceDefinition) Protocol() string                     { return "fake" }
+func (serviceDefinition) Descriptor() Descriptor               { return descriptor("fake") }
+func (serviceDefinition) ValidateConfig(json.RawMessage) error { return nil }
+func (serviceDefinition) ValidateSecret([]byte) error          { return nil }
+func (d serviceDefinition) Ready(Provider) bool                { return d.ready }
 
 func newServiceHarness(t *testing.T) (*Service, *serviceFakeAdapter, *serviceFakeResolver, kv.Store) {
 	t.Helper()
 	registry := NewRegistry()
 	definition := fakeDefinition{protocol: "fake", descriptor: descriptor("fake")}
-	if err := registry.RegisterDefinition(definition); err != nil { t.Fatal(err) }
+	if err := registry.RegisterDefinition(definition); err != nil {
+		t.Fatal(err)
+	}
 	adapter := &serviceFakeAdapter{beginState: json.RawMessage(`{"step":1}`), beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"}}
-	if err := registry.RegisterAdapter(adapter); err != nil { t.Fatal(err) }
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
 	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"fake"}, Confirmed: true}}
 	store := kv.NewMemoryStore()
 	service := NewService(registry, fakeProviderLoader{provider: Provider{ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision}}, store, resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
 	return service, adapter, resolver, store
+}
+
+func TestVRChatProofAuditTransitionsContainOnlyAllowlistedDetail(t *testing.T) {
+	registry := NewRegistry()
+	if err := registry.RegisterDefinition(fakeDefinition{protocol: "vrchat", descriptor: descriptor("vrchat")}); err != nil {
+		t.Fatal(err)
+	}
+	adapter := &serviceFakeAdapter{
+		protocol:    "vrchat",
+		beginState:  json.RawMessage(`{"step":"identify"}`),
+		beginAction: NextAction{Kind: ActionCollectIdentity},
+	}
+	adapter.advance = func(_ json.RawMessage, input ActionInput) (AdvanceResult, error) {
+		switch input.Kind {
+		case ActionCollectIdentity:
+			return AdvanceResult{
+				Next:      &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proofUrl": "redacted", "profileUrl": "redacted"}},
+				Candidate: &IdentityKey{Issuer: "issuer", Subject: "subject"},
+				State:     json.RawMessage(`{"step":"proof","proof_token":"secret"}`),
+			}, nil
+		case ActionPublishProof:
+			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "issuer", Subject: "subject", AMR: []string{"vrchat_profile"}}}, nil
+		default:
+			return AdvanceResult{}, NewFailure(FailureStateInvalid, nil)
+		}
+	}
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
+	writer := &serviceRecordingAudit{}
+	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"vrchat_profile"}, Confirmed: true}}
+	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeAutoProvision}
+	service := NewService(registry, fakeProviderLoader{provider: provider}, kv.NewMemoryStore(), resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
+	begin, err := service.BeginLogin(context.Background(), provider.Slug, "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol, CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionCollectIdentity}}
+	if _, err := service.PrepareFlow(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	request.Input.Kind = ActionPublishProof
+	if _, err := service.VerifyFlow(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(writer.records) != 2 {
+		t.Fatalf("audit records = %#v", writer.records)
+	}
+	for index, wantEvent := range []string{"vrchat_proof_prepared", "vrchat_proof_verified"} {
+		record := writer.records[index]
+		if record.Event != wantEvent || len(record.Detail) != 2 || record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" {
+			t.Fatalf("record %d = %#v", index, record)
+		}
+	}
 }
 
 func TestServiceBeginStoresExactBindings(t *testing.T) {
@@ -288,23 +351,40 @@ func TestServiceBeginStoresExactBindings(t *testing.T) {
 func TestServiceReadFlowProjectsPersistedLocalAction(t *testing.T) {
 	service, adapter, _, _ := newServiceHarness(t)
 	adapter.beginAction = NextAction{Kind: ActionCollectIdentity, Public: map[string]any{"prompt": "handle"}}
-	begin, err := service.BeginLogin(context.Background(), "corp", "/"); if err != nil { t.Fatal(err) }
-	view, err := service.ReadFlow(context.Background(), begin.FlowID, begin.BrowserToken); if err != nil { t.Fatal(err) }
-	if view.Action.Kind != ActionCollectIdentity || view.Action.Public["prompt"] != "handle" { t.Fatalf("view = %+v", view) }
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.ReadFlow(context.Background(), begin.FlowID, begin.BrowserToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Action.Kind != ActionCollectIdentity || view.Action.Public["prompt"] != "handle" {
+		t.Fatalf("view = %+v", view)
+	}
 }
 
 func TestServiceRejectsRouteActionAndLinkBindingMismatch(t *testing.T) {
 	service, _, _, _ := newServiceHarness(t)
-	begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1"); if err != nil { t.Fatal(err) }
+	begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	base := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink, AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect}}
 	for name, mutate := range map[string]func(*AdvanceRequest){
-		"slug": func(r *AdvanceRequest){ r.ProviderSlug = "other" },
-		"protocol": func(r *AdvanceRequest){ r.Protocol = "other" },
-		"action": func(r *AdvanceRequest){ r.Input.Kind = ActionPublishProof },
-		"account": func(r *AdvanceRequest){ r.AccountID = new(int32(10)) },
-		"session": func(r *AdvanceRequest){ r.SessionID = "session-2" },
+		"slug":     func(r *AdvanceRequest) { r.ProviderSlug = "other" },
+		"protocol": func(r *AdvanceRequest) { r.Protocol = "other" },
+		"action":   func(r *AdvanceRequest) { r.Input.Kind = ActionPublishProof },
+		"account":  func(r *AdvanceRequest) { r.AccountID = new(int32(10)) },
+		"session":  func(r *AdvanceRequest) { r.SessionID = "session-2" },
 	} {
-		t.Run(name, func(t *testing.T) { request := base; mutate(&request); if _, err := service.AdvanceCallback(context.Background(), request); err == nil { t.Fatal("mismatch accepted") } })
+		t.Run(name, func(t *testing.T) {
+			request := base
+			mutate(&request)
+			if _, err := service.AdvanceCallback(context.Background(), request); err == nil {
+				t.Fatal("mismatch accepted")
+			}
+		})
 	}
 }
 
@@ -313,11 +393,20 @@ func TestServiceNonTerminalAdvanceReplacesStateAndAction(t *testing.T) {
 	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
 		return AdvanceResult{State: json.RawMessage(`{"step":2}`), Next: &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}}, Candidate: &IdentityKey{Issuer: "iss", Subject: "unknown"}}, nil
 	}
-	begin, err := service.BeginLogin(context.Background(), "corp", "/"); if err != nil { t.Fatal(err) }
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
 	view, err := service.PrepareFlow(context.Background(), AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}})
-	if err != nil { t.Fatal(err) }
-	if view.Action.Kind != ActionPublishProof || view.Action.Public["requiresLocalUsername"] != true { t.Fatalf("action = %+v", view.Action) }
-	if resolver.calls != 0 { t.Fatal("non-terminal prepare resolved identity") }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Action.Kind != ActionPublishProof || view.Action.Public["requiresLocalUsername"] != true {
+		t.Fatalf("action = %+v", view.Action)
+	}
+	if resolver.calls != 0 {
+		t.Fatal("non-terminal prepare resolved identity")
+	}
 }
 
 func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
@@ -374,8 +463,8 @@ func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
 			resolver.known = test.known
 			adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
 				return AdvanceResult{
-					State: json.RawMessage(`{"step":2}`),
-					Next:  &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}},
+					State:     json.RawMessage(`{"step":2}`),
+					Next:      &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}},
 					Candidate: &IdentityKey{Issuer: "iss", Subject: "candidate"},
 				}, nil
 			}
@@ -489,8 +578,8 @@ func TestServicePrepareFailuresPreserveExactFlow(t *testing.T) {
 
 	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
 		return AdvanceResult{
-			State: json.RawMessage(`{"step":2}`),
-			Next: &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}},
+			State:     json.RawMessage(`{"step":2}`),
+			Next:      &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}},
 			Candidate: &IdentityKey{Issuer: "iss", Subject: "sub"},
 		}, nil
 	}
@@ -614,8 +703,8 @@ func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
 		definition serviceDefinition
 	}{
 		{
-			name: "unknown",
-			loader: fakeProviderLoader{provider: provider, bySlugErr: ErrUnknownProvider},
+			name:       "unknown",
+			loader:     fakeProviderLoader{provider: provider, bySlugErr: ErrUnknownProvider},
 			definition: serviceDefinition{ready: true},
 		},
 		{
@@ -628,8 +717,8 @@ func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
 			definition: serviceDefinition{ready: true},
 		},
 		{
-			name: "unready",
-			loader: fakeProviderLoader{provider: provider},
+			name:       "unready",
+			loader:     fakeProviderLoader{provider: provider},
 			definition: serviceDefinition{ready: false},
 		},
 	}
@@ -640,7 +729,7 @@ func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
 				t.Fatal(err)
 			}
 			adapter := &serviceFakeAdapter{
-				beginState: json.RawMessage(`{"step":1}`),
+				beginState:  json.RawMessage(`{"step":1}`),
 				beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"},
 			}
 			if err := registry.RegisterAdapter(adapter); err != nil {
@@ -678,8 +767,8 @@ func TestServiceKnownAtPrepareBecomingUnknownRestoresUsernamePromptOnly(t *testi
 	adapter.advance = func(_ json.RawMessage, input ActionInput) (AdvanceResult, error) {
 		if input.Kind == ActionRedirect {
 			return AdvanceResult{
-				State: json.RawMessage(`{"proof":"private"}`),
-				Next: &NextAction{Kind: ActionPublishProof, Public: map[string]any{"challenge": "public"}},
+				State:     json.RawMessage(`{"proof":"private"}`),
+				Next:      &NextAction{Kind: ActionPublishProof, Public: map[string]any{"challenge": "public"}},
 				Candidate: &IdentityKey{Issuer: "iss", Subject: "sub"},
 			}, nil
 		}
@@ -776,9 +865,9 @@ func TestServiceAuditsBrowserAndProviderFailures(t *testing.T) {
 		wantReason FailureReason
 	}{
 		{
-			name: "browser binding",
-			mutate: func(*Service, *BeginResult) {},
-			browser: func(*BeginResult) string { return "wrong-browser" },
+			name:       "browser binding",
+			mutate:     func(*Service, *BeginResult) {},
+			browser:    func(*BeginResult) string { return "wrong-browser" },
 			wantReason: FailureBrowserBindingMismatch,
 		},
 		{
@@ -788,7 +877,7 @@ func TestServiceAuditsBrowserAndProviderFailures(t *testing.T) {
 					ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision, Disabled: true,
 				}}
 			},
-			browser: func(begin *BeginResult) string { return begin.BrowserToken },
+			browser:    func(begin *BeginResult) string { return begin.BrowserToken },
 			wantReason: FailureProviderUnavailable,
 		},
 	}
@@ -822,9 +911,9 @@ func TestServiceAuditsBrowserAndProviderFailures(t *testing.T) {
 
 func TestServiceAuditsAllowlistedAdapterFailuresForEveryIntent(t *testing.T) {
 	tests := []struct {
-		name  string
-		begin func(*Service) (*BeginResult, error)
-		request func(*BeginResult) AdvanceRequest
+		name          string
+		begin         func(*Service) (*BeginResult, error)
+		request       func(*BeginResult) AdvanceRequest
 		wantAccountID *int32
 	}{
 		{
