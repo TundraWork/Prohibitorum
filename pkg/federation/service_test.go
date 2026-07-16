@@ -275,6 +275,71 @@ func TestVRChatProofAuditTransitionsContainOnlyAllowlistedDetail(t *testing.T) {
 	}
 }
 
+func newVRChatFailureAuditHarness(t *testing.T, resolverErr error) (*Service, AdvanceRequest, *serviceRecordingAudit, kv.Store) {
+	t.Helper()
+	registry := NewRegistry()
+	if err := registry.RegisterDefinition(fakeDefinition{protocol: "vrchat", descriptor: descriptor("vrchat")}); err != nil {
+		t.Fatal(err)
+	}
+	adapter := &serviceFakeAdapter{
+		protocol:    "vrchat",
+		beginState:  json.RawMessage(`{"step":"proof","proof_token":"private"}`),
+		beginAction: NextAction{Kind: ActionPublishProof, Public: map[string]any{"proofUrl": "private-url", "profileUrl": "private-profile"}},
+		advance: func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "issuer", Subject: "subject", AMR: []string{"vrchat_profile"}}}, nil
+		},
+	}
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
+	writer := &serviceRecordingAudit{}
+	resolver := &serviceFakeResolver{err: resolverErr}
+	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeAutoProvision}
+	store := kv.NewMemoryStore()
+	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
+	begin, err := service.BeginLogin(context.Background(), provider.Slug, "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol, CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionPublishProof}}
+	return service, request, writer, store
+}
+
+func TestVRChatProofFailureAuditCoversResolverAndRestoreFailures(t *testing.T) {
+	tests := []struct {
+		name         string
+		resolverErr  error
+		failRestore  bool
+		wantCategory string
+	}{
+		{name: "local username required", resolverErr: ErrLocalUsernameRequired, wantCategory: "local_username_required"},
+		{name: "username collision", resolverErr: authn.ErrUsernameCollision(), wantCategory: "username_collision"},
+		{name: "rolled back database error", resolverErr: errors.New("database unavailable"), wantCategory: "database_unavailable"},
+		{name: "allowlisted flow failure once", resolverErr: NewFailure(FailureVRChatProofMissing, nil), wantCategory: "vrchat_proof_missing"},
+		{name: "restore failure", resolverErr: ErrLocalUsernameRequired, failRestore: true, wantCategory: "kv_unavailable"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, request, writer, store := newVRChatFailureAuditHarness(t, test.resolverErr)
+			if test.failRestore {
+				service.kv = &failingRestoreStore{Store: store, failSetEx: true}
+			}
+			if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+				t.Fatal("VerifyFlow unexpectedly succeeded")
+			}
+			if len(writer.records) != 1 {
+				t.Fatalf("audit records = %#v", writer.records)
+			}
+			record := writer.records[0]
+			if record.Event != "vrchat_proof_failed" || len(record.Detail) != 3 ||
+				record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" ||
+				record.Detail["category"] != test.wantCategory {
+				t.Fatalf("audit record = %#v", record)
+			}
+		})
+	}
+}
+
 func TestServiceBeginStoresExactBindings(t *testing.T) {
 	tests := []struct {
 		name       string

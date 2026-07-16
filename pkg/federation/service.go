@@ -306,8 +306,11 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		return nil, err
 	}
 	popped, err := s.kv.Pop(operationCtx, FlowKey(request.FlowID))
-	if err != nil || popped != raw {
-		return nil, authn.ErrFederationStateInvalid()
+	if err != nil {
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, fmt.Errorf("%w: pop flow", ErrKVUnavailable), false)
+	}
+	if popped != raw {
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, NewFailure(FailureStateInvalid, nil), false)
 	}
 
 	result, err := adapter.Advance(operationCtx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
@@ -315,7 +318,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, err, false)
 	}
 	if leaseErr := lease.check(); leaseErr != nil {
-		return nil, s.restore(operationCtx, request.FlowID, state, raw, leaseErr, false)
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, leaseErr, false)
 	}
 	if result.Identity == nil || result.Next != nil || len(result.State) != 0 || result.Candidate != nil {
 		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, NewFailure(FailureStateInvalid, nil), false)
@@ -445,21 +448,15 @@ func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (s
 
 func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *AdvanceRequest, providerSlug string, err error) error {
 	reason, extra, publicErr, ok := failureProjection(err)
-	if !ok {
+	if state != nil && state.Protocol == "vrchat" {
+		s.recordVRChatFailure(ctx, state, providerSlug, err)
+		if ok {
+			return publicErr
+		}
 		return err
 	}
-	if state != nil && state.Protocol == "vrchat" {
-		detail := map[string]any{
-			"provider_slug": providerSlug,
-			"intent":        string(state.Intent),
-			"category":      string(reason),
-		}
-		audit.RecordOrLog(ctx, s.audit, audit.Record{
-			Factor: audit.FactorFederationOIDC,
-			Event:  "vrchat_proof_failed",
-			Detail: detail,
-		})
-		return publicErr
+	if !ok {
+		return err
 	}
 	detail := map[string]any{"reason": string(reason)}
 	if providerSlug != "" {
@@ -479,6 +476,63 @@ func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *
 		Detail:    detail,
 	})
 	return publicErr
+}
+
+func (s *Service) recordVRChatFailure(ctx context.Context, state *FlowState, providerSlug string, err error) {
+	s.recordVRChatTransition(ctx, "vrchat_proof_failed", state, providerSlug, vrchatFailureCategory(err))
+}
+
+func vrchatFailureCategory(err error) string {
+	if errors.Is(err, ErrKVUnavailable) {
+		return "kv_unavailable"
+	}
+	if errors.Is(err, ErrLocalUsernameRequired) {
+		return "local_username_required"
+	}
+	if reason, ok := FailureReasonOf(err); ok {
+		switch reason {
+		case FailureStateInvalid,
+			FailureBrowserBindingMismatch,
+			FailureProviderUnavailable,
+			FailureIssuerMismatch,
+			FailureTokenEndpointDrift,
+			FailureCodeExchange,
+			FailureSteamVerification,
+			FailureSessionSwap,
+			FailureEmailNotVerified,
+			FailureDomainNotAllowed,
+			FailureLinkConflict,
+			FailureLinkInsert,
+			FailureInviteLookup,
+			FailureInviteWrongIntent,
+			FailureInviteConsumed,
+			FailureInviteExpired,
+			FailureInviteNotFederated,
+			FailureInviteRequiredPreAuth,
+			FailureVRChatIdentityInvalid,
+			FailureVRChatProofMissing,
+			FailureVRChatProviderNotReady,
+			FailureUpstreamRateLimited,
+			FailureUpstreamUnavailable:
+			return string(reason)
+		}
+	}
+	if authErr := authn.AsAuthError(err); authErr != nil {
+		switch authErr.Code {
+		case "username_collision",
+			"invite_required",
+			"link_required",
+			"email_not_verified",
+			"federation_state_invalid",
+			"provider_not_ready",
+			"upstream_rate_limited",
+			"upstream_temporarily_unavailable",
+			"vrchat_identity_invalid",
+			"vrchat_proof_missing":
+			return authErr.Code
+		}
+	}
+	return "database_unavailable"
 }
 
 func (s *Service) recordVRChatTransition(ctx context.Context, event string, state *FlowState, providerSlug, category string) {
@@ -502,6 +556,14 @@ func (s *Service) restoreAfterFailure(ctx context.Context, request AdvanceReques
 		publicErr = projected
 	}
 	restored := s.restore(ctx, request.FlowID, state, originalRaw, publicErr, requireUsername)
+	if state.Protocol == "vrchat" {
+		auditCause := cause
+		if errors.Is(restored, ErrKVUnavailable) {
+			auditCause = restored
+		}
+		s.recordVRChatFailure(ctx, state, providerSlug, auditCause)
+		return restored
+	}
 	if restored == publicErr {
 		return s.recordFailure(ctx, state, &request, providerSlug, cause)
 	}

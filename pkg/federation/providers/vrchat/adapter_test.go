@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 
 	"prohibitorum/pkg/db"
@@ -48,6 +49,13 @@ func (q *proofQueriesStub) InvalidateVRChatOperatorSecret(_ context.Context, par
 	q.calls++
 	q.got = params
 	return db.UpstreamIdp{}, q.err
+}
+
+type proofAuditStub struct{ records []audit.Record }
+
+func (w *proofAuditStub) Record(_ context.Context, record audit.Record) error {
+	w.records = append(w.records, record)
+	return nil
 }
 
 func readyVRChatProvider() federation.Provider {
@@ -151,16 +159,18 @@ func TestVRChatAdapterRateLimitCreatesSharedProviderBackoff(t *testing.T) {
 
 func TestVRChatAdapterUnauthorizedInvalidatesOnlySnapshot(t *testing.T) {
 	for _, test := range []struct {
-		name     string
-		queryErr error
+		name      string
+		queryErr  error
+		wantAudit bool
 	}{
-		{name: "transitioned"},
+		{name: "transitioned", wantAudit: true},
 		{name: "concurrent replacement", queryErr: pgx.ErrNoRows},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			queries := &proofQueriesStub{err: test.queryErr}
 			client := &proofClientStub{err: &HTTPError{Status: http.StatusUnauthorized, Category: "authentication"}}
-			adapter := NewAdapter(client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), queries, "https://login.example.com", nil)
+			writer := &proofAuditStub{}
+			adapter := NewAdapter(client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), queries, "https://login.example.com", writer)
 			state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
 			_, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
 			var publicErr *authn.AuthError
@@ -172,6 +182,17 @@ func TestVRChatAdapterUnauthorizedInvalidatesOnlySnapshot(t *testing.T) {
 				!bytes.Equal(queries.got.ExpectedSecretNonce, []byte("nonce")) ||
 				!queries.got.ExpectedKeyVersion.Valid || queries.got.ExpectedKeyVersion.Int32 != 3 {
 				t.Fatalf("invalidation params = %+v, calls=%d", queries.got, queries.calls)
+			}
+			if got := len(writer.records); got != btoi(test.wantAudit) {
+				t.Fatalf("audit records = %#v", writer.records)
+			}
+			if test.wantAudit {
+				record := writer.records[0]
+				if record.Event != "vrchat_operator_session_invalidated" || len(record.Detail) != 3 ||
+					record.Detail["slug"] != "vrchat" || record.Detail["action"] != "proof_lookup" ||
+					record.Detail["category"] != "authentication" {
+					t.Fatalf("audit record = %#v", record)
+				}
 			}
 		})
 	}
@@ -189,4 +210,11 @@ func TestVRChatAdapterRejectsNonCanonicalPrivateState(t *testing.T) {
 			t.Errorf("state %s error = %v, reason=%q", raw, err, reason)
 		}
 	}
+}
+
+func btoi(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }

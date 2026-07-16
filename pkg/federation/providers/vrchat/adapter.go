@@ -227,6 +227,17 @@ func (a *Adapter) classifyUpstream(ctx context.Context, provider federationcore.
 				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 					return federationcore.NewFailure(federationcore.FailureUpstreamUnavailable, nil)
 				}
+				if err == nil {
+					audit.RecordOrLog(ctx, a.audit, audit.Record{
+						Factor: audit.FactorUpstreamIDP,
+						Event:  "vrchat_operator_session_invalidated",
+						Detail: map[string]any{
+							"slug":     provider.Slug,
+							"action":   "proof_lookup",
+							"category": "authentication",
+						},
+					})
+				}
 			}
 			return federationcore.NewFailure(federationcore.FailureVRChatProviderNotReady, nil)
 		case httpErr.Status == http.StatusTooManyRequests:
