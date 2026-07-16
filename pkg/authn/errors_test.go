@@ -1,0 +1,35 @@
+package authn
+
+import (
+	"net/http"
+	"testing"
+
+	"prohibitorum/pkg/weberr"
+)
+
+func TestVRChatOperatorErrorDefinitions(t *testing.T) {
+	tests := []struct {
+		err       *AuthError
+		status    int
+		retryable bool
+	}{
+		{ErrVRChatOperatorCredentialsInvalid(), http.StatusUnauthorized, false},
+		{ErrVRChatOperatorChallengeInvalid(), http.StatusBadRequest, false},
+		{ErrVRChatOperatorVerificationFailed(), http.StatusUnauthorized, true},
+		{ErrVRChatUpstreamUnavailable(), http.StatusServiceUnavailable, true},
+	}
+	for _, test := range tests {
+		t.Run(test.err.Code, func(t *testing.T) {
+			definition, ok := weberr.DefinitionFor(test.err.Code)
+			if !ok {
+				t.Fatal("definition not registered")
+			}
+			if definition.Status != test.status || definition.Retryable != test.retryable {
+				t.Fatalf("definition = %#v", definition)
+			}
+			if len(definition.DetailKeys) != 0 || test.err.Details != nil {
+				t.Fatalf("public details allowed for %s", test.err.Code)
+			}
+		})
+	}
+}

@@ -273,6 +273,31 @@ func TestSetIdentityProviderDisabledReadinessContract(t *testing.T) {
 	}
 }
 
+func TestVRChatProviderEnableRequiresValidOperatorSession(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		row        db.UpstreamIdp
+		wantStatus int
+		wantSets   int
+	}{
+		{name: "unconfigured rejected", row: db.UpstreamIdp{ID: 7, Slug: "social", Protocol: "vrchat", ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", Disabled: true}, wantStatus: http.StatusServiceUnavailable},
+		{name: "invalid rejected", row: db.UpstreamIdp{ID: 7, Slug: "social", Protocol: "vrchat", ProviderConfig: []byte(`{}`), SecretEnc: []byte{1}, SecretNonce: []byte{2}, KeyVersion: pgtype.Int4{Int32: 3, Valid: true}, SecretStatus: "invalid", Disabled: true}, wantStatus: http.StatusServiceUnavailable},
+		{name: "valid enabled", row: db.UpstreamIdp{ID: 7, Slug: "social", Protocol: "vrchat", ProviderConfig: []byte(`{}`), SecretEnc: []byte{1}, SecretNonce: []byte{2}, KeyVersion: pgtype.Int4{Int32: 3, Valid: true}, SecretStatus: "valid", Disabled: true}, wantStatus: http.StatusOK, wantSets: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := newProviderAdminTestServer(t)
+			queries := &fakeProviderStateQueries{row: test.row}
+			s.providerStateQueriesOverride = queries
+			req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/identity-providers/set-disabled", strings.NewReader(`{"slug":"social","disabled":false}`))
+			w := httptest.NewRecorder()
+			s.handleSetIdentityProviderDisabledHTTP(w, req)
+			if w.Code != test.wantStatus || queries.setCalls != test.wantSets {
+				t.Fatalf("status=%d body=%s set_calls=%d", w.Code, w.Body.String(), queries.setCalls)
+			}
+		})
+	}
+}
+
 func jsonBool(value bool) string {
 	if value {
 		return "true"

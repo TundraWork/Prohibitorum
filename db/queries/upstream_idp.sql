@@ -43,5 +43,26 @@ UPDATE upstream_idp SET secret_status = $2, secret_validated_at = $3
 WHERE slug = $1
 RETURNING *;
 
+-- name: UpdateVRChatOperatorSecret :one
+UPDATE upstream_idp SET
+  secret_enc = sqlc.arg('secret_enc'),
+  secret_nonce = sqlc.arg('secret_nonce'),
+  key_version = sqlc.arg('key_version'),
+  secret_status = 'valid',
+  secret_validated_at = sqlc.arg('secret_validated_at')
+WHERE id = sqlc.arg('id')
+  AND slug = sqlc.arg('slug')
+  AND protocol = 'vrchat'
+RETURNING *;
+
+-- name: UpdateVRChatOperatorHealth :one
+UPDATE upstream_idp SET
+  secret_status = sqlc.arg('secret_status'),
+  secret_validated_at = sqlc.narg('secret_validated_at')
+WHERE id = sqlc.arg('id')
+  AND slug = sqlc.arg('slug')
+  AND protocol = 'vrchat'
+RETURNING *;
+
 -- name: SetUpstreamIDPDisabled :one
 UPDATE upstream_idp SET disabled = $2 WHERE slug = $1 RETURNING *;

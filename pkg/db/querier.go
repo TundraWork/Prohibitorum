@@ -265,6 +265,8 @@ type Querier interface {
 	UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error)
 	UpdateUpstreamIDPHealth(ctx context.Context, arg UpdateUpstreamIDPHealthParams) (UpstreamIdp, error)
 	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) (UpstreamIdp, error)
+	UpdateVRChatOperatorHealth(ctx context.Context, arg UpdateVRChatOperatorHealthParams) (UpstreamIdp, error)
+	UpdateVRChatOperatorSecret(ctx context.Context, arg UpdateVRChatOperatorSecretParams) (UpstreamIdp, error)
 	// idp_id records the source upstream for an inherited avatar (NULL for a user
 	// upload); source carries the upstream slug ("upstream:<slug>") so the
 	// (account_id, source) PK yields one row per (account, upstream).

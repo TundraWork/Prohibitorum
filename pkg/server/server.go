@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -46,24 +47,26 @@ import (
 )
 
 type Server struct {
-	queries               *db.Queries
-	dbPool                *pgxpool.Pool
-	router                *chi.Mux
-	api                   huma.API
-	config                *configx.Config
-	kvStore               kv.Store
-	sessionStore          *sessstore.SessionStore
-	pairingStore          *pairing.PairingStore
-	rateLimiter           *authn.RateLimiter
-	webauthn              *webauthn.WebAuthn
-	oidcOP                *oidcop.Provider
-	samlIdP               *samlidp.IdP
-	passwordStore         *password.Store
-	totpStore             *totp.Store
-	throttle              *authn.Throttle
-	federationService     *federation.Service
-	federationOIDCAdapter *federationoidc.Adapter
-	federationRegistry    *federation.Registry
+	queries                *db.Queries
+	dbPool                 *pgxpool.Pool
+	router                 *chi.Mux
+	api                    huma.API
+	config                 *configx.Config
+	kvStore                kv.Store
+	sessionStore           *sessstore.SessionStore
+	pairingStore           *pairing.PairingStore
+	rateLimiter            *authn.RateLimiter
+	webauthn               *webauthn.WebAuthn
+	oidcOP                 *oidcop.Provider
+	samlIdP                *samlidp.IdP
+	passwordStore          *password.Store
+	totpStore              *totp.Store
+	throttle               *authn.Throttle
+	federationService      *federation.Service
+	federationOIDCAdapter  *federationoidc.Adapter
+	federationRegistry     *federation.Registry
+	vrchatOperatorService  vrchatOperatorService
+	vrchatOperatorOverride vrchatOperatorService
 	// Audit records credential lifecycle events.
 	Audit audit.Writer
 	// sudoFlowOverride lets tests inject a fake sudoFlowQueries for the
@@ -278,6 +281,21 @@ func NewServer(ctx context.Context) (*Server, error) {
 		}
 	}
 	cursorCodec := pagination.NewCodec(config.DataEncryptionKeys, activeDEKVer, time.Now)
+	buildVersion := "(devel)"
+	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo.Main.Version != "" {
+		buildVersion = buildInfo.Main.Version
+	}
+	vrchatClient, err := federationvrchat.NewClient(buildVersion, publicOrigin)
+	if err != nil {
+		return nil, fmt.Errorf("vrchat client: %w", err)
+	}
+	vrchatOperator := federationvrchat.NewOperatorService(
+		vrchatClient,
+		queries,
+		kvStore,
+		federation.NewSecretStore(config.DataEncryptionKeys),
+		int32(activeDEKVer),
+	)
 
 	rateLimiter := authn.NewRateLimiter()
 
@@ -300,6 +318,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		federationService:     federationService,
 		federationOIDCAdapter: oidcAdapter,
 		federationRegistry:    federationRegistry,
+		vrchatOperatorService: vrchatOperator,
 		Audit:                 auditWriter,
 		branding:              brandingResolver,
 		clientIP:              clientIPResolver,
@@ -645,6 +664,9 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/rotate-secret", admin, s.handleRotateIdentityProviderSecretHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/set-disabled", admin, s.handleSetIdentityProviderDisabledHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/delete", admin, s.handleDeleteIdentityProviderHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/start", admin, s.handleVRChatOperatorStartHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/verify", admin, s.handleVRChatOperatorVerifyHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/validate", admin, s.handleVRChatOperatorValidateHTTP)
 
 	// Admin: SAML application management
 	registerOp(mgmt, contract.OperationListSAMLApplications, s.handleListSAMLApplications, admin)

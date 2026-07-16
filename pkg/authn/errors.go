@@ -74,6 +74,10 @@ func init() {
 		{Code: "client_not_found", Status: http.StatusNotFound, LocaleKey: "errors.client_not_found", DiagnosticKind: "resource"},
 		{Code: "upstream_idp_not_found", Status: http.StatusNotFound, LocaleKey: "errors.upstream_idp_not_found", DiagnosticKind: "resource"},
 		{Code: "provider_not_ready", Status: http.StatusServiceUnavailable, LocaleKey: "errors.provider_not_ready", DiagnosticKind: "federation"},
+		{Code: "vrchat_operator_credentials_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.vrchat_operator_credentials_invalid", DiagnosticKind: "federation"},
+		{Code: "vrchat_operator_challenge_invalid", Status: http.StatusBadRequest, LocaleKey: "errors.vrchat_operator_challenge_invalid", DiagnosticKind: "federation"},
+		{Code: "vrchat_operator_verification_failed", Status: http.StatusUnauthorized, LocaleKey: "errors.vrchat_operator_verification_failed", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "vrchat_upstream_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.vrchat_upstream_unavailable", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
 		{Code: "oidc_client_already_exists", Status: http.StatusConflict, LocaleKey: "errors.oidc_client_already_exists", DiagnosticKind: "validation"},
 		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, LocaleKey: "errors.upstream_idp_already_exists", DiagnosticKind: "validation"},
 		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
@@ -508,6 +512,22 @@ func ErrUpstreamIDPNotFound() *AuthError {
 
 func ErrProviderNotReady() *AuthError {
 	return newErr(http.StatusServiceUnavailable, "provider_not_ready", "The identity provider is not ready.")
+}
+
+func ErrVRChatOperatorCredentialsInvalid() *AuthError {
+	return newErr(http.StatusUnauthorized, "vrchat_operator_credentials_invalid", "VRChat operator credentials are invalid.")
+}
+
+func ErrVRChatOperatorChallengeInvalid() *AuthError {
+	return newErr(http.StatusBadRequest, "vrchat_operator_challenge_invalid", "VRChat operator challenge is invalid.")
+}
+
+func ErrVRChatOperatorVerificationFailed() *AuthError {
+	return newErr(http.StatusUnauthorized, "vrchat_operator_verification_failed", "VRChat operator verification failed.")
+}
+
+func ErrVRChatUpstreamUnavailable() *AuthError {
+	return newErr(http.StatusServiceUnavailable, "vrchat_upstream_unavailable", "VRChat is temporarily unavailable.")
 }
 
 // ErrClientAlreadyExists is returned when an OIDC client insert violates the

@@ -359,3 +359,96 @@ func (q *Queries) UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstrea
 	)
 	return i, err
 }
+
+const updateVRChatOperatorHealth = `-- name: UpdateVRChatOperatorHealth :one
+UPDATE upstream_idp SET
+  secret_status = $1,
+  secret_validated_at = $2
+WHERE id = $3
+  AND slug = $4
+  AND protocol = 'vrchat'
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+`
+
+type UpdateVRChatOperatorHealthParams struct {
+	SecretStatus      string             `json:"secretStatus"`
+	SecretValidatedAt pgtype.Timestamptz `json:"secretValidatedAt"`
+	ID                int64              `json:"id"`
+	Slug              string             `json:"slug"`
+}
+
+func (q *Queries) UpdateVRChatOperatorHealth(ctx context.Context, arg UpdateVRChatOperatorHealthParams) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, updateVRChatOperatorHealth,
+		arg.SecretStatus,
+		arg.SecretValidatedAt,
+		arg.ID,
+		arg.Slug,
+	)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.SecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Mode,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.Protocol,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
+	)
+	return i, err
+}
+
+const updateVRChatOperatorSecret = `-- name: UpdateVRChatOperatorSecret :one
+UPDATE upstream_idp SET
+  secret_enc = $1,
+  secret_nonce = $2,
+  key_version = $3,
+  secret_status = 'valid',
+  secret_validated_at = $4
+WHERE id = $5
+  AND slug = $6
+  AND protocol = 'vrchat'
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+`
+
+type UpdateVRChatOperatorSecretParams struct {
+	SecretEnc         []byte             `json:"secretEnc"`
+	SecretNonce       []byte             `json:"secretNonce"`
+	KeyVersion        pgtype.Int4        `json:"keyVersion"`
+	SecretValidatedAt pgtype.Timestamptz `json:"secretValidatedAt"`
+	ID                int64              `json:"id"`
+	Slug              string             `json:"slug"`
+}
+
+func (q *Queries) UpdateVRChatOperatorSecret(ctx context.Context, arg UpdateVRChatOperatorSecretParams) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, updateVRChatOperatorSecret,
+		arg.SecretEnc,
+		arg.SecretNonce,
+		arg.KeyVersion,
+		arg.SecretValidatedAt,
+		arg.ID,
+		arg.Slug,
+	)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.SecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Mode,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.Protocol,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
+	)
+	return i, err
+}
