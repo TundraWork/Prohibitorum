@@ -1,0 +1,1 @@
+function i(t){return t?{items:t.items??[],nextCursor:t.nextCursor??""}:{items:[],nextCursor:""}}function a(t,u){const n=new URL(t,"http://localhost");for(const[c,r]of Object.entries(u))r!==""&&r!=null&&n.searchParams.set(c,String(r));const e=n.searchParams.toString(),s=t.indexOf("?"),o=s>=0?t.slice(0,s):t;return e?`${o}?${e}`:o}export{a as b,i as u};
