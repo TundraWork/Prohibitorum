@@ -99,4 +99,18 @@ describe('FederationButtons', () => {
     expect(buttons[1]!.attributes('data-test')).toBeUndefined()
     expect(buttons[1]!.text()).toContain('Okta')
   })
+
+  it('renders VRChat through the generic AppIcon and outline button path', async () => {
+    get.mockResolvedValue([
+      { slug: 'vrchat', displayName: 'VRChat', protocol: 'vrchat' },
+    ])
+    const w = mountComp(); await flushPromises()
+
+    const button = w.get('button')
+    expect(button.attributes('data-test')).toBeUndefined()
+    expect(button.classes()).toContain('border')
+    expect(button.text()).toContain('VRChat')
+    expect(button.find('img').exists()).toBe(false)
+    expect(button.text()).toContain('V')
+  })
 })

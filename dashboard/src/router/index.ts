@@ -91,6 +91,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/MaintenanceView.vue'),
     meta: { public: true, titleKey: 'title.maintenance' },
   },
+  {
+    path: '/federation/flow/:flow',
+    name: 'federation-flow',
+    component: () => import('../pages/FederationFlowView.vue'),
+    meta: { public: true, titleKey: 'title.federationFlow' },
+  },
+  {
+    path: '/verify/vrchat/:proof',
+    name: 'vrchat-proof',
+    component: () => import('../pages/VRChatProofView.vue'),
+    meta: { public: true, titleKey: 'title.vrchatProof' },
+  },
   // Launcher shell — the end-user home.
   {
     path: '/',

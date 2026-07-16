@@ -77,6 +77,13 @@ function signalConnectionError(err: ApiError): void {
   connectionErrorHandler?.(err)
 }
 
+function projectRetryAfter(err: ApiError, res: Response): void {
+  const raw = res.headers.get('Retry-After')
+  if (!raw || !/^\d+$/.test(raw)) return
+  const seconds = Number(raw)
+  if (Number.isSafeInteger(seconds)) err.retryAfterSeconds = seconds
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {}
   if (body !== undefined) {
@@ -120,6 +127,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (!res.ok) {
     const requestId = res.headers.get('X-Request-ID') ?? undefined
     const err: ApiError = parseApiError(data, requestId)
+    projectRetryAfter(err, res)
     maybeSignalUnauthorized(res.status, err, method)
     maybeSignalMaintenance(res.status, err)
     // 5xx → global connection handler, EXCEPT maintenance (503 maintenance_mode
@@ -158,6 +166,7 @@ async function upload<T>(path: string, body: Blob): Promise<T> {
   if (!res.ok) {
     const requestId = res.headers.get('X-Request-ID') ?? undefined
     const err: ApiError = parseApiError(data, requestId)
+    projectRetryAfter(err, res)
     maybeSignalUnauthorized(res.status, err, 'PUT')
     maybeSignalMaintenance(res.status, err)
     // 5xx → global connection handler, EXCEPT maintenance (503 maintenance_mode

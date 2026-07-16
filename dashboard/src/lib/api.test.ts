@@ -11,10 +11,11 @@ import type { ApiError } from './api'
 function mockResponse(
   status: number,
   body: string,
-  opts: { contentType?: string; requestId?: string } = {},
+  opts: { contentType?: string; requestId?: string; retryAfter?: string } = {},
 ): Response {
   const headers: Record<string, string> = { 'Content-Type': opts.contentType ?? 'application/json' }
   if (opts.requestId) headers['X-Request-ID'] = opts.requestId
+  if (opts.retryAfter) headers['Retry-After'] = opts.retryAfter
   return new Response(body, { status, headers })
 }
 
@@ -86,6 +87,21 @@ describe('api', () => {
     const err = await api.get('/api/test').catch((e: unknown) => e as ApiError)
     expect(err.code).toBe('invalid_role')
     expect(err.details).toEqual({ allowed: ['user', 'admin'] })
+  })
+
+  it('projects a numeric Retry-After header without trusting response prose', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      mockResponse(
+        429,
+        JSON.stringify({ code: 'upstream_rate_limited', message: 'retry whenever' }),
+        { retryAfter: '37' },
+      ),
+    )
+
+    const err = await api.post('/api/test').catch((e: unknown) => e as ApiError)
+
+    expect(err).toMatchObject({ code: 'upstream_rate_limited', retryAfterSeconds: 37 })
+    expect((err as Record<string, unknown>).message).toBeUndefined()
   })
 
   it('throws {code:server_error} (no message) on non-JSON 500', async () => {
