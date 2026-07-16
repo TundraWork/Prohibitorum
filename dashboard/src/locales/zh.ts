@@ -1033,6 +1033,11 @@ export default {
       vrchat_operator_code_invalid: '验证码被拒绝。请尝试另一个验证码。',
       upstream_rate_limited: '上游服务正在限制请求。请稍后重试。',
       upstream_temporarily_unavailable: '上游服务暂时不可用。请稍后重试。',
+      vrchat_identity_invalid: '请输入有效的 VRChat 用户 ID 或个人资料网址。',
+      vrchat_proof_missing: '请将签发的验证链接添加到 VRChat 个人简介链接，然后重试。',
+      local_username_required: '请选择本地用户名以完成登录。',
+      federation_action_invalid: '验证步骤已更改。请重新加载流程并从当前步骤继续。',
+      federation_identity_conflict: '该身份无法关联到此账户。',
 
       // 系统
       maintenance_mode: '系统正在维护中，请稍后再试。',

@@ -91,7 +91,8 @@ type fakeFedQueries struct {
 	confirmedIdentityID int64
 
 	// session
-	sessions []db.Session
+	sessions         []db.Session
+	sessionInsertErr error
 
 	// audit
 	events []db.InsertCredentialEventParams
@@ -221,6 +222,9 @@ func (f *fakeFedQueries) UpdateAccountEmail(_ context.Context, _ db.UpdateAccoun
 func (f *fakeFedQueries) InsertSession(_ context.Context, arg db.InsertSessionParams) (db.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.sessionInsertErr != nil {
+		return db.Session{}, f.sessionInsertErr
+	}
 	row := db.Session{
 		ID:            arg.ID,
 		AccountID:     arg.AccountID,

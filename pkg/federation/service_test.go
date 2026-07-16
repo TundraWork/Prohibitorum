@@ -439,19 +439,69 @@ func TestServiceBeginStoresExactBindings(t *testing.T) {
 	}
 }
 
-func TestServiceReadFlowProjectsPersistedLocalAction(t *testing.T) {
-	service, adapter, _, _ := newServiceHarness(t)
+func TestServiceReadFlowProjectsPersistedLocalActionAfterBindings(t *testing.T) {
+	service, adapter, _, store := newServiceHarness(t)
 	adapter.beginAction = NextAction{Kind: ActionCollectIdentity, Public: map[string]any{"prompt": "handle"}}
 	begin, err := service.BeginLogin(context.Background(), "corp", "/")
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := service.ReadFlow(context.Background(), begin.FlowID, begin.BrowserToken)
+	view, err := service.ReadFlow(context.Background(), FlowReadRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Action.Kind != ActionCollectIdentity || view.Action.Public["prompt"] != "handle" {
+	if view.Action.Kind != ActionCollectIdentity || view.Action.Public["prompt"] != "handle" ||
+		view.ProviderSlug != "corp" || view.ProviderDisplayName != "" || view.Protocol != "fake" || view.ExpiresAt.IsZero() {
 		t.Fatalf("view = %+v", view)
+	}
+
+	raw, err := store.Get(context.Background(), FlowKey(begin.FlowID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := DecodeFlowState(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.ProviderID++
+	tampered, err := state.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetEx(context.Background(), FlowKey(begin.FlowID), tampered, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ReadFlow(context.Background(), FlowReadRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal,
+	}); authn.AsAuthError(err).Code != "federation_state_invalid" {
+		t.Fatalf("tampered provider binding error = %v", err)
+	}
+}
+
+func TestServiceReadFlowRequiresLinkAccountAndSessionBinding(t *testing.T) {
+	service, _, _, _ := newServiceHarness(t)
+	begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, request := range map[string]FlowReadRequest{
+		"missing":      {FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal},
+		"account swap": {FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal, AccountID: new(int32(10)), SessionID: "session-1"},
+		"session swap": {FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal, AccountID: new(int32(9)), SessionID: "session-2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := service.ReadFlow(context.Background(), request); authn.AsAuthError(err).Code != "federation_state_invalid" {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+	if _, err := service.ReadFlow(context.Background(), FlowReadRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal,
+		AccountID: new(int32(9)), SessionID: "session-1",
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -16,6 +16,8 @@ const (
 	FailureStateInvalid           FailureReason = "state_invalid"
 	FailureBrowserBindingMismatch FailureReason = "browser_binding_mismatch"
 	FailureProviderUnavailable    FailureReason = "idp_disabled_or_deleted"
+	FailureActionInvalid          FailureReason = "action_invalid"
+	FailureLocalUsernameRequired  FailureReason = "local_username_required"
 	FailureIssuerMismatch         FailureReason = "iss_mismatch_callback"
 	FailureTokenEndpointDrift     FailureReason = "token_endpoint_drift"
 	FailureCodeExchange           FailureReason = "code_exchange_failed"
@@ -47,6 +49,8 @@ var failurePolicies = map[FailureReason]failurePolicy{
 	FailureStateInvalid:           {public: stateInvalid},
 	FailureBrowserBindingMismatch: {public: stateInvalid},
 	FailureProviderUnavailable:    {public: stateInvalid},
+	FailureActionInvalid:          {public: func() error { return authn.ErrFederationActionInvalid() }},
+	FailureLocalUsernameRequired:  {public: func() error { return authn.ErrLocalUsernameRequired() }},
 	FailureIssuerMismatch: {
 		public:     stateInvalid,
 		detailKeys: keys("expected_iss", "got_iss"),
@@ -101,10 +105,16 @@ type flowFailure struct {
 	reason FailureReason
 	detail map[string]any
 	public error
+	cause  error
 }
 
 func (e *flowFailure) Error() string { return "federation flow failed" }
-func (e *flowFailure) Unwrap() error { return e.public }
+func (e *flowFailure) Unwrap() []error {
+	if e.cause == nil {
+		return []error{e.public}
+	}
+	return []error{e.public, e.cause}
+}
 
 // NewFailure creates an opaque public federation error carrying only
 // allowlisted audit detail. Unknown reasons collapse to state_invalid.
@@ -120,7 +130,11 @@ func NewFailure(reason FailureReason, detail map[string]any) error {
 			filtered[key] = value
 		}
 	}
-	return &flowFailure{reason: reason, detail: filtered, public: policy.public()}
+	failure := &flowFailure{reason: reason, detail: filtered, public: policy.public()}
+	if reason == FailureLocalUsernameRequired {
+		failure.cause = ErrLocalUsernameRequired
+	}
+	return failure
 }
 
 // NewRateLimitedFailure preserves the bounded Retry-After value while retaining

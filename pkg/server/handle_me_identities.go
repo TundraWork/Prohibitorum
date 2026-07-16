@@ -303,9 +303,14 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 		redirectAuthErrToErrorReturn(w, r, err, returnTo)
 		return
 	}
+	destination, err := federationBeginDestination(req)
+	if err != nil {
+		redirectAuthErrToErrorReturn(w, r, err, returnTo)
+		return
+	}
 
 	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
-	http.Redirect(w, r, req.Action.URL, http.StatusFound)
+	http.Redirect(w, r, destination, http.StatusFound)
 }
 
 // GET /api/prohibitorum/me/identities/link/{slug}/callback
@@ -375,8 +380,5 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// The federation resolver already emitted EventLink on success. Do not
-	// double-audit or issue a new session for the already-authenticated user.
-	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
-	http.Redirect(w, r, result.ReturnTo, http.StatusFound)
+	s.writeFederationCompletion(w, r, result, federationCompletionRedirect)
 }

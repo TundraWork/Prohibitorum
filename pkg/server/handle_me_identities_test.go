@@ -973,8 +973,8 @@ func TestMeIdentities_LinkCallback_HappyPath(t *testing.T) {
 		body, _ := readAll(resp.Body)
 		t.Fatalf("callback: want 302, got %d (body=%s)", resp.StatusCode, body)
 	}
-	if got := resp.Header.Get("Location"); got != "/me/identities" {
-		t.Errorf("Location: want /me/identities, got %q", got)
+	if got := resp.Header.Get("Location"); got != "/connected" {
+		t.Errorf("Location: want /connected, got %q", got)
 	}
 	// The terminal success clears the anti-forgery cookie but never issues a
 	// replacement session.
@@ -1036,7 +1036,7 @@ func TestMeIdentities_SteamLinkHTTPFlow(t *testing.T) {
 		"openid.mode": {"id_res"},
 	}
 	resp = h.hitLinkCallback(t, provider.Slug, q)
-	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/me/identities" {
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/connected" {
 		t.Fatalf("callback status/location = %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 	if len(h.q.insertIdentitys) != 1 ||

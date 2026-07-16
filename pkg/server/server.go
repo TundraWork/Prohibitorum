@@ -52,6 +52,7 @@ type Server struct {
 	router                 *chi.Mux
 	api                    huma.API
 	config                 *configx.Config
+	webUIHandler           http.Handler
 	kvStore                kv.Store
 	sessionStore           *sessstore.SessionStore
 	pairingStore           *pairing.PairingStore
@@ -314,6 +315,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		router:                router,
 		api:                   api,
 		config:                config,
+		webUIHandler:          webui.Handler(config.Branding.InstanceName),
 		kvStore:               kvStore,
 		sessionStore:          sessionStore,
 		pairingStore:          pairing.NewPairingStore(kvStore),
@@ -341,7 +343,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		return on
 	})
 	s.registerOperations()
-	s.router.NotFound(webui.Handler(s.config.Branding.InstanceName).ServeHTTP)
+	s.router.NotFound(s.webUIHandler.ServeHTTP)
 	logx.WithContext(ctx).Info("registered operations")
 	return s, nil
 }
@@ -488,6 +490,13 @@ func registerSecurityScheme(api huma.API, cookieName string) {
 }
 
 func (s *Server) registerOperations() {
+	if s.webUIHandler == nil {
+		instanceName := ""
+		if s.config != nil {
+			instanceName = s.config.Branding.InstanceName
+		}
+		s.webUIHandler = webui.Handler(instanceName)
+	}
 	mgmt := huma.NewGroup(s.api, "/api/prohibitorum")
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
 	sessionReq := contract.AuthRequirement{Kind: contract.AuthSession}
@@ -508,6 +517,10 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/login", publicReq, s.handleFederationLoginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/callback", publicReq, s.handleFederationCallbackHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/flows/{flow}", publicReq, s.handleFederationFlowGetHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/prepare", publicReq, withAdminBodyControls(s.handleFederationFlowPrepareHTTP))
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/verify", publicReq, withAdminBodyControls(s.handleFederationFlowVerifyHTTP))
+	registerOpHTTP(s.router, "GET", "/verify/vrchat/{proof}", publicReq, s.handleVRChatProofHTTP)
 	// /welcome confirmation step for first-time (unconfirmed) federated identities.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/confirm", publicReq, s.handleFederationConfirmGet)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/confirm", publicReq, s.handleFederationConfirmPost)

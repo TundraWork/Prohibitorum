@@ -20,6 +20,7 @@ type CallbackRoute string
 const (
 	CallbackRoutePublic CallbackRoute = "public"
 	CallbackRouteLink   CallbackRoute = "link"
+	CallbackRouteLocal  CallbackRoute = "local"
 )
 
 type ActionKind string

@@ -1040,6 +1040,11 @@ export default {
       vrchat_operator_code_invalid: 'That verification code was rejected. Try another code.',
       upstream_rate_limited: 'The upstream service is limiting requests. Wait, then try again.',
       upstream_temporarily_unavailable: 'The upstream service is temporarily unavailable. Try again soon.',
+      vrchat_identity_invalid: 'Enter a valid VRChat user ID or profile URL.',
+      vrchat_proof_missing: 'Add the issued verification link to your VRChat bio links, then try again.',
+      local_username_required: 'Choose a local username to finish signing in.',
+      federation_action_invalid: 'This verification step changed. Reload the flow and continue from the current step.',
+      federation_identity_conflict: 'That identity cannot be linked to this account.',
 
       // System
       maintenance_mode: 'The system is under maintenance. Please try again later.',

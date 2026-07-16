@@ -80,6 +80,38 @@ describe('VRChat operator errors match the canonical manifest and public copy', 
   }
 })
 
+describe('federation flow errors have English and Chinese public copy', () => {
+  const flowErrors = {
+    vrchat_identity_invalid: {
+      en: 'Enter a valid VRChat user ID or profile URL.',
+      zh: '请输入有效的 VRChat 用户 ID 或个人资料网址。',
+    },
+    vrchat_proof_missing: {
+      en: 'Add the issued verification link to your VRChat bio links, then try again.',
+      zh: '请将签发的验证链接添加到 VRChat 个人简介链接，然后重试。',
+    },
+    local_username_required: {
+      en: 'Choose a local username to finish signing in.',
+      zh: '请选择本地用户名以完成登录。',
+    },
+    federation_action_invalid: {
+      en: 'This verification step changed. Reload the flow and continue from the current step.',
+      zh: '验证步骤已更改。请重新加载流程并从当前步骤继续。',
+    },
+    federation_identity_conflict: {
+      en: 'That identity cannot be linked to this account.',
+      zh: '该身份无法关联到此账户。',
+    },
+  } as const
+
+  for (const [code, expected] of Object.entries(flowErrors)) {
+    it(`defines ${code} in both locales`, () => {
+      expect(get(en, `errors.codes.${code}`)).toBe(expected.en)
+      expect(get(zh, `errors.codes.${code}`)).toBe(expected.zh)
+    })
+  }
+})
+
 describe('error locale parity — detail keys have labels in en+zh', () => {
   for (const field of ALL_DETAIL_KEYS) {
     it(`en has errors.details.${field}`, () => {

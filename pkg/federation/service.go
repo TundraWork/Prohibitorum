@@ -44,11 +44,21 @@ type BeginResult struct {
 }
 
 type FlowView struct {
-	FlowID       string
-	Intent       Intent
-	ProviderSlug string
-	Protocol     string
-	Action       NextAction
+	FlowID              string
+	Intent              Intent
+	ProviderSlug        string
+	ProviderDisplayName string
+	Protocol            string
+	Action              NextAction
+	ExpiresAt           time.Time
+}
+
+type FlowReadRequest struct {
+	FlowID        string
+	BrowserToken  string
+	CallbackRoute CallbackRoute
+	AccountID     *int32
+	SessionID     string
 }
 
 type AdvanceRequest struct {
@@ -153,6 +163,9 @@ func (s *Service) begin(ctx context.Context, provider Provider, intent Intent, r
 		return nil, err
 	}
 	if !definition.Ready(provider) {
+		if provider.Protocol == "vrchat" {
+			return nil, authn.ErrProviderNotReady()
+		}
 		return nil, ErrProviderUnready
 	}
 	flowID, err := randomToken()
@@ -194,19 +207,19 @@ func (s *Service) begin(ctx context.Context, provider Provider, intent Intent, r
 	return &BeginResult{FlowID: flowID, BrowserToken: browserToken, Action: cloneAction(action)}, nil
 }
 
-func (s *Service) ReadFlow(ctx context.Context, flowID, browserToken string) (*FlowView, error) {
-	if !validFlowID(flowID) {
+func (s *Service) ReadFlow(ctx context.Context, request FlowReadRequest) (*FlowView, error) {
+	if !validFlowID(request.FlowID) || !validCallbackRoute(request.CallbackRoute) {
 		return nil, authn.ErrFederationStateInvalid()
 	}
-	raw, err := s.kv.Get(ctx, FlowKey(flowID))
+	advance := AdvanceRequest{
+		FlowID: request.FlowID, BrowserToken: request.BrowserToken, CallbackRoute: request.CallbackRoute,
+		AccountID: request.AccountID, SessionID: request.SessionID,
+	}
+	_, state, provider, _, err := s.loadBoundFlow(ctx, advance)
 	if err != nil {
-		return nil, authn.ErrFederationStateInvalid()
+		return nil, err
 	}
-	state, err := DecodeFlowState(raw)
-	if err != nil || !state.ExpiresAt.After(s.now()) || !BrowserBindingOK(state.BrowserDigest, browserToken) {
-		return nil, authn.ErrFederationStateInvalid()
-	}
-	return flowView(flowID, state), nil
+	return flowView(request.FlowID, state, provider), nil
 }
 
 func (s *Service) AdvanceCallback(ctx context.Context, request AdvanceRequest) (*CompletionResult, error) {
@@ -284,7 +297,7 @@ func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*Flo
 	if state.Protocol == "vrchat" {
 		s.recordVRChatTransition(ctx, "vrchat_proof_prepared", state, provider.Slug, "")
 	}
-	return flowView(request.FlowID, state), nil
+	return flowView(request.FlowID, state, provider), nil
 }
 
 func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*CompletionResult, error) {
@@ -330,7 +343,11 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		RequireLocalUsername: requireLocalUsername,
 	})
 	if err != nil {
-		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, err, requireLocalUsername && errors.Is(err, ErrLocalUsernameRequired))
+		usernameRequired := requireLocalUsername && errors.Is(err, ErrLocalUsernameRequired)
+		if usernameRequired && state.Protocol == "vrchat" {
+			err = NewFailure(FailureLocalUsernameRequired, nil)
+		}
+		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, err, usernameRequired)
 	}
 	if state.Protocol == "vrchat" {
 		s.recordVRChatTransition(operationCtx, "vrchat_proof_verified", state, provider.Slug, "")
@@ -405,6 +422,26 @@ func (s *Service) AvatarPending(ctx context.Context, accountID int32) bool {
 }
 
 func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (string, *FlowState, Provider, Adapter, error) {
+	raw, state, provider, adapter, err := s.loadBoundFlow(ctx, request)
+	if err != nil {
+		return "", nil, Provider{}, nil, err
+	}
+	localRoute := request.CallbackRoute == CallbackRouteLocal
+	if localRoute && (request.ProviderSlug != "" || request.Protocol != "") ||
+		!localRoute && (state.ProviderSlug != request.ProviderSlug || request.Protocol != "" && state.Protocol != request.Protocol) {
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureStateInvalid, nil))
+	}
+	if state.CurrentAction.Kind != request.Input.Kind {
+		reason := FailureStateInvalid
+		if localRoute {
+			reason = FailureActionInvalid
+		}
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(reason, nil))
+	}
+	return raw, state, provider, adapter, nil
+}
+
+func (s *Service) loadBoundFlow(ctx context.Context, request AdvanceRequest) (string, *FlowState, Provider, Adapter, error) {
 	raw, err := s.kv.Get(ctx, FlowKey(request.FlowID))
 	if err != nil {
 		return "", nil, Provider{}, nil, s.recordFailure(ctx, nil, &request, "", NewFailure(FailureStateInvalid, nil))
@@ -418,11 +455,6 @@ func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (s
 	}
 	if !BrowserBindingOK(state.BrowserDigest, request.BrowserToken) {
 		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureBrowserBindingMismatch, nil))
-	}
-	if state.ProviderSlug != request.ProviderSlug ||
-		request.Protocol != "" && state.Protocol != request.Protocol ||
-		state.CurrentAction.Kind != request.Input.Kind {
-		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureStateInvalid, nil))
 	}
 	if state.Intent == IntentLink {
 		if request.AccountID == nil || state.LinkAccountID == nil || *request.AccountID != *state.LinkAccountID || request.SessionID == "" || request.SessionID != state.LinkSessionID {
@@ -440,8 +472,15 @@ func (s *Service) loadForAdvance(ctx context.Context, request AdvanceRequest) (s
 		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureProviderUnavailable, nil))
 	}
 	definition, adapter, err := s.flowProvider(provider)
-	if err != nil || !definition.Ready(provider) {
+	if err != nil {
 		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(FailureProviderUnavailable, nil))
+	}
+	if !definition.Ready(provider) {
+		reason := FailureProviderUnavailable
+		if state.Protocol == "vrchat" {
+			reason = FailureVRChatProviderNotReady
+		}
+		return "", nil, Provider{}, nil, s.recordFailure(ctx, state, &request, state.ProviderSlug, NewFailure(reason, nil))
 	}
 	return raw, state, provider, adapter, nil
 }
@@ -562,8 +601,16 @@ func (s *Service) restoreAfterFailure(ctx context.Context, request AdvanceReques
 		return s.restore(ctx, request.FlowID, state, originalRaw, publicErr, requireUsername)
 	}
 	publicErr := cause
-	if _, _, projected, ok := failureProjection(cause); ok {
-		publicErr = projected
+	if reason, _, projected, ok := failureProjection(cause); ok {
+		switch reason {
+		case FailureLocalUsernameRequired:
+			// Preserve the typed flow failure: it unwraps to both the stable
+			// public AuthError and the resolver sentinel used by retry logic.
+		case FailureLinkConflict:
+			publicErr = authn.ErrFederationIdentityConflict()
+		default:
+			publicErr = projected
+		}
 	}
 	restored := s.restore(ctx, request.FlowID, state, originalRaw, publicErr, requireUsername)
 	auditCause := cause
@@ -715,7 +762,7 @@ func (s *Service) flowProvider(provider Provider) (Definition, Adapter, error) {
 }
 
 func validCallbackRoute(route CallbackRoute) bool {
-	return route == CallbackRoutePublic || route == CallbackRouteLink
+	return route == CallbackRoutePublic || route == CallbackRouteLink || route == CallbackRouteLocal
 }
 
 func callbackRouteAllowsIntent(route CallbackRoute, intent Intent) bool {
@@ -724,6 +771,8 @@ func callbackRouteAllowsIntent(route CallbackRoute, intent Intent) bool {
 		return intent == IntentLogin || intent == IntentInvite
 	case CallbackRouteLink:
 		return intent == IntentLink
+	case CallbackRouteLocal:
+		return intent == IntentLogin || intent == IntentInvite || intent == IntentLink
 	default:
 		return false
 	}
@@ -738,8 +787,12 @@ func (s *Service) callbackURL(slug string, intent Intent) string {
 	return origin + "/api/prohibitorum/auth/federation/" + escapedSlug + "/callback"
 }
 
-func flowView(flowID string, state *FlowState) *FlowView {
-	return &FlowView{FlowID: flowID, Intent: state.Intent, ProviderSlug: state.ProviderSlug, Protocol: state.Protocol, Action: cloneAction(state.CurrentAction)}
+func flowView(flowID string, state *FlowState, provider Provider) *FlowView {
+	return &FlowView{
+		FlowID: flowID, Intent: state.Intent, ProviderSlug: provider.Slug,
+		ProviderDisplayName: provider.DisplayName, Protocol: provider.Protocol,
+		Action: cloneAction(state.CurrentAction), ExpiresAt: state.ExpiresAt,
+	}
 }
 
 func cloneAction(action NextAction) NextAction {

@@ -50,6 +50,12 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 		return
 	}
 
+	destination, err := federationBeginDestination(req)
+	if err != nil {
+		redirectAuthErrToError(w, r, err)
+		return
+	}
+
 	// Drop the Referer header sent to the upstream so the invite token in
 	// our URL doesn't leak via Referer. Defense in depth — the token is
 	// already stashed in FlowState by this point; race-bound by atomic
@@ -59,5 +65,5 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 	// Invite redemption shares the federation /callback, so bind the flow to
 	// this browser with the same anti-forgery cookie the login flow uses (N4).
 	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
-	http.Redirect(w, r, req.Action.URL, http.StatusFound)
+	http.Redirect(w, r, destination, http.StatusFound)
 }
