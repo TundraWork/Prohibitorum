@@ -20,16 +20,29 @@ import (
 )
 
 type proofClientStub struct {
-	calls int
-	user  PublicUser
-	err   error
+	calls      int
+	user       PublicUser
+	err        error
+	publicUser func() (PublicUser, error)
+	decodeErr  error
+	unusable   bool
 }
 
 func (c *proofClientStub) PublicUser(_ context.Context, _ string, _ []http.Cookie) (PublicUser, []http.Cookie, error) {
 	c.calls++
+	if c.publicUser != nil {
+		user, err := c.publicUser()
+		return user, nil, err
+	}
 	return c.user, nil, c.err
 }
-func (*proofClientStub) DecodeCookies(_ []byte, now time.Time) ([]http.Cookie, error) {
+func (c *proofClientStub) DecodeCookies(_ []byte, now time.Time) ([]http.Cookie, error) {
+	if c.decodeErr != nil {
+		return nil, c.decodeErr
+	}
+	if c.unusable {
+		return nil, nil
+	}
 	return []http.Cookie{{Name: "auth", Value: "cookie", Path: "/", Secure: true, HttpOnly: true, Expires: now.Add(time.Hour)}}, nil
 }
 
@@ -157,6 +170,49 @@ func TestVRChatAdapterRateLimitCreatesSharedProviderBackoff(t *testing.T) {
 	}
 }
 
+func TestVRChatAdapterConcurrentRateLimitsNeverShortenSharedDeadline(t *testing.T) {
+	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	store := kv.NewMemoryStore()
+	state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
+	input := federation.ActionInput{Kind: federation.ActionPublishProof}
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	shortClient := &proofClientStub{publicUser: func() (PublicUser, error) {
+		close(entered)
+		<-release
+		return PublicUser{}, &HTTPError{Status: http.StatusTooManyRequests, RetryAfter: time.Minute, Category: "rate_limited"}
+	}}
+	short := NewAdapter(shortClient, &proofSecretsStub{plaintext: []byte("short")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
+	short.now = func() time.Time { return now }
+	shortResult := make(chan error, 1)
+	go func() {
+		_, err := short.Advance(context.Background(), readyVRChatProvider(), state, input)
+		shortResult <- err
+	}()
+	<-entered
+	longClient := &proofClientStub{err: &HTTPError{Status: http.StatusTooManyRequests, RetryAfter: maxProviderBackoff, Category: "rate_limited"}}
+	long := NewAdapter(longClient, &proofSecretsStub{plaintext: []byte("long")}, store, &proofQueriesStub{}, "https://login.example.com", nil)
+	long.now = func() time.Time { return now }
+	if _, err := long.Advance(context.Background(), readyVRChatProvider(), state, input); err == nil {
+		t.Fatal("long rate limit unexpectedly succeeded")
+	}
+	close(release)
+	if err := <-shortResult; err == nil {
+		t.Fatal("short rate limit unexpectedly succeeded")
+	}
+	raw, err := store.Get(context.Background(), providerBackoffKey(7))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := now.Add(maxProviderBackoff); !deadline.Equal(want) {
+		t.Fatalf("shared deadline = %s, want %s", deadline, want)
+	}
+}
+
 func TestVRChatAdapterAuthenticationFailureInvalidatesOnlySnapshot(t *testing.T) {
 	for _, test := range []struct {
 		name      string
@@ -197,6 +253,51 @@ func TestVRChatAdapterAuthenticationFailureInvalidatesOnlySnapshot(t *testing.T)
 				}
 			}
 		})
+	}
+}
+
+func TestVRChatAdapterInvalidCookieSnapshotInvalidatesOnlyMatchingSecret(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		unusable  bool
+		queryErr  error
+		wantAudit bool
+	}{
+		{name: "malformed transitioned", wantAudit: true},
+		{name: "unusable transitioned", unusable: true, wantAudit: true},
+		{name: "malformed stale replacement", queryErr: pgx.ErrNoRows},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			queries := &proofQueriesStub{err: test.queryErr}
+			writer := &proofAuditStub{}
+			client := &proofClientStub{decodeErr: errors.New("malformed cookies"), unusable: test.unusable}
+			if test.unusable {
+				client.decodeErr = nil
+			}
+			adapter := NewAdapter(client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), queries, "https://login.example.com", writer)
+			state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
+			_, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
+			var publicErr *authn.AuthError
+			if !errors.As(err, &publicErr) || publicErr.Code != "provider_not_ready" {
+				t.Fatalf("error = %#v (%v)", publicErr, err)
+			}
+			if queries.calls != 1 {
+				t.Fatalf("invalidation calls = %d", queries.calls)
+			}
+			if got := len(writer.records); got != btoi(test.wantAudit) {
+				t.Fatalf("audit records = %#v", writer.records)
+			}
+		})
+	}
+}
+
+func TestVRChatAdapterPublicUserNotFoundIsInvalidIdentity(t *testing.T) {
+	client := &proofClientStub{err: &HTTPError{Status: http.StatusNotFound, Category: "unexpected_status"}}
+	adapter := NewAdapter(client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
+	state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
+	_, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionPublishProof})
+	if reason, ok := federation.FailureReasonOf(err); !ok || reason != federation.FailureVRChatIdentityInvalid {
+		t.Fatalf("error = %v, reason = %q", err, reason)
 	}
 }
 

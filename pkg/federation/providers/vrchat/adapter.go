@@ -163,7 +163,7 @@ func (a *Adapter) publishProof(ctx context.Context, provider federationcore.Prov
 	defer clear(plaintext)
 	cookies, err := a.client.DecodeCookies(plaintext, a.now())
 	if err != nil || !usableOperatorAuthCookie(cookies, a.now()) {
-		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureVRChatProviderNotReady, nil)
+		return federationcore.AdvanceResult{}, a.invalidateOperatorSnapshot(ctx, provider)
 	}
 	user, _, err := a.client.PublicUser(ctx, state.UserID, cookies)
 	if err != nil {
@@ -217,29 +217,76 @@ func (a *Adapter) providerBackoff(ctx context.Context, providerID int64) (time.D
 	return remaining, nil
 }
 
+func (a *Adapter) invalidateOperatorSnapshot(ctx context.Context, provider federationcore.Provider) error {
+	if a.queries != nil {
+		_, err := a.queries.InvalidateVRChatOperatorSecret(ctx, db.InvalidateVRChatOperatorSecretParams{ID: provider.ID, Slug: provider.Slug, ExpectedSecretEnc: provider.Secret.Ciphertext, ExpectedSecretNonce: provider.Secret.Nonce, ExpectedKeyVersion: pgtype.Int4{Int32: provider.Secret.KeyVersion, Valid: true}})
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return federationcore.NewFailure(federationcore.FailureUpstreamUnavailable, nil)
+		}
+		if err == nil {
+			audit.RecordOrLog(ctx, a.audit, audit.Record{
+				Factor: audit.FactorUpstreamIDP,
+				Event:  "vrchat_operator_session_invalidated",
+				Detail: map[string]any{
+					"slug":     provider.Slug,
+					"action":   "proof_lookup",
+					"category": "authentication",
+				},
+			})
+		}
+	}
+	return federationcore.NewFailure(federationcore.FailureVRChatProviderNotReady, nil)
+}
+
+func (a *Adapter) extendProviderBackoff(ctx context.Context, providerID int64, retry time.Duration) (time.Duration, error) {
+	now := a.now()
+	deadline := now.Add(retry).UTC()
+	key := providerBackoffKey(providerID)
+	encoded := deadline.Format(time.RFC3339Nano)
+	for {
+		currentRaw, err := a.kv.Get(ctx, key)
+		if errors.Is(err, kv.ErrKeyNotFound) {
+			stored, setErr := a.kv.SetNX(ctx, key, encoded, retry)
+			if setErr != nil {
+				return 0, federationcore.ErrKVUnavailable
+			}
+			if stored {
+				return retry, nil
+			}
+			continue
+		}
+		if err != nil {
+			return 0, federationcore.ErrKVUnavailable
+		}
+		current, err := time.Parse(time.RFC3339Nano, currentRaw)
+		if err != nil {
+			return 0, federationcore.ErrKVUnavailable
+		}
+		if !deadline.After(current) {
+			remaining := current.Sub(now)
+			if remaining > maxProviderBackoff {
+				remaining = maxProviderBackoff
+			}
+			return remaining, nil
+		}
+		swapped, err := a.kv.CompareAndSwap(ctx, key, currentRaw, encoded, retry)
+		if err != nil {
+			return 0, federationcore.ErrKVUnavailable
+		}
+		if swapped {
+			return retry, nil
+		}
+	}
+}
+
 func (a *Adapter) classifyUpstream(ctx context.Context, provider federationcore.Provider, upstream error) error {
 	var httpErr *HTTPError
 	if errors.As(upstream, &httpErr) {
 		switch {
 		case httpErr.Status == http.StatusUnauthorized || httpErr.Status == http.StatusForbidden:
-			if a.queries != nil {
-				_, err := a.queries.InvalidateVRChatOperatorSecret(ctx, db.InvalidateVRChatOperatorSecretParams{ID: provider.ID, Slug: provider.Slug, ExpectedSecretEnc: provider.Secret.Ciphertext, ExpectedSecretNonce: provider.Secret.Nonce, ExpectedKeyVersion: pgtype.Int4{Int32: provider.Secret.KeyVersion, Valid: true}})
-				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-					return federationcore.NewFailure(federationcore.FailureUpstreamUnavailable, nil)
-				}
-				if err == nil {
-					audit.RecordOrLog(ctx, a.audit, audit.Record{
-						Factor: audit.FactorUpstreamIDP,
-						Event:  "vrchat_operator_session_invalidated",
-						Detail: map[string]any{
-							"slug":     provider.Slug,
-							"action":   "proof_lookup",
-							"category": "authentication",
-						},
-					})
-				}
-			}
-			return federationcore.NewFailure(federationcore.FailureVRChatProviderNotReady, nil)
+			return a.invalidateOperatorSnapshot(ctx, provider)
+		case httpErr.Status == http.StatusNotFound:
+			return federationcore.NewFailure(federationcore.FailureVRChatIdentityInvalid, nil)
 		case httpErr.Status == http.StatusTooManyRequests:
 			retry := httpErr.RetryAfter
 			if retry <= 0 {
@@ -248,11 +295,11 @@ func (a *Adapter) classifyUpstream(ctx context.Context, provider federationcore.
 			if retry > maxProviderBackoff {
 				retry = maxProviderBackoff
 			}
-			deadline := a.now().Add(retry).UTC()
-			if err := a.kv.SetEx(ctx, providerBackoffKey(provider.ID), deadline.Format(time.RFC3339Nano), retry); err != nil {
-				return federationcore.ErrKVUnavailable
+			storedRetry, err := a.extendProviderBackoff(ctx, provider.ID, retry)
+			if err != nil {
+				return err
 			}
-			return federationcore.NewRateLimitedFailure(retry)
+			return federationcore.NewRateLimitedFailure(storedRetry)
 		}
 	}
 	return federationcore.NewFailure(federationcore.FailureUpstreamUnavailable, nil)

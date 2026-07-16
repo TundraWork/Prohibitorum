@@ -557,22 +557,20 @@ func (s *Service) recordVRChatTransition(ctx context.Context, event string, stat
 }
 
 func (s *Service) restoreAfterFailure(ctx context.Context, request AdvanceRequest, providerSlug string, state *FlowState, originalRaw string, cause error, requireUsername bool) error {
+	if state.Protocol != "vrchat" {
+		publicErr := s.recordFailure(ctx, state, &request, providerSlug, cause)
+		return s.restore(ctx, request.FlowID, state, originalRaw, publicErr, requireUsername)
+	}
 	publicErr := cause
 	if _, _, projected, ok := failureProjection(cause); ok {
 		publicErr = projected
 	}
 	restored := s.restore(ctx, request.FlowID, state, originalRaw, publicErr, requireUsername)
-	if state.Protocol == "vrchat" {
-		auditCause := cause
-		if errors.Is(restored, ErrKVUnavailable) {
-			auditCause = restored
-		}
-		s.recordVRChatFailure(ctx, state, providerSlug, auditCause)
-		return restored
+	auditCause := cause
+	if errors.Is(restored, ErrKVUnavailable) {
+		auditCause = restored
 	}
-	if restored == publicErr {
-		return s.recordFailure(ctx, state, &request, providerSlug, cause)
-	}
+	s.recordVRChatFailure(ctx, state, providerSlug, auditCause)
 	return restored
 }
 

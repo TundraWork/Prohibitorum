@@ -1610,6 +1610,49 @@ func TestServiceLeaseLossCancelsAdapterOperationContext(t *testing.T) {
 		t.Fatalf("lease survived release: %v", err)
 	}
 }
+func TestServiceNonVRFlowFailureAuditedWhenRestoreFails(t *testing.T) {
+	for _, protocol := range []string{"oidc", "steam"} {
+		t.Run(protocol, func(t *testing.T) {
+			registry := NewRegistry()
+			if err := registry.RegisterDefinition(fakeDefinition{protocol: protocol, descriptor: descriptor(protocol)}); err != nil {
+				t.Fatal(err)
+			}
+			adapter := &serviceFakeAdapter{
+				protocol:    protocol,
+				beginState:  json.RawMessage(`{"step":"redirect"}`),
+				beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"},
+				advance: func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+					return AdvanceResult{}, NewFailure(FailureCodeExchange, nil)
+				},
+			}
+			if err := registry.RegisterAdapter(adapter); err != nil {
+				t.Fatal(err)
+			}
+			writer := &serviceRecordingAudit{}
+			baseStore := kv.NewMemoryStore()
+			provider := Provider{ID: 7, Slug: "corp", Protocol: protocol, Mode: ModeAutoProvision}
+			service := NewService(registry, fakeProviderLoader{provider: provider}, baseStore, &serviceFakeResolver{}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test", Audit: writer})
+			begin, err := service.BeginLogin(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			service.kv = &failingRestoreStore{Store: baseStore, failSetEx: true}
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+				ProviderSlug: "corp", Protocol: protocol, CallbackRoute: CallbackRoutePublic,
+				Input: ActionInput{Kind: ActionRedirect},
+			})
+			if !errors.Is(err, ErrKVUnavailable) {
+				t.Fatalf("VerifyFlow error = %v", err)
+			}
+			if len(writer.records) != 1 || writer.records[0].Event != audit.EventFail ||
+				writer.records[0].Detail["reason"] != string(FailureCodeExchange) {
+				t.Fatalf("audit records = %#v", writer.records)
+			}
+		})
+	}
+}
+
 func TestServiceConcurrentVerifyCallsAdapterOnceAndDoesNotResurrectFlow(t *testing.T) {
 	service, adapter, _, store := newServiceHarness(t)
 	entered := make(chan struct{})
