@@ -518,8 +518,8 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/login", publicReq, s.handleFederationLoginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/callback", publicReq, s.handleFederationCallbackHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/flows/{flow}", publicReq, s.handleFederationFlowGetHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/prepare", publicReq, withAdminBodyControls(s.handleFederationFlowPrepareHTTP))
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/verify", publicReq, withAdminBodyControls(s.handleFederationFlowVerifyHTTP))
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/prepare", publicReq, withFederationFlowBodyControls(s.handleFederationFlowPrepareHTTP))
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/verify", publicReq, withFederationFlowBodyControls(s.handleFederationFlowVerifyHTTP))
 	registerOpHTTP(s.router, "GET", "/verify/vrchat/{proof}", publicReq, s.handleVRChatProofHTTP)
 	// /welcome confirmation step for first-time (unconfirmed) federated identities.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/confirm", publicReq, s.handleFederationConfirmGet)

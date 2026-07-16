@@ -159,6 +159,14 @@ func federationBeginDestination(begin *federation.BeginResult) (string, error) {
 	}
 }
 
+func withFederationFlowBodyControls(handler http.HandlerFunc) http.HandlerFunc {
+	controlled := withAdminBodyControls(handler)
+	return func(w http.ResponseWriter, r *http.Request) {
+		setFederationFlowHeaders(w)
+		controlled(w, r)
+	}
+}
+
 func setFederationFlowHeaders(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
 }

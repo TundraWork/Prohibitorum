@@ -175,8 +175,8 @@ func newLocalFlowHarnessWithStore(t *testing.T, store kv.Store) *localFlowHarnes
 	router.Get("/api/prohibitorum/auth/federation/{slug}/login", s.handleFederationLoginHTTP)
 	router.Get("/api/prohibitorum/enrollments/{token}/start-federation", s.handleEnrollmentStartFederationHTTP)
 	router.Get("/api/prohibitorum/auth/federation/flows/{flow}", s.handleFederationFlowGetHTTP)
-	router.With(func(next http.Handler) http.Handler { return withAdminBodyControls(next.ServeHTTP) }).Post("/api/prohibitorum/auth/federation/flows/{flow}/prepare", s.handleFederationFlowPrepareHTTP)
-	router.With(func(next http.Handler) http.Handler { return withAdminBodyControls(next.ServeHTTP) }).Post("/api/prohibitorum/auth/federation/flows/{flow}/verify", s.handleFederationFlowVerifyHTTP)
+	router.Post("/api/prohibitorum/auth/federation/flows/{flow}/prepare", withFederationFlowBodyControls(s.handleFederationFlowPrepareHTTP))
+	router.Post("/api/prohibitorum/auth/federation/flows/{flow}/verify", withFederationFlowBodyControls(s.handleFederationFlowVerifyHTTP))
 	ts := httptest.NewServer(router)
 	t.Cleanup(ts.Close)
 	cfg.PublicOrigins = []string{ts.URL}
@@ -234,6 +234,27 @@ func (h *localFlowHarness) request(t *testing.T, method, path, body string) *htt
 	}
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	response, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = response.Body.Close() })
+	return response
+}
+
+func (h *localFlowHarness) rawRequest(t *testing.T, path, body, contentType string, chunked bool) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, h.ts.URL+path, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	if chunked {
+		req.ContentLength = -1
+		req.TransferEncoding = []string{"chunked"}
 	}
 	response, err := h.client.Do(req)
 	if err != nil {
@@ -305,6 +326,38 @@ func TestFederationFlowLoginPrepareVerify(t *testing.T) {
 	replay := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
 	if replay.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("replay status = %d", replay.StatusCode)
+	}
+}
+
+func TestFederationFlowBodyControlFailuresAreNoStore(t *testing.T) {
+	for _, endpoint := range []string{"prepare", "verify"} {
+		t.Run(endpoint, func(t *testing.T) {
+			tests := []struct {
+				name        string
+				body        string
+				contentType string
+				chunked     bool
+				status      int
+			}{
+				{name: "malformed", body: `{`, contentType: "application/json", status: http.StatusBadRequest},
+				{name: "missing content type", body: `{}`, status: http.StatusBadRequest},
+				{name: "wrong content type", body: `{}`, contentType: "text/plain", status: http.StatusBadRequest},
+				{name: "advertised oversized", body: `{"value":"` + strings.Repeat("x", maxAdminBody) + `"}`, contentType: "application/json", status: http.StatusRequestEntityTooLarge},
+				{name: "chunked oversized", body: `{}` + strings.Repeat(" ", maxAdminBody+1), contentType: "application/json", chunked: true, status: http.StatusRequestEntityTooLarge},
+			}
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					h := newLocalFlowHarness(t)
+					response := h.rawRequest(t, "/api/prohibitorum/auth/federation/flows/opaque/"+endpoint, test.body, test.contentType, test.chunked)
+					if response.StatusCode != test.status {
+						t.Fatalf("status = %d, want %d", response.StatusCode, test.status)
+					}
+					if response.Header.Get("Cache-Control") != "no-store" {
+						t.Fatalf("Cache-Control = %q", response.Header.Get("Cache-Control"))
+					}
+				})
+			}
+		})
 	}
 }
 
