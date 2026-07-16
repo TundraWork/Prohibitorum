@@ -157,18 +157,20 @@ func TestVRChatAdapterRateLimitCreatesSharedProviderBackoff(t *testing.T) {
 	}
 }
 
-func TestVRChatAdapterUnauthorizedInvalidatesOnlySnapshot(t *testing.T) {
+func TestVRChatAdapterAuthenticationFailureInvalidatesOnlySnapshot(t *testing.T) {
 	for _, test := range []struct {
 		name      string
+		status    int
 		queryErr  error
 		wantAudit bool
 	}{
-		{name: "transitioned", wantAudit: true},
-		{name: "concurrent replacement", queryErr: pgx.ErrNoRows},
+		{name: "unauthorized transitioned", status: http.StatusUnauthorized, wantAudit: true},
+		{name: "forbidden transitioned", status: http.StatusForbidden, wantAudit: true},
+		{name: "concurrent replacement", status: http.StatusUnauthorized, queryErr: pgx.ErrNoRows},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			queries := &proofQueriesStub{err: test.queryErr}
-			client := &proofClientStub{err: &HTTPError{Status: http.StatusUnauthorized, Category: "authentication"}}
+			client := &proofClientStub{err: &HTTPError{Status: test.status, Category: "authentication"}}
 			writer := &proofAuditStub{}
 			adapter := NewAdapter(client, &proofSecretsStub{plaintext: []byte("cookies")}, kv.NewMemoryStore(), queries, "https://login.example.com", writer)
 			state, _ := json.Marshal(adapterState{Step: stepProof, UserID: testUserID, ProofToken: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})

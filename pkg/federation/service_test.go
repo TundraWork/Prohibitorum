@@ -1610,6 +1610,60 @@ func TestServiceLeaseLossCancelsAdapterOperationContext(t *testing.T) {
 		t.Fatalf("lease survived release: %v", err)
 	}
 }
+func TestServiceConcurrentVerifyCallsAdapterOnceAndDoesNotResurrectFlow(t *testing.T) {
+	service, adapter, _, store := newServiceHarness(t)
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	adapter.advanceContext = func(context.Context, json.RawMessage, ActionInput) (AdvanceResult, error) {
+		close(entered)
+		<-proceed
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeAdvanceCalls := adapter.calls
+	type verifyResult struct {
+		completion *CompletionResult
+		err        error
+	}
+	winner := make(chan verifyResult, 1)
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+		Input: ActionInput{Kind: ActionRedirect},
+	}
+	go func() {
+		completion, verifyErr := service.VerifyFlow(context.Background(), request)
+		winner <- verifyResult{completion: completion, err: verifyErr}
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("first verify did not enter adapter")
+	}
+	loserCompletion, loserErr := service.VerifyFlow(context.Background(), request)
+	if loserCompletion != nil {
+		t.Fatalf("loser completion = %+v", loserCompletion)
+	}
+	var authErr *authn.AuthError
+	if !errors.As(loserErr, &authErr) || authErr.Code != "federation_state_invalid" {
+		t.Fatalf("loser error = %v", loserErr)
+	}
+	close(proceed)
+	result := <-winner
+	if result.err != nil || result.completion == nil {
+		t.Fatalf("winner = (%+v, %v)", result.completion, result.err)
+	}
+	if got := adapter.calls - beforeAdvanceCalls; got != 1 {
+		t.Fatalf("Adapter.Advance calls = %d", got)
+	}
+	if _, err := store.Get(context.Background(), FlowKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("flow resurrected after concurrent verify: %v", err)
+	}
+}
+
 func TestServiceStaleVerifyFenceCannotResurrectOrOverwrite(t *testing.T) {
 	for _, test := range []struct {
 		name      string
