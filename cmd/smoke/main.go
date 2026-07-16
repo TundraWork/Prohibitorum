@@ -70,14 +70,19 @@ const (
 	nAdmin      = 8
 	nPAT        = 7
 	nSteam      = 5
+	nVRChat     = 24
 )
 
 func main() {
 	var (
-		baseURL  = flag.String("base-url", "http://localhost:8080", "Prohibitorum server base URL")
-		username = flag.String("username", "smoke-admin", "username for the bootstrap admin")
-		display  = flag.String("display", "Smoke Admin", "display name for the bootstrap admin")
-		skipNew  = flag.Bool("skip-new", false, "do not pass --new to enroll-admin (re-uses existing pending bootstrap if available)")
+		baseURL       = flag.String("base-url", "http://localhost:8080", "Prohibitorum server base URL")
+		username      = flag.String("username", "smoke-admin", "username for the bootstrap admin")
+		display       = flag.String("display", "Smoke Admin", "display name for the bootstrap admin")
+		skipNew       = flag.Bool("skip-new", false, "do not pass --new to enroll-admin (re-uses existing pending bootstrap if available)")
+		vrchatControl = flag.String("vrchat-control-origin", "", "loopback HTTPS VRChat mock control origin")
+		vrchatCA      = flag.String("vrchat-ca-file", "", "CA PEM trusted by the VRChat smoke control client")
+		serverLog     = flag.String("server-log", "", "captured Prohibitorum log checked for secret disclosure")
+		vrchatLog     = flag.String("vrchat-log", "", "captured VRChat mock log checked for secret disclosure")
 	)
 	flag.Parse()
 
@@ -889,8 +894,8 @@ func main() {
 	}
 	if loc, err := c.getRedirectAbs(linkCallbackURL); err != nil {
 		log.Fatalf("link/callback: %v", err)
-	} else if loc != "/me" {
-		log.Fatalf("link/callback: want /me, got %q", loc)
+	} else if loc != "/connected" {
+		log.Fatalf("link/callback: want /connected, got %q", loc)
 	}
 	postSessions, err := c.listMySessions()
 	if err != nil {
@@ -907,7 +912,7 @@ func main() {
 		log.Fatalf("link/callback: session id changed (%s → %s) — link must not Issue a new session",
 			preSessID, postSessID)
 	}
-	log.Printf("  link/callback → 302 /me; session id unchanged (%s) ✓", preSessID)
+	log.Printf("  link/callback → 302 /connected; session id unchanged (%s) ✓", preSessID)
 
 	step(fmt.Sprintf("federation %d/%d — DB assert: account_identity for admin-link-1 owned by smoke-admin", 19, nFederation))
 	if err := verifyFederatedIdentityCreated(adminMe.ID, "admin-link-1", mockopIDPID); err != nil {
@@ -3116,7 +3121,9 @@ func main() {
 		}
 		assertNoSecretLeak("GET /oidc-clients", listRaw)
 		// And the created client appears in the list.
-		var list page[struct{ ClientID string `json:"clientId"` }]
+		var list page[struct {
+			ClientID string `json:"clientId"`
+		}]
 		if err := json.Unmarshal(listRaw, &list); err != nil {
 			log.Fatalf("GET /oidc-clients decode: %v", err)
 		}
@@ -4374,14 +4381,14 @@ func main() {
 		}
 
 		step(fmt.Sprintf("pat %d/%d — admin GET /accounts/%d/tokens lists the created PATs", 6, nPAT, patMe.ID))
-	var adminTokens page[struct {
-		ID int32 `json:"id"`
-	}]
-	if err := c.get(fmt.Sprintf("/api/prohibitorum/accounts/%d/tokens?limit=100", patMe.ID), &adminTokens); err != nil {
-		log.Fatalf("pat: admin GET /accounts/%d/tokens: %v", patMe.ID, err)
-	}
-	foundPerApp, foundAll := false, false
-	for _, t := range adminTokens.Items {
+		var adminTokens page[struct {
+			ID int32 `json:"id"`
+		}]
+		if err := c.get(fmt.Sprintf("/api/prohibitorum/accounts/%d/tokens?limit=100", patMe.ID), &adminTokens); err != nil {
+			log.Fatalf("pat: admin GET /accounts/%d/tokens: %v", patMe.ID, err)
+		}
+		foundPerApp, foundAll := false, false
+		for _, t := range adminTokens.Items {
 			if t.ID == created.PAT.ID {
 				foundPerApp = true
 			}
@@ -4393,8 +4400,8 @@ func main() {
 			log.Fatalf("pat: admin token list missing created ids: per-app(id=%d) found=%v, all-apps(id=%d) found=%v, list=%v",
 				created.PAT.ID, foundPerApp, createdAll.PAT.ID, foundAll, adminTokens.Items)
 		}
-	log.Printf("  admin GET /accounts/%d/tokens lists %d PAT(s) incl. per-app id=%d + all-apps id=%d ✓",
-		patMe.ID, len(adminTokens.Items), created.PAT.ID, createdAll.PAT.ID)
+		log.Printf("  admin GET /accounts/%d/tokens lists %d PAT(s) incl. per-app id=%d + all-apps id=%d ✓",
+			patMe.ID, len(adminTokens.Items), created.PAT.ID, createdAll.PAT.ID)
 
 		step(fmt.Sprintf("pat %d/%d — admin POST /accounts/tokens/revoke {id:%d} → re-verify host=%s → 401", 7, nPAT, created.PAT.ID, faHost1))
 		{
@@ -4687,7 +4694,8 @@ func main() {
 				"displayName": "Steam",
 				"protocol":    "steam",
 				"mode":        "auto_provision",
-				"apiKey":      "SMOKEKEY",
+				"config":      map[string]any{},
+				"secret":      "SMOKEKEY",
 			}, &created); err != nil {
 				log.Fatalf("steam: POST /identity-providers: %v", err)
 			}
@@ -4845,6 +4853,10 @@ func main() {
 		}
 	}
 
+	if err := runVRChatSmoke(c, *baseURL, *vrchatControl, *vrchatCA, *serverLog, *vrchatLog, *username); err != nil {
+		log.Fatalf("vrchat: %v", err)
+	}
+
 	// =========================================================================
 	// audit-log-remediation coverage: assert the new credential_event rows
 	// introduced by Tasks 1–13 are actually present in the DB, and that the
@@ -4867,6 +4879,7 @@ func main() {
 	fmt.Println()
 	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + DB-state assertions passed against",
 		*baseURL)
+	fmt.Println("  VRChat: operator TOTP setup + reusable cookie session, browser-bound profile proof, provision/link/invite modes, metadata refresh/filtering, retry recovery, and secret non-disclosure ✓")
 }
 
 func step(msg string) {
@@ -6062,9 +6075,9 @@ func firstN(s string, n int) string {
 // than the empty string.
 type federationIdentity struct {
 	ID             int64   `json:"id"`
-	IdpSlug        string  `json:"idpSlug"`
-	IdpDisplayName string  `json:"idpDisplayName"`
-	UpstreamEmail  *string `json:"upstreamEmail"`
+	IdpSlug        string  `json:"providerSlug"`
+	IdpDisplayName string  `json:"providerDisplayName"`
+	UpstreamEmail  *string `json:"email"`
 	LinkedAt       string  `json:"linkedAt"`
 }
 
@@ -6372,6 +6385,24 @@ func loadDEK() []byte {
 // for this IdP only), then re-encrypts the client_secret using the returned
 // row id (the AAD binds the ciphertext to the id) and UPDATEs the row.
 // Returns the row id.
+func oidcSeedProviderConfig(issuer, clientID string, allowedDomains []string, requireVerifiedEmail, allowPrivateNetwork bool) ([]byte, error) {
+	if allowedDomains == nil {
+		allowedDomains = []string{}
+	}
+	return json.Marshal(map[string]any{
+		"issuerUrl":            issuer,
+		"clientId":             clientID,
+		"scopes":               []string{"openid", "profile", "email"},
+		"allowedDomains":       allowedDomains,
+		"usernameClaim":        "preferred_username",
+		"displayNameClaim":     "name",
+		"emailClaim":           "email",
+		"pictureClaim":         "picture",
+		"requireVerifiedEmail": requireVerifiedEmail,
+		"allowPrivateNetwork":  allowPrivateNetwork,
+	})
+}
+
 func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecret, mode string, allowedDomains []string, requireVerifiedEmail, allowPrivateNetwork bool) (int64, error) {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
@@ -6388,24 +6419,19 @@ func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecr
 	if _, err := conn.Exec(ctx, "DELETE FROM upstream_idp WHERE slug=$1", slug); err != nil {
 		return 0, fmt.Errorf("delete prior: %w", err)
 	}
-	if allowedDomains == nil {
-		allowedDomains = []string{}
+	config, err := oidcSeedProviderConfig(issuer, clientID, allowedDomains, requireVerifiedEmail, allowPrivateNetwork)
+	if err != nil {
+		return 0, fmt.Errorf("provider config: %w", err)
 	}
 	// Insert with placeholder secret bytes; the real ciphertext is written by the
-	// UPDATE below, once we know the row id (the AAD binds the ciphertext to it).
-	// pgx binds Go values natively (text[] from []string, bytea from []byte), so
-	// no hand-built ARRAY[…]::text[] / E'\\x…' SQL literals are needed.
+	// UPDATE below once the row id is known (the AAD binds ciphertext to that id).
 	var id int64
 	if err := conn.QueryRow(ctx, `INSERT INTO upstream_idp
-		(slug, display_name, issuer_url, client_id, client_secret_enc, secret_nonce,
-		 key_version, scopes, mode, allowed_domains, username_claim, display_name_claim,
-		 email_claim, require_verified_email, allow_private_network)
-		VALUES ($1, $2, $3, $4, $5, $6, 1,
-		  ARRAY['openid','profile','email']::text[], $7, $8,
-		  'preferred_username', 'name', 'email', $9, $10)
+		(slug, display_name, protocol, mode, provider_config, secret_enc, secret_nonce,
+		 key_version, secret_status, disabled)
+		VALUES ($1, $2, 'oidc', $3, $4::jsonb, $5, $6, 1, 'configured', false)
 		RETURNING id`,
-		slug, displayName, issuer, clientID, []byte{0}, []byte{0},
-		mode, allowedDomains, requireVerifiedEmail, allowPrivateNetwork).Scan(&id); err != nil {
+		slug, displayName, mode, config, []byte{0}, []byte{0}).Scan(&id); err != nil {
 		return 0, fmt.Errorf("insert: %w", err)
 	}
 	sealed, err := fedoidc.SealProviderSecret(dek, []byte(clientSecret), id, 1)
@@ -6413,7 +6439,7 @@ func seedUpstreamIDP(dek []byte, slug, displayName, issuer, clientID, clientSecr
 		return 0, fmt.Errorf("EncryptClientSecret: %w", err)
 	}
 	if _, err := conn.Exec(ctx,
-		"UPDATE upstream_idp SET client_secret_enc=$1, secret_nonce=$2 WHERE id=$3",
+		"UPDATE upstream_idp SET secret_enc=$1, secret_nonce=$2 WHERE id=$3",
 		sealed.Ciphertext, sealed.Nonce, id); err != nil {
 		return 0, fmt.Errorf("update secret: %w", err)
 	}
