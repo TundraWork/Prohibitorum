@@ -15,6 +15,11 @@ import AdminUpstreamIdpsView from './AdminUpstreamIdpsView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminUpstreamIdpsView, { global: { plugins: [i18n()] }, attachTo: document.body })
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => { resolve = done })
+  return { promise, resolve }
+}
 const OIDC_CONFIG = {
   issuerUrl: 'https://okta/',
   clientId: 'c1',
@@ -134,6 +139,7 @@ describe('AdminUpstreamIdpsView', () => {
     expect(
       w.get('[data-test="vrchat-create-warning"]').get('[data-slot="alert-description"]').classes(),
     ).toContain('max-w-[75ch]')
+    expect(w.get('[data-test="vrchat-create-warning"]').attributes('role')).toBe('note')
     expect(w.find('input[name="issuerUrl"]').exists()).toBe(false)
     expect(w.find('input[name="clientId"]').exists()).toBe(false)
     expect(w.find('input[name="clientSecret"]').exists()).toBe(false)
@@ -156,6 +162,31 @@ describe('AdminUpstreamIdpsView', () => {
       config: {},
     })
     expect(push).toHaveBeenCalledWith('/admin/identity-providers/vrchat')
+  })
+  it('routes from the authoritative create response after the form changes', async () => {
+    get.mockResolvedValue([])
+    const response = deferred<unknown>()
+    post.mockReturnValue(response.promise)
+    const w = mountView()
+    await flushPromises()
+    await w.get('[data-test="create"]').trigger('click')
+    await w.get('[data-test="radio-card-vrchat"]').trigger('click')
+    await w.get('input[name="slug"]').setValue('requested-slug')
+    await w.get('input[name="displayName"]').setValue('Requested provider')
+    await w.get('[data-test="create-confirm"]').trigger('click')
+
+    await w.get('[data-test="radio-card-oidc"]').trigger('click')
+    await w.get('input[name="slug"]').setValue('mutated-slug')
+    response.resolve({
+      slug: 'returned-vrchat',
+      displayName: 'Returned VRChat',
+      protocol: 'vrchat',
+      mode: 'auto_provision',
+      config: {},
+    })
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/admin/identity-providers/returned-vrchat')
   })
   it('includes pictureClaim in create payload and renders the input', async () => {
     get.mockResolvedValue([])

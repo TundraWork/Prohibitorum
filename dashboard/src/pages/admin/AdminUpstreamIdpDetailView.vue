@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** AdminUpstreamIdpDetailView (/admin/identity-providers/:slug) — edit, rotate secret, delete. */
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -29,9 +29,9 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
-import type { IdentityProvider, OIDCProviderConfig } from './AdminUpstreamIdpsView.vue'
+import type { IdentityProvider, OIDCProviderConfig, ProviderMode, ProviderProtocol } from './AdminUpstreamIdpsView.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const { busy, error, run, clear } = useApi()
@@ -41,7 +41,7 @@ const idp = ref<IdentityProvider | null>(null)
 const notFound = ref(false)
 
 const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
-const mode = ref('auto_provision'); const scopes = ref<string[]>([]); const allowedDomains = ref<string[]>([])
+const mode = ref<ProviderMode>('auto_provision'); const scopes = ref<string[]>([]); const allowedDomains = ref<string[]>([])
 const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClaim = ref(''); const pictureClaim = ref('')
 const requireVerifiedEmail = ref(false); const disabled = ref(false); const allowPrivateNetwork = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
@@ -56,6 +56,52 @@ type OperatorMethod = 'totp' | 'emailOtp' | 'otp'
 type OperatorSessionResult =
   | { status: 'challenge'; challenge: string; methods: string[]; expiresAt: string }
   | { status: 'valid'; provider: IdentityProvider }
+const providerProtocols: readonly ProviderProtocol[] = ['oidc', 'steam', 'vrchat']
+const providerModes: readonly ProviderMode[] = ['auto_provision', 'invite_only', 'link_only']
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+function hasErrorCode(value: unknown, code: string): boolean {
+  return isRecord(value) && value.code === code
+}
+
+function isIdentityProvider(value: unknown): value is IdentityProvider {
+  if (!isRecord(value)) return false
+  return typeof value.slug === 'string'
+    && typeof value.displayName === 'string'
+    && providerProtocols.includes(value.protocol as ProviderProtocol)
+    && providerModes.includes(value.mode as ProviderMode)
+    && isRecord(value.config)
+    && typeof value.disabled === 'boolean'
+    && typeof value.secretConfigured === 'boolean'
+    && ['unconfigured', 'configured', 'valid', 'invalid'].includes(String(value.secretStatus))
+    && (typeof value.secretValidatedAt === 'string' || value.secretValidatedAt === null)
+    && typeof value.ready === 'boolean'
+    && typeof value.supportsOperator === 'boolean'
+    && Array.isArray(value.searchFields)
+    && typeof value.createdAt === 'string'
+}
+
+function parseOperatorSessionResult(value: unknown): OperatorSessionResult {
+  if (!isRecord(value)) throw { code: 'server_error' }
+  if (value.status === 'challenge'
+    && typeof value.challenge === 'string'
+    && Array.isArray(value.methods)
+    && value.methods.every((method) => typeof method === 'string')
+    && typeof value.expiresAt === 'string') {
+    return {
+      status: 'challenge',
+      challenge: value.challenge,
+      methods: value.methods,
+      expiresAt: value.expiresAt,
+    }
+  }
+  if (value.status === 'valid' && isIdentityProvider(value.provider) && value.provider.protocol === 'vrchat') {
+    return { status: 'valid', provider: value.provider }
+  }
+  throw { code: 'server_error' }
+}
 
 const supportedOperatorMethods: readonly OperatorMethod[] = ['totp', 'emailOtp', 'otp']
 const operatorUsername = ref('')
@@ -65,6 +111,35 @@ const operatorChallenge = ref<string | null>(null)
 const operatorMethods = ref<OperatorMethod[]>([])
 const operatorMethod = ref<OperatorMethod | ''>('')
 const operatorSetupActive = ref(false)
+const operatorUsernameInput = ref<{ $el: HTMLInputElement } | null>(null)
+const operatorCodeInput = ref<{ $el: HTMLInputElement } | null>(null)
+const operatorStatusRegion = ref<HTMLElement | null>(null)
+let operatorOperationGeneration = 0
+let active = true
+
+function beginOperatorOperation(): number {
+  operatorOperationGeneration += 1
+  return operatorOperationGeneration
+}
+
+function isOperatorOperationCurrent(generation: number): boolean {
+  return active && generation === operatorOperationGeneration
+}
+
+async function focusOperatorUsername(generation: number = operatorOperationGeneration): Promise<void> {
+  await nextTick()
+  if (isOperatorOperationCurrent(generation)) operatorUsernameInput.value?.$el.focus()
+}
+
+async function focusOperatorCode(generation: number): Promise<void> {
+  await nextTick()
+  if (isOperatorOperationCurrent(generation)) operatorCodeInput.value?.$el.focus()
+}
+
+async function focusOperatorStatus(generation: number): Promise<void> {
+  await nextTick()
+  if (isOperatorOperationCurrent(generation)) operatorStatusRegion.value?.focus()
+}
 
 const operatorMethodOptions = computed(() => operatorMethods.value.map((method) => ({
   value: method,
@@ -163,29 +238,20 @@ function clearOperatorChallenge(): void {
   operatorCode.value = ''
 }
 
-function acceptValidOperatorProvider(provider: IdentityProvider): void {
+function acceptValidOperatorProvider(provider: IdentityProvider, generation: number): void {
+  if (!isOperatorOperationCurrent(generation)) return
   idp.value = provider
   disabled.value = provider.disabled
   operatorUsername.value = ''
   operatorPassword.value = ''
   clearOperatorChallenge()
   operatorSetupActive.value = false
+  void focusOperatorStatus(generation)
 }
 
-async function startOperatorSession(): Promise<void> {
-  const result = await run(() => withSudo(() =>
-    api.post<OperatorSessionResult>(
-      `/api/prohibitorum/identity-providers/${slug}/operator-session/start`,
-      { username: operatorUsername.value, password: operatorPassword.value },
-    ),
-  t('sudo.reason.startOperatorSession')))
-  operatorPassword.value = ''
-  if (!result) return
+function acceptOperatorChallenge(result: Extract<OperatorSessionResult, { status: 'challenge' }>, generation: number): void {
+  if (!isOperatorOperationCurrent(generation)) return
   operatorUsername.value = ''
-  if (result.status === 'valid') {
-    acceptValidOperatorProvider(result.provider)
-    return
-  }
   operatorChallenge.value = result.challenge
   operatorMethods.value = [...new Set(result.methods.filter(
     (method): method is OperatorMethod =>
@@ -193,66 +259,138 @@ async function startOperatorSession(): Promise<void> {
   ))]
   operatorMethod.value = operatorMethods.value[0] ?? ''
   operatorCode.value = ''
+  void focusOperatorCode(generation)
 }
 
-async function verifyOperatorSession(): Promise<void> {
-  if (!operatorChallenge.value || !operatorMethod.value) return
-  const result = await run(() => withSudo(() =>
-    api.post<OperatorSessionResult>(
-      `/api/prohibitorum/identity-providers/${slug}/operator-session/verify`,
-      {
-        challenge: operatorChallenge.value,
-        method: operatorMethod.value,
-        code: operatorCode.value,
-      },
-    ),
-  t('sudo.reason.verifyOperatorSession')))
-  operatorCode.value = ''
-  if (!result) {
-    if (error.value?.code === 'vrchat_operator_challenge_invalid') {
-      clearOperatorChallenge()
-      operatorSetupActive.value = true
+function projectInvalidOperatorSession(generation: number): void {
+  if (!isOperatorOperationCurrent(generation)) return
+  if (idp.value) {
+    idp.value = {
+      ...idp.value,
+      secretConfigured: true,
+      secretStatus: 'invalid',
+      ready: false,
     }
-    return
   }
-  if (result.status === 'valid') acceptValidOperatorProvider(result.provider)
-}
-
-async function validateOperatorSession(): Promise<void> {
-  const result = await run(() => withSudo(() =>
-    api.post<OperatorSessionResult>(
-      `/api/prohibitorum/identity-providers/${slug}/operator-session/validate`,
-    ),
-  t('sudo.reason.validateOperatorSession')))
-  if (result?.status === 'valid') {
-    acceptValidOperatorProvider(result.provider)
-    return
-  }
-  if (error.value?.code !== 'vrchat_operator_credentials_invalid') return
-
-  const validationError = error.value
-  try {
-    const provider = await api.get<IdentityProvider>(
-      `/api/prohibitorum/identity-providers/${slug}`,
-    )
-    idp.value = provider
-    disabled.value = provider.disabled
-    operatorUsername.value = ''
-    operatorPassword.value = ''
-    clearOperatorChallenge()
-    operatorSetupActive.value = provider.secretStatus !== 'valid'
-  } catch {
-    // Keep the validation error visible if the follow-up status refresh fails.
-  }
-  error.value = validationError
-}
-
-function replaceOperatorSession(): void {
-  clear()
   operatorUsername.value = ''
   operatorPassword.value = ''
   clearOperatorChallenge()
   operatorSetupActive.value = true
+  void focusOperatorUsername(generation)
+}
+
+async function startOperatorSession(): Promise<void> {
+  const generation = beginOperatorOperation()
+  const credentials = {
+    username: operatorUsername.value,
+    password: operatorPassword.value,
+  }
+  try {
+    const result = await run(() => withSudo(async () => {
+      if (!isOperatorOperationCurrent(generation)) return undefined
+      const response = await api.post<unknown>(
+        `/api/prohibitorum/identity-providers/${slug}/operator-session/start`,
+        { username: credentials.username, password: credentials.password },
+      )
+      return parseOperatorSessionResult(response)
+    }, t('sudo.reason.startOperatorSession')))
+    if (!result || !isOperatorOperationCurrent(generation)) return
+    if (result.status === 'valid') {
+      acceptValidOperatorProvider(result.provider, generation)
+      return
+    }
+    acceptOperatorChallenge(result, generation)
+  } finally {
+    credentials.username = ''
+    credentials.password = ''
+    operatorPassword.value = ''
+  }
+}
+
+async function verifyOperatorSession(): Promise<void> {
+  if (!operatorChallenge.value || !operatorMethod.value) return
+  const generation = beginOperatorOperation()
+  const verification: { challenge: string; method: OperatorMethod | ''; code: string } = {
+    challenge: operatorChallenge.value,
+    method: operatorMethod.value,
+    code: operatorCode.value,
+  }
+  try {
+    const result = await run(() => withSudo(async () => {
+      if (!isOperatorOperationCurrent(generation)) return undefined
+      const response = await api.post<unknown>(
+        `/api/prohibitorum/identity-providers/${slug}/operator-session/verify`,
+        {
+          challenge: verification.challenge,
+          method: verification.method,
+          code: verification.code,
+        },
+      )
+      return parseOperatorSessionResult(response)
+    }, t('sudo.reason.verifyOperatorSession')))
+    if (!isOperatorOperationCurrent(generation)) return
+    if (!result) {
+      if (error.value?.code === 'vrchat_operator_challenge_invalid') {
+        clearOperatorChallenge()
+        operatorSetupActive.value = true
+        void focusOperatorUsername(generation)
+      }
+      return
+    }
+    if (result.status === 'valid') acceptValidOperatorProvider(result.provider, generation)
+    else acceptOperatorChallenge(result, generation)
+  } finally {
+    verification.challenge = ''
+    verification.method = ''
+    verification.code = ''
+    operatorCode.value = ''
+  }
+}
+
+async function validateOperatorSession(): Promise<void> {
+  const generation = beginOperatorOperation()
+  const result = await run(async () => {
+    try {
+      return await withSudo(async () => {
+        if (!isOperatorOperationCurrent(generation)) return undefined
+        const response = await api.post<unknown>(
+          `/api/prohibitorum/identity-providers/${slug}/operator-session/validate`,
+        )
+        return parseOperatorSessionResult(response)
+      }, t('sudo.reason.validateOperatorSession'))
+    } catch (validationError: unknown) {
+      if (isOperatorOperationCurrent(generation)
+        && hasErrorCode(validationError, 'vrchat_operator_credentials_invalid')) {
+        projectInvalidOperatorSession(generation)
+        try {
+          const provider = await api.get<IdentityProvider>(
+            `/api/prohibitorum/identity-providers/${slug}`,
+          )
+          if (isOperatorOperationCurrent(generation)) {
+            idp.value = provider
+            disabled.value = provider.disabled
+            operatorSetupActive.value = provider.secretStatus !== 'valid'
+          }
+        } catch {
+          // The projected invalid state remains authoritative for this failure.
+        }
+      }
+      throw validationError
+    }
+  })
+  if (!result || !isOperatorOperationCurrent(generation)) return
+  if (result.status === 'valid') acceptValidOperatorProvider(result.provider, generation)
+  else acceptOperatorChallenge(result, generation)
+}
+
+function replaceOperatorSession(): void {
+  clear()
+  const generation = beginOperatorOperation()
+  operatorUsername.value = ''
+  operatorPassword.value = ''
+  clearOperatorChallenge()
+  operatorSetupActive.value = true
+  void focusOperatorUsername(generation)
 }
 
 // Flip the disabled flag on its own (independent of the config Save), via the
@@ -273,6 +411,15 @@ async function destroy(): Promise<void> {
   confirmDelete.value = false
   if (ok) router.push('/admin/identity-providers')
 }
+
+onBeforeUnmount(() => {
+  active = false
+  operatorOperationGeneration += 1
+  operatorUsername.value = ''
+  operatorPassword.value = ''
+  operatorCode.value = ''
+  clearOperatorChallenge()
+})
 
 onMounted(load)
 </script>
@@ -377,7 +524,7 @@ onMounted(load)
       <Card v-if="isVRChat" data-test="operator-session-card">
         <CardHeader><CardTitle>{{ t('admin.upstream.operatorSessionTitle') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-5">
-          <div class="flex flex-col gap-1" role="status" aria-live="polite" data-test="operator-live-region">
+          <div ref="operatorStatusRegion" tabindex="-1" class="flex flex-col gap-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" role="status" aria-live="polite" data-test="operator-live-region">
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-sm font-medium text-ink">{{ t('admin.upstream.operatorStatusLabel') }}</span>
               <StatusBadge :variant="operatorStatusVariant" data-test="operator-status-badge">
@@ -387,17 +534,17 @@ onMounted(load)
             <p class="text-sm text-muted">{{ operatorProgress }}</p>
             <p class="text-xs text-muted" data-test="operator-last-validation">
               {{ t('admin.upstream.operatorLastValidation') }}:
-              {{ idp.secretValidatedAt ? formatDateTime(idp.secretValidatedAt) : t('admin.upstream.operatorLastValidationNever') }}
+              {{ idp.secretValidatedAt ? formatDateTime(idp.secretValidatedAt, locale) : t('admin.upstream.operatorLastValidationNever') }}
             </p>
           </div>
 
-          <Alert data-test="operator-risk-warning">
+          <Alert role="note" data-test="operator-risk-warning">
             <AlertDescription class="max-w-[75ch]">
               {{ t('admin.upstream.vrchatCreateWarning') }}
             </AlertDescription>
           </Alert>
 
-          <Alert data-test="operator-session-notice">
+          <Alert role="note" data-test="operator-session-notice">
             <AlertDescription class="max-w-[75ch]">{{ t('admin.upstream.operatorSessionNotice') }}</AlertDescription>
           </Alert>
 
@@ -410,6 +557,7 @@ onMounted(load)
             <div class="flex flex-col gap-1.5">
               <Label for="operatorUsername">{{ t('admin.upstream.operatorUsername') }}</Label>
               <Input
+                ref="operatorUsernameInput"
                 id="operatorUsername"
                 v-model="operatorUsername"
                 name="operatorUsername"
@@ -455,6 +603,7 @@ onMounted(load)
             <div class="flex flex-col gap-1.5">
               <Label for="operatorCode">{{ t('admin.upstream.operatorCode') }}</Label>
               <Input
+                ref="operatorCodeInput"
                 id="operatorCode"
                 v-model="operatorCode"
                 name="operatorCode"

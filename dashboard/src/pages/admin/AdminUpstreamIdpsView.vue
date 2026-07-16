@@ -48,11 +48,14 @@ export interface IdentitySearchField {
   operators: string[]
 }
 
+export type ProviderProtocol = 'oidc' | 'steam' | 'vrchat'
+export type ProviderMode = 'auto_provision' | 'invite_only' | 'link_only'
+
 export interface IdentityProvider {
   slug: string
   displayName: string
-  protocol: string
-  mode: 'auto_provision' | 'invite_only' | 'link_only'
+  protocol: ProviderProtocol
+  mode: ProviderMode
   config: Record<string, unknown>
   disabled: boolean
   secretConfigured: boolean
@@ -79,12 +82,12 @@ const createOpen = ref(false)
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
 const slug = ref(''); const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
-const clientSecret = ref(''); const mode = ref('auto_provision')
+const clientSecret = ref(''); const mode = ref<ProviderMode>('auto_provision')
 const scopes = ref<string[]>(['openid', 'profile', 'email'])
 const allowedDomains = ref<string[]>([])
 const usernameClaim = ref('preferred_username'); const displayNameClaim = ref('name'); const emailClaim = ref('email'); const pictureClaim = ref('picture')
 const requireVerifiedEmail = ref(false)
-const protocol = ref('oidc'); const apiKey = ref('')
+const protocol = ref<ProviderProtocol>('oidc'); const apiKey = ref('')
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
 
@@ -107,16 +110,18 @@ function openCreate(): void {
   requireVerifiedEmail.value = false; protocol.value = 'oidc'; apiKey.value = ''; createOpen.value = true
 }
 
-async function create(): Promise<void> {
-  const common = {
-    slug: slug.value,
-    displayName: displayName.value,
-    protocol: protocol.value,
-    mode: mode.value,
-  }
-  const body = protocol.value === 'oidc'
-    ? {
+type CreateProviderRequest =
+  | { slug: string; displayName: string; protocol: 'oidc'; mode: ProviderMode; config: OIDCProviderConfig; secret: string }
+  | { slug: string; displayName: string; protocol: 'steam'; mode: ProviderMode; config: Record<string, never>; secret: string }
+  | { slug: string; displayName: string; protocol: 'vrchat'; mode: ProviderMode; config: Record<string, never> }
+
+function buildCreateRequest(selected: ProviderProtocol): CreateProviderRequest {
+  const common = { slug: slug.value, displayName: displayName.value, mode: mode.value }
+  switch (selected) {
+    case 'oidc':
+      return {
         ...common,
+        protocol: selected,
         config: {
           issuerUrl: issuerUrl.value,
           clientId: clientId.value,
@@ -128,19 +133,25 @@ async function create(): Promise<void> {
           pictureClaim: pictureClaim.value,
           requireVerifiedEmail: requireVerifiedEmail.value,
           allowPrivateNetwork: false,
-        } satisfies OIDCProviderConfig,
+        },
         secret: clientSecret.value,
       }
-    : protocol.value === 'steam'
-      ? { ...common, config: {}, secret: apiKey.value }
-      : { ...common, config: {} }
+    case 'steam':
+      return { ...common, protocol: selected, config: {}, secret: apiKey.value }
+    case 'vrchat':
+      return { ...common, protocol: selected, config: {} }
+  }
+}
+
+async function create(): Promise<void> {
+  const body = buildCreateRequest(protocol.value)
   const res = await run(() => withSudo(() =>
     api.post<IdentityProvider>('/api/prohibitorum/identity-providers', body),
   ))
   if (!res) return
   createOpen.value = false
-  if (protocol.value === 'vrchat') {
-    await router.push(`/admin/identity-providers/${slug.value}`)
+  if (res.protocol === 'vrchat') {
+    await router.push(`/admin/identity-providers/${res.slug}`)
     return
   }
   triggerCreated()
@@ -178,7 +189,7 @@ async function create(): Promise<void> {
               {value:'steam',title:t('admin.upstream.protocolSteam'),description:t('admin.upstream.protocolSteamDesc')},
               {value:'vrchat',title:t('admin.upstream.protocolVrchat'),description:t('admin.upstream.protocolVrchatDesc')}]" />
           </div>
-          <Alert v-if="protocol === 'vrchat'" data-test="vrchat-create-warning">
+          <Alert v-if="protocol === 'vrchat'" role="note" data-test="vrchat-create-warning">
             <AlertDescription class="max-w-[75ch]">{{ t('admin.upstream.vrchatCreateWarning') }}</AlertDescription>
           </Alert>
           <template v-if="protocol === 'oidc'">

@@ -1031,8 +1031,8 @@ export default {
       vrchat_operator_credentials_invalid: '操作员凭据被拒绝。请检查后重试。',
       vrchat_operator_challenge_invalid: '验证挑战已过期。请重新启动操作员会话。',
       vrchat_operator_code_invalid: '验证码被拒绝。请尝试另一个验证码。',
-      upstream_rate_limited: 'VRChat 正在限制请求。请稍等片刻后重试。',
-      upstream_temporarily_unavailable: 'VRChat 暂时不可用。请稍后重试。',
+      upstream_rate_limited: '上游服务正在限制请求。请稍后重试。',
+      upstream_temporarily_unavailable: '上游服务暂时不可用。请稍后重试。',
 
       // 系统
       maintenance_mode: '系统正在维护中，请稍后再试。',

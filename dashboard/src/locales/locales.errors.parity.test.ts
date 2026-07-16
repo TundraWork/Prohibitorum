@@ -61,13 +61,13 @@ describe('VRChat operator errors match the canonical manifest and public copy', 
     },
     upstream_rate_limited: {
       recovery: 'retry',
-      en: 'VRChat is limiting requests. Wait a moment, then try again.',
-      zh: 'VRChat 正在限制请求。请稍等片刻后重试。',
+      en: 'The upstream service is limiting requests. Wait, then try again.',
+      zh: '上游服务正在限制请求。请稍后重试。',
     },
     upstream_temporarily_unavailable: {
       recovery: 'retry',
-      en: 'VRChat is temporarily unavailable. Try again in a moment.',
-      zh: 'VRChat 暂时不可用。请稍后重试。',
+      en: 'The upstream service is temporarily unavailable. Try again soon.',
+      zh: '上游服务暂时不可用。请稍后重试。',
     },
   } as const
 

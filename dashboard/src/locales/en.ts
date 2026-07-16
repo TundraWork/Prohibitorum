@@ -1038,8 +1038,8 @@ export default {
       vrchat_operator_credentials_invalid: 'Those operator credentials were rejected. Check them and try again.',
       vrchat_operator_challenge_invalid: 'That verification challenge expired. Start the operator session again.',
       vrchat_operator_code_invalid: 'That verification code was rejected. Try another code.',
-      upstream_rate_limited: 'VRChat is limiting requests. Wait a moment, then try again.',
-      upstream_temporarily_unavailable: 'VRChat is temporarily unavailable. Try again in a moment.',
+      upstream_rate_limited: 'The upstream service is limiting requests. Wait, then try again.',
+      upstream_temporarily_unavailable: 'The upstream service is temporarily unavailable. Try again soon.',
 
       // System
       maintenance_mode: 'The system is under maintenance. Please try again later.',

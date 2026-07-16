@@ -22,9 +22,9 @@ export function relativeTime(iso: string | null | undefined, now: number = Date.
   return `${Math.floor(d / 365)}y ago`
 }
 
-export function formatDateTime(iso: string | null | undefined): string {
+export function formatDateTime(iso: string | null | undefined, locale?: Intl.LocalesArgument): string {
   if (!iso) return '—'
   const t = Date.parse(iso)
   if (Number.isNaN(t)) return '—'
-  return new Date(t).toLocaleString()
+  return new Date(t).toLocaleString(locale)
 }
