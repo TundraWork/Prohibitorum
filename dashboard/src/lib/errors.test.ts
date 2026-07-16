@@ -17,6 +17,7 @@ import {
   ALL_RECOVERY_HINTS,
   EXPECTED_REGISTRY_CODE_COUNT,
   GLOBAL_ERROR_CODES,
+  codeDefinition,
 } from './errorCodes'
 
 describe('ApiError contract', () => {
@@ -232,6 +233,20 @@ describe('error code manifest integrity', () => {
       { code: 'vrchat_operator_code_invalid', details: [], recovery: 'retry' },
       { code: 'vrchat_operator_credentials_invalid', details: [], recovery: '' },
     ])
+  })
+
+  it('includes Task 8 federation flow recovery metadata in lookup and manifest', () => {
+    const expected = [
+      { code: 'federation_action_invalid', details: [], recovery: 'retry' },
+      { code: 'federation_identity_conflict', details: [], recovery: '' },
+      { code: 'local_username_required', details: [], recovery: 'fix_input' },
+      { code: 'vrchat_identity_invalid', details: [], recovery: 'fix_input' },
+      { code: 'vrchat_proof_missing', details: [], recovery: 'retry' },
+    ] as const
+    expect(REGISTRY_CODES.filter((definition) => expected.some(({ code }) => code === definition.code))).toEqual(expected)
+    for (const definition of expected) {
+      expect(codeDefinition(definition.code)).toEqual(definition)
+    }
   })
 
   it('all codes are unique', () => {

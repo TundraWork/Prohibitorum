@@ -533,6 +533,7 @@ func vrchatFailureCategory(err error) string {
 		case FailureStateInvalid,
 			FailureBrowserBindingMismatch,
 			FailureProviderUnavailable,
+			FailureActionInvalid,
 			FailureIssuerMismatch,
 			FailureTokenEndpointDrift,
 			FailureCodeExchange,

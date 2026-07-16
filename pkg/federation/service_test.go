@@ -366,6 +366,31 @@ func TestVRChatProofFailureAuditCoversResolverAndRestoreFailures(t *testing.T) {
 	}
 }
 
+func TestVRChatProofWrongLocalActionAuditCategory(t *testing.T) {
+	service, request, writer, _ := newVRChatFailureAuditHarness(t, nil)
+	request.CallbackRoute = CallbackRouteLocal
+	request.ProviderSlug = ""
+	request.Protocol = ""
+	request.Input.Kind = ActionCollectIdentity
+	if _, err := service.VerifyFlow(context.Background(), request); authn.AsAuthError(err).Code != "federation_action_invalid" {
+		t.Fatalf("error = %v", err)
+	}
+	if len(writer.records) != 1 {
+		t.Fatalf("audit records = %#v", writer.records)
+	}
+	record := writer.records[0]
+	if record.Event != "vrchat_proof_failed" || len(record.Detail) != 3 ||
+		record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" ||
+		record.Detail["category"] != "action_invalid" {
+		t.Fatalf("audit record = %#v", record)
+	}
+	for _, forbidden := range []string{"proof_token", "proofUrl", "profileUrl", "adapter_state"} {
+		if _, exists := record.Detail[forbidden]; exists {
+			t.Fatalf("audit detail leaked %q: %#v", forbidden, record.Detail)
+		}
+	}
+}
+
 func TestServiceBeginStoresExactBindings(t *testing.T) {
 	tests := []struct {
 		name       string

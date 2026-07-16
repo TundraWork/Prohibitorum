@@ -50,6 +50,8 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'enrollment_expired', details: [], recovery: '' },
   { code: 'enrollment_federation_required', details: [], recovery: '' },
   { code: 'factor_locked', details: ['retryAfterSeconds'], recovery: 'retry' },
+  { code: 'federation_action_invalid', details: [], recovery: 'retry' },
+  { code: 'federation_identity_conflict', details: [], recovery: '' },
   { code: 'federation_state_invalid', details: [], recovery: 'retry' },
   { code: 'group_not_found', details: [], recovery: '' },
   { code: 'group_slug_conflict', details: [], recovery: '' },
@@ -66,6 +68,7 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'last_passkey', details: [], recovery: '' },
   { code: 'last_sign_in_method', details: [], recovery: '' },
   { code: 'link_required', details: [], recovery: '' },
+  { code: 'local_username_required', details: [], recovery: 'fix_input' },
   { code: 'login_account_not_found', details: [], recovery: '' },
   { code: 'login_failed', details: [], recovery: 'retry' },
   { code: 'login_verification_failed', details: [], recovery: '' },
@@ -100,9 +103,11 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'username_immutable', details: [], recovery: '' },
   { code: 'username_taken', details: [], recovery: '' },
   { code: 'validation_failed', details: ['location', 'reason'], recovery: 'fix_input' },
+  { code: 'vrchat_identity_invalid', details: [], recovery: 'fix_input' },
   { code: 'vrchat_operator_challenge_invalid', details: [], recovery: '' },
   { code: 'vrchat_operator_code_invalid', details: [], recovery: 'retry' },
   { code: 'vrchat_operator_credentials_invalid', details: [], recovery: '' },
+  { code: 'vrchat_proof_missing', details: [], recovery: 'retry' },
   { code: 'would_remove_last_factor', details: [], recovery: '' },
 ] as const
 
@@ -166,7 +171,7 @@ export function codeDefinition(code: string): ErrorCodeDef | undefined {
  *
  * Derived from: go test ./pkg/weberr → AllDefinitions() count.
  */
-export const EXPECTED_REGISTRY_CODE_COUNT = 75
+export const EXPECTED_REGISTRY_CODE_COUNT = 80
 /**
  * Error codes owned by a GLOBAL handler — a redirect (no_session →
  * sessionExpiry), a full-screen redirect (maintenance_mode), or a connection
