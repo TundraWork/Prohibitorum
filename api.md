@@ -83,16 +83,38 @@ A coarse per-app access gate on top of the "RP enforces policy" model. An app wi
 
 ---
 
-## Identity providers (upstream OIDC federation)
+## Identity providers (upstream OIDC, Steam, and VRChat)
 
 | Method | Path | Gate | Notes |
 |--------|------|------|-------|
-| GET | `/api/prohibitorum/identity-providers` | 🔓 | List all upstream IdPs. Client secret **never** returned (enforced at the contract level). |
-| GET | `/api/prohibitorum/identity-providers/{slug}` | 🔓 | Get one upstream IdP by slug. Same no-secret guarantee. |
-| POST | `/api/prohibitorum/identity-providers` | 🔐 | Create an upstream IdP including its client secret. Secret is AES-GCM sealed after insert; AAD binds to the row `id`. **Known caveat:** a crash between insert and seal leaves a row with a placeholder secret that decrypts to a failure (fails closed; best-effort cleanup). |
-| PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔐 | Update mutable IdP config. Explicitly **excludes** the client secret — use rotate-secret to change it. |
-| POST | `/api/prohibitorum/identity-providers/rotate-secret` | 🔐 | Body: `{"slug": "...", "newSecret": "..."}`. Re-seals the client secret under the active DEK version. |
-| POST | `/api/prohibitorum/identity-providers/delete` | 🔐 | Body: `{"slug": "..."}`. Hard-deletes the upstream IdP row and all `account_identity` rows linked to it. |
+| GET | `/api/prohibitorum/identity-providers` | 🔓 | List providers with protocol, readiness, secret status, operator support, and searchable fields. Sealed secrets are never returned. |
+| GET | `/api/prohibitorum/identity-providers/{slug}` | 🔓 | Get one provider. Same no-secret guarantee. |
+| POST | `/api/prohibitorum/identity-providers` | 🔐 | Create a provider with `protocol` (`oidc`, `steam`, or `vrchat`), mode, provider-specific `config`, and optional `secret`. Sealed material is AES-GCM protected with row-bound AAD. |
+| PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔐 | Replace mutable display name, mode, and provider-specific config. Does not replace sealed material. |
+| POST | `/api/prohibitorum/identity-providers/rotate-secret` | 🔐 | Replace and seal OIDC/Steam secret material. |
+| POST | `/api/prohibitorum/identity-providers/set-disabled` | 🔓 | Reversibly hide a provider from sign-in and block all new flows. |
+| POST | `/api/prohibitorum/identity-providers/delete` | 🔐 | Hard-delete a provider and its linked `account_identity` rows. |
+| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/start` | 🔐 | VRChat only. Transient Basic-auth login; returns a bounded 2FA challenge when required. Credentials are not retained. |
+| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/verify` | 🔐 | VRChat only. Verify the challenge with an allowlisted 2FA method/code, seal the resulting cookie jar, and mark the provider ready. |
+| POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/validate` | 🔐 | VRChat only. Validate the sealed operator session without accepting credentials. |
+
+Public federation flows retain the protocol-neutral login/callback entry
+points. Local adapters such as VRChat use the browser-bound flow API:
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/api/prohibitorum/auth/federation` | List enabled, ready sign-in providers. |
+| GET | `/api/prohibitorum/auth/federation/{slug}/login` | Begin login; redirects externally for OIDC/Steam or to the local flow UI for VRChat. |
+| GET | `/api/prohibitorum/auth/federation/{slug}/callback` | Complete external OIDC/Steam callbacks. |
+| GET | `/api/prohibitorum/auth/federation/flows/{flow}` | Project the browser-bound local step. |
+| POST | `/api/prohibitorum/auth/federation/flows/{flow}/prepare` | Submit the local identity/username step and obtain a fresh VRChat proof instruction. |
+| POST | `/api/prohibitorum/auth/federation/flows/{flow}/verify` | Verify profile ownership and complete or advance the flow. |
+| GET | `/verify/vrchat/{proof}` | Public, one-time ownership-proof explanation page; no account action occurs on visit. |
+
+`GET /api/prohibitorum/accounts` accepts debounced unified `search` plus
+advanced `provider`, `field`, `value`, and `match`
+(`exact`/`prefix`/`contains`) query parameters. Provider descriptors constrain
+valid fields/operators, and filtering occurs before cursor pagination.
 
 ---
 

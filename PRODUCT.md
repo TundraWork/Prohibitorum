@@ -24,12 +24,12 @@ user wants to minimize.
 ## Product Purpose
 
 Prohibitorum is a homegrown, single-tenant identity provider for small orgs.
-It owns the account directory, authenticates users via one of four upstream
-methods (WebAuthn, Password + TOTP, upstream OIDC federation), and issues
-sessions plus OIDC/SAML assertions to downstream apps. The UI's job is to
-make three things effortless and trustworthy: signing in, granting consent,
-and self-managing credentials, with a role-gated admin layer for directory
-management on top.
+It owns the account directory, authenticates users with WebAuthn,
+Password + TOTP/recovery codes, or upstream OIDC, Steam, and VRChat
+federation, and issues sessions plus OIDC/SAML assertions to downstream apps.
+The UI's job is to make three things effortless and trustworthy: signing in,
+granting consent, and self-managing credentials, with a role-gated admin layer
+for directory management on top.
 
 Success looks like: a member completes a passkey login or enrollment without
 hesitation and without reading instructions; an admin issues an invitation

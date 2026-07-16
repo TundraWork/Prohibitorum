@@ -86,6 +86,24 @@
 | `PROHIBITORUM_PASSWORD_HASH_ITERATIONS` | `3` | argon2id time cost. |
 | `PROHIBITORUM_PASSWORD_HASH_PARALLELISM` | `1` | argon2id lanes. |
 
+## VRChat upstream provider
+
+VRChat does not offer public OAuth/OIDC. Configure a `vrchat` identity
+provider in **Admin → Identity Providers**, then use **Operator session** with
+a dedicated VRChat verification account. The setup wizard sends that
+account's credentials and 2FA code directly to VRChat and discards them; only
+the resulting cookie jar is retained, encrypted under the active data
+encryption key. Do not use a personal or privileged VRChat account.
+
+The integration is unofficial and may carry account or moderation risk under
+VRChat's API-usage guidelines. Production requests are fixed to
+`https://api.vrchat.cloud/api/1`, identify Prohibitorum through `User-Agent`,
+reuse the operator session, honor shared `429` backoff, and invalidate
+readiness on upstream `401`/`403`. Each member sign-in requires a fresh exact
+Prohibitorum proof URL in the member's VRChat `bioLinks`; the member should
+remove it after verification. Prohibitorum stores the verified VRChat user ID,
+display name, and canonical profile URL, not member credentials.
+
 ## Deployment hardening
 
 The KV store backs session lookups, single-use auth codes, federation state, PKCE verifiers, and enrollment tokens. Session secrets are stored hashed (`session:<id>:<SHA-256(token)>`, never the raw cookie token), but flow secrets live in the KV — in any non-loopback deployment Redis **must be network-isolated and reached over an authenticated, encrypted channel**:

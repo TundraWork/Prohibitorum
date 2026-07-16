@@ -1,8 +1,8 @@
 # Status — capabilities by version
 
-Prohibitorum is a standalone identity provider: four upstream authentication
-methods (WebAuthn, password+TOTP, recovery codes, upstream OIDC federation) and
-two downstream protocols (OIDC OP, SAML 2.0 IdP), with a self-service + admin
+Prohibitorum is a standalone identity provider with WebAuthn,
+password+TOTP/recovery codes, upstream OIDC, Steam, and VRChat sign-in, plus
+two downstream protocols (OIDC OP and SAML 2.0 IdP) and a self-service + admin
 dashboard. This file is the changelog of capabilities each version delivers,
 followed by the roadmap.
 
@@ -277,10 +277,38 @@ discovery `scopes_supported`.
 
 - End-user app launchpad is out of scope; the authorization predicate is the query it will reuse.
 
+## v0.8 — provider plugins + VRChat federation
+
+Federation now runs through one protocol-neutral state machine with OIDC,
+Steam OpenID 2.0, and VRChat adapters. Login, explicit linking, invite
+redemption, confirmation, session issuance, and identity persistence share
+the same policy path.
+
+- VRChat uses an admin-established, encrypted operator cookie session. The
+  setup wizard accepts the dedicated operator account's credentials and 2FA
+  code transiently; neither is retained. Validation, expiry, upstream 401/403
+  invalidation, shared `429` backoff, and explicit disabled/readiness states
+  fail closed.
+- Every member ceremony creates a fresh, browser-bound, single-use proof URL.
+  The member places that exact URL in VRChat `bioLinks`; the adapter reads the
+  canonical public profile and accepts only the exact requested `usr_…`
+  subject. The UI instructs the member to remove the link after verification.
+- `auto_provision`, `invite_only`, and `link_only` apply unchanged. Verified
+  VRChat identity metadata stores only `userId`, `displayName`, and canonical
+  `profileUrl`; no VRChat password, 2FA code, operator cookie, or proof token
+  is exposed in account data, API errors, audits, diagnostics, or logs.
+- `account_identity.upstream_data` is provider-allowlisted JSON. Admin account
+  lookup supports debounced unified search plus provider/field
+  exact/prefix/contains filters before pagination. OIDC, Steam, and VRChat
+  descriptors declare their searchable fields.
+- Migrations `031_provider_plugins_and_identity_data.sql` and
+  `032_account_identity_filtering.sql` add protocol/config/readiness storage,
+  per-identity metadata, and indexed server-side filtering.
+
 ## Roadmap
 
-The full IdP shipped through v0.7. What remains is optional production hardening, a
-compliance gap, and demand-driven features. None are scheduled.
+The full IdP shipped through v0.8. What remains is optional production
+hardening, a compliance gap, and demand-driven features. None are scheduled.
 
 - Planned: HSM/KMS-backed signing (AWS KMS / GCP KMS / Vault Transit, so the key never leaves the vault) to defend a combined DB + environment compromise. Keys are DEK-sealed at rest today.
 - Planned: password breach-list check (NIST SP 800-63B-4 §5.1.1.2; HIBP k-anonymity or a static blocklist) for the password fallback.

@@ -1,18 +1,18 @@
 # Prohibitorum — Architecture
 
-A single-tenant identity provider for a small org. Owns the account directory, authenticates users via one of four upstream methods (WebAuthn, Password, TOTP, upstream OIDC federation), and issues identity assertions to downstream apps via OIDC OP or SAML 2.0 IdP.
+A single-tenant identity provider for a small org. It owns the account directory, authenticates users through local factors (WebAuthn or password+TOTP/recovery codes) and admin-configured upstream providers (OIDC, Steam, or VRChat), then issues identity assertions to downstream apps via OIDC OP or SAML 2.0 IdP.
 
 ## What this is (and isn't)
 
 **Is:**
-- A single-tenant IdP for a small org. Owns the account directory, runs WebAuthn / password+TOTP ceremonies, can federate identity from upstream OIDC providers, and issues sessions plus protocol responses.
+- A single-tenant IdP for a small org. Owns the account directory, runs WebAuthn / password+TOTP ceremonies, federates identity through OIDC, Steam, and VRChat providers, and issues sessions plus protocol responses.
 - A first-party service. No email channel; admin-issued enrollment is the only account-recovery path.
 - The source of truth for "who is this user, are they disabled, what attributes do we know about them?"
 
 **Is not:**
 - A multi-tenant SaaS IdP (no per-tenant separation).
-- A SAML SP — Prohibitorum does **not** consume upstream SAML assertions; only OIDC federation goes upstream.
-- A social-login proxy in the consumer sense; "Sign in with Google" works only if an admin has registered Google as an upstream IdP and configured a provisioning mode.
+- A SAML SP — Prohibitorum does **not** consume upstream SAML assertions. Its upstream provider adapters are OIDC, Steam OpenID 2.0, and VRChat profile proof.
+- A self-service social-login proxy. Every upstream provider is registered by an admin with an explicit provisioning mode.
 - An authorization policy engine (no OPA/Rego). A free-form `attributes` map per account flows into ID-token claims and SAML AttributeStatement; RPs enforce policy from those claims. The RBAC feature adds a *coarse per-app access gate* — whether a user may obtain a token/assertion for an app at all — but the RP still governs in-app policy from claims (including the `groups` claim). The two layers are distinct: IdP gates app access; RP gates in-app policy.
 
 ## Architecture — three-layer
@@ -34,7 +34,7 @@ The `session` package is the contract between layers (2) and (3). Protocols don'
                       │   pkg/credential/{webauthn,      │
                       │     password, totp, pairing,     │
                       │     enrollment}                  │
-                      │   pkg/federation/oidc            │
+                      │   pkg/federation/{providers/...} │
                       │                                  │
                       │  Authentication subsystem        │
                       │   pkg/authn         pkg/session  │
@@ -62,9 +62,12 @@ pkg/
     totp/                 # RFC 6238 + recovery codes; AES-GCM at-rest
     pairing/              # device-pairing code (no bearer-token in URL)
     enrollment/           # invite/reset/add-device/bootstrap tokens
-  federation/
-    oidc/                 # upstream OIDC RP
-  session/                # PG + KV-backed session, middleware
+  federation/             # protocol-neutral flow, resolver, secrets, registry
+    providers/
+      oidc/                # upstream OIDC RP
+      steam/               # Steam OpenID 2.0 + Web API
+      vrchat/              # operator session + exact profile proof
+  session/                 # PG + KV-backed session, middleware
   authn/                  # login orchestrator + sudo + rate limit + middleware
   protocol/
     oidc/                 # downstream OIDC OP
@@ -77,7 +80,8 @@ pkg/
 
 ## Authentication methods
 
-The four upstream methods, in preference order.
+Local factors are preferred. Upstream providers share the same federation
+policy and persistence path.
 
 ### WebAuthn (primary)
 
@@ -93,17 +97,51 @@ For users without passkey-capable devices. Both factors required; neither alone 
 - **TOTP.** AES-256-GCM at rest with versioned DEK (`PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>`); AAD = `'totp:'||account_id||':'||key_version` so ciphertext can't be copied between rows. Per RFC 6238: ±1 period drift, `totp_credential.last_step` defeats same-step replay (§5.2). SHA1 default for Google Authenticator interop.
 - **Recovery codes.** 10 codes shown once at TOTP enrollment; argon2id PHC at rest; single-use; redemption context (session, IP) captured for audit (`recovery_code.used_session_id`, `used_ip`).
 
-### Upstream OIDC federation
+### Upstream federation
 
-Per-IdP configuration in `upstream_idp` with three provisioning modes:
+The protocol-neutral core owns browser binding, single-use flow state,
+provisioning modes, first-login confirmation, account resolution, identity
+metadata persistence, and session inputs. Provider adapters own only their
+external protocol and return one bounded verified-identity value.
 
-- **auto_provision** — create a local account on first sign-in if the upstream `email` claim domain is in `allowed_domains` (or `allowed_domains` is empty). Link `(upstream_iss, upstream_sub)` to the new account.
-- **invite_only** — look up a pending enrollment whose `expected_upstream_idp_slug` matches this IdP. No matching invite → 403.
-- **link_only** — never auto-create. User must already have an account and a pre-existing link → 403 otherwise, with a hint to sign in via another method then link from `/me`.
+All providers use the same three modes:
 
-Upstream client secrets are AES-256-GCM encrypted at rest with the same versioned DEK scheme and a different AAD prefix (`'upstream_idp:'||id||':'||key_version`). `account_identity` is keyed on `(upstream_iss, upstream_sub)` per OIDC Core §2 — admin re-pointing an IdP's `issuer_url` cannot collide sub spaces.
+- **auto_provision** — create a local account on first verified sign-in. OIDC
+  additionally enforces its verified-email/domain policy; VRChat asks the user
+  to choose the local username.
+- **invite_only** — consume an admin-issued enrollment whose expected provider
+  slug matches the flow.
+- **link_only** — never create an account; an unknown identity must first be
+  linked from an authenticated local account.
 
-Federation state in KV at request time snapshots `expected_iss` and `expected_token_endpoint` from the discovery doc; mid-flight admin edits to `upstream_idp` cannot break mix-up resistance (RFC 9700 §4.4.2.1).
+Provider sealed material uses AES-256-GCM with versioned data-encryption keys
+and row-bound AAD. `account_identity` is uniquely keyed by provider plus stable
+subject and stores only adapter-allowlisted `upstream_data`. Descriptor-declared
+fields drive server-side admin identity filtering before pagination.
+
+#### OIDC
+
+Discovery, PKCE, nonce, issuer/audience/signature validation, and token exchange
+remain inside the OIDC adapter. Flow state snapshots the expected issuer and
+token endpoint, so a mid-flight provider edit cannot defeat RFC 9700 mix-up
+resistance.
+
+#### Steam
+
+Steam uses OpenID 2.0 assertion verification followed by a bounded player
+summary request authenticated with the sealed Steam Web API key. Its stable
+subject is SteamID64.
+
+#### VRChat
+
+Because VRChat has no public OAuth/OIDC support, an admin establishes a
+dedicated operator account session. Credentials and 2FA codes are transient;
+only the encrypted, reusable cookie jar is retained. Each user ceremony issues
+a fresh browser-bound proof URL, requires that exact URL in the requested
+VRChat profile's `bioLinks`, and verifies that VRChat returned the exact
+requested `usr_…` subject. Stored metadata is limited to user ID, display name,
+and canonical profile URL. Shared provider backoff honors `429`/`Retry-After`;
+upstream `401`/`403` invalidates operator readiness.
 
 ## Downstream protocols
 
@@ -285,7 +323,9 @@ SAML IdP flow:
 - **Cross-account ciphertext swap.** AES-GCM AAD binds ciphertext to its row identity — copying ciphertext between rows fails decryption.
 - **DEK compromise / rotation.** Versioned key set; row `key_version` selects decryptor. Rotation: deploy `_V2`, re-encrypt rows on next touch, retire `_V1` once `MAX(key_version)` reaches 2.
 - **Federated IdP impersonation.** Strict issuer + audience + nonce validation on upstream ID token. Per-IdP client secret AES-GCM encrypted. `expected_iss` + `expected_token_endpoint` snapshotted into KV state at request time (RFC 9700 §4.4.2.1 mix-up resistance). `account_identity` keyed `(iss, sub)` per OIDC Core §2.
-- **JIT account squatting.** `auto_provision` mode gated by `allowed_domains` against the email claim. Username collisions with existing unlinked accounts → reject; admin intervention required.
+- **VRChat operator-session theft or drift.** The cookie jar is allowlisted, bounded, encrypted with provider-row AAD, and never serialized to public/admin views, audit detail, diagnostics, or logs. Upstream `401`/`403` snapshot-invalidates the stored session and fails closed until an admin repeats setup.
+- **VRChat profile substitution or proof replay.** Flow state is browser-bound and single-use; the adapter requests one canonical `usr_…` ID, rejects a different returned subject, and accepts only the exact fresh proof URL in `bioLinks`.
+- **JIT account squatting.** OIDC `auto_provision` enforces its configured verified-email/domain policy; VRChat first proves the exact stable subject before accepting a user-selected local username. Every adapter re-checks username collisions and refuses to attach an existing unlinked account.
 - **Authorization-code replay.** Codes kept (marked `consumed_at`) until TTL; replay revokes the refresh-token family and audit-logs the attempt.
 - **Access-token revocation despite stateless JWT.** Every access token mints a `jti`; revocation writes `revoked_jti`. Self-validating resource servers check `jti` against the revocation cache; introspecting RSs get `active: false`.
 - **WebAuthn authenticator cloning.** Sign-count regression stamps `clone_warning_at`; admin UI surfaces.
@@ -303,7 +343,7 @@ See `AUDIT.md` for the per-layer compliance matrix and `STATUS.md` for delivery 
 - Multi-tenancy
 - Self-service account recovery (admin-issued enrollment is the only path; no email/SMS channel of any kind)
 - SAML SP (consuming upstream SAML)
-- Social-login UX as a consumer feature (only admin-configured upstream OIDC IdPs)
+- Self-service upstream-provider registration; only admin-configured OIDC, Steam, and VRChat providers are supported
 - Dynamic OIDC client registration (RFC 7591)
 - Consent screen (first-party deployment assumption)
 - DPoP / PAR / JAR / mTLS / Pairwise sub
