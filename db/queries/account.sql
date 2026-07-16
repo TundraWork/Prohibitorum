@@ -55,11 +55,13 @@ SELECT
         (
           sqlc.narg('q')::text IS NOT NULL
           AND (
-            ai.upstream_sub ILIKE '%' || sqlc.narg('q')::text || '%'
-            OR COALESCE(ai.upstream_email, '') ILIKE '%' || sqlc.narg('q')::text || '%'
-            OR COALESCE(ai.upstream_data->>'personaName', '') ILIKE '%' || sqlc.narg('q')::text || '%'
-            OR COALESCE(ai.upstream_data->>'displayName', '') ILIKE '%' || sqlc.narg('q')::text || '%'
-            OR COALESCE(ai.upstream_data->>'profileUrl', '') ILIKE '%' || sqlc.narg('q')::text || '%'
+            (
+              ai.upstream_sub || E'\n' ||
+              COALESCE(ai.upstream_email, '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'personaName', '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'displayName', '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'profileUrl', '')
+            ) ILIKE '%' || sqlc.narg('q')::text || '%'
           )
         )
         OR (

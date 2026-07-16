@@ -23,6 +23,12 @@ import (
 
 const providerConfigLimit = 8 * 1024
 
+const providerSlugTrimCutset = " \t\n\r\v\f"
+
+func normalizeProviderSlug(value string) string {
+	return strings.ToLower(strings.Trim(value, providerSlugTrimCutset))
+}
+
 type providerWriteBody struct {
 	Slug        string          `json:"slug,omitempty"`
 	DisplayName string          `json:"displayName"`
@@ -119,7 +125,7 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 
 	protocol := body.Protocol
 	if creating {
-		if body.Slug == "" || body.Slug != strings.TrimSpace(body.Slug) || body.Slug != strings.ToLower(body.Slug) || protocol == "" {
+		if body.Slug == "" || body.Slug != normalizeProviderSlug(body.Slug) || protocol == "" {
 			return nil, authn.ErrBadRequest()
 		}
 	} else {

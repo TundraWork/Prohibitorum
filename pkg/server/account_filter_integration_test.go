@@ -152,6 +152,7 @@ func TestListAccountsIdentityFiltersPostgres(t *testing.T) {
 	assertRows("local q", db.ListAccountsParams{Q: text(prefix + " LocalOnly"), Limit: 10}, []expectedRow{{"alice", nil}})
 	assertRows("subject q", db.ListAccountsParams{Q: text(prefix + "_USR_BOB"), Limit: 10}, []expectedRow{{"bob", []int64{identityIDs["bob-vrchat"]}}})
 	assertRows("email q", db.ListAccountsParams{Q: text(prefix + "@VRCHAT.EXAMPLE"), Limit: 10}, []expectedRow{{"bob", []int64{identityIDs["bob-vrchat"]}}})
+	assertRows("cross-field identity q", db.ListAccountsParams{Q: text(prefix + "_usr_bob\n" + prefix + "@vrchat"), Limit: 10}, []expectedRow{{"bob", []int64{identityIDs["bob-vrchat"]}}})
 	assertRows("Steam persona q", db.ListAccountsParams{Q: text(prefix + " GABEN"), Limit: 10}, []expectedRow{{"carol", []int64{identityIDs["carol-steam"]}}})
 	assertRows("VRChat display q", db.ListAccountsParams{Q: text(prefix + " ALICE WORLD"), Limit: 10}, []expectedRow{{"carol", []int64{identityIDs["carol-vrchat"]}}})
 
@@ -322,18 +323,30 @@ func TestAccountFilterSchemaPostgres(t *testing.T) {
 		}
 	}
 
-	_, err = tx.Exec(ctx, `
-		INSERT INTO upstream_idp (
-			slug, display_name, protocol, mode, provider_config, secret_status,
-			secret_enc, secret_nonce, key_version, disabled
-		)
-		VALUES (' whitespace-slug ', 'Whitespace slug', 'vrchat', 'auto_provision',
-			'{}'::jsonb, 'unconfigured', NULL, NULL, NULL, false)`)
-	if err == nil {
-		t.Fatal("whitespace provider slug was accepted")
-	}
-	var constraintErr *pgconn.PgError
-	if !errors.As(err, &constraintErr) || constraintErr.ConstraintName != "upstream_idp_slug_lowercase_check" {
-		t.Fatalf("slug rejection = %v, want upstream_idp_slug_lowercase_check", err)
+	for _, invalidSlug := range []string{"", "\twhitespace-slug\t"} {
+		if _, err := tx.Exec(ctx, "SAVEPOINT invalid_slug"); err != nil {
+			t.Fatal(err)
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO upstream_idp (
+				slug, display_name, protocol, mode, provider_config, secret_status,
+				secret_enc, secret_nonce, key_version, disabled
+			)
+			VALUES ($1, 'Invalid slug', 'vrchat', 'auto_provision',
+				'{}'::jsonb, 'unconfigured', NULL, NULL, NULL, false)`, invalidSlug)
+		if err == nil {
+			t.Errorf("invalid provider slug %q was accepted", invalidSlug)
+		} else {
+			var constraintErr *pgconn.PgError
+			if !errors.As(err, &constraintErr) || constraintErr.ConstraintName != "upstream_idp_slug_lowercase_check" {
+				t.Errorf("slug %q rejection = %v, want upstream_idp_slug_lowercase_check", invalidSlug, err)
+			}
+		}
+		if _, rollbackErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT invalid_slug"); rollbackErr != nil {
+			t.Fatal(rollbackErr)
+		}
+		if _, releaseErr := tx.Exec(ctx, "RELEASE SAVEPOINT invalid_slug"); releaseErr != nil {
+			t.Fatal(releaseErr)
+		}
 	}
 }

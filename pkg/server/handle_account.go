@@ -157,7 +157,7 @@ type listAccountsOut struct {
 
 func (s *Server) handleListAccounts(ctx context.Context, in *listAccountsIn) (*listAccountsOut, error) {
 	query := strings.TrimSpace(in.Q)
-	provider := strings.ToLower(strings.TrimSpace(in.Provider))
+	provider := normalizeProviderSlug(in.Provider)
 	field := strings.TrimSpace(in.Field)
 	value := strings.TrimSpace(in.Value)
 	match := strings.ToLower(strings.TrimSpace(in.Match))

@@ -66,7 +66,7 @@ func TestAccountIdentityFilteringMigrationPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const legacySlug = " VRChat-Main "
+	const legacySlug = "\tVRChat-Main\t"
 	const legacySource = "upstream:" + legacySlug
 	var accountID int32
 	if err := conn.QueryRowContext(ctx, `
@@ -137,9 +137,9 @@ func TestAccountIdentityFilteringMigrationPostgres(t *testing.T) {
 			slug, display_name, protocol, mode, provider_config, secret_status,
 			secret_enc, secret_nonce, key_version, disabled
 		)
-		VALUES (' invalid ', 'Invalid', 'vrchat', 'auto_provision', '{}'::jsonb,
+		VALUES (E'\tinvalid\t', 'Invalid', 'vrchat', 'auto_provision', '{}'::jsonb,
 			'unconfigured', NULL, NULL, NULL, false)`); err == nil {
-		t.Fatal("whitespace provider slug was accepted after migration")
+		t.Fatal("ASCII-whitespace provider slug was accepted after migration")
 	}
 
 	if err := goose.DownTo(conn, ".", 31); err != nil {

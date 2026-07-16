@@ -320,11 +320,13 @@ SELECT
         (
           $2::text IS NOT NULL
           AND (
-            ai.upstream_sub ILIKE '%' || $2::text || '%'
-            OR COALESCE(ai.upstream_email, '') ILIKE '%' || $2::text || '%'
-            OR COALESCE(ai.upstream_data->>'personaName', '') ILIKE '%' || $2::text || '%'
-            OR COALESCE(ai.upstream_data->>'displayName', '') ILIKE '%' || $2::text || '%'
-            OR COALESCE(ai.upstream_data->>'profileUrl', '') ILIKE '%' || $2::text || '%'
+            (
+              ai.upstream_sub || E'\n' ||
+              COALESCE(ai.upstream_email, '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'personaName', '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'displayName', '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'profileUrl', '')
+            ) ILIKE '%' || $2::text || '%'
           )
         )
         OR (

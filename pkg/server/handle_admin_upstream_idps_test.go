@@ -118,6 +118,16 @@ func TestIdentityProviderViewUnconfiguredSecretIsNullable(t *testing.T) {
 	}
 }
 
+func TestNormalizeProviderSlugUsesDatabaseCutset(t *testing.T) {
+	t.Parallel()
+	if got := normalizeProviderSlug("\tVRChat-Main\r\n"); got != "vrchat-main" {
+		t.Fatalf("ASCII whitespace normalization = %q, want vrchat-main", got)
+	}
+	if got := normalizeProviderSlug("\u2003VRChat\u2003"); got != "\u2003vrchat\u2003" {
+		t.Fatalf("non-ASCII normalization = %q, want preserved edge characters", got)
+	}
+}
+
 func TestValidateProviderWrite(t *testing.T) {
 	t.Parallel()
 	s := newProviderAdminTestServer(t)
