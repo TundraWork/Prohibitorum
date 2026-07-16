@@ -263,13 +263,17 @@ const diagFields = computed(() => {
         </div>
 
         <!-- Request ID + copy -->
-        <div v-if="showRequestId" class="flex items-center gap-1">
-          <span class="font-medium">{{ t('errors.requestId') }}:</span>
-          <code class="font-mono">{{ error?.requestId }}</code>
+        <div
+          v-if="showRequestId"
+          data-test="error-request-id-row"
+          class="flex min-w-0 flex-wrap items-center gap-x-1"
+        >
+          <span class="shrink-0 font-medium">{{ t('errors.requestId') }}:</span>
+          <code data-test="error-request-id" class="min-w-0 flex-1 break-all font-mono">{{ error?.requestId }}</code>
           <button
             type="button"
             data-test="error-copy-request-id"
-            class="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :aria-label="t('errors.copyRequestId')"
             @click="copyRequestId"
           >

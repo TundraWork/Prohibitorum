@@ -123,6 +123,12 @@ describe('ErrorPanel — persistence', () => {
     await w.get('[data-test="error-details-trigger"]').trigger('click')
     await nextTick()
     expect(w.get('[data-test="error-copy-request-id"]').classes()).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+    expect(w.get('[data-test="error-request-id-row"]').classes()).toEqual(
+      expect.arrayContaining(['min-w-0', 'flex-wrap']),
+    )
+    expect(w.get('[data-test="error-request-id"]').classes()).toEqual(
+      expect.arrayContaining(['min-w-0', 'break-all']),
+    )
   })
 })
 

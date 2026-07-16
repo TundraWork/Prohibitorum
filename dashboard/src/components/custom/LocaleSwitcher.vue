@@ -39,7 +39,13 @@ const options = computed(() =>
       <SelectValue />
     </SelectTrigger>
     <SelectContent align="start">
-      <SelectItem v-for="opt in options" :key="opt.value" :value="opt.value">
+      <SelectItem
+        v-for="opt in options"
+        :key="opt.value"
+        :value="opt.value"
+        :class="props.largeTarget ? 'min-h-11' : undefined"
+        data-test="locale-option"
+      >
         {{ opt.label }}
       </SelectItem>
     </SelectContent>

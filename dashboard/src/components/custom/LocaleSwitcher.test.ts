@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import LocaleSwitcher from './LocaleSwitcher.vue'
 import { Select } from '@/components/ui/select'
@@ -51,7 +51,7 @@ describe('LocaleSwitcher', () => {
     expect(wrapper.find('[data-test="locale-trigger"]').attributes('aria-label')).toBe('Language')
   })
 
-  it('can expose a 44px trigger on keyboard-first threshold pages', () => {
+  it('can expose 44px trigger and menu-item targets on keyboard-first threshold pages', async () => {
     const i18n = makeI18n()
     const wrapper = mount(LocaleSwitcher, {
       props: { largeTarget: true },
@@ -59,5 +59,18 @@ describe('LocaleSwitcher', () => {
     })
 
     expect(wrapper.get('[data-test="locale-trigger"]').classes()).toContain('h-11')
+
+    const trigger = wrapper.get('[data-test="locale-trigger"]')
+    Object.assign(trigger.element, {
+      hasPointerCapture: () => false,
+      setPointerCapture: () => {},
+      releasePointerCapture: () => {},
+    })
+    await trigger.trigger('pointerdown', { button: 0, ctrlKey: false, pointerId: 1, pointerType: 'mouse' })
+    await flushPromises()
+    const options = Array.from(document.body.querySelectorAll('[data-test="locale-option"]'))
+    expect(options).toHaveLength(2)
+    expect(options.every((option) => option.classList.contains('min-h-11'))).toBe(true)
+    wrapper.unmount()
   })
 })
