@@ -100,7 +100,7 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'username_immutable', details: [], recovery: '' },
   { code: 'username_taken', details: [], recovery: '' },
   { code: 'validation_failed', details: ['location', 'reason'], recovery: 'fix_input' },
-  { code: 'vrchat_operator_challenge_invalid', details: [], recovery: 'restart' },
+  { code: 'vrchat_operator_challenge_invalid', details: [], recovery: '' },
   { code: 'vrchat_operator_code_invalid', details: [], recovery: 'retry' },
   { code: 'vrchat_operator_credentials_invalid', details: [], recovery: '' },
   { code: 'would_remove_last_factor', details: [], recovery: '' },
@@ -142,7 +142,6 @@ export const ALL_DETAIL_KEYS: readonly string[] = [
 /** Every recovery hint referenced by any code (for locale recovery-label parity). */
 export const ALL_RECOVERY_HINTS: readonly string[] = [
   'retry',
-  'restart',
   'reauth',
   'reduce_payload',
   'fix_content_type',

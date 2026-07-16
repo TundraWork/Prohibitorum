@@ -228,7 +228,7 @@ describe('error code manifest integrity', () => {
     ].includes(definition.code))).toEqual([
       { code: 'upstream_rate_limited', details: [], recovery: 'retry' },
       { code: 'upstream_temporarily_unavailable', details: [], recovery: 'retry' },
-      { code: 'vrchat_operator_challenge_invalid', details: [], recovery: 'restart' },
+      { code: 'vrchat_operator_challenge_invalid', details: [], recovery: '' },
       { code: 'vrchat_operator_code_invalid', details: [], recovery: 'retry' },
       { code: 'vrchat_operator_credentials_invalid', details: [], recovery: '' },
     ])

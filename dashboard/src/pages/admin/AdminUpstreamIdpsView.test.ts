@@ -131,6 +131,9 @@ describe('AdminUpstreamIdpsView', () => {
     await flushPromises()
 
     expect(w.text()).toContain(en.admin.upstream.vrchatCreateWarning)
+    expect(
+      w.get('[data-test="vrchat-create-warning"]').get('[data-slot="alert-description"]').classes(),
+    ).toContain('max-w-[75ch]')
     expect(w.find('input[name="issuerUrl"]').exists()).toBe(false)
     expect(w.find('input[name="clientId"]').exists()).toBe(false)
     expect(w.find('input[name="clientSecret"]').exists()).toBe(false)

@@ -179,7 +179,7 @@ async function create(): Promise<void> {
               {value:'vrchat',title:t('admin.upstream.protocolVrchat'),description:t('admin.upstream.protocolVrchatDesc')}]" />
           </div>
           <Alert v-if="protocol === 'vrchat'" data-test="vrchat-create-warning">
-            <AlertDescription>{{ t('admin.upstream.vrchatCreateWarning') }}</AlertDescription>
+            <AlertDescription class="max-w-[75ch]">{{ t('admin.upstream.vrchatCreateWarning') }}</AlertDescription>
           </Alert>
           <template v-if="protocol === 'oidc'">
             <div class="flex flex-col gap-1.5">

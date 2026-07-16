@@ -1069,7 +1069,6 @@ export default {
 
     recovery: {
       retry: '重试',
-      restart: '重新开始',
       reauth: '重新认证',
       reduce_payload: '减小大小',
       fix_content_type: '更改格式',

@@ -50,7 +50,7 @@ describe('VRChat operator errors match the canonical manifest and public copy', 
       zh: '操作员凭据被拒绝。请检查后重试。',
     },
     vrchat_operator_challenge_invalid: {
-      recovery: 'restart',
+      recovery: '',
       en: 'That verification challenge expired. Start the operator session again.',
       zh: '验证挑战已过期。请重新启动操作员会话。',
     },
