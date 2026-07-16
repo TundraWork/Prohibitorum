@@ -520,6 +520,8 @@ func vrchatFailureCategory(err error) string {
 	if authErr := authn.AsAuthError(err); authErr != nil {
 		switch authErr.Code {
 		case "username_collision",
+			"invalid_username",
+			"bad_credentials",
 			"invite_required",
 			"link_required",
 			"email_not_verified",
@@ -532,7 +534,11 @@ func vrchatFailureCategory(err error) string {
 			return authErr.Code
 		}
 	}
-	return "database_unavailable"
+	var databaseErr interface{ SQLState() string }
+	if errors.As(err, &databaseErr) && databaseErr.SQLState() != "" {
+		return "database_unavailable"
+	}
+	return "resolution_failed"
 }
 
 func (s *Service) recordVRChatTransition(ctx context.Context, event string, state *FlowState, providerSlug, category string) {

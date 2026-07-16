@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/kv"
@@ -314,7 +315,10 @@ func TestVRChatProofFailureAuditCoversResolverAndRestoreFailures(t *testing.T) {
 	}{
 		{name: "local username required", resolverErr: ErrLocalUsernameRequired, wantCategory: "local_username_required"},
 		{name: "username collision", resolverErr: authn.ErrUsernameCollision(), wantCategory: "username_collision"},
-		{name: "rolled back database error", resolverErr: errors.New("database unavailable"), wantCategory: "database_unavailable"},
+		{name: "invalid local username", resolverErr: authn.ErrInvalidUsername(), wantCategory: "invalid_username"},
+		{name: "disabled known account", resolverErr: authn.ErrBadCredentials(), wantCategory: "bad_credentials"},
+		{name: "unclassified resolution error", resolverErr: errors.New("resolver unavailable"), wantCategory: "resolution_failed"},
+		{name: "database error", resolverErr: &pgconn.PgError{Code: "08006"}, wantCategory: "database_unavailable"},
 		{name: "allowlisted flow failure once", resolverErr: NewFailure(FailureVRChatProofMissing, nil), wantCategory: "vrchat_proof_missing"},
 		{name: "restore failure", resolverErr: ErrLocalUsernameRequired, failRestore: true, wantCategory: "kv_unavailable"},
 	}
