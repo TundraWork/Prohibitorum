@@ -127,6 +127,52 @@ func (q *Queries) InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPPa
 	return i, err
 }
 
+const invalidateVRChatOperatorSecret = `-- name: InvalidateVRChatOperatorSecret :one
+UPDATE upstream_idp SET secret_status = 'invalid'
+WHERE id = $1
+  AND slug = $2
+  AND protocol = 'vrchat'
+  AND secret_enc = $3
+  AND secret_nonce = $4
+  AND key_version = $5
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+`
+
+type InvalidateVRChatOperatorSecretParams struct {
+	ID                  int64       `json:"id"`
+	Slug                string      `json:"slug"`
+	ExpectedSecretEnc   []byte      `json:"expectedSecretEnc"`
+	ExpectedSecretNonce []byte      `json:"expectedSecretNonce"`
+	ExpectedKeyVersion  pgtype.Int4 `json:"expectedKeyVersion"`
+}
+
+func (q *Queries) InvalidateVRChatOperatorSecret(ctx context.Context, arg InvalidateVRChatOperatorSecretParams) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, invalidateVRChatOperatorSecret,
+		arg.ID,
+		arg.Slug,
+		arg.ExpectedSecretEnc,
+		arg.ExpectedSecretNonce,
+		arg.ExpectedKeyVersion,
+	)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.SecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Mode,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.Protocol,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
+	)
+	return i, err
+}
+
 const listAllUpstreamIDPs = `-- name: ListAllUpstreamIDPs :many
 SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp
 WHERE ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2::int8))
@@ -210,6 +256,65 @@ func (q *Queries) ListUpstreamIDPs(ctx context.Context) ([]UpstreamIdp, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const refreshVRChatOperatorSecret = `-- name: RefreshVRChatOperatorSecret :one
+UPDATE upstream_idp SET
+  secret_enc = $1,
+  secret_nonce = $2,
+  key_version = $3,
+  secret_status = 'valid',
+  secret_validated_at = $4
+WHERE id = $5
+  AND slug = $6
+  AND protocol = 'vrchat'
+  AND secret_enc = $7
+  AND secret_nonce = $8
+  AND key_version = $9
+RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
+`
+
+type RefreshVRChatOperatorSecretParams struct {
+	NewSecretEnc        []byte             `json:"newSecretEnc"`
+	NewSecretNonce      []byte             `json:"newSecretNonce"`
+	NewKeyVersion       pgtype.Int4        `json:"newKeyVersion"`
+	SecretValidatedAt   pgtype.Timestamptz `json:"secretValidatedAt"`
+	ID                  int64              `json:"id"`
+	Slug                string             `json:"slug"`
+	ExpectedSecretEnc   []byte             `json:"expectedSecretEnc"`
+	ExpectedSecretNonce []byte             `json:"expectedSecretNonce"`
+	ExpectedKeyVersion  pgtype.Int4        `json:"expectedKeyVersion"`
+}
+
+func (q *Queries) RefreshVRChatOperatorSecret(ctx context.Context, arg RefreshVRChatOperatorSecretParams) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, refreshVRChatOperatorSecret,
+		arg.NewSecretEnc,
+		arg.NewSecretNonce,
+		arg.NewKeyVersion,
+		arg.SecretValidatedAt,
+		arg.ID,
+		arg.Slug,
+		arg.ExpectedSecretEnc,
+		arg.ExpectedSecretNonce,
+		arg.ExpectedKeyVersion,
+	)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.SecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Mode,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.Protocol,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
+	)
+	return i, err
 }
 
 const setUpstreamIDPDisabled = `-- name: SetUpstreamIDPDisabled :one
@@ -341,41 +446,6 @@ func (q *Queries) UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstrea
 		arg.SecretStatus,
 		arg.SecretValidatedAt,
 	)
-	var i UpstreamIdp
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.DisplayName,
-		&i.SecretEnc,
-		&i.SecretNonce,
-		&i.KeyVersion,
-		&i.Mode,
-		&i.Disabled,
-		&i.CreatedAt,
-		&i.Protocol,
-		&i.ProviderConfig,
-		&i.SecretStatus,
-		&i.SecretValidatedAt,
-	)
-	return i, err
-}
-
-const updateVRChatOperatorHealth = `-- name: UpdateVRChatOperatorHealth :one
-UPDATE upstream_idp SET secret_status = $1
-WHERE id = $2
-  AND slug = $3
-  AND protocol = 'vrchat'
-RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
-`
-
-type UpdateVRChatOperatorHealthParams struct {
-	SecretStatus string `json:"secretStatus"`
-	ID           int64  `json:"id"`
-	Slug         string `json:"slug"`
-}
-
-func (q *Queries) UpdateVRChatOperatorHealth(ctx context.Context, arg UpdateVRChatOperatorHealthParams) (UpstreamIdp, error) {
-	row := q.db.QueryRow(ctx, updateVRChatOperatorHealth, arg.SecretStatus, arg.ID, arg.Slug)
 	var i UpstreamIdp
 	err := row.Scan(
 		&i.ID,

@@ -1,6 +1,7 @@
 package vrchat
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,7 +30,7 @@ type operatorFakeClient struct {
 	currentCookies                       []http.Cookie
 	currentErr                           error
 	verifyErr                            error
-	currentHook                          func()
+	currentHook, verifyHook              func()
 	authCalls, currentCalls, verifyCalls int
 	lastMethod, lastCode                 string
 }
@@ -54,6 +55,9 @@ func (f *operatorFakeClient) VerifyTwoFactor(_ context.Context, method, code str
 	defer f.mu.Unlock()
 	f.verifyCalls++
 	f.lastMethod, f.lastCode = method, code
+	if f.verifyHook != nil {
+		f.verifyHook()
+	}
 	return cloneOperatorCookies(cookies), f.verifyErr
 }
 func (f *operatorFakeClient) EncodeCookies(c []http.Cookie) ([]byte, error) { return encodeCookies(c) }
@@ -74,6 +78,8 @@ type operatorFakeQueries struct {
 }
 
 func (q *operatorFakeQueries) GetUpstreamIDPBySlugAny(context.Context, string) (db.UpstreamIdp, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	if q.getErr != nil {
 		return db.UpstreamIdp{}, q.getErr
 	}
@@ -93,17 +99,37 @@ func (q *operatorFakeQueries) UpdateVRChatOperatorSecret(_ context.Context, p db
 	q.row.SecretStatus, q.row.SecretValidatedAt = "valid", p.SecretValidatedAt
 	return q.row, nil
 }
-func (q *operatorFakeQueries) UpdateVRChatOperatorHealth(_ context.Context, p db.UpdateVRChatOperatorHealthParams) (db.UpstreamIdp, error) {
+func (q *operatorFakeQueries) RefreshVRChatOperatorSecret(_ context.Context, p db.RefreshVRChatOperatorSecretParams) (db.UpstreamIdp, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.secretErr != nil {
+		return db.UpstreamIdp{}, q.secretErr
+	}
+	if q.row.ID != p.ID || q.row.Slug != p.Slug || q.row.Protocol != "vrchat" ||
+		!bytes.Equal(q.row.SecretEnc, p.ExpectedSecretEnc) ||
+		!bytes.Equal(q.row.SecretNonce, p.ExpectedSecretNonce) ||
+		q.row.KeyVersion != p.ExpectedKeyVersion {
+		return db.UpstreamIdp{}, pgx.ErrNoRows
+	}
+	q.secretUpdates++
+	q.row.SecretEnc, q.row.SecretNonce, q.row.KeyVersion = append([]byte(nil), p.NewSecretEnc...), append([]byte(nil), p.NewSecretNonce...), p.NewKeyVersion
+	q.row.SecretStatus, q.row.SecretValidatedAt = "valid", p.SecretValidatedAt
+	return q.row, nil
+}
+func (q *operatorFakeQueries) InvalidateVRChatOperatorSecret(_ context.Context, p db.InvalidateVRChatOperatorSecretParams) (db.UpstreamIdp, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.healthUpdates++
 	if q.healthErr != nil {
 		return db.UpstreamIdp{}, q.healthErr
 	}
-	if q.row.ID != p.ID || q.row.Slug != p.Slug || q.row.Protocol != "vrchat" {
+	if q.row.ID != p.ID || q.row.Slug != p.Slug || q.row.Protocol != "vrchat" ||
+		!bytes.Equal(q.row.SecretEnc, p.ExpectedSecretEnc) ||
+		!bytes.Equal(q.row.SecretNonce, p.ExpectedSecretNonce) ||
+		q.row.KeyVersion != p.ExpectedKeyVersion {
 		return db.UpstreamIdp{}, pgx.ErrNoRows
 	}
-	q.row.SecretStatus = p.SecretStatus
+	q.row.SecretStatus = "invalid"
 	return q.row, nil
 }
 
@@ -149,6 +175,24 @@ func (s *restoreFailKV) CompareAndSwap(ctx context.Context, key, oldValue, newVa
 	}
 	if s.calls == failAt {
 		return false, errors.New("kv unavailable")
+	}
+	return s.Store.CompareAndSwap(ctx, key, oldValue, newValue, ttl)
+}
+
+type canceledContextKV struct {
+	kv.Store
+	calls              int
+	allowCanceledUntil int
+	recoveryTTL        time.Duration
+}
+
+func (s *canceledContextKV) CompareAndSwap(ctx context.Context, key, oldValue, newValue string, ttl time.Duration) (bool, error) {
+	s.calls++
+	if s.calls > s.allowCanceledUntil {
+		s.recoveryTTL = ttl
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
 	}
 	return s.Store.CompareAndSwap(ctx, key, oldValue, newValue, ttl)
 }
@@ -205,8 +249,12 @@ func TestOperatorStartStoresSealedChallengeForEverySupportedMethod(t *testing.T)
 			if state.AccountID != 7 || state.SessionID != "session-a" || state.ProviderID != 42 || state.ProviderSlug != "social" || state.Protocol != "vrchat" {
 				t.Fatalf("bindings=%+v", state)
 			}
-			if _, err := federation.NewSecretStore(map[int][]byte{3: make([]byte, 32)}).OpenTemporary(state.Secret, 42, result.Challenge); err != nil {
+			secrets := federation.NewSecretStore(map[int][]byte{3: make([]byte, 32)})
+			if _, err := secrets.OpenTemporary(state.Secret, 42, result.Challenge); err != nil {
 				t.Fatalf("temporary AAD: %v", err)
+			}
+			if _, err := secrets.OpenTemporary(state.Secret, 43, result.Challenge); err == nil {
+				t.Fatal("temporary secret opened with wrong provider ID")
 			}
 		})
 	}
@@ -381,6 +429,67 @@ func TestOperatorVerifyDatabaseFailureRestoreFailureIsKVUnavailable(t *testing.T
 	}
 }
 
+func TestOperatorVerifyWrongCodeRecoverySurvivesCanceledRequest(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &operatorFakeClient{
+		authUser:    CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies: []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+		verifyErr:   &VerificationError{},
+		verifyHook:  cancel,
+	}
+	q := &operatorFakeQueries{row: operatorProvider()}
+	service, store := operatorService(t, client, q, now)
+	start, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recoveryKV := &canceledContextKV{Store: store, allowCanceledUntil: 1}
+	service.kv = recoveryKV
+	_, err = service.Verify(ctx, "social", 7, "session-a", start.Challenge, "totp", "wrong")
+	if OperatorErrorCategory(err) != OperatorCategoryCodeInvalid {
+		t.Fatalf("category=%q", OperatorErrorCategory(err))
+	}
+	if recoveryKV.recoveryTTL <= 0 || recoveryKV.recoveryTTL > operatorChallengeTTL {
+		t.Fatalf("recovery TTL=%v", recoveryKV.recoveryTTL)
+	}
+	raw, err := store.Get(context.Background(), operatorChallengeKey(start.Challenge))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := decodeOperatorChallenge(raw)
+	if err != nil || state.State != "ready" {
+		t.Fatalf("state=%+v err=%v", state, err)
+	}
+}
+
+func TestOperatorVerifyDatabaseRecoverySurvivesCanceledRequest(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &operatorFakeClient{
+		authUser:       CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies:    []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+		currentUser:    CurrentUser{ID: testUserID, DisplayName: "Operator"},
+		currentCookies: []http.Cookie{operatorCookie("auth", "final", now.Add(24*time.Hour))},
+		currentHook:    cancel,
+	}
+	q := &operatorFakeQueries{row: operatorProvider(), secretErr: errors.New("database unavailable")}
+	service, store := operatorService(t, client, q, now)
+	start, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recoveryKV := &canceledContextKV{Store: store, allowCanceledUntil: 2}
+	service.kv = recoveryKV
+	_, err = service.Verify(ctx, "social", 7, "session-a", start.Challenge, "totp", "code")
+	if OperatorErrorCategory(err) != OperatorCategoryDatabaseUnavailable {
+		t.Fatalf("category=%q", OperatorErrorCategory(err))
+	}
+	if recoveryKV.recoveryTTL <= 0 || recoveryKV.recoveryTTL > operatorChallengeTTL {
+		t.Fatalf("recovery TTL=%v", recoveryKV.recoveryTTL)
+	}
+}
+
 func TestOperatorVerifyRequiresFullAuthenticatedCurrentUser(t *testing.T) {
 	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 	client := &operatorFakeClient{
@@ -493,7 +602,7 @@ func TestOperatorVerifyRejectsBindingExpiryAADAndConcurrentUse(t *testing.T) {
 			t.Fatalf("err=%v calls=%d", err, c.verifyCalls)
 		}
 	})
-	t.Run("aad", func(t *testing.T) {
+	t.Run("provider-id-metadata-mismatch", func(t *testing.T) {
 		svc, c, _, r := newChallenge(t)
 		raw, _ := svc.kv.Get(context.Background(), operatorChallengeKey(r.Challenge))
 		state, _ := decodeOperatorChallenge(raw)
@@ -578,6 +687,42 @@ func TestOperatorValidateRefreshInvalidationAndTransientErrors(t *testing.T) {
 		got, e := s.Validate(context.Background(), "social")
 		if e != nil || got.Status != OperatorStatusValid || q.secretUpdates != 1 {
 			t.Fatalf("got=%+v err=%v updates=%d", got, e, q.secretUpdates)
+		}
+	})
+	t.Run("stale-success-does-not-overwrite-replacement", func(t *testing.T) {
+		s, c, q := makeValid(t)
+		replacementValidatedAt := now.Add(time.Minute)
+		c.currentUser = CurrentUser{ID: testUserID, DisplayName: "Operator"}
+		c.currentCookies = []http.Cookie{operatorCookie("auth", "stale-refresh", now.Add(24*time.Hour))}
+		c.currentHook = func() {
+			q.row.SecretEnc = []byte{9}
+			q.row.SecretNonce = []byte{8}
+			q.row.KeyVersion = pgtype.Int4{Int32: 4, Valid: true}
+			q.row.SecretStatus = "valid"
+			q.row.SecretValidatedAt = pgtype.Timestamptz{Time: replacementValidatedAt, Valid: true}
+		}
+		result, err := s.Validate(context.Background(), "social")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Provider == nil || !bytes.Equal(q.row.SecretEnc, []byte{9}) || q.row.KeyVersion.Int32 != 4 || !q.row.SecretValidatedAt.Time.Equal(replacementValidatedAt) {
+			t.Fatalf("stale validation overwrote replacement: result=%+v row=%+v", result, q.row)
+		}
+	})
+	t.Run("stale-unauthorized-does-not-invalidate-replacement", func(t *testing.T) {
+		s, c, q := makeValid(t)
+		replacementValidatedAt := now.Add(time.Minute)
+		c.currentErr = &HTTPError{Status: http.StatusUnauthorized, Category: "authentication"}
+		c.currentHook = func() {
+			q.row.SecretEnc = []byte{9}
+			q.row.SecretNonce = []byte{8}
+			q.row.KeyVersion = pgtype.Int4{Int32: 4, Valid: true}
+			q.row.SecretStatus = "valid"
+			q.row.SecretValidatedAt = pgtype.Timestamptz{Time: replacementValidatedAt, Valid: true}
+		}
+		_, err := s.Validate(context.Background(), "social")
+		if OperatorErrorCategory(err) != OperatorCategoryCredentialsInvalid || !bytes.Equal(q.row.SecretEnc, []byte{9}) || q.row.SecretStatus != "valid" || !q.row.SecretValidatedAt.Time.Equal(replacementValidatedAt) {
+			t.Fatalf("stale unauthorized invalidated replacement: err=%v row=%+v", err, q.row)
 		}
 	})
 	t.Run("challenge-shaped-current-user", func(t *testing.T) {

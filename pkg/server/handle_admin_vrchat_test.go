@@ -202,6 +202,9 @@ func TestVRChatOperatorAuditLifecycle(t *testing.T) {
 	}{{"challenge", (*Server).handleVRChatOperatorStartHTTP, `{"username":"u","password":"p"}`, vrchat.OperatorSessionResult{Status: "challenge", Challenge: "c", Methods: []string{"totp"}, ExpiresAt: new(time.Now().Add(time.Minute))}, nil, []string{"vrchat_operator_setup_started", "vrchat_operator_challenge_issued"}}, {"verify success", (*Server).handleVRChatOperatorVerifyHTTP, `{"challenge":"c","method":"totp","code":"x"}`, vrchat.OperatorSessionResult{Status: "valid", Provider: &row}, nil, []string{"vrchat_operator_setup_started", "vrchat_operator_session_validated"}}, {"validate invalid", (*Server).handleVRChatOperatorValidateHTTP, "", vrchat.OperatorSessionResult{}, &vrchat.OperatorError{Category: vrchat.OperatorCategoryCredentialsInvalid}, []string{"vrchat_operator_setup_started", "vrchat_operator_session_invalidated"}}}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if op, ok := tc.err.(*vrchat.OperatorError); ok && tc.name == "validate invalid" {
+				op.SessionInvalidated = true
+			}
 			fake := &fakeVRChatOperatorService{result: tc.result, err: tc.err}
 			s, capture := vrchatHandlerServer(t, fake)
 			w := httptest.NewRecorder()
@@ -215,6 +218,16 @@ func TestVRChatOperatorAuditLifecycle(t *testing.T) {
 			}
 			assertVRChatAuditAllowlist(t, capture.records)
 		})
+	}
+}
+
+func TestVRChatOperatorAuditDoesNotInvalidateReplacementSession(t *testing.T) {
+	fake := &fakeVRChatOperatorService{err: &vrchat.OperatorError{Category: vrchat.OperatorCategoryCredentialsInvalid}}
+	s, capture := vrchatHandlerServer(t, fake)
+	w := httptest.NewRecorder()
+	s.handleVRChatOperatorValidateHTTP(w, vrchatAdminRequest(t, http.MethodPost, "/api/prohibitorum/identity-providers/social/operator-session/validate", ""))
+	if len(capture.records) != 1 || capture.records[0].Event != "vrchat_operator_setup_started" {
+		t.Fatalf("events=%+v", capture.records)
 	}
 }
 

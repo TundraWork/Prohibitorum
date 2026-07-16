@@ -130,7 +130,7 @@ func (s *Server) finishVRChatOperator(w http.ResponseWriter, r *http.Request, ac
 	}
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP, Event: vrchatOperatorSetupStarted, Detail: detail})
 	if err != nil {
-		if action == "validate" && vrchat.OperatorErrorCategory(err) == vrchat.OperatorCategoryCredentialsInvalid {
+		if op := vrchat.AsOperatorError(err); action == "validate" && op != nil && op.SessionInvalidated {
 			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP, Event: vrchatOperatorSessionInvalidated, Detail: map[string]any{"slug": slug, "action": action, "category": string(vrchat.OperatorCategoryCredentialsInvalid)}})
 		}
 		writeVRChatOperatorError(w, err)

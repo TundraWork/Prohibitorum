@@ -55,11 +55,29 @@ WHERE id = sqlc.arg('id')
   AND protocol = 'vrchat'
 RETURNING *;
 
--- name: UpdateVRChatOperatorHealth :one
-UPDATE upstream_idp SET secret_status = sqlc.arg('secret_status')
+-- name: RefreshVRChatOperatorSecret :one
+UPDATE upstream_idp SET
+  secret_enc = sqlc.arg('new_secret_enc'),
+  secret_nonce = sqlc.arg('new_secret_nonce'),
+  key_version = sqlc.arg('new_key_version'),
+  secret_status = 'valid',
+  secret_validated_at = sqlc.arg('secret_validated_at')
 WHERE id = sqlc.arg('id')
   AND slug = sqlc.arg('slug')
   AND protocol = 'vrchat'
+  AND secret_enc = sqlc.arg('expected_secret_enc')
+  AND secret_nonce = sqlc.arg('expected_secret_nonce')
+  AND key_version = sqlc.arg('expected_key_version')
+RETURNING *;
+
+-- name: InvalidateVRChatOperatorSecret :one
+UPDATE upstream_idp SET secret_status = 'invalid'
+WHERE id = sqlc.arg('id')
+  AND slug = sqlc.arg('slug')
+  AND protocol = 'vrchat'
+  AND secret_enc = sqlc.arg('expected_secret_enc')
+  AND secret_nonce = sqlc.arg('expected_secret_nonce')
+  AND key_version = sqlc.arg('expected_key_version')
 RETURNING *;
 
 -- name: SetUpstreamIDPDisabled :one

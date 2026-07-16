@@ -24,6 +24,7 @@ const (
 	OperatorStatusValid     = "valid"
 	operatorChallengeTTL    = 10 * time.Minute
 	operatorChallengePrefix = "federation:vrchat:operator:"
+	operatorRecoveryTimeout = 5 * time.Second
 )
 
 type OperatorCategory string
@@ -42,8 +43,9 @@ const (
 )
 
 type OperatorError struct {
-	Category   OperatorCategory
-	RetryAfter time.Duration
+	Category           OperatorCategory
+	RetryAfter         time.Duration
+	SessionInvalidated bool
 }
 
 func (e *OperatorError) Error() string { return "vrchat: operator session operation failed" }
@@ -80,7 +82,8 @@ type OperatorClient interface {
 type OperatorQueries interface {
 	GetUpstreamIDPBySlugAny(context.Context, string) (db.UpstreamIdp, error)
 	UpdateVRChatOperatorSecret(context.Context, db.UpdateVRChatOperatorSecretParams) (db.UpstreamIdp, error)
-	UpdateVRChatOperatorHealth(context.Context, db.UpdateVRChatOperatorHealthParams) (db.UpstreamIdp, error)
+	RefreshVRChatOperatorSecret(context.Context, db.RefreshVRChatOperatorSecretParams) (db.UpstreamIdp, error)
+	InvalidateVRChatOperatorSecret(context.Context, db.InvalidateVRChatOperatorSecretParams) (db.UpstreamIdp, error)
 }
 type OperatorSecretStore interface {
 	SealProviderSecret([]byte, int64, int32) (*federation.SealedSecret, error)
@@ -165,6 +168,7 @@ func (s *OperatorService) Start(ctx context.Context, slug string, accountID int3
 	}
 	challenge := base64.RawURLEncoding.EncodeToString(challengeBytes)
 	sealed, err := s.secrets.SealTemporary(encoded, provider.ID, s.keyVersion, challenge)
+	clearOperatorPlaintext(encoded)
 	if err != nil {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryServerError)
 	}
@@ -227,7 +231,9 @@ func (s *OperatorService) Verify(ctx context.Context, slug string, accountID int
 		if retry <= 0 {
 			return failure
 		}
-		swapped, restoreErr := s.kv.CompareAndSwap(ctx, operatorChallengeKey(challenge), verifyingRaw, raw, retry)
+		recoveryCtx, cancelRecovery := context.WithTimeout(context.WithoutCancel(ctx), operatorRecoveryTimeout)
+		defer cancelRecovery()
+		swapped, restoreErr := s.kv.CompareAndSwap(recoveryCtx, operatorChallengeKey(challenge), verifyingRaw, raw, retry)
 		if restoreErr != nil || !swapped {
 			return operatorErr(OperatorCategoryKVUnavailable)
 		}
@@ -238,6 +244,7 @@ func (s *OperatorService) Verify(ctx context.Context, slug string, accountID int
 		return OperatorSessionResult{}, restore(operatorErr(OperatorCategoryChallengeInvalid))
 	}
 	cookies, err := s.client.DecodeCookies(encoded, s.now())
+	clearOperatorPlaintext(encoded)
 	if err != nil {
 		return OperatorSessionResult{}, restore(operatorErr(OperatorCategoryChallengeInvalid))
 	}
@@ -278,7 +285,9 @@ func (s *OperatorService) Verify(ctx context.Context, slug string, accountID int
 	if restoreTTL <= 0 {
 		return OperatorSessionResult{}, err
 	}
-	restored, restoreErr := s.kv.CompareAndSwap(ctx, operatorChallengeKey(challenge), consumedRaw, raw, restoreTTL)
+	recoveryCtx, cancelRecovery := context.WithTimeout(context.WithoutCancel(ctx), operatorRecoveryTimeout)
+	defer cancelRecovery()
+	restored, restoreErr := s.kv.CompareAndSwap(recoveryCtx, operatorChallengeKey(challenge), consumedRaw, raw, restoreTTL)
 	if restoreErr != nil || !restored {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryKVUnavailable)
 	}
@@ -299,32 +308,25 @@ func (s *OperatorService) Validate(ctx context.Context, slug string) (OperatorSe
 	sealed := federation.SealedSecret{Ciphertext: provider.SecretEnc, Nonce: provider.SecretNonce, KeyVersion: provider.KeyVersion.Int32}
 	encoded, err := s.secrets.OpenProviderSecret(sealed, provider.ID)
 	if err != nil {
-		if invalidationErr := s.invalidate(ctx, provider); invalidationErr != nil {
-			return OperatorSessionResult{}, invalidationErr
-		}
-		return OperatorSessionResult{}, operatorErr(OperatorCategoryCredentialsInvalid)
+		return s.invalidCredentials(ctx, provider)
 	}
 	cookies, err := s.client.DecodeCookies(encoded, s.now())
+	clearOperatorPlaintext(encoded)
 	if err != nil {
-		if invalidationErr := s.invalidate(ctx, provider); invalidationErr != nil {
-			return OperatorSessionResult{}, invalidationErr
-		}
-		return OperatorSessionResult{}, operatorErr(OperatorCategoryCredentialsInvalid)
+		return s.invalidCredentials(ctx, provider)
 	}
 	user, cookies, err := s.client.CurrentUser(ctx, cookies)
 	if err != nil {
 		var httpErr *HTTPError
 		if errors.As(err, &httpErr) && (httpErr.Status == http.StatusUnauthorized || httpErr.Status == http.StatusForbidden) {
-			if invalidationErr := s.invalidate(ctx, provider); invalidationErr != nil {
-				return OperatorSessionResult{}, invalidationErr
-			}
+			return s.invalidCredentials(ctx, provider)
 		}
 		return OperatorSessionResult{}, classifyOperatorUpstream(err, true)
 	}
 	if !fullCurrentUser(user) {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
-	return s.persist(ctx, provider, cookies)
+	return s.persistValidation(ctx, provider, cookies)
 }
 
 func (s *OperatorService) provider(ctx context.Context, slug string) (db.UpstreamIdp, error) {
@@ -346,6 +348,7 @@ func (s *OperatorService) persist(ctx context.Context, provider db.UpstreamIdp, 
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
 	sealed, err := s.secrets.SealProviderSecret(encoded, provider.ID, s.keyVersion)
+	clearOperatorPlaintext(encoded)
 	if err != nil {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryServerError)
 	}
@@ -358,15 +361,78 @@ func (s *OperatorService) persist(ctx context.Context, provider db.UpstreamIdp, 
 	}
 	return OperatorSessionResult{Status: OperatorStatusValid, Provider: &row}, nil
 }
-func (s *OperatorService) invalidate(ctx context.Context, provider db.UpstreamIdp) error {
-	_, err := s.queries.UpdateVRChatOperatorHealth(ctx, db.UpdateVRChatOperatorHealthParams{SecretStatus: "invalid", ID: provider.ID, Slug: provider.Slug})
+func (s *OperatorService) persistValidation(ctx context.Context, provider db.UpstreamIdp, cookies []http.Cookie) (OperatorSessionResult, error) {
+	encoded, err := s.client.EncodeCookies(cookies)
+	if err != nil {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
+	}
+	sealed, err := s.secrets.SealProviderSecret(encoded, provider.ID, s.keyVersion)
+	clearOperatorPlaintext(encoded)
+	if err != nil {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryServerError)
+	}
+	row, err := s.queries.RefreshVRChatOperatorSecret(ctx, db.RefreshVRChatOperatorSecretParams{
+		NewSecretEnc: sealed.Ciphertext, NewSecretNonce: sealed.Nonce,
+		NewKeyVersion:     pgtype.Int4{Int32: sealed.KeyVersion, Valid: true},
+		SecretValidatedAt: pgtype.Timestamptz{Time: s.now().UTC(), Valid: true},
+		ID:                provider.ID, Slug: provider.Slug,
+		ExpectedSecretEnc: provider.SecretEnc, ExpectedSecretNonce: provider.SecretNonce,
+		ExpectedKeyVersion: provider.KeyVersion,
+	})
 	if err == nil {
-		return nil
+		return OperatorSessionResult{Status: OperatorStatusValid, Provider: &row}, nil
 	}
-	if errors.Is(err, pgx.ErrNoRows) {
-		return operatorErr(OperatorCategoryProviderNotReady)
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryDatabaseUnavailable)
 	}
-	return operatorErr(OperatorCategoryDatabaseUnavailable)
+	current, reloadErr := s.currentProviderAfterStale(ctx, provider)
+	if reloadErr != nil {
+		return OperatorSessionResult{}, reloadErr
+	}
+	if !current.KeyVersion.Valid || len(current.SecretEnc) == 0 || len(current.SecretNonce) == 0 || current.SecretStatus != "valid" {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryProviderNotReady)
+	}
+	return OperatorSessionResult{Status: OperatorStatusValid, Provider: &current}, nil
+}
+
+func (s *OperatorService) invalidCredentials(ctx context.Context, provider db.UpstreamIdp) (OperatorSessionResult, error) {
+	invalidated, err := s.invalidate(ctx, provider)
+	if err != nil {
+		return OperatorSessionResult{}, err
+	}
+	return OperatorSessionResult{}, &OperatorError{Category: OperatorCategoryCredentialsInvalid, SessionInvalidated: invalidated}
+}
+
+func (s *OperatorService) invalidate(ctx context.Context, provider db.UpstreamIdp) (bool, error) {
+	_, err := s.queries.InvalidateVRChatOperatorSecret(ctx, db.InvalidateVRChatOperatorSecretParams{
+		ID: provider.ID, Slug: provider.Slug,
+		ExpectedSecretEnc: provider.SecretEnc, ExpectedSecretNonce: provider.SecretNonce,
+		ExpectedKeyVersion: provider.KeyVersion,
+	})
+	if err == nil {
+		return true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, operatorErr(OperatorCategoryDatabaseUnavailable)
+	}
+	if _, reloadErr := s.currentProviderAfterStale(ctx, provider); reloadErr != nil {
+		return false, reloadErr
+	}
+	return false, nil
+}
+
+func (s *OperatorService) currentProviderAfterStale(ctx context.Context, expected db.UpstreamIdp) (db.UpstreamIdp, error) {
+	current, err := s.queries.GetUpstreamIDPBySlugAny(ctx, expected.Slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.UpstreamIdp{}, operatorErr(OperatorCategoryProviderNotReady)
+		}
+		return db.UpstreamIdp{}, operatorErr(OperatorCategoryDatabaseUnavailable)
+	}
+	if current.ID != expected.ID || current.Slug != expected.Slug || current.Protocol != "vrchat" {
+		return db.UpstreamIdp{}, operatorErr(OperatorCategoryProviderNotReady)
+	}
+	return current, nil
 }
 func fullCurrentUser(user CurrentUser) bool {
 	return user.ID != "" && user.DisplayName != "" && len(user.RequiresTwoFactorAuth) == 0
@@ -432,4 +498,12 @@ func classifyOperatorUpstream(err error, credentials bool) error {
 		return operatorErr(OperatorCategoryBadRequest)
 	}
 	return operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
+}
+
+// clearOperatorPlaintext erases mutable cookie-envelope bytes as soon as they
+// have crossed the crypto/decoder boundary. Go strings (including KV API
+// values) are immutable and cannot be reliably cleared; those values contain
+// metadata and ciphertext only.
+func clearOperatorPlaintext(value []byte) {
+	clear(value)
 }

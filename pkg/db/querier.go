@@ -134,6 +134,7 @@ type Querier interface {
 	InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error)
 	InsertTOTPCredential(ctx context.Context, arg InsertTOTPCredentialParams) (TotpCredential, error)
 	InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPParams) (UpstreamIdp, error)
+	InvalidateVRChatOperatorSecret(ctx context.Context, arg InvalidateVRChatOperatorSecretParams) (UpstreamIdp, error)
 	IsAccountAuthorizedForOIDCClient(ctx context.Context, arg IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error)
 	IsAccountAuthorizedForSAMLSP(ctx context.Context, arg IsAccountAuthorizedForSAMLSPParams) (pgtype.Bool, error)
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
@@ -202,6 +203,7 @@ type Querier interface {
 	PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error)
 	PruneExpiredRevokedJTI(ctx context.Context) error
 	ReconcileRetiredSigningKeys(ctx context.Context) (int64, error)
+	RefreshVRChatOperatorSecret(ctx context.Context, arg RefreshVRChatOperatorSecretParams) (UpstreamIdp, error)
 	RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error)
 	ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error
 	RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) (SigningKey, error)
@@ -265,7 +267,6 @@ type Querier interface {
 	UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error)
 	UpdateUpstreamIDPHealth(ctx context.Context, arg UpdateUpstreamIDPHealthParams) (UpstreamIdp, error)
 	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) (UpstreamIdp, error)
-	UpdateVRChatOperatorHealth(ctx context.Context, arg UpdateVRChatOperatorHealthParams) (UpstreamIdp, error)
 	UpdateVRChatOperatorSecret(ctx context.Context, arg UpdateVRChatOperatorSecretParams) (UpstreamIdp, error)
 	// idp_id records the source upstream for an inherited avatar (NULL for a user
 	// upload); source carries the upstream slug ("upstream:<slug>") so the

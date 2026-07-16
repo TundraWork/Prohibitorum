@@ -240,8 +240,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 		publicOrigin = config.PublicOrigins[0]
 	}
 	federationRegistry := federation.NewRegistry()
-	oidcAdapter := federationoidc.NewAdapter(federation.NewSecretStore(config.DataEncryptionKeys))
-	steamAdapter := federationsteam.NewAdapter(federation.NewSecretStore(config.DataEncryptionKeys))
+	federationSecrets := federation.NewSecretStore(config.DataEncryptionKeys)
+	oidcAdapter := federationoidc.NewAdapter(federationSecrets)
+	steamAdapter := federationsteam.NewAdapter(federationSecrets)
 	for _, registration := range []struct {
 		definition federation.Definition
 		adapter    federation.Adapter
@@ -293,7 +294,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		vrchatClient,
 		queries,
 		kvStore,
-		federation.NewSecretStore(config.DataEncryptionKeys),
+		federationSecrets,
 		int32(activeDEKVer),
 	)
 
