@@ -21,28 +21,22 @@ import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import AppIcon from '@/components/custom/AppIcon.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import IdentityMetadata, { type AccountIdentity } from '@/components/custom/IdentityMetadata.vue'
 
-interface Identity {
-  id: number
-  idpSlug: string
-  idpDisplayName: string
-  upstreamEmail: string | null
-  linkedAt: string
-}
 interface Provider { slug: string; displayName: string; iconUrl?: string | null }
 
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
 
-const identities = ref<Identity[]>([])
+const identities = ref<AccountIdentity[]>([])
 const providers = ref<Provider[]>([])
 const providersLoaded = ref(false)
 const confirmId = ref<number | null>(null)
 
-const linkedSlugs = computed(() => new Set(identities.value.map((i) => i.idpSlug)))
+const linkedSlugs = computed(() => new Set(identities.value.map((identity) => identity.providerSlug)))
 
 async function loadIdentities(): Promise<void> {
-  const res = await run(() => api.get<Identity[]>('/api/prohibitorum/me/identities'))
+  const res = await run(() => api.get<AccountIdentity[]>('/api/prohibitorum/me/identities'))
   if (res) identities.value = res
 }
 async function loadProviders(): Promise<void> {
@@ -84,17 +78,17 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
     <TableSkeleton v-if="busy && !identities.length" :rows="3" :cols="1" />
     <template v-else-if="identities.length">
       <Card v-for="ident in identities" :key="ident.id">
-        <CardContent class="flex items-center justify-between gap-4 py-4">
-          <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-            <div class="flex min-w-0 items-center gap-2">
-              <AppIcon :src="`/icon/upstream_idp/${encodeURIComponent(ident.idpSlug)}`" :name="ident.idpDisplayName" size="sm" />
-              <span class="min-w-0 truncate font-medium text-ink">{{ ident.idpDisplayName }}</span>
+        <CardContent class="flex flex-col items-stretch gap-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="flex min-w-0 flex-1 flex-col gap-2 text-sm">
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
+              <AppIcon :src="`/icon/upstream_idp/${encodeURIComponent(ident.providerSlug)}`" :name="ident.providerDisplayName" size="sm" />
+              <span class="min-w-0 truncate font-medium text-ink" :title="ident.providerDisplayName">{{ ident.providerDisplayName }}</span>
               <StatusBadge variant="success" class="shrink-0">{{ t('connected.linked') }}</StatusBadge>
             </div>
-            <span v-if="ident.upstreamEmail" class="min-w-0 truncate text-muted">{{ ident.upstreamEmail }}</span>
+            <IdentityMetadata :identity="ident" />
             <span v-if="ident.linkedAt" class="truncate text-muted">{{ t('connected.connectedOn', { date: relativeTime(ident.linkedAt) }) }}</span>
           </div>
-          <Button variant="outline" size="sm" class="shrink-0" :disabled="busy"
+          <Button variant="outline" size="sm" class="w-full shrink-0 sm:w-auto" :disabled="busy"
                   :data-test="`unlink-${ident.id}`" @click="confirmId = ident.id">
             {{ t('connected.unlink') }}
           </Button>

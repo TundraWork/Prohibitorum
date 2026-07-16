@@ -39,4 +39,18 @@ describe('Page<T>', () => {
     expect(path).toContain('factor=webauthn')
     expect(path).toContain('cursor=c1')
   })
+
+  it('buildPagePath safely encodes account filter params and omits empty values', () => {
+    const path = buildPagePath('/api/prohibitorum/accounts', {
+      q: 'Alice & Bob',
+      provider: 'vrchat',
+      field: 'displayName',
+      value: 'A&B / 星',
+      match: 'contains',
+      cursor: '',
+    })
+    expect(path).toBe(
+      '/api/prohibitorum/accounts?q=Alice+%26+Bob&provider=vrchat&field=displayName&value=A%26B+%2F+%E6%98%9F&match=contains',
+    )
+  })
 })
