@@ -174,6 +174,19 @@ func NewServer(ctx context.Context) (*Server, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
+	publicOrigin := ""
+	if len(config.PublicOrigins) > 0 {
+		publicOrigin = config.PublicOrigins[0]
+	}
+	buildVersion := "(devel)"
+	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo.Main.Version != "" {
+		buildVersion = buildInfo.Main.Version
+	}
+	vrchatClient, err := federationvrchat.NewClient(buildVersion, publicOrigin)
+	if err != nil {
+		return nil, fmt.Errorf("vrchat client: %w", err)
+	}
+
 	logx.WithContext(ctx).Info("running migrations")
 	if _, err := migrations.UpWithResult(config.DatabaseURL); err != nil {
 		return nil, fmt.Errorf("migrations: %w", err)
@@ -235,10 +248,6 @@ func NewServer(ctx context.Context) (*Server, error) {
 	totpTxRunner := &totp.PoolTxRunner{Pool: conn, Queries: queries}
 	totpStore := totp.NewStore(queries, totpTxRunner, config.DataEncryptionKeys, config.TOTP, throttle, auditWriter)
 
-	publicOrigin := ""
-	if len(config.PublicOrigins) > 0 {
-		publicOrigin = config.PublicOrigins[0]
-	}
 	federationRegistry := federation.NewRegistry()
 	federationSecrets := federation.NewSecretStore(config.DataEncryptionKeys)
 	oidcAdapter := federationoidc.NewAdapter(federationSecrets)
@@ -282,14 +291,6 @@ func NewServer(ctx context.Context) (*Server, error) {
 		}
 	}
 	cursorCodec := pagination.NewCodec(config.DataEncryptionKeys, activeDEKVer, time.Now)
-	buildVersion := "(devel)"
-	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo.Main.Version != "" {
-		buildVersion = buildInfo.Main.Version
-	}
-	vrchatClient, err := federationvrchat.NewClient(buildVersion, publicOrigin)
-	if err != nil {
-		return nil, fmt.Errorf("vrchat client: %w", err)
-	}
 	vrchatOperator := federationvrchat.NewOperatorService(
 		vrchatClient,
 		queries,

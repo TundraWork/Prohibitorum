@@ -22,17 +22,17 @@ import (
 const testUserID = "usr_12345678-1234-1234-1234-123456789abc"
 
 type operatorFakeClient struct {
-	mu                                   sync.Mutex
-	authUser                             CurrentUser
-	authCookies                          []http.Cookie
-	authErr                              error
-	currentUser                          CurrentUser
-	currentCookies                       []http.Cookie
-	currentErr                           error
-	verifyErr                            error
-	currentHook, verifyHook              func()
-	authCalls, currentCalls, verifyCalls int
-	lastMethod, lastCode                 string
+	mu                                                sync.Mutex
+	authUser                                          CurrentUser
+	authCookies                                       []http.Cookie
+	authErr                                           error
+	currentUser                                       CurrentUser
+	currentCookies                                    []http.Cookie
+	currentErr                                        error
+	verifyErr                                         error
+	currentHook, verifyHook                           func()
+	authCalls, currentCalls, verifyCalls, encodeCalls int
+	lastMethod, lastCode                              string
 }
 
 func (f *operatorFakeClient) Authenticate(context.Context, string, string) (CurrentUser, []http.Cookie, error) {
@@ -60,7 +60,12 @@ func (f *operatorFakeClient) VerifyTwoFactor(_ context.Context, method, code str
 	}
 	return cloneOperatorCookies(cookies), f.verifyErr
 }
-func (f *operatorFakeClient) EncodeCookies(c []http.Cookie) ([]byte, error) { return encodeCookies(c) }
+func (f *operatorFakeClient) EncodeCookies(c []http.Cookie) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.encodeCalls++
+	return encodeCookies(c)
+}
 func (f *operatorFakeClient) DecodeCookies(b []byte, now time.Time) ([]http.Cookie, error) {
 	return decodeCookies(b, now)
 }
@@ -154,6 +159,12 @@ func (r *repeatingReader) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
+type operatorErrorReader struct{}
+
+func (operatorErrorReader) Read([]byte) (int, error) {
+	return 0, errors.New("random unavailable")
+}
+
 type restoreFailKV struct {
 	kv.Store
 	calls       int
@@ -181,18 +192,17 @@ func (s *restoreFailKV) CompareAndSwap(ctx context.Context, key, oldValue, newVa
 
 type canceledContextKV struct {
 	kv.Store
-	calls              int
-	allowCanceledUntil int
-	recoveryTTL        time.Duration
+	calls       int
+	recoveryTTL time.Duration
 }
 
 func (s *canceledContextKV) CompareAndSwap(ctx context.Context, key, oldValue, newValue string, ttl time.Duration) (bool, error) {
 	s.calls++
-	if s.calls > s.allowCanceledUntil {
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+	if s.calls > 1 {
 		s.recoveryTTL = ttl
-		if ctx.Err() != nil {
-			return false, ctx.Err()
-		}
 	}
 	return s.Store.CompareAndSwap(ctx, key, oldValue, newValue, ttl)
 }
@@ -218,6 +228,68 @@ func TestOperatorStartPersistsFullSessionWithoutChallenge(t *testing.T) {
 	opened, err := federation.NewSecretStore(map[int][]byte{3: make([]byte, 32)}).OpenProviderSecret(federation.SealedSecret{Ciphertext: q.row.SecretEnc, Nonce: q.row.SecretNonce, KeyVersion: q.row.KeyVersion.Int32}, 42)
 	if err != nil || string(opened) == "secret-cookie" {
 		t.Fatalf("persisted envelope invalid/plaintext: %q %v", opened, err)
+	}
+}
+
+func TestUsableOperatorAuthCookieRequiresExactlyOneLiveNonEmptyAuth(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	valid := operatorCookie("auth", "session", now.Add(time.Hour))
+	factor := operatorCookie("twoFactorAuth", "factor", now.Add(time.Hour))
+	emptyAuth := operatorCookie("auth", "", now.Add(time.Hour))
+	deleted := operatorCookie("auth", "session", now.Add(time.Hour))
+	deleted.MaxAge = -1
+	expired := operatorCookie("auth", "session", now.Add(-time.Second))
+	for name, tc := range map[string]struct {
+		cookies []http.Cookie
+		want    bool
+	}{
+		"valid":          {[]http.Cookie{valid}, true},
+		"valid-factor":   {[]http.Cookie{valid, factor}, true},
+		"empty":          {nil, false},
+		"factor-only":    {[]http.Cookie{factor}, false},
+		"empty-auth":     {[]http.Cookie{emptyAuth}, false},
+		"deleted-auth":   {[]http.Cookie{deleted}, false},
+		"expired-auth":   {[]http.Cookie{expired}, false},
+		"duplicate-auth": {[]http.Cookie{valid, valid}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := usableOperatorAuthCookie(tc.cookies, now); got != tc.want {
+				t.Fatalf("got=%v want=%v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestOperatorStartRejectsSuccessfulSessionWithoutUsableAuth(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	factorOnly := []http.Cookie{operatorCookie("twoFactorAuth", "factor", now.Add(time.Hour))}
+	for name, user := range map[string]CurrentUser{
+		"full-user": {ID: testUserID, DisplayName: "Operator"},
+		"challenge": {RequiresTwoFactorAuth: []string{"totp"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := &operatorFakeClient{authUser: user, authCookies: factorOnly}
+			q := &operatorFakeQueries{row: operatorProvider()}
+			service, _ := operatorService(t, client, q, now)
+			result, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+			if OperatorErrorCategory(err) != OperatorCategoryUpstreamTemporarilyUnavailable || result.Status != "" || q.secretUpdates != 0 {
+				t.Fatalf("result=%+v category=%q updates=%d", result, OperatorErrorCategory(err), q.secretUpdates)
+			}
+		})
+	}
+}
+
+func TestOperatorStartGeneratesChallengeBeforeEncodingCookies(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	client := &operatorFakeClient{
+		authUser:    CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies: []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+	}
+	service, _ := operatorService(t, client, &operatorFakeQueries{row: operatorProvider()}, now)
+	service.random = operatorErrorReader{}
+	_, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if OperatorErrorCategory(err) != OperatorCategoryServerError || client.encodeCalls != 0 {
+		t.Fatalf("category=%q encode_calls=%d", OperatorErrorCategory(err), client.encodeCalls)
 	}
 }
 
@@ -444,7 +516,7 @@ func TestOperatorVerifyWrongCodeRecoverySurvivesCanceledRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recoveryKV := &canceledContextKV{Store: store, allowCanceledUntil: 1}
+	recoveryKV := &canceledContextKV{Store: store}
 	service.kv = recoveryKV
 	_, err = service.Verify(ctx, "social", 7, "session-a", start.Challenge, "totp", "wrong")
 	if OperatorErrorCategory(err) != OperatorCategoryCodeInvalid {
@@ -479,14 +551,22 @@ func TestOperatorVerifyDatabaseRecoverySurvivesCanceledRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recoveryKV := &canceledContextKV{Store: store, allowCanceledUntil: 2}
+	recoveryKV := &canceledContextKV{Store: store}
 	service.kv = recoveryKV
 	_, err = service.Verify(ctx, "social", 7, "session-a", start.Challenge, "totp", "code")
 	if OperatorErrorCategory(err) != OperatorCategoryDatabaseUnavailable {
 		t.Fatalf("category=%q", OperatorErrorCategory(err))
 	}
-	if recoveryKV.recoveryTTL <= 0 || recoveryKV.recoveryTTL > operatorChallengeTTL {
-		t.Fatalf("recovery TTL=%v", recoveryKV.recoveryTTL)
+	if recoveryKV.calls != 3 || recoveryKV.recoveryTTL != operatorChallengeTTL {
+		t.Fatalf("calls=%d recovery TTL=%v", recoveryKV.calls, recoveryKV.recoveryTTL)
+	}
+	raw, err := store.Get(context.Background(), operatorChallengeKey(start.Challenge))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := decodeOperatorChallenge(raw)
+	if err != nil || state.State != "ready" || start.ExpiresAt == nil || !state.ExpiresAt.Equal(*start.ExpiresAt) {
+		t.Fatalf("restored state=%+v err=%v", state, err)
 	}
 }
 
@@ -513,6 +593,34 @@ func TestOperatorVerifyRequiresFullAuthenticatedCurrentUser(t *testing.T) {
 	client.currentCookies = []http.Cookie{operatorCookie("auth", "final", now.Add(24*time.Hour))}
 	if _, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code"); err != nil {
 		t.Fatalf("challenge was not restored for retry: %v", err)
+	}
+}
+
+func TestOperatorVerifyRejectsFullUserWithoutUsableAuthAndRestoresChallenge(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	client := &operatorFakeClient{
+		authUser:       CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies:    []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+		currentUser:    CurrentUser{ID: testUserID, DisplayName: "Operator"},
+		currentCookies: []http.Cookie{operatorCookie("twoFactorAuth", "factor", now.Add(time.Hour))},
+	}
+	q := &operatorFakeQueries{row: operatorProvider()}
+	service, store := operatorService(t, client, q, now)
+	start, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code")
+	if OperatorErrorCategory(err) != OperatorCategoryUpstreamTemporarilyUnavailable || q.secretUpdates != 0 {
+		t.Fatalf("category=%q updates=%d", OperatorErrorCategory(err), q.secretUpdates)
+	}
+	raw, err := store.Get(context.Background(), operatorChallengeKey(start.Challenge))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := decodeOperatorChallenge(raw)
+	if err != nil || state.State != "ready" {
+		t.Fatalf("state=%+v err=%v", state, err)
 	}
 }
 
@@ -687,6 +795,22 @@ func TestOperatorValidateRefreshInvalidationAndTransientErrors(t *testing.T) {
 		got, e := s.Validate(context.Background(), "social")
 		if e != nil || got.Status != OperatorStatusValid || q.secretUpdates != 1 {
 			t.Fatalf("got=%+v err=%v updates=%d", got, e, q.secretUpdates)
+		}
+	})
+	t.Run("refresh-loses-auth-cookie", func(t *testing.T) {
+		s, c, q := makeValid(t)
+		originalCiphertext := append([]byte(nil), q.row.SecretEnc...)
+		originalNonce := append([]byte(nil), q.row.SecretNonce...)
+		originalVersion := q.row.KeyVersion
+		originalValidatedAt := q.row.SecretValidatedAt
+		c.currentUser = CurrentUser{ID: testUserID, DisplayName: "Operator"}
+		c.currentCookies = []http.Cookie{operatorCookie("twoFactorAuth", "factor", now.Add(time.Hour))}
+		_, err := s.Validate(context.Background(), "social")
+		if OperatorErrorCategory(err) != OperatorCategoryCredentialsInvalid || q.secretUpdates != 0 || q.healthUpdates != 1 ||
+			q.row.SecretStatus != "invalid" || !bytes.Equal(q.row.SecretEnc, originalCiphertext) ||
+			!bytes.Equal(q.row.SecretNonce, originalNonce) || q.row.KeyVersion != originalVersion ||
+			q.row.SecretValidatedAt != originalValidatedAt {
+			t.Fatalf("err=%v row=%+v secret_updates=%d health_updates=%d", err, q.row, q.secretUpdates, q.healthUpdates)
 		}
 	})
 	t.Run("stale-success-does-not-overwrite-replacement", func(t *testing.T) {

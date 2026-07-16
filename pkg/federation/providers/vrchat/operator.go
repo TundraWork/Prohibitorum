@@ -158,8 +158,7 @@ func (s *OperatorService) Start(ctx context.Context, slug string, accountID int3
 	if len(methods) == 0 {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
-	encoded, err := s.client.EncodeCookies(cookies)
-	if err != nil {
+	if !usableOperatorAuthCookie(cookies, s.now()) {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
 	challengeBytes := make([]byte, 32)
@@ -167,6 +166,10 @@ func (s *OperatorService) Start(ctx context.Context, slug string, accountID int3
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryServerError)
 	}
 	challenge := base64.RawURLEncoding.EncodeToString(challengeBytes)
+	encoded, err := s.client.EncodeCookies(cookies)
+	if err != nil {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
+	}
 	sealed, err := s.secrets.SealTemporary(encoded, provider.ID, s.keyVersion, challenge)
 	clearOperatorPlaintext(encoded)
 	if err != nil {
@@ -259,6 +262,9 @@ func (s *OperatorService) Verify(ctx context.Context, slug string, accountID int
 	if !fullCurrentUser(user) {
 		return OperatorSessionResult{}, restore(operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable))
 	}
+	if !usableOperatorAuthCookie(cookies, s.now()) {
+		return OperatorSessionResult{}, restore(operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable))
+	}
 	consumed := verifying
 	consumed.State = "consumed"
 	consumed.Secret = federation.SealedSecret{}
@@ -270,7 +276,9 @@ func (s *OperatorService) Verify(ctx context.Context, slug string, accountID int
 	if finalizeTTL <= 0 {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryChallengeInvalid)
 	}
-	swapped, err = s.kv.CompareAndSwap(ctx, operatorChallengeKey(challenge), verifyingRaw, consumedRaw, finalizeTTL)
+	finalizeCtx, cancelFinalize := context.WithTimeout(context.WithoutCancel(ctx), operatorRecoveryTimeout)
+	swapped, err = s.kv.CompareAndSwap(finalizeCtx, operatorChallengeKey(challenge), verifyingRaw, consumedRaw, finalizeTTL)
+	cancelFinalize()
 	if err != nil {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryKVUnavailable)
 	}
@@ -326,6 +334,9 @@ func (s *OperatorService) Validate(ctx context.Context, slug string) (OperatorSe
 	if !fullCurrentUser(user) {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
+	if !usableOperatorAuthCookie(cookies, s.now()) {
+		return s.invalidCredentials(ctx, provider)
+	}
 	return s.persistValidation(ctx, provider, cookies)
 }
 
@@ -343,6 +354,9 @@ func (s *OperatorService) provider(ctx context.Context, slug string) (db.Upstrea
 	return row, nil
 }
 func (s *OperatorService) persist(ctx context.Context, provider db.UpstreamIdp, cookies []http.Cookie) (OperatorSessionResult, error) {
+	if !usableOperatorAuthCookie(cookies, s.now()) {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
+	}
 	encoded, err := s.client.EncodeCookies(cookies)
 	if err != nil {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
@@ -362,6 +376,9 @@ func (s *OperatorService) persist(ctx context.Context, provider db.UpstreamIdp, 
 	return OperatorSessionResult{Status: OperatorStatusValid, Provider: &row}, nil
 }
 func (s *OperatorService) persistValidation(ctx context.Context, provider db.UpstreamIdp, cookies []http.Cookie) (OperatorSessionResult, error) {
+	if !usableOperatorAuthCookie(cookies, s.now()) {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
+	}
 	encoded, err := s.client.EncodeCookies(cookies)
 	if err != nil {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
@@ -436,6 +453,19 @@ func (s *OperatorService) currentProviderAfterStale(ctx context.Context, expecte
 }
 func fullCurrentUser(user CurrentUser) bool {
 	return user.ID != "" && user.DisplayName != "" && len(user.RequiresTwoFactorAuth) == 0
+}
+func usableOperatorAuthCookie(cookies []http.Cookie, now time.Time) bool {
+	authCookies := 0
+	for i := range cookies {
+		if cookies[i].Name != "auth" {
+			continue
+		}
+		if cookies[i].Value == "" || !validAuthenticationCookie(&cookies[i], now) {
+			return false
+		}
+		authCookies++
+	}
+	return authCookies == 1
 }
 func supportedOperatorMethods(methods []string) []string {
 	out := make([]string, 0, len(methods))

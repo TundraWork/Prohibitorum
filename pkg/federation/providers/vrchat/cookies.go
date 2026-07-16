@@ -108,6 +108,7 @@ func encodeCookies(cookies []http.Cookie) ([]byte, error) {
 		return nil, errInvalidCookiePayload
 	}
 	if len(encoded) > maxEncodedCookiesSize {
+		clear(encoded)
 		return nil, errCookiePayloadTooLarge
 	}
 	return encoded, nil
