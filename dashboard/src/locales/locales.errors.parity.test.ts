@@ -42,6 +42,25 @@ describe('error locale parity — every manifest code has en+zh entries', () => 
     })
   }
 })
+describe('VRChat operator error recovery copy', () => {
+  const stableCodes = [
+    'vrchat_operator_credentials_invalid',
+    'vrchat_operator_challenge_invalid',
+    'vrchat_operator_code_invalid',
+    'upstream_rate_limited',
+    'upstream_temporarily_unavailable',
+  ] as const
+
+  for (const code of stableCodes) {
+    it(`has public recovery copy for ${code} in en and zh`, () => {
+      const enValue = get(en, `errors.codes.${code}`)
+      const zhValue = get(zh, `errors.codes.${code}`)
+      expect(typeof enValue, `en missing errors.codes.${code}`).toBe('string')
+      expect(typeof zhValue, `zh missing errors.codes.${code}`).toBe('string')
+      expect(enValue).not.toBe(zhValue)
+    })
+  }
+})
 
 describe('error locale parity — detail keys have labels in en+zh', () => {
   for (const field of ALL_DETAIL_KEYS) {

@@ -4,7 +4,10 @@ import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
-vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
+const { withSudo } = vi.hoisted(() => ({
+  withSudo: vi.fn((fn: () => Promise<unknown>) => fn()),
+}))
+vi.mock('@/lib/sudo', () => ({ withSudo }))
 const get = vi.mocked(api.get); const post = vi.mocked(api.post)
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
@@ -26,9 +29,11 @@ const OIDC_CONFIG = {
 }
 const IDPS = [
   { slug: 'okta', displayName: 'Okta', protocol: 'oidc', mode: 'auto_provision', config: OIDC_CONFIG, disabled: false, secretConfigured: true, secretStatus: 'valid', secretValidatedAt: null, ready: true, supportsOperator: false, searchFields: [], createdAt: '2026-01-01T00:00:00Z' },
-  { slug: 'entra', displayName: 'Entra', protocol: 'oidc', mode: 'invite_only', config: { ...OIDC_CONFIG, issuerUrl: 'https://entra/', clientId: 'c2', requireVerifiedEmail: true }, disabled: true, secretConfigured: true, secretStatus: 'configured', secretValidatedAt: null, ready: false, supportsOperator: false, searchFields: [], createdAt: '2026-01-02T00:00:00Z' },
+  { slug: 'entra', displayName: 'Entra', protocol: 'oidc', mode: 'invite_only', config: { ...OIDC_CONFIG, issuerUrl: 'https://entra/', clientId: 'c2', requireVerifiedEmail: true }, disabled: true, secretConfigured: true, secretStatus: 'invalid', secretValidatedAt: null, ready: false, supportsOperator: false, searchFields: [], createdAt: '2026-01-02T00:00:00Z' },
 ]
-beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
+beforeEach(() => {
+  get.mockReset(); post.mockReset(); push.mockReset(); withSudo.mockClear()
+})
 
 describe('AdminUpstreamIdpsView', () => {
   it('lists providers with mode + state', async () => {
@@ -108,6 +113,46 @@ describe('AdminUpstreamIdpsView', () => {
       config: {},
       secret: 'api-key',
     })
+  })
+  it('creates VRChat with no provider secret or adapter config and opens detail', async () => {
+    get.mockResolvedValue([])
+    post.mockResolvedValue({
+      slug: 'vrchat',
+      displayName: 'VRChat moderation',
+      protocol: 'vrchat',
+      mode: 'invite_only',
+      config: {},
+    })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    expect(w.text()).toContain(en.admin.upstream.protocolVrchat)
+
+    await w.find('[data-test="radio-card-vrchat"]').trigger('click')
+    await flushPromises()
+
+    expect(w.text()).toContain(en.admin.upstream.vrchatCreateWarning)
+    expect(w.find('input[name="issuerUrl"]').exists()).toBe(false)
+    expect(w.find('input[name="clientId"]').exists()).toBe(false)
+    expect(w.find('input[name="clientSecret"]').exists()).toBe(false)
+    expect(w.find('input[name="apiKey"]').exists()).toBe(false)
+    expect(w.find('input[name="usernameClaim"]').exists()).toBe(false)
+    expect(w.find('input[name="allowedDomains"]').exists()).toBe(false)
+
+    await w.find('input[name="slug"]').setValue('vrchat')
+    await w.find('input[name="displayName"]').setValue('VRChat moderation')
+    await w.find('[data-test="radio-card-invite_only"]').trigger('click')
+    await w.find('[data-test="create-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(withSudo).toHaveBeenCalledOnce()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', {
+      slug: 'vrchat',
+      displayName: 'VRChat moderation',
+      protocol: 'vrchat',
+      mode: 'invite_only',
+      config: {},
+    })
+    expect(push).toHaveBeenCalledWith('/admin/identity-providers/vrchat')
   })
   it('includes pictureClaim in create payload and renders the input', async () => {
     get.mockResolvedValue([])

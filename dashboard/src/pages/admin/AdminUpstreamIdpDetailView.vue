@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
+import { formatDateTime } from '@/lib/time'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,8 +48,45 @@ const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
 const isOIDC = computed(() => idp.value?.protocol === 'oidc')
 const isSteam = computed(() => idp.value?.protocol === 'steam')
+const isVRChat = computed(() => idp.value?.protocol === 'vrchat')
 const newSecret = ref(''); const { flag: rotated, trigger: triggerRotated } = useTransientFlag()
 const confirmDelete = ref(false)
+
+type OperatorMethod = 'totp' | 'emailOtp' | 'recoveryOtp'
+type OperatorSessionResult =
+  | { status: 'challenge'; challenge: string; methods: string[]; expiresAt: string }
+  | { status: 'valid'; provider: IdentityProvider }
+
+const supportedOperatorMethods: readonly OperatorMethod[] = ['totp', 'emailOtp', 'recoveryOtp']
+const operatorUsername = ref('')
+const operatorPassword = ref('')
+const operatorCode = ref('')
+const operatorChallenge = ref<string | null>(null)
+const operatorMethods = ref<OperatorMethod[]>([])
+const operatorMethod = ref<OperatorMethod | ''>('')
+const operatorSetupActive = ref(false)
+
+const operatorMethodOptions = computed(() => operatorMethods.value.map((method) => ({
+  value: method,
+  title: t(`admin.upstream.operatorMethod.${method}`),
+})))
+const operatorStatusLabel = computed(() => {
+  if (idp.value?.secretStatus === 'valid') return t('admin.upstream.operatorStatusValid')
+  if (idp.value?.secretStatus === 'invalid') return t('admin.upstream.operatorStatusInvalid')
+  return t('admin.upstream.operatorStatusUnconfigured')
+})
+const operatorStatusVariant = computed(() => {
+  if (idp.value?.secretStatus === 'valid') return 'success'
+  if (idp.value?.secretStatus === 'invalid') return 'danger'
+  return 'caution'
+})
+const operatorProgress = computed(() => operatorChallenge.value
+  ? t('admin.upstream.operatorProgressCode')
+  : operatorSetupActive.value
+    ? t('admin.upstream.operatorProgressCredentials')
+    : t('admin.upstream.operatorProgressReady'))
+const operatorEnableBlocked = computed(() =>
+  Boolean(isVRChat.value && disabled.value && idp.value?.secretStatus !== 'valid'))
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
 
@@ -61,6 +99,7 @@ async function load(): Promise<void> {
   displayName.value = i.displayName
   mode.value = i.mode
   disabled.value = i.disabled
+  operatorSetupActive.value = i.protocol === 'vrchat' && i.secretStatus !== 'valid'
   if (i.protocol === 'oidc') {
     const config = i.config as unknown as OIDCProviderConfig
     issuerUrl.value = config.issuerUrl
@@ -116,6 +155,84 @@ async function rotate(): Promise<void> {
     return true as const
   }, t('sudo.reason.rotateSecret')))
   if (ok) { triggerRotated(); newSecret.value = '' }
+}
+function clearOperatorChallenge(): void {
+  operatorChallenge.value = null
+  operatorMethods.value = []
+  operatorMethod.value = ''
+  operatorCode.value = ''
+}
+
+function acceptValidOperatorProvider(provider: IdentityProvider): void {
+  idp.value = provider
+  disabled.value = provider.disabled
+  operatorUsername.value = ''
+  operatorPassword.value = ''
+  clearOperatorChallenge()
+  operatorSetupActive.value = false
+}
+
+async function startOperatorSession(): Promise<void> {
+  const result = await run(() => withSudo(() =>
+    api.post<OperatorSessionResult>(
+      `/api/prohibitorum/identity-providers/${slug}/operator-session/start`,
+      { username: operatorUsername.value, password: operatorPassword.value },
+    ),
+  t('sudo.reason.startOperatorSession')))
+  operatorPassword.value = ''
+  if (!result) return
+  operatorUsername.value = ''
+  if (result.status === 'valid') {
+    acceptValidOperatorProvider(result.provider)
+    return
+  }
+  operatorChallenge.value = result.challenge
+  operatorMethods.value = [...new Set(result.methods.filter(
+    (method): method is OperatorMethod =>
+      supportedOperatorMethods.includes(method as OperatorMethod),
+  ))]
+  operatorMethod.value = operatorMethods.value[0] ?? ''
+  operatorCode.value = ''
+}
+
+async function verifyOperatorSession(): Promise<void> {
+  if (!operatorChallenge.value || !operatorMethod.value) return
+  const result = await run(() => withSudo(() =>
+    api.post<OperatorSessionResult>(
+      `/api/prohibitorum/identity-providers/${slug}/operator-session/verify`,
+      {
+        challenge: operatorChallenge.value,
+        method: operatorMethod.value,
+        code: operatorCode.value,
+      },
+    ),
+  t('sudo.reason.verifyOperatorSession')))
+  operatorCode.value = ''
+  if (!result) {
+    if (error.value?.code === 'vrchat_operator_challenge_invalid') {
+      clearOperatorChallenge()
+      operatorSetupActive.value = true
+    }
+    return
+  }
+  if (result.status === 'valid') acceptValidOperatorProvider(result.provider)
+}
+
+async function validateOperatorSession(): Promise<void> {
+  const result = await run(() => withSudo(() =>
+    api.post<OperatorSessionResult>(
+      `/api/prohibitorum/identity-providers/${slug}/operator-session/validate`,
+    ),
+  t('sudo.reason.validateOperatorSession')))
+  if (result?.status === 'valid') acceptValidOperatorProvider(result.provider)
+}
+
+function replaceOperatorSession(): void {
+  clear()
+  operatorUsername.value = ''
+  operatorPassword.value = ''
+  clearOperatorChallenge()
+  operatorSetupActive.value = true
 }
 
 // Flip the disabled flag on its own (independent of the config Save), via the
@@ -237,6 +354,118 @@ onMounted(load)
         @changed="load"
       />
 
+      <Card v-if="isVRChat" data-test="operator-session-card">
+        <CardHeader><CardTitle>{{ t('admin.upstream.operatorSessionTitle') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col gap-5">
+          <div class="flex flex-col gap-1" role="status" aria-live="polite">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-medium text-ink">{{ t('admin.upstream.operatorStatusLabel') }}</span>
+              <StatusBadge :variant="operatorStatusVariant" data-test="operator-status-badge">
+                {{ operatorStatusLabel }}
+              </StatusBadge>
+            </div>
+            <p class="text-sm text-muted">{{ operatorProgress }}</p>
+            <p class="text-xs text-muted" data-test="operator-last-validation">
+              {{ t('admin.upstream.operatorLastValidation') }}:
+              {{ idp.secretValidatedAt ? formatDateTime(idp.secretValidatedAt) : t('admin.upstream.operatorLastValidationNever') }}
+            </p>
+          </div>
+
+          <Alert data-test="operator-session-notice">
+            <AlertDescription>{{ t('admin.upstream.operatorSessionNotice') }}</AlertDescription>
+          </Alert>
+
+          <form
+            v-if="operatorSetupActive && !operatorChallenge"
+            class="flex flex-col gap-4"
+            @submit.prevent="startOperatorSession"
+          >
+            <div class="flex flex-col gap-1.5">
+              <Label for="operatorUsername">{{ t('admin.upstream.operatorUsername') }}</Label>
+              <Input
+                id="operatorUsername"
+                v-model="operatorUsername"
+                name="operatorUsername"
+                autocomplete="username"
+                required
+              />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="operatorPassword">{{ t('admin.upstream.operatorPassword') }}</Label>
+              <Input
+                id="operatorPassword"
+                v-model="operatorPassword"
+                name="operatorPassword"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </div>
+            <Button
+              type="submit"
+              class="w-fit"
+              :disabled="busy || !operatorUsername || !operatorPassword"
+              data-test="operator-start"
+            >
+              {{ t('admin.upstream.operatorStart') }}
+            </Button>
+          </form>
+
+          <form
+            v-else-if="operatorChallenge"
+            class="flex flex-col gap-4"
+            @submit.prevent="verifyOperatorSession"
+          >
+            <div class="flex flex-col gap-1.5">
+              <Label>{{ t('admin.upstream.operatorMethodLabel') }}</Label>
+              <RadioCardGroup
+                v-model="operatorMethod"
+                :aria-label="t('admin.upstream.operatorMethodLabel')"
+                :options="operatorMethodOptions"
+              />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="operatorCode">{{ t('admin.upstream.operatorCode') }}</Label>
+              <Input
+                id="operatorCode"
+                v-model="operatorCode"
+                name="operatorCode"
+                autocomplete="one-time-code"
+                required
+              />
+            </div>
+            <Button
+              type="submit"
+              class="w-fit"
+              :disabled="busy || !operatorMethod || !operatorCode"
+              data-test="operator-verify"
+            >
+              {{ t('admin.upstream.operatorVerify') }}
+            </Button>
+          </form>
+
+          <div v-else class="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              :disabled="busy"
+              data-test="operator-validate"
+              @click="validateOperatorSession"
+            >
+              {{ t('admin.upstream.operatorValidate') }}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="busy"
+              data-test="operator-replace"
+              @click="replaceOperatorSession"
+            >
+              {{ t('admin.upstream.operatorReplace') }}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <!-- Danger zone: sensitive operations (disable, rotate secret, delete) grouped together. -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">
         <CardHeader><CardTitle class="text-destructive">{{ t('admin.upstream.dangerTitle') }}</CardTitle></CardHeader>
@@ -249,7 +478,10 @@ onMounted(load)
               </StatusBadge>
             </div>
             <p class="text-xs text-muted">{{ t('admin.upstream.disabledDesc') }}</p>
-            <Button type="button" variant="outline" class="w-fit" :disabled="busy" data-test="disable-toggle" @click="toggleDisabled">
+            <p v-if="operatorEnableBlocked" class="text-xs text-muted">
+              {{ t('admin.upstream.operatorEnableRequiresValid') }}
+            </p>
+            <Button type="button" variant="outline" class="w-fit" :disabled="busy || operatorEnableBlocked" data-test="disable-toggle" @click="toggleDisabled">
               {{ disabled ? t('admin.upstream.enable') : t('admin.upstream.disable') }}
             </Button>
           </div>

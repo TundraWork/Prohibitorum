@@ -11,6 +11,7 @@ import { type Page, buildPagePath } from '@/lib/pagination'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -55,7 +56,7 @@ export interface IdentityProvider {
   config: Record<string, unknown>
   disabled: boolean
   secretConfigured: boolean
-  secretStatus: 'unconfigured' | 'configured' | 'valid' | 'invalid'
+  secretStatus: 'unconfigured' | 'valid' | 'invalid'
   secretValidatedAt: string | null
   ready: boolean
   supportsOperator: boolean
@@ -107,30 +108,43 @@ function openCreate(): void {
 }
 
 async function create(): Promise<void> {
-  const config: OIDCProviderConfig | Record<string, never> = protocol.value === 'oidc'
-    ? {
-        issuerUrl: issuerUrl.value,
-        clientId: clientId.value,
-        scopes: scopes.value,
-        allowedDomains: allowedDomains.value,
-        usernameClaim: usernameClaim.value,
-        displayNameClaim: displayNameClaim.value,
-        emailClaim: emailClaim.value,
-        pictureClaim: pictureClaim.value,
-        requireVerifiedEmail: requireVerifiedEmail.value,
-        allowPrivateNetwork: false,
-      }
-    : {}
-  const body = {
+  const common = {
     slug: slug.value,
     displayName: displayName.value,
     protocol: protocol.value,
     mode: mode.value,
-    config,
-    secret: protocol.value === 'steam' ? apiKey.value : clientSecret.value,
   }
-  const res = await run(() => withSudo(() => api.post<IdentityProvider>('/api/prohibitorum/identity-providers', body)))
-  if (res) { createOpen.value = false; triggerCreated(); await page.reload() }
+  const body = protocol.value === 'oidc'
+    ? {
+        ...common,
+        config: {
+          issuerUrl: issuerUrl.value,
+          clientId: clientId.value,
+          scopes: scopes.value,
+          allowedDomains: allowedDomains.value,
+          usernameClaim: usernameClaim.value,
+          displayNameClaim: displayNameClaim.value,
+          emailClaim: emailClaim.value,
+          pictureClaim: pictureClaim.value,
+          requireVerifiedEmail: requireVerifiedEmail.value,
+          allowPrivateNetwork: false,
+        } satisfies OIDCProviderConfig,
+        secret: clientSecret.value,
+      }
+    : protocol.value === 'steam'
+      ? { ...common, config: {}, secret: apiKey.value }
+      : { ...common, config: {} }
+  const res = await run(() => withSudo(() =>
+    api.post<IdentityProvider>('/api/prohibitorum/identity-providers', body),
+  ))
+  if (!res) return
+  createOpen.value = false
+  if (protocol.value === 'vrchat') {
+    await router.push(`/admin/identity-providers/${slug.value}`)
+    return
+  }
+  triggerCreated()
+  await page.reload()
 }
 
 </script>
@@ -161,8 +175,12 @@ async function create(): Promise<void> {
             <Label>{{ t('admin.upstream.protocol') }}</Label>
             <RadioCardGroup v-model="protocol" :aria-label="t('admin.upstream.protocol')" :options="[
               {value:'oidc',title:t('admin.upstream.protocolOidc'),description:t('admin.upstream.protocolOidcDesc')},
-              {value:'steam',title:t('admin.upstream.protocolSteam'),description:t('admin.upstream.protocolSteamDesc')}]" />
+              {value:'steam',title:t('admin.upstream.protocolSteam'),description:t('admin.upstream.protocolSteamDesc')},
+              {value:'vrchat',title:t('admin.upstream.protocolVrchat'),description:t('admin.upstream.protocolVrchatDesc')}]" />
           </div>
+          <Alert v-if="protocol === 'vrchat'" data-test="vrchat-create-warning">
+            <AlertDescription>{{ t('admin.upstream.vrchatCreateWarning') }}</AlertDescription>
+          </Alert>
           <template v-if="protocol === 'oidc'">
             <div class="flex flex-col gap-1.5">
               <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>

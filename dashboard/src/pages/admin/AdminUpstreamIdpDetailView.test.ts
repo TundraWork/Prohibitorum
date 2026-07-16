@@ -4,10 +4,14 @@ import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
-vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
+const { withSudo, push, routeParams } = vi.hoisted(() => ({
+  withSudo: vi.fn((fn: () => Promise<unknown>) => fn()),
+  push: vi.fn(),
+  routeParams: { slug: 'okta' },
+}))
+vi.mock('@/lib/sudo', () => ({ withSudo }))
 const get = vi.mocked(api.get); const post = vi.mocked(api.post); const put = vi.mocked(api.put)
-const { push } = vi.hoisted(() => ({ push: vi.fn() }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ params: { slug: 'okta' } }), useRouter: () => ({ push }), RouterLink: { template: '<a><slot/></a>' } }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ params: routeParams }), useRouter: () => ({ push }), RouterLink: { template: '<a><slot/></a>' } }))
 import AdminUpstreamIdpDetailView from './AdminUpstreamIdpDetailView.vue'
 
 const OIDC_CONFIG = {
@@ -37,13 +41,36 @@ const IDP = {
   searchFields: [],
   createdAt: '2026-01-01T00:00:00Z',
 }
+const VRCHAT = {
+  ...IDP,
+  slug: 'vrchat',
+  displayName: 'VRChat moderation',
+  protocol: 'vrchat',
+  config: {},
+  disabled: true,
+  secretConfigured: false,
+  secretStatus: 'unconfigured',
+  secretValidatedAt: null,
+  ready: false,
+  supportsOperator: true,
+}
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminUpstreamIdpDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
+const mountVrchat = async (overrides: Record<string, unknown> = {}) => {
+  routeParams.slug = 'vrchat'
+  get.mockResolvedValue({ ...VRCHAT, ...overrides })
+  const wrapper = mountView()
+  await flushPromises()
+  return wrapper
+}
 const clickConfirm = async (label: string) => {
   const btns = Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent?.trim() === label && b.classList.contains('bg-destructive'))
   btns[btns.length - 1]!.click(); await flushPromises()
 }
-beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset() })
+beforeEach(() => {
+  get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset(); withSudo.mockClear()
+  routeParams.slug = 'okta'
+})
 
 describe('AdminUpstreamIdpDetailView', () => {
   it('shows not-found on upstream_idp_not_found', async () => {
@@ -190,27 +217,225 @@ describe('AdminUpstreamIdpDetailView', () => {
       config: {},
     })
   })
-  it('does not render OIDC or secret controls for a non-OIDC, non-Steam provider', async () => {
-    get.mockResolvedValue({
-      ...IDP,
-      slug: 'vrchat',
-      displayName: 'VRChat',
-      protocol: 'vrchat',
-      config: {},
-      disabled: true,
-      secretConfigured: false,
-      secretStatus: 'unconfigured',
-      ready: false,
-      supportsOperator: true,
-    })
-    const w = mountView(); await flushPromises()
+  it('shows VRChat session state, setup guidance, and no generic secret UI', async () => {
+    const w = await mountVrchat()
+
     expect(w.find('input[name="issuerUrl"]').exists()).toBe(false)
     expect(w.find('input[name="usernameClaim"]').exists()).toBe(false)
     expect(w.find('[data-test="allowPrivateNetwork"]').exists()).toBe(false)
     expect(w.find('input[name="newSecret"]').exists()).toBe(false)
+    expect(w.find('[data-test="rotate"]').exists()).toBe(false)
+    expect(w.get('[data-test="operator-status-badge"]').text()).toBe(en.admin.upstream.operatorStatusUnconfigured)
+    expect(w.text()).toContain(en.admin.upstream.operatorLastValidationNever)
+    expect(w.text()).toContain(en.admin.upstream.operatorSessionNotice)
+    expect(w.find('input[name="operatorUsername"]').exists()).toBe(true)
+    expect(w.find('input[name="operatorPassword"]').exists()).toBe(true)
+    expect(w.get('[data-test="disable-toggle"]').attributes('disabled')).toBeDefined()
+    expect(w.text()).toContain(en.admin.upstream.operatorEnableRequiresValid)
+  })
+
+  it('shows invalid status and returns directly to credential setup', async () => {
+    const w = await mountVrchat({
+      secretConfigured: true,
+      secretStatus: 'invalid',
+      secretValidatedAt: '2026-07-15T08:00:00Z',
+    })
+
+    expect(w.get('[data-test="operator-status-badge"]').text()).toBe(en.admin.upstream.operatorStatusInvalid)
+    expect(w.find('input[name="operatorUsername"]').exists()).toBe(true)
+    expect(w.find('input[name="operatorPassword"]').exists()).toBe(true)
+    expect(w.find('[data-test="operator-validate"]').exists()).toBe(false)
+  })
+
+  it('shows valid status, validation time, and validate/replace actions', async () => {
+    const w = await mountVrchat({
+      disabled: true,
+      secretConfigured: true,
+      secretStatus: 'valid',
+      secretValidatedAt: '2026-07-16T10:30:00Z',
+      ready: true,
+    })
+
+    expect(w.get('[data-test="operator-status-badge"]').text()).toBe(en.admin.upstream.operatorStatusValid)
+    expect(w.get('[data-test="operator-last-validation"]').text()).toContain('2026')
+    expect(w.find('[data-test="operator-validate"]').exists()).toBe(true)
+    expect(w.find('[data-test="operator-replace"]').exists()).toBe(true)
+    expect(w.find('input[name="operatorUsername"]').exists()).toBe(false)
+    expect(w.get('[data-test="disable-toggle"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('starts a progressive challenge with supported returned methods only', async () => {
+    post.mockResolvedValue({
+      status: 'challenge',
+      challenge: 'opaque-challenge-value',
+      methods: ['emailOtp', 'unsupported', 'totp'],
+      expiresAt: '2026-07-17T12:10:00Z',
+    })
+    const w = await mountVrchat()
+    await w.get('input[name="operatorUsername"]').setValue('operator@example.com')
+    await w.get('input[name="operatorPassword"]').setValue('not-rendered-password')
+    await w.get('[data-test="operator-start"]').trigger('click')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith(
+      '/api/prohibitorum/identity-providers/vrchat/operator-session/start',
+      { username: 'operator@example.com', password: 'not-rendered-password' },
+    )
+    expect(withSudo).toHaveBeenCalledWith(expect.any(Function), en.sudo.reason.startOperatorSession)
+    expect(w.find('input[name="operatorUsername"]').exists()).toBe(false)
+    expect(w.find('input[name="operatorPassword"]').exists()).toBe(false)
+    expect(w.find('[data-test="radio-card-emailOtp"]').exists()).toBe(true)
+    expect(w.find('[data-test="radio-card-totp"]').exists()).toBe(true)
+    expect(w.find('[data-test="radio-card-recoveryOtp"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('unsupported')
+    expect(w.text()).not.toContain('opaque-challenge-value')
+    expect(w.get('input[name="operatorCode"]').attributes('autocomplete')).toBe('one-time-code')
+  })
+
+  it('clears a rejected password but keeps the username for retry', async () => {
+    post.mockRejectedValue({ code: 'vrchat_operator_credentials_invalid' })
+    const w = await mountVrchat()
+    await w.get('input[name="operatorUsername"]').setValue('operator@example.com')
+    await w.get('input[name="operatorPassword"]').setValue('bad-password')
+    await w.get('[data-test="operator-start"]').trigger('click')
+    await flushPromises()
+
+    expect((w.get('input[name="operatorUsername"]').element as HTMLInputElement).value).toBe('operator@example.com')
+    expect((w.get('input[name="operatorPassword"]').element as HTMLInputElement).value).toBe('')
+    expect(w.text()).toContain(en.errors.codes.vrchat_operator_credentials_invalid)
+    expect(w.text()).not.toContain('bad-password')
+  })
+
+  it.each([
+    ['vrchat_operator_code_invalid', 'vrchat_operator_code_invalid'],
+    ['upstream_rate_limited', 'upstream_rate_limited'],
+    ['upstream_temporarily_unavailable', 'upstream_temporarily_unavailable'],
+  ])('keeps the challenge after %s and clears each code attempt', async (errorCode, localeKey) => {
+    post
+      .mockResolvedValueOnce({
+        status: 'challenge',
+        challenge: 'retryable-challenge',
+        methods: ['totp'],
+        expiresAt: '2026-07-17T12:10:00Z',
+      })
+      .mockRejectedValueOnce({ code: errorCode })
+      .mockResolvedValueOnce({ status: 'valid', provider: { ...VRCHAT, secretConfigured: true, secretStatus: 'valid', ready: true } })
+    const w = await mountVrchat()
+    await w.get('input[name="operatorUsername"]').setValue('operator')
+    await w.get('input[name="operatorPassword"]').setValue('password')
+    await w.get('[data-test="operator-start"]').trigger('click')
+    await flushPromises()
+    await w.get('input[name="operatorCode"]').setValue('123456')
+    await w.get('[data-test="operator-verify"]').trigger('click')
+    await flushPromises()
+
+    expect((w.get('input[name="operatorCode"]').element as HTMLInputElement).value).toBe('')
+    expect(w.text()).toContain(en.errors.codes[localeKey as keyof typeof en.errors.codes])
+    await w.get('input[name="operatorCode"]').setValue('654321')
+    await w.get('[data-test="operator-verify"]').trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenLastCalledWith(
+      '/api/prohibitorum/identity-providers/vrchat/operator-session/verify',
+      { challenge: 'retryable-challenge', method: 'totp', code: '654321' },
+    )
+  })
+
+  it('resets an expired challenge to credentials and clears the code', async () => {
+    post
+      .mockResolvedValueOnce({
+        status: 'challenge',
+        challenge: 'expired-challenge',
+        methods: ['recoveryOtp'],
+        expiresAt: '2026-07-17T12:10:00Z',
+      })
+      .mockRejectedValueOnce({ code: 'vrchat_operator_challenge_invalid' })
+    const w = await mountVrchat()
+    await w.get('input[name="operatorUsername"]').setValue('operator')
+    await w.get('input[name="operatorPassword"]').setValue('password')
+    await w.get('[data-test="operator-start"]').trigger('click')
+    await flushPromises()
+    await w.get('input[name="operatorCode"]').setValue('one-use-code')
+    await w.get('[data-test="operator-verify"]').trigger('click')
+    await flushPromises()
+
+    expect(w.find('input[name="operatorCode"]').exists()).toBe(false)
+    expect(w.find('input[name="operatorUsername"]').exists()).toBe(true)
+    expect(w.find('input[name="operatorPassword"]').exists()).toBe(true)
+    expect(w.text()).toContain(en.errors.codes.vrchat_operator_challenge_invalid)
+    expect(w.text()).not.toContain('expired-challenge')
+    expect(w.text()).not.toContain('one-use-code')
+  })
+
+  it('updates the local provider after successful code verification', async () => {
+    post
+      .mockResolvedValueOnce({
+        status: 'challenge',
+        challenge: 'challenge',
+        methods: ['emailOtp'],
+        expiresAt: '2026-07-17T12:10:00Z',
+      })
+      .mockResolvedValueOnce({
+        status: 'valid',
+        provider: {
+          ...VRCHAT,
+          secretConfigured: true,
+          secretStatus: 'valid',
+          secretValidatedAt: '2026-07-17T12:04:00Z',
+          ready: true,
+        },
+      })
+    const w = await mountVrchat()
+    await w.get('input[name="operatorUsername"]').setValue('operator')
+    await w.get('input[name="operatorPassword"]').setValue('password')
+    await w.get('[data-test="operator-start"]').trigger('click')
+    await flushPromises()
+    await w.get('input[name="operatorCode"]').setValue('112233')
+    await w.get('[data-test="operator-verify"]').trigger('click')
+    await flushPromises()
+
+    expect(withSudo).toHaveBeenLastCalledWith(expect.any(Function), en.sudo.reason.verifyOperatorSession)
+    expect(w.get('[data-test="operator-status-badge"]').text()).toBe(en.admin.upstream.operatorStatusValid)
+    expect(w.find('input[name="operatorCode"]').exists()).toBe(false)
+    expect(w.find('[data-test="operator-validate"]').exists()).toBe(true)
+  })
+
+  it('validates without a body and replaces the session inline', async () => {
+    post.mockResolvedValue({
+      status: 'valid',
+      provider: {
+        ...VRCHAT,
+        secretConfigured: true,
+        secretStatus: 'valid',
+        secretValidatedAt: '2026-07-17T12:04:00Z',
+        ready: true,
+      },
+    })
+    const w = await mountVrchat({ secretConfigured: true, secretStatus: 'valid', ready: true })
+    await w.get('[data-test="operator-validate"]').trigger('click')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/vrchat/operator-session/validate')
+    expect(withSudo).toHaveBeenCalledWith(expect.any(Function), en.sudo.reason.validateOperatorSession)
+
+    await w.get('[data-test="operator-replace"]').trigger('click')
+    expect(w.find('input[name="operatorUsername"]').exists()).toBe(true)
+    expect(w.find('input[name="operatorPassword"]').exists()).toBe(true)
+    expect(w.find('[data-test="operator-validate"]').exists()).toBe(false)
+  })
+
+  it('still permits disabling an active VRChat provider with an invalid session', async () => {
+    post.mockResolvedValue({ ...VRCHAT, disabled: true, secretStatus: 'invalid' })
+    const w = await mountVrchat({ disabled: false, secretStatus: 'invalid' })
+    expect(w.get('[data-test="disable-toggle"]').attributes('disabled')).toBeUndefined()
+    await w.get('[data-test="disable-toggle"]').trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith(
+      '/api/prohibitorum/identity-providers/set-disabled',
+      { slug: 'vrchat', disabled: true },
+    )
   })
   it('localizes provider_not_ready when enabling is rejected', async () => {
-    get.mockResolvedValue({ ...IDP, disabled: true, ready: false, secretStatus: 'configured' })
+    get.mockResolvedValue({ ...IDP, disabled: true, ready: false, secretStatus: 'invalid' })
     post.mockRejectedValue({ code: 'provider_not_ready', message: 'raw server message' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="disable-toggle"]').trigger('click'); await flushPromises()
