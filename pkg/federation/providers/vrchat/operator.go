@@ -29,16 +29,16 @@ const (
 type OperatorCategory string
 
 const (
-	OperatorCategoryCredentialsInvalid  OperatorCategory = "credentials_invalid"
-	OperatorCategoryChallengeInvalid    OperatorCategory = "challenge_invalid"
-	OperatorCategoryVerificationFailed  OperatorCategory = "verification_failed"
-	OperatorCategoryRateLimited         OperatorCategory = "rate_limited"
-	OperatorCategoryUpstreamUnavailable OperatorCategory = "upstream_unavailable"
-	OperatorCategoryProviderNotReady    OperatorCategory = "provider_not_ready"
-	OperatorCategoryBadRequest          OperatorCategory = "bad_request"
-	OperatorCategoryDatabaseUnavailable OperatorCategory = "database_unavailable"
-	OperatorCategoryKVUnavailable       OperatorCategory = "kv_unavailable"
-	OperatorCategoryServerError         OperatorCategory = "server_error"
+	OperatorCategoryCredentialsInvalid             OperatorCategory = "credentials_invalid"
+	OperatorCategoryChallengeInvalid               OperatorCategory = "challenge_invalid"
+	OperatorCategoryCodeInvalid                    OperatorCategory = "code_invalid"
+	OperatorCategoryUpstreamRateLimited            OperatorCategory = "upstream_rate_limited"
+	OperatorCategoryUpstreamTemporarilyUnavailable OperatorCategory = "upstream_temporarily_unavailable"
+	OperatorCategoryProviderNotReady               OperatorCategory = "provider_not_ready"
+	OperatorCategoryBadRequest                     OperatorCategory = "bad_request"
+	OperatorCategoryDatabaseUnavailable            OperatorCategory = "database_unavailable"
+	OperatorCategoryKVUnavailable                  OperatorCategory = "kv_unavailable"
+	OperatorCategoryServerError                    OperatorCategory = "server_error"
 )
 
 type OperatorError struct {
@@ -153,11 +153,11 @@ func (s *OperatorService) Start(ctx context.Context, slug string, accountID int3
 	}
 	methods := supportedOperatorMethods(user.RequiresTwoFactorAuth)
 	if len(methods) == 0 {
-		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamUnavailable)
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
 	encoded, err := s.client.EncodeCookies(cookies)
 	if err != nil {
-		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamUnavailable)
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
 	challengeBytes := make([]byte, 32)
 	if _, err = io.ReadFull(s.random, challengeBytes); err != nil {
@@ -250,25 +250,39 @@ func (s *OperatorService) Verify(ctx context.Context, slug string, accountID int
 		return OperatorSessionResult{}, restore(classifyOperatorUpstream(err, false))
 	}
 	if !fullCurrentUser(user) {
-		return OperatorSessionResult{}, restore(operatorErr(OperatorCategoryUpstreamUnavailable))
-	}
-	result, err := s.persist(ctx, provider, cookies)
-	if err != nil {
-		return OperatorSessionResult{}, restore(err)
+		return OperatorSessionResult{}, restore(operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable))
 	}
 	consumed := verifying
 	consumed.State = "consumed"
 	consumed.Secret = federation.SealedSecret{}
-	consumedRaw, _ := encodeOperatorChallengeUnsafe(consumed)
-	swapped, casErr := s.kv.CompareAndSwap(ctx, operatorChallengeKey(challenge), verifyingRaw, consumedRaw, state.ExpiresAt.Sub(s.now()))
-	if casErr != nil || !swapped {
+	consumedRaw, err := encodeOperatorChallenge(consumed)
+	if err != nil {
+		return OperatorSessionResult{}, restore(operatorErr(OperatorCategoryServerError))
+	}
+	finalizeTTL := state.ExpiresAt.Sub(s.now())
+	if finalizeTTL <= 0 {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryChallengeInvalid)
+	}
+	swapped, err = s.kv.CompareAndSwap(ctx, operatorChallengeKey(challenge), verifyingRaw, consumedRaw, finalizeTTL)
+	if err != nil {
 		return OperatorSessionResult{}, operatorErr(OperatorCategoryKVUnavailable)
 	}
-	return result, nil
-}
-
-func encodeOperatorChallengeUnsafe(state operatorChallenge) (string, error) {
-	return encodeOperatorChallenge(state)
+	if !swapped {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryChallengeInvalid)
+	}
+	result, err := s.persist(ctx, provider, cookies)
+	if err == nil {
+		return result, nil
+	}
+	restoreTTL := state.ExpiresAt.Sub(s.now())
+	if restoreTTL <= 0 {
+		return OperatorSessionResult{}, err
+	}
+	restored, restoreErr := s.kv.CompareAndSwap(ctx, operatorChallengeKey(challenge), consumedRaw, raw, restoreTTL)
+	if restoreErr != nil || !restored {
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryKVUnavailable)
+	}
+	return OperatorSessionResult{}, err
 }
 
 func (s *OperatorService) Validate(ctx context.Context, slug string) (OperatorSessionResult, error) {
@@ -308,7 +322,7 @@ func (s *OperatorService) Validate(ctx context.Context, slug string) (OperatorSe
 		return OperatorSessionResult{}, classifyOperatorUpstream(err, true)
 	}
 	if !fullCurrentUser(user) {
-		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamUnavailable)
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
 	return s.persist(ctx, provider, cookies)
 }
@@ -329,7 +343,7 @@ func (s *OperatorService) provider(ctx context.Context, slug string) (db.Upstrea
 func (s *OperatorService) persist(ctx context.Context, provider db.UpstreamIdp, cookies []http.Cookie) (OperatorSessionResult, error) {
 	encoded, err := s.client.EncodeCookies(cookies)
 	if err != nil {
-		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamUnavailable)
+		return OperatorSessionResult{}, operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
 	sealed, err := s.secrets.SealProviderSecret(encoded, provider.ID, s.keyVersion)
 	if err != nil {
@@ -345,7 +359,7 @@ func (s *OperatorService) persist(ctx context.Context, provider db.UpstreamIdp, 
 	return OperatorSessionResult{Status: OperatorStatusValid, Provider: &row}, nil
 }
 func (s *OperatorService) invalidate(ctx context.Context, provider db.UpstreamIdp) error {
-	_, err := s.queries.UpdateVRChatOperatorHealth(ctx, db.UpdateVRChatOperatorHealthParams{SecretStatus: "invalid", SecretValidatedAt: pgtype.Timestamptz{}, ID: provider.ID, Slug: provider.Slug})
+	_, err := s.queries.UpdateVRChatOperatorHealth(ctx, db.UpdateVRChatOperatorHealthParams{SecretStatus: "invalid", ID: provider.ID, Slug: provider.Slug})
 	if err == nil {
 		return nil
 	}
@@ -379,11 +393,11 @@ func containsMethod(methods []string, method string) bool {
 func classifyVerifyError(err error) error {
 	var verification *VerificationError
 	if errors.As(err, &verification) {
-		return operatorErr(OperatorCategoryVerificationFailed)
+		return operatorErr(OperatorCategoryCodeInvalid)
 	}
 	var httpErr *HTTPError
 	if errors.As(err, &httpErr) && (httpErr.Status == http.StatusUnauthorized || httpErr.Status == http.StatusForbidden) {
-		return operatorErr(OperatorCategoryVerificationFailed)
+		return operatorErr(OperatorCategoryCodeInvalid)
 	}
 	var oversize *OversizeError
 	var validation *ValidationError
@@ -400,22 +414,22 @@ func classifyOperatorUpstream(err error, credentials bool) error {
 			if credentials {
 				return operatorErr(OperatorCategoryCredentialsInvalid)
 			}
-			return operatorErr(OperatorCategoryVerificationFailed)
+			return operatorErr(OperatorCategoryCodeInvalid)
 		case httpErr.Status == http.StatusTooManyRequests:
-			return &OperatorError{Category: OperatorCategoryRateLimited, RetryAfter: httpErr.RetryAfter}
+			return &OperatorError{Category: OperatorCategoryUpstreamRateLimited, RetryAfter: httpErr.RetryAfter}
 		case httpErr.Status >= 500:
-			return operatorErr(OperatorCategoryUpstreamUnavailable)
+			return operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 		}
 	}
 	var request *RequestError
 	var decode *DecodeError
 	var oversize *OversizeError
 	if errors.As(err, &request) || errors.As(err, &decode) || errors.As(err, &oversize) {
-		return operatorErr(OperatorCategoryUpstreamUnavailable)
+		return operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 	}
 	var validation *ValidationError
 	if errors.As(err, &validation) {
 		return operatorErr(OperatorCategoryBadRequest)
 	}
-	return operatorErr(OperatorCategoryUpstreamUnavailable)
+	return operatorErr(OperatorCategoryUpstreamTemporarilyUnavailable)
 }

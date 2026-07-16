@@ -74,10 +74,11 @@ func init() {
 		{Code: "client_not_found", Status: http.StatusNotFound, LocaleKey: "errors.client_not_found", DiagnosticKind: "resource"},
 		{Code: "upstream_idp_not_found", Status: http.StatusNotFound, LocaleKey: "errors.upstream_idp_not_found", DiagnosticKind: "resource"},
 		{Code: "provider_not_ready", Status: http.StatusServiceUnavailable, LocaleKey: "errors.provider_not_ready", DiagnosticKind: "federation"},
-		{Code: "vrchat_operator_credentials_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.vrchat_operator_credentials_invalid", DiagnosticKind: "federation"},
-		{Code: "vrchat_operator_challenge_invalid", Status: http.StatusBadRequest, LocaleKey: "errors.vrchat_operator_challenge_invalid", DiagnosticKind: "federation"},
-		{Code: "vrchat_operator_verification_failed", Status: http.StatusUnauthorized, LocaleKey: "errors.vrchat_operator_verification_failed", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
-		{Code: "vrchat_upstream_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.vrchat_upstream_unavailable", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "vrchat_operator_credentials_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_operator_credentials_invalid", DiagnosticKind: "federation"},
+		{Code: "vrchat_operator_challenge_invalid", Status: http.StatusGone, LocaleKey: "errors.vrchat_operator_challenge_invalid", DiagnosticKind: "federation"},
+		{Code: "vrchat_operator_code_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_operator_code_invalid", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "upstream_rate_limited", Status: http.StatusTooManyRequests, LocaleKey: "errors.upstream_rate_limited", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "upstream_temporarily_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.upstream_temporarily_unavailable", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
 		{Code: "oidc_client_already_exists", Status: http.StatusConflict, LocaleKey: "errors.oidc_client_already_exists", DiagnosticKind: "validation"},
 		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, LocaleKey: "errors.upstream_idp_already_exists", DiagnosticKind: "validation"},
 		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
@@ -515,19 +516,25 @@ func ErrProviderNotReady() *AuthError {
 }
 
 func ErrVRChatOperatorCredentialsInvalid() *AuthError {
-	return newErr(http.StatusUnauthorized, "vrchat_operator_credentials_invalid", "VRChat operator credentials are invalid.")
+	return newErr(http.StatusUnprocessableEntity, "vrchat_operator_credentials_invalid", "VRChat operator credentials are invalid.")
 }
 
 func ErrVRChatOperatorChallengeInvalid() *AuthError {
-	return newErr(http.StatusBadRequest, "vrchat_operator_challenge_invalid", "VRChat operator challenge is invalid.")
+	return newErr(http.StatusGone, "vrchat_operator_challenge_invalid", "VRChat operator challenge is invalid.")
 }
 
-func ErrVRChatOperatorVerificationFailed() *AuthError {
-	return newErr(http.StatusUnauthorized, "vrchat_operator_verification_failed", "VRChat operator verification failed.")
+func ErrVRChatOperatorCodeInvalid() *AuthError {
+	return newErr(http.StatusUnprocessableEntity, "vrchat_operator_code_invalid", "VRChat operator verification code is invalid.")
 }
 
-func ErrVRChatUpstreamUnavailable() *AuthError {
-	return newErr(http.StatusServiceUnavailable, "vrchat_upstream_unavailable", "VRChat is temporarily unavailable.")
+func ErrUpstreamRateLimited(retryAfter time.Duration) *AuthError {
+	err := newErr(http.StatusTooManyRequests, "upstream_rate_limited", "The upstream provider rate limited the request.")
+	err.RetryAfter = retryAfter
+	return err
+}
+
+func ErrUpstreamTemporarilyUnavailable() *AuthError {
+	return newErr(http.StatusServiceUnavailable, "upstream_temporarily_unavailable", "The upstream provider is temporarily unavailable.")
 }
 
 // ErrClientAlreadyExists is returned when an OIDC client insert violates the

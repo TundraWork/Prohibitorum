@@ -3,6 +3,7 @@ package authn
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"prohibitorum/pkg/weberr"
 )
@@ -13,10 +14,11 @@ func TestVRChatOperatorErrorDefinitions(t *testing.T) {
 		status    int
 		retryable bool
 	}{
-		{ErrVRChatOperatorCredentialsInvalid(), http.StatusUnauthorized, false},
-		{ErrVRChatOperatorChallengeInvalid(), http.StatusBadRequest, false},
-		{ErrVRChatOperatorVerificationFailed(), http.StatusUnauthorized, true},
-		{ErrVRChatUpstreamUnavailable(), http.StatusServiceUnavailable, true},
+		{ErrVRChatOperatorCredentialsInvalid(), http.StatusUnprocessableEntity, false},
+		{ErrVRChatOperatorChallengeInvalid(), http.StatusGone, false},
+		{ErrVRChatOperatorCodeInvalid(), http.StatusUnprocessableEntity, true},
+		{ErrUpstreamRateLimited(5 * time.Second), http.StatusTooManyRequests, true},
+		{ErrUpstreamTemporarilyUnavailable(), http.StatusServiceUnavailable, true},
 	}
 	for _, test := range tests {
 		t.Run(test.err.Code, func(t *testing.T) {

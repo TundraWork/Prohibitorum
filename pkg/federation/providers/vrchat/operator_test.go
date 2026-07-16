@@ -2,8 +2,10 @@ package vrchat
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -27,6 +29,7 @@ type operatorFakeClient struct {
 	currentCookies                       []http.Cookie
 	currentErr                           error
 	verifyErr                            error
+	currentHook                          func()
 	authCalls, currentCalls, verifyCalls int
 	lastMethod, lastCode                 string
 }
@@ -41,6 +44,9 @@ func (f *operatorFakeClient) CurrentUser(context.Context, []http.Cookie) (Curren
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.currentCalls++
+	if f.currentHook != nil {
+		f.currentHook()
+	}
 	return f.currentUser, cloneOperatorCookies(f.currentCookies), f.currentErr
 }
 func (f *operatorFakeClient) VerifyTwoFactor(_ context.Context, method, code string, cookies []http.Cookie) ([]http.Cookie, error) {
@@ -63,7 +69,7 @@ func operatorCookie(name, value string, expires time.Time) http.Cookie {
 type operatorFakeQueries struct {
 	mu                           sync.Mutex
 	row                          db.UpstreamIdp
-	getErr, healthErr            error
+	getErr, healthErr, secretErr error
 	secretUpdates, healthUpdates int
 }
 
@@ -76,6 +82,9 @@ func (q *operatorFakeQueries) GetUpstreamIDPBySlugAny(context.Context, string) (
 func (q *operatorFakeQueries) UpdateVRChatOperatorSecret(_ context.Context, p db.UpdateVRChatOperatorSecretParams) (db.UpstreamIdp, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if q.secretErr != nil {
+		return db.UpstreamIdp{}, q.secretErr
+	}
 	q.secretUpdates++
 	if q.row.ID != p.ID || q.row.Slug != p.Slug || q.row.Protocol != "vrchat" {
 		return db.UpstreamIdp{}, pgx.ErrNoRows
@@ -94,7 +103,7 @@ func (q *operatorFakeQueries) UpdateVRChatOperatorHealth(_ context.Context, p db
 	if q.row.ID != p.ID || q.row.Slug != p.Slug || q.row.Protocol != "vrchat" {
 		return db.UpstreamIdp{}, pgx.ErrNoRows
 	}
-	q.row.SecretStatus, q.row.SecretValidatedAt = p.SecretStatus, p.SecretValidatedAt
+	q.row.SecretStatus = p.SecretStatus
 	return q.row, nil
 }
 
@@ -121,12 +130,24 @@ func (r *repeatingReader) Read(p []byte) (int, error) {
 
 type restoreFailKV struct {
 	kv.Store
-	calls int
+	calls       int
+	failAt      int
+	transitions []string
 }
 
 func (s *restoreFailKV) CompareAndSwap(ctx context.Context, key, oldValue, newValue string, ttl time.Duration) (bool, error) {
 	s.calls++
-	if s.calls == 2 {
+	var oldState, newState struct {
+		State string `json:"state"`
+	}
+	_ = json.Unmarshal([]byte(oldValue), &oldState)
+	_ = json.Unmarshal([]byte(newValue), &newState)
+	s.transitions = append(s.transitions, oldState.State+"->"+newState.State)
+	failAt := s.failAt
+	if failAt == 0 {
+		failAt = 2
+	}
+	if s.calls == failAt {
 		return false, errors.New("kv unavailable")
 	}
 	return s.Store.CompareAndSwap(ctx, key, oldValue, newValue, ttl)
@@ -213,7 +234,7 @@ func TestOperatorVerifyWrongCodeRetryThenSuccessAndReplayFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	client.verifyErr = &VerificationError{}
-	if _, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "wrong"); OperatorErrorCategory(err) != OperatorCategoryVerificationFailed {
+	if _, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "wrong"); OperatorErrorCategory(err) != OperatorCategoryCodeInvalid {
 		t.Fatalf("wrong-code category=%v", err)
 	}
 	client.verifyErr = nil
@@ -251,6 +272,115 @@ func TestOperatorVerifyReportsKVFailureWhenRetryStateCannotBeRestored(t *testing
 	}
 }
 
+func TestOperatorVerifyFinalizesChallengeBeforeDatabaseUpdate(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	client := &operatorFakeClient{
+		authUser:       CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies:    []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+		currentUser:    CurrentUser{ID: testUserID, DisplayName: "Operator"},
+		currentCookies: []http.Cookie{operatorCookie("auth", "final", now.Add(24*time.Hour))},
+	}
+	q := &operatorFakeQueries{row: operatorProvider()}
+	service, store := operatorService(t, client, q, now)
+	start, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recording := &restoreFailKV{Store: store, failAt: 2}
+	service.kv = recording
+	_, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code")
+	if OperatorErrorCategory(err) != OperatorCategoryKVUnavailable || q.secretUpdates != 0 {
+		t.Fatalf("err=%v database_updates=%d", err, q.secretUpdates)
+	}
+	if !reflect.DeepEqual(recording.transitions, []string{"ready->verifying", "verifying->consumed"}) {
+		t.Fatalf("transitions=%v", recording.transitions)
+	}
+}
+
+func TestOperatorVerifyExpiryBeforeFinalizationSkipsDatabaseUpdate(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	currentNow := now
+	client := &operatorFakeClient{
+		authUser:       CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies:    []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+		currentUser:    CurrentUser{ID: testUserID, DisplayName: "Operator"},
+		currentCookies: []http.Cookie{operatorCookie("auth", "final", now.Add(24*time.Hour))},
+		currentHook:    func() { currentNow = now.Add(11 * time.Minute) },
+	}
+	q := &operatorFakeQueries{row: operatorProvider()}
+	service, _ := operatorService(t, client, q, now)
+	service.now = func() time.Time { return currentNow }
+	start, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code")
+	if OperatorErrorCategory(err) != OperatorCategoryChallengeInvalid || q.secretUpdates != 0 {
+		t.Fatalf("err=%v database_updates=%d", err, q.secretUpdates)
+	}
+}
+
+func TestOperatorVerifyDatabaseFailureRestoresConsumedChallenge(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	client := &operatorFakeClient{
+		authUser:       CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies:    []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+		currentUser:    CurrentUser{ID: testUserID, DisplayName: "Operator"},
+		currentCookies: []http.Cookie{operatorCookie("auth", "final", now.Add(24*time.Hour))},
+	}
+	q := &operatorFakeQueries{row: operatorProvider(), secretErr: errors.New("database unavailable")}
+	service, store := operatorService(t, client, q, now)
+	start, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recording := &restoreFailKV{Store: store, failAt: 99}
+	service.kv = recording
+	_, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code")
+	if OperatorErrorCategory(err) != OperatorCategoryDatabaseUnavailable || q.secretUpdates != 0 {
+		t.Fatalf("err=%v database_updates=%d", err, q.secretUpdates)
+	}
+	if !reflect.DeepEqual(recording.transitions, []string{"ready->verifying", "verifying->consumed", "consumed->ready"}) {
+		t.Fatalf("transitions=%v", recording.transitions)
+	}
+	raw, err := store.Get(context.Background(), operatorChallengeKey(start.Challenge))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := decodeOperatorChallenge(raw)
+	if err != nil || state.State != "ready" {
+		t.Fatalf("restored state=%+v err=%v", state, err)
+	}
+	q.secretErr = nil
+	if _, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code"); err != nil {
+		t.Fatalf("restored challenge did not retry: %v", err)
+	}
+	if q.secretUpdates != 1 {
+		t.Fatalf("database_updates=%d", q.secretUpdates)
+	}
+}
+
+func TestOperatorVerifyDatabaseFailureRestoreFailureIsKVUnavailable(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	client := &operatorFakeClient{
+		authUser:       CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies:    []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+		currentUser:    CurrentUser{ID: testUserID, DisplayName: "Operator"},
+		currentCookies: []http.Cookie{operatorCookie("auth", "final", now.Add(24*time.Hour))},
+	}
+	q := &operatorFakeQueries{row: operatorProvider(), secretErr: errors.New("database unavailable")}
+	service, store := operatorService(t, client, q, now)
+	start, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.kv = &restoreFailKV{Store: store, failAt: 3}
+	_, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code")
+	if OperatorErrorCategory(err) != OperatorCategoryKVUnavailable || q.secretUpdates != 0 {
+		t.Fatalf("err=%v database_updates=%d", err, q.secretUpdates)
+	}
+}
+
 func TestOperatorVerifyRequiresFullAuthenticatedCurrentUser(t *testing.T) {
 	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 	client := &operatorFakeClient{
@@ -264,7 +394,7 @@ func TestOperatorVerifyRequiresFullAuthenticatedCurrentUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code"); OperatorErrorCategory(err) != OperatorCategoryUpstreamUnavailable {
+	if _, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code"); OperatorErrorCategory(err) != OperatorCategoryUpstreamTemporarilyUnavailable {
 		t.Fatalf("challenge-shaped CurrentUser category = %q", OperatorErrorCategory(err))
 	}
 	if q.secretUpdates != 0 {
@@ -277,6 +407,29 @@ func TestOperatorVerifyRequiresFullAuthenticatedCurrentUser(t *testing.T) {
 	}
 }
 
+func TestOperatorVerifyRejectsMethodNotOfferedWithoutConsumingChallenge(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	client := &operatorFakeClient{
+		authUser:       CurrentUser{RequiresTwoFactorAuth: []string{"totp"}},
+		authCookies:    []http.Cookie{operatorCookie("auth", "temporary", now.Add(24*time.Hour))},
+		currentUser:    CurrentUser{ID: testUserID, DisplayName: "Operator"},
+		currentCookies: []http.Cookie{operatorCookie("auth", "final", now.Add(24*time.Hour))},
+	}
+	q := &operatorFakeQueries{row: operatorProvider()}
+	service, _ := operatorService(t, client, q, now)
+	start, err := service.Start(context.Background(), "social", 7, "session-a", "u", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "emailOtp", "code")
+	if OperatorErrorCategory(err) != OperatorCategoryChallengeInvalid || client.verifyCalls != 0 {
+		t.Fatalf("err=%v verify_calls=%d", err, client.verifyCalls)
+	}
+	if _, err = service.Verify(context.Background(), "social", 7, "session-a", start.Challenge, "totp", "code"); err != nil {
+		t.Fatalf("offered method failed after rejection: %v", err)
+	}
+}
+
 func TestOperatorVerifyClassifiesCodeAndPostVerifyAuthenticationFailures(t *testing.T) {
 	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 	for _, test := range []struct {
@@ -286,7 +439,7 @@ func TestOperatorVerifyClassifiesCodeAndPostVerifyAuthenticationFailures(t *test
 		want       OperatorCategory
 	}{
 		{name: "oversize code", verifyErr: &OversizeError{Category: "verification code"}, want: OperatorCategoryBadRequest},
-		{name: "current user unauthorized", currentErr: &HTTPError{Status: http.StatusUnauthorized, Category: "authentication"}, want: OperatorCategoryVerificationFailed},
+		{name: "current user unauthorized", currentErr: &HTTPError{Status: http.StatusUnauthorized, Category: "authentication"}, want: OperatorCategoryCodeInvalid},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			client := &operatorFakeClient{
@@ -431,7 +584,7 @@ func TestOperatorValidateRefreshInvalidationAndTransientErrors(t *testing.T) {
 		s, c, q := makeValid(t)
 		c.currentUser = CurrentUser{RequiresTwoFactorAuth: []string{"totp"}}
 		_, err := s.Validate(context.Background(), "social")
-		if OperatorErrorCategory(err) != OperatorCategoryUpstreamUnavailable || q.secretUpdates != 0 || q.healthUpdates != 0 {
+		if OperatorErrorCategory(err) != OperatorCategoryUpstreamTemporarilyUnavailable || q.secretUpdates != 0 || q.healthUpdates != 0 {
 			t.Fatalf("err=%v secret_updates=%d health_updates=%d", err, q.secretUpdates, q.healthUpdates)
 		}
 	})
@@ -439,10 +592,11 @@ func TestOperatorValidateRefreshInvalidationAndTransientErrors(t *testing.T) {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			s, c, q := makeValid(t)
 			original := append([]byte(nil), q.row.SecretEnc...)
+			originalValidatedAt := q.row.SecretValidatedAt
 			c.currentErr = &HTTPError{Status: status, Category: "authentication"}
 			_, e := s.Validate(context.Background(), "social")
-			if OperatorErrorCategory(e) != OperatorCategoryCredentialsInvalid || q.healthUpdates != 1 || q.row.SecretStatus != "invalid" || string(original) != string(q.row.SecretEnc) {
-				t.Fatalf("err=%v health=%s updates=%d", e, q.row.SecretStatus, q.healthUpdates)
+			if OperatorErrorCategory(e) != OperatorCategoryCredentialsInvalid || q.healthUpdates != 1 || q.row.SecretStatus != "invalid" || string(original) != string(q.row.SecretEnc) || q.row.SecretValidatedAt.Valid != originalValidatedAt.Valid || !q.row.SecretValidatedAt.Time.Equal(originalValidatedAt.Time) {
+				t.Fatalf("err=%v health=%s updates=%d validated_at=%v", e, q.row.SecretStatus, q.healthUpdates, q.row.SecretValidatedAt)
 			}
 		})
 	}
@@ -458,18 +612,20 @@ func TestOperatorValidateRefreshInvalidationAndTransientErrors(t *testing.T) {
 	}
 	t.Run("local-cookie-invalid", func(t *testing.T) {
 		s, _, q := makeValid(t)
+		originalValidatedAt := q.row.SecretValidatedAt
 		q.row.SecretEnc = []byte("bad ciphertext")
 		_, e := s.Validate(context.Background(), "social")
-		if e == nil || q.healthUpdates != 1 || q.row.SecretStatus != "invalid" {
-			t.Fatalf("err=%v updates=%d health=%s", e, q.healthUpdates, q.row.SecretStatus)
+		if e == nil || q.healthUpdates != 1 || q.row.SecretStatus != "invalid" || q.row.SecretValidatedAt.Valid != originalValidatedAt.Valid || !q.row.SecretValidatedAt.Time.Equal(originalValidatedAt.Time) {
+			t.Fatalf("err=%v updates=%d health=%s validated_at=%v", e, q.healthUpdates, q.row.SecretStatus, q.row.SecretValidatedAt)
 		}
 	})
 	t.Run("locally-expired-cookie", func(t *testing.T) {
 		s, _, q := makeValid(t)
+		originalValidatedAt := q.row.SecretValidatedAt
 		s.now = func() time.Time { return now.Add(25 * time.Hour) }
 		_, err := s.Validate(context.Background(), "social")
-		if OperatorErrorCategory(err) != OperatorCategoryCredentialsInvalid || q.healthUpdates != 1 || q.row.SecretStatus != "invalid" {
-			t.Fatalf("err=%v updates=%d health=%s", err, q.healthUpdates, q.row.SecretStatus)
+		if OperatorErrorCategory(err) != OperatorCategoryCredentialsInvalid || q.healthUpdates != 1 || q.row.SecretStatus != "invalid" || q.row.SecretValidatedAt.Valid != originalValidatedAt.Valid || !q.row.SecretValidatedAt.Time.Equal(originalValidatedAt.Time) {
+			t.Fatalf("err=%v updates=%d health=%s validated_at=%v", err, q.healthUpdates, q.row.SecretStatus, q.row.SecretValidatedAt)
 		}
 	})
 	t.Run("invalidation-database-failure", func(t *testing.T) {
@@ -490,7 +646,7 @@ func TestOperatorStartClassifiesLookupAndUpstreamFailures(t *testing.T) {
 		getErr, errorIn error
 		want            OperatorCategory
 		retry           time.Duration
-	}{{"missing", pgx.ErrNoRows, nil, OperatorCategoryProviderNotReady, 0}, {"database", errors.New("db down"), nil, OperatorCategoryDatabaseUnavailable, 0}, {"credentials", nil, &HTTPError{Status: 401, Category: "authentication"}, OperatorCategoryCredentialsInvalid, 0}, {"rate", nil, &HTTPError{Status: 429, Category: "rate_limited", RetryAfter: 9 * time.Second}, OperatorCategoryRateLimited, 9 * time.Second}, {"upstream", nil, &HTTPError{Status: 500, Category: "upstream"}, OperatorCategoryUpstreamUnavailable, 0}, {"network", nil, &RequestError{}, OperatorCategoryUpstreamUnavailable, 0}, {"decode", nil, &DecodeError{Category: "current-user"}, OperatorCategoryUpstreamUnavailable, 0}}
+	}{{"missing", pgx.ErrNoRows, nil, OperatorCategoryProviderNotReady, 0}, {"database", errors.New("db down"), nil, OperatorCategoryDatabaseUnavailable, 0}, {"credentials", nil, &HTTPError{Status: 401, Category: "authentication"}, OperatorCategoryCredentialsInvalid, 0}, {"rate", nil, &HTTPError{Status: 429, Category: "rate_limited", RetryAfter: 9 * time.Second}, OperatorCategoryUpstreamRateLimited, 9 * time.Second}, {"upstream", nil, &HTTPError{Status: 500, Category: "upstream"}, OperatorCategoryUpstreamTemporarilyUnavailable, 0}, {"network", nil, &RequestError{}, OperatorCategoryUpstreamTemporarilyUnavailable, 0}, {"decode", nil, &DecodeError{Category: "current-user"}, OperatorCategoryUpstreamTemporarilyUnavailable, 0}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &operatorFakeClient{authErr: tc.errorIn}

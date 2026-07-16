@@ -197,14 +197,12 @@ func writeVRChatOperatorError(w http.ResponseWriter, err error) {
 		writeAuthErr(w, authn.ErrVRChatOperatorCredentialsInvalid())
 	case vrchat.OperatorCategoryChallengeInvalid:
 		writeAuthErr(w, authn.ErrVRChatOperatorChallengeInvalid())
-	case vrchat.OperatorCategoryVerificationFailed:
-		writeAuthErr(w, authn.ErrVRChatOperatorVerificationFailed())
-	case vrchat.OperatorCategoryUpstreamUnavailable:
-		writeAuthErr(w, authn.ErrVRChatUpstreamUnavailable())
-	case vrchat.OperatorCategoryRateLimited:
-		rate := authn.ErrRateLimited()
-		rate.RetryAfter = op.RetryAfter
-		writeAuthErr(w, rate)
+	case vrchat.OperatorCategoryCodeInvalid:
+		writeAuthErr(w, authn.ErrVRChatOperatorCodeInvalid())
+	case vrchat.OperatorCategoryUpstreamTemporarilyUnavailable:
+		writeAuthErr(w, authn.ErrUpstreamTemporarilyUnavailable())
+	case vrchat.OperatorCategoryUpstreamRateLimited:
+		writeAuthErr(w, authn.ErrUpstreamRateLimited(op.RetryAfter))
 	case vrchat.OperatorCategoryProviderNotReady:
 		writeAuthErr(w, authn.ErrProviderNotReady())
 	case vrchat.OperatorCategoryBadRequest:

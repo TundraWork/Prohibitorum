@@ -87,6 +87,13 @@ func TestVRChatOperatorStartResponseOmitsSecretAndChallengeFieldsWhenValid(t *te
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
+	keys := make([]string, 0, len(got))
+	for key := range got {
+		keys = append(keys, key)
+	}
+	if !sameStringSet(keys, []string{"status", "provider"}) {
+		t.Fatalf("top-level keys=%v body=%s", keys, w.Body.String())
+	}
 	if _, ok := got["challenge"]; ok {
 		t.Fatalf("challenge present: %s", w.Body.String())
 	}
@@ -153,7 +160,7 @@ func TestVRChatOperatorErrorMappingAndAuditRedaction(t *testing.T) {
 		code     string
 		status   int
 		retry    time.Duration
-	}{{vrchat.OperatorCategoryCredentialsInvalid, "vrchat_operator_credentials_invalid", 401, 0}, {vrchat.OperatorCategoryChallengeInvalid, "vrchat_operator_challenge_invalid", 400, 0}, {vrchat.OperatorCategoryVerificationFailed, "vrchat_operator_verification_failed", 401, 0}, {vrchat.OperatorCategoryUpstreamUnavailable, "vrchat_upstream_unavailable", 503, 0}, {vrchat.OperatorCategoryRateLimited, "rate_limited", 429, 13 * time.Second}, {vrchat.OperatorCategoryProviderNotReady, "provider_not_ready", 503, 0}, {vrchat.OperatorCategoryDatabaseUnavailable, "database_unavailable", 503, 0}, {vrchat.OperatorCategoryKVUnavailable, "kv_unavailable", 503, 0}}
+	}{{vrchat.OperatorCategoryCredentialsInvalid, "vrchat_operator_credentials_invalid", 422, 0}, {vrchat.OperatorCategoryChallengeInvalid, "vrchat_operator_challenge_invalid", 410, 0}, {vrchat.OperatorCategoryCodeInvalid, "vrchat_operator_code_invalid", 422, 0}, {vrchat.OperatorCategoryUpstreamTemporarilyUnavailable, "upstream_temporarily_unavailable", 503, 0}, {vrchat.OperatorCategoryUpstreamRateLimited, "upstream_rate_limited", 429, 13 * time.Second}, {vrchat.OperatorCategoryProviderNotReady, "provider_not_ready", 503, 0}, {vrchat.OperatorCategoryDatabaseUnavailable, "database_unavailable", 503, 0}, {vrchat.OperatorCategoryKVUnavailable, "kv_unavailable", 503, 0}}
 	for _, tc := range cases {
 		t.Run(string(tc.category), func(t *testing.T) {
 			fake := &fakeVRChatOperatorService{err: &vrchat.OperatorError{Category: tc.category, RetryAfter: tc.retry}}

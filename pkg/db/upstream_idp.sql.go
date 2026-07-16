@@ -361,29 +361,21 @@ func (q *Queries) UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstrea
 }
 
 const updateVRChatOperatorHealth = `-- name: UpdateVRChatOperatorHealth :one
-UPDATE upstream_idp SET
-  secret_status = $1,
-  secret_validated_at = $2
-WHERE id = $3
-  AND slug = $4
+UPDATE upstream_idp SET secret_status = $1
+WHERE id = $2
+  AND slug = $3
   AND protocol = 'vrchat'
 RETURNING id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at
 `
 
 type UpdateVRChatOperatorHealthParams struct {
-	SecretStatus      string             `json:"secretStatus"`
-	SecretValidatedAt pgtype.Timestamptz `json:"secretValidatedAt"`
-	ID                int64              `json:"id"`
-	Slug              string             `json:"slug"`
+	SecretStatus string `json:"secretStatus"`
+	ID           int64  `json:"id"`
+	Slug         string `json:"slug"`
 }
 
 func (q *Queries) UpdateVRChatOperatorHealth(ctx context.Context, arg UpdateVRChatOperatorHealthParams) (UpstreamIdp, error) {
-	row := q.db.QueryRow(ctx, updateVRChatOperatorHealth,
-		arg.SecretStatus,
-		arg.SecretValidatedAt,
-		arg.ID,
-		arg.Slug,
-	)
+	row := q.db.QueryRow(ctx, updateVRChatOperatorHealth, arg.SecretStatus, arg.ID, arg.Slug)
 	var i UpstreamIdp
 	err := row.Scan(
 		&i.ID,

@@ -56,9 +56,7 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: UpdateVRChatOperatorHealth :one
-UPDATE upstream_idp SET
-  secret_status = sqlc.arg('secret_status'),
-  secret_validated_at = sqlc.narg('secret_validated_at')
+UPDATE upstream_idp SET secret_status = sqlc.arg('secret_status')
 WHERE id = sqlc.arg('id')
   AND slug = sqlc.arg('slug')
   AND protocol = 'vrchat'
