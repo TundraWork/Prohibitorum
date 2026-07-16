@@ -66,6 +66,9 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const { busy, error, run, clear } = useApi()
+// Linked identities load independently so their failure cannot be erased by
+// successful account mutations or hide errors from other account sections.
+const identitiesApi = useApi()
 // Separate composable for group membership operations — avoid busy-guard race.
 const groupsApi = useApi()
 // Separate composable for the all-groups list used in the picker.
@@ -76,6 +79,7 @@ const account = ref<Account | null>(null)
 const credentials = ref<Credential[]>([])
 const sessions = ref<SessionListItem[]>([])
 const identities = ref<AccountIdentity[]>([])
+const identitiesLoaded = ref(false)
 const accountGroups = ref<GroupView[]>([])
 const allGroups = ref<GroupView[]>([])
 const selectedGroupId = ref<string>('')
@@ -136,10 +140,13 @@ async function loadCredentials(): Promise<void> {
   if (creds) credentials.value = unwrap(creds).items
 }
 async function loadIdentities(): Promise<void> {
-  const result = await run(() =>
+  const result = await identitiesApi.run(() =>
     api.get<AccountIdentity[]>(`/api/prohibitorum/accounts/${id}/identities`),
   )
-  if (result) identities.value = result
+  if (result !== undefined) {
+    identities.value = result
+    identitiesLoaded.value = true
+  }
 }
 async function loadSessions(): Promise<void> {
   const res = await run(() => api.get<Page<SessionListItem>>(buildPagePath(`/api/prohibitorum/accounts/${id}/sessions`, { limit: 100 })))
@@ -349,7 +356,9 @@ onMounted(async () => {
       <Card data-test="linked-identities">
         <CardHeader><CardTitle>{{ t('identity.linkedIdentities') }}</CardTitle></CardHeader>
         <CardContent class="flex flex-col">
-          <p v-if="identities.length === 0" class="text-sm text-muted">{{ t('identity.linkedIdentitiesEmpty') }}</p>
+          <ErrorPanel :error="identitiesApi.error.value" @dismiss="identitiesApi.clear" :is-admin="true" />
+          <p v-if="identitiesApi.busy.value && !identitiesLoaded" role="status" class="text-sm text-muted">{{ t('common.loading') }}</p>
+          <p v-else-if="identitiesLoaded && identities.length === 0" class="text-sm text-muted">{{ t('identity.linkedIdentitiesEmpty') }}</p>
           <div
             v-for="identity in identities"
             :key="identity.id"

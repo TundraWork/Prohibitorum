@@ -440,7 +440,7 @@ describe('AdminAccountDetailView', () => {
     expect(getTokensAfter).toBe(getTokensBefore + 1)
   })
 
-  it('keeps an identity-list load error visible after the other account sections load', async () => {
+  it('retains an identity-list error through successful unrelated actions and does not show a false empty state', async () => {
     get.mockImplementation(async (p: string) => {
       const path = String(p).split('?')[0]
       if (path.endsWith('/identities')) throw { code: 'forbidden' }
@@ -451,8 +451,31 @@ describe('AdminAccountDetailView', () => {
       if (path.endsWith('/groups')) return { items: GROUPS_FOR_ACCOUNT, nextCursor: '' }
       return ACCOUNT
     })
+    post.mockResolvedValue({ ...ACCOUNT, disabled: true })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.errors.codes.forbidden)
+    expect(w.text()).not.toContain(en.identity.linkedIdentitiesEmpty)
+
+    await w.find('[data-test="disable-toggle"]').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain(en.errors.codes.forbidden)
+    expect(w.text()).not.toContain(en.identity.linkedIdentitiesEmpty)
+  })
+
+  it('retains a page-section error when linked identities load successfully afterward', async () => {
+    get.mockImplementation(async (p: string) => {
+      const path = String(p).split('?')[0]
+      if (path.endsWith('/identities')) return IDENTITIES
+      if (path.endsWith('/credentials')) return { items: CREDS, nextCursor: '' }
+      if (path.endsWith('/sessions')) return { items: SESSIONS, nextCursor: '' }
+      if (path.endsWith('/tokens')) throw { code: 'forbidden' }
+      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
+      if (path.endsWith('/groups')) return { items: GROUPS_FOR_ACCOUNT, nextCursor: '' }
+      return ACCOUNT
+    })
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.errors.codes.forbidden)
+    expect(w.text()).toContain('Work SSO')
   })
 
   it('loads all linked identities from the bare-array endpoint and renders only known semantic metadata', async () => {
