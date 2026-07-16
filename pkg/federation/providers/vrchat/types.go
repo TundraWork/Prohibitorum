@@ -48,6 +48,12 @@ func (e *HTTPError) Error() string {
 	return fmt.Sprintf("vrchat: %s (status %d)", e.Category, e.Status)
 }
 
+// IdentityMismatchError reports that VRChat returned a valid user other than
+// the exact subject requested. It deliberately carries neither identifier.
+type IdentityMismatchError struct{}
+
+func (*IdentityMismatchError) Error() string { return "vrchat: returned user does not match request" }
+
 // DecodeError reports malformed or structurally invalid upstream JSON.
 type DecodeError struct{ Category string }
 

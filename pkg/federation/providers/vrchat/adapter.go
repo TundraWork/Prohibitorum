@@ -280,6 +280,10 @@ func (a *Adapter) extendProviderBackoff(ctx context.Context, providerID int64, r
 }
 
 func (a *Adapter) classifyUpstream(ctx context.Context, provider federationcore.Provider, upstream error) error {
+	var mismatch *IdentityMismatchError
+	if errors.As(upstream, &mismatch) {
+		return federationcore.NewFailure(federationcore.FailureVRChatIdentityInvalid, nil)
+	}
 	var httpErr *HTTPError
 	if errors.As(upstream, &httpErr) {
 		switch {

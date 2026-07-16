@@ -293,8 +293,11 @@ func decodePublicUser(body []byte, requestedID string) (PublicUser, error) {
 		return PublicUser{}, &DecodeError{Category: "public-user"}
 	}
 	if wire.ID == nil || wire.DisplayName == nil || wire.CurrentAvatarThumbnailImageURL == nil ||
-		!canonicalUserIDPattern.MatchString(*wire.ID) || *wire.ID != requestedID || len(*wire.DisplayName) == 0 || len(*wire.DisplayName) > 256 || len(*wire.CurrentAvatarThumbnailImageURL) == 0 || len(*wire.CurrentAvatarThumbnailImageURL) > 4096 || wire.BioLinks == nil || bytes.Equal(bytes.TrimSpace(wire.BioLinks), []byte("null")) {
+		!canonicalUserIDPattern.MatchString(*wire.ID) || len(*wire.DisplayName) == 0 || len(*wire.DisplayName) > 256 || len(*wire.CurrentAvatarThumbnailImageURL) == 0 || len(*wire.CurrentAvatarThumbnailImageURL) > 4096 || wire.BioLinks == nil || bytes.Equal(bytes.TrimSpace(wire.BioLinks), []byte("null")) {
 		return PublicUser{}, &DecodeError{Category: "public-user"}
+	}
+	if *wire.ID != requestedID {
+		return PublicUser{}, &IdentityMismatchError{}
 	}
 	var links []string
 	if err := json.Unmarshal(wire.BioLinks, &links); err != nil || links == nil || len(links) > 16 {

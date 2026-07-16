@@ -62,7 +62,7 @@ type Adapter struct {
 
 func NewAdapter(secrets *federationcore.SecretStore) *Adapter {
 	return &Adapter{secrets: secrets, newHTTPClient: func(allowPrivate bool) *http.Client {
-		return federationcore.NewOutboundHTTPClient(allowPrivate, 2<<20)
+		return federationcore.NewOutboundHTTPClient(smokeAllowPrivateEndpoints(allowPrivate), 2<<20)
 	}}
 }
 func (*Adapter) Protocol() string { return Protocol }

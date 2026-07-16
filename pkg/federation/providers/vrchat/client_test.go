@@ -361,3 +361,11 @@ func TestClientTimeoutIsTenSeconds(t *testing.T) {
 		t.Fatalf("timeout = %v", client.httpClient.Timeout)
 	}
 }
+
+func TestDecodePublicUserDistinguishesReturnedUserMismatch(t *testing.T) {
+	_, err := decodePublicUser([]byte(`{"id":"usr_11111111-1111-1111-1111-111111111111","displayName":"Other","bioLinks":[],"currentAvatarThumbnailImageUrl":"https://api.vrchat.cloud/avatar.png"}`), testUserID)
+	var mismatch *IdentityMismatchError
+	if !errors.As(err, &mismatch) {
+		t.Fatalf("error = %T %v, want IdentityMismatchError", err, err)
+	}
+}
