@@ -80,6 +80,14 @@ type Store interface {
 	// against every mutating operation on the same key.
 	CompareAndDelete(ctx context.Context, key, expectedValue string) (bool, error)
 
+	// FencedCompareAndDelete deletes key only when both fenceKey is owned by
+	// fenceValue and key contains expectedValue in the same atomic operation.
+	FencedCompareAndDelete(ctx context.Context, fenceKey, fenceValue, key, expectedValue string) (bool, error)
+
+	// FencedCompareAndSwap replaces key only when both fenceKey is owned by
+	// fenceValue and key contains oldValue in the same atomic operation.
+	FencedCompareAndSwap(ctx context.Context, fenceKey, fenceValue, key, oldValue, newValue string, ttl time.Duration) (bool, error)
+
 	// ScanEntries returns entries (key + value + TTL) matching a Redis-style
 	// glob pattern. cursor=0 starts a new scan. count is a hint for batch
 	// size. Returns entries and the next cursor (0 = complete).

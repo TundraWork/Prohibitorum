@@ -195,6 +195,28 @@ func (s *leaseLossStore) CompareAndSwap(ctx context.Context, key, expectedValue,
 	return s.Store.CompareAndSwap(ctx, key, expectedValue, newValue, ttl)
 }
 
+type fencedDeleteGateStore struct {
+	kv.Store
+	entered chan struct{}
+	proceed chan struct{}
+	err     error
+	setEx   int
+}
+
+func (s *fencedDeleteGateStore) FencedCompareAndDelete(ctx context.Context, fenceKey, fenceValue, key, expectedValue string) (bool, error) {
+	close(s.entered)
+	<-s.proceed
+	if s.err != nil {
+		return false, s.err
+	}
+	return s.Store.FencedCompareAndDelete(ctx, fenceKey, fenceValue, key, expectedValue)
+}
+
+func (s *fencedDeleteGateStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	s.setEx++
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
 type serviceDefinition struct {
 	ready bool
 }
@@ -1586,5 +1608,98 @@ func TestServiceLeaseLossCancelsAdapterOperationContext(t *testing.T) {
 	}
 	if _, err := baseStore.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
 		t.Fatalf("lease survived release: %v", err)
+	}
+}
+func TestServiceStaleVerifyFenceCannotResurrectOrOverwrite(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		newerFlow string
+	}{
+		{name: "terminal commit"},
+		{name: "newer prepared state", newerFlow: `{"newer":"prepared"}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, baseStore := newServiceHarness(t)
+			begin, err := service.BeginLogin(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			gate := &fencedDeleteGateStore{Store: baseStore, entered: make(chan struct{}), proceed: make(chan struct{})}
+			service.kv = gate
+			result := make(chan error, 1)
+			go func() {
+				_, verifyErr := service.VerifyFlow(context.Background(), AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+					Input: ActionInput{Kind: ActionRedirect},
+				})
+				result <- verifyErr
+			}()
+			select {
+			case <-gate.entered:
+			case <-time.After(time.Second):
+				t.Fatal("verify did not reach fenced consume")
+			}
+			lockKey, flowKey := FlowLockKey(begin.FlowID), FlowKey(begin.FlowID)
+			if err := baseStore.Del(context.Background(), lockKey); err != nil {
+				t.Fatal(err)
+			}
+			if ok, err := baseStore.SetNX(context.Background(), lockKey, "new-owner", time.Minute); err != nil || !ok {
+				t.Fatalf("new owner lease = (%v, %v)", ok, err)
+			}
+			if test.newerFlow == "" {
+				if err := baseStore.Del(context.Background(), flowKey); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := baseStore.SetEx(context.Background(), flowKey, test.newerFlow, time.Minute); err != nil {
+				t.Fatal(err)
+			}
+			close(gate.proceed)
+			if err := <-result; err == nil {
+				t.Fatal("stale verify unexpectedly succeeded")
+			}
+			if adapter.calls != 1 {
+				t.Fatalf("adapter calls = %d, stale worker reached adapter", adapter.calls)
+			}
+			if test.newerFlow == "" {
+				if _, err := baseStore.Get(context.Background(), flowKey); !errors.Is(err, kv.ErrKeyNotFound) {
+					t.Fatalf("terminal flow resurrected: %v", err)
+				}
+			} else if got, err := baseStore.Get(context.Background(), flowKey); err != nil || got != test.newerFlow {
+				t.Fatalf("newer flow = (%q, %v)", got, err)
+			}
+		})
+	}
+}
+
+func TestServiceFencedConsumeBackendFailureDoesNotReinsert(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := baseStore.Get(context.Background(), FlowKey(begin.FlowID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := &fencedDeleteGateStore{Store: baseStore, entered: make(chan struct{}), proceed: make(chan struct{}), err: errors.New("backend failed")}
+	close(gate.proceed)
+	service.kv = gate
+	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+		Input: ActionInput{Kind: ActionRedirect},
+	})
+	if !errors.Is(err, ErrKVUnavailable) {
+		t.Fatalf("VerifyFlow error = %v", err)
+	}
+	if gate.setEx != 0 {
+		t.Fatalf("stale flow reinsert attempts = %d", gate.setEx)
+	}
+	if got, err := baseStore.Get(context.Background(), FlowKey(begin.FlowID)); err != nil || got != before {
+		t.Fatalf("original flow = (%q, %v)", got, err)
+	}
+	if adapter.calls != 1 {
+		t.Fatalf("adapter calls = %d", adapter.calls)
 	}
 }

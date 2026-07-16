@@ -346,3 +346,54 @@ func TestMemoryStore_CAS_SerializesAgainstSet(t *testing.T) {
 		t.Fatalf("final value = %q, want either cas-won or set-won", got)
 	}
 }
+
+func TestMemoryStoreFencedCompareAndDeleteRequiresLeaseAndFlow(t *testing.T) {
+	store := NewMemoryStore()
+	defer store.Close()
+	ctx := context.Background()
+	if err := store.Set(ctx, "lease", "new-owner"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set(ctx, "flow", "new-state"); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name, owner, state string
+	}{
+		{name: "stale owner", owner: "stale-owner", state: "new-state"},
+		{name: "stale flow", owner: "new-owner", state: "old-state"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			deleted, err := store.FencedCompareAndDelete(ctx, "lease", test.owner, "flow", test.state)
+			if err != nil || deleted {
+				t.Fatalf("delete = (%v, %v)", deleted, err)
+			}
+			if got, err := store.Get(ctx, "flow"); err != nil || got != "new-state" {
+				t.Fatalf("flow = (%q, %v)", got, err)
+			}
+		})
+	}
+	deleted, err := store.FencedCompareAndDelete(ctx, "lease", "new-owner", "flow", "new-state")
+	if err != nil || !deleted {
+		t.Fatalf("owned delete = (%v, %v)", deleted, err)
+	}
+}
+
+func TestMemoryStoreFencedCompareAndSwapRequiresCurrentLease(t *testing.T) {
+	store := NewMemoryStore()
+	defer store.Close()
+	ctx := context.Background()
+	_ = store.Set(ctx, "lease", "new-owner")
+	_ = store.Set(ctx, "flow", "old")
+	swapped, err := store.FencedCompareAndSwap(ctx, "lease", "stale-owner", "flow", "old", "stale", time.Minute)
+	if err != nil || swapped {
+		t.Fatalf("stale swap = (%v, %v)", swapped, err)
+	}
+	if got, _ := store.Get(ctx, "flow"); got != "old" {
+		t.Fatalf("stale swap changed flow to %q", got)
+	}
+	swapped, err = store.FencedCompareAndSwap(ctx, "lease", "new-owner", "flow", "old", "new", time.Minute)
+	if err != nil || !swapped {
+		t.Fatalf("owned swap = (%v, %v)", swapped, err)
+	}
+}

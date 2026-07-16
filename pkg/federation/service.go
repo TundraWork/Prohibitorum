@@ -274,7 +274,7 @@ func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*Flo
 	if remaining <= 0 {
 		return nil, authn.ErrFederationStateInvalid()
 	}
-	swapped, err := s.kv.CompareAndSwap(operationCtx, FlowKey(request.FlowID), raw, updated, remaining)
+	swapped, err := s.kv.FencedCompareAndSwap(operationCtx, lease.key, lease.owner, FlowKey(request.FlowID), raw, updated, remaining)
 	if err != nil {
 		return nil, fmt.Errorf("%w: advance flow: %v", ErrKVUnavailable, err)
 	}
@@ -305,12 +305,12 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	if err != nil {
 		return nil, err
 	}
-	popped, err := s.kv.Pop(operationCtx, FlowKey(request.FlowID))
+	consumed, err := s.kv.FencedCompareAndDelete(operationCtx, lease.key, lease.owner, FlowKey(request.FlowID), raw)
 	if err != nil {
-		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, fmt.Errorf("%w: pop flow", ErrKVUnavailable), false)
+		return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, fmt.Errorf("%w: consume flow", ErrKVUnavailable))
 	}
-	if popped != raw {
-		return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, NewFailure(FailureStateInvalid, nil), false)
+	if !consumed {
+		return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, NewFailure(FailureStateInvalid, nil))
 	}
 
 	result, err := adapter.Advance(operationCtx, provider, append(json.RawMessage(nil), state.AdapterState...), request.Input)
