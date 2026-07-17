@@ -67,3 +67,29 @@ go test: 2 packages ok
 ## Self-review
 
 Reviewed the four source/test diffs and ran `git diff --check`. No whitespace errors, secret-bearing diagnostics, cookie-value error formatting, compatibility regressions, or unrelated cleanup were found. The only residual behavior is intentional: an unrecognized method may recover a path pattern through a canonical route match, but its persisted method remains `OTHER`.
+
+## Final re-review correction
+
+The response preflight now rejects more than the only two valid authentication cookie lines before allocating parser result capacity, and rejects empty lines during the same preflight.
+
+RED:
+
+```text
+--- FAIL: TestCookieValidateRejectsExcessResponseLinesBeforeParsing
+    error type = *errors.errorString, want cookie payload too large
+```
+
+GREEN:
+
+```text
+go test ./pkg/federation/providers/vrchat -run TestCookieValidateRejectsExcessResponseLinesBeforeParsing -count=1
+go test: 1 packages ok
+
+go test ./pkg/federation/providers/vrchat ./pkg/server -run 'Cookie|DiagnosticCapture' -count=1
+go test: 2 packages ok
+
+go test ./pkg/federation/providers/vrchat ./pkg/server -count=1
+go test: 2 packages ok
+```
+
+The regression prints only the error type. It contains no cookie value, and the production errors remain fixed generic sentinels.

@@ -37,8 +37,14 @@ func validateResponseCookies(origin *url.URL, header http.Header, now time.Time)
 	}
 
 	lines := header.Values("Set-Cookie")
+	if len(lines) > 2 {
+		return nil, errCookiePayloadTooLarge
+	}
 	totalSize := 0
 	for _, line := range lines {
+		if line == "" {
+			return nil, errInvalidCookie
+		}
 		if len(line) > maxEncodedCookiesSize-totalSize {
 			return nil, errCookiePayloadTooLarge
 		}

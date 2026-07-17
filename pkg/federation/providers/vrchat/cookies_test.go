@@ -242,6 +242,15 @@ func TestCookieValidateRejectsOversizedResponseWithoutExposingValue(t *testing.T
 	}
 }
 
+func TestCookieValidateRejectsExcessResponseLinesBeforeParsing(t *testing.T) {
+	header := make(http.Header)
+	header["Set-Cookie"] = []string{"", "", ""}
+	_, err := validateResponseCookies(cookieTestOrigin(t), header, time.Now())
+	if !errors.Is(err, errCookiePayloadTooLarge) {
+		t.Fatalf("error type = %T, want cookie payload too large", err)
+	}
+}
+
 func TestCookieMergeRejectsJarOverBudget(t *testing.T) {
 	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
 	prior := []http.Cookie{{
