@@ -1077,6 +1077,7 @@ export default {
 
       // 资源
       account_not_found: '该账户已不存在。',
+      diagnostic_not_found: '该诊断记录已不存在或已过期。',
       session_not_found: '该会话已不存在。',
       invitation_not_found: '该邀请已不存在。',
       client_not_found: '该客户端已不存在。',

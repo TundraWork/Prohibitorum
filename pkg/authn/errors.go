@@ -49,6 +49,7 @@ func init() {
 		{Code: "recovery_session_invalid", Status: http.StatusUnauthorized, LocaleKey: "errors.recovery_session_invalid", DiagnosticKind: "auth", Recovery: "reauth"},
 		{Code: "account_not_found", Status: http.StatusNotFound, LocaleKey: "errors.account_not_found", DiagnosticKind: "resource"},
 		{Code: "credential_not_found", Status: http.StatusNotFound, LocaleKey: "errors.credential_not_found", DiagnosticKind: "resource"},
+		{Code: "diagnostic_not_found", Status: http.StatusNotFound, LocaleKey: "errors.diagnostic_not_found", DiagnosticKind: "resource"},
 		{Code: "invitation_not_found", Status: http.StatusNotFound, LocaleKey: "errors.invitation_not_found", DiagnosticKind: "resource"},
 		{Code: "not_bootstrapped", Status: http.StatusServiceUnavailable, LocaleKey: "errors.not_bootstrapped", DiagnosticKind: "system"},
 		{Code: "maintenance_mode", Status: http.StatusServiceUnavailable, LocaleKey: "errors.maintenance_mode", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
@@ -330,6 +331,10 @@ func ErrAccountNotFound() *AuthError {
 
 func ErrCredentialNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "credential_not_found", "凭证不存在")
+}
+
+func ErrDiagnosticNotFound() *AuthError {
+	return newErr(http.StatusNotFound, "diagnostic_not_found", "Diagnostic record not found.")
 }
 
 // ErrInvitationNotFound differentiates "token doesn't exist as a pending

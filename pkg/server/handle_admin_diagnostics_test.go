@@ -26,6 +26,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/diagnostic"
+	"prohibitorum/pkg/weberr"
 )
 
 // fakeDiagStore implements diagnostic.StoreService for testing.
@@ -179,6 +180,13 @@ func TestDiagnosticLookup_AbsentID_Returns404(t *testing.T) {
 	s.handleAdminDiagnosticLookupHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	var body weberr.PublicError
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "diagnostic_not_found" {
+		t.Fatalf("code = %q, want diagnostic_not_found", body.Code)
 	}
 }
 

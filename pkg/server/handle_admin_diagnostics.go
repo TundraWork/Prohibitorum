@@ -83,7 +83,7 @@ func (s *Server) handleAdminDiagnosticLookupHTTP(w http.ResponseWriter, r *http.
 	rec, err := s.diagStore.Lookup(r.Context(), requestID)
 	if err != nil {
 		if errors.Is(err, diagnostic.ErrNotFound) {
-			writeAuthErr(w, authn.ErrAccountNotFound())
+			writeAuthErr(w, authn.ErrDiagnosticNotFound())
 			return
 		}
 		writeAuthErr(w, err)

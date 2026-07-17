@@ -97,6 +97,7 @@ func TestAuthErrToHumaProducesPublicError(t *testing.T) {
 		code string
 	}{
 		{"account_not_found", authn.ErrAccountNotFound(), "account_not_found"},
+		{"diagnostic_not_found", authn.ErrDiagnosticNotFound(), "diagnostic_not_found"},
 		{"invalid_role", authn.ErrInvalidRole(), "invalid_role"},
 		{"sudo_required", authn.ErrSudoRequired(), "sudo_required"},
 		{"last_admin", authn.ErrLastAdmin(), "last_admin"},

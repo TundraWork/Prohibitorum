@@ -45,6 +45,7 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'credential_already_registered', details: [], recovery: '' },
   { code: 'credential_not_found', details: [], recovery: '' },
   { code: 'database_unavailable', details: [], recovery: 'retry' },
+  { code: 'diagnostic_not_found', details: [], recovery: '' },
   { code: 'email_not_verified', details: [], recovery: '' },
   { code: 'enrollment_consumed', details: [], recovery: '' },
   { code: 'enrollment_expired', details: [], recovery: '' },
@@ -171,7 +172,7 @@ export function codeDefinition(code: string): ErrorCodeDef | undefined {
  *
  * Derived from: go test ./pkg/weberr → AllDefinitions() count.
  */
-export const EXPECTED_REGISTRY_CODE_COUNT = 80
+export const EXPECTED_REGISTRY_CODE_COUNT = 81
 /**
  * Error codes owned by a GLOBAL handler — a redirect (no_session →
  * sessionExpiry), a full-screen redirect (maintenance_mode), or a connection

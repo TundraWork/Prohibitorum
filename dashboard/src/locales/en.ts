@@ -1084,6 +1084,7 @@ export default {
 
       // Resources
       account_not_found: 'That account no longer exists.',
+      diagnostic_not_found: 'That diagnostic record no longer exists or has expired.',
       session_not_found: 'That session no longer exists.',
       invitation_not_found: 'That invitation no longer exists.',
       client_not_found: 'That client no longer exists.',
