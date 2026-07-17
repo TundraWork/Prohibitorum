@@ -2,6 +2,7 @@ package vrchat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -224,5 +225,51 @@ func TestCookieEncodeRejectsOversizedPayload(t *testing.T) {
 	cookies := []http.Cookie{{Name: "auth", Value: strings.Repeat("x", 16*1024), Path: "/", Secure: true, HttpOnly: true}}
 	if _, err := testClient(t, func(*http.Request) (*http.Response, error) { t.Fatal("transport called"); return nil, nil }).EncodeCookies(cookies); err == nil {
 		t.Fatal("EncodeCookies() error = nil")
+	}
+}
+
+func TestCookieValidateRejectsOversizedResponseWithoutExposingValue(t *testing.T) {
+	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	secret := strings.Repeat("private-cookie-value", 1024)
+	_, err := validateResponseCookies(cookieTestOrigin(t), cookieTestHeader(
+		"auth="+secret+"; Path=/; Secure; HttpOnly",
+	), now)
+	if !errors.Is(err, errCookiePayloadTooLarge) {
+		t.Fatalf("error type = %T, want cookie payload too large", err)
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatal("size error exposes cookie value")
+	}
+}
+
+func TestCookieMergeRejectsJarOverBudget(t *testing.T) {
+	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	prior := []http.Cookie{{
+		Name: "auth", Value: strings.Repeat("a", 9*1024), Path: "/", Secure: true, HttpOnly: true,
+	}}
+	updates := []http.Cookie{{
+		Name: "twoFactorAuth", Value: strings.Repeat("b", 9*1024), Path: "/", Secure: true, HttpOnly: true,
+	}}
+	if _, err := mergeCookies(prior, updates, now); !errors.Is(err, errCookiePayloadTooLarge) {
+		t.Fatalf("mergeCookies() error type = %T, want cookie payload too large", err)
+	}
+}
+
+func TestCookieOutboundJarOverBudgetRejectedBeforeRequest(t *testing.T) {
+	called := false
+	client := testClient(t, func(*http.Request) (*http.Response, error) {
+		called = true
+		return response(http.StatusOK, `{}`), nil
+	})
+	cookies := []http.Cookie{
+		{Name: "auth", Value: strings.Repeat("a", 9*1024), Path: "/", Secure: true, HttpOnly: true},
+		{Name: "twoFactorAuth", Value: strings.Repeat("b", 9*1024), Path: "/", Secure: true, HttpOnly: true},
+	}
+	_, _, err := client.CurrentUser(context.Background(), cookies)
+	if !errors.Is(err, errCookiePayloadTooLarge) {
+		t.Fatalf("CurrentUser() error type = %T, want cookie payload too large", err)
+	}
+	if called {
+		t.Fatal("oversized outbound cookies reached transport")
 	}
 }

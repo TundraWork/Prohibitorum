@@ -37,6 +37,13 @@ func validateResponseCookies(origin *url.URL, header http.Header, now time.Time)
 	}
 
 	lines := header.Values("Set-Cookie")
+	totalSize := 0
+	for _, line := range lines {
+		if len(line) > maxEncodedCookiesSize-totalSize {
+			return nil, errCookiePayloadTooLarge
+		}
+		totalSize += len(line)
+	}
 	cookies := make([]http.Cookie, 0, len(lines))
 	seen := make(map[string]struct{}, len(lines))
 	for _, line := range lines {
@@ -204,17 +211,25 @@ func validateOutboundCookies(origin *url.URL, cookies []http.Cookie, now time.Ti
 	if !validClientCookieOrigin(origin) {
 		return errInvalidCookieOrigin
 	}
-	seen := make(map[string]struct{}, len(cookies))
+	totalSize := 0
+	seenAuth, seenTwoFactorAuth := false, false
 	for i := range cookies {
 		cookie := &cookies[i]
 		if !validAuthenticationCookie(cookie, now) ||
 			(cookie.Domain != "" && !strings.EqualFold(cookie.Domain, origin.Hostname())) {
 			return errInvalidCookiePayload
 		}
-		if _, duplicate := seen[cookie.Name]; duplicate {
+		if cookieNameAlreadySeen(cookie.Name, &seenAuth, &seenTwoFactorAuth) {
 			return errInvalidCookiePayload
 		}
-		seen[cookie.Name] = struct{}{}
+		size := len(cookie.Name) + 1 + len(cookie.Value)
+		if i > 0 {
+			size += 2
+		}
+		if size > maxEncodedCookiesSize-totalSize {
+			return errCookiePayloadTooLarge
+		}
+		totalSize += size
 	}
 	return nil
 }
@@ -251,21 +266,43 @@ func mergeCookies(prior, updates []http.Cookie, now time.Time) ([]http.Cookie, e
 			merged = append(merged, update)
 		}
 	}
+	if err := validateOutboundCookiesForMerge(merged, now); err != nil {
+		return nil, err
+	}
 	return merged, nil
 }
 
 func validateOutboundCookiesForMerge(cookies []http.Cookie, now time.Time) error {
-	seen := make(map[string]struct{}, len(cookies))
+	totalSize := 0
+	seenAuth, seenTwoFactorAuth := false, false
 	for i := range cookies {
-		if !validAuthenticationCookie(&cookies[i], now) {
+		cookie := &cookies[i]
+		if !validAuthenticationCookie(cookie, now) {
 			return errInvalidCookiePayload
 		}
-		if _, duplicate := seen[cookies[i].Name]; duplicate {
+		if cookieNameAlreadySeen(cookie.Name, &seenAuth, &seenTwoFactorAuth) {
 			return errInvalidCookiePayload
 		}
-		seen[cookies[i].Name] = struct{}{}
+		size := len(cookie.Name) + 1 + len(cookie.Value)
+		if i > 0 {
+			size += 2
+		}
+		if size > maxEncodedCookiesSize-totalSize {
+			return errCookiePayloadTooLarge
+		}
+		totalSize += size
 	}
 	return nil
+}
+
+func cookieNameAlreadySeen(name string, seenAuth, seenTwoFactorAuth *bool) bool {
+	seen := seenAuth
+	if name == "twoFactorAuth" {
+		seen = seenTwoFactorAuth
+	}
+	duplicate := *seen
+	*seen = true
+	return duplicate
 }
 
 func validSameSite(sameSite http.SameSite) bool {

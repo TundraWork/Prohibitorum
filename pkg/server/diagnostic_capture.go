@@ -14,6 +14,18 @@ import (
 
 type diagnosticCaptureKey struct{}
 
+var diagnosticHTTPMethods = [...]string{
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodDelete,
+	http.MethodConnect,
+	http.MethodOptions,
+	http.MethodTrace,
+}
+
 type diagnosticCapture struct {
 	code   string
 	fields map[string]any
@@ -70,20 +82,32 @@ func diagnosticCaptureMW(store diagnostic.StoreWriter) func(http.Handler) http.H
 				if routePath == "" {
 					routePath = "/"
 				}
-				matchedCtx := chi.NewRouteContext()
-				if routeCtx.Routes.Match(matchedCtx, r.Method, routePath) {
-					route = matchedCtx.RoutePattern()
+				method := canonicalDiagnosticMethod(r.Method)
+				if method != "OTHER" {
+					matchedCtx := chi.NewRouteContext()
+					if routeCtx.Routes.Match(matchedCtx, method, routePath) {
+						route = matchedCtx.RoutePattern()
+					}
+				} else {
+					for _, candidate := range diagnosticHTTPMethods {
+						matchedCtx := chi.NewRouteContext()
+						if routeCtx.Routes.Match(matchedCtx, candidate, routePath) {
+							route = matchedCtx.RoutePattern()
+							break
+						}
+					}
 				}
 			}
 			if route == "" {
 				route = "unmatched"
 			}
+			method := canonicalDiagnosticMethod(r.Method)
 			def, _ := weberr.DefinitionFor(capture.code)
 			record := diagnostic.Record{
 				RequestID: weberr.RequestIDFromContext(r.Context()),
 				Code:      capture.code,
-				Operation: r.Method + " " + route,
-				Method:    r.Method,
+				Operation: method + " " + route,
+				Method:    method,
 				Route:     route,
 				Retryable: def.Retryable,
 				Fields:    capture.fields,
@@ -96,5 +120,30 @@ func diagnosticCaptureMW(store diagnostic.StoreWriter) func(http.Handler) http.H
 				logx.WithContext(writeCtx).Warn("diagnostic: record failed")
 			}
 		})
+	}
+}
+
+func canonicalDiagnosticMethod(method string) string {
+	switch method {
+	case http.MethodGet:
+		return http.MethodGet
+	case http.MethodHead:
+		return http.MethodHead
+	case http.MethodPost:
+		return http.MethodPost
+	case http.MethodPut:
+		return http.MethodPut
+	case http.MethodPatch:
+		return http.MethodPatch
+	case http.MethodDelete:
+		return http.MethodDelete
+	case http.MethodConnect:
+		return http.MethodConnect
+	case http.MethodOptions:
+		return http.MethodOptions
+	case http.MethodTrace:
+		return http.MethodTrace
+	default:
+		return "OTHER"
 	}
 }

@@ -134,3 +134,34 @@ func TestDiagnosticCaptureRecoversRawPathRouteAfterMaintenanceShortCircuit(t *te
 		t.Fatalf("route/operation = %q/%q", got.Route, got.Operation)
 	}
 }
+
+func TestDiagnosticCaptureCanonicalizesArbitraryMethodAfterMaintenanceShortCircuit(t *testing.T) {
+	const (
+		untrustedMethod = "PRIVATE-TOKEN"
+		pattern         = "/api/prohibitorum/widgets/{id}"
+	)
+	store := &recordingDiagnosticWriter{}
+	router := chi.NewRouter()
+	router.Use(weberr.RequestID)
+	router.Use(diagnosticCaptureMW(store))
+	router.Use(maintenanceGateMW(maintenanceResolver(true)))
+	router.Handle(pattern, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("maintenance gate called protected handler")
+	}))
+
+	req := httptest.NewRequest(untrustedMethod, "/api/prohibitorum/widgets/42", nil)
+	req = req.WithContext(authn.WithSession(req.Context(), sessionForRole("user")))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+	if len(store.records) != 1 {
+		t.Fatalf("records = %d, want 1", len(store.records))
+	}
+	got := store.records[0]
+	if got.Method != "OTHER" || got.Operation != "OTHER "+pattern || got.Route != pattern {
+		t.Fatalf("method/operation/route = %q/%q/%q", got.Method, got.Operation, got.Route)
+	}
+}
