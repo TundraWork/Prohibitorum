@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestMockOperatorChallengeAndSanitizedRecords(t *testing.T) {
+func TestMockOperatorAuthCookieChallengeAndSanitizedRecords(t *testing.T) {
 	state := newMockState()
 	state.fixture.Username = "operator+secret@example.test"
 	state.fixture.Password = "distinct-password-secret"
@@ -30,6 +30,10 @@ func TestMockOperatorChallengeAndSanitizedRecords(t *testing.T) {
 	}
 	if response.StatusCode != http.StatusOK || len(response.Cookies()) != 1 || response.Cookies()[0].Name != "auth" {
 		t.Fatalf("challenge response = %d cookies=%v", response.StatusCode, response.Cookies())
+	}
+	authCookie := response.Cookies()[0]
+	if !authCookie.HttpOnly || authCookie.Path != "/" || authCookie.Secure {
+		t.Fatalf("auth cookie attributes = HttpOnly:%t Path:%q Secure:%t", authCookie.HttpOnly, authCookie.Path, authCookie.Secure)
 	}
 	var challenge map[string]any
 	if err := json.NewDecoder(response.Body).Decode(&challenge); err != nil {

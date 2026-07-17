@@ -3,6 +3,7 @@ package vrchat
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -49,6 +50,35 @@ func TestCookieValidateAcceptsHostOnlyAndExactDomain(t *testing.T) {
 	}
 }
 
+func TestCookieValidateNormalizesDocumentedCookieWithoutSecure(t *testing.T) {
+	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	cookies, err := validateResponseCookies(cookieTestOrigin(t), cookieTestHeader(
+		"auth=documented-secret; Path=/; HttpOnly; Expires="+now.Add(time.Hour).Format(http.TimeFormat),
+	), now)
+	if err != nil {
+		t.Fatalf("validateResponseCookies() error = %v", err)
+	}
+	if len(cookies) != 1 {
+		t.Fatalf("len(cookies) = %d, want 1", len(cookies))
+	}
+	if !cookies[0].Secure || cookies[0].Domain != "" || !cookies[0].HttpOnly {
+		t.Fatalf("normalized attributes = Secure:%t Domain:%q HttpOnly:%t", cookies[0].Secure, cookies[0].Domain, cookies[0].HttpOnly)
+	}
+	if _, err := encodeCookies(cookies, now); err != nil {
+		t.Fatalf("encodeCookies(normalized) error = %v", err)
+	}
+}
+
+func TestCookieValidateStillRejectsMissingHTTPOnly(t *testing.T) {
+	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	_, err := validateResponseCookies(cookieTestOrigin(t), cookieTestHeader(
+		"auth=secret; Path=/; Expires="+now.Add(time.Hour).Format(http.TimeFormat),
+	), now)
+	if !errors.Is(err, errInvalidCookie) {
+		t.Fatalf("error = %v, want errInvalidCookie", err)
+	}
+}
+
 func TestCookieValidateNormalizesPositiveMaxAge(t *testing.T) {
 	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
 	later := now.Add(24 * time.Hour).Format(http.TimeFormat)
@@ -74,7 +104,6 @@ func TestCookieValidateRejectsUnsafeCookies(t *testing.T) {
 		"leading dot domain": {"auth=value; Path=/; Domain=.api.vrchat.cloud; Secure; HttpOnly"},
 		"wrong path":         {"auth=value; Path=/api; Secure; HttpOnly"},
 		"missing path":       {"auth=value; Secure; HttpOnly"},
-		"missing secure":     {"auth=value; Path=/; HttpOnly"},
 		"missing httponly":   {"auth=value; Path=/; Secure"},
 		"expired":            {"auth=value; Path=/; Secure; HttpOnly; Expires=" + past},
 		"duplicate": {

@@ -243,7 +243,7 @@ func cookieEquals(r *http.Request, name, value string) bool {
 }
 
 func setMockCookie(w http.ResponseWriter, name, value string) {
-	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(time.Hour)})
+	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(time.Hour)})
 }
 
 func writeControlledStatus(w http.ResponseWriter, status int, retryAfter string) {

@@ -63,7 +63,7 @@ func validateResponseCookies(origin *url.URL, header http.Header, now time.Time)
 
 func normalizeResponseCookie(cookie *http.Cookie, now time.Time) bool {
 	if cookie == nil || (cookie.Name != "auth" && cookie.Name != "twoFactorAuth") ||
-		cookie.Path != "/" || !cookie.Secure || !cookie.HttpOnly ||
+		cookie.Path != "/" || !cookie.HttpOnly ||
 		len(cookie.Unparsed) != 0 || !validSameSite(cookie.SameSite) || cookie.Valid() != nil {
 		return false
 	}
@@ -71,6 +71,7 @@ func normalizeResponseCookie(cookie *http.Cookie, now time.Time) bool {
 		return false
 	}
 	cookie.Domain = ""
+	cookie.Secure = true
 	if cookie.MaxAge < 0 {
 		cookie.Expires = time.Time{}
 		return true
@@ -82,10 +83,9 @@ func normalizeResponseCookie(cookie *http.Cookie, now time.Time) bool {
 	return cookie.Expires.IsZero() || cookie.Expires.After(now)
 }
 
-func encodeCookies(cookies []http.Cookie) ([]byte, error) {
+func encodeCookies(cookies []http.Cookie, now time.Time) ([]byte, error) {
 	stored := make([]storedCookie, 0, len(cookies))
 	seen := make(map[string]struct{}, len(cookies))
-	now := time.Now()
 	for i := range cookies {
 		cookie := &cookies[i]
 		if !validAuthenticationCookie(cookie, now) ||
@@ -150,10 +150,11 @@ func decodeCookies(encoded []byte, now time.Time) ([]http.Cookie, error) {
 }
 
 func (c *Client) EncodeCookies(cookies []http.Cookie) ([]byte, error) {
-	if err := validateOutboundCookies(c.baseURL, cookies, time.Now()); err != nil {
+	now := time.Now()
+	if err := validateOutboundCookies(c.baseURL, cookies, now); err != nil {
 		return nil, err
 	}
-	return encodeCookies(cookies)
+	return encodeCookies(cookies, now)
 }
 
 func (c *Client) DecodeCookies(encoded []byte, now time.Time) ([]http.Cookie, error) {

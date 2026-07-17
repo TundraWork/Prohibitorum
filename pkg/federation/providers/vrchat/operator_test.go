@@ -23,6 +23,7 @@ const testUserID = "usr_12345678-1234-1234-1234-123456789abc"
 
 type operatorFakeClient struct {
 	mu                                                sync.Mutex
+	now                                               time.Time
 	authUser                                          CurrentUser
 	authCookies                                       []http.Cookie
 	authErr                                           error
@@ -64,7 +65,7 @@ func (f *operatorFakeClient) EncodeCookies(c []http.Cookie) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.encodeCalls++
-	return encodeCookies(c)
+	return encodeCookies(c, f.now)
 }
 func (f *operatorFakeClient) DecodeCookies(b []byte, now time.Time) ([]http.Cookie, error) {
 	return decodeCookies(b, now)
@@ -146,6 +147,7 @@ func operatorService(t *testing.T, client *operatorFakeClient, q *operatorFakeQu
 	store := kv.NewMemoryStore()
 	service := NewOperatorService(client, q, store, federation.NewSecretStore(map[int][]byte{3: make([]byte, 32)}), 3)
 	service.now = func() time.Time { return now }
+	client.now = now
 	service.random = &repeatingReader{value: 0x5a}
 	return service, store
 }
