@@ -21,14 +21,20 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
+	federationsteam "prohibitorum/pkg/federation/providers/steam"
+	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/pagination"
 	"prohibitorum/pkg/weberr"
 )
@@ -47,8 +53,11 @@ type fakeListQ struct {
 	db.Querier
 
 	// accounts
-	accountsRows []db.ListAccountsRow
-	accountsCall db.ListAccountsParams
+	accountsRows  []db.ListAccountsRow
+	accountsCall  db.ListAccountsParams
+	accountsCalls int
+	providers     map[string]db.UpstreamIdp
+	providerCalls []string
 
 	// invitations
 	invitationRows []db.Enrollment
@@ -85,7 +94,17 @@ type fakeListQ struct {
 
 func (f *fakeListQ) ListAccounts(_ context.Context, p db.ListAccountsParams) ([]db.ListAccountsRow, error) {
 	f.accountsCall = p
+	f.accountsCalls++
 	return f.accountsRows, nil
+}
+
+func (f *fakeListQ) GetUpstreamIDPBySlugAny(_ context.Context, slug string) (db.UpstreamIdp, error) {
+	f.providerCalls = append(f.providerCalls, slug)
+	provider, ok := f.providers[slug]
+	if !ok {
+		return db.UpstreamIdp{}, pgx.ErrNoRows
+	}
+	return provider, nil
 }
 
 func (f *fakeListQ) ListPendingInvitations(_ context.Context, p db.ListPendingInvitationsParams) ([]db.Enrollment, error) {
@@ -137,10 +156,21 @@ func (f *fakeListQ) InsertCredentialEvent(_ context.Context, _ db.InsertCredenti
 // test cursor codec. PublicOrigins is set so projection helpers that reference
 // it don't panic.
 func newPaginationTestServer(q *fakeListQ) *Server {
+	registry := federation.NewRegistry()
+	for _, definition := range []federation.Definition{
+		federationoidc.Definition{},
+		federationsteam.Definition{},
+		federationvrchat.Definition{},
+	} {
+		if err := registry.RegisterDefinition(definition); err != nil {
+			panic(err)
+		}
+	}
 	return &Server{
 		topLevelQueriesOverride: q,
 		invitationOverride:      q,
 		cursorCodec:             testCodec(),
+		federationRegistry:      registry,
 		config: &configx.Config{
 			PublicOrigins: []string{"https://test.example.com"},
 		},
@@ -161,6 +191,175 @@ func pgTS(s string) pgtype.Timestamptz {
 // =====================================================================
 // Accounts pagination
 // =====================================================================
+
+func TestListAccountsInputIncludesIdentityFilters(t *testing.T) {
+	t.Parallel()
+
+	inputType := reflect.TypeOf(listAccountsIn{})
+	for fieldName, queryName := range map[string]string{
+		"Q": "q", "Provider": "provider", "Field": "field", "Value": "value", "Match": "match",
+	} {
+		field, ok := inputType.FieldByName(fieldName)
+		if !ok {
+			t.Errorf("listAccountsIn missing %s", fieldName)
+			continue
+		}
+		if got := field.Tag.Get("query"); got != queryName {
+			t.Errorf("%s query tag = %q, want %q", fieldName, got, queryName)
+		}
+	}
+}
+
+func TestListAccountsQueryCarriesIdentityFiltersAndMatches(t *testing.T) {
+	t.Parallel()
+
+	paramsType := reflect.TypeOf(db.ListAccountsParams{})
+	for _, fieldName := range []string{"Q", "Provider", "Field", "Value", "Match"} {
+		if _, ok := paramsType.FieldByName(fieldName); !ok {
+			t.Errorf("ListAccountsParams missing %s", fieldName)
+		}
+	}
+	matchesField, ok := reflect.TypeOf(db.ListAccountsRow{}).FieldByName("MatchingIdentities")
+	if !ok {
+		t.Fatal("ListAccountsRow missing MatchingIdentities")
+	}
+	if matchesField.Type.Kind() != reflect.String {
+		t.Errorf("MatchingIdentities type = %v, want string JSON transport", matchesField.Type)
+	}
+}
+
+func TestListAccountsRejectsPartialIdentityFiltersBeforeListQuery(t *testing.T) {
+	tests := []struct {
+		name string
+		in   listAccountsIn
+	}{
+		{name: "field without provider", in: listAccountsIn{Field: "displayName"}},
+		{name: "provider field value without match", in: listAccountsIn{Provider: "vrchat", Field: "displayName", Value: "Alice"}},
+		{name: "provider value match without field", in: listAccountsIn{Provider: "vrchat", Value: "Alice", Match: "contains"}},
+		{name: "provider field match without value", in: listAccountsIn{Provider: "vrchat", Field: "displayName", Match: "contains"}},
+		{name: "advanced filter without provider", in: listAccountsIn{Field: "displayName", Value: "Alice", Match: "contains"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			q := &fakeListQ{}
+			s := newPaginationTestServer(q)
+			if _, err := s.handleListAccounts(context.Background(), &tc.in); err == nil {
+				t.Fatal("expected bad request")
+			}
+			if q.accountsCalls != 0 {
+				t.Fatalf("ListAccounts calls = %d, want 0", q.accountsCalls)
+			}
+		})
+	}
+}
+
+func TestListAccountsRejectsUnsupportedProviderFieldsAndOperators(t *testing.T) {
+	tests := []struct {
+		name string
+		in   listAccountsIn
+	}{
+		{name: "unknown provider", in: listAccountsIn{Provider: "missing"}},
+		{name: "field not declared by provider", in: listAccountsIn{Provider: "steam-main", Field: "displayName", Value: "Alice", Match: "contains"}},
+		{name: "operator not declared by field", in: listAccountsIn{Provider: "steam-main", Field: "steamId", Value: "7656", Match: "prefix"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			q := &fakeListQ{providers: map[string]db.UpstreamIdp{
+				"steam-main": {ID: 1, Slug: "steam-main", Protocol: "steam"},
+			}}
+			s := newPaginationTestServer(q)
+			if _, err := s.handleListAccounts(context.Background(), &tc.in); err == nil {
+				t.Fatal("expected provider filter validation error")
+			}
+			if q.accountsCalls != 0 {
+				t.Fatalf("ListAccounts calls = %d, want 0", q.accountsCalls)
+			}
+		})
+	}
+}
+
+func TestListAccountsAcceptsDescriptorDeclaredIdentityFilters(t *testing.T) {
+	tests := []struct {
+		name     string
+		protocol string
+		field    string
+		match    string
+	}{
+		{name: "provider only", protocol: "steam"},
+		{name: "steam id exact", protocol: "steam", field: "steamId", match: "exact"},
+		{name: "steam persona exact", protocol: "steam", field: "personaName", match: "exact"},
+		{name: "steam persona prefix", protocol: "steam", field: "personaName", match: "prefix"},
+		{name: "steam persona contains", protocol: "steam", field: "personaName", match: "contains"},
+		{name: "VRChat user id exact", protocol: "vrchat", field: "userId", match: "exact"},
+		{name: "VRChat display name exact", protocol: "vrchat", field: "displayName", match: "exact"},
+		{name: "VRChat display name prefix", protocol: "vrchat", field: "displayName", match: "prefix"},
+		{name: "VRChat display name contains", protocol: "vrchat", field: "displayName", match: "contains"},
+		{name: "OIDC subject exact", protocol: "oidc", field: "subject", match: "exact"},
+		{name: "OIDC email exact", protocol: "oidc", field: "email", match: "exact"},
+		{name: "OIDC email prefix", protocol: "oidc", field: "email", match: "prefix"},
+		{name: "OIDC email contains", protocol: "oidc", field: "email", match: "contains"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			slug := tc.protocol + "-main"
+			q := &fakeListQ{providers: map[string]db.UpstreamIdp{
+				slug: {ID: 1, Slug: slug, Protocol: tc.protocol},
+			}}
+			s := newPaginationTestServer(q)
+			value := ""
+			if tc.field != "" {
+				value = "value"
+			}
+			_, err := s.handleListAccounts(context.Background(), &listAccountsIn{
+				Provider: slug,
+				Field:    tc.field,
+				Value:    value,
+				Match:    tc.match,
+			})
+			if err != nil {
+				t.Fatalf("declared filter rejected: %v", err)
+			}
+			if q.accountsCalls != 1 {
+				t.Fatalf("ListAccounts calls = %d, want 1", q.accountsCalls)
+			}
+		})
+	}
+}
+
+func TestListAccountsNormalizesAndBindsIdentityFilters(t *testing.T) {
+	q := &fakeListQ{providers: map[string]db.UpstreamIdp{
+		"steam-main": {ID: 1, Slug: "steam-main", Protocol: "steam"},
+	}}
+	s := newPaginationTestServer(q)
+
+	_, err := s.handleListAccounts(context.Background(), &listAccountsIn{
+		pageInput: pageInput{Limit: 10},
+		Q:         "  Alice  ",
+		Provider:  "  STEAM-MAIN ",
+		Field:     " personaName ",
+		Value:     "  Wonderland  ",
+		Match:     " CONTAINS ",
+	})
+	if err != nil {
+		t.Fatalf("handleListAccounts: %v", err)
+	}
+	params := q.accountsCall
+	for name, got := range map[string]pgtype.Text{
+		"q": params.Q, "provider": params.Provider, "field": params.Field,
+		"value": params.Value, "match": params.Match,
+	} {
+		if !got.Valid {
+			t.Errorf("%s is NULL", name)
+		}
+	}
+	if params.Q.String != "Alice" ||
+		params.Provider.String != "steam-main" ||
+		params.Field.String != "personaName" ||
+		params.Value.String != "Wonderland" ||
+		params.Match.String != "contains" {
+		t.Fatalf("normalized params = %+v", params)
+	}
+}
 
 func TestListAccounts_FirstPage_HasNextCursor(t *testing.T) {
 	q := &fakeListQ{}
@@ -317,6 +516,36 @@ func TestListAccounts_TamperedCursor_ReturnsCursorInvalid(t *testing.T) {
 	}
 }
 
+func TestListAccountsRejectsCursorAfterFilterChange(t *testing.T) {
+	q := &fakeListQ{accountsRows: []db.ListAccountsRow{
+		{ID: 2, CreatedAt: pgTS("2026-07-02T00:00:00Z")},
+		{ID: 1, CreatedAt: pgTS("2026-07-01T00:00:00Z")},
+	}}
+	s := newPaginationTestServer(q)
+	first, err := s.handleListAccounts(context.Background(), &listAccountsIn{
+		pageInput: pageInput{Limit: 1},
+		Q:         "alice",
+	})
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if first.Body.NextCursor == "" {
+		t.Fatal("first page cursor is empty")
+	}
+	callsBeforeReuse := q.accountsCalls
+
+	_, err = s.handleListAccounts(context.Background(), &listAccountsIn{
+		pageInput: pageInput{Limit: 1, Cursor: first.Body.NextCursor},
+		Q:         "bob",
+	})
+	if err == nil {
+		t.Fatal("expected cursor filter mismatch")
+	}
+	if q.accountsCalls != callsBeforeReuse {
+		t.Fatalf("changed-filter cursor reached ListAccounts: calls %d -> %d", callsBeforeReuse, q.accountsCalls)
+	}
+}
+
 func TestListAccounts_ReturnsPage_NotBareArray(t *testing.T) {
 	q := &fakeListQ{}
 	q.accountsRows = []db.ListAccountsRow{
@@ -331,8 +560,45 @@ func TestListAccounts_ReturnsPage_NotBareArray(t *testing.T) {
 	if out.Body.Items == nil {
 		t.Fatal("Items is nil — should be []")
 	}
+	if out.Body.Items[0].MatchingIdentities == nil || len(out.Body.Items[0].MatchingIdentities) != 0 {
+		t.Fatalf("unfiltered matching identities = %+v, want []", out.Body.Items[0].MatchingIdentities)
+	}
 	// nextCursor must always be present (even if "")
 	// The fact that Body is contract.Page[AccountView] is enforced at compile time.
+}
+
+func TestListAccountsProjectsMatchingIdentityContext(t *testing.T) {
+	q := &fakeListQ{accountsRows: []db.ListAccountsRow{{
+		ID:        7,
+		Username:  "alice",
+		CreatedAt: pgTS("2026-07-01T00:00:00Z"),
+		MatchingIdentities: `[{
+			"id": 99,
+			"providerSlug": "steam-main",
+			"providerDisplayName": "Steam",
+			"protocol": "steam",
+			"subject": "76561198000000000",
+			"email": null,
+			"data": {"personaName": "Gaben"},
+			"linkedAt": "2026-06-01T00:00:00Z"
+		}]`,
+	}}}
+	s := newPaginationTestServer(q)
+
+	out, err := s.handleListAccounts(context.Background(), &listAccountsIn{Q: "Gaben"})
+	if err != nil {
+		t.Fatalf("handleListAccounts: %v", err)
+	}
+	if len(out.Body.Items) != 1 || len(out.Body.Items[0].MatchingIdentities) != 1 {
+		t.Fatalf("items = %+v", out.Body.Items)
+	}
+	identity := out.Body.Items[0].MatchingIdentities[0]
+	if identity.ProviderSlug != "steam-main" ||
+		identity.Protocol != "steam" ||
+		identity.Subject != "76561198000000000" ||
+		identity.Data["personaName"] != "Gaben" {
+		t.Fatalf("matching identity = %+v", identity)
+	}
 }
 
 // =====================================================================
@@ -535,6 +801,7 @@ func TestListGroups_TamperedCursor_ReturnsCursorInvalid(t *testing.T) {
 		t.Fatalf("expected pagination_cursor_invalid, got %T: %v", err, err)
 	}
 }
+
 // =====================================================================
 // Signing keys, OIDC apps, SAML SPs, upstream IdPs, forward-auth apps
 // share the same cursor pattern; verify each returns a Page and handles
@@ -592,7 +859,7 @@ func TestListSAMLApplications_ReturnsPage(t *testing.T) {
 func TestListIdentityProviders_ReturnsPage(t *testing.T) {
 	q := &fakeListQ{}
 	q.idpRows = []db.UpstreamIdp{
-		{ID: 1, Slug: "google", DisplayName: "Google", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
+		{ID: 1, Slug: "steam", DisplayName: "Steam", Protocol: "steam", ProviderConfig: []byte(`{}`), SecretStatus: "unconfigured", CreatedAt: pgTS("2026-07-01T00:00:00Z")},
 	}
 	s := newPaginationTestServer(q)
 	out, err := s.handleListIdentityProviders(context.Background(), &listIdentityProvidersIn{pageInput: pageInput{Limit: 10}})

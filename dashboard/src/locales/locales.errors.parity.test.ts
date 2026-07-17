@@ -42,6 +42,75 @@ describe('error locale parity — every manifest code has en+zh entries', () => 
     })
   }
 })
+describe('VRChat operator errors match the canonical manifest and public copy', () => {
+  const stableErrors = {
+    vrchat_operator_credentials_invalid: {
+      recovery: '',
+      en: 'Those operator credentials were rejected. Check them and try again.',
+      zh: '操作员凭据被拒绝。请检查后重试。',
+    },
+    vrchat_operator_challenge_invalid: {
+      recovery: '',
+      en: 'That verification challenge expired. Start the operator session again.',
+      zh: '验证挑战已过期。请重新启动操作员会话。',
+    },
+    vrchat_operator_code_invalid: {
+      recovery: 'retry',
+      en: 'That verification code was rejected. Try another code.',
+      zh: '验证码被拒绝。请尝试另一个验证码。',
+    },
+    upstream_rate_limited: {
+      recovery: 'retry',
+      en: 'The upstream service is limiting requests. Wait, then try again.',
+      zh: '上游服务正在限制请求。请稍后重试。',
+    },
+    upstream_temporarily_unavailable: {
+      recovery: 'retry',
+      en: 'The upstream service is temporarily unavailable. Try again soon.',
+      zh: '上游服务暂时不可用。请稍后重试。',
+    },
+  } as const
+
+  for (const [code, expected] of Object.entries(stableErrors)) {
+    it(`defines ${code} with exact recovery metadata and localized copy`, () => {
+      expect(REGISTRY_CODES.find((definition) => definition.code === code)?.recovery).toBe(expected.recovery)
+      expect(get(en, `errors.codes.${code}`)).toBe(expected.en)
+      expect(get(zh, `errors.codes.${code}`)).toBe(expected.zh)
+    })
+  }
+})
+
+describe('federation flow errors have English and Chinese public copy', () => {
+  const flowErrors = {
+    vrchat_identity_invalid: {
+      en: 'Enter a valid VRChat user ID or profile URL.',
+      zh: '请输入有效的 VRChat 用户 ID 或个人资料网址。',
+    },
+    vrchat_proof_missing: {
+      en: 'Add the issued verification link to your VRChat bio links, then try again.',
+      zh: '请将签发的验证链接添加到 VRChat 个人简介链接，然后重试。',
+    },
+    local_username_required: {
+      en: 'Choose a local username to finish signing in.',
+      zh: '请选择本地用户名以完成登录。',
+    },
+    federation_action_invalid: {
+      en: 'This verification step changed. Reload the flow and continue from the current step.',
+      zh: '验证步骤已更改。请重新加载流程并从当前步骤继续。',
+    },
+    federation_identity_conflict: {
+      en: 'That identity cannot be linked to this account.',
+      zh: '该身份无法关联到此账户。',
+    },
+  } as const
+
+  for (const [code, expected] of Object.entries(flowErrors)) {
+    it(`defines ${code} in both locales`, () => {
+      expect(get(en, `errors.codes.${code}`)).toBe(expected.en)
+      expect(get(zh, `errors.codes.${code}`)).toBe(expected.zh)
+    })
+  }
+})
 
 describe('error locale parity — detail keys have labels in en+zh', () => {
   for (const field of ALL_DETAIL_KEYS) {

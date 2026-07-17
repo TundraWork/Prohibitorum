@@ -134,6 +134,7 @@ type Querier interface {
 	InsertSession(ctx context.Context, arg InsertSessionParams) (Session, error)
 	InsertTOTPCredential(ctx context.Context, arg InsertTOTPCredentialParams) (TotpCredential, error)
 	InsertUpstreamIDP(ctx context.Context, arg InsertUpstreamIDPParams) (UpstreamIdp, error)
+	InvalidateVRChatOperatorSecret(ctx context.Context, arg InvalidateVRChatOperatorSecretParams) (UpstreamIdp, error)
 	IsAccountAuthorizedForOIDCClient(ctx context.Context, arg IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error)
 	IsAccountAuthorizedForSAMLSP(ctx context.Context, arg IsAccountAuthorizedForSAMLSPParams) (pgtype.Bool, error)
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
@@ -202,6 +203,7 @@ type Querier interface {
 	PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error)
 	PruneExpiredRevokedJTI(ctx context.Context) error
 	ReconcileRetiredSigningKeys(ctx context.Context) (int64, error)
+	RefreshVRChatOperatorSecret(ctx context.Context, arg RefreshVRChatOperatorSecretParams) (UpstreamIdp, error)
 	RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error)
 	ResetAuthThrottle(ctx context.Context, arg ResetAuthThrottleParams) error
 	RetireSigningKey(ctx context.Context, arg RetireSigningKeyParams) (SigningKey, error)
@@ -239,7 +241,7 @@ type Querier interface {
 	// Refreshes an account's email from a verified upstream on re-login (federation
 	// claim drift), keeping it in lockstep with account_identity.upstream_email.
 	UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmailParams) error
-	UpdateAccountIdentityEmail(ctx context.Context, arg UpdateAccountIdentityEmailParams) error
+	UpdateAccountIdentityVerifiedData(ctx context.Context, arg UpdateAccountIdentityVerifiedDataParams) error
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
 	UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAuthAppParams) (UpdateForwardAuthAppRow, error)
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (UserGroup, error)
@@ -262,9 +264,10 @@ type Querier interface {
 	// caller's RETURNING row populates. The remaining racers see pgx.ErrNoRows
 	// and the Verify path translates that to ErrTOTPReplay.
 	UpdateTOTPLastStep(ctx context.Context, arg UpdateTOTPLastStepParams) (int64, error)
-	UpdateUpstreamIDP(ctx context.Context, arg UpdateUpstreamIDPParams) error
 	UpdateUpstreamIDPConfig(ctx context.Context, arg UpdateUpstreamIDPConfigParams) (UpstreamIdp, error)
-	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) error
+	UpdateUpstreamIDPHealth(ctx context.Context, arg UpdateUpstreamIDPHealthParams) (UpstreamIdp, error)
+	UpdateUpstreamIDPSecret(ctx context.Context, arg UpdateUpstreamIDPSecretParams) (UpstreamIdp, error)
+	UpdateVRChatOperatorSecret(ctx context.Context, arg UpdateVRChatOperatorSecretParams) (UpstreamIdp, error)
 	// idp_id records the source upstream for an inherited avatar (NULL for a user
 	// upload); source carries the upstream slug ("upstream:<slug>") so the
 	// (account_id, source) PK yields one row per (account, upstream).

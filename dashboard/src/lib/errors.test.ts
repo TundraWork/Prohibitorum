@@ -17,6 +17,7 @@ import {
   ALL_RECOVERY_HINTS,
   EXPECTED_REGISTRY_CODE_COUNT,
   GLOBAL_ERROR_CODES,
+  codeDefinition,
 } from './errorCodes'
 
 describe('ApiError contract', () => {
@@ -212,6 +213,40 @@ describe('shared GLOBAL_ERROR_CODES (M5)', () => {
 describe('error code manifest integrity', () => {
   it('REGISTRY_CODES count matches the Go registry snapshot', () => {
     expect(REGISTRY_CODES.length).toBe(EXPECTED_REGISTRY_CODE_COUNT)
+  })
+
+  it('includes provider_not_ready from the Go registry', () => {
+    expect(REGISTRY_CODES.map((definition) => definition.code)).toContain('provider_not_ready')
+  })
+
+  it('includes Task 6 VRChat operator recovery metadata', () => {
+    expect(REGISTRY_CODES.filter((definition) => [
+      'vrchat_operator_credentials_invalid',
+      'vrchat_operator_challenge_invalid',
+      'vrchat_operator_code_invalid',
+      'upstream_rate_limited',
+      'upstream_temporarily_unavailable',
+    ].includes(definition.code))).toEqual([
+      { code: 'upstream_rate_limited', details: [], recovery: 'retry' },
+      { code: 'upstream_temporarily_unavailable', details: [], recovery: 'retry' },
+      { code: 'vrchat_operator_challenge_invalid', details: [], recovery: '' },
+      { code: 'vrchat_operator_code_invalid', details: [], recovery: 'retry' },
+      { code: 'vrchat_operator_credentials_invalid', details: [], recovery: '' },
+    ])
+  })
+
+  it('includes Task 8 federation flow recovery metadata in lookup and manifest', () => {
+    const expected = [
+      { code: 'federation_action_invalid', details: [], recovery: 'retry' },
+      { code: 'federation_identity_conflict', details: [], recovery: '' },
+      { code: 'local_username_required', details: [], recovery: 'fix_input' },
+      { code: 'vrchat_identity_invalid', details: [], recovery: 'fix_input' },
+      { code: 'vrchat_proof_missing', details: [], recovery: 'retry' },
+    ] as const
+    expect(REGISTRY_CODES.filter((definition) => expected.some(({ code }) => code === definition.code))).toEqual(expected)
+    for (const definition of expected) {
+      expect(codeDefinition(definition.code)).toEqual(definition)
+    }
   })
 
   it('all codes are unique', () => {

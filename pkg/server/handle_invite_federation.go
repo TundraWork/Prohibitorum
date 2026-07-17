@@ -5,14 +5,14 @@
 //
 //	GET /api/prohibitorum/enrollments/{token}/start-federation?return_to=…
 //	    → 302 to the upstream OP's /authorize URL, with the invite token
-//	      stashed in FedState so the callback can dispatch to
-//	      applyInviteOnly atomically.
+//	      stashed in FlowState so the resolver can apply the invite policy
+//	      atomically.
 //
 // Parallel to /enrollments/{token}/register/begin (WebAuthn enrollment
 // ceremony); the route is public — the bearer of the URL is the principal.
 //
 // All "invite isn't redeemable" branches collapse onto authn.ErrInviteRequired
-// inside Federator.BeginInviteRedemption — the handler is a thin shim.
+// inside federation.Service.BeginInvite — the handler is a thin shim.
 // Audit-burn from a brute-force enumerator is bounded by the audit writer's
 // own backoff (per the M5 audit fix, no IP-based rate limit lives here).
 package server
@@ -31,7 +31,7 @@ import (
 func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	if token == "" {
-		// Collapse onto the same opaque code BeginInviteRedemption uses for
+		// Collapse onto the same opaque code Service.BeginInvite uses for
 		// every other "no good" branch — don't reveal that empty token is
 		// rejected at a different layer than unknown token.
 		redirectAuthErrToError(w, r, authn.ErrInviteRequired())
@@ -44,7 +44,13 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 		return
 	}
 
-	req, err := s.federator.BeginInviteRedemption(r.Context(), token, returnTo)
+	req, err := s.federationService.BeginInvite(r.Context(), token, returnTo)
+	if err != nil {
+		redirectAuthErrToError(w, r, err)
+		return
+	}
+
+	destination, err := federationBeginDestination(req)
 	if err != nil {
 		redirectAuthErrToError(w, r, err)
 		return
@@ -52,12 +58,12 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 
 	// Drop the Referer header sent to the upstream so the invite token in
 	// our URL doesn't leak via Referer. Defense in depth — the token is
-	// already stashed in FedState by this point; race-bound by atomic
+	// already stashed in FlowState by this point; race-bound by atomic
 	// ConsumeEnrollment + short admin-set TTL.
 	w.Header().Set("Referrer-Policy", "no-referrer")
 
 	// Invite redemption shares the federation /callback, so bind the flow to
 	// this browser with the same anti-forgery cookie the login flow uses (N4).
-	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.AntiForgeryToken))
-	http.Redirect(w, r, req.AuthorizeURL, http.StatusFound)
+	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
+	http.Redirect(w, r, destination, http.StatusFound)
 }

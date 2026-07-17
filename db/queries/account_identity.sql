@@ -2,14 +2,16 @@
 SELECT * FROM account_identity WHERE upstream_iss = $1 AND upstream_sub = $2;
 
 -- name: ListAccountIdentitiesByAccount :many
-SELECT ai.*, ip.slug AS idp_slug, ip.display_name AS idp_display_name
+SELECT ai.*, ip.slug AS idp_slug, ip.display_name AS idp_display_name, ip.protocol
 FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
 WHERE ai.account_id = $1;
 
 -- name: InsertAccountIdentity :one
-INSERT INTO account_identity (account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO account_identity (
+  account_id, upstream_idp_id, upstream_iss, upstream_sub, upstream_email, upstream_data
+)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: DeleteAccountIdentity :one
@@ -18,8 +20,10 @@ RETURNING *;
 -- deleted, or unknown id). Callers map ErrNoRows to a 404 + skip audit.
 DELETE FROM account_identity WHERE id = $1 AND account_id = $2 RETURNING id;
 
--- name: UpdateAccountIdentityEmail :exec
-UPDATE account_identity SET upstream_email = $2 WHERE id = $1;
+-- name: UpdateAccountIdentityVerifiedData :exec
+UPDATE account_identity
+SET upstream_email = $2, upstream_data = $3
+WHERE id = $1;
 
 -- name: CountUsableSignInFederation :one
 -- Linked identities the account can actually sign in / step up with: the

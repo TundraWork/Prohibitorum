@@ -11,7 +11,7 @@ first-party, no email channel — admin-issued enrollment is the only recovery p
 The dashboard SPA is embedded in the binary: one `./prohibitorum` process is the
 whole IdP plus its admin UI.
 
-- **Sign-in** — WebAuthn passkeys (preferred), Password + TOTP fallback, or federation to any upstream OIDC IdP.
+- **Sign-in** — WebAuthn passkeys (preferred), Password + TOTP fallback, or federation through upstream OIDC, Steam, and VRChat providers.
 - **Downstream** — OIDC provider for modern apps; SAML 2.0 IdP for GitHub Enterprise Server and other legacy SaaS.
 - **Authorization** — a per-account `attributes` map flows verbatim into ID-token claims and SAML attributes; RPs enforce policy.
 
@@ -21,6 +21,8 @@ whole IdP plus its admin UI.
 - [x] WebAuthn passkey sign-in
 - [x] Password + TOTP sign-in (fallback)
 - [x] Upstream OIDC federation
+- [x] Steam OpenID 2.0 federation
+- [x] VRChat profile-proof federation with reusable operator session
 - [x] Step-up re-authentication
 - [x] Personal access tokens — user-owned credentials for programmatic gateway access
 
@@ -105,12 +107,12 @@ protocol-named; the admin HTTP API uses role names — `oidc-applications`,
 ## Architecture
 
 Three layers, acyclic imports: an **identity store** (accounts, credentials,
-federation links), an **authentication subsystem** that turns one of four upstream
-methods (WebAuthn / Password / TOTP / upstream OIDC) into a session, and a
-**protocol subsystem** that turns that session into an OIDC OP response or a
-signed SAML assertion. The `session` package is the contract between them — RPs
-see only the resulting claims. `zitadel/oidc` (the library) is the OIDC OP
-toolkit; `crewjam/saml` the SAML side.
+federation links), an **authentication subsystem** that turns WebAuthn,
+Password + TOTP, recovery codes, or an upstream provider (OIDC, Steam, VRChat)
+into a session, and a **protocol subsystem** that turns that session into an
+OIDC OP response or a signed SAML assertion. The `session` package is the
+contract between them — RPs see only the resulting claims. `zitadel/oidc` (the
+library) is the OIDC OP toolkit; `crewjam/saml` the SAML side.
 
 ## Why not …?
 

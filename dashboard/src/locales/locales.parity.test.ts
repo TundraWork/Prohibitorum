@@ -23,4 +23,26 @@ describe('locale key parity', () => {
     const extra = [...zhKeys].filter((k) => !enKeys.has(k))
     expect({ missing, extra }).toEqual({ missing: [], extra: [] })
   })
+
+  it('keeps the shared identity metadata vocabulary complete in both locales', () => {
+    const required = [
+      'identity.protocol',
+      'identity.protocolOidc',
+      'identity.protocolSteam',
+      'identity.protocolVrchat',
+      'identity.subject',
+      'identity.email',
+      'identity.steamId',
+      'identity.personaName',
+      'identity.vrchatUserId',
+      'identity.displayName',
+      'identity.profileUrl',
+      'identity.linkedIdentities',
+      'identity.linkedIdentitiesEmpty',
+    ]
+    const enKeys = new Set(keys(en))
+    const zhKeys = new Set(keys(zh))
+    expect(required.filter((key) => !enKeys.has(key))).toEqual([])
+    expect(required.filter((key) => !zhKeys.has(key))).toEqual([])
+  })
 })

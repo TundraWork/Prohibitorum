@@ -43,20 +43,34 @@ type SessionView struct {
 	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
 }
 
+// AccountIdentityView is the common secret-free projection used by admin and
+// self-service identity lists.
+type AccountIdentityView struct {
+	ID                  int64             `json:"id"`
+	ProviderSlug        string            `json:"providerSlug"`
+	ProviderDisplayName string            `json:"providerDisplayName"`
+	Protocol            string            `json:"protocol"`
+	Subject             string            `json:"subject"`
+	Email               *string           `json:"email,omitempty"`
+	Data                map[string]string `json:"data"`
+	LinkedAt            time.Time         `json:"linkedAt"`
+}
+
 // AccountView is admin-facing; lastSignInAt is derived from the account's credentials.
 type AccountView struct {
-	ID            int32          `json:"id"`
-	Username      string         `json:"username"`
-	DisplayName   string         `json:"displayName"`
-	Email         *string        `json:"email,omitempty"`
-	EmailVerified bool           `json:"emailVerified"`
-	Role          string         `json:"role"`
-	Attributes    map[string]any `json:"attributes,omitempty"`
-	Disabled      bool           `json:"disabled"`
-	CreatedAt     time.Time      `json:"createdAt"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
-	LastSignInAt  *time.Time     `json:"lastSignInAt,omitempty"`
-	AvatarURL     *string        `json:"avatarUrl,omitempty"`
+	ID                 int32                 `json:"id"`
+	Username           string                `json:"username"`
+	DisplayName        string                `json:"displayName"`
+	Email              *string               `json:"email,omitempty"`
+	EmailVerified      bool                  `json:"emailVerified"`
+	Role               string                `json:"role"`
+	Attributes         map[string]any        `json:"attributes,omitempty"`
+	Disabled           bool                  `json:"disabled"`
+	CreatedAt          time.Time             `json:"createdAt"`
+	UpdatedAt          time.Time             `json:"updatedAt"`
+	LastSignInAt       *time.Time            `json:"lastSignInAt,omitempty"`
+	AvatarURL          *string               `json:"avatarUrl,omitempty"`
+	MatchingIdentities []AccountIdentityView `json:"matchingIdentities"`
 }
 
 // SessionListItem is a single row in /me/sessions. Token is intentionally
@@ -347,6 +361,13 @@ var OperationGetAccount = huma.Operation{
 	Summary:     "Get one account by id (admin only).",
 }
 
+var OperationListAccountIdentities = huma.Operation{
+	OperationID: "listAccountIdentities",
+	Method:      http.MethodGet,
+	Path:        "/accounts/{id}/identities",
+	Summary:     "List an account's linked upstream identities (admin only).",
+}
+
 var OperationUpdateAccount = huma.Operation{
 	OperationID: "updateAccount",
 	Method:      http.MethodPut,
@@ -620,27 +641,28 @@ type SAMLApplicationView struct {
 	CreatedAt                 time.Time       `json:"createdAt"`
 }
 
-// IdentityProviderView is the admin-facing projection of an upstream_idp row.
-// client_secret_enc and secret_nonce are NEVER included — the sealed bytes
-// are write-only. Only the public configuration fields are returned.
+type IdentitySearchFieldView struct {
+	Key       string   `json:"key"`
+	Operators []string `json:"operators"`
+}
+
+// IdentityProviderView is the secret-free admin projection of an upstream
+// identity provider and its registered definition.
 type IdentityProviderView struct {
-	Slug                 string    `json:"slug"`
-	DisplayName          string    `json:"displayName"`
-	Protocol             string    `json:"protocol"`
-	IconURL              *string   `json:"iconUrl,omitempty"`
-	IssuerUrl            string    `json:"issuerUrl"`
-	ClientID             string    `json:"clientId"`
-	Scopes               []string  `json:"scopes"`
-	Mode                 string    `json:"mode"`
-	AllowedDomains       []string  `json:"allowedDomains"`
-	UsernameClaim        string    `json:"usernameClaim"`
-	DisplayNameClaim     string    `json:"displayNameClaim"`
-	EmailClaim           string    `json:"emailClaim"`
-	PictureClaim         string    `json:"pictureClaim"`
-	RequireVerifiedEmail bool      `json:"requireVerifiedEmail"`
-	Disabled             bool      `json:"disabled"`
-	AllowPrivateNetwork  bool      `json:"allowPrivateNetwork"`
-	CreatedAt            time.Time `json:"createdAt"`
+	Slug              string                    `json:"slug"`
+	DisplayName       string                    `json:"displayName"`
+	Protocol          string                    `json:"protocol"`
+	IconURL           *string                   `json:"iconUrl,omitempty"`
+	Mode              string                    `json:"mode"`
+	Config            json.RawMessage           `json:"config"`
+	Disabled          bool                      `json:"disabled"`
+	SecretConfigured  bool                      `json:"secretConfigured"`
+	SecretStatus      string                    `json:"secretStatus"`
+	SecretValidatedAt *time.Time                `json:"secretValidatedAt"`
+	Ready             bool                      `json:"ready"`
+	SupportsOperator  bool                      `json:"supportsOperator"`
+	SearchFields      []IdentitySearchFieldView `json:"searchFields"`
+	CreatedAt         time.Time                 `json:"createdAt"`
 }
 
 var OperationListIdentityProviders = huma.Operation{
@@ -758,9 +780,9 @@ var OperationListGroupMembers = huma.Operation{
 // Each sub-collection (groups, accounts) is independently paginated with
 // its own cursor, both bound to the parent application identifier.
 type AppAccessView struct {
-	AccessRestricted bool               `json:"accessRestricted"`
-	Groups           Page[GroupRef]     `json:"groups"`
-	Accounts         Page[AccountRef]   `json:"accounts"`
+	AccessRestricted bool             `json:"accessRestricted"`
+	Groups           Page[GroupRef]   `json:"groups"`
+	Accounts         Page[AccountRef] `json:"accounts"`
 }
 
 var OperationGetOIDCClientAccess = huma.Operation{

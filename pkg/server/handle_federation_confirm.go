@@ -50,7 +50,7 @@ func (s *Server) confirmFedQ() confirmFedQueries {
 // cookie), no session. Reads the pending identity for the /welcome page.
 func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Request) {
 	token, anti := splitConfirmCookie(cookieValue(r, sessstore.FedStateCookieName))
-	grant, err := s.federator.PeekConfirmGrant(r.Context(), token, anti)
+	grant, err := s.federationService.PeekConfirmGrant(r.Context(), token, anti)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
@@ -60,7 +60,7 @@ func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Reque
 		writeAuthErr(w, err)
 		return
 	}
-	idp, err := s.confirmFedQ().GetUpstreamIDPBySlug(r.Context(), grant.IDPSlug)
+	idp, err := s.confirmFedQ().GetUpstreamIDPBySlug(r.Context(), grant.ProviderSlug)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
@@ -70,7 +70,7 @@ func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Reque
 		DisplayName:    acct.DisplayName,
 		Username:       acct.Username,
 		Email:          acct.Email.String,
-		AvatarPending:  s.federator.AvatarPending(r.Context(), grant.AccountID),
+		AvatarPending:  s.federationService.AvatarPending(r.Context(), grant.AccountID),
 	}
 	if len(s.config.PublicOrigins) > 0 {
 		if u := avatar.AccountURL(acct, s.config.PublicOrigins[0]); u != "" {
@@ -86,7 +86,7 @@ func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Reque
 // the same (now-popped) grant fails closed (federation_state_invalid).
 func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Request) {
 	token, anti := splitConfirmCookie(cookieValue(r, sessstore.FedStateCookieName))
-	grant, err := s.federator.PopConfirmGrant(r.Context(), token, anti)
+	grant, err := s.federationService.PopConfirmGrant(r.Context(), token, anti)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
@@ -115,7 +115,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	// H1-sch: stamp the upstream IdP onto the session row (federated discriminator).
-	idpID := grant.IDPID
+	idpID := grant.ProviderID
 	sess, _, err := s.sessionStore.Issue(r.Context(), grant.AccountID, ip, r.UserAgent(), amr, &idpID)
 	if err != nil {
 		writeAuthErr(w, err)
@@ -126,7 +126,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 		AccountID: &accountID,
 		Factor:    audit.FactorFederationOIDC,
 		Event:     audit.EventUse,
-		Detail:    map[string]any{"reason": "confirm", "idp_id": grant.IDPID},
+		Detail:    map[string]any{"reason": "confirm", "idp_id": grant.ProviderID},
 	})
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &accountID,
@@ -143,7 +143,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 // grant (best-effort single-use consume) and clear the cookie. No session.
 func (s *Server) handleFederationConfirmDecline(w http.ResponseWriter, r *http.Request) {
 	token, anti := splitConfirmCookie(cookieValue(r, sessstore.FedStateCookieName))
-	grant, _ := s.federator.PopConfirmGrant(r.Context(), token, anti) // best-effort consume
+	grant, _ := s.federationService.PopConfirmGrant(r.Context(), token, anti) // best-effort consume
 	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
 	// Emit the decline audit even on an invalid/missing grant (best-effort).
 	var accountID *int32

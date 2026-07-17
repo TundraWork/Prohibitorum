@@ -30,11 +30,9 @@ import (
 
 	_ "github.com/gen2brain/webp" // register webp decoder for image.DecodeConfig
 
-	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
 	"prohibitorum/pkg/kv"
 )
 
@@ -865,24 +863,11 @@ func newAvatarStatusTestServer(t *testing.T) (*Server, kv.Store) {
 	t.Cleanup(func() { _ = kvStore.Close() })
 
 	fq := newFakeFedQueries()
-	aud := audit.NewWriter(fq)
-
-	fed := fedoidc.NewFederator(
-		fq,
-		kvStore,
-		aud,
-		configx.FederationConfig{
-			StateTTL:      5 * time.Minute,
-			DefaultScopes: []string{"openid"},
-		},
-		map[int][]byte{1: make([]byte, 32)},
-		nil,
-		"",
-	)
+	service := fedoidc.NewService(nil, nil, kvStore, nil, fedoidc.ServiceConfig{StateTTL: 5 * time.Minute})
+	service.SetAvatarManager(fedoidc.NewAvatarManager(fq, kvStore))
 
 	s := &Server{
-		federator: fed,
-		// dbPool nil — status handler doesn't touch DB.
+		federationService: service,
 	}
 	return s, kvStore
 }

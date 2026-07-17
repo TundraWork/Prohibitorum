@@ -18,6 +18,7 @@ export interface ApiError {
   code: string
   details?: Record<string, string | number | boolean | string[]>
   requestId?: string
+  retryAfterSeconds?: number
 }
 
 /** Type guard: does `v` look like an ApiError (has a string `code`)? */

@@ -73,6 +73,17 @@ func init() {
 		{Code: "active_key_no_replacement", Status: http.StatusConflict, LocaleKey: "errors.active_key_no_replacement", DiagnosticKind: "policy"},
 		{Code: "client_not_found", Status: http.StatusNotFound, LocaleKey: "errors.client_not_found", DiagnosticKind: "resource"},
 		{Code: "upstream_idp_not_found", Status: http.StatusNotFound, LocaleKey: "errors.upstream_idp_not_found", DiagnosticKind: "resource"},
+		{Code: "provider_not_ready", Status: http.StatusServiceUnavailable, LocaleKey: "errors.provider_not_ready", DiagnosticKind: "federation"},
+		{Code: "vrchat_operator_credentials_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_operator_credentials_invalid", DiagnosticKind: "federation"},
+		{Code: "vrchat_operator_challenge_invalid", Status: http.StatusGone, LocaleKey: "errors.vrchat_operator_challenge_invalid", DiagnosticKind: "federation"},
+		{Code: "vrchat_operator_code_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.vrchat_operator_code_invalid", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "upstream_rate_limited", Status: http.StatusTooManyRequests, LocaleKey: "errors.upstream_rate_limited", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "upstream_temporarily_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.upstream_temporarily_unavailable", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "vrchat_identity_invalid", Status: http.StatusBadRequest, LocaleKey: "errors.vrchat_identity_invalid", DiagnosticKind: "federation", Recovery: "fix_input"},
+		{Code: "vrchat_proof_missing", Status: http.StatusConflict, LocaleKey: "errors.vrchat_proof_missing", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "local_username_required", Status: http.StatusConflict, LocaleKey: "errors.local_username_required", DiagnosticKind: "federation", Retryable: true, Recovery: "fix_input"},
+		{Code: "federation_action_invalid", Status: http.StatusConflict, LocaleKey: "errors.federation_action_invalid", DiagnosticKind: "federation", Retryable: true, Recovery: "retry"},
+		{Code: "federation_identity_conflict", Status: http.StatusConflict, LocaleKey: "errors.federation_identity_conflict", DiagnosticKind: "federation"},
 		{Code: "oidc_client_already_exists", Status: http.StatusConflict, LocaleKey: "errors.oidc_client_already_exists", DiagnosticKind: "validation"},
 		{Code: "upstream_idp_already_exists", Status: http.StatusConflict, LocaleKey: "errors.upstream_idp_already_exists", DiagnosticKind: "validation"},
 		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
@@ -503,6 +514,52 @@ func ErrClientNotFound() *AuthError {
 // no row. Status 404.
 func ErrUpstreamIDPNotFound() *AuthError {
 	return newErr(http.StatusNotFound, "upstream_idp_not_found", "Upstream IdP not found.")
+}
+
+func ErrProviderNotReady() *AuthError {
+	return newErr(http.StatusServiceUnavailable, "provider_not_ready", "The identity provider is not ready.")
+}
+
+func ErrVRChatOperatorCredentialsInvalid() *AuthError {
+	return newErr(http.StatusUnprocessableEntity, "vrchat_operator_credentials_invalid", "VRChat operator credentials are invalid.")
+}
+
+func ErrVRChatOperatorChallengeInvalid() *AuthError {
+	return newErr(http.StatusGone, "vrchat_operator_challenge_invalid", "VRChat operator challenge is invalid.")
+}
+
+func ErrVRChatOperatorCodeInvalid() *AuthError {
+	return newErr(http.StatusUnprocessableEntity, "vrchat_operator_code_invalid", "VRChat operator verification code is invalid.")
+}
+
+func ErrUpstreamRateLimited(retryAfter time.Duration) *AuthError {
+	err := newErr(http.StatusTooManyRequests, "upstream_rate_limited", "The upstream provider rate limited the request.")
+	err.RetryAfter = retryAfter
+	return err
+}
+
+func ErrUpstreamTemporarilyUnavailable() *AuthError {
+	return newErr(http.StatusServiceUnavailable, "upstream_temporarily_unavailable", "The upstream provider is temporarily unavailable.")
+}
+
+func ErrVRChatIdentityInvalid() *AuthError {
+	return newErr(http.StatusBadRequest, "vrchat_identity_invalid", "The VRChat identity is invalid.")
+}
+
+func ErrVRChatProofMissing() *AuthError {
+	return newErr(http.StatusConflict, "vrchat_proof_missing", "The VRChat profile proof is missing.")
+}
+
+func ErrLocalUsernameRequired() *AuthError {
+	return newErr(http.StatusConflict, "local_username_required", "A local username is required.")
+}
+
+func ErrFederationActionInvalid() *AuthError {
+	return newErr(http.StatusConflict, "federation_action_invalid", "The federation action is no longer current.")
+}
+
+func ErrFederationIdentityConflict() *AuthError {
+	return newErr(http.StatusConflict, "federation_identity_conflict", "The upstream identity is already linked.")
 }
 
 // ErrClientAlreadyExists is returned when an OIDC client insert violates the

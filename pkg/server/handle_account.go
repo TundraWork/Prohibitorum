@@ -42,6 +42,17 @@ func decodeAttributes(raw []byte) map[string]any {
 	return m
 }
 
+func decodeMatchingIdentities(raw string) []contract.AccountIdentityView {
+	identities := make([]contract.AccountIdentityView, 0)
+	if raw == "" {
+		return identities
+	}
+	if err := json.Unmarshal([]byte(raw), &identities); err != nil {
+		return make([]contract.AccountIdentityView, 0)
+	}
+	return identities
+}
+
 // encodeAttributes marshals a map[string]any into JSONB bytes for storage.
 // Returns the JSON encoding of an empty object if the map is nil.
 func encodeAttributes(attrs map[string]any) []byte {
@@ -84,17 +95,18 @@ func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountVi
 		lsi = &v
 	}
 	v := contract.AccountView{
-		ID:            r.ID,
-		Username:      r.Username,
-		DisplayName:   r.DisplayName,
-		Email:         textPtr(r.Email),
-		EmailVerified: r.EmailVerified,
-		Role:          r.Role,
-		Attributes:    decodeAttributes(r.Attributes),
-		Disabled:      r.Disabled,
-		CreatedAt:     r.CreatedAt.Time,
-		UpdatedAt:     r.UpdatedAt.Time,
-		LastSignInAt:  lsi,
+		ID:                 r.ID,
+		Username:           r.Username,
+		DisplayName:        r.DisplayName,
+		Email:              textPtr(r.Email),
+		EmailVerified:      r.EmailVerified,
+		Role:               r.Role,
+		Attributes:         decodeAttributes(r.Attributes),
+		Disabled:           r.Disabled,
+		CreatedAt:          r.CreatedAt.Time,
+		UpdatedAt:          r.UpdatedAt.Time,
+		LastSignInAt:       lsi,
+		MatchingIdentities: decodeMatchingIdentities(r.MatchingIdentities),
 	}
 	if r.AvatarEtag.Valid {
 		if u := avatar.PublicURL(r.OidcSubject.String(), r.AvatarEtag.String, origin); u != "" {
@@ -109,17 +121,18 @@ func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountVi
 // credential subquery).
 func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin string) contract.AccountView {
 	v := contract.AccountView{
-		ID:            a.ID,
-		Username:      a.Username,
-		DisplayName:   a.DisplayName,
-		Email:         textPtr(a.Email),
-		EmailVerified: a.EmailVerified,
-		Role:          a.Role,
-		Attributes:    decodeAttributes(a.Attributes),
-		Disabled:      a.Disabled,
-		CreatedAt:     a.CreatedAt.Time,
-		UpdatedAt:     a.UpdatedAt.Time,
-		LastSignInAt:  lastSignInAt,
+		ID:                 a.ID,
+		Username:           a.Username,
+		DisplayName:        a.DisplayName,
+		Email:              textPtr(a.Email),
+		EmailVerified:      a.EmailVerified,
+		Role:               a.Role,
+		Attributes:         decodeAttributes(a.Attributes),
+		Disabled:           a.Disabled,
+		CreatedAt:          a.CreatedAt.Time,
+		UpdatedAt:          a.UpdatedAt.Time,
+		LastSignInAt:       lastSignInAt,
+		MatchingIdentities: make([]contract.AccountIdentityView, 0),
 	}
 	if u := avatar.AccountURL(*a, origin); u != "" {
 		v.AvatarURL = &u
@@ -131,6 +144,11 @@ func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin strin
 
 type listAccountsIn struct {
 	pageInput
+	Q        string `query:"q"`
+	Provider string `query:"provider"`
+	Field    string `query:"field"`
+	Value    string `query:"value"`
+	Match    string `query:"match"`
 }
 
 type listAccountsOut struct {
@@ -138,15 +156,78 @@ type listAccountsOut struct {
 }
 
 func (s *Server) handleListAccounts(ctx context.Context, in *listAccountsIn) (*listAccountsOut, error) {
+	query := strings.TrimSpace(in.Q)
+	provider := normalizeProviderSlug(in.Provider)
+	field := strings.TrimSpace(in.Field)
+	value := strings.TrimSpace(in.Value)
+	match := strings.ToLower(strings.TrimSpace(in.Match))
+	hasAdvancedFilter := field != "" || value != "" || match != ""
+	if hasAdvancedFilter && (provider == "" || field == "" || value == "" || match == "") {
+		return nil, authErrToHuma(authn.ErrBadRequest())
+	}
+	if provider != "" {
+		providerRow, err := s.listQ().GetUpstreamIDPBySlugAny(ctx, provider)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(authn.ErrBadRequest())
+		}
+		if err != nil {
+			return nil, fmt.Errorf("handleListAccounts: provider lookup: %w", err)
+		}
+		if hasAdvancedFilter {
+			if s.federationRegistry == nil {
+				return nil, fmt.Errorf("handleListAccounts: federation registry unavailable")
+			}
+			descriptor, err := s.federationRegistry.Descriptor(providerRow.Protocol)
+			if err != nil {
+				return nil, authErrToHuma(authn.ErrBadRequest())
+			}
+			fieldAllowed := false
+			operatorAllowed := false
+			for _, searchField := range descriptor.SearchFields {
+				if searchField.Key != field {
+					continue
+				}
+				fieldAllowed = true
+				for _, operator := range searchField.Operators {
+					if string(operator) == match {
+						operatorAllowed = true
+						break
+					}
+				}
+				break
+			}
+			if !fieldAllowed || !operatorAllowed {
+				return nil, authErrToHuma(authn.ErrBadRequest())
+			}
+		}
+	}
 	lim := pagination.Limit(in.Limit)
 	const collection = "accounts"
 	const sort = "created_at"
-	filters := map[string]string{}
+	filters := make(map[string]string, 5)
+	if query != "" {
+		filters["q"] = query
+	}
+	if provider != "" {
+		filters["provider"] = provider
+	}
+	if hasAdvancedFilter {
+		filters["field"] = field
+		filters["value"] = value
+		filters["match"] = match
+	}
 	payload, err := s.decodeCursor(in.Cursor, collection, sort, filters)
 	if err != nil {
 		return nil, cursorInvalidErr(err)
 	}
-	params := db.ListAccountsParams{Limit: int32(lim + 1)}
+	params := db.ListAccountsParams{
+		Q:        pgtype.Text{String: query, Valid: query != ""},
+		Provider: pgtype.Text{String: provider, Valid: provider != ""},
+		Field:    pgtype.Text{String: field, Valid: hasAdvancedFilter},
+		Value:    pgtype.Text{String: value, Valid: hasAdvancedFilter},
+		Match:    pgtype.Text{String: match, Valid: hasAdvancedFilter},
+		Limit:    int32(lim + 1),
+	}
 	if len(payload.Keys) == 2 {
 		if t, perr := time.Parse(time.RFC3339Nano, payload.Keys[0]); perr == nil {
 			params.AfterCreatedAt = tsToPgType(t)
@@ -196,6 +277,32 @@ func (s *Server) handleGetAccount(ctx context.Context, in *getAccountIn) (*accou
 		return nil, fmt.Errorf("handleGetAccount: query: %w", err)
 	}
 	return &accountOut{Body: accountViewFromAccount(&a, nil, s.config.PublicOrigins[0])}, nil
+}
+
+type listAccountIdentitiesIn struct {
+	ID int32 `path:"id"`
+}
+
+type listAccountIdentitiesOut struct {
+	Body []contract.AccountIdentityView
+}
+
+func (s *Server) handleListAccountIdentities(ctx context.Context, in *listAccountIdentitiesIn) (*listAccountIdentitiesOut, error) {
+	if _, err := s.queries.GetAccountByID(ctx, in.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, authErrToHuma(authn.ErrAccountNotFound())
+		}
+		return nil, fmt.Errorf("handleListAccountIdentities: account lookup: %w", err)
+	}
+	rows, err := s.queries.ListAccountIdentitiesByAccount(ctx, in.ID)
+	if err != nil {
+		return nil, fmt.Errorf("handleListAccountIdentities: query: %w", err)
+	}
+	views := make([]contract.AccountIdentityView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, projectIdentityRow(ctx, row))
+	}
+	return &listAccountIdentitiesOut{Body: views}, nil
 }
 
 // ----- PUT /accounts/{id} ----------------------------------------------------

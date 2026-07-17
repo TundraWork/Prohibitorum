@@ -127,3 +127,16 @@ describe('3c admin routes require admin', () => {
     expect(resolved.meta.requiresAdmin).toBe(true)
   })
 })
+
+describe('VRChat verification routes', () => {
+  it.each([
+    ['/federation/flow/flow_abc', 'federation-flow'],
+    ['/verify/vrchat/proof_abc', 'vrchat-proof'],
+  ])('%s is public and bypasses the auth guard', (path, name) => {
+    const resolved = realRouter.resolve(path)
+    expect(resolved.name).toBe(name)
+    expect(resolved.meta.public).toBe(true)
+    expect(resolved.meta.requiresAuth).not.toBe(true)
+    expect(resolved.meta.requiresAdmin).not.toBe(true)
+  })
+})

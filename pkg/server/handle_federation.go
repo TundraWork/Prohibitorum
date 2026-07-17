@@ -1,6 +1,6 @@
 // Package server — handle_federation.go
 //
-// Public HTTP entrypoints for upstream OIDC federation login.
+// Public HTTP entrypoints for protocol-neutral upstream federation login.
 //
 //	GET /api/prohibitorum/auth/federation/{slug}/login?return_to=…
 //	    → 302 to the upstream OP's /authorize URL.
@@ -11,15 +11,15 @@
 //	    → on missing/bad state : writes ErrFederationStateInvalid (no audit row —
 //	      stray browser hits should not flood the audit log).
 //
-// The state token is the upstream OP's state parameter. The secret blob is keyed
-// by it inside KV (LoginKey(token)), Pop'd once at callback time. All replay /
-// iss-mismatch / code-exchange-failure paths collapse onto the single
-// federation_state_invalid code to avoid leaking a side channel into the
-// federation pipeline.
+// The opaque flow ID is sent as the upstream state parameter. Its browser-bound
+// FlowState is stored at FlowKey(flowID), then acquired under an owner-fenced
+// lease for callback processing. Replay, issuer-mismatch, and protocol
+// verification failures collapse onto the single federation_state_invalid code
+// to avoid leaking a side channel into the federation pipeline.
 //
-// Route mounting is owned by Task 9 (server.go's registerOperations). The
-// Server.federator field is populated there; this file defines only the
-// handlers + the return_to validator.
+// Routes are mounted by server.go's registerOperations. NewServer populates
+// Server.federationService; this file defines the handlers and return_to
+// validator.
 package server
 
 import (
@@ -34,7 +34,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
 	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/weberr"
 )
@@ -65,11 +65,11 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	req, err := s.federator.BeginLogin(r.Context(), slug, returnTo)
+	req, err := s.federationService.BeginLogin(r.Context(), slug, returnTo)
 	if err != nil {
 		// returnTo is validated + same-origin — forward it so the /error
 		// "go back" link can resume where the user started.
-		if errors.Is(err, fedoidc.ErrUnknownIDP) {
+		if errors.Is(err, federation.ErrUnknownProvider) {
 			// Collapse "no such slug" onto the generic state-invalid code so
 			// callers can't enumerate configured upstream IdP slugs.
 			redirectAuthErrToErrorReturn(w, r, authn.ErrFederationStateInvalid(), returnTo)
@@ -79,11 +79,17 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	destination, err := federationBeginDestination(req)
+	if err != nil {
+		redirectAuthErrToErrorReturn(w, r, err, returnTo)
+		return
+	}
+
 	// Bind the flow to this browser (N4): the anti-forgery cookie must come
 	// back on the cross-site callback navigation, where it is matched against
 	// the state's BrowserBinding.
-	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.AntiForgeryToken))
-	http.Redirect(w, r, req.AuthorizeURL, http.StatusFound)
+	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
+	http.Redirect(w, r, destination, http.StatusFound)
 }
 
 // handleFederationCallbackHTTP serves
@@ -132,7 +138,11 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		browserToken = c.Value
 	}
 
-	result, err := s.federator.HandleCallback(r.Context(), state, code, iss, browserToken, r.URL.Query())
+	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
+		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
+		CallbackRoute: federation.CallbackRoutePublic,
+		Input:         federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
+	})
 	if err != nil {
 		// HandleCallback returns structured *authn.AuthError for every
 		// expected failure (federation_state_invalid, bad_credentials,
@@ -142,51 +152,77 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	s.writeFederationCompletion(w, r, result, federationCompletionRedirect)
+}
+
+type federationCompletionMode uint8
+
+const (
+	federationCompletionRedirect federationCompletionMode = iota
+	federationCompletionJSON
+)
+
+func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Request, result *federation.CompletionResult, mode federationCompletionMode) {
+	if result == nil {
+		s.writeFederationCompletionError(w, r, errors.New("federation: missing completion result"), mode)
+		return
+	}
+	if result.Intent == federation.IntentLink {
+		http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
+		s.writeFederationCompletionDestination(w, r, "/connected", mode)
+		return
+	}
 	if !result.Confirmed {
-		// First-time federated sign-in: WITHHOLD the durable session. Mint a
-		// single-use, browser-bound confirmation grant (KV + cookie, mirroring
-		// the federation-state pattern) and park the user on /welcome, where the
-		// confirm/decline endpoints read it. The fed-state cookie carries
-		// "<grant-token>.<anti-forgery>"; only the anti-forgery hash is in KV.
-		token, antiForgery, gerr := s.federator.CreateConfirmGrant(r.Context(), result.AccountID, result.IdentityID, result.IDPID, result.IDPSlug, result.ReturnTo, result.AMR)
-		if gerr != nil {
-			redirectAuthErrToError(w, r, gerr)
+		token, antiForgery, err := s.federationService.CreateConfirmGrant(
+			r.Context(), result.AccountID, result.IdentityID, result.ProviderID,
+			result.ProviderSlug, result.ReturnTo, result.AMR,
+		)
+		if err != nil {
+			s.writeFederationCompletionError(w, r, err, mode)
 			return
 		}
 		http.SetCookie(w, sessstore.FedStateCookie(s.config, r, token+"."+antiForgery))
-		http.Redirect(w, r, "/welcome", http.StatusFound)
+		s.writeFederationCompletionDestination(w, r, "/welcome", mode)
 		return
 	}
 
-	// Confirmed identity — issue the durable session.
-	// One-shot binding consumed — clear the anti-forgery cookie.
 	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
-
-	ip := s.clientIP.IP(r)
-	ua := r.UserAgent()
-	// RFC 8176 §2: "federated" indicates a federated authentication assertion.
-	// Real upstream OPs commonly omit the amr claim — we backfill with this
-	// generic value so the local session always has a meaningful amr.
+	if s.maintenanceLockout(r.Context(), result.AccountID) != nil {
+		s.writeFederationCompletionDestination(w, r, "/", mode)
+		return
+	}
 	amr := result.AMR
 	if len(amr) == 0 {
 		amr = []string{"federated"}
 	}
-	// Non-admins are locked out during maintenance — bounce to the SPA, which
-	// renders the maintenance screen (no session is issued).
-	if s.maintenanceLockout(r.Context(), result.AccountID) != nil {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
+	ip := r.RemoteAddr
+	if s.clientIP != nil {
+		ip = s.clientIP.IP(r)
 	}
-	// H1-sch: stamp the upstream IdP onto the session row so the OIDC OP can
-	// surface a "federated" discriminator in downstream id_token claims.
-	idpID := result.IDPID
-	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, ua, amr, &idpID)
+	idpID := result.ProviderID
+	token, _, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, r.UserAgent(), amr, &idpID)
 	if err != nil {
-		redirectAuthErrToError(w, r, err)
+		s.writeFederationCompletionError(w, r, err, mode)
 		return
 	}
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, result.AccountID, token, s.config.SessionTTL))
-	http.Redirect(w, r, result.ReturnTo, http.StatusFound)
+	s.writeFederationCompletionDestination(w, r, result.ReturnTo, mode)
+}
+
+func (s *Server) writeFederationCompletionError(w http.ResponseWriter, r *http.Request, err error, mode federationCompletionMode) {
+	if mode == federationCompletionRedirect {
+		redirectAuthErrToError(w, r, err)
+		return
+	}
+	writeAuthErr(w, err)
+}
+
+func (s *Server) writeFederationCompletionDestination(w http.ResponseWriter, r *http.Request, destination string, mode federationCompletionMode) {
+	if mode == federationCompletionRedirect {
+		http.Redirect(w, r, destination, http.StatusFound)
+		return
+	}
+	writeJSON(w, contract.LoginResult{Redirect: destination})
 }
 
 // GET /api/prohibitorum/auth/federation — public list of enabled upstream IdPs
@@ -211,7 +247,7 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 		// generic "sign in with" button — a plain login on one is rejected
 		// pre-auth in begin(). Omit them so the login page never offers a
 		// doomed button.
-		if idp.Mode == fedoidc.ModeInviteOnly {
+		if idp.Mode == federation.ModeInviteOnly {
 			continue
 		}
 		out = append(out, contract.FederationProvider{

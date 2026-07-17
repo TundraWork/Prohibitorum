@@ -22,9 +22,138 @@ SELECT EXISTS(SELECT 1 FROM account WHERE role = 'admin' AND NOT disabled) AS ha
 -- name: ListAccounts :many
 SELECT
   a.*,
-  (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at
+  (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at,
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'id', ai.id,
+        'providerSlug', ip.slug,
+        'providerDisplayName', ip.display_name,
+        'protocol', ip.protocol,
+        'subject', ai.upstream_sub,
+        'email', ai.upstream_email,
+        'data', ai.upstream_data,
+        'linkedAt', ai.linked_at
+      )
+      ORDER BY ai.linked_at DESC, ai.id DESC
+    )
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    CROSS JOIN LATERAL (
+      SELECT CASE sqlc.narg('field')::text
+        WHEN 'subject' THEN ai.upstream_sub
+        WHEN 'email' THEN COALESCE(ai.upstream_email, '')
+        WHEN 'steamId' THEN ai.upstream_sub
+        WHEN 'personaName' THEN COALESCE(ai.upstream_data->>'personaName', '')
+        WHEN 'userId' THEN ai.upstream_sub
+        WHEN 'displayName' THEN COALESCE(ai.upstream_data->>'displayName', '')
+        ELSE ''
+      END AS field_value
+    ) selected
+    WHERE ai.account_id = a.id
+      AND (
+        (
+          sqlc.narg('q')::text IS NOT NULL
+          AND (
+            (
+              ai.upstream_sub || E'\n' ||
+              COALESCE(ai.upstream_email, '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'personaName', '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'displayName', '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'profileUrl', '')
+            ) ILIKE '%' || sqlc.narg('q')::text || '%'
+          )
+        )
+        OR (
+          sqlc.narg('provider')::text IS NOT NULL
+          AND ip.slug = sqlc.narg('provider')::text
+          AND (
+            sqlc.narg('field')::text IS NULL
+            OR CASE
+              WHEN sqlc.narg('match')::text = 'exact'
+                AND sqlc.narg('field')::text IN ('personaName', 'displayName')
+                THEN ai.upstream_data @> jsonb_build_object(
+                  sqlc.narg('field')::text,
+                  to_jsonb(sqlc.narg('value')::text)
+                )
+              WHEN sqlc.narg('match')::text = 'exact'
+                THEN lower(selected.field_value) = lower(sqlc.narg('value')::text)
+              WHEN sqlc.narg('match')::text = 'prefix'
+                THEN lower(selected.field_value) LIKE lower(sqlc.narg('value')::text) || '%'
+              WHEN sqlc.narg('match')::text = 'contains'
+                THEN lower(selected.field_value) LIKE '%' || lower(sqlc.narg('value')::text) || '%'
+              ELSE false
+            END
+          )
+        )
+      )
+  ), '[]'::jsonb)::text AS matching_identities
 FROM account a
-WHERE (sqlc.narg('after_created_at')::timestamptz IS NULL OR (a.created_at, a.id) < (sqlc.narg('after_created_at'), sqlc.narg('after_id')::int4))
+WHERE (
+    sqlc.narg('q')::text IS NULL
+    OR a.id IN (
+      SELECT searched.id
+      FROM account searched
+      WHERE (
+        searched.username || E'\n' ||
+        searched.display_name || E'\n' ||
+        COALESCE(searched.email, '')
+      ) ILIKE '%' || sqlc.narg('q')::text || '%'
+      UNION
+      SELECT ai.account_id
+      FROM account_identity ai
+      WHERE (
+        ai.upstream_sub || E'\n' ||
+        COALESCE(ai.upstream_email, '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'personaName', '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'displayName', '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'profileUrl', '')
+      ) ILIKE '%' || sqlc.narg('q')::text || '%'
+    )
+  )
+  AND (
+    sqlc.narg('provider')::text IS NULL
+    OR EXISTS (
+      SELECT 1
+      FROM account_identity ai
+      JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+      CROSS JOIN LATERAL (
+        SELECT CASE sqlc.narg('field')::text
+          WHEN 'subject' THEN ai.upstream_sub
+          WHEN 'email' THEN COALESCE(ai.upstream_email, '')
+          WHEN 'steamId' THEN ai.upstream_sub
+          WHEN 'personaName' THEN COALESCE(ai.upstream_data->>'personaName', '')
+          WHEN 'userId' THEN ai.upstream_sub
+          WHEN 'displayName' THEN COALESCE(ai.upstream_data->>'displayName', '')
+          ELSE ''
+        END AS field_value
+      ) selected
+      WHERE ai.account_id = a.id
+        AND ip.slug = sqlc.narg('provider')::text
+        AND (
+          sqlc.narg('field')::text IS NULL
+          OR CASE
+            WHEN sqlc.narg('match')::text = 'exact'
+              AND sqlc.narg('field')::text IN ('personaName', 'displayName')
+              THEN ai.upstream_data @> jsonb_build_object(
+                sqlc.narg('field')::text,
+                to_jsonb(sqlc.narg('value')::text)
+              )
+            WHEN sqlc.narg('match')::text = 'exact'
+              THEN lower(selected.field_value) = lower(sqlc.narg('value')::text)
+            WHEN sqlc.narg('match')::text = 'prefix'
+              THEN lower(selected.field_value) LIKE lower(sqlc.narg('value')::text) || '%'
+            WHEN sqlc.narg('match')::text = 'contains'
+              THEN lower(selected.field_value) LIKE '%' || lower(sqlc.narg('value')::text) || '%'
+            ELSE false
+          END
+        )
+    )
+  )
+  AND (
+    sqlc.narg('after_created_at')::timestamptz IS NULL
+    OR (a.created_at, a.id) < (sqlc.narg('after_created_at'), sqlc.narg('after_id')::int4)
+  )
 ORDER BY a.created_at DESC, a.id DESC
 LIMIT sqlc.arg('limit');
 

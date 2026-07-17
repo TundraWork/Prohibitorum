@@ -38,12 +38,30 @@ const TOKENS = [
   { id: 101, name: 'ci-deploy', tokenHint: 'proh_abc…', allApps: false, appGrants: { 'svc-1': ['repo:read'] }, createdAt: '2026-06-01T00:00:00Z' },
   { id: 102, name: 'all-access', tokenHint: 'proh_xyz…', allApps: true, appGrants: {}, createdAt: '2026-06-02T00:00:00Z', expiresAt: '2027-06-02T00:00:00Z' },
 ]
-// GET router: /accounts/7 → account; /accounts/7/credentials → creds;
-// /accounts/7/sessions → sessions; /accounts/7/tokens → tokens;
-// /accounts/7/groups → account groups; /groups (exact) → all groups (picker)
-function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, acctGroups = GROUPS_FOR_ACCOUNT, allGroupsList = ALL_GROUPS, toks = TOKENS) {
+const IDENTITIES = [
+  {
+    id: 201, providerSlug: 'work-oidc', providerDisplayName: 'Work SSO', protocol: 'oidc',
+    subject: '00u-long-subject', email: 'carol@example.com', data: { ignoredClaim: 'do not render' },
+    linkedAt: '2026-03-01T00:00:00Z',
+  },
+  {
+    id: 202, providerSlug: 'steam', providerDisplayName: 'Steam', protocol: 'steam',
+    subject: '76561198000000001', data: { personaName: 'CarolPlays', profileUrl: 'https://steamcommunity.com/id/carol', unknown: 'hidden' },
+    linkedAt: '2026-04-01T00:00:00Z',
+  },
+  {
+    id: 203, providerSlug: 'vrchat', providerDisplayName: 'VRChat', protocol: 'vrchat',
+    subject: 'usr_1234567890abcdefgh', data: { displayName: 'Carol VR', profileUrl: 'https://vrchat.com/home/user/usr_1234567890abcdefgh', privateState: 'hidden' },
+    linkedAt: '2026-05-01T00:00:00Z',
+  },
+]
+
+// GET router: account plus paginated credentials/sessions/tokens/groups and
+// the exact bare-array linked-identity endpoint.
+function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, acctGroups = GROUPS_FOR_ACCOUNT, allGroupsList = ALL_GROUPS, toks = TOKENS, identities = IDENTITIES) {
   get.mockImplementation(async (p: string) => {
     const path = String(p).split('?')[0]
+    if (path.endsWith('/identities')) return identities
     if (path.endsWith('/credentials')) return { items: creds, nextCursor: '' }
     if (path.endsWith('/sessions')) return { items: sess, nextCursor: '' }
     if (path.endsWith('/tokens')) return { items: toks, nextCursor: '' }
@@ -355,6 +373,7 @@ describe('AdminAccountDetailView', () => {
     let groupsCallCount = 0
     get.mockImplementation(async (p: string) => {
       const path = String(p).split('?')[0]
+      if (path.endsWith('/identities')) return IDENTITIES
       if (path.endsWith('/credentials')) return { items: CREDS, nextCursor: '' }
       if (path.endsWith('/sessions')) return { items: SESSIONS, nextCursor: '' }
       if (path.endsWith('/tokens')) return { items: TOKENS, nextCursor: '' }
@@ -419,5 +438,68 @@ describe('AdminAccountDetailView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/accounts/tokens/revoke', { id: 101 })
     const getTokensAfter = get.mock.calls.filter((c) => String(c[0]).split('?')[0].endsWith('/tokens')).length
     expect(getTokensAfter).toBe(getTokensBefore + 1)
+  })
+
+  it('retains an identity-list error through successful unrelated actions and does not show a false empty state', async () => {
+    get.mockImplementation(async (p: string) => {
+      const path = String(p).split('?')[0]
+      if (path.endsWith('/identities')) throw { code: 'forbidden' }
+      if (path.endsWith('/credentials')) return { items: CREDS, nextCursor: '' }
+      if (path.endsWith('/sessions')) return { items: SESSIONS, nextCursor: '' }
+      if (path.endsWith('/tokens')) return { items: TOKENS, nextCursor: '' }
+      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
+      if (path.endsWith('/groups')) return { items: GROUPS_FOR_ACCOUNT, nextCursor: '' }
+      return ACCOUNT
+    })
+    post.mockResolvedValue({ ...ACCOUNT, disabled: true })
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.errors.codes.forbidden)
+    expect(w.text()).not.toContain(en.identity.linkedIdentitiesEmpty)
+
+    await w.find('[data-test="disable-toggle"]').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain(en.errors.codes.forbidden)
+    expect(w.text()).not.toContain(en.identity.linkedIdentitiesEmpty)
+  })
+
+  it('retains a page-section error when linked identities load successfully afterward', async () => {
+    get.mockImplementation(async (p: string) => {
+      const path = String(p).split('?')[0]
+      if (path.endsWith('/identities')) return IDENTITIES
+      if (path.endsWith('/credentials')) return { items: CREDS, nextCursor: '' }
+      if (path.endsWith('/sessions')) return { items: SESSIONS, nextCursor: '' }
+      if (path.endsWith('/tokens')) throw { code: 'forbidden' }
+      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
+      if (path.endsWith('/groups')) return { items: GROUPS_FOR_ACCOUNT, nextCursor: '' }
+      return ACCOUNT
+    })
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.errors.codes.forbidden)
+    expect(w.text()).toContain('Work SSO')
+  })
+
+  it('loads all linked identities from the bare-array endpoint and renders only known semantic metadata', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7/identities')
+    expect(w.text()).toContain(en.identity.linkedIdentities)
+    expect(w.text()).toContain('Work SSO')
+    expect(w.text()).toContain(en.identity.subject)
+    expect(w.text()).toContain('00u-long-subject')
+    expect(w.text()).toContain(en.identity.email)
+    expect(w.text()).toContain('carol@example.com')
+    expect(w.text()).toContain(en.identity.steamId)
+    expect(w.text()).toContain('76561198000000001')
+    expect(w.text()).toContain(en.identity.personaName)
+    expect(w.text()).toContain('CarolPlays')
+    expect(w.text()).toContain(en.identity.vrchatUserId)
+    expect(w.text()).toContain('usr_1234567890abcdefgh')
+    expect(w.text()).toContain(en.identity.displayName)
+    expect(w.text()).toContain('Carol VR')
+    expect(w.text()).toContain(en.identity.profileUrl)
+    expect(w.text()).not.toContain('ignoredClaim')
+    expect(w.text()).not.toContain('do not render')
+    expect(w.text()).not.toContain('unknown')
+    expect(w.text()).not.toContain('privateState')
   })
 })

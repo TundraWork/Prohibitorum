@@ -287,14 +287,148 @@ func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (A
 const listAccounts = `-- name: ListAccounts :many
 SELECT
   a.id, a.username, a.display_name, a.webauthn_user_handle, a.oidc_subject, a.role, a.attributes, a.disabled, a.created_at, a.updated_at, a.email, a.email_verified, a.avatar_content_type, a.avatar_etag, a.avatar_source,
-  (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at
+  (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at,
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'id', ai.id,
+        'providerSlug', ip.slug,
+        'providerDisplayName', ip.display_name,
+        'protocol', ip.protocol,
+        'subject', ai.upstream_sub,
+        'email', ai.upstream_email,
+        'data', ai.upstream_data,
+        'linkedAt', ai.linked_at
+      )
+      ORDER BY ai.linked_at DESC, ai.id DESC
+    )
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    CROSS JOIN LATERAL (
+      SELECT CASE $1::text
+        WHEN 'subject' THEN ai.upstream_sub
+        WHEN 'email' THEN COALESCE(ai.upstream_email, '')
+        WHEN 'steamId' THEN ai.upstream_sub
+        WHEN 'personaName' THEN COALESCE(ai.upstream_data->>'personaName', '')
+        WHEN 'userId' THEN ai.upstream_sub
+        WHEN 'displayName' THEN COALESCE(ai.upstream_data->>'displayName', '')
+        ELSE ''
+      END AS field_value
+    ) selected
+    WHERE ai.account_id = a.id
+      AND (
+        (
+          $2::text IS NOT NULL
+          AND (
+            (
+              ai.upstream_sub || E'\n' ||
+              COALESCE(ai.upstream_email, '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'personaName', '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'displayName', '') || E'\n' ||
+              COALESCE(ai.upstream_data->>'profileUrl', '')
+            ) ILIKE '%' || $2::text || '%'
+          )
+        )
+        OR (
+          $3::text IS NOT NULL
+          AND ip.slug = $3::text
+          AND (
+            $1::text IS NULL
+            OR CASE
+              WHEN $4::text = 'exact'
+                AND $1::text IN ('personaName', 'displayName')
+                THEN ai.upstream_data @> jsonb_build_object(
+                  $1::text,
+                  to_jsonb($5::text)
+                )
+              WHEN $4::text = 'exact'
+                THEN lower(selected.field_value) = lower($5::text)
+              WHEN $4::text = 'prefix'
+                THEN lower(selected.field_value) LIKE lower($5::text) || '%'
+              WHEN $4::text = 'contains'
+                THEN lower(selected.field_value) LIKE '%' || lower($5::text) || '%'
+              ELSE false
+            END
+          )
+        )
+      )
+  ), '[]'::jsonb)::text AS matching_identities
 FROM account a
-WHERE ($1::timestamptz IS NULL OR (a.created_at, a.id) < ($1, $2::int4))
+WHERE (
+    $2::text IS NULL
+    OR a.id IN (
+      SELECT searched.id
+      FROM account searched
+      WHERE (
+        searched.username || E'\n' ||
+        searched.display_name || E'\n' ||
+        COALESCE(searched.email, '')
+      ) ILIKE '%' || $2::text || '%'
+      UNION
+      SELECT ai.account_id
+      FROM account_identity ai
+      WHERE (
+        ai.upstream_sub || E'\n' ||
+        COALESCE(ai.upstream_email, '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'personaName', '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'displayName', '') || E'\n' ||
+        COALESCE(ai.upstream_data->>'profileUrl', '')
+      ) ILIKE '%' || $2::text || '%'
+    )
+  )
+  AND (
+    $3::text IS NULL
+    OR EXISTS (
+      SELECT 1
+      FROM account_identity ai
+      JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+      CROSS JOIN LATERAL (
+        SELECT CASE $1::text
+          WHEN 'subject' THEN ai.upstream_sub
+          WHEN 'email' THEN COALESCE(ai.upstream_email, '')
+          WHEN 'steamId' THEN ai.upstream_sub
+          WHEN 'personaName' THEN COALESCE(ai.upstream_data->>'personaName', '')
+          WHEN 'userId' THEN ai.upstream_sub
+          WHEN 'displayName' THEN COALESCE(ai.upstream_data->>'displayName', '')
+          ELSE ''
+        END AS field_value
+      ) selected
+      WHERE ai.account_id = a.id
+        AND ip.slug = $3::text
+        AND (
+          $1::text IS NULL
+          OR CASE
+            WHEN $4::text = 'exact'
+              AND $1::text IN ('personaName', 'displayName')
+              THEN ai.upstream_data @> jsonb_build_object(
+                $1::text,
+                to_jsonb($5::text)
+              )
+            WHEN $4::text = 'exact'
+              THEN lower(selected.field_value) = lower($5::text)
+            WHEN $4::text = 'prefix'
+              THEN lower(selected.field_value) LIKE lower($5::text) || '%'
+            WHEN $4::text = 'contains'
+              THEN lower(selected.field_value) LIKE '%' || lower($5::text) || '%'
+            ELSE false
+          END
+        )
+    )
+  )
+  AND (
+    $6::timestamptz IS NULL
+    OR (a.created_at, a.id) < ($6, $7::int4)
+  )
 ORDER BY a.created_at DESC, a.id DESC
-LIMIT $3
+LIMIT $8
 `
 
 type ListAccountsParams struct {
+	Field          pgtype.Text        `json:"field"`
+	Q              pgtype.Text        `json:"q"`
+	Provider       pgtype.Text        `json:"provider"`
+	Match          pgtype.Text        `json:"match"`
+	Value          pgtype.Text        `json:"value"`
 	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
 	AfterID        pgtype.Int4        `json:"afterId"`
 	Limit          int32              `json:"limit"`
@@ -317,10 +451,20 @@ type ListAccountsRow struct {
 	AvatarEtag         pgtype.Text        `json:"avatarEtag"`
 	AvatarSource       pgtype.Text        `json:"avatarSource"`
 	LastSignInAt       pgtype.Timestamptz `json:"lastSignInAt"`
+	MatchingIdentities string             `json:"matchingIdentities"`
 }
 
 func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error) {
-	rows, err := q.db.Query(ctx, listAccounts, arg.AfterCreatedAt, arg.AfterID, arg.Limit)
+	rows, err := q.db.Query(ctx, listAccounts,
+		arg.Field,
+		arg.Q,
+		arg.Provider,
+		arg.Match,
+		arg.Value,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -345,6 +489,7 @@ func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]L
 			&i.AvatarEtag,
 			&i.AvatarSource,
 			&i.LastSignInAt,
+			&i.MatchingIdentities,
 		); err != nil {
 			return nil, err
 		}

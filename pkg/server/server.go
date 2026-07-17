@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -31,7 +32,10 @@ import (
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/diagnostic"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
+	federationsteam "prohibitorum/pkg/federation/providers/steam"
+	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
 	"prohibitorum/pkg/pagination"
@@ -43,32 +47,34 @@ import (
 )
 
 type Server struct {
-	queries       *db.Queries
-	dbPool        *pgxpool.Pool
-	router        *chi.Mux
-	api           huma.API
-	config        *configx.Config
-	kvStore       kv.Store
-	sessionStore  *sessstore.SessionStore
-	pairingStore  *pairing.PairingStore
-	rateLimiter   *authn.RateLimiter
-	webauthn      *webauthn.WebAuthn
-	oidcOP        *oidcop.Provider
-	samlIdP       *samlidp.IdP
-	passwordStore *password.Store
-	totpStore     *totp.Store
-	throttle      *authn.Throttle
-	// federator orchestrates upstream OIDC federation. The Federation HTTP
-	// handlers (handle_federation.go, Task 7) and /me/identities handlers
-	// (Task 8) reach through it. Construction lives in NewServer wiring —
-	// Task 9 owns that; this field is nil until Task 9 lands.
-	federator *fedoidc.Federator
+	queries                *db.Queries
+	dbPool                 *pgxpool.Pool
+	router                 *chi.Mux
+	api                    huma.API
+	config                 *configx.Config
+	webUIHandler           http.Handler
+	kvStore                kv.Store
+	sessionStore           *sessstore.SessionStore
+	pairingStore           *pairing.PairingStore
+	rateLimiter            *authn.RateLimiter
+	webauthn               *webauthn.WebAuthn
+	oidcOP                 *oidcop.Provider
+	samlIdP                *samlidp.IdP
+	passwordStore          *password.Store
+	totpStore              *totp.Store
+	throttle               *authn.Throttle
+	federationService      *federation.Service
+	federationOIDCAdapter  *federationoidc.Adapter
+	federationRegistry     *federation.Registry
+	vrchatOperatorService  vrchatOperatorService
+	vrchatOperatorOverride vrchatOperatorService
 	// Audit records credential lifecycle events.
 	Audit audit.Writer
 	// sudoFlowOverride lets tests inject a fake sudoFlowQueries for the
 	// /me/sudo/methods computation without standing up *db.Queries. Nil in
 	// production — handlers fall back to s.queries.
-	sudoFlowOverride sudoFlowQueries
+	sudoFlowOverride             sudoFlowQueries
+	providerStateQueriesOverride providerStateQueries
 	// meTOTPFlowOverride lets tests inject a fake meTOTPFlowQueries for the
 	// /me/totp/* conditional-sudo branch (which reads totp_credential.
 	// ConfirmedAt directly). Nil in production — handlers fall back to
@@ -163,10 +169,43 @@ type accountLookupQueries interface {
 	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
 }
 
+func newFederationRegistry(oidcAdapter, steamAdapter, vrchatAdapter federation.Adapter) (*federation.Registry, error) {
+	registry := federation.NewRegistry()
+	for _, registration := range []struct {
+		definition federation.Definition
+		adapter    federation.Adapter
+	}{
+		{definition: federationoidc.Definition{}, adapter: oidcAdapter},
+		{definition: federationsteam.Definition{}, adapter: steamAdapter},
+		{definition: federationvrchat.Definition{}, adapter: vrchatAdapter},
+	} {
+		if err := registry.RegisterDefinition(registration.definition); err != nil {
+			return nil, fmt.Errorf("federation definition: %w", err)
+		}
+		if err := registry.RegisterAdapter(registration.adapter); err != nil {
+			return nil, fmt.Errorf("federation adapter: %w", err)
+		}
+	}
+	return registry, nil
+}
+
 func NewServer(ctx context.Context) (*Server, error) {
 	config, err := configx.Parse()
 	if err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
+	}
+
+	publicOrigin := ""
+	if len(config.PublicOrigins) > 0 {
+		publicOrigin = config.PublicOrigins[0]
+	}
+	buildVersion := "(devel)"
+	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo.Main.Version != "" {
+		buildVersion = buildInfo.Main.Version
+	}
+	vrchatClient, err := federationvrchat.NewClient(buildVersion, publicOrigin)
+	if err != nil {
+		return nil, fmt.Errorf("vrchat client: %w", err)
 	}
 
 	logx.WithContext(ctx).Info("running migrations")
@@ -230,19 +269,22 @@ func NewServer(ctx context.Context) (*Server, error) {
 	totpTxRunner := &totp.PoolTxRunner{Pool: conn, Queries: queries}
 	totpStore := totp.NewStore(queries, totpTxRunner, config.DataEncryptionKeys, config.TOTP, throttle, auditWriter)
 
-	publicOrigin := ""
-	if len(config.PublicOrigins) > 0 {
-		publicOrigin = config.PublicOrigins[0]
+	federationSecrets := federation.NewSecretStore(config.DataEncryptionKeys)
+	oidcAdapter := federationoidc.NewAdapter(federationSecrets)
+	steamAdapter := federationsteam.NewAdapter(federationSecrets)
+	vrchatAdapter := federationvrchat.NewAdapter(vrchatClient, federationSecrets, kvStore, queries, publicOrigin, auditWriter)
+	federationRegistry, err := newFederationRegistry(oidcAdapter, steamAdapter, vrchatAdapter)
+	if err != nil {
+		return nil, err
 	}
-	federator := fedoidc.NewFederator(
-		queries,
+	federationService := federation.NewService(
+		federationRegistry,
+		federation.NewProviderStore(queries),
 		kvStore,
-		auditWriter,
-		config.Federation,
-		config.DataEncryptionKeys,
-		conn,
-		publicOrigin,
+		federation.NewResolver(queries, auditWriter, conn),
+		federation.ServiceConfig{StateTTL: config.Federation.StateTTL, PublicOrigin: publicOrigin, Audit: auditWriter},
 	)
+	federationService.SetAvatarManager(federation.NewAvatarManager(queries, kvStore))
 
 	diagStore := diagnostic.New(queries)
 
@@ -257,31 +299,42 @@ func NewServer(ctx context.Context) (*Server, error) {
 		}
 	}
 	cursorCodec := pagination.NewCodec(config.DataEncryptionKeys, activeDEKVer, time.Now)
+	vrchatOperator := federationvrchat.NewOperatorService(
+		vrchatClient,
+		queries,
+		kvStore,
+		federationSecrets,
+		int32(activeDEKVer),
+	)
 
 	rateLimiter := authn.NewRateLimiter()
 
 	s := &Server{
-		queries:       queries,
-		dbPool:        conn,
-		router:        router,
-		api:           api,
-		config:        config,
-		kvStore:       kvStore,
-		sessionStore:  sessionStore,
-		pairingStore:  pairing.NewPairingStore(kvStore),
-		rateLimiter:   rateLimiter,
-		webauthn:      wa,
-		oidcOP:        oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
-		samlIdP:       samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
-		passwordStore: passwordStore,
-		totpStore:     totpStore,
-		throttle:      throttle,
-		federator:     federator,
-		Audit:         auditWriter,
-		branding:      brandingResolver,
-		clientIP:      clientIPResolver,
-		diagStore:     diagStore,
-		cursorCodec:   cursorCodec,
+		queries:               queries,
+		dbPool:                conn,
+		router:                router,
+		api:                   api,
+		config:                config,
+		webUIHandler:          webui.Handler(config.Branding.InstanceName),
+		kvStore:               kvStore,
+		sessionStore:          sessionStore,
+		pairingStore:          pairing.NewPairingStore(kvStore),
+		rateLimiter:           rateLimiter,
+		webauthn:              wa,
+		oidcOP:                oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
+		samlIdP:               samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
+		passwordStore:         passwordStore,
+		totpStore:             totpStore,
+		throttle:              throttle,
+		federationService:     federationService,
+		federationOIDCAdapter: oidcAdapter,
+		federationRegistry:    federationRegistry,
+		vrchatOperatorService: vrchatOperator,
+		Audit:                 auditWriter,
+		branding:              brandingResolver,
+		clientIP:              clientIPResolver,
+		diagStore:             diagStore,
+		cursorCodec:           cursorCodec,
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.
@@ -290,7 +343,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		return on
 	})
 	s.registerOperations()
-	s.router.NotFound(webui.Handler(s.config.Branding.InstanceName).ServeHTTP)
+	s.router.NotFound(s.webUIHandler.ServeHTTP)
 	logx.WithContext(ctx).Info("registered operations")
 	return s, nil
 }
@@ -437,6 +490,13 @@ func registerSecurityScheme(api huma.API, cookieName string) {
 }
 
 func (s *Server) registerOperations() {
+	if s.webUIHandler == nil {
+		instanceName := ""
+		if s.config != nil {
+			instanceName = s.config.Branding.InstanceName
+		}
+		s.webUIHandler = webui.Handler(instanceName)
+	}
 	mgmt := huma.NewGroup(s.api, "/api/prohibitorum")
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
 	sessionReq := contract.AuthRequirement{Kind: contract.AuthSession}
@@ -457,6 +517,10 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/login", publicReq, s.handleFederationLoginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/callback", publicReq, s.handleFederationCallbackHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/flows/{flow}", publicReq, s.handleFederationFlowGetHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/prepare", publicReq, withFederationFlowBodyControls(s.handleFederationFlowPrepareHTTP))
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/verify", publicReq, withFederationFlowBodyControls(s.handleFederationFlowVerifyHTTP))
+	registerOpHTTP(s.router, "GET", "/verify/vrchat/{proof}", publicReq, s.handleVRChatProofHTTP)
 	// /welcome confirmation step for first-time (unconfirmed) federated identities.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/confirm", publicReq, s.handleFederationConfirmGet)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/confirm", publicReq, s.handleFederationConfirmPost)
@@ -556,6 +620,7 @@ func (s *Server) registerOperations() {
 	// Admin: accounts + invitations
 	registerOp(mgmt, contract.OperationListAccounts, s.handleListAccounts, admin)
 	registerOp(mgmt, contract.OperationGetAccount, s.handleGetAccount, admin)
+	registerOp(mgmt, contract.OperationListAccountIdentities, s.handleListAccountIdentities, admin)
 	// UpdateAccount, DeleteAccount, set-disabled, credential delete,
 	// reissue-enrollment, and invitation CREATE remain fresh-sudo gated:
 	// UpdateAccount can escalate user→admin, the others are destructive or
@@ -621,6 +686,9 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/rotate-secret", admin, s.handleRotateIdentityProviderSecretHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/set-disabled", admin, s.handleSetIdentityProviderDisabledHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/delete", admin, s.handleDeleteIdentityProviderHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/start", admin, s.handleVRChatOperatorStartHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/verify", admin, s.handleVRChatOperatorVerifyHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/operator-session/validate", admin, s.handleVRChatOperatorValidateHTTP)
 
 	// Admin: SAML application management
 	registerOp(mgmt, contract.OperationListSAMLApplications, s.handleListSAMLApplications, admin)

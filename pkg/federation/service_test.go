@@ -1,0 +1,1877 @@
+package federation
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/kv"
+)
+
+type fakeProviderLoader struct {
+	provider  Provider
+	bySlugErr error
+	inviteErr error
+}
+
+func (s fakeProviderLoader) BySlug(context.Context, string) (Provider, error) {
+	return s.provider, s.bySlugErr
+}
+
+func (s fakeProviderLoader) ByBinding(_ context.Context, id int64, slug, protocol string) (Provider, error) {
+	if s.bySlugErr != nil {
+		return Provider{}, s.bySlugErr
+	}
+	if s.provider.ID != id || s.provider.Slug != slug || s.provider.Protocol != protocol {
+		return Provider{}, ErrUnknownProvider
+	}
+	return s.provider, nil
+}
+
+func (s fakeProviderLoader) InviteProvider(context.Context, string) (Provider, error) {
+	return s.provider, s.inviteErr
+}
+
+type serviceFakeAdapter struct {
+	protocol       string
+	beginState     json.RawMessage
+	beginAction    NextAction
+	beginContexts  []BeginContext
+	advance        func(json.RawMessage, ActionInput) (AdvanceResult, error)
+	advanceContext func(context.Context, json.RawMessage, ActionInput) (AdvanceResult, error)
+	calls          int
+}
+
+func (a *serviceFakeAdapter) Protocol() string {
+	if a.protocol != "" {
+		return a.protocol
+	}
+	return "fake"
+}
+
+func (a *serviceFakeAdapter) Begin(_ context.Context, _ Provider, begin BeginContext) (json.RawMessage, NextAction, error) {
+	a.calls++
+	a.beginContexts = append(a.beginContexts, begin)
+	return a.beginState, a.beginAction, nil
+}
+
+func (a *serviceFakeAdapter) Advance(ctx context.Context, _ Provider, state json.RawMessage, input ActionInput) (AdvanceResult, error) {
+	a.calls++
+	if a.advanceContext != nil {
+		return a.advanceContext(ctx, state, input)
+	}
+	return a.advance(state, input)
+}
+
+type serviceFakeResolver struct {
+	known           bool
+	knownErr        error
+	knownCalls      int
+	outcome         ResolveOutcome
+	err             error
+	calls           int
+	resolveContexts []ResolveContext
+}
+
+func (r *serviceFakeResolver) IdentityKnown(context.Context, IdentityKey) (bool, error) {
+	r.knownCalls++
+	return r.known, r.knownErr
+}
+
+func (r *serviceFakeResolver) ResolveIdentity(_ context.Context, _ Provider, _ VerifiedIdentity, resolution ResolveContext) (ResolveOutcome, error) {
+	r.calls++
+	r.resolveContexts = append(r.resolveContexts, resolution)
+	return r.outcome, r.err
+}
+
+type serviceFakeAvatar struct {
+	calls int
+}
+
+func (a *serviceFakeAvatar) Inherit(int32, Provider, AvatarDelivery, AvatarResolver) {
+	a.calls++
+}
+
+func (*serviceFakeAvatar) Pending(context.Context, int32) bool {
+	return false
+}
+
+type serviceRecordingAudit struct {
+	records []audit.Record
+}
+
+func (w *serviceRecordingAudit) Record(_ context.Context, record audit.Record) error {
+	w.records = append(w.records, record)
+	return nil
+}
+
+type failingRestoreStore struct {
+	kv.Store
+	failSetEx bool
+}
+
+func (s *failingRestoreStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	if s.failSetEx {
+		return errors.New("setex unavailable")
+	}
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+type setNXRecordingStore struct {
+	kv.Store
+	keys []string
+}
+
+func (s *setNXRecordingStore) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	s.keys = append(s.keys, key)
+	return s.Store.SetNX(ctx, key, value, ttl)
+}
+
+type contextRespectingStore struct {
+	kv.Store
+}
+
+func (s *contextRespectingStore) Get(ctx context.Context, key string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return s.Store.Get(ctx, key)
+}
+
+func (s *contextRespectingStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+func (s *contextRespectingStore) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return s.Store.SetNX(ctx, key, value, ttl)
+}
+
+func (s *contextRespectingStore) Pop(ctx context.Context, key string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return s.Store.Pop(ctx, key)
+}
+
+func (s *contextRespectingStore) CompareAndSwap(ctx context.Context, key, expectedValue, newValue string, ttl time.Duration) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return s.Store.CompareAndSwap(ctx, key, expectedValue, newValue, ttl)
+}
+
+func (s *contextRespectingStore) CompareAndDelete(ctx context.Context, key, expectedValue string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return s.Store.CompareAndDelete(ctx, key, expectedValue)
+}
+
+type leaseLossStore struct {
+	kv.Store
+	leaseKey        string
+	renewalAttempts chan struct{}
+}
+
+func (s *leaseLossStore) CompareAndSwap(ctx context.Context, key, expectedValue, newValue string, ttl time.Duration) (bool, error) {
+	if key == s.leaseKey {
+		select {
+		case s.renewalAttempts <- struct{}{}:
+		default:
+		}
+		return false, nil
+	}
+	return s.Store.CompareAndSwap(ctx, key, expectedValue, newValue, ttl)
+}
+
+type fencedDeleteGateStore struct {
+	kv.Store
+	entered chan struct{}
+	proceed chan struct{}
+	err     error
+	setEx   int
+}
+
+func (s *fencedDeleteGateStore) FencedCompareAndDelete(ctx context.Context, fenceKey, fenceValue, key, expectedValue string) (bool, error) {
+	close(s.entered)
+	<-s.proceed
+	if s.err != nil {
+		return false, s.err
+	}
+	return s.Store.FencedCompareAndDelete(ctx, fenceKey, fenceValue, key, expectedValue)
+}
+
+func (s *fencedDeleteGateStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	s.setEx++
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+type serviceDefinition struct {
+	ready bool
+}
+
+func (serviceDefinition) Protocol() string                     { return "fake" }
+func (serviceDefinition) Descriptor() Descriptor               { return descriptor("fake") }
+func (serviceDefinition) ValidateConfig(json.RawMessage) error { return nil }
+func (serviceDefinition) ValidateSecret([]byte) error          { return nil }
+func (d serviceDefinition) Ready(Provider) bool                { return d.ready }
+
+func newServiceHarness(t *testing.T) (*Service, *serviceFakeAdapter, *serviceFakeResolver, kv.Store) {
+	t.Helper()
+	registry := NewRegistry()
+	definition := fakeDefinition{protocol: "fake", descriptor: descriptor("fake")}
+	if err := registry.RegisterDefinition(definition); err != nil {
+		t.Fatal(err)
+	}
+	adapter := &serviceFakeAdapter{beginState: json.RawMessage(`{"step":1}`), beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"}}
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
+	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"fake"}, Confirmed: true}}
+	store := kv.NewMemoryStore()
+	service := NewService(registry, fakeProviderLoader{provider: Provider{ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision}}, store, resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test"})
+	return service, adapter, resolver, store
+}
+
+func TestVRChatProofAuditTransitionsContainOnlyAllowlistedDetail(t *testing.T) {
+	registry := NewRegistry()
+	if err := registry.RegisterDefinition(fakeDefinition{protocol: "vrchat", descriptor: descriptor("vrchat")}); err != nil {
+		t.Fatal(err)
+	}
+	adapter := &serviceFakeAdapter{
+		protocol:    "vrchat",
+		beginState:  json.RawMessage(`{"step":"identify"}`),
+		beginAction: NextAction{Kind: ActionCollectIdentity},
+	}
+	adapter.advance = func(_ json.RawMessage, input ActionInput) (AdvanceResult, error) {
+		switch input.Kind {
+		case ActionCollectIdentity:
+			return AdvanceResult{
+				Next:      &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proofUrl": "redacted", "profileUrl": "redacted"}},
+				Candidate: &IdentityKey{Issuer: "issuer", Subject: "subject"},
+				State:     json.RawMessage(`{"step":"proof","proof_token":"secret"}`),
+			}, nil
+		case ActionPublishProof:
+			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "issuer", Subject: "subject", AMR: []string{"vrchat_profile"}}}, nil
+		default:
+			return AdvanceResult{}, NewFailure(FailureStateInvalid, nil)
+		}
+	}
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
+	writer := &serviceRecordingAudit{}
+	resolver := &serviceFakeResolver{outcome: ResolveOutcome{AccountID: 5, IdentityID: 8, ProviderID: 7, AMR: []string{"vrchat_profile"}, Confirmed: true}}
+	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeAutoProvision}
+	service := NewService(registry, fakeProviderLoader{provider: provider}, kv.NewMemoryStore(), resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
+	begin, err := service.BeginLogin(context.Background(), provider.Slug, "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol, CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionCollectIdentity}}
+	if _, err := service.PrepareFlow(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	request.Input.Kind = ActionPublishProof
+	if _, err := service.VerifyFlow(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(writer.records) != 2 {
+		t.Fatalf("audit records = %#v", writer.records)
+	}
+	for index, wantEvent := range []string{"vrchat_proof_prepared", "vrchat_proof_verified"} {
+		record := writer.records[index]
+		if record.Event != wantEvent || len(record.Detail) != 2 || record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" {
+			t.Fatalf("record %d = %#v", index, record)
+		}
+	}
+}
+
+func newVRChatFailureAuditHarness(t *testing.T, resolverErr error) (*Service, AdvanceRequest, *serviceRecordingAudit, kv.Store) {
+	t.Helper()
+	registry := NewRegistry()
+	if err := registry.RegisterDefinition(fakeDefinition{protocol: "vrchat", descriptor: descriptor("vrchat")}); err != nil {
+		t.Fatal(err)
+	}
+	adapter := &serviceFakeAdapter{
+		protocol:    "vrchat",
+		beginState:  json.RawMessage(`{"step":"proof","proof_token":"private"}`),
+		beginAction: NextAction{Kind: ActionPublishProof, Public: map[string]any{"proofUrl": "private-url", "profileUrl": "private-profile"}},
+		advance: func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "issuer", Subject: "subject", AMR: []string{"vrchat_profile"}}}, nil
+		},
+	}
+	if err := registry.RegisterAdapter(adapter); err != nil {
+		t.Fatal(err)
+	}
+	writer := &serviceRecordingAudit{}
+	resolver := &serviceFakeResolver{err: resolverErr}
+	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeAutoProvision}
+	store := kv.NewMemoryStore()
+	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
+	begin, err := service.BeginLogin(context.Background(), provider.Slug, "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: provider.Slug, Protocol: provider.Protocol, CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionPublishProof}}
+	return service, request, writer, store
+}
+
+func TestVRChatProofFailureAuditCoversResolverAndRestoreFailures(t *testing.T) {
+	tests := []struct {
+		name         string
+		resolverErr  error
+		failRestore  bool
+		wantCategory string
+	}{
+		{name: "local username required", resolverErr: ErrLocalUsernameRequired, wantCategory: "local_username_required"},
+		{name: "username collision", resolverErr: authn.ErrUsernameCollision(), wantCategory: "username_collision"},
+		{name: "invalid local username", resolverErr: authn.ErrInvalidUsername(), wantCategory: "invalid_username"},
+		{name: "disabled known account", resolverErr: authn.ErrBadCredentials(), wantCategory: "bad_credentials"},
+		{name: "unclassified resolution error", resolverErr: errors.New("resolver unavailable"), wantCategory: "resolution_failed"},
+		{name: "database error", resolverErr: &pgconn.PgError{Code: "08006"}, wantCategory: "database_unavailable"},
+		{name: "allowlisted flow failure once", resolverErr: NewFailure(FailureVRChatProofMissing, nil), wantCategory: "vrchat_proof_missing"},
+		{name: "restore failure", resolverErr: ErrLocalUsernameRequired, failRestore: true, wantCategory: "kv_unavailable"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, request, writer, store := newVRChatFailureAuditHarness(t, test.resolverErr)
+			if test.failRestore {
+				service.kv = &failingRestoreStore{Store: store, failSetEx: true}
+			}
+			if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+				t.Fatal("VerifyFlow unexpectedly succeeded")
+			}
+			if len(writer.records) != 1 {
+				t.Fatalf("audit records = %#v", writer.records)
+			}
+			record := writer.records[0]
+			if record.Event != "vrchat_proof_failed" || len(record.Detail) != 3 ||
+				record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" ||
+				record.Detail["category"] != test.wantCategory {
+				t.Fatalf("audit record = %#v", record)
+			}
+		})
+	}
+}
+
+func TestVRChatProofWrongLocalActionAuditCategory(t *testing.T) {
+	service, request, writer, _ := newVRChatFailureAuditHarness(t, nil)
+	request.CallbackRoute = CallbackRouteLocal
+	request.ProviderSlug = ""
+	request.Protocol = ""
+	request.Input.Kind = ActionCollectIdentity
+	if _, err := service.VerifyFlow(context.Background(), request); authn.AsAuthError(err).Code != "federation_action_invalid" {
+		t.Fatalf("error = %v", err)
+	}
+	if len(writer.records) != 1 {
+		t.Fatalf("audit records = %#v", writer.records)
+	}
+	record := writer.records[0]
+	if record.Event != "vrchat_proof_failed" || len(record.Detail) != 3 ||
+		record.Detail["provider_slug"] != "social" || record.Detail["intent"] != "login" ||
+		record.Detail["category"] != "action_invalid" {
+		t.Fatalf("audit record = %#v", record)
+	}
+	for _, forbidden := range []string{"proof_token", "proofUrl", "profileUrl", "adapter_state"} {
+		if _, exists := record.Detail[forbidden]; exists {
+			t.Fatalf("audit detail leaked %q: %#v", forbidden, record.Detail)
+		}
+	}
+}
+
+func TestServiceBeginStoresExactBindings(t *testing.T) {
+	tests := []struct {
+		name       string
+		intent     Intent
+		returnTo   string
+		begin      func(*Service) (*BeginResult, error)
+		accountID  *int32
+		sessionID  string
+		enrollment string
+	}{
+		{
+			name: "login", intent: IntentLogin, returnTo: "/me",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/me")
+			},
+		},
+		{
+			name: "link", intent: IntentLink, returnTo: "/identities",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/identities", 9, "session-1")
+			},
+			accountID: new(int32(9)), sessionID: "session-1",
+		},
+		{
+			name: "invite", intent: IntentInvite, returnTo: "/welcome",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/welcome")
+			},
+			enrollment: "invite-token",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, store := newServiceHarness(t)
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := store.Get(context.Background(), FlowKey(begin.FlowID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, err := DecodeFlowState(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.Intent != test.intent || state.ProviderID != 7 || state.ProviderSlug != "corp" ||
+				state.Protocol != "fake" || state.ReturnTo != test.returnTo ||
+				state.LinkSessionID != test.sessionID || state.EnrollmentToken != test.enrollment {
+				t.Fatalf("stored bindings = %+v", state)
+			}
+			if test.accountID == nil && state.LinkAccountID != nil ||
+				test.accountID != nil && (state.LinkAccountID == nil || *state.LinkAccountID != *test.accountID) {
+				t.Fatalf("stored link account = %v, want %v", state.LinkAccountID, test.accountID)
+			}
+			if state.BrowserDigest == begin.BrowserToken || !BrowserBindingOK(state.BrowserDigest, begin.BrowserToken) {
+				t.Fatal("browser token was not hashed and bound")
+			}
+			if string(state.AdapterState) != `{"step":1}` || state.CurrentAction.URL != begin.Action.URL {
+				t.Fatalf("stored adapter projection = %+v", state)
+			}
+			if len(adapter.beginContexts) != 1 {
+				t.Fatalf("adapter begin calls = %d", len(adapter.beginContexts))
+			}
+			ctx := adapter.beginContexts[0]
+			if ctx.Intent != test.intent || ctx.ReturnTo != test.returnTo ||
+				ctx.LinkSessionID != test.sessionID || ctx.EnrollmentToken != test.enrollment {
+				t.Fatalf("adapter begin context = %+v", ctx)
+			}
+		})
+	}
+}
+
+func TestServiceReadFlowProjectsPersistedLocalActionAfterBindings(t *testing.T) {
+	service, adapter, _, store := newServiceHarness(t)
+	adapter.beginAction = NextAction{Kind: ActionCollectIdentity, Public: map[string]any{"prompt": "handle"}}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.ReadFlow(context.Background(), FlowReadRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Action.Kind != ActionCollectIdentity || view.Action.Public["prompt"] != "handle" ||
+		view.ProviderSlug != "corp" || view.ProviderDisplayName != "" || view.Protocol != "fake" || view.ExpiresAt.IsZero() {
+		t.Fatalf("view = %+v", view)
+	}
+
+	raw, err := store.Get(context.Background(), FlowKey(begin.FlowID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := DecodeFlowState(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.ProviderID++
+	tampered, err := state.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetEx(context.Background(), FlowKey(begin.FlowID), tampered, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ReadFlow(context.Background(), FlowReadRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal,
+	}); authn.AsAuthError(err).Code != "federation_state_invalid" {
+		t.Fatalf("tampered provider binding error = %v", err)
+	}
+}
+
+func TestServiceReadFlowRequiresLinkAccountAndSessionBinding(t *testing.T) {
+	service, _, _, _ := newServiceHarness(t)
+	begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, request := range map[string]FlowReadRequest{
+		"missing":      {FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal},
+		"account swap": {FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal, AccountID: new(int32(10)), SessionID: "session-1"},
+		"session swap": {FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal, AccountID: new(int32(9)), SessionID: "session-2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := service.ReadFlow(context.Background(), request); authn.AsAuthError(err).Code != "federation_state_invalid" {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+	if _, err := service.ReadFlow(context.Background(), FlowReadRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal,
+		AccountID: new(int32(9)), SessionID: "session-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestServiceRejectsRouteActionAndLinkBindingMismatch(t *testing.T) {
+	service, _, _, _ := newServiceHarness(t)
+	begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink, AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect}}
+	for name, mutate := range map[string]func(*AdvanceRequest){
+		"slug":     func(r *AdvanceRequest) { r.ProviderSlug = "other" },
+		"protocol": func(r *AdvanceRequest) { r.Protocol = "other" },
+		"action":   func(r *AdvanceRequest) { r.Input.Kind = ActionPublishProof },
+		"account":  func(r *AdvanceRequest) { r.AccountID = new(int32(10)) },
+		"session":  func(r *AdvanceRequest) { r.SessionID = "session-2" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			request := base
+			mutate(&request)
+			if _, err := service.AdvanceCallback(context.Background(), request); err == nil {
+				t.Fatal("mismatch accepted")
+			}
+		})
+	}
+}
+
+func TestServiceNonTerminalAdvanceReplacesStateAndAction(t *testing.T) {
+	service, adapter, resolver, _ := newServiceHarness(t)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{State: json.RawMessage(`{"step":2}`), Next: &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}}, Candidate: &IdentityKey{Issuer: "iss", Subject: "unknown"}}, nil
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.PrepareFlow(context.Background(), AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Action.Kind != ActionPublishProof || view.Action.Public["requiresLocalUsername"] != true {
+		t.Fatalf("action = %+v", view.Action)
+	}
+	if resolver.calls != 0 {
+		t.Fatal("non-terminal prepare resolved identity")
+	}
+}
+
+func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
+	tests := []struct {
+		name       string
+		known      bool
+		begin      func(*Service) (*BeginResult, error)
+		request    func(*BeginResult) AdvanceRequest
+		wantLookup bool
+		wantPrompt bool
+	}{
+		{
+			name: "known login", known: true,
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+			wantLookup: true,
+		},
+		{
+			name: "invite", known: false,
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+		},
+		{
+			name: "link", known: false,
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink, AccountID: new(int32(9)), SessionID: "session-1",
+					Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, resolver, _ := newServiceHarness(t)
+			resolver.known = test.known
+			adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{
+					State:     json.RawMessage(`{"step":2}`),
+					Next:      &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}},
+					Candidate: &IdentityKey{Issuer: "iss", Subject: "candidate"},
+				}, nil
+			}
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			view, err := service.PrepareFlow(context.Background(), test.request(begin))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, prompted := view.Action.Public["requiresLocalUsername"]
+			if prompted != test.wantPrompt {
+				t.Fatalf("requiresLocalUsername present = %v, want %v; action=%+v", prompted, test.wantPrompt, view.Action)
+			}
+			wantCalls := 0
+			if test.wantLookup {
+				wantCalls = 1
+			}
+			if resolver.knownCalls != wantCalls {
+				t.Fatalf("identity lookup calls = %d, want %d", resolver.knownCalls, wantCalls)
+			}
+		})
+	}
+}
+
+func TestServiceTerminalFailureRestoresAndCommitConsumes(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{}, errors.New("upstream temporary")
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeTTL, err := store.TTL(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+	}
+	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+		t.Fatal("adapter failure accepted")
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatalf("flow not restored: %v", err)
+	}
+	afterTTL, err := store.TTL(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before || afterTTL > beforeTTL {
+		t.Fatalf("restored flow changed: rawEqual=%v ttlBefore=%d ttlAfter=%d", after == before, beforeTTL, afterTTL)
+	}
+
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub", AMR: []string{"fake"}}}, nil
+	}
+	completion, err := service.VerifyFlow(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completion.AccountID != 5 || completion.ProviderSlug != "corp" {
+		t.Fatalf("completion = %+v", completion)
+	}
+	if resolver.calls != 1 {
+		t.Fatalf("resolver calls = %d", resolver.calls)
+	}
+	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+		t.Fatal("terminal flow replayed")
+	}
+}
+
+func TestServicePrepareFailuresPreserveExactFlow(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+	}
+
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{}, errors.New("adapter failed")
+	}
+	if _, err := service.PrepareFlow(context.Background(), request); err == nil {
+		t.Fatal("adapter failure accepted")
+	}
+	afterAdapter, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterAdapter != before {
+		t.Fatal("adapter failure changed persisted flow")
+	}
+
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{
+			State:     json.RawMessage(`{"step":2}`),
+			Next:      &NextAction{Kind: ActionPublishProof, Public: map[string]any{"proof": "abc"}},
+			Candidate: &IdentityKey{Issuer: "iss", Subject: "sub"},
+		}, nil
+	}
+	resolver.knownErr = errors.New("identity lookup failed")
+	if _, err := service.PrepareFlow(context.Background(), request); err == nil {
+		t.Fatal("identity lookup failure accepted")
+	}
+	afterLookup, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterLookup != before {
+		t.Fatal("identity lookup failure changed persisted flow")
+	}
+}
+
+func TestServiceResolverFailureRestoresExactFlow(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+	}
+	resolver.err = errors.New("transaction rolled back")
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+	}
+	if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+		t.Fatal("resolver failure accepted")
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatal("rolled-back resolver failure changed persisted flow")
+	}
+}
+
+func TestServiceRedirectLocalUsernameErrorRestoresOriginalAction(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+	}
+	resolver.err = ErrLocalUsernameRequired
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+		Input: ActionInput{Kind: ActionRedirect},
+	})
+	if !errors.Is(err, ErrLocalUsernameRequired) {
+		t.Fatalf("VerifyFlow error = %v, want ErrLocalUsernameRequired", err)
+	}
+	if len(resolver.resolveContexts) != 1 || resolver.resolveContexts[0].RequireLocalUsername {
+		t.Fatalf("redirect resolution context requested a local username: %+v", resolver.resolveContexts)
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatal("redirect action was rewritten during restoration")
+	}
+	restored, err := DecodeFlowState(after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.CurrentAction.Kind != ActionRedirect {
+		t.Fatalf("restored action kind = %q, want redirect", restored.CurrentAction.Kind)
+	}
+	if _, prompted := restored.CurrentAction.Public["requiresLocalUsername"]; prompted {
+		t.Fatalf("redirect action restored with unusable local-username prompt: %+v", restored.CurrentAction)
+	}
+}
+
+func TestServiceRestoreFailureReturnsKVUnavailableAndConsumesFlow(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{}, errors.New("adapter failed")
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.kv = &failingRestoreStore{Store: baseStore, failSetEx: true}
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+	}
+	if _, err := service.VerifyFlow(context.Background(), request); !errors.Is(err, ErrKVUnavailable) {
+		t.Fatalf("VerifyFlow error = %v, want kv unavailable", err)
+	}
+	if _, err := baseStore.Get(context.Background(), FlowKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("flow survived failed restoration: %v", err)
+	}
+}
+
+func TestServiceRejectsUnavailableProvidersBeforeAdapterCall(t *testing.T) {
+	provider := Provider{ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision}
+	tests := []struct {
+		name       string
+		loader     fakeProviderLoader
+		definition serviceDefinition
+	}{
+		{
+			name:       "unknown",
+			loader:     fakeProviderLoader{provider: provider, bySlugErr: ErrUnknownProvider},
+			definition: serviceDefinition{ready: true},
+		},
+		{
+			name: "disabled",
+			loader: fakeProviderLoader{provider: func() Provider {
+				disabled := provider
+				disabled.Disabled = true
+				return disabled
+			}()},
+			definition: serviceDefinition{ready: true},
+		},
+		{
+			name:       "unready",
+			loader:     fakeProviderLoader{provider: provider},
+			definition: serviceDefinition{ready: false},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			registry := NewRegistry()
+			if err := registry.RegisterDefinition(test.definition); err != nil {
+				t.Fatal(err)
+			}
+			adapter := &serviceFakeAdapter{
+				beginState:  json.RawMessage(`{"step":1}`),
+				beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"},
+			}
+			if err := registry.RegisterAdapter(adapter); err != nil {
+				t.Fatal(err)
+			}
+			service := NewService(registry, test.loader, kv.NewMemoryStore(), &serviceFakeResolver{}, ServiceConfig{})
+			if _, err := service.BeginLogin(context.Background(), "corp", "/"); err == nil {
+				t.Fatal("unavailable provider began a flow")
+			}
+			if adapter.calls != 0 {
+				t.Fatalf("adapter called %d times", adapter.calls)
+			}
+		})
+	}
+}
+
+func TestServiceDisabledInviteOnlyProviderStaysOpaqueBeforeModeGate(t *testing.T) {
+	service, adapter, _, _ := newServiceHarness(t)
+	service.providers = fakeProviderLoader{provider: Provider{
+		ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeInviteOnly, Disabled: true,
+	}}
+
+	_, err := service.BeginLogin(context.Background(), "corp", "/")
+	if !errors.Is(err, ErrUnknownProvider) {
+		t.Fatalf("BeginLogin error = %v, want opaque ErrUnknownProvider", err)
+	}
+	if adapter.calls != 0 {
+		t.Fatalf("disabled invite-only provider invoked adapter %d times", adapter.calls)
+	}
+}
+
+func TestServiceKnownAtPrepareBecomingUnknownRestoresUsernamePromptOnly(t *testing.T) {
+	service, adapter, resolver, store := newServiceHarness(t)
+	resolver.known = true
+	adapter.advance = func(_ json.RawMessage, input ActionInput) (AdvanceResult, error) {
+		if input.Kind == ActionRedirect {
+			return AdvanceResult{
+				State:     json.RawMessage(`{"proof":"private"}`),
+				Next:      &NextAction{Kind: ActionPublishProof, Public: map[string]any{"challenge": "public"}},
+				Candidate: &IdentityKey{Issuer: "iss", Subject: "sub"},
+			}, nil
+		}
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseRequest := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+	}
+	view, err := service.PrepareFlow(context.Background(), baseRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := view.Action.Public["requiresLocalUsername"]; exists {
+		t.Fatalf("known identity prompted before race: %+v", view.Action)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeState, err := DecodeFlowState(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resolver.err = ErrLocalUsernameRequired
+	baseRequest.Input.Kind = ActionPublishProof
+	if _, err := service.VerifyFlow(context.Background(), baseRequest); !errors.Is(err, ErrLocalUsernameRequired) {
+		t.Fatalf("error = %v, want local username required", err)
+	}
+	if len(resolver.resolveContexts) != 1 || !resolver.resolveContexts[0].RequireLocalUsername {
+		t.Fatalf("resolver context did not preserve prepared local-username contract: %+v", resolver.resolveContexts)
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterState, err := DecodeFlowState(after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(beforeState.AdapterState) != string(afterState.AdapterState) ||
+		beforeState.ProviderID != afterState.ProviderID ||
+		beforeState.ProviderSlug != afterState.ProviderSlug ||
+		beforeState.Protocol != afterState.Protocol ||
+		beforeState.Intent != afterState.Intent ||
+		beforeState.ReturnTo != afterState.ReturnTo ||
+		beforeState.BrowserDigest != afterState.BrowserDigest ||
+		!beforeState.ExpiresAt.Equal(afterState.ExpiresAt) ||
+		beforeState.CurrentAction.Kind != afterState.CurrentAction.Kind ||
+		beforeState.CurrentAction.Public["challenge"] != afterState.CurrentAction.Public["challenge"] ||
+		afterState.CurrentAction.Public["requiresLocalUsername"] != true {
+		t.Fatalf("restored state changed beyond username prompt:\nbefore=%+v\nafter=%+v", beforeState, afterState)
+	}
+}
+
+func TestServiceLinkCompletionDoesNotInheritAvatar(t *testing.T) {
+	service, adapter, _, _ := newServiceHarness(t)
+	avatars := &serviceFakeAvatar{}
+	service.SetAvatarManager(avatars)
+	adapter.advance = func(_ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{
+			Issuer: "iss", Subject: "sub", AvatarURL: "https://cdn.test/avatar.png",
+		}}, nil
+	}
+	begin, err := service.BeginLink(context.Background(), "corp", "/identities", 9, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink,
+		AccountID: new(int32(9)), SessionID: "session-1",
+		Input: ActionInput{Kind: ActionRedirect},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if avatars.calls != 0 {
+		t.Fatalf("link completion inherited avatar %d times", avatars.calls)
+	}
+}
+
+func TestServiceAuditsBrowserAndProviderFailures(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(*Service, *BeginResult)
+		browser    func(*BeginResult) string
+		wantReason FailureReason
+	}{
+		{
+			name:       "browser binding",
+			mutate:     func(*Service, *BeginResult) {},
+			browser:    func(*BeginResult) string { return "wrong-browser" },
+			wantReason: FailureBrowserBindingMismatch,
+		},
+		{
+			name: "provider disabled after begin",
+			mutate: func(service *Service, _ *BeginResult) {
+				service.providers = fakeProviderLoader{provider: Provider{
+					ID: 7, Slug: "corp", Protocol: "fake", Mode: ModeAutoProvision, Disabled: true,
+				}}
+			},
+			browser:    func(begin *BeginResult) string { return begin.BrowserToken },
+			wantReason: FailureProviderUnavailable,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, _, _, _ := newServiceHarness(t)
+			writer := &serviceRecordingAudit{}
+			service.audit = writer
+			begin, err := service.BeginLogin(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(service, begin)
+
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: test.browser(begin),
+				ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+			})
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if len(writer.records) != 1 || writer.records[0].Detail["reason"] != string(test.wantReason) {
+				t.Fatalf("audit records = %+v, want reason %q", writer.records, test.wantReason)
+			}
+			if writer.records[0].AccountID != nil {
+				t.Fatalf("login failure attached account: %+v", writer.records[0])
+			}
+		})
+	}
+}
+
+func TestServiceAuditsAllowlistedAdapterFailuresForEveryIntent(t *testing.T) {
+	tests := []struct {
+		name          string
+		begin         func(*Service) (*BeginResult, error)
+		request       func(*BeginResult) AdvanceRequest
+		wantAccountID *int32
+	}{
+		{
+			name: "login",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}}
+			},
+		},
+		{
+			name: "invite",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}}
+			},
+		},
+		{
+			name: "link",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+			},
+			request: func(begin *BeginResult) AdvanceRequest {
+				return AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink,
+					AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect},
+				}
+			},
+			wantAccountID: new(int32(9)),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, _ := newServiceHarness(t)
+			writer := &serviceRecordingAudit{}
+			service.audit = writer
+			adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{}, NewFailure(FailureTokenEndpointDrift, map[string]any{
+					"expected": "https://issuer.test/token",
+					"got":      "https://other.test/token",
+					"secret":   "must-not-be-audited",
+				})
+			}
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = service.VerifyFlow(context.Background(), test.request(begin))
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if len(writer.records) != 1 {
+				t.Fatalf("audit records = %+v", writer.records)
+			}
+			record := writer.records[0]
+			if record.Detail["reason"] != string(FailureTokenEndpointDrift) ||
+				record.Detail["idp_slug"] != "corp" ||
+				record.Detail["expected"] != "https://issuer.test/token" ||
+				record.Detail["got"] != "https://other.test/token" {
+				t.Fatalf("audit detail = %+v", record.Detail)
+			}
+			if _, leaked := record.Detail["secret"]; leaked {
+				t.Fatalf("audit detail leaked non-allowlisted field: %+v", record.Detail)
+			}
+			if test.wantAccountID == nil && record.AccountID != nil ||
+				test.wantAccountID != nil && (record.AccountID == nil || *record.AccountID != *test.wantAccountID) {
+				t.Fatalf("audit account = %v, want %v", record.AccountID, test.wantAccountID)
+			}
+		})
+	}
+}
+
+func TestServiceAuditsInviteStartFailureWithoutLeakingDetails(t *testing.T) {
+	service, adapter, _, _ := newServiceHarness(t)
+	service.providers = fakeProviderLoader{inviteErr: NewFailure(FailureInviteExpired, map[string]any{
+		"token": "must-not-be-audited",
+	})}
+	writer := &serviceRecordingAudit{}
+	service.audit = writer
+
+	_, err := service.BeginInvite(context.Background(), "secret-invite", "/")
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("public error = %v, want invite_required", err)
+	}
+	if adapter.calls != 0 {
+		t.Fatalf("invalid invite invoked adapter %d times", adapter.calls)
+	}
+	if len(writer.records) != 1 || writer.records[0].Detail["reason"] != string(FailureInviteExpired) {
+		t.Fatalf("audit records = %+v", writer.records)
+	}
+	if _, leaked := writer.records[0].Detail["token"]; leaked {
+		t.Fatalf("audit leaked invite token: %+v", writer.records[0].Detail)
+	}
+}
+
+func TestServiceAuditsLinkResolverFailureClassification(t *testing.T) {
+	service, adapter, resolver, _ := newServiceHarness(t)
+	writer := &serviceRecordingAudit{}
+	service.audit = writer
+	adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+		return AdvanceResult{Identity: &VerifiedIdentity{
+			Issuer: "https://issuer.test", Subject: "sub", EmailVerificationSupported: true,
+		}}, nil
+	}
+	resolver.err = NewFailure(FailureEmailNotVerified, map[string]any{
+		"upstream_iss": "https://issuer.test",
+		"email":        "must-not-be-audited@example.test",
+	})
+	begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRouteLink,
+		AccountID: new(int32(9)), SessionID: "session-1", Input: ActionInput{Kind: ActionRedirect},
+	})
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
+		t.Fatalf("public error = %v, want email_not_verified", err)
+	}
+	if len(writer.records) != 1 {
+		t.Fatalf("audit records = %+v", writer.records)
+	}
+	record := writer.records[0]
+	if record.AccountID == nil || *record.AccountID != 9 ||
+		record.Detail["reason"] != string(FailureEmailNotVerified) ||
+		record.Detail["upstream_iss"] != "https://issuer.test" {
+		t.Fatalf("audit record = %+v", record)
+	}
+	if _, leaked := record.Detail["email"]; leaked {
+		t.Fatalf("audit leaked email: %+v", record.Detail)
+	}
+}
+
+func TestServiceEnforcesCallbackRouteIntent(t *testing.T) {
+	tests := []struct {
+		name          string
+		begin         func(*Service) (*BeginResult, error)
+		route         CallbackRoute
+		accountID     *int32
+		sessionID     string
+		wantAccountID *int32
+	}{
+		{
+			name: "login state on link route",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/")
+			},
+			route: CallbackRouteLink, accountID: new(int32(9)), sessionID: "session-1",
+			wantAccountID: new(int32(9)),
+		},
+		{
+			name: "invite state on link route",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/")
+			},
+			route: CallbackRouteLink, accountID: new(int32(9)), sessionID: "session-1",
+			wantAccountID: new(int32(9)),
+		},
+		{
+			name: "link state on public route",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+			},
+			route: CallbackRoutePublic,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, resolver, _ := newServiceHarness(t)
+			writer := &serviceRecordingAudit{}
+			service.audit = writer
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			beginCalls := adapter.calls
+
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+				ProviderSlug: "corp", Protocol: "fake", CallbackRoute: test.route,
+				AccountID: test.accountID, SessionID: test.sessionID,
+				Input: ActionInput{Kind: ActionRedirect},
+			})
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if adapter.calls != beginCalls || resolver.calls != 0 {
+				t.Fatalf("route mismatch reached adapter/resolver: adapter=%d resolver=%d", adapter.calls, resolver.calls)
+			}
+			if len(writer.records) != 1 || writer.records[0].Detail["reason"] != string(FailureStateInvalid) {
+				t.Fatalf("audit records = %+v", writer.records)
+			}
+			record := writer.records[0]
+			if test.wantAccountID == nil && record.AccountID != nil ||
+				test.wantAccountID != nil && (record.AccountID == nil || *record.AccountID != *test.wantAccountID) {
+				t.Fatalf("audit account = %v, want %v", record.AccountID, test.wantAccountID)
+			}
+		})
+	}
+}
+
+func TestServicePublicCallbackAcceptsLoginAndInvite(t *testing.T) {
+	tests := []struct {
+		name  string
+		begin func(*Service) (*BeginResult, error)
+	}{
+		{
+			name: "login",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginLogin(context.Background(), "corp", "/")
+			},
+		},
+		{
+			name: "invite",
+			begin: func(service *Service) (*BeginResult, error) {
+				return service.BeginInvite(context.Background(), "invite-token", "/")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, _ := newServiceHarness(t)
+			adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+			}
+			begin, err := test.begin(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+				ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+				Input: ActionInput{Kind: ActionRedirect},
+			}); err != nil {
+				t.Fatalf("public callback rejected %s state: %v", test.name, err)
+			}
+		})
+	}
+}
+
+func TestServiceAttributesInvalidLinkStateToRequestAccount(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*Service, kv.Store) AdvanceRequest
+	}{
+		{
+			name: "missing",
+			setup: func(_ *Service, _ kv.Store) AdvanceRequest {
+				return AdvanceRequest{FlowID: "missing-flow"}
+			},
+		},
+		{
+			name: "malformed",
+			setup: func(_ *Service, store kv.Store) AdvanceRequest {
+				if err := store.SetEx(context.Background(), FlowKey("malformed-flow"), "database-secret", time.Minute); err != nil {
+					t.Fatal(err)
+				}
+				return AdvanceRequest{FlowID: "malformed-flow"}
+			},
+		},
+		{
+			name: "replayed",
+			setup: func(service *Service, _ kv.Store) AdvanceRequest {
+				begin, err := service.BeginLink(context.Background(), "corp", "/", 9, "session-1")
+				if err != nil {
+					t.Fatal(err)
+				}
+				request := AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake",
+					CallbackRoute: CallbackRouteLink, AccountID: new(int32(9)), SessionID: "session-1",
+					Input: ActionInput{Kind: ActionRedirect},
+				}
+				if _, err := service.VerifyFlow(context.Background(), request); err != nil {
+					t.Fatal(err)
+				}
+				return request
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, store := newServiceHarness(t)
+			adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+			}
+			request := test.setup(service, store)
+			request.CallbackRoute = CallbackRouteLink
+			request.AccountID = new(int32(9))
+			request.SessionID = "session-1"
+			request.Input.Kind = ActionRedirect
+			writer := &serviceRecordingAudit{}
+			service.audit = writer
+
+			_, err := service.VerifyFlow(context.Background(), request)
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if len(writer.records) != 1 {
+				t.Fatalf("audit records = %+v", writer.records)
+			}
+			record := writer.records[0]
+			if record.AccountID == nil || *record.AccountID != 9 ||
+				record.Detail["reason"] != string(FailureStateInvalid) {
+				t.Fatalf("audit record = %+v", record)
+			}
+			if len(record.Detail) != 1 {
+				t.Fatalf("invalid state audit leaked detail: %+v", record.Detail)
+			}
+		})
+	}
+}
+
+func TestServiceRejectsInvalidOrMissingFlowBeforeLeaseWrite(t *testing.T) {
+	const (
+		missingCanonicalFlowID = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+		oversizedFlowID        = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	)
+	for _, flowID := range []string{missingCanonicalFlowID, oversizedFlowID} {
+		t.Run(flowID, func(t *testing.T) {
+			service, _, _, baseStore := newServiceHarness(t)
+			store := &setNXRecordingStore{Store: baseStore}
+			service.kv = store
+			request := AdvanceRequest{
+				FlowID: flowID, CallbackRoute: CallbackRoutePublic,
+				ProviderSlug: "corp", Protocol: "fake", Input: ActionInput{Kind: ActionRedirect},
+			}
+
+			if _, err := service.PrepareFlow(context.Background(), request); err == nil {
+				t.Fatal("PrepareFlow accepted invalid or missing flow")
+			}
+			if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+				t.Fatal("VerifyFlow accepted invalid or missing flow")
+			}
+			if len(store.keys) != 0 {
+				t.Fatalf("lease writes = %v, want none", store.keys)
+			}
+		})
+	}
+}
+
+func TestServiceLeaseReleaseCannotDeleteNewOwner(t *testing.T) {
+	const flowID = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	service, _, _, store := newServiceHarness(t)
+	oldLease, err := service.lock(context.Background(), flowID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockKey := FlowLockKey(flowID)
+	oldOwner, err := store.Get(context.Background(), lockKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldOwner == "" || oldOwner == "1" {
+		t.Fatalf("lease owner = %q, want unique owner token", oldOwner)
+	}
+	if err := store.Del(context.Background(), lockKey); err != nil {
+		t.Fatal(err)
+	}
+	locked, err := store.SetNX(context.Background(), lockKey, "new-owner", time.Minute)
+	if err != nil || !locked {
+		t.Fatalf("replacement lease = (%v, %v), want acquired", locked, err)
+	}
+
+	oldLease.release()
+
+	if got, err := store.Get(context.Background(), lockKey); err != nil || got != "new-owner" {
+		t.Fatalf("replacement lease after stale release = (%q, %v), want new-owner", got, err)
+	}
+}
+
+func TestServiceRenewsLeaseDuringLongAdapterOperation(t *testing.T) {
+	service, adapter, _, store := newServiceHarness(t)
+	service.config.LockTTL = 30 * time.Millisecond
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	adapter.advanceContext = func(ctx context.Context, _ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		close(entered)
+		select {
+		case <-proceed:
+			return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+		case <-ctx.Done():
+			return AdvanceResult{}, ctx.Err()
+		}
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	go func() {
+		_, verifyErr := service.VerifyFlow(context.Background(), AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+			Input: ActionInput{Kind: ActionRedirect},
+		})
+		result <- verifyErr
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("adapter did not start")
+	}
+	time.Sleep(75 * time.Millisecond)
+	competing, competingErr := store.SetNX(context.Background(), FlowLockKey(begin.FlowID), "competing-owner", time.Minute)
+	close(proceed)
+	select {
+	case verifyErr := <-result:
+		if verifyErr != nil {
+			t.Fatalf("VerifyFlow after long operation: %v", verifyErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("VerifyFlow did not stop")
+	}
+	if competingErr != nil {
+		t.Fatal(competingErr)
+	}
+	if competing {
+		t.Fatal("lease expired while adapter operation was active")
+	}
+	if _, err := store.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("lease survived operation: %v", err)
+	}
+}
+
+func TestServiceCancellationKeepsLeaseUntilBlockedNonTerminalAdapterReturns(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	store := &contextRespectingStore{Store: baseStore}
+	service.kv = store
+	service.config.LockTTL = 30 * time.Millisecond
+	entered := make(chan struct{})
+	canceled := make(chan struct{})
+	unblock := make(chan struct{})
+	adapter.advanceContext = func(ctx context.Context, _ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		close(entered)
+		<-ctx.Done()
+		close(canceled)
+		<-unblock
+		return AdvanceResult{}, ctx.Err()
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestCtx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, prepareErr := service.PrepareFlow(requestCtx, AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+			Input: ActionInput{Kind: ActionRedirect},
+		})
+		result <- prepareErr
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("adapter did not start")
+	}
+	cancel()
+	select {
+	case <-canceled:
+	case <-time.After(time.Second):
+		t.Fatal("adapter operation context was not canceled")
+	}
+
+	time.Sleep(75 * time.Millisecond)
+	competing, err := store.SetNX(context.Background(), FlowLockKey(begin.FlowID), "competing-owner", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if competing {
+		t.Fatal("lease expired while canceled adapter operation was still unwinding")
+	}
+
+	close(unblock)
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("PrepareFlow error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("PrepareFlow did not return")
+	}
+	if _, err := store.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("lease survived release: %v", err)
+	}
+}
+
+func TestServiceTerminalCancellationRestoresFlowWithDetachedContext(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	store := &contextRespectingStore{Store: baseStore}
+	service.kv = store
+	entered := make(chan struct{})
+	adapter.advanceContext = func(ctx context.Context, _ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		close(entered)
+		<-ctx.Done()
+		return AdvanceResult{}, ctx.Err()
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := FlowKey(begin.FlowID)
+	before, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestCtx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, verifyErr := service.VerifyFlow(requestCtx, AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+			Input: ActionInput{Kind: ActionRedirect},
+		})
+		result <- verifyErr
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("adapter did not start")
+	}
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("VerifyFlow error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("VerifyFlow did not return")
+	}
+	after, err := store.Get(context.Background(), key)
+	if err != nil {
+		t.Fatalf("canceled terminal flow was not restored: %v", err)
+	}
+	if after != before {
+		t.Fatal("canceled terminal restoration changed flow state")
+	}
+	if _, err := store.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("lease survived release: %v", err)
+	}
+}
+
+func TestServiceLeaseLossCancelsAdapterOperationContext(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	store := &leaseLossStore{
+		Store:           baseStore,
+		renewalAttempts: make(chan struct{}, 1),
+	}
+	service.kv = store
+	service.config.LockTTL = 30 * time.Millisecond
+	entered := make(chan struct{})
+	canceled := make(chan struct{})
+	adapter.advanceContext = func(ctx context.Context, _ json.RawMessage, _ ActionInput) (AdvanceResult, error) {
+		close(entered)
+		<-ctx.Done()
+		close(canceled)
+		return AdvanceResult{}, ctx.Err()
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.leaseKey = FlowLockKey(begin.FlowID)
+	result := make(chan error, 1)
+	go func() {
+		_, prepareErr := service.PrepareFlow(context.Background(), AdvanceRequest{
+			FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+			ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+			Input: ActionInput{Kind: ActionRedirect},
+		})
+		result <- prepareErr
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("adapter did not start")
+	}
+	select {
+	case <-store.renewalAttempts:
+	case <-time.After(time.Second):
+		t.Fatal("lease renewal was not attempted")
+	}
+	select {
+	case <-canceled:
+	case <-time.After(time.Second):
+		t.Fatal("lease loss did not cancel adapter operation context")
+	}
+	select {
+	case err := <-result:
+		if !errors.Is(err, ErrKVUnavailable) {
+			t.Fatalf("PrepareFlow error = %v, want ErrKVUnavailable", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("PrepareFlow did not return after lease loss")
+	}
+	if _, err := baseStore.Get(context.Background(), FlowLockKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("lease survived release: %v", err)
+	}
+}
+func TestServiceNonVRFlowFailureAuditedWhenRestoreFails(t *testing.T) {
+	for _, protocol := range []string{"oidc", "steam"} {
+		t.Run(protocol, func(t *testing.T) {
+			registry := NewRegistry()
+			if err := registry.RegisterDefinition(fakeDefinition{protocol: protocol, descriptor: descriptor(protocol)}); err != nil {
+				t.Fatal(err)
+			}
+			adapter := &serviceFakeAdapter{
+				protocol:    protocol,
+				beginState:  json.RawMessage(`{"step":"redirect"}`),
+				beginAction: NextAction{Kind: ActionRedirect, URL: "https://upstream.test"},
+				advance: func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+					return AdvanceResult{}, NewFailure(FailureCodeExchange, nil)
+				},
+			}
+			if err := registry.RegisterAdapter(adapter); err != nil {
+				t.Fatal(err)
+			}
+			writer := &serviceRecordingAudit{}
+			baseStore := kv.NewMemoryStore()
+			provider := Provider{ID: 7, Slug: "corp", Protocol: protocol, Mode: ModeAutoProvision}
+			service := NewService(registry, fakeProviderLoader{provider: provider}, baseStore, &serviceFakeResolver{}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://idp.test", Audit: writer})
+			begin, err := service.BeginLogin(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			service.kv = &failingRestoreStore{Store: baseStore, failSetEx: true}
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+				ProviderSlug: "corp", Protocol: protocol, CallbackRoute: CallbackRoutePublic,
+				Input: ActionInput{Kind: ActionRedirect},
+			})
+			if !errors.Is(err, ErrKVUnavailable) {
+				t.Fatalf("VerifyFlow error = %v", err)
+			}
+			if len(writer.records) != 1 || writer.records[0].Event != audit.EventFail ||
+				writer.records[0].Detail["reason"] != string(FailureCodeExchange) {
+				t.Fatalf("audit records = %#v", writer.records)
+			}
+		})
+	}
+}
+
+func TestServiceConcurrentVerifyCallsAdapterOnceAndDoesNotResurrectFlow(t *testing.T) {
+	service, adapter, _, store := newServiceHarness(t)
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	adapter.advanceContext = func(context.Context, json.RawMessage, ActionInput) (AdvanceResult, error) {
+		close(entered)
+		<-proceed
+		return AdvanceResult{Identity: &VerifiedIdentity{Issuer: "iss", Subject: "sub"}}, nil
+	}
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeAdvanceCalls := adapter.calls
+	type verifyResult struct {
+		completion *CompletionResult
+		err        error
+	}
+	winner := make(chan verifyResult, 1)
+	request := AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+		Input: ActionInput{Kind: ActionRedirect},
+	}
+	go func() {
+		completion, verifyErr := service.VerifyFlow(context.Background(), request)
+		winner <- verifyResult{completion: completion, err: verifyErr}
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("first verify did not enter adapter")
+	}
+	loserCompletion, loserErr := service.VerifyFlow(context.Background(), request)
+	if loserCompletion != nil {
+		t.Fatalf("loser completion = %+v", loserCompletion)
+	}
+	var authErr *authn.AuthError
+	if !errors.As(loserErr, &authErr) || authErr.Code != "federation_state_invalid" {
+		t.Fatalf("loser error = %v", loserErr)
+	}
+	close(proceed)
+	result := <-winner
+	if result.err != nil || result.completion == nil {
+		t.Fatalf("winner = (%+v, %v)", result.completion, result.err)
+	}
+	if got := adapter.calls - beforeAdvanceCalls; got != 1 {
+		t.Fatalf("Adapter.Advance calls = %d", got)
+	}
+	if _, err := store.Get(context.Background(), FlowKey(begin.FlowID)); !errors.Is(err, kv.ErrKeyNotFound) {
+		t.Fatalf("flow resurrected after concurrent verify: %v", err)
+	}
+}
+
+func TestServiceStaleVerifyFenceCannotResurrectOrOverwrite(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		newerFlow string
+	}{
+		{name: "terminal commit"},
+		{name: "newer prepared state", newerFlow: `{"newer":"prepared"}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service, adapter, _, baseStore := newServiceHarness(t)
+			begin, err := service.BeginLogin(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			gate := &fencedDeleteGateStore{Store: baseStore, entered: make(chan struct{}), proceed: make(chan struct{})}
+			service.kv = gate
+			result := make(chan error, 1)
+			go func() {
+				_, verifyErr := service.VerifyFlow(context.Background(), AdvanceRequest{
+					FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+					ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+					Input: ActionInput{Kind: ActionRedirect},
+				})
+				result <- verifyErr
+			}()
+			select {
+			case <-gate.entered:
+			case <-time.After(time.Second):
+				t.Fatal("verify did not reach fenced consume")
+			}
+			lockKey, flowKey := FlowLockKey(begin.FlowID), FlowKey(begin.FlowID)
+			if err := baseStore.Del(context.Background(), lockKey); err != nil {
+				t.Fatal(err)
+			}
+			if ok, err := baseStore.SetNX(context.Background(), lockKey, "new-owner", time.Minute); err != nil || !ok {
+				t.Fatalf("new owner lease = (%v, %v)", ok, err)
+			}
+			if test.newerFlow == "" {
+				if err := baseStore.Del(context.Background(), flowKey); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := baseStore.SetEx(context.Background(), flowKey, test.newerFlow, time.Minute); err != nil {
+				t.Fatal(err)
+			}
+			close(gate.proceed)
+			if err := <-result; err == nil {
+				t.Fatal("stale verify unexpectedly succeeded")
+			}
+			if adapter.calls != 1 {
+				t.Fatalf("adapter calls = %d, stale worker reached adapter", adapter.calls)
+			}
+			if test.newerFlow == "" {
+				if _, err := baseStore.Get(context.Background(), flowKey); !errors.Is(err, kv.ErrKeyNotFound) {
+					t.Fatalf("terminal flow resurrected: %v", err)
+				}
+			} else if got, err := baseStore.Get(context.Background(), flowKey); err != nil || got != test.newerFlow {
+				t.Fatalf("newer flow = (%q, %v)", got, err)
+			}
+		})
+	}
+}
+
+func TestServiceFencedConsumeBackendFailureDoesNotReinsert(t *testing.T) {
+	service, adapter, _, baseStore := newServiceHarness(t)
+	begin, err := service.BeginLogin(context.Background(), "corp", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := baseStore.Get(context.Background(), FlowKey(begin.FlowID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := &fencedDeleteGateStore{Store: baseStore, entered: make(chan struct{}), proceed: make(chan struct{}), err: errors.New("backend failed")}
+	close(gate.proceed)
+	service.kv = gate
+	_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+		FlowID: begin.FlowID, BrowserToken: begin.BrowserToken,
+		ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic,
+		Input: ActionInput{Kind: ActionRedirect},
+	})
+	if !errors.Is(err, ErrKVUnavailable) {
+		t.Fatalf("VerifyFlow error = %v", err)
+	}
+	if gate.setEx != 0 {
+		t.Fatalf("stale flow reinsert attempts = %d", gate.setEx)
+	}
+	if got, err := baseStore.Get(context.Background(), FlowKey(begin.FlowID)); err != nil || got != before {
+		t.Fatalf("original flow = (%q, %v)", got, err)
+	}
+	if adapter.calls != 1 {
+		t.Fatalf("adapter calls = %d", adapter.calls)
+	}
+}

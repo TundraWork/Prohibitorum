@@ -27,7 +27,7 @@ import (
 
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -91,6 +91,69 @@ func TestFederationCallback_UnconfirmedRedirectsToWelcome(t *testing.T) {
 	}
 }
 
+func TestSteamFederationCallbackConfirmationSessionAndAvatar(t *testing.T) {
+	h := newFederationTestServer(t)
+	provider := seedSteamProvider(t, h)
+	avatars := &serverAvatarRecorder{}
+	h.s.federationService.SetAvatarManager(avatars)
+
+	loc, resp := h.driveLogin(t, provider.Slug, "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("login status = %d, want 302", resp.StatusCode)
+	}
+	actionURL, err := url.Parse(loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := actionURL.Query().Get("state")
+	q := url.Values{
+		"state":       {state},
+		"openid.mode": {"id_res"},
+	}
+	resp = h.hitCallback(t, provider.Slug, q)
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/welcome" {
+		t.Fatalf("callback status/location = %d %q, want 302 /welcome", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if len(h.q.sessions) != 0 {
+		t.Fatalf("unconfirmed Steam callback inserted %d sessions", len(h.q.sessions))
+	}
+	if avatars.calls != 1 || avatars.provider.ID != provider.ID ||
+		avatars.url != "https://cdn.test/steam-avatar.jpg" {
+		t.Fatalf("Steam avatar inheritance = %+v", avatars)
+	}
+	var confirmationCookie string
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == sessstore.FedStateCookieName && strings.Contains(cookie.Value, ".") {
+			confirmationCookie = cookie.Value
+			break
+		}
+	}
+	if confirmationCookie == "" {
+		t.Fatal("confirmation cookie missing")
+	}
+	if len(h.q.insertedAccounts) != 1 {
+		t.Fatalf("inserted accounts = %d, want 1", len(h.q.insertedAccounts))
+	}
+	accountID := h.q.insertedAccounts[0].ID
+	identityID := h.q.nextIdentityID - 1
+	fx := confirmFixture{
+		h: h, accountID: accountID, identityID: identityID, cookie: confirmationCookie,
+	}
+	confirmResp := doConfirm(t, fx, http.MethodPost, confirmPath, confirmationCookie)
+	if confirmResp.StatusCode != http.StatusOK {
+		body, _ := readAll(confirmResp.Body)
+		t.Fatalf("confirm status = %d, want 200; body=%s", confirmResp.StatusCode, body)
+	}
+	if h.q.confirmedIdentityID != identityID || len(h.q.sessions) != 1 {
+		t.Fatalf("confirmation/session = identity %d sessions %d", h.q.confirmedIdentityID, len(h.q.sessions))
+	}
+	session := h.q.sessions[0]
+	if len(session.Amr) != 1 || session.Amr[0] != "steam" ||
+		session.UpstreamIdpID == nil || *session.UpstreamIdpID != provider.ID {
+		t.Fatalf("Steam session = %+v", session)
+	}
+}
+
 // --- confirm endpoints ------------------------------------------------------
 
 // confirmFixture seeds an account + IdP on the fake, mints a real confirmation
@@ -115,7 +178,7 @@ func seedConfirmGrant(t *testing.T, h *fedTestHarness) confirmFixture {
 	}
 	// h.idp is already seeded under slug "mockop" by the harness.
 
-	token, anti, err := h.s.federator.CreateConfirmGrant(
+	token, anti, err := h.s.federationService.CreateConfirmGrant(
 		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil,
 	)
 	if err != nil {

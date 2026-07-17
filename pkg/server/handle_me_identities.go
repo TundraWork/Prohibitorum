@@ -8,15 +8,11 @@
 //	GET  /api/prohibitorum/me/identities/link/{slug}/begin     — sudo; → upstream
 //	GET  /api/prohibitorum/me/identities/link/{slug}/callback  — bind upstream
 //
-// The link/begin + link/callback pair runs the same OIDC RP dance as the
-// public /auth/federation/{slug}/* handlers, but stashed under LinkKey(state)
-// and bound to the current account_id so the federator can refuse a
-// session-swap mid-flow. The callback does NOT issue a new session — the
-// user is already signed in; we only insert account_identity.
-//
-// Route mounting lives in Task 9 (server.go). This file defines only the
-// handlers and a couple of narrowly-scoped helpers (last-sign-in-method
-// check, response-shape projection).
+// The link/begin + link/callback pair uses the protocol-neutral federation
+// service shared by public login and invite flows. Persisted state binds the
+// current account and session so callback processing rejects a session swap.
+// A successful callback links the verified identity without issuing a new
+// session.
 
 package server
 
@@ -26,15 +22,18 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	"prohibitorum/pkg/federation"
+	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/weberr"
 )
 
@@ -68,16 +67,33 @@ func (s *Server) meIdentitiesQ() meIdentitiesQueries {
 	return s.queries
 }
 
-// identityView is the JSON projection of ListAccountIdentitiesByAccountRow
-// returned by GET /me/identities. UpstreamEmail is a *string so absent
-// addresses serialize as null rather than the empty string — UI code that
-// branches on "has the OP given us an email?" reads the null cleanly.
-type identityView struct {
-	ID             int64   `json:"id"`
-	IdpSlug        string  `json:"idpSlug"`
-	IdpDisplayName string  `json:"idpDisplayName"`
-	UpstreamEmail  *string `json:"upstreamEmail"`
-	LinkedAt       string  `json:"linkedAt"`
+// projectIdentityRow returns the shared secret-free identity projection. A
+// malformed stored metadata object cannot block the account page: it is
+// replaced with an empty object and logged without the raw value.
+func projectIdentityRow(ctx context.Context, row db.ListAccountIdentitiesByAccountRow) contract.AccountIdentityView {
+	data := make(map[string]string)
+	if len(row.UpstreamData) > 0 {
+		var decoded map[string]string
+		if err := json.Unmarshal(row.UpstreamData, &decoded); err != nil || decoded == nil {
+			logx.WithContext(ctx).WithFields(logrus.Fields{
+				"event":       "identity_metadata_invalid",
+				"identity_id": row.ID,
+				"provider_id": row.UpstreamIdpID,
+			}).Error("identity metadata invalid")
+		} else {
+			data = decoded
+		}
+	}
+	return contract.AccountIdentityView{
+		ID:                  row.ID,
+		ProviderSlug:        row.IdpSlug,
+		ProviderDisplayName: row.IdpDisplayName,
+		Protocol:            row.Protocol,
+		Subject:             row.UpstreamSub,
+		Email:               textPtr(row.UpstreamEmail),
+		Data:                data,
+		LinkedAt:            row.LinkedAt.Time,
+	}
 }
 
 // GET /api/prohibitorum/me/identities
@@ -95,26 +111,12 @@ func (s *Server) handleMeIdentitiesListHTTP(w http.ResponseWriter, r *http.Reque
 		writeAuthErr(w, err)
 		return
 	}
-	out := make([]identityView, 0, len(rows))
+	out := make([]contract.AccountIdentityView, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, projectIdentityRow(row))
+		out = append(out, projectIdentityRow(r.Context(), row))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
-}
-
-func projectIdentityRow(row db.ListAccountIdentitiesByAccountRow) identityView {
-	v := identityView{
-		ID:             row.ID,
-		IdpSlug:        row.IdpSlug,
-		IdpDisplayName: row.IdpDisplayName,
-	}
-	if row.UpstreamEmail.Valid {
-		s := row.UpstreamEmail.String
-		v.UpstreamEmail = &s
-	}
-	v.LinkedAt = row.LinkedAt.Time.UTC().Format(time.RFC3339)
-	return v
 }
 
 // POST /api/prohibitorum/me/identities/{id}/unlink
@@ -287,11 +289,11 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 		return
 	}
 
-	req, err := s.federator.LinkBegin(r.Context(), sess.Account.ID, slug, returnTo)
+	req, err := s.federationService.BeginLink(r.Context(), slug, returnTo, sess.Account.ID, sess.Data.SessionID)
 	if err != nil {
 		// returnTo is validated + same-origin (e.g. /connected) — forward it so
 		// the /error "go back" link returns the user to where they started.
-		if errors.Is(err, fedoidc.ErrUnknownIDP) {
+		if errors.Is(err, federation.ErrUnknownProvider) {
 			// Collapse "no such slug" onto the generic state-invalid code —
 			// mirrors handleFederationLoginHTTP so admins can't enumerate
 			// configured IdPs via the link surface either.
@@ -301,8 +303,14 @@ func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.
 		redirectAuthErrToErrorReturn(w, r, err, returnTo)
 		return
 	}
+	destination, err := federationBeginDestination(req)
+	if err != nil {
+		redirectAuthErrToErrorReturn(w, r, err, returnTo)
+		return
+	}
 
-	http.Redirect(w, r, req.AuthorizeURL, http.StatusFound)
+	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
+	http.Redirect(w, r, destination, http.StatusFound)
 }
 
 // GET /api/prohibitorum/me/identities/link/{slug}/callback
@@ -345,25 +353,32 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	// handle_federation.go handleFederationLoginCallbackHTTP.
 	isSteamCallback := code == "" && q.Get("openid.mode") == "id_res"
 	if state == "" || (code == "" && !isSteamCallback) {
-		// Stray / replayed callback. Federator's LinkCallback would also
-		// reject this on the KV Pop, but short-circuiting here keeps the
-		// audit log clean of accidental hits.
+		// Stray callbacks have no flow to attribute. Reject them without an
+		// audit row; nonempty malformed or replayed state reaches the service,
+		// which records the account-attributed structured failure.
 		redirectAuthErrToError(w, r, authn.ErrFederationStateInvalid())
 		return
 	}
 
-	result, err := s.federator.LinkCallback(r.Context(), state, code, iss, sess.Account.ID, r.URL.Query())
+	browserToken := ""
+	if cookie, cookieErr := r.Cookie(sessstore.FedStateCookieName); cookieErr == nil {
+		browserToken = cookie.Value
+	}
+	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
+		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
+		CallbackRoute: federation.CallbackRouteLink,
+		AccountID:     new(sess.Account.ID), SessionID: sess.Data.SessionID,
+		Input: federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, Params: r.URL.Query()},
+	})
 	if err != nil {
-		// Federator already emitted a fail audit row for each structured
-		// failure mode (state_invalid, session_swap, iss_mismatch_callback,
-		// code_exchange_failed, link_insert_failed, link_conflict).
+		// The federation service already emitted a fail audit row for each
+		// structured failure mode (state_invalid, session_swap,
+		// iss_mismatch_callback, code_exchange_failed, link_insert_failed,
+		// link_conflict).
 		// Redirect to /error — this is a full-page browser-navigated flow.
 		redirectAuthErrToError(w, r, err)
 		return
 	}
 
-	// Federator's LinkCallback already emitted EventLink on success
-	// (pkg/federation/oidc/federation.go ~line 368). Do NOT double-audit.
-	// No session.Issue — the user is already logged in.
-	http.Redirect(w, r, result.ReturnTo, http.StatusFound)
+	s.writeFederationCompletion(w, r, result, federationCompletionRedirect)
 }

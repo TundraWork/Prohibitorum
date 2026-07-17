@@ -68,6 +68,9 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "PUT", path: "/api/prohibitorum/identity-providers/x", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/identity-providers/rotate-secret", body: `{"slug":"x"}`},
 	{method: "POST", path: "/api/prohibitorum/identity-providers/delete", body: `{"slug":"x"}`},
+	{method: "POST", path: "/api/prohibitorum/identity-providers/social/operator-session/start", body: `{"username":"u","password":"p"}`},
+	{method: "POST", path: "/api/prohibitorum/identity-providers/social/operator-session/verify", body: `{"challenge":"c","method":"totp","code":"1"}`},
+	{method: "POST", path: "/api/prohibitorum/identity-providers/social/operator-session/validate", body: ``},
 
 	// Account credential revoke — high-impact, sudo-gated
 	{method: "POST", path: "/api/prohibitorum/accounts/credentials/delete", body: `{"accountId":1,"credentialId":1}`},

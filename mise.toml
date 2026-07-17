@@ -142,36 +142,87 @@ fi
 [tasks."ci:smoke"]
 description = "CI: end-to-end smoke — start the compose Postgres, (re)create a throwaway prohibitorum_smoke DB, then run the server + cmd/smoke against it (expects exit 0). The CI `smoke` job; also runnable locally WITHOUT touching prohibitorum_dev."
 run = """
-set -e
+set -eu
 # The smoke bootstraps an admin + registers OIDC/SAML clients, so it needs a
-# CLEAN database — a throwaway prohibitorum_smoke, never prohibitorum_dev (which
-# holds your dev data and would collide). EXECUTE db.sh (never source it): mise
-# may run this task body under plain sh, and db.sh uses bash-only constructs that
-# only apply under its own #!/usr/bin/env bash shebang when run as a subprocess.
-scripts/db.sh start
+# clean throwaway database, never prohibitorum_dev.
+# Worktrees must address the repository's canonical compose project rather than
+# creating a second Postgres container that collides on host port 5432.
+export COMPOSE_PROJECT_NAME=prohibitorum
+scripts/db.sh ensure
 scripts/db.sh recreate-db prohibitorum_smoke
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_smoke?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
-export PROHIBITORUM_PUBLIC_ORIGIN="http://localhost:8080"
-# Steam mock: build + start before the main server so the env vars that redirect
-# the Steam endpoints are set when the server binary reads them at startup.
-STEAM_MOCK_BIN="$(mktemp -d)/steammock"
-go build -o "$STEAM_MOCK_BIN" ./cmd/steammock
+export PROHIBITORUM_PUBLIC_ORIGIN="https://127.0.0.1:18443"
+export PROHIBITORUM_FEDERATION_STATE_TTL="5s"
+
+TMP_DIR="$(mktemp -d)"
+SERVER_PID=
+STEAM_MOCK_PID=
+VRCHAT_MOCK_PID=
+cleanup() {
+  [ -z "$SERVER_PID" ] || kill "$SERVER_PID" 2>/dev/null || true
+  [ -z "$STEAM_MOCK_PID" ] || kill "$STEAM_MOCK_PID" 2>/dev/null || true
+  [ -z "$VRCHAT_MOCK_PID" ] || kill "$VRCHAT_MOCK_PID" 2>/dev/null || true
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT HUP INT TERM
+
+# Steam remains isolated behind its existing HTTP mock.
+go build -o "$TMP_DIR/steammock" ./cmd/steammock
 STEAM_MOCK_PORT=18099
-"$STEAM_MOCK_BIN" --addr "127.0.0.1:${STEAM_MOCK_PORT}" & STEAM_MOCK_PID=$!
+"$TMP_DIR/steammock" --addr "127.0.0.1:${STEAM_MOCK_PORT}" >"$TMP_DIR/steam.log" 2>&1 & STEAM_MOCK_PID=$!
 export PROHIBITORUM_STEAM_LOGIN_ENDPOINT="http://127.0.0.1:${STEAM_MOCK_PORT}/openid/login"
 export PROHIBITORUM_STEAM_SUMMARY_ENDPOINT="http://127.0.0.1:${STEAM_MOCK_PORT}/ISteamUser/GetPlayerSummaries/v2/"
-# Build once and run the binary directly so the trap kills the real server
-# (backgrounding `go run` leaves its compiled child orphaned, holding :8080).
-BIN="$(mktemp -d)/prohibitorum"
-go build -tags nodynamic -o "$BIN" ./cmd/prohibitorum
-"$BIN" & SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true; kill "$STEAM_MOCK_PID" 2>/dev/null || true; rm -rf "$(dirname "$BIN")" "$(dirname "$STEAM_MOCK_BIN")"' EXIT
-for _ in $(seq 1 60); do
-  curl -sf http://localhost:8080/.well-known/openid-configuration >/dev/null 2>&1 && break
+
+# A one-run CA and leaf certificate prove explicit trust for both loopback TLS
+# endpoints. The leaf SAN is an IP, not a CN.
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+  -subj "/CN=Prohibitorum VRChat Smoke CA" \
+  -keyout "$TMP_DIR/ca-key.pem" -out "$TMP_DIR/ca.pem" >/dev/null 2>&1
+openssl req -newkey rsa:2048 -nodes \
+  -subj "/CN=127.0.0.1" \
+  -keyout "$TMP_DIR/vrchat-key.pem" -out "$TMP_DIR/vrchat.csr" >/dev/null 2>&1
+printf 'subjectAltName=IP:127.0.0.1\nextendedKeyUsage=serverAuth\n' >"$TMP_DIR/vrchat.ext"
+openssl x509 -req -days 1 -sha256 \
+  -in "$TMP_DIR/vrchat.csr" -CA "$TMP_DIR/ca.pem" -CAkey "$TMP_DIR/ca-key.pem" -CAcreateserial \
+  -extfile "$TMP_DIR/vrchat.ext" -out "$TMP_DIR/vrchat.pem" >/dev/null 2>&1
+go build -o "$TMP_DIR/vrchatmock" ./cmd/vrchatmock
+"$TMP_DIR/vrchatmock" --addr 127.0.0.1:18100 --proxy-addr 127.0.0.1:18443 --proxy-target http://127.0.0.1:8080 --cert "$TMP_DIR/vrchat.pem" --key "$TMP_DIR/vrchat-key.pem" >"$TMP_DIR/vrchat.log" 2>&1 & VRCHAT_MOCK_PID=$!
+export PROHIBITORUM_VRCHAT_SMOKE_ORIGIN="https://127.0.0.1:18100/api/1"
+export PROHIBITORUM_VRCHAT_SMOKE_CA_FILE="$TMP_DIR/ca.pem"
+ready=
+for _ in $(seq 1 30); do
+  if curl --cacert "$TMP_DIR/ca.pem" -sf https://127.0.0.1:18100/control/ready >/dev/null 2>&1; then ready=1; break; fi
   sleep 1
 done
-go run ./cmd/smoke --base-url http://localhost:8080
+[ "$ready" = 1 ] || { cat "$TMP_DIR/vrchat.log" >&2; exit 1; }
+
+# The same loopback-only process terminates TLS for Prohibitorum on :18443 so
+# Secure browser-binding cookies are actually stored and returned.
+export SSL_CERT_FILE="$TMP_DIR/ca.pem"
+
+# Build once so the trap owns the actual server process. The smoke tag is
+# required for the loopback-only VRChat origin/CA seam; default builds ignore it.
+go build -tags 'nodynamic smoke' -o "$TMP_DIR/prohibitorum" ./cmd/prohibitorum
+"$TMP_DIR/prohibitorum" >"$TMP_DIR/server.log" 2>&1 & SERVER_PID=$!
+ready=
+for _ in $(seq 1 60); do
+  if curl --cacert "$TMP_DIR/ca.pem" -sf https://127.0.0.1:18443/.well-known/openid-configuration >/dev/null 2>&1; then ready=1; break; fi
+  sleep 1
+done
+[ "$ready" = 1 ] || { cat "$TMP_DIR/server.log" "$TMP_DIR/vrchat.log" >&2; exit 1; }
+
+# Exercise PostgreSQL-only filtering/migration contracts in the same database.
+export PROHIBITORUM_TEST_DATABASE_URL="$PROHIBITORUM_DATABASE_URL"
+go test ./db/migrations ./pkg/server \
+  -run '^(TestAccountIdentityFilteringMigrationPostgres|TestAccountFilterSchemaPostgres|TestListAccountsIdentityFiltersPostgres)$' \
+  -count=1
+go run ./cmd/smoke \
+  --base-url https://127.0.0.1:18443 \
+  --vrchat-control-origin https://127.0.0.1:18100 \
+  --vrchat-ca-file "$TMP_DIR/ca.pem" \
+  --server-log "$TMP_DIR/server.log" \
+  --vrchat-log "$TMP_DIR/vrchat.log"
 """
 
 [tasks."ci:release-check"]

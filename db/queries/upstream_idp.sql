@@ -5,22 +5,13 @@ SELECT * FROM upstream_idp WHERE slug = $1 AND NOT disabled;
 SELECT * FROM upstream_idp WHERE NOT disabled ORDER BY display_name;
 
 -- name: InsertUpstreamIDP :one
-INSERT INTO upstream_idp (slug, display_name, issuer_url, client_id,
-  client_secret_enc, secret_nonce, key_version, scopes, mode,
-  allowed_domains, username_claim, display_name_claim, email_claim,
-  require_verified_email, picture_claim, protocol, allow_private_network)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+INSERT INTO upstream_idp (
+  slug, display_name, protocol, mode, provider_config,
+  secret_enc, secret_nonce, key_version, secret_status,
+  secret_validated_at, disabled
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
-
--- name: UpdateUpstreamIDP :exec
-UPDATE upstream_idp
-SET display_name = $2, issuer_url = $3, client_id = $4,
-    client_secret_enc = $5, secret_nonce = $6, key_version = $7,
-    scopes = $8, mode = $9, allowed_domains = $10,
-    username_claim = $11, display_name_claim = $12, email_claim = $13,
-    disabled = $14, require_verified_email = $15, picture_claim = $16,
-    allow_private_network = $17
-WHERE id = $1;
 
 -- name: DeleteUpstreamIDP :exec
 DELETE FROM upstream_idp WHERE id = $1;
@@ -36,16 +27,58 @@ LIMIT sqlc.arg('limit');
 
 -- name: UpdateUpstreamIDPConfig :one
 UPDATE upstream_idp SET
-  display_name = $2, issuer_url = $3, client_id = $4, scopes = $5, mode = $6,
-  allowed_domains = $7, username_claim = $8, display_name_claim = $9,
-  email_claim = $10, require_verified_email = $11, disabled = $12,
-  picture_claim = $13, allow_private_network = $14
+  display_name = $2, mode = $3, provider_config = $4
 WHERE slug = $1
 RETURNING *;
 
--- name: UpdateUpstreamIDPSecret :exec
-UPDATE upstream_idp SET client_secret_enc = $2, secret_nonce = $3, key_version = $4
-WHERE slug = $1;
+-- name: UpdateUpstreamIDPSecret :one
+UPDATE upstream_idp SET
+  secret_enc = $2, secret_nonce = $3, key_version = $4,
+  secret_status = $5, secret_validated_at = $6
+WHERE slug = $1
+RETURNING *;
+
+-- name: UpdateUpstreamIDPHealth :one
+UPDATE upstream_idp SET secret_status = $2, secret_validated_at = $3
+WHERE slug = $1
+RETURNING *;
+
+-- name: UpdateVRChatOperatorSecret :one
+UPDATE upstream_idp SET
+  secret_enc = sqlc.arg('secret_enc'),
+  secret_nonce = sqlc.arg('secret_nonce'),
+  key_version = sqlc.arg('key_version'),
+  secret_status = 'valid',
+  secret_validated_at = sqlc.arg('secret_validated_at')
+WHERE id = sqlc.arg('id')
+  AND slug = sqlc.arg('slug')
+  AND protocol = 'vrchat'
+RETURNING *;
+
+-- name: RefreshVRChatOperatorSecret :one
+UPDATE upstream_idp SET
+  secret_enc = sqlc.arg('new_secret_enc'),
+  secret_nonce = sqlc.arg('new_secret_nonce'),
+  key_version = sqlc.arg('new_key_version'),
+  secret_status = 'valid',
+  secret_validated_at = sqlc.arg('secret_validated_at')
+WHERE id = sqlc.arg('id')
+  AND slug = sqlc.arg('slug')
+  AND protocol = 'vrchat'
+  AND secret_enc = sqlc.arg('expected_secret_enc')
+  AND secret_nonce = sqlc.arg('expected_secret_nonce')
+  AND key_version = sqlc.arg('expected_key_version')
+RETURNING *;
+
+-- name: InvalidateVRChatOperatorSecret :one
+UPDATE upstream_idp SET secret_status = 'invalid'
+WHERE id = sqlc.arg('id')
+  AND slug = sqlc.arg('slug')
+  AND protocol = 'vrchat'
+  AND secret_enc = sqlc.arg('expected_secret_enc')
+  AND secret_nonce = sqlc.arg('expected_secret_nonce')
+  AND key_version = sqlc.arg('expected_key_version')
+RETURNING *;
 
 -- name: SetUpstreamIDPDisabled :one
 UPDATE upstream_idp SET disabled = $2 WHERE slug = $1 RETURNING *;

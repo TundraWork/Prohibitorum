@@ -28,6 +28,7 @@ import (
 // constructing a real *db.Queries. Production wiring falls back to s.queries.
 type topLevelQueries interface {
 	ListAccounts(ctx context.Context, p db.ListAccountsParams) ([]db.ListAccountsRow, error)
+	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (db.UpstreamIdp, error)
 	ListPendingInvitations(ctx context.Context, p db.ListPendingInvitationsParams) ([]db.Enrollment, error)
 	ListGroups(ctx context.Context, p db.ListGroupsParams) ([]db.ListGroupsRow, error)
 	ListNonForwardAuthOIDCClients(ctx context.Context, p db.ListNonForwardAuthOIDCClientsParams) ([]db.ListNonForwardAuthOIDCClientsRow, error)
@@ -80,9 +81,9 @@ func (s *Server) encodeNextCursor(collection, sort string, filters map[string]st
 	now := time.Now()
 	c, err := s.cursorCodec.Encode(pagination.CursorPayload{
 		Collection: collection,
-		Filters:     filters,
-		Sort:        sort,
-		Keys:        keys,
+		Filters:    filters,
+		Sort:       sort,
+		Keys:       keys,
 		IssuedAt:   now,
 		ExpiresAt:  now.Add(24 * time.Hour),
 	})

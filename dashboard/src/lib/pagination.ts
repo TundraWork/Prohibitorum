@@ -37,17 +37,18 @@ export function emptyPage<T>(): Page<T> {
 }
 
 /**
- * buildPagePath appends optional cursor and limit query params to a base API
- * path, preserving any existing query string. Empty/undefined values are
- * omitted so the URL stays clean.
+ * buildPagePath appends optional query params to a base API path, preserving
+ * any existing query string. Empty/undefined/null values are omitted so the
+ * URL stays clean. URLSearchParams owns all escaping.
  */
 export function buildPagePath(
   base: string,
-  opts: { cursor?: string; limit?: number },
+  opts: Record<string, string | number | undefined | null>,
 ): string {
   const url = new URL(base, 'http://localhost')
-  if (opts.cursor) url.searchParams.set('cursor', opts.cursor)
-  if (opts.limit != null) url.searchParams.set('limit', String(opts.limit))
+  for (const [key, value] of Object.entries(opts)) {
+    if (value !== '' && value != null) url.searchParams.set(key, String(value))
+  }
   const query = url.searchParams.toString()
   // Strip the leading '/' from pathname (URL always adds it), then re-attach
   // the original path structure. We use the original base to preserve relative

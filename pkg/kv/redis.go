@@ -208,6 +208,58 @@ func (r *RedisStore) CompareAndSwap(ctx context.Context, key, oldValue, newValue
 	return res == 1, nil
 }
 
+var compareAndDeleteScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
+end
+return 0
+`)
+
+// CompareAndDelete atomically removes key only when expectedValue still owns
+// it. The Lua script prevents an expired lease holder from deleting a newer
+// holder's lease between a separate GET and DEL.
+func (r *RedisStore) CompareAndDelete(ctx context.Context, key, expectedValue string) (bool, error) {
+	res, err := compareAndDeleteScript.Run(ctx, r.client, []string{key}, expectedValue).Int()
+	if err != nil {
+		return false, err
+	}
+	return res == 1, nil
+}
+
+var fencedCompareAndDeleteScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] and redis.call("GET", KEYS[2]) == ARGV[2] then
+	return redis.call("DEL", KEYS[2])
+end
+return 0
+`)
+
+func (r *RedisStore) FencedCompareAndDelete(ctx context.Context, fenceKey, fenceValue, key, expectedValue string) (bool, error) {
+	result, err := fencedCompareAndDeleteScript.Run(ctx, r.client, []string{fenceKey, key}, fenceValue, expectedValue).Int()
+	if err != nil {
+		return false, err
+	}
+	return result == 1, nil
+}
+
+var fencedCompareAndSwapScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] and redis.call("GET", KEYS[2]) == ARGV[2] then
+	redis.call("SET", KEYS[2], ARGV[3], "PX", ARGV[4])
+	return 1
+end
+return 0
+`)
+
+func (r *RedisStore) FencedCompareAndSwap(ctx context.Context, fenceKey, fenceValue, key, oldValue, newValue string, ttl time.Duration) (bool, error) {
+	if ttl <= 0 {
+		return false, ErrCASInvalidTTL
+	}
+	result, err := fencedCompareAndSwapScript.Run(ctx, r.client, []string{fenceKey, key}, fenceValue, oldValue, newValue, ttl.Milliseconds()).Int()
+	if err != nil {
+		return false, err
+	}
+	return result == 1, nil
+}
+
 func (r *RedisStore) Close() error {
 	return r.client.Close()
 }

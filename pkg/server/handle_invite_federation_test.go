@@ -28,7 +28,7 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/db"
-	fedoidc "prohibitorum/pkg/federation/oidc"
+	fedoidc "prohibitorum/pkg/federation"
 	sessstore "prohibitorum/pkg/session"
 )
 
@@ -169,19 +169,19 @@ func TestEnrollmentStartFederation_HappyPath(t *testing.T) {
 	if state == "" {
 		t.Fatal("state missing from authorize URL")
 	}
-	blob, err := h.s.kvStore.Get(context.Background(), fedoidc.LoginKey(state))
+	blob, err := h.s.kvStore.Get(context.Background(), fedoidc.FlowKey(state))
 	if err != nil {
 		t.Fatalf("state not stashed under LoginKey: %v", err)
 	}
-	fs, err := fedoidc.DecodeFedState(blob)
+	fs, err := fedoidc.DecodeFlowState(blob)
 	if err != nil {
 		t.Fatalf("DecodeFedState: %v", err)
 	}
 	if fs.EnrollmentToken != "tok-happy" {
 		t.Errorf("FedState.EnrollmentToken = %q, want tok-happy", fs.EnrollmentToken)
 	}
-	if fs.LinkingAccountID != nil {
-		t.Errorf("LinkingAccountID = %v, want nil (invite flow has no account yet)", *fs.LinkingAccountID)
+	if fs.LinkAccountID != nil {
+		t.Errorf("LinkAccountID = %v, want nil (invite flow has no account yet)", *fs.LinkAccountID)
 	}
 	if fs.ReturnTo != "/me" {
 		t.Errorf("ReturnTo = %q, want /me", fs.ReturnTo)
@@ -372,5 +372,52 @@ func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 	}
 	if !found {
 		t.Error("no audit register row with reason=invite_only_redemption")
+	}
+}
+
+func TestEnrollmentStartFederation_SteamFullHTTPFlow(t *testing.T) {
+	h := newInviteTestServer(t)
+	provider := seedSteamProvider(t, h)
+	h.q.seedEnrollment(validInvite("tok-steam", provider.Slug, "invited-steam"))
+	avatars := &serverAvatarRecorder{}
+	h.s.federationService.SetAvatarManager(avatars)
+
+	loc, resp := h.driveStartFederation(t, "tok-steam", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", resp.StatusCode)
+	}
+	actionURL, err := url.Parse(loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := actionURL.Query().Get("state")
+	q := url.Values{
+		"state":       {state},
+		"openid.mode": {"id_res"},
+	}
+	resp = h.hitCallback(t, provider.Slug, q)
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/me" {
+		t.Fatalf("callback status/location = %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if len(h.q.sessions) != 1 {
+		t.Fatalf("sessions inserted = %d, want 1", len(h.q.sessions))
+	}
+	session := h.q.sessions[0]
+	if len(session.Amr) != 1 || session.Amr[0] != "steam" ||
+		session.UpstreamIdpID == nil || *session.UpstreamIdpID != provider.ID {
+		t.Fatalf("Steam invite session = %+v", session)
+	}
+	enrollment, err := h.q.GetEnrollmentByToken(context.Background(), "tok-steam")
+	if err != nil || !enrollment.ConsumedAt.Valid {
+		t.Fatalf("Steam enrollment was not consumed: enrollment=%+v err=%v", enrollment, err)
+	}
+	if len(h.q.insertedAccounts) != 1 || h.q.insertedAccounts[0].Username != "invited-steam" ||
+		len(h.q.insertIdentitys) != 1 ||
+		h.q.insertIdentitys[0].UpstreamIss != "https://steamcommunity.com/openid" ||
+		h.q.insertIdentitys[0].UpstreamSub != "76561198000000000" {
+		t.Fatalf("Steam invite provisioning: accounts=%+v identities=%+v", h.q.insertedAccounts, h.q.insertIdentitys)
+	}
+	if avatars.calls != 1 || avatars.provider.ID != provider.ID {
+		t.Fatalf("Steam invite avatar inheritance = %+v", avatars)
 	}
 }

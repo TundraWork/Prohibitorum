@@ -24,8 +24,21 @@ const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en
 const mountView = () => mount(ConnectedAccountsView, { global: { plugins: [i18n()] }, attachTo: document.body })
 
 const IDENTITIES = [
-  { id: 1, idpSlug: 'okta', idpDisplayName: 'Okta', upstreamEmail: 'a@example.com', linkedAt: '2026-01-01T00:00:00Z' },
-  { id: 2, idpSlug: 'ad', idpDisplayName: 'Azure AD', upstreamEmail: null, linkedAt: '2026-02-01T00:00:00Z' },
+  {
+    id: 1, providerSlug: 'okta', providerDisplayName: 'Okta', protocol: 'oidc',
+    subject: '00u-123456789', email: 'a@example.com', data: { ignoredClaim: 'hidden' },
+    linkedAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 2, providerSlug: 'steam', providerDisplayName: 'Steam', protocol: 'steam',
+    subject: '76561198000000002', data: { personaName: 'AzureCaribou', profileUrl: 'https://steamcommunity.com/id/azurecaribou', privateKey: 'hidden' },
+    linkedAt: '2026-02-01T00:00:00Z',
+  },
+  {
+    id: 3, providerSlug: 'vrchat', providerDisplayName: 'VRChat', protocol: 'vrchat',
+    subject: 'usr_abcdef1234567890', data: { displayName: 'Caribou VR', profileUrl: 'https://vrchat.com/home/user/usr_abcdef1234567890', status: 'hidden' },
+    linkedAt: '2026-03-01T00:00:00Z',
+  },
 ]
 const PROVIDERS = [
   { slug: 'okta', displayName: 'Okta' },
@@ -54,12 +67,35 @@ function clickConfirm() {
 }
 
 describe('ConnectedAccountsView', () => {
-  it('lists linked identities with provider name and upstream email', async () => {
+  it('lists linked identities using the exact shared wire', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/identities')
     expect(w.text()).toContain('Okta')
     expect(w.text()).toContain('a@example.com')
-    expect(w.text()).toContain('Azure AD')
+    expect(w.text()).toContain('Steam')
+    expect(w.text()).toContain('VRChat')
+  })
+
+  it('renders useful protocol-aware labels and suppresses unknown metadata', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain(en.identity.subject)
+    expect(w.text()).toContain('00u-123456789')
+    expect(w.text()).toContain(en.identity.email)
+    expect(w.text()).toContain(en.identity.steamId)
+    expect(w.text()).toContain('76561198000000002')
+    expect(w.text()).toContain(en.identity.personaName)
+    expect(w.text()).toContain('AzureCaribou')
+    expect(w.text()).toContain(en.identity.vrchatUserId)
+    expect(w.text()).toContain('usr_abcdef1234567890')
+    expect(w.text()).toContain(en.identity.displayName)
+    expect(w.text()).toContain('Caribou VR')
+    expect(w.text()).toContain(en.identity.profileUrl)
+    expect(w.text()).not.toContain('ignoredClaim')
+    expect(w.text()).not.toContain('privateKey')
+    expect(w.text()).not.toContain('status')
+    expect(w.text()).not.toContain('hidden')
   })
 
   it('shows Connected badge (not Linked) and redirect note', async () => {
@@ -145,10 +181,10 @@ describe('ConnectedAccountsView', () => {
     expect(btn.text()).toContain('O')
   })
 
-  it('linked-identity row renders an <img> whose src is built from the idpSlug', async () => {
+  it('linked-identity row builds its icon source from providerSlug', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    // Find the card that contains the unlink button for identity 1 (idpSlug='okta').
+    // Find the card that contains the unlink button for providerSlug='okta'.
     // The AppIcon is rendered inside the same CardContent — locate the img relative to
     // the nearest ancestor that also holds the unlink button.
     const unlinkBtn = w.find('[data-test="unlink-1"]')

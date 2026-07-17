@@ -36,6 +36,7 @@ import BackLink from '@/components/custom/BackLink.vue'
 import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import IdentityMetadata, { type AccountIdentity } from '@/components/custom/IdentityMetadata.vue'
 
 interface Account {
   id: number; username: string; displayName: string; role: string
@@ -65,6 +66,9 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const { busy, error, run, clear } = useApi()
+// Linked identities load independently so their failure cannot be erased by
+// successful account mutations or hide errors from other account sections.
+const identitiesApi = useApi()
 // Separate composable for group membership operations — avoid busy-guard race.
 const groupsApi = useApi()
 // Separate composable for the all-groups list used in the picker.
@@ -74,6 +78,8 @@ const id = Number(route.params.id)
 const account = ref<Account | null>(null)
 const credentials = ref<Credential[]>([])
 const sessions = ref<SessionListItem[]>([])
+const identities = ref<AccountIdentity[]>([])
+const identitiesLoaded = ref(false)
 const accountGroups = ref<GroupView[]>([])
 const allGroups = ref<GroupView[]>([])
 const selectedGroupId = ref<string>('')
@@ -133,6 +139,15 @@ async function loadCredentials(): Promise<void> {
   const creds = await run(() => api.get<Page<Credential>>(buildPagePath(`/api/prohibitorum/accounts/${id}/credentials`, { limit: 100 })))
   if (creds) credentials.value = unwrap(creds).items
 }
+async function loadIdentities(): Promise<void> {
+  const result = await identitiesApi.run(() =>
+    api.get<AccountIdentity[]>(`/api/prohibitorum/accounts/${id}/identities`),
+  )
+  if (result !== undefined) {
+    identities.value = result
+    identitiesLoaded.value = true
+  }
+}
 async function loadSessions(): Promise<void> {
   const res = await run(() => api.get<Page<SessionListItem>>(buildPagePath(`/api/prohibitorum/accounts/${id}/sessions`, { limit: 100 })))
   if (res) sessions.value = unwrap(res).items
@@ -161,6 +176,7 @@ async function load(): Promise<void> {
   await loadCredentials()
   await loadSessions()
   await loadTokens()
+  await loadIdentities()
 }
 
 // Groups computed: groups the account is not yet in — used by the add-picker.
@@ -333,6 +349,28 @@ onMounted(async () => {
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.account.save') }}</Button>
             <StatusMessage :show="saved">{{ t('admin.account.saved') }}</StatusMessage>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-test="linked-identities">
+        <CardHeader><CardTitle>{{ t('identity.linkedIdentities') }}</CardTitle></CardHeader>
+        <CardContent class="flex flex-col">
+          <ErrorPanel :error="identitiesApi.error.value" @dismiss="identitiesApi.clear" :is-admin="true" />
+          <p v-if="identitiesApi.busy.value && !identitiesLoaded" role="status" class="text-sm text-muted">{{ t('common.loading') }}</p>
+          <p v-else-if="identitiesLoaded && identities.length === 0" class="text-sm text-muted">{{ t('identity.linkedIdentitiesEmpty') }}</p>
+          <div
+            v-for="identity in identities"
+            :key="identity.id"
+            class="flex min-w-0 flex-col gap-2 border-t border-border py-4 first:border-t-0 first:pt-0 last:pb-0"
+          >
+            <div class="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+              <p class="min-w-0 truncate font-medium text-ink" :title="identity.providerDisplayName">
+                {{ identity.providerDisplayName }}
+              </p>
+              <p class="shrink-0 text-xs text-muted">{{ t('connected.connectedOn', { date: relativeTime(identity.linkedAt) }) }}</p>
+            </div>
+            <IdentityMetadata :identity="identity" />
           </div>
         </CardContent>
       </Card>
