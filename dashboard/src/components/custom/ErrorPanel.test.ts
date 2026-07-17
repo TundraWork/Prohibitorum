@@ -443,6 +443,36 @@ describe('ErrorPanel — diagnostic fetch staleness guard', () => {
     expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(false)
   })
 
+  it('invalidates an in-flight diagnostic when admin access is removed', async () => {
+    const { promise, resolve: resolveFetch } = Promise.withResolvers<typeof DIAGNOSTIC_RECORD>()
+    vi.mocked(api.get).mockReturnValueOnce(promise)
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    await w.get('[data-test="error-diagnostic"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="diagnostic-loading"]').exists()).toBe(true)
+
+    await w.setProps({ isAdmin: false })
+    await flushPromises()
+    expect(w.find('[data-test="error-diagnostic"]').exists()).toBe(false)
+    expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(false)
+    expect(w.find('[data-test="diagnostic-error"]').exists()).toBe(false)
+    expect(w.find('[data-test="diagnostic-record"]').exists()).toBe(false)
+
+    resolveFetch(DIAGNOSTIC_RECORD)
+    await flushPromises()
+    expect(w.find('[data-test="diagnostic-loading"]').exists()).toBe(false)
+    expect(w.find('[data-test="diagnostic-error"]').exists()).toBe(false)
+    expect(w.find('[data-test="diagnostic-record"]').exists()).toBe(false)
+
+    await w.setProps({ isAdmin: true })
+    await flushPromises()
+    expect(w.find('[data-test="error-diagnostic"]').exists()).toBe(true)
+    expect(w.find('[data-test="diagnostic-record"]').exists()).toBe(false)
+  })
+
   it('does not write stale state when dismissed during fetch', async () => {
     let resolveFetch!: (v: typeof DIAGNOSTIC_RECORD) => void
     vi.mocked(api.get).mockReturnValueOnce(new Promise((r) => { resolveFetch = r }))

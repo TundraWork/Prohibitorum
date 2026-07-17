@@ -133,6 +133,12 @@ const detailEntries = computed(() => {
 
 const showRequestId = computed(() => !!props.error?.requestId)
 const showDiagnostic = computed(() => props.isAdmin && showRequestId.value)
+watch(showDiagnostic, (visible) => {
+  if (visible) return
+  diagSeq++
+  diagState.value = 'idle'
+  diagRecord.value = null
+})
 
 async function copyRequestId(): Promise<void> {
   const rid = props.error?.requestId
@@ -312,7 +318,7 @@ const diagFields = computed(() => {
     </dl>
 
     <div
-      v-if="diagState === 'loading'"
+      v-if="showDiagnostic && diagState === 'loading'"
       data-test="diagnostic-loading"
       class="mt-3 text-xs text-muted"
       role="status"
@@ -321,7 +327,7 @@ const diagFields = computed(() => {
     </div>
 
     <div
-      v-if="diagState === 'error'"
+      v-if="showDiagnostic && diagState === 'error'"
       data-test="diagnostic-error"
       class="mt-3 text-xs text-destructive"
       role="alert"
@@ -330,7 +336,7 @@ const diagFields = computed(() => {
     </div>
 
     <dl
-      v-if="diagState === 'loaded' && diagRecord"
+      v-if="showDiagnostic && diagState === 'loaded' && diagRecord"
       data-test="diagnostic-record"
       role="region"
       :aria-label="t('errors.diagnosticRecord')"
