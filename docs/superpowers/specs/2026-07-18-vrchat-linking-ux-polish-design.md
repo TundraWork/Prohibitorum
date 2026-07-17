@@ -91,7 +91,7 @@ The page continues to make no API request and renders identical content for vali
 
 Add a dedicated `VRChatButton.vue` beside `SteamButton.vue` and select it by `provider.protocol === 'vrchat'`.
 
-- Built-in official VRChat mark from the official press-kit asset, checked into `dashboard/src/assets`.
+- Built-in predefined VRChat mark using the vetted Simple Icons VRChat vector, checked into `dashboard/src/assets`; it reproduces the official mark and does not depend on an admin-uploaded provider icon.
 - Background: VRChat Blue `#00A2E8`.
 - Text and icon: `#0B1A21`.
 - Text contrast: 6.19:1. White on the same blue is 2.86:1 and is not used.
