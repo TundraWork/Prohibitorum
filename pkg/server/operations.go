@@ -40,6 +40,7 @@ func humaConfig() huma.Config {
 	// *PublicError values before serialization.
 	cfg.Transformers = append(cfg.Transformers, func(ctx huma.Context, status string, v any) (any, error) {
 		if pe, ok := v.(*weberr.PublicError); ok {
+			_, pe.Code, pe.Details = weberr.Canonicalize(pe.Code, pe.Details)
 			pe.RequestID = weberr.RequestIDFromContext(ctx.Context())
 			observeDiagnostic(ctx.Context(), pe.Code, pe.Details)
 		}
@@ -122,28 +123,7 @@ func newHumaValidationError(status int, msg string, errs ...error) huma.StatusEr
 // details. The request ID is read from the context (set by the RequestID
 // middleware).
 func writeHumaPublicErr(ctx huma.Context, code string, details map[string]any) {
-	def, ok := weberr.DefinitionFor(code)
-	if !ok {
-		def, _ = weberr.DefinitionFor("server_error")
-		code = "server_error"
-		details = nil
-	}
-	// Filter details against the definition's whitelist.
-	if len(details) > 0 && len(def.DetailKeys) > 0 {
-		filtered := make(map[string]any, len(details))
-		for k, v := range details {
-			if _, allowed := def.DetailKeys[k]; allowed {
-				filtered[k] = v
-			}
-		}
-		if len(filtered) == 0 {
-			details = nil
-		} else {
-			details = filtered
-		}
-	} else if len(def.DetailKeys) == 0 {
-		details = nil
-	}
+	def, code, details := weberr.Canonicalize(code, details)
 	observeDiagnostic(ctx.Context(), code, details)
 	requestID := weberr.RequestIDFromContext(ctx.Context())
 	ctx.SetHeader("Content-Type", "application/json")

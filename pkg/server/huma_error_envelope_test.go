@@ -367,3 +367,62 @@ func TestDiagnosticCaptureRecordsDirectHumaAuthRejection(t *testing.T) {
 		t.Fatalf("account/fields = %v/%#v, want unauthenticated safe record", got.AccountID, got.Fields)
 	}
 }
+
+func TestDiagnosticCaptureCanonicalizesUnknownTypedHumaError(t *testing.T) {
+	store := &recordingDiagnosticWriter{}
+	router, api := buildTestAPIWithDiagnostic(t, store)
+
+	type out struct{ Body struct{ OK bool } }
+	registerOp(api, huma.Operation{
+		Method: http.MethodGet,
+		Path:   "/test/diagnostic-unknown",
+	}, func(ctx context.Context, input *struct{}) (*out, error) {
+		return nil, &weberr.PublicError{
+			Code:    "private_internal_code",
+			Details: map[string]any{"secret": "must-not-survive"},
+		}
+	}, contract.AuthRequirement{Kind: contract.AuthSession})
+
+	handler := weberr.RequestID(router)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, testReqWithSession(http.MethodGet, "/test/diagnostic-unknown", "", ""))
+
+	env := assertRequestIDMatchesHeader(t, rr)
+	if env.Code != "server_error" || env.Details != nil {
+		t.Fatalf("envelope = %#v, want canonical server_error", env)
+	}
+	if len(store.records) != 1 || store.records[0].Code != "server_error" || len(store.records[0].Fields) != 0 {
+		t.Fatalf("records = %#v, want one canonical safe record", store.records)
+	}
+}
+
+func TestDiagnosticCaptureFiltersMixedTypedHumaDetails(t *testing.T) {
+	store := &recordingDiagnosticWriter{}
+	router, api := buildTestAPIWithDiagnostic(t, store)
+
+	type out struct{ Body struct{ OK bool } }
+	registerOp(api, huma.Operation{
+		Method: http.MethodGet,
+		Path:   "/test/diagnostic-mixed",
+	}, func(ctx context.Context, input *struct{}) (*out, error) {
+		return nil, &weberr.PublicError{
+			Code: "invalid_role",
+			Details: map[string]any{
+				"allowed": []string{"user", "admin"},
+				"secret":  "must-not-survive",
+			},
+		}
+	}, contract.AuthRequirement{Kind: contract.AuthSession})
+
+	handler := weberr.RequestID(router)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, testReqWithSession(http.MethodGet, "/test/diagnostic-mixed", "", ""))
+
+	env := assertRequestIDMatchesHeader(t, rr)
+	if env.Code != "invalid_role" || len(env.Details) != 1 || env.Details["allowed"] == nil {
+		t.Fatalf("envelope = %#v, want only allowed details", env)
+	}
+	if len(store.records) != 1 || len(store.records[0].Fields) != 1 || store.records[0].Fields["allowed"] == nil {
+		t.Fatalf("records = %#v, want only allowed details", store.records)
+	}
+}

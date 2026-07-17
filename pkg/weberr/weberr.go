@@ -60,10 +60,39 @@ func observePublicError(w http.ResponseWriter, code string, details map[string]a
 	}
 }
 
+// Canonicalize returns the registered definition, final public code, and only
+// detail fields whose keys are allowlisted by that definition. Unknown codes
+// fall back to server_error with no details.
+func Canonicalize(code string, details map[string]any) (Definition, string, map[string]any) {
+	def, ok := DefinitionFor(code)
+	if !ok {
+		def, _ = DefinitionFor("server_error")
+		return def, "server_error", nil
+	}
+	if len(details) == 0 || len(def.DetailKeys) == 0 {
+		return def, code, nil
+	}
+	for key := range details {
+		if _, allowed := def.DetailKeys[key]; !allowed {
+			filtered := make(map[string]any, len(details)-1)
+			for candidate, value := range details {
+				if _, keep := def.DetailKeys[candidate]; keep {
+					filtered[candidate] = value
+				}
+			}
+			if len(filtered) == 0 {
+				filtered = nil
+			}
+			return def, code, filtered
+		}
+	}
+	return def, code, details
+}
+
 // WriteJSON writes a PublicError envelope to an http.ResponseWriter. The code
-// and details are validated against the registry (DefinitionFor + DetailKeys),
-// so an unregistered code or an undeclared detail key falls back to the
-// canonical "server_error" rather than emitting an unvetted envelope. The
+// and details are canonicalized against the registry (DefinitionFor +
+// DetailKeys), so an unregistered code falls back to "server_error" and
+// undeclared detail keys are removed before writing or observation. The
 // status is taken from the registered definition, not the caller — callers
 // pass code + details, the registry authoritatively maps to status.
 //
@@ -75,31 +104,7 @@ func observePublicError(w http.ResponseWriter, code string, details map[string]a
 // The X-Request-ID response header is set by the RequestID middleware, not
 // here, so it appears on every response regardless of success or failure.
 func WriteJSON(w http.ResponseWriter, code string, details map[string]any, requestID string) {
-	def, ok := DefinitionFor(code)
-	if !ok {
-		// Unregistered code: never emit an unvetted code to the wire. Fall back
-		// to server_error, which is always registered at init.
-		def, _ = DefinitionFor("server_error")
-		code = "server_error"
-		details = nil
-	}
-	// Validate detail keys against the definition's whitelist.
-	if len(details) > 0 && len(def.DetailKeys) > 0 {
-		filtered := make(map[string]any, len(details))
-		for k, v := range details {
-			if _, allowed := def.DetailKeys[k]; allowed {
-				filtered[k] = v
-			}
-		}
-		if len(filtered) == 0 {
-			details = nil
-		} else {
-			details = filtered
-		}
-	} else if len(def.DetailKeys) == 0 {
-		// Definition declares no detail keys — drop everything.
-		details = nil
-	}
+	def, code, details := Canonicalize(code, details)
 	observePublicError(w, code, details)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(def.Status)

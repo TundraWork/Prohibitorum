@@ -60,7 +60,14 @@ func diagnosticCaptureMW(store diagnostic.StoreWriter) func(http.Handler) http.H
 				return
 			}
 
-			route := chi.RouteContext(r.Context()).RoutePattern()
+			routeCtx := chi.RouteContext(r.Context())
+			route := routeCtx.RoutePattern()
+			if route == "" && routeCtx.Routes != nil {
+				matchedCtx := chi.NewRouteContext()
+				if routeCtx.Routes.Match(matchedCtx, r.Method, r.URL.Path) {
+					route = matchedCtx.RoutePattern()
+				}
+			}
 			if route == "" {
 				route = "unmatched"
 			}
