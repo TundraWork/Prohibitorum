@@ -840,11 +840,13 @@ export default {
 
   vrchatProof: {
     title: 'VRChat 验证链接',
-    explanation: '这是一个由 Prohibitorum 签发的一次性 VRChat 所有权验证链接。',
-    invariant: '访问此页面不会让任何人登录、验证个人资料所有权或批准访问。',
+    explanation: '此 VRChat 个人资料的所有者临时添加了该链接，用于向 {instance} 证明其拥有此个人资料的控制权。',
+    guestTitle: '你是从他人的个人资料进入此页面吗？',
+    guestBody: '你无需进行任何操作。打开此页面不会验证对方的身份、让你登录、批准访问，也不会让对方访问你的账户。',
+    ownerTitle: '如果这是你的个人资料',
     instructionsLabel: '个人资料所有者应执行的操作',
-    return: '返回 Prohibitorum 并按“验证个人资料”。',
-    remove: 'Prohibitorum 确认验证后，请移除此链接。',
+    return: '返回 {instance} 并选择“验证个人资料”。',
+    remove: '{instance} 确认验证后，请移除此链接。',
     close: '你可以关闭此页面。',
   },
 

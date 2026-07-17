@@ -844,11 +844,13 @@ export default {
 
   vrchatProof: {
     title: 'VRChat verification link',
-    explanation: 'This is a one-time Prohibitorum VRChat ownership-verification link.',
-    invariant: 'Visiting this page does not sign anyone in, verify profile ownership, or approve access.',
+    explanation: 'The owner of this VRChat profile temporarily added this link to prove they control the profile to {instance}.',
+    guestTitle: "Visiting someone else's profile?",
+    guestBody: 'You do not need to do anything. Opening this page does not verify the person, sign you in, approve access, or give them access to your account.',
+    ownerTitle: 'If this is your profile',
     instructionsLabel: 'What the profile owner should do',
-    return: 'Return to Prohibitorum and press Verify profile.',
-    remove: 'Remove the link after Prohibitorum confirms verification.',
+    return: 'Return to {instance} and select Verify profile.',
+    remove: 'Remove this link after {instance} confirms verification.',
     close: 'You can close this page.',
   },
 
