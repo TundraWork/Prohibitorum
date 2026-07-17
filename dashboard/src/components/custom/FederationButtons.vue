@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import AppIcon from '@/components/custom/AppIcon.vue'
 import SteamButton from '@/components/custom/SteamButton.vue'
+import VRChatButton from '@/components/custom/VRChatButton.vue'
 
 interface FederationProvider {
   slug: string
@@ -74,6 +75,11 @@ function startFederation(slug: string): void {
       <template v-for="p in providers" :key="p.slug">
         <SteamButton
           v-if="p.protocol === 'steam'"
+          :label="p.displayName"
+          @click="startFederation(p.slug)"
+        />
+        <VRChatButton
+          v-else-if="p.protocol === 'vrchat'"
           :label="p.displayName"
           @click="startFederation(p.slug)"
         />

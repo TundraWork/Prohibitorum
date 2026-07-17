@@ -27,6 +27,7 @@ const PROVIDERS_WITH_ICON = [
 
 const PROVIDERS_MIXED = [
   { slug: 'steamco', displayName: 'Steam', protocol: 'steam' },
+  { slug: 'vrchat', displayName: 'VRChat', protocol: 'vrchat', iconUrl: '/ignored-admin-icon' },
   { slug: 'okta', displayName: 'Okta', protocol: 'oidc' },
 ]
 
@@ -85,32 +86,33 @@ describe('FederationButtons', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders SteamButton for steam protocol and generic button for oidc', async () => {
+  it('renders Steam and VRChat with branded buttons and OIDC with a generic button', async () => {
     get.mockResolvedValue(PROVIDERS_MIXED)
     const w = mountComp(); await flushPromises()
-    // Steam provider renders the bespoke button (data-test="steam-login")
-    expect(w.find('[data-test="steam-login"]').exists()).toBe(true)
-    expect(w.find('[data-test="steam-login"]').text()).toContain('Steam')
-    // OIDC provider still renders the generic outline button (no steam-login attr)
-    const buttons = w.findAll('button')
-    expect(buttons).toHaveLength(2)
-    // Only the first button has the steam-login test id
-    expect(buttons[0]!.attributes('data-test')).toBe('steam-login')
-    expect(buttons[1]!.attributes('data-test')).toBeUndefined()
-    expect(buttons[1]!.text()).toContain('Okta')
+
+    expect(w.findAll('[data-test="steam-login"]')).toHaveLength(1)
+    expect(w.findAll('[data-test="vrchat-login"]')).toHaveLength(1)
+
+    const genericButtons = w.findAll('button').filter((button) =>
+      button.attributes('data-test') === undefined)
+    expect(genericButtons).toHaveLength(1)
+    expect(genericButtons[0]!.classes()).toContain('border')
+    expect(genericButtons[0]!.text()).toContain('Okta')
   })
 
-  it('renders VRChat through the generic AppIcon and outline button path', async () => {
+  it('renders VRChat with the predefined branded button', async () => {
     get.mockResolvedValue([
-      { slug: 'vrchat', displayName: 'VRChat', protocol: 'vrchat' },
+      { slug: 'vrchat', displayName: 'VRChat', protocol: 'vrchat', iconUrl: '/ignored-admin-icon' },
     ])
-    const w = mountComp(); await flushPromises()
+    const w = mountComp()
+    await flushPromises()
 
-    const button = w.get('button')
-    expect(button.attributes('data-test')).toBeUndefined()
-    expect(button.classes()).toContain('border')
+    const button = w.get('[data-test="vrchat-login"]')
     expect(button.text()).toContain('VRChat')
-    expect(button.find('img').exists()).toBe(false)
-    expect(button.text()).toContain('V')
+    expect(button.classes()).toEqual(expect.arrayContaining(['bg-[#00A2E8]', 'text-[#0B1A21]']))
+    expect(button.classes()).toContain('active:bg-[#008BC8]')
+    expect(button.find('img').attributes('src')).toContain('vrchat-logo')
+    expect(button.find('img').attributes('alt')).toBe('')
+    expect(button.text()).not.toContain('VVRChat')
   })
 })
