@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ExternalLink } from 'lucide-vue-next'
+import { Clock3, ExternalLink } from 'lucide-vue-next'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
@@ -65,6 +65,11 @@ const expiry = computed(() => {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date)
+})
+const profileIdentifier = computed(() => {
+  const raw = flow.value?.profileUrl ?? ''
+  const parts = raw.split('/').filter(Boolean)
+  return parts.at(-1) || raw
 })
 
 function normalizeError(value: unknown): ApiError {
@@ -277,23 +282,33 @@ function continueFlow(): void {
           {{ t('federationFlow.proofTitle') }}
         </h2>
 
-        <div class="flex flex-col gap-1">
-          <span class="text-xs text-muted">{{ t('federationFlow.profileLabel') }}</span>
-          <a
+        <div
+          data-test="profile-context"
+          class="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-sunken/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="min-w-0">
+            <p class="text-xs text-muted">{{ t('federationFlow.profileLabel') }}</p>
+            <code class="block truncate font-mono text-xs text-ink">{{ profileIdentifier }}</code>
+          </div>
+          <Button
+            as="a"
             data-test="profile-link"
             :href="flow.profileUrl"
             target="_blank"
             rel="noopener noreferrer"
-            :aria-label="`${t('federationFlow.openProfile')}: ${flow.profileUrl}`"
-            class="inline-flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md text-tide-strong underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            variant="outline"
+            size="sm"
+            class="min-h-11 w-full sm:w-auto"
+            :aria-label="`${t('federationFlow.openProfile')}: ${profileIdentifier}`"
           >
-            <span class="min-w-0 break-all font-mono text-xs">{{ flow.profileUrl }}</span>
-            <ExternalLink class="size-4 shrink-0" aria-hidden="true" />
-          </a>
+            {{ t('federationFlow.openProfile') }}
+            <ExternalLink class="size-4" aria-hidden="true" />
+          </Button>
         </div>
 
         <CodeField
           v-if="flow.proofUrl"
+          data-test="proof-url"
           :value="flow.proofUrl"
           :label="t('federationFlow.proofUrlLabel')"
           :copy-label="t('federationFlow.copyProofUrl')"
@@ -301,18 +316,34 @@ function continueFlow(): void {
         />
 
         <ol
-          class="list-decimal space-y-2 ps-5 text-sm text-ink"
+          data-test="proof-steps"
+          class="grid gap-3"
           :aria-label="t('federationFlow.instructionsLabel')"
         >
-          <li>{{ t('federationFlow.stepCopy') }}</li>
-          <li>{{ t('federationFlow.stepAdd') }}</li>
-          <li>{{ t('federationFlow.stepReturn') }}</li>
+          <li
+            v-for="(step, index) in [t('federationFlow.stepCopy'), t('federationFlow.stepAdd'), t('federationFlow.stepReturn')]"
+            :key="step"
+            class="grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-2 text-sm leading-5 text-ink"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-flex size-7 items-center justify-center rounded-full bg-tide/10 text-xs font-semibold text-tide-strong"
+            >{{ index + 1 }}</span>
+            <span class="pt-1">{{ step }}</span>
+          </li>
         </ol>
 
-        <p class="text-sm text-muted">{{ t('federationFlow.expires', { time: expiry }) }}</p>
+        <p data-test="proof-expiry" role="status" class="flex items-center gap-2 text-xs text-muted">
+          <Clock3 class="size-4 shrink-0" aria-hidden="true" />
+          {{ t('federationFlow.expires', { time: expiry }) }}
+        </p>
       </section>
 
-      <div v-if="flow.requiresLocalUsername" class="flex flex-col gap-1.5">
+      <div
+        v-if="flow.requiresLocalUsername"
+        data-test="local-username-section"
+        class="flex flex-col gap-1.5 border-t border-border pt-4"
+      >
         <Label for="local-username">{{ t('federationFlow.usernameLabel') }}</Label>
         <Input
           id="local-username"

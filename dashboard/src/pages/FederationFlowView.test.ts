@@ -111,10 +111,10 @@ describe('FederationFlowView', () => {
     const profile = wrapper.get('[data-test="profile-link"]')
     expect(profile.attributes('href')).toBe(proofFlow.profileUrl)
     expect(profile.attributes('target')).toBe('_blank')
-    expect(profile.text()).toContain(proofFlow.profileUrl)
-    expect(profile.get('.font-mono').classes()).toContain('break-all')
+    expect(profile.text()).toBe(en.federationFlow.openProfile)
+    expect(wrapper.get('[data-test="profile-context"] code').text()).toBe('usr_12345678-1234-1234-1234-123456789abc')
     expect(wrapper.get('[data-test="locale-trigger"]').classes()).toContain('h-11')
-    expect(wrapper.get('code').text()).toBe(proofFlow.proofUrl)
+    expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
     expect(wrapper.findAll('ol li')).toHaveLength(3)
     expect(wrapper.text()).toContain('Expires')
     expect(wrapper.find('input[name="localUsername"]').exists()).toBe(false)
@@ -123,12 +123,38 @@ describe('FederationFlowView', () => {
     expect(get).toHaveBeenCalledTimes(1)
   })
 
+  it('presents profile context, proof steps, and expiry as one ordered task', async () => {
+    get.mockResolvedValue(proofFlow)
+    const wrapper = await mountView()
+
+    const context = wrapper.get('[data-test="profile-context"]')
+    expect(context.text()).toContain('usr_12345678-1234-1234-1234-123456789abc')
+    const profileLink = context.get('[data-test="profile-link"]')
+    expect(profileLink.text()).toContain(en.federationFlow.openProfile)
+    expect(profileLink.attributes('href')).toBe(proofFlow.profileUrl)
+
+    expect(wrapper.get('[data-test="copy-code"]').attributes('aria-label')).toBe(en.federationFlow.copyProofUrl)
+    const steps = wrapper.get('[data-test="proof-steps"]')
+    expect(steps.element.tagName).toBe('OL')
+    expect(steps.findAll('li')).toHaveLength(3)
+    expect(wrapper.get('[data-test="proof-expiry"]').text()).toContain('Expires')
+    expect(wrapper.get('[data-test="verify-profile"]').text()).toBe(en.federationFlow.verify)
+  })
+
   it('shows the local username only when the flow requires it', async () => {
     get.mockResolvedValue({ ...proofFlow, requiresLocalUsername: true })
     const wrapper = await mountView()
 
     expect(wrapper.get('label[for="local-username"]').text()).toBe('Local username')
     expect(wrapper.get('input[name="localUsername"]').attributes('autocomplete')).toBe('username')
+
+    const proofSection = wrapper.get('[aria-labelledby="proof-heading"]')
+    const usernameSection = wrapper.get('[data-test="local-username-section"]')
+    const errorArea = wrapper.get('#federation-proof-error')
+    const verifyAction = wrapper.get('[data-test="verify-profile"]')
+    expect(proofSection.element.compareDocumentPosition(usernameSection.element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(usernameSection.element.compareDocumentPosition(errorArea.element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(errorArea.element.compareDocumentPosition(verifyAction.element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it('keeps proof controls available and focuses Verify profile when the bio link is missing', async () => {
@@ -140,7 +166,7 @@ describe('FederationFlowView', () => {
     await flushPromises()
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Add the issued verification link')
-    expect(wrapper.get('code').text()).toBe(proofFlow.proofUrl)
+    expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
     expect(wrapper.get('[data-test="verify-profile"]').attributes('disabled')).toBeUndefined()
     expect(document.activeElement).toBe(wrapper.get('[data-test="verify-profile"]').element)
   })
@@ -158,7 +184,7 @@ describe('FederationFlowView', () => {
 
     expect(get).toHaveBeenNthCalledWith(2, basePath)
     expect(post).toHaveBeenCalledWith(`${basePath}/verify`)
-    expect(wrapper.get('code').text()).toBe(proofFlow.proofUrl)
+    expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
     expect(wrapper.get('input[name="localUsername"]').exists()).toBe(true)
     expect(document.activeElement).toBe(wrapper.get('input[name="localUsername"]').element)
   })
@@ -172,7 +198,7 @@ describe('FederationFlowView', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.get('code').text()).toBe(proofFlow.proofUrl)
+    expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
     expect(wrapper.get('[role="alert"]').text()).toContain('already taken')
     expect(document.activeElement).toBe(wrapper.get('input[name="localUsername"]').element)
   })
@@ -186,7 +212,7 @@ describe('FederationFlowView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Try again in 37 seconds.')
-    expect(wrapper.get('code').text()).toBe(proofFlow.proofUrl)
+    expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
   })
 
   it('uses the terminal ErrorPanel when the flow GET fails', async () => {
@@ -214,7 +240,7 @@ describe('FederationFlowView', () => {
     await wrapper.get('[data-test="copy-code"]').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('Copy failed. Select and copy the value manually.')
-    expect(wrapper.get('code').text()).toBe(proofFlow.proofUrl)
+    expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
   })
 
   it('announces verification success without automatic navigation and redirects only on Continue', async () => {
@@ -241,7 +267,7 @@ describe('FederationFlowView', () => {
 
     await wrapper.get('input[name="localUsername"]').setValue('alex')
     expect(wrapper.get('[data-test="verify-profile"]').text()).toBe('Verify profile')
-    expect(wrapper.get('[data-test="profile-link"]').attributes('aria-label')).toBe(`Open VRChat profile: ${proofFlow.profileUrl}`)
+    expect(wrapper.get('[data-test="profile-link"]').attributes('aria-label')).toBe('Open VRChat profile: usr_12345678-1234-1234-1234-123456789abc')
     expect(wrapper.get('[data-test="copy-code"]').attributes('aria-label')).toBe('Copy one-time proof URL')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
