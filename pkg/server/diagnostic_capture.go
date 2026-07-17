@@ -63,8 +63,15 @@ func diagnosticCaptureMW(store diagnostic.StoreWriter) func(http.Handler) http.H
 			routeCtx := chi.RouteContext(r.Context())
 			route := routeCtx.RoutePattern()
 			if route == "" && routeCtx.Routes != nil {
+				routePath := r.URL.RawPath
+				if routePath == "" {
+					routePath = r.URL.Path
+				}
+				if routePath == "" {
+					routePath = "/"
+				}
 				matchedCtx := chi.NewRouteContext()
-				if routeCtx.Routes.Match(matchedCtx, r.Method, r.URL.Path) {
+				if routeCtx.Routes.Match(matchedCtx, r.Method, routePath) {
 					route = matchedCtx.RoutePattern()
 				}
 			}

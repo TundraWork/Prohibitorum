@@ -104,3 +104,33 @@ func TestDiagnosticCaptureRecoversMatchedRouteAfterMaintenanceShortCircuit(t *te
 		t.Fatalf("account ID = %v, want 1", got.AccountID)
 	}
 }
+
+func TestDiagnosticCaptureRecoversRawPathRouteAfterMaintenanceShortCircuit(t *testing.T) {
+	store := &recordingDiagnosticWriter{}
+	router := chi.NewRouter()
+	router.Use(weberr.RequestID)
+	router.Use(diagnosticCaptureMW(store))
+	router.Use(maintenanceGateMW(maintenanceResolver(true)))
+	router.Post("/api/prohibitorum/widgets/{id}", func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("maintenance gate called protected handler")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/widgets/part%2Fnumber", nil)
+	if req.URL.RawPath == "" {
+		t.Fatal("test request RawPath is empty")
+	}
+	req = req.WithContext(authn.WithSession(req.Context(), sessionForRole("user")))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+	if len(store.records) != 1 {
+		t.Fatalf("records = %d, want 1", len(store.records))
+	}
+	got := store.records[0]
+	if got.Route != "/api/prohibitorum/widgets/{id}" || got.Operation != "POST /api/prohibitorum/widgets/{id}" {
+		t.Fatalf("route/operation = %q/%q", got.Route, got.Operation)
+	}
+}
