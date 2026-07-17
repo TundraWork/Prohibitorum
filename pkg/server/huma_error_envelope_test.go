@@ -17,6 +17,7 @@ import (
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/diagnostic"
 	"prohibitorum/pkg/weberr"
 )
 
@@ -26,6 +27,14 @@ import (
 func buildTestAPI(t *testing.T) (*chi.Mux, huma.API) {
 	t.Helper()
 	router := chi.NewMux()
+	api := humachi.New(router, humaConfig())
+	return router, api
+}
+
+func buildTestAPIWithDiagnostic(t *testing.T, store diagnostic.StoreWriter) (*chi.Mux, huma.API) {
+	t.Helper()
+	router := chi.NewMux()
+	router.Use(diagnosticCaptureMW(store))
 	api := humachi.New(router, humaConfig())
 	return router, api
 }
@@ -83,7 +92,9 @@ func assertRequestIDMatchesHeader(t *testing.T, rr *httptest.ResponseRecorder) w
 func TestTypedHumaError_RequestIDInBody(t *testing.T) {
 	router, api := buildTestAPI(t)
 
-	type in struct{ ID string `path:"id"` }
+	type in struct {
+		ID string `path:"id"`
+	}
 	type out struct{ Body struct{ OK bool } }
 	registerOp(api, huma.Operation{
 		Method: http.MethodGet,
@@ -145,7 +156,9 @@ func TestHumaValidationError_422_ValidationFailed(t *testing.T) {
 func TestHumaMalformedJSON_400_BadRequest(t *testing.T) {
 	router, api := buildTestAPI(t)
 
-	type body struct{ Name string `json:"name"` }
+	type body struct {
+		Name string `json:"name"`
+	}
 	type in struct{ Body body }
 	type out struct{ Body struct{ OK bool } }
 	registerOp(api, huma.Operation{
@@ -177,7 +190,9 @@ func TestHumaMalformedJSON_400_BadRequest(t *testing.T) {
 func TestHumaUnsupportedMediaType_415_UnsupportedMediaType(t *testing.T) {
 	router, api := buildTestAPI(t)
 
-	type body struct{ Name string `json:"name"` }
+	type body struct {
+		Name string `json:"name"`
+	}
 	type in struct{ Body body }
 	type out struct{ Body struct{ OK bool } }
 	registerOp(api, huma.Operation{
@@ -209,7 +224,9 @@ func TestHumaUnsupportedMediaType_415_UnsupportedMediaType(t *testing.T) {
 func TestTypedHumaRawError_500_ServerErrorNoDetails(t *testing.T) {
 	router, api := buildTestAPI(t)
 
-	type in struct{ ID string `path:"id"` }
+	type in struct {
+		ID string `path:"id"`
+	}
 	type out struct{ Body struct{ OK bool } }
 	secret := "postgres://user:super-secret-password@db.internal:5432/prod"
 	registerOp(api, huma.Operation{
@@ -248,7 +265,9 @@ func TestTypedHumaRawError_500_ServerErrorNoDetails(t *testing.T) {
 func TestWriteHumaPublicErr_PassesDetails(t *testing.T) {
 	router, api := buildTestAPI(t)
 
-	type in struct{ ID string `path:"id"` }
+	type in struct {
+		ID string `path:"id"`
+	}
 	type out struct{ Body struct{ OK bool } }
 	registerOp(api, huma.Operation{
 		Method: http.MethodGet,
@@ -282,5 +301,69 @@ func TestWriteHumaPublicErr_PassesDetails(t *testing.T) {
 	}
 	if len(arr) == 0 {
 		t.Fatal("allowed is empty")
+	}
+}
+
+func TestDiagnosticCaptureRecordsTypedHumaError(t *testing.T) {
+	store := &recordingDiagnosticWriter{}
+	router, api := buildTestAPIWithDiagnostic(t, store)
+
+	type in struct {
+		ID string `path:"id"`
+	}
+	type out struct{ Body struct{ OK bool } }
+	registerOp(api, huma.Operation{
+		Method: http.MethodGet,
+		Path:   "/test/diagnostic/{id}",
+	}, func(ctx context.Context, input *in) (*out, error) {
+		return nil, authErrToHuma(authn.ErrInvalidRole())
+	}, contract.AuthRequirement{Kind: contract.AuthSession})
+
+	handler := weberr.RequestID(router)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, testReqWithSession(http.MethodGet, "/test/diagnostic/1", "", ""))
+
+	if len(store.records) != 1 {
+		t.Fatalf("records = %d, want 1", len(store.records))
+	}
+	got := store.records[0]
+	if got.Code != "invalid_role" || got.Route != "/test/diagnostic/{id}" || got.Method != http.MethodGet {
+		t.Fatalf("record = %#v", got)
+	}
+	if got.AccountID == nil || *got.AccountID != 1 {
+		t.Fatalf("account ID = %v, want 1", got.AccountID)
+	}
+	if len(got.Fields) != 1 || got.Fields["allowed"] == nil {
+		t.Fatalf("fields = %#v, want only allowed", got.Fields)
+	}
+}
+
+func TestDiagnosticCaptureRecordsDirectHumaAuthRejection(t *testing.T) {
+	store := &recordingDiagnosticWriter{}
+	router, api := buildTestAPIWithDiagnostic(t, store)
+
+	type out struct{ Body struct{ OK bool } }
+	registerOp(api, huma.Operation{
+		Method: http.MethodGet,
+		Path:   "/test/diagnostic-auth/{id}",
+	}, func(ctx context.Context, input *struct {
+		ID string `path:"id"`
+	}) (*out, error) {
+		return &out{}, nil
+	}, contract.AuthRequirement{Kind: contract.AuthSession})
+
+	handler := weberr.RequestID(router)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/test/diagnostic-auth/1", nil))
+
+	if len(store.records) != 1 {
+		t.Fatalf("records = %d, want 1", len(store.records))
+	}
+	got := store.records[0]
+	if got.Code != "no_session" || got.Route != "/test/diagnostic-auth/{id}" || got.Method != http.MethodGet {
+		t.Fatalf("record = %#v", got)
+	}
+	if got.AccountID != nil || len(got.Fields) != 0 {
+		t.Fatalf("account/fields = %v/%#v, want unauthenticated safe record", got.AccountID, got.Fields)
 	}
 }

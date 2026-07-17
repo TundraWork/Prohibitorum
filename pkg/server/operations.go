@@ -17,7 +17,7 @@ import (
 	"prohibitorum/pkg/weberr"
 )
 
-//humaConfig returns a huma.Config with the project's response transformer
+// humaConfig returns a huma.Config with the project's response transformer
 // installed. The transformer stamps the request ID onto *weberr.PublicError
 // values before serialization so typed Huma handler errors carry the same
 // {code, details?, requestId} envelope as the raw chi handler path. It also
@@ -41,6 +41,7 @@ func humaConfig() huma.Config {
 	cfg.Transformers = append(cfg.Transformers, func(ctx huma.Context, status string, v any) (any, error) {
 		if pe, ok := v.(*weberr.PublicError); ok {
 			pe.RequestID = weberr.RequestIDFromContext(ctx.Context())
+			observeDiagnostic(ctx.Context(), pe.Code, pe.Details)
 		}
 		return v, nil
 	})
@@ -143,6 +144,7 @@ func writeHumaPublicErr(ctx huma.Context, code string, details map[string]any) {
 	} else if len(def.DetailKeys) == 0 {
 		details = nil
 	}
+	observeDiagnostic(ctx.Context(), code, details)
 	requestID := weberr.RequestIDFromContext(ctx.Context())
 	ctx.SetHeader("Content-Type", "application/json")
 	ctx.SetStatus(def.Status)

@@ -251,6 +251,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	}
 
 	clientIPResolver := clientip.NewResolver(clientip.NewPGStore(conn))
+	diagStore := diagnostic.New(queries)
 
 	router := chi.NewMux()
 	// Request ID middleware runs first so every response — including auth
@@ -259,6 +260,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	router.Use(weberr.RequestID)
 	router.Use(requestMetaMW(clientIPResolver.IP))
 	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
+	router.Use(diagnosticCaptureMW(diagStore))
 	router.Use(maintenanceGateMW(brandingResolver))
 	api := humachi.New(router, humaConfig())
 	registerSecurityScheme(api, sessstore.SessionCookieNameFor(config))
@@ -285,8 +287,6 @@ func NewServer(ctx context.Context) (*Server, error) {
 		federation.ServiceConfig{StateTTL: config.Federation.StateTTL, PublicOrigin: publicOrigin, Audit: auditWriter},
 	)
 	federationService.SetAvatarManager(federation.NewAvatarManager(queries, kvStore))
-
-	diagStore := diagnostic.New(queries)
 
 	// Build the admin pagination cursor codec from the configured DEK set.
 	// The active version is the highest-numbered key; all versions remain

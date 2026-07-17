@@ -50,6 +50,16 @@ func RedirectToErrorWithReturn(w http.ResponseWriter, r *http.Request, code, ref
 	http.Redirect(w, r, u, http.StatusFound)
 }
 
+type publicErrorObserver interface {
+	ObservePublicError(code string, details map[string]any)
+}
+
+func observePublicError(w http.ResponseWriter, code string, details map[string]any) {
+	if observer, ok := w.(publicErrorObserver); ok {
+		observer.ObservePublicError(code, details)
+	}
+}
+
 // WriteJSON writes a PublicError envelope to an http.ResponseWriter. The code
 // and details are validated against the registry (DefinitionFor + DetailKeys),
 // so an unregistered code or an undeclared detail key falls back to the
@@ -90,6 +100,7 @@ func WriteJSON(w http.ResponseWriter, code string, details map[string]any, reque
 		// Definition declares no detail keys — drop everything.
 		details = nil
 	}
+	observePublicError(w, code, details)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(def.Status)
 	_ = json.NewEncoder(w).Encode(PublicError{
