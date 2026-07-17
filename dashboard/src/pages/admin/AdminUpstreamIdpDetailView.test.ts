@@ -409,6 +409,30 @@ describe('AdminUpstreamIdpDetailView', () => {
     expect(w.text()).not.toContain('bad-password')
   })
 
+  it('renders operator failures after the active controls without using page error state', async () => {
+    post.mockRejectedValue({
+      code: 'upstream_temporarily_unavailable',
+      requestId: 'rid-operator',
+    })
+    put.mockResolvedValue({ ...VRCHAT, displayName: 'Updated VRChat' })
+    const w = await mountVrchat()
+    await w.get('input[name="operatorUsername"]').setValue('operator')
+    await w.get('input[name="operatorPassword"]').setValue('secret')
+    await w.get('[data-test="operator-credentials-form"]').trigger('submit')
+    await flushPromises()
+
+    const card = w.get('[data-test="operator-session-card"]')
+    const form = card.get('[data-test="operator-credentials-form"]')
+    const alert = card.get('[role="alert"]')
+    expect(w.findAll('[role="alert"]')).toHaveLength(1)
+    expect(form.element.compareDocumentPosition(alert.element) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(alert.text()).toContain(en.errors.codes.upstream_temporarily_unavailable)
+
+    await w.get('[data-test="save"]').trigger('click')
+    await flushPromises()
+    expect(card.get('[role="alert"]').text()).toContain(en.errors.codes.upstream_temporarily_unavailable)
+  })
+
   it.each([
     ['vrchat_operator_code_invalid', 'vrchat_operator_code_invalid'],
     ['upstream_rate_limited', 'upstream_rate_limited'],

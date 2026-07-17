@@ -35,6 +35,12 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const { busy, error, run, clear } = useApi()
+const {
+  busy: operatorBusy,
+  error: operatorError,
+  run: runOperator,
+  clear: clearOperator,
+} = useApi()
 
 const slug = String(route.params.slug)
 const idp = ref<IdentityProvider | null>(null)
@@ -286,7 +292,7 @@ async function startOperatorSession(): Promise<void> {
     password: operatorPassword.value,
   }
   try {
-    const result = await run(() => withSudo(async () => {
+    const result = await runOperator(() => withSudo(async () => {
       if (!isOperatorOperationCurrent(generation)) return undefined
       const response = await api.post<unknown>(
         `/api/prohibitorum/identity-providers/${slug}/operator-session/start`,
@@ -316,7 +322,7 @@ async function verifyOperatorSession(): Promise<void> {
     code: operatorCode.value,
   }
   try {
-    const result = await run(() => withSudo(async () => {
+    const result = await runOperator(() => withSudo(async () => {
       if (!isOperatorOperationCurrent(generation)) return undefined
       const response = await api.post<unknown>(
         `/api/prohibitorum/identity-providers/${slug}/operator-session/verify`,
@@ -330,7 +336,7 @@ async function verifyOperatorSession(): Promise<void> {
     }, t('sudo.reason.verifyOperatorSession')))
     if (!isOperatorOperationCurrent(generation)) return
     if (!result) {
-      if (error.value?.code === 'vrchat_operator_challenge_invalid') {
+      if (operatorError.value?.code === 'vrchat_operator_challenge_invalid') {
         clearOperatorChallenge()
         operatorSetupActive.value = true
         void focusOperatorUsername(generation)
@@ -349,7 +355,7 @@ async function verifyOperatorSession(): Promise<void> {
 
 async function validateOperatorSession(): Promise<void> {
   const generation = beginOperatorOperation()
-  const result = await run(async () => {
+  const result = await runOperator(async () => {
     try {
       return await withSudo(async () => {
         if (!isOperatorOperationCurrent(generation)) return undefined
@@ -384,7 +390,7 @@ async function validateOperatorSession(): Promise<void> {
 }
 
 function replaceOperatorSession(): void {
-  clear()
+  clearOperator()
   const generation = beginOperatorOperation()
   operatorUsername.value = ''
   operatorPassword.value = ''
@@ -579,7 +585,7 @@ onMounted(load)
             <Button
               type="submit"
               class="w-fit"
-              :disabled="busy || !operatorUsername || !operatorPassword"
+              :disabled="operatorBusy || !operatorUsername || !operatorPassword"
               data-test="operator-start"
             >
               {{ t('admin.upstream.operatorStart') }}
@@ -614,7 +620,7 @@ onMounted(load)
             <Button
               type="submit"
               class="w-fit"
-              :disabled="busy || !operatorMethod || !operatorCode"
+              :disabled="operatorBusy || !operatorMethod || !operatorCode"
               data-test="operator-verify"
             >
               {{ t('admin.upstream.operatorVerify') }}
@@ -624,7 +630,7 @@ onMounted(load)
           <div v-else class="flex flex-wrap gap-2">
             <Button
               type="button"
-              :disabled="busy"
+              :disabled="operatorBusy"
               data-test="operator-validate"
               @click="validateOperatorSession"
             >
@@ -633,13 +639,19 @@ onMounted(load)
             <Button
               type="button"
               variant="outline"
-              :disabled="busy"
+              :disabled="operatorBusy"
               data-test="operator-replace"
               @click="replaceOperatorSession"
             >
               {{ t('admin.upstream.operatorReplace') }}
             </Button>
           </div>
+          <ErrorPanel
+            v-if="operatorError"
+            :error="operatorError"
+            :is-admin="true"
+            @dismiss="clearOperator"
+          />
         </CardContent>
       </Card>
 
