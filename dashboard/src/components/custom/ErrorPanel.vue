@@ -25,7 +25,7 @@
  * - Recovery guidance text is always shown when a recovery hint exists, but
  *   the action button only renders when the parent wires @recovery.
  */
-import { ref, computed, watch, onBeforeUnmount, getCurrentInstance } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, getCurrentInstance, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { X, ChevronDown, Copy, Stethoscope, RotateCcw, LogIn } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -63,6 +63,7 @@ const emit = defineEmits<{
 
 const { t, te } = useI18n()
 const detailsOpen = ref(false)
+const detailsContentId = `error-details-${useId()}`
 const copied = ref(false)
 
 // --- diagnostic fetch state ---
@@ -200,25 +201,28 @@ const diagFields = computed(() => {
     variant="destructive"
     role="alert"
     aria-live="polite"
-    class="flex flex-col gap-2"
+    class="relative flex flex-col gap-0 border-destructive/25 bg-destructive/[0.05] px-4 py-3.5 pe-12"
   >
-    <div class="flex items-start gap-2">
-      <AlertDescription class="flex-1">{{ message }}</AlertDescription>
-      <button
-        v-if="dismissible"
-        type="button"
-        data-test="error-dismiss"
-        class="-m-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded text-destructive hover:text-destructive/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        :aria-label="t('errors.dismiss')"
-        @click="onDismiss"
-      >
-        <X class="size-4" aria-hidden="true" />
-      </button>
-    </div>
+    <AlertDescription data-test="error-summary" class="leading-5 text-destructive">
+      {{ message }}
+    </AlertDescription>
+
+    <button
+      v-if="dismissible"
+      type="button"
+      data-test="error-dismiss"
+      class="absolute -end-1 top-0 inline-flex size-11 items-center justify-center rounded text-destructive hover:text-destructive/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      :aria-label="t('errors.dismiss')"
+      @click="onDismiss"
+    >
+      <X class="size-4" aria-hidden="true" />
+    </button>
 
     <!-- Recovery guidance: text always shown; button only when @recovery is wired -->
-    <div v-if="showRecoveryGuidance" class="flex items-center gap-2">
-      <span v-if="!showRecoveryButton" class="text-xs text-muted">{{ recoveryLabel }}</span>
+    <div v-if="showRecoveryGuidance" class="mt-2">
+      <span v-if="!showRecoveryButton" class="text-xs leading-4 text-muted">
+        {{ recoveryLabel }}
+      </span>
       <Button
         v-else
         type="button"
@@ -233,14 +237,13 @@ const diagFields = computed(() => {
       </Button>
     </div>
 
-    <!-- Details disclosure -->
-    <div v-if="detailEntries.length > 0 || showRequestId">
+    <div data-test="error-actions" class="mt-3 flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1">
       <button
         type="button"
         data-test="error-details-trigger"
-        class="flex min-h-11 items-center gap-1 rounded text-xs font-medium text-destructive/80 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="inline-flex h-8 items-center gap-1 rounded px-1 text-xs font-medium text-destructive/85 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         :aria-expanded="detailsOpen"
-        aria-controls="error-details-content"
+        :aria-controls="detailsContentId"
         @click="detailsOpen = !detailsOpen"
       >
         <ChevronDown
@@ -250,78 +253,93 @@ const diagFields = computed(() => {
         />
         {{ t('errors.detailsLabel') }}
       </button>
-
-      <div v-if="detailsOpen" id="error-details-content" class="mt-2 flex flex-col gap-1.5 text-xs text-muted">
-        <!-- Curated detail fields — use localized reason when available, raw value otherwise -->
-        <div v-for="entry in detailEntries" :key="entry.field" class="flex gap-1">
-          <span class="font-medium">{{ t(entry.labelKey) }}:</span>
-          <span>{{
-            entry.reasonKey && te(entry.reasonKey)
-              ? t(entry.reasonKey)
-              : Array.isArray(entry.value) ? entry.value.join(', ') : String(entry.value)
-          }}</span>
-        </div>
-
-        <!-- Request ID + copy -->
-        <div
-          v-if="showRequestId"
-          data-test="error-request-id-row"
-          class="flex min-w-0 flex-wrap items-center gap-x-1"
-        >
-          <span class="shrink-0 font-medium">{{ t('errors.requestId') }}:</span>
-          <code data-test="error-request-id" class="min-w-0 flex-1 break-all font-mono">{{ error?.requestId }}</code>
-          <button
-            type="button"
-            data-test="error-copy-request-id"
-            class="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            :aria-label="t('errors.copyRequestId')"
-            @click="copyRequestId"
-          >
-            <Copy class="size-3" aria-hidden="true" />
-          </button>
-          <span v-if="copied" class="text-sage-700">{{ t('errors.copied') }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Admin diagnostic action — visible for admins with a requestId -->
-    <div v-if="showDiagnostic">
       <Button
+        v-if="showDiagnostic"
         type="button"
         data-test="error-diagnostic"
         variant="ghost"
         size="sm"
-        class="min-h-11 text-xs"
+        class="h-8 px-2 text-xs"
         @click="fetchDiagnostic"
       >
         <Stethoscope class="size-3.5" aria-hidden="true" />
         {{ t('errors.diagnostic') }}
       </Button>
-
-      <!-- Diagnostic loading state -->
-      <div v-if="diagState === 'loading'" data-test="diagnostic-loading" class="mt-2 text-xs text-muted" role="status">
-        {{ t('errors.diagnosticLoading') }}
-      </div>
-
-      <!-- Diagnostic error state -->
-      <div v-if="diagState === 'error'" data-test="diagnostic-error" class="mt-2 text-xs text-destructive" role="alert">
-        {{ t('errors.diagnosticError') }}
-      </div>
-
-      <!-- Diagnostic record — persistent, accessible -->
-      <div
-        v-if="diagState === 'loaded' && diagRecord"
-        data-test="diagnostic-record"
-        role="region"
-        :aria-label="t('errors.diagnosticRecord')"
-        class="mt-2 flex flex-col gap-1 rounded-md border border-border p-3 text-xs text-muted"
-      >
-        <p class="font-medium text-ink">{{ t('errors.diagnosticRecord') }}</p>
-        <div v-for="field in diagFields" :key="field.key" class="flex gap-1">
-          <span class="font-medium">{{ field.label }}:</span>
-          <span class="break-all">{{ field.value }}</span>
-        </div>
-      </div>
     </div>
+
+    <dl
+      v-if="detailsOpen"
+      :id="detailsContentId"
+      data-test="error-details"
+      class="mt-2 grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-2 border-t border-destructive/15 pt-3 text-xs"
+    >
+      <dt data-test="error-code-label" class="font-medium text-muted">
+        {{ t('errors.diagnosticField_code') }}
+      </dt>
+      <dd data-test="error-code" class="break-all font-mono text-ink">
+        {{ error?.code }}
+      </dd>
+
+      <template v-for="entry in detailEntries" :key="entry.field">
+        <dt class="font-medium text-muted">{{ t(entry.labelKey) }}</dt>
+        <dd class="min-w-0 break-words text-ink">
+          {{
+            entry.reasonKey && te(entry.reasonKey)
+              ? t(entry.reasonKey)
+              : Array.isArray(entry.value) ? entry.value.join(', ') : String(entry.value)
+          }}
+        </dd>
+      </template>
+
+      <template v-if="showRequestId">
+        <dt class="font-medium text-muted">{{ t('errors.requestId') }}</dt>
+        <dd data-test="error-request-id-row" class="flex min-w-0 items-center gap-1">
+          <code data-test="error-request-id" class="min-w-0 flex-1 break-all font-mono text-ink">
+            {{ error?.requestId }}
+          </code>
+          <button
+            type="button"
+            data-test="error-copy-request-id"
+            class="inline-flex size-8 shrink-0 items-center justify-center rounded text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            :aria-label="t('errors.copyRequestId')"
+            @click="copyRequestId"
+          >
+            <Copy class="size-3.5" aria-hidden="true" />
+          </button>
+          <span v-if="copied" class="text-sage-700">{{ t('errors.copied') }}</span>
+        </dd>
+      </template>
+    </dl>
+
+    <div
+      v-if="diagState === 'loading'"
+      data-test="diagnostic-loading"
+      class="mt-3 text-xs text-muted"
+      role="status"
+    >
+      {{ t('errors.diagnosticLoading') }}
+    </div>
+
+    <div
+      v-if="diagState === 'error'"
+      data-test="diagnostic-error"
+      class="mt-3 text-xs text-destructive"
+      role="alert"
+    >
+      {{ t('errors.diagnosticError') }}
+    </div>
+
+    <dl
+      v-if="diagState === 'loaded' && diagRecord"
+      data-test="diagnostic-record"
+      role="region"
+      :aria-label="t('errors.diagnosticRecord')"
+      class="mt-3 grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-md border border-border p-3 text-xs"
+    >
+      <template v-for="field in diagFields" :key="field.key">
+        <dt class="font-medium text-muted">{{ field.label }}</dt>
+        <dd class="min-w-0 break-all text-ink">{{ field.value }}</dd>
+      </template>
+    </dl>
   </Alert>
 </template>

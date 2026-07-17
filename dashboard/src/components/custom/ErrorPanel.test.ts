@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { nextTick } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import ErrorPanel from './ErrorPanel.vue'
 import en from '@/locales/en'
 import zh from '@/locales/zh'
@@ -108,23 +108,23 @@ describe('ErrorPanel — persistence', () => {
     expect(w.get('[role="alert"]').text()).toContain(en.errors.codes.account_disabled)
   })
 
-  it('gives every error-panel control a 44px hit target', async () => {
+  it('keeps primary controls at 44px and secondary controls compact', async () => {
     const w = mount(ErrorPanel, {
       props: { error: RATE_LIMIT_ERROR, isAdmin: true },
       attrs: { onRecovery: vi.fn() },
       global: { plugins: [makeI18n()] },
     })
 
-    expect(w.get('[data-test="error-dismiss"]').classes()).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+    expect(w.get('[data-test="error-dismiss"]').classes()).toContain('size-11')
     expect(w.get('[data-test="error-recovery"]').classes()).toContain('min-h-11')
-    expect(w.get('[data-test="error-details-trigger"]').classes()).toContain('min-h-11')
-    expect(w.get('[data-test="error-diagnostic"]').classes()).toContain('min-h-11')
+    expect(w.get('[data-test="error-details-trigger"]').classes()).toContain('h-8')
+    expect(w.get('[data-test="error-diagnostic"]').classes()).toContain('h-8')
 
     await w.get('[data-test="error-details-trigger"]').trigger('click')
     await nextTick()
-    expect(w.get('[data-test="error-copy-request-id"]').classes()).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+    expect(w.get('[data-test="error-copy-request-id"]').classes()).toContain('size-8')
     expect(w.get('[data-test="error-request-id-row"]').classes()).toEqual(
-      expect.arrayContaining(['min-w-0', 'flex-wrap']),
+      expect.arrayContaining(['flex', 'min-w-0', 'items-center']),
     )
     expect(w.get('[data-test="error-request-id"]').classes()).toEqual(
       expect.arrayContaining(['min-w-0', 'break-all']),
@@ -147,6 +147,55 @@ describe('ErrorPanel — details disclosure', () => {
     await nextTick()
     // After expand, requestId is shown
     expect(w.text()).toContain('rid-789')
+  })
+
+  it('always discloses the public error code in semantic details', async () => {
+    const w = mount(ErrorPanel, {
+      props: { error: { code: 'bad_request' } },
+      global: { plugins: [makeI18n()] },
+    })
+    const trigger = w.get('[data-test="error-details-trigger"]')
+    expect(trigger.exists()).toBe(true)
+    await trigger.trigger('click')
+    await nextTick()
+
+    expect(w.get('[data-test="error-details"]').element.tagName).toBe('DL')
+    expect(w.get('[data-test="error-code"]').text()).toBe('bad_request')
+    expect(w.get('[data-test="error-code"]').element.tagName).toBe('DD')
+    expect(w.get('[data-test="error-code-label"]').text()).toBe(en.errors.diagnosticField_code)
+  })
+
+  it('uses unique disclosure ids for multiple panels', () => {
+    const host = defineComponent({
+      components: { ErrorPanel },
+      template: `
+        <div>
+          <ErrorPanel :error="{ code: 'bad_request' }" />
+          <ErrorPanel :error="{ code: 'forbidden' }" />
+        </div>
+      `,
+    })
+    const w = mount(host, { global: { plugins: [makeI18n()] } })
+    const controls = w
+      .findAll('[data-test="error-details-trigger"]')
+      .map((node) => node.attributes('aria-controls'))
+    expect(new Set(controls).size).toBe(2)
+  })
+
+  it('positions dismiss independently and groups secondary actions', () => {
+    const w = mount(ErrorPanel, {
+      props: { error: KNOWN_ERROR, isAdmin: true },
+      global: { plugins: [makeI18n()] },
+    })
+    expect(w.get('[data-test="error-dismiss"]').classes()).toEqual(
+      expect.arrayContaining(['absolute', 'top-0', '-end-1', 'size-11']),
+    )
+    expect(
+      w.get('[data-test="error-actions"]').find('[data-test="error-details-trigger"]').exists(),
+    ).toBe(true)
+    expect(
+      w.get('[data-test="error-actions"]').find('[data-test="error-diagnostic"]').exists(),
+    ).toBe(true)
   })
 
   it('shows localized detail labels and values in the disclosure', async () => {
@@ -337,7 +386,7 @@ describe('ErrorPanel — admin diagnostic action', () => {
     expect(w.text()).not.toContain('account_not_found')
   })
 
-  it('renders the diagnostic record in an accessible region', async () => {
+  it('renders the diagnostic record as an accessible definition list', async () => {
     vi.mocked(api.get).mockResolvedValue(DIAGNOSTIC_RECORD)
     const w = mount(ErrorPanel, {
       props: { error: KNOWN_ERROR, isAdmin: true },
@@ -345,10 +394,11 @@ describe('ErrorPanel — admin diagnostic action', () => {
     })
     await w.get('[data-test="error-diagnostic"]').trigger('click')
     await flushPromises()
-    const record = w.find('[data-test="diagnostic-record"]')
-    expect(record.exists()).toBe(true)
-    // The record region should be labeled for screen readers
-    expect(record.attributes('role')).toBeDefined()
+    const record = w.get('[data-test="diagnostic-record"]')
+    expect(record.element.tagName).toBe('DL')
+    expect(record.attributes('role')).toBe('region')
+    expect(record.findAll('dt')).toHaveLength(9)
+    expect(record.findAll('dd')).toHaveLength(9)
   })
 
   it('persists the diagnostic record after 60 seconds (no auto-dismiss)', async () => {
