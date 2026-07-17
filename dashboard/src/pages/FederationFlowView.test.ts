@@ -80,23 +80,28 @@ describe('FederationFlowView', () => {
     expect(wrapper.findAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
-  it('labels the VRChat identity field with an example and submits it from the form', async () => {
+  it('shows how to find a profile URL and submits the unchanged identity value', async () => {
     get.mockResolvedValue(identifyFlow)
     post.mockResolvedValue(proofFlow)
     const wrapper = await mountView()
 
-    expect(wrapper.get('label[for="federation-identity"]').text()).toBe('VRChat user ID or profile URL')
-    expect(wrapper.text()).toContain('usr_12345678-1234-1234-1234-123456789abc')
+    const guide = wrapper.get('[data-test="identify-guide"]')
+    expect(guide.get('h2').text()).toBe(en.federationFlow.identifyGuideTitle)
+    expect(guide.findAll('ol li')).toHaveLength(3)
+    expect(guide.text()).toContain(en.federationFlow.identifyStepOpen)
+    expect(guide.text()).toContain(en.federationFlow.identifyStepProfile)
+    expect(guide.text()).toContain(en.federationFlow.identifyStepCopy)
+    expect(wrapper.get('[data-test="open-vrchat"]').attributes('href')).toBe('https://vrchat.com/home')
+    expect(wrapper.get('[data-test="open-vrchat"]').attributes('target')).toBe('_blank')
+    expect(wrapper.text()).toContain(en.federationFlow.noCredentials)
+    expect(wrapper.get('label[for="federation-identity"]').text()).toBe(en.federationFlow.identityLabel)
+    expect(wrapper.get('input[name="identity"]').attributes('placeholder')).toBe(en.federationFlow.identityPlaceholder)
 
-    await wrapper.get('input[name="identity"]').setValue('usr_12345678-1234-1234-1234-123456789abc')
+    const value = 'https://vrchat.com/home/user/usr_12345678-1234-1234-1234-123456789abc'
+    await wrapper.get('input[name="identity"]').setValue(value)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
-
-    expect(post).toHaveBeenCalledWith(`${basePath}/prepare`, {
-      identity: 'usr_12345678-1234-1234-1234-123456789abc',
-    })
-    expect(wrapper.get('[data-test="proof-heading"]').text()).toContain('Add the one-time link')
-    expect(document.activeElement).toBe(wrapper.get('[data-test="proof-heading"]').element)
+    expect(post).toHaveBeenCalledWith(`${basePath}/prepare`, { identity: value })
   })
 
   it('renders the proof profile, copyable URL, ordered instructions, expiry, and no credential fields', async () => {

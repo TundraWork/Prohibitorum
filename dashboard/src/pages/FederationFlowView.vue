@@ -204,7 +204,32 @@ function continueFlow(): void {
       class="flex flex-col gap-5"
       @submit.prevent="prepareProof"
     >
-      <p class="text-sm text-muted">{{ t('federationFlow.identifyIntro') }}</p>
+      <p class="text-sm leading-5 text-muted">{{ t('federationFlow.identifyIntro') }}</p>
+
+      <section
+        data-test="identify-guide"
+        class="flex flex-col gap-3 rounded-md border border-tide/20 bg-info/60 p-4"
+        aria-labelledby="identify-guide-title"
+      >
+        <h2 id="identify-guide-title" class="text-sm font-semibold text-ink">
+          {{ t('federationFlow.identifyGuideTitle') }}
+        </h2>
+        <ol class="list-decimal space-y-1.5 ps-5 text-sm leading-5 text-ink">
+          <li>{{ t('federationFlow.identifyStepOpen') }}</li>
+          <li>{{ t('federationFlow.identifyStepProfile') }}</li>
+          <li>{{ t('federationFlow.identifyStepCopy') }}</li>
+        </ol>
+        <a
+          data-test="open-vrchat"
+          href="https://vrchat.com/home"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex min-h-11 w-fit items-center gap-2 rounded-md font-medium text-tide-strong underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          {{ t('federationFlow.openVrchatWebsite') }}
+          <ExternalLink class="size-4" aria-hidden="true" />
+        </a>
+      </section>
 
       <div class="flex flex-col gap-1.5">
         <Label for="federation-identity">{{ t('federationFlow.identityLabel') }}</Label>
@@ -213,15 +238,19 @@ function continueFlow(): void {
           v-model="identity"
           name="identity"
           class="min-h-11"
+          :placeholder="t('federationFlow.identityPlaceholder')"
           autocomplete="off"
           autocapitalize="none"
           spellcheck="false"
           required
-          :aria-describedby="error ? 'federation-identify-error' : 'federation-identity-example'"
+          :aria-describedby="error ? 'federation-identify-error' : 'federation-identity-help'"
         />
-        <p id="federation-identity-example" class="break-all font-mono text-xs text-muted">
-          {{ t('federationFlow.identityExample') }}
-        </p>
+        <div id="federation-identity-help" class="space-y-1">
+          <p class="break-all font-mono text-xs text-muted">
+            {{ t('federationFlow.identityExample') }}
+          </p>
+          <p class="text-xs leading-4 text-muted">{{ t('federationFlow.noCredentials') }}</p>
+        </div>
       </div>
 
       <div id="federation-identify-error">
