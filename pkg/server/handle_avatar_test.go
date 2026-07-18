@@ -863,7 +863,7 @@ func newAvatarStatusTestServer(t *testing.T) (*Server, kv.Store) {
 	t.Cleanup(func() { _ = kvStore.Close() })
 
 	fq := newFakeFedQueries()
-	service := fedoidc.NewService(nil, nil, kvStore, nil, fedoidc.ServiceConfig{StateTTL: 5 * time.Minute})
+	service := fedoidc.NewService(nil, nil, kvStore, nil, nil, fedoidc.ServiceConfig{StateTTL: 5 * time.Minute})
 	service.SetAvatarManager(fedoidc.NewAvatarManager(fq, kvStore))
 
 	s := &Server{

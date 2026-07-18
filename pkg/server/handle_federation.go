@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 
@@ -65,7 +66,7 @@ func (s *Server) handleFederationLoginHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	req, err := s.federationService.BeginLogin(r.Context(), slug, returnTo)
+	req, err := s.federationService.BeginPublic(r.Context(), slug, returnTo)
 	if err != nil {
 		// returnTo is validated + same-origin — forward it so the /error
 		// "go back" link can resume where the user started.
@@ -163,8 +164,13 @@ const (
 )
 
 func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Request, result *federation.CompletionResult, mode federationCompletionMode) {
-	if result == nil {
-		s.writeFederationCompletionError(w, r, errors.New("federation: missing completion result"), mode)
+	if err := result.Validate(); err != nil {
+		s.writeFederationCompletionError(w, r, err, mode)
+		return
+	}
+	if result.Intent == federation.IntentEnroll {
+		http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
+		s.writeFederationCompletionDestination(w, r, "/enroll/"+url.PathEscape(result.Enrollment.Token), mode)
 		return
 	}
 	if result.Intent == federation.IntentLink {

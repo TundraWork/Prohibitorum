@@ -73,6 +73,7 @@ type fakeFedQueries struct {
 	// account_identity (auto-provision: ErrNoRows on first lookup)
 	identityResult db.AccountIdentity
 	identityErr    error
+	identityLookupCalls int
 
 	// account
 	accountByIDResults map[int32]db.Account
@@ -144,6 +145,7 @@ func (f *fakeFedQueries) ListAccountIdentitiesByAccount(_ context.Context, _ int
 func (f *fakeFedQueries) GetAccountIdentityByIssuerSub(_ context.Context, _ db.GetAccountIdentityByIssuerSubParams) (db.AccountIdentity, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.identityLookupCalls++
 	return f.identityResult, f.identityErr
 }
 
@@ -479,7 +481,7 @@ func newTestFederationService(t *testing.T, q *fakeFedQueries, store kv.Store, w
 	if err := registry.RegisterAdapter(serverSteamAdapter{}); err != nil {
 		t.Fatal(err)
 	}
-	service := fedoidc.NewService(registry, fedoidc.NewProviderStore(q), store, fedoidc.NewResolver(q, writer, nil), fedoidc.ServiceConfig{StateTTL: ttl, PublicOrigin: origin, Audit: writer})
+	service := fedoidc.NewService(registry, fedoidc.NewProviderStore(q), store, fedoidc.NewResolver(q, writer, nil), nil, fedoidc.ServiceConfig{StateTTL: ttl, PublicOrigin: origin, Audit: writer})
 	service.SetAvatarManager(fedoidc.NewAvatarManager(q, store))
 	return service
 }

@@ -228,9 +228,10 @@ func TestSteamHTTPFlowThroughFederationService(t *testing.T) {
 		steamServiceProviders{provider: provider},
 		store,
 		resolver,
+		nil,
 		federationcore.ServiceConfig{PublicOrigin: "https://idp.test"},
 	)
-	begin, err := service.BeginLogin(context.Background(), providerSlug, "/me")
+	begin, err := service.BeginPublic(context.Background(), providerSlug, "/me")
 	if err != nil {
 		t.Fatal(err)
 	}

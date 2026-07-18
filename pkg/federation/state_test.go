@@ -31,6 +31,44 @@ func TestFlowStateRoundTripAndKeys(t *testing.T) {
 	if !strings.HasPrefix(FlowLockKey("abc"), "federation:flow:") { t.Fatalf("FlowLockKey = %q", FlowLockKey("abc")) }
 }
 
+func TestIntentEnrollFlowStateRoundTripRejectsUnrelatedBindings(t *testing.T) {
+	s := validFlowState()
+	s.Protocol = "vrchat"
+	s.Intent = IntentEnroll
+	s.CurrentAction = NextAction{Kind: ActionCollectIdentity}
+
+	raw, err := s.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeFlowState(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Intent != IntentEnroll {
+		t.Fatalf("Intent = %q, want %q", got.Intent, IntentEnroll)
+	}
+
+	accountID := int32(9)
+	tests := []struct {
+		name   string
+		mutate func(*FlowState)
+	}{
+		{"link account", func(state *FlowState) { state.LinkAccountID = &accountID }},
+		{"link session", func(state *FlowState) { state.LinkSessionID = "session-1" }},
+		{"invitation token", func(state *FlowState) { state.EnrollmentToken = "invite-token" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			invalid := s
+			test.mutate(&invalid)
+			if _, err := invalid.Encode(); err == nil {
+				t.Fatal("IntentEnroll accepted an unrelated binding")
+			}
+		})
+	}
+}
+
 func TestDecodeFlowStateRejectsInvalidBindings(t *testing.T) {
 	tests := []struct{name string; mutate func(*FlowState)}{
 		{"unknown intent", func(s *FlowState) { s.Intent = "bogus" }},

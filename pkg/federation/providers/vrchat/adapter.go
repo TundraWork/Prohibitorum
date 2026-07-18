@@ -66,7 +66,10 @@ type adapterState struct {
 	ProofToken string `json:"proof_token,omitempty"`
 }
 
-func (*Adapter) Begin(_ context.Context, _ federationcore.Provider, _ federationcore.BeginContext) (json.RawMessage, federationcore.NextAction, error) {
+func (*Adapter) Begin(_ context.Context, _ federationcore.Provider, begin federationcore.BeginContext) (json.RawMessage, federationcore.NextAction, error) {
+	if begin.Intent != federationcore.IntentEnroll && begin.Intent != federationcore.IntentLink {
+		return nil, federationcore.NextAction{}, federationcore.NewFailure(federationcore.FailureStateInvalid, nil)
+	}
 	state, err := json.Marshal(adapterState{Step: stepIdentify})
 	if err != nil {
 		return nil, federationcore.NextAction{}, err

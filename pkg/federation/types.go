@@ -3,6 +3,7 @@ package federation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"time"
 )
@@ -13,6 +14,7 @@ const (
 	IntentLogin  Intent = "login"
 	IntentLink   Intent = "link"
 	IntentInvite Intent = "invite"
+	IntentEnroll Intent = "enroll"
 )
 
 type CallbackRoute string
@@ -148,6 +150,7 @@ type EnrollmentIssuer interface {
 
 type CompletionResult struct {
 	Intent       Intent
+	Enrollment   *EnrollmentGrant
 	AccountID    int32
 	IdentityID   int64
 	ProviderID   int64
@@ -157,6 +160,31 @@ type CompletionResult struct {
 	IsNew        bool
 	Confirmed    bool
 	AvatarURL    string
+}
+
+func (r *CompletionResult) Validate() error {
+	if r == nil {
+		return errors.New("federation: missing completion result")
+	}
+	if r.Intent == IntentEnroll {
+		if r.Enrollment == nil || r.Enrollment.Token == "" {
+			return errors.New("federation: invalid enrollment completion")
+		}
+		if r.AccountID != 0 || r.IdentityID != 0 || r.ProviderID != 0 || r.ProviderSlug != "" ||
+			r.ReturnTo != "" || len(r.AMR) != 0 || r.IsNew || r.Confirmed || r.AvatarURL != "" {
+			return errors.New("federation: mixed enrollment completion")
+		}
+		return nil
+	}
+	switch r.Intent {
+	case IntentLogin, IntentLink, IntentInvite:
+	default:
+		return errors.New("federation: invalid completion intent")
+	}
+	if r.Enrollment != nil {
+		return errors.New("federation: unexpected enrollment grant")
+	}
+	return nil
 }
 
 type Definition interface {

@@ -76,14 +76,39 @@ func readyVRChatProvider() federation.Provider {
 	return federation.Provider{ID: 7, Slug: "vrchat", Protocol: Protocol, Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`), Secret: &federation.SealedSecret{Ciphertext: []byte("cipher"), Nonce: []byte("nonce"), KeyVersion: 3}, SecretStatus: "valid", SecretValidatedAt: &now}
 }
 
+func TestVRChatAdapterIntentPolicy(t *testing.T) {
+	adapter := NewAdapter(&proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
+	provider := readyVRChatProvider()
+	provider.Mode = federation.ModeLinkOnly
+
+	for _, intent := range []federation.Intent{federation.IntentEnroll, federation.IntentLink} {
+		t.Run("accepts_"+string(intent), func(t *testing.T) {
+			if _, action, err := adapter.Begin(context.Background(), provider, federation.BeginContext{Intent: intent}); err != nil {
+				t.Fatalf("Begin(%q): %v", intent, err)
+			} else if action.Kind != federation.ActionCollectIdentity || action.Public != nil {
+				t.Fatalf("Begin(%q) action = %+v", intent, action)
+			}
+		})
+	}
+	for _, intent := range []federation.Intent{federation.IntentLogin, federation.IntentInvite} {
+		t.Run("rejects_"+string(intent), func(t *testing.T) {
+			if _, _, err := adapter.Begin(context.Background(), provider, federation.BeginContext{Intent: intent}); err == nil {
+				t.Fatalf("Begin(%q) succeeded", intent)
+			}
+		})
+	}
+}
+
 func TestVRChatAdapterBeginAndCollectIdentity(t *testing.T) {
 	adapter := NewAdapter(&proofClientStub{}, &proofSecretsStub{}, kv.NewMemoryStore(), &proofQueriesStub{}, "https://login.example.com", nil)
 	adapter.random = bytes.NewReader(bytes.Repeat([]byte{0x2a}, 32))
-	state, action, err := adapter.Begin(context.Background(), readyVRChatProvider(), federation.BeginContext{Intent: federation.IntentLogin})
+	provider := readyVRChatProvider()
+	provider.Mode = federation.ModeLinkOnly
+	state, action, err := adapter.Begin(context.Background(), provider, federation.BeginContext{Intent: federation.IntentEnroll})
 	if err != nil || action.Kind != federation.ActionCollectIdentity || action.Public != nil {
 		t.Fatalf("Begin = %s, %+v, %v", state, action, err)
 	}
-	result, err := adapter.Advance(context.Background(), readyVRChatProvider(), state, federation.ActionInput{Kind: federation.ActionCollectIdentity, Identity: testUserID})
+	result, err := adapter.Advance(context.Background(), provider, state, federation.ActionInput{Kind: federation.ActionCollectIdentity, Identity: testUserID})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -52,10 +52,10 @@ func TestFederationLogin_BadReturnTo_RedirectsToErrorPage(t *testing.T) {
 	}
 }
 
-// TestFederationLogin_BeginError_ForwardsReturnTo: when BeginLogin fails but the
-// same-origin return_to was validated, it must be forwarded to /error so the
-// page's "go back" link can resume where the user started. An unknown slug
-// drives BeginLogin into ErrUnknownIDP (collapsed to federation_state_invalid).
+// TestFederationLogin_BeginError_ForwardsReturnTo: when BeginPublic fails but
+// the same-origin return_to was validated, it must be forwarded to /error so
+// the page's "go back" link can resume where the user started. An unknown slug
+// drives BeginPublic into ErrUnknownProvider (collapsed to federation_state_invalid).
 func TestFederationLogin_BeginError_ForwardsReturnTo(t *testing.T) {
 	h := newFederationTestServer(t)
 
