@@ -317,7 +317,7 @@ func TestVRChatProofAuditTransitionsContainOnlyAllowlistedDetail(t *testing.T) {
 	}
 }
 
-func newVRChatFailureAuditHarness(t *testing.T, issuerErr error) (*Service, AdvanceRequest, *serviceRecordingAudit, kv.Store) {
+func newVRChatFailureAuditHarness(t *testing.T, issuerErr error) (*Service, AdvanceRequest, *serviceRecordingAudit, kv.Store, *serviceFakeAdapter, *serviceFakeEnrollmentIssuer) {
 	t.Helper()
 	registry := NewRegistry()
 	if err := registry.RegisterDefinition(fakeDefinition{protocol: "vrchat", descriptor: descriptor("vrchat")}); err != nil {
@@ -336,22 +336,22 @@ func newVRChatFailureAuditHarness(t *testing.T, issuerErr error) (*Service, Adva
 	}
 	writer := &serviceRecordingAudit{}
 	resolver := &serviceFakeResolver{}
+	issuer := &serviceFakeEnrollmentIssuer{err: issuerErr}
 	provider := Provider{ID: 7, Slug: "social", Protocol: "vrchat", Mode: ModeLinkOnly}
 	store := kv.NewMemoryStore()
-	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, &serviceFakeEnrollmentIssuer{err: issuerErr}, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
+	service := NewService(registry, fakeProviderLoader{provider: provider}, store, resolver, issuer, ServiceConfig{StateTTL: time.Minute, PublicOrigin: "https://login.example.com", Audit: writer})
 	begin, err := service.BeginPublic(context.Background(), provider.Slug, "/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	request := AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, CallbackRoute: CallbackRouteLocal, Input: ActionInput{Kind: ActionPublishProof}}
-	return service, request, writer, store
+	return service, request, writer, store, adapter, issuer
 }
 
-func TestVRChatProofFailureAuditCoversIssuerAndRestoreFailures(t *testing.T) {
+func TestVRChatProofIssuerFailuresAreTerminal(t *testing.T) {
 	tests := []struct {
 		name         string
 		issuerErr    error
-		failRestore  bool
 		wantCategory string
 	}{
 		{name: "invalid enrollment binding", issuerErr: authn.ErrFederationStateInvalid(), wantCategory: "federation_state_invalid"},
@@ -359,14 +359,10 @@ func TestVRChatProofFailureAuditCoversIssuerAndRestoreFailures(t *testing.T) {
 		{name: "unclassified issuance error", issuerErr: errors.New("issuer unavailable"), wantCategory: "resolution_failed"},
 		{name: "database error", issuerErr: &pgconn.PgError{Code: "08006"}, wantCategory: "database_unavailable"},
 		{name: "allowlisted flow failure once", issuerErr: NewFailure(FailureVRChatProofMissing, nil), wantCategory: "vrchat_proof_missing"},
-		{name: "restore failure", issuerErr: errors.New("issuer unavailable"), failRestore: true, wantCategory: "kv_unavailable"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service, request, writer, store := newVRChatFailureAuditHarness(t, test.issuerErr)
-			if test.failRestore {
-				service.kv = &failingRestoreStore{Store: store, failSetEx: true}
-			}
+			service, request, writer, store, adapter, issuer := newVRChatFailureAuditHarness(t, test.issuerErr)
 			if _, err := service.VerifyFlow(context.Background(), request); err == nil {
 				t.Fatal("VerifyFlow unexpectedly succeeded")
 			}
@@ -379,12 +375,22 @@ func TestVRChatProofFailureAuditCoversIssuerAndRestoreFailures(t *testing.T) {
 				record.Detail["category"] != test.wantCategory {
 				t.Fatalf("audit record = %#v", record)
 			}
+			if _, err := store.Get(context.Background(), FlowKey(request.FlowID)); err == nil {
+				t.Fatal("issuer failure restored consumed enrollment flow")
+			}
+			adapterCalls := adapter.calls
+			if _, err := service.VerifyFlow(context.Background(), request); err == nil {
+				t.Fatal("retry unexpectedly succeeded")
+			}
+			if issuer.calls != 1 || adapter.calls != adapterCalls {
+				t.Fatalf("retry calls: issuer=%d adapter=%d (before retry %d)", issuer.calls, adapter.calls, adapterCalls)
+			}
 		})
 	}
 }
 
 func TestVRChatProofWrongLocalActionAuditCategory(t *testing.T) {
-	service, request, writer, _ := newVRChatFailureAuditHarness(t, nil)
+	service, request, writer, _, _, _ := newVRChatFailureAuditHarness(t, nil)
 	request.CallbackRoute = CallbackRouteLocal
 	request.ProviderSlug = ""
 	request.Protocol = ""

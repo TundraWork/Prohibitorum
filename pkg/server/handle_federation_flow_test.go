@@ -452,7 +452,7 @@ func TestFederationFlowRejectsActionSkippingAndInvalidBodies(t *testing.T) {
 	}
 }
 
-func TestFederationFlowVRChatEnrollmentIssuerFailureIsRetryable(t *testing.T) {
+func TestFederationFlowVRChatEnrollmentIssuerFailureIsTerminal(t *testing.T) {
 	h := newLocalFlowHarness(t)
 	flow, _ := h.beginLogin(t)
 	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
@@ -471,17 +471,28 @@ func TestFederationFlowVRChatEnrollmentIssuerFailureIsRetryable(t *testing.T) {
 	if verify.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("verify = %d", verify.StatusCode)
 	}
-	if _, err := h.store.Get(context.Background(), federation.FlowKey(flow)); err != nil {
-		t.Fatalf("failed issuance consumed flow: %v", err)
+	if _, err := h.store.Get(context.Background(), federation.FlowKey(flow)); err == nil {
+		t.Fatal("failed issuance restored consumed flow")
 	}
+	if calls, _, _ := h.issuer.snapshot(); calls != 1 {
+		t.Fatalf("issuer calls after failure = %d", calls)
+	}
+	inputs := h.adapter.snapshotInputs()
+	if len(inputs) != 2 {
+		t.Fatalf("adapter calls after failure = %d", len(inputs))
+	}
+
 	h.issuer.setError(nil)
 	retry := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", `{}`)
-	if retry.StatusCode != http.StatusOK {
+	if retry.StatusCode != http.StatusUnauthorized {
 		body, _ := io.ReadAll(retry.Body)
 		t.Fatalf("retry = %d body=%s", retry.StatusCode, body)
 	}
-	if calls, _, _ := h.issuer.snapshot(); calls != 2 {
-		t.Fatalf("issuer calls = %d", calls)
+	if calls, _, _ := h.issuer.snapshot(); calls != 1 {
+		t.Fatalf("retry issued %d enrollments", calls)
+	}
+	if got := len(h.adapter.snapshotInputs()); got != len(inputs) {
+		t.Fatalf("retry invoked adapter: calls=%d", got)
 	}
 	if len(h.q.sessions) != 0 || h.q.identityLookupCalls != 0 {
 		t.Fatalf("retry touched session/resolver: sessions=%d resolver=%d", len(h.q.sessions), h.q.identityLookupCalls)

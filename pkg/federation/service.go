@@ -349,7 +349,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		}
 		grant, issueErr := s.issuer.Issue(operationCtx, provider, *result.Identity)
 		if issueErr != nil {
-			return nil, s.restoreAfterFailure(operationCtx, request, provider.Slug, state, raw, issueErr, false)
+			return nil, s.recordFailure(operationCtx, state, &request, provider.Slug, issueErr)
 		}
 		completion := &CompletionResult{Intent: IntentEnroll, Enrollment: &grant}
 		if validateErr := completion.Validate(); validateErr != nil {
