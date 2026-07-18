@@ -19,6 +19,9 @@ DELETE FROM upstream_idp WHERE id = $1;
 -- name: GetUpstreamIDPBySlugAny :one
 SELECT * FROM upstream_idp WHERE slug = $1;
 
+-- name: GetUpstreamIDPByIDAny :one
+SELECT * FROM upstream_idp WHERE id = $1;
+
 -- name: ListAllUpstreamIDPs :many
 SELECT * FROM upstream_idp
 WHERE (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, id) < (sqlc.narg('after_created_at'), sqlc.narg('after_id')::int8))

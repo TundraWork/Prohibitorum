@@ -27,11 +27,12 @@ WHERE id = $1;
 
 -- name: CountUsableSignInFederation :one
 -- Linked identities the account can actually sign in / step up with: the
--- upstream IdP must still exist and be enabled. (ListAccountIdentitiesByAccount
--- intentionally returns ALL links, incl. disabled-upstream, for display/unlink.)
+-- upstream IdP must still exist, be enabled, and provide direct sign-in.
+-- VRChat is link-only. ListAccountIdentitiesByAccount intentionally returns
+-- all links, including disabled and VRChat providers, for display/unlink.
 SELECT COUNT(*) FROM account_identity ai
 JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
-WHERE ai.account_id = $1 AND NOT ip.disabled;
+WHERE ai.account_id = $1 AND NOT ip.disabled AND ip.protocol <> 'vrchat';
 
 -- name: ConfirmAccountIdentity :exec
 UPDATE account_identity SET confirmed_at = now() WHERE id = $1 AND confirmed_at IS NULL;

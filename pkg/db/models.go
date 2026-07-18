@@ -83,17 +83,25 @@ type DiagnosticEvent struct {
 }
 
 type Enrollment struct {
-	Token                   string             `json:"token"`
-	Intent                  string             `json:"intent"`
-	TargetAccountID         pgtype.Int4        `json:"targetAccountId"`
-	TemplateUsername        pgtype.Text        `json:"templateUsername"`
-	TemplateDisplayName     pgtype.Text        `json:"templateDisplayName"`
-	TemplateRole            pgtype.Text        `json:"templateRole"`
-	TemplateAttributes      []byte             `json:"templateAttributes"`
-	ExpectedUpstreamIdpSlug pgtype.Text        `json:"expectedUpstreamIdpSlug"`
-	CreatedAt               pgtype.Timestamptz `json:"createdAt"`
-	ExpiresAt               pgtype.Timestamptz `json:"expiresAt"`
-	ConsumedAt              pgtype.Timestamptz `json:"consumedAt"`
+	Token                       string             `json:"token"`
+	Intent                      string             `json:"intent"`
+	TargetAccountID             pgtype.Int4        `json:"targetAccountId"`
+	TemplateUsername            pgtype.Text        `json:"templateUsername"`
+	TemplateDisplayName         pgtype.Text        `json:"templateDisplayName"`
+	TemplateRole                pgtype.Text        `json:"templateRole"`
+	TemplateAttributes          []byte             `json:"templateAttributes"`
+	ExpectedUpstreamIdpSlug     pgtype.Text        `json:"expectedUpstreamIdpSlug"`
+	CreatedAt                   pgtype.Timestamptz `json:"createdAt"`
+	ExpiresAt                   pgtype.Timestamptz `json:"expiresAt"`
+	ConsumedAt                  pgtype.Timestamptz `json:"consumedAt"`
+	FederatedUpstreamIdpID      pgtype.Int8        `json:"federatedUpstreamIdpId"`
+	FederatedUpstreamIdpSlug    pgtype.Text        `json:"federatedUpstreamIdpSlug"`
+	FederatedUpstreamIss        pgtype.Text        `json:"federatedUpstreamIss"`
+	FederatedUpstreamSub        pgtype.Text        `json:"federatedUpstreamSub"`
+	FederatedDisplayName        pgtype.Text        `json:"federatedDisplayName"`
+	FederatedUpstreamData       []byte             `json:"federatedUpstreamData"`
+	FederatedAvatarUrl          pgtype.Text        `json:"federatedAvatarUrl"`
+	RecoverySourceUpstreamIdpID pgtype.Int8        `json:"recoverySourceUpstreamIdpId"`
 }
 
 type EntityIcon struct {

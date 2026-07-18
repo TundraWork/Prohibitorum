@@ -43,8 +43,9 @@ type Querier interface {
 	CountActiveAdminsForUpdate(ctx context.Context) (int64, error)
 	CountCredentialsByAccount(ctx context.Context, accountID int32) (int64, error)
 	// Linked identities the account can actually sign in / step up with: the
-	// upstream IdP must still exist and be enabled. (ListAccountIdentitiesByAccount
-	// intentionally returns ALL links, incl. disabled-upstream, for display/unlink.)
+	// upstream IdP must still exist, be enabled, and provide direct sign-in.
+	// VRChat is link-only. ListAccountIdentitiesByAccount intentionally returns
+	// all links, including disabled and VRChat providers, for display/unlink.
 	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (UserGroup, error)
 	DeleteAccountByID(ctx context.Context, id int32) error
@@ -107,6 +108,7 @@ type Querier interface {
 	GetSession(ctx context.Context, id string) (Session, error)
 	GetSigningKeyByKID(ctx context.Context, kid string) (SigningKey, error)
 	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
+	GetUpstreamIDPByIDAny(ctx context.Context, id int64) (UpstreamIdp, error)
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error)
 	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (UpstreamIdp, error)
 	GrantOIDCClientAccessAccount(ctx context.Context, arg GrantOIDCClientAccessAccountParams) error
@@ -121,9 +123,11 @@ type Querier interface {
 	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
 	InsertDiagnosticEvent(ctx context.Context, arg InsertDiagnosticEventParams) error
 	InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error)
+	InsertFederatedRegistrationEnrollment(ctx context.Context, arg InsertFederatedRegistrationEnrollmentParams) (Enrollment, error)
 	InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error)
 	InsertPAT(ctx context.Context, arg InsertPATParams) (PersonalAccessToken, error)
 	InsertPendingSigningKey(ctx context.Context, arg InsertPendingSigningKeyParams) (SigningKey, error)
+	InsertProviderRecoveryEnrollment(ctx context.Context, arg InsertProviderRecoveryEnrollmentParams) (Enrollment, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) (RecoveryCode, error)
 	InsertRevokedJTI(ctx context.Context, arg InsertRevokedJTIParams) error
 	InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (SamlSp, error)

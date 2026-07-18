@@ -133,6 +133,19 @@ func TestAvailableMethods_FederationOnly(t *testing.T) {
 	}
 }
 
+func TestAvailableMethods_VRChatIdentityOnly(t *testing.T) {
+	// CountUsableSignInFederation excludes VRChat identities because link-only
+	// providers are not direct local sign-in methods.
+	f := &flowFake{usableFed: 0}
+	methods, err := AvailableMethods(context.Background(), f, 1)
+	if !errors.Is(err, ErrNoUsableMethod) {
+		t.Fatalf("error = %v, want ErrNoUsableMethod", err)
+	}
+	if len(methods) != 0 {
+		t.Errorf("methods = %v, want no direct sign-in methods", methods)
+	}
+}
+
 func TestAvailableMethods_WebAuthnAndFederation(t *testing.T) {
 	f := &flowFake{
 		webauthnRows: []db.WebauthnCredential{{ID: 1}},
