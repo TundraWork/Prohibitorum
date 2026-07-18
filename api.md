@@ -89,8 +89,8 @@ A coarse per-app access gate on top of the "RP enforces policy" model. An app wi
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/identity-providers` | 🔓 | List providers with protocol, readiness, secret status, operator support, and searchable fields. Sealed secrets are never returned. |
 | GET | `/api/prohibitorum/identity-providers/{slug}` | 🔓 | Get one provider. Same no-secret guarantee. |
-| POST | `/api/prohibitorum/identity-providers` | 🔐 | Create a provider with `protocol` (`oidc`, `steam`, or `vrchat`), mode, provider-specific `config`, and optional `secret`. Sealed material is AES-GCM protected with row-bound AAD. |
-| PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔐 | Replace mutable display name, mode, and provider-specific config. Does not replace sealed material. |
+| POST | `/api/prohibitorum/identity-providers` | 🔐 | Create a provider with `protocol` (`oidc`, `steam`, or `vrchat`), provider-specific `config`, optional sealed material, and a mode. VRChat accepts only fixed `link_only`; OIDC/Steam retain their supported modes. |
+| PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔐 | Replace mutable display name, mode, and provider-specific config without replacing sealed material. A VRChat update must remain `link_only`. |
 | POST | `/api/prohibitorum/identity-providers/rotate-secret` | 🔐 | Replace and seal OIDC/Steam secret material. |
 | POST | `/api/prohibitorum/identity-providers/set-disabled` | 🔓 | Reversibly hide a provider from sign-in and block all new flows. |
 | POST | `/api/prohibitorum/identity-providers/delete` | 🔐 | Hard-delete a provider and its linked `account_identity` rows. |
@@ -98,18 +98,30 @@ A coarse per-app access gate on top of the "RP enforces policy" model. An app wi
 | POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/verify` | 🔐 | VRChat only. Verify the challenge with an allowlisted 2FA method/code, seal the resulting cookie jar, and mark the provider ready. |
 | POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/validate` | 🔐 | VRChat only. Validate the sealed operator session without accepting credentials. |
 
-Public federation flows retain the protocol-neutral login/callback entry
-points. Local adapters such as VRChat use the browser-bound flow API:
+Public federation flows retain the protocol-neutral entry points. VRChat uses
+the browser-bound flow API as profile proof, not OAuth/OIDC or direct sign-in:
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/api/prohibitorum/auth/federation` | List enabled, ready sign-in providers. |
-| GET | `/api/prohibitorum/auth/federation/{slug}/login` | Begin login; redirects externally for OIDC/Steam or to the local flow UI for VRChat. |
+| GET | `/api/prohibitorum/auth/federation` | List enabled, ready entry providers. A listed VRChat provider starts proof-backed local enrollment, not direct sign-in. |
+| GET | `/api/prohibitorum/auth/federation/{slug}/login` | Redirect externally for OIDC/Steam or to the local VRChat proof UI. |
 | GET | `/api/prohibitorum/auth/federation/{slug}/callback` | Complete external OIDC/Steam callbacks. |
-| GET | `/api/prohibitorum/auth/federation/flows/{flow}` | Project the browser-bound local step. |
-| POST | `/api/prohibitorum/auth/federation/flows/{flow}/prepare` | Submit the local identity/username step and obtain a fresh VRChat proof instruction. |
-| POST | `/api/prohibitorum/auth/federation/flows/{flow}/verify` | Verify profile ownership and complete or advance the flow. |
-| GET | `/verify/vrchat/{proof}` | Public, one-time ownership-proof explanation page; no account action occurs on visit. |
+| GET | `/api/prohibitorum/auth/federation/flows/{flow}` | Return the browser-safe local step projection. |
+| POST | `/api/prohibitorum/auth/federation/flows/{flow}/prepare` | Submit the requested VRChat profile identity and obtain a fresh proof instruction. |
+| POST | `/api/prohibitorum/auth/federation/flows/{flow}/verify` | Verify profile ownership. Public proof returns an opaque registration/recovery enrollment destination and sets no normal session cookie; authenticated linking returns `/connected` without replacing the current session. |
+| GET | `/verify/vrchat/{proof}` | Public ownership-proof explanation page; visiting it performs no account action. |
+| GET | `/api/prohibitorum/enrollments/{token}` | Public-safe enrollment preview. See the shapes below. |
+| POST | `/api/prohibitorum/enrollments/{token}/register/begin` | Begin the authoritative local WebAuthn registration or replacement ceremony. |
+| POST | `/api/prohibitorum/enrollments/{token}/register/complete` | Atomically create/register or replace credentials. This is the first point that may issue a session for a proof-backed flow. |
+
+The public preview for a new VRChat-backed account is
+`{"intent":"federated_register","expiresAt":"<timestamp>","suggestedDisplayName":"<safe suggestion>"}`.
+A provider-backed recovery preview is
+`{"intent":"reset","expiresAt":"<timestamp>"}` and deliberately omits
+`target`. Neither shape exposes the provider subject, target account, proof
+material, operator session, or internal enrollment snapshot. Proof and
+enrollment tokens are opaque bearer values and must not be logged or treated
+as API-readable state.
 
 `GET /api/prohibitorum/accounts` accepts debounced unified `search` plus
 advanced `provider`, `field`, `value`, and `match`

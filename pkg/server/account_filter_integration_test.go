@@ -80,7 +80,7 @@ func TestListAccountsIdentityFiltersPostgres(t *testing.T) {
 				slug, display_name, protocol, mode, provider_config, secret_status,
 				secret_enc, secret_nonce, key_version, disabled
 			)
-			VALUES ($1, $2, $3, 'auto_provision', '{}'::jsonb, 'unconfigured', NULL, NULL, NULL, false)
+			VALUES ($1, $2, $3, CASE WHEN $3 = 'vrchat' THEN 'link_only' ELSE 'auto_provision' END, '{}'::jsonb, 'unconfigured', NULL, NULL, NULL, false)
 			RETURNING id`, provider.slug, provider.displayName, provider.protocol).Scan(&id)
 		if err != nil {
 			t.Fatalf("insert provider %s: %v", provider.slug, err)

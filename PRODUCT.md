@@ -8,13 +8,16 @@ who touches the UI belongs to the same org.
 
 - **Members** sign in to reach downstream apps (via OIDC or SAML) and manage
   their own identity: registering and naming passkeys, setting up password +
-  TOTP fallback, viewing and revoking active sessions, redeeming an
-  enrollment invite. Often non-technical; they meet this UI at the login
-  screen and the consent screen, occasionally in their own account area.
+  TOTP fallback, viewing and revoking active sessions, redeeming an enrollment
+  invite, or using a VRChat profile to prove eligibility for local registration
+  or recovery. VRChat proof itself never signs them in; they finish
+  with the same local passkey ceremony as every other enrollment. Often
+  non-technical; they meet this UI at the login screen and the consent screen,
+  occasionally in their own account area.
 - **Admins** manage the directory: creating accounts, issuing enrollment
-  invitations (the only recovery path, since there is no email channel),
-  setting roles and attributes, and reviewing credentials. Same person is
-  often both a member and an admin in a small org.
+  invitations and resets, configuring the fixed-link-only VRChat proof
+  provider, setting roles and attributes, and reviewing credentials. Same
+  person is often both a member and an admin in a small org.
 
 Context of use: a browser, at a desk or on a phone, usually mid-task — they
 came here to get into something else, or to fix one specific thing about
@@ -24,12 +27,13 @@ user wants to minimize.
 ## Product Purpose
 
 Prohibitorum is a homegrown, single-tenant identity provider for small orgs.
-It owns the account directory, authenticates users with WebAuthn,
-Password + TOTP/recovery codes, or upstream OIDC, Steam, and VRChat
-federation, and issues sessions plus OIDC/SAML assertions to downstream apps.
-The UI's job is to make three things effortless and trustworthy: signing in,
-granting consent, and self-managing credentials, with a role-gated admin layer
-for directory management on top.
+It owns the account directory, authenticates users with WebAuthn, Password +
+TOTP/recovery codes, or upstream OIDC and Steam federation, and issues sessions
+plus OIDC/SAML assertions to downstream apps. VRChat is deliberately narrower:
+profile proof can authorize a short-lived local registration or recovery
+enrollment, but cannot become a direct sign-in credential. The UI's job is to
+make signing in, proof-backed local enrollment, consent, and self-management
+effortless and trustworthy, with a role-gated admin layer on top.
 
 Success looks like: a member completes a passkey login or enrollment without
 hesitation and without reading instructions; an admin issues an invitation

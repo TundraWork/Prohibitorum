@@ -4853,7 +4853,7 @@ func main() {
 		}
 	}
 
-	if err := runVRChatSmoke(c, *baseURL, *vrchatControl, *vrchatCA, *serverLog, *vrchatLog, *username); err != nil {
+	if err := runVRChatSmoke(c, *baseURL, *vrchatControl, *vrchatCA, *serverLog, *vrchatLog); err != nil {
 		log.Fatalf("vrchat: %v", err)
 	}
 
@@ -4879,7 +4879,7 @@ func main() {
 	fmt.Println()
 	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + DB-state assertions passed against",
 		*baseURL)
-	fmt.Println("  VRChat: operator TOTP setup + reusable cookie session, browser-bound profile proof, provision/link/invite modes, metadata refresh/filtering, retry recovery, and secret non-disclosure ✓")
+	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, target-hidden recovery with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }
 
 func step(msg string) {
@@ -6074,11 +6074,14 @@ func firstN(s string, n int) string {
 // shape. UpstreamEmail is *string so absent values decode as nil rather
 // than the empty string.
 type federationIdentity struct {
-	ID             int64   `json:"id"`
-	IdpSlug        string  `json:"providerSlug"`
-	IdpDisplayName string  `json:"providerDisplayName"`
-	UpstreamEmail  *string `json:"email"`
-	LinkedAt       string  `json:"linkedAt"`
+	ID             int64             `json:"id"`
+	IdpSlug        string            `json:"providerSlug"`
+	IdpDisplayName string            `json:"providerDisplayName"`
+	Protocol       string            `json:"protocol"`
+	Subject        string            `json:"subject"`
+	UpstreamEmail  *string           `json:"email"`
+	Data           map[string]string `json:"data"`
+	LinkedAt       string            `json:"linkedAt"`
 }
 
 // newFederationClient is newClient + a CheckRedirect that returns

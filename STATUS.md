@@ -1,10 +1,10 @@
 # Status — capabilities by version
 
 Prohibitorum is a standalone identity provider with WebAuthn,
-password+TOTP/recovery codes, upstream OIDC, Steam, and VRChat sign-in, plus
-two downstream protocols (OIDC OP and SAML 2.0 IdP) and a self-service + admin
-dashboard. This file is the changelog of capabilities each version delivers,
-followed by the roadmap.
+password+TOTP/recovery codes, upstream OIDC and Steam sign-in, and VRChat
+proof-backed local registration/recovery, plus two downstream protocols (OIDC
+OP and SAML 2.0 IdP) and a self-service + admin dashboard. This file is the
+changelog of capabilities each version delivers, followed by the roadmap.
 
 ## v0.1 — rescope + decoupling
 
@@ -277,12 +277,12 @@ discovery `scopes_supported`.
 
 - End-user app launchpad is out of scope; the authorization predicate is the query it will reuse.
 
-## v0.8 — provider plugins + VRChat federation
+## v0.8 — provider plugins + VRChat profile proof
 
 Federation now runs through one protocol-neutral state machine with OIDC,
-Steam OpenID 2.0, and VRChat adapters. Login, explicit linking, invite
-redemption, confirmation, session issuance, and identity persistence share
-the same policy path.
+Steam OpenID 2.0, and VRChat adapters. External sign-in, explicit linking,
+invite redemption, confirmation, identity persistence, and proof-backed local
+enrollment share the same browser-binding and single-use state machinery.
 
 - VRChat uses an admin-established, encrypted operator cookie session. The
   setup wizard accepts the dedicated operator account's credentials and 2FA
@@ -293,10 +293,20 @@ the same policy path.
   The member places that exact URL in VRChat `bioLinks`; the adapter reads the
   canonical public profile and accepts only the exact requested `usr_…`
   subject. The UI instructs the member to remove the link after verification.
-- `auto_provision`, `invite_only`, and `link_only` apply unchanged. Verified
-  VRChat identity metadata stores only `userId`, `displayName`, and canonical
-  `profileUrl`; no VRChat password, 2FA code, operator cookie, or proof token
-  is exposed in account data, API errors, audits, diagnostics, or logs.
+- VRChat providers are fixed `link_only`. VRChat proof never logs a member in
+  directly and never issues a normal session cookie. An unknown verified
+  profile receives a short-lived `federated_register` enrollment; an existing
+  linked profile receives a target-hidden `reset` enrollment. The shared local
+  WebAuthn ceremony creates or replaces the authoritative credential. Recovery
+  revokes prior sessions before issuing exactly one fresh session.
+- The `federated_register` public preview exposes intent, expiry, and a safe
+  display-name suggestion. Provider-backed `reset` previews expose intent and
+  expiry but omit `target`. Internal enrollment snapshots and all proof,
+  enrollment, operator-cookie, credential, and 2FA values remain opaque.
+- Authenticated Connected Accounts linking remains direct and session-bound:
+  it persists the verified identity without issuing or changing the session.
+  Verified VRChat identity metadata stores only `userId`, `displayName`, and
+  canonical `profileUrl`.
 - `account_identity.upstream_data` is provider-allowlisted JSON. Admin account
   lookup supports debounced unified search plus provider/field
   exact/prefix/contains filters before pagination. OIDC, Steam, and VRChat

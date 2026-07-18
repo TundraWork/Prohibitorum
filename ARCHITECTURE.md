@@ -1,18 +1,18 @@
 # Prohibitorum — Architecture
 
-A single-tenant identity provider for a small org. It owns the account directory, authenticates users through local factors (WebAuthn or password+TOTP/recovery codes) and admin-configured upstream providers (OIDC, Steam, or VRChat), then issues identity assertions to downstream apps via OIDC OP or SAML 2.0 IdP.
+A single-tenant identity provider for a small org. It owns the account directory, authenticates users through local factors (WebAuthn or password+TOTP/recovery codes) and admin-configured upstream OIDC or Steam providers, and uses VRChat profile proof to authorize local WebAuthn registration or recovery. It then issues identity assertions to downstream apps via OIDC OP or SAML 2.0 IdP.
 
 ## What this is (and isn't)
 
 **Is:**
-- A single-tenant IdP for a small org. Owns the account directory, runs WebAuthn / password+TOTP ceremonies, federates identity through OIDC, Steam, and VRChat providers, and issues sessions plus protocol responses.
-- A first-party service. No email channel; admin-issued enrollment is the only account-recovery path.
+- A single-tenant IdP for a small org. Owns the account directory, runs WebAuthn / password+TOTP ceremonies, federates sign-in through OIDC and Steam, and uses VRChat proof to start authoritative local-credential ceremonies.
+- A first-party service. No email channel; recovery is initiated by an admin-issued enrollment or a verified, already-linked VRChat profile.
 - The source of truth for "who is this user, are they disabled, what attributes do we know about them?"
 
 **Is not:**
 - A multi-tenant SaaS IdP (no per-tenant separation).
 - A SAML SP — Prohibitorum does **not** consume upstream SAML assertions. Its upstream provider adapters are OIDC, Steam OpenID 2.0, and VRChat profile proof.
-- A self-service social-login proxy. Every upstream provider is registered by an admin with an explicit provisioning mode.
+- A self-service social-login proxy. OIDC and Steam provisioning modes are explicit; VRChat is fixed `link_only` and never acts as a direct local sign-in credential.
 - An authorization policy engine (no OPA/Rego). A free-form `attributes` map per account flows into ID-token claims and SAML AttributeStatement; RPs enforce policy from those claims. The RBAC feature adds a *coarse per-app access gate* — whether a user may obtain a token/assertion for an app at all — but the RP still governs in-app policy from claims (including the `groups` claim). The two layers are distinct: IdP gates app access; RP gates in-app policy.
 
 ## Architecture — three-layer
@@ -100,19 +100,23 @@ For users without passkey-capable devices. Both factors required; neither alone 
 ### Upstream federation
 
 The protocol-neutral core owns browser binding, single-use flow state,
-provisioning modes, first-login confirmation, account resolution, identity
+provisioning policy, first-login confirmation, account resolution, identity
 metadata persistence, and session inputs. Provider adapters own only their
 external protocol and return one bounded verified-identity value.
 
-All providers use the same three modes:
+OIDC and Steam providers support three modes:
 
 - **auto_provision** — create a local account on first verified sign-in. OIDC
-  additionally enforces its verified-email/domain policy; VRChat asks the user
-  to choose the local username.
+  additionally enforces its verified-email/domain policy.
 - **invite_only** — consume an admin-issued enrollment whose expected provider
   slug matches the flow.
 - **link_only** — never create an account; an unknown identity must first be
   linked from an authenticated local account.
+
+VRChat providers are always `link_only`. Public VRChat proof is not federation
+login or auto-provisioning: it authorizes a short-lived local WebAuthn
+registration or recovery enrollment. Authenticated Connected Accounts linking
+still binds the verified profile directly to the current account and session.
 
 Provider sealed material uses AES-256-GCM with versioned data-encryption keys
 and row-bound AAD. `account_identity` is uniquely keyed by provider plus stable
@@ -134,14 +138,28 @@ subject is SteamID64.
 
 #### VRChat
 
-Because VRChat has no public OAuth/OIDC support, an admin establishes a
-dedicated operator account session. Credentials and 2FA codes are transient;
-only the encrypted, reusable cookie jar is retained. Each user ceremony issues
-a fresh browser-bound proof URL, requires that exact URL in the requested
-VRChat profile's `bioLinks`, and verifies that VRChat returned the exact
-requested `usr_…` subject. Stored metadata is limited to user ID, display name,
-and canonical profile URL. Shared provider backoff honors `429`/`Retry-After`;
-upstream `401`/`403` invalidates operator readiness.
+VRChat is a profile-proof adapter, not OAuth/OIDC and not a direct local
+sign-in credential. An admin establishes a dedicated operator account session;
+credentials and 2FA codes are transient, and only the encrypted reusable
+cookie jar is retained. Each member ceremony creates a fresh browser-bound
+proof URL, requires that exact URL in the requested VRChat profile's
+`bioLinks`, and verifies the exact requested `usr_…` subject.
+
+For an unknown profile, successful public proof issues a short-lived
+`federated_register` enrollment with only a safe display-name suggestion. For
+an already-linked profile, it issues a provider-backed `reset` enrollment whose
+public preview omits the target account. Proof completion sets no normal
+session: the shared WebAuthn registration ceremony is authoritative. New
+registration creates the identity and first session atomically; recovery
+replaces the credential, revokes prior sessions, and only then issues one fresh
+session. Authenticated Connected Accounts linking remains direct and
+session-bound.
+
+Stored identity metadata is limited to user ID, display name, and canonical
+profile URL. Operator cookies and credentials, proof tokens, enrollment tokens,
+and enrollment snapshots remain opaque server-side values. Shared provider
+backoff honors `429`/`Retry-After`; upstream `401`/`403` invalidates operator
+readiness.
 
 ## Downstream protocols
 
@@ -317,7 +335,7 @@ SAML IdP flow:
 
 ## Threat model
 
-- **Password brute-force.** Per-account exponential backoff in `auth_throttle(account_id, factor='password')`, persistent across restarts (RFC 4226 §7.3). argon2id params tuned for ≥250ms/verify on prod hardware. No email-channel reset; admin enrollment token is the only recovery.
+- **Password brute-force.** Per-account exponential backoff in `auth_throttle(account_id, factor='password')`, persistent across restarts (RFC 4226 §7.3). argon2id params tuned for ≥250ms/verify on prod hardware. No email-channel reset; recovery requires an admin enrollment or proof of an already-linked VRChat profile followed by credential replacement.
 - **TOTP code guessing.** 6-digit space = 10^6. Rate-limit ≤5 attempts / 5 min per account in `auth_throttle`. Same-step replay defeated by `totp_credential.last_step` (RFC 6238 §5.2).
 - **Recovery-code theft.** Codes shown exactly once, argon2id-hashed at rest, single-use, redemption context captured.
 - **Cross-account ciphertext swap.** AES-GCM AAD binds ciphertext to its row identity — copying ciphertext between rows fails decryption.
@@ -325,7 +343,7 @@ SAML IdP flow:
 - **Federated IdP impersonation.** Strict issuer + audience + nonce validation on upstream ID token. Per-IdP client secret AES-GCM encrypted. `expected_iss` + `expected_token_endpoint` snapshotted into KV state at request time (RFC 9700 §4.4.2.1 mix-up resistance). `account_identity` keyed `(iss, sub)` per OIDC Core §2.
 - **VRChat operator-session theft or drift.** The cookie jar is allowlisted, bounded, encrypted with provider-row AAD, and never serialized to public/admin views, audit detail, diagnostics, or logs. Upstream `401`/`403` snapshot-invalidates the stored session and fails closed until an admin repeats setup.
 - **VRChat profile substitution or proof replay.** Flow state is browser-bound and single-use; the adapter requests one canonical `usr_…` ID, rejects a different returned subject, and accepts only the exact fresh proof URL in `bioLinks`.
-- **JIT account squatting.** OIDC `auto_provision` enforces its configured verified-email/domain policy; VRChat first proves the exact stable subject before accepting a user-selected local username. Every adapter re-checks username collisions and refuses to attach an existing unlinked account.
+- **Account squatting.** OIDC `auto_provision` enforces its configured verified-email/domain policy. VRChat registration first proves the exact stable profile subject, then the enrollment transaction re-checks the user-selected local username before creating and linking the account.
 - **Authorization-code replay.** Codes kept (marked `consumed_at`) until TTL; replay revokes the refresh-token family and audit-logs the attempt.
 - **Access-token revocation despite stateless JWT.** Every access token mints a `jti`; revocation writes `revoked_jti`. Self-validating resource servers check `jti` against the revocation cache; introspecting RSs get `active: false`.
 - **WebAuthn authenticator cloning.** Sign-count regression stamps `clone_warning_at`; admin UI surfaces.
