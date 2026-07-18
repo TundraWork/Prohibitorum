@@ -17,6 +17,10 @@ type ProviderQueries interface {
 	GetEnrollmentByToken(context.Context, string) (db.Enrollment, error)
 }
 
+type providerByIDLoader interface {
+	GetUpstreamIDPByIDAny(context.Context, int64) (db.UpstreamIdp, error)
+}
+
 type ProviderStore struct {
 	queries ProviderQueries
 	now     func() time.Time
@@ -32,6 +36,21 @@ func (s *ProviderStore) BySlug(ctx context.Context, slug string) (Provider, erro
 		// The slug is public input. Collapse absence and database failures to the
 		// same opaque classification so begin/link cannot disclose store health
 		// or configured-provider membership through their redirect codes.
+		return Provider{}, ErrUnknownProvider
+	}
+	return providerFromRow(row)
+}
+
+// ByID loads a provider row, including its sealed-secret readiness state, by
+// its immutable database identifier. Lookup and storage failures are collapsed
+// to ErrUnknownProvider just like BySlug.
+func (s *ProviderStore) ByID(ctx context.Context, id int64) (Provider, error) {
+	queries, ok := s.queries.(providerByIDLoader)
+	if !ok {
+		return Provider{}, ErrUnknownProvider
+	}
+	row, err := queries.GetUpstreamIDPByIDAny(ctx, id)
+	if err != nil {
 		return Provider{}, ErrUnknownProvider
 	}
 	return providerFromRow(row)

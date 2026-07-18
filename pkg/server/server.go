@@ -75,6 +75,12 @@ type Server struct {
 	// production — handlers fall back to s.queries.
 	sudoFlowOverride             sudoFlowQueries
 	providerStateQueriesOverride providerStateQueries
+	// enrollmentQueriesOverride is the transaction-capable enrollment handler
+	// seam used by focused tests. Production handlers use s.queries.
+	enrollmentQueriesOverride  db.Querier
+	enrollmentWebAuthnOverride enrollmentWebAuthn
+	enrollmentTxRunnerOverride enrollmentTxRunner
+	enrollmentAvatarOverride   func(int32, federation.Provider, federation.AvatarDelivery) error
 	// meTOTPFlowOverride lets tests inject a fake meTOTPFlowQueries for the
 	// /me/totp/* conditional-sudo branch (which reads totp_credential.
 	// ConfirmedAt directly). Nil in production — handlers fall back to
@@ -287,7 +293,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		federation.NewVRChatEnrollmentIssuer(queries, auditWriter),
 		federation.ServiceConfig{StateTTL: config.Federation.StateTTL, PublicOrigin: publicOrigin, Audit: auditWriter},
 	)
-	federationService.SetAvatarManager(federation.NewAvatarManager(queries, kvStore))
+	avatarManager := federation.NewAvatarManager(queries, kvStore)
+	federationService.SetAvatarManager(avatarManager)
 
 	// Build the admin pagination cursor codec from the configured DEK set.
 	// The active version is the highest-numbered key; all versions remain
@@ -330,6 +337,10 @@ func NewServer(ctx context.Context) (*Server, error) {
 		federationService:     federationService,
 		federationOIDCAdapter: oidcAdapter,
 		federationRegistry:    federationRegistry,
+		enrollmentAvatarOverride: func(accountID int32, provider federation.Provider, delivery federation.AvatarDelivery) error {
+			avatarManager.Inherit(accountID, provider, delivery, nil)
+			return nil
+		},
 		vrchatOperatorService: vrchatOperator,
 		Audit:                 auditWriter,
 		branding:              brandingResolver,

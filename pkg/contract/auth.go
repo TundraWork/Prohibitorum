@@ -141,9 +141,10 @@ type EnrollmentTarget struct {
 // EnrollmentPreview is the response of GET /enrollments/{token} — what the
 // enroll page needs to render the right form before triggering the ceremony.
 type EnrollmentPreview struct {
-	Intent    string            `json:"intent"`
-	Target    *EnrollmentTarget `json:"target,omitempty"`
-	ExpiresAt time.Time         `json:"expiresAt"`
+	Intent               string            `json:"intent"`
+	Target               *EnrollmentTarget `json:"target,omitempty"`
+	ExpiresAt            time.Time         `json:"expiresAt"`
+	SuggestedDisplayName string            `json:"suggestedDisplayName,omitempty"`
 }
 
 // AuthStatus is GET /auth/status — used by the dashboard LoginView to branch

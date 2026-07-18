@@ -23,6 +23,48 @@ func (failingProviderQueries) GetEnrollmentByToken(context.Context, string) (db.
 	return db.Enrollment{}, errors.New("unexpected enrollment lookup")
 }
 
+type fakeProviderByIDQueries struct {
+	failingProviderQueries
+	row db.UpstreamIdp
+}
+
+func (q fakeProviderByIDQueries) GetUpstreamIDPByIDAny(context.Context, int64) (db.UpstreamIdp, error) {
+	if q.err != nil {
+		return db.UpstreamIdp{}, q.err
+	}
+	return q.row, nil
+}
+
+func TestProviderStoreByIDConvertsCompleteRowAndHidesLookupFailure(t *testing.T) {
+	row := db.UpstreamIdp{
+		ID:             42,
+		Slug:           "vrchat-main",
+		Protocol:       "vrchat",
+		Mode:           ModeLinkOnly,
+		ProviderConfig: []byte(`{}`),
+		SecretEnc:      []byte{1},
+		SecretNonce:    []byte{2},
+		KeyVersion:     pgtype.Int4{Int32: 3, Valid: true},
+		SecretStatus:   "valid",
+	}
+	store := NewProviderStore(fakeProviderByIDQueries{row: row})
+	provider, err := store.ByID(context.Background(), row.ID)
+	if err != nil {
+		t.Fatalf("ByID: %v", err)
+	}
+	if provider.ID != row.ID || provider.Slug != row.Slug || provider.Secret == nil || provider.Secret.KeyVersion != 3 {
+		t.Fatalf("ByID provider = %#v, want converted row", provider)
+	}
+
+	lookupErr := errors.New("database unavailable")
+	_, err = NewProviderStore(fakeProviderByIDQueries{
+		failingProviderQueries: failingProviderQueries{err: lookupErr},
+	}).ByID(context.Background(), row.ID)
+	if !errors.Is(err, ErrUnknownProvider) || errors.Is(err, lookupErr) {
+		t.Fatalf("ByID error = %v, want opaque ErrUnknownProvider", err)
+	}
+}
+
 func TestProviderStoreBySlugClassifiesLookupFailureAsUnknown(t *testing.T) {
 	lookupErr := errors.New("database unavailable")
 	store := NewProviderStore(failingProviderQueries{err: lookupErr})
