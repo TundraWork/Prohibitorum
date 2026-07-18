@@ -136,6 +136,16 @@ type VerifiedIdentity struct {
 	UpstreamData               map[string]string
 }
 
+type EnrollmentGrant struct {
+	Token     string
+	Intent    string
+	ExpiresAt time.Time
+}
+
+type EnrollmentIssuer interface {
+	Issue(context.Context, Provider, VerifiedIdentity) (EnrollmentGrant, error)
+}
+
 type CompletionResult struct {
 	Intent       Intent
 	AccountID    int32
