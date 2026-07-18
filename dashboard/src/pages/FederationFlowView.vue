@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Clock3, ExternalLink } from 'lucide-vue-next'
+import { Clock3, ExternalLink, Info } from 'lucide-vue-next'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
@@ -28,7 +28,6 @@ interface FederationFlow {
   step: 'identify' | 'proof'
   profileUrl?: string
   proofUrl?: string
-  requiresLocalUsername: boolean
   expiresAt: string
 }
 
@@ -48,7 +47,6 @@ const verifying = ref(false)
 const error = ref<ApiError | null>(null)
 const terminal = ref(false)
 const identity = ref('')
-const localUsername = ref('')
 const redirect = ref('')
 
 const succeeded = computed(() => redirect.value !== '')
@@ -134,9 +132,7 @@ async function prepareProof(): Promise<void> {
 async function reloadChangedFlow(): Promise<void> {
   const loaded = await loadFlow({ preserve: true })
   if (!loaded) return
-  if (flow.value?.requiresLocalUsername) {
-    await focusElement('local-username')
-  } else if (flow.value?.step === 'proof') {
+  if (flow.value?.step === 'proof') {
     await focusElement('verify-profile')
   } else {
     await focusElement('federation-identity')
@@ -148,11 +144,7 @@ async function verifyProfile(): Promise<void> {
   verifying.value = true
   error.value = null
   try {
-    const result = flow.value.requiresLocalUsername
-      ? await api.post<VerifyResponse>(`${flowPath}/verify`, {
-          localUsername: localUsername.value,
-        })
-      : await api.post<VerifyResponse>(`${flowPath}/verify`)
+    const result = await api.post<VerifyResponse>(`${flowPath}/verify`)
     redirect.value = result.redirect
     await focusElement('success-heading')
   } catch (value) {
@@ -162,10 +154,8 @@ async function verifyProfile(): Promise<void> {
     terminal.value = isTerminalError(code)
     if (terminal.value) return
 
-    if (code === 'local_username_required' || code === 'federation_action_invalid') {
+    if (code === 'federation_action_invalid') {
       await reloadChangedFlow()
-    } else if (code === 'username_collision' || code === 'invalid_username') {
-      await focusElement('local-username')
     } else {
       await focusElement('verify-profile')
     }
@@ -209,6 +199,22 @@ function continueFlow(): void {
       class="flex flex-col gap-5"
       @submit.prevent="prepareProof"
     >
+      <div
+        data-test="account-handoff-notice"
+        role="note"
+        class="flex min-w-0 items-start gap-3 rounded-lg border border-info-border bg-info p-3 text-info-foreground"
+      >
+        <Info class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <div class="min-w-0 space-y-1">
+          <p class="text-sm font-medium leading-5">
+            {{ t('federationFlow.accountNoticePrimary') }}
+          </p>
+          <p class="text-sm leading-5">
+            {{ t('federationFlow.accountNoticeSupporting') }}
+          </p>
+        </div>
+      </div>
+
       <p class="text-sm leading-5 text-muted">{{ t('federationFlow.identifyIntro') }}</p>
 
       <section
@@ -338,28 +344,6 @@ function continueFlow(): void {
           {{ t('federationFlow.expires', { time: expiry }) }}
         </p>
       </section>
-
-      <div
-        v-if="flow.requiresLocalUsername"
-        data-test="local-username-section"
-        class="flex flex-col gap-1.5 border-t border-border pt-4"
-      >
-        <Label for="local-username">{{ t('federationFlow.usernameLabel') }}</Label>
-        <Input
-          id="local-username"
-          v-model="localUsername"
-          name="localUsername"
-          class="min-h-11"
-          autocomplete="username"
-          autocapitalize="none"
-          spellcheck="false"
-          required
-          :aria-describedby="error ? 'federation-proof-error' : 'local-username-description'"
-        />
-        <p id="local-username-description" class="text-xs text-muted">
-          {{ t('federationFlow.usernameDescription') }}
-        </p>
-      </div>
 
       <div id="federation-proof-error">
         <ErrorPanel :error="error" @dismiss="dismissError" />

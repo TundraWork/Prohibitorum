@@ -68,6 +68,40 @@ describe('EnrollView', () => {
     expect(wrapper.find('input[name=displayName]').exists()).toBe(true)
   })
 
+  it('uses shared local-account enrollment after VRChat verification', async () => {
+    get.mockResolvedValue({
+      intent: 'federated_register',
+      suggestedDisplayName: 'VRChat Friend',
+      expiresAt: '2099-01-01T00:00:00Z',
+    })
+    post.mockResolvedValue({ challenge: 'c' })
+    const wrapper = await mountView(await makeRouter())
+
+    expect(wrapper.findAll('h1')).toHaveLength(1)
+    expect(wrapper.get('h1').text()).toBe('Set up your local account')
+    expect(wrapper.get('[data-test="federated-register-intro"]').text()).toBe(
+      'Your VRChat profile is verified. Choose your local account details, then create a passkey to sign in here.',
+    )
+
+    const username = wrapper.get('input[name="username"]')
+    const displayName = wrapper.get('input[name="displayName"]')
+    expect(wrapper.get('label[for="enroll-username"]').exists()).toBe(true)
+    expect(wrapper.get('label[for="enroll-displayname"]').exists()).toBe(true)
+    expect(username.element.getAttribute('required')).not.toBeNull()
+    expect((username.element as HTMLInputElement).value).toBe('')
+    expect((displayName.element as HTMLInputElement).value).toBe('VRChat Friend')
+
+    await username.setValue('local_friend')
+    await displayName.setValue('Edited Display Name')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith(
+      `/api/prohibitorum/enrollments/${TOKEN}/register/begin`,
+      { username: 'local_friend', displayName: 'Edited Display Name' },
+    )
+  })
+
   it('reset intent shows the read-only target, no identity fields', async () => {
     get.mockResolvedValue({
       intent: 'reset',
@@ -78,6 +112,33 @@ describe('EnrollView', () => {
 
     expect(wrapper.find('input[name=username]').exists()).toBe(false)
     expect(wrapper.text()).toContain('alex')
+  })
+
+  it('renders provider-backed recovery without exposing or submitting an identity', async () => {
+    get.mockResolvedValue({
+      intent: 'reset',
+      expiresAt: '2099-01-01T00:00:00Z',
+    })
+    post.mockResolvedValue({ challenge: 'c' })
+    const wrapper = await mountView(await makeRouter())
+
+    expect(wrapper.findAll('h1')).toHaveLength(1)
+    expect(wrapper.get('h1').text()).toBe('Recover access')
+    expect(wrapper.get('[data-test="recovery-intro"]').text()).toBe(
+      'Create a new passkey to recover access to your account.',
+    )
+    expect(wrapper.find('input[name="username"]').exists()).toBe(false)
+    expect(wrapper.find('input[name="displayName"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="target-account"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('undefined')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith(
+      `/api/prohibitorum/enrollments/${TOKEN}/register/begin`,
+      undefined,
+    )
   })
 
   it('registers a passkey and auto-logs-in to the app root', async () => {
@@ -204,12 +265,37 @@ describe('EnrollView', () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
-  it('routes to /error when the preview fails', async () => {
-    get.mockRejectedValue({ code: 'enrollment_expired', message: '已过期' })
-    const router = await makeRouter()
-    await mountView(router)
+  it('does not render provider snapshot data from an enrollment preview', async () => {
+    get.mockResolvedValue({
+      intent: 'federated_register',
+      suggestedDisplayName: 'Visible suggestion',
+      providerSlug: 'private-provider',
+      subject: 'private-subject',
+      metadata: { secret: 'private-metadata' },
+      avatarUrl: 'https://private.example/avatar',
+      expiresAt: '2099-01-01T00:00:00Z',
+    })
+    const wrapper = await mountView(await makeRouter())
 
-    expect(router.currentRoute.value.name).toBe('error')
-    expect(router.currentRoute.value.query.error).toBe('enrollment_expired')
+    expect((wrapper.get('input[name="displayName"]').element as HTMLInputElement).value).toBe(
+      'Visible suggestion',
+    )
+    const html = wrapper.html()
+    expect(html).not.toContain('private-provider')
+    expect(html).not.toContain('private-subject')
+    expect(html).not.toContain('private-metadata')
+    expect(html).not.toContain('https://private.example/avatar')
   })
+
+  it.each(['enrollment_invalid', 'enrollment_expired', 'enrollment_consumed'])(
+    'routes the %s preview error through the existing code-based error page',
+    async (code) => {
+      get.mockRejectedValue({ code })
+      const router = await makeRouter()
+      await mountView(router)
+
+      expect(router.currentRoute.value.name).toBe('error')
+      expect(router.currentRoute.value.query.error).toBe(code)
+    },
+  )
 })

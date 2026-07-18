@@ -80,6 +80,31 @@ describe('FederationFlowView', () => {
     expect(wrapper.findAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
+  it('explains the local account handoff before asking for a VRChat profile', async () => {
+    get.mockResolvedValue(identifyFlow)
+    const wrapper = await mountView()
+
+    const notice = wrapper.get('[data-test="account-handoff-notice"]')
+    expect(notice.text()).toContain(
+      'Your VRChat account is only used to verify your identity and help you recover access. If you’re new here, you’ll create a local account and sign-in method after verification.',
+    )
+    expect(notice.text()).toContain(
+      'Can you still sign in to your local account? Link VRChat from Connected Accounts instead.',
+    )
+    expect(notice.classes()).toEqual(
+      expect.arrayContaining([
+        'min-w-0',
+        'border-info-border',
+        'bg-info',
+        'text-info-foreground',
+      ]),
+    )
+    expect(
+      notice.element.compareDocumentPosition(wrapper.get('input[name="identity"]').element),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(wrapper.findAll('h1')).toHaveLength(1)
+  })
+
   it('shows how to find a profile URL and submits the unchanged identity value', async () => {
     get.mockResolvedValue(identifyFlow)
     post.mockResolvedValue(proofFlow)
@@ -141,20 +166,17 @@ describe('FederationFlowView', () => {
     expect(wrapper.get('[data-test="verify-profile"]').text()).toBe(en.federationFlow.verify)
   })
 
-  it('shows the local username only when the flow requires it', async () => {
+  it('never asks for or submits a local username in the public proof flow', async () => {
     get.mockResolvedValue({ ...proofFlow, requiresLocalUsername: true })
+    post.mockResolvedValue({ redirect: '/enroll/enroll_abc' })
     const wrapper = await mountView()
 
-    expect(wrapper.get('label[for="local-username"]').text()).toBe('Local username')
-    expect(wrapper.get('input[name="localUsername"]').attributes('autocomplete')).toBe('username')
+    expect(wrapper.find('input[name="localUsername"]').exists()).toBe(false)
 
-    const proofSection = wrapper.get('[aria-labelledby="proof-heading"]')
-    const usernameSection = wrapper.get('[data-test="local-username-section"]')
-    const errorArea = wrapper.get('#federation-proof-error')
-    const verifyAction = wrapper.get('[data-test="verify-profile"]')
-    expect(proofSection.element.compareDocumentPosition(usernameSection.element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(usernameSection.element.compareDocumentPosition(errorArea.element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(errorArea.element.compareDocumentPosition(verifyAction.element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    await wrapper.get('[data-test="verify-profile"]').trigger('click')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith(`${basePath}/verify`)
   })
 
   it('keeps proof controls available and focuses Verify profile when the bio link is missing', async () => {
@@ -171,37 +193,6 @@ describe('FederationFlowView', () => {
     expect(document.activeElement).toBe(wrapper.get('[data-test="verify-profile"]').element)
   })
 
-  it('reloads a changed flow after local_username_required, preserves proof, and focuses username', async () => {
-    get.mockResolvedValueOnce(proofFlow).mockResolvedValueOnce({
-      ...proofFlow,
-      requiresLocalUsername: true,
-    })
-    post.mockRejectedValue({ code: 'local_username_required' })
-    const wrapper = await mountView()
-
-    await wrapper.get('[data-test="verify-profile"]').trigger('click')
-    await flushPromises()
-
-    expect(get).toHaveBeenNthCalledWith(2, basePath)
-    expect(post).toHaveBeenCalledWith(`${basePath}/verify`)
-    expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
-    expect(wrapper.get('input[name="localUsername"]').exists()).toBe(true)
-    expect(document.activeElement).toBe(wrapper.get('input[name="localUsername"]').element)
-  })
-
-  it('preserves proof and focuses local username after username_collision', async () => {
-    get.mockResolvedValue({ ...proofFlow, requiresLocalUsername: true })
-    post.mockRejectedValue({ code: 'username_collision' })
-    const wrapper = await mountView()
-
-    await wrapper.get('input[name="localUsername"]').setValue('alex')
-    await wrapper.get('form').trigger('submit')
-    await flushPromises()
-
-    expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
-    expect(wrapper.get('[role="alert"]').text()).toContain('already taken')
-    expect(document.activeElement).toBe(wrapper.get('input[name="localUsername"]').element)
-  })
 
   it('shows Retry-After timing for an upstream rate limit without hiding proof', async () => {
     get.mockResolvedValue(proofFlow)
@@ -243,35 +234,39 @@ describe('FederationFlowView', () => {
     expect(wrapper.get('[data-test="proof-url"] code').text()).toBe(proofFlow.proofUrl)
   })
 
-  it('announces verification success without automatic navigation and redirects only on Continue', async () => {
+  it('keeps enrollment navigation behind the existing success and Continue interaction', async () => {
     get.mockResolvedValue(proofFlow)
-    post.mockResolvedValue({ redirect: '/welcome' })
+    post.mockResolvedValue({ redirect: '/enroll/enroll_abc' })
     const wrapper = await mountView()
 
     await wrapper.get('[data-test="verify-profile"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-test="verification-status"]').text()).toContain('Profile verified — remove the bio link now')
+    const success = wrapper.get('[data-test="verification-status"]')
+    expect(success.text()).toContain('Profile verified')
+    expect(success.text()).not.toMatch(/signed in|local session/i)
     expect(document.activeElement).toBe(wrapper.get('[data-test="success-heading"]').element)
     expect(hardRedirect).not.toHaveBeenCalled()
     expect(wrapper.find('[data-test="verify-profile"]').exists()).toBe(false)
 
     await wrapper.get('[data-test="continue"]').trigger('click')
-    expect(hardRedirect).toHaveBeenCalledWith('/welcome')
+    expect(hardRedirect).toHaveBeenCalledWith('/enroll/enroll_abc')
   })
 
-  it('submits the optional username and exposes accessible action names', async () => {
-    get.mockResolvedValue({ ...proofFlow, requiresLocalUsername: true })
-    post.mockResolvedValue({ redirect: '/' })
+  it('keeps authenticated linking on the Connected Accounts return path', async () => {
+    get.mockResolvedValue({ ...proofFlow, intent: 'link' })
+    post.mockResolvedValue({ redirect: '/connected' })
     const wrapper = await mountView()
 
-    await wrapper.get('input[name="localUsername"]').setValue('alex')
     expect(wrapper.get('[data-test="verify-profile"]').text()).toBe('Verify profile')
     expect(wrapper.get('[data-test="profile-link"]').attributes('aria-label')).toBe('Open VRChat profile: usr_12345678-1234-1234-1234-123456789abc')
     expect(wrapper.get('[data-test="copy-code"]').attributes('aria-label')).toBe('Copy one-time proof URL')
+    expect(wrapper.text()).not.toMatch(/signed in|local session/i)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
+    await wrapper.get('[data-test="continue"]').trigger('click')
 
-    expect(post).toHaveBeenCalledWith(`${basePath}/verify`, { localUsername: 'alex' })
+    expect(post).toHaveBeenCalledWith(`${basePath}/verify`)
+    expect(hardRedirect).toHaveBeenCalledWith('/connected')
   })
 })

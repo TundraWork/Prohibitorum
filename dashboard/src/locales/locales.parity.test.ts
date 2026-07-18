@@ -45,4 +45,19 @@ describe('locale key parity', () => {
     expect(required.filter((key) => !enKeys.has(key))).toEqual([])
     expect(required.filter((key) => !zhKeys.has(key))).toEqual([])
   })
+
+  it('keeps public VRChat enrollment and recovery copy complete in both locales', () => {
+    const required = [
+      'enroll.titleFederatedRegister',
+      'enroll.federatedRegisterBody',
+      'enroll.titleRecovery',
+      'enroll.recoveryBody',
+      'federationFlow.accountNoticePrimary',
+      'federationFlow.accountNoticeSupporting',
+    ]
+    const enKeys = keys(en)
+    const zhKeys = keys(zh)
+    expect(required.filter((key) => !enKeys.includes(key))).toEqual([])
+    expect(required.filter((key) => !zhKeys.includes(key))).toEqual([])
+  })
 })

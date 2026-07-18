@@ -6,11 +6,12 @@
  * verified — the old EnrollView was advisory only):
  *
  *   GET  /api/prohibitorum/enrollments/{token}
- *        → { intent: 'bootstrap'|'invite'|'reset', target?{username,displayName}, expiresAt }
+ *        → { intent: 'bootstrap'|'invite'|'reset'|'federated_register',
+ *            target?{username,displayName}, suggestedDisplayName?, expiresAt }
  *        invalid/expired/consumed → an AuthError → we route to /error.
  *
  *   POST /api/prohibitorum/enrollments/{token}/register/begin
- *        body { username, displayName } for bootstrap/invite; empty for reset
+ *        body { username, displayName } for bootstrap/invite/federated_register; empty for reset
  *        → WebAuthn creation options
  *   POST /api/prohibitorum/enrollments/{token}/register/complete
  *        body = attestation → { session, newCredentialId } (+ session cookie)
@@ -26,9 +27,9 @@
  * start-federation. (The username/displayName the invitee typed is discarded —
  * federation derives identity from the upstream IdP's claims.)
  *
- * Per-intent form: bootstrap & invite collect username + displayName; reset
- * shows the read-only target username (identity is fixed, only the passkey is
- * replaced).
+ * Per-intent form: bootstrap, invite, and federated_register collect username +
+ * displayName; federated_register may initialize the editable display name from
+ * the verified profile. Reset shows a read-only username only when previewed.
  */
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { computed, onMounted, ref } from 'vue'
@@ -48,8 +49,9 @@ interface EnrollmentTarget {
   displayName: string
 }
 interface EnrollmentPreview {
-  intent: 'bootstrap' | 'invite' | 'reset'
+  intent: 'bootstrap' | 'invite' | 'reset' | 'federated_register'
   target?: EnrollmentTarget
+  suggestedDisplayName?: string
   expiresAt: string
 }
 interface EnrollCompleteResponse {
@@ -77,20 +79,25 @@ const preview = ref<EnrollmentPreview | null>(null)
 const loading = ref(true)
 const federationRedirectUrl = ref('')
 
-// bootstrap/invite collect these; reset leaves them untouched.
+// New-account intents collect these; reset leaves them untouched.
 const username = ref('')
 const displayName = ref('')
 
 const collectsIdentity = computed(
-  () => preview.value?.intent === 'bootstrap' || preview.value?.intent === 'invite',
+  () =>
+    preview.value?.intent === 'bootstrap' ||
+    preview.value?.intent === 'invite' ||
+    preview.value?.intent === 'federated_register',
 )
 
 const heading = computed(() => {
   switch (preview.value?.intent) {
     case 'invite':
       return t('enroll.titleInvite')
+    case 'federated_register':
+      return t('enroll.titleFederatedRegister')
     case 'reset':
-      return t('enroll.titleReset')
+      return preview.value?.target ? t('enroll.titleReset') : t('enroll.titleRecovery')
     default:
       return t('enroll.title')
   }
@@ -105,9 +112,13 @@ function startFederationURL(): string {
 
 onMounted(async () => {
   try {
-    preview.value = await api.get<EnrollmentPreview>(
+    const loaded = await api.get<EnrollmentPreview>(
       `/api/prohibitorum/enrollments/${encodeURIComponent(token)}`,
     )
+    preview.value = loaded
+    if (loaded.intent === 'federated_register') {
+      displayName.value = loaded.suggestedDisplayName ?? ''
+    }
   } catch (e) {
     const code = (e as ApiError | undefined)?.code
     router.replace({ name: 'error', query: { error: code ?? 'enrollment_consumed' } })
@@ -176,7 +187,22 @@ async function enroll(): Promise<void> {
     </div>
 
     <form v-else-if="preview" class="flex flex-col gap-4" @submit.prevent="enroll">
-      <!-- bootstrap / invite: choose identity -->
+      <p
+        v-if="preview.intent === 'federated_register'"
+        data-test="federated-register-intro"
+        class="text-sm leading-5 text-muted"
+      >
+        {{ t('enroll.federatedRegisterBody') }}
+      </p>
+      <p
+        v-else-if="preview.intent === 'reset' && !preview.target"
+        data-test="recovery-intro"
+        class="text-sm leading-5 text-muted"
+      >
+        {{ t('enroll.recoveryBody') }}
+      </p>
+
+      <!-- New-account intents choose a local identity. -->
       <template v-if="collectsIdentity">
         <div class="flex flex-col gap-1.5">
           <Label for="enroll-username">{{ t('enroll.usernameLabel') }}</Label>
@@ -206,9 +232,9 @@ async function enroll(): Promise<void> {
         </div>
       </template>
 
-      <!-- reset: identity is fixed, show the target as plain read-only text -->
+      <!-- A target-bearing reset may identify the fixed account as read-only text. -->
       <template v-else-if="preview.target">
-        <div class="flex flex-col gap-1.5">
+        <div data-test="target-account" class="flex flex-col gap-1.5">
           <Label>{{ t('enroll.targetAccountLabel') }}</Label>
           <p class="font-mono text-sm text-ink">{{ preview.target.username }}</p>
         </div>
