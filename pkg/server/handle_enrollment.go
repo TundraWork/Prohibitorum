@@ -732,10 +732,17 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		Detail:    auditDetail,
 	})
 
-	// Post-commit cleanup (best-effort).
+	// Ceremony-state cleanup is best-effort after the enrollment transaction commits.
 	_ = s.kvStore.Del(r.Context(), enrollCeremonyKey(token))
 	if consumed.Intent == enrollment.IntentReset {
-		_, _ = s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
+		_, revokeErr := s.sessionStore.RevokeAllForAccount(r.Context(), acct.ID)
+		if revokeErr != nil && consumed.RecoverySourceUpstreamIdpID.Valid {
+			// Credential replacement and enrollment consumption have already
+			// committed. Fail closed rather than issue a fresh session while a
+			// compromised old session may still be live.
+			writeAuthErr(w, fmt.Errorf("enrollment/complete: revoke sessions: %w", revokeErr))
+			return
+		}
 	}
 
 	if me := s.maintenanceLockout(r.Context(), acct.ID); me != nil {

@@ -39,6 +39,18 @@ func (c *enrollmentAuditCapture) Record(_ context.Context, record audit.Record) 
 	return nil
 }
 
+type failingSessionRevocationStore struct {
+	kv.Store
+	scanErr error
+}
+
+func (s *failingSessionRevocationStore) ScanEntries(ctx context.Context, pattern string, cursor uint64, count int64) (kv.ScanEntriesResult, error) {
+	if s.scanErr != nil && strings.HasPrefix(pattern, "session:") {
+		return kv.ScanEntriesResult{}, s.scanErr
+	}
+	return s.Store.ScanEntries(ctx, pattern, cursor, count)
+}
+
 type vrchatEnrollmentQueries struct {
 	db.Querier
 	mu                sync.Mutex
@@ -55,6 +67,7 @@ type vrchatEnrollmentQueries struct {
 	insertAccountErr  error
 	insertIdentityErr error
 	revokeCalls       int
+	sessionOps        []string
 }
 
 func (q *vrchatEnrollmentQueries) GetEnrollmentByToken(_ context.Context, token string) (db.Enrollment, error) {
@@ -242,6 +255,7 @@ func (q *vrchatEnrollmentQueries) InsertSession(_ context.Context, p db.InsertSe
 	defer q.mu.Unlock()
 	session := db.Session{ID: p.ID, AccountID: p.AccountID, AuthTime: p.AuthTime, Amr: append([]string(nil), p.Amr...), Acr: p.Acr, UpstreamIdpID: p.UpstreamIdpID}
 	q.sessions = append(q.sessions, session)
+	q.sessionOps = append(q.sessionOps, "issue")
 	return session, nil
 }
 
@@ -260,6 +274,7 @@ func (q *vrchatEnrollmentQueries) RevokeAllSessionsByAccount(_ context.Context, 
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.revokeCalls++
+	q.sessionOps = append(q.sessionOps, "revoke")
 	for i := range q.sessions {
 		if q.sessions[i].AccountID == accountID && !q.sessions[i].RevokedAt.Valid {
 			q.sessions[i].RevokedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
@@ -896,6 +911,9 @@ func TestProviderRecoveryCompletionAtomicallyReplacesCredentialsAndSessions(t *t
 	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-two", []string{"hwk"}, nil); err != nil {
 		t.Fatal(err)
 	}
+	q.mu.Lock()
+	q.sessionOps = nil
+	q.mu.Unlock()
 	w := httptest.NewRecorder()
 	s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(e.Token, `{}`))
 	if w.Code != http.StatusOK {
@@ -915,6 +933,9 @@ func TestProviderRecoveryCompletionAtomicallyReplacesCredentialsAndSessions(t *t
 	if q.revokeCalls != 1 {
 		t.Fatalf("revoke calls = %d, want 1", q.revokeCalls)
 	}
+	if got := strings.Join(q.sessionOps, ","); got != "revoke,issue" {
+		t.Fatalf("session operations = %q, want revoke,issue", got)
+	}
 	active := 0
 	for _, session := range q.sessions {
 		if !session.RevokedAt.Valid {
@@ -933,6 +954,59 @@ func TestProviderRecoveryCompletionAtomicallyReplacesCredentialsAndSessions(t *t
 	if consumedAudit == nil || len(consumedAudit.Detail) != 2 ||
 		consumedAudit.Detail["intent"] != enrollment.IntentReset || consumedAudit.Detail["source"] != "vrchat" {
 		t.Fatalf("provider recovery audit = %+v", consumedAudit)
+	}
+}
+
+func TestProviderRecoveryCompletionFailsClosedWhenSessionRevocationFails(t *testing.T) {
+	account := db.Account{ID: 74, Username: "private-user", DisplayName: "Private Name", WebauthnUserHandle: []byte("opaque-handle")}
+	e := pendingEnrollment("provider-recovery-revocation-failure", enrollment.IntentReset)
+	e.TargetAccountID = pgtype.Int4{Int32: account.ID, Valid: true}
+	e.RecoverySourceUpstreamIdpID = pgtype.Int8{Int64: 41, Valid: true}
+	s, q := newAtomicVRChatEnrollmentServer(t, e, &account)
+	failingStore := &failingSessionRevocationStore{Store: s.kvStore}
+	s.sessionStore = sessstore.NewSessionStore(failingStore, q, s.config.SessionTTL)
+	q.credentials[account.ID] = []db.WebauthnCredential{{ID: 8, AccountID: account.ID, CredentialID: []byte("old-credential")}}
+	if _, _, err := s.sessionStore.Issue(context.Background(), account.ID, "127.0.0.1", "old-session", []string{"hwk"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	s.handleEnrollmentBeginHTTP(w, beginEnrollmentRequest(e.Token, `{}`))
+	if w.Code != http.StatusOK {
+		t.Fatalf("begin status=%d body=%s", w.Code, w.Body.String())
+	}
+	failingStore.scanErr = errors.New("revocation backend secret provider=41 account=74 token=compromised")
+
+	w = httptest.NewRecorder()
+	s.handleEnrollmentCompleteHTTP(w, completeEnrollmentRequest(e.Token))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("complete status=%d body=%s, want 500", w.Code, w.Body.String())
+	}
+	var public map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &public); err != nil {
+		t.Fatalf("decode safe response: %v; body=%s", err, w.Body.String())
+	}
+	if len(public) != 2 || public["code"] != "server_error" {
+		t.Fatalf("public response = %#v, want safe server_error envelope", public)
+	}
+	if strings.Contains(w.Body.String(), "provider") || strings.Contains(w.Body.String(), "account") ||
+		strings.Contains(w.Body.String(), "token") || strings.Contains(w.Body.String(), account.Username) {
+		t.Fatalf("public response leaked revocation context: %s", w.Body.String())
+	}
+	if cookies := w.Header().Values("Set-Cookie"); len(cookies) != 0 {
+		t.Fatalf("failure issued session cookie: %v", cookies)
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.sessions) != 1 {
+		t.Fatalf("session rows = %d, want no fresh issuance after revocation failure", len(q.sessions))
+	}
+	if !q.enrollments[e.Token].ConsumedAt.Valid {
+		t.Fatal("response concealed that committed enrollment consumption already occurred")
+	}
+	if credentials := q.credentials[account.ID]; len(credentials) != 1 || !bytes.Equal(credentials[0].CredentialID, []byte("new-credential")) {
+		t.Fatalf("committed credential replacement = %+v", credentials)
 	}
 }
 
