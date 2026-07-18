@@ -442,6 +442,7 @@ export default {
       modeAutoProvisionDesc: 'Creates a local account from the provider the first time a new user signs in.',
       modeInviteOnlyDesc: 'New users can only sign in through an admin invitation for this provider, which creates their account. Without one, sign-in is refused.',
       modeLinkOnlyDesc: 'Never creates accounts. A user first connects this provider to an existing account (from Connected accounts), then can sign in with it.',
+      vrchatLinkOnlyDescription: 'During registration or account recovery, VRChat profile proof links the identity and the user creates a local sign-in credential.',
       scopes: 'Scopes',
       scopesHint: 'Pick from the list or type any scope and press Enter. Paste a list to add several.',
       scopeSuggestions: {

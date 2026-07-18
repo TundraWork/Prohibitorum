@@ -88,6 +88,7 @@ const allowedDomains = ref<string[]>([])
 const usernameClaim = ref('preferred_username'); const displayNameClaim = ref('name'); const emailClaim = ref('email'); const pictureClaim = ref('picture')
 const requireVerifiedEmail = ref(false)
 const protocol = ref<ProviderProtocol>('oidc'); const apiKey = ref('')
+const effectiveMode = computed<ProviderMode>(() => protocol.value === 'vrchat' ? 'link_only' : mode.value)
 
 function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s) ? null : t('admin.upstream.domainInvalid') }
 
@@ -116,7 +117,7 @@ type CreateProviderRequest =
   | { slug: string; displayName: string; protocol: 'vrchat'; mode: ProviderMode; config: Record<string, never> }
 
 function buildCreateRequest(selected: ProviderProtocol): CreateProviderRequest {
-  const common = { slug: slug.value, displayName: displayName.value, mode: mode.value }
+  const common = { slug: slug.value, displayName: displayName.value, mode: effectiveMode.value }
   switch (selected) {
     case 'oidc':
       return {
@@ -221,7 +222,12 @@ async function create(): Promise<void> {
           </template>
         </FormSection>
         <FormSection :title="t('admin.upstream.sectionProvisioning')">
-          <div class="flex flex-col gap-1.5">
+          <div v-if="protocol === 'vrchat'" class="flex flex-col gap-1.5" data-test="vrchat-fixed-mode">
+            <p class="text-sm font-medium text-ink">{{ t('admin.upstream.mode') }}</p>
+            <p class="text-sm text-ink">{{ t('admin.upstream.modeLinkOnly') }}</p>
+            <p class="max-w-[75ch] text-sm text-muted">{{ t('admin.upstream.vrchatLinkOnlyDescription') }}</p>
+          </div>
+          <div v-else class="flex flex-col gap-1.5">
             <Label>{{ t('admin.upstream.mode') }}</Label>
             <RadioCardGroup v-model="mode" :aria-label="t('admin.upstream.mode')" :options="[
               {value:'auto_provision',title:t('admin.upstream.modeAutoProvision'),description:t('admin.upstream.modeAutoProvisionDesc')},

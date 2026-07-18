@@ -438,6 +438,7 @@ export default {
       modeAutoProvisionDesc: '当新用户首次登录时，根据该提供商创建本地账户。',
       modeInviteOnlyDesc: '新用户只能通过管理员针对此提供商发出的邀请登录，邀请会同时创建其账户。无邀请则拒绝登录。',
       modeLinkOnlyDesc: '永不自动创建账户。用户须先在"关联账户"中将此提供商与现有账户绑定，之后方可通过该提供商登录。',
+      vrchatLinkOnlyDescription: '在注册或账户恢复期间，VRChat 个人资料证明用于关联身份，用户还需创建本地登录凭据。',
       scopes: 'Scopes',
       scopesHint: '从列表中选择，或输入任意 scope 后按回车。粘贴列表可一次添加多个。',
       scopeSuggestions: {

@@ -55,6 +55,7 @@ const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 const isOIDC = computed(() => idp.value?.protocol === 'oidc')
 const isSteam = computed(() => idp.value?.protocol === 'steam')
 const isVRChat = computed(() => idp.value?.protocol === 'vrchat')
+const effectiveMode = computed<ProviderMode>(() => isVRChat.value ? 'link_only' : mode.value)
 const newSecret = ref(''); const { flag: rotated, trigger: triggerRotated } = useTransientFlag()
 const confirmDelete = ref(false)
 
@@ -224,7 +225,7 @@ async function save(): Promise<void> {
     : {}
   const updated = await run(() => withSudo(() => api.put<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`, {
     displayName: displayName.value,
-    mode: mode.value,
+    mode: effectiveMode.value,
     config,
   }), t('sudo.reason.saveChanges')))
   if (updated) { idp.value = updated; triggerSaved() }
@@ -475,7 +476,12 @@ onMounted(load)
             </template>
           </FormSection>
           <FormSection :title="t('admin.upstream.sectionProvisioning')">
-            <div class="flex flex-col gap-1.5">
+            <div v-if="isVRChat" class="flex flex-col gap-1.5" data-test="vrchat-fixed-mode">
+              <p class="text-sm font-medium text-ink">{{ t('admin.upstream.mode') }}</p>
+              <p class="text-sm text-ink">{{ t('admin.upstream.modeLinkOnly') }}</p>
+              <p class="max-w-[75ch] text-sm text-muted">{{ t('admin.upstream.vrchatLinkOnlyDescription') }}</p>
+            </div>
+            <div v-else class="flex flex-col gap-1.5">
               <Label>{{ t('admin.upstream.mode') }}</Label>
               <RadioCardGroup v-model="mode" :aria-label="t('admin.upstream.mode')" :options="[
                 {value:'auto_provision',title:t('admin.upstream.modeAutoProvision'),description:t('admin.upstream.modeAutoProvisionDesc')},

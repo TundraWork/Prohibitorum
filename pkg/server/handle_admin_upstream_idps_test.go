@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
@@ -160,6 +161,64 @@ func TestValidateProviderWrite(t *testing.T) {
 			_, err := s.validateProviderWrite(tc.body, nil, true)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("validateProviderWrite() error = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestAdminUpstreamProviderVRChatModePolicy(t *testing.T) {
+	t.Parallel()
+	s := newProviderAdminTestServer(t)
+	vrchatRow := db.UpstreamIdp{
+		Slug: "vrchat", DisplayName: "VRChat", Protocol: federationvrchat.Protocol,
+		Mode: federation.ModeLinkOnly, ProviderConfig: []byte(`{}`),
+	}
+	newBody := func(protocol, mode string) providerWriteBody {
+		body := providerWriteBody{
+			Slug: protocol, DisplayName: protocol, Protocol: protocol, Mode: mode, Config: json.RawMessage(`{}`),
+		}
+		if protocol != federationvrchat.Protocol {
+			body.Secret = "provider-secret"
+		}
+		if protocol == federationoidc.Protocol {
+			body.Slug = "corp"
+			body.DisplayName = "Corporate"
+			body.Config = json.RawMessage(exactOIDCConfig)
+		}
+		return body
+	}
+	for _, tc := range []struct {
+		name     string
+		body     providerWriteBody
+		existing *db.UpstreamIdp
+		creating bool
+		wantErr  bool
+	}{
+		{name: "create VRChat link only", body: newBody(federationvrchat.Protocol, federation.ModeLinkOnly), creating: true},
+		{name: "create VRChat auto provision", body: newBody(federationvrchat.Protocol, federation.ModeAutoProvision), creating: true, wantErr: true},
+		{name: "create VRChat invite only", body: newBody(federationvrchat.Protocol, federation.ModeInviteOnly), creating: true, wantErr: true},
+		{name: "create OIDC auto provision", body: newBody(federationoidc.Protocol, federation.ModeAutoProvision), creating: true},
+		{name: "create OIDC invite only", body: newBody(federationoidc.Protocol, federation.ModeInviteOnly), creating: true},
+		{name: "create OIDC link only", body: newBody(federationoidc.Protocol, federation.ModeLinkOnly), creating: true},
+		{name: "create Steam auto provision", body: newBody(federationsteam.Protocol, federation.ModeAutoProvision), creating: true},
+		{name: "create Steam invite only", body: newBody(federationsteam.Protocol, federation.ModeInviteOnly), creating: true},
+		{name: "create Steam link only", body: newBody(federationsteam.Protocol, federation.ModeLinkOnly), creating: true},
+		{name: "update migrated VRChat link only", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow},
+		{name: "update migrated VRChat to auto provision", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
+		{name: "update migrated VRChat to invite only", body: providerWriteBody{DisplayName: "VRChat", Mode: federation.ModeInviteOnly, Config: json.RawMessage(`{}`)}, existing: &vrchatRow, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := s.validateProviderWrite(tc.body, tc.existing, tc.creating)
+			if tc.wantErr {
+				authErr, ok := err.(*authn.AuthError)
+				if !ok || authErr.Status != http.StatusBadRequest || authErr.Code != "bad_request" {
+					t.Fatalf("validateProviderWrite() error = %#v, want 400 bad_request", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateProviderWrite() error = %v, want nil", err)
 			}
 		})
 	}

@@ -18,6 +18,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
+	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/pagination"
 )
 
@@ -145,6 +146,9 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 	}
 	definition, err := s.federationRegistry.Definition(protocol)
 	if err != nil || definition.ValidateConfig(body.Config) != nil {
+		return nil, authn.ErrBadRequest()
+	}
+	if definition.Protocol() == federationvrchat.Protocol && body.Mode != federation.ModeLinkOnly {
 		return nil, authn.ErrBadRequest()
 	}
 	if creating {

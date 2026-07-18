@@ -119,19 +119,20 @@ describe('AdminUpstreamIdpsView', () => {
       secret: 'api-key',
     })
   })
-  it('creates VRChat with no provider secret or adapter config and opens detail', async () => {
+  it('locks VRChat creation to link only and explains the local credential flow', async () => {
     get.mockResolvedValue([])
     post.mockResolvedValue({
       slug: 'vrchat',
       displayName: 'VRChat moderation',
       protocol: 'vrchat',
-      mode: 'invite_only',
+      mode: 'link_only',
       config: {},
     })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     expect(w.text()).toContain(en.admin.upstream.protocolVrchat)
 
+    await w.find('[data-test="radio-card-invite_only"]').trigger('click')
     await w.find('[data-test="radio-card-vrchat"]').trigger('click')
     await flushPromises()
 
@@ -140,6 +141,12 @@ describe('AdminUpstreamIdpsView', () => {
       w.get('[data-test="vrchat-create-warning"]').get('[data-slot="alert-description"]').classes(),
     ).toContain('max-w-[75ch]')
     expect(w.get('[data-test="vrchat-create-warning"]').attributes('role')).toBe('note')
+    const fixedMode = w.get('[data-test="vrchat-fixed-mode"]')
+    expect(fixedMode.text()).toContain(en.admin.upstream.modeLinkOnly)
+    expect(fixedMode.text()).toContain(en.admin.upstream.vrchatLinkOnlyDescription)
+    expect(w.find('[data-test="radio-card-auto_provision"]').exists()).toBe(false)
+    expect(w.find('[data-test="radio-card-invite_only"]').exists()).toBe(false)
+    expect(w.find('[data-test="radio-card-link_only"]').exists()).toBe(false)
     expect(w.find('input[name="issuerUrl"]').exists()).toBe(false)
     expect(w.find('input[name="clientId"]').exists()).toBe(false)
     expect(w.find('input[name="clientSecret"]').exists()).toBe(false)
@@ -149,7 +156,6 @@ describe('AdminUpstreamIdpsView', () => {
 
     await w.find('input[name="slug"]').setValue('vrchat')
     await w.find('input[name="displayName"]').setValue('VRChat moderation')
-    await w.find('[data-test="radio-card-invite_only"]').trigger('click')
     await w.find('[data-test="create-confirm"]').trigger('click')
     await flushPromises()
 
@@ -158,10 +164,24 @@ describe('AdminUpstreamIdpsView', () => {
       slug: 'vrchat',
       displayName: 'VRChat moderation',
       protocol: 'vrchat',
-      mode: 'invite_only',
+      mode: 'link_only',
       config: {},
     })
     expect(push).toHaveBeenCalledWith('/admin/identity-providers/vrchat')
+  })
+
+  it('restores the selected provisioning mode after switching back from VRChat', async () => {
+    get.mockResolvedValue([])
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    await w.find('[data-test="radio-card-invite_only"]').trigger('click')
+    await w.find('[data-test="radio-card-vrchat"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="radio-card-invite_only"]').exists()).toBe(false)
+
+    await w.find('[data-test="radio-card-steam"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="radio-card-invite_only"]').attributes('data-state')).toBe('checked')
   })
   it('routes from the authoritative create response after the form changes', async () => {
     get.mockResolvedValue([])

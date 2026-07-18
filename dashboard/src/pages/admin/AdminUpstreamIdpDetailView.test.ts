@@ -224,6 +224,25 @@ describe('AdminUpstreamIdpDetailView', () => {
       config: {},
     })
   })
+  it('renders VRChat mode as fixed and always saves link only', async () => {
+    put.mockResolvedValue({ ...VRCHAT, mode: 'link_only' })
+    const w = await mountVrchat()
+
+    const fixedMode = w.get('[data-test="vrchat-fixed-mode"]')
+    expect(fixedMode.text()).toContain(en.admin.upstream.modeLinkOnly)
+    expect(fixedMode.text()).toContain(en.admin.upstream.vrchatLinkOnlyDescription)
+    expect(w.find('[data-test="radio-card-auto_provision"]').exists()).toBe(false)
+    expect(w.find('[data-test="radio-card-invite_only"]').exists()).toBe(false)
+    expect(w.find('[data-test="radio-card-link_only"]').exists()).toBe(false)
+
+    await w.find('[data-test="save"]').trigger('click')
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/vrchat', {
+      displayName: 'VRChat moderation',
+      mode: 'link_only',
+      config: {},
+    })
+  })
   it('shows VRChat session state, setup guidance, and no generic secret UI', async () => {
     const w = await mountVrchat()
 
@@ -261,6 +280,9 @@ describe('AdminUpstreamIdpDetailView', () => {
 
     expect(w.get('[data-test="operator-risk-warning"]').text()).toContain(
       zh.admin.upstream.vrchatCreateWarning,
+    )
+    expect(w.get('[data-test="vrchat-fixed-mode"]').text()).toContain(
+      zh.admin.upstream.vrchatLinkOnlyDescription,
     )
     expect(w.get('[data-test="operator-session-notice"]').text()).toContain(
       zh.admin.upstream.operatorSessionNotice,
