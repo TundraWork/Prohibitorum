@@ -86,7 +86,7 @@ type vrchatSmoke struct {
 	bodies        [][]byte
 	proofs        []string
 	proofBodies   [][]byte
-	enrollments  []string
+	enrollments   []string
 }
 
 func newVRChatSmoke(base, control, caFile string) (*vrchatSmoke, error) {
@@ -231,26 +231,33 @@ func (v *vrchatSmoke) expectError(resp *http.Response, body []byte, status int, 
 }
 
 func (v *vrchatSmoke) preview(c *client, token string) (vrchatEnrollmentPreview, map[string]json.RawMessage, error) {
-	req, _ := http.NewRequest(http.MethodGet, c.base+"/api/prohibitorum/enrollments/"+url.PathEscape(token), nil)
+	const label = "enrollment preview"
+	req, err := http.NewRequest(http.MethodGet, c.base+"/api/prohibitorum/enrollments/"+url.PathEscape(token), nil)
+	if err != nil {
+		return vrchatEnrollmentPreview{}, nil, fmt.Errorf("%s: request construction failed", label)
+	}
 	resp, err := c.hc.Do(req)
 	if err != nil {
-		return vrchatEnrollmentPreview{}, nil, err
+		return vrchatEnrollmentPreview{}, nil, fmt.Errorf("%s: transport failed", label)
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return vrchatEnrollmentPreview{}, nil, fmt.Errorf("%s: response read failed", label)
+	}
 	v.bodies = append(v.bodies, append([]byte(nil), body...))
 	if resp.StatusCode != http.StatusOK {
-		return vrchatEnrollmentPreview{}, nil, fmt.Errorf("enrollment preview status=%d", resp.StatusCode)
+		return vrchatEnrollmentPreview{}, nil, fmt.Errorf("%s: unexpected HTTP status %d", label, resp.StatusCode)
 	}
 	var (
 		preview vrchatEnrollmentPreview
 		fields  map[string]json.RawMessage
 	)
 	if err := json.Unmarshal(body, &preview); err != nil {
-		return preview, nil, err
+		return preview, nil, fmt.Errorf("%s: invalid JSON response", label)
 	}
 	if err := json.Unmarshal(body, &fields); err != nil {
-		return preview, nil, err
+		return preview, nil, fmt.Errorf("%s: invalid JSON response", label)
 	}
 	return preview, fields, nil
 }
@@ -470,7 +477,22 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		}
 	}
 
-	step(fmt.Sprintf("vrchat %d/%d — registration WebAuthn ceremony creates identity and first session", 7, nVRChat))
+	step(fmt.Sprintf("vrchat %d/%d — registration proof replay is rejected without a session", 7, nVRChat))
+	resp, body, _ = v.verify(registration, registrationFlow, "")
+	if err := v.expectError(resp, body, http.StatusUnauthorized, "federation_state_invalid"); err != nil {
+		return err
+	}
+	if hasSessionCookie(resp.Cookies()) || hasSessionCookie(registration.cookies()) {
+		return fmt.Errorf("registration proof replay issued a normal session")
+	}
+	if status, err := getStatus(registration, "/api/prohibitorum/me"); err != nil || status != http.StatusUnauthorized {
+		return fmt.Errorf("registration proof replay /me status=%d err=%w; want 401", status, err)
+	}
+	if err := assertNoVRChatIdentity(admin, vrchatSlug, vrchatUserA); err != nil {
+		return err
+	}
+
+	step(fmt.Sprintf("vrchat %d/%d — registration WebAuthn ceremony creates identity and first session", 8, nVRChat))
 	registrationAuth, err := registerVRChatEnrollment(registration, base, registrationToken, "vrchat-smoke-alpha", "VRChat Smoke Alpha", "vrchat-primary")
 	if err != nil {
 		return err
@@ -496,12 +518,6 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		identity.Data["userId"] != vrchatUserA || identity.Data["displayName"] != "VRChat Smoke Alpha" ||
 		identity.Data["profileUrl"] != "https://vrchat.com/home/user/"+vrchatUserA || len(identity.Data) != 3 {
 		return fmt.Errorf("registration identity metadata projection is incomplete or uncurated")
-	}
-
-	step(fmt.Sprintf("vrchat %d/%d — registration proof replay is rejected without a session", 8, nVRChat))
-	resp, body, _ = v.verify(registration, registrationFlow, "")
-	if err := v.expectError(resp, body, http.StatusUnauthorized, "federation_state_invalid"); err != nil {
-		return err
 	}
 
 	step(fmt.Sprintf("vrchat %d/%d — recovery proof returns target-hidden reset and no session", 9, nVRChat))
@@ -552,6 +568,9 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	}
 
 	step(fmt.Sprintf("vrchat %d/%d — recovery replacement revokes old session and issues exactly one fresh session", 10, nVRChat))
+	if status, err := getStatus(registration, "/api/prohibitorum/me"); err != nil || status != http.StatusOK {
+		return fmt.Errorf("proof-only recovery changed original session /me status=%d err=%w; want 200", status, err)
+	}
 	if _, err := registerVRChatEnrollment(recovery, base, recoveryToken, "", "", "vrchat-replacement"); err != nil {
 		return err
 	}
@@ -866,6 +885,18 @@ func (v *vrchatSmoke) verifyNoSecrets(admin *client, logFiles ...string) error {
 				return fmt.Errorf("audit or diagnostic detail leaked marker length=%d", len(secret))
 			}
 		}
+	}
+	return nil
+}
+
+func assertNoVRChatIdentity(admin *client, slug, userID string) error {
+	var result page[map[string]any]
+	query := "q=" + url.QueryEscape(userID) + "&provider=" + url.QueryEscape(slug) + "&limit=1"
+	if err := admin.get("/api/prohibitorum/accounts?"+query, &result); err != nil {
+		return fmt.Errorf("query pre-enrollment VRChat identity: %w", err)
+	}
+	if len(result.Items) != 0 {
+		return fmt.Errorf("proof eagerly materialized VRChat provider/subject identity")
 	}
 	return nil
 }

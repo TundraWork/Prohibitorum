@@ -4927,6 +4927,41 @@ func (c *client) postJSON(path string, body any, out any) error {
 	return c.do(req, out)
 }
 
+func (c *client) postEnrollmentJSON(token, action string, body, out any) error {
+	label := "enrollment " + action
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			return fmt.Errorf("%s: request encoding failed", label)
+		}
+	}
+	path := "/api/prohibitorum/enrollments/" + url.PathEscape(token) + "/" + action
+	req, err := http.NewRequest(http.MethodPost, c.base+path, &buf)
+	if err != nil {
+		return fmt.Errorf("%s: request construction failed", label)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return fmt.Errorf("%s: transport failed", label)
+	}
+	defer resp.Body.Close()
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("%s: response read failed", label)
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("%s: unexpected HTTP status %d", label, resp.StatusCode)
+	}
+	if out == nil || len(responseBody) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(responseBody, out); err != nil {
+		return fmt.Errorf("%s: invalid JSON response", label)
+	}
+	return nil
+}
+
 func (c *client) get(path string, out any) error {
 	req, err := http.NewRequest(http.MethodGet, c.base+path, nil)
 	if err != nil {
@@ -5266,7 +5301,7 @@ func (c *client) beginEnrollment(token, username, display, nickname string) (*cr
 		"nickname":    nickname,
 	}
 	var opts creationOptions
-	if err := c.postJSON("/api/prohibitorum/enrollments/"+token+"/register/begin", body, &opts); err != nil {
+	if err := c.postEnrollmentJSON(token, "register/begin", body, &opts); err != nil {
 		return nil, err
 	}
 	return &opts, nil
@@ -5286,7 +5321,7 @@ func (c *client) completeEnrollment(token string, a *authenticator, att *attesta
 		"clientExtensionResults":  map[string]any{},
 		"authenticatorAttachment": "platform",
 	}
-	return c.postJSON("/api/prohibitorum/enrollments/"+token+"/register/complete", payload, nil)
+	return c.postEnrollmentJSON(token, "register/complete", payload, nil)
 }
 
 func (c *client) beginLogin() (*assertionOptions, error) {
