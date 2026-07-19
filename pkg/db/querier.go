@@ -109,6 +109,7 @@ type Querier interface {
 	GetSigningKeyByKID(ctx context.Context, kid string) (SigningKey, error)
 	GetTOTPCredential(ctx context.Context, accountID int32) (TotpCredential, error)
 	GetUpstreamIDPByIDAny(ctx context.Context, id int64) (UpstreamIdp, error)
+	GetUpstreamIDPByIDForUpdate(ctx context.Context, id int64) (UpstreamIdp, error)
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (UpstreamIdp, error)
 	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (UpstreamIdp, error)
 	GrantOIDCClientAccessAccount(ctx context.Context, arg GrantOIDCClientAccessAccountParams) error

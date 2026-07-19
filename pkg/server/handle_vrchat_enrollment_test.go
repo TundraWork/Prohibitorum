@@ -53,21 +53,23 @@ func (s *failingSessionRevocationStore) ScanEntries(ctx context.Context, pattern
 
 type vrchatEnrollmentQueries struct {
 	db.Querier
-	mu                sync.Mutex
-	enrollments       map[string]db.Enrollment
-	accounts          map[int32]db.Account
-	providers         map[int64]db.UpstreamIdp
-	providerErr       error
-	credentials       map[int32][]db.WebauthnCredential
-	identities        []db.AccountIdentity
-	sessions          []db.Session
-	nextAccountID     int32
-	nextCredentialID  int32
-	nextIdentityID    int64
-	insertAccountErr  error
-	insertIdentityErr error
-	revokeCalls       int
-	sessionOps        []string
+	mu                  sync.Mutex
+	enrollments         map[string]db.Enrollment
+	accounts            map[int32]db.Account
+	providers           map[int64]db.UpstreamIdp
+	providerErr         error
+	providerLockedCalls int
+	accountLockedCalls  int
+	credentials         map[int32][]db.WebauthnCredential
+	identities          []db.AccountIdentity
+	sessions            []db.Session
+	nextAccountID       int32
+	nextCredentialID    int32
+	nextIdentityID      int64
+	insertAccountErr    error
+	insertIdentityErr   error
+	revokeCalls         int
+	sessionOps          []string
 }
 
 func (q *vrchatEnrollmentQueries) GetEnrollmentByToken(_ context.Context, token string) (db.Enrollment, error) {
@@ -83,6 +85,17 @@ func (q *vrchatEnrollmentQueries) GetEnrollmentByToken(_ context.Context, token 
 func (q *vrchatEnrollmentQueries) GetAccountByID(_ context.Context, id int32) (db.Account, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	a, ok := q.accounts[id]
+	if !ok {
+		return db.Account{}, pgx.ErrNoRows
+	}
+	return a, nil
+}
+
+func (q *vrchatEnrollmentQueries) GetAccountByIDForUpdate(_ context.Context, id int32) (db.Account, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.accountLockedCalls++
 	a, ok := q.accounts[id]
 	if !ok {
 		return db.Account{}, pgx.ErrNoRows
@@ -110,6 +123,20 @@ func (q *vrchatEnrollmentQueries) ListCredentialsByAccount(_ context.Context, ac
 func (q *vrchatEnrollmentQueries) GetUpstreamIDPByIDAny(_ context.Context, id int64) (db.UpstreamIdp, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if q.providerErr != nil {
+		return db.UpstreamIdp{}, q.providerErr
+	}
+	provider, ok := q.providers[id]
+	if !ok {
+		return db.UpstreamIdp{}, pgx.ErrNoRows
+	}
+	return provider, nil
+}
+
+func (q *vrchatEnrollmentQueries) GetUpstreamIDPByIDForUpdate(_ context.Context, id int64) (db.UpstreamIdp, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.providerLockedCalls++
 	if q.providerErr != nil {
 		return db.UpstreamIdp{}, q.providerErr
 	}
@@ -285,19 +312,21 @@ func (q *vrchatEnrollmentQueries) RevokeAllSessionsByAccount(_ context.Context, 
 
 func cloneEnrollmentQueries(q *vrchatEnrollmentQueries) *vrchatEnrollmentQueries {
 	clone := &vrchatEnrollmentQueries{
-		enrollments:       make(map[string]db.Enrollment, len(q.enrollments)),
-		accounts:          make(map[int32]db.Account, len(q.accounts)),
-		providers:         make(map[int64]db.UpstreamIdp, len(q.providers)),
-		providerErr:       q.providerErr,
-		credentials:       make(map[int32][]db.WebauthnCredential, len(q.credentials)),
-		identities:        append([]db.AccountIdentity(nil), q.identities...),
-		sessions:          append([]db.Session(nil), q.sessions...),
-		nextAccountID:     q.nextAccountID,
-		nextCredentialID:  q.nextCredentialID,
-		nextIdentityID:    q.nextIdentityID,
-		insertAccountErr:  q.insertAccountErr,
-		insertIdentityErr: q.insertIdentityErr,
-		revokeCalls:       q.revokeCalls,
+		enrollments:         make(map[string]db.Enrollment, len(q.enrollments)),
+		accounts:            make(map[int32]db.Account, len(q.accounts)),
+		providers:           make(map[int64]db.UpstreamIdp, len(q.providers)),
+		providerErr:         q.providerErr,
+		providerLockedCalls: q.providerLockedCalls,
+		accountLockedCalls:  q.accountLockedCalls,
+		credentials:         make(map[int32][]db.WebauthnCredential, len(q.credentials)),
+		identities:          append([]db.AccountIdentity(nil), q.identities...),
+		sessions:            append([]db.Session(nil), q.sessions...),
+		nextAccountID:       q.nextAccountID,
+		nextCredentialID:    q.nextCredentialID,
+		nextIdentityID:      q.nextIdentityID,
+		insertAccountErr:    q.insertAccountErr,
+		insertIdentityErr:   q.insertIdentityErr,
+		revokeCalls:         q.revokeCalls,
 	}
 	for token, e := range q.enrollments {
 		clone.enrollments[token] = e
@@ -336,6 +365,8 @@ func (tx *memoryEnrollmentTx) Commit(context.Context) error {
 	tx.root.enrollments = tx.q.enrollments
 	tx.root.accounts = tx.q.accounts
 	tx.root.providers = tx.q.providers
+	tx.root.providerLockedCalls = tx.q.providerLockedCalls
+	tx.root.accountLockedCalls = tx.q.accountLockedCalls
 	tx.root.credentials = tx.q.credentials
 	tx.root.identities = tx.q.identities
 	tx.root.nextAccountID = tx.q.nextAccountID
@@ -932,6 +963,12 @@ func TestProviderRecoveryCompletionAtomicallyReplacesCredentialsAndSessions(t *t
 	}
 	if q.revokeCalls != 1 {
 		t.Fatalf("revoke calls = %d, want 1", q.revokeCalls)
+	}
+	if q.providerLockedCalls != 2 {
+		t.Fatalf("provider locked calls = %d, want begin and completion gates", q.providerLockedCalls)
+	}
+	if q.accountLockedCalls != 1 {
+		t.Fatalf("account locked calls = %d, want completion gate", q.accountLockedCalls)
 	}
 	if got := strings.Join(q.sessionOps, ","); got != "revoke,issue" {
 		t.Fatalf("session operations = %q, want revoke,issue", got)

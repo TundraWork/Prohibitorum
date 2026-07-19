@@ -21,6 +21,10 @@ type providerByIDLoader interface {
 	GetUpstreamIDPByIDAny(context.Context, int64) (db.UpstreamIdp, error)
 }
 
+type providerForEnrollmentGateLoader interface {
+	GetUpstreamIDPByIDForUpdate(context.Context, int64) (db.UpstreamIdp, error)
+}
+
 type ProviderStore struct {
 	queries ProviderQueries
 	now     func() time.Time
@@ -50,6 +54,21 @@ func (s *ProviderStore) ByID(ctx context.Context, id int64) (Provider, error) {
 		return Provider{}, ErrUnknownProvider
 	}
 	row, err := queries.GetUpstreamIDPByIDAny(ctx, id)
+	if err != nil {
+		return Provider{}, ErrUnknownProvider
+	}
+	return providerFromRow(row)
+}
+
+// ByIDForEnrollmentGate locks the immutable provider row until the caller's
+// transaction commits or rolls back. Enrollment completion uses this gate so
+// readiness updates cannot cross its commit boundary.
+func (s *ProviderStore) ByIDForEnrollmentGate(ctx context.Context, id int64) (Provider, error) {
+	queries, ok := s.queries.(providerForEnrollmentGateLoader)
+	if !ok {
+		return Provider{}, ErrUnknownProvider
+	}
+	row, err := queries.GetUpstreamIDPByIDForUpdate(ctx, id)
 	if err != nil {
 		return Provider{}, ErrUnknownProvider
 	}

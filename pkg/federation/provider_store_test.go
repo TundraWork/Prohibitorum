@@ -35,6 +35,39 @@ func (q fakeProviderByIDQueries) GetUpstreamIDPByIDAny(context.Context, int64) (
 	return q.row, nil
 }
 
+type fakeProviderForEnrollmentGateQueries struct {
+	failingProviderQueries
+	row         db.UpstreamIdp
+	lockedCalls int
+}
+
+func (q *fakeProviderForEnrollmentGateQueries) GetUpstreamIDPByIDForUpdate(context.Context, int64) (db.UpstreamIdp, error) {
+	q.lockedCalls++
+	if q.err != nil {
+		return db.UpstreamIdp{}, q.err
+	}
+	return q.row, nil
+}
+
+func TestProviderStoreByIDForEnrollmentGateUsesLockedLoaderAndHidesLookupFailure(t *testing.T) {
+	row := db.UpstreamIdp{ID: 42, Slug: "vrchat-main", Protocol: "vrchat", Mode: ModeLinkOnly}
+	queries := &fakeProviderForEnrollmentGateQueries{row: row}
+	provider, err := NewProviderStore(queries).ByIDForEnrollmentGate(context.Background(), row.ID)
+	if err != nil {
+		t.Fatalf("ByIDForEnrollmentGate: %v", err)
+	}
+	if queries.lockedCalls != 1 || provider.ID != row.ID {
+		t.Fatalf("locked calls = %d, provider ID = %d; want 1, %d", queries.lockedCalls, provider.ID, row.ID)
+	}
+
+	lookupErr := errors.New("database unavailable")
+	queries = &fakeProviderForEnrollmentGateQueries{failingProviderQueries: failingProviderQueries{err: lookupErr}}
+	_, err = NewProviderStore(queries).ByIDForEnrollmentGate(context.Background(), row.ID)
+	if !errors.Is(err, ErrUnknownProvider) || errors.Is(err, lookupErr) {
+		t.Fatalf("ByIDForEnrollmentGate error = %v, want opaque ErrUnknownProvider", err)
+	}
+}
+
 func TestProviderStoreByIDConvertsCompleteRowAndHidesLookupFailure(t *testing.T) {
 	row := db.UpstreamIdp{
 		ID:             42,

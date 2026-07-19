@@ -45,6 +45,31 @@ func (q *Queries) GetUpstreamIDPByIDAny(ctx context.Context, id int64) (Upstream
 	return i, err
 }
 
+const getUpstreamIDPByIDForUpdate = `-- name: GetUpstreamIDPByIDForUpdate :one
+SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetUpstreamIDPByIDForUpdate(ctx context.Context, id int64) (UpstreamIdp, error) {
+	row := q.db.QueryRow(ctx, getUpstreamIDPByIDForUpdate, id)
+	var i UpstreamIdp
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.SecretEnc,
+		&i.SecretNonce,
+		&i.KeyVersion,
+		&i.Mode,
+		&i.Disabled,
+		&i.CreatedAt,
+		&i.Protocol,
+		&i.ProviderConfig,
+		&i.SecretStatus,
+		&i.SecretValidatedAt,
+	)
+	return i, err
+}
+
 const getUpstreamIDPBySlug = `-- name: GetUpstreamIDPBySlug :one
 SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE slug = $1 AND NOT disabled
 `

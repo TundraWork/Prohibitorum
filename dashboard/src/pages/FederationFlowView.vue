@@ -200,6 +200,7 @@ function continueFlow(): void {
       @submit.prevent="prepareProof"
     >
       <div
+        v-if="flow.intent === 'enroll'"
         data-test="account-handoff-notice"
         role="note"
         class="flex min-w-0 items-start gap-3 rounded-lg border border-info-border bg-info p-3 text-info-foreground"

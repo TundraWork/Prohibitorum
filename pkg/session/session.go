@@ -45,6 +45,47 @@ type SessionStore struct {
 	refresh time.Duration // sliding-refresh threshold; default ttl/4
 }
 
+const (
+	sessionMutationLeaseTTL     = 30 * time.Second
+	sessionMutationCleanupLimit = time.Second
+)
+
+var errSessionMutationLeaseUnavailable = errors.New("session: account mutation lease unavailable")
+
+func sessionMutationLeaseKey(accountID int32) string {
+	return fmt.Sprintf("session-mutation:%d", accountID)
+}
+
+type sessionMutationLease struct {
+	key   string
+	owner string
+}
+
+func (s *SessionStore) acquireMutationLease(ctx context.Context, accountID int32) (sessionMutationLease, error) {
+	if err := ctx.Err(); err != nil {
+		return sessionMutationLease{}, err
+	}
+	owner, err := newSessionID()
+	if err != nil {
+		return sessionMutationLease{}, err
+	}
+	lease := sessionMutationLease{key: sessionMutationLeaseKey(accountID), owner: owner}
+	acquired, err := s.kv.SetNX(ctx, lease.key, lease.owner, sessionMutationLeaseTTL)
+	if err != nil {
+		return sessionMutationLease{}, err
+	}
+	if !acquired {
+		return sessionMutationLease{}, errSessionMutationLeaseUnavailable
+	}
+	return lease, nil
+}
+
+func (s *SessionStore) releaseMutationLease(ctx context.Context, lease sessionMutationLease) {
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sessionMutationCleanupLimit)
+	defer cancel()
+	_, _ = s.kv.CompareAndDelete(releaseCtx, lease.key, lease.owner)
+}
+
 // NewSessionStore constructs a store with the given session TTL.
 // Sessions refresh themselves on Load when remaining time < ttl/4.
 //
@@ -203,14 +244,22 @@ func (s *SessionStore) Load(ctx context.Context, accountID int32, token, ip, ua 
 	if data.ExpiresAt.Sub(now) < s.refresh {
 		data.ExpiresAt = now.Add(s.ttl)
 		data.LastSeenIP = ip
-		payload, _ := json.Marshal(&data)
-		_ = s.kv.SetEx(ctx, key, string(payload), s.ttl)
-		refreshed = true
+		if payload, marshalErr := json.Marshal(&data); marshalErr == nil {
+			if lease, leaseErr := s.acquireMutationLease(ctx, accountID); leaseErr == nil {
+				swapped, _ := s.kv.FencedCompareAndSwap(ctx, lease.key, lease.owner, key, raw, string(payload), s.ttl)
+				s.releaseMutationLease(ctx, lease)
+				refreshed = swapped
+			}
+		}
 	} else if backfilled {
 		// Save the schema fill without resetting the TTL.
-		payload, _ := json.Marshal(&data)
-		if remaining := time.Until(data.ExpiresAt); remaining > 0 {
-			_ = s.kv.SetEx(ctx, key, string(payload), remaining)
+		if payload, marshalErr := json.Marshal(&data); marshalErr == nil {
+			if remaining := time.Until(data.ExpiresAt); remaining > 0 {
+				if lease, leaseErr := s.acquireMutationLease(ctx, accountID); leaseErr == nil {
+					_, _ = s.kv.FencedCompareAndSwap(ctx, lease.key, lease.owner, key, raw, string(payload), remaining)
+					s.releaseMutationLease(ctx, lease)
+				}
+			}
 		}
 	}
 	return &data, refreshed, nil
@@ -459,11 +508,16 @@ func (s *SessionStore) RevokeBySessionID(ctx context.Context, accountID int32, s
 	return false, nil
 }
 
-// RevokeAllForAccount removes every session for the given account. Returns the
-// count of deleted entries and the first error encountered (or nil). Best-effort
-// — partial failure leaves some sessions alive, but they'll naturally expire
-// and the live db.Account.Disabled check kicks them out before they can act.
+// RevokeAllForAccount removes every session for the given account while
+// holding the same distributed mutation lease used by Load refresh/backfill.
+// Returns the count of deleted entries and the first error encountered.
 func (s *SessionStore) RevokeAllForAccount(ctx context.Context, accountID int32) (int, error) {
+	lease, err := s.acquireMutationLease(ctx, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("session: revoke-all lease: %w", err)
+	}
+	defer s.releaseMutationLease(ctx, lease)
+
 	pattern := fmt.Sprintf("session:%d:*", accountID)
 	var (
 		cursor   uint64
@@ -491,6 +545,13 @@ func (s *SessionStore) RevokeAllForAccount(ctx context.Context, accountID int32)
 	}
 	if err := s.q.RevokeAllSessionsByAccount(ctx, accountID); err != nil {
 		logx.WithContext(ctx).WithError(err).Warn("session: revoke-all pg failed (KV already cleared)")
+	}
+	owned, leaseErr := s.kv.CompareAndSwap(ctx, lease.key, lease.owner, lease.owner, sessionMutationLeaseTTL)
+	if leaseErr != nil {
+		return deleted, fmt.Errorf("session: revoke-all lease check: %w", leaseErr)
+	}
+	if !owned {
+		return deleted, fmt.Errorf("session: revoke-all lease check: %w", errSessionMutationLeaseUnavailable)
 	}
 	return deleted, firstErr
 }

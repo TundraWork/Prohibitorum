@@ -106,7 +106,7 @@ func (s *Server) recheckVRChatEnrollmentProvider(ctx context.Context, q db.Queri
 	if providerID <= 0 || s.federationRegistry == nil {
 		return federation.Provider{}, authn.ErrProviderNotReady()
 	}
-	provider, err := federation.NewProviderStore(q).ByID(ctx, providerID)
+	provider, err := federation.NewProviderStore(q).ByIDForEnrollmentGate(ctx, providerID)
 	if err != nil || provider.ID != providerID || provider.Protocol != "vrchat" ||
 		provider.Mode != federation.ModeLinkOnly || provider.Disabled {
 		return federation.Provider{}, authn.ErrProviderNotReady()
@@ -652,7 +652,7 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			writeAuthErr(w, authn.ErrEnrollmentConsumed())
 			return
 		}
-		a, err := qtx.GetAccountByID(r.Context(), consumed.TargetAccountID.Int32)
+		a, err := qtx.GetAccountByIDForUpdate(r.Context(), consumed.TargetAccountID.Int32)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				writeAuthErr(w, authn.ErrAccountNotFound())

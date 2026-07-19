@@ -20,7 +20,7 @@ const expiresAt = '2099-04-05T12:30:00Z'
 
 const identifyFlow = {
   provider: { slug: 'vrchat', displayName: 'VRChat', protocol: 'vrchat' },
-  intent: 'login',
+  intent: 'enroll',
   step: 'identify' as const,
   requiresLocalUsername: false,
   expiresAt,
@@ -103,6 +103,24 @@ describe('FederationFlowView', () => {
       notice.element.compareDocumentPosition(wrapper.get('input[name="identity"]').element),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(wrapper.findAll('h1')).toHaveLength(1)
+  })
+
+  it('omits enrollment handoff copy while keeping authenticated link identify operable', async () => {
+    get.mockResolvedValue({ ...identifyFlow, intent: 'link' })
+    post.mockResolvedValue({ ...proofFlow, intent: 'link' })
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-test="account-handoff-notice"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="identify-guide"]').attributes('aria-labelledby')).toBe(
+      'identify-guide-title',
+    )
+    const identity = wrapper.get('input[name="identity"]')
+    expect(wrapper.get('label[for="federation-identity"]').exists()).toBe(true)
+    await identity.setValue('https://vrchat.com/home/user/usr_12345678-1234-1234-1234-123456789abc')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(post).toHaveBeenCalledOnce()
+    expect(wrapper.get('[data-test="verify-profile"]').exists()).toBe(true)
   })
 
   it('shows how to find a profile URL and submits the unchanged identity value', async () => {

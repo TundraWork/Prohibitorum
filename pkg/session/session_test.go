@@ -2,9 +2,11 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,9 +35,364 @@ func (failingSessionQueries) InsertSession(context.Context, db.InsertSessionPara
 	return db.Session{}, errors.New("simulated PG failure")
 }
 
+type blockingRevokeAllQueries struct {
+	noopSessionQueries
+	entered chan struct{}
+	proceed chan struct{}
+}
+
+func (q *blockingRevokeAllQueries) RevokeAllSessionsByAccount(ctx context.Context, _ int32) error {
+	close(q.entered)
+	select {
+	case <-q.proceed:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func newTestStore(t *testing.T, ttl time.Duration) *SessionStore {
 	t.Helper()
 	return NewSessionStore(kv.NewMemoryStore(), noopSessionQueries{}, ttl)
+}
+
+type pauseAfterSessionReadStore struct {
+	kv.Store
+	key     string
+	read    chan struct{}
+	resume  chan struct{}
+	readOne sync.Once
+}
+
+func (s *pauseAfterSessionReadStore) Get(ctx context.Context, key string) (string, error) {
+	raw, err := s.Store.Get(ctx, key)
+	if err == nil && key == s.key {
+		s.readOne.Do(func() { close(s.read) })
+		select {
+		case <-s.resume:
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	return raw, err
+}
+
+func TestSession_RevokeAllFencesPausedLoadMutation(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*authn.SessionData)
+	}{
+		{
+			name: "sliding refresh",
+			mutate: func(data *authn.SessionData) {
+				data.ExpiresAt = time.Now().Add(time.Hour)
+			},
+		},
+		{
+			name: "schema backfill",
+			mutate: func(data *authn.SessionData) {
+				data.SessionID = ""
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			base := kv.NewMemoryStore()
+			t.Cleanup(func() { _ = base.Close() })
+			const ttl = 8 * time.Hour
+			issuer := NewSessionStore(base, noopSessionQueries{}, ttl)
+			token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			key := sessionKey(42, token)
+			raw, err := base.Get(ctx, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var data authn.SessionData
+			if err := json.Unmarshal([]byte(raw), &data); err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(&data)
+			mutated, err := json.Marshal(&data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := base.SetEx(ctx, key, string(mutated), time.Until(data.ExpiresAt)); err != nil {
+				t.Fatal(err)
+			}
+
+			gated := &pauseAfterSessionReadStore{
+				Store:  base,
+				key:    key,
+				read:   make(chan struct{}),
+				resume: make(chan struct{}),
+			}
+			store := NewSessionStore(gated, noopSessionQueries{}, ttl)
+			loadDone := make(chan error, 1)
+			go func() {
+				_, _, err := store.Load(ctx, 42, token, "", "current-agent")
+				loadDone <- err
+			}()
+			<-gated.read
+
+			if _, err := store.RevokeAllForAccount(ctx, 42); err != nil {
+				t.Fatalf("RevokeAllForAccount: %v", err)
+			}
+			close(gated.resume)
+			if err := <-loadDone; err != nil {
+				t.Fatalf("paused Load: %v", err)
+			}
+			if _, err := base.Get(ctx, key); !errors.Is(err, kv.ErrKeyNotFound) {
+				t.Fatalf("session key was recreated after revoke-all: %v", err)
+			}
+			if _, _, err := store.Load(ctx, 42, token, "", ""); authn.AsAuthError(err) == nil {
+				t.Fatal("revoked session loaded after paused mutation resumed")
+			}
+		})
+	}
+}
+
+type fenceResultStore struct {
+	kv.Store
+	swapped bool
+	err     error
+}
+
+func (s *fenceResultStore) FencedCompareAndSwap(context.Context, string, string, string, string, string, time.Duration) (bool, error) {
+	return s.swapped, s.err
+}
+
+type scanErrorStore struct {
+	kv.Store
+	err error
+}
+
+func (s *scanErrorStore) ScanEntries(context.Context, string, uint64, int64) (kv.ScanEntriesResult, error) {
+	return kv.ScanEntriesResult{}, s.err
+}
+
+type replaceLeaseBeforeReleaseStore struct {
+	kv.Store
+	replacement string
+}
+
+func (s *replaceLeaseBeforeReleaseStore) FencedCompareAndSwap(ctx context.Context, fenceKey, fenceValue, key, oldValue, newValue string, ttl time.Duration) (bool, error) {
+	swapped, err := s.Store.FencedCompareAndSwap(ctx, fenceKey, fenceValue, key, oldValue, newValue, ttl)
+	if err != nil || !swapped {
+		return swapped, err
+	}
+	if err := s.Store.Del(ctx, fenceKey); err != nil {
+		return false, err
+	}
+	acquired, err := s.Store.SetNX(ctx, fenceKey, s.replacement, sessionMutationLeaseTTL)
+	if err != nil || !acquired {
+		return false, err
+	}
+	return true, nil
+}
+
+type loseLeaseOnRenewStore struct {
+	kv.Store
+	leaseKey    string
+	replacement string
+}
+
+func (s *loseLeaseOnRenewStore) CompareAndSwap(ctx context.Context, key, oldValue, newValue string, ttl time.Duration) (bool, error) {
+	if key != s.leaseKey {
+		return s.Store.CompareAndSwap(ctx, key, oldValue, newValue, ttl)
+	}
+	if err := s.Store.Del(ctx, key); err != nil {
+		return false, err
+	}
+	acquired, err := s.Store.SetNX(ctx, key, s.replacement, ttl)
+	if err != nil || !acquired {
+		return false, err
+	}
+	return false, nil
+}
+
+func rewriteSessionExpiry(t *testing.T, store kv.Store, accountID int32, token string, expiresAt time.Time) string {
+	t.Helper()
+	ctx := context.Background()
+	key := sessionKey(accountID, token)
+	raw, err := store.Get(ctx, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var data authn.SessionData
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		t.Fatal(err)
+	}
+	data.ExpiresAt = expiresAt
+	payload, err := json.Marshal(&data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetEx(ctx, key, string(payload), time.Until(expiresAt)); err != nil {
+		t.Fatal(err)
+	}
+	return string(payload)
+}
+
+func TestSession_RevokeAllFailsIfLeaseOwnershipIsLostDuringPGRevocation(t *testing.T) {
+	ctx := context.Background()
+	base := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = base.Close() })
+	queries := &blockingRevokeAllQueries{
+		entered: make(chan struct{}),
+		proceed: make(chan struct{}),
+	}
+	store := NewSessionStore(base, queries, time.Hour)
+	result := make(chan error, 1)
+	go func() {
+		_, err := store.RevokeAllForAccount(ctx, 42)
+		result <- err
+	}()
+	<-queries.entered
+
+	leaseKey := sessionMutationLeaseKey(42)
+	if err := base.Del(ctx, leaseKey); err != nil {
+		t.Fatal(err)
+	}
+	if acquired, err := base.SetNX(ctx, leaseKey, "replacement-owner", time.Minute); err != nil || !acquired {
+		t.Fatalf("replace expired lease: acquired=%v err=%v", acquired, err)
+	}
+	close(queries.proceed)
+	if err := <-result; !errors.Is(err, errSessionMutationLeaseUnavailable) {
+		t.Fatalf("RevokeAllForAccount error = %v, want lost lease", err)
+	}
+	if owner, err := base.Get(ctx, leaseKey); err != nil || owner != "replacement-owner" {
+		t.Fatalf("replacement lease after revoke-all = (%q, %v)", owner, err)
+	}
+}
+
+func TestSession_MutationLeaseFailuresFailClosedAndPreserveOwnership(t *testing.T) {
+	t.Run("revoke-all leaves a competing owner untouched", func(t *testing.T) {
+		ctx := context.Background()
+		base := kv.NewMemoryStore()
+		t.Cleanup(func() { _ = base.Close() })
+		store := NewSessionStore(base, noopSessionQueries{}, time.Hour)
+		leaseKey := sessionMutationLeaseKey(42)
+		if acquired, err := base.SetNX(ctx, leaseKey, "competing-owner", time.Minute); err != nil || !acquired {
+			t.Fatalf("seed competing lease: acquired=%v err=%v", acquired, err)
+		}
+		if _, err := store.RevokeAllForAccount(ctx, 42); !errors.Is(err, errSessionMutationLeaseUnavailable) {
+			t.Fatalf("RevokeAllForAccount error = %v, want lease unavailable", err)
+		}
+		if owner, err := base.Get(ctx, leaseKey); err != nil || owner != "competing-owner" {
+			t.Fatalf("competing lease after revoke-all = (%q, %v)", owner, err)
+		}
+	})
+
+	t.Run("canceled revoke-all does not acquire a lease", func(t *testing.T) {
+		base := kv.NewMemoryStore()
+		t.Cleanup(func() { _ = base.Close() })
+		store := NewSessionStore(base, noopSessionQueries{}, time.Hour)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if _, err := store.RevokeAllForAccount(ctx, 42); !errors.Is(err, context.Canceled) {
+			t.Fatalf("RevokeAllForAccount error = %v, want context canceled", err)
+		}
+		if _, err := base.Get(context.Background(), sessionMutationLeaseKey(42)); !errors.Is(err, kv.ErrKeyNotFound) {
+			t.Fatalf("canceled revoke-all left mutation lease: %v", err)
+		}
+	})
+
+	t.Run("revoke-all fails when its lease expires and preserves the new owner", func(t *testing.T) {
+		ctx := context.Background()
+		base := kv.NewMemoryStore()
+		t.Cleanup(func() { _ = base.Close() })
+		leaseKey := sessionMutationLeaseKey(42)
+		const replacement = "post-expiry-owner"
+		store := NewSessionStore(&loseLeaseOnRenewStore{
+			Store:       base,
+			leaseKey:    leaseKey,
+			replacement: replacement,
+		}, noopSessionQueries{}, time.Hour)
+		if _, err := store.RevokeAllForAccount(ctx, 42); !errors.Is(err, errSessionMutationLeaseUnavailable) {
+			t.Fatalf("RevokeAllForAccount error = %v, want lost lease", err)
+		}
+		if owner, err := base.Get(ctx, leaseKey); err != nil || owner != replacement {
+			t.Fatalf("replacement lease after expiry = (%q, %v)", owner, err)
+		}
+	})
+
+	t.Run("revoke-all releases its lease after a scan failure", func(t *testing.T) {
+		ctx := context.Background()
+		base := kv.NewMemoryStore()
+		t.Cleanup(func() { _ = base.Close() })
+		store := NewSessionStore(&scanErrorStore{Store: base, err: errors.New("scan unavailable")}, noopSessionQueries{}, time.Hour)
+		if _, err := store.RevokeAllForAccount(ctx, 42); err == nil {
+			t.Fatal("RevokeAllForAccount succeeded after scan failure")
+		}
+		if _, err := base.Get(ctx, sessionMutationLeaseKey(42)); !errors.Is(err, kv.ErrKeyNotFound) {
+			t.Fatalf("scan failure left mutation lease: %v", err)
+		}
+	})
+
+	t.Run("refresh skips a failed fenced write", func(t *testing.T) {
+		ctx := context.Background()
+		base := kv.NewMemoryStore()
+		t.Cleanup(func() { _ = base.Close() })
+		const ttl = 10 * time.Second
+		issuer := NewSessionStore(base, noopSessionQueries{}, ttl)
+		token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := rewriteSessionExpiry(t, base, 42, token, time.Now().Add(time.Second))
+		store := NewSessionStore(&fenceResultStore{Store: base, err: errors.New("fence unavailable")}, noopSessionQueries{}, ttl)
+		if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || refreshed {
+			t.Fatalf("Load = refreshed %v, err %v; want valid without refresh", refreshed, err)
+		}
+		after, err := base.Get(ctx, sessionKey(42, token))
+		if err != nil || after != before {
+			t.Fatalf("session changed after failed fence: err=%v", err)
+		}
+	})
+
+	t.Run("release deletes only its own lease", func(t *testing.T) {
+		ctx := context.Background()
+		base := kv.NewMemoryStore()
+		t.Cleanup(func() { _ = base.Close() })
+		const ttl = 10 * time.Second
+		issuer := NewSessionStore(base, noopSessionQueries{}, ttl)
+		token, _, err := issuer.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rewriteSessionExpiry(t, base, 42, token, time.Now().Add(time.Second))
+		const replacement = "replacement-owner"
+		store := NewSessionStore(&replaceLeaseBeforeReleaseStore{Store: base, replacement: replacement}, noopSessionQueries{}, ttl)
+		if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || !refreshed {
+			t.Fatalf("Load = refreshed %v, err %v; want successful refresh", refreshed, err)
+		}
+		if owner, err := base.Get(ctx, sessionMutationLeaseKey(42)); err != nil || owner != replacement {
+			t.Fatalf("replacement lease after release = (%q, %v)", owner, err)
+		}
+	})
+}
+
+func TestSession_SuccessfulFencedRefreshRestoresFullTTL(t *testing.T) {
+	ctx := context.Background()
+	base := kv.NewMemoryStore()
+	t.Cleanup(func() { _ = base.Close() })
+	const ttl = 10 * time.Second
+	store := NewSessionStore(base, noopSessionQueries{}, ttl)
+	token, _, err := store.Issue(ctx, 42, "", "", []string{"hwk"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewriteSessionExpiry(t, base, 42, token, time.Now().Add(time.Second))
+	if _, refreshed, err := store.Load(ctx, 42, token, "", ""); err != nil || !refreshed {
+		t.Fatalf("Load = refreshed %v, err %v; want successful refresh", refreshed, err)
+	}
+	remaining, err := base.TTL(ctx, sessionKey(42, token))
+	if err != nil || remaining < 9 {
+		t.Fatalf("refreshed TTL = %d, err=%v; want at least 9 seconds", remaining, err)
+	}
 }
 
 func TestSession_IssueAndLoad(t *testing.T) {
