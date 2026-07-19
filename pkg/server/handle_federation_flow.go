@@ -69,9 +69,11 @@ func (s *Server) handleFederationFlowPrepareHTTP(w http.ResponseWriter, r *http.
 func (s *Server) handleFederationFlowVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 	setFederationFlowHeaders(w)
 	var body federationFlowVerifyBody
-	if err := decodeStrictOperatorJSON(r, &body); err != nil {
-		writeAuthErr(w, authn.ErrBadRequest())
-		return
+	if r.ContentLength != 0 {
+		if err := decodeStrictOperatorJSON(r, &body); err != nil {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
 	}
 	request := s.localFederationAdvanceRequest(r)
 	request.Input = federation.ActionInput{Kind: federation.ActionPublishProof, LocalUsername: body.LocalUsername}

@@ -376,6 +376,37 @@ func TestFederationFlowVRChatEnrollPrepareVerify(t *testing.T) {
 	}
 }
 
+func TestFederationFlowVRChatVerifyAcceptsEmptyBody(t *testing.T) {
+	h := newLocalFlowHarness(t)
+	flow, _ := h.beginLogin(t)
+
+	prepare := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/prepare", `{"identity":"`+localUserID+`"}`)
+	if prepare.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(prepare.Body)
+		t.Fatalf("prepare = %d body=%s", prepare.StatusCode, body)
+	}
+
+	verify := h.request(t, http.MethodPost, "/api/prohibitorum/auth/federation/flows/"+flow+"/verify", "")
+	if verify.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(verify.Body)
+		t.Fatalf("verify = %d body=%s", verify.StatusCode, body)
+	}
+	var result contract.LoginResult
+	if err := json.NewDecoder(verify.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Redirect != "/enroll/opaque%2Ftoken%20with%20space" {
+		t.Fatalf("redirect = %q", result.Redirect)
+	}
+	inputs := h.adapter.snapshotInputs()
+	if len(inputs) != 2 || inputs[1].Kind != federation.ActionPublishProof || inputs[1].LocalUsername != "" {
+		t.Fatalf("adapter inputs = %+v", inputs)
+	}
+	if calls, _, _ := h.issuer.snapshot(); calls != 1 {
+		t.Fatalf("issuer calls = %d", calls)
+	}
+}
+
 func TestFederationFlowBodyControlFailuresAreNoStore(t *testing.T) {
 	for _, endpoint := range []string{"prepare", "verify"} {
 		t.Run(endpoint, func(t *testing.T) {
