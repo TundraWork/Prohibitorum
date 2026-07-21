@@ -119,16 +119,6 @@ describe('ErrorPanel — persistence', () => {
     expect(w.get('[data-test="error-recovery"]').classes()).toContain('min-h-11')
     expect(w.get('[data-test="error-details-trigger"]').classes()).toContain('h-8')
     expect(w.get('[data-test="error-diagnostic"]').classes()).toContain('h-8')
-
-    await w.get('[data-test="error-details-trigger"]').trigger('click')
-    await nextTick()
-    expect(w.get('[data-test="error-copy-request-id"]').classes()).toContain('size-8')
-    expect(w.get('[data-test="error-request-id-row"]').classes()).toEqual(
-      expect.arrayContaining(['flex', 'min-w-0', 'items-center']),
-    )
-    expect(w.get('[data-test="error-request-id"]').classes()).toEqual(
-      expect.arrayContaining(['min-w-0', 'break-all']),
-    )
   })
 })
 
@@ -234,30 +224,34 @@ describe('ErrorPanel — details disclosure', () => {
   })
 })
 
-describe('ErrorPanel — copy request ID', () => {
+describe('ErrorPanel — request ID', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
-  it('has a copy-request-id button that copies the requestId', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    vi.stubGlobal('navigator', { clipboard: { writeText } })
+  it('renders the request ID as plain text matching the error code, with no copy button', async () => {
     const w = mount(ErrorPanel, {
       props: { error: KNOWN_ERROR },
       global: { plugins: [makeI18n()] },
     })
     await w.get('[data-test="error-details-trigger"]').trigger('click')
     await nextTick()
-    await w.get('[data-test="error-copy-request-id"]').trigger('click')
-    expect(writeText).toHaveBeenCalledWith('rid-123')
-    vi.unstubAllGlobals()
+
+    const rid = w.get('[data-test="error-request-id"]')
+    expect(rid.text()).toBe('rid-123')
+    // Same value styling as the error-code field — no special affordance.
+    expect(rid.classes()).toEqual(w.get('[data-test="error-code"]').classes())
+    expect(w.find('[data-test="error-copy-request-id"]').exists()).toBe(false)
+    expect(w.find('[data-test="error-request-id-row"]').exists()).toBe(false)
   })
 
-  it('does not show the copy button when requestId is absent', () => {
+  it('does not render the request ID when requestId is absent', async () => {
     const w = mount(ErrorPanel, {
       props: { error: { code: 'bad_request' } },
       global: { plugins: [makeI18n()] },
     })
-    expect(w.find('[data-test="error-copy-request-id"]').exists()).toBe(false)
+    await w.get('[data-test="error-details-trigger"]').trigger('click')
+    await nextTick()
+    expect(w.find('[data-test="error-request-id"]').exists()).toBe(false)
   })
 })
 

@@ -27,7 +27,7 @@
  */
 import { ref, computed, watch, onBeforeUnmount, getCurrentInstance, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { X, ChevronDown, Copy, Stethoscope, RotateCcw, LogIn } from 'lucide-vue-next'
+import { X, ChevronDown, Stethoscope, RotateCcw, LogIn } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
@@ -64,7 +64,6 @@ const emit = defineEmits<{
 const { t, te } = useI18n()
 const detailsOpen = ref(false)
 const detailsContentId = `error-details-${useId()}`
-const copied = ref(false)
 
 // --- diagnostic fetch state ---
 const diagState = ref<'idle' | 'loading' | 'loaded' | 'error'>('idle')
@@ -139,18 +138,6 @@ watch(showDiagnostic, (visible) => {
   diagState.value = 'idle'
   diagRecord.value = null
 })
-
-async function copyRequestId(): Promise<void> {
-  const rid = props.error?.requestId
-  if (!rid) return
-  try {
-    await navigator.clipboard.writeText(rid)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
-  } catch {
-    // clipboard API unavailable — silently no-op
-  }
-}
 
 function onDismiss(): void {
   emit('dismiss')
@@ -299,20 +286,8 @@ const diagFields = computed(() => {
 
       <template v-if="showRequestId">
         <dt class="font-medium text-muted">{{ t('errors.requestId') }}</dt>
-        <dd data-test="error-request-id-row" class="flex min-w-0 items-center gap-1">
-          <code data-test="error-request-id" class="min-w-0 flex-1 break-all font-mono text-ink">
-            {{ error?.requestId }}
-          </code>
-          <button
-            type="button"
-            data-test="error-copy-request-id"
-            class="inline-flex size-8 shrink-0 items-center justify-center rounded text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            :aria-label="t('errors.copyRequestId')"
-            @click="copyRequestId"
-          >
-            <Copy class="size-3.5" aria-hidden="true" />
-          </button>
-          <span v-if="copied" class="text-sage-700">{{ t('errors.copied') }}</span>
+        <dd data-test="error-request-id" class="break-all font-mono text-ink">
+          {{ error?.requestId }}
         </dd>
       </template>
     </dl>
