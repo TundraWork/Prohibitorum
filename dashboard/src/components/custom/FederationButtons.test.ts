@@ -109,8 +109,8 @@ describe('FederationButtons', () => {
 
     const button = w.get('[data-test="vrchat-login"]')
     expect(button.text()).toContain('VRChat')
-    expect(button.classes()).toEqual(expect.arrayContaining(['bg-[#00A2E8]', 'text-[#0B1A21]']))
-    expect(button.classes()).toContain('active:bg-[#008BC8]')
+    expect(button.classes()).toEqual(expect.arrayContaining(['bg-[#2BAAC1]', 'text-[#0B1A21]']))
+    expect(button.classes()).toContain('active:bg-[#2592A6]')
     expect(button.find('img').attributes('src')).toContain('vrchat-logo')
     expect(button.find('img').attributes('alt')).toBe('')
     expect(button.text()).not.toContain('VVRChat')
