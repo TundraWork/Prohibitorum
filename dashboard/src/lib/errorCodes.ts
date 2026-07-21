@@ -50,6 +50,7 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'enrollment_consumed', details: [], recovery: '' },
   { code: 'enrollment_expired', details: [], recovery: '' },
   { code: 'enrollment_federation_required', details: [], recovery: '' },
+  { code: 'enrollment_method_not_allowed', details: [], recovery: '' },
   { code: 'factor_locked', details: ['retryAfterSeconds'], recovery: 'retry' },
   { code: 'federation_action_invalid', details: [], recovery: 'retry' },
   { code: 'federation_identity_conflict', details: [], recovery: '' },
@@ -172,7 +173,7 @@ export function codeDefinition(code: string): ErrorCodeDef | undefined {
  *
  * Derived from: go test ./pkg/weberr → AllDefinitions() count.
  */
-export const EXPECTED_REGISTRY_CODE_COUNT = 81
+export const EXPECTED_REGISTRY_CODE_COUNT = 82
 /**
  * Error codes owned by a GLOBAL handler — a redirect (no_session →
  * sessionExpiry), a full-screen redirect (maintenance_mode), or a connection

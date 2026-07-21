@@ -371,8 +371,8 @@ func (s *Store) verify(ctx context.Context, accountID int32, code string, purgeP
 		// delete — otherwise the user loses every recovery code with
 		// no replacement on the failure path.
 		var (
-			codes        []string
-			wipedCount   int
+			codes      []string
+			wipedCount int
 		)
 		txErr := s.tx.InTx(ctx, func(q TOTPQueries) error {
 			if purgePriorRecoveryOnFirstConfirm {
@@ -565,6 +565,107 @@ func (s *Store) mintRecoveryCodesNoAudit(ctx context.Context, q TOTPQueries, acc
 		codes = append(codes, code)
 	}
 	return codes, nil
+}
+
+// GenerateEnrollment produces a fresh TOTP secret + provisioning URI WITHOUT
+// any database write or at-rest encryption. The password-totp enrollment
+// ceremony (/enrollments/{token}/password-totp/begin) calls this for accounts
+// that may not exist yet: the base32 secret is stashed in KV + returned to the
+// client for the QR, and only persisted — encrypted, bound to the new
+// account_id via the AAD — once the account row exists at "verify" (see
+// EnrollConfirmedForTx). Contrast Begin, which writes an unconfirmed row and so
+// requires an existing account_id.
+func (s *Store) GenerateEnrollment(username string) (*Enrollment, error) {
+	secret := make([]byte, 20)
+	if _, err := rand.Read(secret); err != nil {
+		return nil, fmt.Errorf("totp.GenerateEnrollment: rand: %w", err)
+	}
+	secretB32 := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
+	return &Enrollment{
+		SecretBase32:    secretB32,
+		ProvisioningURI: provisioningURI(s.cfg.Issuer, username, secretB32, s.cfg.DefaultAlgorithm, s.cfg.DefaultDigits, s.cfg.DefaultPeriod),
+	}, nil
+}
+
+// VerifyCandidateSecret checks a code against a base32 secret that has NOT been
+// persisted yet (the password-totp enrollment "verify" step). It runs the same
+// ±DriftSteps window as Verify but touches no DB row, no throttle, and no
+// audit — the caller owns those. Returns the matched step (for seeding
+// last_step so the confirming code can't be replayed as an immediate login)
+// and whether the code was accepted. A malformed base32 secret yields
+// (0, false).
+func (s *Store) VerifyCandidateSecret(secretB32, code string) (int64, bool) {
+	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secretB32)
+	if err != nil {
+		return 0, false
+	}
+	nowStep := stepFor(s.now().Unix(), int64(s.cfg.DefaultPeriod))
+	drift := int64(s.cfg.DriftSteps)
+	for delta := -drift; delta <= drift; delta++ {
+		if computeCode(secret, nowStep+delta, s.cfg.DefaultDigits) == code {
+			return nowStep + delta, true
+		}
+	}
+	return 0, false
+}
+
+// EnrollConfirmedForTx persists a CONFIRMED TOTP credential + a fresh batch of
+// recovery codes for accountID, inside the caller's transaction (q bound to a
+// pgx.Tx). It is the password-totp enrollment "verify" commit path:
+//   - encrypt secretB32 under the current DEK, bound to account_id via the AAD;
+//   - idempotently wipe any pre-existing TOTP + recovery rows (makes the reset
+//     intent safe to re-run);
+//   - insert + confirm the new row;
+//   - seed last_step to the confirming code's step so it can't be replayed as
+//     an immediate login (mirrors Verify's replay hardening);
+//   - mint and return the recovery-code plaintexts.
+//
+// Emits NO audit — the caller emits password/totp/recovery register events
+// AFTER the surrounding tx commits (mirrors mintRecoveryCodesNoAudit's
+// contract), so credential_event only reflects persisted state and the FK to a
+// freshly-inserted account resolves on all connections.
+func (s *Store) EnrollConfirmedForTx(ctx context.Context, q TOTPQueries, accountID int32, secretB32 string, lastStep int64) ([]string, error) {
+	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secretB32)
+	if err != nil {
+		return nil, fmt.Errorf("totp.EnrollConfirmedForTx: decode secret: %w", err)
+	}
+	dek, ok := s.deks[int(s.currentKeyVer)]
+	if !ok {
+		return nil, fmt.Errorf("totp.EnrollConfirmedForTx: no DEK for version %d", s.currentKeyVer)
+	}
+	ct, nonce, err := encryptSecret(dek, secret, aadFor(accountID, s.currentKeyVer))
+	if err != nil {
+		return nil, fmt.Errorf("totp.EnrollConfirmedForTx: encrypt: %w", err)
+	}
+	if err := q.DeleteTOTPCredential(ctx, accountID); err != nil {
+		return nil, fmt.Errorf("totp.EnrollConfirmedForTx: delete prior totp: %w", err)
+	}
+	if err := q.DeleteAllRecoveryCodesByAccount(ctx, accountID); err != nil {
+		return nil, fmt.Errorf("totp.EnrollConfirmedForTx: delete prior recovery: %w", err)
+	}
+	if _, err := q.InsertTOTPCredential(ctx, db.InsertTOTPCredentialParams{
+		AccountID:   accountID,
+		SecretEnc:   ct,
+		SecretNonce: nonce,
+		KeyVersion:  s.currentKeyVer,
+		Period:      int32(s.cfg.DefaultPeriod),
+		Digits:      int32(s.cfg.DefaultDigits),
+		Algorithm:   s.cfg.DefaultAlgorithm,
+	}); err != nil {
+		return nil, fmt.Errorf("totp.EnrollConfirmedForTx: insert: %w", err)
+	}
+	if err := q.ConfirmTOTPCredential(ctx, accountID); err != nil {
+		return nil, fmt.Errorf("totp.EnrollConfirmedForTx: confirm: %w", err)
+	}
+	if lastStep > 0 {
+		if _, err := q.UpdateTOTPLastStep(ctx, db.UpdateTOTPLastStepParams{
+			AccountID: accountID,
+			LastStep:  lastStep,
+		}); err != nil {
+			return nil, fmt.Errorf("totp.EnrollConfirmedForTx: seed last_step: %w", err)
+		}
+	}
+	return s.mintRecoveryCodesNoAudit(ctx, q, accountID)
 }
 
 func provisioningURI(issuer, username, secretB32, algorithm string, digits, period int) string {

@@ -145,6 +145,11 @@ type EnrollmentPreview struct {
 	Target               *EnrollmentTarget `json:"target,omitempty"`
 	ExpiresAt            time.Time         `json:"expiresAt"`
 	SuggestedDisplayName string            `json:"suggestedDisplayName,omitempty"`
+	// AllowedMethods lists the credential methods this enrollment permits the
+	// user to set up: "passkey" and/or "password_totp". Bootstrap (first admin)
+	// is passkey-only; every other intent offers both. The enroll page renders
+	// its method chooser from this list.
+	AllowedMethods []string `json:"allowedMethods"`
 }
 
 // AuthStatus is GET /auth/status — used by the dashboard LoginView to branch

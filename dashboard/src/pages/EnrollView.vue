@@ -40,6 +40,8 @@ import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
 import { hardRedirect } from '@/lib/navigate'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
+import EnrollPasswordTotp from '@/components/custom/EnrollPasswordTotp.vue'
+import OrDivider from '@/components/custom/OrDivider.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,6 +55,9 @@ interface EnrollmentPreview {
   target?: EnrollmentTarget
   suggestedDisplayName?: string
   expiresAt: string
+  // Which credential methods this enrollment permits: 'passkey' and/or
+  // 'password_totp'. Bootstrap is passkey-only; every other intent offers both.
+  allowedMethods?: string[]
 }
 interface EnrollCompleteResponse {
   session: { id: number; username: string; displayName: string; role: string }
@@ -89,6 +94,27 @@ const collectsIdentity = computed(
     preview.value?.intent === 'invite' ||
     preview.value?.intent === 'federated_register',
 )
+
+// Method chooser. Bootstrap is passkey-only; every other intent may also set up
+// password+TOTP. `method` toggles the identity form between the chooser and the
+// inline password+TOTP ceremony.
+const allowsPasswordTotp = computed(() => preview.value?.allowedMethods?.includes('password_totp') ?? false)
+const method = ref<'choose' | 'password_totp'>('choose')
+const formRef = ref<HTMLFormElement | null>(null)
+
+function choosePasswordTotp(): void {
+  clearError()
+  // The password+TOTP button is type=button, so native `required` validation on
+  // the identity fields doesn't fire on click — trigger it explicitly.
+  if (collectsIdentity.value && !formRef.value?.reportValidity()) return
+  method.value = 'password_totp'
+}
+
+function onFederationRequired(): void {
+  // A federation-bound invite rejects local methods; hand off to the provider.
+  method.value = 'choose'
+  federationRedirectUrl.value = startFederationURL()
+}
 
 const heading = computed(() => {
   switch (preview.value?.intent) {
@@ -186,7 +212,7 @@ async function enroll(): Promise<void> {
       </Button>
     </div>
 
-    <form v-else-if="preview" class="flex flex-col gap-4" @submit.prevent="enroll">
+    <form v-else-if="preview" ref="formRef" class="flex flex-col gap-4" @submit.prevent="enroll">
       <p
         v-if="preview.intent === 'federated_register'"
         data-test="federated-register-intro"
@@ -202,7 +228,8 @@ async function enroll(): Promise<void> {
         {{ t('enroll.recoveryBody') }}
       </p>
 
-      <!-- New-account intents choose a local identity. -->
+      <!-- New-account intents choose a local identity. Locked once the
+           password+TOTP ceremony has started so the pending account is fixed. -->
       <template v-if="collectsIdentity">
         <div class="flex flex-col gap-1.5">
           <Label for="enroll-username">{{ t('enroll.usernameLabel') }}</Label>
@@ -214,6 +241,7 @@ async function enroll(): Promise<void> {
             autocomplete="username"
             autocapitalize="none"
             spellcheck="false"
+            :disabled="method !== 'choose'"
             required
           />
           <p class="text-xs text-muted">{{ t('enroll.usernameDesc') }}</p>
@@ -226,6 +254,7 @@ async function enroll(): Promise<void> {
             name="displayName"
             :placeholder="t('enroll.displayNamePlaceholder')"
             autocomplete="name"
+            :disabled="method !== 'choose'"
             required
           />
           <p class="text-xs text-muted">{{ t('enroll.displayNameDesc') }}</p>
@@ -240,13 +269,39 @@ async function enroll(): Promise<void> {
         </div>
       </template>
 
-      <ErrorPanel :error="error" @dismiss="clearError" />
+      <!-- Password+TOTP ceremony (inline) once chosen. -->
+      <EnrollPasswordTotp
+        v-if="method === 'password_totp'"
+        :token="token"
+        :identity="collectsIdentity ? { username, displayName } : null"
+        @back="method = 'choose'"
+        @federation-required="onFederationRequired"
+      />
 
-      <p class="text-xs text-muted">{{ t('enroll.passkeyForeshadow') }}</p>
+      <!-- Otherwise: the method chooser (or the passkey-only bootstrap button). -->
+      <template v-else>
+        <ErrorPanel :error="error" @dismiss="clearError" />
 
-      <Button type="submit" size="lg" class="w-full" :disabled="busy">
-        {{ t('enroll.registerButton') }}
-      </Button>
+        <p class="text-xs text-muted">{{ t('enroll.passkeyForeshadow') }}</p>
+
+        <Button type="submit" size="lg" class="w-full" :disabled="busy">
+          {{ t('enroll.registerButton') }}
+        </Button>
+
+        <template v-if="allowsPasswordTotp">
+          <OrDivider :label="t('login.orDivider')" />
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            class="w-full"
+            data-test="choose-password-totp"
+            @click="choosePasswordTotp"
+          >
+            {{ t('enroll.methodPasswordTotp') }}
+          </Button>
+        </template>
+      </template>
     </form>
   </CenteredLayout>
 </template>

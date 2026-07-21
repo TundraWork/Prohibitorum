@@ -42,11 +42,20 @@ These unblock features the rebuilt UI already wants; mostly small, no new protoc
    w/o TOTP allowed?).
    Src: `memory/project_deferred_security_ui_backend.md`; FE `SecurityView.vue:33`.
 
-4. **D — Password/TOTP enrollment ceremony.** `[greenfield]`
-   Enrollment is passkey-only (or federation redirect). "Invite requires password/TOTP setup"
-   needs: a credential-requirements column on `enrollment`, new ceremony endpoints
-   (`/enrollments/{token}/password|totp/...`), then FE forms. The user hit this directly.
-   Label **D**. Src: every recent handoff §NEXT WORK; FE `EnrollView.vue:10-18`.
+4. **D — Password/TOTP enrollment ceremony.** ✅ **DONE (2026-07-20).**
+   Enrollment now offers passkey OR password+TOTP for every intent except bootstrap
+   (first-admin CLI, which stays passkey-only). Policy keys purely off `intent` — no schema
+   column needed. New token-scoped endpoints `POST /enrollments/{token}/password-totp/begin`
+   + `/verify` (`pkg/server/handle_enrollment_password_totp.go`): begin hashes the password +
+   generates a TOTP secret (no DB write, KV-stashed) and verify creates account + password +
+   confirmed TOTP + 10 recovery codes atomically and issues an `amr=["pwd","otp","mfa"]`
+   session. Reuses `password.Store.Hash` + new `totp.Store.{GenerateEnrollment,
+   VerifyCandidateSecret,EnrollConfirmedForTx}`. Preview gained `allowedMethods`; FE
+   `EnrollView` chooser + `EnrollPasswordTotp.vue`. New error `enrollment_method_not_allowed`.
+   Gate GREEN: go build/vet/`go test ./...` 0, vitest 1124, vue-tsc 0, live smoke
+   SMOKE_EXIT=0 (new `pwd-totp-enroll` arc + VRChat previews assert `allowedMethods`),
+   chromium-verified (light/dark/en/zh). Note: VRChat federated_register + provider-recovery
+   reset both offer both methods now.
 
 5. **Admin `GET /accounts/:id/sessions` — list a target account's sessions.** `[code-only]`
    Admin detail page can only bulk "revoke all sessions" + show a count; can't inspect or

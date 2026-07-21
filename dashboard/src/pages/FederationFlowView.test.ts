@@ -89,7 +89,7 @@ describe('FederationFlowView', () => {
       'Your VRChat account is only used to verify your identity and help you recover access. If you’re new here, you’ll create a local account and sign-in method after verification.',
     )
     expect(notice.text()).toContain(
-      'Can you still sign in to your local account? Link VRChat from Connected Accounts instead.',
+      'Already have a Prohibitorum account? Link VRChat from Connected Accounts instead.',
     )
     expect(notice.classes()).toEqual(
       expect.arrayContaining([

@@ -4876,8 +4876,12 @@ func main() {
 		log.Fatalf("audit-remediation IP assert: %v", err)
 	}
 
+	if err := runPasswordTOTPEnrollmentSmoke(*baseURL); err != nil {
+		log.Fatalf("pwd-totp-enroll: %v", err)
+	}
+
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
 	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, target-hidden recovery with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }
@@ -6673,6 +6677,182 @@ func seedInviteEnrollment(token, templateUsername, templateDisplayName, template
 	)`, token, expiresOffset, templateUsername, templateDisplayName, templateRole, expectedSlug); err != nil {
 		return fmt.Errorf("insert invite enrollment: %w", err)
 	}
+	return nil
+}
+
+// seedPlainInviteEnrollment inserts an intent='invite' row with NO federation
+// binding (expected_upstream_idp_slug NULL), so the local password+TOTP and
+// passkey ceremonies are both permitted. Idempotent.
+func seedPlainInviteEnrollment(token, username, display, role, expiresOffset string) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dburl)
+	if err != nil {
+		return fmt.Errorf("pgx connect: %w", err)
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "DELETE FROM enrollment WHERE token=$1", token); err != nil {
+		return fmt.Errorf("delete prior invite: %w", err)
+	}
+	if _, err := conn.Exec(ctx, `INSERT INTO enrollment (
+		token, intent, expires_at, template_username, template_display_name, template_role
+	) VALUES ($1, 'invite', now() + $2::interval, $3, $4, $5)`,
+		token, expiresOffset, username, display, role); err != nil {
+		return fmt.Errorf("insert plain invite enrollment: %w", err)
+	}
+	return nil
+}
+
+// seedBootstrapEnrollment inserts an intent='bootstrap' row (no template
+// columns — the CHECK constraint forbids them for bootstrap). Used to assert
+// that bootstrap rejects the password+TOTP method (passkey-only). Idempotent.
+func seedBootstrapEnrollment(token, expiresOffset string) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	if dburl == "" {
+		return errors.New("PROHIBITORUM_DATABASE_URL not set")
+	}
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dburl)
+	if err != nil {
+		return fmt.Errorf("pgx connect: %w", err)
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "DELETE FROM enrollment WHERE token=$1", token); err != nil {
+		return fmt.Errorf("delete prior bootstrap: %w", err)
+	}
+	if _, err := conn.Exec(ctx, `INSERT INTO enrollment (token, intent, expires_at)
+		VALUES ($1, 'bootstrap', now() + $2::interval)`, token, expiresOffset); err != nil {
+		return fmt.Errorf("insert bootstrap enrollment: %w", err)
+	}
+	return nil
+}
+
+// runPasswordTOTPEnrollmentSmoke exercises the password+TOTP enrollment ceremony
+// end-to-end: a plain invite is redeemed via begin→verify (setting password +
+// confirmed TOTP + 10 recovery codes, NO passkey), the resulting account can log
+// in with password→TOTP, and a bootstrap enrollment rejects the password+TOTP
+// method (passkey-only). Fresh clients isolate the arc from the caller's admin
+// session.
+func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
+	const (
+		token    = "smoke-pwdtotp-invite-token"
+		username = "smoke-pwdtotp-user"
+		display  = "Smoke PwdTOTP User"
+		password = "correct horse battery staple"
+	)
+
+	step("pwd-totp-enroll 1/6 — seed a plain (non-federation) invite enrollment")
+	if err := seedPlainInviteEnrollment(token, username, display, "user", "1 hour"); err != nil {
+		return fmt.Errorf("seed invite: %w", err)
+	}
+	ec, err := newClient(baseURL)
+	if err != nil {
+		return err
+	}
+
+	step("pwd-totp-enroll 2/6 — POST /enrollments/{token}/password-totp/begin {username,displayName,password}")
+	var begin struct {
+		SecretBase32 string `json:"secret_base32"`
+		OtpauthURI   string `json:"otpauth_uri"`
+	}
+	if err := ec.postEnrollmentJSON(token, "password-totp/begin", map[string]string{
+		"username":    username,
+		"displayName": display,
+		"password":    password,
+	}, &begin); err != nil {
+		return fmt.Errorf("password-totp/begin: %w", err)
+	}
+	if begin.SecretBase32 == "" || !strings.HasPrefix(begin.OtpauthURI, "otpauth://totp/") {
+		return fmt.Errorf("begin returned secret=%q uri=%q", begin.SecretBase32, begin.OtpauthURI)
+	}
+	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(begin.SecretBase32)
+	if err != nil {
+		return fmt.Errorf("decode secret: %w", err)
+	}
+	log.Printf("  begin → secret_base32 + otpauth_uri ✓ (no DB row yet)")
+
+	step("pwd-totp-enroll 3/6 — POST /enrollments/{token}/password-totp/verify {code} → session + 10 recovery codes")
+	var verify struct {
+		RecoveryCodes []string `json:"recoveryCodes"`
+	}
+	if err := ec.postEnrollmentJSON(token, "password-totp/verify", map[string]string{
+		"code": totppkg.ComputeCodeForTesting(secret, time.Now().Unix(), 6),
+	}, &verify); err != nil {
+		return fmt.Errorf("password-totp/verify: %w", err)
+	}
+	if len(verify.RecoveryCodes) != 10 {
+		return fmt.Errorf("recovery codes = %d, want 10", len(verify.RecoveryCodes))
+	}
+	log.Printf("  verify → %d recovery codes ✓", len(verify.RecoveryCodes))
+
+	step("pwd-totp-enroll 4/6 — GET /me on the enrolled session → username/role (session cookie set by verify)")
+	me, err := ec.getMe()
+	if err != nil {
+		return fmt.Errorf("getMe: %w", err)
+	}
+	if me.Username != username || me.Role != "user" {
+		return fmt.Errorf("/me = username=%q role=%q, want %q/user", me.Username, me.Role, username)
+	}
+	log.Printf("  /me username=%s role=%s ✓ (enrollment issued a session)", me.Username, me.Role)
+
+	step("pwd-totp-enroll 5/6 — password→TOTP LOGIN works for the enrolled account")
+	lc, err := newClient(baseURL)
+	if err != nil {
+		return err
+	}
+	partial, err := lc.passwordBegin(username, password)
+	if err != nil {
+		return fmt.Errorf("passwordBegin: %w", err)
+	}
+	// Use the NEXT TOTP step's code: enrollment seeded last_step to the
+	// confirming code's step, so the same-window code is (correctly) rejected as
+	// a replay — a real authenticator rolls to the next code after ~30s. Adding
+	// one period advances exactly one step, still within the server's ±1 drift.
+	if err := lc.totpStepTwoVerify(partial, totppkg.ComputeCodeForTesting(secret, time.Now().Unix()+30, 6)); err != nil {
+		return fmt.Errorf("totpStepTwoVerify: %w", err)
+	}
+	me2, err := lc.getMe()
+	if err != nil || me2.Username != username {
+		return fmt.Errorf("post-login /me: err=%v username=%q", err, func() string {
+			if me2 != nil {
+				return me2.Username
+			}
+			return ""
+		}())
+	}
+	log.Printf("  password→TOTP login → session ✓")
+
+	step("pwd-totp-enroll 6/6 — negative: bootstrap enrollment rejects password+TOTP (passkey-only)")
+	const bootToken = "smoke-pwdtotp-bootstrap-token"
+	if err := seedBootstrapEnrollment(bootToken, "1 hour"); err != nil {
+		return fmt.Errorf("seed bootstrap: %w", err)
+	}
+	bc, err := newClient(baseURL)
+	if err != nil {
+		return err
+	}
+	resp, err := bc.postJSONRaw("/api/prohibitorum/enrollments/"+url.PathEscape(bootToken)+"/password-totp/begin",
+		map[string]string{"username": "smoke-boot", "displayName": "Smoke Boot", "password": password})
+	if err != nil {
+		return fmt.Errorf("bootstrap begin transport: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusBadRequest {
+		return fmt.Errorf("bootstrap password-totp/begin status = %d, want 400 (body=%s)", resp.StatusCode, body)
+	}
+	var env struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(body, &env)
+	if env.Code != "enrollment_method_not_allowed" {
+		return fmt.Errorf("bootstrap rejection code = %q, want enrollment_method_not_allowed (body=%s)", env.Code, body)
+	}
+	log.Printf("  bootstrap password-totp/begin → 400 enrollment_method_not_allowed ✓")
+
 	return nil
 }
 

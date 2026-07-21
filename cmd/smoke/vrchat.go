@@ -77,6 +77,7 @@ type vrchatEnrollmentPreview struct {
 	Target               json.RawMessage `json:"target,omitempty"`
 	ExpiresAt            time.Time       `json:"expiresAt"`
 	SuggestedDisplayName string          `json:"suggestedDisplayName,omitempty"`
+	AllowedMethods       []string        `json:"allowedMethods"`
 }
 
 type vrchatSmoke struct {
@@ -471,8 +472,12 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	if registrationPreview.Intent != "federated_register" || registrationPreview.SuggestedDisplayName != "VRChat Smoke Alpha" || len(registrationPreview.Target) != 0 || registrationPreview.ExpiresAt.IsZero() {
 		return fmt.Errorf("registration preview shape = %+v", registrationPreview)
 	}
+	// VRChat federated registration offers passkey OR password+TOTP.
+	if strings.Join(registrationPreview.AllowedMethods, ",") != "passkey,password_totp" {
+		return fmt.Errorf("registration preview allowedMethods = %v, want [passkey password_totp]", registrationPreview.AllowedMethods)
+	}
 	for field := range registrationFields {
-		if field != "intent" && field != "expiresAt" && field != "suggestedDisplayName" {
+		if field != "intent" && field != "expiresAt" && field != "suggestedDisplayName" && field != "allowedMethods" {
 			return fmt.Errorf("registration preview exposed unexpected field %q", field)
 		}
 	}
@@ -561,8 +566,12 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	if recoveryPreview.Intent != "reset" || len(recoveryPreview.Target) != 0 || recoveryPreview.SuggestedDisplayName != "" || recoveryPreview.ExpiresAt.IsZero() {
 		return fmt.Errorf("provider-backed reset preview was not target-hidden")
 	}
+	// VRChat provider-recovery reset offers passkey OR password+TOTP.
+	if strings.Join(recoveryPreview.AllowedMethods, ",") != "passkey,password_totp" {
+		return fmt.Errorf("provider-backed reset preview allowedMethods = %v, want [passkey password_totp]", recoveryPreview.AllowedMethods)
+	}
 	for field := range recoveryFields {
-		if field != "intent" && field != "expiresAt" {
+		if field != "intent" && field != "expiresAt" && field != "allowedMethods" {
 			return fmt.Errorf("provider-backed reset preview exposed unexpected field %q", field)
 		}
 	}

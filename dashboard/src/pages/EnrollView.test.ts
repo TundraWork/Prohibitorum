@@ -287,6 +287,85 @@ describe('EnrollView', () => {
     expect(html).not.toContain('https://private.example/avatar')
   })
 
+  it('offers the password+TOTP method when allowedMethods includes it', async () => {
+    get.mockResolvedValue({
+      intent: 'invite',
+      expiresAt: '2099-01-01T00:00:00Z',
+      allowedMethods: ['passkey', 'password_totp'],
+    })
+    const wrapper = await mountView(await makeRouter())
+
+    // Passkey remains the primary submit; password+TOTP is the secondary option.
+    expect(wrapper.get('button[type="submit"]').text()).toBe(en.enroll.registerButton)
+    const chooser = wrapper.get('[data-test="choose-password-totp"]')
+    expect(chooser.text()).toBe(en.enroll.methodPasswordTotp)
+
+    // Fill identity, then switch to the password+TOTP ceremony.
+    await wrapper.get('input[name=username]').setValue('alex')
+    await wrapper.get('input[name=displayName]').setValue('Alex Smith')
+    await chooser.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="enroll-password-totp"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="pwtotp-continue"]').exists()).toBe(true)
+    // Identity fields lock while the ceremony owns the pending account.
+    expect((wrapper.get('input[name=username]').element as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('hides the password+TOTP option for a passkey-only (bootstrap) enrollment', async () => {
+    get.mockResolvedValue({
+      intent: 'bootstrap',
+      expiresAt: '2099-01-01T00:00:00Z',
+      allowedMethods: ['passkey'],
+    })
+    const wrapper = await mountView(await makeRouter())
+
+    expect(wrapper.find('[data-test="choose-password-totp"]').exists()).toBe(false)
+    expect(wrapper.get('button[type="submit"]').text()).toBe(en.enroll.registerButton)
+  })
+
+  it('runs the password+TOTP ceremony: begin→verify→recovery codes→app root', async () => {
+    get.mockResolvedValue({
+      intent: 'invite',
+      expiresAt: '2099-01-01T00:00:00Z',
+      allowedMethods: ['passkey', 'password_totp'],
+    })
+    post.mockImplementation(async (path: string) => {
+      if (path.endsWith('/password-totp/begin')) {
+        return { secret_base32: 'ABCDEF', otpauth_uri: 'otpauth://totp/x?secret=ABCDEF' }
+      }
+      if (path.endsWith('/password-totp/verify')) return { session: { id: 1 }, recoveryCodes: Array(10).fill('code') }
+      throw new Error(`unexpected POST ${path}`)
+    })
+    const wrapper = await mountView(await makeRouter())
+
+    await wrapper.get('input[name=username]').setValue('alex')
+    await wrapper.get('input[name=displayName]').setValue('Alex Smith')
+    await wrapper.get('[data-test="choose-password-totp"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('#enroll-password').setValue('supersecret')
+    await wrapper.get('#enroll-password-confirm').setValue('supersecret')
+    await wrapper.get('[data-test="pwtotp-continue"]').trigger('click')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith(
+      `/api/prohibitorum/enrollments/${TOKEN}/password-totp/begin`,
+      { password: 'supersecret', username: 'alex', displayName: 'Alex Smith' },
+    )
+
+    await wrapper.get('#enroll-totp-code').setValue('123456')
+    await wrapper.get('[data-test="pwtotp-verify"]').trigger('click')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith(
+      `/api/prohibitorum/enrollments/${TOKEN}/password-totp/verify`,
+      { code: '123456' },
+    )
+    // The recovery codes are shown (RecoveryCodesDisplay renders its saved-gate).
+    expect(wrapper.find('[data-test="done"]').exists()).toBe(true)
+  })
+
   it.each(['enrollment_invalid', 'enrollment_expired', 'enrollment_consumed'])(
     'routes the %s preview error through the existing code-based error page',
     async (code) => {

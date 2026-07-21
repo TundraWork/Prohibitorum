@@ -542,6 +542,8 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationPreviewEnrollment, s.handlePreviewEnrollment, publicReq)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/register/begin", publicReq, s.handleEnrollmentBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/register/complete", publicReq, s.handleEnrollmentCompleteHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/password-totp/begin", publicReq, s.handleEnrollmentPasswordTOTPBeginHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/enrollments/{token}/password-totp/verify", publicReq, s.handleEnrollmentPasswordTOTPVerifyHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/enrollments/{token}/start-federation", publicReq, s.handleEnrollmentStartFederationHTTP)
 
 	// /me

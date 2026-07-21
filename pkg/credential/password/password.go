@@ -74,6 +74,16 @@ func (s *Store) Set(ctx context.Context, accountID int32, pw string) error {
 	return nil
 }
 
+// Hash computes the argon2id PHC string for pw using the store's configured
+// params WITHOUT touching the database. The password-totp enrollment ceremony
+// hashes at "begin" (stashing the PHC in KV) and inserts the row at "verify"
+// via a tx-scoped UpsertPasswordCredential — so the plaintext never lands in
+// the KV stash and the account row (which may not exist until "verify") is not
+// required here.
+func (s *Store) Hash(pw string) (string, error) {
+	return HashRaw(pw, s.params)
+}
+
 func (s *Store) Verify(ctx context.Context, accountID int32, pw string) error {
 	if _, err := s.throttle.CheckLocked(ctx, accountID, "password"); err != nil {
 		return err

@@ -27,6 +27,7 @@ func init() {
 		{Code: "enrollment_expired", Status: http.StatusGone, LocaleKey: "errors.enrollment_expired", DiagnosticKind: "enrollment"},
 		{Code: "enrollment_consumed", Status: http.StatusGone, LocaleKey: "errors.enrollment_consumed", DiagnosticKind: "enrollment"},
 		{Code: "enrollment_federation_required", Status: http.StatusBadRequest, LocaleKey: "errors.enrollment_federation_required", DiagnosticKind: "enrollment"},
+		{Code: "enrollment_method_not_allowed", Status: http.StatusBadRequest, LocaleKey: "errors.enrollment_method_not_allowed", DiagnosticKind: "enrollment"},
 		{Code: "bad_request", Status: http.StatusBadRequest, LocaleKey: "errors.bad_request", DiagnosticKind: "validation"},
 		{Code: "invalid_consent_ticket", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_consent_ticket", DiagnosticKind: "validation"},
 		{Code: "invalid_role", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_role", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"allowed": {}}},
@@ -194,6 +195,16 @@ func ErrEnrollmentConsumed() *AuthError {
 func ErrEnrollmentFederationRequired() *AuthError {
 	return newErr(http.StatusBadRequest, "enrollment_federation_required",
 		"此邀请须通过身份联合注册，请使用联合身份注册链接")
+}
+
+// ErrEnrollmentMethodNotAllowed is returned by the password+TOTP enrollment
+// endpoints when the enrollment's intent does not permit that method. Only the
+// first-admin bootstrap is passkey-only; every other intent (invite,
+// federated_register, reset) allows passkey OR password+TOTP. The passkey
+// ceremony remains available for all intents.
+func ErrEnrollmentMethodNotAllowed() *AuthError {
+	return newErr(http.StatusBadRequest, "enrollment_method_not_allowed",
+		"此注册流程不支持密码+TOTP，请使用 Passkey 注册")
 }
 
 // ErrBadRequest is the generic 400 for malformed request bodies / out-of-range

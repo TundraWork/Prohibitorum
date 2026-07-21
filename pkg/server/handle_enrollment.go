@@ -135,8 +135,9 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 		return nil, authErrToHuma(err)
 	}
 	out := contract.EnrollmentPreview{
-		Intent:    e.Intent,
-		ExpiresAt: e.ExpiresAt.Time,
+		Intent:         e.Intent,
+		ExpiresAt:      e.ExpiresAt.Time,
+		AllowedMethods: enrollmentAllowedMethods(e.Intent),
 	}
 	switch e.Intent {
 	case enrollment.IntentBootstrap:

@@ -6,6 +6,8 @@ import { Clock3, ExternalLink, Info } from 'lucide-vue-next'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
+import NumberedSteps from '@/components/custom/NumberedSteps.vue'
+import SectionTitle from '@/components/custom/SectionTitle.vue'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +17,7 @@ import { api } from '@/lib/api'
 import { isApiError } from '@/lib/errors'
 import type { ApiError } from '@/lib/errors'
 import { hardRedirect } from '@/lib/navigate'
+import { useBrandingStore } from '@/stores/branding'
 
 interface FederationProvider {
   slug: string
@@ -37,6 +40,7 @@ interface VerifyResponse {
 
 const route = useRoute()
 const { locale, t } = useI18n()
+const branding = useBrandingStore()
 const flowToken = String(route.params.flow ?? '')
 const flowPath = `/api/prohibitorum/auth/federation/flows/${encodeURIComponent(flowToken)}`
 
@@ -211,7 +215,7 @@ function continueFlow(): void {
             {{ t('federationFlow.accountNoticePrimary') }}
           </p>
           <p class="text-sm leading-5">
-            {{ t('federationFlow.accountNoticeSupporting') }}
+            {{ t('federationFlow.accountNoticeSupporting', { instance: branding.instanceName }) }}
           </p>
         </div>
       </div>
@@ -220,27 +224,19 @@ function continueFlow(): void {
 
       <section
         data-test="identify-guide"
-        class="flex flex-col gap-3 rounded-md border border-tide/20 bg-info/60 p-4"
+        class="flex flex-col gap-3"
         aria-labelledby="identify-guide-title"
       >
-        <h2 id="identify-guide-title" class="text-sm font-semibold text-ink">
+        <SectionTitle id="identify-guide-title" as="h2">
           {{ t('federationFlow.identifyGuideTitle') }}
-        </h2>
-        <ol class="list-decimal space-y-1.5 ps-5 text-sm leading-5 text-ink">
-          <li>{{ t('federationFlow.identifyStepOpen') }}</li>
-          <li>{{ t('federationFlow.identifyStepProfile') }}</li>
-          <li>{{ t('federationFlow.identifyStepCopy') }}</li>
-        </ol>
-        <a
-          data-test="open-vrchat"
-          href="https://vrchat.com/home"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex min-h-11 w-fit items-center gap-2 rounded-md font-medium text-tide-strong underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          {{ t('federationFlow.openVrchatWebsite') }}
-          <ExternalLink class="size-4" aria-hidden="true" />
-        </a>
+        </SectionTitle>
+        <NumberedSteps
+          :steps="[
+            { text: t('federationFlow.identifyStepOpen'), href: 'https://vrchat.com/home', test: 'open-vrchat' },
+            { text: t('federationFlow.identifyStepProfile') },
+            { text: t('federationFlow.identifyStepCopy') },
+          ]"
+        />
       </section>
 
       <div class="flex flex-col gap-1.5">
@@ -280,14 +276,15 @@ function continueFlow(): void {
       @submit.prevent="verifyProfile"
     >
       <section class="flex min-w-0 flex-col gap-4" aria-labelledby="proof-heading">
-        <h2
+        <SectionTitle
           id="proof-heading"
           data-test="proof-heading"
+          as="h2"
           tabindex="-1"
-          class="text-lg font-semibold text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          class="outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {{ t('federationFlow.proofTitle') }}
-        </h2>
+        </SectionTitle>
 
         <div
           data-test="profile-context"
@@ -322,23 +319,15 @@ function continueFlow(): void {
           wrap
         />
 
-        <ol
+        <NumberedSteps
           data-test="proof-steps"
-          class="grid gap-3"
-          :aria-label="t('federationFlow.instructionsLabel')"
-        >
-          <li
-            v-for="(step, index) in [t('federationFlow.stepCopy'), t('federationFlow.stepAdd'), t('federationFlow.stepReturn')]"
-            :key="step"
-            class="grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-2 text-sm leading-5 text-ink"
-          >
-            <span
-              aria-hidden="true"
-              class="inline-flex size-7 items-center justify-center rounded-full bg-tide/10 text-xs font-semibold text-tide-strong"
-            >{{ index + 1 }}</span>
-            <span class="pt-1">{{ step }}</span>
-          </li>
-        </ol>
+          :label="t('federationFlow.instructionsLabel')"
+          :steps="[
+            { text: t('federationFlow.stepCopy') },
+            { text: t('federationFlow.stepAdd') },
+            { text: t('federationFlow.stepReturn') },
+          ]"
+        />
 
         <p data-test="proof-expiry" role="status" class="flex items-center gap-2 text-xs text-muted">
           <Clock3 class="size-4 shrink-0" aria-hidden="true" />
@@ -356,14 +345,15 @@ function continueFlow(): void {
 
       <template v-if="succeeded">
         <div class="flex flex-col gap-3">
-          <h2
+          <SectionTitle
             id="success-heading"
             data-test="success-heading"
+            as="h2"
             tabindex="-1"
-            class="text-lg font-semibold text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            class="outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {{ t('federationFlow.success') }}
-          </h2>
+          </SectionTitle>
           <StatusMessage show data-test="verification-status">
             {{ t('federationFlow.success') }}
           </StatusMessage>
