@@ -776,9 +776,9 @@ export default {
   },
 
   error: {
-    defaultMessage: '发生了意外错误，请重试。',
+    defaultMessage: '我们这边出现了意外情况，请稍后重试。',
     returnToLogin: '返回登录',
-    appAccessDenied: '你没有访问 {app} 的权限，请联系管理员。',
+    appAccessDenied: '你还没有访问 {app} 的权限。如认为应当拥有，请联系管理员。',
     reference: '参考编号：{ref}',
     backToDashboard: '返回控制台',
     goBack: '返回上一页',
@@ -1017,67 +1017,67 @@ export default {
       no_session: '请先登录后再继续。',
       not_admin: '此操作需要管理员权限。',
       permission_denied: '你没有执行该操作的权限。',
-      account_disabled: '此账户已被禁用，请联系管理员。',
-      rate_limited: '尝试过于频繁，请稍候再试。',
-      factor_locked: '失败次数过多，此登录方式已被临时锁定。',
-      sudo_method_unavailable: '你的账户不支持此验证方式。',
-      sudo_required: '此操作需要近期验证，请重新认证。',
+      account_disabled: '此账户已被禁用，请联系管理员寻求帮助。',
+      rate_limited: '短时间内尝试次数过多，请稍候片刻再试。',
+      factor_locked: '失败次数过多，此登录方式已被暂时锁定，请稍后再试。',
+      sudo_method_unavailable: '你的账户尚未设置此验证方式。',
+      sudo_required: '为了你的账户安全，请重新验证后再继续。',
 
       // 登录（通行密钥 + 密码/TOTP）
       not_bootstrapped:
-        '尚未设置任何账户。运行 `prohibitorum enroll-admin` 创建第一个管理员。',
-      bad_credentials: '用户名、密码或验证码不正确。',
-      partial_session_invalid: '登录会话已过期，请重新开始。',
-      recovery_session_invalid: '恢复流程已失效，请重新使用恢复码。',
-      ceremony_missing: '登录尝试已超时，请重试。',
-      ceremony_expired: '登录尝试已超时，请重试。',
-      ceremony_state_invalid: '无法验证此次登录，请重试。',
-      ceremony_internal_error: '验证过程中出现问题，请重试。',
-      login_account_not_found: '找不到与该通行密钥匹配的账户。',
-      login_failed: '登录未能完成，请重试。',
-      login_verification_failed: '无法验证你的通行密钥，请重试。',
-      webauthn_error: '通行密钥步骤未完成，请重试。',
+        '尚未设置任何账户。请在服务器上运行 `prohibitorum enroll-admin` 创建第一个管理员。',
+      bad_credentials: '用户名、密码或验证码不匹配，请核对后重试。',
+      partial_session_invalid: '登录会话已超时，请重新开始。',
+      recovery_session_invalid: '恢复会话已超时，请重新开始。',
+      ceremony_missing: '此次登录尝试已超时，请重试。',
+      ceremony_expired: '此次登录尝试已超时，请重试。',
+      ceremony_state_invalid: '我们无法验证此次登录尝试，请重试。',
+      ceremony_internal_error: '验证过程中出现了问题，请重试。',
+      login_account_not_found: '我们找不到与该通行密钥匹配的账户。',
+      login_failed: '我们未能完成你的登录，请重试。',
+      login_verification_failed: '我们无法验证你的通行密钥，请重试。',
+      webauthn_error: '通行密钥步骤未能完成，请重试。',
 
       // 授权
       invalid_consent_ticket:
         '此授权请求已过期，请从应用重新开始。',
-      bad_request: '该请求无效。',
+      bad_request: '此请求似乎有些问题，请重试。',
 
       // 注册
       enrollment_expired: '此邀请链接已过期。',
       enrollment_consumed: '此邀请链接已被使用。',
       enrollment_federation_required:
-        '此邀请需要通过你的身份提供商完成注册。',
+        '此邀请需要通过你的身份提供商完成。',
       enrollment_method_not_allowed:
-        '此注册流程只能使用 Passkey 完成。',
-      invite_required: '创建账户需要邀请码。',
+        '此注册流程只能使用通行密钥完成。',
+      invite_required: '在此创建账户需要邀请。',
       link_required: '此身份源尚未关联任何账户。请先以其他方式登录，然后在 设置 → 关联账户 中绑定。',
-      username_taken: '该用户名已被占用。',
-      username_collision: '该用户名已被占用。',
+      username_taken: '该用户名已被占用，请换一个。',
+      username_collision: '该用户名已被占用，请换一个。',
       invalid_username:
-        '用户名须为 2–32 个小写字母、数字、下划线或连字符。',
-      invalid_display_name: '显示名称无效。',
-      invalid_nickname: '昵称无效。',
+        '用户名须为 2–32 个小写字母、数字、下划线或连字符，请换一个。',
+      invalid_display_name: '该显示名称似乎不太对，请换一个。',
+      invalid_nickname: '该昵称似乎不太对，请换一个。',
       credential_already_registered: '该通行密钥已注册。',
-      registration_failed: '通行密钥设置未能完成，请重试。',
+      registration_failed: '我们未能完成通行密钥的设置，请重试。',
 
       // 联合身份（上游 IdP）
-      upstream_error: '身份提供商返回了错误，请重试。',
-      email_not_verified: '身份提供商尚未验证你的邮箱地址。',
-      federation_state_invalid: '登录尝试已超时，请重试。',
-      invalid_return_to: '该返回链接不被允许。',
+      upstream_error: '你的身份提供商返回了错误，请重试。',
+      email_not_verified: '你的身份提供商尚未验证你的邮箱地址。',
+      federation_state_invalid: '此次登录尝试已超时，请重试。',
+      invalid_return_to: '为保护你的账户安全，我们无法安全地将你返回该地址。请返回上一页后重试。',
 
       // 通用 / 客户端合成
-      server_error: '我们这边出了点问题，请重试。',
-      network_error: '无法连接到服务器，请检查你的网络连接后重试。',
-      not_found: '找不到请求的页面。',
+      server_error: '我们这边出了点问题，请稍后重试。',
+      network_error: '我们暂时无法连接到服务器，请检查你的网络连接后重试。',
+      not_found: '我们找不到你要访问的页面。',
       forbidden: '你没有查看此内容的权限。',
 
       // 通行密钥管理
-      last_passkey: '无法移除最后一个通行密钥，请先添加另一个。',
+      last_passkey: '这是你唯一的通行密钥，无法移除，请先添加另一个。',
 
       // 关联账户
-      last_sign_in_method: '无法移除最后一种登录方式，请先添加另一种。',
+      last_sign_in_method: '这是你最后一种登录方式，无法移除，请先添加另一种。',
       credential_not_found: '该关联已不存在。',
 
       // 设备配对
@@ -1090,15 +1090,15 @@ export default {
       last_admin: '无法移除最后一位管理员。',
       admin_cannot_be_disabled: '无法禁用管理员账户，请先将其角色改为普通用户。',
       cannot_delete_self: '无法删除自己的账户。',
-      would_remove_last_factor: '无法移除最后一个登录因素，请先添加另一个。',
-      cannot_revoke_current_session: '无法从此处撤销当前会话，请使用退出登录。',
+      would_remove_last_factor: '这是你最后一个登录因素，无法移除，请先添加另一个。',
+      cannot_revoke_current_session: '无法撤销你正在使用的当前会话，请改用退出登录。',
 
       // 验证
-      invalid_role: '角色无效。',
-      username_immutable: '用户名不可更改。',
-      validation_failed: '你输入的部分内容无效。',
-      unsupported_media_type: '不支持此文件类型。',
-      request_too_large: '请求过大，请减小大小后重试。',
+      invalid_role: '请选择一个可用的角色。',
+      username_immutable: '用户名一经设置便无法更改。',
+      validation_failed: '你输入的部分内容需要再检查一下，请核对后重试。',
+      unsupported_media_type: '不支持此文件类型，请上传 PNG、JPEG 或 WebP 图片。',
+      request_too_large: '此请求略大，请减小大小后重试。',
 
       // 资源
       account_not_found: '该账户已不存在。',
@@ -1117,9 +1117,9 @@ export default {
       active_key_no_replacement: '请先激活替代密钥，再退役当前活动密钥。',
 
       // 头像上传
-      avatar_too_large: '该图片过大，无法上传。',
-      avatar_invalid_image: '该文件不是受支持的图片格式。',
-      avatar_source_unavailable: '该头像图片暂不可用。',
+      avatar_too_large: '该图片略大，请选择小于 5 MB 的图片。',
+      avatar_invalid_image: '该文件不是受支持的图片，请使用 PNG、JPEG 或 WebP 格式。',
+      avatar_source_unavailable: '该头像暂时不可用，请换一个。',
 
       // VRChat 操作员会话
       vrchat_operator_credentials_invalid: '操作员凭据被拒绝。请检查后重试。',
@@ -1134,10 +1134,10 @@ export default {
       federation_identity_conflict: '该身份无法关联到此账户。',
 
       // 系统
-      maintenance_mode: '系统正在维护中，请稍后再试。',
+      maintenance_mode: '我们正在进行维护，请稍后再试。',
       provider_not_ready: '该身份提供商尚未就绪，无法启用。',
-      database_unavailable: '数据库暂时不可用，请重试。',
-      kv_unavailable: '发生了临时服务问题，请重试。',
+      database_unavailable: '数据库暂时不可用，请稍后重试。',
+      kv_unavailable: '发生了临时的服务问题，请重试。',
     },
 
     details: {

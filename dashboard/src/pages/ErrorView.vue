@@ -74,7 +74,7 @@ onMounted(async () => {
 <template>
   <CenteredLayout>
     <template #title>
-      <h1 role="alert" class="text-balance text-xl font-semibold tracking-tight text-ink">{{ message }}</h1>
+      <p role="alert" class="text-balance text-base font-normal leading-relaxed text-ink">{{ message }}</p>
     </template>
 
     <div class="flex flex-col items-center gap-6 text-center">

@@ -780,9 +780,9 @@ export default {
   },
 
   error: {
-    defaultMessage: 'An unexpected error occurred. Please try again.',
+    defaultMessage: 'Something unexpected happened on our end. Please try again in a moment.',
     returnToLogin: 'Return to sign in',
-    appAccessDenied: "You don't have access to {app}. Contact your administrator.",
+    appAccessDenied: "You don't have access to {app} yet. If you think you should, please reach out to your administrator.",
     reference: 'Reference: {ref}',
     backToDashboard: 'Back to dashboard',
     goBack: 'Go back',
@@ -1020,113 +1020,113 @@ export default {
 
     codes: {
       // Session / authorization
-      no_session: 'Please sign in to continue.',
-      not_admin: 'This action requires administrator access.',
-      permission_denied: 'You do not have permission to do that.',
-      account_disabled: 'This account has been disabled. Contact an administrator.',
-      rate_limited: 'Too many attempts. Please wait a moment and try again.',
-      factor_locked: 'Too many failed attempts — this sign-in method is temporarily locked.',
-      sudo_method_unavailable: "That verification method isn't available on your account.",
-      sudo_required: 'This action requires recent verification. Please re-authenticate.',
+      no_session: "You'll need to sign in to continue.",
+      not_admin: "This action needs administrator access.",
+      permission_denied: "You don't have permission to do that.",
+      account_disabled: "This account has been disabled. Please reach out to an administrator for help.",
+      rate_limited: "That's a lot of attempts in a short time. Please wait a moment, then try again.",
+      factor_locked: "Too many failed attempts, so this sign-in method is locked for a little while. Please try again soon.",
+      sudo_method_unavailable: "That verification method isn't set up on your account.",
+      sudo_required: "For your security, please verify again before continuing.",
 
       // Login (passkey + password/TOTP)
       not_bootstrapped:
-        'No account has been set up yet. Run `prohibitorum enroll-admin` to create the first administrator.',
-      bad_credentials: 'Incorrect username, password, or code.',
-      partial_session_invalid: 'Your sign-in session expired. Please start again.',
-      recovery_session_invalid: 'Your recovery session expired. Please start again.',
-      ceremony_missing: 'The sign-in attempt expired. Please try again.',
-      ceremony_expired: 'The sign-in attempt expired. Please try again.',
-      ceremony_state_invalid: 'The sign-in attempt could not be verified. Please try again.',
-      ceremony_internal_error: 'Something went wrong during verification. Please try again.',
-      login_account_not_found: 'No matching account was found for that passkey.',
-      login_failed: 'Sign-in could not be completed. Please try again.',
-      login_verification_failed: 'Your passkey could not be verified. Please try again.',
-      webauthn_error: 'The passkey step did not complete. Please try again.',
+        "No account has been set up yet. Run `prohibitorum enroll-admin` on the server to create the first administrator.",
+      bad_credentials: "That username, password, or code didn't match. Please double-check and try again.",
+      partial_session_invalid: "Your sign-in session timed out. Please start again.",
+      recovery_session_invalid: "Your recovery session timed out. Please start again.",
+      ceremony_missing: "That sign-in attempt timed out. Please try again.",
+      ceremony_expired: "That sign-in attempt timed out. Please try again.",
+      ceremony_state_invalid: "We couldn't verify that sign-in attempt. Please try again.",
+      ceremony_internal_error: "Something went wrong while verifying. Please try again.",
+      login_account_not_found: "We couldn't find an account for that passkey.",
+      login_failed: "We couldn't complete your sign-in. Please try again.",
+      login_verification_failed: "We couldn't verify your passkey. Please try again.",
+      webauthn_error: "Your passkey step didn't finish. Please try again.",
 
       // Consent
       invalid_consent_ticket:
-        'This authorization request has expired. Please start again from the application.',
-      bad_request: "That request wasn't valid.",
+        "This authorization request has expired. Please start again from the application.",
+      bad_request: "Something about that request wasn't quite right. Please try again.",
 
       // Enrollment
-      enrollment_expired: 'This invitation link has expired.',
-      enrollment_consumed: 'This invitation link has already been used.',
+      enrollment_expired: "This invitation link has expired.",
+      enrollment_consumed: "This invitation link has already been used.",
       enrollment_federation_required:
-        'This invitation must be completed through your identity provider.',
+        "This invitation needs to be completed through your identity provider.",
       enrollment_method_not_allowed:
-        'This enrollment can only be completed with a passkey.',
-      invite_required: 'An invitation is required to create an account.',
+        "This enrollment can only be completed with a passkey.",
+      invite_required: "You'll need an invitation to create an account here.",
       link_required:
-        'This provider is not linked to any account. Sign in another way first, then connect it in Settings → Connected accounts.',
-      username_taken: 'That username is already taken.',
-      username_collision: 'That username is already taken.',
+        "This provider isn't linked to any account yet. Please sign in another way first, then connect it under Settings → Connected accounts.",
+      username_taken: "That username is already taken — please choose another.",
+      username_collision: "That username is already taken — please choose another.",
       invalid_username:
-        'Usernames must be 2–32 lowercase letters, numbers, underscores, or hyphens.',
-      invalid_display_name: "That display name isn't valid.",
-      invalid_nickname: "That nickname isn't valid.",
-      credential_already_registered: 'That passkey is already registered.',
-      registration_failed: 'Passkey setup could not be completed. Please try again.',
+        "Usernames use 2–32 lowercase letters, numbers, underscores, or hyphens. Please try another.",
+      invalid_display_name: "That display name doesn't look right. Please try a different one.",
+      invalid_nickname: "That nickname doesn't look right. Please try a different one.",
+      credential_already_registered: "That passkey is already registered.",
+      registration_failed: "We couldn't finish setting up your passkey. Please try again.",
 
       // Federation (upstream IdP)
-      upstream_error: 'Your identity provider returned an error. Please try again.',
-      email_not_verified: 'Your identity provider has not verified your email address.',
-      federation_state_invalid: 'The sign-in attempt expired. Please try again.',
-      invalid_return_to: "That return link isn't allowed.",
+      upstream_error: "Your identity provider returned an error. Please try again.",
+      email_not_verified: "Your identity provider hasn't verified your email address yet.",
+      federation_state_invalid: "That sign-in attempt timed out. Please try again.",
+      invalid_return_to: "We couldn't return you there safely, so we stopped to keep your account secure. Please head back and try again.",
 
       // Generic / client-synthesized
-      server_error: 'Something went wrong on our end. Please try again.',
-      network_error: "Can't reach the server. Check your connection and try again.",
-      not_found: 'The requested page could not be found.',
+      server_error: "Something went wrong on our end. Please try again in a moment.",
+      network_error: "We can't reach the server right now. Please check your connection and try again.",
+      not_found: "We couldn't find the page you're looking for.",
       forbidden: "You don't have permission to view that.",
 
       // Passkey management
-      last_passkey: "You can't remove your only passkey. Add another first.",
+      last_passkey: "This is your only passkey, so it can't be removed. Please add another first.",
 
       // Connected accounts
-      last_sign_in_method: "You can't remove your last sign-in method. Add another first.",
-      credential_not_found: 'That connection no longer exists.',
+      last_sign_in_method: "This is your last sign-in method, so it can't be removed. Please add another first.",
+      credential_not_found: "That connection no longer exists.",
 
       // Device pairing
-      pairing_not_found: 'That code is invalid, used, or expired.',
-      pairing_expired: 'That code has expired. Ask the device to generate a new one.',
+      pairing_not_found: "That code is invalid, already used, or expired.",
+      pairing_expired: "That code has expired. Please ask the device to generate a new one.",
       pairing_not_approved: "This device hasn't been approved yet.",
       pairing_state: "That pairing can't be changed right now.",
 
       // Policy
       last_admin: "You can't remove the last administrator.",
-      admin_cannot_be_disabled: "An administrator can't be disabled — change the role to user first.",
+      admin_cannot_be_disabled: "Administrators can't be disabled. Please change the role to user first.",
       cannot_delete_self: "You can't delete your own account.",
-      would_remove_last_factor: 'You cannot remove your last sign-in factor. Add another first.',
-      cannot_revoke_current_session: 'You cannot revoke your current session from here. Use sign out instead.',
+      would_remove_last_factor: "This is your last sign-in factor, so it can't be removed. Please add another first.",
+      cannot_revoke_current_session: "You can't revoke the session you're using right now. Please use sign out instead.",
 
       // Validation
-      invalid_role: "That role isn't valid.",
-      username_immutable: "Usernames can't be changed.",
-      validation_failed: "Some details you entered aren't valid.",
-      unsupported_media_type: "That file type isn't supported.",
-      request_too_large: 'The request is too large. Please reduce the size and try again.',
+      invalid_role: "Please choose one of the available roles.",
+      username_immutable: "Usernames can't be changed once they're set.",
+      validation_failed: "Some of the details you entered need another look. Please check them and try again.",
+      unsupported_media_type: "That file type isn't supported. Please upload a PNG, JPEG, or WebP image.",
+      request_too_large: "That request is a little too large. Please reduce the size and try again.",
 
       // Resources
-      account_not_found: 'That account no longer exists.',
-      diagnostic_not_found: 'That diagnostic record no longer exists or has expired.',
-      session_not_found: 'That session no longer exists.',
-      invitation_not_found: 'That invitation no longer exists.',
-      client_not_found: 'That client no longer exists.',
-      upstream_idp_not_found: 'That provider no longer exists.',
-      group_not_found: 'That group no longer exists.',
+      account_not_found: "That account no longer exists.",
+      diagnostic_not_found: "That diagnostic record no longer exists or has expired.",
+      session_not_found: "That session no longer exists.",
+      invitation_not_found: "That invitation no longer exists.",
+      client_not_found: "That client no longer exists.",
+      upstream_idp_not_found: "That provider no longer exists.",
+      group_not_found: "That group no longer exists.",
 
       // Conflicts
-      oidc_client_already_exists: 'A client with that ID already exists.',
-      saml_application_already_exists: 'A provider with that entity ID already exists.',
-      upstream_idp_already_exists: 'A provider with that slug already exists.',
-      group_slug_conflict: 'A group with that slug already exists.',
-      active_key_no_replacement: 'Activate a replacement key before retiring the active key.',
+      oidc_client_already_exists: "A client with that ID already exists.",
+      saml_application_already_exists: "A provider with that entity ID already exists.",
+      upstream_idp_already_exists: "A provider with that slug already exists.",
+      group_slug_conflict: "A group with that slug already exists.",
+      active_key_no_replacement: "Please activate a replacement key before retiring the active one.",
 
       // Avatar upload
-      avatar_too_large: 'That image is too large to upload.',
-      avatar_invalid_image: 'That file is not a supported image.',
-      avatar_source_unavailable: "That avatar image isn't available.",
+      avatar_too_large: "That image is a little too large. Please choose one under 5 MB.",
+      avatar_invalid_image: "That file isn't a supported image. Please use a PNG, JPEG, or WebP.",
+      avatar_source_unavailable: "That avatar isn't available right now. Please try a different one.",
 
       // VRChat operator session
       vrchat_operator_credentials_invalid: 'Those operator credentials were rejected. Check them and try again.',
@@ -1141,10 +1141,10 @@ export default {
       federation_identity_conflict: 'That identity cannot be linked to this account.',
 
       // System
-      maintenance_mode: 'The system is under maintenance. Please try again later.',
-      provider_not_ready: 'That identity provider is not ready to be enabled.',
-      database_unavailable: 'The database is temporarily unavailable. Please try again.',
-      kv_unavailable: 'A temporary service issue occurred. Please try again.',
+      maintenance_mode: "We're doing some maintenance right now. Please try again a little later.",
+      provider_not_ready: "That identity provider isn't ready to be enabled yet.",
+      database_unavailable: "The database is temporarily unavailable. Please try again in a moment.",
+      kv_unavailable: "We hit a temporary snag. Please try again.",
     },
 
     details: {

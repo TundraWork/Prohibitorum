@@ -228,10 +228,10 @@ describe('FederationFlowView', () => {
     get.mockRejectedValue({ code: 'federation_state_invalid' })
     const wrapper = await mountView()
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('expired')
+    expect(wrapper.get('[role="alert"]').text()).toContain(en.errors.codes.federation_state_invalid)
     expect(wrapper.find('form').exists()).toBe(false)
     expect(wrapper.find('[data-test="error-dismiss"]').exists()).toBe(false)
-    expect(wrapper.get('[role="alert"]').text()).toContain('expired')
+    expect(wrapper.get('[role="alert"]').text()).toContain(en.errors.codes.federation_state_invalid)
   })
 
   it('announces clipboard success and failure while leaving the URL visible', async () => {
