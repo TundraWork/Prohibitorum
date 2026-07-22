@@ -780,11 +780,9 @@ export default {
   },
 
   error: {
-    title: 'Something went wrong',
     defaultMessage: 'An unexpected error occurred. Please try again.',
     returnToLogin: 'Return to sign in',
-    appAccessDeniedTitle: 'Access not allowed',
-    appAccessDenied: "You don't have access to {app}. Contact your administrator if you think this is a mistake.",
+    appAccessDenied: "You don't have access to {app}. Contact your administrator.",
     reference: 'Reference: {ref}',
     backToDashboard: 'Back to dashboard',
     goBack: 'Go back',
@@ -1049,7 +1047,7 @@ export default {
       // Consent
       invalid_consent_ticket:
         'This authorization request has expired. Please start again from the application.',
-      bad_request: 'The request was invalid.',
+      bad_request: "That request wasn't valid.",
 
       // Enrollment
       enrollment_expired: 'This invitation link has expired.',
@@ -1065,8 +1063,8 @@ export default {
       username_collision: 'That username is already taken.',
       invalid_username:
         'Usernames must be 2–32 lowercase letters, numbers, underscores, or hyphens.',
-      invalid_display_name: 'Please enter a valid display name.',
-      invalid_nickname: 'Please enter a valid nickname.',
+      invalid_display_name: "That display name isn't valid.",
+      invalid_nickname: "That nickname isn't valid.",
       credential_already_registered: 'That passkey is already registered.',
       registration_failed: 'Passkey setup could not be completed. Please try again.',
 
@@ -1074,7 +1072,7 @@ export default {
       upstream_error: 'Your identity provider returned an error. Please try again.',
       email_not_verified: 'Your identity provider has not verified your email address.',
       federation_state_invalid: 'The sign-in attempt expired. Please try again.',
-      invalid_return_to: 'The return address was invalid.',
+      invalid_return_to: "That return link isn't allowed.",
 
       // Generic / client-synthesized
       server_error: 'Something went wrong on our end. Please try again.',
@@ -1103,10 +1101,10 @@ export default {
       cannot_revoke_current_session: 'You cannot revoke your current session from here. Use sign out instead.',
 
       // Validation
-      invalid_role: 'Choose a valid role.',
+      invalid_role: "That role isn't valid.",
       username_immutable: "Usernames can't be changed.",
-      validation_failed: 'The request could not be processed. Please check your input.',
-      unsupported_media_type: 'The request format is not supported.',
+      validation_failed: "Some details you entered aren't valid.",
+      unsupported_media_type: "That file type isn't supported.",
       request_too_large: 'The request is too large. Please reduce the size and try again.',
 
       // Resources
@@ -1126,9 +1124,9 @@ export default {
       active_key_no_replacement: 'Activate a replacement key before retiring the active key.',
 
       // Avatar upload
-      avatar_too_large: 'That image is too large.',
+      avatar_too_large: 'That image is too large to upload.',
       avatar_invalid_image: 'That file is not a supported image.',
-      avatar_source_unavailable: 'That avatar is not available.',
+      avatar_source_unavailable: "That avatar image isn't available.",
 
       // VRChat operator session
       vrchat_operator_credentials_invalid: 'Those operator credentials were rejected. Check them and try again.',

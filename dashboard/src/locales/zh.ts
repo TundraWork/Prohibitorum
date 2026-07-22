@@ -776,11 +776,9 @@ export default {
   },
 
   error: {
-    title: '出错了',
     defaultMessage: '发生了意外错误，请重试。',
     returnToLogin: '返回登录',
-    appAccessDeniedTitle: '无访问权限',
-    appAccessDenied: '你没有访问 {app} 的权限。如认为有误，请联系管理员。',
+    appAccessDenied: '你没有访问 {app} 的权限，请联系管理员。',
     reference: '参考编号：{ref}',
     backToDashboard: '返回控制台',
     goBack: '返回上一页',
@@ -1043,7 +1041,7 @@ export default {
       // 授权
       invalid_consent_ticket:
         '此授权请求已过期，请从应用重新开始。',
-      bad_request: '请求无效。',
+      bad_request: '该请求无效。',
 
       // 注册
       enrollment_expired: '此邀请链接已过期。',
@@ -1058,8 +1056,8 @@ export default {
       username_collision: '该用户名已被占用。',
       invalid_username:
         '用户名须为 2–32 个小写字母、数字、下划线或连字符。',
-      invalid_display_name: '请输入有效的显示名称。',
-      invalid_nickname: '请输入有效的昵称。',
+      invalid_display_name: '显示名称无效。',
+      invalid_nickname: '昵称无效。',
       credential_already_registered: '该通行密钥已注册。',
       registration_failed: '通行密钥设置未能完成，请重试。',
 
@@ -1067,7 +1065,7 @@ export default {
       upstream_error: '身份提供商返回了错误，请重试。',
       email_not_verified: '身份提供商尚未验证你的邮箱地址。',
       federation_state_invalid: '登录尝试已超时，请重试。',
-      invalid_return_to: '返回地址无效。',
+      invalid_return_to: '该返回链接不被允许。',
 
       // 通用 / 客户端合成
       server_error: '我们这边出了点问题，请重试。',
@@ -1096,10 +1094,10 @@ export default {
       cannot_revoke_current_session: '无法从此处撤销当前会话，请使用退出登录。',
 
       // 验证
-      invalid_role: '请选择有效的角色。',
+      invalid_role: '角色无效。',
       username_immutable: '用户名不可更改。',
-      validation_failed: '请求无法处理，请检查你的输入。',
-      unsupported_media_type: '不支持此请求格式。',
+      validation_failed: '你输入的部分内容无效。',
+      unsupported_media_type: '不支持此文件类型。',
       request_too_large: '请求过大，请减小大小后重试。',
 
       // 资源
@@ -1119,9 +1117,9 @@ export default {
       active_key_no_replacement: '请先激活替代密钥，再退役当前活动密钥。',
 
       // 头像上传
-      avatar_too_large: '该图片过大。',
+      avatar_too_large: '该图片过大，无法上传。',
       avatar_invalid_image: '该文件不是受支持的图片格式。',
-      avatar_source_unavailable: '该头像暂不可用。',
+      avatar_source_unavailable: '该头像图片暂不可用。',
 
       // VRChat 操作员会话
       vrchat_operator_credentials_invalid: '操作员凭据被拒绝。请检查后重试。',

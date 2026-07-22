@@ -42,10 +42,6 @@ const app = computed(() => {
 })
 const appAccessDenied = computed(() => reason.value === 'app_access_denied')
 
-const title = computed(() =>
-  appAccessDenied.value ? t('error.appAccessDeniedTitle') : t('error.title'),
-)
-
 const message = computed(() => {
   if (appAccessDenied.value) return t('error.appAccessDenied', { app: app.value })
   const key = `errors.codes.${code.value}`
@@ -78,11 +74,10 @@ onMounted(async () => {
 <template>
   <CenteredLayout>
     <template #title>
-      <h1 class="text-xl font-semibold tracking-tight text-ink">{{ title }}</h1>
+      <h1 role="alert" class="text-balance text-xl font-semibold tracking-tight text-ink">{{ message }}</h1>
     </template>
 
     <div class="flex flex-col items-center gap-6 text-center">
-      <p role="alert" class="text-sm text-ink">{{ message }}</p>
       <p v-if="reference" class="text-xs text-muted">{{ t('error.reference', { ref: reference }) }}</p>
       <Button as-child variant="outline" class="w-full">
         <RouterLink v-if="backTarget" :to="backTarget">{{ t('error.goBack') }}</RouterLink>
