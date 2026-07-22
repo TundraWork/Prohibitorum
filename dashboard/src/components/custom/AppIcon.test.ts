@@ -23,14 +23,21 @@ describe('AppIcon', () => {
     const w = mount(AppIcon, { props: { protocol: 'vrchat', src: '/icon/upstream_idp/x', name: 'VRChat' } })
     expect(w.find('img').attributes('src')).toContain('vrchat-logo')
     expect(w.text()).toBe('') // no initial letter
+    expect(w.classes()).not.toContain('bg-accent') // brand colour, not the grey chip
     expect(w.attributes('style') ?? '').toContain('background-color')
   })
-  it('rounds the image so it clips to the container (no corner bleed)', () => {
+  it('does NOT put a grey background behind an uploaded icon', () => {
     const w = mount(AppIcon, { props: { src: '/icon/x', name: 'Y' } })
-    expect(w.find('img').classes()).toContain('rounded-[inherit]')
+    expect(w.find('img').exists()).toBe(true)
+    expect(w.classes()).not.toContain('bg-accent')
   })
-  it('bordered draws the inset ring on the icon element itself', () => {
-    const w = mount(AppIcon, { props: { src: '/icon/x', name: 'Y', bordered: true } })
-    expect(w.classes()).toEqual(expect.arrayContaining(['ring-1', 'ring-inset', 'ring-border']))
+  it('uses the grey chip ONLY for the no-icon placeholder', () => {
+    const w = mount(AppIcon, { props: { name: 'Y' } })
+    expect(w.find('img').exists()).toBe(false)
+    expect(w.classes()).toContain('bg-accent')
+  })
+  it('renders an uploaded icon object-contain (margin, not cropped)', () => {
+    const w = mount(AppIcon, { props: { src: '/icon/x', name: 'Y' } })
+    expect(w.find('img').classes()).toContain('object-contain')
   })
 })

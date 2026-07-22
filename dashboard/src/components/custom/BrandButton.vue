@@ -1,19 +1,21 @@
 <script setup lang="ts">
 /**
- * BrandButton — a full-width "sign in with <brand>" button for a protocol that
- * has a bundled brand identity (steam/vrchat), driven entirely by providerBrand
- * so the login page shares ONE source of brand colours + logo with the icon
- * chips (AppIcon) used elsewhere. Colours are injected as CSS custom properties
- * so Tailwind's `hover:` variants still resolve.
+ * BrandButton — the "sign in / connect with <brand>" button for a protocol with
+ * a bundled brand identity (steam/vrchat), driven by providerBrand so the login
+ * page and the Connected Accounts page share ONE button style. Colours are CSS
+ * custom properties so Tailwind's `hover:` variants resolve.
  *
- * Icon box (size-6) + gap + transparent 1px border match the generic outline
- * IdP button, so all sign-in buttons align icon-and-label pixel-for-pixel.
+ * The default slot holds optional trailing content (e.g. an "already linked"
+ * badge); it sits at the far end via justify-between, which with no slot content
+ * simply leaves the logo+label at the start — identical to the login layout.
+ * The logo is shown full (no rounded crop), sized to align with the generic
+ * outline IdP button.
  */
 import { computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import { providerBrand } from '@/lib/providerBrand'
 
-const props = defineProps<{ protocol: string; label: string }>()
+const props = defineProps<{ protocol: string; label: string; disabled?: boolean }>()
 defineEmits<{ (e: 'click'): void }>()
 
 const brand = computed(() => providerBrand(props.protocol))
@@ -33,12 +35,15 @@ const brandVars = computed(() =>
   <Button
     v-if="brand"
     type="button"
-    :data-test="`${protocol}-login`"
+    :disabled="disabled"
     :style="brandVars"
-    class="w-full justify-start gap-2 border border-transparent bg-[var(--brand-bg)] text-[var(--brand-fg)] hover:bg-[var(--brand-hover-bg)] hover:text-[var(--brand-hover-fg)]"
+    class="w-full justify-between gap-2 border border-transparent bg-[var(--brand-bg)] text-[var(--brand-fg)] hover:bg-[var(--brand-hover-bg)] hover:text-[var(--brand-hover-fg)]"
     @click="$emit('click')"
   >
-    <img :src="brand.logo" alt="" aria-hidden="true" class="size-6 rounded-md" />
-    <span>{{ label }}</span>
+    <span class="flex min-w-0 items-center gap-2">
+      <img :src="brand.logo" alt="" aria-hidden="true" class="size-6 shrink-0" />
+      <span class="truncate">{{ label }}</span>
+    </span>
+    <slot />
   </Button>
 </template>

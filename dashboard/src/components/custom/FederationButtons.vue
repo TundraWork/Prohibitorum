@@ -77,6 +77,7 @@ function startFederation(slug: string): void {
           v-if="providerBrand(p.protocol)"
           :protocol="p.protocol!"
           :label="p.displayName"
+          :data-test="`${p.protocol}-login`"
           @click="startFederation(p.slug)"
         />
         <Button

@@ -1,16 +1,15 @@
 <script setup lang="ts">
 /**
- * AppIcon — the single app / provider / identity icon primitive.
+ * AppIcon — app / provider / identity icon.
  *
- * Render priority: a bundled BRAND mark for a known protocol (steam/vrchat,
- * from providerBrand) → the uploaded IMAGE (src) → an INITIAL-letter fallback.
- *
- * The `<img>` inherits the container radius (`rounded-[inherit]`) so it is
- * clipped to the chip's rounded corners — without this a full-bleed image
- * leaves square corners that spill past a bordered chip (the "icon out of
- * border" bug). Pass `bordered` to draw the inset ring on the SAME element as
- * the clip, so the border and the rounded corners always coincide (callers must
- * not wrap AppIcon in their own ring span).
+ * Three states, deliberately styled differently:
+ *  - UPLOADED image (src): shown object-contain at ~80% so it has margin on all
+ *    sides, with NO background and NO crop — a transparent logo stays exactly
+ *    that. (The image is never clipped to a frame; it just breathes.)
+ *  - Known BRAND protocol (steam/vrchat): the brand mark, same margin, on the
+ *    brand colour — Steam's white mark needs a dark backing to be visible.
+ *  - PLACEHOLDER (no image): an initial letter on a neutral grey chip. This is
+ *    the ONLY state with a filled background.
  */
 import { computed, ref, watch } from 'vue'
 import { cn } from '@/lib/utils'
@@ -22,14 +21,14 @@ const props = withDefaults(defineProps<{
   /** Upstream protocol — 'steam'/'vrchat' render their brand mark + colour. */
   protocol?: string | null
   size?: 'sm' | 'md' | 'lg'
-  bordered?: boolean
-}>(), { size: 'md', bordered: false })
+}>(), { size: 'md' })
 
 const failed = ref(false)
 watch(() => props.src, () => { failed.value = false })
 
 const brand = computed(() => providerBrand(props.protocol))
 const showImg = computed(() => !brand.value && !!props.src && !failed.value)
+const placeholder = computed(() => !brand.value && !showImg.value)
 const initial = computed(() => {
   const n = (props.name ?? '').trim()
   return n ? n[0]!.toUpperCase() : '?'
@@ -46,9 +45,8 @@ const sizeClass = computed(() => ({
   <span
     aria-hidden="true"
     :class="cn(
-      'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md font-semibold text-ink',
-      brand ? '' : 'bg-accent',
-      bordered && 'ring-1 ring-inset ring-border',
+      'inline-flex shrink-0 items-center justify-center rounded-md font-semibold text-ink',
+      placeholder && 'bg-accent',
       sizeClass,
     )"
     :style="brand ? { backgroundColor: brand.bg } : undefined"
@@ -58,14 +56,14 @@ const sizeClass = computed(() => ({
       :src="brand.logo"
       alt=""
       loading="lazy"
-      class="size-[72%] object-contain"
+      class="size-[78%] object-contain"
     />
     <img
       v-else-if="showImg"
       :src="src!"
       alt=""
       loading="lazy"
-      class="size-full rounded-[inherit] object-cover"
+      class="size-[80%] object-contain"
       @error="failed = true"
     />
     <template v-else>{{ initial }}</template>

@@ -20,6 +20,8 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import AppIcon from '@/components/custom/AppIcon.vue'
+import BrandButton from '@/components/custom/BrandButton.vue'
+import { providerBrand } from '@/lib/providerBrand'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import IdentityMetadata, { type AccountIdentity } from '@/components/custom/IdentityMetadata.vue'
 
@@ -110,14 +112,27 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
         <p class="text-sm text-muted">{{ t('connected.linkRedirectNote') }}</p>
         <p v-if="providersLoaded && providers.length === 0" class="text-sm text-muted">{{ t('connected.noProviders') }}</p>
         <div v-else-if="providers.length > 0" class="flex flex-col gap-2">
-          <Button v-for="p in providers" :key="p.slug" type="button" variant="outline" class="w-full justify-between"
-                  :disabled="linkedSlugs.has(p.slug) || busy" :data-test="`link-${p.slug}`" @click="link(p.slug)">
-            <span class="flex min-w-0 items-center gap-2">
-              <AppIcon :src="p.iconUrl" :name="p.displayName" :protocol="p.protocol" size="sm" />
-              <span class="truncate">{{ p.displayName }}</span>
-            </span>
-            <StatusBadge v-if="linkedSlugs.has(p.slug)" variant="success" class="shrink-0">{{ t('connected.alreadyLinked') }}</StatusBadge>
-          </Button>
+          <template v-for="p in providers" :key="p.slug">
+            <!-- Brand providers use the same button style as the login page. -->
+            <BrandButton
+              v-if="providerBrand(p.protocol)"
+              :protocol="p.protocol!"
+              :label="p.displayName"
+              :disabled="linkedSlugs.has(p.slug) || busy"
+              :data-test="`link-${p.slug}`"
+              @click="link(p.slug)"
+            >
+              <StatusBadge v-if="linkedSlugs.has(p.slug)" variant="success" class="shrink-0">{{ t('connected.alreadyLinked') }}</StatusBadge>
+            </BrandButton>
+            <Button v-else type="button" variant="outline" class="w-full justify-between"
+                    :disabled="linkedSlugs.has(p.slug) || busy" :data-test="`link-${p.slug}`" @click="link(p.slug)">
+              <span class="flex min-w-0 items-center gap-2">
+                <AppIcon :src="p.iconUrl" :name="p.displayName" size="sm" />
+                <span class="truncate">{{ p.displayName }}</span>
+              </span>
+              <StatusBadge v-if="linkedSlugs.has(p.slug)" variant="success" class="shrink-0">{{ t('connected.alreadyLinked') }}</StatusBadge>
+            </Button>
+          </template>
         </div>
       </CardContent>
     </Card>

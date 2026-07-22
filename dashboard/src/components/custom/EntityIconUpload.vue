@@ -50,7 +50,7 @@ async function remove(): Promise<void> {
     <CardContent class="flex flex-col gap-3">
       <ErrorPanel :error="error" @dismiss="clear" />
       <div class="flex items-center gap-4">
-        <AppIcon :src="iconUrl" :name="name" size="lg" bordered />
+        <AppIcon :src="iconUrl" :name="name" size="lg" />
         <div class="flex flex-col gap-2">
           <p class="text-xs text-muted">{{ t('entityIcon.hint') }}</p>
           <div class="flex gap-2">
