@@ -40,14 +40,16 @@ const alphaCutoff = 0.35
 // image. accent is "" when the icon is fully transparent (no representative
 // colour); callers store NULL and fall back to a name-derived tint.
 func ProcessIconWithAccent(raw []byte) (out []byte, etag, accent string, err error) {
-	img, derr := imageutil.DecodeCropScale(raw)
+	// Entity marks are small (rendered ≤64px) and flat-colour with hard edges +
+	// transparency: 128² lossless keeps them crisp and small.
+	img, derr := imageutil.DecodeCropScale(raw, imageutil.IconSize)
 	if derr != nil {
 		return nil, "", "", derr
 	}
 	if hex, aerr := AccentColor(img); aerr == nil {
 		accent = hex
 	}
-	out, etag, err = imageutil.EncodeWebP(img)
+	out, etag, err = imageutil.EncodeWebP(img, true)
 	return out, etag, accent, err
 }
 

@@ -245,10 +245,11 @@ func (r *Resolver) ClearLoginBackground(ctx context.Context) error {
 	return nil
 }
 
-// ProcessIcon normalizes raw to a 512×512 WebP (quality 90) + sha256 etag,
-// sharing the exact pipeline with avatars via pkg/imageutil. Used where no
-// backdrop accent is needed (the instance icon). For app/entity icons use
-// ProcessIconWithAccent, which derives the accent from the same decode.
+// ProcessIcon normalizes raw to a 512×512 lossless WebP + sha256 etag, sharing
+// the exact pipeline with avatars via pkg/imageutil. Lossless keeps a
+// transparent logo's edges crisp. Used where no backdrop accent is needed (the
+// instance icon). For app/entity icons use ProcessIconWithAccent, which derives
+// the accent from the same decode.
 func ProcessIcon(raw []byte) (out []byte, etag string, err error) {
-	return imageutil.ProcessSquareWebP(raw)
+	return imageutil.ProcessSquareWebP(raw, imageutil.Size, true)
 }

@@ -78,6 +78,7 @@ func TestAccentColor_FullyTransparentErrors(t *testing.T) {
 func TestAccentColor_ReadsWebP(t *testing.T) {
 	webpBytes, _, err := imageutil.ProcessSquareWebP(
 		encodePNG(t, 64, func(x, y int) color.NRGBA { return color.NRGBA{R: 0x20, G: 0x9a, B: 0x4a, A: 0xff} }),
+		imageutil.IconSize, true,
 	)
 	if err != nil {
 		t.Fatalf("encode webp: %v", err)

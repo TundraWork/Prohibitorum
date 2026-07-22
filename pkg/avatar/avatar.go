@@ -18,9 +18,10 @@ var (
 	ErrInvalidImage = imageutil.ErrInvalidImage
 )
 
-// Process normalizes raw to a 512×512 WebP (quality 90) + sha256 etag.
+// Process normalizes raw to a 512×512 lossy WebP (quality 90) + sha256 etag.
+// Avatars are photographic, so lossy is the right size/quality trade-off.
 func Process(raw []byte) (out []byte, etag string, err error) {
-	return imageutil.ProcessSquareWebP(raw)
+	return imageutil.ProcessSquareWebP(raw, imageutil.Size, false)
 }
 
 // PublicURL builds the cache-busting avatar URL, or "" when there is no etag.

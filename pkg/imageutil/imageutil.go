@@ -24,9 +24,13 @@ import (
 )
 
 const (
-	// Size is the one canonical stored edge for every normalized image (avatars
-	// and icons alike). Square, 512×512.
+	// Size is the stored edge for photo-like surfaces (user avatars, instance
+	// icon). Square, 512×512.
 	Size = 512
+	// IconSize is the stored edge for app/provider marks (OIDC client, SAML SP,
+	// upstream IdP). These render at ≤64px, so 128² is ample and keeps the
+	// lossless-WebP marks small.
+	IconSize = 128
 	// MaxInputBytes / MaxInputDim bound the decode work before any allocation.
 	MaxInputBytes = 5 << 20
 	MaxInputDim   = 10000
@@ -44,8 +48,18 @@ var (
 )
 
 // DecodeCropScale decodes raw, validates its dimensions, center-crops to the
-// largest centred square, and scales to Size×Size RGBA (alpha preserved).
-func DecodeCropScale(raw []byte) (*image.RGBA, error) {
+// largest centred square, and scales to size×size, returning STRAIGHT-alpha
+// NRGBA.
+//
+// The scale runs in premultiplied space (image.RGBA + draw.Over) so alpha-
+// weighted resampling of anti-aliased edges is correct, then the result is
+// converted to NRGBA. This matters because the WebP encoder feeds img.Pix
+// verbatim to libwebp's WebPPictureImportRGBA, which expects NON-premultiplied
+// RGBA: handing it a premultiplied image.RGBA darkens semi-transparent edge
+// pixels (a grey/black fringe around transparent logos). NRGBA carries the
+// straight values libwebp wants, so the transparent background and soft edges
+// survive intact.
+func DecodeCropScale(raw []byte, size int) (*image.NRGBA, error) {
 	if len(raw) > MaxInputBytes {
 		return nil, ErrTooLarge
 	}
@@ -58,16 +72,25 @@ func DecodeCropScale(raw []byte) (*image.RGBA, error) {
 		return nil, ErrInvalidImage
 	}
 	square := cropSquare(src)
-	dst := image.NewRGBA(image.Rect(0, 0, Size, Size))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), square, square.Bounds(), draw.Over, nil)
+	premul := image.NewRGBA(image.Rect(0, 0, size, size))
+	draw.CatmullRom.Scale(premul, premul.Bounds(), square, square.Bounds(), draw.Over, nil)
+	dst := image.NewNRGBA(premul.Bounds())
+	draw.Draw(dst, dst.Bounds(), premul, image.Point{}, draw.Src)
 	return dst, nil
 }
 
-// EncodeWebP encodes img as WebP (quality 90) and returns the bytes + a sha256
-// etag over them.
-func EncodeWebP(img image.Image) (out []byte, etag string, err error) {
+// EncodeWebP encodes img as WebP and returns the bytes + a sha256 etag over
+// them. lossless is for flat-colour marks with hard edges + transparency
+// (icons) where lossy chroma bleed would smear the alpha edge; lossy (quality
+// 90) is for photographic surfaces (avatars). Exact preserves RGB in fully-
+// transparent areas either way.
+func EncodeWebP(img image.Image, lossless bool) (out []byte, etag string, err error) {
 	var buf bytes.Buffer
-	if eerr := webp.Encode(&buf, img, webp.Options{Quality: webpQuality, Method: webpMethod, Exact: true}); eerr != nil {
+	opts := webp.Options{Method: webpMethod, Exact: true, Lossless: lossless}
+	if !lossless {
+		opts.Quality = webpQuality
+	}
+	if eerr := webp.Encode(&buf, img, opts); eerr != nil {
 		return nil, "", ErrInvalidImage
 	}
 	out = buf.Bytes()
@@ -76,15 +99,15 @@ func EncodeWebP(img image.Image) (out []byte, etag string, err error) {
 }
 
 // ProcessSquareWebP is DecodeCropScale followed by EncodeWebP: raw bytes in,
-// Size×Size WebP + etag out. Use this when you only need the encoded bytes; when
+// size×size WebP + etag out. Use this when you only need the encoded bytes; when
 // you also need the decoded image (e.g. to derive an accent), call DecodeCropScale
 // once and pass its result to EncodeWebP yourself.
-func ProcessSquareWebP(raw []byte) (out []byte, etag string, err error) {
-	img, derr := DecodeCropScale(raw)
+func ProcessSquareWebP(raw []byte, size int, lossless bool) (out []byte, etag string, err error) {
+	img, derr := DecodeCropScale(raw, size)
 	if derr != nil {
 		return nil, "", derr
 	}
-	return EncodeWebP(img)
+	return EncodeWebP(img, lossless)
 }
 
 // ValidateRaw verifies raw is a web-renderable image within the size and
