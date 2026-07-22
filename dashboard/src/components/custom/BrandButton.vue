@@ -41,7 +41,11 @@ const brandVars = computed(() =>
     @click="$emit('click')"
   >
     <span class="flex min-w-0 items-center gap-2">
-      <img :src="brand.logo" alt="" aria-hidden="true" class="size-6 shrink-0" />
+      <!-- 24px slot keeps icon+label aligned with the generic IdP button; the
+           mark sits at 80% so it has margin on all sides (no edge-to-edge crop). -->
+      <span class="inline-flex size-6 shrink-0 items-center justify-center">
+        <img :src="brand.logo" alt="" aria-hidden="true" class="size-[80%] object-contain" />
+      </span>
       <span class="truncate">{{ label }}</span>
     </span>
     <slot />

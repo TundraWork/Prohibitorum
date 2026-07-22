@@ -56,7 +56,7 @@ const sizeClass = computed(() => ({
       :src="brand.logo"
       alt=""
       loading="lazy"
-      class="size-[78%] object-contain"
+      class="size-[80%] object-contain"
     />
     <img
       v-else-if="showImg"
