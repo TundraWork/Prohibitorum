@@ -1229,7 +1229,7 @@ export default {
 
   entityIcon: {
     title: '图标',
-    hint: '显示在应用面板和登录按钮上。支持方形 PNG、JPEG 或 WebP；会居中裁剪并缩放为 512×512。',
+    hint: '显示在应用面板和登录按钮上。支持方形 PNG、JPEG 或 WebP；会居中裁剪并缩放为 128×128。',
     upload: '上传',
     remove: '移除',
   },

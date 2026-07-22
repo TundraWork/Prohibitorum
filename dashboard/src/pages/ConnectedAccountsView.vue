@@ -23,7 +23,7 @@ import AppIcon from '@/components/custom/AppIcon.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import IdentityMetadata, { type AccountIdentity } from '@/components/custom/IdentityMetadata.vue'
 
-interface Provider { slug: string; displayName: string; iconUrl?: string | null }
+interface Provider { slug: string; displayName: string; iconUrl?: string | null; protocol?: string }
 
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
@@ -81,7 +81,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
         <CardContent class="flex flex-col items-stretch gap-4 py-4 sm:flex-row sm:items-start sm:justify-between">
           <div class="flex min-w-0 flex-1 flex-col gap-2 text-sm">
             <div class="flex min-w-0 flex-wrap items-center gap-2">
-              <AppIcon :src="`/icon/upstream_idp/${encodeURIComponent(ident.providerSlug)}`" :name="ident.providerDisplayName" size="sm" />
+              <AppIcon :src="`/icon/upstream_idp/${encodeURIComponent(ident.providerSlug)}`" :name="ident.providerDisplayName" :protocol="ident.protocol" size="sm" />
               <span class="min-w-0 truncate font-medium text-ink" :title="ident.providerDisplayName">{{ ident.providerDisplayName }}</span>
               <StatusBadge variant="success" class="shrink-0">{{ t('connected.linked') }}</StatusBadge>
             </div>
@@ -113,7 +113,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
           <Button v-for="p in providers" :key="p.slug" type="button" variant="outline" class="w-full justify-between"
                   :disabled="linkedSlugs.has(p.slug) || busy" :data-test="`link-${p.slug}`" @click="link(p.slug)">
             <span class="flex min-w-0 items-center gap-2">
-              <AppIcon :src="p.iconUrl" :name="p.displayName" size="sm" />
+              <AppIcon :src="p.iconUrl" :name="p.displayName" :protocol="p.protocol" size="sm" />
               <span class="truncate">{{ p.displayName }}</span>
             </span>
             <StatusBadge v-if="linkedSlugs.has(p.slug)" variant="success" class="shrink-0">{{ t('connected.alreadyLinked') }}</StatusBadge>

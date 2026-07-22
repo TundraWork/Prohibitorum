@@ -19,4 +19,18 @@ describe('AppIcon', () => {
     expect(w.find('img').exists()).toBe(false)
     expect(w.text()).toBe('O')
   })
+  it('renders the brand mark for a known protocol, ignoring src + initial', () => {
+    const w = mount(AppIcon, { props: { protocol: 'vrchat', src: '/icon/upstream_idp/x', name: 'VRChat' } })
+    expect(w.find('img').attributes('src')).toContain('vrchat-logo')
+    expect(w.text()).toBe('') // no initial letter
+    expect(w.attributes('style') ?? '').toContain('background-color')
+  })
+  it('rounds the image so it clips to the container (no corner bleed)', () => {
+    const w = mount(AppIcon, { props: { src: '/icon/x', name: 'Y' } })
+    expect(w.find('img').classes()).toContain('rounded-[inherit]')
+  })
+  it('bordered draws the inset ring on the icon element itself', () => {
+    const w = mount(AppIcon, { props: { src: '/icon/x', name: 'Y', bordered: true } })
+    expect(w.classes()).toEqual(expect.arrayContaining(['ring-1', 'ring-inset', 'ring-border']))
+  })
 })

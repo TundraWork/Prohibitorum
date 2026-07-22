@@ -109,8 +109,12 @@ describe('FederationButtons', () => {
 
     const button = w.get('[data-test="vrchat-login"]')
     expect(button.text()).toContain('VRChat')
-    expect(button.classes()).toEqual(expect.arrayContaining(['bg-[#6ae3f9]', 'text-[#0B1A21]']))
-    expect(button.classes()).toContain('hover:bg-[#064b5c]')
+    // Brand colours flow from providerBrand as CSS vars (Tailwind bg-[var(--…)]).
+    const style = button.attributes('style') ?? ''
+    expect(style).toContain('--brand-bg: #6ae3f9')
+    expect(style).toContain('--brand-hover-bg: #064b5c')
+    expect(style).toContain('--brand-fg: #0B1A21')
+    expect(button.classes()).toEqual(expect.arrayContaining(['bg-[var(--brand-bg)]', 'hover:bg-[var(--brand-hover-bg)]']))
     expect(button.find('img').attributes('src')).toContain('vrchat-logo')
     expect(button.find('img').attributes('alt')).toBe('')
     expect(button.text()).not.toContain('VVRChat')

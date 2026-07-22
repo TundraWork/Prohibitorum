@@ -1236,7 +1236,7 @@ export default {
 
   entityIcon: {
     title: 'Icon',
-    hint: 'Shown on the launchpad and the sign-in buttons. A square PNG, JPEG, or WebP; centered and resized to 512×512.',
+    hint: 'Shown on the launchpad and the sign-in buttons. A square PNG, JPEG, or WebP; centered and resized to 128×128.',
     upload: 'Upload',
     remove: 'Remove',
   },
