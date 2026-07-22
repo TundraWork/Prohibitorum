@@ -10,10 +10,10 @@ defineEmits<{ (event: 'click'): void }>()
   <Button
     type="button"
     data-test="vrchat-login"
-    class="w-full justify-start gap-2 border-0 bg-[#2BAAC1] text-[#0B1A21] hover:bg-[#279AAE] active:bg-[#2592A6] focus-visible:ring-[#2BAAC1]/50"
+    class="w-full justify-start gap-2 border border-transparent bg-[#6ae3f9] text-[#0B1A21] hover:bg-[#064b5c] hover:text-white focus-visible:ring-[#6ae3f9]/50"
     @click="$emit('click')"
   >
-    <img :src="VRChatLogo" alt="" aria-hidden="true" class="size-5" />
+    <img :src="VRChatLogo" alt="" aria-hidden="true" class="size-6 rounded-md" />
     <span>{{ label }}</span>
   </Button>
 </template>
