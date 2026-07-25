@@ -171,6 +171,10 @@ type Server struct {
 	// managerAssignmentQueriesOverride isolates the application-manager
 	// handlers in focused tests. Nil in production, where they use s.queries.
 	managerAssignmentQueriesOverride managerAssignmentQueries
+	// managerAssignmentTxRunnerOverride lets focused manager-assignment tests
+	// prove lock, commit, and rollback ordering without a Postgres pool.
+	// Nil in production, where assignments open a pgx transaction through dbPool.
+	managerAssignmentTxRunnerOverride managerAssignmentTxRunner
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers

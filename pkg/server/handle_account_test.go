@@ -17,19 +17,28 @@ type accountUpdateTestTx struct {
 	updateCalls   []db.UpdateAccountParams
 	deleteAccount []int32
 	order         []string
+	committed     bool
+	rolledBack    bool
 }
 
 func (q *accountUpdateTestTx) Queries() accountUpdateQueries { return q }
 
 func (q *accountUpdateTestTx) Commit(context.Context) error {
+	q.committed = true
 	q.order = append(q.order, "commit")
 	return nil
 }
 
-func (q *accountUpdateTestTx) Rollback(context.Context) error { return nil }
+func (q *accountUpdateTestTx) Rollback(context.Context) error {
+	if !q.committed {
+		q.rolledBack = true
+		q.order = append(q.order, "rollback")
+	}
+	return nil
+}
 
-func (q *accountUpdateTestTx) GetAccountByID(context.Context, int32) (db.Account, error) {
-	q.order = append(q.order, "load")
+func (q *accountUpdateTestTx) GetAccountByIDForUpdate(context.Context, int32) (db.Account, error) {
+	q.order = append(q.order, "lock")
 	return q.current, nil
 }
 
@@ -112,7 +121,7 @@ func TestHandleUpdateAccount_DemotionDeletesManagerAssignmentsInTransaction(t *t
 	if len(tx.deleteAccount) != 1 || tx.deleteAccount[0] != 7 {
 		t.Fatalf("manager cleanup accounts = %#v, want [7]", tx.deleteAccount)
 	}
-	wantOrder := []string{"begin", "load", "delete_manager_assignments", "update", "commit"}
+	wantOrder := []string{"begin", "lock", "delete_manager_assignments", "update", "commit"}
 	if len(tx.order) != len(wantOrder) {
 		t.Fatalf("transaction order = %#v, want %#v", tx.order, wantOrder)
 	}

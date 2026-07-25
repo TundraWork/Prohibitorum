@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -35,10 +36,16 @@ type fakeManagerAssignmentQueries struct {
 	oidcManagers map[string]map[int32]time.Time
 	samlManagers map[int64]map[int32]time.Time
 
-	assignOIDCCalls int
-	assignSAMLCalls int
-	removeOIDCCalls int
-	removeSAMLCalls int
+	assignOIDCCalls  int
+	assignSAMLCalls  int
+	removeOIDCCalls  int
+	removeSAMLCalls  int
+	lockAccountCalls int
+	beginCalls       int
+	commitCalls      int
+	rollbackCalls    int
+	callOrder        []string
+	assignOIDCErr    error
 }
 
 func newFakeManagerAssignmentQueries() *fakeManagerAssignmentQueries {
@@ -67,7 +74,9 @@ func (q *fakeManagerAssignmentQueries) GetSAMLSPByID(_ context.Context, id int64
 	return sp, nil
 }
 
-func (q *fakeManagerAssignmentQueries) GetAccountByID(_ context.Context, id int32) (db.Account, error) {
+func (q *fakeManagerAssignmentQueries) GetAccountByIDForUpdate(_ context.Context, id int32) (db.Account, error) {
+	q.lockAccountCalls++
+	q.callOrder = append(q.callOrder, "lock")
 	account, ok := q.accounts[id]
 	if !ok {
 		return db.Account{}, pgx.ErrNoRows
@@ -116,6 +125,10 @@ func (q *fakeManagerAssignmentQueries) ListSAMLSPManagers(_ context.Context, sam
 
 func (q *fakeManagerAssignmentQueries) AssignOIDCClientManager(_ context.Context, arg db.AssignOIDCClientManagerParams) error {
 	q.assignOIDCCalls++
+	q.callOrder = append(q.callOrder, "assign")
+	if q.assignOIDCErr != nil {
+		return q.assignOIDCErr
+	}
 	if q.oidcManagers[arg.ClientID] == nil {
 		q.oidcManagers[arg.ClientID] = make(map[int32]time.Time)
 	}
@@ -154,14 +167,45 @@ func (q *fakeManagerAssignmentQueries) RemoveSAMLSPManager(_ context.Context, ar
 	return 1, nil
 }
 
+type managerAssignmentTestTx struct {
+	queries   *fakeManagerAssignmentQueries
+	committed bool
+}
+
+func (tx *managerAssignmentTestTx) Queries() managerAssignmentQueries { return tx.queries }
+
+func (tx *managerAssignmentTestTx) Commit(context.Context) error {
+	tx.committed = true
+	tx.queries.commitCalls++
+	tx.queries.callOrder = append(tx.queries.callOrder, "commit")
+	return nil
+}
+
+func (tx *managerAssignmentTestTx) Rollback(context.Context) error {
+	if !tx.committed {
+		tx.queries.rollbackCalls++
+		tx.queries.callOrder = append(tx.queries.callOrder, "rollback")
+	}
+	return nil
+}
+
+type managerAssignmentTestRunner struct{ queries *fakeManagerAssignmentQueries }
+
+func (r managerAssignmentTestRunner) BeginManagerAssignmentTx(context.Context) (managerAssignmentTx, error) {
+	r.queries.beginCalls++
+	r.queries.callOrder = append(r.queries.callOrder, "begin")
+	return &managerAssignmentTestTx{queries: r.queries}, nil
+}
+
 func newManagerAssignmentTestServer() (*Server, *fakeManagerAssignmentQueries, *managerAuditCapture) {
 	queries := newFakeManagerAssignmentQueries()
 	auditCapture := &managerAuditCapture{}
 	router := chi.NewRouter()
 	s := &Server{
-		router:                          router,
-		managerAssignmentQueriesOverride: queries,
-		Audit:                           auditCapture,
+		router:                             router,
+		managerAssignmentQueriesOverride:   queries,
+		managerAssignmentTxRunnerOverride: managerAssignmentTestRunner{queries: queries},
+		Audit:                              auditCapture,
 	}
 	admin := contract.AuthRequirement{Kind: contract.AuthAdmin}
 	registerOpHTTP(router, http.MethodGet, "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleListOIDCApplicationManagersHTTP)
@@ -174,6 +218,18 @@ func newManagerAssignmentTestServer() (*Server, *fakeManagerAssignmentQueries, *
 	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleAssignSAMLApplicationManagerHTTP)
 	s.registerSudoOpHTTP(router, http.MethodPost, "/api/prohibitorum/saml-applications/{id}/managers/remove", admin, s.handleRemoveSAMLApplicationManagerHTTP)
 	return s, queries, auditCapture
+}
+
+func assertManagerCallOrder(t *testing.T, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("call order = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("call order = %#v, want %#v", got, want)
+		}
+	}
 }
 
 func runManagerRequest(t *testing.T, s *Server, method, path, body string, sudoUntil time.Time) *httptest.ResponseRecorder {
@@ -261,6 +317,64 @@ func TestAssignOIDCManagerRejectsNonManagerRole(t *testing.T) {
 	}
 }
 
+func TestAssignOIDCManagerLocksTargetBeforeInsertAndCommits(t *testing.T) {
+	s, queries, _ := newManagerAssignmentTestServer()
+	seedManagerAssignmentFixtures(queries)
+
+	recorder := runManagerRequest(t, s, http.MethodPost, "/api/prohibitorum/oidc-applications/wiki/managers", `{"accountId":7}`, time.Now().Add(time.Hour))
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204; body: %s", recorder.Code, recorder.Body.String())
+	}
+	assertManagerCallOrder(t, queries.callOrder, []string{"begin", "lock", "assign", "commit"})
+	if queries.lockAccountCalls != 1 || queries.commitCalls != 1 || queries.rollbackCalls != 0 {
+		t.Fatalf("transaction calls: locks=%d commits=%d rollbacks=%d", queries.lockAccountCalls, queries.commitCalls, queries.rollbackCalls)
+	}
+}
+
+func TestAssignOIDCManagerRollsBackWhenValidationOrInsertFails(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		account   db.Account
+		assignErr error
+		status    int
+		code      string
+		wantOrder []string
+	}{
+		{
+			name:      "target role changed before assignment",
+			account:   db.Account{ID: 7, Role: "user"},
+			status:    http.StatusBadRequest,
+			code:      "invalid_manager_role",
+			wantOrder: []string{"begin", "lock", "rollback"},
+		},
+		{
+			name:      "assignment write fails",
+			account:   db.Account{ID: 7, Role: "app_manager"},
+			assignErr: errors.New("insert failed"),
+			status:    http.StatusInternalServerError,
+			code:      "server_error",
+			wantOrder: []string{"begin", "lock", "assign", "rollback"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, queries, auditCapture := newManagerAssignmentTestServer()
+			seedManagerAssignmentFixtures(queries)
+			queries.accounts[7] = test.account
+			queries.assignOIDCErr = test.assignErr
+
+			recorder := runManagerRequest(t, s, http.MethodPost, "/api/prohibitorum/oidc-applications/wiki/managers", `{"accountId":7}`, time.Now().Add(time.Hour))
+			assertManagerAPIError(t, recorder, test.status, test.code)
+			assertManagerCallOrder(t, queries.callOrder, test.wantOrder)
+			if queries.commitCalls != 0 || queries.rollbackCalls != 1 {
+				t.Fatalf("transaction calls: commits=%d rollbacks=%d", queries.commitCalls, queries.rollbackCalls)
+			}
+			if len(auditCapture.records) != 0 {
+				t.Fatalf("failed assignment emitted audit records: %#v", auditCapture.records)
+			}
+		})
+	}
+}
+
 func TestManagerAssignmentRejectsDisabledOrMissingTarget(t *testing.T) {
 	for _, test := range []struct {
 		name       string
@@ -271,7 +385,6 @@ func TestManagerAssignmentRejectsDisabledOrMissingTarget(t *testing.T) {
 		endpoint   string
 	}{
 		{name: "disabled app manager assign", account: db.Account{ID: 7, Role: "app_manager", Disabled: true}, accountID: 7, endpoint: "/api/prohibitorum/oidc-applications/wiki/managers", wantStatus: http.StatusBadRequest, wantCode: "invalid_manager_role"},
-		{name: "disabled app manager remove", account: db.Account{ID: 7, Role: "app_manager", Disabled: true}, accountID: 7, endpoint: "/api/prohibitorum/oidc-applications/wiki/managers/remove", wantStatus: http.StatusBadRequest, wantCode: "invalid_manager_role"},
 		{name: "missing account", accountID: 23, endpoint: "/api/prohibitorum/oidc-applications/wiki/managers", wantStatus: http.StatusNotFound, wantCode: "account_not_found"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -283,6 +396,42 @@ func TestManagerAssignmentRejectsDisabledOrMissingTarget(t *testing.T) {
 			recorder := runManagerRequest(t, s, http.MethodPost, test.endpoint, `{"accountId":`+strconv.FormatInt(int64(test.accountID), 10)+`}`, time.Now().Add(time.Hour))
 			assertManagerAPIError(t, recorder, test.wantStatus, test.wantCode)
 		})
+	}
+}
+
+func TestRemoveOIDCManagerAllowsDisabledOrDemotedTarget(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		account db.Account
+	}{
+		{name: "disabled app manager", account: db.Account{ID: 7, Role: "app_manager", Disabled: true}},
+		{name: "demoted account", account: db.Account{ID: 7, Role: "user"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, queries, _ := newManagerAssignmentTestServer()
+			seedManagerAssignmentFixtures(queries)
+			queries.accounts[7] = test.account
+			queries.oidcManagers["wiki"] = map[int32]time.Time{7: time.Now()}
+
+			recorder := runManagerRequest(t, s, http.MethodPost, "/api/prohibitorum/oidc-applications/wiki/managers/remove", `{"accountId":7}`, time.Now().Add(time.Hour))
+			if recorder.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204; body: %s", recorder.Code, recorder.Body.String())
+			}
+			if queries.removeOIDCCalls != 1 || queries.lockAccountCalls != 0 {
+				t.Fatalf("remove calls=%d target locks=%d, want 1 and 0", queries.removeOIDCCalls, queries.lockAccountCalls)
+			}
+		})
+	}
+}
+
+func TestRemoveOIDCManagerRejectsInvalidAccountIDWithoutTargetLookup(t *testing.T) {
+	s, queries, _ := newManagerAssignmentTestServer()
+	seedManagerAssignmentFixtures(queries)
+
+	recorder := runManagerRequest(t, s, http.MethodPost, "/api/prohibitorum/oidc-applications/wiki/managers/remove", `{"accountId":0}`, time.Now().Add(time.Hour))
+	assertManagerAPIError(t, recorder, http.StatusBadRequest, "bad_request")
+	if queries.removeOIDCCalls != 0 || queries.lockAccountCalls != 0 {
+		t.Fatalf("remove calls=%d target locks=%d, want both 0", queries.removeOIDCCalls, queries.lockAccountCalls)
 	}
 }
 

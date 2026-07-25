@@ -326,7 +326,7 @@ type updateAccountIn struct {
 // accountUpdateQueries is the query surface that must stay bound to one
 // transaction while an account role changes.
 type accountUpdateQueries interface {
-	GetAccountByID(context.Context, int32) (db.Account, error)
+	GetAccountByIDForUpdate(context.Context, int32) (db.Account, error)
 	CountActiveAdminsForUpdate(context.Context) (int64, error)
 	UpdateAccount(context.Context, db.UpdateAccountParams) (db.Account, error)
 	DeleteManagerAssignmentsForAccount(context.Context, int32) error
@@ -390,7 +390,7 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	q := tx.Queries()
-	current, err := q.GetAccountByID(ctx, in.ID)
+	current, err := q.GetAccountByIDForUpdate(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, authErrToHuma(authn.ErrAccountNotFound())
