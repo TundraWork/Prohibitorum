@@ -14,11 +14,11 @@ func TestEvaluateConditionBuildsCompleteNestedExplanation(t *testing.T) {
 			{
 				Op: "any",
 				Children: []Condition{
-					{Fact: "connection.protocol", Protocol: "saml"},
+					{Fact: "connection.protocol", Protocol: "steam"},
 					{Fact: "login_method", Method: "passkey"},
 				},
 			},
-			{Op: "not", Child: &Condition{Fact: "avatar", Source: "user"}},
+			{Op: "not", Child: &Condition{Fact: "avatar", Source: "user_uploaded"}},
 		},
 	}
 	facts := Facts{
@@ -40,7 +40,7 @@ func TestEvaluateConditionBuildsCompleteNestedExplanation(t *testing.T) {
 				Label:  "any",
 				Result: true,
 				Children: []Explanation{
-					{Path: "$.children[1].children[0]", Label: "connection.protocol=saml", Result: false},
+					{Path: "$.children[1].children[0]", Label: "connection.protocol=steam", Result: false},
 					{Path: "$.children[1].children[1]", Label: "login_method=passkey", Result: true},
 				},
 			},
@@ -49,7 +49,7 @@ func TestEvaluateConditionBuildsCompleteNestedExplanation(t *testing.T) {
 				Label:  "not",
 				Result: true,
 				Children: []Explanation{
-					{Path: "$.children[2].child", Label: "avatar=user", Result: false},
+					{Path: "$.children[2].child", Label: "avatar=user_uploaded", Result: false},
 				},
 			},
 		},
@@ -62,7 +62,7 @@ func TestEvaluateConditionBuildsCompleteNestedExplanation(t *testing.T) {
 func TestEvaluateConditionEvaluatesEachFact(t *testing.T) {
 	facts := Facts{
 		ConfirmedProviders: map[string]struct{}{"corporate": {}},
-		ConfirmedProtocols: map[string]struct{}{"oidc": {}},
+		ConfirmedProtocols: map[string]struct{}{"oidc": {}, "steam": {}, "vrchat": {}, "saml": {}},
 		HasPasskey:         true,
 		HasPasswordTOTP:    true,
 		HasFederation:      true,
@@ -76,13 +76,16 @@ func TestEvaluateConditionEvaluatesEachFact(t *testing.T) {
 	}{
 		{"confirmed provider", Condition{Fact: "connection.provider", Provider: "corporate"}, true},
 		{"unconfirmed provider", Condition{Fact: "connection.provider", Provider: "missing"}, false},
-		{"confirmed protocol", Condition{Fact: "connection.protocol", Protocol: "oidc"}, true},
-		{"unconfirmed protocol", Condition{Fact: "connection.protocol", Protocol: "saml"}, false},
+		{"confirmed oidc protocol", Condition{Fact: "connection.protocol", Protocol: "oidc"}, true},
+		{"confirmed steam protocol", Condition{Fact: "connection.protocol", Protocol: "steam"}, true},
+		{"confirmed vrchat protocol", Condition{Fact: "connection.protocol", Protocol: "vrchat"}, true},
+		{"rejected saml protocol", Condition{Fact: "connection.protocol", Protocol: "saml"}, false},
 		{"passkey", Condition{Fact: "login_method", Method: "passkey"}, true},
 		{"password totp", Condition{Fact: "login_method", Method: "password_totp"}, true},
 		{"federation", Condition{Fact: "login_method", Method: "federation"}, true},
 		{"any avatar", Condition{Fact: "avatar", Source: "any"}, true},
-		{"user avatar", Condition{Fact: "avatar", Source: "user"}, true},
+		{"user uploaded avatar", Condition{Fact: "avatar", Source: "user_uploaded"}, true},
+		{"rejected legacy user avatar", Condition{Fact: "avatar", Source: "user"}, false},
 	}
 
 	for _, tc := range cases {

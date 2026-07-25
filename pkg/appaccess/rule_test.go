@@ -17,7 +17,7 @@ func TestParseAndValidateRuleAcceptsNestedRule(t *testing.T) {
 				{"fact": "connection.provider", "provider": "corporate"},
 				{"op": "any", "children": [
 					{"fact": "connection.protocol", "protocol": "oidc"},
-					{"op": "not", "child": {"fact": "avatar", "source": "user"}}
+					{"op": "not", "child": {"fact": "avatar", "source": "user_uploaded"}}
 				]}
 			]
 		}
@@ -42,8 +42,24 @@ func TestParseAndValidateRuleAcceptsNestedRule(t *testing.T) {
 	if got := any.Children[0]; got.Fact != "connection.protocol" || got.Protocol != "oidc" {
 		t.Fatalf("protocol condition = %#v", got)
 	}
-	if any.Children[1].Op != "not" || any.Children[1].Child == nil || any.Children[1].Child.Fact != "avatar" || any.Children[1].Child.Source != "user" {
+	if any.Children[1].Op != "not" || any.Children[1].Child == nil || any.Children[1].Child.Fact != "avatar" || any.Children[1].Child.Source != "user_uploaded" {
 		t.Fatalf("not condition = %#v", any.Children[1])
+	}
+}
+
+func TestParseAndValidateRuleAcceptsClosedProtocolAndAvatarLiterals(t *testing.T) {
+	cases := []string{
+		`{"version":1,"condition":{"fact":"connection.protocol","protocol":"oidc"}}`,
+		`{"version":1,"condition":{"fact":"connection.protocol","protocol":"steam"}}`,
+		`{"version":1,"condition":{"fact":"connection.protocol","protocol":"vrchat"}}`,
+		`{"version":1,"condition":{"fact":"avatar","source":"any"}}`,
+		`{"version":1,"condition":{"fact":"avatar","source":"user_uploaded"}}`,
+	}
+
+	for _, raw := range cases {
+		if _, err := ParseAndValidateRule([]byte(raw), nil); err != nil {
+			t.Fatalf("ParseAndValidateRule(%s) error = %v", raw, err)
+		}
 	}
 }
 
@@ -92,8 +108,8 @@ func TestParseAndValidateRuleRejectsClosedSchemaBoundaries(t *testing.T) {
 		{"provider missing parameter", `{"version":1,"condition":{"fact":"connection.provider"}}`, "$.condition", "missing_provider"},
 		{"provider has unrelated parameter", `{"version":1,"condition":{"fact":"connection.provider","provider":"corporate","source":"any"}}`, "$.condition", "invalid_shape"},
 		{"unknown fact", `{"version":1,"condition":{"fact":"other","source":"any"}}`, "$.condition", "invalid_fact"},
-		{"invalid protocol", `{"version":1,"condition":{"fact":"connection.protocol","protocol":"oauth"}}`, "$.condition", "invalid_protocol"},
-		{"invalid source", `{"version":1,"condition":{"fact":"avatar","source":"system"}}`, "$.condition", "invalid_source"},
+		{"invalid protocol", `{"version":1,"condition":{"fact":"connection.protocol","protocol":"saml"}}`, "$.condition", "invalid_protocol"},
+		{"invalid source", `{"version":1,"condition":{"fact":"avatar","source":"user"}}`, "$.condition", "invalid_source"},
 		{"trailing JSON", `{"version":1,"condition":{"fact":"avatar","source":"any"}} {}`, "$", "trailing_json"},
 		{"malformed JSON", `{"version":1,"condition":`, "$", "invalid_json"},
 	}

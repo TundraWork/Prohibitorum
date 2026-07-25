@@ -106,8 +106,11 @@ func evaluateFact(c Condition, facts Facts) bool {
 		_, found := facts.ConfirmedProviders[c.Provider]
 		return found
 	case "connection.protocol":
-		_, found := facts.ConfirmedProtocols[c.Protocol]
-		return found
+		switch c.Protocol {
+		case "oidc", "steam", "vrchat":
+			_, found := facts.ConfirmedProtocols[c.Protocol]
+			return found
+		}
 	case "login_method":
 		switch c.Method {
 		case "passkey":
@@ -121,7 +124,7 @@ func evaluateFact(c Condition, facts Facts) bool {
 		switch c.Source {
 		case "any":
 			return facts.HasAnyAvatar
-		case "user":
+		case "user_uploaded":
 			return facts.HasUserAvatar
 		}
 	}

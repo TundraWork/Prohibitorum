@@ -259,7 +259,12 @@ func validateFact(c conditionWire, path string, knownProviders map[string]struct
 }
 
 func validProtocol(protocol string) bool {
-	return protocol == "oidc" || protocol == "saml"
+	switch protocol {
+	case "oidc", "steam", "vrchat":
+		return true
+	default:
+		return false
+	}
 }
 
 func validMethod(method string) bool {
@@ -272,7 +277,7 @@ func validMethod(method string) bool {
 }
 
 func validSource(source string) bool {
-	return source == "any" || source == "user"
+	return source == "any" || source == "user_uploaded"
 }
 
 func childPath(path, name string, index int) string {
