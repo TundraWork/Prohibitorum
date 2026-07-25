@@ -247,7 +247,6 @@ SELECT
     JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
     WHERE ai.account_id = a.id
       AND ai.confirmed_at IS NOT NULL
-      AND NOT ip.disabled
     ORDER BY ip.slug
   )::text[] AS confirmed_provider_slugs,
   ARRAY(
@@ -256,7 +255,6 @@ SELECT
     JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
     WHERE ai.account_id = a.id
       AND ai.confirmed_at IS NOT NULL
-      AND NOT ip.disabled
     ORDER BY ip.protocol
   )::text[] AS confirmed_protocols,
   EXISTS (
@@ -500,7 +498,6 @@ SELECT
     JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
     WHERE ai.account_id = a.id
       AND ai.confirmed_at IS NOT NULL
-      AND NOT ip.disabled
     ORDER BY ip.slug
   )::text[] AS confirmed_provider_slugs,
   ARRAY(
@@ -509,7 +506,6 @@ SELECT
     JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
     WHERE ai.account_id = a.id
       AND ai.confirmed_at IS NOT NULL
-      AND NOT ip.disabled
     ORDER BY ip.protocol
   )::text[] AS confirmed_protocols,
   EXISTS (

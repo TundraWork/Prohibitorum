@@ -207,6 +207,45 @@ func TestAppManagerRuleGroupsMigrationPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	queries := dbgen.New(queryConn)
+	var disabledProviderID int64
+	if err := conn.QueryRowContext(ctx, `
+		INSERT INTO upstream_idp (
+			slug, display_name, protocol, mode, provider_config, secret_status,
+			secret_enc, secret_nonce, key_version, disabled
+		)
+		VALUES (
+			'disabled-corp', 'Disabled Corporate', 'oidc', 'auto_provision',
+			'{}'::jsonb, 'unconfigured', NULL, NULL, NULL, true
+		)
+		RETURNING id`).Scan(&disabledProviderID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, `
+		INSERT INTO account_identity (
+			account_id, upstream_idp_id, upstream_iss, upstream_sub,
+			confirmed_at, upstream_data
+		)
+		VALUES (
+			$1, $2, 'https://disabled.example', 'manager-subject',
+			now(), '{}'::jsonb
+		)`, managerID, disabledProviderID); err != nil {
+		t.Fatal(err)
+	}
+	disabledProviderFacts, err := queries.GetAccountAccessFacts(ctx, managerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disabledProviderFacts.HasFederation {
+		t.Fatal("disabled provider unexpectedly counts as an active federation login method")
+	}
+	if len(disabledProviderFacts.ConfirmedProviderSlugs) != 1 ||
+		disabledProviderFacts.ConfirmedProviderSlugs[0] != "disabled-corp" {
+		t.Fatalf("confirmed provider slugs = %v, want [disabled-corp]", disabledProviderFacts.ConfirmedProviderSlugs)
+	}
+	if len(disabledProviderFacts.ConfirmedProtocols) != 1 ||
+		disabledProviderFacts.ConfirmedProtocols[0] != "oidc" {
+		t.Fatalf("confirmed protocols = %v, want [oidc]", disabledProviderFacts.ConfirmedProtocols)
+	}
 	updatedGroup, err := queries.UpdateAppGroup(ctx, dbgen.UpdateAppGroupParams{
 		Slug:                "passkeys-updated",
 		DisplayName:         "Updated Passkeys",
