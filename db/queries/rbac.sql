@@ -1,235 +1,381 @@
--- name: CreateGroup :one
-INSERT INTO user_group (slug, display_name, description, exposed_to_downstream)
-VALUES ($1, $2, $3, $4)
+-- name: CreateOIDCAppGroup :one
+INSERT INTO user_group (
+  kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id
+)
+VALUES (
+  sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
+  sqlc.arg(exposed_to_downstream), sqlc.narg(rule), sqlc.arg(oidc_client_id)::text
+)
 RETURNING *;
 
--- name: GetGroup :one
-SELECT * FROM user_group WHERE id = $1;
+-- name: CreateSAMLAppGroup :one
+INSERT INTO user_group (
+  kind, slug, display_name, description, exposed_to_downstream, rule, saml_sp_id
+)
+VALUES (
+  sqlc.arg(kind), sqlc.arg(slug), sqlc.arg(display_name), sqlc.narg(description),
+  sqlc.arg(exposed_to_downstream), sqlc.narg(rule), sqlc.arg(saml_sp_id)::bigint
+)
+RETURNING *;
 
--- name: GetGroupBySlug :one
-SELECT * FROM user_group WHERE slug = $1;
+-- name: GetOIDCAppGroup :one
+SELECT *
+FROM user_group
+WHERE id = sqlc.arg(group_id)
+  AND oidc_client_id = sqlc.arg(oidc_client_id)::text;
 
--- name: ListGroups :many
-SELECT g.*, (SELECT count(*) FROM group_member m WHERE m.group_id = g.id) AS member_count
-FROM user_group g
-WHERE (sqlc.narg('after_created_at')::timestamptz IS NULL OR (g.created_at, g.id) < (sqlc.narg('after_created_at'), sqlc.narg('after_id')::int4))
-ORDER BY g.created_at DESC, g.id DESC
-LIMIT sqlc.arg('limit');
+-- name: GetSAMLAppGroup :one
+SELECT *
+FROM user_group
+WHERE id = sqlc.arg(group_id)
+  AND saml_sp_id = sqlc.arg(saml_sp_id)::bigint;
 
--- name: UpdateGroup :one
+-- name: ListOIDCAppGroups :many
+SELECT *
+FROM user_group
+WHERE oidc_client_id = sqlc.arg(oidc_client_id)::text
+ORDER BY display_name ASC, id ASC;
+
+-- name: ListSAMLAppGroups :many
+SELECT *
+FROM user_group
+WHERE saml_sp_id = sqlc.arg(saml_sp_id)::bigint
+ORDER BY display_name ASC, id ASC;
+
+-- name: UpdateAppGroup :one
 UPDATE user_group
-SET slug = $2, display_name = $3, description = $4, exposed_to_downstream = $5, updated_at = now()
-WHERE id = $1
+SET slug = sqlc.arg(slug),
+    display_name = sqlc.arg(display_name),
+    description = sqlc.narg(description),
+    exposed_to_downstream = sqlc.arg(exposed_to_downstream),
+    rule = sqlc.narg(rule),
+    updated_at = now()
+WHERE id = sqlc.arg(group_id)
+  AND num_nonnulls(
+    sqlc.narg(oidc_client_id)::text,
+    sqlc.narg(saml_sp_id)::bigint
+  ) = 1
+  AND (
+    user_group.oidc_client_id = sqlc.narg(oidc_client_id)::text
+    OR user_group.saml_sp_id = sqlc.narg(saml_sp_id)::bigint
+  )
 RETURNING *;
 
--- name: DeleteGroup :execrows
-DELETE FROM user_group WHERE id = $1;
+-- name: DeleteOIDCAppGroup :execrows
+DELETE FROM user_group
+WHERE id = sqlc.arg(group_id)
+  AND oidc_client_id = sqlc.arg(oidc_client_id)::text;
 
--- name: AddGroupMember :exec
-INSERT INTO group_member (group_id, account_id)
-VALUES ($1, $2)
-ON CONFLICT (group_id, account_id) DO NOTHING;
+-- name: DeleteSAMLAppGroup :execrows
+DELETE FROM user_group
+WHERE id = sqlc.arg(group_id)
+  AND saml_sp_id = sqlc.arg(saml_sp_id)::bigint;
 
--- name: RemoveGroupMember :execrows
-DELETE FROM group_member WHERE group_id = $1 AND account_id = $2;
+-- name: GetManualDecisionForOIDCApp :one
+SELECT d.*
+FROM group_manual_decision d
+JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
+WHERE g.oidc_client_id = sqlc.arg(oidc_client_id)::text
+  AND g.kind = 'manual'
+  AND d.account_id = sqlc.arg(account_id);
 
--- name: ListGroupMembers :many
-SELECT a.id, a.username, a.display_name
-FROM group_member m
-JOIN account a ON a.id = m.account_id
-WHERE m.group_id = $1
-ORDER BY a.username;
+-- name: GetManualDecisionForSAMLApp :one
+SELECT d.*
+FROM group_manual_decision d
+JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
+WHERE g.saml_sp_id = sqlc.arg(saml_sp_id)::bigint
+  AND g.kind = 'manual'
+  AND d.account_id = sqlc.arg(account_id);
 
--- name: ListGroupMembersPage :many
--- Keyset-paginated group members, ordered by (username ASC, account_id ASC).
--- NULL after_username starts a new page. LIMIT is limit+1 for next-page detection.
-SELECT a.id, a.username, a.display_name
-FROM group_member m
-JOIN account a ON a.id = m.account_id
-WHERE m.group_id = sqlc.arg(group_id)
-  AND (sqlc.arg(after_username)::text IS NULL OR (a.username, a.id) > (sqlc.arg(after_username), sqlc.arg(after_account_id)::int4))
+-- name: ListManualDecisionsPage :many
+SELECT
+  d.group_id,
+  d.account_id,
+  d.effect,
+  d.created_at,
+  d.updated_at,
+  d.created_by,
+  a.username,
+  a.display_name,
+  a.disabled
+FROM group_manual_decision d
+JOIN account a ON a.id = d.account_id
+WHERE d.group_id = sqlc.arg(group_id)
+  AND (
+    sqlc.narg(after_username)::text IS NULL
+    OR (a.username, a.id) > (sqlc.narg(after_username), sqlc.narg(after_account_id)::int4)
+  )
 ORDER BY a.username ASC, a.id ASC
 LIMIT sqlc.arg(row_limit);
 
--- name: ListGroupsForAccount :many
-SELECT g.*
-FROM group_member m
-JOIN user_group g ON g.id = m.group_id
-WHERE m.account_id = $1
-ORDER BY g.display_name;
+-- name: UpsertManualDecision :one
+INSERT INTO group_manual_decision (group_id, account_id, effect, created_by)
+VALUES (
+  sqlc.arg(group_id), sqlc.arg(account_id), sqlc.arg(effect), sqlc.narg(created_by)
+)
+ON CONFLICT (group_id, account_id) DO UPDATE
+SET effect = EXCLUDED.effect,
+    updated_at = now()
+RETURNING *;
 
--- name: ListGroupsForAccountPage :many
--- Keyset-paginated groups for an account, ordered by (display_name ASC, id ASC).
--- NULL after_display_name starts a new page. LIMIT is limit+1 for next-page detection.
-SELECT g.*
-FROM group_member m
-JOIN user_group g ON g.id = m.group_id
-WHERE m.account_id = sqlc.arg(account_id)
-  AND (sqlc.arg(after_display_name)::text IS NULL OR (g.display_name, g.id) > (sqlc.arg(after_display_name), sqlc.arg(after_group_id)::int4))
-ORDER BY g.display_name ASC, g.id ASC
+-- name: ClearManualDecision :execrows
+DELETE FROM group_manual_decision
+WHERE group_id = sqlc.arg(group_id)
+  AND account_id = sqlc.arg(account_id);
+
+-- name: ListOIDCClientManagers :many
+SELECT
+  m.client_id,
+  m.account_id,
+  m.created_at,
+  m.created_by,
+  a.username,
+  a.display_name,
+  a.role,
+  a.disabled
+FROM oidc_client_manager m
+JOIN account a ON a.id = m.account_id
+WHERE m.client_id = sqlc.arg(client_id)
+ORDER BY a.username ASC, a.id ASC;
+
+-- name: AssignOIDCClientManager :exec
+INSERT INTO oidc_client_manager (client_id, account_id, created_by)
+VALUES (sqlc.arg(client_id), sqlc.arg(account_id), sqlc.narg(created_by))
+ON CONFLICT (client_id, account_id) DO NOTHING;
+
+-- name: RemoveOIDCClientManager :execrows
+DELETE FROM oidc_client_manager
+WHERE client_id = sqlc.arg(client_id)
+  AND account_id = sqlc.arg(account_id);
+
+-- name: ListSAMLSPManagers :many
+SELECT
+  m.saml_sp_id,
+  m.account_id,
+  m.created_at,
+  m.created_by,
+  a.username,
+  a.display_name,
+  a.role,
+  a.disabled
+FROM saml_sp_manager m
+JOIN account a ON a.id = m.account_id
+WHERE m.saml_sp_id = sqlc.arg(saml_sp_id)
+ORDER BY a.username ASC, a.id ASC;
+
+-- name: AssignSAMLSPManager :exec
+INSERT INTO saml_sp_manager (saml_sp_id, account_id, created_by)
+VALUES (sqlc.arg(saml_sp_id), sqlc.arg(account_id), sqlc.narg(created_by))
+ON CONFLICT (saml_sp_id, account_id) DO NOTHING;
+
+-- name: RemoveSAMLSPManager :execrows
+DELETE FROM saml_sp_manager
+WHERE saml_sp_id = sqlc.arg(saml_sp_id)
+  AND account_id = sqlc.arg(account_id);
+
+-- name: IsOIDCClientManager :one
+SELECT EXISTS (
+  SELECT 1
+  FROM oidc_client_manager
+  WHERE client_id = sqlc.arg(client_id)
+    AND account_id = sqlc.arg(account_id)
+);
+
+-- name: IsSAMLSPManager :one
+SELECT EXISTS (
+  SELECT 1
+  FROM saml_sp_manager
+  WHERE saml_sp_id = sqlc.arg(saml_sp_id)
+    AND account_id = sqlc.arg(account_id)
+);
+
+-- name: DeleteManagerAssignmentsForAccount :exec
+WITH deleted_oidc AS (
+  DELETE FROM oidc_client_manager
+  WHERE oidc_client_manager.account_id = sqlc.arg(account_id)
+  RETURNING account_id
+)
+DELETE FROM saml_sp_manager
+WHERE saml_sp_manager.account_id = sqlc.arg(account_id);
+
+-- name: GetAccountAccessFacts :one
+SELECT
+  a.id,
+  a.username,
+  a.display_name,
+  a.disabled,
+  EXISTS (
+    SELECT 1 FROM webauthn_credential w WHERE w.account_id = a.id
+  ) AS has_passkey,
+  EXISTS (
+    SELECT 1
+    FROM password_credential p
+    WHERE p.account_id = a.id
+      AND EXISTS (
+        SELECT 1
+        FROM totp_credential t
+        WHERE t.account_id = a.id AND t.confirmed_at IS NOT NULL
+      )
+  ) AS has_password_totp,
+  EXISTS (
+    SELECT 1
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+      AND ip.protocol <> 'vrchat'
+  ) AS has_federation,
+  ARRAY(
+    SELECT DISTINCT ip.slug
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+    ORDER BY ip.slug
+  )::text[] AS confirmed_provider_slugs,
+  ARRAY(
+    SELECT DISTINCT ip.protocol
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+    ORDER BY ip.protocol
+  )::text[] AS confirmed_protocols,
+  EXISTS (
+    SELECT 1 FROM account_avatar av WHERE av.account_id = a.id
+  ) AS has_any_avatar,
+  EXISTS (
+    SELECT 1
+    FROM account_avatar av
+    WHERE av.account_id = a.id AND av.source = 'user'
+  ) AS has_user_avatar
+FROM account a
+WHERE a.id = sqlc.arg(account_id);
+
+-- name: ListActiveAccountAccessFactsPage :many
+SELECT
+  a.id,
+  a.username,
+  a.display_name,
+  a.disabled,
+  EXISTS (
+    SELECT 1 FROM webauthn_credential w WHERE w.account_id = a.id
+  ) AS has_passkey,
+  EXISTS (
+    SELECT 1
+    FROM password_credential p
+    WHERE p.account_id = a.id
+      AND EXISTS (
+        SELECT 1
+        FROM totp_credential t
+        WHERE t.account_id = a.id AND t.confirmed_at IS NOT NULL
+      )
+  ) AS has_password_totp,
+  EXISTS (
+    SELECT 1
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+      AND ip.protocol <> 'vrchat'
+  ) AS has_federation,
+  ARRAY(
+    SELECT DISTINCT ip.slug
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+    ORDER BY ip.slug
+  )::text[] AS confirmed_provider_slugs,
+  ARRAY(
+    SELECT DISTINCT ip.protocol
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+    ORDER BY ip.protocol
+  )::text[] AS confirmed_protocols,
+  EXISTS (
+    SELECT 1 FROM account_avatar av WHERE av.account_id = a.id
+  ) AS has_any_avatar,
+  EXISTS (
+    SELECT 1
+    FROM account_avatar av
+    WHERE av.account_id = a.id AND av.source = 'user'
+  ) AS has_user_avatar
+FROM account a
+WHERE NOT a.disabled
+  AND (
+    sqlc.narg(after_username)::text IS NULL
+    OR (a.username, a.id) > (sqlc.narg(after_username), sqlc.narg(after_account_id)::int4)
+  )
+ORDER BY a.username ASC, a.id ASC
 LIMIT sqlc.arg(row_limit);
 
--- name: ListExposedGroupSlugsByAccount :many
-SELECT g.slug
-FROM group_member m
-JOIN user_group g ON g.id = m.group_id
-WHERE m.account_id = $1 AND g.exposed_to_downstream
-ORDER BY g.slug;
+-- name: ListOIDCAppRuleGroups :many
+SELECT *
+FROM user_group
+WHERE oidc_client_id = sqlc.arg(oidc_client_id)::text
+  AND kind = 'rule'
+ORDER BY id ASC;
 
--- name: GrantOIDCClientAccessGroup :exec
-INSERT INTO oidc_client_access (client_id, group_id) VALUES ($1, $2)
-ON CONFLICT (client_id, group_id) WHERE group_id IS NOT NULL DO NOTHING;
+-- name: ListSAMLAppRuleGroups :many
+SELECT *
+FROM user_group
+WHERE saml_sp_id = sqlc.arg(saml_sp_id)::bigint
+  AND kind = 'rule'
+ORDER BY id ASC;
 
--- name: GrantOIDCClientAccessAccount :exec
-INSERT INTO oidc_client_access (client_id, account_id) VALUES ($1, $2)
-ON CONFLICT (client_id, account_id) WHERE account_id IS NOT NULL DO NOTHING;
+-- name: ListOIDCAccessCandidates :many
+SELECT
+  client_id,
+  display_name,
+  launch_url,
+  redirect_uris,
+  access_restricted
+FROM oidc_client
+WHERE NOT disabled
+  AND NOT forward_auth_enabled
+ORDER BY display_name ASC, client_id ASC;
 
--- name: RevokeOIDCClientAccessGroup :execrows
-DELETE FROM oidc_client_access WHERE client_id = $1 AND group_id = $2;
+-- name: ListForwardAuthAccessCandidates :many
+SELECT
+  client_id,
+  display_name,
+  forward_auth_host,
+  forward_auth_scopes,
+  access_restricted
+FROM oidc_client
+WHERE NOT disabled
+  AND forward_auth_enabled
+  AND forward_auth_host IS NOT NULL
+ORDER BY display_name ASC, client_id ASC;
 
--- name: RevokeOIDCClientAccessAccount :execrows
-DELETE FROM oidc_client_access WHERE client_id = $1 AND account_id = $2;
-
--- name: ListOIDCClientAccessGroups :many
-SELECT g.id, g.slug, g.display_name
-FROM oidc_client_access a JOIN user_group g ON g.id = a.group_id
-WHERE a.client_id = $1 ORDER BY g.display_name;
-
--- name: ListOIDCClientAccessGroupsPage :many
--- Keyset-paginated access groups for an OIDC client, ordered by (display_name ASC, id ASC).
-SELECT g.id, g.slug, g.display_name
-FROM oidc_client_access a JOIN user_group g ON g.id = a.group_id
-WHERE a.client_id = sqlc.arg(client_id)
-  AND (sqlc.arg(after_display_name)::text IS NULL OR (g.display_name, g.id) > (sqlc.arg(after_display_name), sqlc.arg(after_group_id)::int4))
-ORDER BY g.display_name ASC, g.id ASC
-LIMIT sqlc.arg(row_limit);
-
--- name: ListOIDCClientAccessAccounts :many
-SELECT acc.id, acc.username, acc.display_name
-FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
-WHERE a.client_id = $1 ORDER BY acc.username;
-
--- name: ListOIDCClientAccessAccountsPage :many
--- Keyset-paginated access accounts for an OIDC client, ordered by (username ASC, id ASC).
-SELECT acc.id, acc.username, acc.display_name
-FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
-WHERE a.client_id = sqlc.arg(client_id)
-  AND (sqlc.arg(after_username)::text IS NULL OR (acc.username, acc.id) > (sqlc.arg(after_username), sqlc.arg(after_account_id)::int4))
-ORDER BY acc.username ASC, acc.id ASC
-LIMIT sqlc.arg(row_limit);
-
--- name: GrantSAMLSPAccessGroup :exec
-INSERT INTO saml_sp_access (saml_sp_id, group_id) VALUES ($1, $2)
-ON CONFLICT (saml_sp_id, group_id) WHERE group_id IS NOT NULL DO NOTHING;
-
--- name: GrantSAMLSPAccessAccount :exec
-INSERT INTO saml_sp_access (saml_sp_id, account_id) VALUES ($1, $2)
-ON CONFLICT (saml_sp_id, account_id) WHERE account_id IS NOT NULL DO NOTHING;
-
--- name: RevokeSAMLSPAccessGroup :execrows
-DELETE FROM saml_sp_access WHERE saml_sp_id = $1 AND group_id = $2;
-
--- name: RevokeSAMLSPAccessAccount :execrows
-DELETE FROM saml_sp_access WHERE saml_sp_id = $1 AND account_id = $2;
-
--- name: ListSAMLSPAccessGroups :many
-SELECT g.id, g.slug, g.display_name
-FROM saml_sp_access a JOIN user_group g ON g.id = a.group_id
-WHERE a.saml_sp_id = $1 ORDER BY g.display_name;
-
--- name: ListSAMLSPAccessGroupsPage :many
--- Keyset-paginated access groups for a SAML SP, ordered by (display_name ASC, id ASC).
-SELECT g.id, g.slug, g.display_name
-FROM saml_sp_access a JOIN user_group g ON g.id = a.group_id
-WHERE a.saml_sp_id = sqlc.arg(saml_sp_id)
-  AND (sqlc.arg(after_display_name)::text IS NULL OR (g.display_name, g.id) > (sqlc.arg(after_display_name), sqlc.arg(after_group_id)::int4))
-ORDER BY g.display_name ASC, g.id ASC
-LIMIT sqlc.arg(row_limit);
-
--- name: ListSAMLSPAccessAccounts :many
-SELECT acc.id, acc.username, acc.display_name
-FROM saml_sp_access a JOIN account acc ON acc.id = a.account_id
-WHERE a.saml_sp_id = $1 ORDER BY acc.username;
-
--- name: ListSAMLSPAccessAccountsPage :many
--- Keyset-paginated access accounts for a SAML SP, ordered by (username ASC, id ASC).
-SELECT acc.id, acc.username, acc.display_name
-FROM saml_sp_access a JOIN account acc ON acc.id = a.account_id
-WHERE a.saml_sp_id = sqlc.arg(saml_sp_id)
-  AND (sqlc.arg(after_username)::text IS NULL OR (acc.username, acc.id) > (sqlc.arg(after_username), sqlc.arg(after_account_id)::int4))
-ORDER BY acc.username ASC, acc.id ASC
-LIMIT sqlc.arg(row_limit);
+-- name: ListSAMLAccessCandidates :many
+SELECT
+  id,
+  entity_id,
+  display_name,
+  access_restricted
+FROM saml_sp
+WHERE NOT disabled
+  AND allow_idp_initiated
+ORDER BY display_name ASC, id ASC;
 
 -- name: SetOIDCClientAccessRestricted :one
-UPDATE oidc_client SET access_restricted = $2 WHERE client_id = $1 RETURNING *;
+UPDATE oidc_client
+SET access_restricted = sqlc.arg(access_restricted)
+WHERE client_id = sqlc.arg(client_id)
+RETURNING *;
 
 -- name: SetSAMLSPAccessRestricted :one
-UPDATE saml_sp SET access_restricted = $2 WHERE id = $1 RETURNING *;
-
--- name: IsAccountAuthorizedForOIDCClient :one
-SELECT
-  NOT c.access_restricted
-  OR EXISTS (SELECT 1 FROM oidc_client_access a
-             WHERE a.client_id = c.client_id AND a.account_id = sqlc.arg(account_id))
-  OR EXISTS (SELECT 1 FROM oidc_client_access a
-             JOIN group_member m ON m.group_id = a.group_id
-             WHERE a.client_id = c.client_id AND m.account_id = sqlc.arg(account_id))
-FROM oidc_client c
-WHERE c.client_id = sqlc.arg(client_id);
-
--- name: IsAccountAuthorizedForSAMLSP :one
-SELECT
-  NOT s.access_restricted
-  OR EXISTS (SELECT 1 FROM saml_sp_access a
-             WHERE a.saml_sp_id = s.id AND a.account_id = sqlc.arg(account_id))
-  OR EXISTS (SELECT 1 FROM saml_sp_access a
-             JOIN group_member m ON m.group_id = a.group_id
-             WHERE a.saml_sp_id = s.id AND m.account_id = sqlc.arg(account_id))
-FROM saml_sp s
-WHERE s.id = sqlc.arg(sp_id);
-
--- name: ListAuthorizedOIDCClientsForAccount :many
-SELECT c.client_id, c.display_name, c.launch_url, c.redirect_uris
-FROM oidc_client c
-WHERE c.disabled = false
-  AND c.forward_auth_enabled = false
-  AND (
-    NOT c.access_restricted
-    OR EXISTS (SELECT 1 FROM oidc_client_access a
-               WHERE a.client_id = c.client_id AND a.account_id = sqlc.arg(account_id))
-    OR EXISTS (SELECT 1 FROM oidc_client_access a
-               JOIN group_member m ON m.group_id = a.group_id
-               WHERE a.client_id = c.client_id AND m.account_id = sqlc.arg(account_id))
-  )
-ORDER BY c.display_name;
-
--- name: ListAuthorizedForwardAuthAppsForAccount :many
-SELECT c.client_id, c.display_name, c.forward_auth_host, c.forward_auth_scopes
-FROM oidc_client c
-WHERE c.disabled = false
-  AND c.forward_auth_enabled = true
-  AND c.forward_auth_host IS NOT NULL
-  AND (
-    NOT c.access_restricted
-    OR EXISTS (SELECT 1 FROM oidc_client_access a
-               WHERE a.client_id = c.client_id AND a.account_id = sqlc.arg(account_id))
-    OR EXISTS (SELECT 1 FROM oidc_client_access a
-               JOIN group_member m ON m.group_id = a.group_id
-               WHERE a.client_id = c.client_id AND m.account_id = sqlc.arg(account_id))
-  )
-ORDER BY c.display_name;
-
--- name: ListAuthorizedSAMLSPsForAccount :many
-SELECT s.id, s.entity_id, s.display_name
-FROM saml_sp s
-WHERE s.disabled = false
-  AND s.allow_idp_initiated = true
-  AND (
-    NOT s.access_restricted
-    OR EXISTS (SELECT 1 FROM saml_sp_access a
-               WHERE a.saml_sp_id = s.id AND a.account_id = sqlc.arg(account_id))
-    OR EXISTS (SELECT 1 FROM saml_sp_access a
-               JOIN group_member m ON m.group_id = a.group_id
-               WHERE a.saml_sp_id = s.id AND m.account_id = sqlc.arg(account_id))
-  )
-ORDER BY s.display_name;
+UPDATE saml_sp
+SET access_restricted = sqlc.arg(access_restricted)
+WHERE id = sqlc.arg(saml_sp_id)
+RETURNING *;

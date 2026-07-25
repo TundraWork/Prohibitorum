@@ -113,10 +113,14 @@ type EntityIcon struct {
 	AccentColor pgtype.Text        `json:"accentColor"`
 }
 
-type GroupMember struct {
+type GroupManualDecision struct {
 	GroupID   int32              `json:"groupId"`
+	GroupKind string             `json:"groupKind"`
 	AccountID int32              `json:"accountId"`
+	Effect    string             `json:"effect"`
 	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt pgtype.Timestamptz `json:"updatedAt"`
+	CreatedBy pgtype.Int4        `json:"createdBy"`
 }
 
 type InstanceSetting struct {
@@ -158,11 +162,11 @@ type OidcClient struct {
 	LaunchUrl                   pgtype.Text        `json:"launchUrl"`
 }
 
-type OidcClientAccess struct {
+type OidcClientManager struct {
 	ClientID  string             `json:"clientId"`
-	GroupID   pgtype.Int4        `json:"groupId"`
-	AccountID pgtype.Int4        `json:"accountId"`
+	AccountID int32              `json:"accountId"`
 	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+	CreatedBy pgtype.Int4        `json:"createdBy"`
 }
 
 type OidcConsent struct {
@@ -255,13 +259,6 @@ type SamlSpAc struct {
 	IsDefault bool   `json:"isDefault"`
 }
 
-type SamlSpAccess struct {
-	SamlSpID  int64              `json:"samlSpId"`
-	GroupID   pgtype.Int4        `json:"groupId"`
-	AccountID pgtype.Int4        `json:"accountId"`
-	CreatedAt pgtype.Timestamptz `json:"createdAt"`
-}
-
 type SamlSpKey struct {
 	ID       int64              `json:"id"`
 	SpID     int64              `json:"spId"`
@@ -269,6 +266,13 @@ type SamlSpKey struct {
 	CertPem  string             `json:"certPem"`
 	NotAfter pgtype.Timestamptz `json:"notAfter"`
 	AddedAt  pgtype.Timestamptz `json:"addedAt"`
+}
+
+type SamlSpManager struct {
+	SamlSpID  int64              `json:"samlSpId"`
+	AccountID int32              `json:"accountId"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+	CreatedBy pgtype.Int4        `json:"createdBy"`
 }
 
 type SamlSubjectID struct {
@@ -337,10 +341,14 @@ type UpstreamIdp struct {
 
 type UserGroup struct {
 	ID                  int32              `json:"id"`
+	Kind                string             `json:"kind"`
 	Slug                string             `json:"slug"`
 	DisplayName         string             `json:"displayName"`
 	Description         pgtype.Text        `json:"description"`
 	ExposedToDownstream bool               `json:"exposedToDownstream"`
+	Rule                []byte             `json:"rule"`
+	OidcClientID        pgtype.Text        `json:"oidcClientId"`
+	SamlSpID            pgtype.Int8        `json:"samlSpId"`
 	CreatedAt           pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt           pgtype.Timestamptz `json:"updatedAt"`
 }

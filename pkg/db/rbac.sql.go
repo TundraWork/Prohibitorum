@@ -11,251 +11,614 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addGroupMember = `-- name: AddGroupMember :exec
-INSERT INTO group_member (group_id, account_id)
-VALUES ($1, $2)
-ON CONFLICT (group_id, account_id) DO NOTHING
+const assignOIDCClientManager = `-- name: AssignOIDCClientManager :exec
+INSERT INTO oidc_client_manager (client_id, account_id, created_by)
+VALUES ($1, $2, $3)
+ON CONFLICT (client_id, account_id) DO NOTHING
 `
 
-type AddGroupMemberParams struct {
+type AssignOIDCClientManagerParams struct {
+	ClientID  string      `json:"clientId"`
+	AccountID int32       `json:"accountId"`
+	CreatedBy pgtype.Int4 `json:"createdBy"`
+}
+
+func (q *Queries) AssignOIDCClientManager(ctx context.Context, arg AssignOIDCClientManagerParams) error {
+	_, err := q.db.Exec(ctx, assignOIDCClientManager, arg.ClientID, arg.AccountID, arg.CreatedBy)
+	return err
+}
+
+const assignSAMLSPManager = `-- name: AssignSAMLSPManager :exec
+INSERT INTO saml_sp_manager (saml_sp_id, account_id, created_by)
+VALUES ($1, $2, $3)
+ON CONFLICT (saml_sp_id, account_id) DO NOTHING
+`
+
+type AssignSAMLSPManagerParams struct {
+	SamlSpID  int64       `json:"samlSpId"`
+	AccountID int32       `json:"accountId"`
+	CreatedBy pgtype.Int4 `json:"createdBy"`
+}
+
+func (q *Queries) AssignSAMLSPManager(ctx context.Context, arg AssignSAMLSPManagerParams) error {
+	_, err := q.db.Exec(ctx, assignSAMLSPManager, arg.SamlSpID, arg.AccountID, arg.CreatedBy)
+	return err
+}
+
+const clearManualDecision = `-- name: ClearManualDecision :execrows
+DELETE FROM group_manual_decision
+WHERE group_id = $1
+  AND account_id = $2
+`
+
+type ClearManualDecisionParams struct {
 	GroupID   int32 `json:"groupId"`
 	AccountID int32 `json:"accountId"`
 }
 
-func (q *Queries) AddGroupMember(ctx context.Context, arg AddGroupMemberParams) error {
-	_, err := q.db.Exec(ctx, addGroupMember, arg.GroupID, arg.AccountID)
-	return err
-}
-
-const createGroup = `-- name: CreateGroup :one
-INSERT INTO user_group (slug, display_name, description, exposed_to_downstream)
-VALUES ($1, $2, $3, $4)
-RETURNING id, slug, display_name, description, exposed_to_downstream, created_at, updated_at
-`
-
-type CreateGroupParams struct {
-	Slug                string      `json:"slug"`
-	DisplayName         string      `json:"displayName"`
-	Description         pgtype.Text `json:"description"`
-	ExposedToDownstream bool        `json:"exposedToDownstream"`
-}
-
-func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (UserGroup, error) {
-	row := q.db.QueryRow(ctx, createGroup,
-		arg.Slug,
-		arg.DisplayName,
-		arg.Description,
-		arg.ExposedToDownstream,
-	)
-	var i UserGroup
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.DisplayName,
-		&i.Description,
-		&i.ExposedToDownstream,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const deleteGroup = `-- name: DeleteGroup :execrows
-DELETE FROM user_group WHERE id = $1
-`
-
-func (q *Queries) DeleteGroup(ctx context.Context, id int32) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteGroup, id)
+func (q *Queries) ClearManualDecision(ctx context.Context, arg ClearManualDecisionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearManualDecision, arg.GroupID, arg.AccountID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const getGroup = `-- name: GetGroup :one
-SELECT id, slug, display_name, description, exposed_to_downstream, created_at, updated_at FROM user_group WHERE id = $1
+const createOIDCAppGroup = `-- name: CreateOIDCAppGroup :one
+INSERT INTO user_group (
+  kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id
+)
+VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7::text
+)
+RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
 `
 
-func (q *Queries) GetGroup(ctx context.Context, id int32) (UserGroup, error) {
-	row := q.db.QueryRow(ctx, getGroup, id)
+type CreateOIDCAppGroupParams struct {
+	Kind                string      `json:"kind"`
+	Slug                string      `json:"slug"`
+	DisplayName         string      `json:"displayName"`
+	Description         pgtype.Text `json:"description"`
+	ExposedToDownstream bool        `json:"exposedToDownstream"`
+	Rule                []byte      `json:"rule"`
+	OidcClientID        string      `json:"oidcClientId"`
+}
+
+func (q *Queries) CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, createOIDCAppGroup,
+		arg.Kind,
+		arg.Slug,
+		arg.DisplayName,
+		arg.Description,
+		arg.ExposedToDownstream,
+		arg.Rule,
+		arg.OidcClientID,
+	)
 	var i UserGroup
 	err := row.Scan(
 		&i.ID,
+		&i.Kind,
 		&i.Slug,
 		&i.DisplayName,
 		&i.Description,
 		&i.ExposedToDownstream,
+		&i.Rule,
+		&i.OidcClientID,
+		&i.SamlSpID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getGroupBySlug = `-- name: GetGroupBySlug :one
-SELECT id, slug, display_name, description, exposed_to_downstream, created_at, updated_at FROM user_group WHERE slug = $1
+const createSAMLAppGroup = `-- name: CreateSAMLAppGroup :one
+INSERT INTO user_group (
+  kind, slug, display_name, description, exposed_to_downstream, rule, saml_sp_id
+)
+VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7::bigint
+)
+RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
 `
 
-func (q *Queries) GetGroupBySlug(ctx context.Context, slug string) (UserGroup, error) {
-	row := q.db.QueryRow(ctx, getGroupBySlug, slug)
+type CreateSAMLAppGroupParams struct {
+	Kind                string      `json:"kind"`
+	Slug                string      `json:"slug"`
+	DisplayName         string      `json:"displayName"`
+	Description         pgtype.Text `json:"description"`
+	ExposedToDownstream bool        `json:"exposedToDownstream"`
+	Rule                []byte      `json:"rule"`
+	SamlSpID            int64       `json:"samlSpId"`
+}
+
+func (q *Queries) CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, createSAMLAppGroup,
+		arg.Kind,
+		arg.Slug,
+		arg.DisplayName,
+		arg.Description,
+		arg.ExposedToDownstream,
+		arg.Rule,
+		arg.SamlSpID,
+	)
 	var i UserGroup
 	err := row.Scan(
 		&i.ID,
+		&i.Kind,
 		&i.Slug,
 		&i.DisplayName,
 		&i.Description,
 		&i.ExposedToDownstream,
+		&i.Rule,
+		&i.OidcClientID,
+		&i.SamlSpID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const grantOIDCClientAccessAccount = `-- name: GrantOIDCClientAccessAccount :exec
-INSERT INTO oidc_client_access (client_id, account_id) VALUES ($1, $2)
-ON CONFLICT (client_id, account_id) WHERE account_id IS NOT NULL DO NOTHING
+const deleteManagerAssignmentsForAccount = `-- name: DeleteManagerAssignmentsForAccount :exec
+WITH deleted_oidc AS (
+  DELETE FROM oidc_client_manager
+  WHERE oidc_client_manager.account_id = $1
+  RETURNING account_id
+)
+DELETE FROM saml_sp_manager
+WHERE saml_sp_manager.account_id = $1
 `
 
-type GrantOIDCClientAccessAccountParams struct {
-	ClientID  string      `json:"clientId"`
-	AccountID pgtype.Int4 `json:"accountId"`
-}
-
-func (q *Queries) GrantOIDCClientAccessAccount(ctx context.Context, arg GrantOIDCClientAccessAccountParams) error {
-	_, err := q.db.Exec(ctx, grantOIDCClientAccessAccount, arg.ClientID, arg.AccountID)
+func (q *Queries) DeleteManagerAssignmentsForAccount(ctx context.Context, accountID int32) error {
+	_, err := q.db.Exec(ctx, deleteManagerAssignmentsForAccount, accountID)
 	return err
 }
 
-const grantOIDCClientAccessGroup = `-- name: GrantOIDCClientAccessGroup :exec
-INSERT INTO oidc_client_access (client_id, group_id) VALUES ($1, $2)
-ON CONFLICT (client_id, group_id) WHERE group_id IS NOT NULL DO NOTHING
+const deleteOIDCAppGroup = `-- name: DeleteOIDCAppGroup :execrows
+DELETE FROM user_group
+WHERE id = $1
+  AND oidc_client_id = $2::text
 `
 
-type GrantOIDCClientAccessGroupParams struct {
-	ClientID string      `json:"clientId"`
-	GroupID  pgtype.Int4 `json:"groupId"`
+type DeleteOIDCAppGroupParams struct {
+	GroupID      int32  `json:"groupId"`
+	OidcClientID string `json:"oidcClientId"`
 }
 
-func (q *Queries) GrantOIDCClientAccessGroup(ctx context.Context, arg GrantOIDCClientAccessGroupParams) error {
-	_, err := q.db.Exec(ctx, grantOIDCClientAccessGroup, arg.ClientID, arg.GroupID)
-	return err
+func (q *Queries) DeleteOIDCAppGroup(ctx context.Context, arg DeleteOIDCAppGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOIDCAppGroup, arg.GroupID, arg.OidcClientID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const grantSAMLSPAccessAccount = `-- name: GrantSAMLSPAccessAccount :exec
-INSERT INTO saml_sp_access (saml_sp_id, account_id) VALUES ($1, $2)
-ON CONFLICT (saml_sp_id, account_id) WHERE account_id IS NOT NULL DO NOTHING
+const deleteSAMLAppGroup = `-- name: DeleteSAMLAppGroup :execrows
+DELETE FROM user_group
+WHERE id = $1
+  AND saml_sp_id = $2::bigint
 `
 
-type GrantSAMLSPAccessAccountParams struct {
-	SamlSpID  int64       `json:"samlSpId"`
-	AccountID pgtype.Int4 `json:"accountId"`
+type DeleteSAMLAppGroupParams struct {
+	GroupID  int32 `json:"groupId"`
+	SamlSpID int64 `json:"samlSpId"`
 }
 
-func (q *Queries) GrantSAMLSPAccessAccount(ctx context.Context, arg GrantSAMLSPAccessAccountParams) error {
-	_, err := q.db.Exec(ctx, grantSAMLSPAccessAccount, arg.SamlSpID, arg.AccountID)
-	return err
+func (q *Queries) DeleteSAMLAppGroup(ctx context.Context, arg DeleteSAMLAppGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSAMLAppGroup, arg.GroupID, arg.SamlSpID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const grantSAMLSPAccessGroup = `-- name: GrantSAMLSPAccessGroup :exec
-INSERT INTO saml_sp_access (saml_sp_id, group_id) VALUES ($1, $2)
-ON CONFLICT (saml_sp_id, group_id) WHERE group_id IS NOT NULL DO NOTHING
-`
-
-type GrantSAMLSPAccessGroupParams struct {
-	SamlSpID int64       `json:"samlSpId"`
-	GroupID  pgtype.Int4 `json:"groupId"`
-}
-
-func (q *Queries) GrantSAMLSPAccessGroup(ctx context.Context, arg GrantSAMLSPAccessGroupParams) error {
-	_, err := q.db.Exec(ctx, grantSAMLSPAccessGroup, arg.SamlSpID, arg.GroupID)
-	return err
-}
-
-const isAccountAuthorizedForOIDCClient = `-- name: IsAccountAuthorizedForOIDCClient :one
+const getAccountAccessFacts = `-- name: GetAccountAccessFacts :one
 SELECT
-  NOT c.access_restricted
-  OR EXISTS (SELECT 1 FROM oidc_client_access a
-             WHERE a.client_id = c.client_id AND a.account_id = $1)
-  OR EXISTS (SELECT 1 FROM oidc_client_access a
-             JOIN group_member m ON m.group_id = a.group_id
-             WHERE a.client_id = c.client_id AND m.account_id = $1)
-FROM oidc_client c
-WHERE c.client_id = $2
+  a.id,
+  a.username,
+  a.display_name,
+  a.disabled,
+  EXISTS (
+    SELECT 1 FROM webauthn_credential w WHERE w.account_id = a.id
+  ) AS has_passkey,
+  EXISTS (
+    SELECT 1
+    FROM password_credential p
+    WHERE p.account_id = a.id
+      AND EXISTS (
+        SELECT 1
+        FROM totp_credential t
+        WHERE t.account_id = a.id AND t.confirmed_at IS NOT NULL
+      )
+  ) AS has_password_totp,
+  EXISTS (
+    SELECT 1
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+      AND ip.protocol <> 'vrchat'
+  ) AS has_federation,
+  ARRAY(
+    SELECT DISTINCT ip.slug
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+    ORDER BY ip.slug
+  )::text[] AS confirmed_provider_slugs,
+  ARRAY(
+    SELECT DISTINCT ip.protocol
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+    ORDER BY ip.protocol
+  )::text[] AS confirmed_protocols,
+  EXISTS (
+    SELECT 1 FROM account_avatar av WHERE av.account_id = a.id
+  ) AS has_any_avatar,
+  EXISTS (
+    SELECT 1
+    FROM account_avatar av
+    WHERE av.account_id = a.id AND av.source = 'user'
+  ) AS has_user_avatar
+FROM account a
+WHERE a.id = $1
 `
 
-type IsAccountAuthorizedForOIDCClientParams struct {
-	AccountID pgtype.Int4 `json:"accountId"`
-	ClientID  string      `json:"clientId"`
+type GetAccountAccessFactsRow struct {
+	ID                     int32    `json:"id"`
+	Username               string   `json:"username"`
+	DisplayName            string   `json:"displayName"`
+	Disabled               bool     `json:"disabled"`
+	HasPasskey             bool     `json:"hasPasskey"`
+	HasPasswordTotp        bool     `json:"hasPasswordTotp"`
+	HasFederation          bool     `json:"hasFederation"`
+	ConfirmedProviderSlugs []string `json:"confirmedProviderSlugs"`
+	ConfirmedProtocols     []string `json:"confirmedProtocols"`
+	HasAnyAvatar           bool     `json:"hasAnyAvatar"`
+	HasUserAvatar          bool     `json:"hasUserAvatar"`
 }
 
-func (q *Queries) IsAccountAuthorizedForOIDCClient(ctx context.Context, arg IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error) {
-	row := q.db.QueryRow(ctx, isAccountAuthorizedForOIDCClient, arg.AccountID, arg.ClientID)
-	var column_1 pgtype.Bool
-	err := row.Scan(&column_1)
-	return column_1, err
+func (q *Queries) GetAccountAccessFacts(ctx context.Context, accountID int32) (GetAccountAccessFactsRow, error) {
+	row := q.db.QueryRow(ctx, getAccountAccessFacts, accountID)
+	var i GetAccountAccessFactsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.DisplayName,
+		&i.Disabled,
+		&i.HasPasskey,
+		&i.HasPasswordTotp,
+		&i.HasFederation,
+		&i.ConfirmedProviderSlugs,
+		&i.ConfirmedProtocols,
+		&i.HasAnyAvatar,
+		&i.HasUserAvatar,
+	)
+	return i, err
 }
 
-const isAccountAuthorizedForSAMLSP = `-- name: IsAccountAuthorizedForSAMLSP :one
+const getManualDecisionForOIDCApp = `-- name: GetManualDecisionForOIDCApp :one
+SELECT d.group_id, d.group_kind, d.account_id, d.effect, d.created_at, d.updated_at, d.created_by
+FROM group_manual_decision d
+JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
+WHERE g.oidc_client_id = $1::text
+  AND g.kind = 'manual'
+  AND d.account_id = $2
+`
+
+type GetManualDecisionForOIDCAppParams struct {
+	OidcClientID string `json:"oidcClientId"`
+	AccountID    int32  `json:"accountId"`
+}
+
+func (q *Queries) GetManualDecisionForOIDCApp(ctx context.Context, arg GetManualDecisionForOIDCAppParams) (GroupManualDecision, error) {
+	row := q.db.QueryRow(ctx, getManualDecisionForOIDCApp, arg.OidcClientID, arg.AccountID)
+	var i GroupManualDecision
+	err := row.Scan(
+		&i.GroupID,
+		&i.GroupKind,
+		&i.AccountID,
+		&i.Effect,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getManualDecisionForSAMLApp = `-- name: GetManualDecisionForSAMLApp :one
+SELECT d.group_id, d.group_kind, d.account_id, d.effect, d.created_at, d.updated_at, d.created_by
+FROM group_manual_decision d
+JOIN user_group g ON g.id = d.group_id AND g.kind = d.group_kind
+WHERE g.saml_sp_id = $1::bigint
+  AND g.kind = 'manual'
+  AND d.account_id = $2
+`
+
+type GetManualDecisionForSAMLAppParams struct {
+	SamlSpID  int64 `json:"samlSpId"`
+	AccountID int32 `json:"accountId"`
+}
+
+func (q *Queries) GetManualDecisionForSAMLApp(ctx context.Context, arg GetManualDecisionForSAMLAppParams) (GroupManualDecision, error) {
+	row := q.db.QueryRow(ctx, getManualDecisionForSAMLApp, arg.SamlSpID, arg.AccountID)
+	var i GroupManualDecision
+	err := row.Scan(
+		&i.GroupID,
+		&i.GroupKind,
+		&i.AccountID,
+		&i.Effect,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getOIDCAppGroup = `-- name: GetOIDCAppGroup :one
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+FROM user_group
+WHERE id = $1
+  AND oidc_client_id = $2::text
+`
+
+type GetOIDCAppGroupParams struct {
+	GroupID      int32  `json:"groupId"`
+	OidcClientID string `json:"oidcClientId"`
+}
+
+func (q *Queries) GetOIDCAppGroup(ctx context.Context, arg GetOIDCAppGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, getOIDCAppGroup, arg.GroupID, arg.OidcClientID)
+	var i UserGroup
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Slug,
+		&i.DisplayName,
+		&i.Description,
+		&i.ExposedToDownstream,
+		&i.Rule,
+		&i.OidcClientID,
+		&i.SamlSpID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getSAMLAppGroup = `-- name: GetSAMLAppGroup :one
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+FROM user_group
+WHERE id = $1
+  AND saml_sp_id = $2::bigint
+`
+
+type GetSAMLAppGroupParams struct {
+	GroupID  int32 `json:"groupId"`
+	SamlSpID int64 `json:"samlSpId"`
+}
+
+func (q *Queries) GetSAMLAppGroup(ctx context.Context, arg GetSAMLAppGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, getSAMLAppGroup, arg.GroupID, arg.SamlSpID)
+	var i UserGroup
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Slug,
+		&i.DisplayName,
+		&i.Description,
+		&i.ExposedToDownstream,
+		&i.Rule,
+		&i.OidcClientID,
+		&i.SamlSpID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const isOIDCClientManager = `-- name: IsOIDCClientManager :one
+SELECT EXISTS (
+  SELECT 1
+  FROM oidc_client_manager
+  WHERE client_id = $1
+    AND account_id = $2
+)
+`
+
+type IsOIDCClientManagerParams struct {
+	ClientID  string `json:"clientId"`
+	AccountID int32  `json:"accountId"`
+}
+
+func (q *Queries) IsOIDCClientManager(ctx context.Context, arg IsOIDCClientManagerParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isOIDCClientManager, arg.ClientID, arg.AccountID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const isSAMLSPManager = `-- name: IsSAMLSPManager :one
+SELECT EXISTS (
+  SELECT 1
+  FROM saml_sp_manager
+  WHERE saml_sp_id = $1
+    AND account_id = $2
+)
+`
+
+type IsSAMLSPManagerParams struct {
+	SamlSpID  int64 `json:"samlSpId"`
+	AccountID int32 `json:"accountId"`
+}
+
+func (q *Queries) IsSAMLSPManager(ctx context.Context, arg IsSAMLSPManagerParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isSAMLSPManager, arg.SamlSpID, arg.AccountID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const listActiveAccountAccessFactsPage = `-- name: ListActiveAccountAccessFactsPage :many
 SELECT
-  NOT s.access_restricted
-  OR EXISTS (SELECT 1 FROM saml_sp_access a
-             WHERE a.saml_sp_id = s.id AND a.account_id = $1)
-  OR EXISTS (SELECT 1 FROM saml_sp_access a
-             JOIN group_member m ON m.group_id = a.group_id
-             WHERE a.saml_sp_id = s.id AND m.account_id = $1)
-FROM saml_sp s
-WHERE s.id = $2
-`
-
-type IsAccountAuthorizedForSAMLSPParams struct {
-	AccountID pgtype.Int4 `json:"accountId"`
-	SpID      int64       `json:"spId"`
-}
-
-func (q *Queries) IsAccountAuthorizedForSAMLSP(ctx context.Context, arg IsAccountAuthorizedForSAMLSPParams) (pgtype.Bool, error) {
-	row := q.db.QueryRow(ctx, isAccountAuthorizedForSAMLSP, arg.AccountID, arg.SpID)
-	var column_1 pgtype.Bool
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
-const listAuthorizedForwardAuthAppsForAccount = `-- name: ListAuthorizedForwardAuthAppsForAccount :many
-SELECT c.client_id, c.display_name, c.forward_auth_host, c.forward_auth_scopes
-FROM oidc_client c
-WHERE c.disabled = false
-  AND c.forward_auth_enabled = true
-  AND c.forward_auth_host IS NOT NULL
+  a.id,
+  a.username,
+  a.display_name,
+  a.disabled,
+  EXISTS (
+    SELECT 1 FROM webauthn_credential w WHERE w.account_id = a.id
+  ) AS has_passkey,
+  EXISTS (
+    SELECT 1
+    FROM password_credential p
+    WHERE p.account_id = a.id
+      AND EXISTS (
+        SELECT 1
+        FROM totp_credential t
+        WHERE t.account_id = a.id AND t.confirmed_at IS NOT NULL
+      )
+  ) AS has_password_totp,
+  EXISTS (
+    SELECT 1
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+      AND ip.protocol <> 'vrchat'
+  ) AS has_federation,
+  ARRAY(
+    SELECT DISTINCT ip.slug
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+    ORDER BY ip.slug
+  )::text[] AS confirmed_provider_slugs,
+  ARRAY(
+    SELECT DISTINCT ip.protocol
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+    ORDER BY ip.protocol
+  )::text[] AS confirmed_protocols,
+  EXISTS (
+    SELECT 1 FROM account_avatar av WHERE av.account_id = a.id
+  ) AS has_any_avatar,
+  EXISTS (
+    SELECT 1
+    FROM account_avatar av
+    WHERE av.account_id = a.id AND av.source = 'user'
+  ) AS has_user_avatar
+FROM account a
+WHERE NOT a.disabled
   AND (
-    NOT c.access_restricted
-    OR EXISTS (SELECT 1 FROM oidc_client_access a
-               WHERE a.client_id = c.client_id AND a.account_id = $1)
-    OR EXISTS (SELECT 1 FROM oidc_client_access a
-               JOIN group_member m ON m.group_id = a.group_id
-               WHERE a.client_id = c.client_id AND m.account_id = $1)
+    $1::text IS NULL
+    OR (a.username, a.id) > ($1, $2::int4)
   )
-ORDER BY c.display_name
+ORDER BY a.username ASC, a.id ASC
+LIMIT $3
 `
 
-type ListAuthorizedForwardAuthAppsForAccountRow struct {
-	ClientID          string      `json:"clientId"`
-	DisplayName       string      `json:"displayName"`
-	ForwardAuthHost   pgtype.Text `json:"forwardAuthHost"`
-	ForwardAuthScopes []byte      `json:"forwardAuthScopes"`
+type ListActiveAccountAccessFactsPageParams struct {
+	AfterUsername  pgtype.Text `json:"afterUsername"`
+	AfterAccountID pgtype.Int4 `json:"afterAccountId"`
+	RowLimit       int32       `json:"rowLimit"`
 }
 
-func (q *Queries) ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedForwardAuthAppsForAccountRow, error) {
-	rows, err := q.db.Query(ctx, listAuthorizedForwardAuthAppsForAccount, accountID)
+type ListActiveAccountAccessFactsPageRow struct {
+	ID                     int32    `json:"id"`
+	Username               string   `json:"username"`
+	DisplayName            string   `json:"displayName"`
+	Disabled               bool     `json:"disabled"`
+	HasPasskey             bool     `json:"hasPasskey"`
+	HasPasswordTotp        bool     `json:"hasPasswordTotp"`
+	HasFederation          bool     `json:"hasFederation"`
+	ConfirmedProviderSlugs []string `json:"confirmedProviderSlugs"`
+	ConfirmedProtocols     []string `json:"confirmedProtocols"`
+	HasAnyAvatar           bool     `json:"hasAnyAvatar"`
+	HasUserAvatar          bool     `json:"hasUserAvatar"`
+}
+
+func (q *Queries) ListActiveAccountAccessFactsPage(ctx context.Context, arg ListActiveAccountAccessFactsPageParams) ([]ListActiveAccountAccessFactsPageRow, error) {
+	rows, err := q.db.Query(ctx, listActiveAccountAccessFactsPage, arg.AfterUsername, arg.AfterAccountID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAuthorizedForwardAuthAppsForAccountRow
+	var items []ListActiveAccountAccessFactsPageRow
 	for rows.Next() {
-		var i ListAuthorizedForwardAuthAppsForAccountRow
+		var i ListActiveAccountAccessFactsPageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.DisplayName,
+			&i.Disabled,
+			&i.HasPasskey,
+			&i.HasPasswordTotp,
+			&i.HasFederation,
+			&i.ConfirmedProviderSlugs,
+			&i.ConfirmedProtocols,
+			&i.HasAnyAvatar,
+			&i.HasUserAvatar,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listForwardAuthAccessCandidates = `-- name: ListForwardAuthAccessCandidates :many
+SELECT
+  client_id,
+  display_name,
+  forward_auth_host,
+  forward_auth_scopes,
+  access_restricted
+FROM oidc_client
+WHERE NOT disabled
+  AND forward_auth_enabled
+  AND forward_auth_host IS NOT NULL
+ORDER BY display_name ASC, client_id ASC
+`
+
+type ListForwardAuthAccessCandidatesRow struct {
+	ClientID          string      `json:"clientId"`
+	DisplayName       string      `json:"displayName"`
+	ForwardAuthHost   pgtype.Text `json:"forwardAuthHost"`
+	ForwardAuthScopes []byte      `json:"forwardAuthScopes"`
+	AccessRestricted  bool        `json:"accessRestricted"`
+}
+
+func (q *Queries) ListForwardAuthAccessCandidates(ctx context.Context) ([]ListForwardAuthAccessCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listForwardAuthAccessCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListForwardAuthAccessCandidatesRow
+	for rows.Next() {
+		var i ListForwardAuthAccessCandidatesRow
 		if err := rows.Scan(
 			&i.ClientID,
 			&i.DisplayName,
 			&i.ForwardAuthHost,
 			&i.ForwardAuthScopes,
+			&i.AccessRestricted,
 		); err != nil {
 			return nil, err
 		}
@@ -267,185 +630,49 @@ func (q *Queries) ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, a
 	return items, nil
 }
 
-const listAuthorizedOIDCClientsForAccount = `-- name: ListAuthorizedOIDCClientsForAccount :many
-SELECT c.client_id, c.display_name, c.launch_url, c.redirect_uris
-FROM oidc_client c
-WHERE c.disabled = false
-  AND c.forward_auth_enabled = false
+const listManualDecisionsPage = `-- name: ListManualDecisionsPage :many
+SELECT
+  d.group_id,
+  d.account_id,
+  d.effect,
+  d.created_at,
+  d.updated_at,
+  d.created_by,
+  a.username,
+  a.display_name,
+  a.disabled
+FROM group_manual_decision d
+JOIN account a ON a.id = d.account_id
+WHERE d.group_id = $1
   AND (
-    NOT c.access_restricted
-    OR EXISTS (SELECT 1 FROM oidc_client_access a
-               WHERE a.client_id = c.client_id AND a.account_id = $1)
-    OR EXISTS (SELECT 1 FROM oidc_client_access a
-               JOIN group_member m ON m.group_id = a.group_id
-               WHERE a.client_id = c.client_id AND m.account_id = $1)
+    $2::text IS NULL
+    OR (a.username, a.id) > ($2, $3::int4)
   )
-ORDER BY c.display_name
-`
-
-type ListAuthorizedOIDCClientsForAccountRow struct {
-	ClientID     string      `json:"clientId"`
-	DisplayName  string      `json:"displayName"`
-	LaunchUrl    pgtype.Text `json:"launchUrl"`
-	RedirectUris []string    `json:"redirectUris"`
-}
-
-func (q *Queries) ListAuthorizedOIDCClientsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedOIDCClientsForAccountRow, error) {
-	rows, err := q.db.Query(ctx, listAuthorizedOIDCClientsForAccount, accountID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListAuthorizedOIDCClientsForAccountRow
-	for rows.Next() {
-		var i ListAuthorizedOIDCClientsForAccountRow
-		if err := rows.Scan(
-			&i.ClientID,
-			&i.DisplayName,
-			&i.LaunchUrl,
-			&i.RedirectUris,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAuthorizedSAMLSPsForAccount = `-- name: ListAuthorizedSAMLSPsForAccount :many
-SELECT s.id, s.entity_id, s.display_name
-FROM saml_sp s
-WHERE s.disabled = false
-  AND s.allow_idp_initiated = true
-  AND (
-    NOT s.access_restricted
-    OR EXISTS (SELECT 1 FROM saml_sp_access a
-               WHERE a.saml_sp_id = s.id AND a.account_id = $1)
-    OR EXISTS (SELECT 1 FROM saml_sp_access a
-               JOIN group_member m ON m.group_id = a.group_id
-               WHERE a.saml_sp_id = s.id AND m.account_id = $1)
-  )
-ORDER BY s.display_name
-`
-
-type ListAuthorizedSAMLSPsForAccountRow struct {
-	ID          int64  `json:"id"`
-	EntityID    string `json:"entityId"`
-	DisplayName string `json:"displayName"`
-}
-
-func (q *Queries) ListAuthorizedSAMLSPsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedSAMLSPsForAccountRow, error) {
-	rows, err := q.db.Query(ctx, listAuthorizedSAMLSPsForAccount, accountID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListAuthorizedSAMLSPsForAccountRow
-	for rows.Next() {
-		var i ListAuthorizedSAMLSPsForAccountRow
-		if err := rows.Scan(&i.ID, &i.EntityID, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listExposedGroupSlugsByAccount = `-- name: ListExposedGroupSlugsByAccount :many
-SELECT g.slug
-FROM group_member m
-JOIN user_group g ON g.id = m.group_id
-WHERE m.account_id = $1 AND g.exposed_to_downstream
-ORDER BY g.slug
-`
-
-func (q *Queries) ListExposedGroupSlugsByAccount(ctx context.Context, accountID int32) ([]string, error) {
-	rows, err := q.db.Query(ctx, listExposedGroupSlugsByAccount, accountID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var slug string
-		if err := rows.Scan(&slug); err != nil {
-			return nil, err
-		}
-		items = append(items, slug)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listGroupMembers = `-- name: ListGroupMembers :many
-SELECT a.id, a.username, a.display_name
-FROM group_member m
-JOIN account a ON a.id = m.account_id
-WHERE m.group_id = $1
-ORDER BY a.username
-`
-
-type ListGroupMembersRow struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-}
-
-func (q *Queries) ListGroupMembers(ctx context.Context, groupID int32) ([]ListGroupMembersRow, error) {
-	rows, err := q.db.Query(ctx, listGroupMembers, groupID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListGroupMembersRow
-	for rows.Next() {
-		var i ListGroupMembersRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listGroupMembersPage = `-- name: ListGroupMembersPage :many
-SELECT a.id, a.username, a.display_name
-FROM group_member m
-JOIN account a ON a.id = m.account_id
-WHERE m.group_id = $1
-  AND ($2::text IS NULL OR (a.username, a.id) > ($2, $3::int4))
 ORDER BY a.username ASC, a.id ASC
 LIMIT $4
 `
 
-type ListGroupMembersPageParams struct {
-	GroupID        int32  `json:"groupId"`
-	AfterUsername  string `json:"afterUsername"`
-	AfterAccountID int32  `json:"afterAccountId"`
-	RowLimit       int32  `json:"rowLimit"`
+type ListManualDecisionsPageParams struct {
+	GroupID        int32       `json:"groupId"`
+	AfterUsername  pgtype.Text `json:"afterUsername"`
+	AfterAccountID pgtype.Int4 `json:"afterAccountId"`
+	RowLimit       int32       `json:"rowLimit"`
 }
 
-type ListGroupMembersPageRow struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
+type ListManualDecisionsPageRow struct {
+	GroupID     int32              `json:"groupId"`
+	AccountID   int32              `json:"accountId"`
+	Effect      string             `json:"effect"`
+	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamptz `json:"updatedAt"`
+	CreatedBy   pgtype.Int4        `json:"createdBy"`
+	Username    string             `json:"username"`
+	DisplayName string             `json:"displayName"`
+	Disabled    bool               `json:"disabled"`
 }
 
-// Keyset-paginated group members, ordered by (username ASC, account_id ASC).
-// NULL after_username starts a new page. LIMIT is limit+1 for next-page detection.
-func (q *Queries) ListGroupMembersPage(ctx context.Context, arg ListGroupMembersPageParams) ([]ListGroupMembersPageRow, error) {
-	rows, err := q.db.Query(ctx, listGroupMembersPage,
+func (q *Queries) ListManualDecisionsPage(ctx context.Context, arg ListManualDecisionsPageParams) ([]ListManualDecisionsPageRow, error) {
+	rows, err := q.db.Query(ctx, listManualDecisionsPage,
 		arg.GroupID,
 		arg.AfterUsername,
 		arg.AfterAccountID,
@@ -455,63 +682,19 @@ func (q *Queries) ListGroupMembersPage(ctx context.Context, arg ListGroupMembers
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListGroupMembersPageRow
+	var items []ListManualDecisionsPageRow
 	for rows.Next() {
-		var i ListGroupMembersPageRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listGroups = `-- name: ListGroups :many
-SELECT g.id, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.created_at, g.updated_at, (SELECT count(*) FROM group_member m WHERE m.group_id = g.id) AS member_count
-FROM user_group g
-WHERE ($1::timestamptz IS NULL OR (g.created_at, g.id) < ($1, $2::int4))
-ORDER BY g.created_at DESC, g.id DESC
-LIMIT $3
-`
-
-type ListGroupsParams struct {
-	AfterCreatedAt pgtype.Timestamptz `json:"afterCreatedAt"`
-	AfterID        pgtype.Int4        `json:"afterId"`
-	Limit          int32              `json:"limit"`
-}
-
-type ListGroupsRow struct {
-	ID                  int32              `json:"id"`
-	Slug                string             `json:"slug"`
-	DisplayName         string             `json:"displayName"`
-	Description         pgtype.Text        `json:"description"`
-	ExposedToDownstream bool               `json:"exposedToDownstream"`
-	CreatedAt           pgtype.Timestamptz `json:"createdAt"`
-	UpdatedAt           pgtype.Timestamptz `json:"updatedAt"`
-	MemberCount         int64              `json:"memberCount"`
-}
-
-func (q *Queries) ListGroups(ctx context.Context, arg ListGroupsParams) ([]ListGroupsRow, error) {
-	rows, err := q.db.Query(ctx, listGroups, arg.AfterCreatedAt, arg.AfterID, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListGroupsRow
-	for rows.Next() {
-		var i ListGroupsRow
+		var i ListManualDecisionsPageRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.DisplayName,
-			&i.Description,
-			&i.ExposedToDownstream,
+			&i.GroupID,
+			&i.AccountID,
+			&i.Effect,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.MemberCount,
+			&i.CreatedBy,
+			&i.Username,
+			&i.DisplayName,
+			&i.Disabled,
 		); err != nil {
 			return nil, err
 		}
@@ -523,16 +706,62 @@ func (q *Queries) ListGroups(ctx context.Context, arg ListGroupsParams) ([]ListG
 	return items, nil
 }
 
-const listGroupsForAccount = `-- name: ListGroupsForAccount :many
-SELECT g.id, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.created_at, g.updated_at
-FROM group_member m
-JOIN user_group g ON g.id = m.group_id
-WHERE m.account_id = $1
-ORDER BY g.display_name
+const listOIDCAccessCandidates = `-- name: ListOIDCAccessCandidates :many
+SELECT
+  client_id,
+  display_name,
+  launch_url,
+  redirect_uris,
+  access_restricted
+FROM oidc_client
+WHERE NOT disabled
+  AND NOT forward_auth_enabled
+ORDER BY display_name ASC, client_id ASC
 `
 
-func (q *Queries) ListGroupsForAccount(ctx context.Context, accountID int32) ([]UserGroup, error) {
-	rows, err := q.db.Query(ctx, listGroupsForAccount, accountID)
+type ListOIDCAccessCandidatesRow struct {
+	ClientID         string      `json:"clientId"`
+	DisplayName      string      `json:"displayName"`
+	LaunchUrl        pgtype.Text `json:"launchUrl"`
+	RedirectUris     []string    `json:"redirectUris"`
+	AccessRestricted bool        `json:"accessRestricted"`
+}
+
+func (q *Queries) ListOIDCAccessCandidates(ctx context.Context) ([]ListOIDCAccessCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listOIDCAccessCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOIDCAccessCandidatesRow
+	for rows.Next() {
+		var i ListOIDCAccessCandidatesRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.LaunchUrl,
+			&i.RedirectUris,
+			&i.AccessRestricted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOIDCAppGroups = `-- name: ListOIDCAppGroups :many
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+FROM user_group
+WHERE oidc_client_id = $1::text
+ORDER BY display_name ASC, id ASC
+`
+
+func (q *Queries) ListOIDCAppGroups(ctx context.Context, oidcClientID string) ([]UserGroup, error) {
+	rows, err := q.db.Query(ctx, listOIDCAppGroups, oidcClientID)
 	if err != nil {
 		return nil, err
 	}
@@ -542,10 +771,14 @@ func (q *Queries) ListGroupsForAccount(ctx context.Context, accountID int32) ([]
 		var i UserGroup
 		if err := rows.Scan(
 			&i.ID,
+			&i.Kind,
 			&i.Slug,
 			&i.DisplayName,
 			&i.Description,
 			&i.ExposedToDownstream,
+			&i.Rule,
+			&i.OidcClientID,
+			&i.SamlSpID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -559,32 +792,16 @@ func (q *Queries) ListGroupsForAccount(ctx context.Context, accountID int32) ([]
 	return items, nil
 }
 
-const listGroupsForAccountPage = `-- name: ListGroupsForAccountPage :many
-SELECT g.id, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.created_at, g.updated_at
-FROM group_member m
-JOIN user_group g ON g.id = m.group_id
-WHERE m.account_id = $1
-  AND ($2::text IS NULL OR (g.display_name, g.id) > ($2, $3::int4))
-ORDER BY g.display_name ASC, g.id ASC
-LIMIT $4
+const listOIDCAppRuleGroups = `-- name: ListOIDCAppRuleGroups :many
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+FROM user_group
+WHERE oidc_client_id = $1::text
+  AND kind = 'rule'
+ORDER BY id ASC
 `
 
-type ListGroupsForAccountPageParams struct {
-	AccountID        int32  `json:"accountId"`
-	AfterDisplayName string `json:"afterDisplayName"`
-	AfterGroupID     int32  `json:"afterGroupId"`
-	RowLimit         int32  `json:"rowLimit"`
-}
-
-// Keyset-paginated groups for an account, ordered by (display_name ASC, id ASC).
-// NULL after_display_name starts a new page. LIMIT is limit+1 for next-page detection.
-func (q *Queries) ListGroupsForAccountPage(ctx context.Context, arg ListGroupsForAccountPageParams) ([]UserGroup, error) {
-	rows, err := q.db.Query(ctx, listGroupsForAccountPage,
-		arg.AccountID,
-		arg.AfterDisplayName,
-		arg.AfterGroupID,
-		arg.RowLimit,
-	)
+func (q *Queries) ListOIDCAppRuleGroups(ctx context.Context, oidcClientID string) ([]UserGroup, error) {
+	rows, err := q.db.Query(ctx, listOIDCAppRuleGroups, oidcClientID)
 	if err != nil {
 		return nil, err
 	}
@@ -594,10 +811,14 @@ func (q *Queries) ListGroupsForAccountPage(ctx context.Context, arg ListGroupsFo
 		var i UserGroup
 		if err := rows.Scan(
 			&i.ID,
+			&i.Kind,
 			&i.Slug,
 			&i.DisplayName,
 			&i.Description,
 			&i.ExposedToDownstream,
+			&i.Rule,
+			&i.OidcClientID,
+			&i.SamlSpID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -611,28 +832,52 @@ func (q *Queries) ListGroupsForAccountPage(ctx context.Context, arg ListGroupsFo
 	return items, nil
 }
 
-const listOIDCClientAccessAccounts = `-- name: ListOIDCClientAccessAccounts :many
-SELECT acc.id, acc.username, acc.display_name
-FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
-WHERE a.client_id = $1 ORDER BY acc.username
+const listOIDCClientManagers = `-- name: ListOIDCClientManagers :many
+SELECT
+  m.client_id,
+  m.account_id,
+  m.created_at,
+  m.created_by,
+  a.username,
+  a.display_name,
+  a.role,
+  a.disabled
+FROM oidc_client_manager m
+JOIN account a ON a.id = m.account_id
+WHERE m.client_id = $1
+ORDER BY a.username ASC, a.id ASC
 `
 
-type ListOIDCClientAccessAccountsRow struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
+type ListOIDCClientManagersRow struct {
+	ClientID    string             `json:"clientId"`
+	AccountID   int32              `json:"accountId"`
+	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+	CreatedBy   pgtype.Int4        `json:"createdBy"`
+	Username    string             `json:"username"`
+	DisplayName string             `json:"displayName"`
+	Role        string             `json:"role"`
+	Disabled    bool               `json:"disabled"`
 }
 
-func (q *Queries) ListOIDCClientAccessAccounts(ctx context.Context, clientID string) ([]ListOIDCClientAccessAccountsRow, error) {
-	rows, err := q.db.Query(ctx, listOIDCClientAccessAccounts, clientID)
+func (q *Queries) ListOIDCClientManagers(ctx context.Context, clientID string) ([]ListOIDCClientManagersRow, error) {
+	rows, err := q.db.Query(ctx, listOIDCClientManagers, clientID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListOIDCClientAccessAccountsRow
+	var items []ListOIDCClientManagersRow
 	for rows.Next() {
-		var i ListOIDCClientAccessAccountsRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
+		var i ListOIDCClientManagersRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.AccountID,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.Username,
+			&i.DisplayName,
+			&i.Role,
+			&i.Disabled,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -643,44 +888,40 @@ func (q *Queries) ListOIDCClientAccessAccounts(ctx context.Context, clientID str
 	return items, nil
 }
 
-const listOIDCClientAccessAccountsPage = `-- name: ListOIDCClientAccessAccountsPage :many
-SELECT acc.id, acc.username, acc.display_name
-FROM oidc_client_access a JOIN account acc ON acc.id = a.account_id
-WHERE a.client_id = $1
-  AND ($2::text IS NULL OR (acc.username, acc.id) > ($2, $3::int4))
-ORDER BY acc.username ASC, acc.id ASC
-LIMIT $4
+const listSAMLAccessCandidates = `-- name: ListSAMLAccessCandidates :many
+SELECT
+  id,
+  entity_id,
+  display_name,
+  access_restricted
+FROM saml_sp
+WHERE NOT disabled
+  AND allow_idp_initiated
+ORDER BY display_name ASC, id ASC
 `
 
-type ListOIDCClientAccessAccountsPageParams struct {
-	ClientID       string `json:"clientId"`
-	AfterUsername  string `json:"afterUsername"`
-	AfterAccountID int32  `json:"afterAccountId"`
-	RowLimit       int32  `json:"rowLimit"`
+type ListSAMLAccessCandidatesRow struct {
+	ID               int64  `json:"id"`
+	EntityID         string `json:"entityId"`
+	DisplayName      string `json:"displayName"`
+	AccessRestricted bool   `json:"accessRestricted"`
 }
 
-type ListOIDCClientAccessAccountsPageRow struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-}
-
-// Keyset-paginated access accounts for an OIDC client, ordered by (username ASC, id ASC).
-func (q *Queries) ListOIDCClientAccessAccountsPage(ctx context.Context, arg ListOIDCClientAccessAccountsPageParams) ([]ListOIDCClientAccessAccountsPageRow, error) {
-	rows, err := q.db.Query(ctx, listOIDCClientAccessAccountsPage,
-		arg.ClientID,
-		arg.AfterUsername,
-		arg.AfterAccountID,
-		arg.RowLimit,
-	)
+func (q *Queries) ListSAMLAccessCandidates(ctx context.Context) ([]ListSAMLAccessCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listSAMLAccessCandidates)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListOIDCClientAccessAccountsPageRow
+	var items []ListSAMLAccessCandidatesRow
 	for rows.Next() {
-		var i ListOIDCClientAccessAccountsPageRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
+		var i ListSAMLAccessCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntityID,
+			&i.DisplayName,
+			&i.AccessRestricted,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -691,28 +932,35 @@ func (q *Queries) ListOIDCClientAccessAccountsPage(ctx context.Context, arg List
 	return items, nil
 }
 
-const listOIDCClientAccessGroups = `-- name: ListOIDCClientAccessGroups :many
-SELECT g.id, g.slug, g.display_name
-FROM oidc_client_access a JOIN user_group g ON g.id = a.group_id
-WHERE a.client_id = $1 ORDER BY g.display_name
+const listSAMLAppGroups = `-- name: ListSAMLAppGroups :many
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+FROM user_group
+WHERE saml_sp_id = $1::bigint
+ORDER BY display_name ASC, id ASC
 `
 
-type ListOIDCClientAccessGroupsRow struct {
-	ID          int32  `json:"id"`
-	Slug        string `json:"slug"`
-	DisplayName string `json:"displayName"`
-}
-
-func (q *Queries) ListOIDCClientAccessGroups(ctx context.Context, clientID string) ([]ListOIDCClientAccessGroupsRow, error) {
-	rows, err := q.db.Query(ctx, listOIDCClientAccessGroups, clientID)
+func (q *Queries) ListSAMLAppGroups(ctx context.Context, samlSpID int64) ([]UserGroup, error) {
+	rows, err := q.db.Query(ctx, listSAMLAppGroups, samlSpID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListOIDCClientAccessGroupsRow
+	var items []UserGroup
 	for rows.Next() {
-		var i ListOIDCClientAccessGroupsRow
-		if err := rows.Scan(&i.ID, &i.Slug, &i.DisplayName); err != nil {
+		var i UserGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Slug,
+			&i.DisplayName,
+			&i.Description,
+			&i.ExposedToDownstream,
+			&i.Rule,
+			&i.OidcClientID,
+			&i.SamlSpID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -723,44 +971,36 @@ func (q *Queries) ListOIDCClientAccessGroups(ctx context.Context, clientID strin
 	return items, nil
 }
 
-const listOIDCClientAccessGroupsPage = `-- name: ListOIDCClientAccessGroupsPage :many
-SELECT g.id, g.slug, g.display_name
-FROM oidc_client_access a JOIN user_group g ON g.id = a.group_id
-WHERE a.client_id = $1
-  AND ($2::text IS NULL OR (g.display_name, g.id) > ($2, $3::int4))
-ORDER BY g.display_name ASC, g.id ASC
-LIMIT $4
+const listSAMLAppRuleGroups = `-- name: ListSAMLAppRuleGroups :many
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
+FROM user_group
+WHERE saml_sp_id = $1::bigint
+  AND kind = 'rule'
+ORDER BY id ASC
 `
 
-type ListOIDCClientAccessGroupsPageParams struct {
-	ClientID         string `json:"clientId"`
-	AfterDisplayName string `json:"afterDisplayName"`
-	AfterGroupID     int32  `json:"afterGroupId"`
-	RowLimit         int32  `json:"rowLimit"`
-}
-
-type ListOIDCClientAccessGroupsPageRow struct {
-	ID          int32  `json:"id"`
-	Slug        string `json:"slug"`
-	DisplayName string `json:"displayName"`
-}
-
-// Keyset-paginated access groups for an OIDC client, ordered by (display_name ASC, id ASC).
-func (q *Queries) ListOIDCClientAccessGroupsPage(ctx context.Context, arg ListOIDCClientAccessGroupsPageParams) ([]ListOIDCClientAccessGroupsPageRow, error) {
-	rows, err := q.db.Query(ctx, listOIDCClientAccessGroupsPage,
-		arg.ClientID,
-		arg.AfterDisplayName,
-		arg.AfterGroupID,
-		arg.RowLimit,
-	)
+func (q *Queries) ListSAMLAppRuleGroups(ctx context.Context, samlSpID int64) ([]UserGroup, error) {
+	rows, err := q.db.Query(ctx, listSAMLAppRuleGroups, samlSpID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListOIDCClientAccessGroupsPageRow
+	var items []UserGroup
 	for rows.Next() {
-		var i ListOIDCClientAccessGroupsPageRow
-		if err := rows.Scan(&i.ID, &i.Slug, &i.DisplayName); err != nil {
+		var i UserGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Slug,
+			&i.DisplayName,
+			&i.Description,
+			&i.ExposedToDownstream,
+			&i.Rule,
+			&i.OidcClientID,
+			&i.SamlSpID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -771,28 +1011,52 @@ func (q *Queries) ListOIDCClientAccessGroupsPage(ctx context.Context, arg ListOI
 	return items, nil
 }
 
-const listSAMLSPAccessAccounts = `-- name: ListSAMLSPAccessAccounts :many
-SELECT acc.id, acc.username, acc.display_name
-FROM saml_sp_access a JOIN account acc ON acc.id = a.account_id
-WHERE a.saml_sp_id = $1 ORDER BY acc.username
+const listSAMLSPManagers = `-- name: ListSAMLSPManagers :many
+SELECT
+  m.saml_sp_id,
+  m.account_id,
+  m.created_at,
+  m.created_by,
+  a.username,
+  a.display_name,
+  a.role,
+  a.disabled
+FROM saml_sp_manager m
+JOIN account a ON a.id = m.account_id
+WHERE m.saml_sp_id = $1
+ORDER BY a.username ASC, a.id ASC
 `
 
-type ListSAMLSPAccessAccountsRow struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
+type ListSAMLSPManagersRow struct {
+	SamlSpID    int64              `json:"samlSpId"`
+	AccountID   int32              `json:"accountId"`
+	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+	CreatedBy   pgtype.Int4        `json:"createdBy"`
+	Username    string             `json:"username"`
+	DisplayName string             `json:"displayName"`
+	Role        string             `json:"role"`
+	Disabled    bool               `json:"disabled"`
 }
 
-func (q *Queries) ListSAMLSPAccessAccounts(ctx context.Context, samlSpID int64) ([]ListSAMLSPAccessAccountsRow, error) {
-	rows, err := q.db.Query(ctx, listSAMLSPAccessAccounts, samlSpID)
+func (q *Queries) ListSAMLSPManagers(ctx context.Context, samlSpID int64) ([]ListSAMLSPManagersRow, error) {
+	rows, err := q.db.Query(ctx, listSAMLSPManagers, samlSpID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListSAMLSPAccessAccountsRow
+	var items []ListSAMLSPManagersRow
 	for rows.Next() {
-		var i ListSAMLSPAccessAccountsRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
+		var i ListSAMLSPManagersRow
+		if err := rows.Scan(
+			&i.SamlSpID,
+			&i.AccountID,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.Username,
+			&i.DisplayName,
+			&i.Role,
+			&i.Disabled,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -803,213 +1067,38 @@ func (q *Queries) ListSAMLSPAccessAccounts(ctx context.Context, samlSpID int64) 
 	return items, nil
 }
 
-const listSAMLSPAccessAccountsPage = `-- name: ListSAMLSPAccessAccountsPage :many
-SELECT acc.id, acc.username, acc.display_name
-FROM saml_sp_access a JOIN account acc ON acc.id = a.account_id
-WHERE a.saml_sp_id = $1
-  AND ($2::text IS NULL OR (acc.username, acc.id) > ($2, $3::int4))
-ORDER BY acc.username ASC, acc.id ASC
-LIMIT $4
+const removeOIDCClientManager = `-- name: RemoveOIDCClientManager :execrows
+DELETE FROM oidc_client_manager
+WHERE client_id = $1
+  AND account_id = $2
 `
 
-type ListSAMLSPAccessAccountsPageParams struct {
-	SamlSpID       int64  `json:"samlSpId"`
-	AfterUsername  string `json:"afterUsername"`
-	AfterAccountID int32  `json:"afterAccountId"`
-	RowLimit       int32  `json:"rowLimit"`
+type RemoveOIDCClientManagerParams struct {
+	ClientID  string `json:"clientId"`
+	AccountID int32  `json:"accountId"`
 }
 
-type ListSAMLSPAccessAccountsPageRow struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-}
-
-// Keyset-paginated access accounts for a SAML SP, ordered by (username ASC, id ASC).
-func (q *Queries) ListSAMLSPAccessAccountsPage(ctx context.Context, arg ListSAMLSPAccessAccountsPageParams) ([]ListSAMLSPAccessAccountsPageRow, error) {
-	rows, err := q.db.Query(ctx, listSAMLSPAccessAccountsPage,
-		arg.SamlSpID,
-		arg.AfterUsername,
-		arg.AfterAccountID,
-		arg.RowLimit,
-	)
+func (q *Queries) RemoveOIDCClientManager(ctx context.Context, arg RemoveOIDCClientManagerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeOIDCClientManager, arg.ClientID, arg.AccountID)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	var items []ListSAMLSPAccessAccountsPageRow
-	for rows.Next() {
-		var i ListSAMLSPAccessAccountsPageRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return result.RowsAffected(), nil
 }
 
-const listSAMLSPAccessGroups = `-- name: ListSAMLSPAccessGroups :many
-SELECT g.id, g.slug, g.display_name
-FROM saml_sp_access a JOIN user_group g ON g.id = a.group_id
-WHERE a.saml_sp_id = $1 ORDER BY g.display_name
+const removeSAMLSPManager = `-- name: RemoveSAMLSPManager :execrows
+DELETE FROM saml_sp_manager
+WHERE saml_sp_id = $1
+  AND account_id = $2
 `
 
-type ListSAMLSPAccessGroupsRow struct {
-	ID          int32  `json:"id"`
-	Slug        string `json:"slug"`
-	DisplayName string `json:"displayName"`
-}
-
-func (q *Queries) ListSAMLSPAccessGroups(ctx context.Context, samlSpID int64) ([]ListSAMLSPAccessGroupsRow, error) {
-	rows, err := q.db.Query(ctx, listSAMLSPAccessGroups, samlSpID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListSAMLSPAccessGroupsRow
-	for rows.Next() {
-		var i ListSAMLSPAccessGroupsRow
-		if err := rows.Scan(&i.ID, &i.Slug, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSAMLSPAccessGroupsPage = `-- name: ListSAMLSPAccessGroupsPage :many
-SELECT g.id, g.slug, g.display_name
-FROM saml_sp_access a JOIN user_group g ON g.id = a.group_id
-WHERE a.saml_sp_id = $1
-  AND ($2::text IS NULL OR (g.display_name, g.id) > ($2, $3::int4))
-ORDER BY g.display_name ASC, g.id ASC
-LIMIT $4
-`
-
-type ListSAMLSPAccessGroupsPageParams struct {
-	SamlSpID         int64  `json:"samlSpId"`
-	AfterDisplayName string `json:"afterDisplayName"`
-	AfterGroupID     int32  `json:"afterGroupId"`
-	RowLimit         int32  `json:"rowLimit"`
-}
-
-type ListSAMLSPAccessGroupsPageRow struct {
-	ID          int32  `json:"id"`
-	Slug        string `json:"slug"`
-	DisplayName string `json:"displayName"`
-}
-
-// Keyset-paginated access groups for a SAML SP, ordered by (display_name ASC, id ASC).
-func (q *Queries) ListSAMLSPAccessGroupsPage(ctx context.Context, arg ListSAMLSPAccessGroupsPageParams) ([]ListSAMLSPAccessGroupsPageRow, error) {
-	rows, err := q.db.Query(ctx, listSAMLSPAccessGroupsPage,
-		arg.SamlSpID,
-		arg.AfterDisplayName,
-		arg.AfterGroupID,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListSAMLSPAccessGroupsPageRow
-	for rows.Next() {
-		var i ListSAMLSPAccessGroupsPageRow
-		if err := rows.Scan(&i.ID, &i.Slug, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const removeGroupMember = `-- name: RemoveGroupMember :execrows
-DELETE FROM group_member WHERE group_id = $1 AND account_id = $2
-`
-
-type RemoveGroupMemberParams struct {
-	GroupID   int32 `json:"groupId"`
+type RemoveSAMLSPManagerParams struct {
+	SamlSpID  int64 `json:"samlSpId"`
 	AccountID int32 `json:"accountId"`
 }
 
-func (q *Queries) RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error) {
-	result, err := q.db.Exec(ctx, removeGroupMember, arg.GroupID, arg.AccountID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const revokeOIDCClientAccessAccount = `-- name: RevokeOIDCClientAccessAccount :execrows
-DELETE FROM oidc_client_access WHERE client_id = $1 AND account_id = $2
-`
-
-type RevokeOIDCClientAccessAccountParams struct {
-	ClientID  string      `json:"clientId"`
-	AccountID pgtype.Int4 `json:"accountId"`
-}
-
-func (q *Queries) RevokeOIDCClientAccessAccount(ctx context.Context, arg RevokeOIDCClientAccessAccountParams) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeOIDCClientAccessAccount, arg.ClientID, arg.AccountID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const revokeOIDCClientAccessGroup = `-- name: RevokeOIDCClientAccessGroup :execrows
-DELETE FROM oidc_client_access WHERE client_id = $1 AND group_id = $2
-`
-
-type RevokeOIDCClientAccessGroupParams struct {
-	ClientID string      `json:"clientId"`
-	GroupID  pgtype.Int4 `json:"groupId"`
-}
-
-func (q *Queries) RevokeOIDCClientAccessGroup(ctx context.Context, arg RevokeOIDCClientAccessGroupParams) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeOIDCClientAccessGroup, arg.ClientID, arg.GroupID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const revokeSAMLSPAccessAccount = `-- name: RevokeSAMLSPAccessAccount :execrows
-DELETE FROM saml_sp_access WHERE saml_sp_id = $1 AND account_id = $2
-`
-
-type RevokeSAMLSPAccessAccountParams struct {
-	SamlSpID  int64       `json:"samlSpId"`
-	AccountID pgtype.Int4 `json:"accountId"`
-}
-
-func (q *Queries) RevokeSAMLSPAccessAccount(ctx context.Context, arg RevokeSAMLSPAccessAccountParams) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeSAMLSPAccessAccount, arg.SamlSpID, arg.AccountID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const revokeSAMLSPAccessGroup = `-- name: RevokeSAMLSPAccessGroup :execrows
-DELETE FROM saml_sp_access WHERE saml_sp_id = $1 AND group_id = $2
-`
-
-type RevokeSAMLSPAccessGroupParams struct {
-	SamlSpID int64       `json:"samlSpId"`
-	GroupID  pgtype.Int4 `json:"groupId"`
-}
-
-func (q *Queries) RevokeSAMLSPAccessGroup(ctx context.Context, arg RevokeSAMLSPAccessGroupParams) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeSAMLSPAccessGroup, arg.SamlSpID, arg.GroupID)
+func (q *Queries) RemoveSAMLSPManager(ctx context.Context, arg RemoveSAMLSPManagerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeSAMLSPManager, arg.SamlSpID, arg.AccountID)
 	if err != nil {
 		return 0, err
 	}
@@ -1017,16 +1106,19 @@ func (q *Queries) RevokeSAMLSPAccessGroup(ctx context.Context, arg RevokeSAMLSPA
 }
 
 const setOIDCClientAccessRestricted = `-- name: SetOIDCClientAccessRestricted :one
-UPDATE oidc_client SET access_restricted = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
+UPDATE oidc_client
+SET access_restricted = $1
+WHERE client_id = $2
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
 `
 
 type SetOIDCClientAccessRestrictedParams struct {
-	ClientID         string `json:"clientId"`
 	AccessRestricted bool   `json:"accessRestricted"`
+	ClientID         string `json:"clientId"`
 }
 
 func (q *Queries) SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error) {
-	row := q.db.QueryRow(ctx, setOIDCClientAccessRestricted, arg.ClientID, arg.AccessRestricted)
+	row := q.db.QueryRow(ctx, setOIDCClientAccessRestricted, arg.AccessRestricted, arg.ClientID)
 	var i OidcClient
 	err := row.Scan(
 		&i.ClientID,
@@ -1055,16 +1147,19 @@ func (q *Queries) SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDC
 }
 
 const setSAMLSPAccessRestricted = `-- name: SetSAMLSPAccessRestricted :one
-UPDATE saml_sp SET access_restricted = $2 WHERE id = $1 RETURNING id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled, access_restricted
+UPDATE saml_sp
+SET access_restricted = $1
+WHERE id = $2
+RETURNING id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled, access_restricted
 `
 
 type SetSAMLSPAccessRestrictedParams struct {
-	ID               int64 `json:"id"`
 	AccessRestricted bool  `json:"accessRestricted"`
+	SamlSpID         int64 `json:"samlSpId"`
 }
 
 func (q *Queries) SetSAMLSPAccessRestricted(ctx context.Context, arg SetSAMLSPAccessRestrictedParams) (SamlSp, error) {
-	row := q.db.QueryRow(ctx, setSAMLSPAccessRestricted, arg.ID, arg.AccessRestricted)
+	row := q.db.QueryRow(ctx, setSAMLSPAccessRestricted, arg.AccessRestricted, arg.SamlSpID)
 	var i SamlSp
 	err := row.Scan(
 		&i.ID,
@@ -1087,38 +1182,99 @@ func (q *Queries) SetSAMLSPAccessRestricted(ctx context.Context, arg SetSAMLSPAc
 	return i, err
 }
 
-const updateGroup = `-- name: UpdateGroup :one
+const updateAppGroup = `-- name: UpdateAppGroup :one
 UPDATE user_group
-SET slug = $2, display_name = $3, description = $4, exposed_to_downstream = $5, updated_at = now()
-WHERE id = $1
-RETURNING id, slug, display_name, description, exposed_to_downstream, created_at, updated_at
+SET slug = $1,
+    display_name = $2,
+    description = $3,
+    exposed_to_downstream = $4,
+    rule = $5,
+    updated_at = now()
+WHERE id = $6
+  AND num_nonnulls(
+    $7::text,
+    $8::bigint
+  ) = 1
+  AND (
+    user_group.oidc_client_id = $7::text
+    OR user_group.saml_sp_id = $8::bigint
+  )
+RETURNING id, kind, slug, display_name, description, exposed_to_downstream, rule, oidc_client_id, saml_sp_id, created_at, updated_at
 `
 
-type UpdateGroupParams struct {
-	ID                  int32       `json:"id"`
+type UpdateAppGroupParams struct {
 	Slug                string      `json:"slug"`
 	DisplayName         string      `json:"displayName"`
 	Description         pgtype.Text `json:"description"`
 	ExposedToDownstream bool        `json:"exposedToDownstream"`
+	Rule                []byte      `json:"rule"`
+	GroupID             int32       `json:"groupId"`
+	OidcClientID        pgtype.Text `json:"oidcClientId"`
+	SamlSpID            pgtype.Int8 `json:"samlSpId"`
 }
 
-func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (UserGroup, error) {
-	row := q.db.QueryRow(ctx, updateGroup,
-		arg.ID,
+func (q *Queries) UpdateAppGroup(ctx context.Context, arg UpdateAppGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, updateAppGroup,
 		arg.Slug,
 		arg.DisplayName,
 		arg.Description,
 		arg.ExposedToDownstream,
+		arg.Rule,
+		arg.GroupID,
+		arg.OidcClientID,
+		arg.SamlSpID,
 	)
 	var i UserGroup
 	err := row.Scan(
 		&i.ID,
+		&i.Kind,
 		&i.Slug,
 		&i.DisplayName,
 		&i.Description,
 		&i.ExposedToDownstream,
+		&i.Rule,
+		&i.OidcClientID,
+		&i.SamlSpID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertManualDecision = `-- name: UpsertManualDecision :one
+INSERT INTO group_manual_decision (group_id, account_id, effect, created_by)
+VALUES (
+  $1, $2, $3, $4
+)
+ON CONFLICT (group_id, account_id) DO UPDATE
+SET effect = EXCLUDED.effect,
+    updated_at = now()
+RETURNING group_id, group_kind, account_id, effect, created_at, updated_at, created_by
+`
+
+type UpsertManualDecisionParams struct {
+	GroupID   int32       `json:"groupId"`
+	AccountID int32       `json:"accountId"`
+	Effect    string      `json:"effect"`
+	CreatedBy pgtype.Int4 `json:"createdBy"`
+}
+
+func (q *Queries) UpsertManualDecision(ctx context.Context, arg UpsertManualDecisionParams) (GroupManualDecision, error) {
+	row := q.db.QueryRow(ctx, upsertManualDecision,
+		arg.GroupID,
+		arg.AccountID,
+		arg.Effect,
+		arg.CreatedBy,
+	)
+	var i GroupManualDecision
+	err := row.Scan(
+		&i.GroupID,
+		&i.GroupKind,
+		&i.AccountID,
+		&i.Effect,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
