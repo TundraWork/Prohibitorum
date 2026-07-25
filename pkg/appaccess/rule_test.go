@@ -106,6 +106,41 @@ func TestParseAndValidateRuleRejectsClosedSchemaBoundaries(t *testing.T) {
 	}
 }
 
+func TestParseAndValidateRuleRejectsExplicitNullMembers(t *testing.T) {
+	cases := []struct {
+		name   string
+		raw    string
+		path   string
+		reason string
+	}{
+		{
+			name:   "otherwise-valid leaf has null combinator members",
+			raw:    `{"version":1,"condition":{"fact":"avatar","source":"any","op":null,"children":null}}`,
+			path:   "$.condition",
+			reason: "invalid_shape",
+		},
+		{
+			name:   "otherwise-valid all has null fact member",
+			raw:    `{"version":1,"condition":{"op":"all","children":[{"fact":"avatar","source":"any"}],"fact":null}}`,
+			path:   "$.condition",
+			reason: "invalid_shape",
+		},
+		{
+			name:   "root condition is null",
+			raw:    `{"version":1,"condition":null}`,
+			path:   "$.condition",
+			reason: "invalid_shape",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseAndValidateRule([]byte(tc.raw), nil)
+			assertRuleErrorAt(t, err, tc.path, tc.reason)
+		})
+	}
+}
+
 func TestRuleErrorMessageIsStable(t *testing.T) {
 	err := (&RuleError{Path: "$.condition.children[2]", Reason: "invalid_method"}).Error()
 	if want := "invalid group rule at $.condition.children[2]: invalid_method"; err != want {

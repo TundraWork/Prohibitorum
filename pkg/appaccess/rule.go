@@ -59,38 +59,88 @@ func ParseAndValidateRule(raw []byte, knownProviders map[string]struct{}) (Rule,
 		return Rule{}, ruleError("$", "invalid_json")
 	}
 
-	if wire.Version == nil {
+	if !wire.Version.present {
 		return Rule{}, ruleError("$", "missing_version")
 	}
-	if *wire.Version != 1 {
+	if wire.Version.value == nil || *wire.Version.value != 1 {
 		return Rule{}, ruleError("$", "unsupported_version")
 	}
-	if wire.Condition == nil {
+	if !wire.Condition.present {
 		return Rule{}, ruleError("$", "missing_condition")
+	}
+	if wire.Condition.value == nil {
+		return Rule{}, ruleError("$.condition", "invalid_shape")
 	}
 
 	nodes := 0
-	condition, err := validateCondition(*wire.Condition, "$.condition", 1, &nodes, knownProviders)
+	condition, err := validateCondition(*wire.Condition.value, "$.condition", 1, &nodes, knownProviders)
 	if err != nil {
 		return Rule{}, err
 	}
-	return Rule{Version: *wire.Version, Condition: condition}, nil
+	return Rule{Version: *wire.Version.value, Condition: condition}, nil
 }
 
 type ruleWire struct {
-	Version   *int           `json:"version"`
-	Condition *conditionWire `json:"condition"`
+	Version   optionalValue[int]           `json:"version"`
+	Condition optionalValue[conditionWire] `json:"condition"`
 }
 
 type conditionWire struct {
-	Op       *string          `json:"op"`
-	Children *[]conditionWire `json:"children"`
-	Child    *conditionWire   `json:"child"`
-	Fact     *string          `json:"fact"`
-	Provider *string          `json:"provider"`
-	Protocol *string          `json:"protocol"`
-	Method   *string          `json:"method"`
-	Source   *string          `json:"source"`
+	Op       optionalValue[string]          `json:"op"`
+	Children optionalValue[[]conditionWire] `json:"children"`
+	Child    optionalValue[conditionWire]   `json:"child"`
+	Fact     optionalValue[string]          `json:"fact"`
+	Provider optionalValue[string]          `json:"provider"`
+	Protocol optionalValue[string]          `json:"protocol"`
+	Method   optionalValue[string]          `json:"method"`
+	Source   optionalValue[string]          `json:"source"`
+}
+
+type optionalValue[T any] struct {
+	present bool
+	value   *T
+}
+
+func (o *optionalValue[T]) UnmarshalJSON(raw []byte) error {
+	o.present = true
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		o.value = nil
+		return nil
+	}
+	var value T
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return err
+	}
+	o.value = &value
+	return nil
+}
+
+func (o optionalValue[T]) isNull() bool {
+	return o.present && o.value == nil
+}
+
+func (c *conditionWire) UnmarshalJSON(raw []byte) error {
+	type conditionWireAlias conditionWire
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+
+	var decoded conditionWireAlias
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	*c = conditionWire(decoded)
+	return nil
+}
+
+func (c conditionWire) hasNull() bool {
+	return c.Op.isNull() ||
+		c.Children.isNull() ||
+		c.Child.isNull() ||
+		c.Fact.isNull() ||
+		c.Provider.isNull() ||
+		c.Protocol.isNull() ||
+		c.Method.isNull() ||
+		c.Source.isNull()
 }
 
 func validateCondition(c conditionWire, path string, depth int, nodes *int, knownProviders map[string]struct{}) (Condition, error) {
@@ -101,9 +151,12 @@ func validateCondition(c conditionWire, path string, depth int, nodes *int, know
 	if *nodes > maxRuleNodes {
 		return Condition{}, ruleError(path, "max_nodes_exceeded")
 	}
+	if c.hasNull() {
+		return Condition{}, ruleError(path, "invalid_shape")
+	}
 
-	hasOp := c.Op != nil
-	hasFact := c.Fact != nil
+	hasOp := c.Op.present
+	hasFact := c.Fact.present
 	if hasOp == hasFact {
 		return Condition{}, ruleError(path, "invalid_shape")
 	}
@@ -114,92 +167,92 @@ func validateCondition(c conditionWire, path string, depth int, nodes *int, know
 }
 
 func validateCombinator(c conditionWire, path string, depth int, nodes *int, knownProviders map[string]struct{}) (Condition, error) {
-	if c.Fact != nil || c.Provider != nil || c.Protocol != nil || c.Method != nil || c.Source != nil {
+	if c.Fact.present || c.Provider.present || c.Protocol.present || c.Method.present || c.Source.present {
 		return Condition{}, ruleError(path, "invalid_shape")
 	}
 
-	switch *c.Op {
+	switch *c.Op.value {
 	case "all", "any":
-		if c.Child != nil {
+		if c.Child.present {
 			return Condition{}, ruleError(path, "invalid_shape")
 		}
-		if c.Children == nil {
+		if !c.Children.present {
 			return Condition{}, ruleError(path, "missing_children")
 		}
-		if len(*c.Children) == 0 {
+		if len(*c.Children.value) == 0 {
 			return Condition{}, ruleError(path, "empty_children")
 		}
-		if len(*c.Children) > maxRuleChildren {
+		if len(*c.Children.value) > maxRuleChildren {
 			return Condition{}, ruleError(path, "max_children_exceeded")
 		}
 
-		children := make([]Condition, len(*c.Children))
-		for i, child := range *c.Children {
+		children := make([]Condition, len(*c.Children.value))
+		for i, child := range *c.Children.value {
 			var err error
 			children[i], err = validateCondition(child, childPath(path, "children", i), depth+1, nodes, knownProviders)
 			if err != nil {
 				return Condition{}, err
 			}
 		}
-		return Condition{Op: *c.Op, Children: children}, nil
+		return Condition{Op: *c.Op.value, Children: children}, nil
 	case "not":
-		if c.Children != nil {
+		if c.Children.present {
 			return Condition{}, ruleError(path, "invalid_shape")
 		}
-		if c.Child == nil {
+		if !c.Child.present {
 			return Condition{}, ruleError(path, "missing_child")
 		}
-		child, err := validateCondition(*c.Child, path+".child", depth+1, nodes, knownProviders)
+		child, err := validateCondition(*c.Child.value, path+".child", depth+1, nodes, knownProviders)
 		if err != nil {
 			return Condition{}, err
 		}
-		return Condition{Op: *c.Op, Child: &child}, nil
+		return Condition{Op: *c.Op.value, Child: &child}, nil
 	default:
 		return Condition{}, ruleError(path, "invalid_op")
 	}
 }
 
 func validateFact(c conditionWire, path string, knownProviders map[string]struct{}) (Condition, error) {
-	if c.Children != nil || c.Child != nil {
+	if c.Children.present || c.Child.present {
 		return Condition{}, ruleError(path, "invalid_shape")
 	}
 
-	switch *c.Fact {
+	switch *c.Fact.value {
 	case "connection.provider":
-		if c.Protocol != nil || c.Method != nil || c.Source != nil {
+		if c.Protocol.present || c.Method.present || c.Source.present {
 			return Condition{}, ruleError(path, "invalid_shape")
 		}
-		if c.Provider == nil || *c.Provider == "" {
+		if !c.Provider.present || *c.Provider.value == "" {
 			return Condition{}, ruleError(path, "missing_provider")
 		}
-		if _, found := knownProviders[*c.Provider]; !found {
+		if _, found := knownProviders[*c.Provider.value]; !found {
 			return Condition{}, ruleError(path, "provider_not_found")
 		}
-		return Condition{Fact: *c.Fact, Provider: *c.Provider}, nil
+		return Condition{Fact: *c.Fact.value, Provider: *c.Provider.value}, nil
 	case "connection.protocol":
-		if c.Provider != nil || c.Method != nil || c.Source != nil {
+		if c.Provider.present || c.Method.present || c.Source.present {
 			return Condition{}, ruleError(path, "invalid_shape")
 		}
-		if c.Protocol == nil || !validProtocol(*c.Protocol) {
+		if !c.Protocol.present || !validProtocol(*c.Protocol.value) {
 			return Condition{}, ruleError(path, "invalid_protocol")
 		}
-		return Condition{Fact: *c.Fact, Protocol: *c.Protocol}, nil
+		return Condition{Fact: *c.Fact.value, Protocol: *c.Protocol.value}, nil
 	case "login_method":
-		if c.Provider != nil || c.Protocol != nil || c.Source != nil {
+		if c.Provider.present || c.Protocol.present || c.Source.present {
 			return Condition{}, ruleError(path, "invalid_shape")
 		}
-		if c.Method == nil || !validMethod(*c.Method) {
+		if !c.Method.present || !validMethod(*c.Method.value) {
 			return Condition{}, ruleError(path, "invalid_method")
 		}
-		return Condition{Fact: *c.Fact, Method: *c.Method}, nil
+		return Condition{Fact: *c.Fact.value, Method: *c.Method.value}, nil
 	case "avatar":
-		if c.Provider != nil || c.Protocol != nil || c.Method != nil {
+		if c.Provider.present || c.Protocol.present || c.Method.present {
 			return Condition{}, ruleError(path, "invalid_shape")
 		}
-		if c.Source == nil || !validSource(*c.Source) {
+		if !c.Source.present || !validSource(*c.Source.value) {
 			return Condition{}, ruleError(path, "invalid_source")
 		}
-		return Condition{Fact: *c.Fact, Source: *c.Source}, nil
+		return Condition{Fact: *c.Fact.value, Source: *c.Source.value}, nil
 	default:
 		return Condition{}, ruleError(path, "invalid_fact")
 	}
