@@ -211,6 +211,47 @@ func (q *policyTestQueries) ListSAMLAccessCandidates(context.Context) ([]db.List
 	return rows, nil
 }
 
+func (q *policyTestQueries) ListOIDCManagementCandidates(context.Context) ([]db.ListOIDCManagementCandidatesRow, error) {
+	rows := make([]db.ListOIDCManagementCandidatesRow, 0, len(q.oidc))
+	for _, client := range q.oidc {
+		if client.ForwardAuthEnabled {
+			continue
+		}
+		rows = append(rows, db.ListOIDCManagementCandidatesRow{
+			ClientID: client.ClientID, DisplayName: client.DisplayName, LaunchUrl: client.LaunchUrl,
+			RedirectUris: client.RedirectUris, AccessRestricted: client.AccessRestricted,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].ClientID < rows[j].ClientID })
+	return rows, nil
+}
+
+func (q *policyTestQueries) ListForwardAuthManagementCandidates(context.Context) ([]db.ListForwardAuthManagementCandidatesRow, error) {
+	rows := make([]db.ListForwardAuthManagementCandidatesRow, 0, len(q.oidc))
+	for _, client := range q.oidc {
+		if !client.ForwardAuthEnabled {
+			continue
+		}
+		rows = append(rows, db.ListForwardAuthManagementCandidatesRow{
+			ClientID: client.ClientID, DisplayName: client.DisplayName, ForwardAuthHost: client.ForwardAuthHost,
+			ForwardAuthScopes: client.ForwardAuthScopes, AccessRestricted: client.AccessRestricted,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].ClientID < rows[j].ClientID })
+	return rows, nil
+}
+
+func (q *policyTestQueries) ListSAMLManagementCandidates(context.Context) ([]db.ListSAMLManagementCandidatesRow, error) {
+	rows := make([]db.ListSAMLManagementCandidatesRow, 0, len(q.saml))
+	for _, sp := range q.saml {
+		rows = append(rows, db.ListSAMLManagementCandidatesRow{
+			ID: sp.ID, EntityID: sp.EntityID, DisplayName: sp.DisplayName, AccessRestricted: sp.AccessRestricted,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
+	return rows, nil
+}
+
 func (q *policyTestQueries) ListActiveAccountAccessFactsPage(_ context.Context, arg db.ListActiveAccountAccessFactsPageParams) ([]db.ListActiveAccountAccessFactsPageRow, error) {
 	rows := make([]db.ListActiveAccountAccessFactsPageRow, 0, len(q.accounts))
 	for _, account := range q.accounts {
@@ -424,10 +465,16 @@ func seedPolicyFixtures(q *policyTestQueries) {
 	q.oidc["wiki"] = db.OidcClient{ClientID: "wiki", DisplayName: "Wiki", LaunchUrl: pgtype.Text{String: "https://wiki.example", Valid: true}, RedirectUris: []string{"https://wiki.example/callback"}}
 	q.oidc["forward"] = db.OidcClient{ClientID: "forward", DisplayName: "Forward", ForwardAuthEnabled: true, ForwardAuthHost: pgtype.Text{String: "app.example", Valid: true}, ForwardAuthScopes: []byte(`[{"name":"user","description":"User"}]`)}
 	q.oidc["other"] = db.OidcClient{ClientID: "other", DisplayName: "Other"}
+	q.oidc["disabled-oidc"] = db.OidcClient{ClientID: "disabled-oidc", DisplayName: "Disabled OIDC", Disabled: true}
+	q.oidc["disabled-forward"] = db.OidcClient{ClientID: "disabled-forward", DisplayName: "Disabled Forward", Disabled: true, ForwardAuthEnabled: true}
 	q.saml[7] = db.SamlSp{ID: 7, EntityID: "urn:test:saml", DisplayName: "SAML", AllowIdpInitiated: true}
+	q.saml[8] = db.SamlSp{ID: 8, EntityID: "urn:test:saml:non-idp", DisplayName: "Non-IdP SAML", AllowIdpInitiated: false}
 	q.oidcManagers["wiki"] = map[int32]bool{7: true}
 	q.oidcManagers["forward"] = map[int32]bool{7: true}
 	q.samlManagers[7] = map[int32]bool{7: true}
+	q.oidcManagers["disabled-oidc"] = map[int32]bool{7: true}
+	q.oidcManagers["disabled-forward"] = map[int32]bool{7: true}
+	q.samlManagers[8] = map[int32]bool{7: true}
 	q.accounts[42] = db.GetAccountAccessFactsRow{ID: 42, Username: "alice", DisplayName: "Alice", HasPasskey: true, ConfirmedProviderSlugs: []string{"github"}}
 	q.accounts[43] = db.GetAccountAccessFactsRow{ID: 43, Username: "bob", DisplayName: "Bob", HasFederation: true, ConfirmedProviderSlugs: []string{"github"}}
 	q.groups[1] = db.UserGroup{ID: 1, Kind: "manual", Slug: "exceptions", DisplayName: "Exceptions", OidcClientID: pgtype.Text{String: "wiki", Valid: true}}
@@ -590,20 +637,43 @@ func TestManagedApplicationRoutesAllowAssignedManagerAndAdmin(t *testing.T) {
 	}
 }
 
-func TestListManagedApplicationsFiltersByAssignment(t *testing.T) {
-	for _, actor := range []struct {
+func TestListManagedApplicationsIncludesAssignedNonLaunchableApps(t *testing.T) {
+	tests := []struct {
 		name    string
 		session *authn.Session
-		count   int
+		want    map[string]bool
 	}{
-		{"assigned-manager", managedAppSession(7, "app_manager", false), 3},
-		{"unassigned-manager", managedAppSession(8, "app_manager", false), 0},
-		{"global-admin", managedAppSession(99, "admin", false), 4},
-	} {
-		actor := actor
-		t.Run(actor.name, func(t *testing.T) {
+		{
+			name:    "assigned-manager",
+			session: managedAppSession(7, "app_manager", false),
+			want: map[string]bool{
+				"oidc/wiki":                     true,
+				"forward_auth/forward":          true,
+				"oidc/disabled-oidc":            true,
+				"forward_auth/disabled-forward": true,
+				"saml/7":                        true,
+				"saml/8":                        true,
+			},
+		},
+		{name: "unassigned-manager", session: managedAppSession(8, "app_manager", false), want: map[string]bool{}},
+		{
+			name:    "global-admin",
+			session: managedAppSession(99, "admin", false),
+			want: map[string]bool{
+				"oidc/wiki":                     true,
+				"forward_auth/forward":          true,
+				"oidc/other":                    true,
+				"oidc/disabled-oidc":            true,
+				"forward_auth/disabled-forward": true,
+				"saml/7":                        true,
+				"saml/8":                        true,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			s, _, _ := newPolicyTestServer()
-			rr := managedRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications", "", actor.session)
+			rr := managedRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications", "", test.session)
 			if rr.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
 			}
@@ -611,8 +681,17 @@ func TestListManagedApplicationsFiltersByAssignment(t *testing.T) {
 			if err := json.Unmarshal(rr.Body.Bytes(), &apps); err != nil {
 				t.Fatalf("decode managed applications: %v; body: %s", err, rr.Body.String())
 			}
-			if len(apps) != actor.count {
-				t.Fatalf("managed app count = %d, want %d; apps=%#v", len(apps), actor.count, apps)
+			got := make(map[string]bool, len(apps))
+			for _, app := range apps {
+				got[app.Kind+"/"+app.AppID] = true
+			}
+			if len(got) != len(test.want) {
+				t.Fatalf("managed applications = %#v, want %#v", got, test.want)
+			}
+			for app := range test.want {
+				if !got[app] {
+					t.Fatalf("managed applications = %#v, missing %q", got, app)
+				}
 			}
 		})
 	}
@@ -622,6 +701,26 @@ func TestListManagedApplicationsFiltersByAssignment(t *testing.T) {
 	assertManagedAPIError(t, managedRequest(t, s, http.MethodGet, "/api/prohibitorum/managed-applications", "", managedAppSession(7, "app_manager", true)), http.StatusForbidden, "account_disabled")
 }
 
+func TestManagedApplicationAccountsProjectPageRows(t *testing.T) {
+	s, _, _ := newPolicyTestServer()
+	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/accounts?limit=1"), "", managedAppSession(7, "app_manager", false))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+	}
+	var page contract.Page[contract.AccountSummaryView]
+	if err := json.Unmarshal(rr.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode account page: %v; body: %s", err, rr.Body.String())
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("account items = %#v, want one", page.Items)
+	}
+	if got := page.Items[0]; got.ID != 42 || got.Username != "alice" || got.DisplayName != "Alice" {
+		t.Fatalf("account item = %#v, want safe alice summary", got)
+	}
+	if page.NextCursor == "" {
+		t.Fatal("account page with a second row must provide a next cursor")
+	}
+}
 func TestManagedRouteInputIdentifiersRemainOpaque(t *testing.T) {
 	for _, badID := range []string{"", "0", "-1", "not-a-number"} {
 		t.Run(strconv.Quote(badID), func(t *testing.T) {

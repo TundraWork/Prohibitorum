@@ -169,6 +169,7 @@ type Querier interface {
 	ListEntityIconEtags(ctx context.Context, ownerKind string) ([]ListEntityIconEtagsRow, error)
 	ListForwardAuthAccessCandidates(ctx context.Context) ([]ListForwardAuthAccessCandidatesRow, error)
 	ListForwardAuthClients(ctx context.Context, arg ListForwardAuthClientsParams) ([]ListForwardAuthClientsRow, error)
+	ListForwardAuthManagementCandidates(ctx context.Context) ([]ListForwardAuthManagementCandidatesRow, error)
 	ListKnownUpstreamIDPSlugs(ctx context.Context) ([]string, error)
 	ListManualDecisionsPage(ctx context.Context, arg ListManualDecisionsPageParams) ([]ListManualDecisionsPageRow, error)
 	ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNonForwardAuthOIDCClientsParams) ([]ListNonForwardAuthOIDCClientsRow, error)
@@ -177,6 +178,10 @@ type Querier interface {
 	ListOIDCAppRuleGroups(ctx context.Context, oidcClientID string) ([]UserGroup, error)
 	ListOIDCClientManagers(ctx context.Context, clientID string) ([]ListOIDCClientManagersRow, error)
 	ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error)
+	// Management candidates deliberately do not reuse the launchpad candidate
+	// queries above: an assigned manager must be able to inspect and change policy
+	// for disabled, not-yet-launchable, and non-IdP-initiated applications.
+	ListOIDCManagementCandidates(ctx context.Context) ([]ListOIDCManagementCandidatesRow, error)
 	ListPATsByAccount(ctx context.Context, accountID int32) ([]PersonalAccessToken, error)
 	// Keyset-paginated non-revoked PATs for an account, ordered by (created_at DESC, id DESC).
 	// NULL after_created_at starts a new page. LIMIT is limit+1 for next-page detection.
@@ -188,6 +193,7 @@ type Querier interface {
 	ListSAMLAppGroups(ctx context.Context, samlSpID int64) ([]UserGroup, error)
 	ListSAMLAppRuleGroups(ctx context.Context, samlSpID int64) ([]UserGroup, error)
 	ListSAMLConsentsByAccount(ctx context.Context, accountID int32) ([]ListSAMLConsentsByAccountRow, error)
+	ListSAMLManagementCandidates(ctx context.Context) ([]ListSAMLManagementCandidatesRow, error)
 	ListSAMLSPACSEndpoints(ctx context.Context, spID int64) ([]SamlSpAc, error)
 	ListSAMLSPKeys(ctx context.Context, arg ListSAMLSPKeysParams) ([]SamlSpKey, error)
 	ListSAMLSPManagers(ctx context.Context, samlSpID int64) ([]ListSAMLSPManagersRow, error)

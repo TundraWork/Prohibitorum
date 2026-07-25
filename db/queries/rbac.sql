@@ -364,6 +364,40 @@ WHERE NOT disabled
   AND allow_idp_initiated
 ORDER BY display_name ASC, id ASC;
 
+-- Management candidates deliberately do not reuse the launchpad candidate
+-- queries above: an assigned manager must be able to inspect and change policy
+-- for disabled, not-yet-launchable, and non-IdP-initiated applications.
+-- name: ListOIDCManagementCandidates :many
+SELECT
+  client_id,
+  display_name,
+  launch_url,
+  redirect_uris,
+  access_restricted
+FROM oidc_client
+WHERE NOT forward_auth_enabled
+ORDER BY display_name ASC, client_id ASC;
+
+-- name: ListForwardAuthManagementCandidates :many
+SELECT
+  client_id,
+  display_name,
+  forward_auth_host,
+  forward_auth_scopes,
+  access_restricted
+FROM oidc_client
+WHERE forward_auth_enabled
+ORDER BY display_name ASC, client_id ASC;
+
+-- name: ListSAMLManagementCandidates :many
+SELECT
+  id,
+  entity_id,
+  display_name,
+  access_restricted
+FROM saml_sp
+ORDER BY display_name ASC, id ASC;
+
 -- name: SetOIDCClientAccessRestricted :one
 UPDATE oidc_client
 SET access_restricted = sqlc.arg(access_restricted)

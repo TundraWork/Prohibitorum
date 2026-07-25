@@ -42,6 +42,9 @@ type appPolicyQueries interface {
 	ListOIDCAccessCandidates(context.Context) ([]db.ListOIDCAccessCandidatesRow, error)
 	ListForwardAuthAccessCandidates(context.Context) ([]db.ListForwardAuthAccessCandidatesRow, error)
 	ListSAMLAccessCandidates(context.Context) ([]db.ListSAMLAccessCandidatesRow, error)
+	ListOIDCManagementCandidates(context.Context) ([]db.ListOIDCManagementCandidatesRow, error)
+	ListForwardAuthManagementCandidates(context.Context) ([]db.ListForwardAuthManagementCandidatesRow, error)
+	ListSAMLManagementCandidates(context.Context) ([]db.ListSAMLManagementCandidatesRow, error)
 	ListActiveAccountAccessFactsPage(context.Context, db.ListActiveAccountAccessFactsPageParams) ([]db.ListActiveAccountAccessFactsPageRow, error)
 	CreateOIDCAppGroup(context.Context, db.CreateOIDCAppGroupParams) (db.UserGroup, error)
 	CreateSAMLAppGroup(context.Context, db.CreateSAMLAppGroupParams) (db.UserGroup, error)
@@ -219,15 +222,15 @@ func (s *Server) handleListManagedApplicationsHTTP(w http.ResponseWriter, r *htt
 
 func (s *Server) listManagedApplications(ctx context.Context, accountID int32, role string) ([]contract.AppSummaryView, error) {
 	q := s.appPolicyQ()
-	oidc, err := q.ListOIDCAccessCandidates(ctx)
+	oidc, err := q.ListOIDCManagementCandidates(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list managed OIDC applications: %w", err)
 	}
-	forward, err := q.ListForwardAuthAccessCandidates(ctx)
+	forward, err := q.ListForwardAuthManagementCandidates(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list managed forward-auth applications: %w", err)
 	}
-	saml, err := q.ListSAMLAccessCandidates(ctx)
+	saml, err := q.ListSAMLManagementCandidates(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list managed SAML applications: %w", err)
 	}
@@ -370,7 +373,7 @@ func (s *Server) handleListManagedApplicationAccountsHTTP(w http.ResponseWriter,
 	}
 	items := make([]contract.AccountSummaryView, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, accountSummaryFromFacts(row))
+		items = append(items, accountSummaryFromPage(row))
 	}
 	next := ""
 	if more && len(rows) > 0 {

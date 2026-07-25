@@ -180,6 +180,14 @@ func TestRuleExplanationIsBoundedAndSafe(t *testing.T) {
 	}
 }
 
+func TestRuleExplanationForDisabledAccountIsNotFound(t *testing.T) {
+	s, queries, _ := newPolicyTestServer()
+	queries.accounts[44] = db.GetAccountAccessFactsRow{ID: 44, Username: "disabled", DisplayName: "Disabled", Disabled: true}
+
+	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/explain/44"), "", managedAppSession(7, "app_manager", false))
+	assertManagedAPIError(t, rr, http.StatusNotFound, "account_not_found")
+}
+
 func TestAccessRestrictionToggleIsAuditedWithoutSudo(t *testing.T) {
 	s, queries, auditCapture := newPolicyTestServer()
 	rr := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/access/set-restricted"),

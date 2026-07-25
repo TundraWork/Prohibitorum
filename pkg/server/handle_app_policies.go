@@ -773,6 +773,9 @@ func appPolicyReadErr(err error) error {
 	if errors.Is(err, appaccess.ErrAppNotFound) {
 		return authn.ErrClientNotFound()
 	}
+	if errors.Is(err, appaccess.ErrAccountDisabled) {
+		return authn.ErrAccountNotFound()
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return authn.ErrGroupNotFound()
 	}

@@ -626,6 +626,52 @@ func (q *Queries) ListForwardAuthAccessCandidates(ctx context.Context) ([]ListFo
 	return items, nil
 }
 
+const listForwardAuthManagementCandidates = `-- name: ListForwardAuthManagementCandidates :many
+SELECT
+  client_id,
+  display_name,
+  forward_auth_host,
+  forward_auth_scopes,
+  access_restricted
+FROM oidc_client
+WHERE forward_auth_enabled
+ORDER BY display_name ASC, client_id ASC
+`
+
+type ListForwardAuthManagementCandidatesRow struct {
+	ClientID          string      `json:"clientId"`
+	DisplayName       string      `json:"displayName"`
+	ForwardAuthHost   pgtype.Text `json:"forwardAuthHost"`
+	ForwardAuthScopes []byte      `json:"forwardAuthScopes"`
+	AccessRestricted  bool        `json:"accessRestricted"`
+}
+
+func (q *Queries) ListForwardAuthManagementCandidates(ctx context.Context) ([]ListForwardAuthManagementCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listForwardAuthManagementCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListForwardAuthManagementCandidatesRow
+	for rows.Next() {
+		var i ListForwardAuthManagementCandidatesRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.ForwardAuthHost,
+			&i.ForwardAuthScopes,
+			&i.AccessRestricted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listManualDecisionsPage = `-- name: ListManualDecisionsPage :many
 SELECT
   d.group_id,
@@ -884,6 +930,55 @@ func (q *Queries) ListOIDCClientManagers(ctx context.Context, clientID string) (
 	return items, nil
 }
 
+const listOIDCManagementCandidates = `-- name: ListOIDCManagementCandidates :many
+SELECT
+  client_id,
+  display_name,
+  launch_url,
+  redirect_uris,
+  access_restricted
+FROM oidc_client
+WHERE NOT forward_auth_enabled
+ORDER BY display_name ASC, client_id ASC
+`
+
+type ListOIDCManagementCandidatesRow struct {
+	ClientID         string      `json:"clientId"`
+	DisplayName      string      `json:"displayName"`
+	LaunchUrl        pgtype.Text `json:"launchUrl"`
+	RedirectUris     []string    `json:"redirectUris"`
+	AccessRestricted bool        `json:"accessRestricted"`
+}
+
+// Management candidates deliberately do not reuse the launchpad candidate
+// queries above: an assigned manager must be able to inspect and change policy
+// for disabled, not-yet-launchable, and non-IdP-initiated applications.
+func (q *Queries) ListOIDCManagementCandidates(ctx context.Context) ([]ListOIDCManagementCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listOIDCManagementCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOIDCManagementCandidatesRow
+	for rows.Next() {
+		var i ListOIDCManagementCandidatesRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.DisplayName,
+			&i.LaunchUrl,
+			&i.RedirectUris,
+			&i.AccessRestricted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSAMLAccessCandidates = `-- name: ListSAMLAccessCandidates :many
 SELECT
   id,
@@ -996,6 +1091,48 @@ func (q *Queries) ListSAMLAppRuleGroups(ctx context.Context, samlSpID int64) ([]
 			&i.SamlSpID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSAMLManagementCandidates = `-- name: ListSAMLManagementCandidates :many
+SELECT
+  id,
+  entity_id,
+  display_name,
+  access_restricted
+FROM saml_sp
+ORDER BY display_name ASC, id ASC
+`
+
+type ListSAMLManagementCandidatesRow struct {
+	ID               int64  `json:"id"`
+	EntityID         string `json:"entityId"`
+	DisplayName      string `json:"displayName"`
+	AccessRestricted bool   `json:"accessRestricted"`
+}
+
+func (q *Queries) ListSAMLManagementCandidates(ctx context.Context) ([]ListSAMLManagementCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listSAMLManagementCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSAMLManagementCandidatesRow
+	for rows.Next() {
+		var i ListSAMLManagementCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntityID,
+			&i.DisplayName,
+			&i.AccessRestricted,
 		); err != nil {
 			return nil, err
 		}
