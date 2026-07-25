@@ -40,6 +40,8 @@ const (
 	FactorSettings Factor = "settings"
 	// FactorDiagnostic covers admin request-diagnostic lookups.
 	FactorDiagnostic Factor = "diagnostic"
+	// FactorAppManager covers assignments of scoped application managers.
+	FactorAppManager Factor = "app_manager"
 )
 
 const (
@@ -68,6 +70,9 @@ const (
 	EventAccessRevoked       = "access_revoked"
 	EventAccessRestrictedSet = "access_restricted_set"
 	EventAccessDenied        = "access_denied"
+
+	EventAppManagerAssigned = "app_manager_assigned"
+	EventAppManagerRemoved  = "app_manager_removed"
 
 	EventSudoGranted = "sudo_granted"
 	EventSudoFailed  = "sudo_failed"

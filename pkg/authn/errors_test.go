@@ -47,3 +47,32 @@ func TestFederationFlowErrorDefinitions(t *testing.T) {
 		t.Fatalf("RetryAfter = %v", rateLimited.RetryAfter)
 	}
 }
+
+func TestInvalidRoleListsAppManager(t *testing.T) {
+	err := ErrInvalidRole()
+	allowed, ok := err.Details["allowed"].([]string)
+	if !ok {
+		t.Fatalf("allowed = %#v, want []string", err.Details["allowed"])
+	}
+	want := []string{"user", "app_manager", "admin"}
+	if len(allowed) != len(want) {
+		t.Fatalf("allowed = %#v, want %#v", allowed, want)
+	}
+	for i := range want {
+		if allowed[i] != want[i] {
+			t.Fatalf("allowed = %#v, want %#v", allowed, want)
+		}
+	}
+}
+
+func TestAppManagerErrorDefinitions(t *testing.T) {
+	for _, err := range []*AuthError{ErrNotAppManager(), ErrInvalidManagerRole()} {
+		definition, ok := weberr.DefinitionFor(err.Code)
+		if !ok {
+			t.Fatalf("%s is not registered", err.Code)
+		}
+		if definition.Status != err.Status {
+			t.Fatalf("%s status = %d, want %d", err.Code, definition.Status, err.Status)
+		}
+	}
+}

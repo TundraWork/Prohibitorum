@@ -57,11 +57,15 @@ var sudoGatedRoutes = []sudoRoute{
 	{method: "PUT", path: "/api/prohibitorum/oidc-applications/x", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/rotate-secret", body: `{"clientId":"x"}`},
 	{method: "POST", path: "/api/prohibitorum/oidc-applications/delete", body: `{"clientId":"x"}`},
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/test-client/managers", body: `{"accountId":1}`},
+	{method: "POST", path: "/api/prohibitorum/oidc-applications/test-client/managers/remove", body: `{"accountId":1}`},
 
 	// Forward-auth application lifecycle (Phase 2)
 	{method: "POST", path: "/api/prohibitorum/forward-auth-apps", body: `{}`},
 	{method: "PUT", path: "/api/prohibitorum/forward-auth-apps/test-client", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/delete", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/test-client/managers", body: `{"accountId":1}`},
+	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/test-client/managers/remove", body: `{"accountId":1}`},
 
 	// Identity provider management (create/update/rotate-secret/delete — NOT set-disabled)
 	{method: "POST", path: "/api/prohibitorum/identity-providers", body: `{}`},
@@ -102,6 +106,9 @@ var sudoGatedRoutes = []sudoRoute{
 
 	// Admin request-diagnostic lookup — exact-ID, fresh-sudo gated
 	{method: "GET", path: "/api/prohibitorum/diagnostics/rid", body: ``},
+	// Scoped SAML manager assignment lifecycle
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/managers", body: `{"accountId":1}`},
+	{method: "POST", path: "/api/prohibitorum/saml-applications/1/managers/remove", body: `{"accountId":1}`},
 }
 
 // droppedSudoRoutes is a representative sample of routes that were removed from

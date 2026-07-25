@@ -323,8 +323,51 @@ type updateAccountIn struct {
 	}
 }
 
+// accountUpdateQueries is the query surface that must stay bound to one
+// transaction while an account role changes.
+type accountUpdateQueries interface {
+	GetAccountByID(context.Context, int32) (db.Account, error)
+	CountActiveAdminsForUpdate(context.Context) (int64, error)
+	UpdateAccount(context.Context, db.UpdateAccountParams) (db.Account, error)
+	DeleteManagerAssignmentsForAccount(context.Context, int32) error
+}
+
+type accountUpdateTx interface {
+	Queries() accountUpdateQueries
+	Commit(context.Context) error
+	Rollback(context.Context) error
+}
+
+type accountUpdateTxRunner interface {
+	BeginAccountUpdateTx(context.Context) (accountUpdateTx, error)
+}
+
+type pgAccountUpdateTx struct {
+	tx      pgx.Tx
+	queries accountUpdateQueries
+}
+
+func (t *pgAccountUpdateTx) Queries() accountUpdateQueries { return t.queries }
+func (t *pgAccountUpdateTx) Commit(ctx context.Context) error {
+	return t.tx.Commit(ctx)
+}
+func (t *pgAccountUpdateTx) Rollback(ctx context.Context) error {
+	return t.tx.Rollback(ctx)
+}
+
+func (s *Server) beginAccountUpdateTx(ctx context.Context) (accountUpdateTx, error) {
+	if s.accountUpdateTxRunnerOverride != nil {
+		return s.accountUpdateTxRunnerOverride.BeginAccountUpdateTx(ctx)
+	}
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &pgAccountUpdateTx{tx: tx, queries: s.queries.WithTx(tx)}, nil
+}
+
 func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (*accountOut, error) {
-	if in.Body.Role != "user" && in.Body.Role != "admin" {
+	if !authn.IsValidRole(in.Body.Role) {
 		return nil, authErrToHuma(authn.ErrInvalidRole())
 	}
 	if in.Body.Username != "" {
@@ -340,14 +383,13 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		return nil, authErrToHuma(authn.ErrAdminCannotBeDisabled())
 	}
 
-	tx, err := s.dbPool.Begin(ctx)
+	tx, err := s.beginAccountUpdateTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("handleUpdateAccount: begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	q := s.queries.WithTx(tx)
-
+	q := tx.Queries()
 	current, err := q.GetAccountByID(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -367,6 +409,12 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		}
 		if n <= 1 {
 			return nil, authErrToHuma(authn.ErrLastAdmin())
+		}
+	}
+
+	if current.Role == "app_manager" && in.Body.Role != "app_manager" {
+		if err := q.DeleteManagerAssignmentsForAccount(ctx, current.ID); err != nil {
+			return nil, fmt.Errorf("handleUpdateAccount: delete manager assignments: %w", err)
 		}
 	}
 
@@ -466,7 +514,7 @@ type setAccountDisabledBody struct {
 // clients and upstream IdPs. The auth layer already rejects disabled accounts,
 // so this only flips the flag (no session-revocation logic here — UpdateAccount
 // owns that). Preserves the safety invariant: an admin-role account cannot be
-// disabled (demote to user first); re-enabling is always allowed.
+// disabled until it has been demoted to a non-admin role; re-enabling is always allowed.
 func (s *Server) handleSetAccountDisabledHTTP(w http.ResponseWriter, r *http.Request) {
 	var body setAccountDisabledBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -884,7 +932,7 @@ type invitationOut struct {
 }
 
 func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitationIn) (*invitationOut, error) {
-	if in.Body.Role != "user" && in.Body.Role != "admin" {
+	if !authn.IsValidRole(in.Body.Role) {
 		return nil, authErrToHuma(authn.ErrInvalidRole())
 	}
 	// A federated invite bound to a non-existent or disabled IdP slug is

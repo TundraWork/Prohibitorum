@@ -18,6 +18,7 @@ func init() {
 	defs := []weberr.Definition{
 		{Code: "no_session", Status: http.StatusUnauthorized, LocaleKey: "errors.no_session", DiagnosticKind: "auth", Recovery: "reauth"},
 		{Code: "not_admin", Status: http.StatusForbidden, LocaleKey: "errors.not_admin", DiagnosticKind: "auth"},
+		{Code: "not_app_manager", Status: http.StatusForbidden, LocaleKey: "errors.not_app_manager", DiagnosticKind: "auth"},
 		{Code: "permission_denied", Status: http.StatusForbidden, LocaleKey: "errors.permission_denied", DiagnosticKind: "auth"},
 		{Code: "account_disabled", Status: http.StatusForbidden, LocaleKey: "errors.account_disabled", DiagnosticKind: "auth"},
 		{Code: "last_admin", Status: http.StatusConflict, LocaleKey: "errors.last_admin", DiagnosticKind: "policy"},
@@ -31,6 +32,7 @@ func init() {
 		{Code: "bad_request", Status: http.StatusBadRequest, LocaleKey: "errors.bad_request", DiagnosticKind: "validation"},
 		{Code: "invalid_consent_ticket", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_consent_ticket", DiagnosticKind: "validation"},
 		{Code: "invalid_role", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_role", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"allowed": {}}},
+		{Code: "invalid_manager_role", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_manager_role", DiagnosticKind: "validation"},
 		{Code: "invalid_username", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_username", DiagnosticKind: "validation"},
 		{Code: "invalid_nickname", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_nickname", DiagnosticKind: "validation"},
 		{Code: "invalid_display_name", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_display_name", DiagnosticKind: "validation"},
@@ -147,6 +149,10 @@ func ErrNotAdmin() *AuthError {
 	return newErr(http.StatusForbidden, "not_admin", "需要管理员权限")
 }
 
+func ErrNotAppManager() *AuthError {
+	return newErr(http.StatusForbidden, "not_app_manager", "需要应用管理员权限")
+}
+
 func ErrPermissionDenied() *AuthError {
 	return newErr(http.StatusForbidden, "permission_denied", "权限不足")
 }
@@ -160,11 +166,12 @@ func ErrLastAdmin() *AuthError {
 }
 
 // ErrAdminCannotBeDisabled rejects an update that would leave an account in
-// the role=admin AND disabled=true state. Admins must be demoted to 'user'
-// before they can be disabled. Keeps the active-admin set cleanly defined.
+// the role=admin AND disabled=true state. Admins must be demoted to a
+// non-admin role before they can be disabled. Keeps the active-admin set cleanly
+// defined.
 func ErrAdminCannotBeDisabled() *AuthError {
 	return &AuthError{Code: "admin_cannot_be_disabled", Status: 409,
-		Message: "无法禁用管理员账户，请先降级为标准用户"}
+		Message: "无法禁用管理员账户，请先降级为非管理员角色"}
 }
 
 // ErrCannotDeleteSelf rejects an admin's attempt to delete their own account.
@@ -223,13 +230,32 @@ func ErrInvalidConsentTicket() *AuthError {
 	return newErr(http.StatusBadRequest, "invalid_consent_ticket", "授权请求已失效，请重新发起登录")
 }
 
+// AllowedRoles is the complete account-role vocabulary accepted by admin
+// account updates and enrollment invitations.
+var AllowedRoles = []string{"user", "app_manager", "admin"}
+
+// IsValidRole reports whether role belongs to the supported account-role
+// vocabulary.
+func IsValidRole(role string) bool {
+	for _, allowed := range AllowedRoles {
+		if role == allowed {
+			return true
+		}
+	}
+	return false
+}
+
 func ErrInvalidRole() *AuthError {
 	return &AuthError{
 		Status:  http.StatusBadRequest,
 		Code:    "invalid_role",
 		Message: "角色无效",
-		Details: map[string]any{"allowed": []string{"user", "admin"}},
+		Details: map[string]any{"allowed": append([]string(nil), AllowedRoles...)},
 	}
+}
+
+func ErrInvalidManagerRole() *AuthError {
+	return newErr(http.StatusBadRequest, "invalid_manager_role", "目标账户不是启用的应用管理员")
 }
 
 func ErrInvalidUsername() *AuthError {

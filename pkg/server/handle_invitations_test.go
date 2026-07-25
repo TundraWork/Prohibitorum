@@ -133,6 +133,23 @@ func TestCreateInvitation_SlugBound(t *testing.T) {
 	}
 }
 
+func TestCreateInvitation_AcceptsAppManagerRole(t *testing.T) {
+	q := &fakeInvitationQ{}
+	s := minimalServerForInvitations(q)
+	in := &createInvitationIn{}
+	in.Body.Role = "app_manager"
+
+	if _, err := s.handleCreateInvitation(context.Background(), in); err != nil {
+		t.Fatalf("handleCreateInvitation: %v", err)
+	}
+	if len(q.inserted) != 1 {
+		t.Fatalf("InsertEnrollment call count = %d, want 1", len(q.inserted))
+	}
+	if got := q.inserted[0].TemplateRole.String; got != "app_manager" {
+		t.Fatalf("TemplateRole = %q, want app_manager", got)
+	}
+}
+
 // TestCreateInvitation_NoSlug checks that omitting expectedUpstreamIdpSlug
 // stores a NULL slug in the enrollment row (unbound invite).
 func TestCreateInvitation_NoSlug(t *testing.T) {

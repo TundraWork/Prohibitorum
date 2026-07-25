@@ -103,6 +103,10 @@ type Server struct {
 	// (handleCreateInvitation, handleListInvitations) without standing up
 	// *db.Queries. Nil in production — falls back to s.queries.
 	invitationOverride db.Querier
+	// accountUpdateTxRunnerOverride lets focused account-lifecycle tests inject
+	// one transaction-bound query surface. Nil in production, where
+	// handleUpdateAccount opens a pgx transaction through dbPool.
+	accountUpdateTxRunnerOverride accountUpdateTxRunner
 	// updateMeOverride lets tests inject a fake updateMeQueries for
 	// handleUpdateMe without standing up *db.Queries. Nil in production —
 	// falls back to s.queries.
@@ -164,6 +168,9 @@ type Server struct {
 	// the top-level paginated list handlers without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
 	topLevelQueriesOverride topLevelQueries
+	// managerAssignmentQueriesOverride isolates the application-manager
+	// handlers in focused tests. Nil in production, where they use s.queries.
+	managerAssignmentQueriesOverride managerAssignmentQueries
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -680,6 +687,10 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/rotate-secret", admin, s.handleRotateOIDCApplicationSecretHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/set-disabled", admin, s.handleSetOIDCApplicationDisabledHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/delete", admin, s.handleDeleteOIDCApplicationHTTP)
+	// Scoped managers are admin-visible; every mutation requires a fresh sudo.
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleListOIDCApplicationManagersHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleAssignOIDCApplicationManagerHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/managers/remove", admin, s.handleRemoveOIDCApplicationManagerHTTP)
 
 	// Admin: forward-auth application management (Phase 2). A forward-auth app
 	// is an oidc_client with forward_auth_enabled=true; presented as its own
@@ -691,6 +702,9 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/forward-auth-apps/{clientId}", admin, s.handleUpdateForwardAuthAppHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/set-disabled", admin, s.handleSetForwardAuthAppDisabledHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/delete", admin, s.handleDeleteForwardAuthAppHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth-apps/{clientId}/managers", admin, s.handleListForwardAuthAppManagersHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/{clientId}/managers", admin, s.handleAssignForwardAuthAppManagerHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps/{clientId}/managers/remove", admin, s.handleRemoveForwardAuthAppManagerHTTP)
 
 	// Admin: identity provider management
 	registerOp(mgmt, contract.OperationListIdentityProviders, s.handleListIdentityProviders, admin)
@@ -712,6 +726,9 @@ func (s *Server) registerOperations() {
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/reingest-metadata", admin, s.handleReingestSAMLApplicationHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/set-disabled", admin, s.handleSetSAMLApplicationDisabledHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/delete", admin, s.handleDeleteSAMLApplicationHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleListSAMLApplicationManagersHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/managers", admin, s.handleAssignSAMLApplicationManagerHTTP)
+	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/managers/remove", admin, s.handleRemoveSAMLApplicationManagerHTTP)
 
 	// Admin: per-entity icon upload/remove (app & provider icons). PUT is raw
 	// image + in-handler fresh sudo (the sudo wrapper rejects non-JSON bodies);

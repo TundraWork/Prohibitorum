@@ -89,6 +89,11 @@ func Check(s *Session, req contract.AuthRequirement) error {
 			return ErrNotAdmin()
 		}
 		return nil
+	case contract.AuthAppManager:
+		if s.Account.Role != "app_manager" && s.Account.Role != "admin" {
+			return ErrNotAppManager()
+		}
+		return nil
 	}
 	return ErrNoSession()
 }
