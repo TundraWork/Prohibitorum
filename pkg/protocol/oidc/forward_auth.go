@@ -238,22 +238,23 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 
 	if c, cerr := r.Cookie(faCookieName(secure)); cerr == nil {
 		if sess := loadFASession(ctx, p.kv, c.Value); sess != nil && sess.ClientID == client.ClientID {
-			ok, aerr := p.queries.IsAccountAuthorizedForOIDCClient(ctx, db.IsAccountAuthorizedForOIDCClientParams{
-				AccountID: pgtype.Int4{Int32: sess.AccountID, Valid: true}, ClientID: client.ClientID,
-			})
-			if aerr == nil && ok.Bool {
-				if acct, gerr := p.queries.GetAccountByID(ctx, sess.AccountID); gerr == nil && !acct.Disabled {
+			decision, accessErr := p.evaluateOIDCAccess(ctx, sess.AccountID, client.ClientID)
+			denyReason := "access_evaluation_failed"
+			if accessErr == nil && decision.Allowed {
+				if acct, accountErr := p.queries.GetAccountByID(ctx, sess.AccountID); accountErr == nil && !acct.Disabled {
 					if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {
 						http.Error(w, "service under maintenance", http.StatusServiceUnavailable)
 						return
 					}
-					groups, _ := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
-					writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups, nil)
+					writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), nil)
 					w.WriteHeader(http.StatusOK)
 					return
 				}
+				denyReason = "account_unavailable"
+			} else if accessErr == nil {
+				denyReason = appAccessAuditReason(decision.Source)
 			}
-			// Session was valid but RBAC or account check denied access.
+			// Session was valid but policy or account state denied access.
 			// Emit before falling through to the 302 login redirect.
 			acctID := sess.AccountID
 			audit.RecordOrLog(ctx, p.audit, audit.Record{
@@ -261,7 +262,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 				Factor:    audit.FactorOIDCClient,
 				Event:     audit.EventAccessDenied,
 				Detail: map[string]any{
-					"reason":         "app_access_denied",
+					"reason":         denyReason,
 					"client_id":      client.ClientID,
 					"principal_kind": "session",
 				},
@@ -495,17 +496,19 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		}
 		scopes = s
 	}
-	ok, aerr := p.queries.IsAccountAuthorizedForOIDCClient(ctx, db.IsAccountAuthorizedForOIDCClientParams{
-		AccountID: pgtype.Int4{Int32: acct.ID, Valid: true}, ClientID: client.ClientID,
-	})
-	if aerr != nil || !ok.Bool {
+	decision, accessErr := p.evaluateOIDCAccess(ctx, acct.ID, client.ClientID)
+	if accessErr != nil || !decision.Allowed {
+		reason := "access_evaluation_failed"
+		if accessErr == nil {
+			reason = appAccessAuditReason(decision.Source)
+		}
 		acctID := acct.ID
 		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			AccountID: &acctID,
 			Factor:    audit.FactorOIDCClient,
 			Event:     audit.EventAccessDenied,
 			Detail: map[string]any{
-				"reason":         "app_access_denied",
+				"reason":         reason,
 				"client_id":      client.ClientID,
 				"principal_kind": "pat",
 			},
@@ -513,8 +516,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	groups, _ := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
-	writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), groups, scopes)
+	writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), scopes)
 	_ = p.queries.TouchPATLastUsed(ctx, row.ID)
 	w.WriteHeader(http.StatusOK)
 }

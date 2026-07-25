@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/weberr"
 )
 
@@ -147,6 +148,34 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clientID, _ := claims["client_id"].(string)
+	if clientID == "" {
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
+		return
+	}
+	decision, accessErr := p.evaluateOIDCAccess(ctx, acct.ID, clientID)
+	if accessErr != nil {
+		requestID := weberr.RequestIDFromContext(ctx)
+		slog.Warn("oidc userinfo: internal failure evaluating app access", "request_id", requestID, "error_type", "internal")
+		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "internal error")
+		return
+	}
+	if !decision.Allowed {
+		acctID := acct.ID
+		audit.RecordOrLog(ctx, p.audit, audit.Record{
+			AccountID: &acctID,
+			Factor:    audit.FactorOIDCClient,
+			Event:     audit.EventAccessDenied,
+			Detail: map[string]any{
+				"reason":         appAccessAuditReason(decision.Source),
+				"client_id":      clientID,
+				"principal_kind": "access_token",
+			},
+		})
+		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
+		return
+	}
+
 	var scope []string
 	if s, ok := claims["scope"].(string); ok {
 		scope = strings.Fields(s)
@@ -154,14 +183,7 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 
 	var groups []string
 	if hasScope(scope, "groups") {
-		gs, gerr := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
-		if gerr != nil {
-			requestID := weberr.RequestIDFromContext(ctx)
-			slog.Warn("oidc userinfo: internal failure loading groups", "request_id", requestID, "error_type", "internal")
-			writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "internal error")
-			return
-		}
-		groups = gs
+		groups = decision.ExposedGroupSlugs()
 	}
 
 	w.Header().Set("Content-Type", "application/json")

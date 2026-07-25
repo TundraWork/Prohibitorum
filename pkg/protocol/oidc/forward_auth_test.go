@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
@@ -109,13 +110,13 @@ type fakeFAQueries struct {
 	faClientErr error
 	// knownHost, when set, restricts GetForwardAuthClientByHost to that host.
 	knownHost string
-	// authorized controls IsAccountAuthorizedForOIDCClient.
+	// authorized and authzErr drive the injected live app-policy authorizer.
 	authorized bool
 	authzErr   error
 	// acct is returned by GetAccountByID when acctErr is nil.
 	acct    db.Account
 	acctErr error
-	// groups is returned by ListExposedGroupSlugsByAccount.
+	// groups become exposed matching rule groups in the fake decision.
 	groups []string
 	// PAT lookup results for the Bearer path.
 	pat    db.PersonalAccessToken
@@ -135,22 +136,11 @@ func (f *fakeFAQueries) GetForwardAuthClientByHost(_ context.Context, host pgtyp
 	return f.faClient, nil
 }
 
-func (f *fakeFAQueries) IsAccountAuthorizedForOIDCClient(_ context.Context, _ db.IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error) {
-	if f.authzErr != nil {
-		return pgtype.Bool{}, f.authzErr
-	}
-	return pgtype.Bool{Bool: f.authorized, Valid: true}, nil
-}
-
 func (f *fakeFAQueries) GetAccountByID(_ context.Context, _ int32) (db.Account, error) {
 	if f.acctErr != nil {
 		return db.Account{}, f.acctErr
 	}
 	return f.acct, nil
-}
-
-func (f *fakeFAQueries) ListExposedGroupSlugsByAccount(_ context.Context, _ int32) ([]string, error) {
-	return f.groups, nil
 }
 
 func (f *fakeFAQueries) GetPATByTokenHash(_ context.Context, _ []byte) (db.PersonalAccessToken, error) {
@@ -177,12 +167,30 @@ func (f *fakeFAQueries) SetForwardAuthConfig(_ context.Context, p db.SetForwardA
 // querier and a fresh memory KV, returning both so tests can pre-seed the KV.
 func newFAProvider(q db.Querier) (*Provider, kv.Store) {
 	store := kv.NewMemoryStore()
+	fake, _ := q.(*fakeFAQueries)
+	access := &fakeOIDCAuthorizer{evaluate: func(context.Context, int32, string) (appaccess.Decision, error) {
+		if fake == nil {
+			return appaccess.Decision{Allowed: true, Source: appaccess.SourceOpen}, nil
+		}
+		if fake.authzErr != nil {
+			return appaccess.Decision{}, fake.authzErr
+		}
+		if !fake.authorized {
+			return appaccess.Decision{Source: appaccess.SourceNoMatch}, nil
+		}
+		matches := make([]appaccess.GroupMatch, 0, len(fake.groups))
+		for _, slug := range fake.groups {
+			matches = append(matches, appaccess.GroupMatch{Slug: slug, Exposed: true, Matched: true})
+		}
+		return appaccess.Decision{Allowed: true, Source: appaccess.SourceRule, MatchingRuleGroups: matches}, nil
+	}}
 	p := &Provider{
 		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}},
 		queries: q,
 		kv:      store,
 		audit:   &recordingAudit{},
 		rl:      authn.NewRateLimiter(),
+		access:  access,
 	}
 	return p, store
 }
@@ -317,6 +325,14 @@ func TestForwardAuthVerify_ValidCookie_200WithHeaders(t *testing.T) {
 		groups: []string{"admins"},
 	}
 	p, store := newFAProvider(q)
+	p.access = &fakeOIDCAuthorizer{byClient: map[string]appaccess.Decision{
+		"svc": {
+			Allowed:            true,
+			Source:             appaccess.SourceManualAllow,
+			ManualGroup:        &appaccess.GroupMatch{Slug: "manual", Exposed: true},
+			MatchingRuleGroups: []appaccess.GroupMatch{{Slug: "admins", Exposed: true, Matched: true}},
+		},
+	}}
 
 	// Pre-seed a forward-auth session in the provider's KV store.
 	token, err := mintFASession(ctx, store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
@@ -335,8 +351,8 @@ func TestForwardAuthVerify_ValidCookie_200WithHeaders(t *testing.T) {
 	if h.Get("Remote-User") != "alice" {
 		t.Errorf("Remote-User: want alice, got %q", h.Get("Remote-User"))
 	}
-	if h.Get("Remote-Groups") != "admins" {
-		t.Errorf("Remote-Groups: want admins, got %q", h.Get("Remote-Groups"))
+	if h.Get("Remote-Groups") != "admins,manual" {
+		t.Errorf("Remote-Groups: want admins,manual, got %q", h.Get("Remote-Groups"))
 	}
 }
 
@@ -938,15 +954,9 @@ func TestForwardAuthVerify_PAT_PrecedesCookie(t *testing.T) {
 // newFAProviderAudit is like newFAProvider but also returns the recording audit
 // writer so tests can inspect emitted records.
 func newFAProviderAudit(q db.Querier) (*Provider, kv.Store, *recordingAudit) {
-	store := kv.NewMemoryStore()
+	p, store := newFAProvider(q)
 	ra := &recordingAudit{}
-	p := &Provider{
-		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}},
-		queries: q,
-		kv:      store,
-		audit:   ra,
-		rl:      authn.NewRateLimiter(),
-	}
+	p.audit = ra
 	return p, store, ra
 }
 
@@ -990,8 +1000,8 @@ func TestForwardAuthAudit_PAT_RBACDenied(t *testing.T) {
 	if got := found.Detail["client_id"]; got != "svc" {
 		t.Errorf("client_id = %v, want svc", got)
 	}
-	if got := found.Detail["reason"]; got != "app_access_denied" {
-		t.Errorf("reason = %v, want app_access_denied", got)
+	if got := found.Detail["reason"]; got != "no_matching_group" {
+		t.Errorf("reason = %v, want no_matching_group", got)
 	}
 }
 

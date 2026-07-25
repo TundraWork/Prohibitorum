@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
@@ -33,22 +34,39 @@ type fakeAuthzQueries struct {
 	sessionErr error
 	granted    []string
 	grantedErr error
-	// denied inverts the per-app access predicate: zero-value (false) means the
-	// account IS authorized, so every existing test keeps passing untouched. Set
-	// true to exercise the RBAC denial path. authzErr forces a predicate error
-	// (fail-closed → server_error).
-	denied   bool
-	authzErr error
+	denied     bool
+	authzErr   error
 }
 
-// IsAccountAuthorizedForOIDCClient backs the RBAC per-app access gate. Default
-// (denied=false, authzErr=nil) → authorized=true so pre-RBAC tests are
-// unaffected.
-func (f *fakeAuthzQueries) IsAccountAuthorizedForOIDCClient(_ context.Context, _ db.IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error) {
-	if f.authzErr != nil {
-		return pgtype.Bool{}, f.authzErr
+type fakeOIDCAuthorizer struct {
+	evaluate func(context.Context, int32, string) (appaccess.Decision, error)
+	byClient map[string]appaccess.Decision
+	err      error
+}
+
+func (f *fakeOIDCAuthorizer) EvaluateOIDC(ctx context.Context, accountID int32, clientID string) (appaccess.Decision, error) {
+	if f.evaluate != nil {
+		return f.evaluate(ctx, accountID, clientID)
 	}
-	return pgtype.Bool{Bool: !f.denied, Valid: true}, nil
+	if f.err != nil {
+		return appaccess.Decision{}, f.err
+	}
+	if decision, ok := f.byClient[clientID]; ok {
+		return decision, nil
+	}
+	return appaccess.Decision{Allowed: true, Source: appaccess.SourceOpen}, nil
+}
+
+func authzFromAuthorizeQueries(q *fakeAuthzQueries) appaccess.OIDCAuthorizer {
+	return &fakeOIDCAuthorizer{evaluate: func(context.Context, int32, string) (appaccess.Decision, error) {
+		if q.authzErr != nil {
+			return appaccess.Decision{}, q.authzErr
+		}
+		if q.denied {
+			return appaccess.Decision{Source: appaccess.SourceManualDeny}, nil
+		}
+		return appaccess.Decision{Allowed: true, Source: appaccess.SourceOpen}, nil
+	}}
 }
 
 func (f *fakeAuthzQueries) GetOIDCClient(ctx context.Context, id string) (db.OidcClient, error) {
@@ -123,6 +141,7 @@ func newProvider(q db.Querier, a audit.Writer) *Provider {
 		kv:      kv.NewMemoryStore(),
 		audit:   a,
 		rl:      authn.NewRateLimiter(),
+		access:  authzFromAuthorizeQueries(q.(*fakeAuthzQueries)),
 	}
 }
 
@@ -770,8 +789,23 @@ func TestAuthorize_AppAccessDenied_Interactive(t *testing.T) {
 	if r0.AccountID == nil || *r0.AccountID != 42 {
 		t.Fatalf("denial audit AccountID should be 42, got %v", r0.AccountID)
 	}
-	if r0.Detail["reason"] != "app_access_denied" {
-		t.Fatalf("denial audit reason should be app_access_denied, got %v", r0.Detail["reason"])
+	if r0.Detail["reason"] != "manual_deny" {
+		t.Fatalf("denial audit reason should be manual_deny, got %v", r0.Detail["reason"])
+	}
+}
+
+func TestAuthorize_NoMatchingGroupAuditReason(t *testing.T) {
+	q := &fakeAuthzQueries{client: validClient(), session: validSession()}
+	ra := &recordingAudit{}
+	p := newProvider(q, ra)
+	p.access = &fakeOIDCAuthorizer{byClient: map[string]appaccess.Decision{
+		"rp-1": {Source: appaccess.SourceNoMatch},
+	}}
+
+	p.HandleAuthorize(httptest.NewRecorder(), authedReq(baseParams()))
+
+	if len(ra.records) != 1 || ra.records[0].Detail["reason"] != "no_matching_group" {
+		t.Fatalf("audit = %#v, want no_matching_group denial", ra.records)
 	}
 }
 

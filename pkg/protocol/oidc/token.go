@@ -257,9 +257,24 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	decision, accessErr := p.evaluateOIDCAccess(ctx, acct.ID, client.ClientID)
+	if accessErr != nil {
+		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not evaluate access")
+		return
+	}
+	if !decision.Allowed {
+		acctID := acct.ID
+		p.auditTokenEvent(ctx, r, audit.EventAccessDenied, &acctID, map[string]any{
+			"reason":    appAccessAuditReason(decision.Source),
+			"client_id": client.ClientID,
+		})
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "not authorized for this application")
+		return
+	}
+
 	now := time.Now()
 
-	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, ac.Scope, ac.AuthTime, now)
+	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, ac.Scope, decision.ExposedGroupSlugs(), ac.AuthTime, now)
 	if err != nil {
 		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
 		return
@@ -313,7 +328,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 // the re-issued ID token correctly omits the nonce claim). The access token's
 // aud is the issuer itself: the OP is its own resource server (notably for
 // /userinfo). Returns (accessToken, idToken, err).
-func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, clientID, nonce, sid, acr string, amr, scope []string, authTime, now time.Time) (string, string, error) {
+func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, clientID, nonce, sid, acr string, amr, scope, groups []string, authTime, now time.Time) (string, string, error) {
 	issuer := p.cfg.OIDC.Issuer
 
 	jti, err := randJTI()
@@ -333,15 +348,6 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 	accessToken, err := p.signJWT(ctx, atClaims, "at+jwt")
 	if err != nil {
 		return "", "", err
-	}
-
-	var groups []string
-	if hasScope(scope, "groups") {
-		gs, gerr := p.queries.ListExposedGroupSlugsByAccount(ctx, acct.ID)
-		if gerr != nil {
-			return "", "", gerr
-		}
-		groups = gs
 	}
 
 	avatarOrigin := issuer

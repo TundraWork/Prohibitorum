@@ -14,11 +14,13 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
@@ -44,6 +46,7 @@ type Provider struct {
 	// clientIP resolves the effective client IP for audit records. nil in bare-Config
 	// unit tests, where auditIP falls back to the request peer.
 	clientIP func(*http.Request) string
+	access   appaccess.OIDCAuthorizer
 }
 
 // SetMaintenanceChecker injects a callback reporting whether maintenance mode is
@@ -55,7 +58,7 @@ func (p *Provider) SetMaintenanceChecker(fn func(context.Context) bool) { p.main
 
 // New constructs a Provider, building the signing-key cache from queries and
 // retaining every dependency the handlers attach to.
-func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *session.SessionStore, auditW audit.Writer, rl *authn.RateLimiter, clientIP func(*http.Request) string) *Provider {
+func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *session.SessionStore, auditW audit.Writer, rl *authn.RateLimiter, clientIP func(*http.Request) string, access appaccess.OIDCAuthorizer) *Provider {
 	return &Provider{
 		cfg:      cfg,
 		queries:  queries,
@@ -66,7 +69,24 @@ func New(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *se
 		rl:       rl,
 		keys:     newKeyCache(queries, cfg.DataEncryptionKeys),
 		clientIP: clientIP,
+		access:   access,
 	}
+}
+
+var errAppAccessUnavailable = errors.New("oidc app access authorizer unavailable")
+
+func (p *Provider) evaluateOIDCAccess(ctx context.Context, accountID int32, clientID string) (appaccess.Decision, error) {
+	if p.access == nil {
+		return appaccess.Decision{}, errAppAccessUnavailable
+	}
+	return p.access.EvaluateOIDC(ctx, accountID, clientID)
+}
+
+func appAccessAuditReason(source appaccess.DecisionSource) string {
+	if source == appaccess.SourceManualDeny {
+		return "manual_deny"
+	}
+	return "no_matching_group"
 }
 
 // auditIP returns the effective client IP for audit records: the injected resolver

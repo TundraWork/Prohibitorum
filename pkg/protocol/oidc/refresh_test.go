@@ -648,7 +648,7 @@ func TestTokenRefreshAppAccessDenied(t *testing.T) {
 	// A denial audit record (access_denied / account 42) must be emitted.
 	var sawDenied bool
 	for _, r := range h.audit.records {
-		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventAccessDenied && r.Detail["reason"] == "app_access_denied" {
+		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventAccessDenied && r.Detail["reason"] == "manual_deny" {
 			sawDenied = true
 			if r.AccountID == nil || *r.AccountID != 42 {
 				t.Fatalf("access_denied AccountID = %v, want 42", r.AccountID)
@@ -656,7 +656,7 @@ func TestTokenRefreshAppAccessDenied(t *testing.T) {
 		}
 	}
 	if !sawDenied {
-		t.Fatal("expected an app_access_denied audit record on refresh denial")
+		t.Fatal("expected a manual_deny audit record on refresh denial")
 	}
 }
 
@@ -1225,7 +1225,6 @@ func mustFID(t *testing.T, token string) string {
 	}
 	return fid
 }
-
 
 // ── Task 12: lifetime + originating-session enforcement ─────────────────────
 

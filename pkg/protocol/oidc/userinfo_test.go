@@ -13,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/appaccess"
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
@@ -83,13 +85,6 @@ func (f *fakeEndpointQueries) InsertRevokedJTI(_ context.Context, arg db.InsertR
 	return nil
 }
 
-func (f *fakeEndpointQueries) ListExposedGroupSlugsByAccount(_ context.Context, _ int32) ([]string, error) {
-	if f.groupsErr != nil {
-		return nil, f.groupsErr
-	}
-	return nil, nil
-}
-
 // endpointHarness wires a Provider with a working signing key, the fake query
 // layer above (registering testClientID + an account at id 7 / testSubject), an
 // in-memory KV, a recording audit writer, and a rate limiter.
@@ -118,6 +113,12 @@ func newEndpointHarness(t *testing.T) *endpointHarness {
 		bySubject:   map[string]db.Account{testSubject: acct},
 		revokedJTIs: map[string]bool{},
 	}
+	access := &fakeOIDCAuthorizer{evaluate: func(context.Context, int32, string) (appaccess.Decision, error) {
+		if q.groupsErr != nil {
+			return appaccess.Decision{}, q.groupsErr
+		}
+		return appaccess.Decision{Allowed: true, Source: appaccess.SourceOpen}, nil
+	}}
 	ra := &recordingAudit{}
 	p := &Provider{
 		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}, PublicOrigins: []string{testIssuer}},
@@ -127,6 +128,7 @@ func newEndpointHarness(t *testing.T) *endpointHarness {
 		audit:   ra,
 		rl:      authn.NewRateLimiter(),
 		keys:    newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs),
+		access:  access,
 	}
 	return &endpointHarness{p: p, q: q, audit: ra}
 }
@@ -326,14 +328,14 @@ func TestUserinfoEmptyPublicOriginsNoPanic(t *testing.T) {
 	}
 }
 
-// TestUserinfoGroupLoadFailure_NoInvalidTokenLeak proves that when the groups
+// TestUserinfoAppPolicyEvaluationFailure_NoInvalidTokenLeak proves that when the groups
 // scope is requested but the DB group-load fails, the response does NOT
 // claim invalid_token (the token is valid), does NOT leak operation prose
 // like "could not load groups", and emits a protocol-conformant server_error
 // with request-ID correlation.
-func TestUserinfoGroupLoadFailure_NoInvalidTokenLeak(t *testing.T) {
+func TestUserinfoAppPolicyEvaluationFailure_NoInvalidTokenLeak(t *testing.T) {
 	h := newEndpointHarness(t)
-	// Inject a failing ListExposedGroupSlugsByAccount.
+	// Inject a failing live app-policy evaluation.
 	h.q.groupsErr = errors.New("db: connection refused")
 
 	at := h.mintAccessToken(t, testSubject, testClientID, "openid groups", "jti-grp-fail", time.Now().Add(time.Hour))
@@ -369,5 +371,58 @@ func TestUserinfoGroupLoadFailure_NoInvalidTokenLeak(t *testing.T) {
 	// error_description must NOT contain the raw DB error.
 	if strings.Contains(resp["error_description"], "connection refused") {
 		t.Errorf("error_description leaked raw DB error: %s", resp["error_description"])
+	}
+}
+
+func TestUserinfoProjectsCurrentClientDecisionGroups(t *testing.T) {
+	h := newEndpointHarness(t)
+	h.p.access = &fakeOIDCAuthorizer{byClient: map[string]appaccess.Decision{
+		testClientID: {
+			Allowed:     true,
+			Source:      appaccess.SourceManualAllow,
+			ManualGroup: &appaccess.GroupMatch{Slug: "manual", Exposed: true},
+			MatchingRuleGroups: []appaccess.GroupMatch{
+				{Slug: "zeta", Exposed: true, Matched: true},
+				{Slug: "hidden", Matched: true},
+				{Slug: "alpha", Exposed: true, Matched: true},
+			},
+		},
+	}}
+	at := h.mintAccessToken(t, testSubject, testClientID, "openid groups", "jti-app-groups", time.Now().Add(time.Hour))
+	rec := httptest.NewRecorder()
+
+	h.p.HandleUserinfo(rec, userinfoReq(at))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Groups []string `json:"groups"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"alpha", "manual", "zeta"}
+	if strings.Join(body.Groups, ",") != strings.Join(want, ",") {
+		t.Fatalf("groups = %v, want %v", body.Groups, want)
+	}
+}
+
+func TestUserinfoAppAccessDenied(t *testing.T) {
+	h := newEndpointHarness(t)
+	h.p.access = &fakeOIDCAuthorizer{byClient: map[string]appaccess.Decision{
+		testClientID: {Source: appaccess.SourceManualDeny},
+	}}
+	at := h.mintAccessToken(t, testSubject, testClientID, "openid", "jti-denied", time.Now().Add(time.Hour))
+	rec := httptest.NewRecorder()
+
+	h.p.HandleUserinfo(rec, userinfoReq(at))
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401: %s", rec.Code, rec.Body.String())
+	}
+	if len(h.audit.records) != 1 || h.audit.records[0].Event != audit.EventAccessDenied ||
+		h.audit.records[0].Detail["reason"] != "manual_deny" {
+		t.Fatalf("audit = %#v, want manual_deny access denial", h.audit.records)
 	}
 }

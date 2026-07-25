@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -136,14 +135,11 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	// Placed immediately after the session/disabled gate and BEFORE any
 	// prompt/re-auth/consent handling so an unauthorized user never reaches those
 	// flows. Fail CLOSED: a predicate error denies (surfaced as server_error).
-	authzed, aerr := p.queries.IsAccountAuthorizedForOIDCClient(r.Context(), db.IsAccountAuthorizedForOIDCClientParams{
-		AccountID: pgtype.Int4{Int32: sess.Data.AccountID, Valid: true},
-		ClientID:  clientID,
-	})
-	if aerr != nil || !authzed.Bool {
-		if aerr != nil {
+	decision, accessErr := p.evaluateOIDCAccess(r.Context(), sess.Data.AccountID, clientID)
+	if accessErr != nil || !decision.Allowed {
+		if accessErr != nil {
 			// Fail closed, but surface as server_error (not access_denied): we
-			// could not evaluate the predicate, so we make no authorization claim.
+			// could not evaluate policy, so we make no authorization claim.
 			redirectError(w, r, redirectURI, errCodeServerError, "could not evaluate access", state, p.cfg.OIDC.Issuer)
 			return
 		}
@@ -155,7 +151,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			IP:        audit.ParseIPOrNil(p.auditIP(r)),
 			UserAgent: r.UserAgent(),
 			Detail: map[string]any{
-				"reason":    "app_access_denied",
+				"reason":    appAccessAuditReason(decision.Source),
 				"client_id": clientID,
 			},
 		})

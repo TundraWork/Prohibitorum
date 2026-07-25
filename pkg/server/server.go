@@ -333,6 +333,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	)
 
 	rateLimiter := authn.NewRateLimiter()
+	accessService := appaccess.NewService(queries)
 
 	s := &Server{
 		queries:               queries,
@@ -346,7 +347,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		pairingStore:          pairing.NewPairingStore(kvStore),
 		rateLimiter:           rateLimiter,
 		webauthn:              wa,
-		oidcOP:                oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
+		oidcOP:                oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP, accessService),
 		samlIdP:               samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
 		passwordStore:         passwordStore,
 		totpStore:             totpStore,
@@ -364,7 +365,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		clientIP:              clientIPResolver,
 		diagStore:             diagStore,
 		cursorCodec:           cursorCodec,
-		appPolicyService:     appaccess.NewService(queries),
+		appPolicyService:      accessService,
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.

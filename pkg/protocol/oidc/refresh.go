@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -339,21 +337,21 @@ func issueRefresh(ctx context.Context, store kv.Store, fam refreshFamily, inacti
 //  4. Hash the presented secret and constant-time compare against
 //     CurrentHash and PreviousHash:
 //     - Matches PreviousHash and within PreviousValidUntil → idempotent
-//       replay: decrypt the EncryptedSuccessor and return it (rotated=false).
-//       No second mint, no CAS.
+//     replay: decrypt the EncryptedSuccessor and return it (rotated=false).
+//     No second mint, no CAS.
 //     - Matches CurrentHash → mint a new successor, encrypt it under the
-//       active DEK, update hashes/revision/encrypted-successor, CAS the old
-//       record → new record. InactiveExpiresAt slides forward (now +
-//       inactivityTTL) but is capped at AbsoluteExpiresAt. On CAS loss,
-//       reload and classify:
-//       • Family gone → errRefreshInvalid (someone revoked it).
-//       • Presented hash now matches PreviousHash and within window →
-//         concurrent exchange won by another caller; decrypt and return the
-//         successor (idempotent replay, rotated=false).
-//       • Otherwise → reuse: revoke family, errRefreshReuse.
+//     active DEK, update hashes/revision/encrypted-successor, CAS the old
+//     record → new record. InactiveExpiresAt slides forward (now +
+//     inactivityTTL) but is capped at AbsoluteExpiresAt. On CAS loss,
+//     reload and classify:
+//     • Family gone → errRefreshInvalid (someone revoked it).
+//     • Presented hash now matches PreviousHash and within window →
+//     concurrent exchange won by another caller; decrypt and return the
+//     successor (idempotent replay, rotated=false).
+//     • Otherwise → reuse: revoke family, errRefreshReuse.
 //     - Matches neither (or previous outside window) → reuse: revoke family,
-//       errRefreshReuse. reuseAccountID carries the family's AccountID for
-//       audit attribution.
+//     errRefreshReuse. reuseAccountID carries the family's AccountID for
+//     audit attribution.
 //
 // rotated reports whether this call performed a real rotation (true) vs served
 // an idempotent replay (false). reuseAccountID carries the family's AccountID
@@ -405,7 +403,6 @@ func rotateRefresh(ctx context.Context, store kv.Store, deks map[int][]byte, pre
 		_ = store.Del(ctx, refreshFamilyKey(fam.FamilyID))
 		return nil, "", false, accountID, errRefreshReuse
 	}
-
 
 	// Current token: mint successor, encrypt it, CAS the record.
 	for {
@@ -676,19 +673,16 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	// error (server_error, family preserved — we make no authorization claim).
 	// On denial: durably revoke the whole rotating family so the cut survives
 	// even though no new token is issued, then refuse with invalid_grant.
-	authzed, aerr := p.queries.IsAccountAuthorizedForOIDCClient(ctx, db.IsAccountAuthorizedForOIDCClientParams{
-		AccountID: pgtype.Int4{Int32: fam.AccountID, Valid: true},
-		ClientID:  client.ClientID,
-	})
-	if aerr != nil {
+	decision, accessErr := p.evaluateOIDCAccess(ctx, fam.AccountID, client.ClientID)
+	if accessErr != nil {
 		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not evaluate access")
 		return
 	}
-	if !authzed.Bool {
+	if !decision.Allowed {
 		_ = revokeFamily(ctx, p.kv, fam.FamilyID) // durable cut: kill the rotating family
 		acctID := acct.ID
 		p.auditTokenEvent(ctx, r, audit.EventAccessDenied, &acctID, map[string]any{
-			"reason":    "app_access_denied",
+			"reason":    appAccessAuditReason(decision.Source),
 			"client_id": client.ClientID,
 		})
 		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "not authorized for this application")
@@ -696,7 +690,7 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	now := time.Now()
-	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, fam.AuthTime, now)
+	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client.ClientID, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, decision.ExposedGroupSlugs(), fam.AuthTime, now)
 	if err != nil {
 		// The family is live (from this or a prior rotation). Returning no token
 		// would leave it in a live-but-unusable state the client is locked out of.

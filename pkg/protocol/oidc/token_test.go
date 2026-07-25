@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
@@ -40,16 +41,6 @@ type fakeTokenQueries struct {
 	// existing refresh tests keep passing. authzErr forces a predicate error.
 	deniedClients map[string]bool
 	authzErr      error
-}
-
-// IsAccountAuthorizedForOIDCClient backs the RBAC re-check on the refresh grant.
-// Default (no deniedClients, no authzErr) → authorized=true so existing tests
-// are unaffected.
-func (f *fakeTokenQueries) IsAccountAuthorizedForOIDCClient(_ context.Context, arg db.IsAccountAuthorizedForOIDCClientParams) (pgtype.Bool, error) {
-	if f.authzErr != nil {
-		return pgtype.Bool{}, f.authzErr
-	}
-	return pgtype.Bool{Bool: !f.deniedClients[arg.ClientID], Valid: true}, nil
 }
 
 // GetSession mirrors the real query: returns the row only when not revoked.
@@ -114,6 +105,15 @@ func newTokenHarness(t *testing.T) *tokenHarness {
 		},
 		accounts: map[int32]db.Account{42: acct},
 	}
+	access := &fakeOIDCAuthorizer{evaluate: func(_ context.Context, _ int32, clientID string) (appaccess.Decision, error) {
+		if q.authzErr != nil {
+			return appaccess.Decision{}, q.authzErr
+		}
+		if q.deniedClients[clientID] {
+			return appaccess.Decision{Source: appaccess.SourceManualDeny}, nil
+		}
+		return appaccess.Decision{Allowed: true, Source: appaccess.SourceOpen}, nil
+	}}
 	ra := &recordingAudit{}
 	p := &Provider{
 		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}, PublicOrigins: []string{testIssuer}},
@@ -123,6 +123,7 @@ func newTokenHarness(t *testing.T) *tokenHarness {
 		audit:   ra,
 		rl:      authn.NewRateLimiter(),
 		keys:    newKeyCache(&fakeSigningKeyQueries{rows: []db.SigningKey{row}}, oidcTestDEKs),
+		access:  access,
 	}
 	return &tokenHarness{p: p, audit: ra, row: row}
 }
@@ -295,6 +296,52 @@ func TestTokenHappyPath(t *testing.T) {
 	}
 	if !sawIssued {
 		t.Fatal("expected a token_issued audit record")
+	}
+}
+
+func TestTokenProjectsCurrentClientDecisionGroups(t *testing.T) {
+	h := newTokenHarness(t)
+	h.p.access = &fakeOIDCAuthorizer{byClient: map[string]appaccess.Decision{
+		testClientID: {
+			Allowed:     true,
+			Source:      appaccess.SourceManualAllow,
+			ManualGroup: &appaccess.GroupMatch{Slug: "manual", Exposed: true},
+			MatchingRuleGroups: []appaccess.GroupMatch{
+				{Slug: "rule-b", Exposed: true, Matched: true},
+				{Slug: "hidden", Matched: true},
+				{Slug: "rule-a", Exposed: true, Matched: true},
+			},
+		},
+	}}
+	ac := baseAuthCode()
+	ac.Scope = append(ac.Scope, "groups")
+	code := h.mintTestCode(t, ac)
+	rec := httptest.NewRecorder()
+
+	h.p.HandleToken(rec, tokenReq(codeExchangeForm(code, testVerifier, testRedirect)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var resp tokenResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	claims, _, err := h.p.verifyJWT(context.Background(), resp.IDToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, ok := claims["groups"].([]any)
+	if !ok {
+		t.Fatalf("groups claim = %#v", claims["groups"])
+	}
+	got := make([]string, 0, len(groups))
+	for _, group := range groups {
+		got = append(got, group.(string))
+	}
+	want := []string{"manual", "rule-a", "rule-b"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("groups = %v, want %v", got, want)
 	}
 }
 
