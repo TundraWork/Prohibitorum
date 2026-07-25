@@ -92,7 +92,7 @@ type queries interface {
 	GetSAMLAppGroup(context.Context, db.GetSAMLAppGroupParams) (db.UserGroup, error)
 	ListOIDCAppRuleGroups(context.Context, string) ([]db.UserGroup, error)
 	ListSAMLAppRuleGroups(context.Context, int64) ([]db.UserGroup, error)
-	ListUpstreamIDPs(context.Context) ([]db.UpstreamIdp, error)
+	ListKnownUpstreamIDPSlugs(context.Context) ([]string, error)
 	IsOIDCClientManager(context.Context, db.IsOIDCClientManagerParams) (bool, error)
 	IsSAMLSPManager(context.Context, db.IsSAMLSPManagerParams) (bool, error)
 	ListOIDCAccessCandidates(context.Context) ([]db.ListOIDCAccessCandidatesRow, error)
@@ -427,13 +427,13 @@ func (s *Service) loadFacts(ctx context.Context, accountID int32) (Facts, error)
 }
 
 func (s *Service) loadKnownProviders(ctx context.Context) (map[string]struct{}, error) {
-	rows, err := s.q.ListUpstreamIDPs(ctx)
+	slugs, err := s.q.ListKnownUpstreamIDPSlugs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	providers := make(map[string]struct{}, len(rows))
-	for _, row := range rows {
-		providers[row.Slug] = struct{}{}
+	providers := make(map[string]struct{}, len(slugs))
+	for _, slug := range slugs {
+		providers[slug] = struct{}{}
 	}
 	return providers, nil
 }

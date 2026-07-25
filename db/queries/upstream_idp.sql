@@ -4,6 +4,9 @@ SELECT * FROM upstream_idp WHERE slug = $1 AND NOT disabled;
 -- name: ListUpstreamIDPs :many
 SELECT * FROM upstream_idp WHERE NOT disabled ORDER BY display_name;
 
+-- name: ListKnownUpstreamIDPSlugs :many
+SELECT slug FROM upstream_idp ORDER BY slug;
+
 -- name: InsertUpstreamIDP :one
 INSERT INTO upstream_idp (
   slug, display_name, protocol, mode, provider_config,

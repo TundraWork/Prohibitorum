@@ -270,6 +270,30 @@ func (q *Queries) ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamID
 	return items, nil
 }
 
+const listKnownUpstreamIDPSlugs = `-- name: ListKnownUpstreamIDPSlugs :many
+SELECT slug FROM upstream_idp ORDER BY slug
+`
+
+func (q *Queries) ListKnownUpstreamIDPSlugs(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listKnownUpstreamIDPSlugs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			return nil, err
+		}
+		items = append(items, slug)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUpstreamIDPs = `-- name: ListUpstreamIDPs :many
 SELECT id, slug, display_name, secret_enc, secret_nonce, key_version, mode, disabled, created_at, protocol, provider_config, secret_status, secret_validated_at FROM upstream_idp WHERE NOT disabled ORDER BY display_name
 `

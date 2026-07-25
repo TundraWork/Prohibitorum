@@ -169,6 +169,7 @@ type Querier interface {
 	ListEntityIconEtags(ctx context.Context, ownerKind string) ([]ListEntityIconEtagsRow, error)
 	ListForwardAuthAccessCandidates(ctx context.Context) ([]ListForwardAuthAccessCandidatesRow, error)
 	ListForwardAuthClients(ctx context.Context, arg ListForwardAuthClientsParams) ([]ListForwardAuthClientsRow, error)
+	ListKnownUpstreamIDPSlugs(ctx context.Context) ([]string, error)
 	ListManualDecisionsPage(ctx context.Context, arg ListManualDecisionsPageParams) ([]ListManualDecisionsPageRow, error)
 	ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNonForwardAuthOIDCClientsParams) ([]ListNonForwardAuthOIDCClientsRow, error)
 	ListOIDCAccessCandidates(ctx context.Context) ([]ListOIDCAccessCandidatesRow, error)

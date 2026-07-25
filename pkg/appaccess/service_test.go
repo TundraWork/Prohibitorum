@@ -14,6 +14,7 @@ import (
 
 const passkeyRuleJSON = `{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`
 const federationRuleJSON = `{"version":1,"condition":{"fact":"login_method","method":"federation"}}`
+const providerRuleJSON = `{"version":1,"condition":{"fact":"connection.provider","provider":"corp"}}`
 
 func TestServiceEvaluateOIDCOpen(t *testing.T) {
 	q := &fakeQueries{
@@ -94,6 +95,23 @@ func TestServiceEvaluateOIDCNeutralRulesUseOR(t *testing.T) {
 		t.Fatalf("EvaluateOIDC() = %#v, want rule allow", got)
 	}
 	assertSlugs(t, got.MatchingRuleGroups, "passkeys")
+}
+
+func TestServiceEvaluateOIDCDisabledKnownProviderRemainsEvaluable(t *testing.T) {
+	q := &fakeQueries{
+		oidcApp:            restrictedOIDC("wiki"),
+		facts:              db.GetAccountAccessFactsRow{ID: 42, ConfirmedProviderSlugs: []string{"corp"}},
+		oidcGroups:         []db.UserGroup{ruleGroup(2, "corp", providerRuleJSON, true)},
+		knownProviderSlugs: []string{"corp"}, // Includes disabled providers retained in account facts.
+	}
+
+	got, err := NewService(q).EvaluateOIDC(context.Background(), 42, "wiki")
+	if err != nil {
+		t.Fatalf("EvaluateOIDC() error = %v", err)
+	}
+	if !got.Allowed || got.Source != SourceRule {
+		t.Fatalf("EvaluateOIDC() = %#v, want rule allow", got)
+	}
 }
 
 func TestServiceEvaluateOIDCMissingAppPreservesNoRows(t *testing.T) {
@@ -338,8 +356,7 @@ type fakeQueries struct {
 	samlGroupsByID       map[int64][]db.UserGroup
 	oidcAppGroupsByID    map[string]map[int32]db.UserGroup
 	samlAppGroupsByID    map[int64]map[int32]db.UserGroup
-	providers            []db.UpstreamIdp
-	providersErr         error
+	knownProviderSlugs  []string
 	oidcManaged          bool
 	oidcManagedErr       error
 	samlManaged          bool
@@ -464,11 +481,9 @@ func (f *fakeQueries) ListSAMLAppRuleGroups(_ context.Context, id int64) ([]db.U
 	return f.samlGroups, nil
 }
 
-func (f *fakeQueries) ListUpstreamIDPs(_ context.Context) ([]db.UpstreamIdp, error) {
-	if f.providersErr != nil {
-		return nil, f.providersErr
-	}
-	return f.providers, nil
+
+func (f *fakeQueries) ListKnownUpstreamIDPSlugs(_ context.Context) ([]string, error) {
+	return f.knownProviderSlugs, nil
 }
 
 func (f *fakeQueries) IsOIDCClientManager(_ context.Context, _ db.IsOIDCClientManagerParams) (bool, error) {
