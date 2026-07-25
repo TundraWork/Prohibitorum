@@ -235,6 +235,7 @@ func TestServiceListAllowedAppsUsesOneFactSnapshotAndOmitsDenied(t *testing.T) {
 
 func TestServicePreviewAndExplainGroupReturnSafeProjection(t *testing.T) {
 	q := &fakeQueries{
+		oidcApp: restrictedOIDC("wiki"),
 		oidcAppGroupsByID: map[string]map[int32]db.UserGroup{
 			"wiki": {2: ruleGroup(2, "passkeys", passkeyRuleJSON, true)},
 		},
@@ -264,6 +265,25 @@ func TestServicePreviewAndExplainGroupReturnSafeProjection(t *testing.T) {
 	}
 	if !explanation.Result || explanation.Label != "login_method=passkey" {
 		t.Fatalf("ExplainGroup() = %#v", explanation)
+	}
+}
+
+func TestServicePreviewGroupRejectsWrongOIDCAppKind(t *testing.T) {
+	q := &fakeQueries{
+		oidcApp: db.OidcClient{ClientID: "svc", ForwardAuthEnabled: true},
+		oidcAppGroupsByID: map[string]map[int32]db.UserGroup{
+			"svc": {2: ruleGroup(2, "passkeys", passkeyRuleJSON, true)},
+		},
+	}
+
+	_, err := NewService(q).PreviewGroup(
+		context.Background(),
+		AppRef{Kind: KindOIDC, OIDCClientID: "svc"},
+		2,
+		db.ListActiveAccountAccessFactsPageParams{RowLimit: 1},
+	)
+	if !errors.Is(err, ErrAppNotFound) {
+		t.Fatalf("PreviewGroup() error = %v, want ErrAppNotFound", err)
 	}
 }
 

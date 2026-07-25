@@ -439,11 +439,8 @@ func (s *Service) loadKnownProviders(ctx context.Context) (map[string]struct{}, 
 }
 
 func (s *Service) getRuleGroup(ctx context.Context, ref AppRef, groupID int32) (db.UserGroup, error) {
-	if (ref.Kind == KindOIDC || ref.Kind == KindForwardAuth) && (ref.OIDCClientID == "" || ref.SAMLSPID != 0) {
-		return db.UserGroup{}, ErrAppNotFound
-	}
-	if ref.Kind == KindSAML && (ref.SAMLSPID <= 0 || ref.OIDCClientID != "") {
-		return db.UserGroup{}, ErrAppNotFound
+	if err := s.validateAppRef(ctx, ref); err != nil {
+		return db.UserGroup{}, err
 	}
 
 	var (

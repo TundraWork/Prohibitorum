@@ -89,6 +89,50 @@ ok  	prohibitorum/pkg/appaccess	0.004s
 
 No formatter, linter, build, frontend command, project-wide test, or unrelated package command was run.
 
+### Review-driven wrong-kind regression
+
+The read-only review found that preview/explanation must reject an OIDC `AppRef` that names a forward-auth client (or the inverse), rather than relying only on the shared OIDC-client group binding. A focused regression test was added before restoring exact `AppRef` kind validation.
+
+RED command:
+
+```bash
+go test ./pkg/appaccess -run '^TestServicePreviewGroupRejectsWrongOIDCAppKind$' -count=1
+```
+
+Exact output:
+
+```text
+--- FAIL: TestServicePreviewGroupRejectsWrongOIDCAppKind (0.00s)
+    service_test.go:286: PreviewGroup() error = <nil>, want ErrAppNotFound
+FAIL
+FAIL	prohibitorum/pkg/appaccess	0.002s
+FAIL
+```
+
+GREEN command:
+
+```bash
+go test ./pkg/appaccess -run '^TestServicePreviewGroupRejectsWrongOIDCAppKind$' -count=1
+```
+
+Exact output:
+
+```text
+ok  	prohibitorum/pkg/appaccess	0.002s
+```
+
+Post-review focused regression command:
+
+```bash
+go test ./pkg/appaccess -count=1
+```
+
+Exact output:
+
+```text
+ok  	prohibitorum/pkg/appaccess	0.004s
+```
+
 ## Acceptance-criterion self-review before commit
 
 | Brief requirement | Review result |
@@ -101,9 +145,9 @@ No formatter, linter, build, frontend command, project-wide test, or unrelated p
 | Missing-app mapping | Evaluation returns underlying `pgx.ErrNoRows` unchanged for missing app/fact queries; disabled SAML is mapped to the same sentinel. |
 | Manager authorization and non-enumeration | `admin` returns immediately; `app_manager` requires the matching generated assignment query and exact app kind; other roles, malformed refs, missing apps, wrong kinds, and unassigned assignments return `ErrAppNotFound`. |
 | Allowed-app listing | Loads generated enabled OIDC, forward-auth, and launchable SAML candidate rows; evaluates all against one live fact snapshot and omits denied candidates. |
-| Safe preview/explanation | Preview accepts generated pagination params, loads exactly one active-account-facts page, and returns only `ID`, `Username`, `DisplayName`, and `Matched`; explanation returns only Task 2 `Explanation` for an active account. Both require generated app-scoped rule-group lookups. |
+| Safe preview/explanation | Preview accepts generated pagination params, validates the exact `AppRef` kind, loads exactly one active-account-facts page, and returns only `ID`, `Username`, `DisplayName`, and `Matched`; explanation returns only Task 2 `Explanation` for an active account. Both require generated app-scoped rule-group lookups. |
 | Focused test coverage | Facts normalization/disabled behavior; open, manual deny, manual allow plus claims, neutral OR, missing app, malformed rule, app isolation, SAML, manager authorization, listing, and preview/explanation are covered. |
 
 ## Review and limitations
 
-A separate read-only Task 3 review was requested before commit. This task intentionally does not update server, protocol, UI, or legacy RBAC call sites; branch-wide compile failures from removed legacy query APIs remain outside Task 3 as directed.
+A read-only Task 3 review completed after the initial commit and found the wrong-kind preview/explanation issue documented above; the focused regression was added and fixed. This task intentionally does not update server, protocol, UI, or legacy RBAC call sites; branch-wide compile failures from removed legacy query APIs remain outside Task 3 as directed.
