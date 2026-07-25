@@ -151,3 +151,62 @@ ok  	prohibitorum/pkg/appaccess	0.004s
 ## Review and limitations
 
 A read-only Task 3 review completed after the initial commit and found the wrong-kind preview/explanation issue documented above; the focused regression was added and fixed. This task intentionally does not update server, protocol, UI, or legacy RBAC call sites; branch-wide compile failures from removed legacy query APIs remain outside Task 3 as directed.
+
+## Post-review disabled-provider fact correction
+
+`connection.provider` validates policy against the complete current provider-slug namespace, not the enabled-login subset. A disabled provider may no longer accept new sign-ins, while a confirmed identity fact from that provider remains intentionally available to policy evaluation. The service now consumes the narrow generated `ListKnownUpstreamIDPSlugs` query, which returns only unfiltered slugs and exposes no provider records or metadata through the appaccess API.
+
+### RED
+
+Command:
+
+```bash
+go test ./pkg/appaccess -run '^TestServiceEvaluateOIDCDisabledKnownProviderRemainsEvaluable$' -count=1
+```
+
+Exact output:
+
+```text
+--- FAIL: TestServiceEvaluateOIDCDisabledKnownProviderRemainsEvaluable (0.00s)
+    service_test.go:112: EvaluateOIDC() error = appaccess: invalid persisted policy: group 2: invalid group rule at $.condition: provider_not_found
+FAIL
+FAIL	prohibitorum/pkg/appaccess	0.002s
+FAIL
+```
+
+### Generated query
+
+Command:
+
+```bash
+sqlc generate
+```
+
+Exact output:
+
+```text
+(no output; exit 0)
+```
+
+The generated method is `ListKnownUpstreamIDPSlugs(context.Context) ([]string, error)`.
+
+### GREEN
+
+Command:
+
+```bash
+go test ./pkg/appaccess -count=1
+```
+
+Exact output:
+
+```text
+ok  	prohibitorum/pkg/appaccess	0.004s
+```
+
+### Commit evidence
+
+```text
+[feature/app-manager-rule-groups a8347c2d] fix: retain disabled providers in app policy facts
+ 5 files changed, 55 insertions(+), 12 deletions(-)
+```
