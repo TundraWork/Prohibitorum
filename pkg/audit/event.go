@@ -31,8 +31,8 @@ const (
 	// issue/revoke are visible in the audit viewer (not just the structured log).
 	FactorAccount    Factor = "account"
 	FactorInvitation Factor = "invitation"
-	// FactorGroup covers admin group CRUD and membership mutations.
-	FactorGroup Factor = "group"
+	// FactorAppPolicy covers app-bound group, decision, and restriction changes.
+	FactorAppPolicy Factor = "app_policy"
 	// FactorPAT covers personal-access-token create/revoke.
 	FactorPAT Factor = "personal_access_token"
 	// FactorSettings covers instance-settings / branding / client-IP mutations

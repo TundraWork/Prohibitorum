@@ -3,8 +3,8 @@
 // Admin forward-auth application endpoints. A forward-auth app is an oidc_client
 // with forward_auth_enabled=true; it is presented as its own section and
 // excluded from the OIDC-applications list (see handle_admin_oidc_clients.go).
-// Per-service RBAC reuses the OIDC app-access endpoints
-// (/oidc-applications/{clientId}/access/*) unchanged.
+// Application policy management is available only through the managed
+// application workspace, which binds every policy group to its app.
 //
 // Reads are typed (registerOp); mutations are raw and sudo-gated via
 // registerSudoOpHTTP (create/update/delete) — except set-disabled which mirrors

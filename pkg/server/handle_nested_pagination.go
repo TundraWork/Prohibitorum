@@ -1,10 +1,9 @@
 // Package server — handle_nested_pagination.go
 //
 // Shared types and query interface for nested admin collection pagination.
-// Each nested collection (account credentials/sessions/PATs/groups, group
-// members, OIDC/SAML access groups/accounts) embeds pageInput and returns
-// contract.Page[T] with cursors bound to both the collection name and the
-// parent entity ID (accountId, groupId, clientId, or samlSpId).
+// Each retained nested collection (account credentials, sessions, and PATs)
+// embeds pageInput and returns contract.Page[T] with cursors bound to its
+// parent account ID.
 
 package server
 
@@ -30,17 +29,8 @@ import (
 // Server.nestedQueriesOverride.
 type nestedQueries interface {
 	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
-	GetGroup(ctx context.Context, id int32) (db.UserGroup, error)
-	GetOIDCClientAny(ctx context.Context, clientID string) (db.OidcClient, error)
-	GetSAMLSPByID(ctx context.Context, id int64) (db.SamlSp, error)
 	ListCredentialsByAccountPage(ctx context.Context, arg db.ListCredentialsByAccountPageParams) ([]db.WebauthnCredential, error)
 	ListPATsByAccountPage(ctx context.Context, arg db.ListPATsByAccountPageParams) ([]db.PersonalAccessToken, error)
-	ListGroupsForAccountPage(ctx context.Context, arg db.ListGroupsForAccountPageParams) ([]db.UserGroup, error)
-	ListGroupMembersPage(ctx context.Context, arg db.ListGroupMembersPageParams) ([]db.ListGroupMembersPageRow, error)
-	ListOIDCClientAccessGroupsPage(ctx context.Context, arg db.ListOIDCClientAccessGroupsPageParams) ([]db.ListOIDCClientAccessGroupsPageRow, error)
-	ListOIDCClientAccessAccountsPage(ctx context.Context, arg db.ListOIDCClientAccessAccountsPageParams) ([]db.ListOIDCClientAccessAccountsPageRow, error)
-	ListSAMLSPAccessGroupsPage(ctx context.Context, arg db.ListSAMLSPAccessGroupsPageParams) ([]db.ListSAMLSPAccessGroupsPageRow, error)
-	ListSAMLSPAccessAccountsPage(ctx context.Context, arg db.ListSAMLSPAccessAccountsPageParams) ([]db.ListSAMLSPAccessAccountsPageRow, error)
 }
 
 // nestedQ resolves the nested query surface: override (tests) or production.
@@ -51,31 +41,14 @@ func (s *Server) nestedQ() nestedQueries {
 	return s.queries
 }
 
-// listAccountPageIn is the shared input for nested account collections:
-// /accounts/{id}/credentials, /accounts/{id}/sessions, /accounts/{id}/tokens,
-// /accounts/{id}/groups.
+// listAccountPageIn is the shared input for retained nested account
+// collections: /accounts/{id}/credentials, /accounts/{id}/sessions, and
+// /accounts/{id}/tokens.
 type listAccountPageIn struct {
 	ID int32 `path:"id"`
 	pageInput
 }
 
-// listGroupMembersPageIn is the input for GET /groups/{id}/members.
-type listGroupMembersPageIn struct {
-	ID int32 `path:"id"`
-	pageInput
-}
-
-// getOIDCClientAccessPageIn is the input for GET /oidc-applications/{clientId}/access.
-type getOIDCClientAccessPageIn struct {
-	ClientID string `path:"clientId"`
-	pageInput
-}
-
-// getSAMLSPAccessPageIn is the input for GET /saml-applications/{id}/access.
-type getSAMLSPAccessPageIn struct {
-	ID int64 `path:"id"`
-	pageInput
-}
 
 // ---------------------------------------------------------------------------
 // Cursor key helpers — encode/decode the keyset tuple as []string for the
@@ -272,278 +245,3 @@ func (s *Server) handleListAccountTokens(ctx context.Context, in *listAccountPag
 	return &accountTokensPageOut{Body: buildPage(views, nextCursor)}, nil
 }
 
-// ---------------------------------------------------------------------------
-// GET /accounts/{id}/groups
-// ---------------------------------------------------------------------------
-
-type accountGroupsPageOut struct {
-	Body contract.Page[contract.GroupView]
-}
-
-func (s *Server) handleListAccountGroups(ctx context.Context, in *listAccountPageIn) (*accountGroupsPageOut, error) {
-	if _, err := s.nestedQ().GetAccountByID(ctx, in.ID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrAccountNotFound())
-		}
-		return nil, fmt.Errorf("handleListAccountGroups: load: %w", err)
-	}
-	lim := pagination.Limit(in.Limit)
-	const collection = "account_groups"
-	const sortID = "display_name"
-	filters := map[string]string{"accountId": strconv.FormatInt(int64(in.ID), 10)}
-	payload, err := s.decodeCursor(in.Cursor, collection, sortID, filters)
-	if err != nil {
-		return nil, cursorInvalidErr(err)
-	}
-	afterDisplayName, afterGroupID := decodeASCTextIntKey(payload.Keys)
-	rows, err := s.nestedQ().ListGroupsForAccountPage(ctx, db.ListGroupsForAccountPageParams{
-		AccountID:       in.ID,
-		AfterDisplayName: afterDisplayName,
-		AfterGroupID:    afterGroupID,
-		RowLimit:        int32(lim + 1),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("handleListAccountGroups: list: %w", err)
-	}
-	hasMore := len(rows) > lim
-	if hasMore {
-		rows = rows[:lim]
-	}
-	views := make([]contract.GroupView, 0, len(rows))
-	for _, g := range rows {
-		views = append(views, groupView(g, 0))
-	}
-	nextCursor := ""
-	if hasMore && len(rows) > 0 {
-		last := rows[len(rows)-1]
-		nextCursor = s.encodeNextCursor(collection, sortID, filters, encodeASCTextIntKey(last.DisplayName, last.ID))
-	}
-	return &accountGroupsPageOut{Body: buildPage(views, nextCursor)}, nil
-}
-
-// ---------------------------------------------------------------------------
-// GET /groups/{id}/members
-// ---------------------------------------------------------------------------
-
-type listGroupMembersPageOut struct {
-	Body contract.Page[contract.GroupMemberView]
-}
-
-func (s *Server) handleListGroupMembers(ctx context.Context, in *listGroupMembersPageIn) (*listGroupMembersPageOut, error) {
-	if _, err := s.nestedQ().GetGroup(ctx, in.ID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrGroupNotFound())
-		}
-		return nil, fmt.Errorf("handleListGroupMembers: existence check: %w", err)
-	}
-	lim := pagination.Limit(in.Limit)
-	const collection = "group_members"
-	const sortID = "username"
-	filters := map[string]string{"groupId": strconv.FormatInt(int64(in.ID), 10)}
-	payload, err := s.decodeCursor(in.Cursor, collection, sortID, filters)
-	if err != nil {
-		return nil, cursorInvalidErr(err)
-	}
-	afterUsername, afterAccountID := decodeASCTextIntKey(payload.Keys)
-	rows, err := s.nestedQ().ListGroupMembersPage(ctx, db.ListGroupMembersPageParams{
-		GroupID:        in.ID,
-		AfterUsername:  afterUsername,
-		AfterAccountID: afterAccountID,
-		RowLimit:       int32(lim + 1),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("handleListGroupMembers: query: %w", err)
-	}
-	hasMore := len(rows) > lim
-	if hasMore {
-		rows = rows[:lim]
-	}
-	views := make([]contract.GroupMemberView, 0, len(rows))
-	for _, r := range rows {
-		views = append(views, contract.GroupMemberView{
-			ID:          r.ID,
-			Username:    r.Username,
-			DisplayName: r.DisplayName,
-		})
-	}
-	nextCursor := ""
-	if hasMore && len(rows) > 0 {
-		last := rows[len(rows)-1]
-		nextCursor = s.encodeNextCursor(collection, sortID, filters, encodeASCTextIntKey(last.Username, last.ID))
-	}
-	return &listGroupMembersPageOut{Body: buildPage(views, nextCursor)}, nil
-}
-
-// ---------------------------------------------------------------------------
-// GET /oidc-applications/{clientId}/access
-// ---------------------------------------------------------------------------
-
-type getOIDCClientAccessPageOut struct {
-	Body contract.AppAccessView
-}
-
-func (s *Server) handleGetOIDCClientAccess(ctx context.Context, in *getOIDCClientAccessPageIn) (*getOIDCClientAccessPageOut, error) {
-	c, err := s.nestedQ().GetOIDCClientAny(ctx, in.ClientID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(authn.ErrClientNotFound())
-		}
-		return nil, fmt.Errorf("handleGetOIDCClientAccess: get client: %w", err)
-	}
-
-	lim := pagination.Limit(in.Limit)
-	parentFilter := map[string]string{"clientId": in.ClientID}
-
-	// Groups page
-	grpCollection := "oidc_access_groups"
-	grpPayload, err := s.decodeCursor(in.Cursor, grpCollection, "display_name", parentFilter)
-	if err != nil {
-		return nil, cursorInvalidErr(err)
-	}
-	grpAfterDisplayName, grpAfterGroupID := decodeASCTextIntKey(grpPayload.Keys)
-	groupRows, err := s.nestedQ().ListOIDCClientAccessGroupsPage(ctx, db.ListOIDCClientAccessGroupsPageParams{
-		ClientID:         in.ClientID,
-		AfterDisplayName: grpAfterDisplayName,
-		AfterGroupID:     grpAfterGroupID,
-		RowLimit:         int32(lim + 1),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("handleGetOIDCClientAccess: list groups: %w", err)
-	}
-	grpHasMore := len(groupRows) > lim
-	if grpHasMore {
-		groupRows = groupRows[:lim]
-	}
-	groups := make([]contract.GroupRef, 0, len(groupRows))
-	for _, r := range groupRows {
-		groups = append(groups, contract.GroupRef{ID: r.ID, Slug: r.Slug, DisplayName: r.DisplayName})
-	}
-	grpNextCursor := ""
-	if grpHasMore && len(groupRows) > 0 {
-		last := groupRows[len(groupRows)-1]
-		grpNextCursor = s.encodeNextCursor(grpCollection, "display_name", parentFilter, encodeASCTextIntKey(last.DisplayName, last.ID))
-	}
-
-	// Accounts page
-	accCollection := "oidc_access_accounts"
-	accPayload, err := s.decodeCursor(in.Cursor, accCollection, "username", parentFilter)
-	if err != nil {
-		return nil, cursorInvalidErr(err)
-	}
-	accAfterUsername, accAfterAccountID := decodeASCTextIntKey(accPayload.Keys)
-	accountRows, err := s.nestedQ().ListOIDCClientAccessAccountsPage(ctx, db.ListOIDCClientAccessAccountsPageParams{
-		ClientID:       in.ClientID,
-		AfterUsername:  accAfterUsername,
-		AfterAccountID: accAfterAccountID,
-		RowLimit:       int32(lim + 1),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("handleGetOIDCClientAccess: list accounts: %w", err)
-	}
-	accHasMore := len(accountRows) > lim
-	if accHasMore {
-		accountRows = accountRows[:lim]
-	}
-	accounts := make([]contract.AccountRef, 0, len(accountRows))
-	for _, r := range accountRows {
-		accounts = append(accounts, contract.AccountRef{ID: r.ID, Username: r.Username, DisplayName: r.DisplayName})
-	}
-	accNextCursor := ""
-	if accHasMore && len(accountRows) > 0 {
-		last := accountRows[len(accountRows)-1]
-		accNextCursor = s.encodeNextCursor(accCollection, "username", parentFilter, encodeASCTextIntKey(last.Username, last.ID))
-	}
-
-	return &getOIDCClientAccessPageOut{Body: contract.AppAccessView{
-		AccessRestricted: c.AccessRestricted,
-		Groups:           buildPage(groups, grpNextCursor),
-		Accounts:         buildPage(accounts, accNextCursor),
-	}}, nil
-}
-
-// ---------------------------------------------------------------------------
-// GET /saml-applications/{id}/access
-// ---------------------------------------------------------------------------
-
-type getSAMLSPAccessPageOut struct {
-	Body contract.AppAccessView
-}
-
-func (s *Server) handleGetSAMLSPAccess(ctx context.Context, in *getSAMLSPAccessPageIn) (*getSAMLSPAccessPageOut, error) {
-	sp, err := s.nestedQ().GetSAMLSPByID(ctx, in.ID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, authErrToHuma(samlSPNotFound())
-		}
-		return nil, fmt.Errorf("handleGetSAMLSPAccess: get sp: %w", err)
-	}
-
-	lim := pagination.Limit(in.Limit)
-	parentFilter := map[string]string{"samlSpId": strconv.FormatInt(in.ID, 10)}
-
-	// Groups page
-	grpCollection := "saml_access_groups"
-	grpPayload, err := s.decodeCursor(in.Cursor, grpCollection, "display_name", parentFilter)
-	if err != nil {
-		return nil, cursorInvalidErr(err)
-	}
-	grpAfterDisplayName, grpAfterGroupID := decodeASCTextIntKey(grpPayload.Keys)
-	groupRows, err := s.nestedQ().ListSAMLSPAccessGroupsPage(ctx, db.ListSAMLSPAccessGroupsPageParams{
-		SamlSpID:        in.ID,
-		AfterDisplayName: grpAfterDisplayName,
-		AfterGroupID:    grpAfterGroupID,
-		RowLimit:        int32(lim + 1),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("handleGetSAMLSPAccess: list groups: %w", err)
-	}
-	grpHasMore := len(groupRows) > lim
-	if grpHasMore {
-		groupRows = groupRows[:lim]
-	}
-	groups := make([]contract.GroupRef, 0, len(groupRows))
-	for _, r := range groupRows {
-		groups = append(groups, contract.GroupRef{ID: r.ID, Slug: r.Slug, DisplayName: r.DisplayName})
-	}
-	grpNextCursor := ""
-	if grpHasMore && len(groupRows) > 0 {
-		last := groupRows[len(groupRows)-1]
-		grpNextCursor = s.encodeNextCursor(grpCollection, "display_name", parentFilter, encodeASCTextIntKey(last.DisplayName, last.ID))
-	}
-
-	// Accounts page
-	accCollection := "saml_access_accounts"
-	accPayload, err := s.decodeCursor(in.Cursor, accCollection, "username", parentFilter)
-	if err != nil {
-		return nil, cursorInvalidErr(err)
-	}
-	accAfterUsername, accAfterAccountID := decodeASCTextIntKey(accPayload.Keys)
-	accountRows, err := s.nestedQ().ListSAMLSPAccessAccountsPage(ctx, db.ListSAMLSPAccessAccountsPageParams{
-		SamlSpID:       in.ID,
-		AfterUsername:  accAfterUsername,
-		AfterAccountID: accAfterAccountID,
-		RowLimit:       int32(lim + 1),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("handleGetSAMLSPAccess: list accounts: %w", err)
-	}
-	accHasMore := len(accountRows) > lim
-	if accHasMore {
-		accountRows = accountRows[:lim]
-	}
-	accounts := make([]contract.AccountRef, 0, len(accountRows))
-	for _, r := range accountRows {
-		accounts = append(accounts, contract.AccountRef{ID: r.ID, Username: r.Username, DisplayName: r.DisplayName})
-	}
-	accNextCursor := ""
-	if accHasMore && len(accountRows) > 0 {
-		last := accountRows[len(accountRows)-1]
-		accNextCursor = s.encodeNextCursor(accCollection, "username", parentFilter, encodeASCTextIntKey(last.Username, last.ID))
-	}
-
-	return &getSAMLSPAccessPageOut{Body: contract.AppAccessView{
-		AccessRestricted: sp.AccessRestricted,
-		Groups:           buildPage(groups, grpNextCursor),
-		Accounts:         buildPage(accounts, accNextCursor),
-	}}, nil
-}

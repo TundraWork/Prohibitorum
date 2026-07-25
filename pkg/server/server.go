@@ -20,6 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/db/migrations"
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/branding"
@@ -160,9 +161,9 @@ type Server struct {
 	// handlers are only called at runtime.
 	cursorCodec *pagination.Codec
 	// nestedQueriesOverride lets tests inject a fake nestedQueries for the
-	// nested pagination handlers (credentials, sessions, PATs, groups, group
-	// members, OIDC/SAML access) without standing up *db.Queries. Nil in
-	// production — handlers fall back to s.queries.
+	// retained nested pagination handlers (credentials, sessions, and PATs)
+	// without standing up *db.Queries. Nil in production — handlers fall back
+	// to s.queries.
 	nestedQueriesOverride nestedQueries
 	// topLevelQueriesOverride lets tests inject a fake topLevelQueries for
 	// the top-level paginated list handlers without standing up *db.Queries.
@@ -175,6 +176,11 @@ type Server struct {
 	// prove lock, commit, and rollback ordering without a Postgres pool.
 	// Nil in production, where assignments open a pgx transaction through dbPool.
 	managerAssignmentTxRunnerOverride managerAssignmentTxRunner
+	// appPolicyQueriesOverride and appPolicyService isolate delegated app-policy
+	// handlers in focused tests. Production uses the generated query surface and
+	// one shared Task 3 evaluator.
+	appPolicyQueriesOverride appPolicyQueries
+	appPolicyService         appPolicyService
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -358,6 +364,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		clientIP:              clientIPResolver,
 		diagStore:             diagStore,
 		cursorCodec:           cursorCodec,
+		appPolicyService:     appaccess.NewService(queries),
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.
@@ -660,7 +667,6 @@ func (s *Server) registerOperations() {
 	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/{id}/sessions/revoke", admin, s.handleRevokeAccountSessionHTTP)
 	registerOp(mgmt, contract.OperationListAccountTokens, s.handleListAccountTokens, admin)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/accounts/tokens/revoke", admin, s.handleRevokeAccountTokenHTTP)
-	registerOp(mgmt, contract.OperationListAccountGroups, s.handleListAccountGroups, admin)
 	registerOp(mgmt, contract.OperationRevokeAccountSessions, s.handleRevokeAccountSessions, admin)
 	registerSudoOp(s, mgmt, contract.OperationReissueEnrollment, s.handleReissueEnrollment, admin)
 	registerSudoOp(s, mgmt, contract.OperationCreateInvitation, s.handleCreateInvitation, admin)
@@ -696,10 +702,10 @@ func (s *Server) registerOperations() {
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/managers", admin, s.handleAssignOIDCApplicationManagerHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/managers/remove", admin, s.handleRemoveOIDCApplicationManagerHTTP)
 
-	// Admin: forward-auth application management (Phase 2). A forward-auth app
-	// is an oidc_client with forward_auth_enabled=true; presented as its own
-	// section and excluded from the OIDC-applications list. RBAC reuses the OIDC
-	// app-access endpoints (/oidc-applications/{clientId}/access/*).
+	// Admin: forward-auth application management. A forward-auth app is an
+	// oidc_client with forward_auth_enabled=true, presented as its own section
+	// and excluded from the OIDC-applications list. Policy lives solely in the
+	// managed-application workspace.
 	registerOp(mgmt, contract.OperationListForwardAuthApps, s.handleListForwardAuthApps, admin)
 	registerOp(mgmt, contract.OperationGetForwardAuthApp, s.handleGetForwardAuthApp, admin)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/forward-auth-apps", admin, s.handleCreateForwardAuthAppHTTP)
@@ -744,27 +750,10 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/identity-providers/{slug}/icon", admin, s.handlePutIdentityProviderIconHTTP)
 	s.registerSudoOpHTTP(s.router, "DELETE", "/api/prohibitorum/identity-providers/{slug}/icon", admin, s.handleDeleteIdentityProviderIconHTTP)
 
-	// Admin: app-access management (restrict + grants) — OIDC
-	registerOp(mgmt, contract.OperationGetOIDCClientAccess, s.handleGetOIDCClientAccess, admin)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/access/set-restricted", admin, s.handleSetOIDCClientAccessRestrictedHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/access/grant", admin, s.handleGrantOIDCClientAccessHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/oidc-applications/{clientId}/access/revoke", admin, s.handleRevokeOIDCClientAccessHTTP)
-
-	// Admin: app-access management (restrict + grants) — SAML
-	registerOp(mgmt, contract.OperationGetSAMLSPAccess, s.handleGetSAMLSPAccess, admin)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/access/set-restricted", admin, s.handleSetSAMLSPAccessRestrictedHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/access/grant", admin, s.handleGrantSAMLSPAccessHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/saml-applications/{id}/access/revoke", admin, s.handleRevokeSAMLSPAccessHTTP)
-
-	// Admin: group CRUD + membership management
-	registerOp(mgmt, contract.OperationListGroups, s.handleListGroups, admin)
-	registerOp(mgmt, contract.OperationGetGroup, s.handleGetGroup, admin)
-	registerOp(mgmt, contract.OperationListGroupMembers, s.handleListGroupMembers, admin)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/groups", admin, s.handleCreateGroupHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/groups/{id}", admin, s.handleUpdateGroupHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/groups/delete", admin, s.handleDeleteGroupHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/groups/{id}/members", admin, s.handleAddGroupMemberHTTP)
-	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/groups/{id}/members/remove", admin, s.handleRemoveGroupMemberHTTP)
+	// Delegated application policy management is also the global admin's access
+	// workspace: the same handlers grant admin authority without retaining a
+	// second global group or access API.
+	s.registerManagedApplicationRoutes(s.router)
 
 	// OIDC OP — full surface. Discovery and JWKS are public. Authorize
 	// benefits from the global LoadSession middleware (already installed on

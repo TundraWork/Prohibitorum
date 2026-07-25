@@ -59,35 +59,7 @@ func (f *adminFakePATQ) ListPATsByAccountPage(_ context.Context, arg db.ListPATs
 	return out, nil
 }
 
-// Stubs for the nestedQueries interface methods not under test here.
-func (f *adminFakePATQ) GetGroup(_ context.Context, id int32) (db.UserGroup, error) {
-	return db.UserGroup{ID: id}, nil
-}
-func (f *adminFakePATQ) GetOIDCClientAny(_ context.Context, clientID string) (db.OidcClient, error) {
-	return db.OidcClient{ClientID: clientID}, nil
-}
-func (f *adminFakePATQ) GetSAMLSPByID(_ context.Context, id int64) (db.SamlSp, error) {
-	return db.SamlSp{ID: id}, nil
-}
 func (f *adminFakePATQ) ListCredentialsByAccountPage(_ context.Context, arg db.ListCredentialsByAccountPageParams) ([]db.WebauthnCredential, error) {
-	return nil, nil
-}
-func (f *adminFakePATQ) ListGroupsForAccountPage(_ context.Context, arg db.ListGroupsForAccountPageParams) ([]db.UserGroup, error) {
-	return nil, nil
-}
-func (f *adminFakePATQ) ListGroupMembersPage(_ context.Context, arg db.ListGroupMembersPageParams) ([]db.ListGroupMembersPageRow, error) {
-	return nil, nil
-}
-func (f *adminFakePATQ) ListOIDCClientAccessGroupsPage(_ context.Context, arg db.ListOIDCClientAccessGroupsPageParams) ([]db.ListOIDCClientAccessGroupsPageRow, error) {
-	return nil, nil
-}
-func (f *adminFakePATQ) ListOIDCClientAccessAccountsPage(_ context.Context, arg db.ListOIDCClientAccessAccountsPageParams) ([]db.ListOIDCClientAccessAccountsPageRow, error) {
-	return nil, nil
-}
-func (f *adminFakePATQ) ListSAMLSPAccessGroupsPage(_ context.Context, arg db.ListSAMLSPAccessGroupsPageParams) ([]db.ListSAMLSPAccessGroupsPageRow, error) {
-	return nil, nil
-}
-func (f *adminFakePATQ) ListSAMLSPAccessAccountsPage(_ context.Context, arg db.ListSAMLSPAccessAccountsPageParams) ([]db.ListSAMLSPAccessAccountsPageRow, error) {
 	return nil, nil
 }
 

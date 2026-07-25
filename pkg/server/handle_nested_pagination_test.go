@@ -1,7 +1,7 @@
 // Package server — handle_nested_pagination_test.go
 //
-// Tests for nested admin collection pagination: credentials, sessions, PATs,
-// groups, group members, and OIDC/SAML access groups/accounts.
+// Tests for retained nested admin collection pagination: credentials, sessions,
+// and personal access tokens.
 //
 // These tests verify the cursor page contract on nested collections:
 //   - Parent-not-found returns 404 (not 200 + empty page).
@@ -24,8 +24,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/pagination"
@@ -251,26 +249,12 @@ func TestNestedCursor_ParentIDBindingMismatch(t *testing.T) {
 // Account credentials page — parent-not-found 404
 // ---------------------------------------------------------------------------
 
-// fakeNestedQ is a minimal db.Querier subset for testing nested pagination
-// handlers. It implements the methods the handlers call: GetAccountByID,
-// ListCredentialsByAccountPage, ListGroupsForAccountPage,
-// ListGroupMembersPage, ListPATsByAccountPage, GetGroup,
-// ListOIDCClientAccessGroupsPage, ListOIDCClientAccessAccountsPage,
-// GetOIDCClientAny, ListSAMLSPAccessGroupsPage, ListSAMLSPAccessAccountsPage,
-// GetSAMLSPByID.
+// fakeNestedQ is the minimal query subset used by retained nested pagination
+// handlers: account existence, credential pages, and PAT pages.
 type fakeNestedQ struct {
-	accountMissing  bool
-	groupMissing    bool
-	oidcMissing     bool
-	samlMissing     bool
-	creds           []db.WebauthnCredential
-	pats            []db.PersonalAccessToken
-	groups          []db.UserGroup
-	members         []db.ListGroupMembersPageRow
-	oidcAccessGrps  []db.ListOIDCClientAccessGroupsPageRow
-	oidcAccessAccs  []db.ListOIDCClientAccessAccountsPageRow
-	samlAccessGrps  []db.ListSAMLSPAccessGroupsPageRow
-	samlAccessAccs  []db.ListSAMLSPAccessAccountsPageRow
+	accountMissing bool
+	creds          []db.WebauthnCredential
+	pats           []db.PersonalAccessToken
 }
 
 func (f *fakeNestedQ) GetAccountByID(_ context.Context, id int32) (db.Account, error) {
@@ -280,26 +264,6 @@ func (f *fakeNestedQ) GetAccountByID(_ context.Context, id int32) (db.Account, e
 	return db.Account{ID: id}, nil
 }
 
-func (f *fakeNestedQ) GetGroup(_ context.Context, id int32) (db.UserGroup, error) {
-	if f.groupMissing {
-		return db.UserGroup{}, pgx.ErrNoRows
-	}
-	return db.UserGroup{ID: id}, nil
-}
-
-func (f *fakeNestedQ) GetOIDCClientAny(_ context.Context, _ string) (db.OidcClient, error) {
-	if f.oidcMissing {
-		return db.OidcClient{}, pgx.ErrNoRows
-	}
-	return db.OidcClient{ClientID: "test-client"}, nil
-}
-
-func (f *fakeNestedQ) GetSAMLSPByID(_ context.Context, _ int64) (db.SamlSp, error) {
-	if f.samlMissing {
-		return db.SamlSp{}, pgx.ErrNoRows
-	}
-	return db.SamlSp{ID: 1}, nil
-}
 
 func (f *fakeNestedQ) ListCredentialsByAccountPage(_ context.Context, arg db.ListCredentialsByAccountPageParams) ([]db.WebauthnCredential, error) {
 	out := f.creds
@@ -317,53 +281,6 @@ func (f *fakeNestedQ) ListPATsByAccountPage(_ context.Context, arg db.ListPATsBy
 	return out, nil
 }
 
-func (f *fakeNestedQ) ListGroupsForAccountPage(_ context.Context, arg db.ListGroupsForAccountPageParams) ([]db.UserGroup, error) {
-	out := f.groups
-	if int32(len(out)) > arg.RowLimit {
-		out = out[:arg.RowLimit]
-	}
-	return out, nil
-}
-
-func (f *fakeNestedQ) ListGroupMembersPage(_ context.Context, arg db.ListGroupMembersPageParams) ([]db.ListGroupMembersPageRow, error) {
-	out := f.members
-	if int32(len(out)) > arg.RowLimit {
-		out = out[:arg.RowLimit]
-	}
-	return out, nil
-}
-
-func (f *fakeNestedQ) ListOIDCClientAccessGroupsPage(_ context.Context, arg db.ListOIDCClientAccessGroupsPageParams) ([]db.ListOIDCClientAccessGroupsPageRow, error) {
-	out := f.oidcAccessGrps
-	if int32(len(out)) > arg.RowLimit {
-		out = out[:arg.RowLimit]
-	}
-	return out, nil
-}
-
-func (f *fakeNestedQ) ListOIDCClientAccessAccountsPage(_ context.Context, arg db.ListOIDCClientAccessAccountsPageParams) ([]db.ListOIDCClientAccessAccountsPageRow, error) {
-	out := f.oidcAccessAccs
-	if int32(len(out)) > arg.RowLimit {
-		out = out[:arg.RowLimit]
-	}
-	return out, nil
-}
-
-func (f *fakeNestedQ) ListSAMLSPAccessGroupsPage(_ context.Context, arg db.ListSAMLSPAccessGroupsPageParams) ([]db.ListSAMLSPAccessGroupsPageRow, error) {
-	out := f.samlAccessGrps
-	if int32(len(out)) > arg.RowLimit {
-		out = out[:arg.RowLimit]
-	}
-	return out, nil
-}
-
-func (f *fakeNestedQ) ListSAMLSPAccessAccountsPage(_ context.Context, arg db.ListSAMLSPAccessAccountsPageParams) ([]db.ListSAMLSPAccessAccountsPageRow, error) {
-	out := f.samlAccessAccs
-	if int32(len(out)) > arg.RowLimit {
-		out = out[:arg.RowLimit]
-	}
-	return out, nil
-}
 
 // noopSessionQueriesForServer is a no-op SessionQueries for server tests.
 type noopSessionQueriesForServer struct{}
@@ -582,61 +499,6 @@ func TestHandleListAccountCredentials_EmptyResultShape(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Group members handler — parent 404 + page shape
-// ---------------------------------------------------------------------------
-
-func TestHandleListGroupMembers_PageShape(t *testing.T) {
-	t.Parallel()
-
-	members := []db.ListGroupMembersPageRow{
-		{ID: 1, Username: "alpha", DisplayName: "Alpha"},
-		{ID: 2, Username: "beta", DisplayName: "Beta"},
-	}
-	fakeQ := &fakeNestedQ{members: members}
-	s := &Server{
-		cursorCodec: testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:       noopAuditWriter{},
-	}
-
-	out, err := s.handleListGroupMembers(context.Background(), &listGroupMembersPageIn{
-		ID: 1,
-		pageInput: pageInput{Limit: 50},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(out.Body.Items) != 2 {
-		t.Fatalf("want 2 items, got %d", len(out.Body.Items))
-	}
-	if out.Body.NextCursor != "" {
-		t.Errorf("nextCursor should be empty, got %q", out.Body.NextCursor)
-	}
-}
-
-func TestHandleListGroupMembers_ParentNotFound404(t *testing.T) {
-	t.Parallel()
-
-	fakeQ := &fakeNestedQ{groupMissing: true}
-	s := &Server{
-		cursorCodec: testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:       noopAuditWriter{},
-	}
-
-	_, err := s.handleListGroupMembers(context.Background(), &listGroupMembersPageIn{
-		ID: 999,
-		pageInput: pageInput{Limit: 50},
-	})
-	if err == nil {
-		t.Fatal("expected 404 for unknown group")
-	}
-	se, ok := err.(interface{ GetStatus() int })
-	if !ok || se.GetStatus() != http.StatusNotFound {
-		t.Fatalf("want 404, got %v", err)
-	}
-}
 
 // ---------------------------------------------------------------------------
 // Account sessions handler — page shape via KV
@@ -764,217 +626,4 @@ func TestHandleListAccountTokens_ParentNotFound404(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Account groups handler — page shape
-// ---------------------------------------------------------------------------
 
-func TestHandleListAccountGroups_PageShape(t *testing.T) {
-	t.Parallel()
-
-	groups := []db.UserGroup{
-		{ID: 1, Slug: "g1", DisplayName: "Group 1"},
-		{ID: 2, Slug: "g2", DisplayName: "Group 2"},
-	}
-	fakeQ := &fakeNestedQ{groups: groups}
-	s := &Server{
-		cursorCodec:           testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:                 noopAuditWriter{},
-	}
-
-	out, err := s.handleListAccountGroups(context.Background(), &listAccountPageIn{
-		ID: 42,
-		pageInput: pageInput{Limit: 50},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(out.Body.Items) != 2 {
-		t.Fatalf("want 2 items, got %d", len(out.Body.Items))
-	}
-}
-
-func TestHandleListAccountGroups_ParentNotFound404(t *testing.T) {
-	t.Parallel()
-
-	fakeQ := &fakeNestedQ{accountMissing: true}
-	s := &Server{
-		cursorCodec:           testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:                 noopAuditWriter{},
-	}
-
-	_, err := s.handleListAccountGroups(context.Background(), &listAccountPageIn{
-		ID: 999,
-		pageInput: pageInput{Limit: 50},
-	})
-	if err == nil {
-		t.Fatal("expected 404 for unknown account")
-	}
-	se, ok := err.(interface{ GetStatus() int })
-	if !ok || se.GetStatus() != http.StatusNotFound {
-		t.Fatalf("want 404, got %v", err)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// OIDC access handler — page shape for groups + accounts
-// ---------------------------------------------------------------------------
-
-func TestHandleGetOIDCClientAccess_PageShape(t *testing.T) {
-	t.Parallel()
-
-	fakeQ := &fakeNestedQ{
-		oidcAccessGrps: []db.ListOIDCClientAccessGroupsPageRow{
-			{ID: 1, Slug: "g1", DisplayName: "Group 1"},
-			{ID: 2, Slug: "g2", DisplayName: "Group 2"},
-		},
-		oidcAccessAccs: []db.ListOIDCClientAccessAccountsPageRow{
-			{ID: 10, Username: "user1", DisplayName: "User 1"},
-		},
-	}
-	s := &Server{
-		cursorCodec:           testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:                 noopAuditWriter{},
-	}
-
-	out, err := s.handleGetOIDCClientAccess(context.Background(), &getOIDCClientAccessPageIn{
-		ClientID: "test-client",
-		pageInput: pageInput{Limit: 50},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(out.Body.Groups.Items) != 2 {
-		t.Fatalf("groups: want 2, got %d", len(out.Body.Groups.Items))
-	}
-	if len(out.Body.Accounts.Items) != 1 {
-		t.Fatalf("accounts: want 1, got %d", len(out.Body.Accounts.Items))
-	}
-}
-
-func TestHandleGetOIDCClientAccess_ParentNotFound404(t *testing.T) {
-	t.Parallel()
-
-	fakeQ := &fakeNestedQ{oidcMissing: true}
-	s := &Server{
-		cursorCodec:           testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:                 noopAuditWriter{},
-	}
-
-	_, err := s.handleGetOIDCClientAccess(context.Background(), &getOIDCClientAccessPageIn{
-		ClientID: "unknown",
-		pageInput: pageInput{Limit: 50},
-	})
-	if err == nil {
-		t.Fatal("expected 404 for unknown OIDC client")
-	}
-	se, ok := err.(interface{ GetStatus() int })
-	if !ok || se.GetStatus() != http.StatusNotFound {
-		t.Fatalf("want 404, got %v", err)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// SAML access handler — page shape
-// ---------------------------------------------------------------------------
-
-func TestHandleGetSAMLSPAccess_PageShape(t *testing.T) {
-	t.Parallel()
-
-	fakeQ := &fakeNestedQ{
-		samlAccessGrps: []db.ListSAMLSPAccessGroupsPageRow{
-			{ID: 1, Slug: "g1", DisplayName: "Group 1"},
-		},
-		samlAccessAccs: []db.ListSAMLSPAccessAccountsPageRow{
-			{ID: 10, Username: "user1", DisplayName: "User 1"},
-			{ID: 11, Username: "user2", DisplayName: "User 2"},
-		},
-	}
-	s := &Server{
-		cursorCodec:           testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:                 noopAuditWriter{},
-	}
-
-	out, err := s.handleGetSAMLSPAccess(context.Background(), &getSAMLSPAccessPageIn{
-		ID: 1,
-		pageInput: pageInput{Limit: 50},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(out.Body.Groups.Items) != 1 {
-		t.Fatalf("groups: want 1, got %d", len(out.Body.Groups.Items))
-	}
-	if len(out.Body.Accounts.Items) != 2 {
-		t.Fatalf("accounts: want 2, got %d", len(out.Body.Accounts.Items))
-	}
-}
-
-func TestHandleGetSAMLSPAccess_ParentNotFound404(t *testing.T) {
-	t.Parallel()
-
-	fakeQ := &fakeNestedQ{samlMissing: true}
-	s := &Server{
-		cursorCodec:           testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:                 noopAuditWriter{},
-	}
-
-	_, err := s.handleGetSAMLSPAccess(context.Background(), &getSAMLSPAccessPageIn{
-		ID: 999,
-		pageInput: pageInput{Limit: 50},
-	})
-	if err == nil {
-		t.Fatal("expected 404 for unknown SAML SP")
-	}
-	se, ok := err.(interface{ GetStatus() int })
-	if !ok || se.GetStatus() != http.StatusNotFound {
-		t.Fatalf("want 404, got %v", err)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// No bare arrays: verify response shape is Page[T] not []T
-// ---------------------------------------------------------------------------
-
-func TestNestedPage_NoBareArray(t *testing.T) {
-	t.Parallel()
-
-	fakeQ := &fakeNestedQ{
-		members: []db.ListGroupMembersPageRow{
-			{ID: 1, Username: "a", DisplayName: "A"},
-		},
-	}
-	s := &Server{
-		cursorCodec:           testCodec(),
-		nestedQueriesOverride: fakeQ,
-		Audit:                 noopAuditWriter{},
-	}
-
-	out, err := s.handleListGroupMembers(context.Background(), &listGroupMembersPageIn{
-		ID: 1,
-		pageInput: pageInput{Limit: 50},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// The response body must be a Page[T] (object with items+nextCursor),
-	// not a bare JSON array.
-	b, _ := json.Marshal(out.Body)
-	var raw map[string]any
-	if err := json.Unmarshal(b, &raw); err != nil {
-		t.Fatalf("response is not a JSON object (Page[T]): %v\nbody: %s", err, b)
-	}
-	if _, ok := raw["items"]; !ok {
-		t.Fatalf("response missing 'items' field: %s", b)
-	}
-}
-
-// Ensure unused imports are referenced.
-var _ = authn.ErrAccountNotFound
-var _ = contract.Page[any]{}

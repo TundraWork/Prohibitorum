@@ -1,0 +1,425 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"sort"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"prohibitorum/pkg/appaccess"
+	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/pagination"
+)
+
+// appPolicyQueries is the intentionally narrow generated-query surface shared
+// by Task 3's evaluator and the app-bound management handlers. It keeps the
+// focused HTTP tests database-free without widening db.Querier again.
+type appPolicyQueries interface {
+	GetOIDCClient(context.Context, string) (db.OidcClient, error)
+	GetOIDCClientAny(context.Context, string) (db.OidcClient, error)
+	GetSAMLSPByID(context.Context, int64) (db.SamlSp, error)
+	GetAccountAccessFacts(context.Context, int32) (db.GetAccountAccessFactsRow, error)
+	GetManualDecisionForOIDCApp(context.Context, db.GetManualDecisionForOIDCAppParams) (db.GroupManualDecision, error)
+	GetManualDecisionForSAMLApp(context.Context, db.GetManualDecisionForSAMLAppParams) (db.GroupManualDecision, error)
+	GetOIDCAppGroup(context.Context, db.GetOIDCAppGroupParams) (db.UserGroup, error)
+	GetSAMLAppGroup(context.Context, db.GetSAMLAppGroupParams) (db.UserGroup, error)
+	ListOIDCAppGroups(context.Context, string) ([]db.UserGroup, error)
+	ListSAMLAppGroups(context.Context, int64) ([]db.UserGroup, error)
+	ListOIDCAppRuleGroups(context.Context, string) ([]db.UserGroup, error)
+	ListSAMLAppRuleGroups(context.Context, int64) ([]db.UserGroup, error)
+	ListKnownUpstreamIDPSlugs(context.Context) ([]string, error)
+	IsOIDCClientManager(context.Context, db.IsOIDCClientManagerParams) (bool, error)
+	IsSAMLSPManager(context.Context, db.IsSAMLSPManagerParams) (bool, error)
+	ListOIDCAccessCandidates(context.Context) ([]db.ListOIDCAccessCandidatesRow, error)
+	ListForwardAuthAccessCandidates(context.Context) ([]db.ListForwardAuthAccessCandidatesRow, error)
+	ListSAMLAccessCandidates(context.Context) ([]db.ListSAMLAccessCandidatesRow, error)
+	ListActiveAccountAccessFactsPage(context.Context, db.ListActiveAccountAccessFactsPageParams) ([]db.ListActiveAccountAccessFactsPageRow, error)
+	CreateOIDCAppGroup(context.Context, db.CreateOIDCAppGroupParams) (db.UserGroup, error)
+	CreateSAMLAppGroup(context.Context, db.CreateSAMLAppGroupParams) (db.UserGroup, error)
+	UpdateAppGroup(context.Context, db.UpdateAppGroupParams) (db.UserGroup, error)
+	DeleteOIDCAppGroup(context.Context, db.DeleteOIDCAppGroupParams) (int64, error)
+	DeleteSAMLAppGroup(context.Context, db.DeleteSAMLAppGroupParams) (int64, error)
+	ListManualDecisionsPage(context.Context, db.ListManualDecisionsPageParams) ([]db.ListManualDecisionsPageRow, error)
+	UpsertManualDecision(context.Context, db.UpsertManualDecisionParams) (db.GroupManualDecision, error)
+	ClearManualDecision(context.Context, db.ClearManualDecisionParams) (int64, error)
+	SetOIDCClientAccessRestricted(context.Context, db.SetOIDCClientAccessRestrictedParams) (db.OidcClient, error)
+	SetSAMLSPAccessRestricted(context.Context, db.SetSAMLSPAccessRestrictedParams) (db.SamlSp, error)
+}
+
+// appPolicyService is the Task 3 evaluator surface used by this HTTP layer.
+type appPolicyService interface {
+	AuthorizeManager(context.Context, int32, string, appaccess.AppRef) error
+	PreviewGroup(context.Context, appaccess.AppRef, int32, db.ListActiveAccountAccessFactsPageParams) ([]appaccess.GroupPreview, error)
+	ExplainGroup(context.Context, appaccess.AppRef, int32, int32) (appaccess.Explanation, error)
+}
+
+func (s *Server) appPolicyQ() appPolicyQueries {
+	if s.appPolicyQueriesOverride != nil {
+		return s.appPolicyQueriesOverride
+	}
+	return s.queries
+}
+
+func (s *Server) appPolicyEvaluator() appPolicyService {
+	if s.appPolicyService != nil {
+		return s.appPolicyService
+	}
+	return appaccess.NewService(s.appPolicyQ())
+}
+
+// registerManagedApplicationRoutes is kept separate from registerOperations so
+// focused route tests exercise the exact production registration table.
+func (s *Server) registerManagedApplicationRoutes(router chiRouter) {
+	const base = "/api/prohibitorum/managed-applications"
+	req := contract.AuthRequirement{Kind: contract.AuthAppManager}
+
+	registerOpHTTP(router, http.MethodGet, base, req, s.handleListManagedApplicationsHTTP)
+	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/access", req, s.handleManagedApplicationAccessWorkspaceHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/access/set-restricted", req, s.handleSetManagedApplicationRestrictedHTTP)
+	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups", req, s.handleListManagedApplicationGroupsHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups", req, s.handleCreateManagedApplicationGroupHTTP)
+	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups/{groupId}", req, s.handleGetManagedApplicationGroupHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPut, base+"/{kind}/{appId}/groups/{groupId}", req, s.handleUpdateManagedApplicationGroupHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups/{groupId}/delete", req, s.handleDeleteManagedApplicationGroupHTTP)
+	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups/{groupId}/decisions", req, s.handleListManagedGroupDecisionsHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups/{groupId}/decisions", req, s.handleUpsertManagedGroupDecisionHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups/{groupId}/decisions/clear", req, s.handleClearManagedGroupDecisionHTTP)
+	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups/{groupId}/preview", req, s.handlePreviewManagedGroupHTTP)
+	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups/{groupId}/explain/{accountId}", req, s.handleExplainManagedGroupHTTP)
+	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/accounts", req, s.handleListManagedApplicationAccountsHTTP)
+}
+
+type managedApplication struct {
+	ref     appaccess.AppRef
+	summary contract.AppSummaryView
+}
+
+func managedAppRefFromRequest(r *http.Request) (appaccess.AppRef, error) {
+	kind := appaccess.AppKind(chi.URLParam(r, "kind"))
+	appID := chi.URLParam(r, "appId")
+	switch kind {
+	case appaccess.KindOIDC, appaccess.KindForwardAuth:
+		if appID == "" {
+			return appaccess.AppRef{}, appaccess.ErrAppNotFound
+		}
+		return appaccess.AppRef{Kind: kind, OIDCClientID: appID}, nil
+	case appaccess.KindSAML:
+		id, err := strconv.ParseInt(appID, 10, 64)
+		if err != nil || id <= 0 {
+			return appaccess.AppRef{}, appaccess.ErrAppNotFound
+		}
+		return appaccess.AppRef{Kind: kind, SAMLSPID: id}, nil
+	default:
+		return appaccess.AppRef{}, appaccess.ErrAppNotFound
+	}
+}
+
+// managedApplicationFromRequest performs authorization before any handler-level
+// application or group lookup. appaccess.AuthorizeManager deliberately returns
+// the same sentinel for invalid refs and absent assignments; preserve that
+// non-enumerating boundary as client_not_found.
+func (s *Server) managedApplicationFromRequest(r *http.Request) (managedApplication, error) {
+	ref, err := managedAppRefFromRequest(r)
+	if err != nil {
+		return managedApplication{}, authn.ErrClientNotFound()
+	}
+	sess := authn.SessionFromContext(r.Context())
+	if sess == nil || sess.Account == nil {
+		return managedApplication{}, authn.ErrNoSession()
+	}
+	if err := s.appPolicyEvaluator().AuthorizeManager(r.Context(), sess.Account.ID, sess.Account.Role, ref); err != nil {
+		if errors.Is(err, appaccess.ErrAppNotFound) {
+			return managedApplication{}, authn.ErrClientNotFound()
+		}
+		return managedApplication{}, fmt.Errorf("authorize managed application: %w", err)
+	}
+	summary, err := s.loadManagedApplication(r.Context(), ref)
+	if err != nil {
+		return managedApplication{}, err
+	}
+	return managedApplication{ref: ref, summary: summary}, nil
+}
+
+func (s *Server) loadManagedApplication(ctx context.Context, ref appaccess.AppRef) (contract.AppSummaryView, error) {
+	switch ref.Kind {
+	case appaccess.KindOIDC, appaccess.KindForwardAuth:
+		client, err := s.appPolicyQ().GetOIDCClientAny(ctx, ref.OIDCClientID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return contract.AppSummaryView{}, authn.ErrClientNotFound()
+		}
+		if err != nil {
+			return contract.AppSummaryView{}, fmt.Errorf("load managed OIDC application: %w", err)
+		}
+		if (ref.Kind == appaccess.KindOIDC && client.ForwardAuthEnabled) || (ref.Kind == appaccess.KindForwardAuth && !client.ForwardAuthEnabled) {
+			return contract.AppSummaryView{}, authn.ErrClientNotFound()
+		}
+		return managedOIDCSummary(ref.Kind, client)
+	case appaccess.KindSAML:
+		sp, err := s.appPolicyQ().GetSAMLSPByID(ctx, ref.SAMLSPID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return contract.AppSummaryView{}, authn.ErrClientNotFound()
+		}
+		if err != nil {
+			return contract.AppSummaryView{}, fmt.Errorf("load managed SAML application: %w", err)
+		}
+		return contract.AppSummaryView{
+			Kind: string(ref.Kind), AppID: strconv.FormatInt(sp.ID, 10), DisplayName: sp.DisplayName,
+			EntityID: sp.EntityID, AccessRestricted: sp.AccessRestricted,
+		}, nil
+	default:
+		return contract.AppSummaryView{}, authn.ErrClientNotFound()
+	}
+}
+
+func managedOIDCSummary(kind appaccess.AppKind, client db.OidcClient) (contract.AppSummaryView, error) {
+	view := contract.AppSummaryView{
+		Kind: string(kind), AppID: client.ClientID, DisplayName: client.DisplayName,
+		AccessRestricted: client.AccessRestricted,
+	}
+	if kind == appaccess.KindForwardAuth {
+		if client.ForwardAuthHost.Valid {
+			view.ForwardAuthHost = client.ForwardAuthHost.String
+		}
+		if len(client.ForwardAuthScopes) > 0 {
+			if err := json.Unmarshal(client.ForwardAuthScopes, &view.ForwardAuthScopes); err != nil {
+				return contract.AppSummaryView{}, fmt.Errorf("decode forward-auth scopes: %w", err)
+			}
+		}
+		return view, nil
+	}
+	if client.LaunchUrl.Valid {
+		view.LaunchURL = client.LaunchUrl.String
+	}
+	view.RedirectURIs = append([]string(nil), client.RedirectUris...)
+	return view, nil
+}
+
+func (s *Server) handleListManagedApplicationsHTTP(w http.ResponseWriter, r *http.Request) {
+	sess := authn.SessionFromContext(r.Context())
+	if sess == nil || sess.Account == nil {
+		writeAuthErr(w, authn.ErrNoSession())
+		return
+	}
+	apps, err := s.listManagedApplications(r.Context(), sess.Account.ID, sess.Account.Role)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	writeJSON(w, apps)
+}
+
+func (s *Server) listManagedApplications(ctx context.Context, accountID int32, role string) ([]contract.AppSummaryView, error) {
+	q := s.appPolicyQ()
+	oidc, err := q.ListOIDCAccessCandidates(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list managed OIDC applications: %w", err)
+	}
+	forward, err := q.ListForwardAuthAccessCandidates(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list managed forward-auth applications: %w", err)
+	}
+	saml, err := q.ListSAMLAccessCandidates(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list managed SAML applications: %w", err)
+	}
+
+	apps := make([]contract.AppSummaryView, 0, len(oidc)+len(forward)+len(saml))
+	appendIfAuthorized := func(ref appaccess.AppRef, summary contract.AppSummaryView) error {
+		if role != "admin" {
+			err := s.appPolicyEvaluator().AuthorizeManager(ctx, accountID, role, ref)
+			if errors.Is(err, appaccess.ErrAppNotFound) {
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("authorize managed application list item: %w", err)
+			}
+		}
+		apps = append(apps, summary)
+		return nil
+	}
+	for _, row := range oidc {
+		ref := appaccess.AppRef{Kind: appaccess.KindOIDC, OIDCClientID: row.ClientID}
+		summary := contract.AppSummaryView{Kind: string(ref.Kind), AppID: row.ClientID, DisplayName: row.DisplayName, AccessRestricted: row.AccessRestricted, RedirectURIs: append([]string(nil), row.RedirectUris...)}
+		if row.LaunchUrl.Valid {
+			summary.LaunchURL = row.LaunchUrl.String
+		}
+		if err := appendIfAuthorized(ref, summary); err != nil {
+			return nil, err
+		}
+	}
+	for _, row := range forward {
+		ref := appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: row.ClientID}
+		summary := contract.AppSummaryView{Kind: string(ref.Kind), AppID: row.ClientID, DisplayName: row.DisplayName, AccessRestricted: row.AccessRestricted}
+		if row.ForwardAuthHost.Valid {
+			summary.ForwardAuthHost = row.ForwardAuthHost.String
+		}
+		if len(row.ForwardAuthScopes) > 0 {
+			if err := json.Unmarshal(row.ForwardAuthScopes, &summary.ForwardAuthScopes); err != nil {
+				return nil, fmt.Errorf("decode forward-auth scopes for %q: %w", row.ClientID, err)
+			}
+		}
+		if err := appendIfAuthorized(ref, summary); err != nil {
+			return nil, err
+		}
+	}
+	for _, row := range saml {
+		ref := appaccess.AppRef{Kind: appaccess.KindSAML, SAMLSPID: row.ID}
+		summary := contract.AppSummaryView{Kind: string(ref.Kind), AppID: strconv.FormatInt(row.ID, 10), DisplayName: row.DisplayName, EntityID: row.EntityID, AccessRestricted: row.AccessRestricted}
+		if err := appendIfAuthorized(ref, summary); err != nil {
+			return nil, err
+		}
+	}
+	sort.Slice(apps, func(i, j int) bool {
+		if apps[i].DisplayName == apps[j].DisplayName {
+			if apps[i].Kind == apps[j].Kind {
+				return apps[i].AppID < apps[j].AppID
+			}
+			return apps[i].Kind < apps[j].Kind
+		}
+		return apps[i].DisplayName < apps[j].DisplayName
+	})
+	return apps, nil
+}
+
+func (s *Server) handleManagedApplicationAccessWorkspaceHTTP(w http.ResponseWriter, r *http.Request) {
+	app, err := s.managedApplicationFromRequest(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	groups, err := s.listBoundAppGroups(r.Context(), app.ref)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	views, err := s.appGroupViews(r.Context(), groups)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	workspace := contract.AppAccessWorkspace{App: app.summary, AccessRestricted: app.summary.AccessRestricted, RuleGroups: make([]contract.AppGroupView, 0, len(views))}
+	for i := range views {
+		switch views[i].Kind {
+		case "manual":
+			workspace.ManualGroup = &views[i]
+		case "rule":
+			workspace.RuleGroups = append(workspace.RuleGroups, views[i])
+		}
+	}
+	writeJSON(w, workspace)
+}
+
+func (s *Server) handleListManagedApplicationGroupsHTTP(w http.ResponseWriter, r *http.Request) {
+	app, err := s.managedApplicationFromRequest(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	groups, err := s.listBoundAppGroups(r.Context(), app.ref)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	views, err := s.appGroupViews(r.Context(), groups)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	writeJSON(w, views)
+}
+
+func (s *Server) handleListManagedApplicationAccountsHTTP(w http.ResponseWriter, r *http.Request) {
+	app, err := s.managedApplicationFromRequest(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	limit, err := appPolicyLimit(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	const collection = "managed_application_accounts"
+	const sortID = "username"
+	filters := managedAppCursorFilters(app.ref)
+	payload, err := s.decodeCursor(r.URL.Query().Get("cursor"), collection, sortID, filters)
+	if err != nil {
+		writeCursorInvalidErr(w, err)
+		return
+	}
+	afterUsername, afterAccountID := decodeASCTextIntKey(payload.Keys)
+	rows, err := s.appPolicyQ().ListActiveAccountAccessFactsPage(r.Context(), db.ListActiveAccountAccessFactsPageParams{
+		AfterUsername: pgText(afterUsername), AfterAccountID: pgInt4(afterAccountID), RowLimit: int32(limit + 1),
+	})
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("list managed application accounts: %w", err))
+		return
+	}
+	more := len(rows) > limit
+	if more {
+		rows = rows[:limit]
+	}
+	items := make([]contract.AccountSummaryView, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, accountSummaryFromFacts(row))
+	}
+	next := ""
+	if more && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		next = s.encodeNextCursor(collection, sortID, filters, encodeASCTextIntKey(last.Username, last.ID))
+	}
+	writeJSON(w, buildPage(items, next))
+}
+
+func appPolicyLimit(r *http.Request) (int, error) {
+	raw := r.URL.Query().Get("limit")
+	if raw == "" {
+		return pagination.Limit(0), nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, authn.ErrBadRequest()
+	}
+	return pagination.Limit(limit), nil
+}
+
+func managedAppCursorFilters(ref appaccess.AppRef) map[string]string {
+	filters := map[string]string{"appKind": string(ref.Kind)}
+	if ref.Kind == appaccess.KindSAML {
+		filters["appId"] = strconv.FormatInt(ref.SAMLSPID, 10)
+	} else {
+		filters["appId"] = ref.OIDCClientID
+	}
+	return filters
+}
+
+func accountSummaryFromFacts(row db.GetAccountAccessFactsRow) contract.AccountSummaryView {
+	return contract.AccountSummaryView{ID: row.ID, Username: row.Username, DisplayName: row.DisplayName}
+}
+
+func accountSummaryFromPage(row db.ListActiveAccountAccessFactsPageRow) contract.AccountSummaryView {
+	return contract.AccountSummaryView{ID: row.ID, Username: row.Username, DisplayName: row.DisplayName}
+}
+
+func pgText(value string) pgtype.Text {
+	if value == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: value, Valid: true}
+}
+
+func pgInt4(value int32) pgtype.Int4 {
+	if value == 0 {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: value, Valid: true}
+}

@@ -410,12 +410,6 @@ var OperationListAccountTokens = huma.Operation{
 	Summary:     "List an account's personal access tokens (admin only).",
 }
 
-var OperationListAccountGroups = huma.Operation{
-	OperationID: "listAccountGroups",
-	Method:      http.MethodGet,
-	Path:        "/accounts/{id}/groups",
-	Summary:     "List the groups an account belongs to (admin only).",
-}
 
 var OperationRevokeAccountSessions = huma.Operation{
 	OperationID: "revokeAccountSessions",
@@ -724,84 +718,3 @@ var OperationListAuditEvents = huma.Operation{
 	Summary:     "List credential/admin audit events, newest first, with filters and keyset pagination (admin only).",
 }
 
-// GroupView is the admin-facing projection of a user_group row.
-// MemberCount is included on the list endpoint; it is omitted (zero) on
-// the single-get endpoint (which can be fetched separately via the members list).
-type GroupView struct {
-	ID                  int32     `json:"id"`
-	Slug                string    `json:"slug"`
-	DisplayName         string    `json:"displayName"`
-	Description         string    `json:"description,omitempty"`
-	ExposedToDownstream bool      `json:"exposedToDownstream"`
-	MemberCount         int64     `json:"memberCount,omitempty"`
-	CreatedAt           time.Time `json:"createdAt"`
-}
-
-// GroupMemberView is a single row in GET /groups/{id}/members.
-type GroupMemberView struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-}
-
-// GroupRef is a compact reference to a group, reused by access-control and
-// downstream-claims tasks.
-type GroupRef struct {
-	ID          int32  `json:"id"`
-	Slug        string `json:"slug"`
-	DisplayName string `json:"displayName"`
-}
-
-// AccountRef is a compact reference to an account, reused by access-control
-// and membership tasks.
-type AccountRef struct {
-	ID          int32  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-}
-
-var OperationListGroups = huma.Operation{
-	OperationID: "listGroups",
-	Method:      http.MethodGet,
-	Path:        "/groups",
-	Summary:     "List all groups with member counts (admin only).",
-}
-
-var OperationGetGroup = huma.Operation{
-	OperationID: "getGroup",
-	Method:      http.MethodGet,
-	Path:        "/groups/{id}",
-	Summary:     "Get one group by id (admin only).",
-}
-
-var OperationListGroupMembers = huma.Operation{
-	OperationID: "listGroupMembers",
-	Method:      http.MethodGet,
-	Path:        "/groups/{id}/members",
-	Summary:     "List members of a group (admin only).",
-}
-
-// AppAccessView is the response body for the GET …/access endpoints. It
-// combines the access_restricted flag with paginated lists of groups and
-// accounts that have been explicitly granted access to the application.
-// Each sub-collection (groups, accounts) is independently paginated with
-// its own cursor, both bound to the parent application identifier.
-type AppAccessView struct {
-	AccessRestricted bool             `json:"accessRestricted"`
-	Groups           Page[GroupRef]   `json:"groups"`
-	Accounts         Page[AccountRef] `json:"accounts"`
-}
-
-var OperationGetOIDCClientAccess = huma.Operation{
-	OperationID: "getOIDCClientAccess",
-	Method:      http.MethodGet,
-	Path:        "/oidc-applications/{clientId}/access",
-	Summary:     "Get access restriction status and granted principals for an OIDC application (admin only).",
-}
-
-var OperationGetSAMLSPAccess = huma.Operation{
-	OperationID: "getSAMLSPAccess",
-	Method:      http.MethodGet,
-	Path:        "/saml-applications/{id}/access",
-	Summary:     "Get access restriction status and granted principals for a SAML application (admin only).",
-}

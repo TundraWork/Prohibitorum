@@ -93,6 +93,8 @@ func init() {
 		{Code: "saml_application_already_exists", Status: http.StatusConflict, LocaleKey: "errors.saml_application_already_exists", DiagnosticKind: "validation"},
 		{Code: "group_not_found", Status: http.StatusNotFound, LocaleKey: "errors.group_not_found", DiagnosticKind: "resource"},
 		{Code: "group_slug_conflict", Status: http.StatusConflict, LocaleKey: "errors.group_slug_conflict", DiagnosticKind: "validation"},
+		{Code: "manual_group_exists", Status: http.StatusConflict, LocaleKey: "errors.manual_group_exists", DiagnosticKind: "policy"},
+		{Code: "invalid_group_rule", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_group_rule", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"path": {}, "reason": {}}},
 	}
 	if err := weberr.Register(defs); err != nil {
 		panic(fmt.Sprintf("authn: failed to register error definitions: %v", err))
@@ -632,6 +634,24 @@ func ErrGroupNotFound() *AuthError {
 // unique constraint on slug. Status 409.
 func ErrGroupSlugConflict() *AuthError {
 	return newErr(http.StatusConflict, "group_slug_conflict", "A group with this slug already exists.")
+}
+
+// ErrManualGroupExists is returned when an application already has its one
+// permitted manual policy group. Status 409.
+func ErrManualGroupExists() *AuthError {
+	return newErr(http.StatusConflict, "manual_group_exists", "This application already has a manual group.")
+}
+
+// ErrInvalidGroupRule returns a curated parser/validator failure. Only the
+// stable JSON path and reason are exposed; parser implementation detail stays
+// server-side.
+func ErrInvalidGroupRule(path, reason string) *AuthError {
+	return &AuthError{
+		Status:  http.StatusBadRequest,
+		Code:    "invalid_group_rule",
+		Message: "Invalid application group rule.",
+		Details: map[string]any{"path": path, "reason": reason},
+	}
 }
 
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,

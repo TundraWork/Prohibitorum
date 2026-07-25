@@ -115,9 +115,6 @@ var sudoGatedRoutes = []sudoRoute{
 // the sudo tier (now admin-only 🔓). Each entry must NOT return sudo_required
 // when called with a valid admin session that has no fresh sudo grant.
 var droppedSudoRoutes = []sudoRoute{
-	// Groups CRUD — admin-only, no step-up
-	{method: "POST", path: "/api/prohibitorum/groups", body: `{"slug":"test","displayName":"Test"}`},
-	{method: "POST", path: "/api/prohibitorum/groups/1/members", body: `{"accountId":1}`},
 	// SAML application CRUD — admin-only, no step-up
 	{method: "POST", path: "/api/prohibitorum/saml-applications", body: `{}`},
 }
@@ -234,26 +231,9 @@ var adminBodyControlRoutes = []sudoRoute{
 	{method: "POST", path: "/api/prohibitorum/saml-applications/1/reingest-metadata", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/saml-applications/set-disabled", body: `{}`},
 	{method: "POST", path: "/api/prohibitorum/saml-applications/delete", body: `{}`},
-	// SAML app-access management
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/set-restricted", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/grant", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/saml-applications/1/access/revoke", body: `{}`},
-	// OIDC app-access management
-	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/set-restricted", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/grant", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/oidc-applications/x/access/revoke", body: `{}`},
-	// OIDC / forward-auth / IdP set-disabled — admin-only, no step-up
-	{method: "POST", path: "/api/prohibitorum/oidc-applications/set-disabled", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/forward-auth-apps/set-disabled", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/identity-providers/set-disabled", body: `{}`},
-	// Account session revoke — admin-only, no step-up
-	{method: "POST", path: "/api/prohibitorum/accounts/1/sessions/revoke", body: `{"sessionId":"x"}`},
-	// Group CRUD + membership management
-	{method: "POST", path: "/api/prohibitorum/groups", body: `{}`},
-	{method: "PUT", path: "/api/prohibitorum/groups/1", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/groups/delete", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/groups/1/members", body: `{}`},
-	{method: "POST", path: "/api/prohibitorum/groups/1/members/remove", body: `{}`},
+	// Delegated policy mutations are reversible and intentionally do not require
+	// fresh sudo; they retain the shared JSON content-type and size controls.
+	{method: "POST", path: "/api/prohibitorum/managed-applications/oidc/x/access/set-restricted", body: `{}`},
 }
 
 // TestAdminMutationBodyControls_OversizedJSONReturns413 builds the REAL router

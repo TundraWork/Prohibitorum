@@ -274,9 +274,9 @@ const maxAdminBody = 64 << 10 // 64 KiB
 // Routes through the shared writeBodyTooLarge so every 413 response is
 // identical. This wrapper installs BOTH controls exactly once. withFreshSudo
 // composes it and then adds the fresh-sudo gate; registerAdminBodyOpHTTP
-// uses it directly for intentional admin-only (no-sudo) raw JSON mutation
-// routes. Never double-wrap: a route registered through either helper
-// already has these controls.
+// uses it directly for intentional non-sudo raw JSON mutation routes. Never
+// double-wrap: a route registered through either helper already has these
+// controls.
 func withAdminBodyControls(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.ContentLength != 0 {
@@ -358,10 +358,10 @@ func (s *Server) registerSudoOpHTTP(router chiRouter, method, path string, req c
 	registerOpHTTP(router, method, path, req, s.withFreshSudo(h))
 }
 
-// registerAdminBodyOpHTTP = registerOpHTTP (admin auth check) +
+// registerAdminBodyOpHTTP = registerOpHTTP (the supplied auth check) +
 // withAdminBodyControls (content-type, body-size). This is for intentional
-// admin-only raw-JSON mutation routes that do NOT require fresh sudo: SAML
-// CRUD, app-access management, and group CRUD. Using this helper ensures the
+// raw-JSON mutations that do NOT require fresh sudo, including SAML CRUD and
+// reversible managed-application policy changes. Using this helper ensures the
 // body + content-type controls cannot drift per-handler, mirroring the
 // registerSudoOpHTTP guarantee for the non-sudo tier.
 func (s *Server) registerAdminBodyOpHTTP(router chiRouter, method, path string, req contract.AuthRequirement, h http.HandlerFunc) {
