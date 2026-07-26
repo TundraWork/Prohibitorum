@@ -41,6 +41,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -3858,293 +3859,365 @@ func main() {
 	}
 
 	// =========================================================================
-	// RBAC end-to-end arc (Task 11): per-app access gate + OIDC groups claim.
-	//
-	// Reuses the bootstrap smoke-admin (account id == me2.ID, set during enrollment).
-	// A fresh restricted OIDC client is created, then:
-	//   deny  — the admin (NOT yet granted) drives an interactive authorize →
-	//           302 to <issuer>/error?reason=app_access_denied, NO code.
-	//   grant — a group is created, the admin is added as a member, and access is
-	//           granted to that GROUP (exercising the via-group path).
-	//   allow — the admin re-drives authorize (scope "openid groups") → a code;
-	//           the code is exchanged; the id_token AND /userinfo both carry a
-	//           groups claim containing the group slug.
-	//
-	// Pre-condition: c holds a live webauthn session (avatar 4/4 above drove
-	// freshAuthorizeCode(c, …) successfully — that requires a live session).
-	// Every admin mutation is sudo-gated; each is preceded by a fresh
-	// sudoWebAuthn (multi-use window, re-asserted before each mutation for
-	// test isolation) exactly as the admin arc (steps 114–121) does.
-	// rpRedirectURI shape + issuer reused from the oidc block. The group is
-	// created exposedToDownstream:true so its slug
-	// surfaces in the groups claim (ListExposedGroupSlugsByAccount).
+	// delegated-access — application-manager assignment, app-bound policy, live
+	// rule facts, OIDC claims, and refresh-family revocation.
 	// =========================================================================
 	{
-		const rbacGroupSlug = "smoke-rbac-team"
-		const rbacClientID = "smoke-rbac-rp"
-		rbacRedirectURI := *baseURL + "/rbac-rp/callback"
+		const (
+			nDelegated      = 12
+			policyClientID  = "smoke-managed-rp"
+			manualSlug      = "smoke-manual"
+			avatarRuleSlug  = "smoke-avatar"
+			avatarRule2Slug = "smoke-avatar-secondary"
+		)
+		policyRedirectURI := *baseURL + "/managed-rp/callback"
+		policyBase := "/api/prohibitorum/managed-applications/oidc/" + url.PathEscape(policyClientID)
 
-		step("rbac 1/7 — create exposed group {slug:smoke-rbac-team} (sudo)")
-		var rbacGroupID int32
-		{
-			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-				log.Fatalf("rbac: sudo (pre group create): %v", err)
+		expectStatus := func(actor *client, method, requestPath string, body any, want int, label string) {
+			var requestBody io.Reader
+			if body != nil {
+				var encoded bytes.Buffer
+				if err := json.NewEncoder(&encoded).Encode(body); err != nil {
+					log.Fatalf("%s: encode body: %v", label, err)
+				}
+				requestBody = bytes.NewReader(encoded.Bytes())
 			}
-			var created struct {
-				ID                  int32  `json:"id"`
-				Slug                string `json:"slug"`
-				ExposedToDownstream bool   `json:"exposedToDownstream"`
+			req, err := http.NewRequest(method, actor.base+requestPath, requestBody)
+			if err != nil {
+				log.Fatalf("%s: build request: %v", label, err)
 			}
-			if err := c.postJSON("/api/prohibitorum/groups", map[string]any{
-				"slug":                rbacGroupSlug,
-				"displayName":         "Smoke RBAC Team",
-				"exposedToDownstream": true,
-			}, &created); err != nil {
-				log.Fatalf("rbac: POST /groups: %v", err)
+			if body != nil {
+				req.Header.Set("Content-Type", "application/json")
 			}
-			if created.ID == 0 {
-				log.Fatalf("rbac: POST /groups returned id=0")
+			resp, err := actor.hc.Do(req)
+			if err != nil {
+				log.Fatalf("%s: request: %v", label, err)
 			}
-			if created.Slug != rbacGroupSlug {
-				log.Fatalf("rbac: group slug: want %q, got %q", rbacGroupSlug, created.Slug)
+			responseBody, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != want {
+				log.Fatalf("%s: want HTTP %d, got %d (%s)", label, want, resp.StatusCode, responseBody)
 			}
-			if !created.ExposedToDownstream {
-				log.Fatalf("rbac: group exposedToDownstream must be true (groups claim depends on it)")
-			}
-			rbacGroupID = created.ID
-			log.Printf("  group id=%d slug=%s exposedToDownstream=true created ✓", rbacGroupID, rbacGroupSlug)
 		}
 
-		step("rbac 2/7 — add the smoke-admin as a group member (sudo)")
-		{
-			// The admin's account id is me2.ID (the smoke already fetched /me at
-			// enrollment; me2.ID never changes across the run).
-			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-				log.Fatalf("rbac: sudo (pre member add): %v", err)
-			}
-			memberPath := fmt.Sprintf("/api/prohibitorum/groups/%d/members", rbacGroupID)
-			if err := c.postJSON(memberPath, map[string]any{"accountId": me2.ID}, nil); err != nil {
-				log.Fatalf("rbac: POST %s: %v", memberPath, err)
-			}
-			log.Printf("  added account id=%d as a member of group id=%d ✓", me2.ID, rbacGroupID)
-		}
-
-		step("rbac 3/7 — oidc-client create (confidential, scopes openid+profile+groups)")
-		// allowed_scopes must include "groups" or the authorize would reject the
-		// requested scope with invalid_scope before the access gate is reached.
-		rbacSecret, err := createOIDCClient(*baseURL, rbacClientID, rbacRedirectURI, rbacRedirectURI,
-			[]string{"openid", "profile", "groups"})
-		if err != nil {
-			log.Fatalf("rbac: oidc-client create: %v", err)
-		}
-		if rbacSecret == "" {
-			log.Fatalf("rbac: oidc-client create: empty client secret parsed from CLI output")
-		}
-		log.Printf("  client %q registered (scopes openid+profile+groups); secret len=%d ✓", rbacClientID, len(rbacSecret))
-
-		step("rbac 4/7 — mark the client restricted (sudo)")
-		{
-			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-				log.Fatalf("rbac: sudo (pre set-restricted): %v", err)
-			}
-			restrictPath := "/api/prohibitorum/oidc-applications/" + url.PathEscape(rbacClientID) + "/access/set-restricted"
-			if err := c.postJSON(restrictPath, map[string]any{"restricted": true}, nil); err != nil {
-				log.Fatalf("rbac: POST %s: %v", restrictPath, err)
-			}
-			log.Printf("  client %q access_restricted=true ✓", rbacClientID)
-		}
-
-		step("rbac 5/7 — DENY: authorize as the not-yet-granted admin → 302 /error?reason=app_access_denied (no code)")
-		{
-			// Build an interactive authorize (NOT prompt=none) so the denial lands on
-			// the IdP's own /error page rather than an RP error redirect.
+		expectAccessDenied := func(member *client, label string) {
 			_, challenge := genPKCE()
 			state := randState()
-			denyAuthz := fmt.Sprintf(
+			authz := fmt.Sprintf(
 				"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
-				url.QueryEscape(rbacClientID),
-				url.QueryEscape(rbacRedirectURI),
-				url.QueryEscape("openid groups"),
+				url.QueryEscape(policyClientID),
+				url.QueryEscape(policyRedirectURI),
+				url.QueryEscape("openid groups offline_access"),
 				url.QueryEscape(state),
 				url.QueryEscape(randState()),
 				url.QueryEscape(challenge),
 			)
-			loc, err := authorizeRaw(c, denyAuthz)
+			loc, err := authorizeRaw(member, authz)
 			if err != nil {
-				log.Fatalf("rbac: deny authorize: %v", err)
+				log.Fatalf("%s: authorize: %v", label, err)
 			}
-			// The denial must NOT redirect to the RP redirect_uri with a code.
-			if strings.HasPrefix(loc, rbacRedirectURI) {
-				log.Fatalf("rbac: deny authorize redirected to the RP redirect_uri (no denial enforced): %q", loc)
+			u, err := url.Parse(loc)
+			if err != nil {
+				log.Fatalf("%s: parse Location %q: %v", label, loc, err)
 			}
-			u, perr := url.Parse(loc)
-			if perr != nil {
-				log.Fatalf("rbac: deny authorize parse Location %q: %v", loc, perr)
+			if strings.HasPrefix(loc, policyRedirectURI) || u.Path != "/error" ||
+				u.Query().Get("reason") != "app_access_denied" || u.Query().Get("code") != "" {
+				log.Fatalf("%s: want local app_access_denied without code, got %q", label, loc)
 			}
-			if u.Path != "/error" {
-				log.Fatalf("rbac: deny authorize: want a bounce to %s/error, got path %q (loc=%q)", issuer, u.Path, loc)
-			}
-			if u.Query().Get("reason") != "app_access_denied" {
-				log.Fatalf("rbac: deny authorize: want reason=app_access_denied, got %q (loc=%q)", u.Query().Get("reason"), loc)
-			}
-			// No authorization code may be issued on the denial path.
-			if u.Query().Get("code") != "" {
-				log.Fatalf("rbac: deny authorize issued a code despite the access denial: %q", loc)
-			}
-			log.Printf("  not-yet-granted admin → 302 %s/error?reason=app_access_denied (no code) ✓", issuer)
 		}
 
-		step("rbac 6/7 — GRANT access to the group the admin belongs to (via-group path, sudo)")
-		{
-			if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
-				log.Fatalf("rbac: sudo (pre grant): %v", err)
-			}
-			grantPath := "/api/prohibitorum/oidc-applications/" + url.PathEscape(rbacClientID) + "/access/grant"
-			if err := c.postJSON(grantPath, map[string]any{
-				"principalKind": "group",
-				"principalId":   rbacGroupID,
-			}, nil); err != nil {
-				log.Fatalf("rbac: POST %s: %v", grantPath, err)
-			}
-			log.Printf("  granted group id=%d access to client %q (admin is a member) ✓", rbacGroupID, rbacClientID)
+		step(fmt.Sprintf("delegated %d/%d — admin invitations create distinct manager and member passkey accounts", 1, nDelegated))
+		if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+			log.Fatalf("delegated: sudo before manager invitation: %v", err)
 		}
-
-		step("rbac 7/7 — ALLOW: authorize (openid groups) → code → token; id_token + /userinfo carry groups claim incl. the slug")
-		{
-			// Drive a fresh interactive authorize; the via-group grant now satisfies
-			// the access gate, so a code is issued.
-			verifier, challenge := genPKCE()
-			state := randState()
-			nonce := randState()
-			allowAuthz := fmt.Sprintf(
-				"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
-				url.QueryEscape(rbacClientID),
-				url.QueryEscape(rbacRedirectURI),
-				url.QueryEscape("openid groups"),
-				url.QueryEscape(state),
-				url.QueryEscape(nonce),
-				url.QueryEscape(challenge),
-			)
-			loc, err := authorizeWithSession(c, allowAuthz)
-			if err != nil {
-				log.Fatalf("rbac: allow authorize: %v", err)
-			}
-			code, err := parseAuthorizeRedirect(loc, rbacRedirectURI, state, issuer)
-			if err != nil {
-				log.Fatalf("rbac: allow authorize redirect: %v", err)
-			}
-			log.Printf("  granted admin → 302 to redirect_uri with code (len=%d) ✓", len(code))
-
-			tok, err := tokenExchange(*baseURL, rbacClientID, rbacSecret, url.Values{
-				"grant_type":    {"authorization_code"},
-				"code":          {code},
-				"redirect_uri":  {rbacRedirectURI},
-				"code_verifier": {verifier},
-			})
-			if err != nil {
-				log.Fatalf("rbac: token exchange: %v", err)
-			}
-			if tok.IDToken == "" || tok.AccessToken == "" {
-				log.Fatalf("rbac: token response missing id_token or access_token")
-			}
-
-			// id_token must carry a groups claim that includes the group slug.
-			idClaims, err := verifyIDToken(*baseURL, tok.IDToken)
-			if err != nil {
-				log.Fatalf("rbac: verify id_token: %v", err)
-			}
-			if !groupsClaimContains(idClaims["groups"], rbacGroupSlug) {
-				log.Fatalf("rbac: id_token groups claim does not contain %q (got %v)", rbacGroupSlug, idClaims["groups"])
-			}
-			log.Printf("  id_token.groups contains %q ✓", rbacGroupSlug)
-
-			// /userinfo (Bearer access token) must carry the same groups claim.
-			ui, err := fetchUserinfo(*baseURL, tok.AccessToken)
-			if err != nil {
-				log.Fatalf("rbac: GET /oauth/userinfo: %v", err)
-			}
-			if !groupsClaimContains(ui["groups"], rbacGroupSlug) {
-				log.Fatalf("rbac: userinfo groups claim does not contain %q (got %v)", rbacGroupSlug, ui["groups"])
-			}
-			log.Printf("  userinfo.groups contains %q ✓ (per-app gate + groups claim proven via-group)", rbacGroupSlug)
+		managerClient, _, managerMe, err := invitedPasskeyAccount(c, *baseURL, "smoke-manager", "Smoke Manager")
+		if err != nil {
+			log.Fatalf("delegated: create manager account: %v", err)
 		}
+		memberClient, _, memberMe, err := invitedPasskeyAccount(c, *baseURL, "smoke-member", "Smoke Member")
+		if err != nil {
+			log.Fatalf("delegated: create member account: %v", err)
+		}
+		if managerMe.ID == memberMe.ID || managerMe.Role != "user" || memberMe.Role != "user" {
+			log.Fatalf("delegated: invitation accounts malformed: manager=%+v member=%+v", managerMe, memberMe)
+		}
+		log.Printf("  manager account id=%d and member account id=%d enrolled through invitation API ✓", managerMe.ID, memberMe.ID)
+
+		step(fmt.Sprintf("delegated %d/%d — admin promotes manager, creates one OIDC app, and assigns exactly that app", 2, nDelegated))
+		var promoted meResponse
+		if err := c.putJSON(fmt.Sprintf("/api/prohibitorum/accounts/%d", managerMe.ID), map[string]any{
+			"displayName": managerMe.DisplayName,
+			"role":        "app_manager",
+			"attributes":  map[string]any{},
+			"disabled":    false,
+		}, &promoted); err != nil {
+			log.Fatalf("delegated: promote manager: %v", err)
+		}
+		if promoted.Role != "app_manager" {
+			log.Fatalf("delegated: promoted role=%q, want app_manager", promoted.Role)
+		}
+		policySecret, err := createOIDCClient(*baseURL, policyClientID, policyRedirectURI, policyRedirectURI,
+			[]string{"openid", "profile", "groups", "offline_access"})
+		if err != nil {
+			log.Fatalf("delegated: create OIDC app: %v", err)
+		}
+		managerPath := "/api/prohibitorum/oidc-applications/" + url.PathEscape(policyClientID) + "/managers"
+		if err := c.postJSON(managerPath, map[string]any{"accountId": managerMe.ID}, nil); err != nil {
+			log.Fatalf("delegated: assign manager: %v", err)
+		}
+		var managedApps []struct {
+			Kind  string `json:"kind"`
+			AppID string `json:"appId"`
+		}
+		if err := managerClient.get("/api/prohibitorum/managed-applications", &managedApps); err != nil {
+			log.Fatalf("delegated: manager list: %v", err)
+		}
+		if len(managedApps) != 1 || managedApps[0].Kind != "oidc" || managedApps[0].AppID != policyClientID {
+			log.Fatalf("delegated: manager app list=%+v, want exactly oidc/%s", managedApps, policyClientID)
+		}
+		log.Printf("  role=app_manager; assigned app list is exactly oidc/%s ✓", policyClientID)
+
+		step(fmt.Sprintf("delegated %d/%d — manager cannot enumerate another app or edit protocol configuration", 3, nDelegated))
+		expectStatus(managerClient, http.MethodGet,
+			"/api/prohibitorum/managed-applications/oidc/"+url.PathEscape(rpClientID)+"/access",
+			nil, http.StatusNotFound, "delegated cross-app read")
+		expectStatus(managerClient, http.MethodGet,
+			"/api/prohibitorum/oidc-applications/"+url.PathEscape(policyClientID),
+			nil, http.StatusForbidden, "delegated protocol configuration read")
+		log.Printf("  unassigned managed app → 404; assigned app protocol configuration → 403 ✓")
+
+		step(fmt.Sprintf("delegated %d/%d — manager creates one manual group and two exposed avatar rule groups", 4, nDelegated))
+		type appGroup struct {
+			ID                  int32  `json:"id"`
+			Kind                string `json:"kind"`
+			Slug                string `json:"slug"`
+			ExposedToDownstream bool   `json:"exposedToDownstream"`
+		}
+		createGroup := func(body map[string]any) appGroup {
+			var group appGroup
+			if err := managerClient.postJSON(policyBase+"/groups", body, &group); err != nil {
+				log.Fatalf("delegated: create group %v: %v", body["slug"], err)
+			}
+			if group.ID <= 0 || group.Slug != body["slug"] {
+				log.Fatalf("delegated: malformed created group: %+v", group)
+			}
+			return group
+		}
+		manualGroup := createGroup(map[string]any{
+			"kind": "manual", "slug": manualSlug, "displayName": "Smoke manual decisions",
+			"description": "Explicit smoke overrides", "exposedToDownstream": true,
+		})
+		avatarRule := map[string]any{
+			"version":   1,
+			"condition": map[string]any{"fact": "avatar", "source": "any"},
+		}
+		ruleGroup1 := createGroup(map[string]any{
+			"kind": "rule", "slug": avatarRuleSlug, "displayName": "Smoke avatar rule",
+			"description": "Requires an available avatar", "exposedToDownstream": true, "rule": avatarRule,
+		})
+		ruleGroup2 := createGroup(map[string]any{
+			"kind": "rule", "slug": avatarRule2Slug, "displayName": "Smoke avatar rule two",
+			"description": "Second matching exposed rule", "exposedToDownstream": true, "rule": avatarRule,
+		})
+		expectStatus(managerClient, http.MethodPut, fmt.Sprintf("%s/groups/%d", policyBase, manualGroup.ID),
+			map[string]any{"kind": "rule", "slug": manualSlug, "displayName": "Mutated kind"},
+			http.StatusBadRequest, "delegated immutable group kind")
+		expectStatus(managerClient, http.MethodGet,
+			fmt.Sprintf("/api/prohibitorum/managed-applications/oidc/%s/groups/%d", url.PathEscape(rpClientID), manualGroup.ID),
+			nil, http.StatusNotFound, "delegated immutable app binding")
+		if manualGroup.Kind != "manual" || ruleGroup1.Kind != "rule" || ruleGroup2.Kind != "rule" {
+			log.Fatalf("delegated: unexpected group kinds: %+v %+v %+v", manualGroup, ruleGroup1, ruleGroup2)
+		}
+		log.Printf("  manual id=%d + rule ids=%d,%d; kind/app binding mutation rejected ✓", manualGroup.ID, ruleGroup1.ID, ruleGroup2.ID)
+
+		decisionPath := fmt.Sprintf("%s/groups/%d/decisions", policyBase, manualGroup.ID)
+		clearDecisionPath := decisionPath + "/clear"
+
+		step(fmt.Sprintf("delegated %d/%d — manager restricts access; neutral member with no avatar is denied", 5, nDelegated))
+		if err := managerClient.postJSON(policyBase+"/access/set-restricted", map[string]any{"restricted": true}, nil); err != nil {
+			log.Fatalf("delegated: set restricted: %v", err)
+		}
+		expectAccessDenied(memberClient, "delegated neutral rule deny")
+		log.Printf("  restricted=true; neutral decision + two non-matching rules → deny ✓")
+
+		step(fmt.Sprintf("delegated %d/%d — manual allow overrides non-matching rules", 6, nDelegated))
+		if err := managerClient.postJSON(decisionPath,
+			map[string]any{"accountId": memberMe.ID, "effect": "allow"}, nil); err != nil {
+			log.Fatalf("delegated: manual allow: %v", err)
+		}
+		_, _ = freshAuthorizeCode(memberClient, *baseURL, policyClientID, policyRedirectURI, issuer)
+		log.Printf("  manual allow > rule miss → authorization code issued ✓")
+
+		step(fmt.Sprintf("delegated %d/%d — manual deny overrides allow/rules; clearing returns to neutral deny", 7, nDelegated))
+		if err := managerClient.postJSON(decisionPath,
+			map[string]any{"accountId": memberMe.ID, "effect": "deny"}, nil); err != nil {
+			log.Fatalf("delegated: manual deny: %v", err)
+		}
+		expectAccessDenied(memberClient, "delegated manual deny")
+		if err := managerClient.postJSON(clearDecisionPath, map[string]any{"accountId": memberMe.ID}, nil); err != nil {
+			log.Fatalf("delegated: clear manual deny: %v", err)
+		}
+		expectAccessDenied(memberClient, "delegated neutral deny after clear")
+		log.Printf("  manual deny > rules; clear restores neutral rule-based denial ✓")
+
+		step(fmt.Sprintf("delegated %d/%d — live avatar upload makes both rule groups match without reconciliation", 8, nDelegated))
+		avatarReq, err := http.NewRequest(http.MethodPut, memberClient.base+"/api/prohibitorum/me/avatar",
+			bytes.NewReader(pngBuf.Bytes()))
+		if err != nil {
+			log.Fatalf("delegated: build member avatar upload: %v", err)
+		}
+		avatarReq.Header.Set("Content-Type", "image/png")
+		avatarResp, err := memberClient.hc.Do(avatarReq)
+		if err != nil {
+			log.Fatalf("delegated: member avatar upload: %v", err)
+		}
+		avatarBody, _ := io.ReadAll(avatarResp.Body)
+		_ = avatarResp.Body.Close()
+		if avatarResp.StatusCode != http.StatusNoContent {
+			log.Fatalf("delegated: member avatar upload want 204, got %d (%s)", avatarResp.StatusCode, avatarBody)
+		}
+		_, _ = freshAuthorizeCode(memberClient, *baseURL, policyClientID, policyRedirectURI, issuer)
+		log.Printf("  avatar:any fact changed live; neutral OR(two matching rules) → allow ✓")
+
+		step(fmt.Sprintf("delegated %d/%d — ID token and userinfo project manual plus both matching exposed slugs", 9, nDelegated))
+		if err := managerClient.postJSON(decisionPath,
+			map[string]any{"accountId": memberMe.ID, "effect": "allow"}, nil); err != nil {
+			log.Fatalf("delegated: restore manual allow for claims: %v", err)
+		}
+		verifier, challenge := genPKCE()
+		state := randState()
+		claimsAuthz := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+			url.QueryEscape(policyClientID),
+			url.QueryEscape(policyRedirectURI),
+			url.QueryEscape("openid profile groups offline_access"),
+			url.QueryEscape(state),
+			url.QueryEscape(randState()),
+			url.QueryEscape(challenge),
+		)
+		loc, err := authorizeWithSession(memberClient, claimsAuthz)
+		if err != nil {
+			log.Fatalf("delegated: claims authorize: %v", err)
+		}
+		code, err := parseAuthorizeRedirect(loc, policyRedirectURI, state, issuer)
+		if err != nil {
+			log.Fatalf("delegated: claims redirect: %v", err)
+		}
+		policyTokens, err := tokenExchange(*baseURL, policyClientID, policySecret, url.Values{
+			"grant_type": {"authorization_code"}, "code": {code},
+			"redirect_uri": {policyRedirectURI}, "code_verifier": {verifier},
+		})
+		if err != nil {
+			log.Fatalf("delegated: claims token exchange: %v", err)
+		}
+		if policyTokens.RefreshToken == "" {
+			log.Fatalf("delegated: claims token response omitted refresh token")
+		}
+		idClaims, err := verifyIDToken(*baseURL, policyTokens.IDToken)
+		if err != nil {
+			log.Fatalf("delegated: verify managed-app ID token: %v", err)
+		}
+		userinfo, err := fetchUserinfo(*baseURL, policyTokens.AccessToken)
+		if err != nil {
+			log.Fatalf("delegated: managed-app userinfo: %v", err)
+		}
+		for _, slug := range []string{manualSlug, avatarRuleSlug, avatarRule2Slug} {
+			if !groupsClaimContains(idClaims["groups"], slug) || !groupsClaimContains(userinfo["groups"], slug) {
+				log.Fatalf("delegated: slug %q missing from claims: id_token=%v userinfo=%v", slug, idClaims["groups"], userinfo["groups"])
+			}
+		}
+		rotatedTokens, err := tokenExchange(*baseURL, policyClientID, policySecret, url.Values{
+			"grant_type": {"refresh_token"}, "refresh_token": {policyTokens.RefreshToken},
+		})
+		if err != nil {
+			log.Fatalf("delegated: eligible refresh: %v", err)
+		}
+		if rotatedTokens.RefreshToken == "" {
+			log.Fatalf("delegated: eligible refresh omitted successor token")
+		}
+		log.Printf("  groups claim contains %s, %s, %s; eligible refresh rotates ✓", manualSlug, avatarRuleSlug, avatarRule2Slug)
+
+		step(fmt.Sprintf("delegated %d/%d — removing live eligibility makes refresh invalid_grant and revokes its family", 10, nDelegated))
+		if err := managerClient.postJSON(clearDecisionPath, map[string]any{"accountId": memberMe.ID}, nil); err != nil {
+			log.Fatalf("delegated: clear manual allow before eligibility cut: %v", err)
+		}
+		expectStatus(memberClient, http.MethodDelete, "/api/prohibitorum/me/avatar", nil,
+			http.StatusNoContent, "delegated remove live avatar fact")
+		expectAccessDenied(memberClient, "delegated post-avatar-removal deny")
+		if err := tokenExpectError(*baseURL, policyClientID, policySecret, url.Values{
+			"grant_type": {"refresh_token"}, "refresh_token": {rotatedTokens.RefreshToken},
+		}, http.StatusBadRequest, "invalid_grant"); err != nil {
+			log.Fatalf("delegated: policy-cut refresh: %v", err)
+		}
+		// Restore eligibility, then prove the old rotating family remains dead.
+		restoreReq, err := http.NewRequest(http.MethodPut, memberClient.base+"/api/prohibitorum/me/avatar",
+			bytes.NewReader(pngBuf.Bytes()))
+		if err != nil {
+			log.Fatalf("delegated: build avatar restore: %v", err)
+		}
+		restoreReq.Header.Set("Content-Type", "image/png")
+		restoreResp, err := memberClient.hc.Do(restoreReq)
+		if err != nil {
+			log.Fatalf("delegated: restore avatar: %v", err)
+		}
+		_, _ = io.Copy(io.Discard, restoreResp.Body)
+		_ = restoreResp.Body.Close()
+		if restoreResp.StatusCode != http.StatusNoContent {
+			log.Fatalf("delegated: restore avatar want 204, got %d", restoreResp.StatusCode)
+		}
+		if err := tokenExpectError(*baseURL, policyClientID, policySecret, url.Values{
+			"grant_type": {"refresh_token"}, "refresh_token": {policyTokens.RefreshToken},
+		}, http.StatusBadRequest, "invalid_grant"); err != nil {
+			log.Fatalf("delegated: revoked predecessor after eligibility restore: %v", err)
+		}
+		if err := tokenExpectError(*baseURL, policyClientID, policySecret, url.Values{
+			"grant_type": {"refresh_token"}, "refresh_token": {rotatedTokens.RefreshToken},
+		}, http.StatusBadRequest, "invalid_grant"); err != nil {
+			log.Fatalf("delegated: revoked successor after eligibility restore: %v", err)
+		}
+		log.Printf("  live fact removal → deny + invalid_grant; eligibility restore cannot revive predecessor or successor ✓")
+
+		step(fmt.Sprintf("delegated %d/%d — admin removes assignment and manager immediately loses the app", 11, nDelegated))
+		if err := c.postJSON(managerPath+"/remove", map[string]any{"accountId": managerMe.ID}, nil); err != nil {
+			log.Fatalf("delegated: remove manager assignment: %v", err)
+		}
+		expectStatus(managerClient, http.MethodGet, policyBase+"/access", nil,
+			http.StatusNotFound, "delegated removed-manager read")
+		log.Printf("  assignment removal succeeded; former manager receives non-enumerating 404 ✓")
+
+		step(fmt.Sprintf("delegated %d/%d — admin audit API exposes assignment and policy lifecycle events", 12, nDelegated))
+		var managerEvents page[contractAuditEvent]
+		if err := c.get("/api/prohibitorum/audit-events?factor=app_manager&limit=100", &managerEvents); err != nil {
+			log.Fatalf("delegated: app_manager audit events: %v", err)
+		}
+		sawAssigned, sawRemoved := false, false
+		for _, event := range managerEvents.Items {
+			if str(event.Detail["app_id"]) != policyClientID {
+				continue
+			}
+			sawAssigned = sawAssigned || event.Event == "app_manager_assigned"
+			sawRemoved = sawRemoved || event.Event == "app_manager_removed"
+		}
+		var policyEvents page[contractAuditEvent]
+		if err := c.get("/api/prohibitorum/audit-events?factor=app_policy&limit=100", &policyEvents); err != nil {
+			log.Fatalf("delegated: app_policy audit events: %v", err)
+		}
+		policyEventSet := map[string]bool{}
+		for _, event := range policyEvents.Items {
+			if str(event.Detail["app_id"]) == policyClientID {
+				policyEventSet[event.Event] = true
+			}
+		}
+		for _, want := range []string{"register", "access_restricted_set", "access_granted", "access_denied", "access_revoked"} {
+			if !policyEventSet[want] {
+				log.Fatalf("delegated: missing app_policy audit event %q (got %v)", want, policyEventSet)
+			}
+		}
+		if !sawAssigned || !sawRemoved {
+			log.Fatalf("delegated: manager audit lifecycle incomplete: assigned=%v removed=%v", sawAssigned, sawRemoved)
+		}
+		log.Printf("  audit factors app_manager and app_policy cover assignment, restriction, groups, decisions, and removal ✓")
 	}
-
-	// =========================================================================
-	// launchpad: the end-user "My apps" surface — GET /me/apps lists authorized
-	// launchable apps (RBAC predicate reused), and /me/consent lists + revokes
-	// the apps the account has granted access to. Restricted+ungranted omission
-	// is covered by the Go unit test TestHandleMyApps.
-	// =========================================================================
-	{
-		const nLaunchpad = 2
-		step(fmt.Sprintf("launchpad %d/%d — GET /me/apps lists authorized launchable apps (open + restricted-granted-via-group)", 1, nLaunchpad))
-		type launchpadApp struct {
-			Kind      string  `json:"kind"`
-			ID        string  `json:"id"`
-			Name      string  `json:"name"`
-			LaunchURL string  `json:"launchUrl"`
-			IconURL   *string `json:"iconUrl"`
-		}
-		var apps []launchpadApp
-		if err := c.get("/api/prohibitorum/me/apps", &apps); err != nil {
-			log.Fatalf("launchpad: GET /me/apps: %v", err)
-		}
-		idx := map[string]launchpadApp{}
-		for _, a := range apps {
-			idx[a.ID] = a
-		}
-		rp, ok := idx[rpClientID]
-		if !ok || rp.Kind != "oidc" || rp.LaunchURL == "" {
-			log.Fatalf("launchpad: /me/apps missing open client %q with a launch URL; got %+v", rpClientID, apps)
-		}
-		if _, ok := idx["smoke-rbac-rp"]; !ok {
-			log.Fatalf("launchpad: /me/apps missing restricted-but-granted client smoke-rbac-rp (via-group grant must be authorized); got %+v", apps)
-		}
-		log.Printf("  /me/apps lists %d app(s) incl. %s (launch=%s) + smoke-rbac-rp ✓", len(apps), rpClientID, rp.LaunchURL)
-
-		step(fmt.Sprintf("launchpad %d/%d — GET /me/consent lists a granted app; POST /me/consent/revoke removes it", 2, nLaunchpad))
-		if err := seedConsent(me2.ID, rpClientID, []string{"openid", "profile"}); err != nil {
-			log.Fatalf("launchpad: seed consent: %v", err)
-		}
-		type consentedApp struct {
-			ClientID string   `json:"clientId"`
-			Scopes   []string `json:"scopes"`
-		}
-		var consents []consentedApp
-		if err := c.get("/api/prohibitorum/me/consent", &consents); err != nil {
-			log.Fatalf("launchpad: GET /me/consent: %v", err)
-		}
-		listed := false
-		for _, x := range consents {
-			if x.ClientID == rpClientID {
-				listed = true
-			}
-		}
-		if !listed {
-			log.Fatalf("launchpad: /me/consent missing seeded consent for %q; got %+v", rpClientID, consents)
-		}
-		if err := c.postJSON("/api/prohibitorum/me/consent/revoke", map[string]any{"clientId": rpClientID}, nil); err != nil {
-			log.Fatalf("launchpad: POST /me/consent/revoke: %v", err)
-		}
-		var afterRevoke []consentedApp
-		if err := c.get("/api/prohibitorum/me/consent", &afterRevoke); err != nil {
-			log.Fatalf("launchpad: GET /me/consent (post-revoke): %v", err)
-		}
-		for _, x := range afterRevoke {
-			if x.ClientID == rpClientID {
-				log.Fatalf("launchpad: consent for %q still present after revoke", rpClientID)
-			}
-		}
-		log.Printf("  /me/consent listed %q then revoke removed it ✓", rpClientID)
-	}
-
-	// SAML RBAC arc intentionally SKIPPED: the per-app access gate also covers
-	// SAML SPs, but adding a SAML restrict→deny→grant→allow check would be scope
-	// creep here — the SAML SSO steps (88–99) drive a require_signed GHES SP and
-	// asserting the denial would need a fresh restricted SP + its own verifier.
-	// The OIDC arc above fully exercises the gate (deny non-member + via-group
-	// grant) and the groups claim, which is the contract under test.
 
 	// noFollow is a one-off HTTP client that does NOT follow redirects so we
 	// can assert 302 Location headers on browser-navigated error paths.
@@ -4881,7 +4954,7 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + delegated-access (admin promotes and assigns one app_manager; cross-app/config denials; app-bound manual + OR rule groups; manual deny/allow precedence; live avatar eligibility; three exposed OIDC group claims; refresh eligibility re-check and family revocation; assignment/policy audit lifecycle) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
 	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, target-hidden recovery with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }
@@ -5288,6 +5361,52 @@ type meResponse struct {
 	AvatarSource       *string           `json:"avatarSource,omitempty"`
 	AvatarSourceUrls   map[string]string `json:"avatarSourceUrls,omitempty"`
 	AvatarSourceLabels map[string]string `json:"avatarSourceLabels,omitempty"`
+}
+
+// invitedPasskeyAccount exercises the administrator invitation endpoint and
+// the public passkey enrollment ceremony. The caller must hold fresh sudo.
+func invitedPasskeyAccount(admin *client, baseURL, username, displayName string) (*client, *authenticator, *meResponse, error) {
+	var invitation struct {
+		URL string `json:"url"`
+	}
+	if err := admin.postJSON("/api/prohibitorum/invitations", map[string]any{
+		"role": "user",
+	}, &invitation); err != nil {
+		return nil, nil, nil, fmt.Errorf("create invitation: %w", err)
+	}
+	inviteURL, err := url.Parse(invitation.URL)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("parse invitation URL: %w", err)
+	}
+	token := path.Base(strings.TrimSuffix(inviteURL.Path, "/"))
+	if token == "" || token == "." || token == "/" {
+		return nil, nil, nil, fmt.Errorf("invitation URL has no token: %q", invitation.URL)
+	}
+
+	accountClient, err := newClient(baseURL)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	creation, err := accountClient.beginEnrollment(token, username, displayName, username+"-passkey")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("begin enrollment: %w", err)
+	}
+	accountAuth, err := newAuthenticator(creation.RP.ID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("create authenticator: %w", err)
+	}
+	attestation, err := accountAuth.attestCredential(creation.Challenge, creation.User.ID, baseURL)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("attest credential: %w", err)
+	}
+	if err := accountClient.completeEnrollment(token, accountAuth, attestation); err != nil {
+		return nil, nil, nil, fmt.Errorf("complete enrollment: %w", err)
+	}
+	accountMe, err := accountClient.getMe()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("get enrolled account: %w", err)
+	}
+	return accountClient, accountAuth, accountMe, nil
 }
 
 // page[T] mirrors the server's pagination.Page[T] wire envelope

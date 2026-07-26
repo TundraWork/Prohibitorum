@@ -13,7 +13,7 @@ A single-tenant identity provider for a small org. It owns the account directory
 - A multi-tenant SaaS IdP (no per-tenant separation).
 - A SAML SP — Prohibitorum does **not** consume upstream SAML assertions. Its upstream provider adapters are OIDC, Steam OpenID 2.0, and VRChat profile proof.
 - A self-service social-login proxy. OIDC and Steam provisioning modes are explicit; VRChat is fixed `link_only` and never acts as a direct local sign-in credential.
-- An authorization policy engine (no OPA/Rego). A free-form `attributes` map per account flows into ID-token claims and SAML AttributeStatement; RPs enforce policy from those claims. The RBAC feature adds a *coarse per-app access gate* — whether a user may obtain a token/assertion for an app at all — but the RP still governs in-app policy from claims (including the `groups` claim). The two layers are distinct: IdP gates app access; RP gates in-app policy.
+- A general-purpose authorization policy engine (no OPA/Rego). A free-form `attributes` map per account flows into ID-token claims and SAML AttributeStatement, and RPs still govern in-app resources. Prohibitorum additionally supplies a narrowly scoped, app-bound admission policy: it decides whether an active account may obtain credentials for one downstream app and projects only that app's matching group slugs.
 
 ## Architecture — three-layer
 
@@ -56,6 +56,7 @@ The `session` package is the contract between layers (2) and (3). Protocols don'
 ```text
 pkg/
   account/                # directory: Account, list, disable, role, attributes
+  appaccess/              # live app-bound admission evaluator, rules, claims, manager authorization
   credential/
     webauthn/             # WebAuthn registration + assertion
     password/             # argon2id PHC hash store + verify
@@ -167,10 +168,11 @@ readiness.
 
 Authorization Code + PKCE only. Implicit / ROPC / Hybrid are not registered as accepted `response_type`s. Discovery + JWKS endpoints published. RS256 signing (key store unified with SAML; see "Cryptography").
 
-- **ID token claims:** `iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, `auth_time`, `amr`, `acr`, `azp` (when `aud` is multi-valued or differs from authorized party), `at_hash`, plus `username`, `displayName`, `role`, and `attributes` carried verbatim from the account. With the `groups` scope granted, a sorted `groups` array of the user's `exposed_to_downstream` group slugs (present-but-empty `[]`; emitted in both the ID token and `/userinfo`).
-- **Access token (RFC 9068):** `typ: at+jwt`. Required claims `iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`; `auth_time` / `amr` / `acr` carried when available.
-- **Refresh tokens:** opaque, KV-stored, rotated on use; reuse detection revokes the entire family.
-- **Authorization codes:** marked `consumed_at` on first use (not deleted), kept until TTL. Replay attempts revoke the refresh-token family minted from the code and write a `credential_event` with `event=fail, factor=oidc_client, reason=code_reuse` (RFC 9700 §4.5, §4.14.2).
+- **App-bound access and same-client exchange:** after disabled-account enforcement, the shared app-policy service is consulted at `/oauth/authorize`, authorization-code exchange, refresh, and `/oauth/userinfo`. An authorization code is bound to its issuing `client_id`, redirect URI, session, and PKCE challenge; it cannot be exchanged by another client. A refresh-token family is likewise bound to one client. Policy is re-evaluated at each of those boundaries rather than trusted from the original authorization.
+- **ID token and userinfo claims:** `iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, `auth_time`, `amr`, `acr`, `azp` (when `aud` is multi-valued or differs from authorized party), `at_hash`, plus `username`, `displayName`, `role`, and `attributes` carried verbatim from the account. When the owning app grants the `groups` scope, both the ID token and `/userinfo` contain a present-but-empty-or-sorted `groups` array. Its values are only the app-bound, `exposed_to_downstream` groups matching that account for this client; no other app's groups can appear.
+- **Access token (RFC 9068):** `typ: at+jwt`. Required claims `iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `client_id`, `scope`; `auth_time` / `amr` / `acr` carried when available. `/userinfo` reads its `client_id` and re-evaluates the same app policy before returning claims.
+- **Refresh tokens:** opaque, KV-stored, single-use rotated family members. Reuse, client mismatch, account/session invalidation, or a live policy denial invalidates the entire family. A policy denial responds with OAuth `invalid_grant`; no replacement credential is issued.
+- **Authorization codes:** atomically consumed and kept as a replay marker for their TTL. Replay revokes the refresh-token family minted by that code and writes a `credential_event` with `event=fail`, `factor=oidc_client`, and `reason=code_replay` (RFC 9700 §4.5, §4.14.2).
 - **Revocation (RFC 7009):** writes to `revoked_jti` for self-contained access tokens; `/oauth/introspect` returns `active: false`.
 - **RP-Initiated Logout:** `post_logout_redirect_uri` exact-matched against `oidc_client.post_logout_redirect_uris`.
 
@@ -181,49 +183,86 @@ SP-initiated SSO (HTTP-Redirect and HTTP-POST bindings for AuthnRequest; HTTP-PO
 - **Assertion construction.** Always sign both `<Response>` and `<Assertion>`. `Destination` on `<Response>` = chosen ACS URL. `<SubjectConfirmationData Recipient>` = same ACS URL. `<Audience>` inside `<AudienceRestriction>` = `saml_sp.entity_id` verbatim.
 - **NameID stability** via `saml_subject_id(account_id, sp_id)`: 32-byte random opaque value generated on first SSO, reused forever (Core §8.3.7). Defeats GHES account re-linking on rename / email change.
 - **ACS lookup precedence** (Profiles §4.1.4.1): explicit `AssertionConsumerServiceURL` in AuthnRequest (must match a `saml_sp_acs` row exactly) → `AssertionConsumerServiceIndex` → `is_default=true`. No wildcard or loose match.
-- **Attribute mapping** is an ordered JSONB array of `{local, name, friendly_name, name_format, multi}` (Core §2.7.3). GHES needs URI NameFormat (`public_keys`) and multi-valued attributes (`emails`, `public_keys`, `gpg_keys`); the array shape supports both.
+- **Attribute mapping** is an ordered JSONB array of `{local, name, friendly_name, name_format, multi}` (Core §2.7.3). GHES needs URI NameFormat (`public_keys`) and multi-valued attributes (`emails`, `public_keys`, `gpg_keys`); the array shape supports both. A `source: "groups"` mapping receives only the exposed matching groups bound to this SP, and omits the attribute when that set is empty.
+- **App-bound gate:** the same shared policy service is evaluated before each SP- or IdP-initiated assertion (and on consent resume). A denial emits no assertion.
 - **AuthnContextClassRef:** `…PasswordProtectedTransport` for password+TOTP, `…unspecified` for WebAuthn (no standard passkey ref exists yet), `Comparison="exact"`.
 - **Metadata at `/saml/metadata`** publishes every `signing_key` row in the `{pending, active, decommissioning}` set, so verification continues across rotation (a decommissioning key lingers until its `retire_after` grace, default 7d, elapses).
 
-### Per-app access gate (RBAC)
+### App-bound access policy
 
-A coarse access gate on top of the downstream protocols. New tables `user_group` + `group_member` (first-class groups and membership) and `oidc_client_access` / `saml_sp_access` (grants pointing at **either** a group or an account, `CHECK num_nonnulls(group_id, account_id) = 1`), plus an `access_restricted boolean NOT NULL DEFAULT false` column on `oidc_client` and `saml_sp`. A single sqlc predicate per protocol (`IsAccountAuthorizedFor{OIDCClient,SAMLSP}`) decides:
+Prohibitorum is not a resource-permission engine: downstream applications remain responsible for their own resource authorization. It does own the final admission decision for an app and uses one protocol-neutral service for OIDC, forward-auth, SAML, launchpad candidates, PAT candidates, ID-token/userinfo claims, and SAML attributes. Protocol handlers do not duplicate policy logic.
 
-> **authorized** = `NOT access_restricted` **OR** a direct `(app, account)` grant exists **OR** the account is a member of any group granted to the app.
+#### Roles and manager assignments
 
-No admin bypass — `role='admin'` is not special-cased. The predicate is evaluated after the session is validated and `account.disabled` enforced, before anything is issued: at OIDC `/oauth/authorize`, **again at the refresh-token grant** (so de-provisioning cuts existing sessions within the access-token TTL — the refresh family is revoked), and at SAML SSO (SP- and IdP-initiated). Denied **interactive** users are redirected to the IdP's own `/error?reason=app_access_denied` page; OIDC `prompt=none` gets a protocol-native `access_denied` at the `redirect_uri`; SAML passive (`IsPassive`) gets a `Responder` / `RequestDenied` status Response. Every denial writes an `access_denied` `credential_event`.
+- `user` has self-service and downstream-authentication capabilities.
+- `app_manager` has user capabilities plus access-policy management for exactly the apps assigned to that account.
+- `admin` has global instance authority. Existing admin routes remain admin-only; an admin may use every access workspace, but there is no downstream-use bypass.
 
-**Group exposure to downstreams** is a two-level opt-in: a group with `exposed_to_downstream = true` (default true) flows to apps that ask — an OIDC client with the `groups` scope (claim above) or a SAML SP whose `attribute_map` has a `source: "groups"` entry (emits the exposed slugs, multi-valued). Neither leaks unless both the group flag and the per-app opt-in are set. The authorization predicate is also the query a future end-user launchpad ("which apps may I launch?") will reuse.
+Only an admin may add or remove an assignment, and both mutations require fresh sudo. The target must be an enabled account whose current role is `app_manager`. A manager may not promote or edit accounts, assign managers, edit app protocol configuration, inspect credentials or secrets, manage providers, view global audit records, or change instance settings. Assignment grants management authority only; it never makes the assignee eligible to use that app.
 
-## Admin management API
+Assignments are FK-backed: OIDC and forward-auth applications use the backing OIDC client assignment, while SAML applications use an SP assignment. A manager can have many assignments and an app can have many managers. The route kind is checked as well as the backing ID, so an OIDC management path cannot expose a forward-auth app or vice versa. Sessions reload the account on authenticated requests; demotion from `app_manager`, disablement, or deletion takes effect immediately, and a role change away from `app_manager` transactionally removes its assignments.
 
-All routes under `/api/prohibitorum`, admin-role gated. High-impact mutations (secrets, PKI/trust config, credentials, irreversible destructive actions) are additionally fresh-sudo gated via `registerSudoOpHTTP` (admin auth + fresh sudo + 64 KiB body-size cap + JSON content-type check); lower-impact reversible mutations (SAML CRUD, group membership, app-access grants) use `registerAdminBodyOpHTTP` (admin auth + body controls, no sudo). See `api.md` for the full route table and gate notation.
+#### Groups, rules, and facts
 
-### OIDC clients
+Every policy group is bound to exactly one downstream application at creation. The binding is immutable: update requests contain no app-binding or kind field, and moving a group means deleting it and creating a replacement. A forward-auth group belongs to its backing OIDC client but is reached only through a `forward_auth` route. Slugs are unique within the owning app, never globally.
 
-- `GET /oidc-clients`, `GET /oidc-clients/{clientId}` — read (🔓, secret never returned)
-- `POST /oidc-clients` — create (🔐, secret revealed once in response)
-- `PUT /oidc-clients/{clientId}` — update config (🔐, does not touch secret)
-- `POST /oidc-clients/rotate-secret` — new secret (🔐, revealed once)
-- `POST /oidc-clients/delete` — hard-delete (🔐)
+Each app has zero or one **manual** group and zero or more **rule** groups:
 
-### SAML service providers
+- A manual group stores one per-account `allow` or `deny` decision; an absent row is neutral. Upsert changes the effect and clear deletes the decision. Manual decisions cannot target a rule group.
+- A rule group has no members and accepts no manual decisions. Its versioned rule document is a closed JSON AST: `all` and `any` contain non-empty `children`; `not` has one `child`; leaves are `connection.provider`, `connection.protocol`, `login_method`, or `avatar`.
+- Valid leaf values are a known provider slug; protocol `oidc`, `steam`, or `vrchat`; login method `passkey`, `password_totp`, or `federation`; and avatar source `any` or `user_uploaded`. Unknown fields, unknown values, malformed node shapes, nonexistent providers, empty combinators, depth over 8, more than 64 nodes, or more than 32 children are rejected as `invalid_group_rule` with only `{path, reason}`. The existing 64 KiB JSON request limit is the outer bound.
 
-- `GET /saml-providers`, `GET /saml-providers/{id}` — read (🔓)
-- `POST /saml-providers` — create, optionally with metadata XML ingestion (🔓)
-- `PUT /saml-providers/{id}` — update (🔓)
-- `POST /saml-providers/{id}/reingest-metadata` — re-parse fresh SP metadata (🔓)
-- `POST /saml-providers/delete` — hard-delete (🔓)
+Rule groups have no deny effect and no authorization priority. All rules are independently evaluated from a single live fact snapshot; every matching rule participates in the OR and in claim projection. Presentation order must not be treated as security semantics.
 
-### Groups & per-app access (RBAC)
+Facts contain no raw secrets or provider metadata:
 
-- `GET /groups`, `GET /groups/{id}`, `GET /groups/{id}/members`, `GET /accounts/{id}/groups` — read (🔓)
-- `POST /groups`, `PUT /groups/{id}`, `POST /groups/delete` — group CRUD (🔓); slug validated `^[a-z0-9](-?[a-z0-9])*$`
-- `POST /groups/{id}/members`, `POST /groups/{id}/members/remove` — membership (🔓)
-- `GET /oidc-applications/{clientId}/access`, `GET /saml-applications/{id}/access` — read the restricted flag + grants (🔓)
-- `POST …/access/set-restricted`, `…/access/grant`, `…/access/revoke` — toggle the gate and grant/revoke group/account access (🔓)
+- A connection fact requires `account_identity.confirmed_at`; disabling a provider does not erase an already verified connection.
+- `passkey` requires a usable WebAuthn credential. `password_totp` requires both a password and confirmed TOTP. `federation` requires a confirmed identity for a currently enabled direct-sign-in provider; link-only VRChat does not qualify.
+- `avatar.any` requires a usable user upload or verified upstream avatar candidate. `avatar.user_uploaded` requires a usable user upload.
+- A disabled account fails before fact loading and is omitted from delegated account search and rule previews.
 
-CLI parity: a `group` verb (`create|list|update|delete|add-member|remove-member`) and `access` subcommands on `oidc-client`/`saml-sp` (`--access-restricted`, `--grant-group`/`--grant-account`, `--revoke-*`). The SPA surfaces a groups admin section, a reusable per-app **Access** card, and a group-membership card on the account-detail page.
+There is no calculated-membership table or reconciliation job. Connection confirmation/unlinking, login-method changes, provider enablement, and avatar changes affect the next decision. For one request, the service loads facts and rules once and reuses them for both access and claims.
+
+#### Decision, claims, and protocol behavior
+
+For a restricted app and active account:
+
+```text
+manual deny                       → deny
+manual allow                      → allow
+neutral + any matching rule group → allow
+otherwise                         → deny
+```
+
+An unrestricted app remains open regardless of stored groups. No role, including `admin` or `app_manager`, bypasses this decision. A manual allow projects its exposed manual slug plus every exposed matching rule slug; neutral rule-based access projects every exposed matching rule slug. Slugs are sorted and deduplicated. A manual deny produces no credential, assertion, or claim. OIDC requires the `groups` scope; SAML requires an attribute-map `groups` source; forward-auth returns the same app-bound slugs in `Remote-Groups`. These projections are app-aware and never cross an application boundary.
+
+OIDC interactive denials use the IdP error page; `prompt=none` receives protocol-native `access_denied`. Authorization-code exchange rechecks current policy before minting tokens and returns `invalid_grant` on denial. Refresh does the same and revokes the entire refresh family before returning `invalid_grant`; `/userinfo` rejects a now-denied bearer token. SAML interactive denial uses the IdP error page, while passive SSO returns `Responder` / `RequestDenied`. Forward-auth re-evaluates both cookie and PAT requests, returns its existing denial response, and issues no downstream session. Launchpad and PAT app lists omit denied applications.
+
+#### Destructive cutover
+
+This model is a destructive schema migration, not a compatibility layer. It deletes legacy global groups, memberships, and per-app direct grants; resets every OIDC and SAML app to unrestricted; adds the manager-assignment, app-bound-group, and manual-decision schema; and leaves no aliases or legacy routes. A down migration restores only old table shapes and cannot recreate deleted policy data.
+
+## Management API boundaries
+
+All management and delegated routes use the `/api/prohibitorum` prefix. Admin-only routes require an `admin` session. Fresh sudo is required for secrets, irreversible operations, and manager assignment changes; its wrapper also enforces JSON content type and a 64 KiB body limit. Reversible policy mutations use the same content-type/body-size controls but do not require sudo. `api.md` defines the complete wire surface.
+
+### Application configuration and assignments
+
+Application configuration remains an admin-only concern:
+
+- OIDC: `/oidc-applications`; forward-auth: `/forward-auth-apps`; SAML: `/saml-applications`.
+- Each kind has admin-only manager-list, assign, and remove endpoints. Assignment bodies use `{"accountId": <integer>}`; list responses expose only `id`, `username`, `displayName`, `disabled`, and `assignedAt`.
+- Global admins use the same app-policy workspace service from their app detail pages. App managers use only the dedicated managed-application surface and cannot use configuration endpoints.
+
+### Delegated app-policy surface
+
+`/managed-applications` is available to an active `app_manager` or `admin`. The caller must then pass an exact assignment check unless an admin. App kind is explicit: `oidc`, `forward_auth`, or `saml`; OIDC and forward-auth IDs are URL-escaped client IDs, and SAML IDs are positive decimal IDs. An invalid kind, wrong kind, missing/deleted app, or unassigned app is indistinguishable (`404`) to a non-admin manager.
+
+- `GET /managed-applications` lists assigned application summaries.
+- `GET /managed-applications/{kind}/{appId}/access` returns the app, restriction flag, known provider slugs, optional manual group, and rule groups.
+- `POST /managed-applications/{kind}/{appId}/access/set-restricted` accepts `{"restricted": <boolean>}`.
+- `/managed-applications/{kind}/{appId}/groups` supports list/create/get/update/delete of only groups bound to that app.
+- Manual-decision list/upsert/clear, rule preview, safe rule explanation, and active-account search are nested under that same app and group path. No endpoint accepts a global group or an access grant.
 
 ### Upstream IdPs
 
@@ -250,9 +289,9 @@ The `status` column is the sole lifecycle. Partial unique index `one_active_sign
 
 ### Audit events
 
-- `GET /audit-events` — query `credential_event` (🔓), filterable by `factor`, `event`, `accountId`, `since`, `until`; keyset pagination
+- `GET /audit-events` — admin-only query of `credential_event`, filterable by `factor`, `event`, `accountId`, `since`, and `until`, with keyset pagination.
 
-Every admin mutation writes a `credential_event` row (`factor` ∈ `oidc_client` / `saml_sp` / `upstream_idp` / `signing_key`; `event` ∈ `register` / `update` / `rotate` / `revoke`). The `detail` JSONB contains redacted metadata only — no secret, hash, or private key material (enforced at the write site). Audit rows are **best-effort**: if the DB insert fails, `audit.RecordOrLog` emits a structured error log (factor, event, account_id, credential_ref — no `detail`) as a fallback so the event is never silently swallowed.
+The audit stream records application-manager assignment/removal (`factor=app_manager`); restriction changes, group create/update/delete, and manual allow/deny/clear (`factor=app_policy`); and protocol access denials (`factor=oidc_client` or `saml_sp`). App-policy records identify the actor, app kind/ID, target account where applicable, group ID, and action. They never include rule JSON, evaluated facts, credential details, identity metadata, hashes, private keys, or secrets. Writes remain best-effort: an insertion failure becomes a structured error log without the redacted detail payload.
 
 ### Account credentials (admin)
 
@@ -270,30 +309,30 @@ Every admin mutation writes a `credential_event` row (`factor` ∈ `oidc_client`
 
 OIDC OP flow:
 
-1. RP redirects user to `/oauth/authorize?...` with PKCE.
-2. Prohibitorum checks session cookie. If absent, redirects to `/login?return_to=...` and presents available methods.
-3. User authenticates; session minted and persisted in `session` table with `auth_time`, `amr`, `acr`.
-4. Browser returns to `/authorize`; code minted (PKCE-bound, KV-stored, 60s TTL).
-5. Redirects to `redirect_uri?code=...&state=...&iss=...`.
-6. RP back-end POSTs to `/oauth/token` with code + verifier; receives ID token + access token + (optionally) refresh token.
-7. RP validates ID token via JWKS.
+1. RP redirects the browser to `/oauth/authorize` with its registered `client_id`, exact `redirect_uri`, `openid` scope, and PKCE.
+2. Prohibitorum validates the client/redirect URI and session. If needed, it redirects to `/login?return_to=...`; after authentication the browser resumes the same authorization request.
+3. The live app-policy service checks the active account for that client before consent or code issuance. A denied user receives the protocol-appropriate result described above.
+4. A successful authorization produces a short-lived, PKCE-bound code for that same client and redirects to its registered URI with `code`, `state`, and `iss`.
+5. The RP backend posts that code, the same redirect URI, and verifier to `/oauth/token` as the same client. The exchange revalidates client binding, session, account status, and live app policy before issuing ID/access tokens and, with `offline_access`, a refresh family.
+6. The RP validates the signed ID token via JWKS. It must treat a later refresh `invalid_grant` as the family being unusable and restart authorization rather than retrying the old refresh token.
 
 SAML IdP flow:
 
-1. SP sends AuthnRequest to `/saml/sso` (Redirect or POST binding).
-2. If signature required, verify against the SP's `saml_sp_key` certs.
-3. If no session, redirect to `/login`, then back to `/saml/sso`.
-4. Build signed Response targeting the ACS URL; render HTTP-POST self-submitting form.
+1. The SP sends an AuthnRequest to `/saml/sso` (Redirect or POST binding).
+2. If signature required, Prohibitorum verifies against the SP's `saml_sp_key` certs.
+3. If no session exists, the browser is redirected to `/login`, then back to `/saml/sso`.
+4. Before an assertion is built, the shared live policy check authorizes the account for that exact SP.
+5. A successful request produces a signed Response targeted only to the selected ACS URL and renders the HTTP-POST self-submitting form.
 
 ## Authorization model
 
-- **`account.role`** ∈ `{user, admin}`. Admin gates server-side admin-only endpoints. Roles are flat, not hierarchical.
-- **`account.attributes`** is a JSONB map. Opaque to Prohibitorum, carried verbatim into ID-token `attributes` claim and SAML AttributeStatement. RPs decide which keys are meaningful.
-- **RPs enforce authorization** themselves using the claims. Prohibitorum doesn't decide whether user X can perform action Y on resource Z. (No OPA/Rego; the attribute map is a feature flag bag.)
+- **`account.role`** is one of `user`, `app_manager`, or `admin`. Roles are flat. `app_manager` is a scoped management role, not an application-entitlement role; `admin` is the only global management role.
+- **`account.attributes`** is a JSONB map. It is opaque to Prohibitorum and carried verbatim into ID-token `attributes` claims and SAML AttributeStatements. RPs decide which keys are meaningful.
+- **App admission versus application authorization:** Prohibitorum decides whether a user may obtain credentials for a particular downstream app. The RP still decides what the user may do inside that app. It does not evaluate arbitrary account-attribute expressions, scripts, CEL, Rego, or a generic resource/action permission graph.
 
 ## Data layout
 
-**Postgres** — durable identity state. Detailed schemas in `db/migrations/001..005`; see `docs/superpowers/specs/2026-05-24-multi-protocol-rescope-design.md` §"Data model" for the full SQL and per-column rationale.
+**Postgres** — durable identity state. The current schema and migrations in `db/migrations` are authoritative.
 
 - `account` — id, username, display_name, webauthn_user_handle, role, attributes jsonb, disabled, timestamps.
 - `session` — id, account_id, auth_time, amr text[], acr, upstream_idp_id, created_at, revoked_at. Doubles as the source of OIDC `sid` claim.
@@ -305,11 +344,14 @@ SAML IdP flow:
 - `credential_event` — append-only audit log: account_id, factor, event, credential_ref, ip, user_agent, detail jsonb, at.
 - `auth_throttle` — `(account_id, factor)` PK, failed_attempts, window_start, locked_until. Persists across restarts.
 - `signing_key` — kid, algorithm, use (sig/enc), public_jwk, x509_cert_pem, private_pem_enc + private_pem_nonce + key_version (AES-256-GCM-sealed private key), status (pending/active/decommissioning/retired), activated_at, decommissioned_at, retire_after. One row services both OIDC (via JWK) and SAML (via x509 cert). Partial unique index `one_active_signing_key (use) WHERE status='active'` ensures exactly one active signer per key-use value.
-- `oidc_client` — RFC 8414 / OIDC Discovery static-registration metadata: redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri.
+- `oidc_client` — downstream OIDC and forward-auth application metadata, including the restriction flag. Forward-auth is identified by its forward-auth fields rather than a second policy table.
+- `saml_sp` + `saml_sp_acs` + `saml_sp_key` + `saml_subject_id` + `saml_session` — SAML SP registry, multi-endpoint ACS list, signing/encryption cert set, stable pairwise NameID, forward-compat SLO session bookkeeping, and the restriction flag.
+- `oidc_client_manager` and `saml_sp_manager` — FK-backed delegated-management assignments, including creator and timestamp.
+- `user_group` — immutable binding to exactly one OIDC-backed or SAML app, kind (`manual` or `rule`), app-scoped slug, exposure flag, and rule document. Partial uniqueness allows at most one manual group per app.
+- `group_manual_decision` — one `allow` or `deny` effect per account in a manual group; its composite foreign key prevents a decision from referencing a rule group.
 - `revoked_jti` — jti PK, expires_at, reason. Denylist for self-contained access tokens (RFC 7009 + RFC 9068).
 - `upstream_idp` — slug, display_name, issuer_url, client_id, client_secret_enc + secret_nonce + key_version, scopes, mode, allowed_domains, claim-name overrides.
 - `account_identity` — account_id, upstream_idp_id, upstream_iss (snapshotted), upstream_sub, upstream_email. UNIQUE `(upstream_iss, upstream_sub)`.
-- `saml_sp` + `saml_sp_acs` + `saml_sp_key` + `saml_subject_id` + `saml_session` — SAML SP registry, multi-endpoint ACS list, signing/encryption cert set, stable pairwise NameID, and forward-compat SLO session bookkeeping.
 
 **KV** (KeyDB/Redis or in-process) — ephemeral state:
 
@@ -352,6 +394,7 @@ SAML IdP flow:
 - **SAML NameID drift.** Stable `saml_subject_id(account_id, sp_id)` pairing — renames and email changes don't re-link GHES accounts (Core §8.3.7).
 - **SAML XML signature wrapping (XSW).** crewjam/saml's post-canonicalization signature verification; reject assertions with multiple `Signature` elements or unexpected structure.
 - **Stolen session cookie.** Live `account.disabled` check on every request + sudo for sensitive actions.
+- **Scoped policy administration.** A delegated manager is authorized only after an exact app-kind and assignment check; ambiguous unassigned, wrong-kind, missing, and deleted app lookups fail as the same not-found response. Assignment never supplies downstream access, and live policy checks prevent a stale credential family from restoring it.
 - **Bearer-token URL leak.** Device pairing avoids it; admin-issued recovery is the only bearer-token surface, gated by short TTL.
 
 See `AUDIT.md` for the per-layer compliance matrix and `STATUS.md` for delivery status.

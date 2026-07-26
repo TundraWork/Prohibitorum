@@ -2,9 +2,10 @@
 
 Prohibitorum is a standalone identity provider with WebAuthn,
 password+TOTP/recovery codes, upstream OIDC and Steam sign-in, and VRChat
-proof-backed local registration/recovery, plus two downstream protocols (OIDC
-OP and SAML 2.0 IdP) and a self-service + admin dashboard. This file is the
-changelog of capabilities each version delivers, followed by the roadmap.
+proof-backed local registration/recovery. It provides OIDC OP, SAML 2.0 IdP,
+and forward-auth downstream access, plus app-bound policy, delegated
+application management, and a self-service + admin dashboard. This file is
+the changelog of capabilities each version delivers, followed by the roadmap.
 
 ## v0.1 — rescope + decoupling
 
@@ -193,23 +194,25 @@ The web dashboard (Vue 3 + Vite + Tailwind v4).
 
 ## Admin Management API
 
-A full HTTP API for administering OIDC clients, SAML SPs, upstream IdPs, signing
-keys, audit events, and account credentials. All handlers are under
-`/api/prohibitorum` (admin-role gated); high-impact mutations (secrets, PKI,
-credentials, destructive actions) are additionally fresh-sudo gated via a
-single chokepoint enforcing admin auth + fresh sudo + 64 KiB body limit + JSON
-content-type. Lower-impact reversible mutations (SAML CRUD, group management,
-app-access grants) use an admin-only body-control wrapper (no sudo) per
-`api.md`.
+A full HTTP API lets global administrators manage OIDC clients, SAML SPs,
+upstream IdPs, signing keys, audit events, account credentials, and application
+manager assignments. Global-admin handlers are under `/api/prohibitorum`;
+separate delegated policy routes are available only for an assigned app
+manager's apps and never expose app configuration.
+
+High-impact global mutations (secrets, PKI, credentials, destructive actions,
+and manager assignment changes) are fresh-sudo gated through a single
+chokepoint enforcing admin auth, the 64 KiB body limit, and JSON content type.
+Reversible app-policy mutations use the same body controls without fresh sudo.
 
 - OIDC client CRUD: create (secret revealed once, argon2id hash stored), update, rotate-secret (new secret once), delete. Reads never expose the hash/cleartext.
 - SAML SP CRUD: create (optional metadata XML ingestion), update, reingest-metadata, delete.
 - Upstream IdP CRUD: create (AES-GCM seal after insert; a crash mid-create leaves a fail-closed row), update (excludes secret), rotate-secret, delete. Reads never expose encrypted bytes.
 - Signing-key lifecycle: generate (→ `pending`), activate (demotes the prior `active` → `decommissioning`, promotes the target), retire. `status` ∈ {pending, active, decommissioning, retired}, with a partial unique index allowing one active key per use. The publish set for JWKS + SAML metadata is pending+active+decommissioning, so prior-key tokens still verify during the grace period. A background reconcile loop advances decommissioning → retired once `retire_after` passes.
-- Audit-events viewer: `GET /audit-events` with `factor`/`event`/`accountId`/`since`/`until` filters + keyset pagination. Every admin mutation writes a `credential_event` (no secret/key material in `detail`).
+- Audit-events viewer: `GET /audit-events` with `factor`/`event`/`accountId`/`since`/`until` filters + keyset pagination. Every mutation writes a `credential_event` without secret/key material in `detail`.
 - Account credentials admin view: `GET /accounts/{id}/credentials` returns the passkey list with only the last-4 suffix of the credential ID; `POST /accounts/credentials/delete` force-revokes a passkey (sudo-gated).
-- CLI parity: `signing-key {generate,activate,retire}`, `oidc-client {update,rotate-secret,delete}`, `saml-sp {update,delete}`, `upstream-idp {create,list,update,rotate-secret,delete}` share the same domain path as the HTTP handlers.
-- API documentation in `api.md`: full route table, gate notation, reveal-once semantics, signing-key lifecycle states, known caveats.
+- CLI parity: `signing-key {generate,activate,retire}`, `oidc-client {update,rotate-secret,delete}`, `saml-sp {update,delete}`, `forward-auth-app`, and `upstream-idp {create,list,update,rotate-secret,delete}` share the same domain paths as the HTTP handlers. App policy is nested beneath its app-kind command rather than a global command.
+- API documentation in `api.md`: full route table, gate notation, reveal-once semantics, signing-key lifecycle states, and known caveats.
 
 ### Endpoints introduced
 
@@ -247,35 +250,6 @@ See `api.md` for the authoritative table. Summary:
 
 - Key-cache lag (multi-replica): a cache invalidation runs on the mutating replica; others pick up a new/activated key within the 5-min cache TTL. The reconcile loop also doesn't invalidate the cache, so an already-non-signing key can linger in JWKS slightly past its `retire_after` (in the safe direction).
 - Upstream IdP crash mid-create: insert-then-seal-then-update means a crash between insert and seal leaves a placeholder secret that decrypts to a failure (fails closed); cleanup is best-effort.
-
-## v0.7 — RBAC app authorization
-
-A coarse per-app access gate plus first-class groups. An admin marks an OIDC
-client / SAML SP `access_restricted` and controls sign-in via groups and/or
-individual accounts; exposed groups additionally flow downstream as an OIDC
-`groups` claim / SAML `groups` attribute. No admin bypass. The IdP gates whether
-you may obtain a token/assertion at all; the RP still gates in-app policy from
-claims.
-
-- Admin API: groups CRUD + membership; per-app `set-restricted` / `grant` / `revoke` + a combined `GET …/access`; `accessRestricted` in app detail views. GETs 🔓, mutations 🔓 (admin-only body-controlled, no sudo) + audited.
-- Schema (`015_rbac.sql`): `user_group`, `group_member`, `oidc_client_access`, `saml_sp_access` (each grant points at exactly one of group/account, enforced by a CHECK + partial unique indexes), and `access_restricted boolean NOT NULL DEFAULT false` on `oidc_client` + `saml_sp` (every existing app stays open).
-- Authorization predicate: one query per protocol (`NOT access_restricted OR direct grant OR via-group grant`).
-- Dashboard: `/admin/groups` list + detail (edit, exposed toggle, member management), a reusable per-app Access card (restrict toggle + group/account grants) on both app detail pages, and a group-membership card on account detail.
-- Enforcement: gate at OIDC `/authorize`, re-checked at the refresh-token grant (denial revokes the family → `invalid_grant`), and at SAML SSO (SP- + IdP-initiated). Denied interactive → IdP `/error?reason=app_access_denied`; OIDC `prompt=none` → `access_denied` to the RP; SAML passive → `RequestDenied`. Denials write an `access_denied` event.
-- Group exposure: two-level opt-in — `exposed_to_downstream` (default true) on the group AND a per-app ask via the OIDC `groups` scope (sorted claim in id_token + `/userinfo`, present-but-empty `[]`) or a SAML attribute-map `source: "groups"` entry (multi-valued, omitted when empty).
-- CLI: `group create|list|update|delete|add-member|remove-member`; `access` subcommands on `oidc-client`/`saml-sp` (`--access-restricted`, grant/revoke).
-
-### Endpoints introduced in v0.7
-
-See `api.md` → *Groups (RBAC)* and *Per-app access (RBAC)*. Group CRUD +
-membership under `/groups`, per-app access under
-`/{oidc-applications,saml-applications}/{id}/access{,/set-restricted,/grant,/revoke}`,
-and `GET /accounts/{id}/groups`. The `groups` scope is advertised in OIDC
-discovery `scopes_supported`.
-
-### Known gaps
-
-- End-user app launchpad is out of scope; the authorization predicate is the query it will reuse.
 
 ## v0.8 — provider plugins + VRChat profile proof
 
@@ -315,9 +289,51 @@ enrollment share the same browser-binding and single-use state machinery.
   `032_account_identity_filtering.sql` add protocol/config/readiness storage,
   per-identity metadata, and indexed server-side filtering.
 
+## v0.9 — delegated application policy
+
+Application access is now an app-bound policy service rather than directory-wide
+RBAC. It evaluates every decision from current identity state and is shared by
+the downstream protocols and app listings.
+
+- **Roles and delegation:** `app_manager` keeps ordinary member capabilities and
+  can manage policy only for assigned OIDC, forward-auth, or SAML apps. An
+  assignment never authorizes the manager to use that app or edit its
+  configuration. Only an admin can assign or remove a manager, and both
+  assignment mutations require fresh sudo. Leaving the `app_manager` role
+  deletes outstanding assignments transactionally; disablement ends delegated
+  authority immediately, and account/app deletion removes assignments by cascade.
+- **App-bound groups:** every group has one immutable app binding. An app has
+  at most one manual group with `allow`, `deny`, or neutral per-account
+  decisions, plus zero or more calculated rule groups. Rule groups have no
+  manual members and no group can be shared with another app.
+- **Live facts and precedence:** rules read verified connections, enrolled
+  login methods, and avatar availability/source at decision time. A disabled
+  account fails before evaluation; there is no reconciliation cache. On a
+  restricted app, manual deny wins, then manual allow, then any matching rule;
+  otherwise access is denied.
+- **Claims:** the same service projects only an owning app's group slugs.
+  Where group claims are enabled, a manual allow adds the exposed manual slug
+  and every exposed matching rule slug to OIDC ID token/userinfo claims or the
+  configured SAML attribute. A manual denial issues no token or assertion.
+- **Operations:** the dashboard gives app managers a **Managed applications**
+  section and hides configuration from that view. Delegated work is scoped under
+  `/managed-applications/{kind}/{appId}`; unassigned and wrong-kind apps are
+  indistinguishable from missing apps. The operator CLI nests
+  `manager`, `access`, `group`, and `decision` operations beneath
+  `oidc-client`, `forward-auth-app`, or `saml-sp`.
+- **Protocol coverage:** OIDC authorization, code/token exchange, refresh, and
+  userinfo; forward-auth; SAML SSO; launchpad; and PAT candidate listing use
+  this service. OIDC credentials remain client-bound: a cross-app exchange
+  fails closed. A refresh-time denial revokes the refresh family and returns
+  `invalid_grant`.
+- **Cutover and audit:** migration deletes the prior shared policy and direct
+  per-account access data, resets every app open, and cannot restore the
+  deleted state. Assignment, restriction, group, decision, and denial events
+  are audited without raw rule data or evaluated fact values.
+
 ## Roadmap
 
-The full IdP shipped through v0.8. What remains is optional production
+The full IdP shipped through v0.9. What remains is optional production
 hardening, a compliance gap, and demand-driven features. None are scheduled.
 
 - Planned: HSM/KMS-backed signing (AWS KMS / GCP KMS / Vault Transit, so the key never leaves the vault) to defend a combined DB + environment compromise. Keys are DEK-sealed at rest today.

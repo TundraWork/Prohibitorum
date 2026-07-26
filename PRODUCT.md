@@ -2,22 +2,28 @@
 
 ## Users
 
-Members and admins of a single small organization running Prohibitorum as
-their self-hosted identity provider. Single-tenant, first-party: everyone
-who touches the UI belongs to the same org.
+Members, scoped application managers, and admins of a single small
+organization running Prohibitorum as their self-hosted identity provider.
+Single-tenant, first-party: everyone who touches the UI belongs to the same
+org.
 
-- **Members** sign in to reach downstream apps (via OIDC or SAML) and manage
-  their own identity: registering and naming passkeys, setting up password +
-  TOTP fallback, viewing and revoking active sessions, redeeming an enrollment
-  invite, or using a VRChat profile to prove eligibility for local registration
-  or recovery. VRChat proof itself never signs them in; they finish
-  with the same local passkey ceremony as every other enrollment. Often
-  non-technical; they meet this UI at the login screen and the consent screen,
-  occasionally in their own account area.
+- **Members** sign in to reach downstream apps (via OIDC, SAML, or
+  forward-auth) and manage their own identity: registering and naming
+  passkeys, setting up password + TOTP fallback, viewing and revoking active
+  sessions, redeeming an enrollment invite, or using a VRChat profile to
+  prove eligibility for local registration or recovery. VRChat proof itself
+  never signs them in; they finish with the same local passkey ceremony as
+  every other enrollment. Often non-technical, they meet this UI at the login
+  screen and consent screen, occasionally in their own account area.
+- **Application managers** (`app_manager`) keep member capabilities and manage
+  access policy only for explicitly assigned apps. Assignment never grants
+  app use, protocol configuration, account, credential, provider, or instance
+  management. Their **Managed applications** surface shows only those apps.
 - **Admins** manage the directory: creating accounts, issuing enrollment
   invitations and resets, configuring the fixed-link-only VRChat proof
-  provider, setting roles and attributes, and reviewing credentials. Same
-  person is often both a member and an admin in a small org.
+  provider, setting roles and attributes, assigning application managers, and
+  reviewing credentials. The same person is often both a member and an admin
+  in a small org.
 
 Context of use: a browser, at a desk or on a phone, usually mid-task — they
 came here to get into something else, or to fix one specific thing about
@@ -28,18 +34,48 @@ user wants to minimize.
 
 Prohibitorum is a homegrown, single-tenant identity provider for small orgs.
 It owns the account directory, authenticates users with WebAuthn, Password +
-TOTP/recovery codes, or upstream OIDC and Steam federation, and issues sessions
-plus OIDC/SAML assertions to downstream apps. VRChat is deliberately narrower:
-profile proof can authorize a short-lived local registration or recovery
-enrollment, but cannot become a direct sign-in credential. The UI's job is to
-make signing in, proof-backed local enrollment, consent, and self-management
-effortless and trustworthy, with a role-gated admin layer on top.
+TOTP/recovery codes, or upstream OIDC and Steam federation, evaluates
+app-bound access policy, and issues sessions plus OIDC/SAML assertions to
+downstream apps. VRChat is deliberately narrower: profile proof can authorize
+a short-lived local registration or recovery enrollment, but cannot become a
+direct sign-in credential. The UI's job is to make signing in, proof-backed
+local enrollment, consent, self-management, and scoped app-policy management
+effortless and trustworthy.
 
 Success looks like: a member completes a passkey login or enrollment without
 hesitation and without reading instructions; an admin issues an invitation
 and sees its state at a glance; and at no point does anyone wonder whether
 the thing guarding their identity is competent. The interface should be
 forgettable in the best way, the user gets in, does the one thing, and leaves.
+
+## Application Access Policy
+
+Every group is permanently bound to one downstream application: an OIDC app, a
+forward-auth app through its backing OIDC client, or a SAML app. An app can have
+one manual group with per-account `allow`, `deny`, or neutral decisions and any
+number of calculated rule groups. Bindings cannot be moved or shared, and rule
+groups never take manual members.
+
+Rules evaluate live verified provider connections, enrolled login methods, and
+available avatar state/source. There is no cached calculated membership: a
+connection, credential, or avatar change affects the next decision. For a
+restricted app, the result is always **manual deny → manual allow → any
+matching rule → deny**; an open app remains open until restriction is enabled.
+
+The same policy service makes the decision and app-aware claims. When an app
+opts in, a manually allowed account receives that app's exposed manual-group
+slug and every exposed matching rule-group slug, never a group's slug from
+another app. A manual denial produces no token or assertion.
+
+Application managers work in **Managed applications**. Its delegated surface is
+scoped to `/managed-applications/{kind}/{appId}` and exposes only assigned apps;
+global admins retain configuration and assign or remove managers with fresh
+sudo. Policy changes are audited without recording raw rules or evaluated facts.
+
+This is a destructive cutover: the prior shared policy and direct per-account
+access data are deleted and every app starts open. The deleted policy cannot be
+recovered; operators recreate per-app policy before deliberately enabling
+restriction.
 
 ## Brand Personality
 

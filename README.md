@@ -12,8 +12,8 @@ The dashboard SPA is embedded in the binary: one `./prohibitorum` process is the
 whole IdP plus its admin UI.
 
 - **Sign-in** — WebAuthn passkeys (preferred), Password + TOTP fallback, or federation through upstream OIDC, Steam, and VRChat providers.
-- **Downstream** — OIDC provider for modern apps; SAML 2.0 IdP for GitHub Enterprise Server and other legacy SaaS.
-- **Authorization** — a per-account `attributes` map flows verbatim into ID-token claims and SAML attributes; RPs enforce policy.
+- **Downstream** — OIDC provider for modern apps, SAML 2.0 IdP for GitHub Enterprise Server and other legacy SaaS, and a forward-auth gateway.
+- **Authorization** — restricted apps use app-bound manual decisions and live calculated rules. The same service controls token/assertion issuance and app-aware group claims; a policy-management assignment never grants app usage.
 
 ## Status
 
@@ -32,11 +32,16 @@ whole IdP plus its admin UI.
 - [x] Forward-auth gateway (Traefik-compatible)
 - [ ] ~~Coordinated single sign-out~~
 
+**Authorization & delegated management**
+- [x] App-bound access policy — one optional manual group and calculated rule groups per app, evaluated from live verified-connection, login-method, and avatar facts
+- [x] Scoped `app_manager` role — assigned-app policy management only; no implicit app access or protocol configuration authority
+- [x] App-aware group claims — exposed manual allow and every exposed matching rule group for the owning app only
+
 **Dashboard**
-- [x] Admin console — accounts, apps, providers, signing keys, audit log
+- [x] Admin console — accounts, apps, providers, signing keys, audit log, and manager assignments
+- [x] Managed applications — assigned app-policy workspace for application managers
 - [x] End-user self-service — credentials, sessions, devices, linked accounts
 - [x] End-user app launchpad
-- [x] RBAC — per-app authorization
 
 **Keys & operations**
 - [x] Signing-key lifecycle — rotation, grace windows, sealed at rest
@@ -99,10 +104,27 @@ the shipped UI is the committed `pkg/webui/dist` (go:embed), refreshed by
 
 `./prohibitorum <command>` (no subcommand runs the server); every DB-backed
 command auto-migrates first. Verbs: `enroll-admin`, `signing-key`, `oidc-client`,
-`saml-sp`, `upstream-idp`, `openapi`, `dev-seed` — run `<command> --help` for
-flags. The admin dashboard (`/admin/*`) covers the same surface. (CLI verbs are
-protocol-named; the admin HTTP API uses role names — `oidc-applications`,
-`saml-applications`, `identity-providers`.)
+`saml-sp`, `forward-auth-app`, `upstream-idp`, `openapi`, `dev-seed` — run
+`<command> --help` for flags. The admin dashboard (`/admin/*`) covers the
+global-admin surface. (CLI verbs are protocol-named; the admin HTTP API uses
+role names — `oidc-applications`, `saml-applications`,
+`identity-providers`.)
+
+Access-policy commands are scoped beneath the owning app command:
+`manager list|assign|remove`, `access set-restricted`,
+`group list|create-manual|create-rule|update|delete|preview`, and
+`decision list|set`. Use `--client-id` for `oidc-client` and
+`forward-auth-app`, or `--entity-id` for `saml-sp`; app binding is never a
+mutable policy flag.
+
+```bash
+# The account already has the app_manager role; assignment manages policy, not use.
+./prohibitorum oidc-client manager assign --client-id docs --username policy-manager
+./prohibitorum oidc-client group create-manual --client-id docs --slug reviewed --display-name "Reviewed"
+./prohibitorum oidc-client decision set --client-id docs --username alice --effect=allow
+./prohibitorum oidc-client group create-rule --client-id docs --slug passkey --display-name "Passkey users" --rule-file passkey.json
+./prohibitorum oidc-client access set-restricted --client-id docs --restricted=true
+```
 
 ## Architecture
 
