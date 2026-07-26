@@ -189,6 +189,20 @@ describe('RuleGroupEditor', () => {
     expect(wrapper.find('[data-test="group-mode-not-root-0"]').exists()).toBe(false)
   })
 
+  it('renders the exact issue for an invalid nested child field', () => {
+    const issues: RuleValidationIssue[] = [{
+      path: '$.condition.children[0].provider',
+      reason: 'missing_provider',
+      messageKey: 'manage.policy.rule.validation.missing_provider',
+    }]
+    const wrapper = mountGroup({
+      version: 1,
+      condition: { op: 'all', children: [{ fact: 'connection.provider' }] },
+    }, { issues })
+
+    expect(wrapper.get('[data-test="predicate-error-root-0"]').text()).toBe('Choose a connection provider.')
+  })
+
   it('offers only Add condition and Add nested group and emits their parent path', async () => {
     const wrapper = mountGroup({
       version: 1,

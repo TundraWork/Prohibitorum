@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
@@ -26,6 +26,8 @@ function mountRow(
     canMoveUp?: boolean
     canMoveDown?: boolean
     canRemove?: boolean
+    maxDepth?: number
+    maxNodes?: number
   } = {},
 ) {
   const wrapper = mount(RulePredicateRow, {
@@ -37,6 +39,8 @@ function mountRow(
       canMoveUp: options.canMoveUp ?? false,
       canMoveDown: options.canMoveDown ?? false,
       canRemove: options.canRemove ?? false,
+      maxDepth: options.maxDepth ?? 8,
+      maxNodes: options.maxNodes ?? 64,
     },
     global: { plugins: [i18n()] },
     attachTo: document.body,
@@ -55,6 +59,14 @@ async function choose(wrapper: VueWrapper, control: 'fact' | 'polarity' | 'value
   option!.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
   await flushPromises()
 }
+
+beforeAll(() => {
+  vi.stubGlobal('ResizeObserver', class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  })
+})
 
 afterEach(() => {
   while (mounted.length) mounted.pop()!.unmount()
@@ -118,6 +130,38 @@ describe('RulePredicateRow', () => {
     expect(error.text()).toBe('Choose a condition type and value.')
   })
 
+  it('links an exact value-field issue to the value control', () => {
+    const issues: RuleValidationIssue[] = [{
+      path: '$.condition.provider',
+      reason: 'missing_provider',
+      messageKey: 'manage.policy.rule.validation.missing_provider',
+    }]
+    const wrapper = mountRow({ version: 1, condition: { fact: 'connection.provider' } }, { issues })
+    const value = wrapper.get('[data-test="predicate-value-root"]')
+    const error = wrapper.get('[data-test="predicate-error-root"]')
+
+    expect(value.attributes('aria-invalid')).toBe('true')
+    expect(value.attributes('aria-describedby')).toBe(error.attributes('id'))
+    expect(error.text()).toBe('Choose a connection provider.')
+  })
+
+  it.each([
+    { label: 'node', options: { maxNodes: 1 }, message: 'This rule cannot contain more than 1 conditions and groups.' },
+    { label: 'depth', options: { maxDepth: 1 }, message: 'Nested groups cannot go deeper than 1.' },
+  ])('disables is not when the $label limit cannot fit its NOT wrapper', async ({ options, message }) => {
+    const wrapper = mountRow(
+      { version: 1, condition: { fact: 'avatar', source: 'any' } },
+      options,
+    )
+
+    await wrapper.get('[data-test="predicate-polarity-root"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    const negative = document.body.querySelector<HTMLElement>('[data-test="predicate-polarity-option-root-negative"]')
+
+    expect(negative?.hasAttribute('data-disabled')).toBe(true)
+    expect(negative?.textContent).toContain(message)
+  })
+
   it('changes polarity immutably while preserving the selected fact and value', async () => {
     const original: Rule = {
       version: 1,
@@ -171,4 +215,21 @@ describe('RulePredicateRow', () => {
     await flushPromises()
     expect(wrapper.emitted('remove')?.at(-1)?.[0]).toEqual([])
   })
+  it('returns focus to the kebab trigger when its menu is cancelled', async () => {
+    const wrapper = mountRow(
+      { version: 1, condition: { fact: 'avatar', source: 'user_uploaded' } },
+      { canRemove: true },
+    )
+    const trigger = wrapper.get<HTMLButtonElement>('[data-test="predicate-actions-root"]')
+
+    await trigger.trigger('click')
+    await flushPromises()
+    const content = document.body.querySelector<HTMLElement>('[data-slot="dropdown-menu-content"]')
+    expect(content).not.toBeNull()
+    content!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flushPromises()
+
+    expect(document.activeElement).toBe(trigger.element)
+  })
+
 })

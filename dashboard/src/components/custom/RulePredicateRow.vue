@@ -43,6 +43,8 @@ const props = withDefaults(defineProps<{
   path: RulePath
   providers: ProviderDescriptor[]
   issues: RuleValidationIssue[]
+  maxDepth: number
+  maxNodes: number
   canMoveUp?: boolean
   canMoveDown?: boolean
   canRemove?: boolean
@@ -56,7 +58,7 @@ const emit = defineEmits<{
   'update:rule': [Rule]
   'move': [RulePath, -1 | 1]
   'remove': [RulePath]
-  'actions-closed': []
+  'actions-closed': [Event]
 }>()
 
 const { t } = useI18n()
@@ -80,10 +82,21 @@ const value = computed(() => {
   }
 })
 const issue = computed(() => props.issues.find((candidate) =>
-  candidate.path === jsonPath.value || candidate.path.startsWith(`${jsonPath.value}.child`),
+  candidate.path === jsonPath.value || candidate.path.startsWith(`${jsonPath.value}.`),
 ))
 const errorId = computed(() => `predicate-error-${pathKey.value}`)
 const issueDescription = computed(() => issue.value ? errorId.value : undefined)
+const nodeCount = computed(() => countNodes(props.rule.condition))
+const negativeDisabledReason = computed(() => {
+  if (negated.value) return ''
+  if (nodeCount.value + 1 > props.maxNodes) {
+    return t('manage.policy.rule.limitNodes', { max: props.maxNodes })
+  }
+  if (props.path.length + 2 > props.maxDepth) {
+    return t('manage.policy.rule.limitDepth', { max: props.maxDepth })
+  }
+  return ''
+})
 const contentLabel = computed(() => {
   if (!fact.value) return t('manage.policy.rule.incompleteCondition')
   const valueLabel = value.value ? labelForValue(value.value) : t('manage.policy.rule.incompleteValue')
@@ -119,6 +132,14 @@ const valueOptions = computed<Array<{ value: string; label: string; detail?: str
   }
 })
 
+function countNodes(condition: Condition): number {
+  if (condition.op === 'all' || condition.op === 'any') {
+    return 1 + (condition.children ?? []).reduce((count, child) => count + countNodes(child), 0)
+  }
+  if (condition.op === 'not') return 1 + (condition.child ? countNodes(condition.child) : 0)
+  return 1
+}
+
 function conditionAtPath(root: Condition, path: RulePath): Condition | undefined {
   let current: Condition | undefined = root
   for (const segment of path) {
@@ -149,6 +170,7 @@ function updateFact(nextFact: unknown): void {
 
 function updatePolarity(polarity: unknown): void {
   if (polarity !== 'positive' && polarity !== 'negative') return
+  if (polarity === 'negative' && negativeDisabledReason.value) return
   emit('update:rule', setPredicateNegated(props.rule, props.path, polarity === 'negative'))
 }
 
@@ -203,8 +225,13 @@ function updateValue(nextValue: unknown): void {
           <SelectItem value="positive" :data-test="`predicate-polarity-option-${pathKey}-positive`">
             {{ t('manage.policy.rule.is') }}
           </SelectItem>
-          <SelectItem value="negative" :data-test="`predicate-polarity-option-${pathKey}-negative`">
+          <SelectItem
+            value="negative"
+            :disabled="Boolean(negativeDisabledReason)"
+            :data-test="`predicate-polarity-option-${pathKey}-negative`"
+          >
             {{ t('manage.policy.rule.isNot') }}
+            <span v-if="negativeDisabledReason" class="sr-only"> — {{ negativeDisabledReason }}</span>
           </SelectItem>
         </SelectContent>
       </Select>
@@ -255,7 +282,7 @@ function updateValue(nextValue: unknown): void {
             <TooltipContent>{{ t('manage.policy.rule.conditionActions', { condition: contentLabel }) }}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent align="end" @close-auto-focus="($event.preventDefault(), emit('actions-closed'))">
+        <DropdownMenuContent align="end" @close-auto-focus="emit('actions-closed', $event)">
           <DropdownMenuItem
             v-if="canMoveUp"
             :aria-label="t('manage.policy.rule.moveConditionUpLabel', { condition: contentLabel })"

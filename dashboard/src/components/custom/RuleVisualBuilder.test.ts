@@ -20,13 +20,14 @@ beforeAll(() => {
 function mountBuilder(
   modelValue: Rule,
   limits: Partial<{ maxDepth: number; maxNodes: number; maxChildren: number }> = {},
+  issues: Array<{ path: string; reason: string; messageKey: string }> = [],
 ) {
   let wrapper: VueWrapper
   wrapper = mount(RuleVisualBuilder, {
     props: {
       modelValue,
       providers: PROVIDERS,
-      issues: [],
+      issues,
       maxDepth: limits.maxDepth ?? 8,
       maxNodes: limits.maxNodes ?? 64,
       maxChildren: limits.maxChildren ?? 32,
@@ -201,4 +202,16 @@ describe('RuleVisualBuilder', () => {
     expect(button.element.disabled).toBe(true)
     expect(wrapper.get(`#${reasonId}`).text()).toBe('This rule cannot contain more than 2 conditions and groups.')
   })
+  it('does not wrap a negative root leaf beyond the depth limit', () => {
+    const wrapper = mountBuilder(
+      { version: 1, condition: { op: 'not', child: { fact: 'avatar', source: 'any' } } },
+      { maxDepth: 2 },
+    )
+    const button = wrapper.get<HTMLButtonElement>('[data-test="root-add-condition"]')
+    const reasonId = button.attributes('aria-describedby')
+
+    expect(button.element.disabled).toBe(true)
+    expect(wrapper.get(`#${reasonId}`).text()).toBe('Nested groups cannot go deeper than 2.')
+  })
+
 })

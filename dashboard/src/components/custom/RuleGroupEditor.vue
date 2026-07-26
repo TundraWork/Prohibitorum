@@ -47,7 +47,7 @@ const emit = defineEmits<{
   'add-group': [RulePath]
   'move': [RulePath, -1 | 1]
   'remove': [RulePath]
-  'actions-closed': []
+  'actions-closed': [Event]
 }>()
 
 const { t } = useI18n()
@@ -80,9 +80,7 @@ const groupDisabledReason = computed(() => {
   if (atDepthLimitForGroup.value) return t('manage.policy.rule.limitDepth', { max: props.maxDepth })
   return ''
 })
-const nodeIssue = computed(() => props.issues.find((issue) =>
-  issue.path === jsonPath.value || issue.path.startsWith(`${jsonPath.value}.child`),
-))
+const nodeIssue = computed(() => issueForJSONPath(jsonPath.value))
 const modeLabel = computed(() => mode.value === 'any'
   ? t('manage.policy.rule.operatorAny')
   : t('manage.policy.rule.operatorAll'))
@@ -93,6 +91,14 @@ function countNodes(condition: Condition): number {
   }
   if (condition.op === 'not') return 1 + (condition.child ? countNodes(condition.child) : 0)
   return 1
+}
+
+function issueForJSONPath(path: string): RuleValidationIssue | undefined {
+  return props.issues.find((issue) => issue.path === path || issue.path.startsWith(`${path}.`))
+}
+
+function childJSONPath(index: number): string {
+  return `${jsonPath.value}.children[${index}]`
 }
 
 function childPath(index: number): RulePath {
@@ -192,7 +198,7 @@ function changeMode(nextMode: GroupMode): void {
             <TooltipContent>{{ t('manage.policy.rule.conditionActions', { condition: `${modeLabel} group` }) }}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent align="end" @close-auto-focus="($event.preventDefault(), emit('actions-closed'))">
+        <DropdownMenuContent align="end" @close-auto-focus="emit('actions-closed', $event)">
           <DropdownMenuItem
             v-if="canMoveUp"
             :data-test="`group-move-up-${pathKey}`"
@@ -248,7 +254,7 @@ function changeMode(nextMode: GroupMode): void {
           @add-group="emit('add-group', $event)"
           @move="(path, delta) => emit('move', path, delta)"
           @remove="emit('remove', $event)"
-          @actions-closed="emit('actions-closed')"
+          @actions-closed="emit('actions-closed', $event)"
         />
 
         <RulePredicateRow
@@ -257,13 +263,15 @@ function changeMode(nextMode: GroupMode): void {
           :path="childPath(index)"
           :providers="providers"
           :issues="issues"
+          :max-depth="maxDepth"
+          :max-nodes="maxNodes"
           :can-move-up="index > 0"
           :can-move-down="index < children.length - 1"
           can-remove
           @update:rule="emit('update:rule', $event)"
           @move="(path, delta) => emit('move', path, delta)"
           @remove="emit('remove', $event)"
-          @actions-closed="emit('actions-closed')"
+          @actions-closed="emit('actions-closed', $event)"
         />
 
         <p
@@ -272,7 +280,7 @@ function changeMode(nextMode: GroupMode): void {
           class="py-3 text-sm text-rose-700"
           :data-test="`invalid-node-${childPathKey(index)}`"
         >
-          {{ nodeIssue ? t(nodeIssue.messageKey) : t('manage.policy.rule.validation.invalid_shape') }}
+          {{ issueForJSONPath(childJSONPath(index)) ? t(issueForJSONPath(childJSONPath(index))!.messageKey) : t('manage.policy.rule.validation.invalid_shape') }}
         </p>
       </template>
     </div>

@@ -57,11 +57,12 @@ const rootIsPredicate = computed(() => {
   return root.value.op === 'not' && root.value.child !== undefined && root.value.child.op === undefined
 })
 const nodeCount = computed(() => countNodes(root.value))
+const rootDepth = computed(() => conditionDepth(root.value))
 const rootAddDisabledReason = computed(() => {
   if (nodeCount.value + 2 > props.maxNodes) {
     return t('manage.policy.rule.limitNodes', { max: props.maxNodes })
   }
-  if (props.maxDepth < 2) {
+  if (rootDepth.value + 1 > props.maxDepth) {
     return t('manage.policy.rule.limitDepth', { max: props.maxDepth })
   }
   if (props.maxChildren < 2) {
@@ -76,6 +77,14 @@ function countNodes(condition: Condition): number {
     return 1 + (condition.children ?? []).reduce((count, child) => count + countNodes(child), 0)
   }
   if (condition.op === 'not') return 1 + (condition.child ? countNodes(condition.child) : 0)
+  return 1
+}
+
+function conditionDepth(condition: Condition): number {
+  if (condition.op === 'all' || condition.op === 'any') {
+    return 1 + Math.max(0, ...(condition.children ?? []).map(conditionDepth))
+  }
+  if (condition.op === 'not') return 1 + (condition.child ? conditionDepth(condition.child) : 0)
   return 1
 }
 
@@ -106,8 +115,9 @@ async function focusNode(path: RulePath, rule: Rule): Promise<void> {
 function applyRule(rule: Rule): void {
   emit('update:modelValue', rule)
 }
-async function completeActionFocus(): Promise<void> {
+async function completeActionFocus(event: Event): Promise<void> {
   if (!pendingFocus.value) return
+  event.preventDefault()
   const pending = pendingFocus.value
   pendingFocus.value = null
   await focusNode(pending.path, pending.rule)
@@ -212,6 +222,8 @@ async function undoRemoval(): Promise<void> {
         :path="[]"
         :providers="providers"
         :issues="issues"
+        :max-depth="maxDepth"
+        :max-nodes="maxNodes"
         @update:rule="updateRule"
       />
 
