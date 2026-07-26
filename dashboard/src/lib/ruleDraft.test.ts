@@ -240,6 +240,10 @@ describe('closed rule validation and JSON', () => {
     }
   })
 
+  it.each(['[] {}', 'true {}', '1 {}', '"x" {}'])('treats a non-object first document before trailing input as invalid JSON: %s', (source) => {
+    expect(parseRuleJSON(source, providers)).toMatchObject({ ok: false, reason: 'invalid_json', path: '$' })
+  })
+
   it.each([
     {
       name: 'null operator on a condition',

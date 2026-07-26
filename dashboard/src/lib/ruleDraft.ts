@@ -477,6 +477,8 @@ function trailingJSONReason(source: string): 'trailing_json' | 'invalid_json' {
   } catch {
     return 'invalid_json'
   }
+  const first = source.slice(source.search(/\S/), firstEnd)
+  if (!first.startsWith('{')) return 'invalid_json'
 
   const suffix = source.slice(firstEnd).trim()
   if (suffix === '') return 'invalid_json'
