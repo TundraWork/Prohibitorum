@@ -31,6 +31,32 @@ const providerLabels = computed(() => new Map(
   props.providers.map((provider) => [provider.slug, provider.displayName]),
 ))
 
+function protocolValue(condition: Condition): string {
+  switch (condition.protocol) {
+    case 'oidc': return t('manage.policy.rule.protocolOidc')
+    case 'steam': return t('manage.policy.rule.protocolSteam')
+    case 'vrchat': return t('manage.policy.rule.protocolVrchat')
+    default: return t('manage.policy.rule.incompleteValue')
+  }
+}
+
+function loginMethodValue(condition: Condition): string {
+  switch (condition.method) {
+    case 'passkey': return t('manage.policy.rule.loginPasskey')
+    case 'password_totp': return t('manage.policy.rule.loginPasswordTotp')
+    case 'federation': return t('manage.policy.rule.loginFederation')
+    default: return t('manage.policy.rule.incompleteValue')
+  }
+}
+
+function avatarValue(condition: Condition): string {
+  switch (condition.source) {
+    case 'any': return t('manage.policy.rule.avatarAny')
+    case 'user_uploaded': return t('manage.policy.rule.avatarUserUploaded')
+    default: return t('manage.policy.rule.incompleteValue')
+  }
+}
+
 function leafText(condition: Condition, negated: boolean): MeaningLeaf {
   const operator = t(negated ? 'manage.policy.rule.isNot' : 'manage.policy.rule.is')
   switch (condition.fact) {
@@ -39,28 +65,30 @@ function leafText(condition: Condition, negated: boolean): MeaningLeaf {
         kind: 'leaf',
         subject: t('manage.policy.rule.factConnectionProvider'),
         operator,
-        value: providerLabels.value.get(condition.provider ?? '') ?? condition.provider ?? '',
+        value: condition.provider
+          ? providerLabels.value.get(condition.provider) ?? condition.provider
+          : t('manage.policy.rule.incompleteValue'),
       }
     case 'connection.protocol':
       return {
         kind: 'leaf',
         subject: t('manage.policy.rule.factConnectionProtocol'),
         operator,
-        value: t(`manage.policy.rule.protocol${condition.protocol === 'oidc' ? 'Oidc' : condition.protocol === 'vrchat' ? 'Vrchat' : 'Steam'}`),
+        value: protocolValue(condition),
       }
     case 'login_method':
       return {
         kind: 'leaf',
         subject: t('manage.policy.rule.factLoginMethod'),
         operator,
-        value: t(`manage.policy.rule.login${condition.method === 'password_totp' ? 'PasswordTotp' : condition.method === 'federation' ? 'Federation' : 'Passkey'}`),
+        value: loginMethodValue(condition),
       }
     case 'avatar':
       return {
         kind: 'leaf',
         subject: t('manage.policy.rule.factAvatar'),
         operator,
-        value: t(`manage.policy.rule.avatar${condition.source === 'user_uploaded' ? 'UserUploaded' : 'Any'}`),
+        value: avatarValue(condition),
       }
     default:
       return {

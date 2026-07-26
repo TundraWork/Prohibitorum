@@ -3,7 +3,7 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 import zh from '@/locales/zh'
-import type { ProviderDescriptor, Rule } from '@/lib/appAccess'
+import type { Condition, ProviderDescriptor, Rule } from '@/lib/appAccess'
 import { validateRule } from '@/lib/ruleDraft'
 import RuleMeaning from './RuleMeaning.vue'
 
@@ -62,6 +62,35 @@ describe('RuleMeaning', () => {
 
     expect(wrapper.text()).toContain('Connection provider is former-provider')
     expect(wrapper.get('strong').text()).toBe('former-provider')
+  })
+
+  it.each([
+    { label: 'provider', leaf: { fact: 'connection.provider' } as Condition, subject: 'Connection provider' },
+    { label: 'protocol', leaf: { fact: 'connection.protocol' } as Condition, subject: 'Connection protocol' },
+    { label: 'login method', leaf: { fact: 'login_method' } as Condition, subject: 'Login method' },
+    { label: 'avatar', leaf: { fact: 'avatar' } as Condition, subject: 'Avatar' },
+  ])('renders localized incomplete values for positive and negative $label leaves', ({ leaf, subject }) => {
+    const positive = mountMeaning({ version: 1, condition: leaf })
+    const negative = mountMeaning({
+      version: 1,
+      condition: { op: 'not', child: leaf },
+    })
+
+    expect(positive.get('[data-test="rule-meaning-first-line"]').text()).toBe(
+      `${subject} is value not selected`,
+    )
+    expect(negative.get('[data-test="rule-meaning-first-line"]').text()).toBe(
+      `${subject} is not value not selected`,
+    )
+  })
+
+  it('localizes an incomplete leaf value in Chinese', () => {
+    const wrapper = mountMeaning({
+      version: 1,
+      condition: { fact: 'avatar' },
+    }, { locale: 'zh' })
+
+    expect(wrapper.get('[data-test="rule-meaning-first-line"]').text()).toBe('头像是尚未选择值')
   })
 
   it('renders ALL and ANY scopes as a semantic nested sentence outline', () => {
