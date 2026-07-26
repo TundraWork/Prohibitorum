@@ -30,7 +30,7 @@
 - Create `cmd/prohibitorum/dev_seed_app_policy_test.go`: PostgreSQL integration coverage for complete data, rule outcomes, idempotency, preservation, and wrong-kind rollback.
 - Modify `cmd/prohibitorum/dev_seed.go`: register `--app-policy-demo`, pass the parsed config/pool into the opt-in seeder, and leave the default path unchanged.
 - Modify `cmd/prohibitorum/dev_seed_test.go`: assert the opt-in flag is registered and defaults off.
-- Modify `scripts/dev-federation.sh`: forward `--app-policy-demo` only for the upstream `setup_instance` call.
+- Modify `scripts/dev-federation.sh`: run both normal `setup_instance` calls base-only, invoke reciprocal `dev-federation`, then run distinct upstream-only `dev-seed --app-policy-demo`.
 - Modify `TOOLING.md`: document the upstream-only showcase and its persistence across `--fresh`.
 
 ### Task 1: Transactional policy showcase seeder
@@ -50,9 +50,12 @@ In `dev_seed_app_policy_test.go`, create a helper that:
 
 1. Reads `PROHIBITORUM_TEST_DATABASE_URL` and skips when unset.
 2. Creates a random PostgreSQL schema.
-5. inserts only the prerequisites: enabled `downstream-policy-demo` provider, `dev-app`, and Alice/Bob/Carol/Dave accounts.
-4. applies all embedded migrations with `migrations.UpWithResult`.
-Use fixed account handles that are unique inside the temporary schema. Build `dev-app` with `oidc.BuildClientParams`; insert the `downstream-policy-demo` provider with the same valid provider-config shape as `seedProviders`, with issuer pointing at instance B.
+3. Appends `search_path=<schema>` to a copy of the test DSN.
+4. Applies all embedded migrations with `migrations.UpWithResult`.
+5. Inserts only the prerequisites: enabled `downstream-policy-demo` provider, `dev-app`, and Alice/Bob/Carol/Dave accounts. Use an issuer pointing at instance B.
+6. Returns a schema-scoped `*pgxpool.Pool` and cleanup function.
+
+Use fixed account handles that are unique inside the temporary schema. Build `dev-app` with `oidc.BuildClientParams`; insert the `downstream-policy-demo` provider with the same valid provider-config shape as `seedProviders`.
 
 
 - [ ] **Step 2: Write the failing complete-fixture test**
@@ -124,8 +127,9 @@ type appPolicyDemoGroup struct {
 ```
 
 Return the 11 rules from `appPolicyDemoGroups()` using typed `appaccess.Rule` / `appaccess.Condition` values, not raw JSON strings. Include:
-{Version: 1, Condition: appaccess.Condition{Fact: "connection.provider", Provider: "downstream-policy-demo"}}
+
 ```go
+{Version: 1, Condition: appaccess.Condition{Fact: "connection.provider", Provider: "downstream-policy-demo"}}
 {Version: 1, Condition: appaccess.Condition{Fact: "connection.protocol", Protocol: "oidc"}}
 {Version: 1, Condition: appaccess.Condition{Fact: "login_method", Method: "passkey"}}
 {Version: 1, Condition: appaccess.Condition{Fact: "login_method", Method: "password_totp"}}
@@ -255,7 +259,7 @@ git commit -m "feat(dev): seed app policy showcase"
 - Modify: `cmd/prohibitorum/dev_seed.go:73-156`
 - Modify: `cmd/prohibitorum/dev_seed_test.go`
 - Modify: `scripts/dev-federation.sh:157-188`
-
+- Produces: base-only `setup_instance` calls for A and B, then reciprocal `dev-federation` wiring, then upstream-only `dev-seed --app-policy-demo`; B never receives the flag.
 **Interfaces:**
 - Consumes: `seedAppPolicyDemo(ctx, conn, config)` from Task 1.
 - Produces: `prohibitorum dev-seed --app-policy-demo`.
@@ -293,7 +297,7 @@ In `dev_seed.go`:
 
 - add package variable `devSeedAppPolicyDemo bool`;
 - register `--app-policy-demo` on `_devSeedCmd` with copy: `Seed the complete app-policy showcase (dev-only).`;
-- after base applications/accounts/providers are seeded and before invitations, execute:
+- when the flag is true, execute the policy seeder after the base seed completes. The normal base seed does not enable this flag; the federation harness invokes it separately after reciprocal wiring.
 
 ```go
 if devSeedAppPolicyDemo {
@@ -305,7 +309,6 @@ if devSeedAppPolicyDemo {
 ```
 
 Update the Cobra long description to state that the optional showcase contains the restricted `dev-app`, delegated manager, manual decisions, and complete rule-group set. Do not run it when the flag is false.
-
 - [ ] **Step 4: Run the flag and policy tests**
 
 Run:
@@ -319,27 +322,18 @@ Expected: PASS.
 
 - [ ] **Step 5: Wire only instance A in the federation script**
 
-Change `setup_instance` to accept extra seed arguments after its five required parameters:
+Run both normal `setup_instance` calls without policy arguments, then invoke `dev-federation` for reciprocal provider/client wiring, and finally invoke upstream-only `dev-seed --app-policy-demo`:
 
 ```bash
-setup_instance() {
-    local origin="$1" dburl="$2" dbname="$3" label="$4" outvar="$5"
-    shift 5
-    echo "==> [$label] dev-seed"
-    PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" \
-        "$BIN" dev-seed "$@"
-    # existing admin enrollment body remains unchanged
-}
-```
-
-Invoke it as:
-
-```bash
-setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL --app-policy-demo
+setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL
 setup_instance "$DOWN_ORIGIN" "$DOWN_DB" prohibitorum_downstream downstream DOWN_ENROLL_URL
+"$BIN" dev-federation --upstream-db "$UP_DB" --downstream-db "$DOWN_DB" \
+  --upstream-origin "$UP_ORIGIN" --downstream-origin "$DOWN_ORIGIN"
+PROHIBITORUM_PUBLIC_ORIGIN="$UP_ORIGIN" PROHIBITORUM_DATABASE_URL="$UP_DB" \
+  "$BIN" dev-seed --app-policy-demo
 ```
 
-This must be the only harness callsite that supplies the flag.
+The downstream base seed never receives the policy flag, and the upstream policy invocation is distinct from both base seeds and occurs only after wiring.
 
 - [ ] **Step 6: Check shell syntax**
 

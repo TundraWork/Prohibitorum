@@ -32,7 +32,7 @@ The data is opt-in through `dev-seed --app-policy-demo` and enabled only for the
 
 `dev-seed` gains an explicit policy-demo option. Without the option, its behavior remains unchanged.
 
-`scripts/dev-federation.sh` passes the option only while seeding the upstream instance. The downstream invocation remains the existing base seed. Because the harness runs `dev-seed` on every start, the upstream showcase is repaired on reuse and recreated after `--fresh`.
+Both normal `setup_instance` calls run base-only `dev-seed`. The harness then invokes `dev-federation` to establish reciprocal wiring, followed by a distinct upstream-only `dev-seed --app-policy-demo` invocation. Because this sequence runs on every start, the upstream showcase is repaired on reuse and recreated after `--fresh`; the downstream invocation and instance B never receive the policy flag.
 
 The option remains protected by the existing loopback-origin guard. No production startup path invokes it.
 
