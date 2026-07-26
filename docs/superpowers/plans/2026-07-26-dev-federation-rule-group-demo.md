@@ -4,7 +4,9 @@
 
 **Goal:** Persistently seed instance A of `dev:federation` with an idempotent, deterministic `dev-app` rule-group showcase and load it into the current `prohibitorum_upstream` database.
 
-**Architecture:** Add an opt-in `--app-policy-demo` mode to the existing loopback-guarded `dev-seed` command. Keep the policy fixture implementation in a focused Go file that performs all account facts, manager assignment, groups, and decisions in one transaction; make `scripts/dev-federation.sh` pass the flag only to the upstream instance.
+**Revision note (2026-07-26):** The implemented topology is reciprocal: instance A has provider `downstream-policy-demo` whose issuer is instance B, and instance B has the reciprocal OIDC client registered for A callbacks. Both base seeds run first, then `dev-federation` wiring, then upstream-only `dev-seed --app-policy-demo`.
+
+**Architecture:** Add an opt-in `--app-policy-demo` mode to the existing loopback-guarded `dev-seed` command. Keep the policy fixture implementation in a focused Go file that performs all account facts, manager assignment, groups, and decisions in one transaction; make the federation harness run base seeds on both instances, wire reciprocity, and pass the policy flag only to the upstream instance.
 
 **Tech Stack:** Go 1.25, Cobra, pgx v5, sqlc-generated queries, PostgreSQL JSONB, embedded Goose migrations, Bash federation harness.
 
@@ -13,7 +15,7 @@
 - The showcase exists only in federation instance A (`prohibitorum_upstream`), not normal `dev:seed` or instance B.
 - Target the existing `dev-app` OIDC client and set `access_restricted = true`.
 - Reuse Alice, Bob, Carol, and Dave; do not add policy-only accounts.
-- Use stable `demo-*` slugs and preserve unrelated groups, decisions, assignments, credentials, identities, and avatars.
+- Use stable `demo-*` slugs and preserve unrelated groups, decisions, assignments, credentials, identities, and avatars. Existing named avatar sources are preserved, not overwritten.
 - Validate every rule with `appaccess.ParseAndValidateRule` before persistence.
 - A stable-slug conflict with the wrong group kind aborts; never delete-and-recreate the conflicting row.
 - The policy fixture is atomic: any missing prerequisite, validation error, random-source failure, or database failure rolls back the full showcase transaction.
@@ -48,12 +50,10 @@ In `dev_seed_app_policy_test.go`, create a helper that:
 
 1. Reads `PROHIBITORUM_TEST_DATABASE_URL` and skips when unset.
 2. Creates a random PostgreSQL schema.
-3. appends `search_path=<schema>` to a copy of the test DSN.
+5. inserts only the prerequisites: enabled `downstream-policy-demo` provider, `dev-app`, and Alice/Bob/Carol/Dave accounts.
 4. applies all embedded migrations with `migrations.UpWithResult`.
-5. inserts only the prerequisites: enabled `google` provider, `dev-app`, and Alice/Bob/Carol/Dave accounts.
-6. returns a schema-scoped `*pgxpool.Pool` and cleanup function.
+Use fixed account handles that are unique inside the temporary schema. Build `dev-app` with `oidc.BuildClientParams`; insert the `downstream-policy-demo` provider with the same valid provider-config shape as `seedProviders`, with issuer pointing at instance B.
 
-Use fixed account handles that are unique inside the temporary schema. Build `dev-app` with `oidc.BuildClientParams`; insert the Google provider with the same valid provider-config shape as `seedProviders`.
 
 - [ ] **Step 2: Write the failing complete-fixture test**
 
@@ -70,23 +70,20 @@ Assert:
 - Alice has role `app_manager`.
 - `dev-app.access_restricted` is true.
 - Alice is the sole seeded manager assignment.
-- the manual group exists with Bob=`allow`, Carol=`deny`, and no Alice decision.
+- every persisted rule parses through `appaccess.ParseAndValidateRule` using `downstream-policy-demo` as a known provider.
 - exactly the 11 named rule groups exist with the expected exposure flags.
-- every persisted rule parses through `appaccess.ParseAndValidateRule` using `google` as a known provider.
 - facts returned by `GetAccountAccessFacts` are:
 
-```text
 alice: passkey=true, password_totp=false, federation=true,
-       providers=[google], protocols=[oidc], any_avatar=true, user_avatar=true
+       providers=[downstream-policy-demo], protocols=[oidc], any_avatar=true, user_avatar=true
 bob:   passkey=false, password_totp=true, federation=false,
        providers=[], protocols=[], any_avatar=true, user_avatar=false
 carol: every fact false
 ```
 
 - `PreviewGroup` yields this matrix for Alice/Bob/Carol:
-
 ```text
-demo-google-connected          true  false false
+demo-downstream-connected      true  false false
 demo-oidc-connected            true  false false
 demo-passkey-login             true  false false
 demo-password-totp-login       false true  false
@@ -127,9 +124,8 @@ type appPolicyDemoGroup struct {
 ```
 
 Return the 11 rules from `appPolicyDemoGroups()` using typed `appaccess.Rule` / `appaccess.Condition` values, not raw JSON strings. Include:
-
+{Version: 1, Condition: appaccess.Condition{Fact: "connection.provider", Provider: "downstream-policy-demo"}}
 ```go
-{Version: 1, Condition: appaccess.Condition{Fact: "connection.provider", Provider: "google"}}
 {Version: 1, Condition: appaccess.Condition{Fact: "connection.protocol", Protocol: "oidc"}}
 {Version: 1, Condition: appaccess.Condition{Fact: "login_method", Method: "passkey"}}
 {Version: 1, Condition: appaccess.Condition{Fact: "login_method", Method: "password_totp"}}
@@ -138,7 +134,7 @@ Return the 11 rules from `appPolicyDemoGroups()` using typed `appaccess.Rule` / 
 {Version: 1, Condition: appaccess.Condition{Fact: "avatar", Source: "user_uploaded"}}
 ```
 
-Build `all`, `any`, and `not` with nested typed children. Set only `demo-no-user-avatar.exposed = false`; all other rule groups are exposed.
+Build exact typed ASTs: `all(passkey, user avatar)`, `any(passkey, password_totp)`, hidden `not(user avatar)`, and nested `all(provider, oidc, any(federation, passkey), not(password_totp))`. Set only `demo-no-user-avatar.exposed = false`; all other rule groups are exposed.
 
 - [ ] **Step 5: Implement prerequisite resolution and transaction ownership**
 
@@ -148,15 +144,14 @@ Implement:
 func seedAppPolicyDemo(ctx context.Context, pool *pgxpool.Pool, cfg configx.Config) error
 ```
 
-It must begin one pgx transaction, construct `q := db.New(tx)`, defer rollback, and commit only after all work succeeds.
-
-Resolve `dev-app`, Alice, Bob, Carol, Dave, and Google by their stable identifiers. Wrap `pgx.ErrNoRows` as an explicit prerequisite error such as:
+Resolve `dev-app`, Alice, Bob, Carol, Dave, and `downstream-policy-demo` by their stable identifiers. Wrap `pgx.ErrNoRows` as an explicit prerequisite error such as:
 
 ```text
 app-policy demo prerequisite "alice" not found
 ```
 
-Check that Google is enabled and uses protocol `oidc`; abort otherwise.
+Check that `downstream-policy-demo` is enabled and uses protocol `oidc`; abort otherwise. Its issuer must be instance B and reciprocal OIDC client wiring must already exist.
+
 
 - [ ] **Step 6: Seed Alice's manager role and deterministic facts**
 
@@ -173,11 +168,11 @@ if len(credentials) == 0 {
 }
 ```
 
-Ensure a confirmed Google identity:
+Ensure Alice has a confirmed identity from `downstream-policy-demo`:
 
 - inspect `q.ListAccountIdentitiesByAccount(ctx, alice.ID)`;
-- if a Google identity exists, call `ConfirmAccountIdentity` on it;
-- otherwise insert issuer `https://accounts.google.com`, subject `dev-seed-app-policy-alice`, email `alice@example.com`, and `{}` upstream data, then confirm it.
+- if an identity for that provider exists, call `ConfirmAccountIdentity` on it;
+- otherwise insert issuer `https://instance-b.example.test` (the configured instance-B origin), subject `dev-seed-app-policy-alice`, email `alice@example.com`, and `{}` upstream data, then confirm it.
 
 Ensure a user-uploaded avatar through `q.UpsertAvatarSource` with source `user`, a tiny valid PNG byte slice, content type `image/png`, and a stable SHA-256-derived ETag. Do not alter Alice's active-avatar selection.
 
@@ -189,7 +184,7 @@ If Bob has no password row, generate 32 random bytes, base64url-encode them, has
 
 If Bob has no TOTP row, insert opaque random ciphertext and a 12-byte nonce with key version 1, the configured period/digits/algorithm, then immediately call `ConfirmTOTPCredential`. The row is intentionally not a recoverable authentication secret; the policy evaluator only observes the confirmed-row invariant. If a TOTP row already exists but is unconfirmed, confirm it without replacing it.
 
-Ensure Bob has an inherited avatar through `q.UpsertAvatarSource` with source `upstream:google`, Google `idp_id`, content type `image/png`, stable ETag, and the same tiny valid PNG fixture. Do not add source `user` and do not alter Bob's active-avatar selection.
+Ensure Bob has an inherited avatar through `q.UpsertAvatarSource` with source `upstream:downstream-policy-demo`, the provider `idp_id`, content type `image/png`, stable ETag, and the same tiny valid PNG fixture. Do not add source `user` and do not alter Bob's active-avatar selection.
 
 Normalize zero-valued test config fields before inserting Bob's TOTP:
 
@@ -227,7 +222,7 @@ Add `TestSeedAppPolicyDemoIsIdempotentAndPreservesUnrelatedData`:
 
 1. Create an unrelated `custom-local` rule group on `dev-app` and a second manager assignment before seeding.
 2. Run `seedAppPolicyDemo` twice.
-3. Assert stable counts for WebAuthn credentials, password/TOTP rows, Google identities, named groups, manager assignments, and manual decisions after the first and second run.
+3. Assert stable counts for WebAuthn credentials, password/TOTP rows, `downstream-policy-demo` identities, named groups, manager assignments, and manual decisions after the first and second run.
 4. Assert the unrelated group and second manager assignment remain unchanged.
 
 Add `TestSeedAppPolicyDemoWrongKindConflictRollsBack`:

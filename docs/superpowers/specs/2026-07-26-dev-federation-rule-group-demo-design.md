@@ -7,7 +7,9 @@
 
 The federation development harness will maintain one complete, deterministic application-policy showcase in instance A (`prohibitorum_upstream`). The showcase is attached to the existing `dev-app` OIDC client and demonstrates delegated management, manual decisions, every supported rule fact, and every rule combinator.
 
-The data is opt-in through `dev-seed` and enabled only for the upstream side of `dev:federation`. It therefore survives `mise run dev:federation -- --fresh` without changing the normal `dev:seed` dataset or instance B.
+The data is opt-in through `dev-seed --app-policy-demo` and enabled only for the upstream side of `dev:federation`. Both instances first receive their normal base seeds; the harness then wires reciprocal federation, and only afterward runs the upstream policy seed. It therefore survives `mise run dev:federation -- --fresh` without changing the normal `dev:seed` dataset or instance B.
+
+**Revision note (2026-07-26):** This approved design records the implemented reciprocal-provider topology: instance A's `downstream-policy-demo` provider points at instance B, while the reciprocal OIDC client is registered on B for A callbacks.
 
 ## Goals
 
@@ -46,7 +48,7 @@ Existing seed accounts are reused:
 
 | Account | Policy-demo role | Deterministic facts | Manual decision |
 |---|---|---|---|
-| `alice` | Assigned `app_manager` for `dev-app` | passkey, confirmed `google` OIDC connection, federation login, user-uploaded avatar | neutral |
+| `alice` | Assigned `app_manager` for `dev-app` | passkey, confirmed `downstream-policy-demo` OIDC connection, federation login, user-uploaded avatar | neutral |
 | `bob` | user | password + confirmed TOTP, any avatar without a user-uploaded source | allow |
 | `carol` | user | no matching credential, connection, or avatar facts | deny |
 | `dave` | disabled user | none | none; omitted from active-account previews |
@@ -72,7 +74,7 @@ Each leaf group is exposed downstream:
 
 | Slug | Condition |
 |---|---|
-| `demo-google-connected` | `connection.provider == google` |
+| `demo-downstream-connected` | `connection.provider == downstream-policy-demo` |
 | `demo-oidc-connected` | `connection.protocol == oidc` |
 | `demo-passkey-login` | `login_method == passkey` |
 | `demo-password-totp-login` | `login_method == password_totp` |
@@ -84,10 +86,10 @@ Each leaf group is exposed downstream:
 
 | Slug | Exposure | Condition and purpose |
 |---|---|---|
-| `demo-all-strong-profile` | exposed | `all(passkey, user_uploaded avatar)`; demonstrates conjunction |
+| `demo-all-strong-profile` | exposed | `all(passkey, user avatar)`; demonstrates conjunction |
 | `demo-any-strong-login` | exposed | `any(passkey, password_totp)`; demonstrates disjunction |
-| `demo-no-user-avatar` | hidden | `not(user_uploaded avatar)`; demonstrates negation without projecting a negative trait downstream |
-| `demo-trusted-federated-profile` | exposed | `all(google provider, oidc protocol, any(federation login, passkey), not(password_totp))`; demonstrates nested composition |
+| `demo-no-user-avatar` | hidden | `not(user avatar)`; demonstrates negation without projecting a negative trait downstream |
+| `demo-trusted-federated-profile` | exposed | `all(provider, oidc, any(federation, passkey), not(password_totp))`; demonstrates nested composition |
 
 All rule documents use version 1 and are canonicalized only after `appaccess.ParseAndValidateRule` accepts them against the database's known provider slugs.
 
@@ -97,7 +99,7 @@ All rule documents use version 1 and are canonicalized only after `appaccess.Par
 
 | Rule slug | Alice | Bob | Carol |
 |---|---:|---:|---:|
-| `demo-google-connected` | true | false | false |
+| `demo-downstream-connected` | true | false | false |
 | `demo-oidc-connected` | true | false | false |
 | `demo-passkey-login` | true | false | false |
 | `demo-password-totp-login` | false | true | false |
@@ -117,6 +119,7 @@ The seed performs one transaction after the base providers, accounts, and `dev-a
 
 - Set Alice's role to `app_manager` and ensure her `dev-app` manager assignment exists.
 - Ensure the named fact fixtures exist without replacing pre-existing credentials or identities.
+- Preserve existing named avatar sources, including their bytes, metadata, ETags, and active-avatar selection; do not overwrite them.
 - Set `dev-app.access_restricted = true`.
 - Upsert groups by `(dev-app, slug)` and repair their names, descriptions, exposure flags, and rules.
 - Ensure Bob's allow and Carol's deny decisions target the named manual group.
@@ -126,9 +129,9 @@ A conflicting showcase slug with the wrong group kind is an error rather than a 
 
 ## Failure handling
 
-Any missing prerequisite (`dev-app`, Alice/Bob/Carol, or Google provider), validation error, slug-kind conflict, or database failure aborts the policy-demo transaction and the `dev-seed` command. Partial showcase state is not committed.
+Any missing prerequisite (`dev-app`, Alice/Bob/Carol, or the `downstream-policy-demo` provider), validation error, slug-kind conflict, or database failure aborts the policy-demo transaction and the `dev-seed` command. Partial showcase state is not committed. The reciprocal provider/client wiring must already exist before this upstream-only seed runs.
 
-Base `dev-seed` behavior remains independently idempotent. The policy option is applied after base provider, account, and application seeding so prerequisites are available on both fresh and reused databases.
+Base `dev-seed` behavior remains independently idempotent. In `dev:federation`, both base seeds run first, reciprocal `dev-federation` wiring runs second, and upstream-only `dev-seed --app-policy-demo` runs last. Instance B and normal `dev:seed` receive no policy groups.
 
 ## Verification
 
