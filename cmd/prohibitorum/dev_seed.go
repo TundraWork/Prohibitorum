@@ -84,6 +84,8 @@ Seeds:
   - 2 forward-auth apps with scope vocabularies — PAT scope picker + admin editor
   - 2 personal access tokens for alice — token list + admin account PATs card
   - 2 pending invitations (only if none already exist) — Invitations list
+  - optional app-policy showcase: restricted dev-app, delegated manager, manual decisions,
+    and the complete rule-group set
 
 All operations are idempotent; re-running skips existing rows.
 
@@ -91,10 +93,13 @@ SAFETY: refuses to run unless config.PublicOrigins[0] resolves to a loopback
 host (localhost / 127.0.0.1 / ::1).`,
 		Run: runDevSeed,
 	}
+	devSeedCmd.Flags().BoolVar(&devSeedAppPolicyDemo, "app-policy-demo", false, "Seed the complete app-policy showcase (dev-only).")
 	// Registration happens in main() after cli is constructed; we store the
 	// command here and register it from main via addDevSeedCmd().
 	_devSeedCmd = devSeedCmd
 }
+
+var devSeedAppPolicyDemo bool
 
 // _devSeedCmd is the cobra command created by init(); main() registers it.
 var _devSeedCmd *cobra.Command
@@ -149,6 +154,13 @@ func runDevSeed(_ *cobra.Command, _ []string) {
 
 	fmt.Println("==> dev-seed: seeding personal access tokens")
 	seedTokens(ctx, q)
+
+	if devSeedAppPolicyDemo {
+		fmt.Println("==> dev-seed: seeding app policy showcase")
+		if err := seedAppPolicyDemo(ctx, conn, *config); err != nil {
+			log.Fatalf("seed app policy showcase: %v", err)
+		}
+	}
 
 	fmt.Println("==> dev-seed: seeding invitations")
 	seedInvitations(ctx, q, origin)

@@ -22,3 +22,13 @@ func TestIsLoopbackOrigin(t *testing.T) {
 		}
 	}
 }
+
+func TestDevSeedAppPolicyDemoFlagDefaultsOff(t *testing.T) {
+	flag := _devSeedCmd.Flags().Lookup("app-policy-demo")
+	if flag == nil {
+		t.Fatal("dev-seed --app-policy-demo flag is not registered")
+	}
+	if flag.DefValue != "false" {
+		t.Fatalf("default = %q, want false", flag.DefValue)
+	}
+}

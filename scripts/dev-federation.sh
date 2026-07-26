@@ -166,8 +166,9 @@ UP_ENROLL_URL=""
 DOWN_ENROLL_URL=""
 setup_instance() {
 	local origin="$1" dburl="$2" dbname="$3" label="$4" outvar="$5"
+	shift 5
 	echo "==> [$label] dev-seed"
-	PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" dev-seed
+	PROHIBITORUM_PUBLIC_ORIGIN="$origin" PROHIBITORUM_DATABASE_URL="$dburl" "$BIN" dev-seed "$@"
 	if db_has_admin "$dbname"; then
 		echo "==> [$label] admin already enrolled — skipping enroll-admin (re-issue with 'enroll-admin --reset --username NAME', or run with --fresh)"
 		printf -v "$outvar" '%s' ""
@@ -184,7 +185,7 @@ setup_instance() {
 		exit 1
 	fi
 }
-setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL
+setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL --app-policy-demo
 setup_instance "$DOWN_ORIGIN" "$DOWN_DB" prohibitorum_downstream downstream DOWN_ENROLL_URL
 
 # --- 5. wire federation ----------------------------------------------------
