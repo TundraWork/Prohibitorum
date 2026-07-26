@@ -464,6 +464,109 @@ func (q *Queries) IsSAMLSPManager(ctx context.Context, arg IsSAMLSPManagerParams
 	return exists, err
 }
 
+const listActiveAccountAccessFacts = `-- name: ListActiveAccountAccessFacts :many
+SELECT
+  a.id,
+  a.username,
+  a.display_name,
+  a.disabled,
+  EXISTS (
+    SELECT 1 FROM webauthn_credential w WHERE w.account_id = a.id
+  ) AS has_passkey,
+  EXISTS (
+    SELECT 1
+    FROM password_credential p
+    WHERE p.account_id = a.id
+      AND EXISTS (
+        SELECT 1
+        FROM totp_credential t
+        WHERE t.account_id = a.id AND t.confirmed_at IS NOT NULL
+      )
+  ) AS has_password_totp,
+  EXISTS (
+    SELECT 1
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+      AND NOT ip.disabled
+      AND ip.protocol <> 'vrchat'
+  ) AS has_federation,
+  ARRAY(
+    SELECT DISTINCT ip.slug
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+    ORDER BY ip.slug
+  )::text[] AS confirmed_provider_slugs,
+  ARRAY(
+    SELECT DISTINCT ip.protocol
+    FROM account_identity ai
+    JOIN upstream_idp ip ON ip.id = ai.upstream_idp_id
+    WHERE ai.account_id = a.id
+      AND ai.confirmed_at IS NOT NULL
+    ORDER BY ip.protocol
+  )::text[] AS confirmed_protocols,
+  EXISTS (
+    SELECT 1 FROM account_avatar av WHERE av.account_id = a.id
+  ) AS has_any_avatar,
+  EXISTS (
+    SELECT 1
+    FROM account_avatar av
+    WHERE av.account_id = a.id AND av.source = 'user'
+  ) AS has_user_avatar
+FROM account a
+WHERE NOT a.disabled
+ORDER BY a.username ASC, a.id ASC
+`
+
+type ListActiveAccountAccessFactsRow struct {
+	ID                     int32    `json:"id"`
+	Username               string   `json:"username"`
+	DisplayName            string   `json:"displayName"`
+	Disabled               bool     `json:"disabled"`
+	HasPasskey             bool     `json:"hasPasskey"`
+	HasPasswordTotp        bool     `json:"hasPasswordTotp"`
+	HasFederation          bool     `json:"hasFederation"`
+	ConfirmedProviderSlugs []string `json:"confirmedProviderSlugs"`
+	ConfirmedProtocols     []string `json:"confirmedProtocols"`
+	HasAnyAvatar           bool     `json:"hasAnyAvatar"`
+	HasUserAvatar          bool     `json:"hasUserAvatar"`
+}
+
+func (q *Queries) ListActiveAccountAccessFacts(ctx context.Context) ([]ListActiveAccountAccessFactsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveAccountAccessFacts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveAccountAccessFactsRow
+	for rows.Next() {
+		var i ListActiveAccountAccessFactsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.DisplayName,
+			&i.Disabled,
+			&i.HasPasskey,
+			&i.HasPasswordTotp,
+			&i.HasFederation,
+			&i.ConfirmedProviderSlugs,
+			&i.ConfirmedProtocols,
+			&i.HasAnyAvatar,
+			&i.HasUserAvatar,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActiveAccountAccessFactsPage = `-- name: ListActiveAccountAccessFactsPage :many
 SELECT
   a.id,

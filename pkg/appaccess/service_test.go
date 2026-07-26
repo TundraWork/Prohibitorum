@@ -305,6 +305,74 @@ func TestServicePreviewGroupRejectsWrongOIDCAppKind(t *testing.T) {
 	}
 }
 
+func TestServicePreviewRuleUsesOneOrderedActiveAccountSnapshot(t *testing.T) {
+	q := &fakeQueries{
+		oidcApp:            restrictedOIDC("wiki"),
+		knownProviderSlugs: []string{"corp"},
+		activeFacts: []db.ListActiveAccountAccessFactsRow{
+			{ID: 42, Username: "alice", DisplayName: "Alice", HasPasskey: true},
+			{ID: 43, Username: "bob", DisplayName: "Bob", HasPasskey: false},
+		},
+	}
+
+	preview, err := NewService(q).PreviewRule(context.Background(), AppRef{Kind: KindOIDC, OIDCClientID: "wiki"}, Rule{
+		Version:   1,
+		Condition: Condition{Fact: "login_method", Method: "passkey"},
+	})
+	if err != nil {
+		t.Fatalf("PreviewRule() error = %v", err)
+	}
+	want := []GroupPreview{
+		{Account: AccountSummary{ID: 42, Username: "alice", DisplayName: "Alice"}, Matched: true},
+		{Account: AccountSummary{ID: 43, Username: "bob", DisplayName: "Bob"}, Matched: false},
+	}
+	if !reflect.DeepEqual(preview, want) {
+		t.Fatalf("PreviewRule() = %#v, want %#v", preview, want)
+	}
+	if q.knownProviderCalls != 1 || q.activeFactsCalls != 1 {
+		t.Fatalf("PreviewRule queries = providers:%d active facts:%d, want one each", q.knownProviderCalls, q.activeFactsCalls)
+	}
+	if q.pageCalls != 0 || q.groupCalls != 0 {
+		t.Fatalf("PreviewRule loaded persisted policy data: page:%d groups:%d", q.pageCalls, q.groupCalls)
+	}
+}
+
+func TestServicePreviewRuleValidatesAppRefForEveryKind(t *testing.T) {
+	rule := Rule{Version: 1, Condition: Condition{Fact: "login_method", Method: "passkey"}}
+	for _, tc := range []struct {
+		name string
+		ref  AppRef
+		q    *fakeQueries
+	}{
+		{
+			name: "oidc",
+			ref:  AppRef{Kind: KindOIDC, OIDCClientID: "wiki"},
+			q:    &fakeQueries{oidcApp: restrictedOIDC("wiki")},
+		},
+		{
+			name: "forward auth",
+			ref:  AppRef{Kind: KindForwardAuth, OIDCClientID: "forward"},
+			q:    &fakeQueries{oidcApp: db.OidcClient{ClientID: "forward", ForwardAuthEnabled: true}},
+		},
+		{
+			name: "saml",
+			ref:  AppRef{Kind: KindSAML, SAMLSPID: 7},
+			q:    &fakeQueries{samlApp: db.SamlSp{ID: 7}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := NewService(tc.q).PreviewRule(context.Background(), tc.ref, rule); err != nil {
+				t.Fatalf("PreviewRule() error = %v", err)
+			}
+		})
+	}
+
+	wrongOIDCKind := &fakeQueries{oidcApp: db.OidcClient{ClientID: "forward", ForwardAuthEnabled: true}}
+	if _, err := NewService(wrongOIDCKind).PreviewRule(context.Background(), AppRef{Kind: KindOIDC, OIDCClientID: "forward"}, rule); !errors.Is(err, ErrAppNotFound) {
+		t.Fatalf("PreviewRule() error = %v, want ErrAppNotFound", err)
+	}
+}
+
 func assertSlugs(t *testing.T, groups []GroupMatch, want ...string) {
 	t.Helper()
 	got := make([]string, 0, len(groups))
@@ -357,6 +425,8 @@ type fakeQueries struct {
 	oidcAppGroupsByID    map[string]map[int32]db.UserGroup
 	samlAppGroupsByID    map[int64]map[int32]db.UserGroup
 	knownProviderSlugs  []string
+	knownProviderCalls  int
+	groupCalls          int
 	oidcManaged          bool
 	oidcManagedErr       error
 	samlManaged          bool
@@ -365,6 +435,8 @@ type fakeQueries struct {
 	forwardCandidates    []db.ListForwardAuthAccessCandidatesRow
 	samlCandidates       []db.ListSAMLAccessCandidatesRow
 	pageFacts            []db.ListActiveAccountAccessFactsPageRow
+	activeFacts         []db.ListActiveAccountAccessFactsRow
+	activeFactsCalls    int
 	pageErr              error
 	pageCalls            int
 }
@@ -438,6 +510,7 @@ func (f *fakeQueries) manualDecision() (db.GroupManualDecision, error) {
 }
 
 func (f *fakeQueries) GetOIDCAppGroup(_ context.Context, arg db.GetOIDCAppGroupParams) (db.UserGroup, error) {
+	f.groupCalls++
 	if f.oidcAppGroupsByID != nil {
 		groups := f.oidcAppGroupsByID[arg.OidcClientID]
 		group, ok := groups[arg.GroupID]
@@ -453,6 +526,7 @@ func (f *fakeQueries) GetOIDCAppGroup(_ context.Context, arg db.GetOIDCAppGroupP
 }
 
 func (f *fakeQueries) GetSAMLAppGroup(_ context.Context, arg db.GetSAMLAppGroupParams) (db.UserGroup, error) {
+	f.groupCalls++
 	if f.samlAppGroupsByID != nil {
 		groups := f.samlAppGroupsByID[arg.SamlSpID]
 		group, ok := groups[arg.GroupID]
@@ -483,6 +557,7 @@ func (f *fakeQueries) ListSAMLAppRuleGroups(_ context.Context, id int64) ([]db.U
 
 
 func (f *fakeQueries) ListKnownUpstreamIDPSlugs(_ context.Context) ([]string, error) {
+	f.knownProviderCalls++
 	return f.knownProviderSlugs, nil
 }
 
@@ -512,4 +587,9 @@ func (f *fakeQueries) ListActiveAccountAccessFactsPage(_ context.Context, _ db.L
 		return nil, f.pageErr
 	}
 	return f.pageFacts, nil
+}
+
+func (f *fakeQueries) ListActiveAccountAccessFacts(_ context.Context) ([]db.ListActiveAccountAccessFactsRow, error) {
+	f.activeFactsCalls++
+	return f.activeFacts, nil
 }

@@ -37,7 +37,8 @@ type AppScopeView struct {
 // upstream provider. Disabled and invite-only providers remain selectable so
 // existing verified connections do not become impossible to express.
 type ProviderDescriptorView struct {
-	Slug string `json:"slug"`
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
 }
 
 // AppAccessWorkspace combines the application summary with its app-bound
@@ -100,6 +101,14 @@ type ManualDecisionView struct {
 type GroupPreviewView struct {
 	Account AccountSummaryView `json:"account"`
 	Matched bool               `json:"matched"`
+}
+
+// RulePreviewPageView reports the whole-draft match count and one cursor page
+// of safe account summaries for an unsaved application rule.
+type RulePreviewPageView struct {
+	Items        []GroupPreviewView `json:"items"`
+	MatchedCount int                `json:"matchedCount"`
+	NextCursor   string             `json:"nextCursor"`
 }
 
 // ExplanationView is a bounded, evaluator-safe condition result tree.

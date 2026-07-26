@@ -45,11 +45,13 @@ type policyTestQueries struct {
 	decisions    map[int32]map[int32]db.GroupManualDecision
 	accounts     map[int32]db.GetAccountAccessFactsRow
 	providers    []string
+	providerDescriptors []db.ListKnownUpstreamIDPDescriptorsRow
 	nextGroupID  int32
 
-	appLookupCalls   int
-	groupLookupCalls int
-	mutationCalls    int
+	appLookupCalls    int
+	groupLookupCalls  int
+	mutationCalls     int
+	activeFactsCalls  int
 }
 
 func newPolicyTestQueries() *policyTestQueries {
@@ -157,6 +159,17 @@ func (q *policyTestQueries) ListSAMLAppRuleGroups(_ context.Context, spID int64)
 
 func (q *policyTestQueries) ListKnownUpstreamIDPSlugs(context.Context) ([]string, error) {
 	return append([]string(nil), q.providers...), nil
+}
+
+func (q *policyTestQueries) ListKnownUpstreamIDPDescriptors(context.Context) ([]db.ListKnownUpstreamIDPDescriptorsRow, error) {
+	if q.providerDescriptors != nil {
+		return append([]db.ListKnownUpstreamIDPDescriptorsRow(nil), q.providerDescriptors...), nil
+	}
+	descriptors := make([]db.ListKnownUpstreamIDPDescriptorsRow, len(q.providers))
+	for i, slug := range q.providers {
+		descriptors[i] = db.ListKnownUpstreamIDPDescriptorsRow{Slug: slug, DisplayName: slug}
+	}
+	return descriptors, nil
 }
 
 func (q *policyTestQueries) IsOIDCClientManager(_ context.Context, arg db.IsOIDCClientManagerParams) (bool, error) {
@@ -269,6 +282,24 @@ func (q *policyTestQueries) ListActiveAccountAccessFactsPage(_ context.Context, 
 	if int(arg.RowLimit) < len(rows) {
 		rows = rows[:arg.RowLimit]
 	}
+	return rows, nil
+}
+
+func (q *policyTestQueries) ListActiveAccountAccessFacts(context.Context) ([]db.ListActiveAccountAccessFactsRow, error) {
+	q.activeFactsCalls++
+	rows := make([]db.ListActiveAccountAccessFactsRow, 0, len(q.accounts))
+	for _, account := range q.accounts {
+		if account.Disabled {
+			continue
+		}
+		rows = append(rows, db.ListActiveAccountAccessFactsRow(account))
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Username == rows[j].Username {
+			return rows[i].ID < rows[j].ID
+		}
+		return rows[i].Username < rows[j].Username
+	})
 	return rows, nil
 }
 
@@ -545,6 +576,7 @@ func TestManagedApplicationRoutesEnforceScopeBeforeNestedLookup(t *testing.T) {
 		{"preview", http.MethodGet, "/groups/2/preview", ""},
 		{"explain", http.MethodGet, "/groups/2/explain/42", ""},
 		{"accounts", http.MethodGet, "/accounts", ""},
+		{"rule-preview", http.MethodPost, "/rule-preview", `{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`},
 	}
 
 	for _, route := range routes {
@@ -615,6 +647,7 @@ func TestManagedApplicationRoutesAllowAssignedManagerAndAdmin(t *testing.T) {
 		{"preview", http.MethodGet, "/groups/2/preview", "", http.StatusOK},
 		{"explain", http.MethodGet, "/groups/2/explain/42", "", http.StatusOK},
 		{"accounts", http.MethodGet, "/accounts", "", http.StatusOK},
+		{"rule-preview", http.MethodPost, "/rule-preview", `{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`, http.StatusOK},
 	}
 	for _, route := range routes {
 		route := route
@@ -722,9 +755,13 @@ func TestManagedApplicationAccountsProjectPageRows(t *testing.T) {
 	}
 }
 
-func TestManagedApplicationWorkspaceProjectsKnownProviderChoices(t *testing.T) {
+func TestManagedApplicationWorkspaceProjectsProviderDescriptors(t *testing.T) {
 	s, queries, _ := newPolicyTestServer()
 	queries.providers = []string{"disabled-idp", "github"}
+	queries.providerDescriptors = []db.ListKnownUpstreamIDPDescriptorsRow{
+		{Slug: "disabled-idp", DisplayName: "Disabled Invite-only Provider"},
+		{Slug: "github", DisplayName: "GitHub"},
+	}
 
 	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/access"), "", managedAppSession(7, "app_manager", false))
 	if rr.Code != http.StatusOK {
@@ -734,9 +771,115 @@ func TestManagedApplicationWorkspaceProjectsKnownProviderChoices(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &workspace); err != nil {
 		t.Fatalf("decode access workspace: %v; body: %s", err, rr.Body.String())
 	}
-	if len(workspace.Providers) != 2 || workspace.Providers[0].Slug != "disabled-idp" || workspace.Providers[1].Slug != "github" {
-		t.Fatalf("provider choices = %#v, want safe known-provider slugs including disabled providers", workspace.Providers)
+	if len(workspace.Providers) != 2 || workspace.Providers[0].Slug != "disabled-idp" || workspace.Providers[0].DisplayName != "Disabled Invite-only Provider" || workspace.Providers[1].Slug != "github" || workspace.Providers[1].DisplayName != "GitHub" {
+		t.Fatalf("provider choices = %#v, want descriptors for disabled and invite-only providers", workspace.Providers)
 	}
+}
+
+func TestManagedRulePreviewReturnsExactCountPagesAndBoundCursorWithoutWrites(t *testing.T) {
+	s, queries, auditCapture := newPolicyTestServer()
+	queries.accounts[44] = db.GetAccountAccessFactsRow{ID: 44, Username: "charlie", DisplayName: "Charlie", HasPasskey: true}
+	queries.accounts[45] = db.GetAccountAccessFactsRow{ID: 45, Username: "disabled", DisplayName: "Disabled", Disabled: true, HasPasskey: true}
+	body := `{"version":1,"condition":{"fact":"login_method","method":"passkey"},"limit":1}`
+
+	first := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), body, managedAppSession(7, "app_manager", false))
+	if first.Code != http.StatusOK {
+		t.Fatalf("first preview status = %d, want 200; body: %s", first.Code, first.Body.String())
+	}
+	var firstPage contract.RulePreviewPageView
+	if err := json.Unmarshal(first.Body.Bytes(), &firstPage); err != nil {
+		t.Fatalf("decode first preview page: %v; body: %s", err, first.Body.String())
+	}
+	if firstPage.MatchedCount != 2 || len(firstPage.Items) != 1 || firstPage.Items[0].Account.Username != "alice" || !firstPage.Items[0].Matched || firstPage.NextCursor == "" {
+		t.Fatalf("first preview page = %#v", firstPage)
+	}
+	if queries.activeFactsCalls != 1 || queries.mutationCalls != 0 || len(auditCapture.records) != 0 {
+		t.Fatalf("preview side effects = active facts:%d mutations:%d audit:%d, want one snapshot and no writes", queries.activeFactsCalls, queries.mutationCalls, len(auditCapture.records))
+	}
+
+	secondBody := `{"version":1,"condition":{"fact":"login_method","method":"passkey"},"limit":1,"cursor":"` + firstPage.NextCursor + `"}`
+	second := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), secondBody, managedAppSession(7, "app_manager", false))
+	if second.Code != http.StatusOK {
+		t.Fatalf("second preview status = %d, want 200; body: %s", second.Code, second.Body.String())
+	}
+	var secondPage contract.RulePreviewPageView
+	if err := json.Unmarshal(second.Body.Bytes(), &secondPage); err != nil {
+		t.Fatalf("decode second preview page: %v; body: %s", err, second.Body.String())
+	}
+	if secondPage.MatchedCount != 2 || len(secondPage.Items) != 1 || secondPage.Items[0].Account.Username != "bob" || secondPage.Items[0].Matched || secondPage.NextCursor == "" {
+		t.Fatalf("second preview page = %#v", secondPage)
+	}
+
+	changedRule := `{"version":1,"condition":{"fact":"login_method","method":"federation"},"limit":1,"cursor":"` + firstPage.NextCursor + `"}`
+	assertManagedAPIError(t, managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), changedRule, managedAppSession(7, "app_manager", false)), http.StatusBadRequest, "pagination_cursor_invalid")
+	assertManagedAPIError(t, managedRequest(t, s, http.MethodPost, managedURL("forward_auth", "forward", "/rule-preview"), secondBody, managedAppSession(7, "app_manager", false)), http.StatusBadRequest, "pagination_cursor_invalid")
+	if queries.mutationCalls != 0 || len(auditCapture.records) != 0 {
+		t.Fatalf("preview pagination wrote policy data: mutations:%d audit:%d", queries.mutationCalls, len(auditCapture.records))
+	}
+}
+
+func TestManagedRulePreviewValidatesStrictRequestAndClosedRule(t *testing.T) {
+	s, _, _ := newPolicyTestServer()
+	session := managedAppSession(7, "app_manager", false)
+
+	for name, body := range map[string]string{
+		"unknown request field": `{"version":1,"condition":{"fact":"login_method","method":"passkey"},"unexpected":true}`,
+		"trailing JSON":         `{"version":1,"condition":{"fact":"login_method","method":"passkey"}} {}`,
+		"malformed JSON":        `{"version":1,"condition":`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			assertManagedAPIError(t, managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), body, session), http.StatusBadRequest, "bad_request")
+		})
+	}
+
+	invalid := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), `{"version":1,"condition":{"fact":"connection.provider","provider":"unknown"}}`, session)
+	assertRuleValidationError(t, invalid, "$.condition", "provider_not_found")
+
+	unknownCondition := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), `{"version":1,"condition":{"fact":"login_method","method":"passkey","unexpected":true}}`, session)
+	assertRuleValidationError(t, unknownCondition, "$", "unknown_field")
+}
+
+func TestManagedRulePreviewUsesExistingLimitBounds(t *testing.T) {
+	s, queries, _ := newPolicyTestServer()
+	for id := int32(100); id < 201; id++ {
+		queries.accounts[id] = db.GetAccountAccessFactsRow{ID: id, Username: "user" + strconv.Itoa(int(id)), HasPasskey: true}
+	}
+	base := `{"version":1,"condition":{"fact":"login_method","method":"passkey"}`
+	for name, body := range map[string]struct {
+		body string
+		want int
+	}{
+		"default": {body: base + `}`, want: 50},
+		"clamped":  {body: base + `,"limit":1000}`, want: 100},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rr := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), body.body, managedAppSession(7, "app_manager", false))
+			if rr.Code != http.StatusOK {
+				t.Fatalf("preview status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+			}
+			var page contract.RulePreviewPageView
+			if err := json.Unmarshal(rr.Body.Bytes(), &page); err != nil {
+				t.Fatalf("decode preview page: %v", err)
+			}
+			if len(page.Items) != body.want {
+				t.Fatalf("items = %d, want %d", len(page.Items), body.want)
+			}
+		})
+	}
+}
+
+func TestManagedRulePreviewUsesSharedJSONBodyControls(t *testing.T) {
+	s, _, _ := newPolicyTestServer()
+	session := managedAppSession(7, "app_manager", false)
+
+	badType := httptest.NewRecorder()
+	s.router.ServeHTTP(badType, reqWithSession(http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), `{"version":1,"condition":{"fact":"login_method","method":"passkey"}}`, "text/plain", session))
+	assertManagedAPIError(t, badType, http.StatusBadRequest, "bad_request")
+
+	oversized := `{"version":1,"condition":{"fact":"login_method","method":"passkey"},"cursor":"` + string(make([]byte, 64<<10)) + `"}`
+	tooLarge := httptest.NewRecorder()
+	s.router.ServeHTTP(tooLarge, reqWithSession(http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), oversized, "", session))
+	assertManagedAPIError(t, tooLarge, http.StatusRequestEntityTooLarge, "request_too_large")
 }
 func TestManagedRouteInputIdentifiersRemainOpaque(t *testing.T) {
 	for _, badID := range []string{"", "0", "-1", "not-a-number"} {

@@ -99,6 +99,7 @@ type queries interface {
 	ListForwardAuthAccessCandidates(context.Context) ([]db.ListForwardAuthAccessCandidatesRow, error)
 	ListSAMLAccessCandidates(context.Context) ([]db.ListSAMLAccessCandidatesRow, error)
 	ListActiveAccountAccessFactsPage(context.Context, db.ListActiveAccountAccessFactsPageParams) ([]db.ListActiveAccountAccessFactsPageRow, error)
+	ListActiveAccountAccessFacts(context.Context) ([]db.ListActiveAccountAccessFactsRow, error)
 }
 
 // Service evaluates live account facts against live app policy.
@@ -304,6 +305,43 @@ func (s *Service) PreviewGroup(ctx context.Context, ref AppRef, groupID int32, p
 				DisplayName: row.DisplayName,
 			},
 			Matched: EvaluateCondition(rule.Condition, facts).Result,
+		})
+	}
+	return out, nil
+}
+
+// PreviewRule evaluates an unsaved validated rule against one snapshot of all
+// active accounts scoped to a valid managed application. It intentionally does
+// not load or modify any persisted group.
+func (s *Service) PreviewRule(ctx context.Context, ref AppRef, rule Rule) ([]GroupPreview, error) {
+	if err := s.validateAppRef(ctx, ref); err != nil {
+		return nil, err
+	}
+	providers, err := s.loadKnownProviders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	canonical, err := json.Marshal(rule)
+	if err != nil {
+		return nil, fmt.Errorf("encode preview rule: %w", err)
+	}
+	validated, err := ParseAndValidateRule(canonical, providers)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListActiveAccountAccessFacts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GroupPreview, 0, len(rows))
+	for _, row := range rows {
+		facts, err := factsFromActiveRow(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, GroupPreview{
+			Account: AccountSummary{ID: row.ID, Username: row.Username, DisplayName: row.DisplayName},
+			Matched: EvaluateCondition(validated.Condition, facts).Result,
 		})
 	}
 	return out, nil

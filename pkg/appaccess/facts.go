@@ -39,6 +39,20 @@ func factsFromPageRow(row db.ListActiveAccountAccessFactsPageRow) (Facts, error)
 	)
 }
 
+func factsFromActiveRow(row db.ListActiveAccountAccessFactsRow) (Facts, error) {
+	return factsFromValues(
+		row.ID,
+		row.Disabled,
+		row.HasPasskey,
+		row.HasPasswordTotp,
+		row.HasFederation,
+		row.ConfirmedProviderSlugs,
+		row.ConfirmedProtocols,
+		row.HasAnyAvatar,
+		row.HasUserAvatar,
+	)
+}
+
 func factsFromValues(
 	accountID int32,
 	disabled bool,

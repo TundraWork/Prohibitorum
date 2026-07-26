@@ -2,13 +2,15 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -46,6 +48,8 @@ type appPolicyQueries interface {
 	ListForwardAuthManagementCandidates(context.Context) ([]db.ListForwardAuthManagementCandidatesRow, error)
 	ListSAMLManagementCandidates(context.Context) ([]db.ListSAMLManagementCandidatesRow, error)
 	ListActiveAccountAccessFactsPage(context.Context, db.ListActiveAccountAccessFactsPageParams) ([]db.ListActiveAccountAccessFactsPageRow, error)
+	ListActiveAccountAccessFacts(context.Context) ([]db.ListActiveAccountAccessFactsRow, error)
+	ListKnownUpstreamIDPDescriptors(context.Context) ([]db.ListKnownUpstreamIDPDescriptorsRow, error)
 	CreateOIDCAppGroup(context.Context, db.CreateOIDCAppGroupParams) (db.UserGroup, error)
 	CreateSAMLAppGroup(context.Context, db.CreateSAMLAppGroupParams) (db.UserGroup, error)
 	UpdateAppGroup(context.Context, db.UpdateAppGroupParams) (db.UserGroup, error)
@@ -62,6 +66,7 @@ type appPolicyQueries interface {
 type appPolicyService interface {
 	AuthorizeManager(context.Context, int32, string, appaccess.AppRef) error
 	PreviewGroup(context.Context, appaccess.AppRef, int32, db.ListActiveAccountAccessFactsPageParams) ([]appaccess.GroupPreview, error)
+	PreviewRule(context.Context, appaccess.AppRef, appaccess.Rule) ([]appaccess.GroupPreview, error)
 	ExplainGroup(context.Context, appaccess.AppRef, int32, int32) (appaccess.Explanation, error)
 }
 
@@ -87,6 +92,7 @@ func (s *Server) registerManagedApplicationRoutes(router chiRouter) {
 
 	registerOpHTTP(router, http.MethodGet, base, req, s.handleListManagedApplicationsHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/access", req, s.handleManagedApplicationAccessWorkspaceHTTP)
+	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/rule-preview", req, s.handlePreviewManagedRuleHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/access/set-restricted", req, s.handleSetManagedApplicationRestrictedHTTP)
 	registerOpHTTP(router, http.MethodGet, base+"/{kind}/{appId}/groups", req, s.handleListManagedApplicationGroupsHTTP)
 	s.registerAdminBodyOpHTTP(router, http.MethodPost, base+"/{kind}/{appId}/groups", req, s.handleCreateManagedApplicationGroupHTTP)
@@ -314,9 +320,14 @@ func (s *Server) handleManagedApplicationAccessWorkspaceHTTP(w http.ResponseWrit
 		writeAuthErr(w, err)
 		return
 	}
-	providers := make([]contract.ProviderDescriptorView, len(providerSlugs))
-	for i, slug := range providerSlugs {
-		providers[i] = contract.ProviderDescriptorView{Slug: slug}
+	descriptors, err := s.appPolicyQ().ListKnownUpstreamIDPDescriptors(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("list known upstream provider descriptors: %w", err))
+		return
+	}
+	providers := make([]contract.ProviderDescriptorView, len(descriptors))
+	for i, descriptor := range descriptors {
+		providers[i] = contract.ProviderDescriptorView{Slug: descriptor.Slug, DisplayName: descriptor.DisplayName}
 	}
 	workspace := contract.AppAccessWorkspace{App: app.summary, AccessRestricted: app.summary.AccessRestricted, Providers: providers, RuleGroups: make([]contract.AppGroupView, 0, len(views))}
 	for i := range views {
@@ -328,6 +339,103 @@ func (s *Server) handleManagedApplicationAccessWorkspaceHTTP(w http.ResponseWrit
 		}
 	}
 	writeJSON(w, workspace)
+}
+
+type previewManagedRuleBody struct {
+	Version   int             `json:"version"`
+	Condition json.RawMessage `json:"condition"`
+	Cursor    string          `json:"cursor"`
+	Limit     int             `json:"limit"`
+}
+
+func decodePreviewManagedRuleBody(r *http.Request, dst *previewManagedRuleBody) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		return authn.ErrBadRequest()
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return authn.ErrBadRequest()
+	}
+	return nil
+}
+
+func (s *Server) handlePreviewManagedRuleHTTP(w http.ResponseWriter, r *http.Request) {
+	app, err := s.managedApplicationFromRequest(r)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	var body previewManagedRuleBody
+	if err := decodePreviewManagedRuleBody(r, &body); err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	rawRule, err := json.Marshal(map[string]any{"version": body.Version, "condition": body.Condition})
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("encode rule preview request: %w", err))
+		return
+	}
+	canonicalRule, err := s.canonicalRule(r.Context(), rawRule)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	var rule appaccess.Rule
+	if err := json.Unmarshal(canonicalRule, &rule); err != nil {
+		writeAuthErr(w, fmt.Errorf("decode canonical rule preview: %w", err))
+		return
+	}
+	limit := pagination.Limit(body.Limit)
+	const collection = "managed_rule_preview"
+	const sortID = "username"
+	digest := sha256.Sum256(canonicalRule)
+	filters := managedAppCursorFilters(app.ref)
+	filters["ruleHash"] = hex.EncodeToString(digest[:])
+	payload, err := s.decodeCursor(body.Cursor, collection, sortID, filters)
+	if err != nil {
+		writeCursorInvalidErr(w, err)
+		return
+	}
+	previews, err := s.appPolicyEvaluator().PreviewRule(r.Context(), app.ref, rule)
+	if err != nil {
+		writeAuthErr(w, appPolicyReadErr(err))
+		return
+	}
+	matchedCount := 0
+	for _, preview := range previews {
+		if preview.Matched {
+			matchedCount++
+		}
+	}
+	start := 0
+	if body.Cursor != "" {
+		afterUsername, afterAccountID := decodeASCTextIntKey(payload.Keys)
+		for start < len(previews) {
+			account := previews[start].Account
+			if account.Username > afterUsername || (account.Username == afterUsername && account.ID > afterAccountID) {
+				break
+			}
+			start++
+		}
+	}
+	end := start + limit
+	if end > len(previews) {
+		end = len(previews)
+	}
+	items := make([]contract.GroupPreviewView, 0, end-start)
+	for _, preview := range previews[start:end] {
+		items = append(items, contract.GroupPreviewView{
+			Account: contract.AccountSummaryView{ID: preview.Account.ID, Username: preview.Account.Username, DisplayName: preview.Account.DisplayName},
+			Matched: preview.Matched,
+		})
+	}
+	next := ""
+	if end < len(previews) && len(items) > 0 {
+		last := items[len(items)-1].Account
+		next = s.encodeNextCursor(collection, sortID, filters, encodeASCTextIntKey(last.Username, last.ID))
+	}
+	writeJSON(w, contract.RulePreviewPageView{Items: items, MatchedCount: matchedCount, NextCursor: next})
 }
 
 func (s *Server) handleListManagedApplicationGroupsHTTP(w http.ResponseWriter, r *http.Request) {

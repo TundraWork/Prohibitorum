@@ -234,6 +234,7 @@ var adminBodyControlRoutes = []sudoRoute{
 	// Delegated policy mutations are reversible and intentionally do not require
 	// fresh sudo; they retain the shared JSON content-type and size controls.
 	{method: "POST", path: "/api/prohibitorum/managed-applications/oidc/x/access/set-restricted", body: `{}`},
+	{method: "POST", path: "/api/prohibitorum/managed-applications/oidc/x/rule-preview", body: `{}`},
 }
 
 // TestAdminMutationBodyControls_OversizedJSONReturns413 builds the REAL router

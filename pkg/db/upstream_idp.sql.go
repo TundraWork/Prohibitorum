@@ -270,6 +270,35 @@ func (q *Queries) ListAllUpstreamIDPs(ctx context.Context, arg ListAllUpstreamID
 	return items, nil
 }
 
+const listKnownUpstreamIDPDescriptors = `-- name: ListKnownUpstreamIDPDescriptors :many
+SELECT slug, display_name FROM upstream_idp ORDER BY display_name, slug
+`
+
+type ListKnownUpstreamIDPDescriptorsRow struct {
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+}
+
+func (q *Queries) ListKnownUpstreamIDPDescriptors(ctx context.Context) ([]ListKnownUpstreamIDPDescriptorsRow, error) {
+	rows, err := q.db.Query(ctx, listKnownUpstreamIDPDescriptors)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListKnownUpstreamIDPDescriptorsRow
+	for rows.Next() {
+		var i ListKnownUpstreamIDPDescriptorsRow
+		if err := rows.Scan(&i.Slug, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listKnownUpstreamIDPSlugs = `-- name: ListKnownUpstreamIDPSlugs :many
 SELECT slug FROM upstream_idp ORDER BY slug
 `
