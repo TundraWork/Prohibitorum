@@ -71,21 +71,11 @@ func contractFAScopes(scopes []appaccess.Scope) []contract.ForwardAuthScope {
 	return out
 }
 
-func (s *Server) listAllowedForwardAuthApps(ctx context.Context, accountID int32) ([]appaccess.AppSummary, error) {
+func (s *Server) listAllowedApps(ctx context.Context, accountID int32) ([]appaccess.AppSummary, error) {
 	if s.appLister == nil {
 		return nil, fmt.Errorf("app lister unavailable")
 	}
-	apps, err := s.appLister.ListAllowedApps(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]appaccess.AppSummary, 0, len(apps))
-	for _, app := range apps {
-		if app.Ref.Kind == appaccess.KindForwardAuth {
-			out = append(out, app)
-		}
-	}
-	return out, nil
+	return s.appLister.ListAllowedApps(ctx, accountID)
 }
 
 // ----- GET /me/tokens -----------------------------------------------------
@@ -161,12 +151,15 @@ func (s *Server) handleCreateMyToken(ctx context.Context, in *createMyTokenIn) (
 		}
 		// Re-evaluate the owner's allowed apps at creation time so a stale picker
 		// cannot grant a now-denied application.
-		apps, err := s.listAllowedForwardAuthApps(ctx, sess.Account.ID)
+		apps, err := s.listAllowedApps(ctx, sess.Account.ID)
 		if err != nil {
 			return nil, fmt.Errorf("handleCreateMyToken: allowed apps: %w", err)
 		}
 		vocab := make(map[string]map[string]bool, len(apps))
 		for _, app := range apps {
+			if app.Ref.Kind != appaccess.KindForwardAuth {
+				continue
+			}
 			set := make(map[string]bool, len(app.ForwardAuthScopes))
 			for _, scope := range app.ForwardAuthScopes {
 				set[scope.Name] = true
@@ -222,12 +215,15 @@ func (s *Server) handleListMyForwardAuthApps(ctx context.Context, _ *struct{}) (
 	if sess == nil {
 		return nil, authErrToHuma(authn.ErrNoSession())
 	}
-	apps, err := s.listAllowedForwardAuthApps(ctx, sess.Account.ID)
+	apps, err := s.listAllowedApps(ctx, sess.Account.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleListMyForwardAuthApps: %w", err)
 	}
 	out := make([]contract.MyForwardAuthApp, 0, len(apps))
 	for _, app := range apps {
+		if app.Ref.Kind != appaccess.KindForwardAuth {
+			continue
+		}
 		out = append(out, contract.MyForwardAuthApp{
 			ClientID: app.Ref.OIDCClientID, DisplayName: app.DisplayName, Scopes: contractFAScopes(app.ForwardAuthScopes),
 		})

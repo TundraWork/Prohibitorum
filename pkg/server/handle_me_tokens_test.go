@@ -92,11 +92,18 @@ func (f *fakePATQ) InsertCredentialEvent(_ context.Context, _ db.InsertCredentia
 func newPATServer(q *fakePATQ) *Server {
 	return &Server{
 		patQueriesOverride: q,
-		appLister: &fakeAppLister{apps: []appaccess.AppSummary{{
-			Ref:               appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: "svc"},
-			DisplayName:       "Service",
-			ForwardAuthScopes: []appaccess.Scope{{Name: "repo:read"}, {Name: "repo:write"}},
-		}}},
+		appLister: &fakeAppLister{apps: []appaccess.AppSummary{
+			{
+				Ref:               appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: "svc"},
+				DisplayName:       "Service",
+				ForwardAuthScopes: []appaccess.Scope{{Name: "repo:read"}, {Name: "repo:write"}},
+			},
+			{
+				Ref:               appaccess.AppRef{Kind: appaccess.KindOIDC, OIDCClientID: "oidc-only"},
+				DisplayName:       "OIDC only",
+				ForwardAuthScopes: []appaccess.Scope{{Name: "must:not:grant"}},
+			},
+		}},
 		Audit: audit.NewWriter(q),
 	}
 }
@@ -477,6 +484,30 @@ func TestHandleCreateMyToken_UnknownApp(t *testing.T) {
 	}
 	if len(q.rows) != 0 {
 		t.Errorf("InsertPAT must not be called for unauthorized app; got %d row(s)", len(q.rows))
+	}
+}
+
+// A regular OIDC app must never become a forward-auth PAT grant candidate.
+func TestHandleCreateMyToken_RejectsNonForwardAuthApp(t *testing.T) {
+	t.Parallel()
+
+	q := &fakePATQ{}
+	s := newPATServer(q)
+	ctx := patCtx(1)
+
+	in := &createMyTokenIn{}
+	in.Body.Name = "wrong-kind"
+	in.Body.AppGrants = map[string][]string{"oidc-only": {"must:not:grant"}}
+
+	_, err := s.handleCreateMyToken(ctx, in)
+	if err == nil {
+		t.Fatal("expected error for non-forward-auth app, got nil")
+	}
+	if code := codeFromErr(t, err); code != "bad_request" {
+		t.Errorf("code: want bad_request, got %s", code)
+	}
+	if len(q.rows) != 0 {
+		t.Errorf("InsertPAT must not be called for non-forward-auth app; got %d row(s)", len(q.rows))
 	}
 }
 
