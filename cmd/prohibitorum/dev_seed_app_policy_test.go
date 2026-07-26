@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -219,6 +220,41 @@ func appPolicyDemoGroupMap(t *testing.T, q *db.Queries) map[string]db.UserGroup 
 	return result
 }
 
+func appPolicyDemoExpectedRules() map[string]appaccess.Rule {
+	all := func(children ...appaccess.Condition) appaccess.Condition {
+		return appaccess.Condition{Op: "all", Children: children}
+	}
+	any := func(children ...appaccess.Condition) appaccess.Condition {
+		return appaccess.Condition{Op: "any", Children: children}
+	}
+	not := func(child appaccess.Condition) appaccess.Condition {
+		return appaccess.Condition{Op: "not", Child: &child}
+	}
+	provider := appaccess.Condition{Fact: "connection.provider", Provider: policyDemoUpstreamIDPSlug}
+	protocol := appaccess.Condition{Fact: "connection.protocol", Protocol: "oidc"}
+	passkey := appaccess.Condition{Fact: "login_method", Method: "passkey"}
+	passwordTOTP := appaccess.Condition{Fact: "login_method", Method: "password_totp"}
+	federation := appaccess.Condition{Fact: "login_method", Method: "federation"}
+	anyAvatar := appaccess.Condition{Fact: "avatar", Source: "any"}
+	userAvatar := appaccess.Condition{Fact: "avatar", Source: "user_uploaded"}
+	rule := func(condition appaccess.Condition) appaccess.Rule {
+		return appaccess.Rule{Version: 1, Condition: condition}
+	}
+	return map[string]appaccess.Rule{
+		"demo-downstream-connected":      rule(provider),
+		"demo-oidc-connected":            rule(protocol),
+		"demo-passkey-login":             rule(passkey),
+		"demo-password-totp-login":       rule(passwordTOTP),
+		"demo-federation-login":          rule(federation),
+		"demo-any-avatar":                rule(anyAvatar),
+		"demo-user-avatar":               rule(userAvatar),
+		"demo-all-strong-profile":        rule(all(passkey, userAvatar)),
+		"demo-any-strong-login":          rule(any(passkey, passwordTOTP)),
+		"demo-no-user-avatar":            rule(not(userAvatar)),
+		"demo-trusted-federated-profile": rule(all(provider, protocol, any(federation, passkey), not(passwordTOTP))),
+	}
+}
+
 func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 	ctx := context.Background()
 	pool, cleanup := appPolicyDemoTestPool(t)
@@ -281,7 +317,8 @@ func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 	if len(groups) != len(expectedExposure)+1 {
 		t.Fatalf("group count = %d, want %d", len(groups), len(expectedExposure)+1)
 	}
-	knownProviders := map[string]struct{}{"downstream-policy-demo": {}}
+	knownProviders := map[string]struct{}{policyDemoUpstreamIDPSlug: {}}
+	expectedRules := appPolicyDemoExpectedRules()
 	for slug, exposed := range expectedExposure {
 		group, ok := groups[slug]
 		if !ok {
@@ -291,8 +328,13 @@ func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 		if group.Kind != "rule" || group.ExposedToDownstream != exposed {
 			t.Errorf("group %q = kind %q exposed %v, want rule/%v", slug, group.Kind, group.ExposedToDownstream, exposed)
 		}
-		if _, err := appaccess.ParseAndValidateRule(group.Rule, knownProviders); err != nil {
+		parsed, err := appaccess.ParseAndValidateRule(group.Rule, knownProviders)
+		if err != nil {
 			t.Errorf("parse persisted rule %q: %v", slug, err)
+			continue
+		}
+		if want := expectedRules[slug]; !reflect.DeepEqual(parsed, want) {
+			t.Errorf("canonical rule %q = %#v, want %#v", slug, parsed, want)
 		}
 	}
 
@@ -341,6 +383,126 @@ func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 				t.Errorf("preview %s for %s = %v, want %v", slug, preview.Account.Username, preview.Matched, want)
 			}
 		}
+	}
+}
+
+type appPolicyDemoAvatarState struct {
+	bytes       []byte
+	contentType pgtype.Text
+	etag        pgtype.Text
+	idpID       pgtype.Int8
+}
+
+type appPolicyDemoActiveAvatarState struct {
+	source      pgtype.Text
+	contentType pgtype.Text
+	etag        pgtype.Text
+}
+
+func appPolicyDemoAvatarSourceState(t *testing.T, ctx context.Context, pool *pgxpool.Pool, accountID int32, source string) appPolicyDemoAvatarState {
+	t.Helper()
+	var state appPolicyDemoAvatarState
+	if err := pool.QueryRow(ctx, `
+		SELECT bytes, content_type, etag, idp_id
+		FROM account_avatar
+		WHERE account_id = $1 AND source = $2`, accountID, source,
+	).Scan(&state.bytes, &state.contentType, &state.etag, &state.idpID); err != nil {
+		t.Fatalf("load avatar source %q: %v", source, err)
+	}
+	return state
+}
+
+func appPolicyDemoActiveAvatarStateFor(t *testing.T, ctx context.Context, q *db.Queries, accountID int32) appPolicyDemoActiveAvatarState {
+	t.Helper()
+	account, err := q.GetAccountByID(ctx, accountID)
+	if err != nil {
+		t.Fatalf("load account %d: %v", accountID, err)
+	}
+	return appPolicyDemoActiveAvatarState{
+		source:      account.AvatarSource,
+		contentType: account.AvatarContentType,
+		etag:        account.AvatarEtag,
+	}
+}
+
+func TestSeedAppPolicyDemoPreservesExistingAvatarSources(t *testing.T) {
+	ctx := context.Background()
+	pool, cleanup := appPolicyDemoTestPool(t)
+	t.Cleanup(cleanup)
+	q := db.New(pool)
+	if err := seedAppPolicyDemo(ctx, pool, appPolicyDemoConfig()); err != nil {
+		t.Fatalf("initial seed: %v", err)
+	}
+	accounts := appPolicyDemoAccounts(t, q)
+	provider, err := q.GetUpstreamIDPBySlugAny(ctx, policyDemoUpstreamIDPSlug)
+	if err != nil {
+		t.Fatalf("load policy demo provider: %v", err)
+	}
+	providerID := provider.ID
+	if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
+		AccountID:   accounts["alice"].ID,
+		Source:      "user",
+		Bytes:       []byte("alice-existing-avatar"),
+		ContentType: pgtype.Text{String: "image/custom-alice", Valid: true},
+		Etag:        pgtype.Text{String: "alice-existing-etag", Valid: true},
+	}); err != nil {
+		t.Fatalf("replace alice avatar fixture: %v", err)
+	}
+	if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
+		AccountID:   accounts["bob"].ID,
+		Source:      "upstream:" + policyDemoUpstreamIDPSlug,
+		Bytes:       []byte("bob-existing-avatar"),
+		ContentType: pgtype.Text{String: "image/custom-bob", Valid: true},
+		Etag:        pgtype.Text{String: "bob-existing-etag", Valid: true},
+		IdpID:       &providerID,
+	}); err != nil {
+		t.Fatalf("replace bob avatar fixture: %v", err)
+	}
+	if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
+		AccountID:   accounts["alice"].ID,
+		Source:      "alternate:alice",
+		Bytes:       []byte("alice-alternate-avatar"),
+		ContentType: pgtype.Text{String: "image/alternate-alice", Valid: true},
+		Etag:        pgtype.Text{String: "alice-alternate-etag", Valid: true},
+	}); err != nil {
+		t.Fatalf("insert alice alternate avatar: %v", err)
+	}
+	if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
+		AccountID:   accounts["bob"].ID,
+		Source:      "alternate:bob",
+		Bytes:       []byte("bob-alternate-avatar"),
+		ContentType: pgtype.Text{String: "image/alternate-bob", Valid: true},
+		Etag:        pgtype.Text{String: "bob-alternate-etag", Valid: true},
+	}); err != nil {
+		t.Fatalf("insert bob alternate avatar: %v", err)
+	}
+	if err := q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{AccountID: accounts["alice"].ID, Source: "alternate:alice"}); err != nil {
+		t.Fatalf("select alice alternate avatar: %v", err)
+	}
+	if err := q.SetActiveAvatar(ctx, db.SetActiveAvatarParams{AccountID: accounts["bob"].ID, Source: "alternate:bob"}); err != nil {
+		t.Fatalf("select bob alternate avatar: %v", err)
+	}
+
+	aliceBefore := appPolicyDemoAvatarSourceState(t, ctx, pool, accounts["alice"].ID, "user")
+	bobBefore := appPolicyDemoAvatarSourceState(t, ctx, pool, accounts["bob"].ID, "upstream:"+policyDemoUpstreamIDPSlug)
+	aliceActiveBefore := appPolicyDemoActiveAvatarStateFor(t, ctx, q, accounts["alice"].ID)
+	bobActiveBefore := appPolicyDemoActiveAvatarStateFor(t, ctx, q, accounts["bob"].ID)
+
+	if err := seedAppPolicyDemo(ctx, pool, appPolicyDemoConfig()); err != nil {
+		t.Fatalf("rerun seed: %v", err)
+	}
+
+	if got := appPolicyDemoAvatarSourceState(t, ctx, pool, accounts["alice"].ID, "user"); !reflect.DeepEqual(got, aliceBefore) {
+		t.Errorf("alice avatar source after rerun = %#v, want %#v", got, aliceBefore)
+	}
+	if got := appPolicyDemoAvatarSourceState(t, ctx, pool, accounts["bob"].ID, "upstream:"+policyDemoUpstreamIDPSlug); !reflect.DeepEqual(got, bobBefore) {
+		t.Errorf("bob avatar source after rerun = %#v, want %#v", got, bobBefore)
+	}
+	if got := appPolicyDemoActiveAvatarStateFor(t, ctx, q, accounts["alice"].ID); !reflect.DeepEqual(got, aliceActiveBefore) {
+		t.Errorf("alice active avatar after rerun = %#v, want %#v", got, aliceActiveBefore)
+	}
+	if got := appPolicyDemoActiveAvatarStateFor(t, ctx, q, accounts["bob"].ID); !reflect.DeepEqual(got, bobActiveBefore) {
+		t.Errorf("bob active avatar after rerun = %#v, want %#v", got, bobActiveBefore)
 	}
 }
 

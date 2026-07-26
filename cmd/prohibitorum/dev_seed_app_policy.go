@@ -68,10 +68,10 @@ func appPolicyDemoGroups() []appPolicyDemoGroup {
 		{slug: "demo-federation-login", displayName: "Federation login", description: "Accounts eligible for federation login.", exposed: true, rule: rule(federation)},
 		{slug: "demo-any-avatar", displayName: "Any avatar", description: "Accounts with an avatar from any source.", exposed: true, rule: rule(anyAvatar)},
 		{slug: "demo-user-avatar", displayName: "User avatar", description: "Accounts with a user-uploaded avatar.", exposed: true, rule: rule(userAvatar)},
-		{slug: "demo-all-strong-profile", displayName: "All strong profile facts", description: "Downstream-connected accounts with a passkey and user-uploaded avatar.", exposed: true, rule: rule(all(providerDownstream, passkey, userAvatar))},
-		{slug: "demo-any-strong-login", displayName: "Any strong login", description: "Accounts with a passkey, password plus TOTP, or federation login.", exposed: true, rule: rule(any(passkey, passwordTOTP, federation))},
+		{slug: "demo-all-strong-profile", displayName: "All strong profile facts", description: "Accounts with a passkey and user-uploaded avatar.", exposed: true, rule: rule(all(passkey, userAvatar))},
+		{slug: "demo-any-strong-login", displayName: "Any strong login", description: "Accounts with a passkey or password plus TOTP login.", exposed: true, rule: rule(any(passkey, passwordTOTP))},
 		{slug: "demo-no-user-avatar", displayName: "No user avatar", description: "Accounts without a user-uploaded avatar.", exposed: false, rule: rule(not(userAvatar))},
-		{slug: "demo-trusted-federated-profile", displayName: "Trusted federated profile", description: "Downstream OIDC federation accounts with a user-uploaded avatar.", exposed: true, rule: rule(all(providerDownstream, protocolOIDC, federation, userAvatar))},
+		{slug: "demo-trusted-federated-profile", displayName: "Trusted federated profile", description: "Downstream OIDC accounts with federation or passkey login but no password plus TOTP login.", exposed: true, rule: rule(all(providerDownstream, protocolOIDC, any(federation, passkey), not(passwordTOTP)))},
 	}
 }
 
@@ -210,14 +210,20 @@ func seedAppPolicyDemoAlice(ctx context.Context, q *db.Queries, alice db.Account
 	if err := q.ConfirmAccountIdentity(ctx, identityID); err != nil {
 		return fmt.Errorf("app-policy demo confirm alice identity: %w", err)
 	}
-	if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
-		AccountID:   alice.ID,
-		Source:      "user",
-		Bytes:       appPolicyDemoPNG,
-		ContentType: pgtype.Text{String: "image/png", Valid: true},
-		Etag:        appPolicyDemoETag(),
-	}); err != nil {
-		return fmt.Errorf("app-policy demo upsert alice user avatar: %w", err)
+	userAvatarExists, err := appPolicyDemoAvatarSourceExists(ctx, q, alice.ID, "user")
+	if err != nil {
+		return fmt.Errorf("app-policy demo list alice avatar sources: %w", err)
+	}
+	if !userAvatarExists {
+		if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
+			AccountID:   alice.ID,
+			Source:      "user",
+			Bytes:       appPolicyDemoPNG,
+			ContentType: pgtype.Text{String: "image/png", Valid: true},
+			Etag:        appPolicyDemoETag(),
+		}); err != nil {
+			return fmt.Errorf("app-policy demo insert alice user avatar: %w", err)
+		}
 	}
 	return nil
 }
@@ -278,18 +284,38 @@ func seedAppPolicyDemoBob(ctx context.Context, q *db.Queries, bob db.Account, pr
 	if err := q.ConfirmTOTPCredential(ctx, bob.ID); err != nil {
 		return fmt.Errorf("app-policy demo confirm bob TOTP credential: %w", err)
 	}
-	providerID := provider.ID
-	if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
-		AccountID: bob.ID,
-		Source: "upstream:" + provider.Slug,
-		Bytes: appPolicyDemoPNG,
-		ContentType: pgtype.Text{String: "image/png", Valid: true},
-		Etag: appPolicyDemoETag(),
-		IdpID: &providerID,
-	}); err != nil {
-		return fmt.Errorf("app-policy demo upsert bob provider avatar: %w", err)
+	providerAvatarSource := "upstream:" + provider.Slug
+	providerAvatarExists, err := appPolicyDemoAvatarSourceExists(ctx, q, bob.ID, providerAvatarSource)
+	if err != nil {
+		return fmt.Errorf("app-policy demo list bob avatar sources: %w", err)
+	}
+	if !providerAvatarExists {
+		providerID := provider.ID
+		if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
+			AccountID:   bob.ID,
+			Source:      providerAvatarSource,
+			Bytes:       appPolicyDemoPNG,
+			ContentType: pgtype.Text{String: "image/png", Valid: true},
+			Etag:        appPolicyDemoETag(),
+			IdpID:       &providerID,
+		}); err != nil {
+			return fmt.Errorf("app-policy demo insert bob provider avatar: %w", err)
+		}
 	}
 	return nil
+}
+
+func appPolicyDemoAvatarSourceExists(ctx context.Context, q *db.Queries, accountID int32, source string) (bool, error) {
+	sources, err := q.ListAvatarSourcesByAccount(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	for _, avatarSource := range sources {
+		if avatarSource.Source == source {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func seedAppPolicyDemoApp(ctx context.Context, q *db.Queries, alice, bob, carol db.Account, bySlug map[string]db.UserGroup) error {
