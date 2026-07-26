@@ -7,9 +7,9 @@ import type {
   AppAccessWorkspace,
   AppGroup,
   AppKind,
-  Condition,
   ManagedApplication,
   ManualDecision,
+  ProviderDescriptor,
   Rule,
 } from '@/lib/appAccess'
 import type { Page } from '@/lib/pagination'
@@ -20,17 +20,16 @@ vi.mock('@/lib/api', () => ({
 
 import { api } from '@/lib/api'
 import AppPolicyWorkspace from './AppPolicyWorkspace.vue'
+import RuleEditor, { type RuleEditorDraft } from './RuleEditor.vue'
 
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
 const put = vi.mocked(api.put)
 
-interface ProviderDescriptor {
-  slug: string
-}
-
-type WorkspaceWire = AppAccessWorkspace & { providers: ProviderDescriptor[] }
+type WorkspaceWire = AppAccessWorkspace
 type WorkspaceMode = 'manager' | 'admin'
+
+const mounted: VueWrapper[] = []
 
 interface GroupPreview {
   account: AccountSummary
@@ -75,18 +74,13 @@ const RESTRICTED_APP: ManagedApplication = {
 }
 
 const PROVIDERS: ProviderDescriptor[] = [
-  { slug: 'corporate' },
-  { slug: 'partners' },
+  { slug: 'corporate', displayName: 'Corporate identity' },
+  { slug: 'partners', displayName: 'Partner directory' },
 ]
-
-const CORPORATE_CONDITION: Condition = {
-  fact: 'connection.provider',
-  provider: 'corporate',
-}
 
 const CORPORATE_RULE: Rule = {
   version: 1,
-  condition: CORPORATE_CONDITION,
+  condition: { fact: 'connection.provider', provider: 'corporate' },
 }
 
 const MANUAL_GROUP: AppGroup = {
@@ -131,6 +125,22 @@ const UPDATED_RULE_GROUP: AppGroup = {
     version: 1,
     condition: { fact: 'connection.provider', provider: 'partners' },
   },
+}
+
+const CREATE_RULE_DRAFT: RuleEditorDraft = {
+  slug: 'partner-engineers',
+  displayName: 'Partner engineers',
+  description: 'Verified partner connections',
+  exposedToDownstream: true,
+  rule: PARTNER_RULE_GROUP.rule!,
+}
+
+const UPDATE_RULE_DRAFT: RuleEditorDraft = {
+  slug: 'corporate-users',
+  displayName: 'Corporate staff',
+  description: 'Verified corporate connections',
+  exposedToDownstream: true,
+  rule: UPDATED_RULE_GROUP.rule!,
 }
 
 const OPEN_EMPTY_WORKSPACE: WorkspaceWire = {
@@ -260,7 +270,7 @@ function mockWorkspaceGets(
 }
 
 function mountWorkspace(mode: WorkspaceMode = 'manager') {
-  return mount(AppPolicyWorkspace, {
+  const wrapper = mount(AppPolicyWorkspace, {
     props: {
       kind: APP_KIND,
       appId: APP_ID,
@@ -270,6 +280,8 @@ function mountWorkspace(mode: WorkspaceMode = 'manager') {
     global: { plugins: [i18n()] },
     attachTo: document.body,
   })
+  mounted.push(wrapper)
+  return wrapper
 }
 
 function deferred<T>() {
@@ -288,37 +300,17 @@ function clickDestructiveConfirm(label: string): void {
   confirm!.click()
 }
 
-async function chooseCondition(
-  wrapper: VueWrapper,
-  control: 'kind' | 'value',
-  path: string,
-  value: string,
-): Promise<void> {
-  const trigger = wrapper.get(`[data-test="condition-${control}-${path}"]`)
-  if (trigger.element instanceof HTMLSelectElement) {
-    await trigger.setValue(value)
-    return
-  }
-  await trigger.trigger('keydown', { key: 'Enter' })
-  await flushPromises()
-  const option = document.body.querySelector<HTMLElement>(
-    `[data-test="condition-option-${path}-${value}"]`,
-  )
-  expect(option).not.toBeNull()
-  option!.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
-  await flushPromises()
+function ruleEditor(wrapper: ReturnType<typeof mount>) {
+  return wrapper.getComponent(RuleEditor)
 }
 
-async function conditionOptionValues(wrapper: VueWrapper, path: string): Promise<string[]> {
-  const trigger = wrapper.get(`[data-test="condition-value-${path}"]`)
-  if (trigger.element instanceof HTMLSelectElement) {
-    return Array.from(trigger.element.options).map((option) => option.value).filter(Boolean)
-  }
-  await trigger.trigger('keydown', { key: 'Enter' })
-  await flushPromises()
-  return Array.from(
-    document.body.querySelectorAll<HTMLElement>(`[data-test^="condition-option-${path}-"]`),
-  ).map((option) => option.dataset.test!.replace(`condition-option-${path}-`, ''))
+function clickConfirmCancel(): void {
+  const buttons = Array.from(document.body.querySelectorAll('button')).filter(
+    (button) => button.textContent?.trim() === en.confirm.cancel,
+  )
+  const cancel = buttons.at(-1)
+  expect(cancel).toBeDefined()
+  cancel!.click()
 }
 
 beforeEach(() => {
@@ -329,11 +321,12 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  while (mounted.length) mounted.pop()!.unmount()
   document.body.innerHTML = ''
 })
 
 describe('AppPolicyWorkspace', () => {
-  it('shows loading, uses the encoded app endpoint, and projects provider descriptors into rule editing', async () => {
+  it('opens one shared RuleEditor with an incomplete create draft and provider display names', async () => {
     const access = deferred<WorkspaceWire>()
     get.mockImplementation((path: string) => {
       if (path === ACCESS_ENDPOINT) return access.promise
@@ -344,23 +337,38 @@ describe('AppPolicyWorkspace', () => {
 
     const wrapper = mountWorkspace()
     await Promise.resolve()
-
     expect(wrapper.get('[data-test="policy-loading"]').text()).toMatch(/loading/i)
-    expect(get).toHaveBeenCalledWith(ACCESS_ENDPOINT)
-
     access.resolve(OPEN_POLICY_WORKSPACE)
     await flushPromises()
 
-    expect(wrapper.find('[data-test="policy-loading"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Atlas')
-    expect(wrapper.text()).toContain('Atlas manual decisions')
-    expect(wrapper.text()).toContain('Corporate users')
+    await wrapper.get('[data-test="rule-group-create"]').trigger('click')
+    expect(wrapper.findAll('[data-test="rule-editor"]')).toHaveLength(1)
+    let editor = ruleEditor(wrapper)
+    expect(editor.props('mode')).toBe('create')
+    expect(editor.props('providers')).toEqual(PROVIDERS)
+    expect(editor.props('previewEndpoint')).toBe(`${BASE}/rule-preview`)
+    expect(editor.props('initialDraft')).toEqual({
+      slug: '',
+      displayName: '',
+      description: '',
+      exposedToDownstream: true,
+      rule: { version: 1, condition: { op: 'all', children: [{}] } },
+    })
 
+    editor.vm.$emit('cancel')
+    await flushPromises()
     await wrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
-    const form = wrapper.get('[data-test="rule-group-form-21"]')
-    expect(form.get('[data-test="condition-kind-root"]').text()).toContain('Connection provider')
-    expect(form.get('[data-test="condition-value-root"]').text()).toContain('corporate')
-    expect(await conditionOptionValues(form, 'root')).toEqual(['corporate', 'partners'])
+
+    expect(wrapper.findAll('[data-test="rule-editor"]')).toHaveLength(1)
+    editor = ruleEditor(wrapper)
+    expect(editor.props('mode')).toBe('edit')
+    expect(editor.props('initialDraft')).toEqual({
+      slug: RULE_GROUP.slug,
+      displayName: RULE_GROUP.displayName,
+      description: RULE_GROUP.description,
+      exposedToDownstream: true,
+      rule: CORPORATE_RULE,
+    })
   })
 
   it('reloads and resets policy state when the application identity changes', async () => {
@@ -502,7 +510,7 @@ describe('AppPolicyWorkspace', () => {
     expect(wrapper.find('[data-test="manual-group-create"]').exists()).toBe(false)
   })
 
-  it('creates a rule group with the closed rule document payload', async () => {
+  it('creates a rule group from the shared editor save event with the exact immutable binding payload', async () => {
     let created = false
     mockWorkspaceGets(() => created
       ? { ...OPEN_EMPTY_WORKSPACE, ruleGroups: [PARTNER_RULE_GROUP] }
@@ -515,14 +523,7 @@ describe('AppPolicyWorkspace', () => {
     const wrapper = mountWorkspace()
     await flushPromises()
     await wrapper.get('[data-test="rule-group-create"]').trigger('click')
-
-    const form = wrapper.get('[data-test="rule-group-form-new"]')
-    await form.get('input[name="slug"]').setValue('partner-engineers')
-    await form.get('input[name="displayName"]').setValue('Partner engineers')
-    await form.get('textarea[name="description"]').setValue('Verified partner connections')
-    await chooseCondition(form, 'kind', 'root-0', 'connection.provider')
-    await chooseCondition(form, 'value', 'root-0', 'partners')
-    await form.get('[data-test="rule-group-save-new"]').trigger('click')
+    ruleEditor(wrapper).vm.$emit('save', CREATE_RULE_DRAFT)
     await flushPromises()
 
     expect(post).toHaveBeenCalledWith(GROUPS_ENDPOINT, {
@@ -542,24 +543,36 @@ describe('AppPolicyWorkspace', () => {
     expect(wrapper.text()).toContain('Partner engineers')
   })
 
-  it('blocks rule submission while a newly added combinator is empty', async () => {
-    mockWorkspaceGets(OPEN_EMPTY_WORKSPACE)
+  it('keeps the shared editor busy through workspace reload so a completed save cannot be submitted twice', async () => {
+    const reloaded = deferred<WorkspaceWire>()
+    let accessRequests = 0
+    get.mockImplementation((path: string) => {
+      if (path === ACCESS_ENDPOINT) {
+        accessRequests += 1
+        return accessRequests === 1 ? Promise.resolve(OPEN_EMPTY_WORKSPACE) : reloaded.promise
+      }
+      if (path.split('?')[0] === ACCOUNTS_ENDPOINT) return Promise.resolve(ACCOUNTS_PAGE)
+      if (path.split('?')[0] === MANUAL_DECISIONS_ENDPOINT) return Promise.resolve(DECISIONS_PAGE)
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    post.mockResolvedValue(PARTNER_RULE_GROUP)
+
     const wrapper = mountWorkspace()
     await flushPromises()
     await wrapper.get('[data-test="rule-group-create"]').trigger('click')
+    ruleEditor(wrapper).vm.$emit('save', CREATE_RULE_DRAFT)
+    await flushPromises()
 
-    const form = wrapper.get('[data-test="rule-group-form-new"]')
-    await form.get('input[name="slug"]').setValue('nested-policy')
-    await form.get('input[name="displayName"]').setValue('Nested policy')
-    await form.get('[data-test="add-all-root"]').trigger('click')
+    expect(ruleEditor(wrapper).props('busy')).toBe(true)
+    ruleEditor(wrapper).vm.$emit('save', CREATE_RULE_DRAFT)
+    await flushPromises()
+    expect(post).toHaveBeenCalledTimes(1)
 
-    const save = form.get<HTMLButtonElement>('[data-test="rule-group-save-new"]')
-    expect(save.element.disabled).toBe(true)
-    await save.trigger('click')
-    expect(post).not.toHaveBeenCalled()
+    reloaded.resolve({ ...OPEN_EMPTY_WORKSPACE, ruleGroups: [PARTNER_RULE_GROUP] })
+    await flushPromises()
+    expect(wrapper.find('[data-test="rule-editor"]').exists()).toBe(false)
   })
-
-  it('updates a rule group without sending its immutable kind or app binding', async () => {
+  it('updates a rule group from the shared editor save event without sending immutable kind or app binding', async () => {
     let updated = false
     mockWorkspaceGets(() => updated
       ? { ...OPEN_RULE_WORKSPACE, ruleGroups: [UPDATED_RULE_GROUP] }
@@ -572,11 +585,7 @@ describe('AppPolicyWorkspace', () => {
     const wrapper = mountWorkspace()
     await flushPromises()
     await wrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
-
-    const form = wrapper.get('[data-test="rule-group-form-21"]')
-    await form.get('input[name="displayName"]').setValue('Corporate staff')
-    await chooseCondition(form, 'value', 'root', 'partners')
-    await form.get('[data-test="rule-group-save-21"]').trigger('click')
+    ruleEditor(wrapper).vm.$emit('save', UPDATE_RULE_DRAFT)
     await flushPromises()
 
     expect(put).toHaveBeenCalledWith(`${GROUPS_ENDPOINT}/21`, {
@@ -589,7 +598,41 @@ describe('AppPolicyWorkspace', () => {
         condition: { fact: 'connection.provider', provider: 'partners' },
       },
     })
-    expect(wrapper.text()).toContain('Corporate staff')
+    expect(wrapper.get('[data-test="rule-save-announcement"]').text()).toContain('Rule group saved.')
+    expect(document.activeElement).toBe(wrapper.get('[data-test="rule-group-row-21"]').element)
+  })
+
+  it('requires a discard decision before opening create, another edit, or a saved preview from a dirty editor', async () => {
+    mockWorkspaceGets({ ...OPEN_RULE_WORKSPACE, ruleGroups: [RULE_GROUP, PARTNER_RULE_GROUP] }, {
+      [PREVIEW_ENDPOINT]: PREVIEW_PAGE_ONE,
+    })
+    const wrapper = mountWorkspace()
+    await flushPromises()
+    await wrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    ruleEditor(wrapper).vm.$emit('dirty-change', true)
+    await flushPromises()
+
+    await wrapper.get('[data-test="rule-group-create"]').trigger('click')
+    expect(document.body.textContent).toContain('Discard unsaved changes?')
+    expect(ruleEditor(wrapper).props('initialDraft')).toMatchObject({ slug: RULE_GROUP.slug })
+    clickConfirmCancel()
+    await flushPromises()
+
+    await wrapper.get('[data-test="rule-group-edit-22"]').trigger('click')
+    expect(document.body.textContent).toContain('Discard unsaved changes?')
+    expect(ruleEditor(wrapper).props('initialDraft')).toMatchObject({ slug: RULE_GROUP.slug })
+    clickConfirmCancel()
+    await flushPromises()
+
+    await wrapper.get('[data-test="rule-group-preview-21"]').trigger('click')
+    expect(document.body.textContent).toContain('Discard unsaved changes?')
+    expect(wrapper.find('[data-test="preview-panel-21"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="rule-editor"]').exists()).toBe(true)
+
+    clickDestructiveConfirm('Discard changes')
+    await flushPromises()
+    expect(wrapper.find('[data-test="rule-editor"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="preview-panel-21"]').exists()).toBe(true)
   })
 
   it('deletes a rule group only after ConfirmDialog confirmation', async () => {
@@ -613,6 +656,19 @@ describe('AppPolicyWorkspace', () => {
 
     expect(post).toHaveBeenCalledWith(`${GROUPS_ENDPOINT}/21/delete`)
     expect(wrapper.find('[data-test="rule-group-row-21"]').exists()).toBe(false)
+  })
+
+  it('renders compact saved-rule meaning with a disclosure for the full read-only outline', async () => {
+    mockWorkspaceGets(OPEN_RULE_WORKSPACE)
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    const row = wrapper.get('[data-test="rule-group-row-21"]')
+    expect(row.get('[data-test="rule-meaning-counts"]').text()).toContain('1 condition')
+    expect(row.get('[data-test="rule-meaning-first-line"]').text()).toContain('Corporate identity')
+    const fullMeaning = row.get('[data-test="rule-meaning-disclosure-21"]')
+    expect(fullMeaning.text()).toContain('Plain meaning')
+    expect(fullMeaning.get('[data-test="rule-meaning"]').text()).toContain('Corporate identity')
   })
 
   it('paginates calculated rule preview with the server nextCursor', async () => {

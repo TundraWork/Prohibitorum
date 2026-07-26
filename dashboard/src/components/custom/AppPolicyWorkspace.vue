@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Eye, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import { api } from '@/lib/api'
@@ -8,13 +8,11 @@ import type {
   AppAccessWorkspace,
   AppGroup,
   AppKind,
-  Condition,
   ExplanationNode,
   GroupExplanation,
   GroupPreview,
   ManualDecision,
   ManualEffect,
-  Rule,
 } from '@/lib/appAccess'
 import { buildPagePath, type Page } from '@/lib/pagination'
 import { useApi } from '@/composables/useApi'
@@ -26,7 +24,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -36,20 +33,19 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import ManualDecisionEditor from '@/components/custom/ManualDecisionEditor.vue'
 import PaginationControls from '@/components/custom/PaginationControls.vue'
 import ProtocolBadge from '@/components/custom/ProtocolBadge.vue'
-import RuleConditionEditor from '@/components/custom/RuleConditionEditor.vue'
+import RuleEditor, { type RuleEditorDraft } from '@/components/custom/RuleEditor.vue'
+import RuleMeaning from '@/components/custom/RuleMeaning.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import { cloneRule, makeEmptyRule } from '@/lib/ruleDraft'
 
-const MAX_RULE_DEPTH = 8
-const MAX_RULE_NODES = 64
-const MAX_RULE_CHILDREN = 32
+type ActiveRuleEditor =
+  | { mode: 'create'; groupId: null; initialDraft: RuleEditorDraft }
+  | { mode: 'edit'; groupId: number; initialDraft: RuleEditorDraft }
 
-interface RuleDraft {
-  slug: string
-  displayName: string
-  description: string
-  exposedToDownstream: boolean
-  condition: Condition
-}
+type RuleEditorDestination =
+  | { type: 'create' }
+  | { type: 'edit'; group: AppGroup }
+  | { type: 'preview'; groupId: number }
 
 interface ExplanationRow {
   key: string
@@ -89,11 +85,13 @@ const decisionsNextCursor = ref('')
 const decisionsPageIndex = ref(0)
 const decisionPageCursors = ref<string[]>([''])
 
-const ruleCreateOpen = ref(false)
-const newRuleDraft = ref<RuleDraft>(makeRuleDraft())
-const editingRuleId = ref<number | null>(null)
-const editRuleDraft = ref<RuleDraft | null>(null)
+const activeRuleEditor = ref<ActiveRuleEditor | null>(null)
+const ruleEditorDirty = ref(false)
+const pendingRuleEditorDestination = ref<RuleEditorDestination | null>(null)
+const confirmDiscardRuleEditor = ref(false)
+const savedRuleGroupId = ref<number | null>(null)
 const confirmDeleteRuleId = ref<number | null>(null)
+const ruleSaveFinalizing = ref(false)
 
 const confirmEmptyRestriction = ref(false)
 
@@ -120,9 +118,7 @@ const accountsEndpoint = computed(() => `${basePath.value}/accounts`)
 const appName = computed(() => workspace.value?.app.displayName || props.displayName)
 const manualGroup = computed(() => workspace.value?.manualGroup)
 const ruleGroups = computed(() => workspace.value?.ruleGroups ?? [])
-const providerSlugSet = computed(
-  () => new Set((workspace.value?.providers ?? []).map((provider) => provider.slug)),
-)
+const rulePreviewEndpoint = computed(() => `${basePath.value}/rule-preview`)
 const hasAnyPolicyGroup = computed(
   () => manualGroup.value !== undefined || ruleGroups.value.length > 0,
 )
@@ -132,201 +128,23 @@ const ruleGroupCountLabel = computed(() =>
 const manualFormValid = computed(
   () => manualDraft.slug.trim() !== '' && manualDraft.displayName.trim() !== '',
 )
-const newRuleConditionValid = computed(() => isConditionValid(newRuleDraft.value.condition))
-const newRuleFormValid = computed(
-  () =>
-    newRuleDraft.value.slug.trim() !== '' &&
-    newRuleDraft.value.displayName.trim() !== '' &&
-    newRuleConditionValid.value,
-)
-const editRuleConditionValid = computed(
-  () => editRuleDraft.value !== null && isConditionValid(editRuleDraft.value.condition),
-)
-const editRuleFormValid = computed(
-  () =>
-    editRuleDraft.value !== null &&
-    editRuleDraft.value.slug.trim() !== '' &&
-    editRuleDraft.value.displayName.trim() !== '' &&
-    editRuleConditionValid.value,
-)
 const ruleToDelete = computed(() =>
   ruleGroups.value.find((group) => group.id === confirmDeleteRuleId.value),
 )
+const ruleEditorBusy = computed(() => policyMutationApi.busy.value || ruleSaveFinalizing.value)
 const previewHasMore = computed(() => previewNextCursor.value !== '')
 const decisionsHaveMore = computed(() => decisionsNextCursor.value !== '')
 const explanationRows = computed(() =>
   explanation.value ? flattenExplanation(explanation.value.explanation) : [],
 )
 
-function makeDefaultCondition(): Condition {
-  return {
-    op: 'all',
-    children: [{ fact: 'avatar', source: 'any' }],
-  }
-}
-
-function makeRuleDraft(group?: AppGroup): RuleDraft {
+function makeRuleDraft(group?: AppGroup): RuleEditorDraft {
   return {
     slug: group?.slug ?? '',
     displayName: group?.displayName ?? '',
     description: group?.description ?? '',
     exposedToDownstream: group?.exposedToDownstream ?? true,
-    condition: group?.rule?.condition
-      ? cloneCondition(group.rule.condition)
-      : group
-        ? { op: 'all', children: [] }
-        : makeDefaultCondition(),
-  }
-}
-
-// Clone only the closed condition vocabulary. Besides keeping edits immutable,
-// this prevents unexpected wire fields from being echoed back in a mutation.
-function cloneCondition(condition: Condition): Condition {
-  if (condition.op === 'all' || condition.op === 'any') {
-    return {
-      op: condition.op,
-      children: (condition.children ?? []).map(cloneCondition),
-    }
-  }
-  if (condition.op === 'not') {
-    return condition.child
-      ? { op: 'not', child: cloneCondition(condition.child) }
-      : { op: 'not' }
-  }
-
-  switch (condition.fact) {
-    case 'connection.provider':
-      return typeof condition.provider === 'string'
-        ? { fact: condition.fact, provider: condition.provider }
-        : { fact: condition.fact }
-    case 'connection.protocol':
-      return condition.protocol
-        ? { fact: condition.fact, protocol: condition.protocol }
-        : { fact: condition.fact }
-    case 'login_method':
-      return condition.method
-        ? { fact: condition.fact, method: condition.method }
-        : { fact: condition.fact }
-    case 'avatar':
-      return condition.source
-        ? { fact: condition.fact, source: condition.source }
-        : { fact: condition.fact }
-    default:
-      return {}
-  }
-}
-
-// The editor prevents new over-limit nodes, while this validator also covers
-// malformed or oversized trees projected from an older server/import.
-function isConditionValid(root: Condition): boolean {
-  let nodes = 0
-
-  function visit(condition: Condition, depth: number): boolean {
-    if (depth > MAX_RULE_DEPTH || ++nodes > MAX_RULE_NODES) return false
-
-    if (condition.op !== undefined) {
-      if (
-        condition.fact !== undefined ||
-        condition.provider !== undefined ||
-        condition.protocol !== undefined ||
-        condition.method !== undefined ||
-        condition.source !== undefined
-      ) {
-        return false
-      }
-
-      if (condition.op === 'all' || condition.op === 'any') {
-        if (
-          !Array.isArray(condition.children) ||
-          condition.children.length === 0 ||
-          condition.children.length > MAX_RULE_CHILDREN ||
-          condition.child !== undefined
-        ) {
-          return false
-        }
-        return condition.children.every((child) => visit(child, depth + 1))
-      }
-
-      if (condition.op === 'not') {
-        return (
-          condition.children === undefined &&
-          condition.child !== undefined &&
-          visit(condition.child, depth + 1)
-        )
-      }
-
-      return false
-    }
-
-    if (condition.children !== undefined || condition.child !== undefined) return false
-
-    switch (condition.fact) {
-      case 'connection.provider':
-        return (
-          typeof condition.provider === 'string' &&
-          providerSlugSet.value.has(condition.provider) &&
-          condition.protocol === undefined &&
-          condition.method === undefined &&
-          condition.source === undefined
-        )
-      case 'connection.protocol':
-        return (
-          (condition.protocol === 'oidc' ||
-            condition.protocol === 'steam' ||
-            condition.protocol === 'vrchat') &&
-          condition.provider === undefined &&
-          condition.method === undefined &&
-          condition.source === undefined
-        )
-      case 'login_method':
-        return (
-          (condition.method === 'passkey' ||
-            condition.method === 'password_totp' ||
-            condition.method === 'federation') &&
-          condition.provider === undefined &&
-          condition.protocol === undefined &&
-          condition.source === undefined
-        )
-      case 'avatar':
-        return (
-          (condition.source === 'any' || condition.source === 'user_uploaded') &&
-          condition.provider === undefined &&
-          condition.protocol === undefined &&
-          condition.method === undefined
-        )
-      default:
-        return false
-    }
-  }
-
-  return visit(root, 1)
-}
-
-function accountName(account: AccountSummary): string {
-  return account.displayName.trim() || account.username
-}
-
-function ruleSummary(condition: Condition | undefined): string {
-  if (!condition) return t('manage.policy.rule.invalidCondition')
-  switch (condition.op) {
-    case 'all':
-      return t('manage.policy.rule.operatorAll')
-    case 'any':
-      return t('manage.policy.rule.operatorAny')
-    case 'not':
-      return t('manage.policy.rule.operatorNot')
-  }
-  switch (condition.fact) {
-    case 'connection.provider':
-      return t('manage.policy.rule.factConnectionProvider')
-    case 'connection.protocol':
-      return t('manage.policy.rule.factConnectionProtocol')
-    case 'login_method':
-      return t('manage.policy.rule.factLoginMethod')
-    case 'avatar':
-      return t('manage.policy.rule.factAvatar')
-    default:
-      return t('manage.policy.rule.invalidCondition')
+    rule: cloneRule(group?.rule ?? makeEmptyRule()),
   }
 }
 
@@ -358,6 +176,10 @@ function explanationIndent(depth: number): string {
   return explanationIndentClasses[Math.min(depth, explanationIndentClasses.length - 1)]!
 }
 
+function accountName(account: AccountSummary): string {
+  return account.displayName.trim() || account.username
+}
+
 function clearManualData(): void {
   loadedManualGroupId.value = null
   accounts.value = []
@@ -379,10 +201,12 @@ function resetWorkspaceState(): void {
   manualDraft.slug = ''
   manualDraft.displayName = ''
   manualDraft.description = ''
-  ruleCreateOpen.value = false
-  newRuleDraft.value = makeRuleDraft()
-  editingRuleId.value = null
-  editRuleDraft.value = null
+  activeRuleEditor.value = null
+  ruleEditorDirty.value = false
+  pendingRuleEditorDestination.value = null
+  ruleSaveFinalizing.value = false
+  confirmDiscardRuleEditor.value = false
+  savedRuleGroupId.value = null
   confirmDeleteRuleId.value = null
   confirmEmptyRestriction.value = false
   previewGroupId.value = null
@@ -612,75 +436,100 @@ async function clearManualDecision(payload: { accountId: number }): Promise<void
 }
 
 function openRuleCreate(): void {
-  newRuleDraft.value = makeRuleDraft()
-  ruleCreateOpen.value = true
-  editingRuleId.value = null
-  editRuleDraft.value = null
-  closePreview()
+  requestRuleEditorDestination({ type: 'create' })
 }
 
 function editRuleGroup(group: AppGroup): void {
-  editingRuleId.value = group.id
-  editRuleDraft.value = makeRuleDraft(group)
-  ruleCreateOpen.value = false
-  closePreview()
+  requestRuleEditorDestination({ type: 'edit', group })
 }
 
-function ruleWritePayload(draft: RuleDraft): {
-  slug: string
-  displayName: string
-  description: string
-  exposedToDownstream: boolean
-  rule: Rule
-} {
+function requestRuleEditorDestination(destination: RuleEditorDestination): void {
+  if (activeRuleEditor.value && ruleEditorDirty.value) {
+    pendingRuleEditorDestination.value = destination
+    confirmDiscardRuleEditor.value = true
+    return
+  }
+  void applyRuleEditorDestination(destination)
+}
+
+async function applyRuleEditorDestination(destination: RuleEditorDestination): Promise<void> {
+  pendingRuleEditorDestination.value = null
+  confirmDiscardRuleEditor.value = false
+
+  if (destination.type === 'create') {
+    closePreview()
+    activeRuleEditor.value = { mode: 'create', groupId: null, initialDraft: makeRuleDraft() }
+    ruleEditorDirty.value = false
+    return
+  }
+
+  if (destination.type === 'edit') {
+    closePreview()
+    activeRuleEditor.value = {
+      mode: 'edit',
+      groupId: destination.group.id,
+      initialDraft: makeRuleDraft(destination.group),
+    }
+    ruleEditorDirty.value = false
+    return
+  }
+
+  activeRuleEditor.value = null
+  ruleEditorDirty.value = false
+  await openSavedPreview(destination.groupId)
+}
+
+function cancelRuleEditor(): void {
+  activeRuleEditor.value = null
+  ruleEditorDirty.value = false
+  policyMutationApi.clear()
+}
+
+function cancelDiscardRuleEditor(): void {
+  confirmDiscardRuleEditor.value = false
+  pendingRuleEditorDestination.value = null
+}
+
+function discardRuleEditorAndContinue(): void {
+  const destination = pendingRuleEditorDestination.value
+  activeRuleEditor.value = null
+  ruleEditorDirty.value = false
+  pendingRuleEditorDestination.value = null
+  confirmDiscardRuleEditor.value = false
+  if (destination) void applyRuleEditorDestination(destination)
+}
+
+function ruleWritePayload(draft: RuleEditorDraft): RuleEditorDraft {
   return {
     slug: draft.slug.trim(),
     displayName: draft.displayName.trim(),
     description: draft.description.trim(),
     exposedToDownstream: draft.exposedToDownstream,
-    rule: {
-      version: 1,
-      condition: cloneCondition(draft.condition),
-    },
+    rule: cloneRule(draft.rule),
   }
 }
 
-async function createRuleGroup(): Promise<void> {
-  if (!newRuleFormValid.value || policyMutationApi.busy.value) return
+async function saveRuleGroup(draft: RuleEditorDraft): Promise<void> {
+  const editor = activeRuleEditor.value
+  if (!editor || ruleEditorBusy.value) return
 
-  const result = await policyMutationApi.run(() =>
-    api.post<AppGroup>(groupsEndpoint.value, {
-      kind: 'rule',
-      ...ruleWritePayload(newRuleDraft.value),
-    }),
+  ruleSaveFinalizing.value = true
+  const saved = await policyMutationApi.run(() => editor.mode === 'create'
+    ? api.post<AppGroup>(groupsEndpoint.value, { kind: 'rule', ...ruleWritePayload(draft) })
+    : api.put<AppGroup>(`${groupsEndpoint.value}/${editor.groupId}`, ruleWritePayload(draft)),
   )
-  if (result === undefined) return
-
-  ruleCreateOpen.value = false
-  newRuleDraft.value = makeRuleDraft()
-  await loadWorkspace()
-}
-
-async function updateRuleGroup(): Promise<void> {
-  const groupId = editingRuleId.value
-  const draft = editRuleDraft.value
-  if (
-    groupId === null ||
-    draft === null ||
-    !editRuleFormValid.value ||
-    policyMutationApi.busy.value
-  ) {
+  if (!saved) {
+    ruleSaveFinalizing.value = false
     return
   }
 
-  const result = await policyMutationApi.run(() =>
-    api.put<AppGroup>(`${groupsEndpoint.value}/${groupId}`, ruleWritePayload(draft)),
-  )
-  if (result === undefined) return
-
-  editingRuleId.value = null
-  editRuleDraft.value = null
   await loadWorkspace()
+  activeRuleEditor.value = null
+  ruleEditorDirty.value = false
+  savedRuleGroupId.value = saved.id
+  await nextTick()
+  document.querySelector<HTMLElement>(`[data-test="rule-group-row-${saved.id}"]`)?.focus()
+  ruleSaveFinalizing.value = false
 }
 
 async function deleteRuleGroup(): Promise<void> {
@@ -734,14 +583,14 @@ async function loadPreviewPage(groupId: number, cursor: string): Promise<boolean
 
 async function openPreview(groupId: number): Promise<void> {
   if (previewApi.busy.value) return
-  if (previewGroupId.value === groupId) {
+  if (!activeRuleEditor.value && previewGroupId.value === groupId) {
     closePreview()
     return
   }
+  requestRuleEditorDestination({ type: 'preview', groupId })
+}
 
-  editingRuleId.value = null
-  editRuleDraft.value = null
-  ruleCreateOpen.value = false
+async function openSavedPreview(groupId: number): Promise<void> {
   previewGroupId.value = groupId
   previewItems.value = []
   previewNextCursor.value = ''
@@ -1119,7 +968,6 @@ watch(
             </CardDescription>
           </div>
           <Button
-            v-if="!ruleCreateOpen"
             type="button"
             variant="outline"
             class="w-full shrink-0 shadow-none sm:w-auto"
@@ -1132,115 +980,29 @@ watch(
         </CardHeader>
 
         <CardContent class="flex flex-col gap-4">
-          <form
-            v-if="ruleCreateOpen"
-            data-test="rule-group-form-new"
-            class="flex flex-col gap-4 rounded-lg border border-border bg-sunken p-4"
-            @submit.prevent="createRuleGroup"
+          <p
+            v-if="savedRuleGroupId !== null"
+            role="status"
+            aria-live="polite"
+            data-test="rule-save-announcement"
+            class="rounded-md bg-sage-50 px-3 py-2 text-sm font-medium text-sage-700"
           >
-            <div class="flex items-start justify-between gap-3">
-              <h3 class="text-base font-semibold text-ink">
-                {{ t('manage.policy.rule.createTitle') }}
-              </h3>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                :aria-label="t('common.close')"
-                @click="ruleCreateOpen = false"
-              >
-                <X class="size-4" aria-hidden="true" />
-              </Button>
-            </div>
+            {{ t('manage.policy.rule.saved') }}
+          </p>
 
-            <div class="grid gap-4 sm:grid-cols-2">
-              <div class="flex flex-col gap-1.5">
-                <Label for="new-rule-slug">{{ t('manage.policy.workspace.groupSlug') }}</Label>
-                <Input
-                  id="new-rule-slug"
-                  v-model="newRuleDraft.slug"
-                  name="slug"
-                  autocomplete="off"
-                  required
-                  class="bg-surface shadow-none"
-                />
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <Label for="new-rule-display-name">
-                  {{ t('manage.policy.workspace.groupDisplayName') }}
-                </Label>
-                <Input
-                  id="new-rule-display-name"
-                  v-model="newRuleDraft.displayName"
-                  name="displayName"
-                  autocomplete="off"
-                  required
-                  class="bg-surface shadow-none"
-                />
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-1.5">
-              <Label for="new-rule-description">
-                {{ t('manage.policy.workspace.groupDescription') }}
-              </Label>
-              <Textarea
-                id="new-rule-description"
-                v-model="newRuleDraft.description"
-                name="description"
-                class="bg-surface shadow-none"
-              />
-            </div>
-
-            <label class="flex cursor-pointer items-start gap-3 text-sm text-ink">
-              <Checkbox
-                v-model="newRuleDraft.exposedToDownstream"
-                :disabled="policyMutationApi.busy.value"
-              />
-              <span class="flex flex-col gap-0.5">
-                <span class="font-medium">{{ t('manage.policy.rule.exposed') }}</span>
-                <span class="text-xs leading-relaxed text-muted">
-                  {{ t('manage.policy.rule.exposedHint') }}
-                </span>
-              </span>
-            </label>
-
-            <fieldset class="flex min-w-0 flex-col gap-2">
-              <legend class="mb-1 text-sm font-medium text-ink">
-                {{ t('manage.policy.rule.conditionTitle') }}
-              </legend>
-              <RuleConditionEditor
-                v-model="newRuleDraft.condition"
-                :providers="workspace.providers"
-                :max-depth="MAX_RULE_DEPTH"
-                :max-nodes="MAX_RULE_NODES"
-                :max-children="MAX_RULE_CHILDREN"
-              />
-              <p v-if="!newRuleConditionValid" role="status" class="text-xs text-destructive">
-                {{ t('manage.policy.rule.invalidCondition') }}
-              </p>
-            </fieldset>
-
-            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                :disabled="policyMutationApi.busy.value"
-                @click="ruleCreateOpen = false"
-              >
-                {{ t('common.cancel') }}
-              </Button>
-              <Button
-                type="submit"
-                class="w-full sm:w-auto"
-                :disabled="!newRuleFormValid || policyMutationApi.busy.value"
-                data-test="rule-group-save-new"
-                @click.prevent="createRuleGroup"
-              >
-                {{ t('common.save') }}
-              </Button>
-            </div>
-          </form>
+          <RuleEditor
+            v-if="activeRuleEditor"
+            :key="`${activeRuleEditor.mode}-${activeRuleEditor.groupId ?? 'new'}`"
+            :initial-draft="activeRuleEditor.initialDraft"
+            :providers="workspace.providers"
+            :preview-endpoint="rulePreviewEndpoint"
+            :busy="ruleEditorBusy"
+            :server-error="policyMutationApi.error.value ?? undefined"
+            :mode="activeRuleEditor.mode"
+            @save="saveRuleGroup"
+            @cancel="cancelRuleEditor"
+            @dirty-change="ruleEditorDirty = $event"
+          />
 
           <p
             v-if="ruleGroups.length === 0"
@@ -1255,7 +1017,8 @@ watch(
               v-for="group in ruleGroups"
               :key="group.id"
               :data-test="`rule-group-row-${group.id}`"
-              class="bg-surface"
+              :tabindex="savedRuleGroupId === group.id ? -1 : undefined"
+              class="bg-surface outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0">
@@ -1264,8 +1027,24 @@ watch(
                   <p v-if="group.description" class="mt-2 text-sm leading-relaxed text-muted">
                     {{ group.description }}
                   </p>
+                  <RuleMeaning
+                    v-if="group.rule"
+                    compact
+                    :rule="group.rule"
+                    :providers="workspace.providers"
+                    class="mt-3"
+                  />
+                  <details
+                    v-if="group.rule"
+                    :data-test="`rule-meaning-disclosure-${group.id}`"
+                    class="mt-3 max-w-2xl rounded-md border border-border bg-sunken px-3 py-2"
+                  >
+                    <summary class="cursor-pointer text-sm font-medium text-ink">
+                      {{ t('manage.policy.rule.plainMeaning') }}
+                    </summary>
+                    <RuleMeaning :rule="group.rule" :providers="workspace.providers" class="mt-3" />
+                  </details>
                   <div class="mt-3 flex flex-wrap gap-2">
-                    <StatusBadge variant="neutral">{{ ruleSummary(group.rule?.condition) }}</StatusBadge>
                     <StatusBadge :variant="group.exposedToDownstream ? 'info' : 'neutral'">
                       {{
                         group.exposedToDownstream
@@ -1314,118 +1093,6 @@ watch(
                   </Button>
                 </div>
               </div>
-
-              <form
-                v-if="editingRuleId === group.id && editRuleDraft"
-                :data-test="`rule-group-form-${group.id}`"
-                class="flex flex-col gap-4 border-t border-border bg-sunken p-4"
-                @submit.prevent="updateRuleGroup"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <h4 class="text-base font-semibold text-ink">
-                    {{ t('manage.policy.rule.editTitle', { name: group.displayName }) }}
-                  </h4>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    :aria-label="t('common.close')"
-                    @click="editingRuleId = null; editRuleDraft = null"
-                  >
-                    <X class="size-4" aria-hidden="true" />
-                  </Button>
-                </div>
-
-                <div class="grid gap-4 sm:grid-cols-2">
-                  <div class="flex flex-col gap-1.5">
-                    <Label :for="`rule-slug-${group.id}`">
-                      {{ t('manage.policy.workspace.groupSlug') }}
-                    </Label>
-                    <Input
-                      :id="`rule-slug-${group.id}`"
-                      v-model="editRuleDraft.slug"
-                      name="slug"
-                      autocomplete="off"
-                      required
-                      class="bg-surface shadow-none"
-                    />
-                  </div>
-                  <div class="flex flex-col gap-1.5">
-                    <Label :for="`rule-display-name-${group.id}`">
-                      {{ t('manage.policy.workspace.groupDisplayName') }}
-                    </Label>
-                    <Input
-                      :id="`rule-display-name-${group.id}`"
-                      v-model="editRuleDraft.displayName"
-                      name="displayName"
-                      autocomplete="off"
-                      required
-                      class="bg-surface shadow-none"
-                    />
-                  </div>
-                </div>
-
-                <div class="flex flex-col gap-1.5">
-                  <Label :for="`rule-description-${group.id}`">
-                    {{ t('manage.policy.workspace.groupDescription') }}
-                  </Label>
-                  <Textarea
-                    :id="`rule-description-${group.id}`"
-                    v-model="editRuleDraft.description"
-                    name="description"
-                    class="bg-surface shadow-none"
-                  />
-                </div>
-
-                <label class="flex cursor-pointer items-start gap-3 text-sm text-ink">
-                  <Checkbox
-                    v-model="editRuleDraft.exposedToDownstream"
-                    :disabled="policyMutationApi.busy.value"
-                  />
-                  <span class="flex flex-col gap-0.5">
-                    <span class="font-medium">{{ t('manage.policy.rule.exposed') }}</span>
-                    <span class="text-xs leading-relaxed text-muted">
-                      {{ t('manage.policy.rule.exposedHint') }}
-                    </span>
-                  </span>
-                </label>
-
-                <fieldset class="flex min-w-0 flex-col gap-2">
-                  <legend class="mb-1 text-sm font-medium text-ink">
-                    {{ t('manage.policy.rule.conditionTitle') }}
-                  </legend>
-                  <RuleConditionEditor
-                    v-model="editRuleDraft.condition"
-                    :providers="workspace.providers"
-                    :max-depth="MAX_RULE_DEPTH"
-                    :max-nodes="MAX_RULE_NODES"
-                    :max-children="MAX_RULE_CHILDREN"
-                  />
-                  <p v-if="!editRuleConditionValid" role="status" class="text-xs text-destructive">
-                    {{ t('manage.policy.rule.invalidCondition') }}
-                  </p>
-                </fieldset>
-
-                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    :disabled="policyMutationApi.busy.value"
-                    @click="editingRuleId = null; editRuleDraft = null"
-                  >
-                    {{ t('common.cancel') }}
-                  </Button>
-                  <Button
-                    type="submit"
-                    class="w-full sm:w-auto"
-                    :disabled="!editRuleFormValid || policyMutationApi.busy.value"
-                    :data-test="`rule-group-save-${group.id}`"
-                    @click.prevent="updateRuleGroup"
-                  >
-                    {{ t('common.save') }}
-                  </Button>
-                </div>
-              </form>
 
               <div
                 v-if="previewGroupId === group.id"
@@ -1611,6 +1278,17 @@ watch(
       @confirm="confirmEnableEmptyRestriction"
     >
       {{ t('manage.policy.workspace.enableEmptyBody') }}
+    </ConfirmDialog>
+
+    <ConfirmDialog
+      :open="confirmDiscardRuleEditor"
+      :title="t('manage.policy.rule.discardTitle')"
+      :confirm-label="t('manage.policy.rule.discard')"
+      @update:open="confirmDiscardRuleEditor = $event"
+      @cancel="cancelDiscardRuleEditor"
+      @confirm="discardRuleEditorAndContinue"
+    >
+      {{ t('manage.policy.rule.discardBody') }}
     </ConfirmDialog>
 
     <ConfirmDialog
