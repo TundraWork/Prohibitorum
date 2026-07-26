@@ -63,6 +63,45 @@ func TestParseAndValidateRuleAcceptsClosedProtocolAndAvatarLiterals(t *testing.T
 	}
 }
 
+func TestParseAndValidateRuleAcceptsFactLeafNotForms(t *testing.T) {
+	knownProviders := map[string]struct{}{"corporate": {}}
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{"provider", `{"version":1,"condition":{"op":"not","child":{"fact":"connection.provider","provider":"corporate"}}}`},
+		{"protocol", `{"version":1,"condition":{"op":"not","child":{"fact":"connection.protocol","protocol":"oidc"}}}`},
+		{"login method", `{"version":1,"condition":{"op":"not","child":{"fact":"login_method","method":"passkey"}}}`},
+		{"avatar", `{"version":1,"condition":{"op":"not","child":{"fact":"avatar","source":"user_uploaded"}}}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := ParseAndValidateRule([]byte(tc.raw), knownProviders); err != nil {
+				t.Fatalf("ParseAndValidateRule() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestParseAndValidateRuleNotRequiresFact(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{"all", `{"version":1,"condition":{"op":"not","child":{"op":"all","children":[{"fact":"avatar","source":"any"}]}}}`},
+		{"any", `{"version":1,"condition":{"op":"not","child":{"op":"any","children":[{"fact":"avatar","source":"any"}]}}}`},
+		{"not", `{"version":1,"condition":{"op":"not","child":{"op":"not","child":{"fact":"avatar","source":"any"}}}}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseAndValidateRule([]byte(tc.raw), nil)
+			assertRuleErrorAt(t, err, "$.condition.child", "not_requires_fact")
+		})
+	}
+}
+
 func TestParseAndValidateRuleRejectsUnknownAndBounds(t *testing.T) {
 	knownProviders := map[string]struct{}{"corporate": {}}
 	cases := []struct {
@@ -74,9 +113,9 @@ func TestParseAndValidateRuleRejectsUnknownAndBounds(t *testing.T) {
 		{"empty all", `{"version":1,"condition":{"op":"all","children":[]}}`, "empty_children"},
 		{"bad provider", `{"version":1,"condition":{"fact":"connection.provider","provider":"missing"}}`, "provider_not_found"},
 		{"bad method", `{"version":1,"condition":{"fact":"login_method","method":"sms"}}`, "invalid_method"},
-		{"depth nine", nestedNotRuleJSON(9), "max_depth_exceeded"},
-		{"sixty-five nodes", ruleWithNodeCount(65), "max_nodes_exceeded"},
 		{"thirty-three children", ruleWithChildren(33), "max_children_exceeded"},
+		{"sixty-five nodes", ruleWithNodeCount(65), "max_nodes_exceeded"},
+		{"depth nine", nestedAllRuleJSON(9), "max_depth_exceeded"},
 	}
 
 	for _, tc := range cases {
@@ -104,6 +143,7 @@ func TestParseAndValidateRuleRejectsClosedSchemaBoundaries(t *testing.T) {
 		{"all missing children", `{"version":1,"condition":{"op":"all"}}`, "$.condition", "missing_children"},
 		{"not missing child", `{"version":1,"condition":{"op":"not"}}`, "$.condition", "missing_child"},
 		{"not has children", `{"version":1,"condition":{"op":"not","children":[{"fact":"avatar","source":"any"}]}}`, "$.condition", "invalid_shape"},
+		{"not child unknown operator", `{"version":1,"condition":{"op":"not","child":{"op":"xor","children":[{"fact":"avatar","source":"any"}]}}}`, "$.condition.child", "invalid_op"},
 		{"combinator and fact", `{"version":1,"condition":{"op":"all","children":[{"fact":"avatar","source":"any"}],"fact":"avatar","source":"any"}}`, "$.condition", "invalid_shape"},
 		{"provider missing parameter", `{"version":1,"condition":{"fact":"connection.provider"}}`, "$.condition", "missing_provider"},
 		{"provider has unrelated parameter", `{"version":1,"condition":{"fact":"connection.provider","provider":"corporate","source":"any"}}`, "$.condition", "invalid_shape"},
@@ -147,6 +187,12 @@ func TestParseAndValidateRuleRejectsExplicitNullMembers(t *testing.T) {
 			path:   "$.condition",
 			reason: "invalid_shape",
 		},
+		{
+			name:   "not child has null operator",
+			raw:    `{"version":1,"condition":{"op":"not","child":{"op":null}}}`,
+			path:   "$.condition.child",
+			reason: "invalid_shape",
+		},
 	}
 
 	for _, tc := range cases {
@@ -185,14 +231,13 @@ func assertRuleErrorAt(t *testing.T, err error, wantPath, wantReason string) {
 	}
 }
 
-func nestedNotRuleJSON(depth int) string {
+func nestedAllRuleJSON(depth int) string {
 	condition := `{"fact":"avatar","source":"any"}`
 	for range depth - 1 {
-		condition = `{"op":"not","child":` + condition + `}`
+		condition = `{"op":"all","children":[` + condition + `]}`
 	}
 	return `{"version":1,"condition":` + condition + `}`
 }
-
 func ruleWithChildren(children int) string {
 	leaf := `{"fact":"avatar","source":"any"}`
 	return fmt.Sprintf(`{"version":1,"condition":{"op":"all","children":[%s]}}`, strings.TrimSuffix(strings.Repeat(leaf+",", children), ","))

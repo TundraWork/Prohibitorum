@@ -130,6 +130,39 @@ func TestRuleValidationReturnsSafePathAndReason(t *testing.T) {
 	}
 }
 
+func TestRuleValidationRejectsNonFactNotChild(t *testing.T) {
+	s, _, _ := newPolicyTestServer()
+	invalid := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups"),
+		`{"kind":"rule","slug":"not-all","displayName":"Not all","rule":{"version":1,"condition":{"op":"not","child":{"op":"all","children":[{"fact":"avatar","source":"any"}]}}}}`, managedAppSession(7, "app_manager", false))
+	assertRuleValidationError(t, invalid, "$.condition.child", "not_requires_fact")
+
+	valid := managedRequest(t, s, http.MethodPost, managedURL("oidc", "wiki", "/groups"),
+		`{"kind":"rule","slug":"not-avatar","displayName":"Not avatar","rule":{"version":1,"condition":{"op":"not","child":{"fact":"avatar","source":"user_uploaded"}}}}`, managedAppSession(7, "app_manager", false))
+	if valid.Code != http.StatusCreated {
+		t.Fatalf("leaf-NOT create status = %d, want 201; body: %s", valid.Code, valid.Body.String())
+	}
+}
+
+func assertRuleValidationError(t *testing.T, rr *httptest.ResponseRecorder, wantPath, wantReason string) {
+	t.Helper()
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body: %s", rr.Code, rr.Body.String())
+	}
+	var public struct {
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &public); err != nil {
+		t.Fatalf("decode invalid-rule response: %v", err)
+	}
+	if public.Code != "invalid_group_rule" {
+		t.Fatalf("code = %q, want invalid_group_rule", public.Code)
+	}
+	if public.Details["path"] != wantPath || public.Details["reason"] != wantReason {
+		t.Fatalf("safe validation details = %#v", public.Details)
+	}
+}
+
 func TestRulePreviewPaginatesSafeAccountProjection(t *testing.T) {
 	s, _, _ := newPolicyTestServer()
 	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/groups/2/preview?limit=1"), "", managedAppSession(7, "app_manager", false))

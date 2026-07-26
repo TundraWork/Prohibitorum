@@ -202,6 +202,12 @@ func validateCombinator(c conditionWire, path string, depth int, nodes *int, kno
 		if !c.Child.present {
 			return Condition{}, ruleError(path, "missing_child")
 		}
+		if (*c.Child.value).Op.present && (*c.Child.value).Op.value != nil {
+			switch *(*c.Child.value).Op.value {
+			case "all", "any", "not":
+				return Condition{}, ruleError(path+".child", "not_requires_fact")
+			}
+		}
 		child, err := validateCondition(*c.Child.value, path+".child", depth+1, nodes, knownProviders)
 		if err != nil {
 			return Condition{}, err
