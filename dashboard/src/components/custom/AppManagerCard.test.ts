@@ -222,6 +222,31 @@ describe('AppManagerCard', () => {
     expect(withSudo).not.toHaveBeenCalled()
   })
 
+  it('discards in-flight results when the search text changes', async () => {
+    let resolveAccounts!: (page: AccountPage) => void
+    const accountsResponse = new Promise<AccountPage>((resolve) => {
+      resolveAccounts = resolve
+    })
+    get.mockImplementation(async (path: string) => {
+      if (path.endsWith('/managers')) return []
+      if (path.startsWith('/api/prohibitorum/accounts')) return accountsResponse
+      throw new Error(`Unexpected GET ${path}`)
+    })
+
+    const wrapper = mountCard()
+    await flushPromises()
+    const search = wrapper.get<HTMLInputElement>('[data-test="manager-account-search"]')
+    await search.setValue('Hedy')
+    await search.trigger('keydown', { key: 'Enter' })
+    await search.setValue('Ada')
+
+    resolveAccounts({ items: [ACTIVE_CANDIDATE], nextCursor: '' })
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="manager-account-result-8"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Hedy Lamarr')
+  })
+
   it('shows only app-manager candidates and keeps disabled candidates visible but unassignable', async () => {
     mockGets()
     const wrapper = mountCard()

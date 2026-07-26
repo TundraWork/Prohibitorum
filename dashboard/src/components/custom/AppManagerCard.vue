@@ -73,6 +73,7 @@ const initialManagersLoading = computed(() => managersApi.busy.value && managers
 let active = true
 let identityVersion = 0
 let accountRequestVersion = 0
+let submittedSearchQuery = ''
 let managerLoadRequested = 0
 let managerLoadCompleted = 0
 let managerLoadPromise: Promise<void> | null = null
@@ -112,6 +113,7 @@ async function searchAccounts(): Promise<void> {
   if (accountsApi.busy.value) return
 
   const query = searchQuery.value.trim()
+  submittedSearchQuery = query
   const request = ++accountRequestVersion
   const identity = identityVersion
   accountResults.value = []
@@ -174,11 +176,19 @@ function clearManagerError(): void {
   managersApi.clear()
 }
 
+watch(searchQuery, (query) => {
+  if (query.trim() === submittedSearchQuery) return
+  accountRequestVersion += 1
+  accountResults.value = []
+  hasSearched.value = false
+})
+
 watch(
   [() => props.kind, () => props.appId],
   () => {
     identityVersion += 1
     accountRequestVersion += 1
+    submittedSearchQuery = ''
     managers.value = []
     accountResults.value = []
     searchQuery.value = ''
