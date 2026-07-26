@@ -739,6 +739,30 @@ describe('AppPolicyWorkspace', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
+  it('keeps an incomplete decision index error non-dismissible and manual mutations disabled', async () => {
+    const nextDecisionsEndpoint = `${MANUAL_DECISIONS_ENDPOINT}?cursor=next`
+    get.mockImplementation(async (path: string) => {
+      if (path === ACCESS_ENDPOINT) return OPEN_POLICY_WORKSPACE
+      if (path.split('?')[0] === ACCOUNTS_ENDPOINT) return ACCOUNTS_PAGE
+      if (path === MANUAL_DECISIONS_ENDPOINT) {
+        return { items: [ALICE_DECISION], nextCursor: 'next' }
+      }
+      if (path === nextDecisionsEndpoint) throw { code: 'network_error' }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    const search = wrapper.get('[data-test="manual-account-search"]')
+    expect(search.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-test="error-dismiss"]').exists()).toBe(false)
+
+    expect(search.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-test="manual-account-result-42"]').exists()).toBe(false)
+    expect(post).not.toHaveBeenCalled()
+  })
+
   it('confirms before enabling restriction when no policy group exists', async () => {
     let restricted = false
     mockWorkspaceGets(() => restricted ? RESTRICTED_EMPTY_WORKSPACE : OPEN_EMPTY_WORKSPACE)

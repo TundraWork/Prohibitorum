@@ -84,6 +84,7 @@ const manualDraft = reactive({ slug: '', displayName: '', description: '' })
 const accounts = ref<AccountSummary[]>([])
 const decisions = ref<ManualDecision[]>([])
 const allDecisions = ref<ManualDecision[]>([])
+const decisionIndexReady = ref(false)
 const decisionsNextCursor = ref('')
 const decisionsPageIndex = ref(0)
 const decisionPageCursors = ref<string[]>([''])
@@ -362,6 +363,7 @@ function clearManualData(): void {
   accounts.value = []
   decisions.value = []
   allDecisions.value = []
+  decisionIndexReady.value = false
   decisionsNextCursor.value = ''
   decisionsPageIndex.value = 0
   decisionPageCursors.value = ['']
@@ -436,6 +438,7 @@ async function loadWorkspace(version = workspaceIdentityVersion): Promise<void> 
     accounts.value = []
     decisions.value = []
     allDecisions.value = []
+    decisionIndexReady.value = false
     decisionsNextCursor.value = ''
     decisionsPageIndex.value = 0
     decisionPageCursors.value = ['']
@@ -497,6 +500,7 @@ async function loadDecisionPage(cursor: string): Promise<boolean> {
 async function loadAllDecisions(): Promise<boolean> {
   const groupId = manualGroup.value?.id
   if (groupId === undefined) return false
+  decisionIndexReady.value = false
 
   const result = await decisionsApi.run(async () => {
     const byAccount = new Map<number, ManualDecision>()
@@ -520,6 +524,7 @@ async function loadAllDecisions(): Promise<boolean> {
 
   if (!result || manualGroup.value?.id !== groupId) return false
   allDecisions.value = result
+  decisionIndexReady.value = true
   return true
 }
 
@@ -1056,6 +1061,7 @@ watch(
               <ErrorPanel
                 :error="decisionsApi.error.value"
                 :is-admin="mode === 'admin'"
+                :dismissible="decisionIndexReady"
                 @dismiss="decisionsApi.clear"
                 @recovery="reloadDecisionPage"
               />
@@ -1081,6 +1087,7 @@ watch(
                 policyMutationApi.busy.value ||
                 accountsApi.busy.value ||
                 decisionsApi.busy.value ||
+                !decisionIndexReady ||
                 Boolean(accountsApi.error.value) ||
                 Boolean(decisionsApi.error.value)
               "
@@ -1090,7 +1097,11 @@ watch(
             <PaginationControls
               :page-index="decisionsPageIndex"
               :has-more="decisionsHaveMore"
-              :busy="decisionsApi.busy.value || Boolean(decisionsApi.error.value)"
+              :busy="
+                decisionsApi.busy.value ||
+                Boolean(decisionsApi.error.value) ||
+                !decisionIndexReady
+              "
               :has-items="decisions.length > 0"
               @next="nextDecisionPage"
               @previous="previousDecisionPage"
