@@ -11,6 +11,7 @@ const EFFECTS = ['allow', 'deny'] as const satisfies readonly ManualEffect[]
 const props = withDefaults(
   defineProps<{
     decisions: readonly ManualDecision[]
+    allDecisions?: readonly ManualDecision[]
     accounts: readonly AccountSummary[]
     busy?: boolean
   }>(),
@@ -31,9 +32,10 @@ const decisionsByEffect = computed<Record<ManualEffect, ManualDecision[]>>(() =>
   deny: props.decisions.filter((decision) => decision.effect === 'deny'),
 }))
 
-const decidedAccountIds = computed(
-  () => new Set(props.decisions.map((decision) => decision.account.id)),
-)
+const decidedAccountIds = computed(() => {
+  const index = props.allDecisions ?? props.decisions
+  return new Set(index.map((decision) => decision.account.id))
+})
 
 const normalizedSearch = computed(() => searchQuery.value.trim().toLowerCase())
 

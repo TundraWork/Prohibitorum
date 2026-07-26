@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Eye, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import { api } from '@/lib/api'
@@ -83,6 +83,7 @@ const manualCreateOpen = ref(false)
 const manualDraft = reactive({ slug: '', displayName: '', description: '' })
 const accounts = ref<AccountSummary[]>([])
 const decisions = ref<ManualDecision[]>([])
+const allDecisions = ref<ManualDecision[]>([])
 const decisionsNextCursor = ref('')
 const decisionsPageIndex = ref(0)
 const decisionPageCursors = ref<string[]>([''])
@@ -103,6 +104,9 @@ const previewPageCursors = ref<string[]>([''])
 
 const explanationTarget = ref<{ groupId: number; accountId: number } | null>(null)
 const explanation = ref<GroupExplanation | null>(null)
+let workspaceIdentityVersion = 0
+let workspaceLoadActive = false
+let workspaceReloadPending = false
 
 const basePath = computed(
   () =>
@@ -357,6 +361,7 @@ function clearManualData(): void {
   loadedManualGroupId.value = null
   accounts.value = []
   decisions.value = []
+  allDecisions.value = []
   decisionsNextCursor.value = ''
   decisionsPageIndex.value = 0
   decisionPageCursors.value = ['']
@@ -364,36 +369,84 @@ function clearManualData(): void {
   decisionsApi.clear()
 }
 
-async function loadWorkspace(): Promise<void> {
+function resetWorkspaceState(): void {
+  workspace.value = null
   notFound.value = false
-  const result = await workspaceApi.run(() =>
-    api.get<AppAccessWorkspace>(accessEndpoint.value),
-  )
+  clearManualData()
+  manualCreateOpen.value = false
+  manualDraft.slug = ''
+  manualDraft.displayName = ''
+  manualDraft.description = ''
+  ruleCreateOpen.value = false
+  newRuleDraft.value = makeRuleDraft()
+  editingRuleId.value = null
+  editRuleDraft.value = null
+  confirmDeleteRuleId.value = null
+  confirmEmptyRestriction.value = false
+  previewGroupId.value = null
+  previewItems.value = []
+  previewNextCursor.value = ''
+  previewPageIndex.value = 0
+  previewPageCursors.value = ['']
+  explanationTarget.value = null
+  explanation.value = null
+  workspaceApi.clear()
+  previewApi.clear()
+  explanationApi.clear()
+  policyMutationApi.clear()
+}
 
-  if (!result) {
-    if (props.mode === 'manager' && workspaceApi.error.value?.code === 'client_not_found') {
-      workspace.value = null
-      notFound.value = true
-      clearManualData()
+async function loadWorkspace(version = workspaceIdentityVersion): Promise<void> {
+  if (workspaceLoadActive) {
+    workspaceReloadPending = true
+    return
+  }
+
+  workspaceLoadActive = true
+  workspaceReloadPending = false
+  notFound.value = false
+  const endpoint = accessEndpoint.value
+
+  try {
+    const result = await workspaceApi.run(() => api.get<AppAccessWorkspace>(endpoint))
+
+    if (version !== workspaceIdentityVersion || endpoint !== accessEndpoint.value) {
+      workspaceApi.clear()
+      return
     }
-    return
-  }
 
-  workspace.value = result
-  const group = result.manualGroup
-  if (!group) {
-    clearManualData()
-    return
-  }
+    if (!result) {
+      if (props.mode === 'manager' && workspaceApi.error.value?.code === 'client_not_found') {
+        workspace.value = null
+        notFound.value = true
+        clearManualData()
+      }
+      return
+    }
 
-  if (loadedManualGroupId.value === group.id) return
-  loadedManualGroupId.value = group.id
-  accounts.value = []
-  decisions.value = []
-  decisionsNextCursor.value = ''
-  decisionsPageIndex.value = 0
-  decisionPageCursors.value = ['']
-  await Promise.all([loadAllAccounts(), resetDecisionPage()])
+    workspace.value = result
+    const group = result.manualGroup
+    if (!group) {
+      clearManualData()
+      return
+    }
+
+    if (loadedManualGroupId.value === group.id) return
+    loadedManualGroupId.value = group.id
+    accounts.value = []
+    decisions.value = []
+    allDecisions.value = []
+    decisionsNextCursor.value = ''
+    decisionsPageIndex.value = 0
+    decisionPageCursors.value = ['']
+    await Promise.all([loadAllAccounts(), resetDecisionPage()])
+  } finally {
+    workspaceLoadActive = false
+    if (workspaceReloadPending || version !== workspaceIdentityVersion) {
+      workspaceReloadPending = false
+      void loadWorkspace(workspaceIdentityVersion)
+    }
+  }
 }
 
 async function loadAllAccounts(): Promise<void> {
@@ -441,10 +494,39 @@ async function loadDecisionPage(cursor: string): Promise<boolean> {
   return true
 }
 
+async function loadAllDecisions(): Promise<boolean> {
+  const groupId = manualGroup.value?.id
+  if (groupId === undefined) return false
+
+  const result = await decisionsApi.run(async () => {
+    const byAccount = new Map<number, ManualDecision>()
+    const visitedCursors = new Set<string>()
+    let cursor = ''
+
+    while (!visitedCursors.has(cursor)) {
+      visitedCursors.add(cursor)
+      const page = await api.get<Page<ManualDecision>>(
+        buildPagePath(decisionsEndpoint(groupId), { cursor }),
+      )
+      for (const decision of page.items ?? []) {
+        byAccount.set(decision.account.id, decision)
+      }
+      cursor = page.nextCursor ?? ''
+      if (cursor === '') break
+    }
+
+    return [...byAccount.values()]
+  })
+
+  if (!result || manualGroup.value?.id !== groupId) return false
+  allDecisions.value = result
+  return true
+}
+
 async function resetDecisionPage(): Promise<void> {
   decisionPageCursors.value = ['']
   decisionsPageIndex.value = 0
-  await loadDecisionPage('')
+  if (await loadDecisionPage('')) await loadAllDecisions()
 }
 
 async function nextDecisionPage(): Promise<void> {
@@ -473,6 +555,7 @@ async function reloadDecisionPage(): Promise<void> {
     const previousCursor = decisionPageCursors.value[targetIndex] ?? ''
     if (await loadDecisionPage(previousCursor)) decisionsPageIndex.value = targetIndex
   }
+  await loadAllDecisions()
 }
 
 function openManualCreate(): void {
@@ -736,9 +819,15 @@ function closeExplanation(): void {
   explanationApi.clear()
 }
 
-onMounted(() => {
-  void loadWorkspace()
-})
+watch(
+  () => [props.kind, props.appId] as const,
+  () => {
+    workspaceIdentityVersion += 1
+    resetWorkspaceState()
+    void loadWorkspace(workspaceIdentityVersion)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -986,6 +1075,7 @@ onMounted(() => {
 
             <ManualDecisionEditor
               :decisions="decisions"
+              :all-decisions="allDecisions"
               :accounts="accounts"
               :busy="
                 policyMutationApi.busy.value ||
@@ -1000,7 +1090,7 @@ onMounted(() => {
             <PaginationControls
               :page-index="decisionsPageIndex"
               :has-more="decisionsHaveMore"
-              :busy="decisionsApi.busy.value"
+              :busy="decisionsApi.busy.value || Boolean(decisionsApi.error.value)"
               :has-items="decisions.length > 0"
               @next="nextDecisionPage"
               @previous="previousDecisionPage"

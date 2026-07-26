@@ -363,6 +363,86 @@ describe('AppPolicyWorkspace', () => {
     expect(await conditionOptionValues(form, 'root')).toEqual(['corporate', 'partners'])
   })
 
+  it('reloads and resets policy state when the application identity changes', async () => {
+    const secondBase = '/api/prohibitorum/managed-applications/saml/44'
+    const secondAccessEndpoint = `${secondBase}/access`
+    const secondApp: ManagedApplication = {
+      kind: 'saml',
+      appId: '44',
+      displayName: 'Knowledge base',
+      accessRestricted: false,
+    }
+    const secondWorkspace: WorkspaceWire = {
+      app: secondApp,
+      accessRestricted: false,
+      providers: [],
+      ruleGroups: [{ ...RULE_GROUP, id: 81, displayName: 'Knowledge base members' }],
+    }
+    get.mockImplementation(async (path: string) => {
+      if (path === ACCESS_ENDPOINT) return OPEN_RULE_WORKSPACE
+      if (path === secondAccessEndpoint) return secondWorkspace
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    post.mockResolvedValue({ ...secondApp, accessRestricted: true })
+
+    const wrapper = mountWorkspace()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Atlas')
+
+    await wrapper.setProps({
+      kind: 'saml',
+      appId: '44',
+      displayName: secondApp.displayName,
+    })
+    await flushPromises()
+
+    expect(get).toHaveBeenCalledWith(secondAccessEndpoint)
+    expect(wrapper.text()).toContain('Knowledge base')
+    expect(wrapper.text()).not.toContain('Atlas')
+
+    await wrapper.get('[data-test="access-restricted-toggle"]').trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith(`${secondAccessEndpoint}/set-restricted`, {
+      restricted: true,
+    })
+  })
+
+  it('discards an in-flight workspace response after the application identity changes', async () => {
+    const firstAccess = deferred<WorkspaceWire>()
+    const secondAccessEndpoint =
+      '/api/prohibitorum/managed-applications/forward_auth/proxy/access'
+    const secondWorkspace: WorkspaceWire = {
+      app: {
+        kind: 'forward_auth',
+        appId: 'proxy',
+        displayName: 'Protected proxy',
+        accessRestricted: false,
+      },
+      accessRestricted: false,
+      providers: [],
+      ruleGroups: [],
+    }
+    get.mockImplementation((path: string) => {
+      if (path === ACCESS_ENDPOINT) return firstAccess.promise
+      if (path === secondAccessEndpoint) return Promise.resolve(secondWorkspace)
+      throw new Error(`Unexpected GET ${path}`)
+    })
+
+    const wrapper = mountWorkspace()
+    await Promise.resolve()
+    await wrapper.setProps({
+      kind: 'forward_auth',
+      appId: 'proxy',
+      displayName: 'Protected proxy',
+    })
+    firstAccess.resolve(OPEN_RULE_WORKSPACE)
+    await flushPromises()
+
+    expect(get).toHaveBeenCalledWith(secondAccessEndpoint)
+    expect(wrapper.text()).toContain('Protected proxy')
+    expect(wrapper.text()).not.toContain('Atlas')
+  })
+
   it.each([
     {
       restricted: false,
@@ -627,6 +707,36 @@ describe('AppPolicyWorkspace', () => {
     expect(post).toHaveBeenNthCalledWith(2, `${MANUAL_DECISIONS_ENDPOINT}/clear`, {
       accountId: 7,
     })
+  })
+
+  it('excludes accounts with decisions on later cursor pages from neutral search', async () => {
+    const nextDecisionsEndpoint = `${MANUAL_DECISIONS_ENDPOINT}?cursor=next`
+    const offPageDeny: ManualDecision = {
+      account: BOB,
+      effect: 'deny',
+      updatedAt: '2026-07-25T11:00:00Z',
+    }
+    get.mockImplementation(async (path: string) => {
+      if (path === ACCESS_ENDPOINT) return OPEN_POLICY_WORKSPACE
+      if (path.split('?')[0] === ACCOUNTS_ENDPOINT) return ACCOUNTS_PAGE
+      if (path === MANUAL_DECISIONS_ENDPOINT) {
+        return { items: [ALICE_DECISION], nextCursor: 'next' }
+      }
+      if (path === nextDecisionsEndpoint) {
+        return { items: [offPageDeny], nextCursor: '' }
+      }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    expect(get).toHaveBeenCalledWith(nextDecisionsEndpoint)
+    await wrapper.get('[data-test="manual-account-search"]').setValue('bob')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="manual-account-result-42"]').exists()).toBe(false)
+    expect(post).not.toHaveBeenCalled()
   })
 
   it('confirms before enabling restriction when no policy group exists', async () => {
