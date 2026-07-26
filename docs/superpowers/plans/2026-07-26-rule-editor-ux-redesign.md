@@ -10,13 +10,13 @@
 
 ## Global Constraints
 
-- Persist only the existing closed version-1 JSON rule contract; do not add a persisted expression language or change evaluation semantics.
+- Persist the existing version-1 JSON envelope and fact vocabulary; narrow `not` so its child must be one fact leaf. Do not add a persisted expression language or change access-decision semantics.
 - One outer editor surface; nested hierarchy uses slim text-labelled rails, indentation, typography, and `AND`/`OR` connector text—not recursive cards or rounded structural boxes.
-- `ALL`, `ANY`, and `NOT` are visible text controls; color never carries mode alone.
+- `ALL` and `ANY` are visible group controls; color never carries mode alone.
 - Remove the sentence “Match an account when all of the following are true.” Every group, including root, owns its own description.
-- `ALL`: “Every condition in this group must be true.” `ANY`: “At least one condition in this group must be true.” Leaf `NOT`: “This condition must not be true.” Group `NOT`: “This group must not be true.”
-- No standalone Add NOT button. Group rails change/wrap group mode; predicate overflow action `Must not match` wraps a leaf. Repeated NOT remains visible and is never normalized away.
-- `ALL ↔ ANY` preserves children. Every wrap, unwrap, remove, move, and undo operation preserves untouched subtrees and never silently discards content.
+- `ALL`: “Every condition in this group must be true.” `ANY`: “At least one condition in this group must be true.”
+- Each predicate has a visible `is` / `is not` middle control. JSON encodes `is not` as one `not` node wrapping exactly one fact leaf. Group-level and nested NOT are invalid.
+- `ALL ↔ ANY` and `is ↔ is not` preserve fact values and group children. Every remove, move, and undo operation preserves untouched subtrees and never silently discards content.
 - New conditions start incomplete; never default to a broad valid condition such as any avatar.
 - Advanced mode is `Visual builder | JSON`; JSON is editable and persisted, the fully-parenthesized expression is read-only and derived.
 - Do not add a code-editor or syntax-highlighting dependency. Use a native textarea, synchronized line-number gutter, IBM Plex Mono, and exact parse/semantic errors.
@@ -103,8 +103,9 @@ export interface InvalidRuleJSON {
 }
 
 export interface RuleOutlineNode {
-  kind: 'all' | 'any' | 'not' | 'predicate'
+  kind: 'all' | 'any' | 'predicate'
   text: string
+  negated: boolean
   children: RuleOutlineNode[]
   leafCount: number
   groupCount: number
@@ -117,9 +118,7 @@ export function conditionAtPath(rule: Rule, path: RulePath): Condition | undefin
 export function addPredicate(rule: Rule, parent: RulePath): Rule
 export function addNestedGroup(rule: Rule, parent: RulePath): Rule
 export function setGroupMode(rule: Rule, path: RulePath, mode: GroupMode): Rule
-export function wrapNot(rule: Rule, path: RulePath): Rule
-export function unwrapNot(rule: Rule, path: RulePath): Rule
-export function wrapNotAgain(rule: Rule, path: RulePath): Rule
+export function setPredicateNegated(rule: Rule, path: RulePath, negated: boolean): Rule
 export function removeNode(rule: Rule, path: RulePath): { rule: Rule; removed: Condition; focusPath: RulePath }
 export function restoreNode(rule: Rule, parent: RulePath, index: number, removed: Condition): Rule
 export function moveNode(rule: Rule, path: RulePath, delta: -1 | 1): Rule
@@ -147,9 +146,8 @@ Cover:
 
 ```ts
 expect(setGroupMode(allRule, [], 'any').condition).toEqual({ op: 'any', children: originalChildren })
-expect(wrapNot(leafRule, []).condition).toEqual({ op: 'not', child: originalLeaf })
-expect(wrapNotAgain(notRule, []).condition).toEqual({ op: 'not', child: originalNot })
-expect(unwrapNot(doubleNotRule, []).condition).toEqual(originalNot)
+expect(setPredicateNegated(leafRule, [], true).condition).toEqual({ op: 'not', child: originalLeaf })
+expect(setPredicateNegated(negativeLeafRule, [], false).condition).toEqual(originalLeaf)
 expect(addPredicate(leafRule, []).condition).toEqual({
   op: 'all',
   children: [originalLeaf, {}],
@@ -185,7 +183,7 @@ An incomplete `{}` exists only in the frontend draft and fails validation until 
 
 - [ ] **Step 4: Write failing validation and JSON round-trip tests**
 
-Assert the same version/fact/operator/provider/depth/node/child rules as `pkg/appaccess/rule.go`, including unknown JSON fields, `null`, trailing JSON, repeated NOT, and JSON parse line/column extraction. Assert invalid JSON leaves the caller’s previous valid rule untouched.
+Assert the same version/fact/operator/provider/depth/node/child rules as the revised `pkg/appaccess/rule.go`, including unknown JSON fields, `null`, trailing JSON, valid leaf NOT, rejected group-level NOT, rejected nested NOT, and JSON parse line/column extraction. Assert invalid JSON leaves the caller’s previous valid rule untouched.
 
 - [ ] **Step 5: Implement closed validator and canonical JSON helpers**
 
@@ -199,7 +197,7 @@ Expected expression for the approved nested example:
 (provider("downstream") && protocol("oidc") && (federation || passkey) && (!(password_totp)))
 ```
 
-Every combinator is parenthesized. Repeated NOT emits nested `!`. Outline nodes retain explicit ALL/ANY/NOT labels and provider display names. Slug generation lowercases, converts non-alphanumeric runs to one hyphen, trims hyphens, and never emits characters outside `^[a-z0-9](-?[a-z0-9])*$`.
+Every ALL/ANY combinator is parenthesized. Negative leaves emit `!(leaf)` and no group/nested NOT is accepted. Outline nodes retain explicit ALL/ANY labels, `is not` predicate wording, and provider display names. Slug generation lowercases, converts non-alphanumeric runs to one hyphen, trims hyphens, and never emits characters outside `^[a-z0-9](-?[a-z0-9])*$`.
 
 - [ ] **Step 7: Implement expression, outline, and slug generation**
 
@@ -230,7 +228,54 @@ git add dashboard/src/lib/ruleDraft.ts dashboard/src/lib/ruleDraft.test.ts dashb
 git commit -m "feat(policy-ui): add rule draft model"
 ```
 
-### Task 2: Provider descriptors and unsaved draft-preview API
+### Task 2: Narrow backend NOT validation to one fact leaf
+
+**Files:**
+- Modify: `pkg/appaccess/rule.go`
+- Modify: `pkg/appaccess/rule_test.go`
+- Modify: `cmd/prohibitorum/dev_seed_app_policy_test.go`
+- Modify: `pkg/server/handle_app_policies_test.go`
+
+**Interfaces:**
+
+The version-1 JSON shape remains `{"op":"not","child":...}`. `not.child` must be one fact leaf and must not contain `op`, `children`, or `child`. Add stable validation reason `not_requires_fact` at the NOT node’s `.child` path when the child is `all`, `any`, or `not`.
+
+- [ ] **Step 1: Write failing parser tests**
+
+Assert NOT-wrapped provider/protocol/login/avatar leaves parse. Assert NOT→ALL, NOT→ANY, and NOT→NOT fail with exact path `$.condition.child` and reason `not_requires_fact`. Keep unknown-field/null behavior unchanged. In `cmd/prohibitorum/dev_seed_app_policy_test.go`, keep exact-AST assertions proving `demo-no-user-avatar` and `demo-trusted-federated-profile` use valid leaf NOT nodes and still seed/preview successfully.
+
+- [ ] **Step 2: Run parser tests RED**
+
+```bash
+go test ./pkg/appaccess -run 'ParseAndValidateRule.*Not|NotRequiresFact' -count=1 -v
+```
+
+Expected: group/nested NOT cases currently parse, so the new tests FAIL.
+
+- [ ] **Step 3: Enforce the leaf-only invariant**
+
+In `validateCombinator`, after confirming `child` is present, reject a child wire node whose `Op.present` is true with `ruleError(path+".child", "not_requires_fact")`; validate a fact child normally. Keep depth/node accounting and evaluator behavior unchanged.
+
+- [ ] **Step 4: Add handler mapping coverage**
+
+Creating or draft-previewing NOT→ALL returns `invalid_group_rule` with `{path:"$.condition.child",reason:"not_requires_fact"}`. NOT→fact remains accepted.
+
+- [ ] **Step 5: Run focused tests GREEN**
+
+```bash
+go test ./pkg/appaccess ./pkg/server ./cmd/prohibitorum -run 'Rule|Not|Managed.*Rule|SeedAppPolicyDemo' -count=1 -v
+```
+
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add pkg/appaccess pkg/server/handle_app_policies_test.go cmd/prohibitorum/dev_seed_app_policy_test.go
+git commit -m "feat(policy): restrict NOT to fact conditions"
+```
+
+### Task 3: Provider descriptors and unsaved draft-preview API
 
 **Files:**
 - Modify: `db/queries/upstream_idp.sql`
@@ -411,7 +456,7 @@ git add db/queries pkg/db pkg/appaccess pkg/contract/appaccess.go pkg/server
 git commit -m "feat(policy): preview unsaved access rules"
 ```
 
-### Task 3: Slim visual hierarchy builder
+### Task 4: Slim visual hierarchy builder
 
 **Files:**
 - Create: `dashboard/src/components/custom/RulePredicateRow.vue`
@@ -452,32 +497,33 @@ Before editing Vue templates, read `skill://impeccable/reference/craft-floor.md`
 Assert:
 
 - fact selector contains only provider/protocol/login/avatar, never ALL/ANY/NOT;
-- clause reads fact → localized fixed “is” → value;
+- clause reads fact → `is` / `is not` → value;
 - provider option shows display name and slug;
 - incomplete row shows exact linked error;
-- overflow has `Must not match`, move, and remove actions with content-specific accessible names;
+- polarity control calls `setPredicateNegated` while preserving fact/value; move and remove actions use content-specific accessible names;
 - keyboard selection emits immutable rule update.
 
 - [ ] **Step 3: Implement `RulePredicateRow.vue`**
 
-Use existing Select, Button, DropdownMenu, and Tooltip primitives. Rounded treatment belongs to the two selects only; the row has no enclosing rounded card.
+Use existing Select, Button, DropdownMenu, and Tooltip primitives. Rounded treatment belongs to the fact, polarity, and value controls only; the row has no enclosing rounded card.
 
 - [ ] **Step 4: Write failing group-editor tests**
 
 Assert:
 
-- ALL/ANY/NOT rail button text and description copy;
+- ALL/ANY rail button text and description copy; no NOT rail exists;
 - explicit AND/OR connector text between children;
 - one slim rail and indentation per group, no recursive `.rounded-*` structural container;
-- rail menu transformations preserve exact children;
-- predicate `Must not match`, group NOT wrapping, remove NOT, wrapped-group mode change, and repeated NOT;
+- ALL/ANY rail transformations preserve exact children;
+- positive and negative predicates render `is` / `is not` and preserve value when polarity changes;
+- group-level/nested NOT input produces the exact shared validation error and never renders as a group;
 - Add condition and Add nested group only;
 - disabled add action explains max depth/node/child reason;
 - add/remove/move focus and live announcement contracts.
 
 - [ ] **Step 5: Implement `RuleGroupEditor.vue` recursively**
 
-The recursive component renders logical structure, but structural CSS remains rail/indent/divider only. `NOT` renders exactly one child and its own repeated rail when nested. Use text plus restrained semantic tint; do not use status colors as the only differentiator.
+The recursive component renders only ALL/ANY logical groups; structural CSS remains rail/indent/divider only. A valid JSON `not` node is consumed by `RulePredicateRow` as `is not` polarity and never creates a structural group. Use text plus restrained semantic tint; do not use color as the only differentiator.
 
 - [ ] **Step 6: Implement root visual builder and undo**
 
@@ -485,7 +531,7 @@ The recursive component renders logical structure, but structural CSS remains ra
 
 - [ ] **Step 7: Add exact English/Chinese visual-builder copy**
 
-Add keys for mode descriptions, connector labels, add actions, wrap/unwrap, move/remove, limits, Undo, and accessible names. Delete Leaf terminology from active UI copy.
+Add keys for ALL/ANY descriptions, connector labels, `is` / `is not`, add actions, move/remove, limits, Undo, and accessible names. Delete Leaf and group-NOT terminology from active UI copy.
 
 - [ ] **Step 8: Run visual-builder tests and build**
 
@@ -509,7 +555,7 @@ git add dashboard/src/components/custom/RulePredicateRow* \
 git commit -m "feat(policy-ui): add visual rule builder"
 ```
 
-### Task 4: JSON mode and derived meaning
+### Task 5: JSON mode and derived meaning
 
 **Files:**
 - Create: `dashboard/src/components/custom/RuleJsonEditor.vue`
@@ -551,7 +597,7 @@ Use Textarea only if it exposes selection/scroll needed; otherwise use a native 
 
 - [ ] **Step 3: Write failing meaning tests**
 
-Cover leaf, ALL, ANY, leaf NOT, group NOT, repeated NOT, unknown provider fallback to slug, compact saved-row summary, and full sentence outline. Assert the removed root sentence never renders.
+Cover positive leaf, negative leaf rendered with `is not`, ALL, ANY, unknown provider fallback to slug, compact saved-row summary, and full sentence outline. Assert group/nested NOT is rejected by the shared validator and the removed root sentence never renders.
 
 - [ ] **Step 4: Implement `RuleMeaning.vue`**
 
@@ -578,7 +624,7 @@ git add dashboard/src/components/custom/RuleJsonEditor* \
 git commit -m "feat(policy-ui): add JSON rule editing"
 ```
 
-### Task 5: Draft impact preview and shared RuleEditor workflow
+### Task 6: Draft impact preview and shared RuleEditor workflow
 
 **Files:**
 - Create: `dashboard/src/components/custom/RuleImpactPreview.vue`
@@ -676,7 +722,7 @@ git add dashboard/src/components/custom/RuleImpactPreview* \
 git commit -m "feat(policy-ui): add reviewed rule workflow"
 ```
 
-### Task 6: Workspace cutover, persisted summaries, and regression coverage
+### Task 7: Workspace cutover, persisted summaries, and regression coverage
 
 **Files:**
 - Modify: `dashboard/src/components/custom/AppPolicyWorkspace.vue`
@@ -755,10 +801,10 @@ git add dashboard/src/components/custom/AppPolicyWorkspace* \
 git commit -m "feat(policy-ui): replace rule group editor"
 ```
 
-### Task 7: End-to-end verification, visual polish, and embedded dashboard build
+### Task 8: End-to-end verification, visual polish, and embedded dashboard build
 
 **Files:**
-- Modify only if browser evidence finds defects: files introduced/changed in Tasks 3–6
+- Modify only if browser evidence finds defects: files introduced/changed in Tasks 4–7
 - Regenerate: `pkg/webui/dist/**`
 
 **Interfaces:**
@@ -776,15 +822,15 @@ Expected: all suites PASS.
 
 - [ ] **Step 2: Start the real development surface**
 
-Use the existing `dev:federation` instance-A database because it contains nested ALL/ANY/NOT sample rules. Start long-running processes through Hub, not Bash. Open the actual managed/admin application policy route in the browser and authenticate with the enrolled development account if the browser session is not already authenticated.
+Use the existing `dev:federation` instance-A database because it contains nested ALL/ANY sample rules with negative leaf conditions. Start long-running processes through Hub, not Bash. Open the actual managed/admin application policy route in the browser and authenticate with the enrolled development account if the browser session is not already authenticated.
 
 - [ ] **Step 3: Browser-drive the complete workflow**
 
 Verify on the real surface:
 
 1. Create starts incomplete.
-2. Build nested ALL → ANY → NOT, then repeated NOT.
-3. Click rail modes; children persist.
+2. Build nested ALL → ANY with both `is` and `is not` predicates.
+3. Click ALL/ANY rail modes and condition polarity; values and children persist.
 4. Remove, Undo, move up/down, and focus transitions.
 5. Switch Visual → JSON → Visual with exact round-trip.
 6. Break JSON; confirm line/path error and preserved visual draft.

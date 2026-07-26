@@ -1,13 +1,13 @@
 # Rule editor UX redesign
 
 **Date:** 2026-07-26  
-**Status:** Approved direction; awaiting written-spec review
+**Status:** Approved
 
 ## Summary
 
-Replace the current recursive AST-shaped rule editor with a modern, slim visual builder that makes `ALL`, `ANY`, `NOT`, and nested scope immediately legible. The visual builder and an advanced canonical-JSON editor operate on the same draft rule. A read-only compact expression and a plain-language explanation let managers verify meaning without learning JSON or mentally executing the tree.
+Replace the current recursive AST-shaped rule editor with a modern, slim visual builder that makes `ALL`, `ANY`, and nested scope immediately legible while expressing negation directly in a condition’s `is` / `is not` operator. The visual builder and an advanced canonical-JSON editor operate on the same draft rule. A read-only compact expression and a plain-language explanation let managers verify meaning without learning JSON or mentally executing the tree.
 
-The redesign keeps the existing version-1 rule contract, validation limits, APIs, and policy semantics. It changes authoring, review, error prevention, accessibility, draft preview, and wording; it does not add a second persisted rule language.
+The redesign keeps the version-1 JSON envelope, fact vocabulary, validation limits, APIs, and access-decision semantics. It narrows `not` to exactly one fact leaf, changes authoring, review, error prevention, accessibility, draft preview, and wording, and does not add a second persisted rule language.
 
 ## Research basis
 
@@ -38,8 +38,8 @@ The current surface scored 19/40 in a source-based Nielsen heuristic review, wit
 
 1. **Scope before decoration.** Logical hierarchy must remain evident without relying on nested cards, shadows, or color alone.
 2. **One grammar at every depth.** Root and nested groups use identical controls and wording.
-3. **Operator is the control.** The visible `ALL`, `ANY`, or `NOT` rail label changes the group mode directly.
-4. **No destructive mode surprises.** Compatible changes preserve children; incompatible changes wrap or require an explicit, reversible decision.
+3. **Group operator is the control.** The visible `ALL` or `ANY` rail label changes group mode directly; a condition’s middle `is` / `is not` control owns negation.
+4. **No destructive mode surprises.** `ALL ↔ ANY` preserves children; condition polarity changes preserve fact and value.
 5. **Meaning stays visible.** Plain language, compact expression, and draft impact update with the rule.
 6. **Draft before effect.** Nothing changes access until review and save.
 7. **One persisted language.** JSON is the advanced source format and existing API contract; the compact expression is read-only.
@@ -63,24 +63,22 @@ Each group starts with a slim clickable rail label:
 
 - `ALL` — “Every condition in this group must be true.”
 - `ANY` — “At least one condition in this group must be true.”
-- `NOT` with a leaf — “This condition must not be true.”
-- `NOT` with a group — “This group must not be true.”
 
 The redundant sentence “Match an account when all of the following are true” is removed. The root group begins immediately and owns its description like every nested group.
 
-Between children, the builder renders explicit `AND` or `OR` connector text. `NOT` has exactly one child and no sibling connector inside its scope.
+Between children, the builder renders explicit `AND` or `OR` connector text.
 
 ### Predicate rows
 
 A leaf reads left-to-right as a clause:
 
 ```text
-[Connection provider] [is] [Downstream]
-[Login method]       [is] [Passkey]
-[Avatar]             [is] [User-uploaded]
+[Connection provider] [is]     [Downstream]
+[Login method]       [is]     [Passkey]
+[Login method]       [is not] [Password + TOTP]
 ```
 
-The first select contains facts only. Structural operators do not appear in it. The fixed operator word is currently `is`; negation belongs to group mode rather than a second negative value vocabulary.
+The first select contains facts only. Structural operators do not appear in it. The middle control contains only `is` and `is not`. In JSON, `is not` is encoded as one `{"op":"not","child":<fact leaf>}` node; the visual editor never renders `NOT` as a group.
 
 
 The workspace provider descriptor expands from `{ slug }` to `{ slug, displayName }`. The visual builder labels providers with `displayName` and shows `slug` as secondary exact text; JSON and expression output continue to use the slug.
@@ -99,18 +97,17 @@ Every `ALL` or `ANY` group exposes only:
 
 `Add nested group` creates an `ALL` group with one incomplete predicate. The rail label can immediately change its mode.
 
-There is no standalone “Add NOT” button. A group’s rail mode menu can wrap that group in `NOT`; a predicate row’s overflow menu exposes `Must not match`, which wraps that leaf in `NOT`.
+There is no standalone “Add NOT” button, NOT rail, NOT group, or wrap/unwrap action. Every predicate row exposes `is` / `is not` in its middle operator control.
 
-### Changing mode
+### Changing mode and polarity
 
-Selecting an `ALL` or `ANY` rail label opens a menu containing `ALL`, `ANY`, and `NOT` with their description lines. Selecting a `NOT` rail opens `Remove NOT`, `Wrap in another NOT`, and—when its child is a group—`Change wrapped group to ALL` / `Change wrapped group to ANY`.
+Selecting an `ALL` or `ANY` rail label opens a menu containing only `ALL` and `ANY` with their description lines.
 
 - `ALL ↔ ANY`: mutate the current combinator and preserve every child in place.
-- predicate `Must not match`: wrap the predicate in `NOT`; preserve the predicate.
-- group rail → `NOT`: wrap the whole group in `NOT`; preserve mode and children inside.
-- `Remove NOT`: unwrap the child exactly as stored.
-- `NOT` child group → `Change wrapped group to ALL` or `ANY`: mutate only the wrapped child’s combinator and preserve its children; the outer `NOT` remains.
-- `Wrap in another NOT`: wrap the complete current `NOT` node in another `NOT`. Repeated negation remains visible as repeated rails and is never silently normalized.
+- `is ↔ is not`: wrap or unwrap exactly that fact leaf in the JSON `not` node while preserving fact and value.
+- Changing a fact type preserves polarity and replaces only the incompatible value.
+
+Group-level `not`, `not` whose child is another `not`, and `not` whose child is `all` or `any` are invalid in visual and JSON modes. Validation identifies the exact JSON path and says that `is not` can apply only to one condition.
 
 Changing a fact type replaces only that predicate’s incompatible value. If a structural operation would discard content, show a confirmation naming what would be removed and provide Undo after completion.
 
@@ -125,7 +122,7 @@ After removal, focus moves to the next condition, previous condition, or parent 
 
 ### Reordering
 
-Within an `ALL` or `ANY` group, moving conditions does not change semantics but improves readability. Provide Move up / Move down actions in each row’s overflow menu and keyboard-accessible equivalents. Do not make drag-and-drop the only path. `NOT` has one child and cannot reorder internally.
+Within an `ALL` or `ANY` group, moving conditions does not change semantics but improves readability. Provide Move up / Move down actions in each row’s overflow menu and keyboard-accessible equivalents. Do not make drag-and-drop the only path.
 
 ## Visual and JSON modes
 
@@ -203,8 +200,7 @@ Every condition is true:
   • At least one condition is true:
       • Login method is Federation
       • Login method is Passkey
-  • The following is not true:
-      • Login method is Password + TOTP
+  • Login method is not Password + TOTP
 ```
 
 Collapsed saved rows show the concise outline’s first line plus leaf count and nesting count; expanding “View rule” reveals the full read-only sentence outline without entering edit mode.
@@ -310,8 +306,8 @@ Split the current recursive component into focused units:
 
 - `RuleEditor.vue`: shared draft, mode switching, dirty state, validation, preview orchestration, review/save state.
 - `RuleVisualBuilder.vue`: root rendering and structural commands.
-- `RuleGroupEditor.vue`: one `ALL`/`ANY`/`NOT` group, rail mode control, children, add/move/remove behavior.
-- `RulePredicateRow.vue`: fact/value clause.
+- `RuleGroupEditor.vue`: one `ALL`/`ANY` group, rail mode control, children, add/move/remove behavior.
+- `RulePredicateRow.vue`: fact, `is` / `is not`, and value clause.
 - `RuleJsonEditor.vue`: canonical JSON buffer, formatting, validation, expression display.
 - `RuleMeaning.vue`: plain-language outline and compact expression generation.
 - `RuleImpactPreview.vue`: unsaved preview status and account results.
@@ -374,7 +370,7 @@ Replace schema vocabulary:
 | Leaf | Condition |
 | All conditions | ALL |
 | Any condition | ANY |
-| Not | NOT |
+| Not | is not |
 | Conditions | Access rule |
 | New rule group | Create rule group |
 | Save | Review and save |
@@ -386,11 +382,11 @@ Retain product terms that are exact: provider, protocol, login method, avatar, s
 
 ### Unit tests
 
-- Every structural transformation, including repeated NOT and preservation across mode changes.
+- Every structural transformation, including `is` / `is not` leaf wrapping and preservation across `ALL` / `ANY` mode changes.
 - Canonical JSON round-trip visual → JSON → visual.
 - Invalid JSON never changes last valid shared rule.
-- Unknown fields, unsupported versions, bad providers, limits, and exact paths.
-- Plain-language outline and fully parenthesized expression for every node kind.
+- Unknown fields, unsupported versions, bad providers, group-level/nested NOT, limits, and exact paths.
+- Plain-language outline and fully parenthesized expression for every valid node kind.
 - Stable focus target selection after add/remove/move.
 - Slug generation stops after manual edit.
 
@@ -419,7 +415,7 @@ Retain product terms that are exact: provider, protocol, login method, avatar, s
 
 Run the actual dashboard and verify:
 
-- Create, edit, cancel, dirty switch, JSON round-trip, invalid JSON recovery, nested repeated NOT, draft preview, and save.
+- Create, edit, cancel, dirty switch, JSON round-trip, invalid JSON recovery, nested ALL/ANY with positive and negative conditions, draft preview, and save.
 - Light and dark themes.
 - Desktop, tablet, and narrow mobile widths.
 - Keyboard-only flow and visible focus.
@@ -434,4 +430,4 @@ Run the actual dashboard and verify:
 - Drag-only reordering.
 - Server autosave.
 - Changing manual-decision precedence or app-access semantics.
-- Changing the version-1 wire contract.
+- Changing the version-1 JSON envelope or fact vocabulary beyond narrowing `not` to one fact leaf.
