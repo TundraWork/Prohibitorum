@@ -64,7 +64,3 @@ export interface AppAccessWorkspace {
   ruleGroups: AppGroup[]
 }
 
-export interface ManagedApplicationsPage {
-  items: ManagedApplication[]
-  nextCursor: string
-}

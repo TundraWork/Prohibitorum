@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
-import type { ManagedApplication, ManagedApplicationsPage } from '@/lib/appAccess'
+import type { ManagedApplication } from '@/lib/appAccess'
 import { useApi } from '@/composables/useApi'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
@@ -18,15 +18,13 @@ const applications = ref<ManagedApplication[]>([])
 
 const sortedApplications = computed(() => [...applications.value].sort((a, b) => a.displayName.localeCompare(b.displayName)))
 
-
 function applicationPath(app: ManagedApplication): string {
   return `/manage/applications/${encodeURIComponent(app.kind)}/${encodeURIComponent(app.appId)}`
 }
 
 onMounted(() => {
   void run(async () => {
-    const page = await api.get<ManagedApplicationsPage>('/api/prohibitorum/managed-applications')
-    applications.value = page.items
+    applications.value = await api.get<ManagedApplication[]>('/api/prohibitorum/managed-applications')
   })
 })
 </script>
@@ -41,11 +39,11 @@ onMounted(() => {
     <ErrorPanel :error="error" @dismiss="clear" />
     <TableSkeleton v-if="busy && applications.length === 0" :rows="3" :cols="1" />
     <EmptyState
-      v-else-if="applications.length === 0"
+      v-else-if="!error && applications.length === 0"
       :title="t('manage.applications.emptyTitle')"
       :description="t('manage.applications.emptyDescription')"
     />
-    <div v-else class="grid gap-3 sm:grid-cols-2" data-test="managed-application-list">
+    <div v-else-if="applications.length > 0" class="grid gap-3 sm:grid-cols-2" data-test="managed-application-list">
       <Card v-for="app in sortedApplications" :key="`${app.kind}:${app.appId}`" class="h-full">
         <CardContent class="flex h-full flex-col gap-4 pt-6">
           <div class="flex min-w-0 items-start justify-between gap-3">
