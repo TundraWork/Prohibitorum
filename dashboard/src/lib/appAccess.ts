@@ -5,6 +5,7 @@ export type ManualEffect = 'allow' | 'deny'
 
 export interface ProviderDescriptor {
   slug: string
+  displayName: string
 }
 export interface AppScope {
   name: string
@@ -73,6 +74,12 @@ export interface AppAccessWorkspace {
 export interface GroupPreview {
   account: AccountSummary
   matched: boolean
+}
+
+export interface RulePreviewPage {
+  items: GroupPreview[]
+  matchedCount: number
+  nextCursor: string
 }
 
 export interface ExplanationNode {
