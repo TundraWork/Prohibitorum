@@ -133,6 +133,7 @@ export default {
         avatarAny: 'Any available avatar',
         avatarUserUploaded: 'User-uploaded avatar',
         conditionActions: 'Actions for {condition}',
+        groupActions: 'Actions for {mode} group',
         moveUp: 'Move up',
         moveDown: 'Move down',
         moveConditionUpLabel: 'Move {condition} up',

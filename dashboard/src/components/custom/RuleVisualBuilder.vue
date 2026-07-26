@@ -125,6 +125,7 @@ async function completeActionFocus(event: Event): Promise<void> {
 
 
 async function updateRule(rule: Rule): Promise<void> {
+  removedNode.value = null
   applyRule(rule)
 }
 
@@ -135,6 +136,7 @@ async function addCondition(parent: RulePath): Promise<void> {
     ? Math.max(0, (target.children?.length ?? 1) - 1)
     : 1
   const focusPath = [...parent, index]
+  removedNode.value = null
   applyRule(nextRule)
   announce(t('manage.policy.rule.conditionAdded'))
   await focusNode(focusPath, nextRule)
@@ -147,6 +149,7 @@ async function addGroup(parent: RulePath): Promise<void> {
     ? Math.max(0, (target.children?.length ?? 1) - 1)
     : 1
   const focusPath = [...parent, index, 0]
+  removedNode.value = null
   applyRule(nextRule)
   announce(t('manage.policy.rule.groupAdded'))
   await focusNode(focusPath, nextRule)
@@ -173,6 +176,7 @@ async function move(path: RulePath, delta: -1 | 1): Promise<void> {
   if (!before || typeof index !== 'number') return
   const nextRule = moveNode(props.modelValue, path, delta)
   const focusPath = [...path.slice(0, -1), index + delta]
+  removedNode.value = null
   applyRule(nextRule)
   const key = isGroup(before)
     ? delta < 0 ? 'manage.policy.rule.groupMovedUp' : 'manage.policy.rule.groupMovedDown'

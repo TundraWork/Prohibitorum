@@ -129,6 +129,7 @@ export default {
         avatarAny: '任意可用头像',
         avatarUserUploaded: '用户上传的头像',
         conditionActions: '{condition}的操作',
+        groupActions: '{mode}组的操作',
         moveUp: '上移',
         moveDown: '下移',
         moveConditionUpLabel: '上移{condition}',

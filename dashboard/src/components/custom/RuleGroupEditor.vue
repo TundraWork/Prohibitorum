@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MoreHorizontal, Plus } from 'lucide-vue-next'
 import type { Condition, ProviderDescriptor, Rule } from '@/lib/appAccess'
@@ -51,6 +51,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const actionsTrigger = ref<InstanceType<typeof Button> | null>(null)
 const pathKey = computed(() => props.path.length ? `root-${props.path.join('-')}` : 'root')
 const jsonPath = computed(() => props.path.reduce<string>(
   (path, segment) => segment === 'child' ? `${path}.child` : `${path}.children[${segment}]`,
@@ -121,6 +122,11 @@ function isPredicate(condition: Condition): boolean {
 function changeMode(nextMode: GroupMode): void {
   emit('update:rule', setGroupMode(props.rule, props.path, nextMode))
 }
+function closeActions(event: Event): void {
+  emit('actions-closed', event)
+  if (!event.defaultPrevented) actionsTrigger.value?.$el?.focus()
+}
+
 </script>
 
 <template>
@@ -184,21 +190,22 @@ function changeMode(nextMode: GroupMode): void {
             <TooltipTrigger as-child>
               <DropdownMenuTrigger as-child>
                 <Button
+                  ref="actionsTrigger"
                   type="button"
                   variant="ghost"
                   size="icon-sm"
                   class="shrink-0 text-muted hover:text-ink"
-                  :aria-label="t('manage.policy.rule.conditionActions', { condition: `${modeLabel} group` })"
+                  :aria-label="t('manage.policy.rule.groupActions', { mode: modeLabel })"
                   :data-test="`group-actions-${pathKey}`"
                 >
                   <MoreHorizontal class="size-4" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
-            <TooltipContent>{{ t('manage.policy.rule.conditionActions', { condition: `${modeLabel} group` }) }}</TooltipContent>
+            <TooltipContent>{{ t('manage.policy.rule.groupActions', { mode: modeLabel }) }}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent align="end" @close-auto-focus="emit('actions-closed', $event)">
+        <DropdownMenuContent align="end" @close-auto-focus="closeActions">
           <DropdownMenuItem
             v-if="canMoveUp"
             :data-test="`group-move-up-${pathKey}`"

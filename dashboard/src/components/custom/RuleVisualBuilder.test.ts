@@ -160,6 +160,49 @@ describe('RuleVisualBuilder', () => {
     expect(wrapper.find('[data-test="rule-builder-undo"]').exists()).toBe(false)
   })
 
+  it('invalidates Undo when a later move changes the removed subtree coordinates', async () => {
+    const wrapper = mountBuilder({
+      version: 1,
+      condition: {
+        op: 'all',
+        children: [
+          {
+            op: 'all',
+            children: [
+              { fact: 'avatar', source: 'any' },
+              { fact: 'login_method', method: 'passkey' },
+            ],
+          },
+          { op: 'any', children: [{ fact: 'connection.protocol', protocol: 'oidc' }] },
+        ],
+      },
+    })
+
+    await openPredicateActions(wrapper, 'root-0-1')
+    document.body.querySelector<HTMLElement>('[data-test="predicate-remove-root-0-1"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }))
+    await flushPromises()
+    expect(wrapper.find('[data-test="rule-builder-undo"]').exists()).toBe(true)
+
+    await wrapper.get('[data-test="group-actions-root-0"]').trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLElement>('[data-test="group-move-down-root-0"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="rule-builder-undo"]').exists()).toBe(false)
+    expect(lastUpdate(wrapper)).toEqual({
+      version: 1,
+      condition: {
+        op: 'all',
+        children: [
+          { op: 'any', children: [{ fact: 'connection.protocol', protocol: 'oidc' }] },
+          { op: 'all', children: [{ fact: 'avatar', source: 'any' }] },
+        ],
+      },
+    })
+  })
+
   it('moves a condition, follows it with focus, and announces the direction', async () => {
     const wrapper = mountBuilder({
       version: 1,

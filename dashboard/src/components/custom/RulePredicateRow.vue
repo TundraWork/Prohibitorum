@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MoreHorizontal } from 'lucide-vue-next'
 import type { Condition, ProviderDescriptor, Rule } from '@/lib/appAccess'
@@ -62,6 +62,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const actionsTrigger = ref<InstanceType<typeof Button> | null>(null)
 
 const pathKey = computed(() => props.path.length ? `root-${props.path.join('-')}` : 'root')
 const jsonPath = computed(() => props.path.reduce<string>(
@@ -178,6 +179,11 @@ function updateValue(nextValue: unknown): void {
   if (typeof nextValue !== 'string') return
   emit('update:rule', updatePredicateValue(props.rule, props.path, nextValue))
 }
+function closeActions(event: Event): void {
+  emit('actions-closed', event)
+  if (!event.defaultPrevented) actionsTrigger.value?.$el?.focus()
+}
+
 </script>
 
 <template>
@@ -268,6 +274,7 @@ function updateValue(nextValue: unknown): void {
             <TooltipTrigger as-child>
               <DropdownMenuTrigger as-child>
                 <Button
+                  ref="actionsTrigger"
                   type="button"
                   variant="ghost"
                   size="icon-sm"
@@ -282,7 +289,7 @@ function updateValue(nextValue: unknown): void {
             <TooltipContent>{{ t('manage.policy.rule.conditionActions', { condition: contentLabel }) }}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent align="end" @close-auto-focus="emit('actions-closed', $event)">
+        <DropdownMenuContent align="end" @close-auto-focus="closeActions">
           <DropdownMenuItem
             v-if="canMoveUp"
             :aria-label="t('manage.policy.rule.moveConditionUpLabel', { condition: contentLabel })"
