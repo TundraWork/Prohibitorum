@@ -193,7 +193,7 @@ function closeActions(event: Event): void {
     :data-test="`predicate-row-${pathKey}`"
     class="min-w-0 py-2"
   >
-    <div class="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(9rem,1fr)_7rem_minmax(10rem,1.25fr)_2.25rem] sm:items-start">
+    <div class="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(9rem,1fr)_7rem_minmax(10rem,1.25fr)_2.25rem] md:items-start">
       <Select :model-value="fact" @update:model-value="updateFact">
         <SelectTrigger
           data-clause-control="fact"
@@ -201,7 +201,7 @@ function closeActions(event: Event): void {
           :aria-label="t('manage.policy.rule.factLabel')"
           :aria-invalid="issue ? 'true' : undefined"
           :aria-describedby="issueDescription"
-          class="bg-surface shadow-none"
+          class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"
         >
           <SelectValue :placeholder="t('manage.policy.rule.chooseFact')" />
         </SelectTrigger>
@@ -223,7 +223,7 @@ function closeActions(event: Event): void {
           data-clause-control="polarity"
           :data-test="`predicate-polarity-${pathKey}`"
           :aria-label="t('manage.policy.rule.polarityLabel')"
-          class="bg-surface shadow-none"
+          class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"
         >
           <SelectValue>{{ negated ? t('manage.policy.rule.isNot') : t('manage.policy.rule.is') }}</SelectValue>
         </SelectTrigger>
@@ -249,7 +249,7 @@ function closeActions(event: Event): void {
           :aria-label="t('manage.policy.rule.valueLabel')"
           :aria-invalid="issue && fact ? 'true' : undefined"
           :aria-describedby="issueDescription"
-          class="bg-surface shadow-none"
+          class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"
         >
           <SelectValue :placeholder="t('manage.policy.rule.chooseValue')" />
         </SelectTrigger>

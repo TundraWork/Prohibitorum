@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { RouterView, createMemoryHistory, createRouter } from 'vue-router'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 import type {
@@ -284,6 +285,34 @@ function mountWorkspace(mode: WorkspaceMode = 'manager') {
   return wrapper
 }
 
+async function mountRoutedWorkspace(path = '/manage/applications/oidc/client%2Falpha') {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: '/manage/applications/:kind/:id',
+        component: AppPolicyWorkspace,
+        props: (route) => ({
+          kind: route.params.kind as AppKind,
+          appId: route.params.id as string,
+          displayName: route.params.id === APP_ID ? OPEN_APP.displayName : 'Knowledge base',
+          mode: 'manager' as const,
+        }),
+      },
+      { path: '/elsewhere', component: { template: '<p>Elsewhere</p>' } },
+    ],
+  })
+  await router.push(path)
+  await router.isReady()
+  const wrapper = mount(RouterView, {
+    global: { plugins: [router, i18n()] },
+    attachTo: document.body,
+  })
+  mounted.push(wrapper)
+  await flushPromises()
+  return { router, wrapper }
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((done) => { resolve = done })
@@ -369,6 +398,120 @@ describe('AppPolicyWorkspace', () => {
       exposedToDownstream: true,
       rule: CORPORATE_RULE,
     })
+  })
+
+  it('mounts outside a router without route-injection warnings', async () => {
+    mockWorkspaceGets(OPEN_EMPTY_WORKSPACE)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    try {
+      mountWorkspace()
+      await flushPromises()
+      expect(warn.mock.calls.flat().join(' ')).not.toMatch(/router|active route record/i)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('confirms a dirty draft before applying a direct application identity change', async () => {
+    const secondBase = '/api/prohibitorum/managed-applications/saml/44'
+    const secondAccessEndpoint = `${secondBase}/access`
+    const secondWorkspace: WorkspaceWire = {
+      app: {
+        kind: 'saml',
+        appId: '44',
+        displayName: 'Knowledge base',
+        accessRestricted: false,
+      },
+      accessRestricted: false,
+      providers: [],
+      ruleGroups: [],
+    }
+    get.mockImplementation(async (path: string) => {
+      if (path === ACCESS_ENDPOINT) return OPEN_RULE_WORKSPACE
+      if (path === secondAccessEndpoint) return secondWorkspace
+      throw new Error(`Unexpected GET ${path}`)
+    })
+
+    const wrapper = mountWorkspace()
+    await flushPromises()
+    await wrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    ruleEditor(wrapper).vm.$emit('dirty-change', true)
+    await flushPromises()
+
+    await wrapper.setProps({ kind: 'saml', appId: '44', displayName: 'Knowledge base' })
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('Discard unsaved changes?')
+    expect(wrapper.text()).toContain('Atlas')
+    expect(get).not.toHaveBeenCalledWith(secondAccessEndpoint)
+
+    clickDestructiveConfirm('Discard changes')
+    await flushPromises()
+    expect(get).toHaveBeenCalledWith(secondAccessEndpoint)
+    expect(wrapper.text()).toContain('Knowledge base')
+  })
+
+  it('keeps editing on an aborted route leave and navigates after confirmed discard', async () => {
+    mockWorkspaceGets(OPEN_RULE_WORKSPACE)
+    const { router, wrapper } = await mountRoutedWorkspace()
+    const workspaceWrapper = wrapper.getComponent(AppPolicyWorkspace)
+    await workspaceWrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    ruleEditor(workspaceWrapper).vm.$emit('dirty-change', true)
+    await flushPromises()
+
+    await router.push('/elsewhere')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).not.toBe('/elsewhere')
+    expect(document.body.textContent).toContain('Discard unsaved changes?')
+
+    clickConfirmCancel()
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).not.toBe('/elsewhere')
+    expect(workspaceWrapper.find('[data-test="rule-editor"]').exists()).toBe(true)
+
+    await router.push('/elsewhere')
+    await flushPromises()
+    clickDestructiveConfirm('Discard changes')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/elsewhere')
+  })
+
+  it('keeps editing on an aborted route update and loads the new application after confirmed discard', async () => {
+    const secondAccessEndpoint = '/api/prohibitorum/managed-applications/saml/44/access'
+    const secondWorkspace: WorkspaceWire = {
+      app: {
+        kind: 'saml',
+        appId: '44',
+        displayName: 'Knowledge base',
+        accessRestricted: false,
+      },
+      accessRestricted: false,
+      providers: [],
+      ruleGroups: [],
+    }
+    get.mockImplementation(async (path: string) => {
+      if (path === ACCESS_ENDPOINT) return OPEN_RULE_WORKSPACE
+      if (path === secondAccessEndpoint) return secondWorkspace
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    const { router, wrapper } = await mountRoutedWorkspace()
+    const workspaceWrapper = wrapper.getComponent(AppPolicyWorkspace)
+    await workspaceWrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    ruleEditor(workspaceWrapper).vm.$emit('dirty-change', true)
+    await flushPromises()
+
+    await router.push('/manage/applications/saml/44')
+    await flushPromises()
+    expect(router.currentRoute.value.params.id).toBe(APP_ID)
+    expect(document.body.textContent).toContain('Discard unsaved changes?')
+    expect(get).not.toHaveBeenCalledWith(secondAccessEndpoint)
+
+    clickDestructiveConfirm('Discard changes')
+    await flushPromises()
+    expect(router.currentRoute.value.params.id).toBe('44')
+    expect(get).toHaveBeenCalledWith(secondAccessEndpoint)
+    expect(wrapper.text()).toContain('Knowledge base')
   })
 
   it('reloads and resets policy state when the application identity changes', async () => {
@@ -633,6 +776,23 @@ describe('AppPolicyWorkspace', () => {
     await flushPromises()
     expect(wrapper.find('[data-test="rule-editor"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="preview-panel-21"]').exists()).toBe(true)
+  })
+
+  it('remounts the same editor target after confirmed discard so its local draft is reset', async () => {
+    mockWorkspaceGets(OPEN_EMPTY_WORKSPACE)
+    const wrapper = mountWorkspace()
+    await flushPromises()
+    await wrapper.get('[data-test="rule-group-create"]').trigger('click')
+    await ruleEditor(wrapper).get('[data-test="rule-display-name"]').setValue('Abandoned rule')
+    await flushPromises()
+
+    await wrapper.get('[data-test="rule-group-create"]').trigger('click')
+    expect(document.body.textContent).toContain('Discard unsaved changes?')
+    clickDestructiveConfirm('Discard changes')
+    await flushPromises()
+
+    expect((ruleEditor(wrapper).get('[data-test="rule-display-name"]').element as HTMLInputElement).value)
+      .toBe('')
   })
 
   it('deletes a rule group only after ConfirmDialog confirmation', async () => {

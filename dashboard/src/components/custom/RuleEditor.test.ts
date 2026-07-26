@@ -215,7 +215,7 @@ describe('RuleEditor', () => {
   it('places live meaning and impact beside the builder with a narrow-screen stack', () => {
     const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
     const layout = wrapper.get('[data-test="rule-editor-layout"]')
-    expect(layout.classes()).toEqual(expect.arrayContaining(['grid-cols-1', 'lg:grid-cols-[minmax(0,3fr)_minmax(17rem,2fr)]']))
+    expect(layout.classes()).toEqual(expect.arrayContaining(['grid-cols-1', 'min-[1536px]:grid-cols-[minmax(0,3fr)_minmax(17rem,2fr)]']))
     expect(layout.get('[data-test="editor-builder-column"]').exists()).toBe(true)
     expect(layout.get('[data-test="editor-insight-column"]').exists()).toBe(true)
     expect(layout.get('[data-test="rule-meaning"]').text()).toContain('Passkey')

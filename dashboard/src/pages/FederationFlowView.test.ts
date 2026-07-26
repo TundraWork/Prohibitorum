@@ -86,7 +86,7 @@ describe('FederationFlowView', () => {
 
     const notice = wrapper.get('[data-test="account-handoff-notice"]')
     expect(notice.text()).toContain(
-      'Your VRChat account is only used to verify your identity and help you recover access. If you’re new here, you’ll create a local account and sign-in method after verification.',
+      "Your VRChat account is only used to verify your identity and help you recover access. If you're new here, you'll create a local account and sign-in method after verification.",
     )
     expect(notice.text()).toContain(
       'Already have a Prohibitorum account? Link VRChat from Connected Accounts instead.',

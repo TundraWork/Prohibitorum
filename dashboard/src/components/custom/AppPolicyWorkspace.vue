@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, inject, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { matchedRouteKey, onBeforeRouteLeave, onBeforeRouteUpdate, routerKey } from 'vue-router'
 import { Eye, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import type {
@@ -38,6 +39,12 @@ import RuleMeaning from '@/components/custom/RuleMeaning.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import { cloneRule, makeEmptyRule } from '@/lib/ruleDraft'
 
+interface WorkspaceIdentity {
+  kind: AppKind
+  appId: string
+  displayName: string
+}
+
 type ActiveRuleEditor =
   | { mode: 'create'; groupId: null; initialDraft: RuleEditorDraft }
   | { mode: 'edit'; groupId: number; initialDraft: RuleEditorDraft }
@@ -46,7 +53,8 @@ type RuleEditorDestination =
   | { type: 'create' }
   | { type: 'edit'; group: AppGroup }
   | { type: 'preview'; groupId: number }
-
+  | { type: 'navigate'; path: string }
+  | { type: 'identity'; identity: WorkspaceIdentity }
 interface ExplanationRow {
   key: string
   depth: number
@@ -62,14 +70,20 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-// Each concern that can load concurrently owns its own guard. In particular,
-// the manual-group account and decision requests must never suppress each other.
+const router = inject(routerKey, null)
+const activeRouteRecord = inject(matchedRouteKey, null)
 const workspaceApi = useApi()
 const accountsApi = useApi()
 const decisionsApi = useApi()
 const previewApi = useApi()
 const explanationApi = useApi()
 const policyMutationApi = useApi()
+const workspaceIdentity = ref<WorkspaceIdentity>({
+  kind: props.kind,
+  appId: props.appId,
+  displayName: props.displayName,
+})
+const deferredWorkspaceIdentity = ref<WorkspaceIdentity | null>(null)
 
 const workspace = ref<AppAccessWorkspace | null>(null)
 const notFound = ref(false)
@@ -86,6 +100,7 @@ const decisionsPageIndex = ref(0)
 const decisionPageCursors = ref<string[]>([''])
 
 const activeRuleEditor = ref<ActiveRuleEditor | null>(null)
+const activeRuleEditorRevision = ref(0)
 const ruleEditorDirty = ref(false)
 const pendingRuleEditorDestination = ref<RuleEditorDestination | null>(null)
 const confirmDiscardRuleEditor = ref(false)
@@ -103,19 +118,21 @@ const previewPageCursors = ref<string[]>([''])
 
 const explanationTarget = ref<{ groupId: number; accountId: number } | null>(null)
 const explanation = ref<GroupExplanation | null>(null)
+let allowRuleEditorNavigation = false
+let workspaceInitialized = false
 let workspaceIdentityVersion = 0
 let workspaceLoadActive = false
 let workspaceReloadPending = false
 
 const basePath = computed(
   () =>
-    `/api/prohibitorum/managed-applications/${encodeURIComponent(props.kind)}/${encodeURIComponent(props.appId)}`,
+    `/api/prohibitorum/managed-applications/${encodeURIComponent(workspaceIdentity.value.kind)}/${encodeURIComponent(workspaceIdentity.value.appId)}`,
 )
 const accessEndpoint = computed(() => `${basePath.value}/access`)
 const groupsEndpoint = computed(() => `${basePath.value}/groups`)
 const accountsEndpoint = computed(() => `${basePath.value}/accounts`)
 
-const appName = computed(() => workspace.value?.app.displayName || props.displayName)
+const appName = computed(() => workspace.value?.app.displayName || workspaceIdentity.value.displayName)
 const manualGroup = computed(() => workspace.value?.manualGroup)
 const ruleGroups = computed(() => workspace.value?.ruleGroups ?? [])
 const rulePreviewEndpoint = computed(() => `${basePath.value}/rule-preview`)
@@ -220,6 +237,25 @@ function resetWorkspaceState(): void {
   previewApi.clear()
   explanationApi.clear()
   policyMutationApi.clear()
+}
+
+function sameWorkspaceIdentity(left: WorkspaceIdentity, right: WorkspaceIdentity): boolean {
+  return left.kind === right.kind && left.appId === right.appId
+}
+
+function applyWorkspaceIdentity(identity: WorkspaceIdentity): void {
+  workspaceIdentity.value = identity
+  deferredWorkspaceIdentity.value = null
+  workspaceIdentityVersion += 1
+  resetWorkspaceState()
+  void loadWorkspace(workspaceIdentityVersion)
+}
+
+function applyDeferredWorkspaceIdentity(): boolean {
+  const identity = deferredWorkspaceIdentity.value
+  if (!identity) return false
+  applyWorkspaceIdentity(identity)
+  return true
 }
 
 async function loadWorkspace(version = workspaceIdentityVersion): Promise<void> {
@@ -456,6 +492,20 @@ async function applyRuleEditorDestination(destination: RuleEditorDestination): P
   pendingRuleEditorDestination.value = null
   confirmDiscardRuleEditor.value = false
 
+  if (destination.type === 'navigate') {
+    activeRuleEditor.value = null
+    ruleEditorDirty.value = false
+    allowRuleEditorNavigation = true
+    await router?.push(destination.path)
+    return
+  }
+
+  if (destination.type === 'identity') {
+    applyWorkspaceIdentity(destination.identity)
+    return
+  }
+
+
   if (destination.type === 'create') {
     closePreview()
     activeRuleEditor.value = { mode: 'create', groupId: null, initialDraft: makeRuleDraft() }
@@ -483,6 +533,7 @@ function cancelRuleEditor(): void {
   activeRuleEditor.value = null
   ruleEditorDirty.value = false
   policyMutationApi.clear()
+  applyDeferredWorkspaceIdentity()
 }
 
 function cancelDiscardRuleEditor(): void {
@@ -496,7 +547,19 @@ function discardRuleEditorAndContinue(): void {
   ruleEditorDirty.value = false
   pendingRuleEditorDestination.value = null
   confirmDiscardRuleEditor.value = false
+  activeRuleEditorRevision.value += 1
   if (destination) void applyRuleEditorDestination(destination)
+}
+
+function guardRuleEditorNavigation(path: string): boolean {
+  if (allowRuleEditorNavigation) {
+    allowRuleEditorNavigation = false
+    return true
+  }
+  if (!activeRuleEditor.value || !ruleEditorDirty.value) return true
+  pendingRuleEditorDestination.value = { type: 'navigate', path }
+  confirmDiscardRuleEditor.value = true
+  return false
 }
 
 function ruleWritePayload(draft: RuleEditorDraft): RuleEditorDraft {
@@ -673,12 +736,36 @@ function closeExplanation(): void {
   explanationApi.clear()
 }
 
+if (router && activeRouteRecord) {
+  onBeforeRouteLeave((to) => guardRuleEditorNavigation(to.fullPath))
+  onBeforeRouteUpdate((to) => guardRuleEditorNavigation(to.fullPath))
+}
+
 watch(
-  () => [props.kind, props.appId] as const,
-  () => {
-    workspaceIdentityVersion += 1
-    resetWorkspaceState()
-    void loadWorkspace(workspaceIdentityVersion)
+  () => [props.kind, props.appId, props.displayName] as const,
+  ([kind, appId, displayName]) => {
+    const identity: WorkspaceIdentity = { kind, appId, displayName }
+    if (!workspaceInitialized) {
+      workspaceInitialized = true
+      applyWorkspaceIdentity(identity)
+      return
+    }
+    if (sameWorkspaceIdentity(identity, workspaceIdentity.value)) {
+      workspaceIdentity.value = identity
+      deferredWorkspaceIdentity.value = null
+      if (pendingRuleEditorDestination.value?.type === 'identity') {
+        pendingRuleEditorDestination.value = null
+        confirmDiscardRuleEditor.value = false
+      }
+      return
+    }
+    if (activeRuleEditor.value && ruleEditorDirty.value) {
+      deferredWorkspaceIdentity.value = identity
+      pendingRuleEditorDestination.value = { type: 'identity', identity }
+      confirmDiscardRuleEditor.value = true
+      return
+    }
+    applyWorkspaceIdentity(identity)
   },
   { immediate: true },
 )
@@ -992,7 +1079,7 @@ watch(
 
           <RuleEditor
             v-if="activeRuleEditor"
-            :key="`${activeRuleEditor.mode}-${activeRuleEditor.groupId ?? 'new'}`"
+            :key="`${activeRuleEditor.mode}-${activeRuleEditor.groupId ?? 'new'}-${activeRuleEditorRevision}`"
             :initial-draft="activeRuleEditor.initialDraft"
             :providers="workspace.providers"
             :preview-endpoint="rulePreviewEndpoint"

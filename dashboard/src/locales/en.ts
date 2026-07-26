@@ -242,7 +242,7 @@ export default {
         conditionTitle: 'Conditions',
         invalidCondition: 'Resolve invalid or oversized conditions before saving.',
         exposed: 'Expose in downstream group claims',
-        exposedHint: 'Include this group’s slug when its rule matches and the application requests group claims.',
+        exposedHint: "Include this group's slug when its rule matches and the application requests group claims.",
         exposedStatus: 'Exposed downstream',
         privateStatus: 'Policy only',
         preview: 'Preview',
@@ -1025,7 +1025,7 @@ export default {
   federationFlow: {
     title: 'Verify your {provider} profile',
     identifyIntro: 'Paste your VRChat profile URL. You can also enter a user ID beginning with usr_.',
-    accountNoticePrimary: 'Your VRChat account is only used to verify your identity and help you recover access. If you’re new here, you’ll create a local account and sign-in method after verification.',
+    accountNoticePrimary: "Your VRChat account is only used to verify your identity and help you recover access. If you're new here, you'll create a local account and sign-in method after verification.",
     accountNoticeSupporting: 'Already have a {instance} account? Link VRChat from Connected Accounts instead.',
     identifyGuideTitle: 'Find your VRChat profile URL',
     identifyStepOpen: 'Open the VRChat website and sign in.',

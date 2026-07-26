@@ -317,7 +317,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         />
 
         <div
-          class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(17rem,2fr)]"
+          class="grid grid-cols-1 gap-6 min-[1536px]:grid-cols-[minmax(0,3fr)_minmax(17rem,2fr)]"
           data-test="rule-editor-layout"
         >
           <div class="min-w-0" data-test="editor-builder-column">
@@ -346,7 +346,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
             />
           </div>
 
-          <aside class="min-w-0 space-y-5 border-border lg:border-l lg:pl-6" data-test="editor-insight-column">
+          <aside class="min-w-0 space-y-5 border-border min-[1536px]:border-l min-[1536px]:pl-6" data-test="editor-insight-column">
             <section class="space-y-2" aria-labelledby="rule-meaning-heading">
               <h3 id="rule-meaning-heading" class="text-sm font-semibold text-ink">
                 {{ t('manage.policy.rule.plainMeaning') }}
