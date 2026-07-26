@@ -27,13 +27,6 @@ const SESSIONS = [
   { id: 'sess-aaa', isCurrent: true,  issuedAt: '2026-06-01T10:00:00Z', expiresAt: '2026-06-08T10:00:00Z', lastSeenIp: '1.2.3.4', userAgent: 'Firefox/126' },
   { id: 'sess-bbb', isCurrent: false, issuedAt: '2026-06-02T10:00:00Z', expiresAt: '2026-06-09T10:00:00Z', lastSeenIp: '5.6.7.8', userAgent: 'Chrome/125' },
 ]
-const GROUPS_FOR_ACCOUNT = [
-  { id: 10, slug: 'eng', displayName: 'Engineering', exposedToDownstream: true, createdAt: '2026-01-01T00:00:00Z' },
-]
-const ALL_GROUPS = [
-  { id: 10, slug: 'eng', displayName: 'Engineering', exposedToDownstream: true, createdAt: '2026-01-01T00:00:00Z' },
-  { id: 20, slug: 'ops', displayName: 'Operations', exposedToDownstream: false, createdAt: '2026-01-02T00:00:00Z' },
-]
 const TOKENS = [
   { id: 101, name: 'ci-deploy', tokenHint: 'proh_abc…', allApps: false, appGrants: { 'svc-1': ['repo:read'] }, createdAt: '2026-06-01T00:00:00Z' },
   { id: 102, name: 'all-access', tokenHint: 'proh_xyz…', allApps: true, appGrants: {}, createdAt: '2026-06-02T00:00:00Z', expiresAt: '2027-06-02T00:00:00Z' },
@@ -56,17 +49,15 @@ const IDENTITIES = [
   },
 ]
 
-// GET router: account plus paginated credentials/sessions/tokens/groups and
+// GET router: account plus paginated credentials, sessions, and tokens, with
 // the exact bare-array linked-identity endpoint.
-function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, acctGroups = GROUPS_FOR_ACCOUNT, allGroupsList = ALL_GROUPS, toks = TOKENS, identities = IDENTITIES) {
+function mockGets(account = ACCOUNT, creds = CREDS, sess = SESSIONS, toks = TOKENS, identities = IDENTITIES) {
   get.mockImplementation(async (p: string) => {
     const path = String(p).split('?')[0]
     if (path.endsWith('/identities')) return identities
     if (path.endsWith('/credentials')) return { items: creds, nextCursor: '' }
     if (path.endsWith('/sessions')) return { items: sess, nextCursor: '' }
     if (path.endsWith('/tokens')) return { items: toks, nextCursor: '' }
-    if (path === '/api/prohibitorum/groups') return { items: allGroupsList, nextCursor: '' }
-    if (path.endsWith('/groups')) return { items: acctGroups, nextCursor: '' }
     return account
   })
 }
@@ -327,93 +318,26 @@ describe('AdminAccountDetailView', () => {
     expect(body.attributes).toMatchObject({ team: 'security', score: 42 })
   })
 
-  // ---- groups card ----
-
-  it('loads and renders the account groups card on mount', async () => {
+  it('keeps account administration data while omitting obsolete global group membership', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    expect(get.mock.calls.some((c) => String(c[0]).split('?')[0].endsWith('/accounts/7/groups'))).toBe(true)
-    expect(get.mock.calls.some((c) => String(c[0]).split('?')[0] === '/api/prohibitorum/groups')).toBe(true)
-    expect(w.find('[data-test="group-row-10"]').exists()).toBe(true)
-    expect(w.text()).toContain('Engineering')
-  })
+    const requestedPaths = get.mock.calls.map(([path]) => String(path).split('?')[0])
 
-  it('group picker excludes groups the account already belongs to', async () => {
-    mockGets()
-    const w = mountView(); await flushPromises()
-    // ALL_GROUPS has ids 10 and 20; account is already in group 10.
-    // The add-picker is fed by addableGroups, which must exclude group 10.
-    const vm = w.vm as unknown as { addableGroups: Array<{ id: number }> }
-    expect(vm.addableGroups.some((g) => g.id === 10)).toBe(false)
-    // And the add button is disabled until a group is selected.
-    const addBtn = w.find<HTMLButtonElement>('[data-test="add-to-group"]')
-    expect(addBtn.element.disabled).toBe(true)
-  })
+    expect(requestedPaths).toContain('/api/prohibitorum/accounts/7')
+    expect(requestedPaths).toContain('/api/prohibitorum/accounts/7/credentials')
+    expect(requestedPaths).toContain('/api/prohibitorum/accounts/7/sessions')
+    expect(requestedPaths).toContain('/api/prohibitorum/accounts/7/tokens')
+    expect(requestedPaths).toContain('/api/prohibitorum/accounts/7/identities')
+    expect(requestedPaths).not.toContain('/api/prohibitorum/accounts/7/groups')
+    expect(requestedPaths).not.toContain('/api/prohibitorum/groups')
 
-  it('add-group picker excludes current memberships via addableGroups computed', async () => {
-    // ALL_GROUPS has ids 10 and 20; account is already in group 10.
-    // addableGroups must contain only group 20.
-    mockGets()
-    const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/groups'))
-    const vm = w.vm as unknown as {
-      accountGroups: Array<{ id: number }>
-      allGroups: Array<{ id: number; displayName: string }>
-      addableGroups: Array<{ id: number; displayName: string }>
-    }
-    expect(vm.allGroups).toHaveLength(2)
-    expect(vm.accountGroups).toHaveLength(1)
-    // addableGroups filters out the already-member group (id=10)
-    expect(vm.addableGroups).toHaveLength(1)
-    expect(vm.addableGroups[0].id).toBe(20)
-    expect(vm.addableGroups[0].displayName).toBe('Operations')
-  })
-
-  it('add to group POSTs the member endpoint and refreshes the groups list', async () => {
-    mockGets()
-    post.mockResolvedValue({})
-    // After add, return the updated list with both groups
-    const updatedGroups = [
-      ...GROUPS_FOR_ACCOUNT,
-      { id: 20, slug: 'ops', displayName: 'Operations', exposedToDownstream: false, createdAt: '2026-01-02T00:00:00Z' },
-    ]
-    let groupsCallCount = 0
-    get.mockImplementation(async (p: string) => {
-      const path = String(p).split('?')[0]
-      if (path.endsWith('/identities')) return IDENTITIES
-      if (path.endsWith('/credentials')) return { items: CREDS, nextCursor: '' }
-      if (path.endsWith('/sessions')) return { items: SESSIONS, nextCursor: '' }
-      if (path.endsWith('/tokens')) return { items: TOKENS, nextCursor: '' }
-      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
-      if (path.endsWith('/groups')) { groupsCallCount++; return { items: groupsCallCount === 1 ? GROUPS_FOR_ACCOUNT : updatedGroups, nextCursor: '' } }
-      return ACCOUNT
-    })
-    const w = mountView(); await flushPromises()
-    const groupsCallsBefore = groupsCallCount
-    // Drive selectedGroupId via vm (Reka Select is not directly settable via setValue)
-    const vm = w.vm as unknown as { selectedGroupId: string }
-    vm.selectedGroupId = '20'
-    await flushPromises()
-    await w.find('[data-test="add-to-group"]').trigger('click'); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/groups/20/members', { accountId: 7 })
-    // groups list refreshed
-    expect(groupsCallCount).toBeGreaterThan(groupsCallsBefore)
-  })
-
-  it('shows empty state when account belongs to no groups', async () => {
-    mockGets(ACCOUNT, CREDS, SESSIONS, [], ALL_GROUPS)
-    const w = mountView(); await flushPromises()
-    expect(w.text()).toContain(en.admin.account.groupsEmpty)
-  })
-
-  it('remove from group opens confirm dialog and POSTs remove endpoint', async () => {
-    mockGets()
-    post.mockResolvedValue(undefined)
-    const w = mountView(); await flushPromises()
-    await w.find('[data-test="group-remove-10"]').trigger('click'); await flushPromises()
-    // confirm dialog should appear — click its destructive confirm button
-    clickConfirm(en.admin.account.groupsRemove); await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/groups/10/members/remove', { accountId: 7 })
+    expect(w.find('[data-test="linked-identities"]').exists()).toBe(true)
+    expect(w.find('[data-test="revoke-cred-11"]').exists()).toBe(true)
+    expect(w.find('[data-test="session-row-sess-aaa"]').exists()).toBe(true)
+    expect(w.find('[data-test="token-row-101"]').exists()).toBe(true)
+    expect(w.find('[data-test="save"]').exists()).toBe(true)
+    expect(w.find('[data-test="add-to-group"]').exists()).toBe(false)
+    expect(w.findAll('[data-test^="group-"]')).toHaveLength(0)
   })
 
   // ---- personal access tokens card ----
@@ -431,7 +355,7 @@ describe('AdminAccountDetailView', () => {
   })
 
   it('shows empty state when token list is empty', async () => {
-    mockGets(ACCOUNT, CREDS, SESSIONS, GROUPS_FOR_ACCOUNT, ALL_GROUPS, [])
+    mockGets(ACCOUNT, CREDS, SESSIONS, [])
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.account.tokens.empty)
   })
@@ -454,8 +378,6 @@ describe('AdminAccountDetailView', () => {
       if (path.endsWith('/credentials')) return { items: CREDS, nextCursor: '' }
       if (path.endsWith('/sessions')) return { items: SESSIONS, nextCursor: '' }
       if (path.endsWith('/tokens')) return { items: TOKENS, nextCursor: '' }
-      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
-      if (path.endsWith('/groups')) return { items: GROUPS_FOR_ACCOUNT, nextCursor: '' }
       return ACCOUNT
     })
     post.mockResolvedValue({ ...ACCOUNT, disabled: true })
@@ -476,8 +398,6 @@ describe('AdminAccountDetailView', () => {
       if (path.endsWith('/credentials')) return { items: CREDS, nextCursor: '' }
       if (path.endsWith('/sessions')) return { items: SESSIONS, nextCursor: '' }
       if (path.endsWith('/tokens')) throw { code: 'forbidden' }
-      if (path === '/api/prohibitorum/groups') return { items: ALL_GROUPS, nextCursor: '' }
-      if (path.endsWith('/groups')) return { items: GROUPS_FOR_ACCOUNT, nextCursor: '' }
       return ACCOUNT
     })
     const w = mountView(); await flushPromises()

@@ -2,10 +2,9 @@
 /**
  * LocaleSwitcher — switches the global app locale.
  *
- * Built on the vendored shadcn-vue `Select` (the project's standard value-picker,
- * as on AppAccessCard): a real button trigger with a full clickable region and a
- * chevron affordance, and a PORTALED popup that escapes the sidebar's overflow
- * and matches the app's other dropdowns — instead of an `appearance-none` native
+ * Built on the vendored shadcn-vue `Select`: a real button trigger with a full
+ * clickable region and a chevron affordance, plus a PORTALED popup that escapes
+ * the sidebar's overflow and matches the app's other dropdowns — instead of an
  * <select> (no chevron, OS-native popup). Locale-count agnostic: every locale
  * registered on the i18n instance is listed, so `zh` (and any others) appear
  * automatically once their strings are authored.

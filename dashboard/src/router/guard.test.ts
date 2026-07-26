@@ -142,6 +142,17 @@ describe('router guard (maintenance mode)', () => {
 
 import realRouter from './index'
 
+describe('obsolete global group routes', () => {
+  it.each([
+    ['/admin/groups', 'admin-groups'],
+    ['/admin/groups/10', 'admin-group-detail'],
+  ] as const)('%s does not resolve to a named global group route or redirect', (path, groupRouteName) => {
+    const resolved = realRouter.resolve(path)
+    expect(resolved.name).not.toBe(groupRouteName)
+    expect(resolved.matched.some((route) => route.path.startsWith('/admin/groups'))).toBe(false)
+  })
+})
+
 describe('3c admin routes require admin', () => {
   it.each([
     '/admin/identity-providers',

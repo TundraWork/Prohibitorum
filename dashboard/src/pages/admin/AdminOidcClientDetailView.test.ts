@@ -11,7 +11,18 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => ({ p
 import AdminOidcClientDetailView from './AdminOidcClientDetailView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
-const mountView = () => mount(AdminOidcClientDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
+const integrationStubs = {
+  RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' },
+  AppPolicyWorkspace: {
+    props: ['kind', 'appId', 'mode'],
+    template: '<section data-test="app-policy-workspace" :data-kind="kind" :data-app-id="appId" :data-mode="mode"></section>',
+  },
+  AppManagerCard: {
+    props: ['kind', 'appId'],
+    template: '<section data-test="app-manager-card" :data-kind="kind" :data-app-id="appId"></section>',
+  },
+}
+const mountView = () => mount(AdminOidcClientDetailView, { global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body })
 const CLIENT = { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid', 'profile'], tokenEndpointAuthMethod: 'client_secret_basic', requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) {
   const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label))
@@ -106,5 +117,25 @@ describe('AdminOidcClientDetailView', () => {
     clickConfirm(en.admin.oidc.delete); await flushPromises()
     expect(push).not.toHaveBeenCalled()
     expect(w.text()).toContain(en.errors.codes.client_not_found)
+  })
+  it('keeps OIDC configuration while embedding the admin policy workspace and separate manager card', async () => {
+    get.mockResolvedValue(CLIENT)
+    const w = mountView(); await flushPromises()
+
+    expect(w.find('[data-test="oidc-client-id"]').text()).toBe('web')
+    expect(w.find('input[name="displayName"]').exists()).toBe(true)
+
+    const workspace = w.get('[data-test="app-policy-workspace"]')
+    expect(workspace.attributes('data-kind')).toBe('oidc')
+    expect(workspace.attributes('data-app-id')).toBe('web')
+    expect(workspace.attributes('data-mode')).toBe('admin')
+
+    const managerCard = w.get('[data-test="app-manager-card"]')
+    expect(managerCard.attributes('data-kind')).toBe('oidc')
+    expect(managerCard.attributes('data-app-id')).toBe('web')
+
+    const configCard = w.findAll('[data-slot="card"]').find((card) => card.find('[data-test="save"]').exists())
+    expect(configCard).toBeTruthy()
+    expect(configCard!.find('[data-test="app-manager-card"]').exists()).toBe(false)
   })
 })

@@ -11,7 +11,18 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => ({ p
 import AdminSamlProviderDetailView from './AdminSamlProviderDetailView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
-const mountView = () => mount(AdminSamlProviderDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
+const integrationStubs = {
+  RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' },
+  AppPolicyWorkspace: {
+    props: ['kind', 'appId', 'mode'],
+    template: '<section data-test="app-policy-workspace" :data-kind="kind" :data-app-id="appId" :data-mode="mode"></section>',
+  },
+  AppManagerCard: {
+    props: ['kind', 'appId'],
+    template: '<section data-test="app-manager-card" :data-kind="kind" :data-app-id="appId"></section>',
+  },
+}
+const mountView = () => mount(AdminSamlProviderDetailView, { global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body })
 const SP = { id: 5, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', attributeMap: [{ name: 'USERNAME', name_format: 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', source: 'username', multi: false }], requireSignedAuthnRequest: false, allowIdpInitiated: true, disabled: false, sessionLifetimeSecs: 3600, acs: [{ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://sp/acs', index: 0, isDefault: true }], keys: [{ use: 'signing', notAfter: '2027-01-01T00:00:00Z' }], createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) { const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label)); b[b.length - 1]!.click() }
 beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset() })
@@ -94,5 +105,25 @@ describe('AdminSamlProviderDetailView', () => {
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5', expect.objectContaining({
       attributeMap: [],
     }))
+  })
+  it('keeps SAML configuration while embedding the admin policy workspace and separate manager card', async () => {
+    get.mockResolvedValue(SP)
+    const w = mountView(); await flushPromises()
+
+    expect(w.text()).toContain('https://sp/meta')
+    expect(w.find('input[name="displayName"]').exists()).toBe(true)
+
+    const workspace = w.get('[data-test="app-policy-workspace"]')
+    expect(workspace.attributes('data-kind')).toBe('saml')
+    expect(workspace.attributes('data-app-id')).toBe('5')
+    expect(workspace.attributes('data-mode')).toBe('admin')
+
+    const managerCard = w.get('[data-test="app-manager-card"]')
+    expect(managerCard.attributes('data-kind')).toBe('saml')
+    expect(managerCard.attributes('data-app-id')).toBe('5')
+
+    const configCard = w.findAll('[data-slot="card"]').find((card) => card.find('[data-test="save"]').exists())
+    expect(configCard).toBeTruthy()
+    expect(configCard!.find('[data-test="app-manager-card"]').exists()).toBe(false)
   })
 })

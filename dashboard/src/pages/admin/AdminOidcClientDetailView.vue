@@ -28,7 +28,8 @@ import SettingRow from '@/components/custom/SettingRow.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
-import AppAccessCard from '@/components/custom/AppAccessCard.vue'
+import AppManagerCard from '@/components/custom/AppManagerCard.vue'
+import AppPolicyWorkspace from '@/components/custom/AppPolicyWorkspace.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
@@ -140,7 +141,7 @@ async function destroy(): Promise<void> {
 onMounted(load)
 </script>
 <template>
-  <div class="flex max-w-2xl flex-col gap-6">
+  <div class="flex max-w-4xl flex-col gap-6">
     <BackLink to="/admin/oidc-applications" :label="t('admin.oidc.back')" />
     <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.oidc.notFound') }}</p>
@@ -200,7 +201,8 @@ onMounted(load)
         @changed="load"
       />
 
-      <AppAccessCard kind="oidc" :app-id="clientId" />
+      <AppManagerCard kind="oidc" :app-id="clientId" />
+      <AppPolicyWorkspace kind="oidc" :app-id="clientId" :display-name="client.displayName" mode="admin" />
 
       <!-- Danger zone (kept LAST — destructive actions belong at the bottom). -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">

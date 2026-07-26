@@ -77,7 +77,7 @@ describe('AppSidebar', () => {
     expect(activeEls.length).toBe(1)
   })
 
-  it('renders the admin group only for admins', async () => {
+  it('renders strict-admin navigation without obsolete global group links', async () => {
     const auth = useAuthStore()
     auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'admin' }
     const router = makeRouter(); router.push('/'); await router.isReady()
@@ -85,7 +85,7 @@ describe('AppSidebar', () => {
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
     expect(links).toContain('/admin/accounts')
     expect(links).toContain('/admin/invitations')
-    expect(links).toContain('/admin/groups')
+    expect(links).not.toContain('/admin/groups')
     expect(links).toContain('/admin/oidc-applications')
     expect(links).toContain('/manage/applications')
     expect(links).toContain('/admin/saml-applications')
@@ -101,15 +101,14 @@ describe('AppSidebar', () => {
     expect(links).not.toContain('/admin/accounts')
   })
 
-  it('shows managed applications without global admin navigation to app managers', async () => {
+  it('shows only managed-application management navigation to app managers', async () => {
     const auth = useAuthStore()
     auth.me = { id: 3, username: 'manager', displayName: 'App Manager', role: 'app_manager' }
     const router = makeRouter(); router.push('/manage/applications'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
-    expect(links).toContain('/manage/applications')
-    expect(links).not.toContain('/admin/accounts')
-    expect(links).not.toContain('/admin/oidc-applications')
+    const managementLinks = links.filter((href) => href?.startsWith('/manage/') || href?.startsWith('/admin/'))
+    expect(managementLinks).toEqual(['/manage/applications'])
   })
 
   it('renders the language switcher and theme toggle as standalone footer controls', async () => {

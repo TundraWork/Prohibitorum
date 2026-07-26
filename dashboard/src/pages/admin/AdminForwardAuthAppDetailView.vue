@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
  * AdminForwardAuthAppDetailView (/admin/forward-auth-apps/:clientId) —
- * edit display-name + host, show the host-substituted Traefik snippet, reuse
- * the OIDC AppAccessCard for RBAC, and a danger zone (disable/enable + delete).
- * No rotate-secret — forward-auth clients are public.
+ * edit display-name + host, show the host-substituted Traefik snippet, assign
+ * application managers, manage its access policy, and use a danger zone
+ * (disable/enable + delete). No rotate-secret — forward-auth clients are public.
  */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -27,7 +27,8 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import CodeBlock from '@/components/custom/CodeBlock.vue'
-import AppAccessCard from '@/components/custom/AppAccessCard.vue'
+import AppManagerCard from '@/components/custom/AppManagerCard.vue'
+import AppPolicyWorkspace from '@/components/custom/AppPolicyWorkspace.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import ScopeVocabularyEditor, { type ScopeEntry } from '@/components/custom/ScopeVocabularyEditor.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
@@ -125,7 +126,7 @@ async function destroy(): Promise<void> {
 onMounted(load)
 </script>
 <template>
-  <div class="flex max-w-2xl flex-col gap-6">
+  <div class="flex max-w-4xl flex-col gap-6">
     <BackLink to="/admin/forward-auth-apps" :label="t('admin.forwardAuth.back')" />
     <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.forwardAuth.notFound') }}</p>
@@ -190,7 +191,8 @@ onMounted(load)
         @changed="load"
       />
 
-      <AppAccessCard kind="oidc" :app-id="clientId" />
+      <AppManagerCard kind="forward_auth" :app-id="clientId" />
+      <AppPolicyWorkspace kind="forward_auth" :app-id="clientId" :display-name="app.displayName" mode="admin" />
 
       <!-- Danger zone (kept LAST). No rotate-secret — FA clients are public. -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">

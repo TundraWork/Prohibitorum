@@ -29,7 +29,8 @@ import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import BackLink from '@/components/custom/BackLink.vue'
 import AttributeMapEditor, { type AttributeMapEntry } from '@/components/custom/AttributeMapEditor.vue'
-import AppAccessCard from '@/components/custom/AppAccessCard.vue'
+import AppManagerCard from '@/components/custom/AppManagerCard.vue'
+import AppPolicyWorkspace from '@/components/custom/AppPolicyWorkspace.vue'
 import EntityIconUpload from '@/components/custom/EntityIconUpload.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
@@ -159,7 +160,7 @@ function bindingLabel(b: string): string {
 onMounted(load)
 </script>
 <template>
-  <div class="flex max-w-2xl flex-col gap-6">
+  <div class="flex max-w-4xl flex-col gap-6">
     <BackLink to="/admin/saml-applications" :label="t('admin.saml.back')" />
     <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <Alert v-if="localError" variant="destructive" role="alert" aria-live="polite"><AlertDescription>{{ localError }}</AlertDescription></Alert>
@@ -257,7 +258,8 @@ onMounted(load)
         @changed="load"
       />
 
-      <AppAccessCard kind="saml" :app-id="String(id)" />
+      <AppManagerCard kind="saml" :app-id="String(id)" />
+      <AppPolicyWorkspace kind="saml" :app-id="String(id)" :display-name="sp.displayName" mode="admin" />
 
       <!-- Danger zone card (kept LAST — destructive actions belong at the bottom). -->
       <Card class="border-destructive/30 bg-destructive/[0.02]">
