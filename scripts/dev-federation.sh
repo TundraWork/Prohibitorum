@@ -185,7 +185,7 @@ setup_instance() {
 		exit 1
 	fi
 }
-setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL --app-policy-demo
+setup_instance "$UP_ORIGIN" "$UP_DB" prohibitorum_upstream upstream UP_ENROLL_URL
 setup_instance "$DOWN_ORIGIN" "$DOWN_DB" prohibitorum_downstream downstream DOWN_ENROLL_URL
 
 # --- 5. wire federation ----------------------------------------------------
@@ -194,6 +194,10 @@ PROHIBITORUM_PUBLIC_ORIGIN="$DOWN_ORIGIN" PROHIBITORUM_DATABASE_URL="$DOWN_DB" \
 	"$BIN" dev-federation \
 	--upstream-db "$UP_DB" --downstream-db "$DOWN_DB" \
 	--upstream-origin "$UP_ORIGIN" --downstream-origin "$DOWN_ORIGIN"
+
+echo "==> [upstream] dev-seed app policy showcase"
+PROHIBITORUM_PUBLIC_ORIGIN="$UP_ORIGIN" PROHIBITORUM_DATABASE_URL="$UP_DB" \
+	"$BIN" dev-seed --app-policy-demo
 
 # --- 6. generate nginx vhost (single file, both blocks) --------------------
 NGINX_CONF=".dev/nginx/prohibitorum-federation.conf"

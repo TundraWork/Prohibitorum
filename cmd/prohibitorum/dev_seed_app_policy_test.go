@@ -93,11 +93,11 @@ func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 	q := db.New(pool)
 
 	providerConfig, err := json.Marshal(federationoidc.Config{
-		IssuerURL:             "https://accounts.google.com",
-		ClientID:              "dev-google",
+		IssuerURL:             "https://downstream.example.test",
+		ClientID:              "upstream-policy-demo-federation",
 		Scopes:                []string{"openid", "email", "profile"},
-		AllowedDomains:        []string{"example.com"},
-		UsernameClaim:         "email",
+		AllowedDomains:        []string{},
+		UsernameClaim:         "preferred_username",
 		DisplayNameClaim:      "name",
 		EmailClaim:            "email",
 		PictureClaim:          "picture",
@@ -107,14 +107,14 @@ func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 		t.Fatal(err)
 	}
 	if _, err := q.InsertUpstreamIDP(ctx, db.InsertUpstreamIDPParams{
-		Slug:           "google",
-		DisplayName:    "Google",
+		Slug:           "downstream-policy-demo",
+		DisplayName:    "Downstream policy demo",
 		Protocol:       federationoidc.Protocol,
 		Mode:           "auto_provision",
 		SecretStatus:   "unconfigured",
 		ProviderConfig: providerConfig,
 	}); err != nil {
-		t.Fatalf("insert google provider: %v", err)
+		t.Fatalf("insert downstream policy demo provider: %v", err)
 	}
 
 	clientParams, _, err := protocoloidc.BuildClientParams(protocoloidc.ClientOptions{
@@ -242,7 +242,7 @@ func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 	}
 
 	expectedExposure := map[string]bool{
-		"demo-google-connected":          true,
+		"demo-downstream-connected":      true,
 		"demo-oidc-connected":            true,
 		"demo-passkey-login":             true,
 		"demo-password-totp-login":       true,
@@ -257,7 +257,7 @@ func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 	if len(groups) != len(expectedExposure)+1 {
 		t.Fatalf("group count = %d, want %d", len(groups), len(expectedExposure)+1)
 	}
-	knownProviders := map[string]struct{}{"google": {}}
+	knownProviders := map[string]struct{}{"downstream-policy-demo": {}}
 	for slug, exposed := range expectedExposure {
 		group, ok := groups[slug]
 		if !ok {
@@ -282,12 +282,12 @@ func TestSeedAppPolicyDemoCreatesCompleteShowcase(t *testing.T) {
 			t.Errorf("facts for %s = %+v, want %+v", username, got, want)
 		}
 	}
-	assertFacts("alice", db.GetAccountAccessFactsRow{HasPasskey: true, HasFederation: true, ConfirmedProviderSlugs: []string{"google"}, ConfirmedProtocols: []string{"oidc"}, HasAnyAvatar: true, HasUserAvatar: true})
+	assertFacts("alice", db.GetAccountAccessFactsRow{HasPasskey: true, HasFederation: true, ConfirmedProviderSlugs: []string{"downstream-policy-demo"}, ConfirmedProtocols: []string{"oidc"}, HasAnyAvatar: true, HasUserAvatar: true})
 	assertFacts("bob", db.GetAccountAccessFactsRow{HasPasswordTotp: true, HasAnyAvatar: true})
 	assertFacts("carol", db.GetAccountAccessFactsRow{})
 
 	matrix := map[string]map[string]bool{
-		"demo-google-connected":          {"alice": true, "bob": false, "carol": false},
+		"demo-downstream-connected":      {"alice": true, "bob": false, "carol": false},
 		"demo-oidc-connected":            {"alice": true, "bob": false, "carol": false},
 		"demo-passkey-login":             {"alice": true, "bob": false, "carol": false},
 		"demo-password-totp-login":       {"alice": false, "bob": true, "carol": false},
@@ -384,7 +384,7 @@ func appPolicyDemoFixtureCounts(t *testing.T, pool *pgxpool.Pool) appPolicyDemoC
 		{"credentials", &counts.credentials, `SELECT count(*) FROM webauthn_credential w JOIN account a ON a.id = w.account_id WHERE a.username = 'alice'`},
 		{"passwords", &counts.passwords, `SELECT count(*) FROM password_credential p JOIN account a ON a.id = p.account_id WHERE a.username = 'bob'`},
 		{"totps", &counts.totps, `SELECT count(*) FROM totp_credential t JOIN account a ON a.id = t.account_id WHERE a.username = 'bob'`},
-		{"identities", &counts.identities, `SELECT count(*) FROM account_identity ai JOIN account a ON a.id = ai.account_id JOIN upstream_idp i ON i.id = ai.upstream_idp_id WHERE a.username = 'alice' AND i.slug = 'google'`},
+		{"identities", &counts.identities, `SELECT count(*) FROM account_identity ai JOIN account a ON a.id = ai.account_id JOIN upstream_idp i ON i.id = ai.upstream_idp_id WHERE a.username = 'alice' AND i.slug = 'downstream-policy-demo'`},
 		{"groups", &counts.groups, `SELECT count(*) FROM user_group WHERE oidc_client_id = $1 AND slug LIKE 'demo-%'`},
 		{"managers", &counts.managers, `SELECT count(*) FROM oidc_client_manager WHERE client_id = $1`},
 		{"decisions", &counts.decisions, `SELECT count(*) FROM group_manual_decision d JOIN user_group g ON g.id = d.group_id WHERE g.oidc_client_id = $1 AND g.slug = $2`},

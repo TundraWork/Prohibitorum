@@ -37,12 +37,14 @@ import (
 )
 
 const (
-	fedClientID    = "downstream-federation"
-	testRPID       = "test-rp"
-	testRPRedirect = "http://127.0.0.1:9876/callback"
-	slugAuto       = "upstream"
-	slugInvite     = "upstream-invite"
-	slugLink       = "upstream-link"
+	fedClientID                = "downstream-federation"
+	policyDemoFedClientID      = "upstream-policy-demo-federation"
+	policyDemoUpstreamIDPSlug  = "downstream-policy-demo"
+	testRPID                   = "test-rp"
+	testRPRedirect             = "http://127.0.0.1:9876/callback"
+	slugAuto                   = "upstream"
+	slugInvite                 = "upstream-invite"
+	slugLink                   = "upstream-link"
 )
 
 var _devFederationCmd *cobra.Command
@@ -108,9 +110,11 @@ func runDevFederation(upstreamDB, downstreamDB, upstreamOrigin, downstreamOrigin
 	ensureSigningKey(ctx, downPool, downQ, dek, keyVer, grace, "downstream")
 
 	fedSecret := ensureFedClient(ctx, upQ, downstreamOrigin)
-	upsertUpstreamIDP(ctx, downQ, slugAuto, "Upstream", "auto_provision", upstreamOrigin, fedSecret, dek, keyVer)
-	upsertUpstreamIDP(ctx, downQ, slugInvite, "Upstream (invite)", "invite_only", upstreamOrigin, fedSecret, dek, keyVer)
-	upsertUpstreamIDP(ctx, downQ, slugLink, "Upstream (link)", "link_only", upstreamOrigin, fedSecret, dek, keyVer)
+	upsertUpstreamIDP(ctx, downQ, slugAuto, "Upstream", "auto_provision", upstreamOrigin, fedClientID, fedSecret, dek, keyVer)
+	upsertUpstreamIDP(ctx, downQ, slugInvite, "Upstream (invite)", "invite_only", upstreamOrigin, fedClientID, fedSecret, dek, keyVer)
+	upsertUpstreamIDP(ctx, downQ, slugLink, "Upstream (link)", "link_only", upstreamOrigin, fedClientID, fedSecret, dek, keyVer)
+	policyDemoSecret := ensurePolicyDemoFedClient(ctx, downQ, upstreamOrigin)
+	upsertUpstreamIDP(ctx, upQ, policyDemoUpstreamIDPSlug, "Downstream policy demo", "auto_provision", downstreamOrigin, policyDemoFedClientID, policyDemoSecret, dek, keyVer)
 
 	inviteSlug := slugInvite
 	inviteToken, inviteExp, err := enrollment.IssueEnrollment(
@@ -146,51 +150,51 @@ func ensureSigningKey(ctx context.Context, pool *pgxpool.Pool, q *db.Queries, de
 }
 
 func fedRedirectURIs(downstreamOrigin string) []string {
-	b := strings.TrimRight(downstreamOrigin, "/")
-	return []string{
-		b + "/api/prohibitorum/auth/federation/" + slugAuto + "/callback",
-		b + "/api/prohibitorum/auth/federation/" + slugInvite + "/callback",
-		b + "/api/prohibitorum/auth/federation/" + slugLink + "/callback",
-		b + "/api/prohibitorum/me/identities/link/" + slugAuto + "/callback",
-		b + "/api/prohibitorum/me/identities/link/" + slugInvite + "/callback",
-		b + "/api/prohibitorum/me/identities/link/" + slugLink + "/callback",
-	}
+	return federationRedirectURIs(downstreamOrigin, []string{slugAuto, slugInvite, slugLink})
 }
 
-func ensureFedClient(ctx context.Context, q *db.Queries, downstreamOrigin string) string {
-	redirects := fedRedirectURIs(downstreamOrigin)
-	postLogout := []string{strings.TrimRight(downstreamOrigin, "/") + "/"}
+func ensureFederationClient(ctx context.Context, q *db.Queries, clientID, displayName, redirectOrigin string, slugs []string) string {
+	redirects := federationRedirectURIs(redirectOrigin, slugs)
+	postLogout := []string{strings.TrimRight(redirectOrigin, "/") + "/"}
 	scopes := []string{"openid", "profile", "email"}
-	if _, err := q.GetOIDCClientAny(ctx, fedClientID); err == nil {
-		if _, err := q.UpdateOIDCClient(ctx, db.UpdateOIDCClientParams{
-			ClientID: fedClientID, DisplayName: "Downstream federation",
-			RedirectUris: redirects, PostLogoutRedirectUris: postLogout,
-			AllowedScopes: scopes, RequireConsent: true, Disabled: false,
-		}); err != nil {
+	if _, err := q.GetOIDCClientAny(ctx, clientID); err == nil {
+		if _, err := q.UpdateOIDCClient(ctx, db.UpdateOIDCClientParams{ClientID: clientID, DisplayName: displayName, RedirectUris: redirects, PostLogoutRedirectUris: postLogout, AllowedScopes: scopes, RequireConsent: true, Disabled: false}); err != nil {
 			log.Fatalf("dev-federation: update fed client: %v", err)
 		}
-		secret, err := oidc.RotateClientSecret(ctx, q, fedClientID)
+		secret, err := oidc.RotateClientSecret(ctx, q, clientID)
 		if err != nil {
 			log.Fatalf("dev-federation: rotate fed client secret: %v", err)
 		}
-		fmt.Printf("    [upstream] fed client %q updated + secret rotated\n", fedClientID)
+		fmt.Printf("    federation client %q updated + secret rotated\n", clientID)
 		return secret
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		log.Fatalf("dev-federation: check fed client: %v", err)
 	}
-	params, secret, err := oidc.BuildClientParams(oidc.ClientOptions{
-		ClientID: fedClientID, DisplayName: "Downstream federation",
-		RedirectURIs: redirects, PostLogoutRedirectURIs: postLogout,
-		Scopes: scopes, RequireConsent: true,
-	})
+	params, secret, err := oidc.BuildClientParams(oidc.ClientOptions{ClientID: clientID, DisplayName: displayName, RedirectURIs: redirects, PostLogoutRedirectURIs: postLogout, Scopes: scopes, RequireConsent: true})
 	if err != nil {
 		log.Fatalf("dev-federation: build fed client: %v", err)
 	}
 	if _, err := q.InsertOIDCClient(ctx, params); err != nil {
 		log.Fatalf("dev-federation: insert fed client: %v", err)
 	}
-	fmt.Printf("    [upstream] fed client %q created\n", fedClientID)
+	fmt.Printf("    federation client %q created\n", clientID)
 	return secret
+}
+
+func federationRedirectURIs(origin string, slugs []string) []string {
+	b := strings.TrimRight(origin, "/")
+	redirects := make([]string, 0, len(slugs)*2)
+	for _, slug := range slugs {
+		redirects = append(redirects, b+"/api/prohibitorum/auth/federation/"+slug+"/callback", b+"/api/prohibitorum/me/identities/link/"+slug+"/callback")
+	}
+	return redirects
+}
+func ensureFedClient(ctx context.Context, q *db.Queries, downstreamOrigin string) string {
+	return ensureFederationClient(ctx, q, fedClientID, "Downstream federation", downstreamOrigin, []string{slugAuto, slugInvite, slugLink})
+}
+
+func ensurePolicyDemoFedClient(ctx context.Context, q *db.Queries, upstreamOrigin string) string {
+	return ensureFederationClient(ctx, q, policyDemoFedClientID, "Upstream policy demo federation", upstreamOrigin, []string{policyDemoUpstreamIDPSlug})
 }
 
 func ensureTestRP(ctx context.Context, q *db.Queries, label string) string {
@@ -227,9 +231,9 @@ func ensureTestRP(ctx context.Context, q *db.Queries, label string) string {
 	return secret
 }
 
-func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mode, issuer, plaintext string, dek []byte, keyVer int32) {
+func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mode, issuer, clientID, plaintext string, dek []byte, keyVer int32) {
 	configRaw, err := json.Marshal(federationoidc.Config{
-		IssuerURL: issuer, ClientID: fedClientID, Scopes: []string{"openid", "email", "profile"},
+		IssuerURL: issuer, ClientID: clientID, Scopes: []string{"openid", "email", "profile"},
 		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
 		EmailClaim: "email", PictureClaim: "picture", AllowPrivateNetwork: true,
 	})

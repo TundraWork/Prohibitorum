@@ -18,6 +18,7 @@ import (
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/db"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 )
 
 const (
@@ -48,7 +49,7 @@ func appPolicyDemoGroups() []appPolicyDemoGroup {
 	not := func(child appaccess.Condition) appaccess.Condition {
 		return appaccess.Condition{Op: "not", Child: &child}
 	}
-	providerGoogle := condition("connection.provider", appaccess.Condition{Provider: "google"})
+	providerDownstream := condition("connection.provider", appaccess.Condition{Provider: "downstream-policy-demo"})
 	protocolOIDC := condition("connection.protocol", appaccess.Condition{Protocol: "oidc"})
 	passkey := condition("login_method", appaccess.Condition{Method: "passkey"})
 	passwordTOTP := condition("login_method", appaccess.Condition{Method: "password_totp"})
@@ -60,17 +61,17 @@ func appPolicyDemoGroups() []appPolicyDemoGroup {
 	}
 
 	return []appPolicyDemoGroup{
-		{slug: "demo-google-connected", displayName: "Google connected", description: "Accounts with a confirmed Google connection.", exposed: true, rule: rule(providerGoogle)},
+		{slug: "demo-downstream-connected", displayName: "Downstream connected", description: "Accounts with a confirmed downstream connection.", exposed: true, rule: rule(providerDownstream)},
 		{slug: "demo-oidc-connected", displayName: "OIDC connected", description: "Accounts with a confirmed OIDC connection.", exposed: true, rule: rule(protocolOIDC)},
 		{slug: "demo-passkey-login", displayName: "Passkey login", description: "Accounts with a passkey credential.", exposed: true, rule: rule(passkey)},
 		{slug: "demo-password-totp-login", displayName: "Password and TOTP login", description: "Accounts with password and confirmed TOTP credentials.", exposed: true, rule: rule(passwordTOTP)},
 		{slug: "demo-federation-login", displayName: "Federation login", description: "Accounts eligible for federation login.", exposed: true, rule: rule(federation)},
 		{slug: "demo-any-avatar", displayName: "Any avatar", description: "Accounts with an avatar from any source.", exposed: true, rule: rule(anyAvatar)},
 		{slug: "demo-user-avatar", displayName: "User avatar", description: "Accounts with a user-uploaded avatar.", exposed: true, rule: rule(userAvatar)},
-		{slug: "demo-all-strong-profile", displayName: "All strong profile facts", description: "Google-connected accounts with a passkey and user-uploaded avatar.", exposed: true, rule: rule(all(providerGoogle, passkey, userAvatar))},
+		{slug: "demo-all-strong-profile", displayName: "All strong profile facts", description: "Downstream-connected accounts with a passkey and user-uploaded avatar.", exposed: true, rule: rule(all(providerDownstream, passkey, userAvatar))},
 		{slug: "demo-any-strong-login", displayName: "Any strong login", description: "Accounts with a passkey, password plus TOTP, or federation login.", exposed: true, rule: rule(any(passkey, passwordTOTP, federation))},
 		{slug: "demo-no-user-avatar", displayName: "No user avatar", description: "Accounts without a user-uploaded avatar.", exposed: false, rule: rule(not(userAvatar))},
-		{slug: "demo-trusted-federated-profile", displayName: "Trusted federated profile", description: "Google OIDC federation accounts with a user-uploaded avatar.", exposed: true, rule: rule(all(providerGoogle, protocolOIDC, federation, userAvatar))},
+		{slug: "demo-trusted-federated-profile", displayName: "Trusted federated profile", description: "Downstream OIDC federation accounts with a user-uploaded avatar.", exposed: true, rule: rule(all(providerDownstream, protocolOIDC, federation, userAvatar))},
 	}
 }
 
@@ -105,15 +106,15 @@ func seedAppPolicyDemo(ctx context.Context, pool *pgxpool.Pool, cfg configx.Conf
 		}
 		accounts[username] = account
 	}
-	google, err := q.GetUpstreamIDPBySlugAny(ctx, "google")
+	provider, err := q.GetUpstreamIDPBySlugAny(ctx, policyDemoUpstreamIDPSlug)
 	if err != nil {
-		return appPolicyDemoPrerequisiteError("google", err)
+		return appPolicyDemoPrerequisiteError(policyDemoUpstreamIDPSlug, err)
 	}
-	if google.Disabled {
-		return errors.New("app-policy demo prerequisite \"google\" must be enabled")
+	if provider.Disabled {
+		return fmt.Errorf("app-policy demo prerequisite %q must be enabled", policyDemoUpstreamIDPSlug)
 	}
-	if google.Protocol != "oidc" {
-		return fmt.Errorf("app-policy demo prerequisite \"google\" protocol = %q, want oidc", google.Protocol)
+	if provider.Protocol != "oidc" {
+		return fmt.Errorf("app-policy demo prerequisite %q protocol = %q, want oidc", policyDemoUpstreamIDPSlug, provider.Protocol)
 	}
 	existingGroups, err := q.ListOIDCAppGroups(ctx, appPolicyDemoClientID)
 	if err != nil {
@@ -124,10 +125,10 @@ func seedAppPolicyDemo(ctx context.Context, pool *pgxpool.Pool, cfg configx.Conf
 		groupsBySlug[group.Slug] = group
 	}
 
-	if err := seedAppPolicyDemoAlice(ctx, q, accounts["alice"], google); err != nil {
+	if err := seedAppPolicyDemoAlice(ctx, q, accounts["alice"], provider); err != nil {
 		return err
 	}
-	if err := seedAppPolicyDemoBob(ctx, q, accounts["bob"], google, cfg); err != nil {
+	if err := seedAppPolicyDemoBob(ctx, q, accounts["bob"], provider, cfg); err != nil {
 		return err
 	}
 	if err := seedAppPolicyDemoApp(ctx, q, accounts["alice"], accounts["bob"], accounts["carol"], groupsBySlug); err != nil {
@@ -145,7 +146,7 @@ func appPolicyDemoPrerequisiteError(identifier string, err error) error {
 	return fmt.Errorf("app-policy demo load prerequisite %q: %w", identifier, err)
 }
 
-func seedAppPolicyDemoAlice(ctx context.Context, q *db.Queries, alice db.Account, google db.UpstreamIdp) error {
+func seedAppPolicyDemoAlice(ctx context.Context, q *db.Queries, alice db.Account, provider db.UpstreamIdp) error {
 	if _, err := q.UpdateAccount(ctx, db.UpdateAccountParams{
 		ID:            alice.ID,
 		DisplayName:   alice.DisplayName,
@@ -188,29 +189,26 @@ func seedAppPolicyDemoAlice(ctx context.Context, q *db.Queries, alice db.Account
 	if err != nil {
 		return fmt.Errorf("app-policy demo list alice identities: %w", err)
 	}
-	var googleIdentityID int64
+	var identityID int64
 	for _, identity := range identities {
-		if identity.UpstreamIdpID == google.ID {
-			googleIdentityID = identity.ID
+		if identity.UpstreamIdpID == provider.ID {
+			identityID = identity.ID
 			break
 		}
 	}
-	if googleIdentityID == 0 {
-		identity, err := q.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
-			AccountID:     alice.ID,
-			UpstreamIdpID: google.ID,
-			UpstreamIss:   "https://accounts.google.com",
-			UpstreamSub:   "dev-seed-app-policy-alice",
-			UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true},
-			UpstreamData:  []byte("{}"),
-		})
-		if err != nil {
-			return fmt.Errorf("app-policy demo insert alice Google identity: %w", err)
+	if identityID == 0 {
+		var providerConfig federationoidc.Config
+		if err := json.Unmarshal(provider.ProviderConfig, &providerConfig); err != nil {
+			return fmt.Errorf("app-policy demo parse provider %q config: %w", provider.Slug, err)
 		}
-		googleIdentityID = identity.ID
+		identity, err := q.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{AccountID: alice.ID, UpstreamIdpID: provider.ID, UpstreamIss: providerConfig.IssuerURL, UpstreamSub: "dev-seed-app-policy-alice", UpstreamEmail: pgtype.Text{String: "alice@example.com", Valid: true}, UpstreamData: []byte("{}")})
+		if err != nil {
+			return fmt.Errorf("app-policy demo insert alice identity: %w", err)
+		}
+		identityID = identity.ID
 	}
-	if err := q.ConfirmAccountIdentity(ctx, googleIdentityID); err != nil {
-		return fmt.Errorf("app-policy demo confirm alice Google identity: %w", err)
+	if err := q.ConfirmAccountIdentity(ctx, identityID); err != nil {
+		return fmt.Errorf("app-policy demo confirm alice identity: %w", err)
 	}
 	if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
 		AccountID:   alice.ID,
@@ -224,7 +222,7 @@ func seedAppPolicyDemoAlice(ctx context.Context, q *db.Queries, alice db.Account
 	return nil
 }
 
-func seedAppPolicyDemoBob(ctx context.Context, q *db.Queries, bob db.Account, google db.UpstreamIdp, cfg configx.Config) error {
+func seedAppPolicyDemoBob(ctx context.Context, q *db.Queries, bob db.Account, provider db.UpstreamIdp, cfg configx.Config) error {
 	if _, err := q.GetPasswordCredential(ctx, bob.ID); errors.Is(err, pgx.ErrNoRows) {
 		secret, err := appPolicyDemoRandomBytes(32)
 		if err != nil {
@@ -280,16 +278,16 @@ func seedAppPolicyDemoBob(ctx context.Context, q *db.Queries, bob db.Account, go
 	if err := q.ConfirmTOTPCredential(ctx, bob.ID); err != nil {
 		return fmt.Errorf("app-policy demo confirm bob TOTP credential: %w", err)
 	}
-	googleID := google.ID
+	providerID := provider.ID
 	if err := q.UpsertAvatarSource(ctx, db.UpsertAvatarSourceParams{
-		AccountID:   bob.ID,
-		Source:      "upstream:google",
-		Bytes:       appPolicyDemoPNG,
+		AccountID: bob.ID,
+		Source: "upstream:" + provider.Slug,
+		Bytes: appPolicyDemoPNG,
 		ContentType: pgtype.Text{String: "image/png", Valid: true},
-		Etag:        appPolicyDemoETag(),
-		IdpID:       &googleID,
+		Etag: appPolicyDemoETag(),
+		IdpID: &providerID,
 	}); err != nil {
-		return fmt.Errorf("app-policy demo upsert bob Google avatar: %w", err)
+		return fmt.Errorf("app-policy demo upsert bob provider avatar: %w", err)
 	}
 	return nil
 }
