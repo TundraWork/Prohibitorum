@@ -13,11 +13,9 @@ import (
 
 	"github.com/beevik/etree"
 	crewjam "github.com/crewjam/saml"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/db"
 )
 
 // samlSSORate caps SP-initiated SSO issuance per authenticated account and per
@@ -40,7 +38,7 @@ const (
 	// (D8). Paired under statusRequester, matching Shibboleth/ADFS/Entra.
 	statusInvalidNameIDPolicy = "urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy"
 	// statusRequestDenied is the second-level status for an authenticated user
-	// who is NOT authorized for this SP (RBAC per-app access). Paired under
+	// who is NOT authorized for this SP (live per-app policy). Paired under
 	// statusResponder — the failure is on the IdP side (a policy decision), not a
 	// malformed request — and returned only on the passive (IsPassive) terminal
 	// path; interactive denials go to the IdP's own /error page instead.
@@ -144,20 +142,17 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// (5b) Per-app access gate (RBAC). The user is authenticated and enabled; a
-	// restricted SP requires a direct or via-group grant. NO admin bypass. Placed
-	// right after the session gate (before rate-limit / replay-consume / build) so
-	// an unauthorized user neither spends rate budget nor consumes the single-use
-	// AuthnRequest ID. Fail CLOSED: a predicate error is a direct 500.
-	authzed, aerr := i.queries.IsAccountAuthorizedForSAMLSP(ctx, db.IsAccountAuthorizedForSAMLSPParams{
-		AccountID: pgtype.Int4{Int32: sess.Data.AccountID, Valid: true},
-		SpID:      sp.ID,
-	})
-	if aerr != nil {
+	// (5b) Live per-app access gate. The user is authenticated and enabled; a
+	// restricted SP requires a manual allow or matching rule group. NO admin
+	// bypass. Placed right after the session gate (before rate-limit /
+	// replay-consume / build) so an unauthorized user neither spends rate budget
+	// nor consumes the single-use AuthnRequest ID. Evaluation errors fail closed.
+	decision, accessErr := i.evaluateSAMLAccess(ctx, sess.Data.AccountID, sp.ID)
+	if accessErr != nil {
 		i.errorPage(w, r, "server_error")
 		return
 	}
-	if !authzed.Bool {
+	if !decision.Allowed {
 		acctID := sess.Data.AccountID
 		audit.RecordOrLog(ctx, i.audit, audit.Record{
 			AccountID: &acctID,
@@ -166,7 +161,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			IP:        audit.ParseIPOrNil(i.auditIP(r)),
 			UserAgent: r.UserAgent(),
 			Detail: map[string]any{
-				"reason": "app_access_denied",
+				"reason": samlAccessAuditReason(decision.Source),
 				"sp":     sp.EntityID,
 			},
 		})
@@ -182,8 +177,8 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
-			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusRequestDenied)
-			if berr != nil {
+			respXML, buildErr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusRequestDenied)
+			if buildErr != nil {
 				i.errorPage(w, r, "server_error")
 				return
 			}
@@ -363,7 +358,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// (6–9) Issue the assertion (shared with IdP-initiated + consent-resume).
-	i.issueAssertion(w, r, *sess.Account, sp, req.ACSURL, req.RequestID, req.RelayState, authTime, sess.Data.SessionID, "sso")
+	i.issueAssertion(w, r, *sess.Account, sp, req.ACSURL, req.RequestID, req.RelayState, authTime, sess.Data.SessionID, "sso", decision.ExposedGroupSlugs())
 }
 
 // ssoParseError maps a parseAuthnRequest error to a browser-navigated /error

@@ -30,7 +30,6 @@ type topLevelQueries interface {
 	ListAccounts(ctx context.Context, p db.ListAccountsParams) ([]db.ListAccountsRow, error)
 	GetUpstreamIDPBySlugAny(ctx context.Context, slug string) (db.UpstreamIdp, error)
 	ListPendingInvitations(ctx context.Context, p db.ListPendingInvitationsParams) ([]db.Enrollment, error)
-	ListGroups(ctx context.Context, p db.ListGroupsParams) ([]db.ListGroupsRow, error)
 	ListNonForwardAuthOIDCClients(ctx context.Context, p db.ListNonForwardAuthOIDCClientsParams) ([]db.ListNonForwardAuthOIDCClientsRow, error)
 	ListSAMLSPs(ctx context.Context, p db.ListSAMLSPsParams) ([]db.SamlSp, error)
 	ListAllUpstreamIDPs(ctx context.Context, p db.ListAllUpstreamIDPsParams) ([]db.UpstreamIdp, error)

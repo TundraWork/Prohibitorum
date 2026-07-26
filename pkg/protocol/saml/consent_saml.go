@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -110,20 +109,17 @@ func (i *IdP) HandleConsentResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Re-check per-app access — it may have changed since the gate. Fail closed.
-	authzed, aerr := i.queries.IsAccountAuthorizedForSAMLSP(ctx, db.IsAccountAuthorizedForSAMLSPParams{
-		AccountID: pgtype.Int4{Int32: sess.Data.AccountID, Valid: true},
-		SpID:      sp.ID,
-	})
-	if aerr != nil {
+	decision, accessErr := i.evaluateSAMLAccess(ctx, sess.Data.AccountID, sp.ID)
+	if accessErr != nil {
 		i.errorPage(w, r, "server_error")
 		return
 	}
-	if !authzed.Bool {
+	if !decision.Allowed {
 		acctID := sess.Data.AccountID
 		audit.RecordOrLog(ctx, i.audit, audit.Record{
 			AccountID: &acctID, Factor: audit.FactorSAMLSP, Event: audit.EventAccessDenied,
 			IP: audit.ParseIPOrNil(i.auditIP(r)), UserAgent: r.UserAgent(),
-			Detail: map[string]any{"reason": "app_access_denied", "sp": sp.EntityID},
+			Detail: map[string]any{"reason": samlAccessAuditReason(decision.Source), "sp": sp.EntityID},
 		})
 		http.Redirect(w, r, i.baseURL()+"/error?reason=app_access_denied&app="+url.QueryEscape(sp.DisplayName), http.StatusFound)
 		return
@@ -138,5 +134,5 @@ func (i *IdP) HandleConsentResume(w http.ResponseWriter, r *http.Request) {
 		i.errorPage(w, r, "server_error")
 		return
 	}
-	i.issueAssertion(w, r, *sess.Account, sp, ticket.ACSURL, ticket.InResponseTo, ticket.RelayState, row.AuthTime.Time, sess.Data.SessionID, "sso_consent")
+	i.issueAssertion(w, r, *sess.Account, sp, ticket.ACSURL, ticket.InResponseTo, ticket.RelayState, row.AuthTime.Time, sess.Data.SessionID, "sso_consent", decision.ExposedGroupSlugs())
 }

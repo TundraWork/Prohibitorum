@@ -8,6 +8,7 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/contract"
+	"prohibitorum/pkg/db"
 )
 
 func TestCreateSecondManualGroupConflicts(t *testing.T) {
@@ -169,7 +170,7 @@ func TestRuleExplanationIsBoundedAndSafe(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &view); err != nil {
 		t.Fatalf("decode explanation: %v", err)
 	}
-	if view.Account.ID != 42 || view.Account.Username != "alice" || !view.Explanation.Result || view.Explanation.Path != "$.condition" {
+	if view.Account.ID != 42 || view.Account.Username != "alice" || !view.Explanation.Result || view.Explanation.Path != "$" {
 		t.Fatalf("explanation view = %#v", view)
 	}
 	if got := rr.Body.String(); containsAny(got, "confirmedProviderSlugs", "confirmedProtocols", "hasPasskey", "hasFederation", "password") {

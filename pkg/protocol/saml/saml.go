@@ -1,12 +1,14 @@
 package saml
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
@@ -17,9 +19,10 @@ import (
 )
 
 var (
-	ErrUnknownSP        = errors.New("saml: unknown service provider")
-	ErrInvalidACS       = errors.New("saml: ACS URL does not match registered endpoints")
-	ErrMissingSignature = errors.New("saml: SP signature required but absent")
+	ErrUnknownSP                   = errors.New("saml: unknown service provider")
+	ErrInvalidACS                  = errors.New("saml: ACS URL does not match registered endpoints")
+	ErrMissingSignature            = errors.New("saml: SP signature required but absent")
+	ErrAccessAuthorizerUnavailable = errors.New("saml: app access authorizer unavailable")
 )
 
 // IdP is the per-server SAML Identity Provider handler. It mirrors the OIDC
@@ -37,12 +40,13 @@ type IdP struct {
 	// clientIP resolves the effective client IP for audit records. nil in unit tests,
 	// where auditIP falls back to the request peer.
 	clientIP func(*http.Request) string
+	access   appaccess.SAMLAuthorizer
 }
 
 // NewIdP constructs an IdP, building the SAML signing-key cache from queries
 // and retaining every dependency the handlers attach to. The parameter order
 // and names mirror the OIDC New constructor exactly.
-func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *session.SessionStore, auditW audit.Writer, rl *authn.RateLimiter, clientIP func(*http.Request) string) *IdP {
+func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions *session.SessionStore, auditW audit.Writer, rl *authn.RateLimiter, clientIP func(*http.Request) string, access appaccess.SAMLAuthorizer) *IdP {
 	return &IdP{
 		cfg:      cfg,
 		queries:  queries,
@@ -52,7 +56,22 @@ func NewIdP(cfg *configx.Config, queries db.Querier, kvStore kv.Store, sessions 
 		rl:       rl,
 		keys:     newSAMLKeyCache(queries, cfg.DataEncryptionKeys),
 		clientIP: clientIP,
+		access:   access,
 	}
+}
+
+func (i *IdP) evaluateSAMLAccess(ctx context.Context, accountID int32, spID int64) (appaccess.Decision, error) {
+	if i.access == nil {
+		return appaccess.Decision{}, ErrAccessAuthorizerUnavailable
+	}
+	return i.access.EvaluateSAML(ctx, accountID, spID)
+}
+
+func samlAccessAuditReason(source appaccess.DecisionSource) string {
+	if source == appaccess.SourceManualDeny {
+		return "manual_deny"
+	}
+	return "no_matching_group"
 }
 
 // auditIP returns the effective client IP for audit records: the injected resolver

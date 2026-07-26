@@ -76,8 +76,8 @@ func TestSSOInitAppAccessDenied(t *testing.T) {
 	if recs[0].Factor != audit.FactorSAMLSP || recs[0].Event != audit.EventAccessDenied {
 		t.Errorf("audit = factor %q event %q, want %q/%q", recs[0].Factor, recs[0].Event, audit.FactorSAMLSP, audit.EventAccessDenied)
 	}
-	if recs[0].Detail["reason"] != "app_access_denied" {
-		t.Errorf("audit reason = %v, want app_access_denied", recs[0].Detail["reason"])
+	if recs[0].Detail["reason"] != "manual_deny" {
+		t.Errorf("audit reason = %v, want manual_deny", recs[0].Detail["reason"])
 	}
 }
 

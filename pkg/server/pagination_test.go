@@ -63,10 +63,6 @@ type fakeListQ struct {
 	invitationRows []db.Enrollment
 	invitationCall db.ListPendingInvitationsParams
 
-	// groups
-	groupsRows []db.ListGroupsRow
-	groupsCall db.ListGroupsParams
-
 	// oidc
 	oidcRows []db.ListNonForwardAuthOIDCClientsRow
 	oidcCall db.ListNonForwardAuthOIDCClientsParams
@@ -110,11 +106,6 @@ func (f *fakeListQ) GetUpstreamIDPBySlugAny(_ context.Context, slug string) (db.
 func (f *fakeListQ) ListPendingInvitations(_ context.Context, p db.ListPendingInvitationsParams) ([]db.Enrollment, error) {
 	f.invitationCall = p
 	return f.invitationRows, nil
-}
-
-func (f *fakeListQ) ListGroups(_ context.Context, p db.ListGroupsParams) ([]db.ListGroupsRow, error) {
-	f.groupsCall = p
-	return f.groupsRows, nil
 }
 
 func (f *fakeListQ) ListNonForwardAuthOIDCClients(_ context.Context, p db.ListNonForwardAuthOIDCClientsParams) ([]db.ListNonForwardAuthOIDCClientsRow, error) {
@@ -656,30 +647,6 @@ func TestListAuditEvents_SameFilters_AcceptsCursor(t *testing.T) {
 // Cross-collection cursor rejection
 // =====================================================================
 
-func TestListGroups_AccountsCursor_Rejected(t *testing.T) {
-	q := &fakeListQ{}
-	s := newPaginationTestServer(q)
-
-	// Issue a cursor for "accounts" collection, try to use it on "groups"
-	cursor := s.encodeNextCursor("accounts", "created_at", map[string]string{}, []string{
-		"2026-07-06T00:00:00Z", "6",
-	})
-
-	_, err := s.handleListGroups(context.Background(), &listGroupsIn{
-		pageInput: pageInput{Limit: 5, Cursor: cursor},
-	})
-	if err == nil {
-		t.Fatal("expected error for cross-collection cursor")
-	}
-	pe := weberr.AsPublic(err)
-	if pe == nil {
-		t.Fatalf("expected weberr.PublicError, got nil for: %v", err)
-	}
-	if pe.Code != contract.CodeCursorInvalid {
-		t.Errorf("error code = %q, want %q", pe.Code, contract.CodeCursorInvalid)
-	}
-}
-
 // =====================================================================
 // Page JSON shape: no bare arrays, items always present
 // =====================================================================
@@ -767,38 +734,6 @@ func TestListInvitations_FinalPage_NoNextCursor(t *testing.T) {
 	}
 	if out.Body.NextCursor != "" {
 		t.Fatalf("nextCursor = %q, want empty on final page", out.Body.NextCursor)
-	}
-}
-
-// =====================================================================
-// Groups pagination
-// =====================================================================
-
-func TestListGroups_LimitClamp_Default(t *testing.T) {
-	q := &fakeListQ{}
-	q.groupsRows = []db.ListGroupsRow{}
-	s := newPaginationTestServer(q)
-	_, err := s.handleListGroups(context.Background(), &listGroupsIn{pageInput: pageInput{Limit: 0}})
-	if err != nil {
-		t.Fatalf("handleListGroups: %v", err)
-	}
-	if q.groupsCall.Limit != 51 {
-		t.Errorf("query limit = %d, want 51", q.groupsCall.Limit)
-	}
-}
-
-func TestListGroups_TamperedCursor_ReturnsCursorInvalid(t *testing.T) {
-	q := &fakeListQ{}
-	s := newPaginationTestServer(q)
-	_, err := s.handleListGroups(context.Background(), &listGroupsIn{
-		pageInput: pageInput{Limit: 5, Cursor: "not-a-valid-cursor!!!"},
-	})
-	if err == nil {
-		t.Fatal("expected error for tampered cursor")
-	}
-	pe := weberr.AsPublic(err)
-	if pe == nil || pe.Code != contract.CodeCursorInvalid {
-		t.Fatalf("expected pagination_cursor_invalid, got %T: %v", err, err)
 	}
 }
 

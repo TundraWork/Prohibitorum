@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
@@ -51,15 +52,11 @@ type fakeSSOQueries struct {
 	upsertedConsent []db.UpsertSAMLConsentParams // ack rows written by the resume path
 	mintedSubject   map[int64]string             // spID -> minted NameID (persisted across calls)
 
-	// denied inverts the RBAC per-app access predicate: zero-value (false) means
-	// the account IS authorized, so every pre-RBAC test keeps passing untouched.
-	// Set true to exercise the denial path. authzErr forces a predicate error
-	// (fail-closed → 500).
+	// denied and authzErr drive the injected live app-policy authorizer.
 	denied   bool
 	authzErr error
 
-	// groupSlugs is the list of exposed group slugs returned for any account.
-	// Zero-value (nil) means the account has no exposed group memberships.
+	// groupSlugs become exposed matching rule groups in the fake decision.
 	groupSlugs []string
 
 	// noConsent, when true, makes HasSAMLConsent report no advisory SAML ack so
@@ -70,18 +67,30 @@ type fakeSSOQueries struct {
 	consentErr error
 }
 
-// IsAccountAuthorizedForSAMLSP backs the RBAC per-app access gate. Default
-// (denied=false, authzErr=nil) → authorized=true so existing SSO tests are
-// unaffected.
-func (f *fakeSSOQueries) IsAccountAuthorizedForSAMLSP(_ context.Context, _ db.IsAccountAuthorizedForSAMLSPParams) (pgtype.Bool, error) {
-	if f.authzErr != nil {
-		return pgtype.Bool{}, f.authzErr
+type fakeSAMLAuthorizer struct {
+	q        *fakeSSOQueries
+	decision *appaccess.Decision
+}
+
+func (f *fakeSAMLAuthorizer) EvaluateSAML(_ context.Context, _ int32, _ int64) (appaccess.Decision, error) {
+	if f.decision != nil {
+		return *f.decision, nil
 	}
-	return pgtype.Bool{Bool: !f.denied, Valid: true}, nil
+	if f.q.authzErr != nil {
+		return appaccess.Decision{}, f.q.authzErr
+	}
+	if f.q.denied {
+		return appaccess.Decision{Source: appaccess.SourceManualDeny}, nil
+	}
+	matches := make([]appaccess.GroupMatch, 0, len(f.q.groupSlugs))
+	for index, slug := range f.q.groupSlugs {
+		matches = append(matches, appaccess.GroupMatch{ID: int32(index + 1), Slug: slug, Exposed: true, Matched: true})
+	}
+	return appaccess.Decision{Allowed: true, Source: appaccess.SourceOpen, MatchingRuleGroups: matches}, nil
 }
 
 // errStubPredicate is injected via fakeSSOQueries.authzErr to exercise the
-// fail-closed path of the RBAC access gate.
+// fail-closed path of the app-policy access gate.
 var errStubPredicate = errors.New("saml: injected predicate error")
 
 func (f *fakeSSOQueries) GetSAMLSPByEntityID(_ context.Context, entityID string) (db.SamlSp, error) {
@@ -169,10 +178,6 @@ func (f *fakeSSOQueries) InsertSAMLSession(_ context.Context, arg db.InsertSAMLS
 	return db.SamlSession{SessionID: arg.SessionID, SpID: arg.SpID, NameID: arg.NameID, SessionIndex: arg.SessionIndex}, nil
 }
 
-func (f *fakeSSOQueries) ListExposedGroupSlugsByAccount(_ context.Context, _ int32) ([]string, error) {
-	return f.groupSlugs, nil
-}
-
 func (f *fakeSSOQueries) sessions() []db.InsertSAMLSessionParams {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -229,6 +234,7 @@ func newSSOHarness(t *testing.T, sp db.SamlSp) *ssoHarness {
 		audit:   &recordingAudit{},
 		rl:      authn.NewRateLimiter(),
 		keys:    newSAMLKeyCache(q, samlTestDEKs),
+		access:  &fakeSAMLAuthorizer{q: q},
 	}
 	auditW := idp.audit.(*recordingAudit)
 
@@ -823,8 +829,8 @@ func TestSSOAppAccessDeniedInteractive(t *testing.T) {
 	if recs[0].AccountID == nil || *recs[0].AccountID != testAccount().ID {
 		t.Errorf("audit AccountID = %v, want %d", recs[0].AccountID, testAccount().ID)
 	}
-	if recs[0].Detail["reason"] != "app_access_denied" {
-		t.Errorf("audit reason = %v, want app_access_denied", recs[0].Detail["reason"])
+	if recs[0].Detail["reason"] != "manual_deny" {
+		t.Errorf("audit reason = %v, want manual_deny", recs[0].Detail["reason"])
 	}
 }
 
@@ -881,6 +887,50 @@ func TestSSOAppAccessDeniedPassive(t *testing.T) {
 	}
 	if rows := h.q.sessions(); len(rows) != 0 {
 		t.Errorf("saml_session rows = %d, want 0 (RequestDenied issues no assertion)", len(rows))
+	}
+}
+
+func TestSAMLManualAllowProjectsRuleGroups(t *testing.T) {
+	sp := ssoSP()
+	sp.AttributeMap = []byte(`[{"name":"groups","name_format":"urn:oasis:names:tc:SAML:2.0:attrname-format:basic","source":"groups","multi":true}]`)
+	h := newSSOHarness(t, sp)
+	decision := appaccess.Decision{
+		Allowed:     true,
+		Source:      appaccess.SourceManualAllow,
+		ManualGroup: &appaccess.GroupMatch{ID: 10, Slug: "manual", Exposed: true, Matched: true},
+		MatchingRuleGroups: []appaccess.GroupMatch{
+			{ID: 11, Slug: "passkeys", Exposed: true, Matched: true},
+		},
+	}
+	h.idp.access = &fakeSAMLAuthorizer{decision: &decision}
+
+	req := h.request(t, "_sso-groups", liveSession(testAccount()))
+	rec := httptest.NewRecorder()
+	h.idp.HandleSSO(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	_, responseXML := decodeAutoPost(t, rec.Body.String())
+	var response crewjam.Response
+	if err := xml.Unmarshal(responseXML, &response); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if response.Assertion == nil {
+		t.Fatal("response has no assertion")
+	}
+	var groups []string
+	for _, statement := range response.Assertion.AttributeStatements {
+		for _, attribute := range statement.Attributes {
+			if attribute.Name != "groups" {
+				continue
+			}
+			for _, value := range attribute.Values {
+				groups = append(groups, value.Value)
+			}
+		}
+	}
+	if strings.Join(groups, ",") != "manual,passkeys" {
+		t.Fatalf("groups = %v, want [manual passkeys]", groups)
 	}
 }
 

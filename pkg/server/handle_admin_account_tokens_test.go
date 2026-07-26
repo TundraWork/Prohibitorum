@@ -73,9 +73,6 @@ func (f *adminFakePATQ) InsertPAT(_ context.Context, _ db.InsertPATParams) (db.P
 func (f *adminFakePATQ) RevokePAT(_ context.Context, _ db.RevokePATParams) (int64, error) {
 	return 0, nil
 }
-func (f *adminFakePATQ) ListAuthorizedForwardAuthAppsForAccount(_ context.Context, _ pgtype.Int4) ([]db.ListAuthorizedForwardAuthAppsForAccountRow, error) {
-	return nil, nil
-}
 
 // The revoke handler calls s.queries.RevokePATByID directly (concrete *db.Queries,
 // not an interface), so the not-found / successful-revoke revoke paths require a

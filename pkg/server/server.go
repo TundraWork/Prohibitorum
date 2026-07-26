@@ -116,10 +116,12 @@ type Server struct {
 	// handleGetMyFactors without standing up *db.Queries. Nil in production —
 	// falls back to s.queries.
 	getMyFactorsOverride getMyFactorsQueries
-	// launchpadOverride lets tests inject a fake launchpadQueries for
-	// handleListMyApps / buildLaunchpad without standing up *db.Queries. Nil
-	// in production — falls back to s.queries.
+	// launchpadOverride isolates best-effort icon metadata lookups in focused
+	// launchpad tests. Application selection uses appLister.
 	launchpadOverride launchpadQueries
+	// appLister is the shared live app-policy service in production and a narrow
+	// fake in launchpad/PAT tests.
+	appLister appaccess.AppLister
 	// consentMgmtOverride lets tests inject a fake consentMgmtQueries for
 	// handleListMyConsent / handleRevokeMyConsent without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
@@ -348,7 +350,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		rateLimiter:           rateLimiter,
 		webauthn:              wa,
 		oidcOP:                oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP, accessService),
-		samlIdP:               samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP),
+		samlIdP:               samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP, accessService),
 		passwordStore:         passwordStore,
 		totpStore:             totpStore,
 		throttle:              throttle,
@@ -366,6 +368,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		diagStore:             diagStore,
 		cursorCodec:           cursorCodec,
 		appPolicyService:      accessService,
+		appLister:             accessService,
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.

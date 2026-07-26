@@ -23,6 +23,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
@@ -58,19 +59,6 @@ func (f *fakePATQ) InsertPAT(_ context.Context, arg db.InsertPATParams) (db.Pers
 	return row, nil
 }
 
-// ListAuthorizedForwardAuthAppsForAccount returns a single fixed forward-auth
-// app "svc" with the scope vocabulary [{repo:read},{repo:write}] — the candidate
-// set the create-validation and /me/forward-auth-apps tests resolve against.
-func (f *fakePATQ) ListAuthorizedForwardAuthAppsForAccount(_ context.Context, _ pgtype.Int4) ([]db.ListAuthorizedForwardAuthAppsForAccountRow, error) {
-	return []db.ListAuthorizedForwardAuthAppsForAccountRow{
-		{
-			ClientID:          "svc",
-			DisplayName:       "Service",
-			ForwardAuthScopes: []byte(`[{"name":"repo:read"},{"name":"repo:write"}]`),
-		},
-	}, nil
-}
-
 func (f *fakePATQ) ListPATsByAccount(_ context.Context, accountID int32) ([]db.PersonalAccessToken, error) {
 	var out []db.PersonalAccessToken
 	for _, r := range f.rows {
@@ -104,7 +92,12 @@ func (f *fakePATQ) InsertCredentialEvent(_ context.Context, _ db.InsertCredentia
 func newPATServer(q *fakePATQ) *Server {
 	return &Server{
 		patQueriesOverride: q,
-		Audit:              audit.NewWriter(q),
+		appLister: &fakeAppLister{apps: []appaccess.AppSummary{{
+			Ref:               appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: "svc"},
+			DisplayName:       "Service",
+			ForwardAuthScopes: []appaccess.Scope{{Name: "repo:read"}, {Name: "repo:write"}},
+		}}},
+		Audit: audit.NewWriter(q),
 	}
 }
 
@@ -484,6 +477,32 @@ func TestHandleCreateMyToken_UnknownApp(t *testing.T) {
 	}
 	if len(q.rows) != 0 {
 		t.Errorf("InsertPAT must not be called for unauthorized app; got %d row(s)", len(q.rows))
+	}
+}
+
+// Access is evaluated live when the PAT is created. An app that was available
+// when the picker loaded but is now denied must be rejected before insertion.
+func TestHandleCreateMyToken_NowDeniedApp(t *testing.T) {
+	t.Parallel()
+
+	q := &fakePATQ{}
+	s := newPATServer(q)
+	s.appLister = &fakeAppLister{apps: []appaccess.AppSummary{}}
+	ctx := patCtx(1)
+
+	in := &createMyTokenIn{}
+	in.Body.Name = "stale-picker"
+	in.Body.AppGrants = map[string][]string{"svc": {"repo:read"}}
+
+	_, err := s.handleCreateMyToken(ctx, in)
+	if err == nil {
+		t.Fatal("expected error for now-denied app, got nil")
+	}
+	if code := codeFromErr(t, err); code != "bad_request" {
+		t.Errorf("code: want bad_request, got %s", code)
+	}
+	if len(q.rows) != 0 {
+		t.Errorf("InsertPAT must not be called for denied app; got %d row(s)", len(q.rows))
 	}
 }
 

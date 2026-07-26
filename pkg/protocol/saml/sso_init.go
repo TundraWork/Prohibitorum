@@ -7,11 +7,9 @@ import (
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/db"
 )
 
 // HandleIdPInitiated implements the IdP-initiated SSO profile (spec D11) at
@@ -103,21 +101,17 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// The session carries the live db.Account row.
 	account := *sess.Account
 
-	// Per-app access gate (RBAC). The user is authenticated and enabled; a
-	// restricted SP requires a direct or via-group grant. NO admin bypass.
-	// IdP-initiated SSO is ALWAYS interactive (there is no IsPassive), so a denial
-	// goes ONLY to the IdP's own /error page — never a terminal SAML Response.
-	// Fail CLOSED: a predicate error is a direct 500. Placed before the
-	// rate-limit / build / persist so nothing is issued for an unauthorized user.
-	authzed, aerr := i.queries.IsAccountAuthorizedForSAMLSP(ctx, db.IsAccountAuthorizedForSAMLSPParams{
-		AccountID: pgtype.Int4{Int32: account.ID, Valid: true},
-		SpID:      sp.ID,
-	})
-	if aerr != nil {
+	// Live per-app access gate. The user is authenticated and enabled; a
+	// restricted SP requires a manual allow or matching rule group. NO admin
+	// bypass. IdP-initiated SSO is ALWAYS interactive (there is no IsPassive), so
+	// a denial goes ONLY to the IdP's own /error page — never a terminal SAML
+	// Response. Evaluation errors fail closed before rate-limit / build / persist.
+	decision, accessErr := i.evaluateSAMLAccess(ctx, account.ID, sp.ID)
+	if accessErr != nil {
 		i.errorPage(w, r, "server_error")
 		return
 	}
-	if !authzed.Bool {
+	if !decision.Allowed {
 		acctID := account.ID
 		audit.RecordOrLog(ctx, i.audit, audit.Record{
 			AccountID: &acctID,
@@ -126,7 +120,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 			IP:        audit.ParseIPOrNil(i.auditIP(r)),
 			UserAgent: r.UserAgent(),
 			Detail: map[string]any{
-				"reason": "app_access_denied",
+				"reason": samlAccessAuditReason(decision.Source),
 				"sp":     sp.EntityID,
 			},
 		})
@@ -136,7 +130,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Advisory consent gate. IdP-initiated SSO is always interactive (no
-	// IsPassive), so always honor it. Placed after RBAC and before the rate
+	// IsPassive), so always honor it. Placed after app policy and before the rate
 	// limit / build / persist so nothing is issued for an un-acknowledged SP.
 	if redirected, cerr := i.maybeDemandSAMLConsent(w, r, account, sp, acsURL, "", r.URL.Query().Get("RelayState")); cerr != nil {
 		i.errorPage(w, r, "server_error")
@@ -175,5 +169,5 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	authTime := row.AuthTime.Time
 
 	// Issue the assertion (shared with SP-initiated + consent-resume).
-	i.issueAssertion(w, r, account, sp, acsURL, "", r.URL.Query().Get("RelayState"), authTime, sess.Data.SessionID, "idp_initiated")
+	i.issueAssertion(w, r, account, sp, acsURL, "", r.URL.Query().Get("RelayState"), authTime, sess.Data.SessionID, "idp_initiated", decision.ExposedGroupSlugs())
 }

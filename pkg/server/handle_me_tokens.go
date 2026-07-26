@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/contract"
@@ -26,7 +27,6 @@ type patQueries interface {
 	InsertPAT(ctx context.Context, arg db.InsertPATParams) (db.PersonalAccessToken, error)
 	ListPATsByAccount(ctx context.Context, accountID int32) ([]db.PersonalAccessToken, error)
 	RevokePAT(ctx context.Context, arg db.RevokePATParams) (int64, error)
-	ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, accountID pgtype.Int4) ([]db.ListAuthorizedForwardAuthAppsForAccountRow, error)
 	// GetAccountByID backs the admin account-existence 404 guard on
 	// GET /accounts/{id}/tokens (handle_admin_account_tokens.go), mirroring the
 	// sibling GET /accounts/{id}/* handlers in handle_account.go.
@@ -61,6 +61,31 @@ func parseFAScopes(raw []byte) []contract.ForwardAuthScope {
 		_ = json.Unmarshal(raw, &out)
 	}
 	return out
+}
+
+func contractFAScopes(scopes []appaccess.Scope) []contract.ForwardAuthScope {
+	out := make([]contract.ForwardAuthScope, 0, len(scopes))
+	for _, scope := range scopes {
+		out = append(out, contract.ForwardAuthScope{Name: scope.Name, Description: scope.Description})
+	}
+	return out
+}
+
+func (s *Server) listAllowedForwardAuthApps(ctx context.Context, accountID int32) ([]appaccess.AppSummary, error) {
+	if s.appLister == nil {
+		return nil, fmt.Errorf("app lister unavailable")
+	}
+	apps, err := s.appLister.ListAllowedApps(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]appaccess.AppSummary, 0, len(apps))
+	for _, app := range apps {
+		if app.Ref.Kind == appaccess.KindForwardAuth {
+			out = append(out, app)
+		}
+	}
+	return out, nil
 }
 
 // ----- GET /me/tokens -----------------------------------------------------
@@ -134,18 +159,19 @@ func (s *Server) handleCreateMyToken(ctx context.Context, in *createMyTokenIn) (
 		if len(grants) == 0 { // least-privilege: must pick ≥1 app
 			return nil, authErrToHuma(authn.ErrBadRequest())
 		}
-		// Build the owner's authorized app -> allowed-scope-set map.
-		rows, err := q.ListAuthorizedForwardAuthAppsForAccount(ctx, pgtype.Int4{Int32: sess.Account.ID, Valid: true})
+		// Re-evaluate the owner's allowed apps at creation time so a stale picker
+		// cannot grant a now-denied application.
+		apps, err := s.listAllowedForwardAuthApps(ctx, sess.Account.ID)
 		if err != nil {
-			return nil, fmt.Errorf("handleCreateMyToken: authorized apps: %w", err)
+			return nil, fmt.Errorf("handleCreateMyToken: allowed apps: %w", err)
 		}
-		vocab := map[string]map[string]bool{}
-		for _, r := range rows {
-			set := map[string]bool{}
-			for _, sc := range parseFAScopes(r.ForwardAuthScopes) {
-				set[sc.Name] = true
+		vocab := make(map[string]map[string]bool, len(apps))
+		for _, app := range apps {
+			set := make(map[string]bool, len(app.ForwardAuthScopes))
+			for _, scope := range app.ForwardAuthScopes {
+				set[scope.Name] = true
 			}
-			vocab[r.ClientID] = set
+			vocab[app.Ref.OIDCClientID] = set
 		}
 		for cid, scopes := range grants {
 			allowed, ok := vocab[cid]
@@ -196,14 +222,14 @@ func (s *Server) handleListMyForwardAuthApps(ctx context.Context, _ *struct{}) (
 	if sess == nil {
 		return nil, authErrToHuma(authn.ErrNoSession())
 	}
-	rows, err := s.patQueriesFn().ListAuthorizedForwardAuthAppsForAccount(ctx, pgtype.Int4{Int32: sess.Account.ID, Valid: true})
+	apps, err := s.listAllowedForwardAuthApps(ctx, sess.Account.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleListMyForwardAuthApps: %w", err)
 	}
-	out := make([]contract.MyForwardAuthApp, 0, len(rows))
-	for _, r := range rows {
+	out := make([]contract.MyForwardAuthApp, 0, len(apps))
+	for _, app := range apps {
 		out = append(out, contract.MyForwardAuthApp{
-			ClientID: r.ClientID, DisplayName: r.DisplayName, Scopes: parseFAScopes(r.ForwardAuthScopes),
+			ClientID: app.Ref.OIDCClientID, DisplayName: app.DisplayName, Scopes: contractFAScopes(app.ForwardAuthScopes),
 		})
 	}
 	return &listMyFAAppsOut{Body: out}, nil

@@ -5,26 +5,30 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
+
+	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 )
 
 type fakeLaunchpadQ struct {
-	oidc  []db.ListAuthorizedOIDCClientsForAccountRow
-	fwd   []db.ListAuthorizedForwardAuthAppsForAccountRow
-	saml  []db.ListAuthorizedSAMLSPsForAccountRow
 	etags map[string]string // "kind/id" -> etag
 }
 
-func (f *fakeLaunchpadQ) ListAuthorizedOIDCClientsForAccount(context.Context, pgtype.Int4) ([]db.ListAuthorizedOIDCClientsForAccountRow, error) {
-	return f.oidc, nil
+type fakeAppLister struct {
+	apps      []appaccess.AppSummary
+	err       error
+	accountID int32
+	calls     int
 }
-func (f *fakeLaunchpadQ) ListAuthorizedForwardAuthAppsForAccount(context.Context, pgtype.Int4) ([]db.ListAuthorizedForwardAuthAppsForAccountRow, error) {
-	return f.fwd, nil
-}
-func (f *fakeLaunchpadQ) ListAuthorizedSAMLSPsForAccount(context.Context, pgtype.Int4) ([]db.ListAuthorizedSAMLSPsForAccountRow, error) {
-	return f.saml, nil
+
+func (f *fakeAppLister) ListAllowedApps(_ context.Context, accountID int32) ([]appaccess.AppSummary, error) {
+	f.calls++
+	f.accountID = accountID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.apps, nil
 }
 func (f *fakeLaunchpadQ) GetEntityIconMeta(_ context.Context, p db.GetEntityIconMetaParams) (db.GetEntityIconMetaRow, error) {
 	if e, ok := f.etags[p.OwnerKind+"/"+p.OwnerID]; ok {
@@ -34,21 +38,25 @@ func (f *fakeLaunchpadQ) GetEntityIconMeta(_ context.Context, p db.GetEntityIcon
 }
 
 func TestHandleMyApps(t *testing.T) {
-	s := &Server{launchpadOverride: &fakeLaunchpadQ{
-		oidc: []db.ListAuthorizedOIDCClientsForAccountRow{
-			{ClientID: "grafana", DisplayName: "Grafana", LaunchUrl: pgtype.Text{}, RedirectUris: []string{"https://grafana.example/login/generic_oauth"}},
-			{ClientID: "no-redirect", DisplayName: "Headless", LaunchUrl: pgtype.Text{}, RedirectUris: nil}, // omitted: no launch URL
-		},
-		fwd:  []db.ListAuthorizedForwardAuthAppsForAccountRow{{ClientID: "wiki", DisplayName: "Wiki", ForwardAuthHost: pgtype.Text{String: "wiki.example", Valid: true}}},
-		saml: []db.ListAuthorizedSAMLSPsForAccountRow{{ID: 7, EntityID: "https://ghe.example/saml", DisplayName: "GitHub"}},
-		etags: map[string]string{"oidc_client/grafana": "abcdef1234"},
+	lister := &fakeAppLister{apps: []appaccess.AppSummary{
+		{Ref: appaccess.AppRef{Kind: appaccess.KindOIDC, OIDCClientID: "grafana"}, DisplayName: "Grafana", RedirectURIs: []string{"https://grafana.example/login/generic_oauth"}},
+		{Ref: appaccess.AppRef{Kind: appaccess.KindOIDC, OIDCClientID: "no-redirect"}, DisplayName: "Headless"},
+		{Ref: appaccess.AppRef{Kind: appaccess.KindForwardAuth, OIDCClientID: "wiki"}, DisplayName: "Wiki", ForwardAuthHost: "wiki.example"},
+		{Ref: appaccess.AppRef{Kind: appaccess.KindSAML, SAMLSPID: 7}, DisplayName: "GitHub", EntityID: "https://ghe.example/saml"},
 	}}
+	s := &Server{
+		launchpadOverride: &fakeLaunchpadQ{etags: map[string]string{"oidc_client/grafana": "abcdef1234"}},
+		appLister:         lister,
+	}
 	apps, err := s.buildLaunchpad(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("buildLaunchpad: %v", err)
 	}
 	if len(apps) != 3 { // Headless omitted
 		t.Fatalf("want 3 apps, got %d: %+v", len(apps), apps)
+	}
+	if lister.calls != 1 || lister.accountID != 1 {
+		t.Fatalf("ListAllowedApps calls/account = %d/%d, want 1/1", lister.calls, lister.accountID)
 	}
 	idx := map[string]int{}
 	for i, a := range apps {
@@ -80,8 +88,9 @@ func TestHandleMyApps(t *testing.T) {
 	}
 }
 
-// Compile-time assertion: fakeLaunchpadQ satisfies launchpadQueries.
+// Compile-time assertions for the launchpad seams.
 var _ launchpadQueries = (*fakeLaunchpadQ)(nil)
+var _ appaccess.AppLister = (*fakeAppLister)(nil)
 
 // Compile-time assertion: contract.LaunchpadApp used in test.
 var _ contract.LaunchpadApp = contract.LaunchpadApp{}

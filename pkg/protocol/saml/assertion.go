@@ -252,15 +252,10 @@ func (i *IdP) buildResponse(ctx context.Context, sp db.SamlSp, acsURL, inRespons
 // assertion to the SP's ACS. It is the shared issue tail of HandleSSO,
 // HandleIdPInitiated, and (later) the consent-resume path. On any internal
 // error it renders the IdP's own /error page and returns — no assertion emitted.
-func (i *IdP) issueAssertion(w http.ResponseWriter, r *http.Request, account db.Account, sp db.SamlSp, acsURL, inResponseTo, relayState string, authTime time.Time, sessionID, auditReason string) {
+func (i *IdP) issueAssertion(w http.ResponseWriter, r *http.Request, account db.Account, sp db.SamlSp, acsURL, inResponseTo, relayState string, authTime time.Time, sessionID, auditReason string, groupSlugs []string) {
 	ctx := r.Context()
 	nameID, err := i.subjectID(ctx, account.ID, sp.ID, sp.NameIDFormat)
 	if err != nil {
-		i.errorPage(w, r, "server_error")
-		return
-	}
-	groupSlugs, gerr := i.queries.ListExposedGroupSlugsByAccount(ctx, account.ID)
-	if gerr != nil {
 		i.errorPage(w, r, "server_error")
 		return
 	}
