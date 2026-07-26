@@ -209,7 +209,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 	}
 
 	for _, p := range providers {
-		_, err := q.GetUpstreamIDPBySlug(ctx, p.Slug)
+		_, err := q.GetUpstreamIDPBySlugAny(ctx, p.Slug)
 		if err == nil {
 			fmt.Printf("    skip provider %q (already exists)\n", p.Slug)
 			continue

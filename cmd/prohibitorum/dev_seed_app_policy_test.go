@@ -159,6 +159,30 @@ func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 	return pool, cleanup
 }
 
+func TestSeedProvidersSkipsExistingDisabledProvider(t *testing.T) {
+	ctx := context.Background()
+	pool, cleanup := appPolicyDemoTestPool(t)
+	t.Cleanup(cleanup)
+	q := db.New(pool)
+	if _, err := q.InsertUpstreamIDP(ctx, db.InsertUpstreamIDPParams{
+		Slug: "google", DisplayName: "Existing Google", Protocol: federationoidc.Protocol,
+		Mode: "auto_provision", SecretStatus: "unconfigured", Disabled: true,
+		ProviderConfig: []byte(`{"issuer_url":"https://existing.example.test"}`),
+	}); err != nil {
+		t.Fatalf("insert existing disabled provider: %v", err)
+	}
+
+	seedProviders(ctx, q)
+
+	provider, err := q.GetUpstreamIDPBySlugAny(ctx, "google")
+	if err != nil {
+		t.Fatalf("get existing provider: %v", err)
+	}
+	if !provider.Disabled || provider.DisplayName != "Existing Google" {
+		t.Fatalf("existing disabled provider mutated: %+v", provider)
+	}
+}
+
 func appPolicyDemoConfig() configx.Config {
 	return configx.Config{PasswordHashParams: password.DefaultParams()}
 }
