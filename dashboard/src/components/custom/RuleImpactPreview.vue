@@ -14,8 +14,10 @@ const props = withDefaults(defineProps<{
   rule: Rule
   providers: ProviderDescriptor[]
   endpoint: string
+  draftValid?: boolean
   limit?: number
 }>(), {
+  draftValid: true,
   limit: 50,
 })
 
@@ -37,7 +39,7 @@ let requestVersion = 0
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 
 const providerSlugs = computed(() => new Set(props.providers.map((provider) => provider.slug)))
-const valid = computed(() => validateRule(props.rule, providerSlugs.value).length === 0)
+const valid = computed(() => props.draftValid && validateRule(props.rule, providerSlugs.value).length === 0)
 const hasResults = computed(() => matchedCount.value !== null)
 const state = computed<'idle' | 'loading' | 'current' | 'stale' | 'error'>(() => {
   if (latestPendingVersion.value !== null) return 'loading'
@@ -94,20 +96,28 @@ async function loadPage(cursor: string, nextPageIndex: number, version = ++reque
   emit('state-change', 'current')
 }
 
+function resetPagination(): void {
+  nextCursor.value = ''
+  pageIndex.value = 0
+  pageCursors.value = ['']
+}
+
 function schedulePreview(): void {
   if (debounceTimer !== undefined) clearTimeout(debounceTimer)
+  debounceTimer = undefined
   const version = ++requestVersion
-  latestPendingVersion.value = null
+  resetPagination()
   if (!valid.value) {
+    latestPendingVersion.value = null
     stale.value = hasResults.value
     failed.value = false
     emit('state-change', stale.value ? 'stale' : 'idle')
     return
   }
+  latestPendingVersion.value = version
   if (hasResults.value) stale.value = true
   debounceTimer = setTimeout(() => {
     debounceTimer = undefined
-    pageCursors.value = ['']
     void loadPage('', 0, version)
   }, 300)
 }
@@ -121,14 +131,14 @@ function retry(): void {
 }
 
 function nextPage(): void {
-  if (!nextCursor.value) return
+  if (!valid.value || latestPendingVersion.value !== null || debounceTimer !== undefined || !nextCursor.value) return
   const nextIndex = pageIndex.value + 1
   pageCursors.value[nextIndex] = nextCursor.value
   void loadPage(nextCursor.value, nextIndex)
 }
 
 function previousPage(): void {
-  if (pageIndex.value <= 0) return
+  if (!valid.value || latestPendingVersion.value !== null || debounceTimer !== undefined || pageIndex.value <= 0) return
   const previousIndex = pageIndex.value - 1
   void loadPage(pageCursors.value[previousIndex] ?? '', previousIndex)
 }
@@ -137,7 +147,7 @@ function accountName(item: RulePreviewPage['items'][number]): string {
   return item.account.displayName || item.account.username
 }
 
-watch(() => [props.rule, props.providers, props.endpoint, props.limit], schedulePreview, { deep: true, immediate: true })
+watch(() => [props.rule, props.providers, props.endpoint, props.draftValid, props.limit], schedulePreview, { deep: true, immediate: true })
 watch(state, (next) => emit('state-change', next), { immediate: true })
 
 onBeforeUnmount(() => {

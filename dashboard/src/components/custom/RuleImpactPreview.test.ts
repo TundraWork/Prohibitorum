@@ -47,12 +47,13 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function mountPreview(rule: Rule) {
+function mountPreview(rule: Rule, options: { draftValid?: boolean } = {}) {
   const wrapper = mount(RuleImpactPreview, {
     props: {
       rule,
       providers: PROVIDERS,
       endpoint: '/managed-applications/oidc/wiki/rule-preview',
+      draftValid: options.draftValid ?? true,
       limit: 1,
     },
     global: { plugins: [i18n()] },
@@ -178,6 +179,43 @@ describe('RuleImpactPreview', () => {
     expect(wrapper.get('[data-test="impact-row-7"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="impact-status"]').text()).toBe('Impact preview is out of date.')
     expect(wrapper.get('[data-test="rule-impact-preview"]').attributes('data-state')).toBe('stale')
+  })
+
+  it('marks the last valid result out of date when its JSON draft becomes invalid', async () => {
+    post.mockResolvedValue(PAGE_ONE)
+    const wrapper = mountPreview(PASSKEY_RULE)
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    await wrapper.setProps({ draftValid: false })
+
+    expect(wrapper.get('[data-test="impact-row-7"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="impact-status"]').text()).toBe('Impact preview is out of date.')
+    expect(wrapper.get('[data-test="rule-impact-preview"]').attributes('data-state')).toBe('stale')
+  })
+
+  it('clears and disables old pagination while a changed valid rule is waiting to preview', async () => {
+    post.mockResolvedValueOnce(PAGE_ONE).mockResolvedValueOnce({ ...PAGE_TWO, matchedCount: 1 })
+    const wrapper = mountPreview(PASSKEY_RULE)
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(wrapper.get('[data-test="next-page"]').attributes('disabled')).toBeUndefined()
+
+    await wrapper.setProps({ rule: FEDERATION_RULE })
+
+    expect(wrapper.get('[data-test="next-page"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-test="next-page"]').trigger('click')
+    expect(post).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(post).toHaveBeenCalledTimes(2)
+    expect(post.mock.calls[1]?.[1]).toEqual({
+      version: 1,
+      condition: { fact: 'login_method', method: 'federation' },
+      cursor: '',
+      limit: 1,
+    })
   })
 
   it('marks results stale after failure, offers Retry, and announces loading, current, and stale states', async () => {

@@ -45,10 +45,16 @@ const props = withDefaults(defineProps<{
   issues: RuleValidationIssue[]
   maxDepth: number
   maxNodes: number
+  position?: number
+  siblingCount?: number
+  parentMode?: 'all' | 'any'
   canMoveUp?: boolean
   canMoveDown?: boolean
   canRemove?: boolean
 }>(), {
+  position: 1,
+  siblingCount: 1,
+  parentMode: 'all',
   canMoveUp: false,
   canMoveDown: false,
   canRemove: false,
@@ -103,6 +109,12 @@ const contentLabel = computed(() => {
   const valueLabel = value.value ? labelForValue(value.value) : t('manage.policy.rule.incompleteValue')
   return `${factLabel(fact.value)} ${negated.value ? t('manage.policy.rule.isNot') : t('manage.policy.rule.is')} ${valueLabel}`
 })
+
+const controlContext = computed(() => t('manage.policy.rule.conditionControlContext', {
+  position: props.position,
+  count: props.siblingCount,
+  mode: props.parentMode === 'any' ? t('manage.policy.rule.operatorAny') : t('manage.policy.rule.operatorAll'),
+}))
 const valueOptions = computed<Array<{ value: string; label: string; detail?: string }>>(() => {
   switch (fact.value) {
     case 'connection.provider':
@@ -198,7 +210,8 @@ function closeActions(event: Event): void {
         <SelectTrigger
           data-clause-control="fact"
           :data-test="`predicate-fact-${pathKey}`"
-          :aria-label="t('manage.policy.rule.factLabel')"
+          :aria-label="`${t('manage.policy.rule.factLabel')} ${controlContext}`"
+          
           :aria-invalid="issue ? 'true' : undefined"
           :aria-describedby="issueDescription"
           class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"
@@ -222,7 +235,7 @@ function closeActions(event: Event): void {
         <SelectTrigger
           data-clause-control="polarity"
           :data-test="`predicate-polarity-${pathKey}`"
-          :aria-label="t('manage.policy.rule.polarityLabel')"
+          :aria-label="`${t('manage.policy.rule.polarityLabel')} ${controlContext}`"
           class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"
         >
           <SelectValue>{{ negated ? t('manage.policy.rule.isNot') : t('manage.policy.rule.is') }}</SelectValue>
@@ -246,7 +259,7 @@ function closeActions(event: Event): void {
         <SelectTrigger
           data-clause-control="value"
           :data-test="`predicate-value-${pathKey}`"
-          :aria-label="t('manage.policy.rule.valueLabel')"
+          :aria-label="`${t('manage.policy.rule.valueLabel')} ${controlContext}`"
           :aria-invalid="issue && fact ? 'true' : undefined"
           :aria-describedby="issueDescription"
           class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"

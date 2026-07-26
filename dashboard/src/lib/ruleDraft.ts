@@ -290,38 +290,50 @@ function hasUnknownKeys(value: Record<string, unknown>, allowed: ReadonlySet<str
   return Object.keys(value).some((key) => !allowed.has(key))
 }
 
+function hasUnknownWireKeys(value: unknown, allowed: ReadonlySet<string>): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const document = value as Record<string, unknown>
+  if (hasUnknownKeys(document, allowed)) return true
+  if (hasUnknownWireKeys(document.condition, CONDITION_KEYS)) return true
+  if (Array.isArray(document.children) && document.children.some((child) => hasUnknownWireKeys(child, CONDITION_KEYS))) return true
+  return hasUnknownWireKeys(document.child, CONDITION_KEYS)
+}
+
 function hasWrongWireTypes(document: Record<string, unknown>): boolean {
-  if (typeof document.version !== 'number') return true
+  if (
+    Object.prototype.hasOwnProperty.call(document, 'version') &&
+    document.version !== null &&
+    (typeof document.version !== 'number' || !Number.isInteger(document.version))
+  ) return true
   function wrong(node: unknown, allowNull = false): boolean {
     if (node === null) return !allowNull
     if (typeof node !== 'object' || Array.isArray(node)) return true
     const condition = node as Record<string, unknown>
-    if (Object.prototype.hasOwnProperty.call(condition, 'op') && typeof condition.op !== 'string') return true
-    if (Object.prototype.hasOwnProperty.call(condition, 'fact') && typeof condition.fact !== 'string') return true
+    if (Object.prototype.hasOwnProperty.call(condition, 'op') && condition.op !== null && typeof condition.op !== 'string') return true
+    if (Object.prototype.hasOwnProperty.call(condition, 'fact') && condition.fact !== null && typeof condition.fact !== 'string') return true
     for (const key of ['provider', 'protocol', 'method', 'source'] as const) {
       if (Object.prototype.hasOwnProperty.call(condition, key) && condition[key] !== null && typeof condition[key] !== 'string') return true
     }
     if (Object.prototype.hasOwnProperty.call(condition, 'children')) {
       if (condition.children !== null && !Array.isArray(condition.children)) return true
-      if (Array.isArray(condition.children) && condition.children.some((child) => wrong(child))) return true
+      if (Array.isArray(condition.children) && condition.children.some((child) => wrong(child, true))) return true
     }
-    if (Object.prototype.hasOwnProperty.call(condition, 'child') && condition.child !== null && wrong(condition.child)) return true
+    if (Object.prototype.hasOwnProperty.call(condition, 'child') && condition.child !== null && wrong(condition.child, true)) return true
     return false
   }
-  return wrong(document.condition, true)
+  return Object.prototype.hasOwnProperty.call(document, 'condition') && wrong(document.condition, true)
 }
 
 export function validateRule(rule: Rule, providers: ReadonlySet<string>): RuleValidationIssue[] {
   const raw = rule as unknown
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    return [validationIssue('$', 'invalid_json')]
-  }
+  if (raw === null) return [validationIssue('$', 'missing_version')]
+  if (typeof raw !== 'object' || Array.isArray(raw)) return [validationIssue('$', 'invalid_json')]
   const document = raw as Record<string, unknown>
-  if (hasUnknownKeys(document, RULE_KEYS)) return [validationIssue('$', 'unknown_field')]
-  if (!Object.prototype.hasOwnProperty.call(document, 'version')) return [validationIssue('$', 'missing_version')]
-  if (!Object.prototype.hasOwnProperty.call(document, 'condition')) return [validationIssue('$', 'missing_condition')]
+  if (hasUnknownWireKeys(document, RULE_KEYS)) return [validationIssue('$', 'unknown_field')]
   if (hasWrongWireTypes(document)) return [validationIssue('$', 'invalid_json')]
+  if (!Object.prototype.hasOwnProperty.call(document, 'version')) return [validationIssue('$', 'missing_version')]
   if (document.version !== 1) return [validationIssue('$', 'unsupported_version')]
+  if (!Object.prototype.hasOwnProperty.call(document, 'condition')) return [validationIssue('$', 'missing_condition')]
 
   let nodes = 0
   function visit(rawCondition: unknown, path: string, depth: number): RuleValidationIssue | undefined {
@@ -365,9 +377,14 @@ export function validateRule(rule: Rule, providers: ReadonlySet<string>): RuleVa
         if (Object.prototype.hasOwnProperty.call(condition, 'children')) return validationIssue(path, 'invalid_shape')
         if (!Object.prototype.hasOwnProperty.call(condition, 'child')) return validationIssue(path, 'missing_child')
         const child = condition.child
-        if (child !== null && typeof child === 'object' && !Array.isArray(child) && Object.prototype.hasOwnProperty.call(child, 'op')) {
-          return validationIssue(`${path}.child`, 'not_requires_fact')
-        }
+        if (
+          child !== null &&
+          typeof child === 'object' &&
+          !Array.isArray(child) &&
+          (((child as Record<string, unknown>).op === 'all') ||
+            ((child as Record<string, unknown>).op === 'any') ||
+            ((child as Record<string, unknown>).op === 'not'))
+        ) return validationIssue(`${path}.child`, 'not_requires_fact')
         return visit(child, `${path}.child`, depth + 1)
       }
       return validationIssue(path, 'invalid_op')
@@ -453,44 +470,24 @@ function firstJSONValueEnd(source: string): number | undefined {
 }
 
 function trailingJSONReason(source: string): 'trailing_json' | 'invalid_json' {
-  let depth = 0
-  let inString = false
-  let escaped = false
-  let started = false
-  for (let index = 0; index < source.length; index += 1) {
-    const char = source[index]!
-    if (!started) {
-      if (/\s/.test(char)) continue
-      if (char !== '{') return 'invalid_json'
-      started = true
-      depth = 1
-      continue
-    }
-    if (inString) {
-      if (escaped) escaped = false
-      else if (char === '\\') escaped = true
-      else if (char === '"') inString = false
-      continue
-    }
-    if (char === '"') inString = true
-    else if (char === '{' || char === '[') depth += 1
-    else if (char === '}' || char === ']') {
-      depth -= 1
-      if (depth === 0) {
-        const suffix = source.slice(index + 1).trim()
-        if (suffix === '') return 'invalid_json'
-        const secondEnd = firstJSONValueEnd(suffix)
-        if (secondEnd === undefined) return 'invalid_json'
-        try {
-          JSON.parse(suffix.slice(0, secondEnd))
-          return 'trailing_json'
-        } catch {
-          return 'invalid_json'
-        }
-      }
-    }
+  const firstEnd = firstJSONValueEnd(source)
+  if (firstEnd === undefined) return 'invalid_json'
+  try {
+    JSON.parse(source.slice(0, firstEnd))
+  } catch {
+    return 'invalid_json'
   }
-  return 'invalid_json'
+
+  const suffix = source.slice(firstEnd).trim()
+  if (suffix === '') return 'invalid_json'
+  const secondEnd = firstJSONValueEnd(suffix)
+  if (secondEnd === undefined) return 'invalid_json'
+  try {
+    JSON.parse(suffix.slice(0, secondEnd))
+    return 'trailing_json'
+  } catch {
+    return 'invalid_json'
+  }
 }
 
 export function parseRuleJSON(source: string, providers: ReadonlySet<string>): ParsedRuleJSON | InvalidRuleJSON {

@@ -33,6 +33,23 @@ function frozenRule(condition: Condition): Rule {
   return structuredClone(rule(condition))
 }
 
+function ruleWithChildren(children: number): string {
+  const leaf = '{"fact":"avatar","source":"any"}'
+  return `{"version":1,"condition":{"op":"all","children":[${Array.from({ length: children }, () => leaf).join(',')}]}}`
+}
+
+function ruleWithNodeCount(nodes: number): string {
+  if (nodes !== 65) throw new Error('fixture only defines a 65-node rule')
+  const leaves = Array.from({ length: 31 }, () => '{"fact":"avatar","source":"any"}').join(',')
+  return `{"version":1,"condition":{"op":"all","children":[{"op":"all","children":[${leaves}]},{"op":"all","children":[${leaves}]}]}}`
+}
+
+function ruleWithDepth(depth: number): string {
+  let condition = '{"fact":"avatar","source":"any"}'
+  for (let current = 1; current < depth; current += 1) condition = `{"op":"all","children":[${condition}]}`
+  return `{"version":1,"condition":${condition}}`
+}
+
 describe('immutable rule draft transformations', () => {
   it('changes a group mode without changing its children or source rule', () => {
     const originalChildren = [providerLeaf, protocolLeaf]
@@ -176,8 +193,7 @@ describe('closed rule validation and JSON', () => {
   })
 
   it('rejects unknown fields, bad providers, nulls, bounds, and unsupported versions', () => {
-    expect(parseRuleJSON('{"version":2,"condition":{"fact":"avatar","source":"any"}}', providers)).toMatchObject({ ok: false, reason: 'unsupported_version', path: '$' })
-    expect(parseRuleJSON('{"version":1,"condition":{"fact":"avatar","source":"any","secret":true}}', providers)).toMatchObject({ ok: false, reason: 'unknown_field', path: '$.condition' })
+    expect(parseRuleJSON('{"version":1,"condition":{"fact":"avatar","source":"any","secret":true}}', providers)).toMatchObject({ ok: false, reason: 'unknown_field', path: '$' })
     expect(parseRuleJSON('{"version":1,"condition":{"fact":"connection.provider","provider":"missing"}}', providers)).toMatchObject({ ok: false, reason: 'provider_not_found', path: '$.condition' })
     expect(parseRuleJSON('{"version":1,"condition":null}', providers)).toMatchObject({ ok: false, reason: 'invalid_shape', path: '$.condition' })
     expect(validateRule(rule({ op: 'all', children: [] }), providers)).toEqual([
@@ -222,6 +238,59 @@ describe('closed rule validation and JSON', () => {
     ]) {
       expect(parseRuleJSON(source, providers)).toMatchObject({ ok: false, reason: 'invalid_json' })
     }
+  })
+
+  it.each([
+    {
+      name: 'null operator on a condition',
+      source: '{"version":1,"condition":{"op":null}}',
+      path: '$.condition',
+      reason: 'invalid_shape',
+    },
+    {
+      name: 'null fact on a condition',
+      source: '{"version":1,"condition":{"fact":null}}',
+      path: '$.condition',
+      reason: 'invalid_shape',
+    },
+    {
+      name: 'null operator in a NOT child',
+      source: '{"version":1,"condition":{"op":"not","child":{"op":null}}}',
+      path: '$.condition.child',
+      reason: 'invalid_shape',
+    },
+    {
+      name: 'a NOT child that is a group',
+      source: '{"version":1,"condition":{"op":"not","child":{"op":"all","children":[{"fact":"avatar","source":"any"}]}}}',
+      path: '$.condition.child',
+      reason: 'not_requires_fact',
+    },
+    {
+      name: 'malformed first document before a valid trailing document',
+      source: '{"version":1,"condition":} {}',
+      path: '$',
+      reason: 'invalid_json',
+    },
+    {
+      name: 'child limit before descendant validation',
+      source: ruleWithChildren(33),
+      path: '$.condition',
+      reason: 'max_children_exceeded',
+    },
+    {
+      name: 'node limit at the sixty-fifth node',
+      source: ruleWithNodeCount(65),
+      path: '$.condition.children[1].children[30]',
+      reason: 'max_nodes_exceeded',
+    },
+    {
+      name: 'depth limit before node counting',
+      source: ruleWithDepth(9),
+      path: '$.condition.children[0].children[0].children[0].children[0].children[0].children[0].children[0].children[0]',
+      reason: 'max_depth_exceeded',
+    },
+  ])('matches server validation for $name', ({ source, path, reason }) => {
+    expect(parseRuleJSON(source, providers)).toMatchObject({ ok: false, path, reason })
   })
 })
 

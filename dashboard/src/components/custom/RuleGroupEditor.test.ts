@@ -83,6 +83,24 @@ describe('RuleGroupEditor', () => {
     expect(wrapper.findAll('[data-test^="group-mode-not-"]')).toHaveLength(0)
   })
 
+  it('gives each predicate control its sibling position and parent group mode', () => {
+    const wrapper = mountGroup({
+      version: 1,
+      condition: {
+        op: 'any',
+        children: [
+          { fact: 'avatar', source: 'any' },
+          { fact: 'login_method', method: 'passkey' },
+        ],
+      },
+    })
+
+    expect(wrapper.get('[data-test="predicate-fact-root-0"]').attributes('aria-label')).toBe('Condition type for condition 1 of 2 in ANY group')
+    expect(wrapper.get('[data-test="predicate-polarity-root-0"]').attributes('aria-label')).toBe('Comparison for condition 1 of 2 in ANY group')
+    expect(wrapper.get('[data-test="predicate-value-root-0"]').attributes('aria-label')).toBe('Value for condition 1 of 2 in ANY group')
+    expect(wrapper.get('[data-test="predicate-fact-root-1"]').attributes('aria-label')).toBe('Condition type for condition 2 of 2 in ANY group')
+  })
+
   it('uses one slim unrounded structural rail for each group', () => {
     const wrapper = mountGroup({
       version: 1,

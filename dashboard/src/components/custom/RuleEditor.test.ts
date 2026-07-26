@@ -127,6 +127,16 @@ describe('RuleEditor', () => {
     expect(wrapper.get('[data-test="predicate-value-root"]').text()).toContain('User-uploaded avatar')
   })
 
+  it('marks the retained impact preview stale while the visible JSON draft is invalid', async () => {
+    const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
+    await wrapper.get('[data-test="segment-json"]').trigger('click')
+    await wrapper.get('[data-test="rule-json-source"]').setValue('{broken')
+
+    const preview = wrapper.getComponent({ name: 'RuleImpactPreview' })
+    expect(preview.props('rule')).toEqual(PASSKEY_RULE)
+    expect(preview.props('draftValid')).toBe(false)
+  })
+
   it('treats JSON mode and an invalid JSON buffer as dirty and confirms cancellation', async () => {
     const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
     await wrapper.get('[data-test="segment-json"]').trigger('click')

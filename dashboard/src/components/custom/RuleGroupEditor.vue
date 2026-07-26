@@ -272,6 +272,9 @@ function closeActions(event: Event): void {
           :issues="issues"
           :max-depth="maxDepth"
           :max-nodes="maxNodes"
+          :position="index + 1"
+          :sibling-count="children.length"
+          :parent-mode="mode"
           :can-move-up="index > 0"
           :can-move-down="index < children.length - 1"
           can-remove

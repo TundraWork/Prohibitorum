@@ -110,6 +110,7 @@ export default {
         factLabel: '条件类型',
         valueLabel: '值',
         polarityLabel: '比较方式',
+        conditionControlContext: '第{position}个条件，共{count}个，位于{mode}组中',
         chooseFact: '选择条件',
         chooseValue: '选择值',
         incompleteCondition: '未完成的条件',

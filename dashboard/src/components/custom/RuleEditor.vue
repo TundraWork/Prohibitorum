@@ -356,6 +356,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
             <RuleImpactPreview
               :rule="draft.rule"
               :providers="providers"
+              :draft-valid="jsonError === undefined"
               :endpoint="previewEndpoint"
               @state-change="updatePreviewState"
             />
@@ -420,6 +421,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         <RuleImpactPreview
           :rule="draft.rule"
           :providers="providers"
+          :draft-valid="true"
           :endpoint="previewEndpoint"
           @state-change="updatePreviewState"
         />

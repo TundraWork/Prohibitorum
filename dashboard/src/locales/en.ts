@@ -114,6 +114,7 @@ export default {
         factLabel: 'Condition type',
         valueLabel: 'Value',
         polarityLabel: 'Comparison',
+        conditionControlContext: 'for condition {position} of {count} in {mode} group',
         chooseFact: 'Choose a condition',
         chooseValue: 'Choose a value',
         incompleteCondition: 'Incomplete condition',
