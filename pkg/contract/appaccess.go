@@ -33,13 +33,21 @@ type AppScopeView struct {
 	Description string `json:"description"`
 }
 
+// ProviderDescriptorView is the safe policy-authoring identity of one known
+// upstream provider. Disabled and invite-only providers remain selectable so
+// existing verified connections do not become impossible to express.
+type ProviderDescriptorView struct {
+	Slug string `json:"slug"`
+}
+
 // AppAccessWorkspace combines the application summary with its app-bound
 // policy groups. A database constraint permits at most one manual group.
 type AppAccessWorkspace struct {
-	App              AppSummaryView `json:"app"`
-	AccessRestricted bool           `json:"accessRestricted"`
-	ManualGroup      *AppGroupView  `json:"manualGroup,omitempty"`
-	RuleGroups       []AppGroupView `json:"ruleGroups"`
+	App              AppSummaryView           `json:"app"`
+	AccessRestricted bool                     `json:"accessRestricted"`
+	Providers        []ProviderDescriptorView `json:"providers"`
+	ManualGroup      *AppGroupView            `json:"manualGroup,omitempty"`
+	RuleGroups       []AppGroupView           `json:"ruleGroups"`
 }
 
 // AppAccessRule is the public mirror of the closed appaccess rule document.

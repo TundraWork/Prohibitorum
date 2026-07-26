@@ -89,8 +89,11 @@ func (s *Server) getBoundAppGroup(ctx context.Context, ref appaccess.AppRef, gro
 }
 
 func (s *Server) appGroupViews(ctx context.Context, groups []db.UserGroup) ([]contract.AppGroupView, error) {
+	return s.appGroupViewsWithProviders(ctx, groups, nil)
+}
+
+func (s *Server) appGroupViewsWithProviders(ctx context.Context, groups []db.UserGroup, providers map[string]struct{}) ([]contract.AppGroupView, error) {
 	views := make([]contract.AppGroupView, 0, len(groups))
-	var providers map[string]struct{}
 	for _, group := range groups {
 		view := contract.AppGroupView{
 			ID: group.ID, Kind: group.Kind, Slug: group.Slug, DisplayName: group.DisplayName,
@@ -134,16 +137,28 @@ func (s *Server) appGroupView(ctx context.Context, group db.UserGroup) (contract
 	return views[0], nil
 }
 
-func (s *Server) knownProviderSet(ctx context.Context) (map[string]struct{}, error) {
+func (s *Server) knownProviderSlugs(ctx context.Context) ([]string, error) {
 	slugs, err := s.appPolicyQ().ListKnownUpstreamIDPSlugs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list known upstream providers: %w", err)
 	}
+	return slugs, nil
+}
+
+func providerSet(slugs []string) map[string]struct{} {
 	providers := make(map[string]struct{}, len(slugs))
 	for _, slug := range slugs {
 		providers[slug] = struct{}{}
 	}
-	return providers, nil
+	return providers
+}
+
+func (s *Server) knownProviderSet(ctx context.Context) (map[string]struct{}, error) {
+	slugs, err := s.knownProviderSlugs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return providerSet(slugs), nil
 }
 
 func contractRule(rule appaccess.Rule) contract.AppAccessRule {

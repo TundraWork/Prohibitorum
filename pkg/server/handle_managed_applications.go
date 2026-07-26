@@ -304,12 +304,21 @@ func (s *Server) handleManagedApplicationAccessWorkspaceHTTP(w http.ResponseWrit
 		writeAuthErr(w, err)
 		return
 	}
-	views, err := s.appGroupViews(r.Context(), groups)
+	providerSlugs, err := s.knownProviderSlugs(r.Context())
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	workspace := contract.AppAccessWorkspace{App: app.summary, AccessRestricted: app.summary.AccessRestricted, RuleGroups: make([]contract.AppGroupView, 0, len(views))}
+	views, err := s.appGroupViewsWithProviders(r.Context(), groups, providerSet(providerSlugs))
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	providers := make([]contract.ProviderDescriptorView, len(providerSlugs))
+	for i, slug := range providerSlugs {
+		providers[i] = contract.ProviderDescriptorView{Slug: slug}
+	}
+	workspace := contract.AppAccessWorkspace{App: app.summary, AccessRestricted: app.summary.AccessRestricted, Providers: providers, RuleGroups: make([]contract.AppGroupView, 0, len(views))}
 	for i := range views {
 		switch views[i].Kind {
 		case "manual":

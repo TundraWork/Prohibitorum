@@ -30,22 +30,29 @@ async function mountView(path = '/manage/applications/oidc/client%2Fid') {
 describe('ManagedApplicationDetailView', () => {
   beforeEach(() => { get.mockReset() })
 
-  it('loads the protocol-neutral access workspace and summarizes its policy', async () => {
-    get.mockResolvedValue({
+  it('renders the reusable policy workspace without protocol configuration', async () => {
+    const workspace = {
       app: { kind: 'oidc', appId: 'client/id', displayName: 'Grafana', accessRestricted: true },
       accessRestricted: true,
+      providers: [{ slug: 'corporate' }],
       manualGroup: { id: 1, kind: 'manual', slug: 'grafana-access', displayName: 'Grafana access', exposedToDownstream: false },
       ruleGroups: [
         { id: 2, kind: 'rule', slug: 'grafana-corporate', displayName: 'Corporate users', exposedToDownstream: false, rule: { version: 1, condition: { fact: 'connection.provider', provider: 'corporate' } } },
       ],
-    })
+    }
+    get.mockImplementation(async (path: string) =>
+      path.endsWith('/access') ? workspace : { items: [], nextCursor: '' },
+    )
     const wrapper = await mountView(); await flushPromises()
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/managed-applications/oidc/client%2Fid/access')
     expect(wrapper.find('[data-test="managed-application-detail"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="app-policy-workspace"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Grafana')
     expect(wrapper.text()).toContain('Restricted access')
     expect(wrapper.text()).toContain('Manual group: Grafana access')
     expect(wrapper.text()).toContain('1 rule group')
+    expect(wrapper.text()).not.toContain('Redirect URI')
+    expect(get.mock.calls.filter(([path]) => path.endsWith('/access'))).toHaveLength(1)
   })
 
   it('uses the generic unavailable state for an unknown or unassigned application', async () => {

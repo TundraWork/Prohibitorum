@@ -721,6 +721,23 @@ func TestManagedApplicationAccountsProjectPageRows(t *testing.T) {
 		t.Fatal("account page with a second row must provide a next cursor")
 	}
 }
+
+func TestManagedApplicationWorkspaceProjectsKnownProviderChoices(t *testing.T) {
+	s, queries, _ := newPolicyTestServer()
+	queries.providers = []string{"disabled-idp", "github"}
+
+	rr := managedRequest(t, s, http.MethodGet, managedURL("oidc", "wiki", "/access"), "", managedAppSession(7, "app_manager", false))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+	}
+	var workspace contract.AppAccessWorkspace
+	if err := json.Unmarshal(rr.Body.Bytes(), &workspace); err != nil {
+		t.Fatalf("decode access workspace: %v; body: %s", err, rr.Body.String())
+	}
+	if len(workspace.Providers) != 2 || workspace.Providers[0].Slug != "disabled-idp" || workspace.Providers[1].Slug != "github" {
+		t.Fatalf("provider choices = %#v, want safe known-provider slugs including disabled providers", workspace.Providers)
+	}
+}
 func TestManagedRouteInputIdentifiersRemainOpaque(t *testing.T) {
 	for _, badID := range []string{"", "0", "-1", "not-a-number"} {
 		t.Run(strconv.Quote(badID), func(t *testing.T) {

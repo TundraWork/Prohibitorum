@@ -2,6 +2,10 @@ export type AppKind = 'oidc' | 'forward_auth' | 'saml'
 export type GroupKind = 'manual' | 'rule'
 export type ManualEffect = 'allow' | 'deny'
 
+
+export interface ProviderDescriptor {
+  slug: string
+}
 export interface AppScope {
   name: string
   description: string
@@ -60,7 +64,25 @@ export interface ManualDecision {
 export interface AppAccessWorkspace {
   app: ManagedApplication
   accessRestricted: boolean
+  providers: ProviderDescriptor[]
   manualGroup?: AppGroup
   ruleGroups: AppGroup[]
 }
 
+
+export interface GroupPreview {
+  account: AccountSummary
+  matched: boolean
+}
+
+export interface ExplanationNode {
+  path: string
+  label: string
+  result: boolean
+  children?: ExplanationNode[]
+}
+
+export interface GroupExplanation {
+  account: AccountSummary
+  explanation: ExplanationNode
+}
