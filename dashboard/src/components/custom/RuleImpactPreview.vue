@@ -29,7 +29,7 @@ const items = ref<RulePreviewPage['items']>([])
 const matchedCount = ref<number | null>(null)
 const nextCursor = ref('')
 const pageIndex = ref(0)
-const pendingRequests = ref(0)
+const latestPendingVersion = ref<number | null>(null)
 const pageCursors = ref<string[]>([''])
 const stale = ref(false)
 const failed = ref(false)
@@ -40,14 +40,14 @@ const providerSlugs = computed(() => new Set(props.providers.map((provider) => p
 const valid = computed(() => validateRule(props.rule, providerSlugs.value).length === 0)
 const hasResults = computed(() => matchedCount.value !== null)
 const state = computed<'idle' | 'loading' | 'current' | 'stale' | 'error'>(() => {
-  if (pendingRequests.value > 0) return 'loading'
+  if (latestPendingVersion.value !== null) return 'loading'
   if (failed.value) return 'error'
   if (stale.value) return 'stale'
   if (hasResults.value) return 'current'
   return 'idle'
 })
 const statusText = computed(() => {
-  if (pendingRequests.value > 0) return t('manage.policy.rule.impactLoading')
+  if (latestPendingVersion.value !== null) return t('manage.policy.rule.impactLoading')
   if (stale.value || failed.value) return t('manage.policy.rule.impactStale')
   if (hasResults.value) return t('manage.policy.rule.impactCurrent')
   return valid.value ? t('manage.policy.rule.impactWaiting') : t('manage.policy.rule.impactUnavailable')
@@ -66,7 +66,7 @@ function requestBody(rule: Rule, cursor: string) {
 async function loadPage(cursor: string, nextPageIndex: number, version = ++requestVersion): Promise<void> {
   const rule = cloneRule(props.rule)
   failed.value = false
-  pendingRequests.value += 1
+  latestPendingVersion.value = version
   emit('state-change', 'loading')
   const operation = () => api.post<RulePreviewPage>(props.endpoint, requestBody(rule, cursor))
   let page: RulePreviewPage | undefined
@@ -75,7 +75,7 @@ async function loadPage(cursor: string, nextPageIndex: number, version = ++reque
   } catch {
     page = undefined
   } finally {
-    pendingRequests.value -= 1
+    if (version === requestVersion) latestPendingVersion.value = null
   }
   if (version !== requestVersion) return
   if (!page) {
@@ -97,6 +97,7 @@ async function loadPage(cursor: string, nextPageIndex: number, version = ++reque
 function schedulePreview(): void {
   if (debounceTimer !== undefined) clearTimeout(debounceTimer)
   const version = ++requestVersion
+  latestPendingVersion.value = null
   if (!valid.value) {
     stale.value = hasResults.value
     failed.value = false
@@ -189,7 +190,7 @@ onBeforeUnmount(() => {
       {{ t('manage.policy.rule.retryPreview') }}
     </Button>
 
-    <p v-if="!hasResults && pendingRequests === 0 && !failed" class="mt-4 text-sm text-muted">
+    <p v-if="!hasResults && latestPendingVersion === null && !failed" class="mt-4 text-sm text-muted">
       {{ valid ? t('manage.policy.rule.impactEmptyWaiting') : t('manage.policy.rule.impactFixRule') }}
     </p>
 
@@ -222,7 +223,7 @@ onBeforeUnmount(() => {
       class="mt-4"
       :page-index="pageIndex"
       :has-more="nextCursor !== ''"
-      :busy="pendingRequests > 0"
+      :busy="latestPendingVersion !== null"
       :has-items="items.length > 0"
       @next="nextPage"
       @previous="previousPage"

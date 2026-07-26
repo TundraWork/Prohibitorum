@@ -122,6 +122,27 @@ describe('RuleImpactPreview', () => {
     expect(wrapper.get('[data-test="impact-row-42"]').text()).toContain('Bob Ruiz')
   })
 
+  it('stops showing loading when the latest request resolves even if a superseded request remains pending', async () => {
+    const superseded = deferred<RulePreviewPage>()
+    const latest = deferred<RulePreviewPage>()
+    post.mockReturnValueOnce(superseded.promise).mockReturnValueOnce(latest.promise)
+    const wrapper = mountPreview(PASSKEY_RULE)
+
+    await vi.advanceTimersByTimeAsync(300)
+    await wrapper.setProps({ rule: FEDERATION_RULE })
+    await vi.advanceTimersByTimeAsync(300)
+
+    latest.resolve(PAGE_ONE)
+    await flushPromises()
+    expect(wrapper.get('[data-test="impact-status"]').text()).toBe('Impact preview is current.')
+    expect(wrapper.get('[data-test="next-page"]').attributes('disabled')).toBeUndefined()
+
+    superseded.resolve(PAGE_TWO)
+    await flushPromises()
+    expect(wrapper.get('[data-test="impact-status"]').text()).toBe('Impact preview is current.')
+    expect(wrapper.get('[data-test="impact-row-7"]').exists()).toBe(true)
+  })
+
   it('renders the exact match count and safe account page, then paginates with the returned cursor', async () => {
     post.mockResolvedValueOnce(PAGE_ONE).mockResolvedValueOnce(PAGE_TWO)
     const wrapper = mountPreview(PASSKEY_RULE)

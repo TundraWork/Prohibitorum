@@ -26,6 +26,22 @@ const EDIT_DRAFT: RuleEditorDraft = {
 const wrappers: VueWrapper[] = []
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 
+const GROUP_DRAFT: RuleEditorDraft = {
+  slug: 'mixed-members',
+  displayName: 'Mixed members',
+  description: '',
+  exposedToDownstream: false,
+  rule: {
+    version: 1,
+    condition: {
+      op: 'all',
+      children: [
+        { fact: 'login_method', method: 'passkey' },
+        { fact: 'avatar', source: 'user_uploaded' },
+      ],
+    },
+  },
+}
 beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class {
     observe() {}
@@ -111,6 +127,67 @@ describe('RuleEditor', () => {
     expect(wrapper.get('[data-test="predicate-value-root"]').text()).toContain('User-uploaded avatar')
   })
 
+  it('treats JSON mode and an invalid JSON buffer as dirty and confirms cancellation', async () => {
+    const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
+    await wrapper.get('[data-test="segment-json"]').trigger('click')
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([true])
+
+    await wrapper.get('[data-test="rule-json-source"]').setValue('{broken')
+    const unload = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+
+    await wrapper.get('[data-test="cancel-rule"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('cancel')).toBeUndefined()
+    expect(document.body.querySelector('[data-test="dirty-dialog"]')).not.toBeNull()
+  })
+
+  it('blocks Review and save while the visible JSON buffer is invalid', async () => {
+    const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
+    await wrapper.get('[data-test="segment-json"]').trigger('click')
+    await wrapper.get('[data-test="rule-json-source"]').setValue('{broken')
+
+    const review = wrapper.get('[data-test="review-rule"]')
+    expect(review.attributes('disabled')).toBeDefined()
+    await review.trigger('click')
+    expect(wrapper.find('[data-test="rule-review"]').exists()).toBe(false)
+    expect(wrapper.emitted('save')).toBeUndefined()
+  })
+
+  it('preserves one structural Undo across a mode round trip and restores the exact subtree', async () => {
+    const wrapper = mountEditor({ initialDraft: GROUP_DRAFT, mode: 'edit' })
+    await wrapper.get('[data-test="predicate-actions-root-1"]').trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLElement>('[data-test="predicate-remove-root-1"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }))
+    await flushPromises()
+    expect(wrapper.get('[data-test="rule-builder-undo"]').exists()).toBe(true)
+
+    await wrapper.get('[data-test="segment-json"]').trigger('click')
+    await wrapper.get('[data-test="segment-visual"]').trigger('click')
+    await wrapper.get('[data-test="rule-builder-undo"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-test="segment-json"]').trigger('click')
+    const restored = JSON.parse((wrapper.get('[data-test="rule-json-source"]').element as HTMLTextAreaElement).value)
+    expect(restored).toEqual(GROUP_DRAFT.rule)
+  })
+
+  it('invalidates preserved structural Undo after a JSON transform', async () => {
+    const wrapper = mountEditor({ initialDraft: GROUP_DRAFT, mode: 'edit' })
+    await wrapper.get('[data-test="predicate-actions-root-1"]').trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLElement>('[data-test="predicate-remove-root-1"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }))
+    await flushPromises()
+    await wrapper.get('[data-test="segment-json"]').trigger('click')
+    await wrapper.get('[data-test="rule-json-source"]').setValue(JSON.stringify(PASSKEY_RULE))
+    await wrapper.get('[data-test="segment-visual"]').trigger('click')
+
+    expect(wrapper.find('[data-test="rule-builder-undo"]').exists()).toBe(false)
+  })
+
   it('generates a slug from display name until the slug is manually edited', async () => {
     const wrapper = mountEditor()
     await setInput(wrapper, 'rule-display-name', 'Trusted Friends')
@@ -182,6 +259,7 @@ describe('RuleEditor', () => {
 
   it('shows Saving and announces success with focused status after the save lifecycle', async () => {
     const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
+    await setInput(wrapper, 'rule-description', 'Updated before save')
     await wrapper.get('[data-test="review-rule"]').trigger('click')
     await wrapper.get('[data-test="save-rule"]').trigger('click')
     await wrapper.setProps({ busy: true })
@@ -194,6 +272,10 @@ describe('RuleEditor', () => {
     expect(status.text()).toBe('Rule group saved.')
     expect(status.attributes('role')).toBe('status')
     expect(document.activeElement).toBe(status.element)
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([false])
+    const unload = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(false)
   })
 
   it('confirms dirty cancellation and installs beforeunload only while dirty', async () => {

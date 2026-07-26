@@ -63,6 +63,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const advancedId = `rule-editor-advanced-${useId()}`
 const initial = closedDraft(props.initialDraft)
+const baseline = ref(editorSnapshot(initial, 'visual', formatRuleJSON(initial.rule)))
 const draft = ref<RuleEditorDraft>(closedDraft(initial))
 const lastValidRule = ref(cloneRule(initial.rule))
 const editorMode = ref<'visual' | 'json'>('visual')
@@ -77,6 +78,7 @@ const slugEdited = ref(props.mode === 'edit' || initial.slug !== '')
 const saveRequested = ref(false)
 const saveBecameBusy = ref(false)
 const saved = ref(false)
+const visualBuilderKey = ref(0)
 const jsonTextarea = ref<HTMLElement>()
 const keepEditingButton = ref<{ $el?: HTMLElement }>()
 const cancelSaveButton = ref<{ $el?: HTMLElement }>()
@@ -87,9 +89,10 @@ const issues = computed(() => validateRule(draft.value.rule, providerSlugs.value
 const valid = computed(() => (
   draft.value.displayName.trim() !== '' &&
   draft.value.slug.trim() !== '' &&
-  issues.value.length === 0
+  issues.value.length === 0 &&
+  jsonError.value === undefined
 ))
-const dirty = computed(() => JSON.stringify(closedDraft(draft.value)) !== JSON.stringify(initial))
+const dirty = computed(() => JSON.stringify(editorSnapshot(draft.value, editorMode.value, jsonSource.value)) !== JSON.stringify(baseline.value))
 const title = computed(() => props.mode === 'create'
   ? t('manage.policy.rule.createTitle')
   : t('manage.policy.rule.editTitle', { name: initial.displayName }))
@@ -102,6 +105,10 @@ const serverErrorText = computed(() => {
   const key = `errors.codes.${props.serverError.code}`
   return t(key, props.serverError.code)
 })
+
+function editorSnapshot(source: RuleEditorDraft, mode: 'visual' | 'json', json: string) {
+  return { draft: closedDraft(source), editorMode: mode, jsonSource: json }
+}
 
 function closedDraft(source: RuleEditorDraft): RuleEditorDraft {
   return {
@@ -141,6 +148,7 @@ function updateJSON(source: string): void {
   }
   jsonError.value = undefined
   const next = cloneRule(parsed.rule)
+  if (JSON.stringify(next) !== JSON.stringify(draft.value.rule)) visualBuilderKey.value += 1
   lastValidRule.value = next
   draft.value.rule = next
 }
@@ -182,7 +190,7 @@ async function copy(value: string): Promise<void> {
 }
 
 function startReview(): void {
-  if (!valid.value) return
+  if (!valid.value || jsonError.value) return
   reviewing.value = true
   saved.value = false
 }
@@ -250,6 +258,7 @@ watch(() => props.busy, async (isBusy, wasBusy) => {
   saveRequested.value = false
   saveBecameBusy.value = false
   saved.value = true
+  baseline.value = editorSnapshot(draft.value, editorMode.value, jsonSource.value)
   await nextTick()
   saveStatus.value?.$el?.focus()
 })
@@ -313,7 +322,8 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         >
           <div class="min-w-0" data-test="editor-builder-column">
             <RuleVisualBuilder
-              v-if="editorMode === 'visual'"
+              v-show="editorMode === 'visual'"
+              :key="visualBuilderKey"
               :model-value="draft.rule"
               :providers="providers"
               :issues="issues"
@@ -323,7 +333,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
               @update:model-value="updateRule"
             />
             <RuleJsonEditor
-              v-else
+              v-show="editorMode === 'json'"
               ref="jsonTextarea"
               :source="jsonSource"
               :parsed-rule="lastValidRule"
