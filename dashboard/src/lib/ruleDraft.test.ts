@@ -207,12 +207,17 @@ describe('closed rule validation and JSON', () => {
   it('distinguishes trailing JSON and rejects wrong wire member types as invalid JSON', () => {
     const valid = '{"version":1,"condition":{"fact":"avatar","source":"any"}}'
     expect(parseRuleJSON(`${valid} {}`, providers)).toMatchObject({ ok: false, reason: 'trailing_json', path: '$' })
+    expect(parseRuleJSON(`${valid} ]`, providers)).toMatchObject({ ok: false, reason: 'invalid_json', path: '$' })
+    expect(parseRuleJSON(`${valid} {`, providers)).toMatchObject({ ok: false, reason: 'invalid_json', path: '$' })
 
     for (const source of [
       '{"version":1,"condition":{"op":7,"children":[]}}',
       '{"version":1,"condition":{"fact":7}}',
       '{"version":1,"condition":{"fact":"avatar","source":7}}',
       '{"version":1,"condition":{"op":"all","children":{}}}',
+      '{"version":1,"condition":[]}',
+      '{"version":1,"condition":{"op":"not","child":7}}',
+      '{"version":1,"condition":{"op":"all","children":[7]}}',
     ]) {
       expect(parseRuleJSON(source, providers)).toMatchObject({ ok: false, reason: 'invalid_json' })
     }
