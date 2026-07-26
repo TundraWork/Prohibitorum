@@ -102,16 +102,7 @@ function withCondition(rule: Rule, condition: Condition): Rule {
 }
 
 function defaultPredicate(fact: NonNullable<Condition['fact']>): Condition {
-  switch (fact) {
-    case 'connection.provider':
-      return { fact, provider: '' }
-    case 'connection.protocol':
-      return { fact, protocol: 'oidc' }
-    case 'login_method':
-      return { fact, method: 'passkey' }
-    case 'avatar':
-      return { fact, source: 'any' }
-  }
+  return { fact }
 }
 
 function predicateAtPath(rule: Rule, path: RulePath): Condition | undefined {
@@ -299,6 +290,26 @@ function hasUnknownKeys(value: Record<string, unknown>, allowed: ReadonlySet<str
   return Object.keys(value).some((key) => !allowed.has(key))
 }
 
+function hasWrongWireTypes(document: Record<string, unknown>): boolean {
+  if (typeof document.version !== 'number') return true
+  function wrong(node: unknown): boolean {
+    if (node === null || typeof node !== 'object' || Array.isArray(node)) return false
+    const condition = node as Record<string, unknown>
+    if (Object.prototype.hasOwnProperty.call(condition, 'op') && typeof condition.op !== 'string') return true
+    if (Object.prototype.hasOwnProperty.call(condition, 'fact') && typeof condition.fact !== 'string') return true
+    for (const key of ['provider', 'protocol', 'method', 'source'] as const) {
+      if (Object.prototype.hasOwnProperty.call(condition, key) && typeof condition[key] !== 'string') return true
+    }
+    if (Object.prototype.hasOwnProperty.call(condition, 'children')) {
+      if (!Array.isArray(condition.children)) return true
+      if (condition.children.some(wrong)) return true
+    }
+    if (Object.prototype.hasOwnProperty.call(condition, 'child') && wrong(condition.child)) return true
+    return false
+  }
+  return wrong(document.condition)
+}
+
 export function validateRule(rule: Rule, providers: ReadonlySet<string>): RuleValidationIssue[] {
   const raw = rule as unknown
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -307,8 +318,9 @@ export function validateRule(rule: Rule, providers: ReadonlySet<string>): RuleVa
   const document = raw as Record<string, unknown>
   if (hasUnknownKeys(document, RULE_KEYS)) return [validationIssue('$', 'unknown_field')]
   if (!Object.prototype.hasOwnProperty.call(document, 'version')) return [validationIssue('$', 'missing_version')]
-  if (document.version !== 1) return [validationIssue('$', 'unsupported_version')]
   if (!Object.prototype.hasOwnProperty.call(document, 'condition')) return [validationIssue('$', 'missing_condition')]
+  if (hasWrongWireTypes(document)) return [validationIssue('$', 'invalid_json')]
+  if (document.version !== 1) return [validationIssue('$', 'unsupported_version')]
 
   let nodes = 0
   function visit(rawCondition: unknown, path: string, depth: number): RuleValidationIssue | undefined {
@@ -410,12 +422,42 @@ function jsonErrorLocation(source: string, error: unknown): Pick<InvalidRuleJSON
   return { line: lines.length, column: (lines.at(-1)?.length ?? 0) + 1 }
 }
 
+function hasTrailingJSON(source: string): boolean {
+  let depth = 0
+  let inString = false
+  let escaped = false
+  let started = false
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]!
+    if (!started) {
+      if (/\s/.test(char)) continue
+      if (char !== '{') return false
+      started = true
+      depth = 1
+      continue
+    }
+    if (inString) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') inString = true
+    else if (char === '{' || char === '[') depth += 1
+    else if (char === '}' || char === ']') {
+      depth -= 1
+      if (depth === 0) return source.slice(index + 1).trim().length > 0
+    }
+  }
+  return false
+}
+
 export function parseRuleJSON(source: string, providers: ReadonlySet<string>): ParsedRuleJSON | InvalidRuleJSON {
   let parsed: unknown
   try {
     parsed = JSON.parse(source)
   } catch (error) {
-    return { ok: false, source, path: '$', reason: 'invalid_json', ...jsonErrorLocation(source, error) }
+    return { ok: false, source, path: '$', reason: hasTrailingJSON(source) ? 'trailing_json' : 'invalid_json', ...jsonErrorLocation(source, error) }
   }
   const issues = validateRule(parsed as Rule, providers)
   if (issues.length > 0) {

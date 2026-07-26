@@ -121,7 +121,7 @@ describe('immutable rule draft transformations', () => {
 
     expect(factChanged.condition).toEqual({
       op: 'all',
-      children: [{ op: 'not', child: { fact: 'login_method', method: 'passkey' } }],
+      children: [{ op: 'not', child: { fact: 'login_method' } }],
     })
     expect(valueChanged.condition).toEqual({
       op: 'all',
@@ -129,6 +129,18 @@ describe('immutable rule draft transformations', () => {
     })
     expect(conditionAtPath(valueChanged, [0, 'child'])).toEqual({ fact: 'login_method', method: 'federation' })
     expect(source).toEqual(before)
+  })
+
+  it('keeps every newly selected fact incomplete while preserving polarity', () => {
+    for (const fact of ['connection.provider', 'connection.protocol', 'login_method', 'avatar'] as const) {
+      const positive = updatePredicateFact(rule({}), [], fact)
+      expect(positive.condition).toEqual({ fact })
+      expect(validateRule(positive, new Set(['downstream']))[0]?.reason).toBeDefined()
+
+      const negative = updatePredicateFact(rule({ op: 'not', child: {} }), [], fact)
+      expect(negative.condition).toEqual({ op: 'not', child: { fact } })
+      expect(validateRule(negative, new Set(['downstream']))[0]?.reason).toBeDefined()
+    }
   })
 
   it('clones only the closed condition vocabulary', () => {
@@ -191,7 +203,22 @@ describe('closed rule validation and JSON', () => {
     expect(parsed).toEqual({ ok: true, rule: original, formatted: `${JSON.stringify(original, null, 2)}\n` })
     expect(formatRuleJSON(original)).toBe(`${JSON.stringify(original, null, 2)}\n`)
   })
+
+  it('distinguishes trailing JSON and rejects wrong wire member types as invalid JSON', () => {
+    const valid = '{"version":1,"condition":{"fact":"avatar","source":"any"}}'
+    expect(parseRuleJSON(`${valid} {}`, providers)).toMatchObject({ ok: false, reason: 'trailing_json', path: '$' })
+
+    for (const source of [
+      '{"version":1,"condition":{"op":7,"children":[]}}',
+      '{"version":1,"condition":{"fact":7}}',
+      '{"version":1,"condition":{"fact":"avatar","source":7}}',
+      '{"version":1,"condition":{"op":"all","children":{}}}',
+    ]) {
+      expect(parseRuleJSON(source, providers)).toMatchObject({ ok: false, reason: 'invalid_json' })
+    }
+  })
 })
+
 
 describe('rule meaning and stable identifiers', () => {
   const nested = rule({
