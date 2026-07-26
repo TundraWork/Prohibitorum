@@ -423,6 +423,35 @@ function jsonErrorLocation(source: string, error: unknown): Pick<InvalidRuleJSON
   return { line: lines.length, column: (lines.at(-1)?.length ?? 0) + 1 }
 }
 
+function firstJSONValueEnd(source: string): number | undefined {
+  const start = source.search(/\S/)
+  if (start < 0) return undefined
+  const first = source[start]!
+  if (first !== '{' && first !== '[') {
+    const match = /^(?:"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)/.exec(source.slice(start))
+    return match ? start + match[0].length : undefined
+  }
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index]!
+    if (inString) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') inString = true
+    else if (char === '{' || char === '[') depth += 1
+    else if (char === '}' || char === ']') {
+      depth -= 1
+      if (depth === 0) return index + 1
+    }
+  }
+  return undefined
+}
+
 function trailingJSONReason(source: string): 'trailing_json' | 'invalid_json' {
   let depth = 0
   let inString = false
@@ -450,8 +479,10 @@ function trailingJSONReason(source: string): 'trailing_json' | 'invalid_json' {
       if (depth === 0) {
         const suffix = source.slice(index + 1).trim()
         if (suffix === '') return 'invalid_json'
+        const secondEnd = firstJSONValueEnd(suffix)
+        if (secondEnd === undefined) return 'invalid_json'
         try {
-          JSON.parse(suffix)
+          JSON.parse(suffix.slice(0, secondEnd))
           return 'trailing_json'
         } catch {
           return 'invalid_json'
