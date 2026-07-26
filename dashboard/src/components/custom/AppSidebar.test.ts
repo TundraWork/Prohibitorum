@@ -18,7 +18,27 @@ const stub = defineComponent({ template: '<div/>' })
 function makeRouter() {
   return createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: stub }, { path: '/security', component: stub }, { path: '/sessions', component: stub }, { path: '/connected', component: stub }, { path: '/devices', component: stub }, { path: '/app-access', component: stub }, { path: '/tokens', component: stub }, { path: '/logout', component: stub }, { path: '/admin/accounts', component: stub }, { path: '/admin/invitations', component: stub }, { path: '/admin/groups', component: stub }, { path: '/admin/oidc-applications', component: stub }, { path: '/admin/saml-applications', component: stub }, { path: '/admin/identity-providers', component: stub }, { path: '/admin/signing-keys', component: stub }, { path: '/admin/settings', component: stub }, { path: '/admin/forward-auth-apps', component: stub }, { path: '/admin/audit', component: stub }],
+    routes: [
+      { path: '/', component: stub },
+      { path: '/security', component: stub },
+      { path: '/sessions', component: stub },
+      { path: '/connected', component: stub },
+      { path: '/devices', component: stub },
+      { path: '/app-access', component: stub },
+      { path: '/tokens', component: stub },
+      { path: '/logout', component: stub },
+      { path: '/manage/applications', component: stub },
+      { path: '/admin/accounts', component: stub },
+      { path: '/admin/invitations', component: stub },
+      { path: '/admin/groups', component: stub },
+      { path: '/admin/oidc-applications', component: stub },
+      { path: '/admin/saml-applications', component: stub },
+      { path: '/admin/identity-providers', component: stub },
+      { path: '/admin/signing-keys', component: stub },
+      { path: '/admin/settings', component: stub },
+      { path: '/admin/forward-auth-apps', component: stub },
+      { path: '/admin/audit', component: stub },
+    ],
   })
 }
 function makeI18n() {
@@ -67,6 +87,7 @@ describe('AppSidebar', () => {
     expect(links).toContain('/admin/invitations')
     expect(links).toContain('/admin/groups')
     expect(links).toContain('/admin/oidc-applications')
+    expect(links).toContain('/manage/applications')
     expect(links).toContain('/admin/saml-applications')
     expect(links).toContain('/admin/identity-providers')
   })
@@ -78,6 +99,17 @@ describe('AppSidebar', () => {
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
     expect(links).not.toContain('/admin/accounts')
+  })
+
+  it('shows managed applications without global admin navigation to app managers', async () => {
+    const auth = useAuthStore()
+    auth.me = { id: 3, username: 'manager', displayName: 'App Manager', role: 'app_manager' }
+    const router = makeRouter(); router.push('/manage/applications'); await router.isReady()
+    const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
+    const links = wrapper.findAll('a').map((a) => a.attributes('href'))
+    expect(links).toContain('/manage/applications')
+    expect(links).not.toContain('/admin/accounts')
+    expect(links).not.toContain('/admin/oidc-applications')
   })
 
   it('renders the language switcher and theme toggle as standalone footer controls', async () => {

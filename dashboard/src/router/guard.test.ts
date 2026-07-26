@@ -16,6 +16,7 @@ function makeRouter() {
       { path: '/login', name: 'login', component: stub, meta: { public: true } },
       { path: '/error', name: 'error', component: stub, meta: { public: true } },
       { path: '/admin', name: 'test-admin', component: stub, meta: { requiresAuth: true, requiresAdmin: true } },
+      { path: '/manage/applications', name: 'managed-applications', component: stub, meta: { requiresAuth: true, requiresAppManager: true } },
     ],
   })
   installGuard(r)
@@ -36,6 +37,32 @@ describe('router guard (requiresAdmin)', () => {
     const r = makeRouter()
     await r.push('/admin'); await r.isReady()
     expect(r.currentRoute.value.name).toBe('test-admin')
+  })
+})
+
+describe('router guard (requiresAppManager)', () => {
+  it('allows an application manager into managed routes but not admin routes', async () => {
+    get.mockResolvedValue({ id: 1, username: 'm', displayName: 'Manager', role: 'app_manager' })
+    const r = makeRouter()
+    await r.push('/manage/applications'); await r.isReady()
+    expect(r.currentRoute.value.name).toBe('managed-applications')
+    await r.push('/admin')
+    expect(r.currentRoute.value.name).toBe('error')
+  })
+
+  it('rejects a regular user from managed routes', async () => {
+    get.mockResolvedValue({ id: 1, username: 'u', displayName: 'User', role: 'user' })
+    const r = makeRouter()
+    await r.push('/manage/applications'); await r.isReady()
+    expect(r.currentRoute.value.name).toBe('error')
+    expect(r.currentRoute.value.query.error).toBe('forbidden')
+  })
+
+  it('allows an admin into managed routes', async () => {
+    get.mockResolvedValue({ id: 1, username: 'a', displayName: 'Admin', role: 'admin' })
+    const r = makeRouter()
+    await r.push('/manage/applications'); await r.isReady()
+    expect(r.currentRoute.value.name).toBe('managed-applications')
   })
 })
 
@@ -125,6 +152,17 @@ describe('3c admin routes require admin', () => {
   ])('%s is marked requiresAdmin', (path) => {
     const resolved = realRouter.resolve(path)
     expect(resolved.meta.requiresAdmin).toBe(true)
+  })
+})
+
+describe('managed application routes', () => {
+  it.each([
+    ['/manage/applications', 'managed-applications'],
+    ['/manage/applications/oidc/client%2Fid', 'managed-application-detail'],
+  ])('%s requires an application manager', (path, name) => {
+    const resolved = realRouter.resolve(path)
+    expect(resolved.name).toBe(name)
+    expect(resolved.meta.requiresAppManager).toBe(true)
   })
 })
 

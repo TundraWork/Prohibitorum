@@ -88,7 +88,7 @@ const notFound = ref(false)
 
 const displayName = ref('')
 const email = ref('')
-const role = ref<'admin' | 'user'>('user')
+const role = ref<'admin' | 'app_manager' | 'user'>('user')
 const disabled = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
@@ -170,7 +170,7 @@ async function load(): Promise<void> {
   account.value = acc
   displayName.value = acc.displayName
   email.value = acc.email ?? ''
-  role.value = acc.role === 'admin' ? 'admin' : 'user'
+  role.value = acc.role === 'admin' || acc.role === 'app_manager' ? acc.role : 'user'
   disabled.value = acc.disabled
   seedAttrs(acc.attributes)
   await loadCredentials()
@@ -327,7 +327,11 @@ onMounted(async () => {
           <div class="flex flex-col gap-1.5">
             <Label>{{ t('admin.account.role') }}</Label>
             <SegmentedControl v-model="role" :aria-label="t('admin.account.role')"
-              :options="[{value:'user',label:t('admin.account.roleUser')},{value:'admin',label:t('admin.account.roleAdmin')}]" />
+              :options="[
+                {value:'user',label:t('admin.account.roleUser')},
+                {value:'app_manager',label:t('admin.account.roleAppManager')},
+                {value:'admin',label:t('admin.account.roleAdmin')},
+              ]" />
             <p class="text-xs text-muted">{{ t('admin.account.roleDesc') }}</p>
           </div>
           <div class="flex flex-col gap-2">

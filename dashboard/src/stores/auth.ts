@@ -8,8 +8,8 @@
  * as "not authenticated" → me=null, not an error. Any other API error is
  * re-thrown so callers can surface it if needed.
  *
- * `isAdmin` is a computed shorthand — the guard composable (Task 3 router) uses
- * it rather than inline role comparisons in every component.
+ * `isAdmin` remains strict; `isAppManager` admits delegated managers and admins
+ * for the shared managed-application surface.
  */
 
 import { defineStore } from 'pinia'
@@ -35,6 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
   const _loaded = ref(false)
 
   const isAdmin = computed(() => me.value?.role === 'admin')
+  const isAppManager = computed(() => me.value?.role === 'app_manager' || me.value?.role === 'admin')
 
   async function ensureLoaded(): Promise<void> {
     if (_loaded.value) return
@@ -95,5 +96,5 @@ export const useAuthStore = defineStore('auth', () => {
     return stop
   }
 
-  return { me, isAdmin, ensureLoaded, reload, setDisplayName, clear, pollAvatarUntilSettled }
+  return { me, isAdmin, isAppManager, ensureLoaded, reload, setDisplayName, clear, pollAvatarUntilSettled }
 })

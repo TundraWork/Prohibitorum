@@ -45,6 +45,15 @@ describe('AdminInvitationsView', () => {
     expect(w.text()).toContain(en.admin.invitations.created)
     expect(get).toHaveBeenCalledTimes(3) // initial load (invitations + upstream-idps) + reload (invitations only)
   })
+  it('offers app manager invitations', async () => {
+    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
+    post.mockResolvedValue({ url: 'https://x/enroll/manager', expiresAt: '2026-06-10T00:00:00Z' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click'); await flushPromises()
+    await w.find('[data-test="segment-app_manager"]').trigger('click'); await flushPromises()
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'app_manager' })
+  })
   it('keeps the create form open when create fails', async () => {
     get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
     post.mockRejectedValue({ code: 'invalid_role', message: 'zh' })

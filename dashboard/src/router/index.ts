@@ -1,18 +1,20 @@
 /**
  * Router — threshold page routes + guard scaffold.
  *
- * Routes: /login /consent /logout /error /enroll/:token + catch-all → /error.
- * Pages are lazy-imported (one chunk per threshold page).
+ * Routes: public authentication thresholds plus authenticated account,
+ * delegated-management, and administration surfaces.
+ * Existing threshold pages are lazy-imported into route chunks.
  *
- * `installGuard` — sets up the navigation guard for requiresAuth/requiresAdmin
- * meta (reserved for Spec 2/3 authenticated routes). Threshold routes (login,
- * consent, logout, error, enroll) are intentionally public — the guard is
- * a no-op on them. The scaffold is in place so adding auth requirements later
- * requires only a route `meta` field, not touching the guard logic.
+ * `installGuard` applies requiresAuth, requiresAppManager, and requiresAdmin.
+ * Public routes bypass those checks.
  */
 
 import { createRouter, createWebHistory, type Router, type RouteRecordRaw } from 'vue-router'
 import { buildTitle } from '@/lib/pageTitle'
+import { getActivePinia } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
+import ManagedApplicationsView from '../pages/ManagedApplicationsView.vue'
+import ManagedApplicationDetailView from '../pages/ManagedApplicationDetailView.vue'
 
 // ---------------------------------------------------------------------------
 // Extend vue-router's RouteMeta with our custom guard meta fields.
@@ -26,7 +28,9 @@ declare module 'vue-router' {
     public?: boolean
     /** Requires an authenticated session (Spec 2/3 dashboard routes). */
     requiresAuth?: boolean
-    /** Requires admin role (Spec 3 admin routes). */
+    /** Requires app_manager or admin role. */
+    requiresAppManager?: boolean
+    /** Requires strict admin role. */
     requiresAdmin?: boolean
     /** i18n key for the page title (title.*). Absent on the root redirect. */
     titleKey?: string
@@ -124,6 +128,8 @@ const routes: RouteRecordRaw[] = [
       { path: '/connected', name: 'connected', component: () => import('../pages/ConnectedAccountsView.vue'), meta: { titleKey: 'title.connected' } },
       { path: '/devices', name: 'devices', component: () => import('../pages/DevicesView.vue'), meta: { titleKey: 'title.devices' } },
       { path: '/app-access', name: 'app-access', component: () => import('../pages/AppAccessView.vue'), meta: { titleKey: 'title.appAccess' } },
+      { path: '/manage/applications', name: 'managed-applications', component: ManagedApplicationsView, meta: { requiresAppManager: true, titleKey: 'title.managedApplications' } },
+      { path: '/manage/applications/:kind/:id', name: 'managed-application-detail', component: ManagedApplicationDetailView, meta: { requiresAppManager: true, titleKey: 'title.managedApplicationDetail' } },
       { path: '/admin/accounts', name: 'admin-accounts', component: () => import('../pages/admin/AdminAccountsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminAccounts' } },
       { path: '/admin/accounts/:id', name: 'admin-account-detail', component: () => import('../pages/admin/AdminAccountDetailView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminAccountDetail' } },
       { path: '/admin/invitations', name: 'admin-invitations', component: () => import('../pages/admin/AdminInvitationsView.vue'), meta: { requiresAdmin: true, titleKey: 'title.adminInvitations' } },
@@ -211,6 +217,17 @@ export function installGuard(router: Router): void {
       await auth.ensureLoaded()
       if (!auth.me) {
         return { name: 'login', query: { return_to: to.fullPath } }
+      }
+    }
+
+    // requiresAppManager: delegated managers and admins share this surface.
+    if (to.meta.requiresAppManager) {
+      const pinia = getActivePinia()
+      if (!pinia) return { name: 'error', query: { error: 'forbidden' } }
+      const auth = useAuthStore()
+      await auth.ensureLoaded()
+      if (!auth.isAppManager) {
+        return { name: 'error', query: { error: 'forbidden' } }
       }
     }
 

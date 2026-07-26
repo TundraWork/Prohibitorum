@@ -3,8 +3,8 @@
  * AppSidebar — config-driven navigation over the vendored shadcn-vue Sidebar
  * primitive (the capability floor: collapse/drawer/tooltip/a11y come from it).
  * Header = brand mark (the single Ember moment). Content = Account nav group
- * (built links only for Spec 2a). Footer = identity + logout (utility tier).
- * An admin group renders only when auth.isAdmin (lands in Spec 3).
+ * (built links only for Spec 2a). Delegated management appears for app managers
+ * and admins; global administration remains strictly admin-only.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -36,6 +36,10 @@ const accountItems = computed(() => [
   { to: '/devices', label: t('nav.devices'), icon: TabletSmartphone },
   { to: '/app-access', label: t('nav.appAccess'), icon: ShieldCheck },
   { to: '/tokens', label: t('nav.tokens'), icon: Terminal },
+])
+
+const managedItems = computed(() => [
+  { to: '/manage/applications', label: t('manage.nav.applications'), icon: AppWindow },
 ])
 
 const adminItems = computed(() => [
@@ -90,6 +94,21 @@ const applicationItems = computed(() => [
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in accountItems" :key="item.to">
+              <SidebarMenuButton as-child :tooltip="item.label" :is-active="isActive(item.to)">
+                <RouterLink :to="item.to">
+                  <component :is="item.icon" aria-hidden="true" />
+                  <span>{{ item.label }}</span>
+                </RouterLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      <SidebarGroup v-if="auth.isAppManager">
+        <SidebarGroupLabel>{{ t('manage.nav.title') }}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="item in managedItems" :key="item.to">
               <SidebarMenuButton as-child :tooltip="item.label" :is-active="isActive(item.to)">
                 <RouterLink :to="item.to">
                   <component :is="item.icon" aria-hidden="true" />

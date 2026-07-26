@@ -40,7 +40,7 @@ const page = useCursorPage<Invitation>((cursor) =>
 const rows = page.items
 const idps = ref<Idp[]>([])
 const createOpen = ref(false)
-const newRole = ref<'admin' | 'user'>('user')
+const newRole = ref<'admin' | 'app_manager' | 'user'>('user')
 const newIdp = ref(IDP_NONE)
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 const revokeToken = ref<string | null>(null)
@@ -97,7 +97,11 @@ onMounted(loadIdps)
         <div class="flex flex-col gap-1.5">
           <Label>{{ t('admin.invitations.role') }}</Label>
           <SegmentedControl v-model="newRole" :aria-label="t('admin.invitations.role')"
-            :options="[{value:'user',label:t('admin.invitations.roleUser')},{value:'admin',label:t('admin.invitations.roleAdmin')}]" />
+            :options="[
+              {value:'user',label:t('admin.invitations.roleUser')},
+              {value:'app_manager',label:t('admin.invitations.roleAppManager')},
+              {value:'admin',label:t('admin.invitations.roleAdmin')},
+            ]" />
           <p class="text-xs text-muted">{{ t('admin.invitations.roleDesc') }}</p>
         </div>
         <div class="flex flex-col gap-1.5">
@@ -132,7 +136,11 @@ onMounted(loadIdps)
       </TableHeader>
       <TableBody>
         <TableRow v-for="inv in rows" :key="inv.token">
-          <TableCell><StatusBadge :variant="inv.role === 'admin' ? 'caution' : 'neutral'">{{ inv.role === 'admin' ? t('admin.invitations.roleAdmin') : t('admin.invitations.roleUser') }}</StatusBadge></TableCell>
+          <TableCell>
+            <StatusBadge :variant="inv.role === 'admin' ? 'caution' : inv.role === 'app_manager' ? 'info' : 'neutral'">
+              {{ inv.role === 'admin' ? t('admin.invitations.roleAdmin') : inv.role === 'app_manager' ? t('admin.invitations.roleAppManager') : t('admin.invitations.roleUser') }}
+            </StatusBadge>
+          </TableCell>
           <TableCell class="max-w-[12rem] truncate text-muted">{{ idpDisplayName(inv.expectedUpstreamIdpSlug) }}</TableCell>
           <TableCell class="text-muted">{{ relativeTime(inv.createdAt) }}</TableCell>
           <TableCell class="text-muted">{{ formatDateTime(inv.expiresAt) }}</TableCell>

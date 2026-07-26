@@ -90,6 +90,13 @@ describe('AdminAccountDetailView', () => {
     expect(w.find('[data-test="attr-row-0"]').exists()).toBe(true)
     expect(w.find<HTMLInputElement>('[data-test="attr-key-0"]').element.value).toBe('team')
   })
+  it('offers and preserves user, app manager, and admin roles', async () => {
+    mockGets({ ...ACCOUNT, role: 'app_manager' })
+    const w = mountView(); await flushPromises()
+    expect(w.find('[data-test="segment-user"]').exists()).toBe(true)
+    expect(w.find('[data-test="segment-app_manager"]').attributes('data-state')).toBe('checked')
+    expect(w.find('[data-test="segment-admin"]').exists()).toBe(true)
+  })
   it('shows not-found when the account is missing', async () => {
     get.mockRejectedValue({ code: 'account_not_found', message: 'zh' })
     const w = mountView(); await flushPromises()
