@@ -822,7 +822,7 @@ Expected: all suites PASS.
 
 - [ ] **Step 2: Start the real development surface**
 
-Use the existing `dev:federation` instance-A database because it contains nested ALL/ANY sample rules with negative leaf conditions. Start long-running processes through Hub, not Bash. Open the actual managed/admin application policy route in the browser and authenticate with the enrolled development account if the browser session is not already authenticated.
+Use the existing `dev:federation` instance-A database because it contains nested ALL/ANY sample rules with negative leaf conditions. Start long-running processes through Hub, not Bash. Preserve every enrolled human credential: NEVER run `enroll-admin --reset`, consume a reset enrollment, delete/replace an existing credential, or use a recovery flow to obtain browser access. Reuse an already authenticated browser/session, or create and use a disposable non-admin `app_manager` fixture whose credentials and sessions may be destroyed after verification. If neither is available, stop browser verification and report the missing non-destructive prerequisite instead of modifying the enrolled admin.
 
 - [ ] **Step 3: Browser-drive the complete workflow**
 
