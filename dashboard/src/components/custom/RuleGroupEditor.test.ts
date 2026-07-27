@@ -164,6 +164,28 @@ describe('RuleGroupEditor', () => {
     })
   })
 
+  it('keeps mode, wrapping description, and actions in one three-column scope header', () => {
+    const wrapper = mountGroup({
+      version: 1,
+      condition: {
+        op: 'all',
+        children: [{ op: 'any', children: [{ fact: 'avatar', source: 'any' }] }],
+      },
+    }, { canRemove: true })
+
+    for (const pathKey of ['root', 'root-0']) {
+      const header = wrapper.get(`[data-test="group-header-${pathKey}"]`)
+      expect(header.classes()).toEqual(expect.arrayContaining([
+        'grid',
+        'grid-cols-[auto_minmax(0,1fr)_auto]',
+        'items-start',
+      ]))
+      expect(header.classes()).not.toContain('flex-wrap')
+      expect(header.get(`[data-test="group-description-${pathKey}"]`).classes()).toContain('min-w-0')
+      expect(header.get(`[data-test="group-actions-${pathKey}"]`).classes()).toContain('shrink-0')
+    }
+  })
+
   it('opens every nested group ellipsis menu on click with visible actions', async () => {
     const wrapper = mountGroup({
       version: 1,

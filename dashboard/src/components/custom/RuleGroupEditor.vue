@@ -144,8 +144,10 @@ function closeActions(event: Event): void {
       class="absolute top-[30px] bottom-[5px] left-0 w-px bg-border-strong"
     />
 
-    <div class="flex min-w-0 flex-wrap items-start justify-between gap-2 py-1">
-      <div class="flex min-w-0 items-start gap-3">
+    <div
+      class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 py-1"
+      :data-test="`group-header-${pathKey}`"
+    >
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button
@@ -176,12 +178,11 @@ function closeActions(event: Event): void {
           </DropdownMenuContent>
         </DropdownMenu>
         <p
-          class="max-w-prose pt-1.5 text-sm leading-relaxed text-muted"
+          class="min-w-0 max-w-prose pt-1.5 text-sm leading-relaxed text-muted"
           :data-test="`group-description-${pathKey}`"
         >
           {{ mode === 'all' ? t('manage.policy.rule.allDescription') : t('manage.policy.rule.anyDescription') }}
         </p>
-      </div>
 
       <DropdownMenu v-if="canMoveUp || canMoveDown || canRemove">
         <DropdownMenuTrigger as-child>
