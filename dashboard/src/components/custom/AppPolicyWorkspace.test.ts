@@ -332,6 +332,13 @@ function clickDestructiveConfirm(label: string): void {
 function ruleEditor(wrapper: ReturnType<typeof mount>) {
   return wrapper.getComponent(RuleEditor)
 }
+async function chooseRuleAction(wrapper: VueWrapper, groupId: number, action: 'edit' | 'delete'): Promise<void> {
+  await wrapper.get(`[data-test="rule-group-actions-${groupId}"]`).trigger('click')
+  await flushPromises()
+  document.body.querySelector<HTMLElement>(`[data-test="rule-group-${action}-${groupId}"]`)!
+    .dispatchEvent(new Event('click', { bubbles: true }))
+  await flushPromises()
+}
 
 function clickConfirmCancel(): void {
   const buttons = Array.from(document.body.querySelectorAll('button')).filter(
@@ -355,7 +362,7 @@ afterEach(() => {
 })
 
 describe('AppPolicyWorkspace', () => {
-  it('opens one shared RuleEditor with an incomplete create draft and provider display names', async () => {
+  it('creates an in-list draft row and expands edit inside the selected rule row', async () => {
     const access = deferred<WorkspaceWire>()
     get.mockImplementation((path: string) => {
       if (path === ACCESS_ENDPOINT) return access.promise
@@ -371,7 +378,9 @@ describe('AppPolicyWorkspace', () => {
     await flushPromises()
 
     await wrapper.get('[data-test="rule-group-create"]').trigger('click')
-    expect(wrapper.findAll('[data-test="rule-editor"]')).toHaveLength(1)
+    const draftRow = wrapper.get('[data-test="rule-group-draft-row"]')
+    expect(draftRow.get('[data-test="rule-editor"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="rule-groups-list"]').element.firstElementChild).toBe(draftRow.element)
     let editor = ruleEditor(wrapper)
     expect(editor.props('mode')).toBe('create')
     expect(editor.props('providers')).toEqual(PROVIDERS)
@@ -386,8 +395,11 @@ describe('AppPolicyWorkspace', () => {
 
     editor.vm.$emit('cancel')
     await flushPromises()
-    await wrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    await chooseRuleAction(wrapper, 21, 'edit')
 
+    const selectedRow = wrapper.get('[data-test="rule-group-row-21"]')
+    expect(selectedRow.get('[data-test="rule-editor"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="rule-group-draft-row"]').exists()).toBe(false)
     expect(wrapper.findAll('[data-test="rule-editor"]')).toHaveLength(1)
     editor = ruleEditor(wrapper)
     expect(editor.props('mode')).toBe('edit')
@@ -435,7 +447,7 @@ describe('AppPolicyWorkspace', () => {
 
     const wrapper = mountWorkspace()
     await flushPromises()
-    await wrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    await chooseRuleAction(wrapper, 21, 'edit')
     ruleEditor(wrapper).vm.$emit('dirty-change', true)
     await flushPromises()
 
@@ -456,7 +468,7 @@ describe('AppPolicyWorkspace', () => {
     mockWorkspaceGets(OPEN_RULE_WORKSPACE)
     const { router, wrapper } = await mountRoutedWorkspace()
     const workspaceWrapper = wrapper.getComponent(AppPolicyWorkspace)
-    await workspaceWrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    await chooseRuleAction(workspaceWrapper, 21, 'edit')
     ruleEditor(workspaceWrapper).vm.$emit('dirty-change', true)
     await flushPromises()
 
@@ -497,7 +509,7 @@ describe('AppPolicyWorkspace', () => {
     })
     const { router, wrapper } = await mountRoutedWorkspace()
     const workspaceWrapper = wrapper.getComponent(AppPolicyWorkspace)
-    await workspaceWrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    await chooseRuleAction(workspaceWrapper, 21, 'edit')
     ruleEditor(workspaceWrapper).vm.$emit('dirty-change', true)
     await flushPromises()
 
@@ -727,7 +739,7 @@ describe('AppPolicyWorkspace', () => {
 
     const wrapper = mountWorkspace()
     await flushPromises()
-    await wrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    await chooseRuleAction(wrapper, 21, 'edit')
     ruleEditor(wrapper).vm.$emit('save', UPDATE_RULE_DRAFT)
     await flushPromises()
 
@@ -751,7 +763,7 @@ describe('AppPolicyWorkspace', () => {
     })
     const wrapper = mountWorkspace()
     await flushPromises()
-    await wrapper.get('[data-test="rule-group-edit-21"]').trigger('click')
+    await chooseRuleAction(wrapper, 21, 'edit')
     ruleEditor(wrapper).vm.$emit('dirty-change', true)
     await flushPromises()
 
@@ -761,21 +773,21 @@ describe('AppPolicyWorkspace', () => {
     clickConfirmCancel()
     await flushPromises()
 
-    await wrapper.get('[data-test="rule-group-edit-22"]').trigger('click')
+    await chooseRuleAction(wrapper, 22, 'edit')
     expect(document.body.textContent).toContain('Discard unsaved changes?')
     expect(ruleEditor(wrapper).props('initialDraft')).toMatchObject({ slug: RULE_GROUP.slug })
     clickConfirmCancel()
     await flushPromises()
 
-    await wrapper.get('[data-test="rule-group-preview-21"]').trigger('click')
+    await wrapper.get('[data-test="rule-group-preview-22"]').trigger('click')
     expect(document.body.textContent).toContain('Discard unsaved changes?')
-    expect(wrapper.find('[data-test="preview-panel-21"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="preview-panel-22"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="rule-editor"]').exists()).toBe(true)
 
     clickDestructiveConfirm('Discard changes')
     await flushPromises()
     expect(wrapper.find('[data-test="rule-editor"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="preview-panel-21"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="preview-panel-22"]').exists()).toBe(true)
   })
 
   it('remounts the same editor target after confirmed discard so its local draft is reset', async () => {
@@ -795,6 +807,28 @@ describe('AppPolicyWorkspace', () => {
       .toBe('')
   })
 
+  it('opens each saved-rule ellipsis menu and routes edit or delete actions', async () => {
+    mockWorkspaceGets({ ...OPEN_RULE_WORKSPACE, ruleGroups: [RULE_GROUP, PARTNER_RULE_GROUP] })
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    for (const group of [RULE_GROUP, PARTNER_RULE_GROUP]) {
+      const trigger = wrapper.get(`[data-test="rule-group-actions-${group.id}"]`)
+      expect(trigger.attributes('data-slot')).toBe('dropdown-menu-trigger')
+      await trigger.trigger('click')
+      await flushPromises()
+      const edit = document.body.querySelector<HTMLElement>(`[data-test="rule-group-edit-${group.id}"]`)
+      const remove = document.body.querySelector<HTMLElement>(`[data-test="rule-group-delete-${group.id}"]`)
+      expect(edit?.textContent).toContain('Edit')
+      expect(remove?.textContent).toContain('Delete')
+      edit!.dispatchEvent(new Event('click', { bubbles: true }))
+      await flushPromises()
+      expect(wrapper.get(`[data-test="rule-group-row-${group.id}"]`).get('[data-test="rule-editor"]').exists()).toBe(true)
+      ruleEditor(wrapper).vm.$emit('cancel')
+      await flushPromises()
+    }
+  })
+
   it('deletes a rule group only after ConfirmDialog confirmation', async () => {
     let deleted = false
     mockWorkspaceGets(() => deleted ? OPEN_EMPTY_WORKSPACE : OPEN_RULE_WORKSPACE)
@@ -805,7 +839,9 @@ describe('AppPolicyWorkspace', () => {
 
     const wrapper = mountWorkspace()
     await flushPromises()
-    await wrapper.get('[data-test="rule-group-delete-21"]').trigger('click')
+    await wrapper.get('[data-test="rule-group-actions-21"]').trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLElement>('[data-test="rule-group-delete-21"]')!.click()
     await flushPromises()
 
     expect(document.body.textContent).toContain('Corporate users')

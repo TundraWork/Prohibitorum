@@ -135,6 +135,7 @@ export default {
         avatarUserUploaded: 'User-uploaded avatar',
         conditionActions: 'Actions for {condition}',
         groupActions: 'Actions for {mode} group',
+        savedActions: 'Actions for {name}',
         moveUp: 'Move up',
         moveDown: 'Move down',
         moveConditionUpLabel: 'Move {condition} up',

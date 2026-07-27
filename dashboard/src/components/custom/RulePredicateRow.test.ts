@@ -56,7 +56,9 @@ async function choose(wrapper: VueWrapper, control: 'fact' | 'polarity' | 'value
     `[data-test="predicate-${control}-option-root-${value}"]`,
   )
   expect(option).not.toBeNull()
-  option!.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+  option!.dispatchEvent(control === 'polarity'
+    ? new Event('click', { bubbles: true })
+    : new MouseEvent('pointerup', { bubbles: true, button: 0 }))
   await flushPromises()
 }
 
@@ -193,6 +195,46 @@ describe('RulePredicateRow', () => {
     expect(update).toEqual({ version: 1, condition: { fact: 'login_method' } })
     expect(update).not.toBe(original)
     expect(original).toEqual({ version: 1, condition: { fact: 'avatar', source: 'any' } })
+  })
+
+  it('renders polarity as an unframed connective trigger with keyboard selection', async () => {
+    const wrapper = mountRow({ version: 1, condition: { fact: 'avatar', source: 'any' } })
+    const trigger = wrapper.get('[data-test="predicate-polarity-root"]')
+
+    expect(trigger.attributes('data-slot')).toBe('dropdown-menu-trigger')
+    expect(trigger.classes()).toEqual(expect.arrayContaining(['border-0', 'bg-transparent']))
+    expect(trigger.classes()).not.toContain('border-input')
+
+    trigger.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await flushPromises()
+    expect(document.body.textContent).toContain('is not')
+    document.body.querySelector<HTMLElement>('[data-test="predicate-polarity-option-root-negative"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await flushPromises()
+
+    expect(wrapper.emitted('update:rule')?.at(-1)?.[0]).toEqual({
+      version: 1,
+      condition: { op: 'not', child: { fact: 'avatar', source: 'any' } },
+    })
+  })
+
+  it('opens the predicate ellipsis menu on click with visible actions from a direct trigger', async () => {
+    const wrapper = mountRow(
+      { version: 1, condition: { fact: 'avatar', source: 'user_uploaded' } },
+      { canMoveUp: true, canMoveDown: true, canRemove: true },
+    )
+    const trigger = wrapper.get('[data-test="predicate-actions-root"]')
+
+    expect(trigger.attributes('data-slot')).toBe('dropdown-menu-trigger')
+    expect(trigger.find('[data-slot="tooltip-trigger"]').exists()).toBe(false)
+    await trigger.trigger('click')
+    await flushPromises()
+
+    const menu = document.body.querySelector<HTMLElement>('[data-slot="dropdown-menu-content"]')
+    expect(menu).not.toBeNull()
+    expect(menu!.textContent).toContain('Move up')
+    expect(menu!.textContent).toContain('Move down')
+    expect(menu!.textContent).toContain('Remove condition')
   })
 
   it('uses condition-specific accessible names for move and remove commands', async () => {

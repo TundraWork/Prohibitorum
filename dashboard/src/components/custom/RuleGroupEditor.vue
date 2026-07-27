@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { MoreHorizontal, Plus } from 'lucide-vue-next'
+import { ChevronDown, MoreHorizontal, Plus } from 'lucide-vue-next'
 import type { Condition, ProviderDescriptor, Rule } from '@/lib/appAccess'
 import {
   conditionAtPath,
@@ -146,36 +146,35 @@ function closeActions(event: Event): void {
 
     <div class="flex min-w-0 flex-wrap items-start justify-between gap-2 py-1">
       <div class="flex min-w-0 items-start gap-3">
-        <div
-          class="inline-flex shrink-0 gap-1 rounded-md bg-sunken p-1"
-          :aria-label="t('manage.policy.rule.groupModeLabel')"
-          role="group"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            class="h-7 px-2 shadow-none"
-            :class="mode === 'all' ? 'bg-surface text-ink' : 'text-muted'"
-            :aria-pressed="mode === 'all'"
-            :data-test="`group-mode-all-${pathKey}`"
-            @click="changeMode('all')"
-          >
-            {{ t('manage.policy.rule.operatorAll') }}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            class="h-7 px-2 shadow-none"
-            :class="mode === 'any' ? 'bg-surface text-ink' : 'text-muted'"
-            :aria-pressed="mode === 'any'"
-            :data-test="`group-mode-any-${pathKey}`"
-            @click="changeMode('any')"
-          >
-            {{ t('manage.policy.rule.operatorAny') }}
-          </Button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              class="-ml-5 inline-flex h-8 w-auto shrink-0 gap-1 border-border-strong bg-surface px-2.5 text-xs font-bold tracking-wide text-primary shadow-none"
+              :aria-label="t('manage.policy.rule.groupModeLabel')"
+              :data-test="`group-mode-${pathKey}`"
+            >
+              {{ modeLabel }}
+              <ChevronDown class="size-3.5 text-muted" aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem
+              :data-test="`group-mode-all-${pathKey}`"
+              @select="changeMode('all')"
+            >
+              {{ t('manage.policy.rule.operatorAll') }}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              :data-test="`group-mode-any-${pathKey}`"
+              @select="changeMode('any')"
+            >
+              {{ t('manage.policy.rule.operatorAny') }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <p
           class="max-w-prose pt-1.5 text-sm leading-relaxed text-muted"
           :data-test="`group-description-${pathKey}`"
@@ -185,26 +184,20 @@ function closeActions(event: Event): void {
       </div>
 
       <DropdownMenu v-if="canMoveUp || canMoveDown || canRemove">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <DropdownMenuTrigger as-child>
-                <Button
-                  ref="actionsTrigger"
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  class="shrink-0 text-muted hover:text-ink"
-                  :aria-label="t('manage.policy.rule.groupActions', { mode: modeLabel })"
-                  :data-test="`group-actions-${pathKey}`"
-                >
-                  <MoreHorizontal class="size-4" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>{{ t('manage.policy.rule.groupActions', { mode: modeLabel }) }}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <DropdownMenuTrigger as-child>
+          <Button
+            ref="actionsTrigger"
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            class="shrink-0 text-muted hover:text-ink"
+            :aria-label="t('manage.policy.rule.groupActions', { mode: modeLabel })"
+            :title="t('manage.policy.rule.groupActions', { mode: modeLabel })"
+            :data-test="`group-actions-${pathKey}`"
+          >
+            <MoreHorizontal class="size-4" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
         <DropdownMenuContent align="end" @close-auto-focus="closeActions">
           <DropdownMenuItem
             v-if="canMoveUp"

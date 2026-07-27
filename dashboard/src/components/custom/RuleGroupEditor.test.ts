@@ -74,9 +74,9 @@ describe('RuleGroupEditor', () => {
       },
     })
 
-    expect(wrapper.get('[data-test="group-mode-all-root"]').text()).toBe('ALL')
+    expect(wrapper.get('[data-test="group-mode-root"]').text()).toContain('ALL')
     expect(wrapper.get('[data-test="group-description-root"]').text()).toBe('Every condition in this group must be true.')
-    expect(wrapper.get('[data-test="group-mode-any-root-1"]').text()).toBe('ANY')
+    expect(wrapper.get('[data-test="group-mode-root-1"]').text()).toContain('ANY')
     expect(wrapper.get('[data-test="group-description-root-1"]').text()).toBe('At least one condition in this group must be true.')
     expect(wrapper.get('[data-test="connector-root-1"]').text()).toBe('AND')
     expect(wrapper.get('[data-test="connector-root-1-1"]').text()).toBe('OR')
@@ -120,6 +120,61 @@ describe('RuleGroupEditor', () => {
     }
   })
 
+  it('anchors one compact ALL or ANY control to each scope rail and supports keyboard selection', async () => {
+    const wrapper = mountGroup({
+      version: 1,
+      condition: {
+        op: 'all',
+        children: [{ op: 'any', children: [{ fact: 'avatar', source: 'any' }] }],
+      },
+    })
+
+    for (const pathKey of ['root', 'root-0']) {
+      const control = wrapper.get(`[data-test="group-mode-${pathKey}"]`)
+      expect(control.attributes('data-slot')).toBe('dropdown-menu-trigger')
+      expect(control.classes()).toEqual(expect.arrayContaining(['inline-flex', 'w-auto']))
+      expect(control.classes()).not.toContain('w-full')
+    }
+
+    const rootControl = wrapper.get('[data-test="group-mode-root"]')
+    await rootControl.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    const anyOption = document.body.querySelector<HTMLElement>('[data-test="group-mode-any-root"]')
+    expect(anyOption).not.toBeNull()
+    anyOption!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await flushPromises()
+
+    expect(wrapper.emitted('update:rule')?.at(-1)?.[0]).toEqual({
+      version: 1,
+      condition: {
+        op: 'any',
+        children: [{ op: 'any', children: [{ fact: 'avatar', source: 'any' }] }],
+      },
+    })
+  })
+
+  it('opens every nested group ellipsis menu on click with visible actions', async () => {
+    const wrapper = mountGroup({
+      version: 1,
+      condition: {
+        op: 'all',
+        children: [{ op: 'any', children: [{ fact: 'avatar', source: 'any' }] }],
+      },
+    }, { canRemove: true })
+
+    const triggers = wrapper.findAll('[data-test^="group-actions-"]')
+    expect(triggers).toHaveLength(2)
+    for (const trigger of triggers) {
+      expect(trigger.attributes('data-slot')).toBe('dropdown-menu-trigger')
+      expect(trigger.find('[data-slot="tooltip-trigger"]').exists()).toBe(false)
+      await trigger.trigger('click')
+      await flushPromises()
+      expect(document.body.querySelector('[data-slot="dropdown-menu-content"]')).not.toBeNull()
+      expect(document.body.textContent).toContain('Remove condition')
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flushPromises()
+    }
+  })
   it('switches ALL to ANY without changing any child or mutating the source', async () => {
     const original: Rule = {
       version: 1,
@@ -133,7 +188,11 @@ describe('RuleGroupEditor', () => {
     }
     const wrapper = mountGroup(original)
 
-    await wrapper.get('[data-test="group-mode-any-root"]').trigger('click')
+    await wrapper.get('[data-test="group-mode-root"]').trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLElement>('[data-test="group-mode-any-root"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }))
+    await flushPromises()
 
     const update = wrapper.emitted('update:rule')?.at(-1)?.[0] as Rule
     expect(update).toEqual({
@@ -160,10 +219,10 @@ describe('RuleGroupEditor', () => {
     })
     expect(wrapper.get('[data-test="predicate-polarity-root-0"]').text()).toContain('is not')
 
-    await wrapper.get('[data-test="predicate-polarity-root-0"]').trigger('keydown', { key: 'Enter' })
+    await wrapper.get('[data-test="predicate-polarity-root-0"]').trigger('click')
     await flushPromises()
     const positive = document.body.querySelector<HTMLElement>('[data-test="predicate-polarity-option-root-0-positive"]')
-    positive!.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+    positive!.dispatchEvent(new Event('click', { bubbles: true }))
     await flushPromises()
 
     expect(wrapper.emitted('update:rule')?.at(-1)?.[0]).toEqual({

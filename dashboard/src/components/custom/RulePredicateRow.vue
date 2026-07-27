@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { MoreHorizontal } from 'lucide-vue-next'
+import { ChevronDown, MoreHorizontal } from 'lucide-vue-next'
 import type { Condition, ProviderDescriptor, Rule } from '@/lib/appAccess'
 import {
   setPredicateNegated,
@@ -24,12 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 const FACTS = [
   'connection.provider',
@@ -205,7 +199,7 @@ function closeActions(event: Event): void {
     :data-test="`predicate-row-${pathKey}`"
     class="min-w-0 py-2"
   >
-    <div class="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(9rem,1fr)_7rem_minmax(10rem,1.25fr)_2.25rem] md:items-start">
+    <div class="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(9rem,1fr)_auto_minmax(10rem,1.25fr)_2.25rem] sm:items-start">
       <Select :model-value="fact" @update:model-value="updateFact">
         <SelectTrigger
           data-clause-control="fact"
@@ -231,29 +225,36 @@ function closeActions(event: Event): void {
         </SelectContent>
       </Select>
 
-      <Select :model-value="negated ? 'negative' : 'positive'" @update:model-value="updatePolarity">
-        <SelectTrigger
-          data-clause-control="polarity"
-          :data-test="`predicate-polarity-${pathKey}`"
-          :aria-label="`${t('manage.policy.rule.polarityLabel')} ${controlContext}`"
-          class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"
-        >
-          <SelectValue>{{ negated ? t('manage.policy.rule.isNot') : t('manage.policy.rule.is') }}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="positive" :data-test="`predicate-polarity-option-${pathKey}-positive`">
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <button
+            type="button"
+            data-clause-control="polarity"
+            :data-test="`predicate-polarity-${pathKey}`"
+            :aria-label="`${t('manage.policy.rule.polarityLabel')} ${controlContext}`"
+            class="inline-flex h-9 min-w-fit items-center justify-start gap-1 border-0 bg-transparent px-1.5 text-sm font-medium whitespace-nowrap text-muted outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-ring sm:justify-center"
+          >
+            {{ negated ? t('manage.policy.rule.isNot') : t('manage.policy.rule.is') }}
+            <ChevronDown class="size-3.5 opacity-60" aria-hidden="true" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem
+            :data-test="`predicate-polarity-option-${pathKey}-positive`"
+            @select="updatePolarity('positive')"
+          >
             {{ t('manage.policy.rule.is') }}
-          </SelectItem>
-          <SelectItem
-            value="negative"
+          </DropdownMenuItem>
+          <DropdownMenuItem
             :disabled="Boolean(negativeDisabledReason)"
             :data-test="`predicate-polarity-option-${pathKey}-negative`"
+            @select="updatePolarity('negative')"
           >
             {{ t('manage.policy.rule.isNot') }}
             <span v-if="negativeDisabledReason" class="sr-only"> — {{ negativeDisabledReason }}</span>
-          </SelectItem>
-        </SelectContent>
-      </Select>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Select :model-value="value" :disabled="!fact" @update:model-value="updateValue">
         <SelectTrigger
@@ -282,26 +283,20 @@ function closeActions(event: Event): void {
       </Select>
 
       <DropdownMenu v-if="canMoveUp || canMoveDown || canRemove">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <DropdownMenuTrigger as-child>
-                <Button
-                  ref="actionsTrigger"
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  class="text-muted hover:text-ink"
-                  :aria-label="t('manage.policy.rule.conditionActions', { condition: contentLabel })"
-                  :data-test="`predicate-actions-${pathKey}`"
-                >
-                  <MoreHorizontal class="size-4" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>{{ t('manage.policy.rule.conditionActions', { condition: contentLabel }) }}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <DropdownMenuTrigger as-child>
+          <Button
+            ref="actionsTrigger"
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            class="text-muted hover:text-ink"
+            :aria-label="t('manage.policy.rule.conditionActions', { condition: contentLabel })"
+            :title="t('manage.policy.rule.conditionActions', { condition: contentLabel })"
+            :data-test="`predicate-actions-${pathKey}`"
+          >
+            <MoreHorizontal class="size-4" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
         <DropdownMenuContent align="end" @close-auto-focus="closeActions">
           <DropdownMenuItem
             v-if="canMoveUp"

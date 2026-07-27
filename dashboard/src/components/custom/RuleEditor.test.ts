@@ -127,14 +127,16 @@ describe('RuleEditor', () => {
     expect(wrapper.get('[data-test="predicate-value-root"]').text()).toContain('User-uploaded avatar')
   })
 
-  it('marks the retained impact preview stale while the visible JSON draft is invalid', async () => {
+  it('keeps impact and matched account data out of edit mode, then shows impact in review', async () => {
     const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
-    await wrapper.get('[data-test="segment-json"]').trigger('click')
-    await wrapper.get('[data-test="rule-json-source"]').setValue('{broken')
 
-    const preview = wrapper.getComponent({ name: 'RuleImpactPreview' })
-    expect(preview.props('rule')).toEqual(PASSKEY_RULE)
-    expect(preview.props('draftValid')).toBe(false)
+    expect(wrapper.find('[data-test="rule-impact-preview"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('active accounts match')
+
+    await wrapper.get('[data-test="review-rule"]').trigger('click')
+
+    expect(wrapper.get('[data-test="rule-review"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="rule-impact-preview"]').exists()).toBe(true)
   })
 
   it('treats JSON mode and an invalid JSON buffer as dirty and confirms cancellation', async () => {
@@ -222,14 +224,16 @@ describe('RuleEditor', () => {
     expect(wrapper.get(`#${panelId}`).find('[data-test="rule-exposed"]').exists()).toBe(true)
   })
 
-  it('places live meaning and impact beside the builder with a narrow-screen stack', () => {
+  it('uses a full-width builder with a plain-meaning review strip below it', () => {
     const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
     const layout = wrapper.get('[data-test="rule-editor-layout"]')
-    expect(layout.classes()).toEqual(expect.arrayContaining(['grid-cols-1', 'min-[1536px]:grid-cols-[minmax(0,3fr)_minmax(17rem,2fr)]']))
+
+    expect(layout.classes()).toContain('flex')
+    expect(layout.classes()).toContain('flex-col')
+    expect(layout.find('[data-test="editor-insight-column"]').exists()).toBe(false)
     expect(layout.get('[data-test="editor-builder-column"]').exists()).toBe(true)
-    expect(layout.get('[data-test="editor-insight-column"]').exists()).toBe(true)
-    expect(layout.get('[data-test="rule-meaning"]').text()).toContain('Passkey')
-    expect(layout.get('[data-test="rule-impact-preview"]').exists()).toBe(true)
+    expect(layout.get('[data-test="editor-meaning-strip"]').text()).toContain('Passkey')
+    expect(layout.find('[data-test="rule-impact-preview"]').exists()).toBe(false)
   })
 
   it('moves to review without saving, then emits an exact closed draft only from review', async () => {
@@ -254,8 +258,8 @@ describe('RuleEditor', () => {
 
   it('requires explicit Save without preview confirmation after preview failure', async () => {
     const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
-    await wrapper.getComponent({ name: 'RuleImpactPreview' }).vm.$emit('state-change', 'error')
     await wrapper.get('[data-test="review-rule"]').trigger('click')
+    await wrapper.getComponent({ name: 'RuleImpactPreview' }).vm.$emit('state-change', 'error')
     await wrapper.get('[data-test="save-rule"]').trigger('click')
     await flushPromises()
 

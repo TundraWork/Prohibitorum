@@ -2,7 +2,7 @@
 import { computed, inject, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { matchedRouteKey, onBeforeRouteLeave, onBeforeRouteUpdate, routerKey } from 'vue-router'
-import { Eye, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
+import { Eye, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import type {
   AccountSummary,
@@ -18,6 +18,12 @@ import type {
 import { buildPagePath, type Page } from '@/lib/pagination'
 import { useApi } from '@/composables/useApi'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Card,
   CardContent,
@@ -1077,29 +1083,38 @@ watch(
             {{ t('manage.policy.rule.saved') }}
           </p>
 
-          <RuleEditor
-            v-if="activeRuleEditor"
-            :key="`${activeRuleEditor.mode}-${activeRuleEditor.groupId ?? 'new'}-${activeRuleEditorRevision}`"
-            :initial-draft="activeRuleEditor.initialDraft"
-            :providers="workspace.providers"
-            :preview-endpoint="rulePreviewEndpoint"
-            :busy="ruleEditorBusy"
-            :server-error="policyMutationApi.error.value ?? undefined"
-            :mode="activeRuleEditor.mode"
-            @save="saveRuleGroup"
-            @cancel="cancelRuleEditor"
-            @dirty-change="ruleEditorDirty = $event"
-          />
 
           <p
-            v-if="ruleGroups.length === 0"
+            v-if="ruleGroups.length === 0 && activeRuleEditor?.mode !== 'create'"
             role="status"
             class="rounded-lg border border-border bg-sunken px-4 py-6 text-sm text-muted"
           >
             {{ ruleGroupCountLabel }}
           </p>
 
-          <ul v-else class="divide-y divide-border overflow-hidden rounded-lg border border-border">
+          <ul
+            v-if="ruleGroups.length > 0 || activeRuleEditor?.mode === 'create'"
+            data-test="rule-groups-list"
+            class="divide-y divide-border overflow-hidden rounded-lg border border-border"
+          >
+            <li
+              v-if="activeRuleEditor?.mode === 'create'"
+              data-test="rule-group-draft-row"
+              class="bg-surface"
+            >
+              <RuleEditor
+                :key="`create-new-${activeRuleEditorRevision}`"
+                :initial-draft="activeRuleEditor.initialDraft"
+                :providers="workspace.providers"
+                :preview-endpoint="rulePreviewEndpoint"
+                :busy="ruleEditorBusy"
+                :server-error="policyMutationApi.error.value ?? undefined"
+                mode="create"
+                @save="saveRuleGroup"
+                @cancel="cancelRuleEditor"
+                @dirty-change="ruleEditorDirty = $event"
+              />
+            </li>
             <li
               v-for="group in ruleGroups"
               :key="group.id"
@@ -1107,7 +1122,7 @@ watch(
               :tabindex="savedRuleGroupId === group.id ? -1 : undefined"
               class="bg-surface outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div v-if="activeRuleEditor?.groupId !== group.id" class="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0">
                   <h3 class="font-semibold text-ink">{{ group.displayName }}</h3>
                   <p class="truncate font-mono text-xs text-muted">{{ group.slug }}</p>
@@ -1155,31 +1170,55 @@ watch(
                     <Eye class="size-4" aria-hidden="true" />
                     {{ t('manage.policy.rule.preview') }}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    :disabled="policyMutationApi.busy.value"
-                    :data-test="`rule-group-edit-${group.id}`"
-                    @click="editRuleGroup(group)"
-                  >
-                    <Pencil class="size-4" aria-hidden="true" />
-                    {{ t('manage.policy.rule.edit') }}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    class="text-destructive hover:text-destructive"
-                    :disabled="policyMutationApi.busy.value"
-                    :data-test="`rule-group-delete-${group.id}`"
-                    @click="confirmDeleteRuleId = group.id"
-                  >
-                    <Trash2 class="size-4" aria-hidden="true" />
-                    {{ t('manage.policy.rule.delete') }}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        :aria-label="t('manage.policy.rule.savedActions', { name: group.displayName })"
+                        :title="t('manage.policy.rule.savedActions', { name: group.displayName })"
+                        :data-test="`rule-group-actions-${group.id}`"
+                      >
+                        <MoreHorizontal class="size-4" aria-hidden="true" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        :disabled="policyMutationApi.busy.value"
+                        :data-test="`rule-group-edit-${group.id}`"
+                        @select="editRuleGroup(group)"
+                      >
+                        <Pencil class="size-4" aria-hidden="true" />
+                        {{ t('manage.policy.rule.edit') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        class="text-destructive focus:text-destructive"
+                        :disabled="policyMutationApi.busy.value"
+                        :data-test="`rule-group-delete-${group.id}`"
+                        @select="confirmDeleteRuleId = group.id"
+                      >
+                        <Trash2 class="size-4" aria-hidden="true" />
+                        {{ t('manage.policy.rule.delete') }}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
+
+              <RuleEditor
+                v-if="activeRuleEditor?.mode === 'edit' && activeRuleEditor.groupId === group.id"
+                :key="`edit-${group.id}-${activeRuleEditorRevision}`"
+                :initial-draft="activeRuleEditor.initialDraft"
+                :providers="workspace.providers"
+                :preview-endpoint="rulePreviewEndpoint"
+                :busy="ruleEditorBusy"
+                :server-error="policyMutationApi.error.value ?? undefined"
+                mode="edit"
+                @save="saveRuleGroup"
+                @cancel="cancelRuleEditor"
+                @dirty-change="ruleEditorDirty = $event"
+              />
 
               <div
                 v-if="previewGroupId === group.id"

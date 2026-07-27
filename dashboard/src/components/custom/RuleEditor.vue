@@ -316,10 +316,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
           @update:model-value="changeMode"
         />
 
-        <div
-          class="grid grid-cols-1 gap-6 min-[1536px]:grid-cols-[minmax(0,3fr)_minmax(17rem,2fr)]"
-          data-test="rule-editor-layout"
-        >
+        <div class="flex min-w-0 flex-col gap-5" data-test="rule-editor-layout">
           <div class="min-w-0" data-test="editor-builder-column">
             <RuleVisualBuilder
               v-show="editorMode === 'visual'"
@@ -346,21 +343,16 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
             />
           </div>
 
-          <aside class="min-w-0 space-y-5 border-border min-[1536px]:border-l min-[1536px]:pl-6" data-test="editor-insight-column">
-            <section class="space-y-2" aria-labelledby="rule-meaning-heading">
-              <h3 id="rule-meaning-heading" class="text-sm font-semibold text-ink">
-                {{ t('manage.policy.rule.plainMeaning') }}
-              </h3>
-              <RuleMeaning :rule="lastValidRule" :providers="providers" />
-            </section>
-            <RuleImpactPreview
-              :rule="draft.rule"
-              :providers="providers"
-              :draft-valid="jsonError === undefined"
-              :endpoint="previewEndpoint"
-              @state-change="updatePreviewState"
-            />
-          </aside>
+          <section
+            class="rounded-lg border border-border bg-sunken px-4 py-3"
+            aria-labelledby="rule-meaning-heading"
+            data-test="editor-meaning-strip"
+          >
+            <h3 id="rule-meaning-heading" class="text-sm font-semibold text-ink">
+              {{ t('manage.policy.rule.plainMeaning') }}
+            </h3>
+            <RuleMeaning class="mt-2" :rule="lastValidRule" :providers="providers" />
+          </section>
         </div>
 
         <div class="max-w-2xl space-y-2">
