@@ -236,6 +236,15 @@ describe('RuleEditor', () => {
     expect(builder.classes()).not.toContain('mx-auto')
     expect(meaning.classes()).toContain('max-w-[790px]')
     expect(meaning.classes()).not.toContain('mx-auto')
+    expect(meaning.classes()).toEqual(expect.arrayContaining([
+      'rounded-[10px]',
+      'border',
+      'border-border',
+      'bg-surface',
+      'px-[17px]',
+      'py-[15px]',
+    ]))
+    expect(meaning.classes()).not.toContain('bg-sunken')
     expect(meaning.text()).toContain('Passkey')
     expect(layout.find('[data-test="rule-impact-preview"]').exists()).toBe(false)
   })

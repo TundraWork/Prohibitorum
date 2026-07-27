@@ -7,6 +7,7 @@ import type { RuleValidationIssue } from '@/lib/ruleDraft'
 import RulePredicateRow from './RulePredicateRow.vue'
 
 const PROVIDERS = [
+  { slug: 'downstream-policy-demo', displayName: 'Downstream policy demo' },
   { slug: 'corporate', displayName: 'Corporate identity' },
   { slug: 'partners', displayName: 'Partner directory' },
 ]
@@ -137,6 +138,25 @@ describe('RulePredicateRow', () => {
     expect(document.body.textContent).toContain('corporate')
     expect(document.body.textContent).toContain('Partner directory')
     expect(document.body.textContent).toContain('partners')
+  })
+
+  it('keeps provider slug detail out of the selected trigger while retaining it in the menu', async () => {
+    const wrapper = mountRow({
+      version: 1,
+      condition: { fact: 'connection.provider', provider: 'downstream-policy-demo' },
+    })
+    const trigger = wrapper.get('[data-test="predicate-value-root"]')
+
+    expect(trigger.text()).toBe('Downstream policy demo')
+    expect(trigger.text()).not.toContain('downstream-policy-demo')
+
+    await trigger.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    const selectedOption = document.body.querySelector<HTMLElement>(
+      '[data-test="predicate-value-option-root-downstream-policy-demo"]',
+    )
+    expect(selectedOption?.textContent).toContain('Downstream policy demo')
+    expect(selectedOption?.textContent).toContain('downstream-policy-demo')
   })
 
   it('links an incomplete control to its exact validation message', () => {

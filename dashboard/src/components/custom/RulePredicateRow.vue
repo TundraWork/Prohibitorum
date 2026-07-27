@@ -268,7 +268,9 @@ function closeActions(event: Event): void {
           :aria-describedby="issueDescription"
           class="col-start-1 col-end-2 row-start-3 min-w-0 bg-surface shadow-none md:col-auto md:row-auto [&>span]:min-w-0 [&>span]:truncate"
         >
-          <SelectValue :placeholder="t('manage.policy.rule.chooseValue')" />
+          <SelectValue :placeholder="t('manage.policy.rule.chooseValue')">
+            {{ value ? labelForValue(value) : t('manage.policy.rule.chooseValue') }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem

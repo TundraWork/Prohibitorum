@@ -345,7 +345,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
           </div>
 
           <section
-            class="max-w-[790px] rounded-lg border border-border bg-sunken px-4 py-3"
+            class="max-w-[790px] rounded-[10px] border border-border bg-surface px-[17px] py-[15px]"
             aria-labelledby="rule-meaning-heading"
             data-test="editor-meaning-strip"
           >
