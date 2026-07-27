@@ -199,7 +199,10 @@ function closeActions(event: Event): void {
     :data-test="`predicate-row-${pathKey}`"
     class="min-w-0 py-2"
   >
-    <div class="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(9rem,1fr)_auto_minmax(10rem,1.25fr)_2.25rem] sm:items-start">
+    <div
+      :data-test="`predicate-layout-${pathKey}`"
+      class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 md:grid-cols-[minmax(150px,1fr)_auto_minmax(180px,1.15fr)_auto] md:items-start"
+    >
       <Select :model-value="fact" @update:model-value="updateFact">
         <SelectTrigger
           data-clause-control="fact"
@@ -208,7 +211,7 @@ function closeActions(event: Event): void {
           
           :aria-invalid="issue ? 'true' : undefined"
           :aria-describedby="issueDescription"
-          class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"
+          class="col-start-1 row-start-1 min-w-0 bg-surface shadow-none md:col-auto md:row-auto [&>span]:min-w-0 [&>span]:truncate"
         >
           <SelectValue :placeholder="t('manage.policy.rule.chooseFact')" />
         </SelectTrigger>
@@ -232,7 +235,7 @@ function closeActions(event: Event): void {
             data-clause-control="polarity"
             :data-test="`predicate-polarity-${pathKey}`"
             :aria-label="`${t('manage.policy.rule.polarityLabel')} ${controlContext}`"
-            class="inline-flex h-9 min-w-fit items-center justify-start gap-1 border-0 bg-transparent px-1.5 text-sm font-medium whitespace-nowrap text-muted outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-ring sm:justify-center"
+            class="col-start-1 row-start-2 inline-flex h-9 min-w-fit items-center justify-start gap-1 border-0 bg-transparent px-1.5 text-sm font-medium whitespace-nowrap text-muted outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-ring md:col-auto md:row-auto md:justify-center"
           >
             {{ negated ? t('manage.policy.rule.isNot') : t('manage.policy.rule.is') }}
             <ChevronDown class="size-3.5 opacity-60" aria-hidden="true" />
@@ -263,7 +266,7 @@ function closeActions(event: Event): void {
           :aria-label="`${t('manage.policy.rule.valueLabel')} ${controlContext}`"
           :aria-invalid="issue && fact ? 'true' : undefined"
           :aria-describedby="issueDescription"
-          class="min-w-0 bg-surface shadow-none [&>span]:min-w-0 [&>span]:truncate"
+          class="col-start-1 col-end-2 row-start-3 min-w-0 bg-surface shadow-none md:col-auto md:row-auto [&>span]:min-w-0 [&>span]:truncate"
         >
           <SelectValue :placeholder="t('manage.policy.rule.chooseValue')" />
         </SelectTrigger>
@@ -289,7 +292,7 @@ function closeActions(event: Event): void {
             type="button"
             variant="ghost"
             size="icon-sm"
-            class="text-muted hover:text-ink"
+            class="col-start-2 row-start-1 text-muted hover:text-ink md:col-auto md:row-auto"
             :aria-label="t('manage.policy.rule.conditionActions', { condition: contentLabel })"
             :title="t('manage.policy.rule.conditionActions', { condition: contentLabel })"
             :data-test="`predicate-actions-${pathKey}`"

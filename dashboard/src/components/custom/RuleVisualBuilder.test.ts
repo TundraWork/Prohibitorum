@@ -234,6 +234,64 @@ describe('RuleVisualBuilder', () => {
     expect(wrapper.emitted('announce')?.at(-1)?.[0]).toBe('Condition moved up.')
   })
 
+  it('moves a group and focuses its mode trigger after the action menu closes', async () => {
+    const wrapper = mountBuilder({
+      version: 1,
+      condition: {
+        op: 'all',
+        children: [
+          { fact: 'avatar', source: 'any' },
+          { op: 'any', children: [{ fact: 'login_method', method: 'passkey' }] },
+        ],
+      },
+    })
+
+    await wrapper.get('[data-test="group-actions-root-1"]').trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLElement>('[data-test="group-move-up-root-1"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(lastUpdate(wrapper)).toEqual({
+      version: 1,
+      condition: {
+        op: 'all',
+        children: [
+          { op: 'any', children: [{ fact: 'login_method', method: 'passkey' }] },
+          { fact: 'avatar', source: 'any' },
+        ],
+      },
+    })
+    expect(document.activeElement).toBe(wrapper.get('[data-test="group-mode-root-0"]').element)
+    expect(wrapper.emitted('announce')?.at(-1)?.[0]).toBe('Group moved up.')
+  })
+
+  it('removes and restores a group with focus following the adjacent and restored structures', async () => {
+    const original: Rule = {
+      version: 1,
+      condition: {
+        op: 'all',
+        children: [
+          { op: 'any', children: [{ fact: 'avatar', source: 'any' }] },
+          { op: 'all', children: [{ fact: 'login_method', method: 'passkey' }] },
+        ],
+      },
+    }
+    const wrapper = mountBuilder(original)
+
+    await wrapper.get('[data-test="group-actions-root-0"]').trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLElement>('[data-test="group-remove-root-0"]')!
+      .dispatchEvent(new Event('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(document.activeElement).toBe(wrapper.get('[data-test="group-mode-root-0"]').element)
+    await wrapper.get('[data-test="rule-builder-undo"]').trigger('click')
+    await flushPromises()
+    expect(lastUpdate(wrapper)).toEqual(original)
+    expect(document.activeElement).toBe(wrapper.get('[data-test="group-mode-root-0"]').element)
+  })
+
   it('explains why a root leaf cannot be wrapped when the node limit is reached', () => {
     const wrapper = mountBuilder(
       { version: 1, condition: { fact: 'avatar', source: 'any' } },

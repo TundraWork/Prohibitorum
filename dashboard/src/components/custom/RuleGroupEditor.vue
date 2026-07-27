@@ -141,7 +141,7 @@ function closeActions(event: Event): void {
     <span
       data-group-rail
       aria-hidden="true"
-      class="absolute inset-y-2 left-0 w-px bg-border-strong"
+      class="absolute top-[30px] bottom-[5px] left-0 w-px bg-border-strong"
     />
 
     <div class="flex min-w-0 flex-wrap items-start justify-between gap-2 py-1">

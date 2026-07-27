@@ -107,7 +107,7 @@ async function focusNode(path: RulePath, rule: Rule): Promise<void> {
   const target = conditionAtPath(rule, path)
   const key = pathKey(path)
   const selector = isGroup(target)
-    ? `[data-test="group-mode-${target?.op}-${key}"]`
+    ? `[data-test="group-mode-${key}"]`
     : `[data-test="predicate-fact-${key}"]`
   document.querySelector<HTMLElement>(selector)?.focus()
 }

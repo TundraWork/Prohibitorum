@@ -120,6 +120,17 @@ describe('RuleGroupEditor', () => {
     }
   })
 
+  it('starts the structural rail below the scope header and ends it near the group footer', () => {
+    const wrapper = mountGroup({
+      version: 1,
+      condition: { op: 'all', children: [{ fact: 'avatar', source: 'any' }] },
+    })
+
+    const rail = wrapper.get('[data-group-rail]')
+    expect(rail.classes()).toEqual(expect.arrayContaining(['top-[30px]', 'bottom-[5px]']))
+    expect(rail.classes()).not.toContain('inset-y-2')
+  })
+
   it('anchors one compact ALL or ANY control to each scope rail and supports keyboard selection', async () => {
     const wrapper = mountGroup({
       version: 1,

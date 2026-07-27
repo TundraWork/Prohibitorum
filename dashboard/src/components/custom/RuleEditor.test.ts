@@ -224,19 +224,23 @@ describe('RuleEditor', () => {
     expect(wrapper.get(`#${panelId}`).find('[data-test="rule-exposed"]').exists()).toBe(true)
   })
 
-  it('uses a full-width builder with a plain-meaning review strip below it', () => {
+  it('constrains the builder and plain-meaning strip to the approved 790px measure', () => {
     const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
     const layout = wrapper.get('[data-test="rule-editor-layout"]')
+    const builder = layout.get('[data-test="editor-builder-column"]')
+    const meaning = layout.get('[data-test="editor-meaning-strip"]')
 
-    expect(layout.classes()).toContain('flex')
-    expect(layout.classes()).toContain('flex-col')
+    expect(layout.classes()).toEqual(expect.arrayContaining(['flex', 'flex-col']))
     expect(layout.find('[data-test="editor-insight-column"]').exists()).toBe(false)
-    expect(layout.get('[data-test="editor-builder-column"]').exists()).toBe(true)
-    expect(layout.get('[data-test="editor-meaning-strip"]').text()).toContain('Passkey')
+    expect(builder.classes()).toContain('max-w-[790px]')
+    expect(builder.classes()).not.toContain('mx-auto')
+    expect(meaning.classes()).toContain('max-w-[790px]')
+    expect(meaning.classes()).not.toContain('mx-auto')
+    expect(meaning.text()).toContain('Passkey')
     expect(layout.find('[data-test="rule-impact-preview"]').exists()).toBe(false)
   })
 
-  it('moves to review without saving, then emits an exact closed draft only from review', async () => {
+  it('disables review saving until the preview is current, then emits the exact closed draft', async () => {
     const wrapper = mountEditor()
     await makeDraftValid(wrapper)
     expect(wrapper.get('[data-test="review-rule"]').attributes('disabled')).toBeUndefined()
@@ -246,7 +250,19 @@ describe('RuleEditor', () => {
     expect(wrapper.get('[data-test="rule-review"]').text()).toContain('Passkey members')
     expect(wrapper.get('[data-test="rule-review"]').text()).toContain('A matching account can access this app unless manually denied.')
 
-    await wrapper.get('[data-test="save-rule"]').trigger('click')
+    const preview = wrapper.getComponent({ name: 'RuleImpactPreview' })
+    const save = wrapper.get('[data-test="save-rule"]')
+    expect(save.attributes('disabled')).toBeDefined()
+    await preview.vm.$emit('state-change', 'idle')
+    expect(save.attributes('disabled')).toBeDefined()
+    await preview.vm.$emit('state-change', 'loading')
+    expect(save.attributes('disabled')).toBeDefined()
+    await preview.vm.$emit('state-change', 'stale')
+    expect(save.attributes('disabled')).toBeDefined()
+    await preview.vm.$emit('state-change', 'current')
+    expect(save.attributes('disabled')).toBeUndefined()
+
+    await save.trigger('click')
     expect(wrapper.emitted('save')?.[0]?.[0]).toEqual({
       slug: 'passkey-members',
       displayName: 'Passkey members',
@@ -271,10 +287,37 @@ describe('RuleEditor', () => {
     expect(wrapper.emitted('save')?.[0]?.[0]).toEqual(EDIT_DRAFT)
   })
 
+  it('replaces an old preview error after returning to edit and entering review again', async () => {
+    const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
+    await wrapper.get('[data-test="review-rule"]').trigger('click')
+    let preview = wrapper.getComponent({ name: 'RuleImpactPreview' })
+    await preview.vm.$emit('state-change', 'error')
+    expect(wrapper.get('[data-test="save-rule"]').attributes('disabled')).toBeUndefined()
+
+    const back = wrapper.findAll('button').find((button) => button.text() === 'Back to editing')
+    expect(back).toBeDefined()
+    await back!.trigger('click')
+    await wrapper.get('[data-test="review-rule"]').trigger('click')
+
+    preview = wrapper.getComponent({ name: 'RuleImpactPreview' })
+    const save = wrapper.get('[data-test="save-rule"]')
+    expect(save.attributes('disabled')).toBeDefined()
+    await preview.vm.$emit('state-change', 'loading')
+    expect(save.attributes('disabled')).toBeDefined()
+    await preview.vm.$emit('state-change', 'current')
+    expect(save.attributes('disabled')).toBeUndefined()
+
+    await save.trigger('click')
+    await flushPromises()
+    expect(document.body.querySelector('[data-test="save-without-preview-dialog"]')).toBeNull()
+    expect(wrapper.emitted('save')?.[0]?.[0]).toEqual(EDIT_DRAFT)
+  })
+
   it('shows Saving and announces success with focused status after the save lifecycle', async () => {
     const wrapper = mountEditor({ initialDraft: EDIT_DRAFT, mode: 'edit' })
     await setInput(wrapper, 'rule-description', 'Updated before save')
     await wrapper.get('[data-test="review-rule"]').trigger('click')
+    await wrapper.getComponent({ name: 'RuleImpactPreview' }).vm.$emit('state-change', 'current')
     await wrapper.get('[data-test="save-rule"]').trigger('click')
     await wrapper.setProps({ busy: true })
     expect(wrapper.get('[data-test="save-rule"]').text()).toBe('Saving…')

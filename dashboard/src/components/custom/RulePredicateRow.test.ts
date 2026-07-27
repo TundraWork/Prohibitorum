@@ -101,6 +101,29 @@ describe('RulePredicateRow', () => {
     expect(wrapper.get('[data-test="predicate-value-root"]').text()).toContain('Any available avatar')
   })
 
+  it('uses the compact two-column flow below md and the approved four-column measure at md', () => {
+    const wrapper = mountRow(
+      { version: 1, condition: { fact: 'avatar', source: 'any' } },
+      { canRemove: true },
+    )
+    const grid = wrapper.get('[data-test="predicate-layout-root"]')
+    const fact = wrapper.get('[data-test="predicate-fact-root"]')
+    const polarity = wrapper.get('[data-test="predicate-polarity-root"]')
+    const value = wrapper.get('[data-test="predicate-value-root"]')
+    const actions = wrapper.get('[data-test="predicate-actions-root"]')
+
+    expect(grid.classes()).toEqual(expect.arrayContaining([
+      'grid-cols-[minmax(0,1fr)_auto]',
+      'md:grid-cols-[minmax(150px,1fr)_auto_minmax(180px,1.15fr)_auto]',
+      'md:items-start',
+    ]))
+    expect(grid.classes().some((className) => className.startsWith('sm:grid-cols-'))).toBe(false)
+    expect(fact.classes()).toEqual(expect.arrayContaining(['col-start-1', 'row-start-1', 'md:col-auto', 'md:row-auto']))
+    expect(actions.classes()).toEqual(expect.arrayContaining(['col-start-2', 'row-start-1', 'md:col-auto', 'md:row-auto']))
+    expect(polarity.classes()).toEqual(expect.arrayContaining(['col-start-1', 'row-start-2', 'md:col-auto', 'md:row-auto']))
+    expect(value.classes()).toEqual(expect.arrayContaining(['col-start-1', 'col-end-2', 'row-start-3', 'md:col-auto', 'md:row-auto']))
+  })
+
   it('shows provider display names with their persisted slugs', async () => {
     const wrapper = mountRow({
       version: 1,

@@ -172,7 +172,6 @@ async function changeMode(value: string): Promise<void> {
 }
 
 function updatePreviewState(state: 'idle' | 'loading' | 'current' | 'stale' | 'error'): void {
-  if (previewState.value === 'error' && (state === 'idle' || state === 'loading')) return
   previewState.value = state
 }
 
@@ -191,6 +190,7 @@ async function copy(value: string): Promise<void> {
 
 function startReview(): void {
   if (!valid.value || jsonError.value) return
+  previewState.value = 'idle'
   reviewing.value = true
   saved.value = false
 }
@@ -201,6 +201,7 @@ function requestSave(): void {
     previewConfirmOpen.value = true
     return
   }
+  if (previewState.value !== 'current') return
   emitSave()
 }
 
@@ -317,7 +318,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         />
 
         <div class="flex min-w-0 flex-col gap-5" data-test="rule-editor-layout">
-          <div class="min-w-0" data-test="editor-builder-column">
+          <div class="min-w-0 max-w-[790px]" data-test="editor-builder-column">
             <RuleVisualBuilder
               v-show="editorMode === 'visual'"
               :key="visualBuilderKey"
@@ -344,7 +345,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
           </div>
 
           <section
-            class="rounded-lg border border-border bg-sunken px-4 py-3"
+            class="max-w-[790px] rounded-lg border border-border bg-sunken px-4 py-3"
             aria-labelledby="rule-meaning-heading"
             data-test="editor-meaning-strip"
           >
@@ -424,7 +425,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         <Button type="button" variant="ghost" :disabled="busy" @click="reviewing = false">{{ t('manage.policy.rule.backToEditing') }}</Button>
         <div class="flex flex-col-reverse gap-2 sm:flex-row">
           <Button type="button" variant="ghost" :disabled="busy" data-test="cancel-rule" @click="requestCancel">{{ t('common.cancel') }}</Button>
-          <Button type="button" :disabled="busy" :aria-busy="busy ? 'true' : undefined" data-test="save-rule" @click="requestSave">
+          <Button type="button" :disabled="busy || (previewState !== 'current' && previewState !== 'error')" :aria-busy="busy ? 'true' : undefined" data-test="save-rule" @click="requestSave">
             {{ busy ? t('manage.policy.rule.saving') : t('common.save') }}
           </Button>
         </div>
