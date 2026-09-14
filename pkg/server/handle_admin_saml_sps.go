@@ -179,7 +179,7 @@ func (s *Server) handleGetSAMLApplication(ctx context.Context, in *getSAMLApplic
 		return nil, fmt.Errorf("handleGetSAMLApplication: keys: %w", err)
 	}
 	view := samlApplicationView(sp, acs, keys)
-	view.IconURL = entityIconURLPtr("saml_sp", strconv.FormatInt(sp.ID, 10), s.lookupEntityIconEtag(ctx, "saml_sp", strconv.FormatInt(sp.ID, 10)))
+	view.IconURL = s.enrichIconURL(ctx, "saml_sp", strconv.FormatInt(sp.ID, 10))
 	return &getSAMLApplicationOut{Body: view}, nil
 }
 
@@ -407,7 +407,9 @@ func (s *Server) handleUpdateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 
 	acs, _ := s.queries.ListSAMLSPACSEndpoints(r.Context(), sp.ID)
 	keys, _ := s.queries.ListSAMLSPKeys(r.Context(), db.ListSAMLSPKeysParams{SpID: sp.ID, Use: "signing"})
-	writeJSON(w, samlApplicationView(sp, acs, keys))
+	view := samlApplicationView(sp, acs, keys)
+	view.IconURL = s.enrichIconURL(r.Context(), "saml_sp", strconv.FormatInt(sp.ID, 10))
+	writeJSON(w, view)
 }
 
 // ----- POST /saml-applications/{id}/reingest-metadata (raw, sudo-gated) ---------
@@ -524,7 +526,9 @@ func (s *Server) handleReingestSAMLApplicationHTTP(w http.ResponseWriter, r *htt
 
 	newACS, _ := s.queries.ListSAMLSPACSEndpoints(r.Context(), id)
 	newKeys, _ := s.queries.ListSAMLSPKeys(r.Context(), db.ListSAMLSPKeysParams{SpID: id, Use: "signing"})
-	writeJSON(w, samlApplicationView(sp, newACS, newKeys))
+	view := samlApplicationView(sp, newACS, newKeys)
+	view.IconURL = s.enrichIconURL(r.Context(), "saml_sp", strconv.FormatInt(id, 10))
+	writeJSON(w, view)
 }
 
 // ----- POST /saml-applications/delete (raw, sudo-gated) -------------------------
@@ -637,5 +641,7 @@ func (s *Server) handleSetSAMLApplicationDisabledHTTP(w http.ResponseWriter, r *
 
 	acs, _ := s.queries.ListSAMLSPACSEndpoints(r.Context(), sp.ID)
 	keys, _ := s.queries.ListSAMLSPKeys(r.Context(), db.ListSAMLSPKeysParams{SpID: sp.ID, Use: "signing"})
-	writeJSON(w, samlApplicationView(sp, acs, keys))
+	view := samlApplicationView(sp, acs, keys)
+	view.IconURL = s.enrichIconURL(r.Context(), "saml_sp", strconv.FormatInt(sp.ID, 10))
+	writeJSON(w, view)
 }

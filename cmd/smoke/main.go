@@ -3137,6 +3137,16 @@ func main() {
 			log.Fatalf("GET /oidc-clients: created client %q not in list", adminClientID)
 		}
 
+		// Upload an icon for the RP (raw-PNG PUT; fresh sudo is enforced
+		// in-handler and this arc's sudo window from the create covers it).
+		iconBuf := bytes.Buffer{}
+		if err := png.Encode(&iconBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
+			log.Fatalf("admin oidc-client: encode icon PNG: %v", err)
+		}
+		if err := c.putEntityIconPNG("/api/prohibitorum/oidc-applications/"+url.PathEscape(adminClientID)+"/icon", iconBuf.Bytes()); err != nil {
+			log.Fatalf("admin oidc-client: PUT icon: %v", err)
+		}
+
 		// GET one → secret/hash NEVER present.
 		oneRaw, err := c.getBytes("/api/prohibitorum/oidc-applications/" + url.PathEscape(adminClientID))
 		if err != nil {
@@ -3157,6 +3167,7 @@ func main() {
 			ClientID     string   `json:"clientId"`
 			DisplayName  string   `json:"displayName"`
 			RedirectURIs []string `json:"redirectUris"`
+			IconURL      *string  `json:"iconUrl"`
 		}
 		if err := c.putJSON("/api/prohibitorum/oidc-applications/"+url.PathEscape(adminClientID), map[string]any{
 			"displayName":    updatedDisplayName,
@@ -3167,10 +3178,16 @@ func main() {
 		}, &updated); err != nil {
 			log.Fatalf("PUT /oidc-clients/%s: %v", adminClientID, err)
 		}
+		// Regression (PHB-4): the mutation response itself must carry iconUrl —
+		// pre-fix it is absent and the detail page loses the icon on save.
+		if updated.IconURL == nil || !strings.HasPrefix(*updated.IconURL, "/icon/oidc_client/"+adminClientID+"?v=") {
+			log.Fatalf("PUT /oidc-clients/%s: response iconUrl = %v, want /icon/oidc_client/%s?v=<etag>", adminClientID, updated.IconURL, adminClientID)
+		}
 		// Re-GET and assert the change is reflected.
 		var got struct {
 			DisplayName  string   `json:"displayName"`
 			RedirectURIs []string `json:"redirectUris"`
+			IconURL      *string  `json:"iconUrl"`
 		}
 		if err := c.get("/api/prohibitorum/oidc-applications/"+url.PathEscape(adminClientID), &got); err != nil {
 			log.Fatalf("GET (post-update) /oidc-clients/%s: %v", adminClientID, err)
@@ -3181,7 +3198,10 @@ func main() {
 		if !slices.Contains(got.RedirectURIs, updatedRedirectURI) {
 			log.Fatalf("update not reflected: redirectUris %v missing %q", got.RedirectURIs, updatedRedirectURI)
 		}
-		log.Printf("  PUT changed displayName→%q + redirect_uri; GET reflects both ✓", updatedDisplayName)
+		if got.IconURL == nil || *got.IconURL != *updated.IconURL {
+			log.Fatalf("post-update GET iconUrl = %v, want the same %v the PUT response carried", got.IconURL, updated.IconURL)
+		}
+		log.Printf("  PUT changed displayName→%q + redirect_uri; GET reflects both; PUT + GET iconUrl agree (%s) ✓", updatedDisplayName, *updated.IconURL)
 	}
 
 	step(fmt.Sprintf("admin %d/%d — admin: POST /oidc-clients/rotate-secret returns a NEW secret (≠ create secret)", 3, nAdmin))
@@ -3690,9 +3710,24 @@ func main() {
 			"requireSignedAuthnRequest": current.RequireSignedAuthnRequest,
 			"allowIdpInitiated":         current.AllowIdpInitiated,
 		}
-		var putResp samlProviderItem
+		// Regression (PHB-4): upload an icon for the SP, then require the PUT
+		// response itself to carry iconUrl (pre-fix it is absent).
+		spIconBuf := bytes.Buffer{}
+		if err := png.Encode(&spIconBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
+			log.Fatalf("Tier-1 4/4: encode SP icon PNG: %v", err)
+		}
+		if err := c.putEntityIconPNG(fmt.Sprintf("/api/prohibitorum/saml-applications/%d/icon", spID), spIconBuf.Bytes()); err != nil {
+			log.Fatalf("Tier-1 4/4: PUT /saml-applications/%d/icon: %v", spID, err)
+		}
+		var putResp struct {
+			samlProviderItem
+			IconURL *string `json:"iconUrl"`
+		}
 		if err := c.putJSON(fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), putBody, &putResp); err != nil {
 			log.Fatalf("Tier-1 4/4: PUT /saml-providers/%d: %v", spID, err)
+		}
+		if putResp.IconURL == nil || !strings.HasPrefix(*putResp.IconURL, fmt.Sprintf("/icon/saml_sp/%d?v=", spID)) {
+			log.Fatalf("Tier-1 4/4: PUT /saml-providers/%d: response iconUrl = %v, want /icon/saml_sp/%d?v=<etag>", spID, putResp.IconURL, spID)
 		}
 
 		// Re-GET to confirm round-trip.
@@ -4261,6 +4296,17 @@ func main() {
 		registerForwardAuthApp(c, faClient, faHost1, "Smoke FA")
 		registerForwardAuthApp(c, faClient2, faHost2, "Smoke FA 2")
 		log.Printf("  forward-auth apps registered: %s (host=%s), %s (host=%s) ✓", faClient, faHost1, faClient2, faHost2)
+		// Regression (PHB-4): upload an icon for faClient (FA apps are
+		// oidc_client icon owners), then require the FA PUT response itself to
+		// carry iconUrl (pre-fix it is absent). The icon PUT enforces fresh sudo
+		// in-handler; this block's elevation covers it.
+		faIconBuf := bytes.Buffer{}
+		if err := png.Encode(&faIconBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
+			log.Fatalf("pat: encode FA icon PNG: %v", err)
+		}
+		if err := c.putEntityIconPNG("/api/prohibitorum/oidc-applications/"+faClient+"/icon", faIconBuf.Bytes()); err != nil {
+			log.Fatalf("pat: PUT oidc-applications/%s/icon: %v", faClient, err)
+		}
 		// Set faClient's admin-defined scope vocabulary via the FA-app PUT.
 		// The PUT requires displayName + host (else it would blank them), so
 		// re-send the registration values alongside the new scope vocabulary.
@@ -4278,8 +4324,17 @@ func main() {
 			if resp.StatusCode != http.StatusOK {
 				log.Fatalf("pat: PUT forward-auth-apps/%s: want 200, got %d — %s", faClient, resp.StatusCode, firstN(string(body), 300))
 			}
+			var putView struct {
+				IconURL *string `json:"iconUrl"`
+			}
+			if err := json.Unmarshal(body, &putView); err != nil {
+				log.Fatalf("pat: PUT forward-auth-apps/%s: decode: %v", faClient, err)
+			}
+			if putView.IconURL == nil || !strings.HasPrefix(*putView.IconURL, "/icon/oidc_client/"+faClient+"?v=") {
+				log.Fatalf("pat: PUT forward-auth-apps/%s: response iconUrl = %v, want /icon/oidc_client/%s?v=<etag>", faClient, putView.IconURL, faClient)
+			}
 		}
-		log.Printf("  %s scope vocabulary set: [%s] ✓", faClient, patScope)
+		log.Printf("  %s scope vocabulary set: [%s]; PUT response iconUrl = %s ✓", faClient, patScope, "/icon/oidc_client/"+faClient+"?v=…")
 
 		step(fmt.Sprintf("pat %d/%d — POST /me/tokens (per-app grant {%s:[%s]}) → plaintext once", 2, nPAT, faClient, patScope))
 		var created struct {
@@ -5642,6 +5697,32 @@ func (c *client) putJSONRaw(path string, body any) (*http.Response, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	return c.hc.Do(req)
+}
+
+// putEntityIconPNG PUTs a raw PNG body to an entity-icon endpoint
+// (/oidc-applications/{id}/icon, /saml-applications/{id}/icon). The icon PUTs
+// are registered via registerOpHTTP with fresh-sudo enforced in-handler (the
+// sudo wrapper rejects non-JSON bodies), so they need the raw request shape —
+// image/png content type with session cookies — instead of putJSON.
+func (c *client) putEntityIconPNG(path string, png []byte) error {
+	req, err := http.NewRequest(http.MethodPut, c.base+path, bytes.NewReader(png))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "image/png")
+	for _, ck := range c.cookies() {
+		req.AddCookie(ck)
+	}
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("PUT %s: want 204, got %d — %s", path, resp.StatusCode, firstN(string(body), 300))
+	}
+	return nil
 }
 
 // passwordBegin issues /auth/password/begin and returns the partial_session_token.

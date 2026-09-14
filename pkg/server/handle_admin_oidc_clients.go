@@ -166,7 +166,7 @@ func (s *Server) handleGetOIDCApplication(ctx context.Context, in *getOIDCApplic
 		return nil, authErrToHuma(authn.ErrClientNotFound())
 	}
 	view := oidcApplicationView(c)
-	view.IconURL = entityIconURLPtr("oidc_client", c.ClientID, s.lookupEntityIconEtag(ctx, "oidc_client", c.ClientID))
+	view.IconURL = s.enrichIconURL(ctx, "oidc_client", c.ClientID)
 	return &oidcApplicationOut{Body: view}, nil
 }
 
@@ -354,7 +354,9 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		Detail:    map[string]any{"client_id": clientID},
 	})
 
-	writeJSON(w, oidcApplicationView(c))
+	view := oidcApplicationView(c)
+	view.IconURL = s.enrichIconURL(r.Context(), "oidc_client", clientID)
+	writeJSON(w, view)
 }
 
 // ----- POST /oidc-applications/set-disabled (raw, sudo-gated) ---------------------
@@ -402,7 +404,9 @@ func (s *Server) handleSetOIDCApplicationDisabledHTTP(w http.ResponseWriter, r *
 		Detail:    map[string]any{"client_id": body.ClientID, "disabled": body.Disabled},
 	})
 
-	writeJSON(w, oidcApplicationView(c))
+	view := oidcApplicationView(c)
+	view.IconURL = s.enrichIconURL(r.Context(), "oidc_client", body.ClientID)
+	writeJSON(w, view)
 }
 
 // ----- POST /oidc-applications/rotate-secret (raw, sudo-gated) --------------------
