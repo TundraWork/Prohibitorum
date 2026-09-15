@@ -51,6 +51,8 @@ jobs:
           # run-number prefix keeps tags monotonically sortable — the demo's
           # ImagePolicy orders numerically on this prefix
           IMAGE_TAG: ${{ github.run_number }}-${{ github.sha }}
+          # static binary for the distroless base (matches goreleaser's build env)
+          CGO_ENABLED: "0"
         run: |
           tag="${IMAGE_TAG:0:13}"  # <run>-<12-char short sha>
           echo "building $KO_DOCKER_REPO:$tag and :develop"
