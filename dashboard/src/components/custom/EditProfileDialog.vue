@@ -13,18 +13,18 @@
  */
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Save } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useAuthStore } from '@/stores/auth'
 import type { SessionView } from '@/stores/auth'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-// Label is intentionally omitted — section headings use plain <p> elements.
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import AvatarCropper from '@/components/custom/AvatarCropper.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
@@ -269,15 +269,29 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
         <!-- ── Display name zone (persists only on Save name) ──────────── -->
         <div class="flex flex-col gap-1.5">
           <Label for="edit-displayName" class="text-ink">{{ t('accountMenu.displayNameSection') }}</Label>
-          <Input
-            id="edit-displayName"
-            ref="inputRef"
-            v-model="draft"
-            data-test="edit-displayname-input"
-            :maxlength="128"
-            :aria-invalid="error && errorZone === 'name' ? true : undefined"
-            :aria-describedby="error && errorZone === 'name' ? 'edit-displayName-error' : undefined"
-          />
+          <div class="flex items-center gap-2">
+            <Input
+              id="edit-displayName"
+              ref="inputRef"
+              v-model="draft"
+              class="min-w-0 flex-1"
+              data-test="edit-displayname-input"
+              :maxlength="128"
+              :aria-invalid="error && errorZone === 'name' ? true : undefined"
+              :aria-describedby="error && errorZone === 'name' ? 'edit-displayName-error' : undefined"
+            />
+            <Button
+              v-if="dirty"
+              type="submit"
+              size="icon"
+              :disabled="!canSave"
+              :aria-label="t('accountMenu.saveName')"
+              :title="t('accountMenu.saveName')"
+              data-test="edit-save"
+            >
+              <Save aria-hidden="true" />
+            </Button>
+          </div>
           <!-- Unsaved-name hint when the user has typed but not yet saved -->
           <span v-if="dirty" class="text-xs text-muted-foreground" data-test="unsaved-name-hint">
             {{ t('accountMenu.unsavedName') }}
@@ -287,17 +301,6 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
         <!-- Name-field error (PUT /me errors surface here) -->
         <ErrorPanel v-if="error && errorZone === 'name'" :error="error" @dismiss="clear" />
 
-        <DialogFooter class="gap-2">
-          <!-- "Close" replaces "Cancel": avatar changes are already applied,
-               closing only discards the unsaved display name. -->
-          <Button type="button" variant="ghost" :disabled="busy" data-test="edit-close" @click="onOpenChange(false)">
-            {{ t('common.close') }}
-          </Button>
-          <!-- Save name: scoped to the display name field only. -->
-          <Button type="submit" :disabled="!canSave" data-test="edit-save">
-            {{ t('accountMenu.saveName') }}
-          </Button>
-        </DialogFooter>
       </form>
     </DialogContent>
   </Dialog>
