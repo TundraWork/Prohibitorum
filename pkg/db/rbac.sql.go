@@ -268,7 +268,7 @@ func (q *Queries) ListAuthorizedForwardAuthAppsForAccount(ctx context.Context, a
 }
 
 const listAuthorizedOIDCClientsForAccount = `-- name: ListAuthorizedOIDCClientsForAccount :many
-SELECT c.client_id, c.display_name, c.launch_url, c.redirect_uris
+SELECT c.client_id, c.display_name, c.launch_url, c.redirect_uris, c.require_consent
 FROM oidc_client c
 WHERE c.disabled = false
   AND c.forward_auth_enabled = false
@@ -284,10 +284,11 @@ ORDER BY c.display_name
 `
 
 type ListAuthorizedOIDCClientsForAccountRow struct {
-	ClientID     string      `json:"clientId"`
-	DisplayName  string      `json:"displayName"`
-	LaunchUrl    pgtype.Text `json:"launchUrl"`
-	RedirectUris []string    `json:"redirectUris"`
+	ClientID       string      `json:"clientId"`
+	DisplayName    string      `json:"displayName"`
+	LaunchUrl      pgtype.Text `json:"launchUrl"`
+	RedirectUris   []string    `json:"redirectUris"`
+	RequireConsent bool        `json:"requireConsent"`
 }
 
 func (q *Queries) ListAuthorizedOIDCClientsForAccount(ctx context.Context, accountID pgtype.Int4) ([]ListAuthorizedOIDCClientsForAccountRow, error) {
@@ -304,6 +305,7 @@ func (q *Queries) ListAuthorizedOIDCClientsForAccount(ctx context.Context, accou
 			&i.DisplayName,
 			&i.LaunchUrl,
 			&i.RedirectUris,
+			&i.RequireConsent,
 		); err != nil {
 			return nil, err
 		}

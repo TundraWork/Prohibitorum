@@ -39,8 +39,8 @@ func TestHandleMyApps(t *testing.T) {
 			{ClientID: "grafana", DisplayName: "Grafana", LaunchUrl: pgtype.Text{}, RedirectUris: []string{"https://grafana.example/login/generic_oauth"}},
 			{ClientID: "no-redirect", DisplayName: "Headless", LaunchUrl: pgtype.Text{}, RedirectUris: nil}, // omitted: no launch URL
 		},
-		fwd:  []db.ListAuthorizedForwardAuthAppsForAccountRow{{ClientID: "wiki", DisplayName: "Wiki", ForwardAuthHost: pgtype.Text{String: "wiki.example", Valid: true}}},
-		saml: []db.ListAuthorizedSAMLSPsForAccountRow{{ID: 7, EntityID: "https://ghe.example/saml", DisplayName: "GitHub"}},
+		fwd:   []db.ListAuthorizedForwardAuthAppsForAccountRow{{ClientID: "wiki", DisplayName: "Wiki", ForwardAuthHost: pgtype.Text{String: "wiki.example", Valid: true}}},
+		saml:  []db.ListAuthorizedSAMLSPsForAccountRow{{ID: 7, EntityID: "https://ghe.example/saml", DisplayName: "GitHub"}},
 		etags: map[string]string{"oidc_client/grafana": "abcdef1234"},
 	}}
 	apps, err := s.buildLaunchpad(context.Background(), 1)
@@ -76,6 +76,21 @@ func TestHandleMyApps(t *testing.T) {
 	for i := 1; i < len(names); i++ {
 		if names[i-1] > names[i] {
 			t.Fatalf("apps not sorted: %v", names)
+		}
+	}
+}
+
+func TestLaunchpadCarriesOIDCConsentPolicy(t *testing.T) {
+	for _, required := range []bool{false, true} {
+		s := &Server{launchpadOverride: &fakeLaunchpadQ{
+			oidc: []db.ListAuthorizedOIDCClientsForAccountRow{{ClientID: "docs", DisplayName: "Docs", LaunchUrl: pgtype.Text{String: "https://docs.example", Valid: true}, RequireConsent: required}},
+		}}
+		apps, err := s.buildLaunchpad(context.Background(), 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(apps) != 1 || apps[0].RequireConsent == nil || *apps[0].RequireConsent != required {
+			t.Fatalf("requireConsent=%v: apps=%+v", required, apps)
 		}
 	}
 }

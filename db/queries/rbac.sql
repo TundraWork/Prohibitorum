@@ -189,7 +189,7 @@ FROM saml_sp s
 WHERE s.id = sqlc.arg(sp_id);
 
 -- name: ListAuthorizedOIDCClientsForAccount :many
-SELECT c.client_id, c.display_name, c.launch_url, c.redirect_uris
+SELECT c.client_id, c.display_name, c.launch_url, c.redirect_uris, c.require_consent
 FROM oidc_client c
 WHERE c.disabled = false
   AND c.forward_auth_enabled = false

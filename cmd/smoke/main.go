@@ -4080,11 +4080,12 @@ func main() {
 		const nLaunchpad = 2
 		step(fmt.Sprintf("launchpad %d/%d — GET /me/apps lists authorized launchable apps (open + restricted-granted-via-group)", 1, nLaunchpad))
 		type launchpadApp struct {
-			Kind      string  `json:"kind"`
-			ID        string  `json:"id"`
-			Name      string  `json:"name"`
-			LaunchURL string  `json:"launchUrl"`
-			IconURL   *string `json:"iconUrl"`
+			Kind           string  `json:"kind"`
+			RequireConsent *bool   `json:"requireConsent"`
+			ID             string  `json:"id"`
+			Name           string  `json:"name"`
+			LaunchURL      string  `json:"launchUrl"`
+			IconURL        *string `json:"iconUrl"`
 		}
 		var apps []launchpadApp
 		if err := c.get("/api/prohibitorum/me/apps", &apps); err != nil {
@@ -4094,6 +4095,10 @@ func main() {
 		for _, a := range apps {
 			idx[a.ID] = a
 		}
+		if app, ok := idx[adminClientID]; !ok || app.RequireConsent == nil || *app.RequireConsent {
+			log.Fatalf("launchpad: consent-free admin app must be present with explicit requireConsent=false: %+v", app)
+		}
+		log.Printf("  consent-free OIDC app is launchable with requireConsent=false ✓")
 		rp, ok := idx[rpClientID]
 		if !ok || rp.Kind != "oidc" || rp.LaunchURL == "" {
 			log.Fatalf("launchpad: /me/apps missing open client %q with a launch URL; got %+v", rpClientID, apps)

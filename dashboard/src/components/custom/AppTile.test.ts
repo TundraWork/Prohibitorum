@@ -36,6 +36,11 @@ async function mountOpen(props: Record<string, unknown>) {
 afterEach(() => { document.body.innerHTML = '' })
 
 describe('AppTile', () => {
+  it('does not offer revoke when OIDC consent is disabled, even with an old grant', async () => {
+    const w = await mountOpen({ app: { ...APP, requireConsent: false }, consent: CONSENT })
+    expect(document.body.querySelector(`[data-test="revoke-${APP.id}"]`)).toBeNull()
+    w.unmount()
+  })
   it('launch overlay has correct href, target, and rel', () => {
     const w = mountTile({})
     const anchor = w.find(`[data-test="launch-${APP.id}"]`)

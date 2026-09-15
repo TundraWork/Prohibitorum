@@ -54,14 +54,15 @@ const greeting = computed(() => {
 })
 
 // "Connected" = the user has consented to (OIDC) or acknowledged (SAML) the app.
-// forward-auth has no consent step, so it is always connected once authorized.
+// Forward-auth and OIDC apps with consent disabled are always connected once authorized.
 const connectedKeys = computed(() => {
   const s = new Set<string>()
   for (const c of consentList.value) s.add(`${c.kind ?? 'oidc'}:${c.clientId}`)
   return s
 })
 function isConnected(app: LaunchpadApp): boolean {
-  return app.kind === 'forward_auth' || connectedKeys.value.has(`${app.kind}:${app.id}`)
+  return app.kind === 'forward_auth' || (app.kind === 'oidc' && app.requireConsent === false)
+    || connectedKeys.value.has(`${app.kind}:${app.id}`)
 }
 const connectedApps = computed(() => apps.value.filter(isConnected))
 const availableApps = computed(() => apps.value.filter((a) => !isConnected(a)))
@@ -80,6 +81,7 @@ const oidcConsentByClient = computed(() => {
   return m
 })
 function consentFor(app: LaunchpadApp): Consent | null {
+  if (app.kind === 'oidc' && app.requireConsent === false) return null
   if (app.kind === 'oidc') return oidcConsentByClient.value.get(app.id) ?? null
   if (app.kind === 'saml' && connectedKeys.value.has(`saml:${app.id}`)) {
     return { kind: 'saml', clientId: app.id, scopes: [] }

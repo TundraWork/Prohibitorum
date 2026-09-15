@@ -93,6 +93,7 @@ func (s *Server) buildLaunchpad(ctx context.Context, accountID int32) ([]contrac
 		out = append(out, contract.LaunchpadApp{
 			Kind: "oidc", ID: c.ClientID, Name: c.DisplayName,
 			IconURL: iconURL, AccentColor: accent, LaunchURL: launch,
+			RequireConsent: &c.RequireConsent,
 		})
 	}
 
@@ -120,9 +121,9 @@ func (s *Server) buildLaunchpad(ctx context.Context, accountID int32) ([]contrac
 		iconURL, accent := iconMeta("saml_sp", id)
 		out = append(out, contract.LaunchpadApp{
 			Kind: "saml", ID: id, Name: sp.DisplayName,
-			IconURL:   iconURL,
+			IconURL:     iconURL,
 			AccentColor: accent,
-			LaunchURL: "/saml/sso/init?sp=" + url.QueryEscape(sp.EntityID),
+			LaunchURL:   "/saml/sso/init?sp=" + url.QueryEscape(sp.EntityID),
 		})
 	}
 
