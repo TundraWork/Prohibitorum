@@ -55,6 +55,7 @@ jobs:
           tag="${IMAGE_TAG:0:13}"  # <run>-<12-char short sha>
           echo "building $KO_DOCKER_REPO:$tag and :develop"
           mise exec -- ko build ./cmd/prohibitorum \
+            --bare \
             --platform linux/amd64,linux/arm64 \
             --tags "$tag,develop" \
             --image-annotation org.opencontainers.image.source=https://github.com/TundraWork/Prohibitorum,org.opencontainers.image.revision=${{ github.sha }}
