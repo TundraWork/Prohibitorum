@@ -146,6 +146,16 @@ describe('ConnectedAccountsView', () => {
     expect(w.find('[data-test="link-google"]').attributes('disabled')).toBeUndefined()
   })
 
+  it('shows a preflight failure without redirecting or leaving the link action busy', async () => {
+    mockGets()
+    ensureSudo.mockRejectedValueOnce({ code: 'network_error' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="link-google"]').trigger('click'); await flushPromises()
+    expect(hardRedirect).not.toHaveBeenCalled()
+    expect(w.find('[data-test="link-google"]').attributes('disabled')).toBeUndefined()
+    w.unmount()
+  })
+
   it('link → ensureSudo then hardRedirect to begin', async () => {
     mockGets()
     const w = mountView(); await flushPromises()

@@ -62,8 +62,8 @@ func TestParse_AuthDefaults(t *testing.T) {
 		}
 	}
 
-	if cfg.Auth.SudoTTL != 15*time.Minute {
-		t.Errorf("Auth.SudoTTL: want 15m, got %v", cfg.Auth.SudoTTL)
+	if cfg.Auth.SudoTTL != 30*time.Minute {
+		t.Errorf("Auth.SudoTTL: want 30m, got %v", cfg.Auth.SudoTTL)
 	}
 	if cfg.Auth.PartialSessionTTL != 5*time.Minute {
 		t.Errorf("Auth.PartialSessionTTL: want 5m, got %v", cfg.Auth.PartialSessionTTL)

@@ -884,3 +884,43 @@ func TestHasFreshSudo_RecentAuthWindow(t *testing.T) {
 		t.Fatal("with SudoTTL=0 the recent-auth window must be inert")
 	}
 }
+
+func TestSudoMethodsFreshMatchesGateWithoutExtendingWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		issued time.Duration
+		grant  time.Duration
+		fresh  bool
+	}{
+		{"recent login at twenty minutes", -20 * time.Minute, 0, true},
+		{"stale login", -31 * time.Minute, 0, false},
+		{"explicit grant after stale login", -time.Hour, 10 * time.Minute, true},
+		{"expired grant", -time.Hour, -time.Second, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _, _ := newSudoTestServer(t)
+			s.config.Auth.SudoTTL = 30 * time.Minute
+			_, sess := issueSudoTestSession(t, s, 42)
+			sess.Data.IssuedAt = time.Now().Add(tc.issued)
+			sess.Data.SudoUntil = time.Time{}
+			if tc.grant != 0 {
+				sess.Data.SudoUntil = time.Now().Add(tc.grant)
+			}
+			issued, until := sess.Data.IssuedAt, sess.Data.SudoUntil
+			for i := 0; i < 2; i++ {
+				w := httptest.NewRecorder()
+				s.handleSudoMethodsHTTP(w, sudoReq(t, sess, http.MethodGet, "/api/prohibitorum/me/sudo/methods", ""))
+				got := decodeJSON(t, w.Body.Bytes())
+				if got["fresh"] != tc.fresh || s.hasFreshSudo(sess) != tc.fresh {
+					t.Fatalf("fresh=%v gate=%v want=%v", got["fresh"], s.hasFreshSudo(sess), tc.fresh)
+				}
+				if w.Header().Get("Cache-Control") != "no-store" {
+					t.Fatal("sudo state must not be cached")
+				}
+				if sess.Data.IssuedAt != issued || sess.Data.SudoUntil != until {
+					t.Fatal("preflight extended the authorization window")
+				}
+			}
+		})
+	}
+}

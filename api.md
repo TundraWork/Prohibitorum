@@ -395,3 +395,16 @@ Admin routes for inspecting and revoking any user's PATs. Gate notation follows 
 - `403`: valid token, but the owner is not authorized for this application by the live app-bound policy or the PAT's app restriction.
 
 The PAT path takes precedence: if an `X-Prohibitorum-PAT` header is present the request is always handled as a PAT regardless of any cookie. Empty or repeated PAT headers return 401. `Authorization` is ignored by this verifier and remains available to the protected application. Existing PAT clients must switch headers; proxies must strip `X-Prohibitorum-PAT` after verification and preserve `Authorization`.
+
+
+## Sudo grace period
+
+A successful full sign-in or sudo verification permits repeated sensitive actions
+for `PROHIBITORUM_AUTH_SUDO_TTL` (default `30m`; explicit deployment settings
+remain authoritative). Reading the status does not extend that window.
+
+`GET /api/prohibitorum/me/sudo/methods` requires a session and returns
+`{methods: [...], fresh: boolean}` with `Cache-Control: no-store`. The dashboard
+uses `fresh` before redirecting to identity linking, so it skips the modal while
+a grant is still valid. Every protected endpoint continues to check the grant
+server-side; the status response is not a credential and is not cached as one.
