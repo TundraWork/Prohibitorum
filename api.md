@@ -64,6 +64,13 @@ First-class user groups. Membership gates per-app sign-in (see *Per-app access*)
 
 ## Per-app access (RBAC)
 
+The OIDC, SAML (manual or metadata), and forward-auth creation endpoints accept
+optional boolean `accessRestricted`. Omitted or `false` preserves unrestricted
+creation; `true` creates the app with no access until accounts or groups are
+assigned on its detail page. The flag is included in the create response and is
+committed with the app. Forward-auth creation commits its backing client, proxy
+configuration, scopes and access policy in one transaction.
+
 A coarse per-app access gate on top of the "RP enforces policy" model. An app with `access_restricted = true` admits only users with a direct grant or a grant to a group they belong to; `false` (default — existing apps untouched) allows any enrolled user. **No admin bypass** — admins are assigned like anyone else.
 
 | Method | Path | Gate | Notes |

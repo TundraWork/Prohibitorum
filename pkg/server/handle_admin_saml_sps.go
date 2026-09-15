@@ -186,6 +186,7 @@ func (s *Server) handleGetSAMLApplication(ctx context.Context, in *getSAMLApplic
 // ----- POST /saml-applications (raw, sudo-gated) --------------------------------
 
 type createSAMLApplicationBody struct {
+	AccessRestricted bool `json:"accessRestricted"`
 	// Metadata path: supply MetadataXML + Kind (+ optional overrides).
 	MetadataXML  string `json:"metadataXml,omitempty"`
 	Kind         string `json:"kind"` // "ghes" | "generic" | "" (defaults to generic)
@@ -250,6 +251,8 @@ func (s *Server) handleCreateSAMLApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+
+	params.AccessRestricted = body.AccessRestricted
 
 	// Apply optional session lifetime.
 	if body.SessionLifetimeSecs != nil && *body.SessionLifetimeSecs > 0 {

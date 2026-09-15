@@ -24,6 +24,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import SegmentedControl from '@/components/custom/SegmentedControl.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import SettingRow from '@/components/custom/SettingRow.vue'
+import FormSection from '@/components/custom/FormSection.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PaginationControls from '@/components/custom/PaginationControls.vue'
@@ -63,6 +64,7 @@ const rows = page.items
 const displayError = computed(() => page.error.value ?? error.value)
 function clearError(): void { page.clear(); clear() }
 const createOpen = ref(false)
+const accessRestricted = ref(false)
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
 // Mode toggle
@@ -87,6 +89,7 @@ const allowIdpInitiated = ref(false)
 function go(id: number): void { router.push(`/admin/saml-applications/${id}`) }
 
 function openCreate(): void {
+  accessRestricted.value = false
   mode.value = 'metadata'
   metadataXml.value = ''
   metadataDisplayName.value = ''
@@ -148,6 +151,7 @@ async function create(): Promise<void> {
       acs: acsRows.value.map(({ id: _id, ...rest }) => rest),
     }
   }
+  body.accessRestricted = accessRestricted.value
   const res = await run(() => withSudo(() => api.post('/api/prohibitorum/saml-applications', body)))
   if (res) {
     createOpen.value = false
@@ -246,6 +250,12 @@ async function create(): Promise<void> {
           </SettingRow>
         </div>
 
+        <FormSection :title="t('admin.access.title')">
+          <SettingRow :label="t('admin.access.restrictedLabel')" :description="t('admin.access.restrictedHint')" for="accessRestricted">
+            <Switch id="accessRestricted" data-test="access-restricted" v-model="accessRestricted" />
+          </SettingRow>
+          <p v-if="accessRestricted" class="text-xs text-muted">{{ t('admin.access.createRestrictedHint') }}</p>
+        </FormSection>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.saml.create') }}</Button>
           <Button type="button" variant="outline" :disabled="busy" data-test="create-cancel" @click="createOpen = false">{{ t('common.cancel') }}</Button>

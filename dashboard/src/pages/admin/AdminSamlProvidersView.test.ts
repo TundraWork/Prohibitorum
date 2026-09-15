@@ -16,6 +16,23 @@ const SPS = [{ id: 1, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFo
 beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
 describe('AdminSamlProvidersView', () => {
+  it('submits restricted access and resets it when reopening creation', async () => {
+    vi.mocked(api.get).mockResolvedValue({ items: [], nextCursor: '' })
+    vi.mocked(api.post).mockResolvedValue({ clientId: 'new', id: 2 })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    expect(w.find('[data-test="access-restricted"]').attributes('aria-checked')).toBe('false')
+    await w.find('[data-test="access-restricted"]').trigger('click')
+    expect(w.text()).toContain(en.admin.access.createRestrictedHint)
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(api.post).toHaveBeenLastCalledWith('/api/prohibitorum/saml-applications', expect.objectContaining({ accessRestricted: true }))
+    await w.find('[data-test="create"]').trigger('click')
+    expect(w.find('[data-test="access-restricted"]').attributes('aria-checked')).toBe('false')
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(api.post).toHaveBeenLastCalledWith('/api/prohibitorum/saml-applications', expect.objectContaining({ accessRestricted: false }))
+    w.unmount()
+  })
+
   it('lists providers', async () => {
     get.mockResolvedValue({ items: SPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
@@ -54,13 +71,14 @@ describe('AdminSamlProvidersView', () => {
     // reka Tabs activates on mousedown (not click).
     await w.find('[data-test="mode-manual"]').trigger('mousedown')
     await flushPromises()
+    await w.find('[data-test="access-restricted"]').trigger('click')
     await w.find('input[name="entityId"]').setValue('https://manual/sp')
     await w.find('input[name="displayName"]').setValue('Manual SP')
     await w.find('[data-test="acs-add"]').trigger('click')
     await w.find('input[name="acs-location-0"]').setValue('https://manual/acs')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/saml-applications', expect.objectContaining({
-      entityId: 'https://manual/sp', displayName: 'Manual SP',
+      entityId: 'https://manual/sp', displayName: 'Manual SP', accessRestricted: true,
       acs: [expect.objectContaining({ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://manual/acs', isDefault: true })],
     }))
   })

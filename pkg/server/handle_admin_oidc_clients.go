@@ -173,6 +173,7 @@ func (s *Server) handleGetOIDCApplication(ctx context.Context, in *getOIDCApplic
 // ----- POST /oidc-applications (raw, sudo-gated) -----------------------------------
 
 type createOIDCApplicationBody struct {
+	AccessRestricted       bool     `json:"accessRestricted"`
 	ClientID               string   `json:"clientId"`
 	DisplayName            string   `json:"displayName"`
 	RedirectURIs           []string `json:"redirectUris"`
@@ -215,6 +216,7 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		return
 	}
 
+	params.AccessRestricted = body.AccessRestricted
 	c, err := s.queries.InsertOIDCClient(r.Context(), params)
 	if err != nil {
 		if isUniqueViolation(err) {

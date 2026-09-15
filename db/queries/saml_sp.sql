@@ -10,8 +10,8 @@ LIMIT sqlc.arg('limit');
 -- name: InsertSAMLSP :one
 INSERT INTO saml_sp (entity_id, display_name, sp_kind, name_id_format,
   attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime,
-  metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+  metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, access_restricted)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: ListSAMLSPACSEndpoints :many
