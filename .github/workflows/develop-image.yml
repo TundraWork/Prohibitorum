@@ -56,7 +56,6 @@ jobs:
           echo "building $KO_DOCKER_REPO:$tag and :develop"
           mise exec -- ko build ./cmd/prohibitorum \
             --platform linux/amd64,linux/arm64 \
-            --base cgr.dev/chainguard/static:latest \
             --tags "$tag,develop" \
             --image-annotation org.opencontainers.image.source=https://github.com/TundraWork/Prohibitorum,org.opencontainers.image.revision=${{ github.sha }}
           echo "tag=$tag" >> "$GITHUB_ENV"
