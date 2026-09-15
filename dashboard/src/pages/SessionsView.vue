@@ -60,10 +60,11 @@ onMounted(load)
       <Card v-for="r in rows" :key="r.id">
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-            <div class="flex min-w-0 items-center gap-2">
-              <UserAgentDisplay :ua="r.userAgent" class="min-w-0 text-ink" />
-              <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
-            </div>
+            <UserAgentDisplay :ua="r.userAgent" class="min-w-0 text-ink">
+              <template #badge>
+                <StatusBadge v-if="r.isCurrent" variant="success" class="shrink-0">{{ t('sessions.current') }}</StatusBadge>
+              </template>
+            </UserAgentDisplay>
             <span class="truncate text-muted">{{ t('sessions.ipAddress') }}: <span class="font-mono">{{ r.lastSeenIp }}</span></span>
             <span v-if="r.issuedAt" class="truncate text-muted">{{ t('sessions.issued') }}: {{ relativeTime(r.issuedAt) }}</span>
             <span v-if="r.expiresAt" class="truncate text-muted">{{ t('sessions.expires') }}: {{ formatDateTime(r.expiresAt) }}</span>

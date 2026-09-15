@@ -16,22 +16,25 @@ const hasRawUa = !!props.ua
 
 <template>
   <div>
-    <div class="flex items-center gap-1">
-      <span>{{ formatUserAgent(ua) }}</span>
-      <button
-        v-if="hasRawUa"
-        type="button"
-        class="inline-flex shrink-0 cursor-pointer items-center rounded p-0.5 text-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        :aria-expanded="expanded"
-        :aria-label="expanded ? t('userAgent.hide') : t('userAgent.toggle')"
-        @click="expanded = !expanded"
-      >
-        <ChevronDown
-          class="size-3.5 transition-transform duration-150"
-          :class="expanded ? 'rotate-180' : ''"
-          aria-hidden="true"
-        />
-      </button>
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div class="flex min-w-0 items-center gap-1">
+        <span>{{ formatUserAgent(ua) }}</span>
+        <button
+          v-if="hasRawUa"
+          type="button"
+          class="inline-flex shrink-0 cursor-pointer items-center rounded p-0.5 text-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :aria-expanded="expanded"
+          :aria-label="expanded ? t('userAgent.hide') : t('userAgent.toggle')"
+          @click="expanded = !expanded"
+        >
+          <ChevronDown
+            class="size-3.5 transition-transform duration-150"
+            :class="expanded ? 'rotate-180' : ''"
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+      <slot name="badge" />
     </div>
     <p v-if="expanded && hasRawUa" class="mt-1 break-all font-mono text-xs text-muted">{{ ua }}</p>
   </div>
