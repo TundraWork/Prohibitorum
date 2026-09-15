@@ -16,6 +16,7 @@ type AppManagerView struct {
 // application. AppID is the route identifier: an OIDC client ID for oidc and
 // forward_auth, or the decimal SAML SP ID for saml.
 type AppSummaryView struct {
+	IconURL           *string        `json:"iconUrl,omitempty"`
 	Kind              string         `json:"kind"`
 	AppID             string         `json:"appId"`
 	DisplayName       string         `json:"displayName"`

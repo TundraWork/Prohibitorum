@@ -27,6 +27,10 @@ type policyAuditCapture struct {
 	records []audit.Record
 }
 
+func (*policyTestQueries) GetEntityIconEtag(context.Context, db.GetEntityIconEtagParams) (string, error) {
+	return "", pgx.ErrNoRows
+}
+
 func (c *policyAuditCapture) Record(_ context.Context, record audit.Record) error {
 	c.records = append(c.records, record)
 	return nil

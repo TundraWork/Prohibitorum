@@ -26,6 +26,7 @@ import (
 // by Task 3's evaluator and the app-bound management handlers. It keeps the
 // focused HTTP tests database-free without widening db.Querier again.
 type appPolicyQueries interface {
+	GetEntityIconEtag(context.Context, db.GetEntityIconEtagParams) (string, error)
 	GetOIDCClient(context.Context, string) (db.OidcClient, error)
 	GetOIDCClientAny(context.Context, string) (db.OidcClient, error)
 	GetSAMLSPByID(context.Context, int64) (db.SamlSp, error)
@@ -155,6 +156,15 @@ func (s *Server) managedApplicationFromRequest(r *http.Request) (managedApplicat
 	if err != nil {
 		return managedApplication{}, err
 	}
+	iconKind := "oidc_client"
+	if ref.Kind == appaccess.KindSAML {
+		iconKind = "saml_sp"
+	}
+	etag, err := s.appPolicyQ().GetEntityIconEtag(r.Context(), db.GetEntityIconEtagParams{OwnerKind: iconKind, OwnerID: summary.AppID})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return managedApplication{}, fmt.Errorf("load managed application icon: %w", err)
+	}
+	summary.IconURL = entityIconURLPtr(iconKind, summary.AppID, etag)
 	return managedApplication{ref: ref, summary: summary}, nil
 }
 

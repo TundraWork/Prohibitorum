@@ -13,6 +13,7 @@ export interface AppScope {
 }
 
 export interface ManagedApplication {
+  iconUrl?: string
   kind: AppKind
   appId: string
   displayName: string
