@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/authn"
@@ -44,9 +45,32 @@ func newProviderAdminTestServer(t *testing.T) *Server {
 		}
 	}
 	return &Server{
+		queries:            db.New(providerIconDB{t: t}),
 		config:             &configx.Config{DataEncryptionKeys: map[int][]byte{1: make([]byte, 32)}},
 		federationRegistry: registry,
 	}
+}
+
+// These tests stub provider state independently of the icon lookup. Exercise
+// the real sqlc icon query and response projection without needing PostgreSQL.
+type providerIconDB struct {
+	db.DBTX
+	t *testing.T
+}
+
+func (d providerIconDB) QueryRow(_ context.Context, query string, args ...interface{}) pgx.Row {
+	d.t.Helper()
+	if !strings.Contains(query, "GetEntityIconEtag") || len(args) != 2 || args[0] != "upstream_idp" {
+		d.t.Fatalf("unexpected icon lookup: %s %v", query, args)
+	}
+	return providerIconRow{}
+}
+
+type providerIconRow struct{}
+
+func (providerIconRow) Scan(dest ...interface{}) error {
+	*dest[0].(*string) = "abcdef0123456789"
+	return nil
 }
 
 func readyOIDCRow(status string) db.UpstreamIdp {
@@ -316,6 +340,17 @@ func TestSetIdentityProviderDisabledReadinessContract(t *testing.T) {
 			}
 			if queries.setCalls != tc.wantSets {
 				t.Fatalf("SetUpstreamIDPDisabled calls = %d, want %d", queries.setCalls, tc.wantSets)
+			}
+			if w.Code == http.StatusOK {
+				var body struct {
+					IconURL string `json:"iconUrl"`
+				}
+				if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+					t.Fatal(err)
+				}
+				if body.IconURL != "/icon/upstream_idp/corp?v=abcdef01" {
+					t.Fatalf("iconUrl = %q, want uploaded provider icon", body.IconURL)
+				}
 			}
 			if tc.wantCode != "" {
 				var body struct {

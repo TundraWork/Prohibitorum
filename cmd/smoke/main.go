@@ -4740,9 +4740,10 @@ func main() {
 		// the total over the limit for this session.
 		{
 			var created struct {
-				Slug     string `json:"slug"`
-				Protocol string `json:"protocol"`
-				Mode     string `json:"mode"`
+				Slug     string  `json:"slug"`
+				Protocol string  `json:"protocol"`
+				Mode     string  `json:"mode"`
+				IconURL  *string `json:"iconUrl"`
 			}
 			if err := c.postJSON("/api/prohibitorum/identity-providers", map[string]any{
 				"slug":        steamSlug,
@@ -4765,6 +4766,54 @@ func main() {
 			}
 			log.Printf("  POST /identity-providers slug=%s protocol=%s mode=%s → 201 ✓",
 				created.Slug, created.Protocol, created.Mode)
+			if created.IconURL != nil {
+				log.Fatalf("steam: new provider unexpectedly has an icon: %q", *created.IconURL)
+			}
+
+			// PHB-14: mutation responses must preserve the same icon as GET.
+			// Reuse this arc's existing sudo window for upload/save/disable/enable.
+			providerPath := "/api/prohibitorum/identity-providers/" + steamSlug
+			iconBuf := bytes.Buffer{}
+			if err := png.Encode(&iconBuf, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
+				log.Fatalf("steam: encode provider icon: %v", err)
+			}
+			if err := c.putEntityIconPNG(providerPath+"/icon", iconBuf.Bytes()); err != nil {
+				log.Fatalf("steam: upload provider icon: %v", err)
+			}
+			var got struct {
+				IconURL string `json:"iconUrl"`
+			}
+			if err := c.get(providerPath, &got); err != nil {
+				log.Fatalf("steam: GET provider icon: %v", err)
+			}
+			if !strings.HasPrefix(got.IconURL, "/icon/upstream_idp/"+steamSlug+"?v=") {
+				log.Fatalf("steam: GET iconUrl = %q", got.IconURL)
+			}
+			var updated struct {
+				IconURL  string `json:"iconUrl"`
+				Disabled bool   `json:"disabled"`
+			}
+			if err := c.putJSON(providerPath, map[string]any{
+				"displayName": "Steam", "mode": "auto_provision", "config": map[string]any{},
+			}, &updated); err != nil {
+				log.Fatalf("steam: save provider: %v", err)
+			}
+			if updated.IconURL != got.IconURL {
+				log.Fatalf("steam: PUT iconUrl = %q, want %q", updated.IconURL, got.IconURL)
+			}
+			for _, disabled := range []bool{true, false} {
+				// Reset the decoder target so an omitted field cannot retain its old value.
+				updated.IconURL = ""
+				if err := c.postJSON("/api/prohibitorum/identity-providers/set-disabled", map[string]any{
+					"slug": steamSlug, "disabled": disabled,
+				}, &updated); err != nil {
+					log.Fatalf("steam: set-disabled=%v: %v", disabled, err)
+				}
+				if updated.IconURL != got.IconURL || updated.Disabled != disabled {
+					log.Fatalf("steam: set-disabled=%v response icon=%q disabled=%v, want icon=%q", disabled, updated.IconURL, updated.Disabled, got.IconURL)
+				}
+			}
+			log.Printf("  provider GET/PUT/disable/enable preserve iconUrl (%s) ✓", got.IconURL)
 		}
 
 		step(fmt.Sprintf("steam %d/%d — GET /identity-providers lists the steam provider", 2, nSteam))

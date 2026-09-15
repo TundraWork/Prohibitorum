@@ -264,7 +264,7 @@ func (s *Server) handleGetIdentityProvider(ctx context.Context, in *getIdentityP
 	if err != nil {
 		return nil, fmt.Errorf("handleGetIdentityProvider: view: %w", err)
 	}
-	view.IconURL = entityIconURLPtr("upstream_idp", row.Slug, s.lookupEntityIconEtag(ctx, "upstream_idp", row.Slug))
+	view.IconURL = s.enrichIconURL(ctx, "upstream_idp", row.Slug)
 	return &identityProviderOut{Body: view}, nil
 }
 
@@ -330,6 +330,7 @@ func (s *Server) handleCreateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, err)
 		return
 	}
+	view.IconURL = s.enrichIconURL(r.Context(), "upstream_idp", row.Slug)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(view)
@@ -384,6 +385,7 @@ func (s *Server) handleUpdateIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, err)
 		return
 	}
+	view.IconURL = s.enrichIconURL(r.Context(), "upstream_idp", updated.Slug)
 	writeJSON(w, view)
 }
 
@@ -433,6 +435,7 @@ func (s *Server) handleSetIdentityProviderDisabledHTTP(w http.ResponseWriter, r 
 		writeAuthErr(w, err)
 		return
 	}
+	view.IconURL = s.enrichIconURL(r.Context(), "upstream_idp", updated.Slug)
 	writeJSON(w, view)
 }
 
