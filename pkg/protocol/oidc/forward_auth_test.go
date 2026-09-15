@@ -180,7 +180,7 @@ func (f *fakeFAQueries) SetForwardAuthConfig(_ context.Context, p db.SetForwardA
 func newFAProvider(q db.Querier) (*Provider, kv.Store) {
 	store := kv.NewMemoryStore()
 	p := &Provider{
-		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}},
+		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}, ForwardAuth: configx.ForwardAuthConfig{SessionTTL: time.Hour}},
 		queries: q,
 		kv:      store,
 		audit:   &recordingAudit{},
@@ -986,7 +986,7 @@ func newFAProviderAudit(q db.Querier) (*Provider, kv.Store, *recordingAudit) {
 	store := kv.NewMemoryStore()
 	ra := &recordingAudit{}
 	p := &Provider{
-		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}},
+		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}, ForwardAuth: configx.ForwardAuthConfig{SessionTTL: time.Hour}},
 		queries: q,
 		kv:      store,
 		audit:   ra,

@@ -235,6 +235,8 @@ http:
       forwardAuth:
         address: "$VERIFY_URL"
         trustForwardHeader: true
+        addAuthCookiesToResponse:
+          - __Host-prohibitorum_forward_auth
         authResponseHeaders:
           - Remote-User
           - Remote-Name

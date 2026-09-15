@@ -51,6 +51,8 @@ http:
       forwardAuth:
         address: "https://auth.example.com/api/prohibitorum/forward-auth/verify"
         trustForwardHeader: true
+        addAuthCookiesToResponse:
+          - __Host-prohibitorum_forward_auth
         authResponseHeaders:
           - Remote-User
           - Remote-Name
@@ -77,9 +79,28 @@ http:
       tls: {}
 ```
 
-Docker-label equivalents follow the same shape: a `forwardauth` middleware with `address`, `trustForwardHeader=true`, `authResponseHeaders`, plus a second router for `PathPrefix(/.prohibitorum-forward-auth/)` → the Prohibitorum service.
+Docker-label equivalents follow the same shape: a `forwardauth` middleware with `address`, `trustForwardHeader=true`, `authResponseHeaders`, `addAuthCookiesToResponse=__Host-prohibitorum_forward_auth`, plus a second router for `PathPrefix(/.prohibitorum-forward-auth/)` → the Prohibitorum service.
 
 The backend reads identity from the `Remote-*` request headers (present only on allowed requests).
+
+### Session renewal
+
+Successful cookie-authenticated requests renew the server session when its
+remaining lifetime is at most one quarter of `forward_auth.session_ttl`
+(default 1h). Active users can keep working beyond the initial hour. An expired
+session still requires the normal login redirect; denied requests and PAT requests
+do not renew a browser session.
+
+Verify sends a host-only `Set-Cookie` on renewal. Configure
+`addAuthCookiesToResponse` as above so Traefik copies it to the protected
+application's response. Do not add `Set-Cookie` to `authResponseHeaders`:
+that setting copies headers to the upstream request. The cookie remains a browser
+session cookie (no Max-Age); renewal extends the server lifetime without changing
+the random token, so parallel requests and sign-out refer to the same session.
+Existing sessions can renew without signing in again after upgrading.
+
+A continuously open WebSocket does not make new verify requests. Renewal occurs
+on subsequent HTTP requests that pass through the middleware.
 
 ### Sign out
 
@@ -87,7 +108,7 @@ Link users to:
 
     https://<protected-host>/.prohibitorum-forward-auth/sign_out
 
-Clears the per-domain cookie + session, bounces to Prohibitorum to terminate the SSO session, then returns the browser to the app. Forward-auth sessions on *other* protected domains remain valid until they expire (`forward_auth.session_ttl`, default 1h) or a live authorization check denies them.
+Clears the per-domain cookie + session, bounces to Prohibitorum to terminate the SSO session, then returns the browser to the app. Forward-auth sessions on *other* protected domains remain valid while used and until their sliding lifetime expires (`forward_auth.session_ttl`, default 1h) or a live authorization check denies them.
 
 > `sign_out` is served by Prohibitorum, so the same `PathPrefix(/.prohibitorum-forward-auth/)` router already covers it — no extra Traefik config needed.
 
@@ -176,6 +197,8 @@ http:
       forwardAuth:
         address: "https://auth.example.com/api/prohibitorum/forward-auth/verify"
         trustForwardHeader: true
+        addAuthCookiesToResponse:
+          - __Host-prohibitorum_forward_auth
         authResponseHeaders:
           - Remote-User
           - Remote-Name

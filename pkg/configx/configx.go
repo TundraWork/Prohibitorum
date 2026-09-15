@@ -162,7 +162,7 @@ type SAMLConfig struct {
 }
 
 // ForwardAuthConfig configures the native Traefik ForwardAuth provider.
-// SessionTTL bounds the per-domain forward-auth cookie/session lifetime.
+// SessionTTL is the sliding server lifetime of a per-domain forward-auth session.
 type ForwardAuthConfig struct {
 	SessionTTL time.Duration `mapstructure:"session_ttl"`
 }
