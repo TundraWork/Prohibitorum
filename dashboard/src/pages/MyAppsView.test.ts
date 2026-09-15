@@ -51,6 +51,16 @@ function clickConfirm() {
 beforeEach(() => { get.mockReset(); post.mockReset() })
 
 describe('MyAppsView', () => {
+  it.each([{ consents: [] }, { consents: [{ kind: 'oidc', clientId: 'docs', scopes: ['openid'] }] }])('keeps consent-free OIDC apps visible without a revocable grant: %j', async ({ consents }) => {
+    serve([{ kind: 'oidc', id: 'docs', name: 'Docs', launchUrl: 'https://docs.example', requireConsent: false }], consents)
+    const w = mountView(); await flushPromises()
+    const tile = w.findComponent(AppTile)
+    expect(tile.exists()).toBe(true)
+    expect(tile.props('app').id).toBe('docs')
+    expect(tile.props('consent')).toBeNull()
+    w.unmount()
+  })
+
   it('renders connected apps (consented OIDC + forward-auth) as tiles; available apps are not in the grid', async () => {
     serve()
     const w = mountView(); await flushPromises()

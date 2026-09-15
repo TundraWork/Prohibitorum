@@ -328,6 +328,18 @@ Policy records identify the actor, app kind/ID, group ID, action, and target acc
 
 ---
 
+## Application launchpad (self-service)
+
+`GET /api/prohibitorum/me/apps` returns the signed-in account's authorized, enabled,
+launchable apps. Entries contain `kind`, `id`, `name`, `launchUrl`, and optional
+`iconUrl` / `accentColor`. OIDC entries also contain `requireConsent` (including
+explicit `false`); other protocols omit it.
+
+An OIDC app with `requireConsent: false` appears on the home page without a saved
+consent grant and has no revoke action there, including when an older grant still
+exists. Apps requiring consent keep the existing connect/revoke behavior. This
+display policy does not bypass the server's app access controls.
+
 ## Personal access tokens (self-service)
 
 Self-service PAT management routes. These are **not** admin-gated — any enrolled user may call them on their own account.

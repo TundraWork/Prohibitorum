@@ -17,6 +17,9 @@ type LaunchpadApp struct {
 	Name      string  `json:"name"`
 	IconURL   *string `json:"iconUrl,omitempty"`
 	LaunchURL string  `json:"launchUrl"`
+	// RequireConsent is present for OIDC apps, including false. Other protocols
+	// retain their own connection/acknowledgement behavior.
+	RequireConsent *bool `json:"requireConsent,omitempty"`
 	// AccentColor is a representative "#rrggbb" extracted from the uploaded icon
 	// (server-side, at upload time) for tinting the tile backdrop. Nil when the
 	// app has no icon — the client then derives a tint from the name.

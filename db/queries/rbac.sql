@@ -390,6 +390,7 @@ SELECT
   display_name,
   launch_url,
   redirect_uris,
+  require_consent,
   access_restricted
 FROM oidc_client
 WHERE NOT disabled

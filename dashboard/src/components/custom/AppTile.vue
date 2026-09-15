@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { MoreVertical, ArrowUpRight, Copy, SlidersHorizontal, Trash2, Check } from 'lucide-vue-next'
 
-export interface LaunchpadApp { kind: 'oidc' | 'forward_auth' | 'saml'; id: string; name: string; iconUrl?: string | null; launchUrl: string; accentColor?: string | null }
+export interface LaunchpadApp { kind: 'oidc' | 'forward_auth' | 'saml'; id: string; name: string; iconUrl?: string | null; launchUrl: string; accentColor?: string | null; requireConsent?: boolean }
 export interface ConsentInfo { scopes: string[] }
 
 const props = withDefaults(defineProps<{ app: LaunchpadApp; consent?: ConsentInfo | null; isAdmin?: boolean }>(), {
@@ -37,7 +37,8 @@ const { t } = useI18n()
 const hasConsent = computed(() => !!props.consent)
 // A consented OIDC app or an acknowledged SAML app is a revocable grant;
 // forward-auth is always-on at the proxy, so it has nothing to revoke.
-const canRevoke = computed(() => props.app.kind !== 'forward_auth' && hasConsent.value)
+const canRevoke = computed(() => props.app.kind !== 'forward_auth'
+  && !(props.app.kind === 'oidc' && props.app.requireConsent === false) && hasConsent.value)
 const monogram = computed(() => (props.app.name.trim()[0] ?? '?').toUpperCase())
 
 // Backdrop tint: derive hue + a calm chroma from the icon's server-extracted

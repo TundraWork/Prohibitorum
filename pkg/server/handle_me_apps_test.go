@@ -89,6 +89,25 @@ func TestHandleMyApps(t *testing.T) {
 }
 
 // Compile-time assertions for the launchpad seams.
+func TestLaunchpadCarriesOIDCConsentPolicy(t *testing.T) {
+	for _, required := range []bool{false, true} {
+		s := &Server{
+			launchpadOverride: &fakeLaunchpadQ{},
+			appLister: &fakeAppLister{apps: []appaccess.AppSummary{{
+				Ref:         appaccess.AppRef{Kind: appaccess.KindOIDC, OIDCClientID: "docs"},
+				DisplayName: "Docs", LaunchURL: "https://docs.example", RequireConsent: required,
+			}}},
+		}
+		apps, err := s.buildLaunchpad(context.Background(), 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(apps) != 1 || apps[0].RequireConsent == nil || *apps[0].RequireConsent != required {
+			t.Fatalf("requireConsent=%v: apps=%+v", required, apps)
+		}
+	}
+}
+
 var _ launchpadQueries = (*fakeLaunchpadQ)(nil)
 var _ appaccess.AppLister = (*fakeAppLister)(nil)
 

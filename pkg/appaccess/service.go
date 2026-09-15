@@ -35,14 +35,15 @@ type Scope struct {
 
 // AppSummary is the safe application projection returned by the launchpad.
 type AppSummary struct {
-	Ref                 AppRef  `json:"ref"`
-	DisplayName         string  `json:"displayName"`
-	LaunchURL           string  `json:"launchUrl,omitempty"`
-	RedirectURIs        []string `json:"redirectUris,omitempty"`
-	EntityID            string  `json:"entityId,omitempty"`
-	ForwardAuthHost     string  `json:"forwardAuthHost,omitempty"`
-	ForwardAuthScopes   []Scope `json:"forwardAuthScopes,omitempty"`
-	AccessRestricted    bool    `json:"accessRestricted"`
+	RequireConsent    bool     `json:"requireConsent"`
+	Ref               AppRef   `json:"ref"`
+	DisplayName       string   `json:"displayName"`
+	LaunchURL         string   `json:"launchUrl,omitempty"`
+	RedirectURIs      []string `json:"redirectUris,omitempty"`
+	EntityID          string   `json:"entityId,omitempty"`
+	ForwardAuthHost   string   `json:"forwardAuthHost,omitempty"`
+	ForwardAuthScopes []Scope  `json:"forwardAuthScopes,omitempty"`
+	AccessRestricted  bool     `json:"accessRestricted"`
 }
 
 // AccountSummary contains only fields safe to return from a rule preview.
@@ -233,6 +234,7 @@ func (s *Service) ListAllowedApps(ctx context.Context, accountID int32) ([]AppSu
 			DisplayName:      app.DisplayName,
 			LaunchURL:        app.LaunchUrl.String,
 			RedirectURIs:     app.RedirectUris,
+			RequireConsent:   app.RequireConsent,
 			AccessRestricted: app.AccessRestricted,
 		})
 	}

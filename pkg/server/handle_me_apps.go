@@ -96,7 +96,8 @@ func (s *Server) buildLaunchpad(ctx context.Context, accountID int32) ([]contrac
 			iconURL, accent := iconMeta("oidc_client", app.Ref.OIDCClientID)
 			item = contract.LaunchpadApp{
 				Kind: "oidc", ID: app.Ref.OIDCClientID, Name: app.DisplayName,
-				IconURL: iconURL, AccentColor: accent, LaunchURL: launch,
+				RequireConsent: &app.RequireConsent,
+				IconURL:        iconURL, AccentColor: accent, LaunchURL: launch,
 			}
 		case appaccess.KindForwardAuth:
 			if app.ForwardAuthHost == "" {

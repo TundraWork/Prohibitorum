@@ -4257,6 +4257,26 @@ func main() {
 	}
 
 	// noFollow is a one-off HTTP client that does NOT follow redirects so we
+	step("launchpad — consent-free OIDC apps carry explicit consent policy")
+	{
+		var apps []struct {
+			ID             string `json:"id"`
+			RequireConsent *bool  `json:"requireConsent"`
+		}
+		if err := c.get("/api/prohibitorum/me/apps", &apps); err != nil {
+			log.Fatalf("launchpad: %v", err)
+		}
+		found := false
+		for _, app := range apps {
+			if app.ID == adminClientID {
+				found = app.RequireConsent != nil && !*app.RequireConsent
+			}
+		}
+		if !found {
+			log.Fatal("launchpad: consent-free admin app must carry requireConsent=false")
+		}
+	}
+
 	// can assert 302 Location headers on browser-navigated error paths.
 	noFollow := &http.Client{
 		Timeout: 10 * time.Second,
