@@ -7,11 +7,6 @@ import en from '@/locales/en'
 import EditProfileDialog from './EditProfileDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 
-// ---------------------------------------------------------------------------
-// NOTE: "Cancel" has been replaced by "Close" (data-test="edit-close").
-// "Save" has been relabelled "Save name" (data-test="edit-save" unchanged).
-// ---------------------------------------------------------------------------
-
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), upload: vi.fn(), del: vi.fn() } }))
 import { api } from '@/lib/api'
 const put = vi.mocked(api.put)
@@ -113,22 +108,22 @@ describe('EditProfileDialog — layout and zone division', () => {
     expect(sep).not.toBeNull()
   })
 
-  it('footer shows "Save name" (not "Save") and "Close" (not "Cancel")', async () => {
+  it('shows an accessible icon save action beside a changed name without footer actions', async () => {
     seedUser(); mountOpen(); await flushPromises()
-    const saveEl = document.body.querySelector('[data-test="edit-save"]') as HTMLButtonElement
-    const closeEl = document.body.querySelector('[data-test="edit-close"]') as HTMLButtonElement
-    expect(saveEl).not.toBeNull()
-    expect(closeEl).not.toBeNull()
-    expect(saveEl.textContent?.trim()).toBe(en.accountMenu.saveName)
-    expect(closeEl.textContent?.trim()).toBe(en.common.close)
-    // Old "Cancel" data-test must not exist
+    expect(document.body.querySelector('[data-test="edit-close"]')).toBeNull()
     expect(document.body.querySelector('[data-test="edit-cancel"]')).toBeNull()
+    expect(saveBtn()).toBeNull()
+    setInput('Alexander'); await flushPromises()
+    expect(input().nextElementSibling).toBe(saveBtn())
+    expect(saveBtn().getAttribute('aria-label')).toBe(en.accountMenu.saveName)
+    expect(saveBtn().textContent?.trim()).toBe('')
+    expect(saveBtn().querySelector('svg[aria-hidden="true"]')).not.toBeNull()
   })
 
-  it('Close button emits update:open false', async () => {
+  it('native dialog close button emits update:open false', async () => {
     seedUser()
     const w = mountOpen(); await flushPromises()
-    const closeEl = document.body.querySelector('[data-test="edit-close"]') as HTMLButtonElement
+    const closeEl = document.body.querySelector('[data-slot="dialog-close"]') as HTMLButtonElement
     closeEl.click(); await flushPromises()
     expect(w.emitted('update:open')?.some((e) => e[0] === false)).toBe(true)
   })
@@ -147,15 +142,17 @@ describe('EditProfileDialog — display name', () => {
     expect(input().value).toBe('Alex Smith')
   })
 
-  it('disables Save when unchanged, empty, or too long; enables on a valid change', async () => {
+  it('hides Save when unchanged; disables invalid changes and enables a valid change', async () => {
     seedUser('Alex Smith'); mountOpen(); await flushPromises()
-    expect(saveBtn().disabled).toBe(true)            // unchanged
+    expect(saveBtn()).toBeNull()                    // unchanged
     setInput(''); await flushPromises()
     expect(saveBtn().disabled).toBe(true)            // empty
     setInput('x'.repeat(129)); await flushPromises()
     expect(saveBtn().disabled).toBe(true)            // >128
     setInput('Alexander'); await flushPromises()
     expect(saveBtn().disabled).toBe(false)           // valid change
+    setInput('Alex Smith'); await flushPromises()
+    expect(saveBtn()).toBeNull()                    // reverted
   })
 
   it('saves: PUT /me, patches store from RESPONSE, emits close', async () => {
