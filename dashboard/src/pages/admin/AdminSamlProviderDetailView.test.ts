@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
@@ -11,6 +11,7 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => ({ p
 import AdminSamlProviderDetailView from './AdminSamlProviderDetailView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
+enableAutoUnmount(afterEach)
 const mountView = () => mount(AdminSamlProviderDetailView, { global: { plugins: [i18n()], stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } } }, attachTo: document.body })
 const SP = { id: 5, entityId: 'https://sp/meta', displayName: 'GHES', nameIdFormat: 'persistent', attributeMap: [{ name: 'USERNAME', name_format: 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', source: 'username', multi: false }], requireSignedAuthnRequest: false, allowIdpInitiated: true, disabled: false, sessionLifetimeSecs: 3600, acs: [{ binding: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST', location: 'https://sp/acs', index: 0, isDefault: true }], keys: [{ use: 'signing', notAfter: '2027-01-01T00:00:00Z' }], createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) { const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label)); b[b.length - 1]!.click() }

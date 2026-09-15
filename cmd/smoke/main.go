@@ -8098,6 +8098,7 @@ func checkCreateAccessPolicy(c *client, baseURL string) {
 				body["scopes"] = []map[string]string{{"name": "read", "description": "Read"}}
 			default:
 				path = "/api/prohibitorum/saml-applications"
+				body["allowIdpInitiated"] = true
 				entity := "https://" + key + ".example.test/metadata"
 				if kind == "saml_metadata" {
 					body["metadataXml"] = fmt.Sprintf(`<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="%s"><SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://%s.example.test/acs" index="0" isDefault="true"/></SPSSODescriptor></EntityDescriptor>`, entity, key)
