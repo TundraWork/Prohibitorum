@@ -24,14 +24,14 @@ DELETE FROM oidc_client WHERE client_id = $1;
 INSERT INTO oidc_client (
   client_id, display_name, client_secret_hash, redirect_uris,
   post_logout_redirect_uris, allowed_scopes, require_pkce,
-  allowed_code_challenge_methods, token_endpoint_auth_method,
+  allowed_code_challenge_methods, client_auth_method,
   subject_type, require_consent, access_restricted
 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 RETURNING *;
 
 -- name: ListOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,
-       token_endpoint_auth_method, disabled, access_restricted, created_at
+       client_auth_method, disabled, access_restricted, created_at
 FROM oidc_client ORDER BY created_at DESC;
 
 -- name: GetAccountByOIDCSubject :one
@@ -128,7 +128,7 @@ WHERE client_id = $1 AND forward_auth_enabled = true;
 
 -- name: ListNonForwardAuthOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,
-       token_endpoint_auth_method, disabled, access_restricted, created_at
+       client_auth_method, disabled, access_restricted, created_at
 FROM oidc_client
 WHERE forward_auth_enabled = false
   AND (sqlc.narg('after_created_at')::timestamptz IS NULL OR (created_at, client_id) < (sqlc.narg('after_created_at'), sqlc.narg('after_client_id')::text))

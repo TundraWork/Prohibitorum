@@ -101,7 +101,7 @@ func newTokenHarness(t *testing.T) *tokenHarness {
 	}
 	q := &fakeTokenQueries{
 		clients: map[string]db.OidcClient{
-			testClientID: confidentialClient(t, testClientID, testSecret, "client_secret_basic"),
+			testClientID: confidentialClient(t, testClientID, testSecret, "client_secret"),
 		},
 		accounts: map[int32]db.Account{42: acct},
 	}
@@ -719,5 +719,39 @@ func TestTokenEmptyPublicOriginsNoPanic(t *testing.T) {
 	}
 	if resp.IDToken == "" {
 		t.Fatal("expected a non-empty id_token")
+	}
+}
+
+func TestTokenPostChannelCodeExchange(t *testing.T) {
+	// Same exchange as TestTokenHappyPath, but the credentials travel in the
+	// request body (client_secret_post) rather than the Basic header. This is
+	// the channel the discovery document advertised while the server rejected
+	// it (PHB-19).
+	h := newTokenHarness(t)
+
+	form := codeExchangeForm(h.mintTestCode(t, baseAuthCode()), testVerifier, testRedirect)
+	form.Set("client_id", testClientID)
+	form.Set("client_secret", testSecret)
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (body %s)", rec.Code, rec.Body.String())
+	}
+	var resp tokenResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode token response: %v", err)
+	}
+	if resp.AccessToken == "" || resp.IDToken == "" || resp.RefreshToken == "" {
+		t.Fatalf("incomplete token response: %+v", resp)
+	}
+	if resp.TokenType != "Bearer" {
+		t.Fatalf("token_type = %q, want Bearer", resp.TokenType)
+	}
+	if resp.Scope != "openid profile offline_access" {
+		t.Fatalf("scope = %q", resp.Scope)
 	}
 }

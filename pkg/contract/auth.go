@@ -548,18 +548,20 @@ var OperationListSigningKeys = huma.Operation{
 // client_secret_hash is NEVER included — only the public configuration fields
 // are returned to callers.
 type OIDCApplicationView struct {
-	ClientID                string    `json:"clientId"`
-	DisplayName             string    `json:"displayName"`
-	IconURL                 *string   `json:"iconUrl,omitempty"`
-	LaunchURL               *string   `json:"launchUrl,omitempty"`
-	RedirectURIs            []string  `json:"redirectUris"`
-	PostLogoutRedirectURIs  []string  `json:"postLogoutRedirectUris"`
-	AllowedScopes           []string  `json:"allowedScopes"`
-	TokenEndpointAuthMethod string    `json:"tokenEndpointAuthMethod"`
-	RequireConsent          bool      `json:"requireConsent"`
-	Disabled                bool      `json:"disabled"`
-	AccessRestricted        bool      `json:"accessRestricted"`
-	CreatedAt               time.Time `json:"createdAt"`
+	ClientID               string    `json:"clientId"`
+	DisplayName            string    `json:"displayName"`
+	IconURL                *string   `json:"iconUrl,omitempty"`
+	LaunchURL              *string   `json:"launchUrl,omitempty"`
+	RedirectURIs           []string  `json:"redirectUris"`
+	PostLogoutRedirectURIs []string  `json:"postLogoutRedirectUris"`
+	AllowedScopes          []string  `json:"allowedScopes"`
+	// ClientAuthMethod is `client_secret` for confidential clients (either
+	// credential channel is accepted) or `none` for public PKCE clients.
+	ClientAuthMethod string    `json:"clientAuthMethod"`
+	RequireConsent   bool      `json:"requireConsent"`
+	Disabled         bool      `json:"disabled"`
+	AccessRestricted bool      `json:"accessRestricted"`
+	CreatedAt        time.Time `json:"createdAt"`
 }
 
 var OperationListOIDCApplications = huma.Operation{

@@ -263,8 +263,11 @@ generating a new one.`,
 
 Confidential clients (the default) get a freshly generated secret that is
 printed exactly once; only its argon2id hash is stored. Pass --public for a
-client with no secret (token_endpoint_auth_method = "none"). PKCE is required
-for every client.`,
+client with no secret (client_auth_method = "none"). PKCE is required
+for every client.
+
+A confidential client may present its secret either in the HTTP Basic
+Authorization header or in the request body — both channels are accepted.`,
 		Run: func(_ *cobra.Command, _ []string) {
 			ctx := context.Background()
 			config, err := configx.Parse()
@@ -299,7 +302,7 @@ for every client.`,
 			}
 
 			if clientPublic {
-				fmt.Printf("Registered public client %q (no secret; token_endpoint_auth_method=none)\n", params.ClientID)
+				fmt.Printf("Registered public client %q (no secret; client_auth_method=none)\n", params.ClientID)
 				return
 			}
 			fmt.Printf("Registered confidential client %q\n", params.ClientID)
@@ -344,7 +347,7 @@ for every client.`,
 			}
 			fmt.Printf("%-32s %-32s %-24s %s\n", "CLIENT_ID", "DISPLAY_NAME", "AUTH_METHOD", "DISABLED")
 			for _, c := range clients {
-				fmt.Printf("%-32s %-32s %-24s %t\n", c.ClientID, c.DisplayName, c.TokenEndpointAuthMethod, c.Disabled)
+				fmt.Printf("%-32s %-32s %-24s %t\n", c.ClientID, c.DisplayName, c.ClientAuthMethod, c.Disabled)
 			}
 		},
 	}

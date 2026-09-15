@@ -22,6 +22,18 @@ func revokeReq(token string) *http.Request {
 	return req
 }
 
+// revokeReqPost is revokeReq with the credentials in the body
+// (client_secret_post) instead of the Basic header.
+func revokeReqPost(token string) *http.Request {
+	form := url.Values{}
+	form.Set("token", token)
+	form.Set("client_id", testClientID)
+	form.Set("client_secret", testSecret)
+	req := httptest.NewRequest(http.MethodPost, "/oauth/revoke", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
+}
+
 func (h *endpointHarness) sawRevokedAudit(tokenType string) bool {
 	for _, r := range h.audit.records {
 		if r.Factor == audit.FactorOIDCClient && r.Event == audit.EventRevoke &&
@@ -65,6 +77,29 @@ func TestRevokeAccessToken(t *testing.T) {
 	}
 	if !h.q.inserted[0].ExpiresAt.Valid {
 		t.Fatal("expected a valid ExpiresAt on the denylist row")
+	}
+	if !h.sawRevokedAudit("access_token") {
+		t.Fatal("expected a revoked audit record for access_token")
+	}
+}
+
+func TestRevokePostChannelAuth(t *testing.T) {
+	// The confidential client authenticates through the body instead of the
+	// Basic header (PHB-19), and the token is genuinely revoked.
+	h := newEndpointHarness(t)
+	at := h.mintAccessToken(t, testSubject, testClientID, "openid", "jti-r-post", time.Now().Add(time.Hour))
+
+	rec := httptest.NewRecorder()
+	h.p.HandleRevoke(rec, revokeReqPost(at))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if len(h.q.inserted) != 1 {
+		t.Fatalf("expected 1 InsertRevokedJTI call, got %d", len(h.q.inserted))
+	}
+	if h.q.inserted[0].Jti != "jti-r-post" {
+		t.Fatalf("revoked jti = %q, want jti-r-post", h.q.inserted[0].Jti)
 	}
 	if !h.sawRevokedAudit("access_token") {
 		t.Fatal("expected a revoked audit record for access_token")
@@ -134,7 +169,7 @@ func TestRevokeEmptyTokenStill200(t *testing.T) {
 
 func TestRevokeOtherClientsAccessTokenNotRevoked(t *testing.T) {
 	h := newEndpointHarness(t)
-	h.q.clients["other"] = confidentialClient(t, "other", "othersecret", "client_secret_basic")
+	h.q.clients["other"] = confidentialClient(t, "other", "othersecret", "client_secret")
 	at := h.mintAccessToken(t, testSubject, "other", "openid", "jti-r2", time.Now().Add(time.Hour))
 
 	// testClientID tries to revoke another client's token.

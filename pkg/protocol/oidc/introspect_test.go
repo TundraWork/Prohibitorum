@@ -22,6 +22,18 @@ func introspectReq(token string) *http.Request {
 	return req
 }
 
+// introspectReqPost is introspectReq with the credentials in the body
+// (client_secret_post) instead of the Basic header.
+func introspectReqPost(token string) *http.Request {
+	form := url.Values{}
+	form.Set("token", token)
+	form.Set("client_id", testClientID)
+	form.Set("client_secret", testSecret)
+	req := httptest.NewRequest(http.MethodPost, "/oauth/introspect", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
+}
+
 func decodeIntrospection(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 	t.Helper()
 	var body map[string]any
@@ -56,6 +68,24 @@ func TestIntrospectAccessTokenActive(t *testing.T) {
 	}
 	if body["scope"] != "openid profile" {
 		t.Fatalf("scope = %v", body["scope"])
+	}
+}
+
+func TestIntrospectPostChannelAuth(t *testing.T) {
+	// The confidential client authenticates through the body instead of the
+	// Basic header (PHB-19). Introspection is one of the three endpoints behind
+	// authenticateClient, so it inherits the fix.
+	h := newEndpointHarness(t)
+	at := h.mintAccessToken(t, testSubject, testClientID, "openid profile", "jti-i-post", time.Now().Add(time.Hour))
+
+	rec := httptest.NewRecorder()
+	h.p.HandleIntrospect(rec, introspectReqPost(at))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if body := decodeIntrospection(t, rec); body["active"] != true {
+		t.Fatalf("active = %v, want true", body["active"])
 	}
 }
 
@@ -124,7 +154,7 @@ func TestIntrospectGarbageInactive(t *testing.T) {
 func TestIntrospectOtherClientsAccessTokenInactive(t *testing.T) {
 	h := newEndpointHarness(t)
 	// Register a second client and mint a token owned by it.
-	h.q.clients["other"] = confidentialClient(t, "other", "othersecret", "client_secret_basic")
+	h.q.clients["other"] = confidentialClient(t, "other", "othersecret", "client_secret")
 	at := h.mintAccessToken(t, testSubject, "other", "openid", "jti-i3", time.Now().Add(time.Hour))
 
 	// The harness client (testClientID) introspects another client's token.

@@ -107,7 +107,7 @@ func newEndpointHarness(t *testing.T) *endpointHarness {
 	}
 	q := &fakeEndpointQueries{
 		clients: map[string]db.OidcClient{
-			testClientID: confidentialClient(t, testClientID, testSecret, "client_secret_basic"),
+			testClientID: confidentialClient(t, testClientID, testSecret, "client_secret"),
 		},
 		byID:        map[int32]db.Account{7: acct},
 		bySubject:   map[string]db.Account{testSubject: acct},

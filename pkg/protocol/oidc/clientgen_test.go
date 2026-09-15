@@ -23,8 +23,8 @@ func TestClientGenConfidential(t *testing.T) {
 	if !password.VerifyRaw(secret, params.ClientSecretHash.String) {
 		t.Fatal("plaintext secret did not verify against stored hash")
 	}
-	if params.TokenEndpointAuthMethod != "client_secret_basic" {
-		t.Fatalf("TokenEndpointAuthMethod = %q, want client_secret_basic", params.TokenEndpointAuthMethod)
+	if params.ClientAuthMethod != "client_secret" {
+		t.Fatalf("ClientAuthMethod = %q, want client_secret", params.ClientAuthMethod)
 	}
 	if !params.RequirePkce {
 		t.Fatal("expected RequirePkce == true")
@@ -58,8 +58,8 @@ func TestClientGenPublic(t *testing.T) {
 	if params.ClientSecretHash.Valid {
 		t.Fatal("expected ClientSecretHash.Valid == false for public client")
 	}
-	if params.TokenEndpointAuthMethod != "none" {
-		t.Fatalf("TokenEndpointAuthMethod = %q, want none", params.TokenEndpointAuthMethod)
+	if params.ClientAuthMethod != "none" {
+		t.Fatalf("ClientAuthMethod = %q, want none", params.ClientAuthMethod)
 	}
 	if !params.RequirePkce {
 		t.Fatal("expected RequirePkce == true for public client")

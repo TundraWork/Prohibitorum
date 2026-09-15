@@ -23,7 +23,7 @@ const integrationStubs = {
   },
 }
 const mountView = () => mount(AdminOidcClientDetailView, { global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body })
-const CLIENT = { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid', 'profile'], tokenEndpointAuthMethod: 'client_secret_basic', requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
+const CLIENT = { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid', 'profile'], clientAuthMethod: 'client_secret', requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) {
   const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label))
   b[b.length - 1]!.click()

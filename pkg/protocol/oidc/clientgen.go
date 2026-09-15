@@ -27,8 +27,10 @@ type ClientOptions struct {
 //
 // For a confidential client (the default) it generates a 32-byte secret,
 // returns the plaintext (to be shown once) and stores only the argon2id PHC
-// hash. For a public client (Public=true) there is no secret and the token
-// endpoint auth method is "none". PKCE is required for every client.
+// hash, and sets client_auth_method to "client_secret" — which accepts the
+// secret through either the Basic header or the request body. For a public
+// client (Public=true) there is no secret and client_auth_method is "none".
+// PKCE is required for every client.
 func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, error) {
 	if opts.ClientID == "" {
 		return db.InsertOIDCClientParams{}, "", errors.New("client-id is required")
@@ -73,7 +75,7 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 
 	if opts.Public {
 		params.ClientSecretHash = pgtype.Text{Valid: false}
-		params.TokenEndpointAuthMethod = "none"
+		params.ClientAuthMethod = "none"
 		return params, "", nil
 	}
 
@@ -82,7 +84,7 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 		return db.InsertOIDCClientParams{}, "", err
 	}
 	params.ClientSecretHash = pgtype.Text{String: hash, Valid: true}
-	params.TokenEndpointAuthMethod = "client_secret_basic"
+	params.ClientAuthMethod = "client_secret"
 
 	return params, secret, nil
 }

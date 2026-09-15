@@ -737,8 +737,8 @@ func TestRegisterForwardAuthApp_BuildsPublicPKCEClient(t *testing.T) {
 	if f.insertParams == nil || f.faConfigParams == nil {
 		t.Fatal("expected InsertOIDCClient and SetForwardAuthConfig to be called")
 	}
-	if got := f.insertParams.TokenEndpointAuthMethod; got != "none" {
-		t.Errorf("token_endpoint_auth_method = %q, want \"none\" (public)", got)
+	if got := f.insertParams.ClientAuthMethod; got != "none" {
+		t.Errorf("client_auth_method = %q, want \"none\" (public)", got)
 	}
 	if f.insertParams.RequireConsent {
 		t.Error("require_consent must be false")

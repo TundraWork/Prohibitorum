@@ -39,7 +39,7 @@ interface OidcApplication {
   redirectUris: string[]
   postLogoutRedirectUris: string[]
   allowedScopes: string[]
-  tokenEndpointAuthMethod: string
+  clientAuthMethod: string
   requireConsent: boolean
   disabled: boolean
   createdAt: string
@@ -224,7 +224,7 @@ onMounted(load)
           <Separator />
           <div class="flex flex-col gap-2">
             <SectionTitle as="h3">{{ t('admin.oidc.rotateTitle') }}</SectionTitle>
-            <template v-if="client.tokenEndpointAuthMethod !== 'none'">
+            <template v-if="client.clientAuthMethod !== 'none'">
               <p class="text-xs text-muted">{{ t('admin.oidc.rotateConfirmBody') }}</p>
               <template v-if="rotatedSecret">
                 <p class="text-sm text-sage-700" role="status">{{ t('admin.oidc.secretReveal') }}</p>
