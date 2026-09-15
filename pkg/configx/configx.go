@@ -246,7 +246,7 @@ func Parse() (*Config, error) {
 		time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute,
 		15 * time.Minute,
 	})
-	viper.SetDefault("auth.sudo_ttl", 15*time.Minute)
+	viper.SetDefault("auth.sudo_ttl", 30*time.Minute)
 	viper.SetDefault("auth.partial_session_ttl", 5*time.Minute)
 
 	// SAML defaults — persistent NameID per OASIS SAML 2.0 Core §8.3.7,

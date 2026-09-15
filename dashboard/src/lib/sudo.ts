@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { api } from './api'
 
 /**
  * Sudo step-up gate (singleton). The SudoModal — mounted once in
@@ -15,8 +16,15 @@ export interface SudoState {
 }
 export const sudoState = ref<SudoState>({ open: false, resolve: null })
 
+/** Check the server's current grant before a redirect that cannot use XHR retry. */
+export async function ensureSudo(reason?: string): Promise<boolean> {
+  const state = await api.get<{ fresh: boolean }>('/api/prohibitorum/me/sudo/methods')
+  if (state.fresh === true) return true
+  return promptSudo(reason)
+}
+
 /** Open the step-up modal; resolves true (elevated) / false (cancelled). */
-export function ensureSudo(reason?: string): Promise<boolean> {
+function promptSudo(reason?: string): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     sudoState.value = { open: true, resolve, reason }
   })
@@ -35,7 +43,7 @@ export async function withSudo<T>(fn: () => Promise<T>, reason?: string): Promis
     return await fn()
   } catch (e: unknown) {
     if ((e as { code?: string })?.code !== 'sudo_required') throw e
-    const ok = await ensureSudo(reason)
+    const ok = await promptSudo(reason)
     if (!ok) throw e
     return await fn()
   }

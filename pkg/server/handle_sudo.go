@@ -72,7 +72,8 @@ func (s *Server) handleSudoMethodsHTTP(w http.ResponseWriter, r *http.Request) {
 	methods := s.availableSudoMethods(r.Context(), sess.Account.ID)
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"methods": methods})
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(map[string]any{"methods": methods, "fresh": s.hasFreshSudo(sess)})
 }
 
 // availableSudoMethods returns the LOCAL elevation methods enrolled for the

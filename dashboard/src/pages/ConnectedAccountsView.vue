@@ -2,7 +2,7 @@
 /**
  * ConnectedAccountsView (/connected) — manage federated identities.
  * GET /me/identities lists links; unlink is sudo-gated + confirmed; linking a
- * new provider needs a PROACTIVE sudo step (the begin endpoint is a sudo-gated
+ * new provider checks the current sudo grant (the begin endpoint is a sudo-gated
  * 302 that withSudo's XHR-retry can't replay), then a hard redirect upstream.
  */
 import { computed, onMounted, ref } from 'vue'
@@ -61,7 +61,7 @@ async function confirmUnlink(): Promise<void> {
   if (ok) await loadIdentities()
 }
 async function link(slug: string): Promise<void> {
-  const elevated = await ensureSudo(t('sudo.reason.linkIdentity'))
+  const elevated = await run(() => ensureSudo(t('sudo.reason.linkIdentity')))
   if (!elevated) return
   hardRedirect(
     `/api/prohibitorum/me/identities/link/${encodeURIComponent(slug)}/begin?return_to=${encodeURIComponent('/connected')}`)

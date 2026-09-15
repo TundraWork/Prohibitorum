@@ -3725,6 +3725,15 @@ func main() {
 	// both must succeed under the existing window (not one-shot).
 	// =========================================================================
 	{
+		for i := 0; i < 2; i++ {
+			var status struct{ Fresh *bool }
+			if err := c.get("/api/prohibitorum/me/sudo/methods", &status); err != nil {
+				log.Fatal(err)
+			}
+			if status.Fresh == nil || !*status.Fresh {
+				log.Fatal("sudo-multiuse: preflight must report the existing grant as fresh")
+			}
+		}
 		step("sudo-multiuse 1/2 — first gated action succeeds under existing sudo window (from Tier-1 4/4)")
 		resp1, err := c.postJSONRaw("/api/prohibitorum/me/credentials/register/begin", map[string]any{})
 		if err != nil {

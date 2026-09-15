@@ -64,7 +64,7 @@
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `PROHIBITORUM_AUTH_SUDO_TTL` | `15m` | Recent-auth window after a full sign-in or step-up; sensitive actions within it skip re-verification. |
+| `PROHIBITORUM_AUTH_SUDO_TTL` | `30m` | Recent-auth window after a full sign-in or step-up; sensitive actions within it skip re-verification. Explicit deployment values override this default. |
 | `PROHIBITORUM_AUTH_PARTIAL_SESSION_TTL` | `5m` | Window a password-only partial session has to complete the TOTP step. |
 | `PROHIBITORUM_AUTH_THROTTLE_SCHEDULE` | `0,0,1s,2s,4s,8s,16s,32s,1m,2m,4m,8m,15m` | Per-failure lockout ladder (last entry clamps). List value — prefer `config.yaml`. |
 
