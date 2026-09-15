@@ -4300,7 +4300,6 @@ func main() {
 		log.Printf("  audit factors app_manager and app_policy cover assignment, restriction, groups, decisions, and removal ✓")
 	}
 
-	// noFollow is a one-off HTTP client that does NOT follow redirects so we
 	step("launchpad — consent-free OIDC apps carry explicit consent policy")
 	{
 		var apps []struct {
@@ -4321,6 +4320,7 @@ func main() {
 		}
 	}
 
+	// noFollow is a one-off HTTP client that does NOT follow redirects so we
 	// can assert 302 Location headers on browser-navigated error paths.
 	noFollow := &http.Client{
 		Timeout: 10 * time.Second,

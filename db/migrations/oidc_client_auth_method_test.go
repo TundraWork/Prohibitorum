@@ -16,7 +16,7 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// TestOIDCClientAuthMethodMigrationPostgres exercises 034 against stored rows:
+// TestOIDCClientAuthMethodMigrationPostgres exercises 035 against stored rows:
 // the rename must carry existing clients over, both legacy confidential values
 // must collapse to 'client_secret', 'none' must survive untouched, and the new
 // CHECK must close the vocabulary. Down must restore the old column name,
@@ -72,11 +72,11 @@ func TestOIDCClientAuthMethodMigrationPostgres(t *testing.T) {
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quotedSchema+", public"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 33); err != nil {
+	if err := goose.UpTo(conn, ".", 34); err != nil {
 		t.Fatal(err)
 	}
 
-	// Stored rows spanning every pre-034 value, including the one the old
+	// Stored rows spanning every pre-035 value, including the one the old
 	// default produced and the one that had no write path but was representable.
 	insertLegacy := func(clientID, method string) {
 		t.Helper()
@@ -92,7 +92,7 @@ func TestOIDCClientAuthMethodMigrationPostgres(t *testing.T) {
 	insertLegacy("legacy-post", "client_secret_post")
 	insertLegacy("legacy-public", "none")
 
-	// The pre-034 default must be the old value, so the backfill has something
+	// The pre-035 default must be the old value, so the backfill has something
 	// to do.
 	var legacyDefault string
 	if err := conn.QueryRowContext(ctx, `
@@ -102,10 +102,10 @@ func TestOIDCClientAuthMethodMigrationPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	if legacyDefault != "client_secret_basic" {
-		t.Fatalf("pre-034 default = %q, want client_secret_basic", legacyDefault)
+		t.Fatalf("pre-035 default = %q, want client_secret_basic", legacyDefault)
 	}
 
-	if err := goose.UpTo(conn, ".", 34); err != nil {
+	if err := goose.UpTo(conn, ".", 35); err != nil {
 		t.Fatal(err)
 	}
 
@@ -136,19 +136,19 @@ func TestOIDCClientAuthMethodMigrationPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	if oldColumnExists {
-		t.Error("token_endpoint_auth_method still exists after 034")
+		t.Error("token_endpoint_auth_method still exists after 035")
 	}
 
 	// The new default applies to rows that omit the column.
 	var newDefault string
 	if err := conn.QueryRowContext(ctx, `
 		INSERT INTO oidc_client (client_id, display_name, redirect_uris)
-		VALUES ('post-034-default', 'post-034-default', ARRAY['https://rp.example.com/cb'])
+		VALUES ('post-035-default', 'post-035-default', ARRAY['https://rp.example.com/cb'])
 		RETURNING client_auth_method`).Scan(&newDefault); err != nil {
 		t.Fatal(err)
 	}
 	if newDefault != "client_secret" {
-		t.Errorf("post-034 default = %q, want client_secret", newDefault)
+		t.Errorf("post-035 default = %q, want client_secret", newDefault)
 	}
 
 	// The CHECK closes the vocabulary, so a stale value cannot be written back.
@@ -171,7 +171,7 @@ func TestOIDCClientAuthMethodMigrationPostgres(t *testing.T) {
 		t.Errorf("'none' was rejected: %v", err)
 	}
 
-	if err := goose.DownTo(conn, ".", 33); err != nil {
+	if err := goose.DownTo(conn, ".", 34); err != nil {
 		t.Fatal(err)
 	}
 	var version int64
@@ -179,8 +179,8 @@ func TestOIDCClientAuthMethodMigrationPostgres(t *testing.T) {
 		`SELECT version_id FROM goose_db_version WHERE is_applied ORDER BY id DESC LIMIT 1`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 33 {
-		t.Fatalf("migration version after down = %d, want 33", version)
+	if version != 34 {
+		t.Fatalf("migration version after down = %d, want 34", version)
 	}
 	var restored string
 	if err := conn.QueryRowContext(ctx,

@@ -877,8 +877,8 @@ export default {
     access: {
       title: 'App access',
       restrictedLabel: 'Restrict access',
-      restrictedHint: 'When enabled, only explicitly assigned groups and accounts may sign in to this application.',
-      createRestrictedHint: 'After creating the application, assign groups or accounts on its detail page to allow access.',
+      restrictedHint: 'When enabled, users need access through an account decision or a matching group rule.',
+      createRestrictedHint: 'After creating the application, allow accounts or add group rules on its detail page.',
       inactiveHint: 'Access is unrestricted — all users may sign in. Turn on the toggle above to limit access to the assigned groups and accounts.',
       saved: 'Saved.',
       groups: 'Assigned groups',

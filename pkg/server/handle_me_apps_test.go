@@ -88,7 +88,6 @@ func TestHandleMyApps(t *testing.T) {
 	}
 }
 
-// Compile-time assertions for the launchpad seams.
 func TestLaunchpadCarriesOIDCConsentPolicy(t *testing.T) {
 	for _, required := range []bool{false, true} {
 		s := &Server{
@@ -108,6 +107,7 @@ func TestLaunchpadCarriesOIDCConsentPolicy(t *testing.T) {
 	}
 }
 
+// Compile-time assertions for the launchpad seams.
 var _ launchpadQueries = (*fakeLaunchpadQ)(nil)
 var _ appaccess.AppLister = (*fakeAppLister)(nil)
 

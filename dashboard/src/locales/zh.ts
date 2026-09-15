@@ -873,8 +873,8 @@ export default {
     access: {
       title: '应用访问控制',
       restrictedLabel: '限制访问',
-      restrictedHint: '启用后，仅明确指定的用户组和账户可登录此应用。',
-      createRestrictedHint: '创建后，请在应用详情页指定可访问的用户组或账户。',
+      restrictedHint: '启用后，用户需要通过账户授权或匹配的用户组规则才能访问应用。',
+      createRestrictedHint: '创建后，请在应用详情页允许账户访问或添加用户组规则。',
       inactiveHint: '访问不受限制——所有用户均可登录。开启上方开关可将访问范围限定为指定的用户组和账户。',
       saved: '已保存。',
       groups: '已分配的用户组',
