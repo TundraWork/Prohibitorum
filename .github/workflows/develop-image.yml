@@ -56,7 +56,8 @@ jobs:
         run: |
           tag="${IMAGE_TAG:0:13}"  # <run>-<12-char short sha>
           echo "building $KO_DOCKER_REPO:$tag and :develop"
-          mise exec -- ko build ./cmd/prohibitorum \
+          # -tags nodynamic: pure-Go imageutil (wazero), static binary for distroless
+          GOFLAGS="-tags=nodynamic" mise exec -- ko build ./cmd/prohibitorum \
             --bare \
             --platform linux/amd64,linux/arm64 \
             --tags "$tag,develop" \
