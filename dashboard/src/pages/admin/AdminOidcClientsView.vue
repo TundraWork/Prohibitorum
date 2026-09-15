@@ -34,7 +34,7 @@ interface OidcApplication {
   redirectUris: string[]
   postLogoutRedirectUris: string[]
   allowedScopes: string[]
-  tokenEndpointAuthMethod: string
+  clientAuthMethod: string
   requireConsent: boolean
   disabled: boolean
   createdAt: string
@@ -193,8 +193,8 @@ function openCreate(): void {
             </div>
           </TableCell>
           <TableCell>
-            <StatusBadge :variant="c.tokenEndpointAuthMethod !== 'none' ? 'caution' : 'neutral'">
-              {{ c.tokenEndpointAuthMethod !== 'none' ? t('admin.oidc.confidential') : t('admin.oidc.public') }}
+            <StatusBadge :variant="c.clientAuthMethod !== 'none' ? 'caution' : 'neutral'">
+              {{ c.clientAuthMethod !== 'none' ? t('admin.oidc.confidential') : t('admin.oidc.public') }}
             </StatusBadge>
           </TableCell>
           <TableCell>

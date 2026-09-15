@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -48,17 +49,17 @@ func mustHash(t *testing.T, secret string) string {
 func confidentialClient(t *testing.T, id, secret, method string) db.OidcClient {
 	t.Helper()
 	return db.OidcClient{
-		ClientID:                id,
-		ClientSecretHash:        pgtype.Text{String: mustHash(t, secret), Valid: true},
-		TokenEndpointAuthMethod: method,
+		ClientID:         id,
+		ClientSecretHash: pgtype.Text{String: mustHash(t, secret), Valid: true},
+		ClientAuthMethod: method,
 	}
 }
 
 func publicClient(id string) db.OidcClient {
 	return db.OidcClient{
-		ClientID:                id,
-		ClientSecretHash:        pgtype.Text{Valid: false},
-		TokenEndpointAuthMethod: "none",
+		ClientID:         id,
+		ClientSecretHash: pgtype.Text{Valid: false},
+		ClientAuthMethod: "none",
 	}
 }
 
@@ -73,6 +74,14 @@ func postForm(id, secret string) *http.Request {
 	return req
 }
 
+// rawBasicAuth sets a Basic Authorization header from an already-assembled
+// credentials string, bypassing the encoding that req.SetBasicAuth applies. The
+// tests for RFC 6749 §2.3.1 decoding need to control the exact bytes between
+// the colon and the base64 layer.
+func rawBasicAuth(req *http.Request, credentials string) {
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(credentials)))
+}
+
 func TestClientLoadUnknown(t *testing.T) {
 	q := fakeClientQueries{clients: map[string]db.OidcClient{}}
 	if _, err := loadClient(context.Background(), q, "nope"); !errors.Is(err, errInvalidClient) {
@@ -81,7 +90,7 @@ func TestClientLoadUnknown(t *testing.T) {
 }
 
 func TestClientBasicHappyPath(t *testing.T) {
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_basic")
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
 
 	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
@@ -97,7 +106,7 @@ func TestClientBasicHappyPath(t *testing.T) {
 }
 
 func TestClientPostHappyPath(t *testing.T) {
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_post")
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
 
 	got, err := authenticateClient(context.Background(), q, postForm("cid", "s3cr3t"))
@@ -110,7 +119,7 @@ func TestClientPostHappyPath(t *testing.T) {
 }
 
 func TestClientWrongSecretBasic(t *testing.T) {
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_basic")
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
 
 	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
@@ -122,7 +131,7 @@ func TestClientWrongSecretBasic(t *testing.T) {
 }
 
 func TestClientWrongSecretPost(t *testing.T) {
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_post")
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
 
 	if _, err := authenticateClient(context.Background(), q, postForm("cid", "wrong")); !errors.Is(err, errInvalidClient) {
@@ -182,27 +191,18 @@ func TestClientDisabledReturnsInvalid(t *testing.T) {
 	}
 }
 
-func TestClientMissingSecretForConfidentialBasic(t *testing.T) {
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_basic")
+func TestClientMissingSecretForConfidential(t *testing.T) {
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
 
-	// No Authorization header, no form secret.
-	if _, err := authenticateClient(context.Background(), q, postForm("cid", "")); !errors.Is(err, errInvalidClient) {
-		t.Fatalf("expected errInvalidClient, got %v", err)
-	}
-}
-
-func TestClientMissingSecretForConfidentialPost(t *testing.T) {
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_post")
-	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
-
+	// Neither channel carries a secret: no Authorization header, no form secret.
 	if _, err := authenticateClient(context.Background(), q, postForm("cid", "")); !errors.Is(err, errInvalidClient) {
 		t.Fatalf("expected errInvalidClient, got %v", err)
 	}
 }
 
 func TestClientBothBasicAndPostRejected(t *testing.T) {
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_basic")
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
 
 	req := postForm("cid", "s3cr3t")
@@ -213,16 +213,21 @@ func TestClientBothBasicAndPostRejected(t *testing.T) {
 	}
 }
 
-func TestClientWrongAuthMethodPostUsedAsBasic(t *testing.T) {
-	// Client requires client_secret_post but caller used Basic.
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_post")
+func TestClientConfidentialAcceptsBasic(t *testing.T) {
+	// Both credential channels are equivalent for a confidential client, so
+	// Basic is accepted with no per-client registration of the channel.
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
 
 	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
 	req.SetBasicAuth("cid", "s3cr3t")
 
-	if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
-		t.Fatalf("expected errInvalidClient, got %v", err)
+	got, err := authenticateClient(context.Background(), q, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ClientID != "cid" {
+		t.Fatalf("got client %q", got.ClientID)
 	}
 }
 
@@ -242,17 +247,170 @@ func TestClientPublicNoneBasicEmptyPasswordRejected(t *testing.T) {
 	}
 }
 
-func TestClientBasicMethodFormOnlyRejected(t *testing.T) {
-	// Regression guard: a client registered for client_secret_basic that
-	// presents credentials via the form (no Basic header) must be rejected.
-	// This is already enforced by the !hasBasic check in the basic case; this
-	// test locks in that behaviour.
-	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_basic")
+func TestClientConfidentialAcceptsPost(t *testing.T) {
+	// The client_secret_post channel is reachable: this combination used to be
+	// rejected because every confidential client was registered as
+	// client_secret_basic, which made the discovery document's
+	// client_secret_post claim false in practice (PHB-19).
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
 
 	// postForm sends client_id + client_secret in the POST body, no Basic header.
-	if _, err := authenticateClient(context.Background(), q, postForm("cid", "s3cr3t")); !errors.Is(err, errInvalidClient) {
-		t.Fatalf("expected errInvalidClient for basic client authenticated via form only, got %v", err)
+	got, err := authenticateClient(context.Background(), q, postForm("cid", "s3cr3t"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ClientID != "cid" {
+		t.Fatalf("got client %q", got.ClientID)
+	}
+}
+
+func TestClientBasicPercentEncodedCredentials(t *testing.T) {
+	// RFC 6749 §2.3.1: the two values are form-urlencoded before being joined
+	// and base64'd. Some RP libraries encode the unreserved `-` and `_` too, so
+	// `my-client` arrives as `my%2Dclient`. Decoding must recover both values.
+	const id, secret = "my-client", "se-cr_et"
+	c := confidentialClient(t, id, secret, "client_secret")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{id: c}}
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+	rawBasicAuth(req, "my%2Dclient:se%2Dcr%5Fet")
+
+	got, err := authenticateClient(context.Background(), q, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ClientID != id {
+		t.Fatalf("got client %q", got.ClientID)
+	}
+}
+
+func TestClientBasicPlusDecodesToSpace(t *testing.T) {
+	// form-urlencoded semantics, not path semantics: `+` is a space.
+	const id, secret = "cid", "two words"
+	c := confidentialClient(t, id, secret, "client_secret")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{id: c}}
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+	rawBasicAuth(req, "cid:two+words")
+
+	if _, err := authenticateClient(context.Background(), q, req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClientBasicMalformedBase64(t *testing.T) {
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+	req.Header.Set("Authorization", "Basic !!!")
+
+	if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
+		t.Fatalf("expected errInvalidClient, got %v", err)
+	}
+}
+
+func TestClientBasicMissingColon(t *testing.T) {
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+	rawBasicAuth(req, "justuser")
+
+	if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
+		t.Fatalf("expected errInvalidClient, got %v", err)
+	}
+}
+
+func TestClientBasicInvalidPercentEscape(t *testing.T) {
+	// An illegal escape sequence is a hard failure — there is deliberately no
+	// fall back to the raw value.
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+	rawBasicAuth(req, "a%zz:s3cr3t")
+
+	if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
+		t.Fatalf("expected errInvalidClient, got %v", err)
+	}
+}
+
+func TestClientBasicWithMatchingFormClientID(t *testing.T) {
+	// client_id is an identifier, not a credential. Spring Security and several
+	// Node/Python RP libraries repeat it in the body while authenticating with
+	// Basic; that is one authentication method, not two.
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
+
+	req := postForm("cid", "")
+	req.SetBasicAuth("cid", "s3cr3t")
+
+	got, err := authenticateClient(context.Background(), q, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ClientID != "cid" {
+		t.Fatalf("got client %q", got.ClientID)
+	}
+}
+
+func TestClientBasicWithMismatchedFormClientID(t *testing.T) {
+	// The repetition is tolerated only while the two copies agree.
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
+
+	req := postForm("other", "")
+	req.SetBasicAuth("cid", "s3cr3t")
+
+	if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
+		t.Fatalf("expected errInvalidClient, got %v", err)
+	}
+}
+
+func TestClientBasicWithFormSecretStillRejected(t *testing.T) {
+	// Complements TestClientBothBasicAndPostRejected: a body client_secret with
+	// no body client_id is still the dual authentication RFC 6749 §2.3 forbids.
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
+
+	form := url.Values{}
+	form.Set("client_secret", "s3cr3t")
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth("cid", "s3cr3t")
+
+	if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
+		t.Fatalf("expected errInvalidClient, got %v", err)
+	}
+}
+
+func TestClientPublicRejectsFormClientIDWithBasic(t *testing.T) {
+	// The relaxation above must not open a Basic channel for public clients:
+	// they may not send an Authorization header at all.
+	c := publicClient("pub")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"pub": c}}
+
+	req := postForm("pub", "")
+	req.SetBasicAuth("pub", "")
+
+	if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
+		t.Fatalf("expected errInvalidClient, got %v", err)
+	}
+}
+
+func TestClientUnknownAuthMethodRejected(t *testing.T) {
+	// Dirty data — e.g. a pre-migration 'client_secret_basic' row — must not be
+	// read as "not none, therefore confidential".
+	c := confidentialClient(t, "cid", "s3cr3t", "client_secret_basic")
+	q := fakeClientQueries{clients: map[string]db.OidcClient{"cid": c}}
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+	req.SetBasicAuth("cid", "s3cr3t")
+
+	if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
+		t.Fatalf("expected errInvalidClient, got %v", err)
 	}
 }
 
@@ -270,7 +428,7 @@ func TestAuthenticateClientTimingEqualization(t *testing.T) {
 
 	// A known confidential client registered for client_secret_post.
 	const knownSecret = "kn0wn-s3cr3t"
-	known := confidentialClient(t, "known", knownSecret, "client_secret_post")
+	known := confidentialClient(t, "known", knownSecret, "client_secret")
 	q := fakeClientQueries{clients: map[string]db.OidcClient{"known": known}}
 
 	// Case A: unknown client_id + secret via form → errInvalidClient AND a
@@ -346,5 +504,29 @@ func TestAuthenticateClientTimingEqualization(t *testing.T) {
 	}
 	if len(calls) != 0 {
 		t.Fatalf("case D: expected 0 verify calls on infra error, got %d", len(calls))
+	}
+
+	// Case E: an undecodable Basic header never reaches loadClient, so it must
+	// not run argon2 either. There is no known-vs-unknown oracle to equalize
+	// when no client_id was recovered, and running the dummy verify here would
+	// hand a caller an argon2id burn for the cost of three bytes.
+	for _, credentials := range []string{
+		"!!!",              // not base64 — set raw below
+		"justuser",         // no colon
+		"a%zz:some-secret", // illegal percent escape
+	} {
+		calls = nil
+		req := httptest.NewRequest(http.MethodPost, "/oauth/token", nil)
+		if credentials == "!!!" {
+			req.Header.Set("Authorization", "Basic !!!")
+		} else {
+			rawBasicAuth(req, credentials)
+		}
+		if _, err := authenticateClient(context.Background(), q, req); !errors.Is(err, errInvalidClient) {
+			t.Fatalf("case E (%q): expected errInvalidClient, got %v", credentials, err)
+		}
+		if len(calls) != 0 {
+			t.Fatalf("case E (%q): expected 0 verify calls on an unparsable Basic header, got %d", credentials, len(calls))
+		}
 	}
 }

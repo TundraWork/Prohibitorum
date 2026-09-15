@@ -37,7 +37,7 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 	// (none-auth) client cannot, so it may not introspect (mainstream OP
 	// behavior; spec D7). Revocation (RFC 7009) still permits public clients to
 	// revoke their own tokens — that path (revoke.go) is unchanged.
-	if client.TokenEndpointAuthMethod == "none" {
+	if client.ClientAuthMethod == "none" {
 		writeInvalidClient(w, r, "public clients may not introspect tokens")
 		return
 	}

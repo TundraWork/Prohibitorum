@@ -1017,7 +1017,7 @@ func (q *Queries) RevokeSAMLSPAccessGroup(ctx context.Context, arg RevokeSAMLSPA
 }
 
 const setOIDCClientAccessRestricted = `-- name: SetOIDCClientAccessRestricted :one
-UPDATE oidc_client SET access_restricted = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
+UPDATE oidc_client SET access_restricted = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
 `
 
 type SetOIDCClientAccessRestrictedParams struct {
@@ -1037,7 +1037,7 @@ func (q *Queries) SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDC
 		&i.AllowedScopes,
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
-		&i.TokenEndpointAuthMethod,
+		&i.ClientAuthMethod,
 		&i.SubjectType,
 		&i.LogoUri,
 		&i.TosUri,

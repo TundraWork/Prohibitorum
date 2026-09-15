@@ -31,16 +31,16 @@ func TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash(t *testing.T) {
 
 	const secretHash = "$argon2id$v=19$m=65536,t=3,p=2$SECRET_HASH_MATERIAL"
 	row := db.OidcClient{
-		ClientID:                "test-client-1",
-		DisplayName:             "Test Client",
-		ClientSecretHash:        pgtype.Text{String: secretHash, Valid: true},
-		RedirectUris:            []string{"https://app.example.com/callback"},
-		PostLogoutRedirectUris:  []string{"https://app.example.com/logout"},
-		AllowedScopes:           []string{"openid", "profile"},
-		TokenEndpointAuthMethod: "client_secret_basic",
-		RequireConsent:          false,
-		Disabled:                false,
-		CreatedAt:               pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		ClientID:               "test-client-1",
+		DisplayName:            "Test Client",
+		ClientSecretHash:       pgtype.Text{String: secretHash, Valid: true},
+		RedirectUris:           []string{"https://app.example.com/callback"},
+		PostLogoutRedirectUris: []string{"https://app.example.com/logout"},
+		AllowedScopes:          []string{"openid", "profile"},
+		ClientAuthMethod:       "client_secret",
+		RequireConsent:         false,
+		Disabled:               false,
+		CreatedAt:              pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 
 	view := oidcApplicationView(row)
@@ -54,8 +54,8 @@ func TestAdminOIDCClients_ViewProjection_NeverExposesSecretHash(t *testing.T) {
 	if view.DisplayName == secretHash {
 		t.Error("DisplayName carries secret hash value")
 	}
-	if view.TokenEndpointAuthMethod == secretHash {
-		t.Error("TokenEndpointAuthMethod carries secret hash value")
+	if view.ClientAuthMethod == secretHash {
+		t.Error("ClientAuthMethod carries secret hash value")
 	}
 	for _, u := range view.RedirectURIs {
 		if u == secretHash {
@@ -76,16 +76,16 @@ func TestAdminOIDCClients_ViewProjection_FieldMapping(t *testing.T) {
 
 	createdAt := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
 	row := db.OidcClient{
-		ClientID:                "my-client",
-		DisplayName:             "My App",
-		ClientSecretHash:        pgtype.Text{String: "HASH", Valid: true},
-		RedirectUris:            []string{"https://myapp.test/cb"},
-		PostLogoutRedirectUris:  []string{"https://myapp.test/bye"},
-		AllowedScopes:           []string{"openid", "email"},
-		TokenEndpointAuthMethod: "client_secret_basic",
-		RequireConsent:          true,
-		Disabled:                false,
-		CreatedAt:               pgtype.Timestamptz{Time: createdAt, Valid: true},
+		ClientID:               "my-client",
+		DisplayName:            "My App",
+		ClientSecretHash:       pgtype.Text{String: "HASH", Valid: true},
+		RedirectUris:           []string{"https://myapp.test/cb"},
+		PostLogoutRedirectUris: []string{"https://myapp.test/bye"},
+		AllowedScopes:          []string{"openid", "email"},
+		ClientAuthMethod:       "client_secret",
+		RequireConsent:         true,
+		Disabled:               false,
+		CreatedAt:              pgtype.Timestamptz{Time: createdAt, Valid: true},
 	}
 
 	view := oidcApplicationView(row)
@@ -105,8 +105,8 @@ func TestAdminOIDCClients_ViewProjection_FieldMapping(t *testing.T) {
 	if len(view.AllowedScopes) != 2 {
 		t.Errorf("AllowedScopes: got %v, want [openid email]", view.AllowedScopes)
 	}
-	if view.TokenEndpointAuthMethod != "client_secret_basic" {
-		t.Errorf("TokenEndpointAuthMethod: got %q", view.TokenEndpointAuthMethod)
+	if view.ClientAuthMethod != "client_secret" {
+		t.Errorf("ClientAuthMethod: got %q", view.ClientAuthMethod)
 	}
 	if !view.RequireConsent {
 		t.Error("RequireConsent: got false, want true")
@@ -196,7 +196,7 @@ func TestAdminOIDCClients_GenerateClientSecret_UniqueAndVerifiable(t *testing.T)
 }
 
 // TestAdminOIDCClients_CreateResponse_PublicClientNoSecret verifies that the
-// view projection pattern for a public client (token_endpoint_auth_method=none,
+// view projection pattern for a public client (client_auth_method=none,
 // no secret hash) produces an empty secret field in the response shape.
 func TestAdminOIDCClients_CreateResponse_PublicClientNoSecret(t *testing.T) {
 	t.Parallel()
@@ -221,9 +221,9 @@ func TestAdminOIDCClients_CreateResponse_PublicClientNoSecret(t *testing.T) {
 	if params.ClientSecretHash.Valid {
 		t.Error("ClientSecretHash.Valid: got true for public client, want false")
 	}
-	// token_endpoint_auth_method must be "none" for public clients.
-	if params.TokenEndpointAuthMethod != "none" {
-		t.Errorf("TokenEndpointAuthMethod: got %q, want %q", params.TokenEndpointAuthMethod, "none")
+	// client_auth_method must be "none" for public clients.
+	if params.ClientAuthMethod != "none" {
+		t.Errorf("ClientAuthMethod: got %q, want %q", params.ClientAuthMethod, "none")
 	}
 }
 
@@ -254,9 +254,9 @@ func TestAdminOIDCClients_ContractType_NoSecretHashField(t *testing.T) {
 	t.Parallel()
 
 	v := contract.OIDCApplicationView{
-		ClientID:                "k",
-		DisplayName:             "Test",
-		TokenEndpointAuthMethod: "client_secret_basic",
+		ClientID:         "k",
+		DisplayName:      "Test",
+		ClientAuthMethod: "client_secret",
 	}
 	// If contract.OIDCApplicationView ever grew a ClientSecretHash field this test
 	// would fail to compile — keeping the guarantee in the test suite.

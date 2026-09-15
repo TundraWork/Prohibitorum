@@ -143,7 +143,7 @@ type OidcClient struct {
 	AllowedScopes               []string           `json:"allowedScopes"`
 	RequirePkce                 bool               `json:"requirePkce"`
 	AllowedCodeChallengeMethods []string           `json:"allowedCodeChallengeMethods"`
-	TokenEndpointAuthMethod     string             `json:"tokenEndpointAuthMethod"`
+	ClientAuthMethod            string             `json:"clientAuthMethod"`
 	SubjectType                 string             `json:"subjectType"`
 	LogoUri                     pgtype.Text        `json:"logoUri"`
 	TosUri                      pgtype.Text        `json:"tosUri"`

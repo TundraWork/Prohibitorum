@@ -170,7 +170,7 @@ Known operational caveats:
 | Refresh tokens 30 day default | ✅ | `configx.OIDC.RefreshTokenTTL` |
 | `offline_access` scope gates refresh issuance (OIDC Core §11) | ✅ | oidc/R3; requesting `offline_access` yields a refresh token |
 | argon2id hashing for `client_secret_hash` | ✅ | `oidc-client create` argon2id-hashes the secret (printed once); wrong secret → 401 `invalid_client`, correct secret verifies against the stored hash |
-| `token_endpoint_auth_method` (`client_secret_basic` default, `none` for public) | ✅ | oidc/R1; `client_secret_basic` default. `client_secret_post` + `none` (public) implemented + unit-tested |
+| `client_auth_method` (`client_secret` default, `none` for public) | ✅ | oidc/R1; PHB-19 renamed the column from `token_endpoint_auth_method` and collapsed its vocabulary — it records confidential vs public, not a channel. A confidential client is authenticated through `client_secret_basic` OR `client_secret_post`, both unit-tested, with Basic credentials decoded per RFC 6749 §2.3.1; `none` still rejects every credential |
 | `id_token_signed_response_alg` per client | ✅ schema | oidc/R1 |
 | `subject_type` (`public` / `pairwise`) | ✅ schema | oidc/R1 |
 | `application_type` (`web` / `native`) | ✅ schema | oidc/R1 |

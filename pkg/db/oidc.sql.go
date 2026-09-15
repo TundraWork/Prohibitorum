@@ -143,7 +143,7 @@ func (q *Queries) GetForwardAuthClientByHost(ctx context.Context, forwardAuthHos
 }
 
 const getOIDCClient = `-- name: GetOIDCClient :one
-SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url FROM oidc_client WHERE client_id = $1 AND disabled = false
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url FROM oidc_client WHERE client_id = $1 AND disabled = false
 `
 
 func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClient, error) {
@@ -158,7 +158,7 @@ func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClien
 		&i.AllowedScopes,
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
-		&i.TokenEndpointAuthMethod,
+		&i.ClientAuthMethod,
 		&i.SubjectType,
 		&i.LogoUri,
 		&i.TosUri,
@@ -176,7 +176,7 @@ func (q *Queries) GetOIDCClient(ctx context.Context, clientID string) (OidcClien
 }
 
 const getOIDCClientAny = `-- name: GetOIDCClientAny :one
-SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url FROM oidc_client WHERE client_id = $1
+SELECT client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url FROM oidc_client WHERE client_id = $1
 `
 
 func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcClient, error) {
@@ -191,7 +191,7 @@ func (q *Queries) GetOIDCClientAny(ctx context.Context, clientID string) (OidcCl
 		&i.AllowedScopes,
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
-		&i.TokenEndpointAuthMethod,
+		&i.ClientAuthMethod,
 		&i.SubjectType,
 		&i.LogoUri,
 		&i.TosUri,
@@ -237,10 +237,10 @@ const insertOIDCClient = `-- name: InsertOIDCClient :one
 INSERT INTO oidc_client (
   client_id, display_name, client_secret_hash, redirect_uris,
   post_logout_redirect_uris, allowed_scopes, require_pkce,
-  allowed_code_challenge_methods, token_endpoint_auth_method,
+  allowed_code_challenge_methods, client_auth_method,
   subject_type, require_consent
 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
 `
 
 type InsertOIDCClientParams struct {
@@ -252,7 +252,7 @@ type InsertOIDCClientParams struct {
 	AllowedScopes               []string    `json:"allowedScopes"`
 	RequirePkce                 bool        `json:"requirePkce"`
 	AllowedCodeChallengeMethods []string    `json:"allowedCodeChallengeMethods"`
-	TokenEndpointAuthMethod     string      `json:"tokenEndpointAuthMethod"`
+	ClientAuthMethod            string      `json:"clientAuthMethod"`
 	SubjectType                 string      `json:"subjectType"`
 	RequireConsent              bool        `json:"requireConsent"`
 }
@@ -267,7 +267,7 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 		arg.AllowedScopes,
 		arg.RequirePkce,
 		arg.AllowedCodeChallengeMethods,
-		arg.TokenEndpointAuthMethod,
+		arg.ClientAuthMethod,
 		arg.SubjectType,
 		arg.RequireConsent,
 	)
@@ -281,7 +281,7 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 		&i.AllowedScopes,
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
-		&i.TokenEndpointAuthMethod,
+		&i.ClientAuthMethod,
 		&i.SubjectType,
 		&i.LogoUri,
 		&i.TosUri,
@@ -473,7 +473,7 @@ func (q *Queries) ListForwardAuthClients(ctx context.Context, arg ListForwardAut
 
 const listNonForwardAuthOIDCClients = `-- name: ListNonForwardAuthOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,
-       token_endpoint_auth_method, disabled, access_restricted, created_at
+       client_auth_method, disabled, access_restricted, created_at
 FROM oidc_client
 WHERE forward_auth_enabled = false
   AND ($1::timestamptz IS NULL OR (created_at, client_id) < ($1, $2::text))
@@ -488,14 +488,14 @@ type ListNonForwardAuthOIDCClientsParams struct {
 }
 
 type ListNonForwardAuthOIDCClientsRow struct {
-	ClientID                string             `json:"clientId"`
-	DisplayName             string             `json:"displayName"`
-	RedirectUris            []string           `json:"redirectUris"`
-	AllowedScopes           []string           `json:"allowedScopes"`
-	TokenEndpointAuthMethod string             `json:"tokenEndpointAuthMethod"`
-	Disabled                bool               `json:"disabled"`
-	AccessRestricted        bool               `json:"accessRestricted"`
-	CreatedAt               pgtype.Timestamptz `json:"createdAt"`
+	ClientID         string             `json:"clientId"`
+	DisplayName      string             `json:"displayName"`
+	RedirectUris     []string           `json:"redirectUris"`
+	AllowedScopes    []string           `json:"allowedScopes"`
+	ClientAuthMethod string             `json:"clientAuthMethod"`
+	Disabled         bool               `json:"disabled"`
+	AccessRestricted bool               `json:"accessRestricted"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
 }
 
 func (q *Queries) ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNonForwardAuthOIDCClientsParams) ([]ListNonForwardAuthOIDCClientsRow, error) {
@@ -512,7 +512,7 @@ func (q *Queries) ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNon
 			&i.DisplayName,
 			&i.RedirectUris,
 			&i.AllowedScopes,
-			&i.TokenEndpointAuthMethod,
+			&i.ClientAuthMethod,
 			&i.Disabled,
 			&i.AccessRestricted,
 			&i.CreatedAt,
@@ -529,19 +529,19 @@ func (q *Queries) ListNonForwardAuthOIDCClients(ctx context.Context, arg ListNon
 
 const listOIDCClients = `-- name: ListOIDCClients :many
 SELECT client_id, display_name, redirect_uris, allowed_scopes,
-       token_endpoint_auth_method, disabled, access_restricted, created_at
+       client_auth_method, disabled, access_restricted, created_at
 FROM oidc_client ORDER BY created_at DESC
 `
 
 type ListOIDCClientsRow struct {
-	ClientID                string             `json:"clientId"`
-	DisplayName             string             `json:"displayName"`
-	RedirectUris            []string           `json:"redirectUris"`
-	AllowedScopes           []string           `json:"allowedScopes"`
-	TokenEndpointAuthMethod string             `json:"tokenEndpointAuthMethod"`
-	Disabled                bool               `json:"disabled"`
-	AccessRestricted        bool               `json:"accessRestricted"`
-	CreatedAt               pgtype.Timestamptz `json:"createdAt"`
+	ClientID         string             `json:"clientId"`
+	DisplayName      string             `json:"displayName"`
+	RedirectUris     []string           `json:"redirectUris"`
+	AllowedScopes    []string           `json:"allowedScopes"`
+	ClientAuthMethod string             `json:"clientAuthMethod"`
+	Disabled         bool               `json:"disabled"`
+	AccessRestricted bool               `json:"accessRestricted"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
 }
 
 func (q *Queries) ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, error) {
@@ -558,7 +558,7 @@ func (q *Queries) ListOIDCClients(ctx context.Context) ([]ListOIDCClientsRow, er
 			&i.DisplayName,
 			&i.RedirectUris,
 			&i.AllowedScopes,
-			&i.TokenEndpointAuthMethod,
+			&i.ClientAuthMethod,
 			&i.Disabled,
 			&i.AccessRestricted,
 			&i.CreatedAt,
@@ -731,7 +731,7 @@ func (q *Queries) SetForwardAuthScopes(ctx context.Context, arg SetForwardAuthSc
 }
 
 const setOIDCClientDisabled = `-- name: SetOIDCClientDisabled :one
-UPDATE oidc_client SET disabled = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
+UPDATE oidc_client SET disabled = $2 WHERE client_id = $1 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
 `
 
 type SetOIDCClientDisabledParams struct {
@@ -751,7 +751,7 @@ func (q *Queries) SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDi
 		&i.AllowedScopes,
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
-		&i.TokenEndpointAuthMethod,
+		&i.ClientAuthMethod,
 		&i.SubjectType,
 		&i.LogoUri,
 		&i.TosUri,
@@ -833,7 +833,7 @@ UPDATE oidc_client SET
   display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,
   allowed_scopes = $5, require_consent = $6, disabled = $7
 WHERE client_id = $1
-RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
+RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
 `
 
 type UpdateOIDCClientParams struct {
@@ -866,7 +866,7 @@ func (q *Queries) UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientPara
 		&i.AllowedScopes,
 		&i.RequirePkce,
 		&i.AllowedCodeChallengeMethods,
-		&i.TokenEndpointAuthMethod,
+		&i.ClientAuthMethod,
 		&i.SubjectType,
 		&i.LogoUri,
 		&i.TosUri,

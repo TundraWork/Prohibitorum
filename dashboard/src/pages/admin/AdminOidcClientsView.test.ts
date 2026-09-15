@@ -13,8 +13,8 @@ import AdminOidcClientsView from './AdminOidcClientsView.vue'
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminOidcClientsView, { global: { plugins: [i18n()] }, attachTo: document.body })
 const CLIENTS = [
-  { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], tokenEndpointAuthMethod: 'client_secret_basic', requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' },
-  { clientId: 'spa', displayName: 'SPA', redirectUris: ['https://s/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], tokenEndpointAuthMethod: 'none', requireConsent: false, disabled: false, createdAt: '2026-01-02T00:00:00Z' },
+  { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], clientAuthMethod: 'client_secret', requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' },
+  { clientId: 'spa', displayName: 'SPA', redirectUris: ['https://s/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], clientAuthMethod: 'none', requireConsent: false, disabled: false, createdAt: '2026-01-02T00:00:00Z' },
 ]
 beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
@@ -33,7 +33,7 @@ describe('AdminOidcClientsView', () => {
   })
   it('creates a confidential client and reveals the secret', async () => {
     get.mockResolvedValue({ items: [], nextCursor: '' })
-    post.mockResolvedValue({ clientId: 'new', secret: 's3cr3t', tokenEndpointAuthMethod: 'client_secret_basic' })
+    post.mockResolvedValue({ clientId: 'new', secret: 's3cr3t', clientAuthMethod: 'client_secret' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     await w.find('input[name="clientId"]').setValue('new')
@@ -48,7 +48,7 @@ describe('AdminOidcClientsView', () => {
   })
   it('creates a public client (no secret) and shows the created note', async () => {
     get.mockResolvedValue({ items: [], nextCursor: '' })
-    post.mockResolvedValue({ clientId: 'spa', tokenEndpointAuthMethod: 'none' })
+    post.mockResolvedValue({ clientId: 'spa', clientAuthMethod: 'none' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     await w.find('input[name="clientId"]').setValue('spa')

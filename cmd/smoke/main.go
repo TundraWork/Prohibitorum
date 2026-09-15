@@ -1581,7 +1581,7 @@ func main() {
 	}
 	log.Printf("  introspect active=true token_type=access_token client_id=%s sub✓", rpClientID)
 
-	step(fmt.Sprintf("oidc %d/%d — POST /oauth/token (refresh_token rotation, Basic auth)", 7, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — POST /oauth/token (refresh_token rotation, Basic + post auth)", 7, nOIDC))
 	refreshed, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {refreshToken},
@@ -1604,6 +1604,29 @@ func main() {
 	oldRefreshToken := refreshToken
 	refreshToken = refreshed.RefreshToken
 	log.Printf("  refresh rotated (new != old); refreshed id_token verifies ✓")
+
+	// Same grant again, this time with the credentials in the body
+	// (client_secret_post) instead of the Basic header. This exercises the
+	// channel against the real server — real argon2id parameters, real DB row —
+	// not just the unit-test fake.
+	refreshedPost, err := tokenExchangePostAuth(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+	})
+	if err != nil {
+		log.Fatalf("/oauth/token refresh_token (client_secret_post): %v", err)
+	}
+	if refreshedPost.RefreshToken == "" || refreshedPost.RefreshToken == refreshToken {
+		log.Fatalf("client_secret_post refresh did not rotate")
+	}
+	if refreshedPost.AccessToken == "" || refreshedPost.IDToken == "" {
+		log.Fatalf("client_secret_post refresh response incomplete: %+v", refreshedPost)
+	}
+	// Re-anchor the generation pointers so the idempotency-window checks below
+	// still compare the immediately-previous token against its successor.
+	oldRefreshToken = refreshToken
+	refreshToken = refreshedPost.RefreshToken
+	log.Printf("  same grant via client_secret_post (form credentials, no Basic header) ✓")
 
 	step(fmt.Sprintf("oidc %d/%d — refresh idempotency window + reuse detection", 8, nOIDC))
 	// Refresh rotation carries a short previous-token idempotency window so a
@@ -3088,11 +3111,11 @@ func main() {
 			log.Fatalf("admin oidc-client create: sudo: %v", err)
 		}
 		var created struct {
-			ClientID                string   `json:"clientId"`
-			DisplayName             string   `json:"displayName"`
-			RedirectURIs            []string `json:"redirectUris"`
-			TokenEndpointAuthMethod string   `json:"tokenEndpointAuthMethod"`
-			Secret                  string   `json:"secret"`
+			ClientID         string   `json:"clientId"`
+			DisplayName      string   `json:"displayName"`
+			RedirectURIs     []string `json:"redirectUris"`
+			ClientAuthMethod string   `json:"clientAuthMethod"`
+			Secret           string   `json:"secret"`
 		}
 		if err := c.postJSON("/api/prohibitorum/oidc-applications", map[string]any{
 			"clientId":     adminClientID,
@@ -3109,8 +3132,8 @@ func main() {
 		if created.Secret == "" {
 			log.Fatalf("create: confidential client response must reveal a secret exactly once, got empty")
 		}
-		if created.TokenEndpointAuthMethod == "" {
-			log.Fatalf("create: tokenEndpointAuthMethod must be set for a confidential client")
+		if created.ClientAuthMethod == "" {
+			log.Fatalf("create: clientAuthMethod must be set for a confidential client")
 		}
 		createdClientSecret = created.Secret
 
@@ -7493,7 +7516,7 @@ func decodeStatusResponse(respXML []byte) (topStatus, subStatus string, hasAsser
 }
 
 // createPublicOIDCClient shells out to `prohibitorum oidc-client create --public`.
-// Public clients carry no secret (token_endpoint_auth_method=none) and use PKCE.
+// Public clients carry no secret (client_auth_method=none) and use PKCE.
 func createPublicOIDCClient(baseURL, clientID, redirectURI string, scopes []string) error {
 	args := []string{"exec", "--", "go", "run", "./cmd/prohibitorum", "oidc-client", "create",
 		"--public",
@@ -7757,6 +7780,32 @@ func tokenExchange(baseURL, clientID, clientSecret string, form url.Values) (*oi
 	if err != nil {
 		return nil, err
 	}
+	return decodeTokenExchange(resp)
+}
+
+// tokenExchangePostAuth POSTs to /oauth/token as a CONFIDENTIAL client using the
+// client_secret_post channel: client_id + client_secret in the form body, no
+// Basic header. Both channels are equivalent for a confidential client, and
+// this is the one the server used to reject (PHB-19).
+func tokenExchangePostAuth(baseURL, clientID, clientSecret string, form url.Values) (*oidcTokenResponse, error) {
+	form.Set("client_id", clientID)
+	form.Set("client_secret", clientSecret)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/oauth/token", strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	hc := &http.Client{Timeout: 10 * time.Second}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return decodeTokenExchange(resp)
+}
+
+// decodeTokenExchange consumes a /oauth/token response, requiring 200 and a
+// decodable token body.
+func decodeTokenExchange(resp *http.Response) (*oidcTokenResponse, error) {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {

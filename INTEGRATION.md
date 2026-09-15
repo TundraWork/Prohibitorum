@@ -27,7 +27,7 @@ INSERT INTO oidc_client
   (client_id, client_secret_hash, display_name, redirect_uris,
    post_logout_redirect_uris, allowed_scopes,
    require_pkce, allowed_code_challenge_methods,
-   token_endpoint_auth_method, id_token_signed_response_alg,
+   client_auth_method, id_token_signed_response_alg,
    subject_type, application_type)
 VALUES (
   'gateway-prod',
@@ -46,7 +46,7 @@ VALUES (
 );
 ```
 
-For confidential (back-end-only) clients: generate a strong random secret, hash with argon2id (PHC format) into `client_secret_hash`, and set `token_endpoint_auth_method` to `'client_secret_basic'`.
+For confidential (back-end-only) clients: generate a strong random secret, hash with argon2id (PHC format) into `client_secret_hash`, and set `client_auth_method` to `'client_secret'`. Such a client may present its secret either in the HTTP Basic header or in the request body — both channels are accepted. `client_auth_method` takes only `'client_secret'` or `'none'`; it records whether the client is confidential or public, not which channel it must use.
 
 ### The flow
 
@@ -796,8 +796,8 @@ prohibitorum signing-key generate
 #                --retire <kid> (stamp retired_at).
 
 # Register a confidential client. The 32-byte secret is printed ONCE
-# (only the argon2id hash is stored). token_endpoint_auth_method is
-# client_secret_basic.
+# (only the argon2id hash is stored). client_auth_method is
+# client_secret, so either credential channel works.
 prohibitorum oidc-client create \
   --client-id smoke-rp \
   --display-name "Smoke RP" \
@@ -808,7 +808,7 @@ prohibitorum oidc-client create \
 # Client secret (store this now, it will NOT be shown again):
 # <secret>
 #
-#   …--public        → no secret, token_endpoint_auth_method=none, PKCE required
+#   …--public        → no secret, client_auth_method=none, PKCE required
 #   …--require-consent → reserved flag; /authorize returns consent_required
 #                        (no consent UI until v0.6)
 
@@ -872,7 +872,32 @@ curl -s -X POST https://auth.example.com/oauth/token \
 # }
 ```
 
-(`client_secret_post` — credentials in the form body — and `none` (public client; PKCE-only) are also accepted; the example uses Basic.)
+#### Client authentication channels
+
+A confidential client may authenticate in either of two ways, and the server accepts both for every client — there is no per-client registration of the channel. The same applies to `/oauth/introspect` and `/oauth/revoke`.
+
+**HTTP Basic (`client_secret_basic`)** — what the example above uses. Per RFC 6749 §2.3.1 the client_id and client_secret are each `application/x-www-form-urlencoded`-encoded *before* being joined with a colon and base64'd:
+
+```
+Authorization: Basic base64(formUrlEncode(client_id) ":" formUrlEncode(client_secret))
+```
+
+Values with no reserved characters encode to themselves, so most credentials need no special handling; `curl -u` and the common RP libraries do the encoding for you. The server always applies the matching decode, so a literal `%` or `+` in a credential must be sent percent-encoded (`%25`, `%2B`). The request body **may** repeat `client_id` as long as it matches the header, and **must not** carry `client_secret`.
+
+**Request body (`client_secret_post`)** — credentials as ordinary form fields, no `Authorization` header:
+
+```bash
+curl -s -X POST https://auth.example.com/oauth/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode grant_type=authorization_code \
+  --data-urlencode code=<authcode> \
+  --data-urlencode redirect_uri=https://rp.example.com/rp/callback \
+  --data-urlencode code_verifier=<the PKCE verifier from step 1> \
+  --data-urlencode client_id=smoke-rp \
+  --data-urlencode client_secret=<client_secret>
+```
+
+Public clients (`none`) send `client_id` in the body, no secret at all, and bind the exchange with PKCE. Presenting a secret through both channels at once is rejected (RFC 6749 §2.3), as is any credential from a public client. Every such failure returns `401` `invalid_client` with no distinction between causes.
 
 **Validate the id_token** (the RP does this): fetch `/oauth/jwks`, resolve the key by the token header `kid`, verify the RS256 signature, then check `iss`, `aud == client_id`, `exp > now`, and `nonce ==` the value sent in step 1. The id_token also carries `sub`, `at_hash`, `sid`, `auth_time`, `amr`. The access token is a JWS with JOSE `typ: at+jwt` and a `jti` claim (RFC 9068) — resource servers MUST reject any other `typ`.
 

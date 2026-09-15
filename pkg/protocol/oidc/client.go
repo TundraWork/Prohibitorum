@@ -2,8 +2,11 @@ package oidc
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -58,36 +61,119 @@ func loadClient(ctx context.Context, q clientQueries, clientID string) (db.OidcC
 	return c, nil
 }
 
+// basicAuthPrefix is the credentials prefix of an HTTP Basic Authorization
+// header (RFC 7617 §2). Matched case-insensitively, as net/http does.
+const basicAuthPrefix = "Basic "
+
+// hasBasicAuthHeader reports whether the request carries an HTTP Basic
+// Authorization header, WITHOUT requiring it to be well-formed. Callers use
+// this to decide whether the Basic channel was attempted — a malformed header
+// is still an attempt, so it must earn a WWW-Authenticate challenge rather
+// than silently degrading to a challenge-less 401.
+func hasBasicAuthHeader(r *http.Request) bool {
+	auth := r.Header.Get("Authorization")
+	return len(auth) >= len(basicAuthPrefix) &&
+		strings.EqualFold(auth[:len(basicAuthPrefix)], basicAuthPrefix)
+}
+
+// parseBasicCredentials extracts and decodes HTTP Basic credentials per
+// RFC 6749 §2.3.1. present reports whether the request carried a Basic
+// Authorization header at all; ok reports whether that header could be
+// decoded.
+//
+// This exists because the standard library's (*http.Request).BasicAuth only
+// base64-decodes and splits on the first colon — it skips the
+// application/x-www-form-urlencoded decoding step §2.3.1 mandates. A conforming
+// RP percent-encodes its client_id and client_secret before joining them with
+// the colon, and some client libraries encode `-` `_` `.` `~` as well, so a
+// client_id of `my-client` arrives as `my%2Dclient`. Without this decode it
+// misses in the database and the request fails with invalid_client.
+//
+// Decoding is unconditional: there is no fall back to the raw value when the
+// percent-decode fails, so a malformed header is a hard failure. Values with
+// no reserved characters survive the round trip unchanged, and the secrets
+// this project generates use base64url (`A-Za-z0-9-_`, no `%` or `+`), so the
+// decode is a no-op for them.
+func parseBasicCredentials(r *http.Request) (id, secret string, present, ok bool) {
+	if !hasBasicAuthHeader(r) {
+		return "", "", false, true
+	}
+	encoded := r.Header.Get("Authorization")[len(basicAuthPrefix):]
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", "", true, false
+	}
+
+	rawID, rawSecret, found := strings.Cut(string(decoded), ":")
+	if !found {
+		return "", "", true, false
+	}
+
+	// QueryUnescape, not PathUnescape: §2.3.1 names the
+	// application/x-www-form-urlencoded algorithm, under which `+` decodes to
+	// a space.
+	id, err = url.QueryUnescape(rawID)
+	if err != nil {
+		return "", "", true, false
+	}
+	secret, err = url.QueryUnescape(rawSecret)
+	if err != nil {
+		return "", "", true, false
+	}
+	return id, secret, true, true
+}
+
 // authenticateClient identifies and authenticates the token-endpoint caller.
 //
 // It extracts the presented client_id and (optional) secret from either an
-// HTTP Basic Authorization header (client_secret_basic) or the POST body
-// (client_secret_post / none), loads the client, and enforces that the
-// presentation style matches the client's registered
-// token_endpoint_auth_method:
+// HTTP Basic Authorization header or the POST body, loads the client, and
+// enforces the client's registered client_auth_method:
 //
-//   - client_secret_basic: requires Basic auth with a non-empty secret,
-//     verified via constant-time argon2id against the stored PHC hash.
-//   - client_secret_post:  requires a non-empty form client_secret,
-//     verified the same way.
-//   - none:                public client (no stored hash); requires that NO
-//     secret is presented by either channel.
+//   - client_secret: confidential client. The secret may arrive through
+//     EITHER channel — Basic (client_secret_basic) and body
+//     (client_secret_post) are equivalent, since client_auth_method is only a
+//     confidential-vs-public discriminator, not an OIDC Discovery
+//     registration value. Verified via constant-time argon2id against the
+//     stored PHC hash.
+//   - none: public client (no stored hash); requires that NO secret is
+//     presented by either channel.
 //
-// Presenting credentials via both Basic and POST simultaneously is rejected
-// per RFC 6749 §2.3. Every failure returns errInvalidClient so callers map
+// Basic credentials are decoded per RFC 6749 §2.3.1 (see
+// parseBasicCredentials). Presenting a secret through both channels at once is
+// rejected per RFC 6749 §2.3; repeating a matching client_id in the body
+// alongside Basic auth is allowed, because client_id is an identifier rather
+// than a credential. Every failure returns errInvalidClient so callers map
 // uniformly to invalid_client.
 func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (db.OidcClient, error) {
 	if err := r.ParseForm(); err != nil {
 		return db.OidcClient{}, errInvalidClient
 	}
 
-	basicID, basicSecret, hasBasic := r.BasicAuth()
+	basicID, basicSecret, hasBasic, basicOK := parseBasicCredentials(r)
 	formID := r.PostForm.Get("client_id")
 	formSecret := r.PostForm.Get("client_secret")
 
-	// RFC 6749 §2.3: a client MUST NOT use more than one authentication
-	// method per request. Reject simultaneous Basic + POST credentials.
-	if hasBasic && (formSecret != "" || formID != "") {
+	// An undecodable Basic header yields no usable client_id, so bail out ahead
+	// of loadClient. Returning here also keeps this path off the argon2id
+	// equalizer below — there is no known-vs-unknown client distinction to leak
+	// when no client was ever identified, and skipping it denies a caller an
+	// argon2id burn that costs them nothing to trigger.
+	if hasBasic && !basicOK {
+		return db.OidcClient{}, errInvalidClient
+	}
+
+	// RFC 6749 §2.3: a client MUST NOT use more than one authentication method
+	// per request. A body client_secret alongside Basic auth is exactly that.
+	if hasBasic && formSecret != "" {
+		return db.OidcClient{}, errInvalidClient
+	}
+	// client_id is an identifier, not a credential, and many RPs repeat it in
+	// the body while authenticating with Basic. Allow the repetition, but the
+	// two copies must name the same client. Both sides are compared decoded:
+	// basicID came through §2.3.1 decoding and ParseForm already decoded the
+	// body.
+	if hasBasic && formID != "" && formID != basicID {
 		return db.OidcClient{}, errInvalidClient
 	}
 
@@ -120,28 +206,19 @@ func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (
 		return db.OidcClient{}, err
 	}
 
-	switch client.TokenEndpointAuthMethod {
-	case "client_secret_basic":
-		// Must arrive via Basic with a non-empty secret; no form secret.
-		if !hasBasic || basicSecret == "" || formSecret != "" {
+	switch client.ClientAuthMethod {
+	case "client_secret":
+		// Either channel is accepted. The mutual-exclusion check above has
+		// already ruled out both carrying a secret at once, so the Basic value
+		// wins whenever the header is present.
+		presented := formSecret
+		if hasBasic {
+			presented = basicSecret
+		}
+		if presented == "" || !client.ClientSecretHash.Valid {
 			return db.OidcClient{}, errInvalidClient
 		}
-		if !client.ClientSecretHash.Valid {
-			return db.OidcClient{}, errInvalidClient
-		}
-		if !verifyClientSecret(basicSecret, client.ClientSecretHash.String) {
-			return db.OidcClient{}, errInvalidClient
-		}
-
-	case "client_secret_post":
-		// Must arrive via the form with a non-empty secret; no Basic header.
-		if hasBasic || formSecret == "" {
-			return db.OidcClient{}, errInvalidClient
-		}
-		if !client.ClientSecretHash.Valid {
-			return db.OidcClient{}, errInvalidClient
-		}
-		if !verifyClientSecret(formSecret, client.ClientSecretHash.String) {
+		if !verifyClientSecret(presented, client.ClientSecretHash.String) {
 			return db.OidcClient{}, errInvalidClient
 		}
 
@@ -151,14 +228,18 @@ func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (
 		if client.ClientSecretHash.Valid {
 			return db.OidcClient{}, errInvalidClient
 		}
-		// hasBasic catches Basic headers with an empty password: Go's
-		// r.BasicAuth() returns ("user", "", true) for "Basic base64(user:)",
-		// so checking only basicSecret != "" would miss that bypass.
+		// hasBasic catches Basic headers with an empty password:
+		// "Basic base64(user:)" parses cleanly into ("user", "", true, true),
+		// so checking only basicSecret != "" would miss that bypass. The
+		// relaxation for a repeated body client_id does not reach here — a
+		// public client may not send a Basic header at all.
 		if hasBasic || basicSecret != "" || formSecret != "" {
 			return db.OidcClient{}, errInvalidClient
 		}
 
 	default:
+		// Anything outside the closed {client_secret, none} vocabulary is dirty
+		// data — reject rather than treating "not none" as confidential.
 		return db.OidcClient{}, errInvalidClient
 	}
 

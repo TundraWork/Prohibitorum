@@ -63,15 +63,15 @@ func validateOIDCScopes(scopes []string) error {
 // chokepoint that prevents accidental leakage of secret material.
 func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
 	v := contract.OIDCApplicationView{
-		ClientID:                c.ClientID,
-		DisplayName:             c.DisplayName,
-		RedirectURIs:            c.RedirectUris,
-		PostLogoutRedirectURIs:  c.PostLogoutRedirectUris,
-		AllowedScopes:           c.AllowedScopes,
-		TokenEndpointAuthMethod: c.TokenEndpointAuthMethod,
-		RequireConsent:          c.RequireConsent,
-		Disabled:                c.Disabled,
-		AccessRestricted:        c.AccessRestricted,
+		ClientID:               c.ClientID,
+		DisplayName:            c.DisplayName,
+		RedirectURIs:           c.RedirectUris,
+		PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
+		AllowedScopes:          c.AllowedScopes,
+		ClientAuthMethod:       c.ClientAuthMethod,
+		RequireConsent:         c.RequireConsent,
+		Disabled:               c.Disabled,
+		AccessRestricted:       c.AccessRestricted,
 	}
 	if c.CreatedAt.Valid {
 		v.CreatedAt = c.CreatedAt.Time
@@ -119,12 +119,12 @@ func (s *Server) handleListOIDCApplications(ctx context.Context, in *listOIDCApp
 	views := make([]contract.OIDCApplicationView, 0, len(rows))
 	for _, r := range rows {
 		v := contract.OIDCApplicationView{
-			ClientID:                r.ClientID,
-			DisplayName:             r.DisplayName,
-			RedirectURIs:            r.RedirectUris,
-			AllowedScopes:           r.AllowedScopes,
-			TokenEndpointAuthMethod: r.TokenEndpointAuthMethod,
-			Disabled:                r.Disabled,
+			ClientID:         r.ClientID,
+			DisplayName:      r.DisplayName,
+			RedirectURIs:     r.RedirectUris,
+			AllowedScopes:    r.AllowedScopes,
+			ClientAuthMethod: r.ClientAuthMethod,
+			Disabled:         r.Disabled,
 		}
 		if r.CreatedAt.Valid {
 			v.CreatedAt = r.CreatedAt.Time
