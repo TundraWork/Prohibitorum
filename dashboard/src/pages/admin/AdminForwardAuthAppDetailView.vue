@@ -74,6 +74,11 @@ const traefikSnippet = computed(() => {
           - Remote-Name
           - Remote-Email
           - Remote-Groups
+          - Remote-Scopes
+    strip-prohibitorum-pat:
+      headers:
+        customRequestHeaders:
+          X-Prohibitorum-PAT: ""
   routers:
     # Your protected app (define "app-svc" to point at your backend):
     protected-app:
@@ -81,6 +86,7 @@ const traefikSnippet = computed(() => {
       service: app-svc
       middlewares:
         - prohibitorum-forward-auth
+        - strip-prohibitorum-pat
     # The fixed forward-auth prefix → Prohibitorum (define "prohibitorum-svc"):
     prohibitorum-forward-auth:
       rule: "Host(\`${h}\`) && PathPrefix(\`/.prohibitorum-forward-auth\`)"

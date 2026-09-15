@@ -118,9 +118,10 @@ type fakeFAQueries struct {
 	acctErr error
 	// groups become exposed matching rule groups in the fake decision.
 	groups []string
-	// PAT lookup results for the Bearer path.
-	pat    db.PersonalAccessToken
-	patErr error
+	// PAT lookup results for the PAT path.
+	pat        db.PersonalAccessToken
+	patErr     error
+	patLookups int
 	// Captured params for RegisterForwardAuthApp tests.
 	insertParams   *db.InsertOIDCClientParams
 	faConfigParams *db.SetForwardAuthConfigParams
@@ -144,6 +145,7 @@ func (f *fakeFAQueries) GetAccountByID(_ context.Context, _ int32) (db.Account, 
 }
 
 func (f *fakeFAQueries) GetPATByTokenHash(_ context.Context, _ []byte) (db.PersonalAccessToken, error) {
+	f.patLookups++
 	if f.patErr != nil {
 		return db.PersonalAccessToken{}, f.patErr
 	}
@@ -238,7 +240,7 @@ func TestForwardAuthVerify_PAT_Maintenance(t *testing.T) {
 	}
 	mkReq := func() *http.Request {
 		r := faRequest("https", "app.acme.io", "/", nil)
-		r.Header.Set("Authorization", "Bearer prohibitorum_pat_demo")
+		r.Header.Set("X-Prohibitorum-PAT", "prohibitorum_pat_demo")
 		return r
 	}
 	on := func(context.Context) bool { return true }
@@ -835,14 +837,14 @@ func TestValidatedForwardAuthReturnURL_RejectsDisabledHost(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// HandleForwardAuthVerify — PAT (Authorization: Bearer) path
+// HandleForwardAuthVerify — PAT (X-Prohibitorum-PAT) path
 // ---------------------------------------------------------------------------
 
-// faBearerRequest builds a ForwardAuth request carrying an Authorization: Bearer
-// PAT and (optionally) a cookie, to assert Bearer precedence.
-func faBearerRequest(host, raw string, cookie *http.Cookie) *http.Request {
+// faPATRequest builds a ForwardAuth request carrying X-Prohibitorum-PAT
+// PAT and (optionally) a cookie, to assert PAT precedence.
+func faPATRequest(host, raw string, cookie *http.Cookie) *http.Request {
 	req := faRequest("https", host, "/api", cookie)
-	req.Header.Set("Authorization", "Bearer "+raw)
+	req.Header.Set("X-Prohibitorum-PAT", raw)
 	return req
 }
 
@@ -856,7 +858,7 @@ func TestForwardAuthVerify_PAT_GrantedApp_200WithScopes(t *testing.T) {
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
 	if rec.Code != http.StatusOK || rec.Header().Get("Remote-Scopes") != "repo:read" {
 		t.Fatalf("code=%d scopes=%q", rec.Code, rec.Header().Get("Remote-Scopes"))
 	}
@@ -870,7 +872,7 @@ func TestForwardAuthVerify_PAT_AllApps_200NoScopes(t *testing.T) {
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
 	if rec.Code != http.StatusOK || rec.Header().Get("Remote-Scopes") != "" {
 		t.Fatalf("code=%d scopes=%q", rec.Code, rec.Header().Get("Remote-Scopes"))
 	}
@@ -884,7 +886,7 @@ func TestForwardAuthVerify_PAT_NotGrantedApp_403(t *testing.T) {
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d", rec.Code)
 	}
@@ -897,7 +899,7 @@ func TestForwardAuthVerify_PAT_Invalid_401(t *testing.T) {
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_bad", nil))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_bad", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401, got %d", rec.Code)
 	}
@@ -911,7 +913,7 @@ func TestForwardAuthVerify_PAT_DisabledOwner_401(t *testing.T) {
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401, got %d", rec.Code)
 	}
@@ -926,14 +928,14 @@ func TestForwardAuthVerify_PAT_RBACDenies_403(t *testing.T) {
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d", rec.Code)
 	}
 }
 
 func TestForwardAuthVerify_PAT_PrecedesCookie(t *testing.T) {
-	// A bad PAT plus a (would-be valid) cookie must still 401 — Bearer is terminal.
+	// A bad PAT plus a (would-be valid) cookie must still 401 — PAT header is terminal.
 	q := &fakeFAQueries{
 		faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"},
 		patErr:   pgx.ErrNoRows,
@@ -941,9 +943,52 @@ func TestForwardAuthVerify_PAT_PrecedesCookie(t *testing.T) {
 	p, store := newFAProvider(q)
 	token, _ := mintFASession(context.Background(), store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_bad", faCookie(true, token)))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_bad", faCookie(true, token)))
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("want 401 (Bearer terminal), got %d", rec.Code)
+		t.Fatalf("want 401 (PAT header terminal), got %d", rec.Code)
+	}
+}
+
+func TestForwardAuthVerify_ApplicationAuthorizationDoesNotSelectPAT(t *testing.T) {
+	for _, authorization := range []string{"Bearer upstream-token", "Basic dXNlcjpwYXNz", "Bearer prohibitorum_pat_old"} {
+		for _, withCookie := range []bool{true, false} {
+			q := &fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true, acct: db.Account{ID: 42, Username: "alice"}}
+			p, store := newFAProvider(q)
+			var cookie *http.Cookie
+			want := http.StatusFound
+			if withCookie {
+				token, err := mintFASession(context.Background(), store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cookie, want = faCookie(true, token), http.StatusOK
+			}
+			req := faRequest("https", "app.acme.io", "/api", cookie)
+			req.Header.Set("Authorization", authorization)
+			rec := httptest.NewRecorder()
+			p.HandleForwardAuthVerify(rec, req)
+			if rec.Code != want || q.patLookups != 0 || req.Header.Get("Authorization") != authorization {
+				t.Fatalf("authorization=%q cookie=%v: status=%d lookups=%d header=%q", authorization, withCookie, rec.Code, q.patLookups, req.Header.Get("Authorization"))
+			}
+		}
+	}
+}
+
+func TestForwardAuthVerify_MalformedPATHeaderNeverFallsBack(t *testing.T) {
+	for _, values := range [][]string{{""}, {" "}, {"Bearer token"}, {"one,two"}, {"one", "two"}} {
+		q := &fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}, authorized: true, acct: db.Account{ID: 42}}
+		p, store := newFAProvider(q)
+		token, err := mintFASession(context.Background(), store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := faRequest("https", "app.acme.io", "/api", faCookie(true, token))
+		req.Header[http.CanonicalHeaderKey("X-Prohibitorum-PAT")] = values
+		rec := httptest.NewRecorder()
+		p.HandleForwardAuthVerify(rec, req)
+		if rec.Code != http.StatusUnauthorized || q.patLookups != 0 || rec.Header().Get("Location") != "" {
+			t.Fatalf("values=%q: status=%d lookups=%d location=%q", values, rec.Code, q.patLookups, rec.Header().Get("Location"))
+		}
 	}
 }
 
@@ -974,7 +1019,7 @@ func TestForwardAuthAudit_PAT_RBACDenied(t *testing.T) {
 	p, _, ra := newFAProviderAudit(q)
 
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_x", nil))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_x", nil))
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d", rec.Code)
@@ -1064,7 +1109,7 @@ func TestForwardAuthAudit_PAT_Unknown(t *testing.T) {
 	p, _, ra := newFAProviderAudit(q)
 
 	rec := httptest.NewRecorder()
-	p.HandleForwardAuthVerify(rec, faBearerRequest("app.acme.io", "prohibitorum_pat_bad", nil))
+	p.HandleForwardAuthVerify(rec, faPATRequest("app.acme.io", "prohibitorum_pat_bad", nil))
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401, got %d", rec.Code)

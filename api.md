@@ -364,14 +364,14 @@ Admin routes for inspecting and revoking any user's PATs. Gate notation follows 
 |--------|------|------|-------|
 | GET | `/api/prohibitorum/forward-auth/verify` | — | Traefik ForwardAuth target. See below for response semantics. |
 
-**Browser (cookie) flow** — no `Authorization` header present:
+**Browser (cookie) flow** — no `X-Prohibitorum-PAT` header present:
 - `200` + `Remote-*` identity headers: valid forward-auth cookie + live access check passed.
 - `302` to login: no valid cookie — browser is redirected into the Prohibitorum OIDC login flow.
 - `403`: `X-Forwarded-Host` is not a registered forward-auth service.
 
-**PAT (API) flow** — `Authorization: Bearer <token>` header present. Terminal: never redirects.
+**PAT (API) flow** — `X-Prohibitorum-PAT: <token>` header present (raw token, no Bearer prefix). Terminal: never redirects.
 - `200` + `Remote-*` identity headers (including `Remote-Scopes`): valid PAT, owner is active and authorized.
 - `401`: token is invalid, expired, or revoked; or the owning account is disabled.
 - `403`: valid token, but the owner is not authorized for this application by the live app-bound policy or the PAT's app restriction.
 
-The PAT path takes precedence: if an `Authorization` header is present the request is always handled as a PAT regardless of any cookie.
+The PAT path takes precedence: if an `X-Prohibitorum-PAT` header is present the request is always handled as a PAT regardless of any cookie. Empty or repeated PAT headers return 401. `Authorization` is ignored by this verifier and remains available to the protected application. Existing PAT clients must switch headers; proxies must strip `X-Prohibitorum-PAT` after verification and preserve `Authorization`.
