@@ -1,0 +1,4 @@
+# ko build config (develop-image workflow). The release path configures ko
+# through GoReleaser's kos section instead — keep values in sync with
+# .goreleaser.yaml when they change.
+defaultBaseImage: cgr.dev/chainguard/static:latest

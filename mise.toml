@@ -12,7 +12,7 @@ sqlc = "1.30.0"
 # Workflow linting (used by `mise run ci:lint-actions` and the CI release-check job):
 # actionlint = schema + shellcheck of workflow YAML; zizmor = Actions security audit.
 "aqua:rhysd/actionlint" = "1.7.12"
-"aqua:zizmorcore/zizmor" = "1.26.1"
+"aqua:ko-build/ko" = "0.19.1" # standalone ko for the develop-image workflow (release ko stays embedded in goreleaser)
 
 [settings]
 # Pin exact tool versions + checksums + provenance in mise.lock (committed), so
