@@ -3202,6 +3202,7 @@ func main() {
 			log.Fatalf("post-update GET iconUrl = %v, want the same %v the PUT response carried", got.IconURL, updated.IconURL)
 		}
 		log.Printf("  PUT changed displayName→%q + redirect_uri; GET reflects both; PUT + GET iconUrl agree (%s) ✓", updatedDisplayName, *updated.IconURL)
+		assertAccessRestrictionIcon(c, "/api/prohibitorum/oidc-applications/"+url.PathEscape(adminClientID), *updated.IconURL)
 	}
 
 	step(fmt.Sprintf("admin %d/%d — admin: POST /oidc-clients/rotate-secret returns a NEW secret (≠ create secret)", 3, nAdmin))
@@ -3729,6 +3730,7 @@ func main() {
 		if putResp.IconURL == nil || !strings.HasPrefix(*putResp.IconURL, fmt.Sprintf("/icon/saml_sp/%d?v=", spID)) {
 			log.Fatalf("Tier-1 4/4: PUT /saml-providers/%d: response iconUrl = %v, want /icon/saml_sp/%d?v=<etag>", spID, putResp.IconURL, spID)
 		}
+		assertAccessRestrictionIcon(c, fmt.Sprintf("/api/prohibitorum/saml-applications/%d", spID), *putResp.IconURL)
 
 		// Re-GET to confirm round-trip.
 		var updated samlProviderItem
@@ -4947,6 +4949,24 @@ func step(msg string) {
 }
 
 // ---------- HTTP client with cookie jar ----------
+
+// PHB-15: verify the mutation payload, then restore unrestricted access so
+// subsequent protocol arcs retain their original fixture policy.
+func assertAccessRestrictionIcon(c *client, appPath, wantIcon string) {
+	for _, restricted := range []bool{true, false} {
+		var response struct {
+			IconURL          string `json:"iconUrl"`
+			AccessRestricted bool   `json:"accessRestricted"`
+		}
+		if err := c.postJSON(appPath+"/access/set-restricted", map[string]any{"restricted": restricted}, &response); err != nil {
+			log.Fatalf("access icon: %s restricted=%v: %v", appPath, restricted, err)
+		}
+		if response.IconURL != wantIcon || response.AccessRestricted != restricted {
+			log.Fatalf("access icon: %s got icon=%q restricted=%v, want icon=%q restricted=%v", appPath, response.IconURL, response.AccessRestricted, wantIcon, restricted)
+		}
+	}
+	log.Printf("  %s access/set-restricted preserves iconUrl (%s) for both restriction states ✓", appPath, wantIcon)
+}
 
 type client struct {
 	base string

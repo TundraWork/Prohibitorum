@@ -90,7 +90,9 @@ func (s *Server) handleSetOIDCClientAccessRestrictedHTTP(w http.ResponseWriter, 
 		Detail:    map[string]any{"client_id": clientID, "restricted": body.Restricted},
 	})
 
-	writeJSON(w, oidcApplicationView(c))
+	view := oidcApplicationView(c)
+	view.IconURL = s.enrichIconURL(r.Context(), "oidc_client", c.ClientID)
+	writeJSON(w, view)
 }
 
 // ----- POST /oidc-applications/{clientId}/access/grant (raw, sudo-gated) ----------
@@ -254,7 +256,9 @@ func (s *Server) handleSetSAMLSPAccessRestrictedHTTP(w http.ResponseWriter, r *h
 
 	acs, _ := s.queries.ListSAMLSPACSEndpoints(r.Context(), sp.ID)
 	keys, _ := s.queries.ListSAMLSPKeys(r.Context(), db.ListSAMLSPKeysParams{SpID: sp.ID, Use: "signing"})
-	writeJSON(w, samlApplicationView(sp, acs, keys))
+	view := samlApplicationView(sp, acs, keys)
+	view.IconURL = s.enrichIconURL(r.Context(), "saml_sp", strconv.FormatInt(sp.ID, 10))
+	writeJSON(w, view)
 }
 
 // ----- POST /saml-applications/{id}/access/grant (raw, sudo-gated) ---------------
