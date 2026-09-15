@@ -4205,7 +4205,7 @@ func main() {
 	// pat — Personal Access Tokens as forward-auth (gateway) credentials,
 	// fine-grained per-app model.
 	//
-	// A PAT is presented as `Authorization: Bearer` to the public forward-auth
+	// A PAT is presented as `X-Prohibitorum-PAT: <token>` to the public forward-auth
 	// verify endpoint; the app is resolved from X-Forwarded-Host. A PAT either
 	// grants `all_apps` (identity only, no scopes) or carries an explicit
 	// per-app grant map `{client_id: [scopes]}`; scopes are drawn from each
@@ -4316,7 +4316,7 @@ func main() {
 
 		step(fmt.Sprintf("pat %d/%d — forward-auth verify (per-app PAT, host=%s) → 200 + Remote-Scopes=%s", 3, nPAT, faHost1, patScope))
 		{
-			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+created.Token)
+			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, created.Token)
 			if status != http.StatusOK {
 				log.Fatalf("pat: verify granted app: want 200, got %d — %s", status, firstN(body, 200))
 			}
@@ -4351,7 +4351,7 @@ func main() {
 			log.Fatalf("pat: all-apps PAT did not report allApps=true")
 		}
 		{
-			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+createdAll.Token)
+			status, hdr, body := forwardAuthVerify(verifyURL, faHost1, createdAll.Token)
 			if status != http.StatusOK {
 				log.Fatalf("pat: all-apps verify: want 200, got %d — %s", status, firstN(body, 200))
 			}
@@ -4364,20 +4364,20 @@ func main() {
 		step(fmt.Sprintf("pat %d/%d — per-app PAT (grants only %s) against NON-granted host=%s → 403", 5, nPAT, faClient, faHost2))
 		// The first PAT grants only faClient; verifying it against faClient2's
 		// host must 403 (valid owner, valid credential, but no grant for this
-		// app). Also a bogus Bearer → 401.
+		// app). Also a bogus PAT → 401.
 		{
-			status, _, body := forwardAuthVerify(verifyURL, faHost2, "Bearer "+created.Token)
+			status, _, body := forwardAuthVerify(verifyURL, faHost2, created.Token)
 			if status != http.StatusForbidden {
 				log.Fatalf("pat: non-granted app: want 403, got %d — %s", status, firstN(body, 200))
 			}
 			log.Printf("  per-app PAT (grants %s) against %s → 403 ✓", faClient, faHost2)
 		}
 		{
-			status, _, body := forwardAuthVerify(verifyURL, faHost1, "Bearer prohibitorum_pat_bogus")
+			status, _, body := forwardAuthVerify(verifyURL, faHost1, "prohibitorum_pat_bogus")
 			if status != http.StatusUnauthorized {
-				log.Fatalf("pat: bogus Bearer: want 401, got %d — %s", status, firstN(body, 200))
+				log.Fatalf("pat: bogus PAT: want 401, got %d — %s", status, firstN(body, 200))
 			}
-			log.Printf("  bogus Bearer → 401 ✓")
+			log.Printf("  bogus PAT → 401 ✓")
 		}
 
 		step(fmt.Sprintf("pat %d/%d — admin GET /accounts/%d/tokens lists the created PATs", 6, nPAT, patMe.ID))
@@ -4416,7 +4416,7 @@ func main() {
 			}
 		}
 		{
-			status, _, body := forwardAuthVerify(verifyURL, faHost1, "Bearer "+created.Token)
+			status, _, body := forwardAuthVerify(verifyURL, faHost1, created.Token)
 			if status != http.StatusUnauthorized {
 				log.Fatalf("pat: revoked PAT verify: want 401, got %d — %s", status, firstN(body, 200))
 			}
@@ -4881,7 +4881,7 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus Bearer → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
+	fmt.Println("✓ smoke OK — core (webauthn enroll/login + password/TOTP/recovery + sudo + throttle + destructive revoke) + federation (upstream OIDC login/link/unlink incl. invite_only) + oidc (OIDC OP code+PKCE flow: userinfo/introspect/refresh-rotation+reuse/revoke/logout) + saml (SAML IdP SSO/SLO + signed metadata + require_signed/bad-ACS/replay negatives) + hardening (forced re-auth / PKCE+introspect policy / NameIDPolicy / POST AuthnRequest / signed metadata / IdP-initiated) + consent (Login+Consent UI backend: consent ticket round-trip + federation-providers list) + admin (OIDC client CRUD reveal-once + signing-key generate→activate JWKS grace lifecycle + audit-events viewer + admin credential listing) + Tier-1 (PUT /me round-trip, GET /me/factors, admin sessions, SAML attr_map round-trip) + sudo-multiuse (single elevation covers multiple gated actions until expiry) + avatar (PUT /me/avatar upload, public GET /avatar/{sub} image/webp+ETag, /me.avatarUrl, userinfo.picture claim) + avatar-fed (federated first-login inherit + no-clobber on re-login + UserInfo fallback + dual-source selection/previews + avatar_source_unavailable negative) + rbac (per-app access gate + OIDC groups claim: DENY then grant-via-group → ALLOW with groups in id_token+userinfo) + error-redirect (federation access_denied + SAML malformed request → 302 /error) + launchpad (/me/apps lists authorized launchable apps; /me/consent list + revoke) + pat (Personal Access Token forward-auth gateway, per-app model: admin sets FA-app scope vocabulary; per-app PAT → 200 + Remote-Scopes=that app's scope, all_apps PAT → 200 + empty Remote-Scopes, non-granted app → 403, bogus PAT → 401; admin GET /accounts/{id}/tokens lists + POST /accounts/tokens/revoke → revoked PAT → 401) + maintenance (admin enables maintenance via sudo PUT → public /config maintenanceMode+message round-trip; admin stays exempt /me 200; disable restores; non-admin dashboard+gateway blocking unit-tested) + client-ip (admin sudo PUT header strategy + GET round-trip; invalid CIDR rejected 400; reset to direct) + login-background (admin sudo PUT custom login-page background → public GET /branding/background byte-for-byte verbatim; /config hasCustomBackground round-trip; sudo DELETE → 404) + steam (Steam OpenID 2.0 login arc: admin create protocol=steam provider; mock Steam OP redirect; callback → /welcome confirm → session; DB account+identity rows) + audit-remediation (new event types: webauthn:use, session:session_start/end, webauthn:sudo_granted, settings:update, PAT register/revoke/fail; ctx-carried IP non-empty on session_start events) + pwd-totp-enroll (password+TOTP enrollment ceremony: plain-invite begin→verify sets password+confirmed-TOTP+10 recovery codes and issues a session, password→TOTP login works, bootstrap rejects password+TOTP as passkey-only) + DB-state assertions passed against",
 		*baseURL)
 	fmt.Println("  VRChat: fixed link_only operator setup + browser-bound profile proof, sessionless federated registration, target-hidden recovery with passkey replacement/session revocation, authenticated linking, filtering, safe negative paths, and secret non-disclosure ✓")
 }
@@ -5576,11 +5576,11 @@ func registerForwardAuthApp(c *client, clientID, host, displayName string) {
 }
 
 // forwardAuthVerify issues GET {verifyURL} with the Traefik ForwardAuth
-// headers and the supplied Authorization value, WITHOUT following redirects
+// headers and the supplied X-Prohibitorum-PAT value, WITHOUT following redirects
 // or carrying any cookie jar (PAT auth is cookie-free). It returns the
 // status, the response headers (for the Remote-* identity assertions), and
 // the body (for diagnostics).
-func forwardAuthVerify(verifyURL, host, authorization string) (int, http.Header, string) {
+func forwardAuthVerify(verifyURL, host, token string) (int, http.Header, string) {
 	hc := &http.Client{
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -5593,7 +5593,9 @@ func forwardAuthVerify(verifyURL, host, authorization string) (int, http.Header,
 	}
 	req.Header.Set("X-Forwarded-Host", host)
 	req.Header.Set("X-Forwarded-Proto", "https")
-	req.Header.Set("Authorization", authorization)
+	req.Header.Set("X-Prohibitorum-PAT", token)
+	// The upstream application may use Authorization independently.
+	req.Header.Set("Authorization", "Bearer upstream-application-token")
 	resp, err := hc.Do(req)
 	if err != nil {
 		log.Fatalf("forward-auth verify: %v", err)
@@ -7955,7 +7957,7 @@ func verifyOIDCAuditEvents() error {
 //   - settings:update          — maintenance enable/disable + client-ip + bg (≥5)
 //   - personal_access_token:register — PAT create (≥2: per-app + all-apps)
 //   - personal_access_token:revoke   — admin revoke (≥1)
-//   - personal_access_token:fail     — bogus Bearer + non-granted app + revoked (≥3)
+//   - personal_access_token:fail     — bogus PAT + non-granted app + revoked (≥3)
 func verifyNewAuditEvents(accountID int32) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {

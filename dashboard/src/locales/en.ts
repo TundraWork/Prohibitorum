@@ -375,7 +375,7 @@ export default {
       trustTitle: 'Deployment requirements',
       trustIsolation: 'This app must be reachable only through Traefik. A directly-reachable app lets a client forge the Remote-* identity headers.',
       trustHeaders: 'Configure Traefik authResponseHeaders to forward all five Remote-* headers (User, Name, Email, Groups, Scopes).',
-      trustStripAuth: 'Strip the inbound Authorization header in Traefik so a raw personal access token never reaches the upstream app.',
+      trustStripAuth: 'Send personal access tokens in X-Prohibitorum-PAT. Strip that header in Traefik after verification; preserve Authorization for the upstream app.',
     },
     saml: {
       title: 'SAML applications', create: 'Register application', createTitle: 'New SAML application', created: 'Application registered.',

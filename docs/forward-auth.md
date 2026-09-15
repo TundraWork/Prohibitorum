@@ -108,9 +108,9 @@ When a user creates a PAT they choose **which forward-auth apps** the token may 
 
 **Per-app isolation.** When the gateway evaluates a PAT-bearing request it knows which forward-auth app is being accessed (from `X-Forwarded-Host`). It emits `Remote-Scopes` containing *only* the scopes the PAT granted to **that specific app**. Scopes granted to other apps in the same PAT are never leaked to the current app.
 
-### Bearer authentication at the verify endpoint
+### PAT authentication at the verify endpoint
 
-When `GET /api/prohibitorum/forward-auth/verify` receives an `Authorization: Bearer <PAT>` header, it enters **API mode** — a terminal path that never redirects:
+When `GET /api/prohibitorum/forward-auth/verify` receives an `X-Prohibitorum-PAT: <PAT>` header, it enters **API mode** — a terminal path that never redirects:
 
 | Outcome | HTTP | Meaning |
 |---------|------|---------|
@@ -118,9 +118,19 @@ When `GET /api/prohibitorum/forward-auth/verify` receives an `Authorization: Bea
 | Invalid, expired, or revoked token; disabled owner | `401` | Token authentication failed. |
 | Valid token, owner not authorized for this app | `403` | PAT does not grant access to this app, or RBAC denied. |
 
-No `Authorization` header present → the existing browser flow: valid cookie → `200`, no/expired cookie → `302` into the login flow.
+No `X-Prohibitorum-PAT` header present → the existing browser flow: valid cookie → `200`, no/expired cookie → `302` into the login flow.
 
 PATs act as the owning user with the **intersection** of the owner's authorization, the PAT's per-app grants (`appGrants`), and the protected-app access policy.
+
+Send the raw token without a `Bearer ` prefix. An empty, repeated, or malformed
+PAT header returns `401` even if a valid browser cookie is present. The verifier
+ignores `Authorization`, leaving Basic/Bearer credentials available to the
+protected application.
+
+**Upgrade:** change PAT clients from `Authorization: Bearer <PAT>` to
+`X-Prohibitorum-PAT: <PAT>`. Replace any proxy middleware that strips
+`Authorization` with one that strips only `X-Prohibitorum-PAT`, after forward-auth.
+There is no legacy Authorization fallback.
 
 PATs are accepted **only** at the forward-auth verify endpoint. They are not accepted at the admin API or OIDC/SAML endpoints.
 
@@ -149,13 +159,13 @@ authResponseHeaders:
 
 ### Required Traefik configuration for PAT-protected routers
 
-> Because Prohibitorum runs as a forward-auth verifier and is not in the request data path, it cannot unilaterally remove the client's raw PAT from the upstream request. Deployments must configure Traefik to forward the authoritative `Remote-*` headers from Prohibitorum and strip the original `Authorization` header before the request reaches upstream.
+> Because Prohibitorum runs as a forward-auth verifier and is not in the request data path, it cannot unilaterally remove the client's raw PAT from the upstream request. Deployments must configure Traefik to forward the authoritative `Remote-*` headers from Prohibitorum and strip the original `X-Prohibitorum-PAT` header before the request reaches upstream.
 
 Two requirements:
 
 1. **`authResponseHeaders` for all five `Remote-*` headers** — ensures the gateway's verified values reach the upstream service (see example above).
 
-2. **An explicit `headers` middleware that removes the inbound `Authorization` header** before the request is forwarded upstream. Do NOT rely on `authResponseHeaders` to clear `Authorization` — that behaviour is not guaranteed across Traefik versions. Strip it explicitly on PAT-protected routers.
+2. **An explicit `headers` middleware that removes the inbound `X-Prohibitorum-PAT` header** before the request is forwarded upstream. Do NOT rely on `authResponseHeaders` to clear `X-Prohibitorum-PAT` — that behaviour is not guaranteed across Traefik versions. Strip it explicitly on PAT-protected routers.
 
 Example middleware and router configuration:
 
@@ -173,24 +183,24 @@ http:
           - Remote-Groups
           - Remote-Scopes
 
-    strip-authorization:
+    strip-prohibitorum-pat:
       headers:
         customRequestHeaders:
-          Authorization: ""   # empty string → Traefik removes the header
+          X-Prohibitorum-PAT: ""   # empty string → Traefik removes the header
 
   routers:
     acme-app:
       rule: "Host(`app.acme.io`)"
       entryPoints: ["websecure"]
-      # Chain: forward-auth first, then strip Authorization before reaching backend.
+      # Chain: forward-auth first, then strip X-Prohibitorum-PAT before reaching backend.
       middlewares:
         - prohibitorum-forwardauth
-        - strip-authorization
+        - strip-prohibitorum-pat
       service: acme-app-backend
       tls: {}
 ```
 
-The `strip-authorization` middleware is only required on routers where PAT-bearing clients are expected. Browser-only apps that never send `Authorization` headers can omit it, though adding it is harmless.
+The `strip-prohibitorum-pat` middleware is only required on routers where PAT-bearing clients are expected. Browser-only apps that never send `X-Prohibitorum-PAT` headers can omit it, though adding it is harmless.
 
 ---
 

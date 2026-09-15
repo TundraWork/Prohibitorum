@@ -240,13 +240,18 @@ http:
           - Remote-Name
           - Remote-Email
           - Remote-Groups
+          - Remote-Scopes
+    strip-prohibitorum-pat:
+      headers:
+        customRequestHeaders:
+          X-Prohibitorum-PAT: ""
 
   routers:
     # The protected whoami app — gated by the forward-auth middleware.
     fa-app:
       rule: "Host(\`$FA_APP_HOST\`)"
       entryPoints: ["websecure"]
-      middlewares: ["prohibitorum-forward-auth"]
+      middlewares: ["prohibitorum-forward-auth", "strip-prohibitorum-pat"]
       service: whoami
       tls: {}
 

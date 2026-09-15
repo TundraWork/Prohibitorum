@@ -228,11 +228,15 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 	}
 	secure := proto == "https"
 
-	// Programmatic path takes precedence and is terminal: a present
-	// Authorization: Bearer is always handled as a PAT (API mode) and never
-	// falls through to the cookie path or the 302 login redirect.
-	if raw := bearerToken(r); raw != "" {
-		p.verifyForwardAuthPAT(w, r, raw, client)
+	// Authorization belongs to the protected application. Only the dedicated
+	// PAT header selects API mode, including an empty or malformed header:
+	// those requests must never fall back to a browser cookie or login redirect.
+	if values, present := r.Header[http.CanonicalHeaderKey("X-Prohibitorum-PAT")]; present {
+		if len(values) != 1 || strings.TrimSpace(values[0]) == "" || strings.ContainsAny(strings.TrimSpace(values[0]), " ,\t\r\n") {
+			writeBearerError(w, r, http.StatusUnauthorized, "invalid token")
+			return
+		}
+		p.verifyForwardAuthPAT(w, r, strings.TrimSpace(values[0]), client)
 		return
 	}
 

@@ -371,7 +371,7 @@ export default {
       trustTitle: '部署要求',
       trustIsolation: '此应用必须仅通过 Traefik 可达。若应用可直接访问，客户端可伪造 Remote-* 身份标头。',
       trustHeaders: '配置 Traefik 的 authResponseHeaders，以转发全部五个 Remote-* 标头（User、Name、Email、Groups、Scopes）。',
-      trustStripAuth: '在 Traefik 中剥离入站 Authorization 标头，防止原始个人访问令牌传递到上游应用。',
+      trustStripAuth: '用 X-Prohibitorum-PAT 发送个人访问令牌，验证后由 Traefik 剥离该标头。保留 Authorization 供上游应用使用。',
     },
     saml: {
       title: 'SAML 应用', create: '注册应用', createTitle: '新建 SAML 应用', created: '应用已注册。',
