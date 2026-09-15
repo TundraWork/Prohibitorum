@@ -33,9 +33,9 @@ vi.mock('@/lib/navigate', () => ({ hardRedirect }))
 // is covered by returnTo.test.ts; here we only assert LoginView invokes it).
 const { goReturnTo } = vi.hoisted(() => ({ goReturnTo: vi.fn() }))
 vi.mock('@/composables/useReturnTo', async () => {
-  const { ref } = await import('vue')
+  const { ref, computed } = await import('vue')
   return {
-    useReturnTo: () => ({ returnTo: ref('/me'), rawReturnTo: ref('/me'), goReturnTo }),
+    useReturnTo: () => ({ returnTo: ref('/me'), rawReturnTo: computed(() => _routeQuery.return_to ?? ''), goReturnTo }),
   }
 })
 
@@ -55,7 +55,7 @@ function mountView() {
   return mount(LoginView, {
     global: {
       plugins: [makeI18n()],
-      stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } },
+      stubs: { RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot/></a>' } },
     },
   })
 }
@@ -173,7 +173,18 @@ describe('LoginView', () => {
     const w = mountView()
     await flushPromises()
 
-    expect(w.find('a[href="/pair"]').text()).toBe(en.login.pairDevice)
+    const link = w.findComponent({ name: 'RouterLink' })
+    expect(link.props('to')).toEqual({ name: 'pair' })
+    expect(link.text()).toBe(en.login.pairDevice)
+  })
+
+  it('carries the original return_to to device pairing', async () => {
+    _routeQuery = { return_to: '/oauth/authorize?client_id=x&state=s' }
+    get.mockImplementation(async (path: string) => path.endsWith('/auth/status') ? { bootstrapped: true } : [])
+    const w = mountView(); await flushPromises()
+    expect(w.findComponent({ name: 'RouterLink' }).props('to')).toEqual({
+      name: 'pair', query: { return_to: _routeQuery.return_to },
+    })
   })
 
   it('renders exactly one OrDivider when federation providers are present', async () => {

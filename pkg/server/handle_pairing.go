@@ -15,7 +15,8 @@
 //	POST /auth/devices/pair/begin    — anonymous. New device starts pairing.
 //	GET  /auth/devices/pair/status   — anonymous. New device polls.
 //	POST /auth/devices/pair/complete — anonymous. New device redeems an
-//	                                    approved pairing for a session.
+//	                                    approved pairing for a session and a
+//	                                    validated redirect from ?return_to=.
 //	GET  /me/devices/pair/lookup     — authed. Show pairing context before
 //	                                    confirmation.
 //	POST /me/devices/pair/approve    — authed. Bind pairing to caller.
@@ -126,7 +127,8 @@ type pairCompleteReq struct {
 }
 
 type pairCompleteResp struct {
-	Session contract.SessionView `json:"session"`
+	Session  contract.SessionView `json:"session"`
+	Redirect string               `json:"redirect"`
 }
 
 func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +195,10 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		Detail:    map[string]any{"via": "pairing"},
 	})
 
-	writeJSON(w, pairCompleteResp{Session: s.sessionView(&acct)})
+	writeJSON(w, pairCompleteResp{
+		Session:  s.sessionView(&acct),
+		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
+	})
 }
 
 // ----- GET /me/devices/pair/lookup (authed) --------------------------------

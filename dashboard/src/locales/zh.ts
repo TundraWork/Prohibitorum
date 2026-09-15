@@ -195,6 +195,7 @@ export default {
     addPasskey: '为此设备添加通行密钥',
     addPasskeyHelp: '下次可直接登录，无需再次配对。',
     skip: '进入控制台',
+    continue: '继续',
     skipSafe: '已在此设备上登录。如需添加通行密钥，可稍后在安全设置中完成。',
   },
 

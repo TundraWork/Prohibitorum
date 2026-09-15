@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -32,10 +33,14 @@ func newPairingTestServer(t *testing.T) (*Server, *fakeAuthQueries) {
 }
 
 // pairCompleteRequest builds a POST /pair/complete request body.
-func pairCompleteRequest(t *testing.T, pairingID string) *http.Request {
+func pairCompleteRequest(t *testing.T, pairingID, returnTo string) *http.Request {
 	t.Helper()
 	body, _ := json.Marshal(map[string]string{"pairingId": pairingID})
-	req := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/devices/pair/complete", bytes.NewReader(body))
+	path := "/api/prohibitorum/auth/devices/pair/complete"
+	if returnTo != "" {
+		path += "?return_to=" + url.QueryEscape(returnTo)
+	}
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
 	return req
 }
 
@@ -74,7 +79,7 @@ func TestHandlePairComplete_ConcurrentExactlyOneSession(t *testing.T) {
 			defer wg.Done()
 			<-start
 			w := httptest.NewRecorder()
-			s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID))
+			s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID, ""))
 			if w.Code == http.StatusOK {
 				atomic.AddInt64(&okCount, 1)
 			} else {
@@ -119,7 +124,7 @@ func TestHandlePairComplete_PendingFailsClosed(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	w := httptest.NewRecorder()
-	s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID))
+	s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID, ""))
 	if w.Code != http.StatusPreconditionRequired {
 		t.Fatalf("pending complete: status = %d, want %d (pairing_not_approved)", w.Code, http.StatusPreconditionRequired)
 	}
@@ -138,7 +143,7 @@ func TestHandlePairComplete_PendingFailsClosed(t *testing.T) {
 func TestHandlePairComplete_MissingFailsClosed(t *testing.T) {
 	s, _ := newPairingTestServer(t)
 	w := httptest.NewRecorder()
-	s.handlePairCompleteHTTP(w, pairCompleteRequest(t, "does-not-exist"))
+	s.handlePairCompleteHTTP(w, pairCompleteRequest(t, "does-not-exist", ""))
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("missing complete: status = %d, want %d (pairing_not_found)", w.Code, http.StatusNotFound)
 	}
@@ -165,7 +170,7 @@ func TestHandlePairComplete_HappyPath(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID))
+	s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID, ""))
 	if w.Code != http.StatusOK {
 		t.Fatalf("happy path: status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}
@@ -176,6 +181,9 @@ func TestHandlePairComplete_HappyPath(t *testing.T) {
 	if resp.Session.ID != accountID {
 		t.Fatalf("session account ID = %d, want %d", resp.Session.ID, accountID)
 	}
+	if resp.Redirect != "/" {
+		t.Fatalf("redirect = %q, want /", resp.Redirect)
+	}
 	// Pairing consumed — canonical key holds consumed marker.
 	consumed, err := s.pairingStore.GetByID(ctx, p.ID)
 	if err != nil {
@@ -183,6 +191,50 @@ func TestHandlePairComplete_HappyPath(t *testing.T) {
 	}
 	if consumed.Status != pairing.PairingConsumed {
 		t.Fatalf("status after happy path = %q, want %q", consumed.Status, pairing.PairingConsumed)
+	}
+}
+
+func TestHandlePairComplete_ReturnTo(t *testing.T) {
+	for _, tc := range []struct{ name, input, want string }{
+		{"relative", "/oauth/authorize?client_id=x&response_type=code", "/oauth/authorize?client_id=x&response_type=code"},
+		{"same-origin", "https://auth.example.test/oauth/authorize?client_id=x", "/oauth/authorize?client_id=x"},
+		{"external", "https://evil.example/x", "/"},
+		{"protocol-relative", "//evil.example/x", "/"},
+		{"backslash", "/\\evil.example/x", "/"},
+		{"javascript", "javascript:alert(1)", "/"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f := newPairingTestServer(t)
+			s.config.OIDC.Issuer = "https://auth.example.test"
+			f.accounts[7] = db.Account{ID: 7, Username: "bob"}
+			ctx := context.Background()
+			p, err := s.pairingStore.New(ctx, "ua/test", "127.0.0.1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := s.pairingStore.LookupByCode(ctx, p.Code)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.pairingStore.Approve(ctx, loaded, 7); err != nil {
+				t.Fatal(err)
+			}
+			w := httptest.NewRecorder()
+			s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID, tc.input))
+			if w.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+			var resp pairCompleteResp
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatal(err)
+			}
+			if resp.Redirect != tc.want {
+				t.Fatalf("redirect=%q want=%q", resp.Redirect, tc.want)
+			}
+			if len(w.Result().Cookies()) == 0 {
+				t.Fatal("missing new session cookie")
+			}
+		})
 	}
 }
 
@@ -212,7 +264,7 @@ func TestHandlePairStatus_ConsumedMapsToExpired(t *testing.T) {
 		t.Fatalf("Approve: %v", err)
 	}
 	w := httptest.NewRecorder()
-	s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID))
+	s.handlePairCompleteHTTP(w, pairCompleteRequest(t, p.ID, ""))
 	if w.Code != http.StatusOK {
 		t.Fatalf("complete: status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}

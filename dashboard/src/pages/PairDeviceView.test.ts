@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
@@ -9,8 +9,11 @@ import { api } from '@/lib/api'
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
 
-const { push } = vi.hoisted(() => ({ push: vi.fn() }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+const { routeQuery, hardRedirect } = vi.hoisted(() => ({
+  routeQuery: {} as Record<string, string>, hardRedirect: vi.fn(),
+}))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: routeQuery }) }))
+vi.mock('@/lib/navigate', () => ({ hardRedirect }))
 vi.mock('@/lib/webauthn', () => ({
   passkeyGet: vi.fn(), isUserCancel: () => false,
   passkeyRegister: vi.fn(async () => ({ id: 'newcred', response: {} })),
@@ -23,10 +26,47 @@ const mountView = () => mount(PairDeviceView, { global: { plugins: [i18n()] }, a
 
 const BEGIN = { pairingId: 'p1', code: 'AB12CD34', displayCode: 'AB12-CD34', expiresAt: '2999-01-01T00:00:00Z' }
 
-beforeEach(() => { setActivePinia(createPinia()); get.mockReset(); post.mockReset(); push.mockReset(); vi.useFakeTimers() })
+enableAutoUnmount(afterEach)
+beforeEach(() => {
+  setActivePinia(createPinia()); get.mockReset(); post.mockReset(); hardRedirect.mockReset(); vi.useFakeTimers()
+  for (const key of Object.keys(routeQuery)) delete routeQuery[key]
+})
 afterEach(() => { vi.useRealTimers() })
 
 describe('PairDeviceView', () => {
+  for (const action of ['skip', 'add-passkey']) {
+    it(`continues to the server-issued destination after ${action}`, async () => {
+      routeQuery.return_to = '/oauth/authorize?client_id=x&state=original'
+      const destination = '/oauth/authorize?client_id=x&state=validated'
+      post.mockImplementation(async (path: string) => {
+        if (path.endsWith('/pair/begin')) return BEGIN
+        if (path.includes('/pair/complete')) return { redirect: destination }
+        if (path.endsWith('/register/begin')) return { challenge: 'c' }
+        return {}
+      })
+      get.mockResolvedValue({ status: 'approved' })
+      const w = mountView(); await flushPromises()
+      await vi.advanceTimersByTimeAsync(2600); await flushPromises()
+      expect(post).toHaveBeenCalledWith(
+        `/api/prohibitorum/auth/devices/pair/complete?return_to=${encodeURIComponent(routeQuery.return_to)}`,
+        { pairingId: 'p1' })
+      expect(w.find('[data-test=skip]').text()).toBe(en.pair.continue)
+      await w.find(`[data-test=${action}]`).trigger('click'); await flushPromises()
+      expect(hardRedirect).toHaveBeenCalledWith(destination)
+    })
+  }
+
+  it('uses dashboard wording when the server rejects an unsafe destination', async () => {
+    routeQuery.return_to = 'https://evil.example/'
+    post.mockImplementation(async (path: string) => path.endsWith('/pair/begin') ? BEGIN : { redirect: '/' })
+    get.mockResolvedValue({ status: 'approved' })
+    const w = mountView(); await flushPromises()
+    await vi.advanceTimersByTimeAsync(2600); await flushPromises()
+    expect(w.find('[data-test=skip]').text()).toBe(en.pair.skip)
+    await w.find('[data-test=skip]').trigger('click')
+    expect(hardRedirect).toHaveBeenCalledWith('/')
+  })
+
   it('begins on mount and shows the display code as large mono display', async () => {
     post.mockResolvedValue(BEGIN)
     get.mockResolvedValue({ status: 'pending' })
@@ -45,7 +85,7 @@ describe('PairDeviceView', () => {
 
   it('polls; on approved it completes and shows success', async () => {
     post.mockImplementation(async (p: string) =>
-      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' } })
+      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' }, redirect: '/' })
     get.mockResolvedValueOnce({ status: 'pending' }).mockResolvedValue({ status: 'approved' })
     const w = mountView(); await flushPromises()
     await vi.advanceTimersByTimeAsync(2600)
@@ -70,17 +110,17 @@ describe('PairDeviceView', () => {
 
   it('skip on success navigates to dashboard', async () => {
     post.mockImplementation(async (p: string) =>
-      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' } })
+      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' }, redirect: '/' })
     get.mockResolvedValue({ status: 'approved' })
     const w = mountView(); await flushPromises()
     await vi.advanceTimersByTimeAsync(2600); await flushPromises()
     await w.find('[data-test="skip"]').trigger('click'); await flushPromises()
-    expect(push).toHaveBeenCalledWith('/')
+    expect(hardRedirect).toHaveBeenCalledWith('/')
   })
 
   it('shows skip-safe note in the success phase', async () => {
     post.mockImplementation(async (p: string) =>
-      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' } })
+      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' }, redirect: '/' })
     get.mockResolvedValue({ status: 'approved' })
     const w = mountView(); await flushPromises()
     await vi.advanceTimersByTimeAsync(2600); await flushPromises()
@@ -90,7 +130,7 @@ describe('PairDeviceView', () => {
   it('add-passkey registers then navigates to dashboard', async () => {
     post.mockImplementation(async (p: string) => {
       if (p.endsWith('/pair/begin')) return BEGIN
-      if (p.endsWith('/pair/complete')) return { session: { role: 'user' } }
+      if (p.endsWith('/pair/complete')) return { session: { role: 'user' }, redirect: '/' }
       if (p.endsWith('/register/begin')) return { challenge: 'c' }
       return undefined
     })
@@ -101,12 +141,12 @@ describe('PairDeviceView', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/credentials/register/begin')
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/credentials/register/complete',
       expect.objectContaining({ id: 'newcred' }))
-    expect(push).toHaveBeenCalledWith('/')
+    expect(hardRedirect).toHaveBeenCalledWith('/')
   })
 
   it('does not complete after the component unmounts mid-poll', async () => {
     post.mockImplementation(async (p: string) =>
-      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' } })
+      p.endsWith('/pair/begin') ? BEGIN : { session: { role: 'user' }, redirect: '/' })
     let resolveStatus!: (v: { status: string }) => void
     get.mockReturnValueOnce(new Promise((r) => { resolveStatus = r }))
     const w = mountView(); await flushPromises()
@@ -125,7 +165,7 @@ describe('PairDeviceView', () => {
       if (p.endsWith('/pair/complete')) {
         completeCalls++
         if (completeCalls === 1) throw { code: 'server_error', message: 'boom' }
-        return { session: { role: 'user' } }
+        return { session: { role: 'user' }, redirect: '/' }
       }
       return undefined
     })
@@ -143,7 +183,7 @@ describe('PairDeviceView', () => {
     vi.mocked(passkeyRegister).mockRejectedValueOnce(new Error('boom'))
     post.mockImplementation(async (p: string) => {
       if (p.endsWith('/pair/begin')) return BEGIN
-      if (p.endsWith('/pair/complete')) return { session: { role: 'user' } }
+      if (p.endsWith('/pair/complete')) return { session: { role: 'user' }, redirect: '/' }
       if (p.endsWith('/register/begin')) return { challenge: 'c' }
       return undefined
     })
@@ -152,6 +192,6 @@ describe('PairDeviceView', () => {
     await vi.advanceTimersByTimeAsync(2600); await flushPromises()
     await w.find('[data-test="add-passkey"]').trigger('click'); await flushPromises()
     expect(w.text()).toContain(en.errors.codes.webauthn_error)
-    expect(push).not.toHaveBeenCalled()
+    expect(hardRedirect).not.toHaveBeenCalled()
   })
 })

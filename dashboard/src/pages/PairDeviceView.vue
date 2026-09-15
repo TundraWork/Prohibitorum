@@ -2,13 +2,16 @@
 /**
  * PairDeviceView (/pair) — the NEW-device side of device pairing (public).
  * begin → show display code → poll status → on approval complete (gets a
- * session cookie) → offer a skippable local-passkey registration → dashboard.
+ * session cookie) → offer a skippable local-passkey registration → full-page
+ * redirect to the server-validated destination. A full navigation sends the
+ * new cookie and discards the SPA's cached anonymous /me state.
  * The poll timer is cleared on unmount, approval, and expiry.
  */
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
+import { hardRedirect } from '@/lib/navigate'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
@@ -23,7 +26,10 @@ interface Begin { pairingId: string; code: string; displayCode: string; expiresA
 interface Status { status: 'pending' | 'approved' | 'expired'; expiresAt?: string }
 
 const { t } = useI18n()
-const router = useRouter()
+const route = useRoute()
+const rawReturnTo = computed(() => typeof route.query.return_to === 'string' ? route.query.return_to : '')
+const redirect = ref('/')
+const hasReturnTo = computed(() => redirect.value !== '/')
 const { busy, error, run, clear } = useApi()
 const { register, error: waError } = useWebauthn()
 
@@ -81,11 +87,14 @@ async function poll(): Promise<void> {
 }
 
 async function complete(): Promise<void> {
-  const ok = await run(async () => {
-    await api.post('/api/prohibitorum/auth/devices/pair/complete', { pairingId: pairingId.value })
-    return true as const
+  const res = await run(() => {
+    const qs = rawReturnTo.value ? `?return_to=${encodeURIComponent(rawReturnTo.value)}` : ''
+    return api.post<{ redirect: string }>(
+      `/api/prohibitorum/auth/devices/pair/complete${qs}`, { pairingId: pairingId.value })
   })
-  if (ok) phase.value = 'success'
+  if (!res) return
+  redirect.value = res.redirect
+  phase.value = 'success'
 }
 
 async function addPasskey(): Promise<void> {
@@ -98,10 +107,11 @@ async function addPasskey(): Promise<void> {
     await api.post('/api/prohibitorum/me/credentials/register/complete', attestation)
     return true as const
   })
-  if (ok) router.push('/')
+  if (ok) finish()
 }
 
-function skip(): void { router.push('/') }
+function finish(): void { hardRedirect(redirect.value) }
+function skip(): void { finish() }
 
 onMounted(() => { mounted = true; begin() })
 onUnmounted(() => { mounted = false; stopTimer() })
@@ -145,7 +155,7 @@ onUnmounted(() => { mounted = false; stopTimer() })
           </Button>
           <p class="text-center text-xs text-muted">{{ t('pair.addPasskeyHelp') }}</p>
           <Button type="button" variant="ghost" class="w-full" data-test="skip" @click="skip">
-            {{ t('pair.skip') }}
+            {{ hasReturnTo ? t('pair.continue') : t('pair.skip') }}
           </Button>
           <p class="text-center text-xs text-muted">{{ t('pair.skipSafe') }}</p>
         </div>
