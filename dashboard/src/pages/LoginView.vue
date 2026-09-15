@@ -33,6 +33,9 @@ const route = useRoute()
 const auth = useAuthStore()
 const branding = useBrandingStore()
 const { rawReturnTo, goReturnTo } = useReturnTo()
+const pairTo = computed(() => rawReturnTo.value
+  ? { name: 'pair', query: { return_to: rawReturnTo.value } }
+  : { name: 'pair' })
 const sessionExpired = computed(() => route.query.reason === 'session_expired')
 
 // Default to bootstrapped (show the sign-in methods); flip to the instruction
@@ -124,7 +127,7 @@ function onSuccess(redirect?: string): void {
 
       <FederationButtons />
 
-      <RouterLink to="/pair" class="cursor-pointer text-center text-sm text-muted underline underline-offset-4">
+      <RouterLink :to="pairTo" class="cursor-pointer text-center text-sm text-muted underline underline-offset-4">
         {{ t('login.pairDevice') }}
       </RouterLink>
     </div>

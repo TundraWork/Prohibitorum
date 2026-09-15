@@ -419,6 +419,7 @@ export default {
     addPasskey: 'Add a passkey to this device',
     addPasskeyHelp: 'So you can sign in directly next time, without pairing.',
     skip: 'Continue to dashboard',
+    continue: 'Continue',
     skipSafe: 'You are already signed in on this device. You can add a passkey later from Security settings.',
   },
 
