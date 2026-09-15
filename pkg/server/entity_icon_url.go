@@ -45,6 +45,14 @@ func (s *Server) lookupEntityIconEtag(ctx context.Context, kind, id string) stri
 	return etag
 }
 
+// enrichIconURL returns the cache-busted icon URL for (kind, id), or nil when
+// the entity has no icon — the single-entity call sites attach it to a
+// response view. Composes lookupEntityIconEtag + entityIconURLPtr so GET and
+// mutation handlers return the same iconUrl for the same row.
+func (s *Server) enrichIconURL(ctx context.Context, kind, id string) *string {
+	return entityIconURLPtr(kind, id, s.lookupEntityIconEtag(ctx, kind, id))
+}
+
 // entityIconURL returns the public icon URL for (kind, id), cache-busted by the
 // first 8 chars of the etag. Returns "" when etag is empty (no icon), so callers
 // can map that to a nil *string in the wire view.

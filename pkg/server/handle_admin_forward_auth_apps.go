@@ -152,7 +152,7 @@ func (s *Server) handleGetForwardAuthApp(ctx context.Context, in *getForwardAuth
 		return nil, fmt.Errorf("handleGetForwardAuthApp: %w", err)
 	}
 	view := forwardAuthAppView(r.ClientID, r.DisplayName, r.ForwardAuthHost, r.ForwardAuthScopes, r.AccessRestricted, r.Disabled, r.CreatedAt)
-	view.IconURL = entityIconURLPtr("oidc_client", r.ClientID, s.lookupEntityIconEtag(ctx, "oidc_client", r.ClientID))
+	view.IconURL = s.enrichIconURL(ctx, "oidc_client", r.ClientID)
 	return &forwardAuthAppOut{Body: view}, nil
 }
 
@@ -280,7 +280,9 @@ func (s *Server) handleUpdateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		Detail:    map[string]any{"client_id": clientID, "forward_auth": true, "host": body.Host},
 	})
 
-	writeJSON(w, forwardAuthAppView(row.ClientID, row.DisplayName, row.ForwardAuthHost, row.ForwardAuthScopes, row.AccessRestricted, row.Disabled, row.CreatedAt))
+	view := forwardAuthAppView(row.ClientID, row.DisplayName, row.ForwardAuthHost, row.ForwardAuthScopes, row.AccessRestricted, row.Disabled, row.CreatedAt)
+	view.IconURL = s.enrichIconURL(r.Context(), "oidc_client", row.ClientID)
+	writeJSON(w, view)
 }
 
 // ----- POST /forward-auth-apps/set-disabled (raw, admin-only, no sudo) -------
@@ -331,7 +333,9 @@ func (s *Server) handleSetForwardAuthAppDisabledHTTP(w http.ResponseWriter, r *h
 	})
 
 	// SetOIDCClientDisabled returns a full OidcClient; project only FA fields.
-	writeJSON(w, forwardAuthAppView(c.ClientID, c.DisplayName, c.ForwardAuthHost, c.ForwardAuthScopes, c.AccessRestricted, c.Disabled, c.CreatedAt))
+	view := forwardAuthAppView(c.ClientID, c.DisplayName, c.ForwardAuthHost, c.ForwardAuthScopes, c.AccessRestricted, c.Disabled, c.CreatedAt)
+	view.IconURL = s.enrichIconURL(r.Context(), "oidc_client", c.ClientID)
+	writeJSON(w, view)
 }
 
 // ----- POST /forward-auth-apps/delete (raw, sudo-gated) ----------------------
