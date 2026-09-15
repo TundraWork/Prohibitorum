@@ -11,3 +11,4 @@ rules:
       - release.yml
       - ci.yml
       - release-dryrun.yml
+      - develop-image.yml
