@@ -3906,6 +3906,8 @@ func main() {
 	}
 
 	// =========================================================================
+	checkCreateAccessPolicy(c, *baseURL)
+
 	// delegated-access — application-manager assignment, app-bound policy, live
 	// rule facts, OIDC claims, and refresh-family revocation.
 	// =========================================================================
@@ -8368,4 +8370,98 @@ func verifyAuditIPPopulated(c *client) error {
 	}
 	return fmt.Errorf("verifyAuditIPPopulated: %d session:session_start events but all have empty ip (ctx seam not wired?)",
 		len(events.Items))
+}
+
+// checkCreateAccessPolicy verifies persisted creation flags, launcher visibility,
+// and rollback after a forward-auth host conflict against the real database.
+func checkCreateAccessPolicy(c *client, baseURL string) {
+	step("create-access — OIDC, forward-auth, SAML manual/metadata: omitted, false, true")
+	for _, mode := range []string{"omitted", "false", "true"} {
+		restricted := mode == "true"
+		for _, kind := range []string{"oidc", "forward_auth", "saml", "saml_metadata"} {
+			key := "smoke-create-" + kind + "-" + mode
+			body := map[string]any{"displayName": key}
+			if mode != "omitted" {
+				body["accessRestricted"] = restricted
+			}
+			var path string
+			switch kind {
+			case "oidc":
+				path = "/api/prohibitorum/oidc-applications"
+				body["clientId"] = key
+				body["public"] = true
+				body["redirectUris"] = []string{baseURL + "/" + key + "/callback"}
+			case "forward_auth":
+				path = "/api/prohibitorum/forward-auth-apps"
+				body["clientId"] = key
+				body["host"] = key + ".example.test"
+				body["scopes"] = []map[string]string{{"name": "read", "description": "Read"}}
+			default:
+				path = "/api/prohibitorum/saml-applications"
+				body["allowIdpInitiated"] = true
+				entity := "https://" + key + ".example.test/metadata"
+				if kind == "saml_metadata" {
+					body["metadataXml"] = fmt.Sprintf(`<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="%s"><SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://%s.example.test/acs" index="0" isDefault="true"/></SPSSODescriptor></EntityDescriptor>`, entity, key)
+				} else {
+					body["entityId"] = entity
+					body["acs"] = []map[string]any{{"binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST", "location": "https://" + key + ".example.test/acs", "index": 0, "isDefault": true}}
+				}
+			}
+			var created map[string]any
+			if err := c.postJSON(path, body, &created); err != nil {
+				log.Fatalf("create-access %s/%s: %v", kind, mode, err)
+			}
+			if flag, ok := created["accessRestricted"].(bool); !ok || flag != restricted {
+				log.Fatalf("create-access %s/%s response restriction=%v", kind, mode, created["accessRestricted"])
+			}
+			id := key
+			if strings.HasPrefix(kind, "saml") {
+				id = fmt.Sprint(created["id"])
+			}
+			var got map[string]any
+			if err := c.get(path+"/"+url.PathEscape(id), &got); err != nil {
+				log.Fatal(err)
+			}
+			if got["accessRestricted"] != restricted {
+				log.Fatalf("create-access %s/%s did not persist", kind, mode)
+			}
+			var apps []struct {
+				Kind string
+				ID   string
+			}
+			if err := c.get("/api/prohibitorum/me/apps", &apps); err != nil {
+				log.Fatal(err)
+			}
+			visible := false
+			appKind := kind
+			if kind == "saml_metadata" {
+				appKind = "saml"
+			}
+			for _, app := range apps {
+				if app.Kind == appKind && app.ID == id {
+					visible = true
+				}
+			}
+			if visible == restricted {
+				log.Fatalf("create-access %s/%s launcher visible=%v", kind, mode, visible)
+			}
+		}
+	}
+	// The host update follows the client insert; its uniqueness failure must
+	// roll back that insert, so retrying with the same client ID remains possible.
+	response, err := c.postJSONRaw("/api/prohibitorum/forward-auth-apps", map[string]any{
+		"clientId": "smoke-create-conflict", "host": "smoke-create-forward_auth-true.example.test", "accessRestricted": true,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusConflict {
+		log.Fatalf("create-access duplicate host: want 409, got %d", response.StatusCode)
+	}
+	rows, err := dbScalar(os.Getenv("PROHIBITORUM_DATABASE_URL"), "SELECT count(*) FROM oidc_client WHERE client_id = 'smoke-create-conflict'")
+	if err != nil || len(rows) != 1 || rows[0] != "0" {
+		log.Fatalf("create-access failed transaction left partial app: rows=%v err=%v", rows, err)
+	}
+	log.Printf("  creation flags + launcher access filtering across 12 cases; failed forward-auth create rolled back ✓")
 }

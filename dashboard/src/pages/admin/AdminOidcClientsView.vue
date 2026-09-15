@@ -53,6 +53,7 @@ const rows = page.items
 const displayError = computed(() => page.error.value ?? error.value)
 function clearError(): void { page.clear(); clear() }
 const createOpen = ref(false)
+const accessRestricted = ref(false)
 const created = ref(false)
 const revealedSecret = ref('')
 
@@ -82,6 +83,7 @@ async function create(): Promise<void> {
   created.value = false
   const res = await run(() => withSudo(() => api.post<{ clientId: string; secret?: string }>('/api/prohibitorum/oidc-applications', {
     clientId: clientId.value,
+    accessRestricted: accessRestricted.value,
     displayName: displayName.value,
     redirectUris: redirectUris.value,
     postLogoutRedirectUris: postLogoutUris.value,
@@ -98,6 +100,7 @@ async function create(): Promise<void> {
 }
 
 function openCreate(): void {
+  accessRestricted.value = false
   // Reset form state
   clientId.value = ''
   displayName.value = ''
@@ -165,6 +168,12 @@ function openCreate(): void {
           <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">
             <Switch id="requireConsent" v-model="requireConsent" />
           </SettingRow>
+        </FormSection>
+        <FormSection :title="t('admin.access.title')">
+          <SettingRow :label="t('admin.access.restrictedLabel')" :description="t('admin.access.restrictedHint')" for="accessRestricted">
+            <Switch id="accessRestricted" data-test="access-restricted" v-model="accessRestricted" />
+          </SettingRow>
+          <p v-if="accessRestricted" class="text-xs text-muted">{{ t('admin.access.createRestrictedHint') }}</p>
         </FormSection>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.oidc.create') }}</Button>

@@ -238,8 +238,8 @@ INSERT INTO oidc_client (
   client_id, display_name, client_secret_hash, redirect_uris,
   post_logout_redirect_uris, allowed_scopes, require_pkce,
   allowed_code_challenge_methods, token_endpoint_auth_method,
-  subject_type, require_consent
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+  subject_type, require_consent, access_restricted
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, token_endpoint_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
 `
 
@@ -255,6 +255,7 @@ type InsertOIDCClientParams struct {
 	TokenEndpointAuthMethod     string      `json:"tokenEndpointAuthMethod"`
 	SubjectType                 string      `json:"subjectType"`
 	RequireConsent              bool        `json:"requireConsent"`
+	AccessRestricted            bool        `json:"accessRestricted"`
 }
 
 func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientParams) (OidcClient, error) {
@@ -270,6 +271,7 @@ func (q *Queries) InsertOIDCClient(ctx context.Context, arg InsertOIDCClientPara
 		arg.TokenEndpointAuthMethod,
 		arg.SubjectType,
 		arg.RequireConsent,
+		arg.AccessRestricted,
 	)
 	var i OidcClient
 	err := row.Scan(

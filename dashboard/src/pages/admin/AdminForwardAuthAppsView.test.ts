@@ -15,6 +15,23 @@ const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en
 const mountView = () => mount(AdminForwardAuthAppsView, { global: { plugins: [i18n()], stubs: { RouterLink: true } } })
 
 describe('AdminForwardAuthAppsView', () => {
+  it('submits restricted access and resets it when reopening creation', async () => {
+    vi.mocked(api.get).mockResolvedValue({ items: [], nextCursor: '' })
+    vi.mocked(api.post).mockResolvedValue({ clientId: 'new', id: 2 })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    expect(w.find('[data-test="access-restricted"]').attributes('aria-checked')).toBe('false')
+    await w.find('[data-test="access-restricted"]').trigger('click')
+    expect(w.text()).toContain(en.admin.access.createRestrictedHint)
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(api.post).toHaveBeenLastCalledWith('/api/prohibitorum/forward-auth-apps', expect.objectContaining({ accessRestricted: true }))
+    await w.find('[data-test="create"]').trigger('click')
+    expect(w.find('[data-test="access-restricted"]').attributes('aria-checked')).toBe('false')
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(api.post).toHaveBeenLastCalledWith('/api/prohibitorum/forward-auth-apps', expect.objectContaining({ accessRestricted: false }))
+    w.unmount()
+  })
+
   beforeEach(() => { vi.clearAllMocks(); push.mockReset() })
 
   it('lists forward-auth services', async () => {

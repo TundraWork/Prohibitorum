@@ -857,6 +857,7 @@ SELECT
   display_name,
   launch_url,
   redirect_uris,
+  require_consent,
   access_restricted
 FROM oidc_client
 WHERE NOT disabled
@@ -869,6 +870,7 @@ type ListOIDCAccessCandidatesRow struct {
 	DisplayName      string      `json:"displayName"`
 	LaunchUrl        pgtype.Text `json:"launchUrl"`
 	RedirectUris     []string    `json:"redirectUris"`
+	RequireConsent   bool        `json:"requireConsent"`
 	AccessRestricted bool        `json:"accessRestricted"`
 }
 
@@ -886,6 +888,7 @@ func (q *Queries) ListOIDCAccessCandidates(ctx context.Context) ([]ListOIDCAcces
 			&i.DisplayName,
 			&i.LaunchUrl,
 			&i.RedirectUris,
+			&i.RequireConsent,
 			&i.AccessRestricted,
 		); err != nil {
 			return nil, err

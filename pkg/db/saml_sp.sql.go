@@ -143,8 +143,8 @@ func (q *Queries) GetSAMLSubjectID(ctx context.Context, arg GetSAMLSubjectIDPara
 const insertSAMLSP = `-- name: InsertSAMLSP :one
 INSERT INTO saml_sp (entity_id, display_name, sp_kind, name_id_format,
   attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime,
-  metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+  metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, access_restricted)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING id, entity_id, display_name, sp_kind, name_id_format, attribute_map, require_signed_authn_request, allow_idp_initiated, session_lifetime, metadata_xml, metadata_valid_until, metadata_cache_duration, metadata_fetched_at, created_at, disabled, access_restricted
 `
 
@@ -161,6 +161,7 @@ type InsertSAMLSPParams struct {
 	MetadataValidUntil        pgtype.Timestamptz `json:"metadataValidUntil"`
 	MetadataCacheDuration     pgtype.Interval    `json:"metadataCacheDuration"`
 	MetadataFetchedAt         pgtype.Timestamptz `json:"metadataFetchedAt"`
+	AccessRestricted          bool               `json:"accessRestricted"`
 }
 
 func (q *Queries) InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (SamlSp, error) {
@@ -177,6 +178,7 @@ func (q *Queries) InsertSAMLSP(ctx context.Context, arg InsertSAMLSPParams) (Sam
 		arg.MetadataValidUntil,
 		arg.MetadataCacheDuration,
 		arg.MetadataFetchedAt,
+		arg.AccessRestricted,
 	)
 	var i SamlSp
 	err := row.Scan(

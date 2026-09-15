@@ -18,6 +18,8 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import FormSection from '@/components/custom/FormSection.vue'
+import SettingRow from '@/components/custom/SettingRow.vue'
+import { Switch } from '@/components/ui/switch'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ScopeVocabularyEditor, { type ScopeEntry } from '@/components/custom/ScopeVocabularyEditor.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
@@ -43,6 +45,7 @@ const rows = page.items
 const displayError = computed(() => page.error.value ?? error.value)
 function clearError(): void { page.clear(); clear() }
 const createOpen = ref(false)
+const accessRestricted = ref(false)
 const created = ref(false)
 
 const clientId = ref('')
@@ -55,6 +58,7 @@ const scopes = ref<ScopeEntry[]>([])
 function go(id: string): void { router.push(`/admin/forward-auth-apps/${id}`) }
 
 function openCreate(): void {
+  accessRestricted.value = false
   clientId.value = ''
   host.value = ''
   displayName.value = ''
@@ -67,6 +71,7 @@ async function create(): Promise<void> {
   created.value = false
   const res = await run(() => withSudo(() => api.post<ForwardAuthApp>('/api/prohibitorum/forward-auth-apps', {
     clientId: clientId.value,
+    accessRestricted: accessRestricted.value,
     host: host.value,
     displayName: displayName.value,
     scopes: scopes.value,
@@ -109,6 +114,12 @@ async function create(): Promise<void> {
         </FormSection>
         <FormSection :title="t('admin.forwardAuth.scopesLabel')" :description="t('admin.forwardAuth.scopesDesc')">
           <ScopeVocabularyEditor v-model="scopes" />
+        </FormSection>
+        <FormSection :title="t('admin.access.title')">
+          <SettingRow :label="t('admin.access.restrictedLabel')" :description="t('admin.access.restrictedHint')" for="accessRestricted">
+            <Switch id="accessRestricted" data-test="access-restricted" v-model="accessRestricted" />
+          </SettingRow>
+          <p v-if="accessRestricted" class="text-xs text-muted">{{ t('admin.access.createRestrictedHint') }}</p>
         </FormSection>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.forwardAuth.create') }}</Button>

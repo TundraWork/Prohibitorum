@@ -88,6 +88,8 @@ Assignments are management authority only. They do not grant the manager any OID
 
 ## App-bound access workspace
 
+The OIDC, SAML (manual or metadata), and forward-auth creation endpoints accept optional boolean `accessRestricted`. Omitted or `false` preserves unrestricted creation; `true` creates the app with no access until its policy grants access. The flag is included in the create response and committed with the app. Forward-auth creation commits its backing client, proxy configuration, scopes and access policy in one transaction.
+
 There are no reusable global groups or direct per-account access grants. A policy group belongs to one immutable application binding:
 
 - an OIDC or forward-auth group binds to its backing OIDC client;

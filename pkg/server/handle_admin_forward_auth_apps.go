@@ -84,6 +84,7 @@ func faActorID(ctx context.Context) *int32 {
 	}
 	return nil
 }
+
 // ----- GET /forward-auth-apps (typed, role-only) -----------------------------
 
 type listForwardAuthAppsIn struct {
@@ -159,10 +160,11 @@ func (s *Server) handleGetForwardAuthApp(ctx context.Context, in *getForwardAuth
 // ----- POST /forward-auth-apps (raw, sudo-gated) -----------------------------
 
 type createForwardAuthAppBody struct {
-	ClientID    string                   `json:"clientId"`
-	Host        string                   `json:"host"`
-	DisplayName string                   `json:"displayName"`
-	Scopes      []contract.ForwardAuthScope `json:"scopes"`
+	AccessRestricted bool                        `json:"accessRestricted"`
+	ClientID         string                      `json:"clientId"`
+	Host             string                      `json:"host"`
+	DisplayName      string                      `json:"displayName"`
+	Scopes           []contract.ForwardAuthScope `json:"scopes"`
 }
 
 func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +185,14 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 	}
 	scopesJSON, _ := json.Marshal(validated)
 
-	c, err := oidc.RegisterForwardAuthApp(r.Context(), s.queries, body.ClientID, body.Host, body.DisplayName)
+	tx, err := s.dbPool.Begin(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("handleCreateForwardAuthApp: begin tx: %w", err))
+		return
+	}
+	defer tx.Rollback(r.Context()) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	c, err := oidc.RegisterForwardAuthApp(r.Context(), qtx, body.ClientID, body.Host, body.DisplayName)
 	if err != nil {
 		if isUniqueViolation(err) {
 			writeAuthErr(w, authn.ErrClientAlreadyExists())
@@ -193,15 +202,23 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// The scope vocabulary is written as a third, non-transactional write after
-	// RegisterForwardAuthApp's own two writes. A transient failure here leaves a
-	// fully-created forward-auth app with an empty scope vocabulary, which the
-	// admin can recover by saving scopes again via the FA-app PUT.
-	if err := s.queries.SetForwardAuthScopes(r.Context(), db.SetForwardAuthScopesParams{
+	// Publish the client, proxy config, scopes and access policy together.
+	if err := qtx.SetForwardAuthScopes(r.Context(), db.SetForwardAuthScopesParams{
 		ClientID:          body.ClientID,
 		ForwardAuthScopes: scopesJSON,
 	}); err != nil {
 		writeAuthErr(w, fmt.Errorf("handleCreateForwardAuthApp: set scopes: %w", err))
+		return
+	}
+
+	if _, err := qtx.SetOIDCClientAccessRestricted(r.Context(), db.SetOIDCClientAccessRestrictedParams{
+		ClientID: body.ClientID, AccessRestricted: body.AccessRestricted,
+	}); err != nil {
+		writeAuthErr(w, fmt.Errorf("handleCreateForwardAuthApp: set access: %w", err))
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeAuthErr(w, fmt.Errorf("handleCreateForwardAuthApp: commit: %w", err))
 		return
 	}
 
@@ -214,9 +231,8 @@ func (s *Server) handleCreateForwardAuthAppHTTP(w http.ResponseWriter, r *http.R
 
 	// c is the full OidcClient returned by InsertOIDCClient (before the FA
 	// flag/host update is applied by RegisterForwardAuthApp's SetForwardAuthConfig
-	// call). Build the view from known create-time values: a fresh FA app is
-	// never access-restricted and is enabled.
-	view := forwardAuthAppView(c.ClientID, c.DisplayName, pgtype.Text{String: body.Host, Valid: true}, scopesJSON, false, c.Disabled, c.CreatedAt)
+	// call). Build the view from the committed create-time values.
+	view := forwardAuthAppView(c.ClientID, c.DisplayName, pgtype.Text{String: body.Host, Valid: true}, scopesJSON, body.AccessRestricted, c.Disabled, c.CreatedAt)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(view)
