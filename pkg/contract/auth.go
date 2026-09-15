@@ -60,6 +60,7 @@ type AccountIdentityView struct {
 // AccountView is admin-facing; lastSignInAt is derived from the account's credentials.
 type AccountView struct {
 	ID                 int32                 `json:"id"`
+	OIDCSubject        string                `json:"oidcSubject"`
 	Username           string                `json:"username"`
 	DisplayName        string                `json:"displayName"`
 	Email              *string               `json:"email,omitempty"`

@@ -17,6 +17,7 @@ const mountView = () => mount(AdminAccountDetailView, {
 })
 const ACCOUNT = {
   id: 7, username: 'carol', displayName: 'Carol Ng', role: 'user',
+  oidcSubject: '906b9b10-83fd-4e9f-96b2-9a648df6b233',
   attributes: { team: 'security', score: 42 }, disabled: false,
   createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-02-01T00:00:00Z', lastSignInAt: '2026-06-01T00:00:00Z',
 }
@@ -76,6 +77,8 @@ describe('AdminAccountDetailView', () => {
     expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7')
     expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/accounts/7/credentials'))
     expect(w.text()).toContain('Carol Ng')
+    expect(w.text()).toContain(ACCOUNT.oidcSubject)
+    expect(w.text()).toContain(en.admin.account.oidcSubject)
     expect(w.text()).toContain('Laptop')
     // string attr 'team' is seeded into the editable row editor
     expect(w.find('[data-test="attr-row-0"]').exists()).toBe(true)

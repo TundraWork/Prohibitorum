@@ -448,6 +448,8 @@ export default {
       back: '返回账户列表',
       notFound: '该账户已不存在。',
       identityTitle: '身份与角色',
+      oidcSubject: 'OIDC 主体标识（sub）',
+      oidcSubjectDesc: '创建账户时生成的随机 UUID。OIDC 应用收到的 sub 就是这个值，修改用户名或显示名称不会改变它。',
       username: '用户名', usernameDesc: '账户的固定标识符，不可更改。', displayName: '显示名称', role: '角色',
       email: '邮箱', emailPlaceholder: "name{'@'}example.com",
       emailVerified: '已验证', emailUnverified: '未验证',

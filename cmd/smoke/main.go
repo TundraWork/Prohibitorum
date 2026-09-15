@@ -1507,6 +1507,16 @@ func main() {
 	if idSub == "" {
 		log.Fatalf("id_token sub is empty")
 	}
+	var adminAccount struct {
+		OIDCSubject string `json:"oidcSubject"`
+	}
+	if err := c.get(fmt.Sprintf("/api/prohibitorum/accounts/%d", oidcMe.ID), &adminAccount); err != nil {
+		log.Fatalf("admin account subject: %v", err)
+	}
+	if adminAccount.OIDCSubject != idSub {
+		log.Fatalf("admin account oidcSubject = %q, want id_token sub %q", adminAccount.OIDCSubject, idSub)
+	}
+	log.Printf("  admin account oidcSubject matches signed id_token sub ✓")
 	if got := str(idClaims["nonce"]); got != authNonce {
 		log.Fatalf("id_token nonce: want %q, got %q", authNonce, got)
 	}

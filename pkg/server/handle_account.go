@@ -96,6 +96,7 @@ func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountVi
 	}
 	v := contract.AccountView{
 		ID:                 r.ID,
+		OIDCSubject:        r.OidcSubject.String(),
 		Username:           r.Username,
 		DisplayName:        r.DisplayName,
 		Email:              textPtr(r.Email),
@@ -122,6 +123,7 @@ func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountVi
 func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin string) contract.AccountView {
 	v := contract.AccountView{
 		ID:                 a.ID,
+		OIDCSubject:        a.OidcSubject.String(),
 		Username:           a.Username,
 		DisplayName:        a.DisplayName,
 		Email:              textPtr(a.Email),
