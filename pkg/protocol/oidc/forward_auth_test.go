@@ -187,7 +187,7 @@ func newFAProvider(q db.Querier) (*Provider, kv.Store) {
 		return appaccess.Decision{Allowed: true, Source: appaccess.SourceRule, MatchingRuleGroups: matches}, nil
 	}}
 	p := &Provider{
-		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}},
+		cfg:     &configx.Config{OIDC: configx.OIDCConfig{Issuer: testIssuer}, ForwardAuth: configx.ForwardAuthConfig{SessionTTL: time.Hour}},
 		queries: q,
 		kv:      store,
 		audit:   &recordingAudit{},

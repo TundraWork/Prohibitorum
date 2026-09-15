@@ -28,6 +28,7 @@ const forwardAuthCookieBase = "prohibitorum_forward_auth"
 type faSession struct {
 	AccountID int32  `json:"account_id"`
 	ClientID  string `json:"client_id"`
+	raw       string // exact stored bytes for renewal; never serialized
 }
 
 func faSessionKey(token string) string { return "fa:session:" + token }
@@ -62,7 +63,33 @@ func loadFASession(ctx context.Context, store kv.Store, token string) *faSession
 	if json.Unmarshal([]byte(raw), &s) != nil {
 		return nil
 	}
+	s.raw = raw
 	return &s
+}
+
+// renewFASession slides the lifetime only near expiry. The caller must first
+// authorize the account for the application. Keep the token stable so concurrent
+// requests and sign-out still address one session; CAS never recreates a key
+// removed by sign-out or expiry. Preserve old payloads byte-for-byte.
+func renewFASession(ctx context.Context, store kv.Store, token string, s *faSession, ttl time.Duration) (bool, error) {
+	remaining, err := store.TTL(ctx, faSessionKey(token))
+	if err != nil {
+		return false, err
+	}
+	if remaining == -2 {
+		return false, kv.ErrKeyNotFound
+	}
+	if remaining >= 0 && time.Duration(remaining)*time.Second > ttl/4 {
+		return false, nil
+	}
+	renewed, err := store.CompareAndSwap(ctx, faSessionKey(token), s.raw, s.raw, ttl)
+	if err != nil {
+		return false, err
+	}
+	if !renewed {
+		return false, kv.ErrKeyNotFound
+	}
+	return true, nil
 }
 
 // faState is the payload stored in KV for a single-use OAuth2 state parameter,
@@ -249,6 +276,16 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 					if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {
 						http.Error(w, "service under maintenance", http.StatusServiceUnavailable)
 						return
+					}
+					renewed, err := renewFASession(ctx, p.kv, c.Value, sess, p.cfg.ForwardAuth.SessionTTL)
+					if err != nil {
+						// No successful authorization response or cookie if renewal
+						// raced with deletion, expiry, or an unavailable store.
+						http.Error(w, "session unavailable", http.StatusServiceUnavailable)
+						return
+					}
+					if renewed {
+						http.SetCookie(w, faCookie(secure, c.Value))
 					}
 					writeIdentityHeaders(w, acct.Username, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs(), nil)
 					w.WriteHeader(http.StatusOK)

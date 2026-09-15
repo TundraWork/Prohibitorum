@@ -34,6 +34,12 @@
 | `PROHIBITORUM_OIDC_AUTHORIZATION_CODE_TTL` | `60s` | Authorization-code lifetime (single-use). |
 | `PROHIBITORUM_OIDC_JWKS_CACHE_MAX_AGE` | `5m` | `Cache-Control: max-age` on `/oauth/jwks` + discovery. |
 
+## Forward auth
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_FORWARD_AUTH_SESSION_TTL` | `1h` | Sliding server session lifetime. Successful cookie-authenticated requests renew when at most one quarter remains. Configure Traefik cookie forwarding as described in [forward-auth.md](docs/forward-auth.md#session-renewal). |
+
 ## WebAuthn
 
 | Variable | Default | Meaning |
