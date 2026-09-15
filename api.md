@@ -128,6 +128,12 @@ advanced `provider`, `field`, `value`, and `match`
 (`exact`/`prefix`/`contains`) query parameters. Provider descriptors constrain
 valid fields/operators, and filtering occurs before cursor pagination.
 
+Admin account responses (list, detail, and updates) include `oidcSubject`, the
+canonical UUID sent as `sub` in OIDC ID tokens and UserInfo. PostgreSQL generates
+it once with `gen_random_uuid()` when the account is created. It is distinct
+from numeric `id`, is read-only, and stays unchanged when profile fields change.
+The admin account details page displays it with a copy button.
+
 ---
 
 ## Signing keys

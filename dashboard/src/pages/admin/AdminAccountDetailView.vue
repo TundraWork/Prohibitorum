@@ -39,7 +39,7 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import IdentityMetadata, { type AccountIdentity } from '@/components/custom/IdentityMetadata.vue'
 
 interface Account {
-  id: number; username: string; displayName: string; role: string
+  id: number; oidcSubject: string; username: string; displayName: string; role: string
   email?: string; emailVerified: boolean
   attributes?: Record<string, unknown>; disabled: boolean
   createdAt: string; updatedAt: string; lastSignInAt?: string; avatarUrl?: string
@@ -309,6 +309,10 @@ onMounted(async () => {
             <Label>{{ t('admin.account.username') }}</Label>
             <p class="font-mono text-sm text-muted">{{ account.username }}</p>
             <p class="text-xs text-muted">{{ t('admin.account.usernameDesc') }}</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <CodeField :value="account.oidcSubject" :label="t('admin.account.oidcSubject')" wrap />
+            <p class="text-xs text-muted">{{ t('admin.account.oidcSubjectDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.account.displayName') }}</Label>

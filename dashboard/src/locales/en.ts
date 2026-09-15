@@ -231,6 +231,8 @@ export default {
       back: 'Back to accounts',
       notFound: 'That account no longer exists.',
       identityTitle: 'Identity & role',
+      oidcSubject: 'OIDC subject (sub)',
+      oidcSubjectDesc: 'A random UUID assigned when this account was created. OIDC applications receive this value as sub; changing the username or display name leaves it unchanged.',
       username: 'Username', usernameDesc: 'The immutable account handle.', displayName: 'Display name', role: 'Role',
       email: 'Email', emailPlaceholder: "name{'@'}example.com",
       emailVerified: 'Verified', emailUnverified: 'Unverified',
