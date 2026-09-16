@@ -134,6 +134,10 @@ npm ci
 npm test
 npm run build
 cd ..
+# Same reason as build:web: emptyOutDir (dashboard/vite.config.ts) wipes the
+# tracked dist placeholder, so recreate it here as well or git status shows a
+# pending deletion.
+touch pkg/webui/dist/.gitkeep
 """
 
 [tasks."ci:smoke"]
