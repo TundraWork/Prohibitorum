@@ -114,6 +114,21 @@ describe('EnrollView', () => {
     expect(wrapper.text()).toContain('alex')
   })
 
+  it('reset intent renders the passkey registration button and password+TOTP option', async () => {
+    get.mockResolvedValue({
+      intent: 'reset',
+      target: { username: 'alex', displayName: 'Alex' },
+      allowedMethods: ['passkey', 'password_totp'],
+      expiresAt: '2099-01-01T00:00:00Z',
+    })
+    const wrapper = await mountView(await makeRouter())
+
+    expect(wrapper.find('input[name=username]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('alex')
+    expect(wrapper.find('button[type=submit]').text()).toBe('Set up passkey')
+    expect(wrapper.find('[data-test="choose-password-totp"]').exists()).toBe(true)
+  })
+
   it('renders provider-backed recovery without exposing or submitting an identity', async () => {
     get.mockResolvedValue({
       intent: 'reset',

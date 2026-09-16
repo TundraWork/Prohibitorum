@@ -261,9 +261,11 @@ async function enroll(): Promise<void> {
         @back="method = 'choose'"
       />
 
-      <!-- Otherwise — but only for intents that collect a local identity:
-           the method chooser (or the passkey-only bootstrap button). -->
-      <template v-else-if="collectsIdentity">
+      <!-- Otherwise — unless this invite is bound to a provider: the method
+           chooser (or the passkey-only bootstrap button). A reset registers
+           a new passkey without collecting an identity, so it renders here
+           too; the account already exists. -->
+      <template v-else-if="!providerBound">
         <ErrorPanel :error="error" @dismiss="clearError" />
 
         <p class="text-xs text-muted">{{ t('enroll.passkeyForeshadow') }}</p>
