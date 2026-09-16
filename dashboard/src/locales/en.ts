@@ -989,6 +989,8 @@ export default {
   },
 
   login: {
+    applicationTitle: 'Sign in to continue to {application}',
+    applicationDescription: '{brand} provides sign-in for this application. You’ll return to it when you’re done.',
     title: 'Sign in',
     passkeyButton: 'Sign in with passkey',
     passkeyHint: "Use your device's built-in authenticator.",

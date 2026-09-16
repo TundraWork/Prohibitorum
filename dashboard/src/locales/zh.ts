@@ -985,6 +985,8 @@ export default {
   },
 
   login: {
+    applicationTitle: '登录以继续访问 {application}',
+    applicationDescription: '{brand} 为此应用提供登录。完成后将返回应用。',
     title: '登录',
     passkeyButton: '使用通行密钥登录',
     passkeyHint: '使用设备内置的身份验证器。',

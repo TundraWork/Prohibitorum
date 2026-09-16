@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
+import { reactive } from 'vue'
 import en from '@/locales/en'
 import LoginView from './LoginView.vue'
 import { useSessionExpiry } from '@/composables/useSessionExpiry'
@@ -238,5 +239,80 @@ describe('LoginView', () => {
     mountView()
     await flushPromises()
     expect(useSessionExpiry().expired.value).toBe(false)
+  })
+})
+
+
+describe('LoginView — forward-auth explanation', () => {
+  const contextPath = '/api/prohibitorum/forward-auth/login-context?return_to='
+  function responses(application: { label: string } | null) {
+    get.mockImplementation(async (path: string) => {
+      if (path.startsWith(contextPath)) return { application }
+      if (path.endsWith('/auth/status')) return { bootstrapped: true }
+      if (path.endsWith('/auth/federation')) return []
+      throw new Error('Unexpected request')
+    })
+  }
+
+  it.each(['Registered app', 'app.example:8443', '<script>display as text</script>'])(
+    'renders the server label as text: %s', async (label) => {
+      _routeQuery = { return_to: 'https://idp.example/oauth/authorize?client_id=app&state=x' }
+      responses({ label })
+      const w = mountView(); await flushPromises()
+      expect(w.get('[data-test="forward-auth-context"]').text()).toContain(label)
+      expect(w.get('[data-test="forward-auth-context"]').text()).toContain('Prohibitorum provides sign-in')
+      expect(w.find('[data-test="forward-auth-context"] script').exists()).toBe(false)
+      expect(get).toHaveBeenCalledWith(contextPath + encodeURIComponent(_routeQuery.return_to!))
+      expect(w.findComponent({ name: 'RouterLink' }).props('to').query.return_to).toBe(_routeQuery.return_to)
+      w.unmount()
+    },
+  )
+
+  it('does not request context on direct login or before redirecting an existing session', async () => {
+    responses(null)
+    let w = mountView(); await flushPromises(); w.unmount()
+    _routeQuery = { return_to: 'https://idp.example/oauth/authorize?client_id=app' }
+    authState.me = { id: 1, username: 'alex' }
+    w = mountView(); await flushPromises()
+    expect(get.mock.calls.some(([path]) => path.startsWith(contextPath))).toBe(false)
+    expect(goReturnTo).toHaveBeenCalledOnce()
+    w.unmount()
+  })
+
+  it.each(['absent', 'failed', 'pending'])('keeps login usable when context is %s', async (mode) => {
+    _routeQuery = { return_to: 'https://idp.example/oauth/authorize?client_id=app' }
+    responses(null)
+    const normal = get.getMockImplementation()!
+    get.mockImplementation((path) => {
+      if (path.startsWith(contextPath) && mode === 'failed') return Promise.reject(new Error('unavailable'))
+      if (path.startsWith(contextPath) && mode === 'pending') return new Promise(() => {})
+      return normal(path)
+    })
+    const w = mountView(); await flushPromises()
+    expect(w.find('[data-test="forward-auth-context"]').exists()).toBe(false)
+    expect(w.text()).toContain(en.login.passkeyButton)
+    expect(w.text()).toContain(en.login.passwordLabel)
+    w.unmount()
+  })
+
+  it('ignores an old response after the destination changes', async () => {
+    _routeQuery = reactive({ return_to: 'https://idp.example/oauth/authorize?client_id=first' })
+    let oldResponse!: (value: unknown) => void
+    responses({ label: 'Second app' })
+    const normal = get.getMockImplementation()!
+    get.mockImplementation((path) => {
+      if (path.startsWith(contextPath) && decodeURIComponent(path).includes('client_id=first')) {
+        return new Promise(resolve => { oldResponse = resolve })
+      }
+      return normal(path)
+    })
+    const w = mountView(); await flushPromises()
+    _routeQuery.return_to = 'https://idp.example/oauth/authorize?client_id=second'
+    await flushPromises()
+    expect(w.text()).toContain('Second app')
+    oldResponse({ application: { label: 'First app' } }); await flushPromises()
+    expect(w.text()).not.toContain('First app')
+    expect(w.text()).toContain('Second app')
+    w.unmount()
   })
 })

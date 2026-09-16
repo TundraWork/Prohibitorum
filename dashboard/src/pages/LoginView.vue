@@ -11,7 +11,7 @@
  * so we replace those with the enroll-admin instruction (federation, if any
  * upstream is configured, stays available since it can bootstrap via invite).
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
@@ -44,6 +44,22 @@ const bootstrapped = ref(true)
 // True while the status check is in flight — hides the auth-method section
 // until we know which methods to render, preventing a visible flash.
 const checking = ref(true)
+const application = ref<{ label: string } | null>(null)
+
+watch([rawReturnTo, checking, () => auth.me], async ([returnTo, pending, me], _, onCleanup) => {
+  application.value = null
+  if (!returnTo || pending || me) return
+  let current = true
+  onCleanup(() => { current = false })
+  try {
+    const context = await api.get<{ application: { label: string } | null }>(
+      '/api/prohibitorum/forward-auth/login-context?return_to=' + encodeURIComponent(returnTo),
+    )
+    if (current) application.value = context.application
+  } catch {
+    // This optional explanation must not block any sign-in method.
+  }
+})
 
 onMounted(async () => {
   // Clear the global session-expired banner flag now that the user is on the
@@ -114,6 +130,10 @@ function onSuccess(redirect?: string): void {
         <CardSkeleton :lines="3" />
       </template>
       <template v-else-if="bootstrapped">
+        <div v-if="application" class="min-w-0 space-y-2 text-center [overflow-wrap:anywhere]" data-test="forward-auth-context">
+          <h2 class="text-lg font-semibold text-ink">{{ t('login.applicationTitle', { application: application.label }) }}</h2>
+          <p class="text-sm text-muted">{{ t('login.applicationDescription', { brand: branding.instanceName }) }}</p>
+        </div>
         <PasskeyButton :return-to="rawReturnTo" @success="onSuccess" />
 
         <OrDivider :label="t('login.orDivider')" />

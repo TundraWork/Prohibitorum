@@ -378,6 +378,24 @@ Admin routes for inspecting and revoking any user's PATs. Gate notation follows 
 
 ---
 
+## Forward-auth login context
+
+GET /api/prohibitorum/forward-auth/login-context?return_to=<encoded authorize URL>
+is public, read-only and no-store. It returns {"application":{"label":"App"}}
+only when the same-origin /oauth/authorize URL matches a registered, enabled
+forward-auth client, its exact callback URI, and a live gateway state with the
+same client, original host and S256 verifier. The label is the registered display
+name, or registered host (including port) when the name is empty.
+It returns {"application":null} for ordinary OIDC or missing/mismatched context.
+It never consumes state or renews its five-minute lifetime.
+
+Missing/repeated return_to, malformed query encoding, a noncanonical authorize
+URL, duplicate security parameters, missing client_id/redirect_uri/response_type,
+or a query over 16 KiB returns 400 bad_request. State and PKCE are optional for
+ordinary OIDC; their absence returns no context. Storage failures return
+503 database_unavailable or kv_unavailable. Errors contain no input URL or
+credential. Login remains available when this optional explanation cannot load.
+
 ## Forward-auth verify endpoint
 
 | Method | Path | Gate | Notes |

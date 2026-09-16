@@ -4795,6 +4795,7 @@ func main() {
 		}
 		registerForwardAuthApp(c, faClient, faHost1, "Smoke FA")
 		registerForwardAuthApp(c, faClient2, faHost2, "Smoke FA 2")
+		checkForwardAuthLoginContext(*baseURL, faHost1, "Smoke FA")
 		log.Printf("  forward-auth apps registered: %s (host=%s), %s (host=%s) ✓", faClient, faHost1, faClient2, faHost2)
 		// Regression (PHB-4): upload an icon for faClient (FA apps are
 		// oidc_client icon owners), then require the FA PUT response itself to
@@ -9040,4 +9041,42 @@ func checkCreateAccessPolicy(c *client, baseURL string) {
 		log.Fatalf("create-access failed transaction left partial app: rows=%v err=%v", rows, err)
 	}
 	log.Printf("  creation flags + launcher access filtering across 12 cases; failed forward-auth create rolled back ✓")
+}
+
+// Prove the public route reads a real gateway state and registered DB label.
+func checkForwardAuthLoginContext(base, host, label string) {
+	hc := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, err := http.NewRequest(http.MethodGet, base+"/api/prohibitorum/forward-auth/verify", nil)
+	if err != nil {
+		log.Fatal("forward-auth context request construction failed")
+	}
+	req.Header.Set("X-Forwarded-Host", host)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("X-Forwarded-Uri", "/private")
+	resp, err := hc.Do(req)
+	if err != nil {
+		log.Fatalf("forward-auth context verify request failed: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		log.Fatalf("forward-auth context verify status %d", resp.StatusCode)
+	}
+	target := base + "/api/prohibitorum/forward-auth/login-context?return_to=" + url.QueryEscape(resp.Header.Get("Location"))
+	for range 2 {
+		res, err := hc.Get(target)
+		if err != nil {
+			log.Fatal("forward-auth context read failed")
+		}
+		var view struct {
+			Application *struct {
+				Label string `json:"label"`
+			} `json:"application"`
+		}
+		err = json.NewDecoder(res.Body).Decode(&view)
+		res.Body.Close()
+		if err != nil || res.StatusCode != http.StatusOK || view.Application == nil || view.Application.Label != label || res.Header.Get("Cache-Control") != "no-store" {
+			log.Fatalf("forward-auth context: expected registered label and no-store, status %d", res.StatusCode)
+		}
+	}
+	log.Printf("  forward-auth login context: registered label, public route and repeated read verified ✓")
 }

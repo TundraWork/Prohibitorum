@@ -611,6 +611,7 @@ func (s *Server) registerOperations() {
 	// is the middleware target; the callback is routed by the operator on each
 	// protected domain to plant the per-domain forward-auth cookie. Both public.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth/verify", publicReq, s.oidcOP.HandleForwardAuthVerify)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/forward-auth/login-context", publicReq, s.oidcOP.HandleForwardAuthLoginContext)
 	s.router.Get(oidcop.ForwardAuthPathPrefix+"/callback", s.oidcOP.HandleForwardAuthCallback)
 	// Sign-out: the protected-domain sign_out clears the per-domain cookie + KV
 	// session, then bounces to the IdP-domain sso-logout (which terminates the
