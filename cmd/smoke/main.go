@@ -63,7 +63,7 @@ import (
 // later arc is added, unlike a single global counter.
 const (
 	nCore       = 51
-	nFederation = 31
+	nFederation = 33
 	nOIDC       = 18
 	nSAML       = 14
 	nHardening  = 12
@@ -953,11 +953,15 @@ func main() {
 	//   23. admin seeds an invite BOUND to it → invitee drives
 	//       start-federation (bound slug wins) → callback provisions an
 	//       UNCONFIRMED account named from the upstream claims → /welcome.
-	//   24. confirm → session + offerLocalSignin=true → set password+TOTP →
+	//   25. “not me” on /welcome → confirm decline pops the grant with no
+	//       session; a plain provider re-login then re-issues a confirmation
+	//       grant → /welcome again (the decline recovery path), then confirm
+	//       leaves the account in its provisioned state.
+	//   26. confirm → session + offerLocalSignin=true → set password+TOTP →
 	//       logout → log back in THROUGH THE PROVIDER (the core new
 	//       capability: invite_only is a sign-in method for bound users).
-	//   25. unbound invite: invitee picks the provider via ?provider=…
-	//   26. claim-username collision → username_collision, invite unconsumed.
+	//   27. unbound invite: invitee picks the provider via ?provider=…
+	//   28. claim-username collision → username_collision, invite unconsumed.
 
 	step(fmt.Sprintf("federation %d/%d — seed upstream_idp 'mockop-invite' (invite_only mode)", 22, nFederation))
 	inviteOnlyIDPID, err := seedUpstreamIDP(dek, "mockop-invite", "Mock OP (invite-only)", opTS.URL,
@@ -1022,7 +1026,82 @@ func main() {
 		log.Fatalf("invite redemption DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("federation %d/%d — confirm → offerLocalSignin=true + session", 25, nFederation))
+	step(fmt.Sprintf("federation %d/%d — “not me” on /welcome → decline → grant popped, no session", 25, nFederation))
+	{
+		declineClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("decline client: %v", err)
+		}
+		// Fresh invite + fresh upstream identity: provision → confirm page.
+		const declineToken = "invite-token-smoke-decline-001"
+		const declineSub = "invite-redeemer-sub-decline"
+		const declineUsername = "invite-redeemer-3"
+		if err := seedInviteEnrollment(declineToken, "user", "mockop-invite", "1 hour"); err != nil {
+			log.Fatalf("seed decline invite: %v", err)
+		}
+		opSrv.SetClaims(declineSub, "invite-redeemer-3@example.com", true, declineUsername, "Third Redeemer")
+		declineAuthorize, err := declineClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", declineToken))
+		if err != nil {
+			log.Fatalf("decline start-federation: %v", err)
+		}
+		declineCallback, err := followMockOPAuthorize(declineAuthorize)
+		if err != nil {
+			log.Fatalf("decline authorize: %v", err)
+		}
+		if loc, err := declineClient.getRedirectAbs(declineCallback); err != nil {
+			log.Fatalf("decline callback: %v", err)
+		} else if loc != "/welcome" {
+			log.Fatalf("decline callback: want /welcome (unconfirmed provisioning), got %q", loc)
+		}
+		// “Not me” on the confirm page: POST decline pops the grant (204,
+		// cookie cleared) and issues no session.
+		if resp, err := declineClient.postJSONRaw("/api/prohibitorum/auth/federation/confirm/decline", map[string]any{}); err != nil {
+			log.Fatalf("confirm decline POST: %v", err)
+		} else {
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("confirm decline: want 204, got %d", resp.StatusCode)
+			}
+		}
+		if _, err := declineClient.getMe(); err == nil {
+			log.Fatalf("decline issued a session; /me should stay 401")
+		}
+		log.Printf("  declined; grant popped, no session ✓")
+
+		step(fmt.Sprintf("federation %d/%d — after decline, provider re-login returns to /welcome (fresh confirmation grant)", 26, nFederation))
+		// Same (iss, sub) through the plain provider login entrypoint:
+		// resolveExisting re-issues a confirmation grant → /welcome again,
+		// proving the decline recovery path. Then confirm completes the
+		// provisioned account so the arc leaves no half-state behind.
+		recoveryAuthorize, err := declineClient.getRedirect("/api/prohibitorum/auth/federation/mockop-invite/login?return_to=/me")
+		if err != nil {
+			log.Fatalf("decline recovery login begin: %v", err)
+		}
+		recoveryCallback, err := followMockOPAuthorize(recoveryAuthorize)
+		if err != nil {
+			log.Fatalf("decline recovery authorize: %v", err)
+		}
+		if loc, err := declineClient.getRedirectAbs(recoveryCallback); err != nil {
+			log.Fatalf("decline recovery callback: %v", err)
+		} else if loc != "/welcome" {
+			log.Fatalf("decline recovery callback: want 302 /welcome (fresh confirmation grant), got %q", loc)
+		}
+		if _, _, err := declineClient.confirmPostFull(); err != nil {
+			log.Fatalf("decline recovery confirm: %v", err)
+		}
+		if me, err := declineClient.getMe(); err != nil || me.Username != declineUsername {
+			log.Fatalf("decline recovery /me: err=%v me=%+v", err, me)
+		}
+		if err := declineClient.logout(); err != nil {
+			log.Fatalf("decline recovery logout: %v", err)
+		}
+		log.Printf("  decline → provider re-login → /welcome again ✓")
+	}
+
+	step(fmt.Sprintf("federation %d/%d — confirm → offerLocalSignin=true + session", 27, nFederation))
+	// The confirm is driven by the SAME browser the step-23 callback handed
+	// the confirmation grant to (inviteClient's jar) — a fresh client holds
+	// no grant cookie and would fail the browser-binding check.
 	offer, redirect, err := inviteClient.confirmPostFull()
 	if err != nil {
 		log.Fatalf("invite confirm POST: %v", err)
@@ -1033,14 +1112,13 @@ func main() {
 	if redirect != "/me" {
 		log.Fatalf("invite confirm POST: want redirect /me, got %q", redirect)
 	}
-	inviteMe, err := inviteClient.getMe()
-	if err != nil {
-		log.Fatalf("invite /me after confirm: %v", err)
+	if me, err := inviteClient.getMe(); err != nil || me.Username != inviteUsername {
+		// The confirm POST must mint a session for the provisioned account;
+		// assert whose session this is instead of assuming any 200.
+		log.Fatalf("invite confirm session: err=%v me=%+v, want %q session", err, me, inviteUsername)
+	} else {
+		log.Printf("  confirmed; /me id=%d username=%s ✓", me.ID, me.Username)
 	}
-	if inviteMe.Username != inviteUsername {
-		log.Fatalf("invite /me username: got %q want %q (from upstream preferred_username)", inviteMe.Username, inviteUsername)
-	}
-	log.Printf("  confirmed; /me id=%d username=%s ✓", inviteMe.ID, inviteMe.Username)
 
 	// The fresh session rides the recent-auth window (SudoTTL), so password
 	// and TOTP can be set without a step-up — the exact flow the SPA's
@@ -1068,10 +1146,14 @@ func main() {
 	}
 	log.Printf("  password + TOTP set via fresh session (recent-auth window) ✓")
 
-	step(fmt.Sprintf("federation %d/%d — logout → provider re-login succeeds (core new semantics)", 26, nFederation))
+	step(fmt.Sprintf("federation %d/%d — logout → provider re-login succeeds (core new semantics)", 28, nFederation))
 	if err := inviteClient.logout(); err != nil {
 		log.Fatalf("invite logout: %v", err)
 	}
+	// The mock OP's claims persist across steps and step 26 left the decline
+	// identity in place — restore the invited identity before the authorize
+	// hop so this signs back in as invite-redeemer.
+	opSrv.SetClaims(inviteSub, "invite-redeemer@example.com", true, inviteUsername, "Invite Redeemer")
 	reloginClient, err := newFederationClient(*baseURL)
 	if err != nil {
 		log.Fatalf("relogin client: %v", err)
@@ -1094,7 +1176,7 @@ func main() {
 	}
 	log.Printf("  invite_only provider re-login signed the bound user in ✓")
 
-	step(fmt.Sprintf("federation %d/%d — negative: consumed token rejected → 302 /error?error=invite_required", 27, nFederation))
+	step(fmt.Sprintf("federation %d/%d — negative: consumed token rejected → 302 /error?error=invite_required", 29, nFederation))
 	negInvite1, _ := newFederationClient(*baseURL)
 	if err := expectInviteStartFederationError(negInvite1, *baseURL, inviteToken,
 		"invite_required"); err != nil {
@@ -1102,7 +1184,7 @@ func main() {
 	}
 	log.Printf("  /start-federation consumed → 302 /error?error=invite_required ✓")
 
-	step(fmt.Sprintf("federation %d/%d — negative: expired token rejected", 28, nFederation))
+	step(fmt.Sprintf("federation %d/%d — negative: expired token rejected", 30, nFederation))
 	const expiredToken = "invite-token-smoke-expired-001"
 	if err := seedInviteEnrollment(expiredToken, "user", "mockop-invite", "-1 second"); err != nil {
 		log.Fatalf("seed expired invite: %v", err)
@@ -1114,7 +1196,7 @@ func main() {
 	}
 	log.Printf("  /start-federation expired → 302 /error?error=invite_required ✓")
 
-	step(fmt.Sprintf("federation %d/%d — unbound invite: invitee picks the provider via ?provider=…", 29, nFederation))
+	step(fmt.Sprintf("federation %d/%d — unbound invite: invitee picks the provider via ?provider=…", 31, nFederation))
 	const unboundToken = "invite-token-smoke-unbound-001"
 	const unboundSub = "invite-redeemer-sub-unbound"
 	const unboundUsername = "invite-redeemer-2"
@@ -1144,7 +1226,7 @@ func main() {
 	}
 	log.Printf("  unbound invite redeemed through the selected provider ✓")
 
-	step(fmt.Sprintf("federation %d/%d — username_collision: claim taken → error, invite stays redeemable", 30, nFederation))
+	step(fmt.Sprintf("federation %d/%d — username_collision: claim taken → error, invite stays redeemable", 32, nFederation))
 	const collToken = "invite-token-smoke-collision-001"
 	if err := seedInviteEnrollment(collToken, "user", "mockop-invite", "1 hour"); err != nil {
 		log.Fatalf("seed collision invite: %v", err)
@@ -1174,7 +1256,7 @@ func main() {
 	}
 	log.Printf("  username_collision surfaced; invite left redeemable ✓")
 
-	step(fmt.Sprintf("federation %d/%d — DB assert: credential_event covers federation lifecycle", 31, nFederation))
+	step(fmt.Sprintf("federation %d/%d — DB assert: credential_event covers federation lifecycle", 33, nFederation))
 	if err := verifyFederationAuditEvents(); err != nil {
 		log.Fatalf("federation audit DB assert: %v", err)
 	}

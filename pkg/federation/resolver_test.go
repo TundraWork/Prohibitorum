@@ -498,7 +498,7 @@ func TestApplyAutoProvision_MissingPreferredUsername(t *testing.T) {
 // pgUniqueViolation returns a *pgconn.PgError carrying SQLSTATE 23505 so
 // tests can simulate a lost race against a concurrent insert. Used by the
 // race-mapping tests below — exercises the isUniqueViolation branches in
-// applyAutoProvision / applyInviteOnly.
+// applyAutoProvision / applyInviteProvision.
 func pgUniqueViolation(constraint string) error {
 	return &pgconn.PgError{Code: "23505", ConstraintName: constraint}
 }
@@ -555,7 +555,7 @@ func TestApplyInviteOnly_UsernameRaceMapsToCollisionError(t *testing.T) {
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
+	_, err := federationoidc.ApplyInviteProvisionForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
 		t.Fatalf("want username_collision AuthError, got %v", err)
 	}
@@ -573,7 +573,7 @@ func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) 
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
+	_, err := federationoidc.ApplyInviteProvisionForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required AuthError, got %v", err)
 	}
@@ -628,7 +628,7 @@ func TestApplyInviteOnly_TemplateRoleAndAttributesApplied(t *testing.T) {
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
-	if _, err := federationoidc.ApplyInviteOnlyForTest(
+	if _, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil,
 	); err != nil {
 		t.Fatalf("applyInviteProvision: %v", err)
@@ -643,7 +643,9 @@ func TestApplyInviteOnly_TemplateRoleAndAttributesApplied(t *testing.T) {
 
 func TestApplyInviteOnly_MissingUsernameClaimFailsWithoutConsuming(t *testing.T) {
 	// A missing username claim is a provider misconfiguration: the tx fails,
-	// the invite stays redeemable, no account appears.
+	// the invite stays redeemable, no account appears. The error must be the
+	// plain server error (same wording as applyAutoProvision), NOT the
+	// user-facing invalid_username AuthError page — api.md §5 / design §4.3.
 	q := newFakeModesQueries()
 	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	a := &recordingAudit{}
@@ -651,11 +653,15 @@ func TestApplyInviteOnly_MissingUsernameClaimFailsWithoutConsuming(t *testing.T)
 	tok := goodTokens()
 	tok.Username = ""
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
-	if err == nil {
-		t.Fatal("want error when the upstream username claim is missing")
+	wantErr := `federation/oidc: upstream provided no "preferred_username" claim (idp="test-idp", sub="sub-1")`
+	if err == nil || err.Error() != wantErr {
+		t.Fatalf("missing claim error = %v, want %q", err, wantErr)
+	}
+	if authErr := authn.AsAuthError(err); authErr != nil {
+		t.Fatalf("missing claim must not surface as a user-facing AuthError page; got %v", authErr)
 	}
 	if len(q.insertedAccounts) != 0 {
 		t.Fatalf("no account should be inserted; got %+v", q.insertedAccounts)
@@ -678,7 +684,7 @@ func TestApplyInviteOnly_IdentityAlreadyBoundRejects(t *testing.T) {
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
@@ -701,7 +707,7 @@ func TestApplyInviteOnly_HappyPath(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	out, err := federationoidc.ApplyInviteOnlyForTest(
+	out, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if err != nil {
@@ -761,7 +767,7 @@ func TestApplyInviteOnly_ConsumedOrExpired(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "stale-token", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
@@ -786,7 +792,7 @@ func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
@@ -812,7 +818,7 @@ func TestApplyInviteOnly_UsernameCollision(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {

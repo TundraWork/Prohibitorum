@@ -429,7 +429,7 @@ func applyAutoProvision(
 		// outer-pool Writer would race the FK check against the
 		// uncommitted account row (different connection, MVCC snapshot
 		// doesn't yet see InsertAccount above) and fail silently. Same
-		// invariant as applyInviteOnly.
+		// invariant as applyInviteProvision.
 		audit.RecordOrLog(ctx, txAudit, audit.Record{
 			AccountID: new(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
@@ -563,6 +563,19 @@ func applyInviteProvision(
 		// stays redeemable), and a tx-scoped audit row would roll back with
 		// it — losing the forensic record. The outer writer commits
 		// independently. Identical reasoning to applyAutoProvision.
+		//
+		// Gate order matches applyAutoProvision word for word: validate the
+		// upstream-provided username before the collision lookup. In
+		// particular, a missing username_claim is a provider
+		// misconfiguration (api.md §5 / design.md §4.3: a server error, not
+		// the user-facing invalid_username page) and must surface before any
+		// collision semantics are consulted.
+		if username == "" {
+			return ResolveOutcome{}, fmt.Errorf("federation/oidc: upstream provided no %q claim (idp=%q, sub=%q)", idp.UsernameClaim, idp.Slug, identity.Subject)
+		}
+		if err := acctpkg.ValidateUsername(username); err != nil {
+			return ResolveOutcome{}, err
+		}
 		if _, err := qtx.GetAccountByUsername(ctx, username); err == nil {
 			emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
 				"username": username,
@@ -570,10 +583,6 @@ func applyInviteProvision(
 			return ResolveOutcome{}, authn.ErrUsernameCollision()
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: check username collision: %w", err)
-		}
-
-		if err := acctpkg.ValidateUsername(username); err != nil {
-			return ResolveOutcome{}, err
 		}
 
 		handle, err := acctpkg.GenerateUserHandle()
@@ -668,7 +677,7 @@ func applyInviteProvision(
 	})
 }
 
-// runProvisionTx is the transactional wrapper shared by applyInviteOnly
+// runProvisionTx is the transactional wrapper shared by applyInviteProvision
 // and applyAutoProvision (originally runInviteTx — both apply paths now
 // reuse the same wrapper because the shape is identical: collision
 // check + InsertAccount + InsertAccountIdentity + audit, all atomic).
@@ -681,7 +690,7 @@ func applyInviteProvision(
 // load-bearing invariant — without it the credential_event FK to
 // account.id races the uncommitted InsertAccount on a separate
 // connection and silently fails (the audit Writer swallows errors by
-// convention). See applyInviteOnly's audit-write site for the rationale.
+// convention). See applyInviteProvision's audit-write site for the rationale.
 func runProvisionTx(
 	ctx context.Context,
 	pool *pgxpool.Pool,

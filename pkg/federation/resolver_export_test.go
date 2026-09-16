@@ -8,7 +8,7 @@ import (
 	"prohibitorum/pkg/audit"
 )
 
-func ApplyInviteOnlyForTest(
+func ApplyInviteProvisionForTest(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
