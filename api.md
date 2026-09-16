@@ -423,3 +423,21 @@ OIDC provider config requires the existing issuer/client/scopes/claim and networ
 Public clients can be created without a secret. A stored secret is retained when switching to none, but is neither decrypted nor sent. Rotation can store a secret before switching back to a confidential method. An enabled confidential provider requires a configured secret. Secret material is never returned by reads. Invalid, unknown or duplicate config fields are rejected with bad_request.
 
 Migration 038 fills existing OIDC configs with discovery mode, null endpoint overrides, discovery authentication and S256. **Authentication no longer retries with another method after a token endpoint failure.** Providers with inaccurate metadata must explicitly select basic or post. Login flows retain their resolved endpoint snapshot; changing provider configuration or rotating the secret rejects older flows before exchanging their codes.
+
+### Administrator OIDC diagnostics
+
+These OIDC-only endpoints require the original administrator session, except for the browser callback. Responses use no-store. POSTs require an empty body and same-origin requests.
+
+| Method | Path | Behavior |
+|---|---|---|
+| GET | /api/prohibitorum/identity-providers/{slug}/effective-config | Resolve saved configuration afresh and return mode, fetchedAt, callbackUrl and fields. Each field contains value and source (discovery, override or manual). Manual mode makes no discovery request. Limited to 20 reads per administrator per minute. |
+| POST | /api/prohibitorum/identity-providers/{slug}/tests | Return id, authorizationUrl and expiresAt. Limited to six starts per administrator per minute. Register the separate test callback with the upstream provider first. |
+| GET | /api/prohibitorum/auth/federation/{slug}/test/callback | Accept one code or OAuth error with a test state and matching browser cookie; redirect to the fixed provider management page with only an opaque test ID. Normal login/link state is rejected. |
+| POST | /api/prohibitorum/identity-providers/{slug}/tests/{id}/complete | Exchange the saved code once, validate the ID token and fetch configured UserInfo. Concurrent/repeated calls return the running or completed result without another exchange. |
+| GET | /api/prohibitorum/identity-providers/{slug}/tests/{id} | Read the retained result using the same administrator session and browser. |
+
+Tests expire ten minutes after creation and bind the account, session, browser, provider, saved configuration and resolved endpoint snapshot. Configuration or secret changes reject a pending exchange. No business account, identity, invitation or local session is created or updated. The test browser cookie is separate from the normal federation cookie.
+
+Results contain status (awaiting_callback, ready, running, succeeded or failed), expiresAt, stages and optional claims. Stages cover discovery, authorization, callback, token exchange, ID token validation and UserInfo, with safe endpoint origin/path, available duration/status, a standard error code and request ID. Claims are limited to issuer, subject, username, name, email and email_verified, with bounded text. Results never include raw token responses, authorization codes, client secrets or PKCE verifiers. Discovery failures return 503 upstream_temporarily_unavailable with a safe discovery stage and details; the page retains prior effective values marked stale.
+
+The callback page completes a ready test once; subsequent refreshes only read the result. A running exchange can be polled for at most 30 seconds by the page, with a manual read afterward. If a worker stops during an exchange, its result can remain running until expiry; the code is never replayed. Create a new test after expiry.

@@ -551,6 +551,7 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/login", publicReq, s.handleFederationLoginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/callback", publicReq, s.handleFederationCallbackHTTP)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/{slug}/test/callback", publicReq, s.handleOIDCTestCallbackHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation/flows/{flow}", publicReq, s.handleFederationFlowGetHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/prepare", publicReq, withFederationFlowBodyControls(s.handleFederationFlowPrepareHTTP))
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/federation/flows/{flow}/verify", publicReq, withFederationFlowBodyControls(s.handleFederationFlowVerifyHTTP))
@@ -723,6 +724,10 @@ func (s *Server) registerOperations() {
 	// Admin: identity provider management
 	registerOp(mgmt, contract.OperationListIdentityProviders, s.handleListIdentityProviders, admin)
 	registerOp(mgmt, contract.OperationGetIdentityProvider, s.handleGetIdentityProvider, admin)
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/effective-config", admin, s.handleOIDCEffectiveConfigHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests", admin, diagnosticSameOrigin(s.handleOIDCTestStartHTTP))
+	registerOpHTTP(s.router, "GET", "/api/prohibitorum/identity-providers/{slug}/tests/{id}", admin, s.handleOIDCTestGetHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/{slug}/tests/{id}/complete", admin, diagnosticSameOrigin(s.handleOIDCTestCompleteHTTP))
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers", admin, s.handleCreateIdentityProviderHTTP)
 	s.registerSudoOpHTTP(s.router, "PUT", "/api/prohibitorum/identity-providers/{slug}", admin, s.handleUpdateIdentityProviderHTTP)
 	s.registerSudoOpHTTP(s.router, "POST", "/api/prohibitorum/identity-providers/rotate-secret", admin, s.handleRotateIdentityProviderSecretHTTP)

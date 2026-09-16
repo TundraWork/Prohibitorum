@@ -2,6 +2,7 @@
 /** AdminUpstreamIdpDetailView (/admin/identity-providers/:slug) — edit, rotate secret, delete. */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import OIDCDiagnostics from '@/components/custom/OIDCDiagnostics.vue'
 import OIDCConnectionFields from '@/components/custom/OIDCConnectionFields.vue'
 import { defaultOIDCConnection, oidcConnectionError } from '@/lib/oidcProviderConfig'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
@@ -213,11 +214,7 @@ async function load(): Promise<void> {
   }
 }
 
-async function save(): Promise<void> {
-  connectionValidation.value = isOIDC.value ? oidcConnectionError(connection.value) : null
-  if (isOIDC.value && connection.value.tokenAuthMethod !== 'none' && !idp.value?.secretConfigured) connectionValidation.value = 'admin.upstream.secretRequired'
-  if (connectionValidation.value) return
-  const config: OIDCProviderConfig | Record<string, never> = isOIDC.value
+const draftConfig = computed<OIDCProviderConfig | Record<string, never>>(() => isOIDC.value
     ? {
         ...connection.value,
         issuerUrl: issuerUrl.value,
@@ -231,7 +228,21 @@ async function save(): Promise<void> {
         requireVerifiedEmail: requireVerifiedEmail.value,
         allowPrivateNetwork: allowPrivateNetwork.value,
       }
-    : {}
+    : {})
+
+const diagnosticDirty = computed(() => {
+  if (!idp.value) return false
+  const saved = idp.value.config
+  return displayName.value !== idp.value.displayName || effectiveMode.value !== idp.value.mode || Object.entries(draftConfig.value).some(([key, value]) => key === 'endpoints'
+    ? Object.entries(value as Record<string, unknown>).some(([endpoint, url]) => url !== (saved.endpoints as Record<string, unknown>)[endpoint])
+    : JSON.stringify(value) !== JSON.stringify(saved[key]))
+})
+
+async function save(): Promise<void> {
+  connectionValidation.value = isOIDC.value ? oidcConnectionError(connection.value) : null
+  if (isOIDC.value && connection.value.tokenAuthMethod !== 'none' && !idp.value?.secretConfigured) connectionValidation.value = 'admin.upstream.secretRequired'
+  if (connectionValidation.value) return
+  const config = draftConfig.value
   const updated = await run(() => withSudo(() => api.put<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`, {
     displayName: displayName.value,
     mode: effectiveMode.value,
@@ -539,6 +550,7 @@ onMounted(load)
           </div>
         </CardContent>
       </Card>
+      <OIDCDiagnostics v-if="isOIDC && idp" :key="JSON.stringify([idp.config, idp.secretStatus])" :slug="slug" :dirty="diagnosticDirty" />
 
       <EntityIconUpload
         :base-path="`/api/prohibitorum/identity-providers/${slug}`"
