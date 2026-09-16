@@ -128,12 +128,6 @@ describe('EditProfileDialog — layout and zone division', () => {
     expect(w.emitted('update:open')?.some((e) => e[0] === false)).toBe(true)
   })
 
-  it('shows an unsaved-name hint when the name field is dirty', async () => {
-    seedUser('Alex Smith'); mountOpen(); await flushPromises()
-    expect(document.body.querySelector('[data-test="unsaved-name-hint"]')).toBeNull()
-    setInput('Changed'); await flushPromises()
-    expect(document.body.querySelector('[data-test="unsaved-name-hint"]')).not.toBeNull()
-  })
 })
 
 describe('EditProfileDialog — display name', () => {
@@ -155,7 +149,7 @@ describe('EditProfileDialog — display name', () => {
     expect(saveBtn()).toBeNull()                    // reverted
   })
 
-  it('saves: PUT /me, patches store from RESPONSE, emits close', async () => {
+  it('saves the returned name and keeps the dialog ready for another edit', async () => {
     const auth = seedUser('Alex Smith')
     put.mockResolvedValue({ id: 1, username: 'alex', displayName: 'ALEXANDER', role: 'user' })
     const w = mountOpen(); await flushPromises()
@@ -163,7 +157,16 @@ describe('EditProfileDialog — display name', () => {
     saveBtn().click(); await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/me', { displayName: 'Alexander' })
     expect(auth.me?.displayName).toBe('ALEXANDER')
-    expect(w.emitted('update:open')?.some((e) => e[0] === false)).toBe(true)
+    expect(w.emitted('update:open')).toBeUndefined()
+    expect(input().value).toBe('ALEXANDER')
+    expect(saveBtn()).toBeNull()
+    expect(document.activeElement).toBe(input())
+    put.mockResolvedValue({ id: 1, username: 'alex', displayName: 'Alex again', role: 'user' })
+    setInput('Alex again'); await flushPromises()
+    saveBtn().click(); await flushPromises()
+    expect(auth.me?.displayName).toBe('Alex again')
+    expect(saveBtn()).toBeNull()
+    expect(w.emitted('update:open')).toBeUndefined()
   })
 
   it('keeps the dialog open and shows the mapped error on invalid_display_name', async () => {

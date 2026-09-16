@@ -297,7 +297,6 @@ export default {
     avatarRemoveHint: 'Deletes your uploaded image.',
     saveName: 'Save name',
     displayNameSection: 'Display name',
-    unsavedName: 'Unsaved name',
   },
 
   theme: {

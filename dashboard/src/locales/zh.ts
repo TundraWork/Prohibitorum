@@ -293,7 +293,6 @@ export default {
     avatarRemoveHint: '删除你上传的图片。',
     saveName: '保存名称',
     displayNameSection: '显示名称',
-    unsavedName: '未保存的名称',
   },
 
   theme: {

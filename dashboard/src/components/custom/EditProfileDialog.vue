@@ -75,12 +75,15 @@ function onOpenChange(v: boolean): void { emit('update:open', v) }
 async function save(): Promise<void> {
   if (!canSave.value) return
   errorZone.value = 'name'
+  const submittedName = draft.value
   const result = await run(() =>
-    api.put<SessionView>('/api/prohibitorum/me', { displayName: draft.value }),
+    api.put<SessionView>('/api/prohibitorum/me', { displayName: submittedName }),
   )
   if (result) {
     auth.setDisplayName(result.displayName)
-    emit('update:open', false)
+    if (draft.value === submittedName) draft.value = result.displayName
+    await nextTick()
+    inputRef.value?.$el?.focus()
   }
 }
 
@@ -292,10 +295,6 @@ const activeSource = computed(() => auth.me?.avatarSource ?? 'none')
               <Save aria-hidden="true" />
             </Button>
           </div>
-          <!-- Unsaved-name hint when the user has typed but not yet saved -->
-          <span v-if="dirty" class="text-xs text-muted-foreground" data-test="unsaved-name-hint">
-            {{ t('accountMenu.unsavedName') }}
-          </span>
         </div>
 
         <!-- Name-field error (PUT /me errors surface here) -->
