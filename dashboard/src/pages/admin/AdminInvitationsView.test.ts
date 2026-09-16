@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/select'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminInvitationsView, { global: { plugins: [i18n()] }, attachTo: document.body })
-const IDPS = [{ slug: 'okta', displayName: 'Okta', disabled: false }]
+const IDPS = [{ slug: 'okta', displayName: 'Okta', disabled: false, mode: 'auto_provision' }]
 const INVITES = [
   { token: 'tok1', url: 'https://x/enroll/tok1', role: 'user', createdAt: '2026-06-01T00:00:00Z', expiresAt: '2026-06-09T00:00:00Z' },
 ]
@@ -73,7 +73,7 @@ describe('AdminInvitationsView', () => {
     expect(get).toHaveBeenCalledTimes(3) // initial (invitations + upstream-idps) + refresh (invitations only)
   })
   it('creates a federation-bound invitation when an IdP is chosen', async () => {
-    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false }], nextCursor: '' } : { items: [], nextCursor: '' })
+    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false, mode: 'invite_only' }], nextCursor: '' } : { items: [], nextCursor: '' })
     post.mockResolvedValue({ url: 'https://x/enroll/n', expiresAt: '2026-06-10T00:00:00Z' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()
@@ -90,18 +90,34 @@ describe('AdminInvitationsView', () => {
   })
   it('shows the bound IdP displayName in the Method column', async () => {
     const bound = [{ token: 'tokf', url: 'https://x/enroll/tokf', role: 'user', createdAt: '2026-06-01T00:00:00Z', expiresAt: '2026-06-09T00:00:00Z', expectedUpstreamIdpSlug: 'okta' }]
-    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false }], nextCursor: '' } : { items: bound, nextCursor: '' })
+    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false, mode: 'invite_only' }], nextCursor: '' } : { items: bound, nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain('Okta')
   })
   it('filters disabled IdPs out of the picker', async () => {
     get.mockImplementation(async (p: string) => p.includes('/identity-providers')
-      ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false }, { slug: 'old', displayName: 'Old IdP', disabled: true }], nextCursor: '' }
+      ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false, mode: 'invite_only' }, { slug: 'old', displayName: 'Old IdP', disabled: true }], nextCursor: '' }
       : { items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     // Assert the component's idp list (which feeds the Select items) only contains enabled IdPs
     const vm = w.vm as unknown as { idps: Array<{ slug: string; displayName: string; disabled: boolean }> }
     expect(vm.idps.map((i) => i.displayName)).toContain('Okta')
     expect(vm.idps.map((i) => i.displayName)).not.toContain('Old IdP')
+  })
+
+  it('filters link_only IdPs out of the picker', async () => {
+    get.mockImplementation(async (p: string) => p.includes('/identity-providers')
+      ? { items: [
+          { slug: 'okta', displayName: 'Okta', disabled: false, mode: 'auto_provision' },
+          { slug: 'bound', displayName: 'Bound Co', disabled: false, mode: 'invite_only' },
+          { slug: 'vrchat', displayName: 'VRChat', disabled: false, mode: 'link_only' },
+        ], nextCursor: '' }
+      : { items: [], nextCursor: '' })
+    const w = mountView(); await flushPromises()
+    const vm = w.vm as unknown as { idps: Array<{ slug: string; displayName: string }> }
+    const slugs = vm.idps.map((i) => i.slug)
+    expect(slugs).toContain('okta')
+    expect(slugs).toContain('bound')
+    expect(slugs).not.toContain('vrchat')
   })
 })

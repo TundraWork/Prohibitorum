@@ -30,7 +30,7 @@ import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { Mail } from 'lucide-vue-next'
 
 interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string }
-interface Idp { slug: string; displayName: string; disabled: boolean }
+interface Idp { slug: string; displayName: string; disabled: boolean; mode: string }
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
 const IDP_NONE = '__none__'
@@ -54,7 +54,12 @@ function idpDisplayName(slug: string | undefined): string {
 async function loadIdps(): Promise<void> {
   try {
     const res = await api.get<Page<Idp>>(buildPagePath('/api/prohibitorum/identity-providers', { limit: 100 }))
-    idps.value = unwrap(res).items.filter((i) => !i.disabled)
+    // The dropdown must mirror the invite page's rule: only providers that
+    // can create an account (auto_provision, invite_only). link_only never
+    // provisions, so binding an invite to one would brick it.
+    idps.value = unwrap(res).items.filter(
+      (i) => !i.disabled && (i.mode === 'auto_provision' || i.mode === 'invite_only'),
+    )
   } catch {
     idps.value = []
   }
