@@ -141,6 +141,7 @@ touch pkg/webui/dist/.gitkeep
 """
 
 [tasks."ci:smoke"]
+depends = ["build:web"]
 description = "CI: end-to-end smoke — start the compose Postgres, (re)create a throwaway prohibitorum_smoke DB, then run the server + cmd/smoke against it (expects exit 0). The CI `smoke` job; also runnable locally WITHOUT touching prohibitorum_dev."
 run = """
 set -eu
