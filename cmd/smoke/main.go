@@ -958,10 +958,10 @@ func main() {
 	const inviteSub = "invite-redeemer-sub-001"
 	const inviteUsername = "invite-redeemer"
 	const inviteDisplay = "Invite Redeemer"
-	if err := seedInviteEnrollment(inviteToken, inviteUsername, inviteDisplay, "user", "mockop", "1 hour"); err != nil {
+	if err := seedInviteEnrollment(inviteToken, "user", "mockop", "1 hour"); err != nil {
 		log.Fatalf("seed invite enrollment: %v", err)
 	}
-	opSrv.SetClaims(inviteSub, "invite-redeemer@example.com", true, "ignored-by-template", "Ignored By Template")
+	opSrv.SetClaims(inviteSub, "invite-redeemer@example.com", true, inviteUsername, inviteDisplay)
 	inviteClient, err := newFederationClient(*baseURL)
 	if err != nil {
 		log.Fatalf("invite client: %v", err)
@@ -1018,7 +1018,7 @@ func main() {
 	const expiredToken = "invite-token-smoke-expired-001"
 	// Seed a NEW enrollment that's already past expires_at (1 second in the
 	// past). BeginInviteRedemption checks enr.ExpiresAt.After(time.Now()).
-	if err := seedInviteEnrollment(expiredToken, "invite-redeemer-expired", "Expired Redeemer", "user", "mockop", "-1 second"); err != nil {
+	if err := seedInviteEnrollment(expiredToken, "user", "mockop", "-1 second"); err != nil {
 		log.Fatalf("seed expired invite: %v", err)
 	}
 	negInvite2, _ := newFederationClient(*baseURL)
@@ -6983,7 +6983,7 @@ func verifyFederationAuditEvents() error {
 // Postgres interval literal (e.g. "1 hour", "-1 second") added to now() —
 // negative offsets are used to seed pre-expired rows for the expired-token
 // negative test. Idempotent: deletes any prior row with the same token first.
-func seedInviteEnrollment(token, templateUsername, templateDisplayName, templateRole, expectedSlug, expiresOffset string) error {
+func seedInviteEnrollment(token, templateRole, expectedSlug, expiresOffset string) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
@@ -7003,13 +7003,13 @@ func seedInviteEnrollment(token, templateUsername, templateDisplayName, template
 	}
 	if _, err := conn.Exec(ctx, `INSERT INTO enrollment (
 		token, intent, expires_at,
-		template_username, template_display_name, template_role,
+		template_role,
 		expected_upstream_idp_slug
 	) VALUES (
 		$1, 'invite', now() + $2::interval,
-		$3, $4, $5,
-		$6
-	)`, token, expiresOffset, templateUsername, templateDisplayName, templateRole, expectedSlug); err != nil {
+		$3,
+		$4
+	)`, token, expiresOffset, templateRole, expectedSlug); err != nil {
 		return fmt.Errorf("insert invite enrollment: %w", err)
 	}
 	return nil
@@ -7018,7 +7018,7 @@ func seedInviteEnrollment(token, templateUsername, templateDisplayName, template
 // seedPlainInviteEnrollment inserts an intent='invite' row with NO federation
 // binding (expected_upstream_idp_slug NULL), so the local password+TOTP and
 // passkey ceremonies are both permitted. Idempotent.
-func seedPlainInviteEnrollment(token, username, display, role, expiresOffset string) error {
+func seedPlainInviteEnrollment(token, role, expiresOffset string) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
@@ -7033,9 +7033,9 @@ func seedPlainInviteEnrollment(token, username, display, role, expiresOffset str
 		return fmt.Errorf("delete prior invite: %w", err)
 	}
 	if _, err := conn.Exec(ctx, `INSERT INTO enrollment (
-		token, intent, expires_at, template_username, template_display_name, template_role
-	) VALUES ($1, 'invite', now() + $2::interval, $3, $4, $5)`,
-		token, expiresOffset, username, display, role); err != nil {
+		token, intent, expires_at, template_role
+	) VALUES ($1, 'invite', now() + $2::interval, $3)`,
+		token, expiresOffset, role); err != nil {
 		return fmt.Errorf("insert plain invite enrollment: %w", err)
 	}
 	return nil
@@ -7080,7 +7080,7 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	)
 
 	step("pwd-totp-enroll 1/6 — seed a plain (non-federation) invite enrollment")
-	if err := seedPlainInviteEnrollment(token, username, display, "user", "1 hour"); err != nil {
+	if err := seedPlainInviteEnrollment(token, "user", "1 hour"); err != nil {
 		return fmt.Errorf("seed invite: %w", err)
 	}
 	ec, err := newClient(baseURL)

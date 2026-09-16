@@ -520,33 +520,25 @@ func applyInviteOnly(
 			})
 			return ResolveOutcome{}, authn.ErrInviteRequired()
 		}
-
-		// Belt-and-suspenders: the schema CHECK constraint at
-		// db/migrations/001_initial.sql guarantees template_username NOT NULL
-		// when intent='invite', but a missing template here means the schema
-		// invariant was violated upstream — surface as a 500 so it gets seen.
-		if !enr.TemplateUsername.Valid || enr.TemplateUsername.String == "" {
-			return ResolveOutcome{}, fmt.Errorf("federation/oidc: invite missing template_username for token %q", enrollmentToken)
-		}
-		if !enr.TemplateRole.Valid || enr.TemplateRole.String == "" {
-			return ResolveOutcome{}, fmt.Errorf("federation/oidc: invite missing template_role")
-		}
-
-		// Username collision is a technical constraint that's checked at
-		// invite-create time (handle_invitations.go) but races are possible
-		// (two invites for the same name; or a local password account took
-		// the slot between mint and redemption). Detect and audit here.
-		// Failure audits use the OUTER writer (w): the error return rolls
-		// back the tx (un-doing ConsumeEnrollment so the invite stays
-		// redeemable), and a tx-scoped audit row would roll back with it —
-		// losing the forensic record. The outer writer commits independently.
-		if _, err := qtx.GetAccountByUsername(ctx, enr.TemplateUsername.String); err == nil {
+		// Username collision is a technical constraint that can still fire
+		// here: a local password account may take the slot between invite
+		// mint and redemption. The username comes from the upstream claim,
+		// same as applyAutoProvision. Failure audits use the OUTER writer
+		// (w): the error return rolls back the tx (un-doing
+		// ConsumeInviteEnrollment so the invite stays redeemable), and a
+		// tx-scoped audit row would roll back with it — losing the forensic
+		// record. The outer writer commits independently.
+		if _, err := qtx.GetAccountByUsername(ctx, identity.Username); err == nil {
 			emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
-				"username": enr.TemplateUsername.String,
+				"username": identity.Username,
 			})
 			return ResolveOutcome{}, authn.ErrUsernameCollision()
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: check username collision: %w", err)
+		}
+
+		if err := acctpkg.ValidateUsername(identity.Username); err != nil {
+			return ResolveOutcome{}, err
 		}
 
 		handle, err := acctpkg.GenerateUserHandle()
@@ -559,15 +551,15 @@ func applyInviteOnly(
 			attrs = enr.TemplateAttributes
 		}
 
-		displayName := enr.TemplateDisplayName.String
+		displayName := identity.DisplayName
 		if displayName == "" {
-			displayName = enr.TemplateUsername.String
+			displayName = identity.Username
 		}
 
 		email := identityEmail(identity)
 
 		acct, err := qtx.InsertAccount(ctx, db.InsertAccountParams{
-			Username:           enr.TemplateUsername.String,
+			Username:           identity.Username,
 			DisplayName:        displayName,
 			WebauthnUserHandle: handle,
 			Role:               enr.TemplateRole.String,
@@ -586,7 +578,7 @@ func applyInviteOnly(
 				// re-redeemable — matches the previous-step collision branch.
 				// Outer writer (w) so the audit survives the rollback.
 				emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
-					"username": enr.TemplateUsername.String,
+					"username": identity.Username,
 				})
 				return ResolveOutcome{}, authn.ErrUsernameCollision()
 			}
@@ -645,7 +637,7 @@ func applyInviteOnly(
 				"sub":      identity.Subject,
 				"mode":     ModeInviteOnly,
 				"reason":   "invite_only_redemption",
-				"username": enr.TemplateUsername.String,
+				"username": identity.Username,
 			},
 		})
 		audit.RecordOrLog(ctx, txAudit, audit.Record{

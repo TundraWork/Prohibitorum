@@ -132,13 +132,13 @@ func pastExp() pgtype.Timestamptz {
 }
 
 // validInvite builds a redeemable enrollment row bound to the given slug.
-func validInvite(token, slug, username string) db.Enrollment {
+// Provisioning takes the username/display name from the upstream claims; the
+// template only carries role + attributes.
+func validInvite(token, slug string) db.Enrollment {
 	return db.Enrollment{
 		Token:                   token,
 		Intent:                  "invite",
 		ExpectedUpstreamIdpSlug: pgtype.Text{String: slug, Valid: true},
-		TemplateUsername:        pgtype.Text{String: username, Valid: true},
-		TemplateDisplayName:     pgtype.Text{String: "Alice", Valid: true},
 		TemplateRole:            pgtype.Text{String: "user", Valid: true},
 		TemplateAttributes:      []byte("{}"),
 		ExpiresAt:               futureExp(),
@@ -149,7 +149,7 @@ func validInvite(token, slug, username string) db.Enrollment {
 
 func TestEnrollmentStartFederation_HappyPath(t *testing.T) {
 	h := newInviteTestServer(t)
-	h.q.seedEnrollment(validInvite("tok-happy", h.idp.Slug, "alice"))
+	h.q.seedEnrollment(validInvite("tok-happy", h.idp.Slug))
 
 	loc, resp := h.driveStartFederation(t, "tok-happy", "/me")
 	if resp.StatusCode != http.StatusFound {
@@ -205,7 +205,7 @@ func TestEnrollmentStartFederation_UnknownToken(t *testing.T) {
 
 func TestEnrollmentStartFederation_ConsumedToken(t *testing.T) {
 	h := newInviteTestServer(t)
-	enr := validInvite("tok-consumed", h.idp.Slug, "alice")
+	enr := validInvite("tok-consumed", h.idp.Slug)
 	enr.ConsumedAt = pgtype.Timestamptz{Time: time.Now().Add(-time.Minute), Valid: true}
 	h.q.seedEnrollment(enr)
 
@@ -221,7 +221,7 @@ func TestEnrollmentStartFederation_ConsumedToken(t *testing.T) {
 
 func TestEnrollmentStartFederation_ExpiredToken(t *testing.T) {
 	h := newInviteTestServer(t)
-	enr := validInvite("tok-expired", h.idp.Slug, "alice")
+	enr := validInvite("tok-expired", h.idp.Slug)
 	enr.ExpiresAt = pastExp()
 	h.q.seedEnrollment(enr)
 
@@ -237,7 +237,7 @@ func TestEnrollmentStartFederation_ExpiredToken(t *testing.T) {
 
 func TestEnrollmentStartFederation_NonFederationIntent(t *testing.T) {
 	h := newInviteTestServer(t)
-	enr := validInvite("tok-bootstrap", h.idp.Slug, "alice")
+	enr := validInvite("tok-bootstrap", h.idp.Slug)
 	enr.Intent = "bootstrap" // Even with slug binding, non-invite intent must reject.
 	h.q.seedEnrollment(enr)
 
@@ -253,7 +253,7 @@ func TestEnrollmentStartFederation_NonFederationIntent(t *testing.T) {
 
 func TestEnrollmentStartFederation_NoSlugBinding(t *testing.T) {
 	h := newInviteTestServer(t)
-	enr := validInvite("tok-no-slug", h.idp.Slug, "alice")
+	enr := validInvite("tok-no-slug", h.idp.Slug)
 	enr.ExpectedUpstreamIdpSlug = pgtype.Text{Valid: false} // NULL — WebAuthn invite, not federation.
 	h.q.seedEnrollment(enr)
 
@@ -269,7 +269,7 @@ func TestEnrollmentStartFederation_NoSlugBinding(t *testing.T) {
 
 func TestEnrollmentStartFederation_InvalidReturnTo(t *testing.T) {
 	h := newInviteTestServer(t)
-	h.q.seedEnrollment(validInvite("tok-rt", h.idp.Slug, "alice"))
+	h.q.seedEnrollment(validInvite("tok-rt", h.idp.Slug))
 
 	_, resp := h.driveStartFederation(t, "tok-rt", "https://evil.example.com")
 	if resp.StatusCode != http.StatusFound {
@@ -285,9 +285,10 @@ func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 	h := newInviteTestServer(t)
 	// Mock OP is in ModeAutoProvision per harness defaults — mode-decoupling
 	// means the EnrollmentToken on FedState is what routes through
-	// applyInviteOnly. Upstream "alice" preferred_username is ignored; the
-	// template_username "invited-bob" is authoritative.
-	h.q.seedEnrollment(validInvite("tok-full", h.idp.Slug, "invited-bob"))
+	// applyInviteOnly. The username/display name come from the upstream
+	// claims ("alice"/"Alice Example"); the template only carries role +
+	// attributes.
+	h.q.seedEnrollment(validInvite("tok-full", h.idp.Slug))
 
 	// Step 1: /start-federation → 302 to /authorize.
 	loc, resp := h.driveStartFederation(t, "tok-full", "/me")
@@ -332,13 +333,14 @@ func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 		t.Error("enrollment ConsumedAt: want set, got NULL")
 	}
 
-	// Exactly one account inserted with template values.
+	// Exactly one account inserted, provisioned from the upstream claims and
+	// the invite template role.
 	if len(h.q.insertedAccounts) != 1 {
 		t.Fatalf("accounts inserted: want 1, got %d", len(h.q.insertedAccounts))
 	}
 	acct := h.q.insertedAccounts[0]
-	if acct.Username != "invited-bob" {
-		t.Errorf("account Username: want invited-bob (from template), got %q", acct.Username)
+	if acct.Username != "alice" {
+		t.Errorf("account Username: want alice (from upstream preferred_username), got %q", acct.Username)
 	}
 	if acct.Role != "user" {
 		t.Errorf("account Role: want user (from template), got %q", acct.Role)
@@ -378,7 +380,7 @@ func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 func TestEnrollmentStartFederation_SteamFullHTTPFlow(t *testing.T) {
 	h := newInviteTestServer(t)
 	provider := seedSteamProvider(t, h)
-	h.q.seedEnrollment(validInvite("tok-steam", provider.Slug, "invited-steam"))
+	h.q.seedEnrollment(validInvite("tok-steam", provider.Slug))
 	avatars := &serverAvatarRecorder{}
 	h.s.federationService.SetAvatarManager(avatars)
 
@@ -411,7 +413,7 @@ func TestEnrollmentStartFederation_SteamFullHTTPFlow(t *testing.T) {
 	if err != nil || !enrollment.ConsumedAt.Valid {
 		t.Fatalf("Steam enrollment was not consumed: enrollment=%+v err=%v", enrollment, err)
 	}
-	if len(h.q.insertedAccounts) != 1 || h.q.insertedAccounts[0].Username != "invited-steam" ||
+	if len(h.q.insertedAccounts) != 1 || h.q.insertedAccounts[0].Username != "steam_76561198000000000" ||
 		len(h.q.insertIdentitys) != 1 ||
 		h.q.insertIdentitys[0].UpstreamIss != "https://steamcommunity.com/openid" ||
 		h.q.insertIdentitys[0].UpstreamSub != "76561198000000000" {

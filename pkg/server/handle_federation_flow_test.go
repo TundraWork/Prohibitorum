@@ -236,7 +236,7 @@ func (h *localFlowHarness) beginLogin(t *testing.T) (flow string, response *http
 
 func TestFederationFlowInviteBeginUsesLocalDestinationAndBindingCookie(t *testing.T) {
 	h := newLocalFlowHarness(t)
-	h.q.seedEnrollment(validInvite("local-invite", localProviderSlug, "invited-user"))
+	h.q.seedEnrollment(validInvite("local-invite", localProviderSlug))
 	response := h.request(t, http.MethodGet, "/api/prohibitorum/enrollments/local-invite/start-federation?return_to=%2Fafter", "")
 	if response.StatusCode != http.StatusFound || !strings.HasPrefix(response.Header.Get("Location"), "/federation/flow/") {
 		t.Fatalf("status/location = %d %q", response.StatusCode, response.Header.Get("Location"))

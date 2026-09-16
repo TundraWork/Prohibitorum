@@ -550,7 +550,7 @@ func TestApplyAutoProvision_IdentityConflictRaceMapsToInviteRequired(t *testing.
 // window; same expected mapping.
 func TestApplyInviteOnly_UsernameRaceMapsToCollisionError(t *testing.T) {
 	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice", "user", nil)
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	q.insertAccountErr = pgUniqueViolation("account_username_key")
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
@@ -568,7 +568,7 @@ func TestApplyInviteOnly_UsernameRaceMapsToCollisionError(t *testing.T) {
 // the auto_provision identity-conflict race for the invite path.
 func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) {
 	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice", "user", nil)
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	q.insertIdentityErr = pgUniqueViolation("account_identity_upstream_iss_sub_key")
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
@@ -582,15 +582,11 @@ func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) 
 	}
 }
 
-// makeInviteEnrollment builds a valid db.Enrollment row for happy-path
-// tests. slug should match the IdP being passed into applyInviteOnly.
-func makeInviteEnrollment(slug, username, displayName, role string, attrs []byte) db.Enrollment {
+func makeInviteEnrollment(slug, role string, attrs []byte) db.Enrollment {
 	return db.Enrollment{
 		Token:                   "invite-token-xyz",
 		Intent:                  "invite",
 		ExpectedUpstreamIdpSlug: pgtype.Text{String: slug, Valid: true},
-		TemplateUsername:        pgtype.Text{String: username, Valid: true},
-		TemplateDisplayName:     pgtype.Text{String: displayName, Valid: displayName != ""},
 		TemplateRole:            pgtype.Text{String: role, Valid: true},
 		TemplateAttributes:      attrs,
 	}
@@ -625,7 +621,7 @@ func TestApplyInviteOnly_NoTokenRejects(t *testing.T) {
 func TestApplyInviteOnly_HappyPath(t *testing.T) {
 	q := newFakeModesQueries()
 	q.consumeEnrollmentResult = makeInviteEnrollment(
-		"test-idp", "alice", "Alice Inv", "user", []byte(`{"key":"val"}`),
+		"test-idp", "user", []byte(`{"key":"val"}`),
 	)
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
@@ -660,7 +656,7 @@ func TestApplyInviteOnly_HappyPath(t *testing.T) {
 		t.Fatalf("ConsumeEnrollment tokens = %v, want [invite-token-xyz]", q.consumedTokens)
 	}
 	if q.insertedAccount.Username != "alice" ||
-		q.insertedAccount.DisplayName != "Alice Inv" ||
+		q.insertedAccount.DisplayName != "Alice Example" ||
 		q.insertedAccount.Role != "user" {
 		t.Fatalf("InsertAccount args wrong: %+v", q.insertedAccount)
 	}
@@ -716,7 +712,7 @@ func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
 	q := newFakeModesQueries()
 	// Enrollment was minted for "other-idp"; we're driving against idp.Slug="test-idp".
 	q.consumeEnrollmentResult = makeInviteEnrollment(
-		"other-idp", "alice", "Alice", "user", nil,
+		"other-idp", "user", nil,
 	)
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
@@ -740,7 +736,7 @@ func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
 func TestApplyInviteOnly_UsernameCollision(t *testing.T) {
 	q := newFakeModesQueries()
 	q.consumeEnrollmentResult = makeInviteEnrollment(
-		"test-idp", "alice", "Alice", "user", nil,
+		"test-idp", "user", nil,
 	)
 	// Existing local account already owns "alice".
 	q.accountByUsername["alice"] = db.Account{ID: 7, Username: "alice"}
@@ -760,25 +756,6 @@ func TestApplyInviteOnly_UsernameCollision(t *testing.T) {
 	}
 	if len(q.insertedAccounts) != 0 {
 		t.Errorf("no account should have been inserted (collision fired first); got %d", len(q.insertedAccounts))
-	}
-}
-
-func TestApplyInviteOnly_DisplayNameFallsBackToUsername(t *testing.T) {
-	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment(
-		"test-idp", "bob", "" /* empty display_name */, "user", nil,
-	)
-	a := &recordingAudit{}
-	idp := newIDP(federationoidc.ModeInviteOnly)
-	tok := goodTokens()
-
-	if _, err := federationoidc.ApplyInviteOnlyForTest(
-		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
-	); err != nil {
-		t.Fatalf("applyInviteOnly: %v", err)
-	}
-	if q.insertedAccount.DisplayName != "bob" {
-		t.Errorf("DisplayName = %q, want bob (fallback to username)", q.insertedAccount.DisplayName)
 	}
 }
 
@@ -1063,7 +1040,7 @@ func TestApplyAutoProvision_NotConfirmed(t *testing.T) {
 // and ConfirmAccountIdentity was called with the inserted identity id.
 func TestApplyInviteOnly_Confirmed(t *testing.T) {
 	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice Inv", "user", nil)
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
@@ -1096,7 +1073,7 @@ func TestApplyInviteOnly_Confirmed(t *testing.T) {
 // inside a tx; this exercises the error-propagation seam).
 func TestApplyInviteOnly_ConfirmFails(t *testing.T) {
 	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice Inv", "user", nil)
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	q.confirmIdentityErr = errors.New("db down")
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
@@ -1612,7 +1589,7 @@ func TestResolverResolveIdentityLinkOutcome(t *testing.T) {
 
 func TestResolverResolveIdentityInviteOutcome(t *testing.T) {
 	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "invited", "Invited User", "user", nil)
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
 	identity := *goodTokens()
 

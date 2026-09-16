@@ -86,8 +86,6 @@ type Enrollment struct {
 	Token                       string             `json:"token"`
 	Intent                      string             `json:"intent"`
 	TargetAccountID             pgtype.Int4        `json:"targetAccountId"`
-	TemplateUsername            pgtype.Text        `json:"templateUsername"`
-	TemplateDisplayName         pgtype.Text        `json:"templateDisplayName"`
 	TemplateRole                pgtype.Text        `json:"templateRole"`
 	TemplateAttributes          []byte             `json:"templateAttributes"`
 	ExpectedUpstreamIdpSlug     pgtype.Text        `json:"expectedUpstreamIdpSlug"`
