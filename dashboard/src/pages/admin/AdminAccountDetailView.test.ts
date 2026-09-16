@@ -8,6 +8,7 @@ vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() })
 const get = vi.mocked(api.get); const post = vi.mocked(api.post); const put = vi.mocked(api.put)
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => ({ params: { id: '7' } }) }))
+const writeText = vi.fn(async () => {})
 import AdminAccountDetailView from './AdminAccountDetailView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
@@ -69,6 +70,7 @@ function clickConfirm(label: string) {
   btns[btns.length - 1]!.click()
 }
 beforeEach(() => { get.mockReset(); post.mockReset(); put.mockReset(); push.mockReset() })
+beforeEach(() => { Object.assign(navigator, { clipboard: { writeText } }) })
 
 describe('AdminAccountDetailView', () => {
   it('loads the account and its credentials', async () => {
@@ -431,5 +433,25 @@ describe('AdminAccountDetailView', () => {
     expect(w.text()).not.toContain('do not render')
     expect(w.text()).not.toContain('unknown')
     expect(w.text()).not.toContain('privateState')
+  })
+
+  it('copies the OIDC subject via the inline copy button', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="copy-button"]').trigger('click')
+    expect(writeText).toHaveBeenCalledWith(ACCOUNT.oidcSubject)
+  })
+
+  it('does not render a CodeField box in the identity card by default', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(w.find('[data-test="copy-code"]').exists()).toBe(false)
+    expect(w.find('[data-test="oidc-subject"]').classes()).toContain('font-mono')
+  })
+
+  it('drops the generated-UUID explanation under the OIDC subject', async () => {
+    mockGets()
+    const w = mountView(); await flushPromises()
+    expect(w.text()).not.toContain('A random UUID assigned')
   })
 })

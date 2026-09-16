@@ -29,6 +29,7 @@ import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import SectionTitle from '@/components/custom/SectionTitle.vue'
 import CodeField from '@/components/custom/CodeField.vue'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import CopyButton from '@/components/custom/CopyButton.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import CardSkeleton from '@/components/custom/CardSkeleton.vue'
 import BackLink from '@/components/custom/BackLink.vue'
@@ -262,8 +263,13 @@ onMounted(async () => {
             <p class="text-xs text-muted">{{ t('admin.account.usernameDesc') }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
-            <CodeField :value="account.oidcSubject" :label="t('admin.account.oidcSubject')" wrap />
-            <p class="text-xs text-muted">{{ t('admin.account.oidcSubjectDesc') }}</p>
+            <Label>{{ t('admin.account.oidcSubject') }}</Label>
+            <div class="flex min-w-0 items-center gap-2">
+              <p class="min-w-0 select-all font-mono text-sm break-words text-muted" data-test="oidc-subject">
+                {{ account.oidcSubject }}
+              </p>
+              <CopyButton :value="account.oidcSubject" :label="t('admin.account.oidcSubjectCopy')" />
+            </div>
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="displayName">{{ t('admin.account.displayName') }}</Label>
