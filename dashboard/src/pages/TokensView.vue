@@ -253,7 +253,7 @@ usePrivateState(() => { revealToken.value = ''; createOpen.value = false })
 
     <!-- Create / Reveal dialog -->
     <Dialog :open="createOpen" @update:open="(v) => { if (!v) closeCreate() }">
-      <DialogContent>
+      <DialogContent class="max-h-[calc(100dvh-2rem)] grid-cols-1 overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{{ revealToken ? t('tokens.revealTitle') : t('tokens.createTitle') }}</DialogTitle>
         </DialogHeader>
