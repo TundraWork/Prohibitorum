@@ -14,6 +14,7 @@ import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
 import { MonitorSmartphone } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import BareCard from '@/components/custom/BareCard.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import CodeField from '@/components/custom/CodeField.vue'
@@ -73,7 +74,7 @@ async function cancel(): Promise<void> {
     <StatusMessage :show="approved">{{ t('devices.approved') }}</StatusMessage>
 
     <!-- Entry -->
-    <Card v-if="!found">
+    <BareCard v-if="!found">
       <CardContent class="flex flex-col gap-3 py-4">
         <label class="text-sm font-medium text-ink" for="code">{{ t('devices.codeLabel') }}</label>
         <div class="flex items-center gap-2">
@@ -85,7 +86,7 @@ async function cancel(): Promise<void> {
           </Button>
         </div>
       </CardContent>
-    </Card>
+    </BareCard>
 
     <!-- Confirmation -->
     <Card v-else>

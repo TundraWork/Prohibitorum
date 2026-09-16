@@ -9,9 +9,10 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { relativeTime, formatDateTime } from '@/lib/time'
-import { Card, CardContent } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
+import BareCard from '@/components/custom/BareCard.vue'
 import UserAgentDisplay from '@/components/custom/UserAgentDisplay.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
@@ -57,7 +58,7 @@ onMounted(load)
     <ErrorPanel :error="error" @dismiss="clear" />
     <TableSkeleton v-if="busy && !rows.length" :rows="3" :cols="1" />
     <template v-else-if="rows.length">
-      <Card v-for="r in rows" :key="r.id">
+      <BareCard v-for="r in rows" :key="r.id">
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
             <UserAgentDisplay :ua="r.userAgent" class="min-w-0 text-ink">
@@ -74,7 +75,7 @@ onMounted(load)
             {{ t('sessions.revoke') }}
           </Button>
         </CardContent>
-      </Card>
+      </BareCard>
     </template>
     <EmptyState v-else-if="!error" :icon="MonitorSmartphone" :title="t('sessions.empty')" />
 

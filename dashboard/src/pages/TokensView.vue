@@ -15,7 +15,7 @@ import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
-import { Card, CardContent } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,6 +27,7 @@ import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
+import BareCard from '@/components/custom/BareCard.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface FAApp {
@@ -200,7 +201,7 @@ onMounted(async () => {
 
     <TableSkeleton v-if="busy && !rows.length" :rows="3" :cols="1" />
     <template v-else-if="rows.length">
-      <Card v-for="r in rows" :key="r.id">
+      <BareCard v-for="r in rows" :key="r.id">
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
             <div class="flex min-w-0 items-center gap-2">
@@ -240,7 +241,7 @@ onMounted(async () => {
             {{ t('tokens.revoke') }}
           </Button>
         </CardContent>
-      </Card>
+      </BareCard>
     </template>
     <EmptyState v-else-if="!error" :icon="Terminal" :title="t('tokens.empty')" />
 

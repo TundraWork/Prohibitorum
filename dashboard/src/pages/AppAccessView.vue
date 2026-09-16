@@ -4,12 +4,13 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { relativeTime } from '@/lib/time'
-import { Card, CardContent } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import TableSkeleton from '@/components/custom/TableSkeleton.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import AppIcon from '@/components/custom/AppIcon.vue'
+import BareCard from '@/components/custom/BareCard.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 interface ConsentedApp { kind: 'oidc' | 'saml'; clientId: string; name: string; iconUrl?: string | null; scopes: string[]; grantedAt: string }
@@ -42,7 +43,7 @@ onMounted(load)
 
     <TableSkeleton v-if="busy && !apps.length" :rows="2" :cols="1" />
     <template v-else-if="apps.length">
-      <Card v-for="app in apps" :key="`${app.kind}:${app.clientId}`">
+      <BareCard v-for="app in apps" :key="`${app.kind}:${app.clientId}`">
         <CardContent class="flex items-center justify-between gap-4 py-4">
           <div class="flex min-w-0 flex-1 items-center gap-3">
             <AppIcon :src="app.iconUrl" :name="app.name" size="sm" />
@@ -60,7 +61,7 @@ onMounted(load)
             {{ t('appAccess.revoke') }}
           </Button>
         </CardContent>
-      </Card>
+      </BareCard>
     </template>
     <EmptyState v-else-if="!error" :title="t('appAccess.empty')" />
 

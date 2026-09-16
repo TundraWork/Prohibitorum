@@ -14,6 +14,7 @@ import { hardRedirect } from '@/lib/navigate'
 import { relativeTime } from '@/lib/time'
 import { Link2 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import BareCard from '@/components/custom/BareCard.vue'
 import { Button } from '@/components/ui/button'
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
@@ -79,7 +80,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
 
     <TableSkeleton v-if="busy && !identities.length" :rows="3" :cols="1" />
     <template v-else-if="identities.length">
-      <Card v-for="ident in identities" :key="ident.id">
+      <BareCard v-for="ident in identities" :key="ident.id">
         <CardContent class="flex flex-col items-stretch gap-4 py-4 sm:flex-row sm:items-start sm:justify-between">
           <div class="flex min-w-0 flex-1 flex-col gap-2 text-sm">
             <div class="flex min-w-0 flex-wrap items-center gap-2">
@@ -95,7 +96,7 @@ onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) }
             {{ t('connected.unlink') }}
           </Button>
         </CardContent>
-      </Card>
+      </BareCard>
     </template>
 
     <EmptyState v-else-if="!error" :title="t('connected.empty')" />
