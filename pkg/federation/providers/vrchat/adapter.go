@@ -285,7 +285,7 @@ func (a *Adapter) extendProviderBackoff(ctx context.Context, providerID int64, r
 func (a *Adapter) classifyUpstream(ctx context.Context, provider federationcore.Provider, upstream error) error {
 	var mismatch *IdentityMismatchError
 	if errors.As(upstream, &mismatch) {
-		return federationcore.NewFailure(federationcore.FailureVRChatIdentityInvalid, nil)
+		return federationcore.NewFailureWithCause(federationcore.FailureVRChatIdentityInvalid, nil, upstream)
 	}
 	var httpErr *HTTPError
 	if errors.As(upstream, &httpErr) {
@@ -293,7 +293,7 @@ func (a *Adapter) classifyUpstream(ctx context.Context, provider federationcore.
 		case httpErr.Status == http.StatusUnauthorized || httpErr.Status == http.StatusForbidden:
 			return a.invalidateOperatorSnapshot(ctx, provider)
 		case httpErr.Status == http.StatusNotFound:
-			return federationcore.NewFailure(federationcore.FailureVRChatIdentityInvalid, nil)
+			return federationcore.NewFailureWithCause(federationcore.FailureVRChatIdentityInvalid, nil, upstream)
 		case httpErr.Status == http.StatusTooManyRequests:
 			retry := httpErr.RetryAfter
 			if retry <= 0 {
@@ -306,10 +306,10 @@ func (a *Adapter) classifyUpstream(ctx context.Context, provider federationcore.
 			if err != nil {
 				return err
 			}
-			return federationcore.NewRateLimitedFailure(storedRetry)
+			return federationcore.NewRateLimitedFailureWithCause(storedRetry, upstream)
 		}
 	}
-	return federationcore.NewFailure(federationcore.FailureUpstreamUnavailable, nil)
+	return federationcore.NewFailureWithCause(federationcore.FailureUpstreamUnavailable, nil, upstream)
 }
 
 var _ federationcore.Adapter = (*Adapter)(nil)

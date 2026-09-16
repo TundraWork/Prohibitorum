@@ -108,7 +108,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		steamID, err = Verify(ctx, client, input.Params, state.ReturnTo)
 	}
 	if err != nil {
-		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureSteamVerification, nil)
+		return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureSteamVerification, nil, err)
 	}
 	var player Summary
 	if a.summary != nil {
@@ -117,7 +117,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		player, err = FetchSummary(ctx, client, apiKey, steamID)
 	}
 	if err != nil {
-		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureSteamVerification, nil)
+		return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureSteamVerification, nil, err)
 	}
 	avatarURL := player.AvatarURL
 	return federationcore.AdvanceResult{Identity: &federationcore.VerifiedIdentity{

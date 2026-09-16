@@ -15,6 +15,10 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/kv"
+	"prohibitorum/pkg/logx"
+	"prohibitorum/pkg/weberr"
+
+	"github.com/sirupsen/logrus"
 )
 
 const maxLeaseCleanupTimeout = 5 * time.Second
@@ -148,7 +152,7 @@ func (s *Service) BeginLink(ctx context.Context, providerSlug, returnTo string, 
 func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, returnTo string) (*BeginResult, error) {
 	provider, err := s.providers.InviteProvider(ctx, enrollmentToken)
 	if err != nil {
-		if _, _, _, ok := failureProjection(err); ok {
+		if _, _, _, _, ok := failureProjection(err); ok {
 			return nil, s.recordFailure(ctx, nil, nil, "", err)
 		}
 		return nil, authn.ErrInviteRequired()
@@ -508,10 +512,11 @@ func (s *Service) loadBoundFlow(ctx context.Context, request AdvanceRequest) (st
 }
 
 func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *AdvanceRequest, providerSlug string, err error) error {
-	reason, extra, publicErr, ok := failureProjection(err)
+	reason, extra, publicErr, cause, ok := failureProjection(err)
 	if state != nil && state.Protocol == "vrchat" {
 		s.recordVRChatFailure(ctx, state, providerSlug, err)
 		if ok {
+			logFlowFailure(ctx, reason, cause, providerSlug, request)
 			return publicErr
 		}
 		return err
@@ -519,6 +524,7 @@ func (s *Service) recordFailure(ctx context.Context, state *FlowState, request *
 	if !ok {
 		return err
 	}
+	logFlowFailure(ctx, reason, cause, providerSlug, request)
 	detail := map[string]any{"reason": string(reason)}
 	if providerSlug != "" {
 		detail["idp_slug"] = providerSlug
@@ -543,6 +549,29 @@ func (s *Service) recordVRChatFailure(ctx context.Context, state *FlowState, pro
 	s.recordVRChatTransition(ctx, "vrchat_proof_failed", state, providerSlug, vrchatFailureCategory(err))
 }
 
+// logFlowFailure emits the operator-facing federation_flow_failure log line
+// at the federation log boundary. It carries the raw upstream error text
+// (cause) so operators can diagnose upstream rejections; per the card
+// decision the cause goes only to logs — never to the audit Detail, the
+// database, or the wire. request_id is the only key correlating this line
+// with the HTTP boundary's `auth error redirect` entry.
+func logFlowFailure(ctx context.Context, reason FailureReason, cause error, providerSlug string, request *AdvanceRequest) {
+	fields := logrus.Fields{"event": "federation_flow_failure", "reason": string(reason)}
+	if providerSlug != "" {
+		fields["idp_slug"] = providerSlug
+	}
+	if request != nil {
+		fields["flow_id"] = request.FlowID
+	}
+	if id := weberr.RequestIDFromContext(ctx); id != "" {
+		fields["request_id"] = id
+	}
+	if cause != nil {
+		fields["upstream_error"] = cause.Error()
+	}
+	logx.WithContext(ctx).WithFields(fields).Warn("federation flow failed")
+}
+
 func vrchatFailureCategory(err error) string {
 	if errors.Is(err, ErrKVUnavailable) {
 		return "kv_unavailable"
@@ -550,6 +579,7 @@ func vrchatFailureCategory(err error) string {
 	if errors.Is(err, ErrLocalUsernameRequired) {
 		return "local_username_required"
 	}
+
 	if reason, ok := FailureReasonOf(err); ok {
 		switch reason {
 		case FailureStateInvalid,
@@ -624,7 +654,9 @@ func (s *Service) restoreAfterFailure(ctx context.Context, request AdvanceReques
 		return s.restore(ctx, request.FlowID, state, originalRaw, publicErr, requireUsername)
 	}
 	publicErr := cause
-	if reason, _, projected, ok := failureProjection(cause); ok {
+	reason, _, projected, projCause, ok := failureProjection(cause)
+	if ok {
+		logFlowFailure(ctx, reason, projCause, providerSlug, &request)
 		switch reason {
 		case FailureLocalUsernameRequired:
 			// Preserve the typed flow failure: it unwraps to both the stable

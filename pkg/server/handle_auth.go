@@ -157,15 +157,17 @@ func writeAuthErr(w http.ResponseWriter, err error) {
 }
 
 // logInternalError emits a curated log line for an internal (non-domain)
-// error. It logs the request ID (so operators can correlate the public
-// response to structured records), the registered code passed by the
-// caller (e.g. "database_unavailable", "kv_unavailable",
+// error at the JSON boundary. It logs the request ID (so operators can
+// correlate the public response to structured records), the registered code
+// passed by the caller (e.g. "database_unavailable", "kv_unavailable",
 // "ceremony_internal_error", or "server_error" for the generic fallback),
-// and a safe diagnostic category. It deliberately does NOT call
-// WithError(err) — err.Error() may contain connection strings, query text,
-// or stack fragments that must not be persisted to structured logs.
-// Callers that need the raw detail for debugging should add a separate
-// debug-level entry with an explicit, reviewed field if warranted.
+// and a safe diagnostic category. Per the PHB-3 decision, raw upstream
+// error text belongs in operator logs — but this boundary serves
+// non-federation internal failures whose detail the federation service
+// layer has not already logged, so it keeps the error_type label only;
+// federation flows carry the raw text on their federation_flow_failure
+// line and on the redirect boundary's WithError entry instead.
+// Audit Detail remains allowlist-filtered in either channel.
 func logInternalError(requestID, code string, err error) {
 	entry := logrus.WithField("code", code).
 		WithField("category", "internal").
@@ -247,10 +249,13 @@ func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err er
 	}
 	ref := weberr.NewRef()
 	// Correlate the user-facing ref with the cause. A non-AuthError is a real
-	// server-side failure → log it at warn with the ref, code, request ID, and
-	// a safe error_type label — never WithError(err), which would persist the
-	// raw error string (may contain secrets) to structured logs. An AuthError
-	// is an expected outcome (bad_credentials, link_required, …) → debug.
+	// server-side failure → log it at warn with the ref, code, request ID, a
+	// safe error_type label, and the raw error via WithError. Per the PHB-3
+	// decision, upstream error text goes to operator logs only — never to the
+	// database or the wire (the client still sees only code + requestId, and
+	// audit Detail stays allowlist-filtered). An AuthError is an expected
+	// outcome (bad_credentials, link_required, …) → debug; its service-layer
+	// federation_flow_failure line already carries any upstream detail.
 	requestID := weberr.RequestIDFromContext(r.Context())
 	entry := logx.WithContext(r.Context()).
 		WithField("ref", ref).
@@ -258,7 +263,7 @@ func redirectAuthErrToErrorReturn(w http.ResponseWriter, r *http.Request, err er
 		WithField("request_id", requestID)
 	if ae == nil {
 		if err != nil {
-			entry = entry.WithField("error_type", errorTypeLabel(err))
+			entry = entry.WithField("error_type", errorTypeLabel(err)).WithError(err)
 		}
 		entry.Warn("auth error redirect")
 	} else {

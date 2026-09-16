@@ -137,6 +137,33 @@ func NewFailure(reason FailureReason, detail map[string]any) error {
 	return failure
 }
 
+// NewFailureWithCause wraps an upstream error into the opaque public
+// federation error, preserving the raw cause for the operator-facing
+// federation_flow_failure log. The cause never reaches the wire or the
+// audit Detail: failureProjection carries it only to the federation log
+// boundary, while Unwrap keeps exposing the public AuthError alongside it
+// so errors.Is/As semantics are unchanged. A nil cause behaves exactly
+// like NewFailure.
+func NewFailureWithCause(reason FailureReason, detail map[string]any, cause error) error {
+	failure := NewFailure(reason, detail).(*flowFailure)
+	if cause != nil {
+		failure.cause = cause
+	}
+	return failure
+}
+
+// NewRateLimitedFailureWithCause is NewRateLimitedFailure with the upstream
+// error preserved for the federation_flow_failure log; it stays out of the
+// wire and the audit Detail. Use it where the 429 came from a real upstream
+// response (classifyUpstream); the local backoff path keeps NewRateLimited.
+func NewRateLimitedFailureWithCause(retryAfter time.Duration, cause error) error {
+	failure := NewRateLimitedFailure(retryAfter).(*flowFailure)
+	if cause != nil {
+		failure.cause = cause
+	}
+	return failure
+}
+
 // NewRateLimitedFailure preserves the bounded Retry-After value while retaining
 // the allowlisted federation failure classification used by audit.
 func NewRateLimitedFailure(retryAfter time.Duration) error {
@@ -153,14 +180,18 @@ func FailureReasonOf(err error) (FailureReason, bool) {
 	return failure.reason, true
 }
 
-func failureProjection(err error) (FailureReason, map[string]any, error, bool) {
+// failureProjection projects a flow failure into its audit-safe parts: the
+// reason, a copy of the allowlisted detail, and the public error. cause
+// carries the raw upstream error for the federation log boundary only — it
+// never re-enters the audit Detail and must never reach the wire.
+func failureProjection(err error) (FailureReason, map[string]any, error, error, bool) {
 	var failure *flowFailure
 	if !errors.As(err, &failure) {
-		return "", nil, nil, false
+		return "", nil, nil, nil, false
 	}
 	detail := make(map[string]any, len(failure.detail))
 	for key, value := range failure.detail {
 		detail[key] = value
 	}
-	return failure.reason, detail, failure.public, true
+	return failure.reason, detail, failure.public, failure.cause, true
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -704,4 +705,66 @@ func (bootstrappedRow) Scan(dest ...interface{}) error {
 		*b = true
 	}
 	return nil
+}
+
+// --- PHB-3: redirect boundary carries the raw error on its log line ---
+
+// TestRedirectAuthErrToErrorReturn_LogsRawInternalError proves the PHB-3
+// behavior: a non-AuthError (real server-side failure) reaching the browser
+// redirect boundary is logged at warn WITH the raw error attached via
+// WithError, while the redirect target still exposes only the canonical
+// code. The raw text must appear on the structured log line (operators) and
+// never in the Location URL (wire).
+func TestRedirectAuthErrToErrorReturn_LogsRawInternalError(t *testing.T) {
+	buf, restore := captureLogrusOutput(t)
+	defer restore()
+
+	const upstreamDetail = "oidc: token endpoint returned 400 invalid_client"
+	err := fmt.Errorf("exchange failed: %w", errors.New(upstreamDetail))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/federation/callback", nil)
+	ref := redirectAuthErrToErrorReturn(rec, req, err, "")
+
+	location := rec.Header().Get("Location")
+	if !strings.Contains(location, "error=server_error") || strings.Contains(location, upstreamDetail) {
+		t.Fatalf("Location = %q, want canonical code without raw detail", location)
+	}
+	if ref == "" {
+		t.Fatal("redirect returned empty ref")
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "msg=\"auth error redirect\"") {
+		t.Fatalf("log missing auth error redirect line:\n%s", out)
+	}
+	if !strings.Contains(out, upstreamDetail) {
+		t.Fatalf("log missing raw upstream error (PHB-3 WithError):\n%s", out)
+	}
+	if !strings.Contains(out, `error="exchange failed`) {
+		t.Fatalf("WithError entry missing error field:\n%s", out)
+	}
+	if !strings.Contains(out, "level=warn") {
+		t.Fatalf("non-AuthError branch not logged at warn:\n%s", out)
+	}
+}
+
+// TestRedirectAuthErrToErrorReturn_AuthErrorStaysDebug proves the AuthError
+// branch keeps its debug level and does not attach WithError — expected
+// business outcomes stay quiet, and any upstream detail lives on the
+// service layer's federation_flow_failure line instead.
+func TestRedirectAuthErrToErrorReturn_AuthErrorStaysDebug(t *testing.T) {
+	buf, restore := captureLogrusOutput(t)
+	defer restore()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/federation/callback", nil)
+	redirectAuthErrToErrorReturn(rec, req, authn.ErrFederationStateInvalid(), "")
+
+	if !strings.Contains(rec.Header().Get("Location"), "error=federation_state_invalid") {
+		t.Fatalf("Location = %q, want federation_state_invalid", rec.Header().Get("Location"))
+	}
+	if strings.Contains(buf.String(), "level=warn") && strings.Contains(buf.String(), "msg=\"auth error redirect\"") {
+		t.Fatalf("AuthError branch logged a warn entry:\n%s", buf.String())
+	}
 }

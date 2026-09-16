@@ -206,7 +206,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 	}
 	tokens, err := client.Exchange(ctx, input.Code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
 	if err != nil {
-		return federationcore.AdvanceResult{}, federationcore.NewFailure(federationcore.FailureCodeExchange, nil)
+		return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureCodeExchange, nil, err)
 	}
 	usernameClaim := config.UsernameClaim
 	if usernameClaim == "" {
