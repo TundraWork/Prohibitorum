@@ -298,8 +298,7 @@ async function enroll(): Promise<void> {
            buttons deliberately skip form validation — the typed inputs serve
            local signup only. -->
       <template v-if="providers.length">
-        <OrDivider :label="t('enroll.providerDivider')" />
-        <p class="text-xs text-muted">{{ t('enroll.providerHint') }}</p>
+        <OrDivider v-if="!providerBound" :label="t('enroll.providerDivider')" />
         <Button
           v-for="p in providers"
           :key="p.slug"

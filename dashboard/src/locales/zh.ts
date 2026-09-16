@@ -1103,7 +1103,6 @@ export default {
     invalid: '此邀请链接无效或已被使用。',
     federationRedirect: '正在跳转至身份提供商…',
     providerDivider: '或使用身份提供商注册',
-    providerHint: '选择提供商后，将在其登录页面完成验证，用户名来自提供商。注册完成后可再设置密码等本地登录方式。',
     providerButton: '使用 {provider} 注册',
     passkeyForeshadow: '点击继续后，设备将提示你使用指纹、面部识别或安全密钥创建通行密钥。',
     methodPasswordTotp: '使用密码和身份验证器应用',

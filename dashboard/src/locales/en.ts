@@ -1107,7 +1107,6 @@ export default {
     invalid: 'This invitation link is invalid or has already been used.',
     federationRedirect: 'Redirecting to your identity provider…',
     providerDivider: 'Or register with an identity provider',
-    providerHint: 'Pick a provider to verify at its sign-in page — your username comes from the provider. You can add a password or other local sign-in afterwards.',
     providerButton: 'Continue with {provider}',
     passkeyForeshadow: 'When you continue, your device will ask you to create a passkey using your fingerprint, face, or a security key.',
     methodPasswordTotp: 'Use a password and authenticator app',
