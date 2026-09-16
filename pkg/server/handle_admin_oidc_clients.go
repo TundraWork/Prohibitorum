@@ -69,6 +69,7 @@ func oidcApplicationView(c db.OidcClient) contract.OIDCApplicationView {
 		PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
 		AllowedScopes:          c.AllowedScopes,
 		ClientAuthMethod:       c.ClientAuthMethod,
+		RequirePkce:            c.RequirePkce,
 		RequireConsent:         c.RequireConsent,
 		Disabled:               c.Disabled,
 		AccessRestricted:       c.AccessRestricted,
@@ -171,7 +172,6 @@ func (s *Server) handleGetOIDCApplication(ctx context.Context, in *getOIDCApplic
 }
 
 // ----- POST /oidc-applications (raw, sudo-gated) -----------------------------------
-
 type createOIDCApplicationBody struct {
 	AccessRestricted       bool     `json:"accessRestricted"`
 	ClientID               string   `json:"clientId"`
@@ -181,6 +181,8 @@ type createOIDCApplicationBody struct {
 	Scopes                 []string `json:"scopes"`
 	Public                 bool     `json:"public"`
 	RequireConsent         bool     `json:"requireConsent"`
+	// RequirePkce omitted or null means true (the default for new clients).
+	RequirePkce *bool `json:"requirePkce"`
 }
 
 type createOIDCApplicationResponse struct {
@@ -199,7 +201,7 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, err)
 		return
 	}
-
+	requirePKCE := body.RequirePkce == nil || *body.RequirePkce
 	opts := oidc.ClientOptions{
 		ClientID:               body.ClientID,
 		DisplayName:            body.DisplayName,
@@ -208,6 +210,7 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		Scopes:                 body.Scopes,
 		Public:                 body.Public,
 		RequireConsent:         body.RequireConsent,
+		RequirePKCE:            requirePKCE,
 	}
 
 	params, secret, err := oidc.BuildClientParams(opts)
@@ -236,7 +239,7 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventRegister,
-		Detail:    map[string]any{"client_id": c.ClientID, "public": body.Public},
+		Detail:    map[string]any{"client_id": c.ClientID, "public": body.Public, "require_pkce": c.RequirePkce},
 	})
 
 	resp := createOIDCApplicationResponse{
@@ -248,8 +251,6 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-// ----- PUT /oidc-applications/{clientId} (raw, sudo-gated) ------------------------
-
 type updateOIDCApplicationBody struct {
 	DisplayName            string   `json:"displayName"`
 	RedirectURIs           []string `json:"redirectUris"`
@@ -258,6 +259,9 @@ type updateOIDCApplicationBody struct {
 	RequireConsent         bool     `json:"requireConsent"`
 	Disabled               bool     `json:"disabled"`
 	LaunchURL              *string  `json:"launchUrl"`
+	// RequirePkce omitted or null keeps the client's current value: the zero
+	// value would silently relax PKCE on a forgotten field (see design D3).
+	RequirePkce *bool `json:"requirePkce"`
 }
 
 func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.Request) {
@@ -285,11 +289,21 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-
 	// Enforce at least one redirect URI.
 	if len(body.RedirectURIs) == 0 {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
+	}
+	// A public client cannot opt out of PKCE (protocol-level rule; the DB
+	// CHECK would reject the row). nil keeps the current value, so it can
+	// never flip a public client's require_pkce off by omission either.
+	requirePKCE := existing.RequirePkce
+	if body.RequirePkce != nil {
+		if !*body.RequirePkce && existing.ClientAuthMethod == "none" {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
+		requirePKCE = *body.RequirePkce
 	}
 
 	// Default post-logout URIs to empty slice (not nil) to satisfy NOT NULL.
@@ -306,13 +320,13 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 	if len(scopes) == 0 {
 		scopes = []string{"openid", "profile"}
 	}
-
 	c, err := s.queries.UpdateOIDCClient(r.Context(), db.UpdateOIDCClientParams{
 		ClientID:               clientID,
 		DisplayName:            body.DisplayName,
 		RedirectUris:           body.RedirectURIs,
 		PostLogoutRedirectUris: postLogout,
 		AllowedScopes:          scopes,
+		RequirePkce:            requirePKCE,
 		RequireConsent:         body.RequireConsent,
 		Disabled:               body.Disabled,
 	})
@@ -353,7 +367,7 @@ func (s *Server) handleUpdateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 		AccountID: actorID,
 		Factor:    audit.FactorOIDCClient,
 		Event:     audit.EventUpdate,
-		Detail:    map[string]any{"client_id": clientID},
+		Detail:    map[string]any{"client_id": clientID, "require_pkce": c.RequirePkce},
 	})
 
 	view := oidcApplicationView(c)

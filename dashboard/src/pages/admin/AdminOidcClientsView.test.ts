@@ -13,8 +13,8 @@ import AdminOidcClientsView from './AdminOidcClientsView.vue'
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminOidcClientsView, { global: { plugins: [i18n()] }, attachTo: document.body })
 const CLIENTS = [
-  { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], clientAuthMethod: 'client_secret', requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' },
-  { clientId: 'spa', displayName: 'SPA', redirectUris: ['https://s/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], clientAuthMethod: 'none', requireConsent: false, disabled: false, createdAt: '2026-01-02T00:00:00Z' },
+  { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], clientAuthMethod: 'client_secret', requirePkce: true, requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' },
+  { clientId: 'spa', displayName: 'SPA', redirectUris: ['https://s/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid'], clientAuthMethod: 'none', requirePkce: true, requireConsent: false, disabled: false, createdAt: '2026-01-02T00:00:00Z' },
 ]
 beforeEach(() => { get.mockReset(); post.mockReset(); push.mockReset() })
 
@@ -87,5 +87,36 @@ describe('AdminOidcClientsView', () => {
     await w.find('[data-test="redirectUris-input-0"]').setValue('https://w/cb')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(w.text()).toContain(en.errors.codes.oidc_client_already_exists)
+  })
+
+  it('requirePkce switch defaults on, ships in the request body, and locks on when public is checked', async () => {
+    get.mockResolvedValue({ items: [], nextCursor: '' })
+    post.mockResolvedValue({ clientId: 'new', secret: 's3cr3t' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    const sw = w.find('[data-test="require-pkce"]')
+    // Defaults to on.
+    expect(sw.attributes('aria-checked')).toBe('true')
+    // Omitted -> body still carries the explicit value.
+    await w.find('input[name="clientId"]').setValue('pkce-body')
+    await w.find('[data-test="redirectUris-add"]').trigger('click')
+    await w.find('[data-test="redirectUris-input-0"]').setValue('https://n/cb')
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenLastCalledWith('/api/prohibitorum/oidc-applications', expect.objectContaining({ requirePkce: true }))
+
+    // Public clients cannot opt out: checking --public re-enables and disables the switch.
+    await w.find('[data-test="create"]').trigger('click')
+    await w.find('[data-test="require-pkce"]').trigger('click')
+    expect(w.find('[data-test="require-pkce"]').attributes('aria-checked')).toBe('false')
+    await w.find('[data-test="public"]').trigger('click')
+    const swPub = w.find('[data-test="require-pkce"]')
+    expect(swPub.attributes('aria-checked')).toBe('true')
+    expect(swPub.attributes('disabled')).toBeDefined()
+    await w.find('input[name="clientId"]').setValue('spa2')
+    await w.find('[data-test="redirectUris-add"]').trigger('click')
+    await w.find('[data-test="redirectUris-input-0"]').setValue('https://s2/cb')
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenLastCalledWith('/api/prohibitorum/oidc-applications', expect.objectContaining({ public: true, requirePkce: true }))
+    w.unmount()
   })
 })

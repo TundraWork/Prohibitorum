@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** AdminOidcClientsView (/admin/oidc-applications) — table of OIDC clients; inline create with reveal-once secret. */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRouter } from 'vue-router'
@@ -35,6 +35,7 @@ interface OidcApplication {
   postLogoutRedirectUris: string[]
   allowedScopes: string[]
   clientAuthMethod: string
+  requirePkce: boolean
   requireConsent: boolean
   disabled: boolean
   createdAt: string
@@ -64,8 +65,11 @@ const redirectUris = ref<string[]>([])
 const postLogoutUris = ref<string[]>([])
 const scopes = ref<string[]>(['openid'])
 const isPublic = ref(false)
+const requirePkce = ref(true)
 const requireConsent = ref(false)
-
+// A public client's only code protection is PKCE: force the switch back on
+// (and hold it disabled) instead of letting a stale off-state reach the API.
+watch(isPublic, (pub) => { if (pub) requirePkce.value = true })
 function validateUri(s: string): string | null {
   try {
     const u = new URL(s)
@@ -89,6 +93,7 @@ async function create(): Promise<void> {
     postLogoutRedirectUris: postLogoutUris.value,
     scopes: scopes.value,
     public: isPublic.value,
+    requirePkce: requirePkce.value,
     requireConsent: requireConsent.value,
   })))
   if (res) {
@@ -108,6 +113,7 @@ function openCreate(): void {
   postLogoutUris.value = []
   scopes.value = ['openid']
   isPublic.value = false
+  requirePkce.value = true
   requireConsent.value = false
   revealedSecret.value = ''
   created.value = false
@@ -164,6 +170,9 @@ function openCreate(): void {
         <FormSection :title="t('admin.oidc.sectionOptions')">
           <SettingRow :label="t('admin.oidc.publicClient')" :description="t('admin.oidc.publicClientDesc')" for="public">
             <Switch id="public" name="public" data-test="public" v-model="isPublic" />
+          </SettingRow>
+          <SettingRow :label="t('admin.oidc.requirePkce')" :description="t('admin.oidc.requirePkceDesc')" for="requirePkce">
+            <Switch id="requirePkce" data-test="require-pkce" v-model="requirePkce" :disabled="isPublic" />
           </SettingRow>
           <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">
             <Switch id="requireConsent" v-model="requireConsent" />

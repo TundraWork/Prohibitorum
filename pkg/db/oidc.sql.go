@@ -833,7 +833,7 @@ func (q *Queries) UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAut
 const updateOIDCClient = `-- name: UpdateOIDCClient :one
 UPDATE oidc_client SET
   display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,
-  allowed_scopes = $5, require_consent = $6, disabled = $7
+  allowed_scopes = $5, require_pkce = $6, require_consent = $7, disabled = $8
 WHERE client_id = $1
 RETURNING client_id, display_name, client_secret_hash, redirect_uris, post_logout_redirect_uris, allowed_scopes, require_pkce, allowed_code_challenge_methods, client_auth_method, subject_type, logo_uri, tos_uri, policy_uri, disabled, require_consent, created_at, access_restricted, forward_auth_enabled, forward_auth_host, forward_auth_scopes, launch_url
 `
@@ -844,6 +844,7 @@ type UpdateOIDCClientParams struct {
 	RedirectUris           []string `json:"redirectUris"`
 	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris"`
 	AllowedScopes          []string `json:"allowedScopes"`
+	RequirePkce            bool     `json:"requirePkce"`
 	RequireConsent         bool     `json:"requireConsent"`
 	Disabled               bool     `json:"disabled"`
 }
@@ -855,6 +856,7 @@ func (q *Queries) UpdateOIDCClient(ctx context.Context, arg UpdateOIDCClientPara
 		arg.RedirectUris,
 		arg.PostLogoutRedirectUris,
 		arg.AllowedScopes,
+		arg.RequirePkce,
 		arg.RequireConsent,
 		arg.Disabled,
 	)

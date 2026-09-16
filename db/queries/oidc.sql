@@ -7,7 +7,7 @@ SELECT * FROM oidc_client WHERE client_id = $1;
 -- name: UpdateOIDCClient :one
 UPDATE oidc_client SET
   display_name = $2, redirect_uris = $3, post_logout_redirect_uris = $4,
-  allowed_scopes = $5, require_consent = $6, disabled = $7
+  allowed_scopes = $5, require_pkce = $6, require_consent = $7, disabled = $8
 WHERE client_id = $1
 RETURNING *;
 

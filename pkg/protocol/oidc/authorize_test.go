@@ -104,6 +104,7 @@ func validClient() db.OidcClient {
 		ClientID:                    "rp-1",
 		RedirectUris:                []string{"https://rp.example.com/callback"},
 		AllowedScopes:               []string{"openid", "profile", "offline_access"},
+		ClientAuthMethod:            "client_secret",
 		RequirePkce:                 true,
 		AllowedCodeChallengeMethods: []string{"S256"},
 	}
@@ -299,6 +300,33 @@ func TestAuthorize_RequirePkceFalse_NoChallengeProceeds(t *testing.T) {
 	}
 	if loc.Get("code") == "" {
 		t.Fatalf("expected an authorization code in redirect, got %v", loc)
+	}
+}
+
+// TestAuthorize_PublicClientRequiresPkceEvenWhenColumnFalse pins the D1 rule:
+// require_pkce is per-client configuration, but "a public client must use
+// PKCE" is protocol-level. Even if the column is (improperly) false, the
+// missing-challenge request must be rejected with error=invalid_request and
+// no code.
+func TestAuthorize_PublicClientRequiresPkceEvenWhenColumnFalse(t *testing.T) {
+	c := validClient()
+	c.ClientAuthMethod = "none"
+	c.RequirePkce = false
+	q := &fakeAuthzQueries{client: c, session: validSession()}
+	p := newProvider(q, &recordingAudit{})
+
+	v := baseParams()
+	v.Del("code_challenge")
+	v.Del("code_challenge_method")
+	rec := httptest.NewRecorder()
+	p.HandleAuthorize(rec, authedReq(v))
+
+	loc := redirectQuery(t, rec)
+	if got := loc.Get("error"); got != errCodeInvalidRequest {
+		t.Fatalf("want error=invalid_request, got %q (loc query %v)", got, loc)
+	}
+	if loc.Get("code") != "" {
+		t.Fatalf("public client without challenge must not get a code, got %v", loc)
 	}
 }
 

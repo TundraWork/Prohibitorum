@@ -289,6 +289,7 @@ func seedOIDCClient(ctx context.Context, q *db.Queries) {
 		Scopes:         []string{"openid", "profile", "email"},
 		Public:         true,
 		RequireConsent: true,
+		RequirePKCE:    true,
 	})
 	if err != nil {
 		log.Fatalf("build OIDC client params: %v", err)

@@ -125,6 +125,7 @@ func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 		Scopes:         []string{"openid", "profile", "email"},
 		Public:         true,
 		RequireConsent: true,
+		RequirePKCE:    true,
 	})
 	if err != nil {
 		t.Fatal(err)

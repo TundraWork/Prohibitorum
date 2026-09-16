@@ -89,11 +89,16 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// PKCE per client policy (D6). require_pkce → code_challenge mandatory;
-	// the requested method must be in allowed_code_challenge_methods. 'plain' is
-	// forbidden entirely by the oidc_client DB CHECK (OAuth 2.1: S256 mandatory);
-	// the allowed set is S256-only. The membership check below is the general gate.
-	if client.RequirePkce && codeChallenge == "" {
+	// PKCE per client policy (D6). A confidential client opts out only when
+	// its require_pkce column says so; a public client (client_auth_method =
+	// 'none') must always send a code_challenge — that rule is protocol-level
+	// (OAuth 2.1 / RFC 9700), not operator configuration, so it is enforced
+	// here regardless of what the column holds or what a write path allowed.
+	// The requested method must be in allowed_code_challenge_methods; 'plain'
+	// is forbidden entirely by the oidc_client DB CHECK (OAuth 2.1: S256
+	// mandatory); the allowed set is S256-only. The membership check below is
+	// the general gate.
+	if (client.RequirePkce || client.ClientAuthMethod == "none") && codeChallenge == "" {
 		redirectError(w, r, redirectURI, errCodeInvalidRequest, "PKCE code_challenge is required", state, p.cfg.OIDC.Issuer)
 		return
 	}

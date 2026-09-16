@@ -150,13 +150,14 @@ func TestAdminOIDCClients_GenerateClientSecret_UniqueAndVerifiable(t *testing.T)
 		ClientID:     "client-a",
 		DisplayName:  "Client A",
 		RedirectURIs: []string{"https://a.test/cb"},
+		RequirePKCE:  true,
 	}
 	opts2 := oidc.ClientOptions{
 		ClientID:     "client-b",
 		DisplayName:  "Client B",
 		RedirectURIs: []string{"https://b.test/cb"},
+		RequirePKCE:  true,
 	}
-
 	params1, secret1, err := oidc.BuildClientParams(opts1)
 	if err != nil {
 		t.Fatalf("BuildClientParams opts1: %v", err)
@@ -206,6 +207,7 @@ func TestAdminOIDCClients_CreateResponse_PublicClientNoSecret(t *testing.T) {
 		DisplayName:  "Public Client",
 		RedirectURIs: []string{"myapp://callback"},
 		Public:       true,
+		RequirePKCE:  true,
 	}
 
 	params, secret, err := oidc.BuildClientParams(opts)

@@ -420,7 +420,6 @@ var OperationListAccountTokens = huma.Operation{
 	Summary:     "List an account's personal access tokens (admin only).",
 }
 
-
 var OperationRevokeAccountSessions = huma.Operation{
 	OperationID: "revokeAccountSessions",
 	Method:      http.MethodPost,
@@ -557,16 +556,20 @@ var OperationListSigningKeys = huma.Operation{
 // client_secret_hash is NEVER included — only the public configuration fields
 // are returned to callers.
 type OIDCApplicationView struct {
-	ClientID               string    `json:"clientId"`
-	DisplayName            string    `json:"displayName"`
-	IconURL                *string   `json:"iconUrl,omitempty"`
-	LaunchURL              *string   `json:"launchUrl,omitempty"`
-	RedirectURIs           []string  `json:"redirectUris"`
-	PostLogoutRedirectURIs []string  `json:"postLogoutRedirectUris"`
-	AllowedScopes          []string  `json:"allowedScopes"`
+	ClientID               string   `json:"clientId"`
+	DisplayName            string   `json:"displayName"`
+	IconURL                *string  `json:"iconUrl,omitempty"`
+	LaunchURL              *string  `json:"launchUrl,omitempty"`
+	RedirectURIs           []string `json:"redirectUris"`
+	PostLogoutRedirectURIs []string `json:"postLogoutRedirectUris"`
+	AllowedScopes          []string `json:"allowedScopes"`
 	// ClientAuthMethod is `client_secret` for confidential clients (either
 	// credential channel is accepted) or `none` for public PKCE clients.
-	ClientAuthMethod string    `json:"clientAuthMethod"`
+	ClientAuthMethod string `json:"clientAuthMethod"`
+	// RequirePkce is always true for public clients: PKCE is their only
+	// protection of the authorization code. Confidential clients default to
+	// true; an operator may relax it per client.
+	RequirePkce      bool      `json:"requirePkce"`
 	RequireConsent   bool      `json:"requireConsent"`
 	Disabled         bool      `json:"disabled"`
 	AccessRestricted bool      `json:"accessRestricted"`
@@ -729,4 +732,3 @@ var OperationListAuditEvents = huma.Operation{
 	Path:        "/audit-events",
 	Summary:     "List credential/admin audit events, newest first, with filters and keyset pagination (admin only).",
 }
-

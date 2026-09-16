@@ -102,7 +102,7 @@ The first-party OpenID Connect Provider. Routes are root-mounted (not under
 - Storage: codes + refresh tokens in KV (codes single-use with replay marker; refresh opaque, rotated, per-family record for reuse detection + family revocation); access tokens stateless RFC 9068 JWTs revoked via `revoked_jti`; ID tokens stateless. `sub` = `account.oidc_subject` (uuid).
 - Rate limits keyed on identity, not IP: `/authorize` per account, `/token`/`/introspect`/`/revoke` per client, `/userinfo` per subject.
 - Consent: auto-approve once a session exists; per-client `require_consent` honored (`consent_required`) — no consent UI in this version.
-- CLIs: `signing-key generate [--activate] [--retire <kid>]` (mints RSA-2048, RFC 7638 `kid`, JWK + self-signed x509 + PKCS#8 PEM); `oidc-client create … [--public] [--require-consent]` (confidential default reveals a 32-byte secret once, stores only the argon2id hash; `--public` → no secret, `none` auth, PKCE required) and `oidc-client list`.
+- CLIs: `signing-key generate [--activate] [--retire <kid>]` (mints RSA-2048, RFC 7638 `kid`, JWK + self-signed x509 + PKCS#8 PEM); `oidc-client create … [--public] [--require-consent] [--require-pkce=<bool>]` (confidential default reveals a 32-byte secret once, stores only the argon2id hash; `--public` → no secret, `none` auth, PKCE always required; `--require-pkce=false` relaxes only a confidential client) and `oidc-client list`.
 
 ### Endpoints introduced in v0.4
 
@@ -153,7 +153,7 @@ re-authentication, OIDC PKCE-method policy + introspection client-auth, SAML
 intake, and signed metadata.
 
 - OIDC forced re-auth: `/oauth/authorize` honors `prompt=login`, `max_age`, and `prompt=none`. The mechanism is a full fresh re-login plus a single-use KV nonce — on demand it stamps a demand instant under the nonce, embeds it in `/login?return_to=…&reauth=<nonce>`, and on return requires the marker present and `session.auth_time >= demand_instant`. A stale session can't satisfy `prompt=login`. `prompt=none` + demand → `login_required` (no bounce); `prompt=login`+`prompt=none` → `invalid_request`; `max_age=0` always demands.
-- OIDC PKCE method policy: consults per-client `require_pkce` (if true, `code_challenge` mandatory) + `allowed_code_challenge_methods`; `plain` is forbidden entirely by a DB CHECK (OAuth 2.1 / RFC 9700).
+- OIDC PKCE method policy: public clients (`client_auth_method='none'`) always require `code_challenge`; confidential clients consult per-client `require_pkce` (default true; an operator may relax per client) + `allowed_code_challenge_methods`; `plain` is forbidden entirely by a DB CHECK (OAuth 2.1 / RFC 9700), and a second DB CHECK forbids `require_pkce=false` for public clients.
 - OIDC introspection requires a confidential client: a public (`none`-auth) client → `invalid_client` (401) per RFC 7662 §2.1. Public clients may still revoke their own tokens (RFC 7009).
 - SAML `ForceAuthn`: triggers the same re-auth bounce + single-use nonce; the assertion's `AuthnInstant` reflects the fresh `auth_time`. `ForceAuthn` + `IsPassive` → `NoPassive`, no assertion (IsPassive wins, OASIS normative).
 - SAML `NameIDPolicy/@Format`: a concrete requested format the IdP can't produce → `InvalidNameIDPolicy`, no assertion; `unspecified`/absent/matching → a normal assertion.
@@ -176,7 +176,6 @@ Schema: `saml_sp.allow_idp_initiated boolean NOT NULL DEFAULT false`;
 
 ### Known limitations
 
-- `require_pkce=false` + no `code_challenge` cannot complete token exchange (the PKCE verifier rejects an empty challenge); affects only non-default clients (default is `require_pkce=true`).
 - A SLO POST LogoutRequest with a non-SHA256/non-SHA1 sig alg maps to 500 instead of 400 (still rejects).
 - `ForceAuthn` + POST-binding AuthnRequest fails safe with an error (the login bounce rebuilds `return_to` from the query string, which lacks the POST body).
 - `oidc-client create --public` requires a `--post-logout-redirect-uri` (the public path otherwise violates a NOT NULL constraint).

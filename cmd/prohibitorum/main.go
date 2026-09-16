@@ -255,6 +255,7 @@ generating a new one.`,
 		clientScopes         []string
 		clientPublic         bool
 		clientRequireConsent bool
+		clientRequirePKCE    bool
 	)
 	createClientCmd := &cobra.Command{
 		Use:   "create",
@@ -263,8 +264,11 @@ generating a new one.`,
 
 Confidential clients (the default) get a freshly generated secret that is
 printed exactly once; only its argon2id hash is stored. Pass --public for a
-client with no secret (client_auth_method = "none"). PKCE is required
-for every client.
+client with no secret (client_auth_method = "none").
+
+PKCE: a public client must always use PKCE. A confidential client requires it
+by default; pass --require-pkce=false to allow it to authorize without a
+code_challenge. --public together with --require-pkce=false is refused.
 
 A confidential client may present its secret either in the HTTP Basic
 Authorization header or in the request body — both channels are accepted.`,
@@ -292,6 +296,7 @@ Authorization header or in the request body — both channels are accepted.`,
 				Scopes:                 clientScopes,
 				Public:                 clientPublic,
 				RequireConsent:         clientRequireConsent,
+				RequirePKCE:            clientRequirePKCE,
 			})
 			if err != nil {
 				log.Fatalf("build client params: %v", err)
@@ -316,6 +321,7 @@ Authorization header or in the request body — both channels are accepted.`,
 	createClientCmd.Flags().StringArrayVar(&clientScopes, "scope", nil, "Allowed scope (repeatable; defaults to openid,profile).")
 	createClientCmd.Flags().BoolVar(&clientPublic, "public", false, "Register a public client with no secret (auth method none).")
 	createClientCmd.Flags().BoolVar(&clientRequireConsent, "require-consent", false, "Require a consent screen for this client.")
+	createClientCmd.Flags().BoolVar(&clientRequirePKCE, "require-pkce", true, "Require PKCE for this client (default true). Pass --require-pkce=false to let a confidential client authorize without a code_challenge. Refused together with --public.")
 	oidcClientCmd.AddCommand(createClientCmd)
 
 	listClientCmd := &cobra.Command{
@@ -364,6 +370,7 @@ Authorization header or in the request body — both channels are accepted.`,
 		updClientScopes       []string
 		updClientReqConsent   bool
 		updClientDisabled     bool
+		updClientRequirePKCE  bool
 	)
 	updateClientCmd := &cobra.Command{
 		Use:   "update",
@@ -372,7 +379,11 @@ Authorization header or in the request body — both channels are accepted.`,
 
 This is a FULL-REPLACE (mirrors the PUT admin endpoint): supply the complete
 desired displayName, redirect URIs, scopes, requireConsent and disabled state.
-At least one --redirect-uri is required. The client secret is not affected.`,
+At least one --redirect-uri is required. The client secret is not affected.
+
+--require-pkce defaults to true: omitting it re-enables PKCE for the client.
+To keep a confidential client relaxed across updates, pass
+--require-pkce=false every time. Refused for a public client.`,
 		Run: func(_ *cobra.Command, _ []string) {
 			ctx := context.Background()
 			q, conn := mustOpenDB(ctx)
@@ -383,6 +394,18 @@ At least one --redirect-uri is required. The client secret is not affected.`,
 			}
 			if len(updClientRedirectURIs) == 0 {
 				log.Fatalf("at least one --redirect-uri is required (full-replace update)")
+			}
+			// Refuse here rather than letting the DB CHECK reject the write:
+			// the operator gets a clear message and the client keeps its row.
+			existing, err := q.GetOIDCClientAny(ctx, updClientID)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					log.Fatalf("oidc-client update: client %q not found", updClientID)
+				}
+				log.Fatalf("oidc-client update: read client: %v", err)
+			}
+			if existing.ClientAuthMethod == "none" && !updClientRequirePKCE {
+				log.Fatalf("oidc-client update: client %q is public (client_auth_method=none); PKCE cannot be turned off for it", updClientID)
 			}
 			postLogout := updClientPostLogout
 			if postLogout == nil {
@@ -401,6 +424,7 @@ At least one --redirect-uri is required. The client secret is not affected.`,
 				RedirectUris:           updClientRedirectURIs,
 				PostLogoutRedirectUris: postLogout,
 				AllowedScopes:          scopes,
+				RequirePkce:            updClientRequirePKCE,
 				RequireConsent:         updClientReqConsent,
 				Disabled:               updClientDisabled,
 			})
@@ -415,6 +439,7 @@ At least one --redirect-uri is required. The client secret is not affected.`,
 		},
 	}
 	updateClientCmd.Flags().StringVar(&updClientID, "client-id", "", "Client to update (required).")
+	updateClientCmd.Flags().BoolVar(&updClientRequirePKCE, "require-pkce", true, "Require PKCE for this client (default true; omitted re-enables it). Pass --require-pkce=false to let a confidential client authorize without a code_challenge. Refused for a public client.")
 	updateClientCmd.Flags().StringVar(&updClientDisplayName, "display-name", "", "New human-readable client name.")
 	updateClientCmd.Flags().StringArrayVar(&updClientRedirectURIs, "redirect-uri", nil, "Allowed redirect URI (repeatable, at least one required).")
 	updateClientCmd.Flags().StringArrayVar(&updClientPostLogout, "post-logout-redirect-uri", nil, "Allowed post-logout redirect URI (repeatable).")

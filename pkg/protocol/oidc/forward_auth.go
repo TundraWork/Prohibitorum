@@ -173,6 +173,7 @@ func RegisterForwardAuthApp(ctx context.Context, q db.Querier, clientID, host, d
 		Scopes:                 []string{"openid", "email", "groups"},
 		Public:                 true,
 		RequireConsent:         false,
+		RequirePKCE:            true,
 	})
 	if err != nil {
 		return db.OidcClient{}, err

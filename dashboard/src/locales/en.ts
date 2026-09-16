@@ -543,6 +543,7 @@ export default {
       scopes: 'Scopes', publicClient: 'Public client (no secret)', requireConsent: 'Always show consent',
       publicClientDesc: 'No client secret. The app proves itself with PKCE only, for single-page and native apps.',
       requireConsentDesc: 'Ask the user to approve the requested scopes. A prior approval is reused until the scopes change. Off trusts the app and skips consent.',
+      requirePkce: 'Require PKCE', requirePkceDesc: 'The app must prove possession of the sign-in request with PKCE. Off only for apps that cannot send PKCE and hold a client secret. Public clients always keep it on.',
       disabledDesc: 'Rejects new authorizations for this app. Tokens already issued keep working until they expire.',
       sectionBasics: 'Basics', sectionEndpoints: 'Endpoints', sectionScopes: 'Scopes', sectionOptions: 'Options',
       clientIdDesc: 'The identifier the app sends as its client_id.',

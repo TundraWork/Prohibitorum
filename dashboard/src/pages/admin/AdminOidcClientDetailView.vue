@@ -40,6 +40,7 @@ interface OidcApplication {
   postLogoutRedirectUris: string[]
   allowedScopes: string[]
   clientAuthMethod: string
+  requirePkce: boolean
   requireConsent: boolean
   disabled: boolean
   createdAt: string
@@ -64,6 +65,7 @@ const redirectUris = ref<string[]>([])
 const postLogoutUris = ref<string[]>([])
 const scopes = ref<string[]>(['openid'])
 const requireConsent = ref(false)
+const requirePkce = ref(true)
 const disabled = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
@@ -92,6 +94,7 @@ async function load(): Promise<void> {
   // (disabled) checkbox can't strand the form in an openid-less state.
   scopes.value = c.allowedScopes.includes('openid') ? [...c.allowedScopes] : ['openid', ...c.allowedScopes]
   requireConsent.value = c.requireConsent
+  requirePkce.value = c.requirePkce
   disabled.value = c.disabled
 }
 
@@ -104,6 +107,7 @@ async function save(): Promise<void> {
     postLogoutRedirectUris: postLogoutUris.value,
     allowedScopes: scopes.value,
     requireConsent: requireConsent.value,
+    requirePkce: requirePkce.value,
     disabled: disabled.value,
   }), t('sudo.reason.saveChanges')))
   if (updated) { client.value = updated; triggerSaved() }
@@ -186,6 +190,9 @@ onMounted(load)
           </div>
           <SettingRow :label="t('admin.oidc.requireConsent')" :description="t('admin.oidc.requireConsentDesc')" for="requireConsent">
             <Switch id="requireConsent" v-model="requireConsent" />
+          </SettingRow>
+          <SettingRow :label="t('admin.oidc.requirePkce')" :description="t('admin.oidc.requirePkceDesc')" for="requirePkce">
+            <Switch id="requirePkce" data-test="require-pkce" v-model="requirePkce" :disabled="client?.clientAuthMethod === 'none'" />
           </SettingRow>
           <div class="flex items-center gap-3">
             <Button type="button" :disabled="busy" data-test="save" @click="save">{{ t('admin.oidc.save') }}</Button>

@@ -170,7 +170,7 @@ func ensureFederationClient(ctx context.Context, q *db.Queries, clientID, displa
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		log.Fatalf("dev-federation: check fed client: %v", err)
 	}
-	params, secret, err := oidc.BuildClientParams(oidc.ClientOptions{ClientID: clientID, DisplayName: displayName, RedirectURIs: redirects, PostLogoutRedirectURIs: postLogout, Scopes: scopes, RequireConsent: true})
+	params, secret, err := oidc.BuildClientParams(oidc.ClientOptions{ClientID: clientID, DisplayName: displayName, RedirectURIs: redirects, PostLogoutRedirectURIs: postLogout, Scopes: scopes, RequireConsent: true, RequirePKCE: true})
 	if err != nil {
 		log.Fatalf("dev-federation: build fed client: %v", err)
 	}
@@ -219,7 +219,7 @@ func ensureTestRP(ctx context.Context, q *db.Queries, label string) string {
 	}
 	params, secret, err := oidc.BuildClientParams(oidc.ClientOptions{
 		ClientID: testRPID, DisplayName: "Manual test RP",
-		RedirectURIs: redirects, Scopes: scopes, RequireConsent: true,
+		RedirectURIs: redirects, Scopes: scopes, RequireConsent: true, RequirePKCE: true,
 	})
 	if err != nil {
 		log.Fatalf("dev-federation: [%s] build test rp: %v", label, err)

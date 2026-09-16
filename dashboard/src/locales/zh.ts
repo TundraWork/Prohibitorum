@@ -539,6 +539,7 @@ export default {
       scopes: 'Scopes', publicClient: '公开客户端（无密钥）', requireConsent: '始终显示授权确认',
       publicClientDesc: '没有客户端密钥。应用仅通过 PKCE 证明身份，适用于单页应用和原生应用。',
       requireConsentDesc: '要求用户确认所请求的授权范围。在范围未变更时，将复用之前的授权。关闭则信任应用并跳过授权确认。',
+      requirePkce: '要求 PKCE', requirePkceDesc: '应用必须通过 PKCE 证明登录请求未被劫持。仅当应用无法发送 PKCE 且持有客户端密钥时才关闭。公开客户端始终开启。',
       disabledDesc: '拒绝此应用的所有新授权请求。已颁发的令牌在过期前仍继续有效。',
       sectionBasics: '基本信息', sectionEndpoints: '端点', sectionScopes: 'Scopes', sectionOptions: '选项',
       clientIdDesc: '应用在请求中作为 client_id 发送的标识符。',

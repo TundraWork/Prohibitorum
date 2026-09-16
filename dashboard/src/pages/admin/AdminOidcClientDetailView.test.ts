@@ -23,7 +23,7 @@ const integrationStubs = {
   },
 }
 const mountView = () => mount(AdminOidcClientDetailView, { global: { plugins: [i18n()], stubs: integrationStubs }, attachTo: document.body })
-const CLIENT = { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid', 'profile'], clientAuthMethod: 'client_secret', requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
+const CLIENT = { clientId: 'web', displayName: 'Web App', redirectUris: ['https://w/cb'], postLogoutRedirectUris: [], allowedScopes: ['openid', 'profile'], clientAuthMethod: 'client_secret', requirePkce: true, requireConsent: true, disabled: false, createdAt: '2026-01-01T00:00:00Z' }
 function clickConfirm(label: string) {
   const b = Array.from(document.body.querySelectorAll('button')).filter((x) => x.getAttribute('data-variant') === 'destructive' && x.textContent?.includes(label))
   b[b.length - 1]!.click()
@@ -137,5 +137,27 @@ describe('AdminOidcClientDetailView', () => {
     const configCard = w.findAll('[data-slot="card"]').find((card) => card.find('[data-test="save"]').exists())
     expect(configCard).toBeTruthy()
     expect(configCard!.find('[data-test="app-manager-card"]').exists()).toBe(false)
+  })
+
+  it('requirePkce loads from the client and ships in the PUT body', async () => {
+    get.mockResolvedValue({ ...CLIENT, requirePkce: false })
+    put.mockResolvedValue({ ...CLIENT, requirePkce: false })
+    const w = mountView(); await flushPromises()
+    // Loaded value reflects the client's relaxed setting.
+    expect(w.find('[data-test="require-pkce"]').attributes('aria-checked')).toBe('false')
+    await w.find('input[name="displayName"]').setValue('Renamed')
+    await w.find('[data-test="save"]').trigger('click'); await flushPromises()
+    // The PUT body always carries the explicit value (never omitted).
+    expect(put).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/web', expect.objectContaining({ requirePkce: false }))
+    w.unmount()
+  })
+
+  it('requirePkce switch is disabled for a public client', async () => {
+    get.mockResolvedValue({ ...CLIENT, clientAuthMethod: 'none', requirePkce: true })
+    const w = mountView(); await flushPromises()
+    const sw = w.find('[data-test="require-pkce"]')
+    expect(sw.attributes('aria-checked')).toBe('true')
+    expect(sw.attributes('disabled')).toBeDefined()
+    w.unmount()
   })
 })

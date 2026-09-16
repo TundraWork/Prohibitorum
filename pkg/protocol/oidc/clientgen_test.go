@@ -10,6 +10,7 @@ func TestClientGenConfidential(t *testing.T) {
 	params, secret, err := BuildClientParams(ClientOptions{
 		ClientID:     "c",
 		RedirectURIs: []string{"https://rp/cb"},
+		RequirePKCE:  true,
 	})
 	if err != nil {
 		t.Fatalf("BuildClientParams: %v", err)
@@ -48,6 +49,7 @@ func TestClientGenPublic(t *testing.T) {
 		ClientID:     "c",
 		RedirectURIs: []string{"https://rp/cb"},
 		Public:       true,
+		RequirePKCE:  true,
 	})
 	if err != nil {
 		t.Fatalf("BuildClientParams: %v", err)
@@ -108,6 +110,44 @@ func TestClientGenPostLogoutDefaultsEmpty(t *testing.T) {
 	}
 	if len(params.PostLogoutRedirectUris) != 0 {
 		t.Fatalf("PostLogoutRedirectUris = %v, want empty", params.PostLogoutRedirectUris)
+	}
+}
+
+// TestClientGenPublicCannotOptOutOfPKCE: the create path must refuse a public
+// client that wants require_pkce = false — the DB CHECK would reject the row,
+// but the caller deserves the error before any write happens.
+func TestClientGenPublicCannotOptOutOfPKCE(t *testing.T) {
+	_, _, err := BuildClientParams(ClientOptions{
+		ClientID:     "c",
+		RedirectURIs: []string{"https://rp/cb"},
+		Public:       true,
+		RequirePKCE:  false,
+	})
+	if err == nil {
+		t.Fatal("expected error for public client with RequirePKCE = false, got nil")
+	}
+}
+
+// TestClientGenConfidentialMayOptOutOfPKCE: the relaxation this card ships —
+// a confidential client may store require_pkce = false and the params must
+// carry exactly the operator's choice.
+func TestClientGenConfidentialMayOptOutOfPKCE(t *testing.T) {
+	params, secret, err := BuildClientParams(ClientOptions{
+		ClientID:     "c",
+		RedirectURIs: []string{"https://rp/cb"},
+		RequirePKCE:  false,
+	})
+	if err != nil {
+		t.Fatalf("BuildClientParams: %v", err)
+	}
+	if secret == "" {
+		t.Fatal("expected non-empty plaintext secret for confidential client")
+	}
+	if params.RequirePkce {
+		t.Fatal("expected RequirePkce == false")
+	}
+	if params.ClientAuthMethod != "client_secret" {
+		t.Fatalf("ClientAuthMethod = %q, want client_secret", params.ClientAuthMethod)
 	}
 }
 

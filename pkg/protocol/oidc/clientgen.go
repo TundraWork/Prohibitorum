@@ -12,7 +12,7 @@ import (
 )
 
 // ClientOptions describes the operator-supplied inputs for registering a new
-// OIDC client via the CLI.
+// OIDC client via the CLI or the admin API.
 type ClientOptions struct {
 	ClientID               string
 	DisplayName            string
@@ -21,6 +21,9 @@ type ClientOptions struct {
 	Scopes                 []string
 	Public                 bool
 	RequireConsent         bool
+	// RequirePKCE records the operator's require_pkce choice. Callers must
+	// fill it explicitly; a public client may not set it to false.
+	RequirePKCE bool
 }
 
 // BuildClientParams builds the DB insert params for a new OIDC client.
@@ -30,13 +33,20 @@ type ClientOptions struct {
 // hash, and sets client_auth_method to "client_secret" — which accepts the
 // secret through either the Basic header or the request body. For a public
 // client (Public=true) there is no secret and client_auth_method is "none".
-// PKCE is required for every client.
+// A public client cannot opt out of PKCE; a confidential client follows
+// opts.RequirePKCE (new clients default to requiring it).
 func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, error) {
 	if opts.ClientID == "" {
 		return db.InsertOIDCClientParams{}, "", errors.New("client-id is required")
 	}
 	if len(opts.RedirectURIs) == 0 {
 		return db.InsertOIDCClientParams{}, "", errors.New("at least one redirect-uri is required")
+	}
+	// A public client's only code protection is PKCE, so opting out is not a
+	// configuration error the DB CHECK should have to catch: refuse it where
+	// both the CLI and the admin API create path meet.
+	if opts.Public && !opts.RequirePKCE {
+		return db.InsertOIDCClientParams{}, "", errors.New("a public client cannot opt out of PKCE")
 	}
 
 	scopes := opts.Scopes
@@ -67,7 +77,7 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 		RedirectUris:                opts.RedirectURIs,
 		PostLogoutRedirectUris:      postLogout,
 		AllowedScopes:               scopes,
-		RequirePkce:                 true,
+		RequirePkce:                 opts.RequirePKCE,
 		AllowedCodeChallengeMethods: []string{"S256"},
 		SubjectType:                 "public",
 		RequireConsent:              opts.RequireConsent,

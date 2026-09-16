@@ -66,7 +66,7 @@ const (
 	nFederation = 33
 	nOIDC       = 18
 	nSAML       = 14
-	nHardening  = 12
+	nHardening  = 13
 	nConsent    = 2
 	nAdmin      = 8
 	nPAT        = 7
@@ -2826,6 +2826,124 @@ func main() {
 		log.Printf("  public client /oauth/revoke (own token) → 200 ✓")
 	}
 
+	step(fmt.Sprintf("hardening %d/%d — confidential client with require_pkce=false — authorize WITHOUT code_challenge issues a code; token exchange WITHOUT code_verifier issues tokens; the same client WITH PKCE (S256) still works; a public client without a challenge is still rejected", 6, nHardening))
+	{
+		// A confidential client explicitly relaxed at create time is the exact
+		// configuration this card makes reachable.
+		const relaxedID = "smoke-rp-relaxed"
+		relaxedRedirect := *baseURL + "/rp-relaxed/callback"
+		relaxedSecret, err := createRelaxedOIDCClient(*baseURL, relaxedID, relaxedRedirect,
+			[]string{"openid", "profile", "offline_access"})
+		if err != nil {
+			log.Fatalf("oidc-client create --require-pkce=false: %v", err)
+		}
+
+		// (a) authorize with NO code_challenge at all → code issued.
+		state := randState()
+		authz := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s",
+			url.QueryEscape(relaxedID),
+			url.QueryEscape(relaxedRedirect),
+			url.QueryEscape("openid profile offline_access"),
+			url.QueryEscape(state),
+			url.QueryEscape(randState()),
+		)
+		loc, err := authorizeRaw(c, authz)
+		if err != nil {
+			log.Fatalf("relaxed client authorize (no challenge): %v", err)
+		}
+		u, perr := url.Parse(loc)
+		if perr != nil {
+			log.Fatalf("relaxed client parse Location: %v", perr)
+		}
+		if e := u.Query().Get("error"); e != "" {
+			log.Fatalf("relaxed client (no challenge): unexpected error=%q (loc=%q)", e, loc)
+		}
+		noChallengeCode := u.Query().Get("code")
+		if noChallengeCode == "" {
+			log.Fatalf("relaxed client (no challenge): no code issued (loc=%q)", loc)
+		}
+		log.Printf("  relaxed confidential client /oauth/authorize without code_challenge → code issued ✓")
+
+		// (b) token exchange WITHOUT code_verifier → tokens.
+		tok, err := tokenExchange(*baseURL, relaxedID, relaxedSecret, url.Values{
+			"grant_type":   {"authorization_code"},
+			"code":         {noChallengeCode},
+			"redirect_uri": {relaxedRedirect},
+		})
+		if err != nil {
+			log.Fatalf("relaxed client token exchange (no verifier): %v", err)
+		}
+		if tok.AccessToken == "" || tok.IDToken == "" {
+			log.Fatalf("relaxed client token exchange: missing tokens (access=%t id=%t)", tok.AccessToken == "", tok.IDToken == "")
+		}
+		log.Printf("  relaxed confidential client /oauth/token without code_verifier → access_token+id_token ✓")
+
+		// (c) Relaxed ≠ banned: the same client WITH PKCE (S256) still succeeds.
+		verifier, challenge := genPKCE()
+		pState := randState()
+		pkceAuthz := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+			url.QueryEscape(relaxedID),
+			url.QueryEscape(relaxedRedirect),
+			url.QueryEscape("openid profile offline_access"),
+			url.QueryEscape(pState),
+			url.QueryEscape(randState()),
+			url.QueryEscape(challenge),
+		)
+		pLoc, err := authorizeRaw(c, pkceAuthz)
+		if err != nil {
+			log.Fatalf("relaxed client authorize (with PKCE): %v", err)
+		}
+		pu, perr := url.Parse(pLoc)
+		if perr != nil {
+			log.Fatalf("relaxed client parse PKCE Location: %v", perr)
+		}
+		pkceCode := pu.Query().Get("code")
+		if pkceCode == "" || pu.Query().Get("error") != "" {
+			log.Fatalf("relaxed client WITH PKCE did not get a code (loc=%q)", pLoc)
+		}
+		pkceTok, err := tokenExchange(*baseURL, relaxedID, relaxedSecret, url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {pkceCode},
+			"redirect_uri":  {relaxedRedirect},
+			"code_verifier": {verifier},
+		})
+		if err != nil {
+			log.Fatalf("relaxed client PKCE token exchange: %v", err)
+		}
+		if pkceTok.AccessToken == "" {
+			log.Fatalf("relaxed client PKCE token exchange: empty access_token")
+		}
+		log.Printf("  relaxed confidential client WITH PKCE (S256) → code + tokens still work ✓")
+
+		// (d) A public client without a code_challenge is still rejected.
+		pbState := randState()
+		pubAuthz := fmt.Sprintf(
+			"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s",
+			url.QueryEscape("smoke-rp-public"),
+			url.QueryEscape(*baseURL+"/rp-public/callback"),
+			url.QueryEscape("openid profile offline_access"),
+			url.QueryEscape(pbState),
+			url.QueryEscape(randState()),
+		)
+		pubLoc, err := authorizeRaw(c, pubAuthz)
+		if err != nil {
+			log.Fatalf("public client no-challenge authorize: %v", err)
+		}
+		pubU, perr := url.Parse(pubLoc)
+		if perr != nil {
+			log.Fatalf("public client parse Location: %v", perr)
+		}
+		if got := pubU.Query().Get("error"); got != "invalid_request" {
+			log.Fatalf("public client without challenge: want error=invalid_request, got %q (loc=%q)", got, pubLoc)
+		}
+		if pubU.Query().Get("code") != "" {
+			log.Fatalf("public client without challenge must not get a code (loc=%q)", pubLoc)
+		}
+		log.Printf("  public client /oauth/authorize without code_challenge → 302 to RP with error=invalid_request (no code) ✓")
+	}
+
 	// ---- SAML forced re-auth + policy + binding + metadata + IdP-initiated. ----
 	// Reuses the saml mock SP `sp`, verifier `spProvider`, ssoURL, mockSPACSURL.
 	// c is freshly logged-in (the re-auth steps minted recent sessions).
@@ -2889,8 +3007,8 @@ func main() {
 		}
 		log.Printf("  fresh login + &reauth=<nonce> → assertion issued ✓")
 	}
-
 	step(fmt.Sprintf("hardening %d/%d — SAML ForceAuthn + IsPassive → NoPassive status Response (no assertion)", 7, nHardening))
+
 	{
 		query, _, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true,
 			authnOpts{forceAuthn: true, isPassive: true})
@@ -2952,8 +3070,8 @@ func main() {
 		}
 		log.Printf("  NameIDPolicy Format=emailAddress → Response StatusCode=InvalidNameIDPolicy, no assertion ✓")
 	}
-
 	step(fmt.Sprintf("hardening %d/%d — SAML POST-binding (enveloped-signed) AuthnRequest → assertion", 9, nHardening))
+
 	{
 		samlReq, reqID, err := sp.authnRequestPostForm(ssoURL, mockSPACSURL, authnOpts{})
 		if err != nil {
@@ -2979,8 +3097,8 @@ func main() {
 		}
 		log.Printf("  POST-binding enveloped-signed AuthnRequest → assertion (NameID=%.16s…) ✓", assertion.Subject.NameID.Value)
 	}
-
 	step(fmt.Sprintf("hardening %d/%d — SAML /saml/metadata is SIGNED, verifies against its own cert, validUntil is future", 10, nHardening))
+
 	{
 		metaXML, err := fetchSAMLMetadata(*baseURL)
 		if err != nil {
@@ -3114,8 +3232,8 @@ func main() {
 			log.Printf("  /saml/sso/init for the prior SP (no opt-in) → 302 %s ✓", loc302)
 		}
 	}
-
 	step(fmt.Sprintf("hardening %d/%d — DB assert — credential_event covers the SAML re-auth/idp-initiated lifecycle", 12, nHardening))
+
 	if err := verifyHardeningSAMLAuditEvents(); err != nil {
 		log.Fatalf("hardening SAML audit DB assert: %v", err)
 	}
@@ -3354,6 +3472,7 @@ func main() {
 			DisplayName      string   `json:"displayName"`
 			RedirectURIs     []string `json:"redirectUris"`
 			ClientAuthMethod string   `json:"clientAuthMethod"`
+			RequirePkce      bool     `json:"requirePkce"`
 			Secret           string   `json:"secret"`
 		}
 		if err := c.postJSON("/api/prohibitorum/oidc-applications", map[string]any{
@@ -3373,6 +3492,10 @@ func main() {
 		}
 		if created.ClientAuthMethod == "" {
 			log.Fatalf("create: clientAuthMethod must be set for a confidential client")
+		}
+		// requirePkce defaults to true when the field is omitted from the POST.
+		if !created.RequirePkce {
+			log.Fatalf("create: requirePkce omitted from the POST body must default to true, got %t", created.RequirePkce)
 		}
 		createdClientSecret = created.Secret
 
@@ -3430,6 +3553,7 @@ func main() {
 			DisplayName  string   `json:"displayName"`
 			RedirectURIs []string `json:"redirectUris"`
 			IconURL      *string  `json:"iconUrl"`
+			RequirePkce  bool     `json:"requirePkce"`
 		}
 		if err := c.putJSON("/api/prohibitorum/oidc-applications/"+url.PathEscape(adminClientID), map[string]any{
 			"displayName":    updatedDisplayName,
@@ -3437,9 +3561,14 @@ func main() {
 			"allowedScopes":  []string{"openid", "profile"},
 			"requireConsent": false,
 			"disabled":       false,
+			"requirePkce":    false,
 		}, &updated); err != nil {
 			log.Fatalf("PUT /oidc-clients/%s: %v", adminClientID, err)
 		}
+		if updated.RequirePkce {
+			log.Fatalf("PUT with requirePkce=false: response requirePkce = true, want the relaxed false")
+		}
+		log.Printf("  PUT requirePkce=false on a confidential client → relaxed (response requirePkce=false) ✓")
 		// Regression (PHB-4): the mutation response itself must carry iconUrl —
 		// pre-fix it is absent and the detail page loses the icon on save.
 		if updated.IconURL == nil || !strings.HasPrefix(*updated.IconURL, "/icon/oidc_client/"+adminClientID+"?v=") {
@@ -3450,6 +3579,7 @@ func main() {
 			DisplayName  string   `json:"displayName"`
 			RedirectURIs []string `json:"redirectUris"`
 			IconURL      *string  `json:"iconUrl"`
+			RequirePkce  bool     `json:"requirePkce"`
 		}
 		if err := c.get("/api/prohibitorum/oidc-applications/"+url.PathEscape(adminClientID), &got); err != nil {
 			log.Fatalf("GET (post-update) /oidc-clients/%s: %v", adminClientID, err)
@@ -3459,6 +3589,9 @@ func main() {
 		}
 		if !slices.Contains(got.RedirectURIs, updatedRedirectURI) {
 			log.Fatalf("update not reflected: redirectUris %v missing %q", got.RedirectURIs, updatedRedirectURI)
+		}
+		if got.RequirePkce {
+			log.Fatalf("update not reflected: post-update GET requirePkce = true, want false")
 		}
 		if got.IconURL == nil || *got.IconURL != *updated.IconURL {
 			log.Fatalf("post-update GET iconUrl = %v, want the same %v the PUT response carried", got.IconURL, updated.IconURL)
@@ -8191,6 +8324,42 @@ func createPublicOIDCClient(baseURL, clientID, redirectURI string, scopes []stri
 		return fmt.Errorf("oidc-client create --public: unexpected output:\n%s", out)
 	}
 	return nil
+}
+
+// createRelaxedOIDCClient shells out to `prohibitorum oidc-client create
+// --require-pkce=false`: a confidential client that may authorize without a
+// code_challenge. Returns the parsed client secret.
+func createRelaxedOIDCClient(baseURL, clientID, redirectURI string, scopes []string) (string, error) {
+	args := []string{"exec", "--", "go", "run", "./cmd/prohibitorum", "oidc-client", "create",
+		"--client-id", clientID,
+		"--display-name", "Smoke Relaxed RP",
+		"--redirect-uri", redirectURI,
+		// post_logout_redirect_uris is NOT NULL in oidc_client; supply one.
+		"--post-logout-redirect-uri", redirectURI,
+		"--require-pkce=false",
+	}
+	for _, s := range scopes {
+		args = append(args, "--scope", s)
+	}
+	cmd := exec.Command("mise", args...)
+	cmd.Env = append(os.Environ(), "PROHIBITORUM_PUBLIC_ORIGIN="+baseURL)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("oidc-client create --require-pkce=false: %v\n%s", err, out)
+	}
+	lines := strings.Split(string(out), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "Client secret") {
+			// Secret is the next non-empty line.
+			for j := i + 1; j < len(lines); j++ {
+				s := strings.TrimSpace(lines[j])
+				if s != "" {
+					return s, nil
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("no client secret in oidc-client create output:\n%s", out)
 }
 
 // tokenExchangePublic POSTs to /oauth/token as a PUBLIC client: client_id in the

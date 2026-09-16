@@ -31,7 +31,8 @@ INSERT INTO oidc_client
    subject_type, application_type)
 VALUES (
   'gateway-prod',
-  -- public client: NULL secret_hash; PKCE is mandatory anyway
+  -- public client: NULL secret_hash; require_pkce MUST be true (a DB CHECK
+  -- rejects require_pkce=false for client_auth_method='none')
   NULL,
   'Gateway (prod)',
   ARRAY['https://gateway.example.com/auth/callback'],
@@ -46,7 +47,18 @@ VALUES (
 );
 ```
 
+A confidential client may set `require_pkce = false` to allow authorization
+without a `code_challenge` — do this only for apps that cannot send PKCE;
+they then hold the client secret as their only credential. Public clients
+always require PKCE.
+
 For confidential (back-end-only) clients: generate a strong random secret, hash with argon2id (PHC format) into `client_secret_hash`, and set `client_auth_method` to `'client_secret'`. Such a client may present its secret either in the HTTP Basic header or in the request body — both channels are accepted. `client_auth_method` takes only `'client_secret'` or `'none'`; it records whether the client is confidential or public, not which channel it must use.
+
+Prefer the CLI over raw SQL: `oidc-client create` takes `--require-pkce`
+(default true; `--require-pkce=false` relaxes a confidential client, refused
+together with `--public`) and `oidc-client update` takes the same flag (its
+default `true` re-enables PKCE on every update, so pass `--require-pkce=false`
+each time to keep a client relaxed).
 
 ### The flow
 
@@ -130,7 +142,7 @@ Use these when you need guaranteed-fresh authentication (e.g. before a sensitive
 
 ### PKCE policy: S256 only
 
-PKCE is mandatory and **S256-only**. `code_challenge_method=plain` is rejected with `invalid_request` (a DB-level CHECK enforces it, per OAuth 2.1 / RFC 9700). Always send `code_challenge_method=S256`. Per-client policy (`require_pkce`, `allowed_code_challenge_methods`) is consulted at `/oauth/authorize`.
+Public clients (no secret) always require PKCE, and PKCE is **S256-only** everywhere. A confidential client requires PKCE too by default, but an operator may relax it per client (`require_pkce = false` / `--require-pkce=false`); a relaxed client may authorize without a `code_challenge`. `code_challenge_method=plain` is rejected with `invalid_request` (a DB-level CHECK enforces it, per OAuth 2.1 / RFC 9700). Always send `code_challenge_method=S256`.
 
 ### Access token shape (RFC 9068)
 
@@ -788,7 +800,7 @@ The concrete, copy-pasteable downstream OP flow. The request shapes below are th
 Key facts:
 
 - OP endpoints are mounted at the **issuer root**, NOT under `/api/prohibitorum`: `/oauth/authorize`, `/oauth/token`, `/oauth/userinfo`, `/oauth/introspect`, `/oauth/revoke`, `/oidc/logout`, `/oauth/jwks`, `/.well-known/openid-configuration`.
-- **PKCE is mandatory and S256-only.** `plain` is rejected; `code_challenge_method` must be `S256`.
+- **PKCE: public clients must send it; confidential clients default to it (an operator may relax per client); S256-only either way.** `plain` is rejected; `code_challenge_method` must be `S256`.
 - **A refresh token is issued only when the `offline_access` scope is granted.** Without it the token response has no `refresh_token`.
 - **Who calls what:** a real RP back-end makes the `/oauth/token`, `/oauth/userinfo`, `/oauth/introspect`, `/oauth/revoke` calls (with its client credentials). `/oauth/authorize` is a **browser** redirect requiring the user to already hold a logged-in Prohibitorum **session cookie** — you cannot drive it with a bare curl unless you attach a valid `prohibitorum_session` cookie. A no-session `/oauth/authorize` 302s the browser to `Issuer + /login?return_to=<authorize URL>`.
 
@@ -815,7 +827,9 @@ prohibitorum oidc-client create \
 # Client secret (store this now, it will NOT be shown again):
 # <secret>
 #
-#   …--public        → no secret, client_auth_method=none, PKCE required
+#   …--public        → no secret, client_auth_method=none, PKCE always required
+#   …--require-pkce=false → confidential client may authorize without a
+#                          code_challenge (explicit per-client opt-in)
 #   …--require-consent → reserved flag; /authorize returns consent_required
 #                        (no consent UI until v0.6)
 
