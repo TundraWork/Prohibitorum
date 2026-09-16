@@ -1,1 +1,0 @@
-import{d as r,v as n,g as a,W as o,P as l,am as c,w as p,O as u,o as _}from"./index-CogpSQQR.js";const m=r({__name:"BareCard",props:{class:{type:[Boolean,null,String,Object,Array]}},setup(s){const e=s;return(t,d)=>(_(),n(a(o),{"data-untitled":"true",class:l(a(c)("py-1",e.class))},{default:p(()=>[u(t.$slots,"default")]),_:3},8,["class"]))}});export{m as _};
