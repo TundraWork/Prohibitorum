@@ -18,7 +18,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import CenteredLayout from '@/pages/CenteredLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -120,87 +120,85 @@ usePrivateState(() => { pw.value = ''; confirm.value = ''; secret.value = ''; ot
 </script>
 
 <template>
-  <div class="mx-auto flex min-h-svh w-full max-w-2xl flex-col justify-center gap-6 px-4 py-10">
-    <Card class="w-full max-w-xl">
-      <CardHeader>
-        <CardTitle class="text-xl font-semibold tracking-tight">{{ t('setupSignin.title') }}</CardTitle>
-      </CardHeader>
-      <CardContent class="flex flex-col gap-4">
-        <p class="text-sm leading-5 text-muted">{{ t('setupSignin.intro') }}</p>
+  <CenteredLayout>
+    <template #title>
+      <h1 class="text-xl font-semibold tracking-tight text-ink">{{ t('setupSignin.title') }}</h1>
+    </template>
+    <div class="flex min-w-0 flex-col gap-4">
+      <p class="text-sm leading-5 text-muted">{{ t('setupSignin.intro') }}</p>
 
-        <template v-if="method === 'choose'">
-          <div class="flex flex-col gap-3">
-            <Button type="button" size="lg" class="w-full" data-test="choose-password" @click="method = 'password'">
-              {{ t('setupSignin.choosePassword') }}
-            </Button>
-            <Button type="button" size="lg" variant="outline" class="w-full" data-test="choose-totp" @click="beginTotp(); method = 'totp'">
-              {{ t('setupSignin.chooseTotp') }}
-            </Button>
-          </div>
+      <template v-if="method === 'choose'">
+        <div class="flex flex-col gap-3">
+          <Button type="button" size="lg" class="w-full" data-test="choose-password" @click="method = 'password'">
+            {{ t('setupSignin.choosePassword') }}
+          </Button>
+          <Button type="button" size="lg" variant="outline" class="w-full" data-test="choose-totp" @click="beginTotp(); method = 'totp'">
+            {{ t('setupSignin.chooseTotp') }}
+          </Button>
+        </div>
 
-          <div class="flex flex-col gap-2">
-            <p v-if="passwordSet" data-test="password-done" class="text-sm text-muted">{{ t('setupSignin.passwordDone') }}</p>
-            <p v-if="totpSet" data-test="totp-done" class="text-sm text-muted">{{ t('setupSignin.totpDone') }}</p>
-            <Button type="button" variant="ghost" class="w-full" data-test="skip" @click="skip">
-              {{ t('setupSignin.skip') }}
-            </Button>
-            <p class="text-center text-xs text-muted">{{ t('setupSignin.skipHint') }}</p>
-          </div>
-        </template>
+        <div class="flex flex-col gap-2">
+          <p v-if="passwordSet" data-test="password-done" class="text-sm text-muted">{{ t('setupSignin.passwordDone') }}</p>
+          <p v-if="totpSet" data-test="totp-done" class="text-sm text-muted">{{ t('setupSignin.totpDone') }}</p>
+          <Button type="button" variant="ghost" class="w-full" data-test="skip" @click="skip">
+            {{ t('setupSignin.skip') }}
+          </Button>
+          <p class="text-center text-xs text-muted">{{ t('setupSignin.skipHint') }}</p>
+        </div>
+      </template>
 
-        <template v-else-if="method === 'password'">
-          <form class="flex max-w-sm flex-col gap-4" @submit.prevent="submitPassword">
-            <div class="flex flex-col gap-1.5">
-              <Label for="setup-pw-new">{{ t('security.password.newLabel') }}</Label>
-              <Input id="setup-pw-new" v-model="pw" name="new_password" type="password" autocomplete="new-password" required />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <Label for="setup-pw-confirm">{{ t('security.password.confirmLabel') }}</Label>
-              <Input id="setup-pw-confirm" v-model="confirm" name="confirm_password" type="password" autocomplete="new-password" required />
-            </div>
-            <p v-if="passwordSet" data-test="password-done" class="text-sm text-muted">{{ t('setupSignin.passwordDone') }}</p>
-            <p v-if="localError" class="text-sm text-destructive" role="alert">{{ localError }}</p>
-            <ErrorPanel :error="error" @dismiss="clearLocalError" />
-            <div class="flex gap-2">
-              <Button type="submit" :disabled="busy">{{ t('setupSignin.savePassword') }}</Button>
-              <Button type="button" variant="ghost" @click="method = 'choose'">{{ t('setupSignin.back') }}</Button>
-            </div>
-          </form>
-        </template>
-        <template v-else-if="method === 'totp'">
-          <div v-if="!totpSet" class="flex flex-col gap-4">
-            <TotpQr :uri="otpauthUri" :alt="t('setupSignin.totpQrAlt')" />
-            <CodeField v-if="secret" :value="secret" :label="t('setupSignin.totpSecretLabel')" />
-            <p class="text-sm text-muted">{{ t('setupSignin.totpHint') }}</p>
-            <div class="flex max-w-xs flex-col gap-1.5">
-              <Label for="setup-totp-code">{{ t('setupSignin.totpCodeLabel') }}</Label>
-              <Input
-                id="setup-totp-code"
-                v-model="totpCode"
-                name="totp_code"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                :disabled="busy"
-                @keydown.enter.prevent="verifyTotp"
-              />
-            </div>
-            <p v-if="localError" class="text-sm text-destructive" role="alert">{{ localError }}</p>
-            <ErrorPanel :error="error" @dismiss="clearLocalError" />
-            <div class="flex gap-2">
-              <Button type="button" :disabled="busy" @click="verifyTotp">{{ t('setupSignin.verify') }}</Button>
-              <Button type="button" variant="ghost" @click="method = 'choose'">{{ t('setupSignin.back') }}</Button>
-            </div>
+      <template v-else-if="method === 'password'">
+        <form class="flex max-w-sm flex-col gap-4" @submit.prevent="submitPassword">
+          <div class="flex flex-col gap-1.5">
+            <Label for="setup-pw-new">{{ t('security.password.newLabel') }}</Label>
+            <Input id="setup-pw-new" v-model="pw" name="new_password" type="password" autocomplete="new-password" required />
           </div>
-          <div v-else class="flex flex-col gap-4">
-            <p data-test="totp-verified" class="text-sm text-muted">{{ t('setupSignin.totpVerified') }}</p>
-            <RecoveryCodesDisplay v-if="recoveryCodes.length" :codes="recoveryCodes" />
-            <Button type="button" class="self-start" data-test="finish" @click="finish">
-              {{ t('setupSignin.finish') }}
-            </Button>
+          <div class="flex flex-col gap-1.5">
+            <Label for="setup-pw-confirm">{{ t('security.password.confirmLabel') }}</Label>
+            <Input id="setup-pw-confirm" v-model="confirm" name="confirm_password" type="password" autocomplete="new-password" required />
           </div>
-        </template>
-      </CardContent>
-    </Card>
-  </div>
+          <p v-if="passwordSet" data-test="password-done" class="text-sm text-muted">{{ t('setupSignin.passwordDone') }}</p>
+          <p v-if="localError" class="text-sm text-destructive" role="alert">{{ localError }}</p>
+          <ErrorPanel :error="error" @dismiss="clearLocalError" />
+          <div class="flex flex-wrap gap-2">
+            <Button type="submit" :disabled="busy">{{ t('setupSignin.savePassword') }}</Button>
+            <Button type="button" variant="ghost" @click="method = 'choose'">{{ t('setupSignin.back') }}</Button>
+          </div>
+        </form>
+      </template>
+      <template v-else-if="method === 'totp'">
+        <div v-if="!totpSet" class="flex flex-col gap-4">
+          <TotpQr :uri="otpauthUri" :alt="t('setupSignin.totpQrAlt')" />
+          <CodeField v-if="secret" :value="secret" :label="t('setupSignin.totpSecretLabel')" />
+          <p class="text-sm text-muted">{{ t('setupSignin.totpHint') }}</p>
+          <div class="flex max-w-xs flex-col gap-1.5">
+            <Label for="setup-totp-code">{{ t('setupSignin.totpCodeLabel') }}</Label>
+            <Input
+              id="setup-totp-code"
+              v-model="totpCode"
+              name="totp_code"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              :disabled="busy"
+              @keydown.enter.prevent="verifyTotp"
+            />
+          </div>
+          <p v-if="localError" class="text-sm text-destructive" role="alert">{{ localError }}</p>
+          <ErrorPanel :error="error" @dismiss="clearLocalError" />
+          <div class="flex flex-wrap gap-2">
+            <Button type="button" :disabled="busy" @click="verifyTotp">{{ t('setupSignin.verify') }}</Button>
+            <Button type="button" variant="ghost" @click="method = 'choose'">{{ t('setupSignin.back') }}</Button>
+          </div>
+        </div>
+        <div v-else class="flex flex-col gap-4">
+          <p data-test="totp-verified" class="text-sm text-muted">{{ t('setupSignin.totpVerified') }}</p>
+          <RecoveryCodesDisplay v-if="recoveryCodes.length" :codes="recoveryCodes" />
+          <Button type="button" class="self-start" data-test="finish" @click="finish">
+            {{ t('setupSignin.finish') }}
+          </Button>
+        </div>
+      </template>
+    </div>
+  </CenteredLayout>
 </template>
 
