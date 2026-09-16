@@ -262,6 +262,11 @@ set -e
 cd dashboard
 [ -d node_modules ] || npm ci
 npm run build
+cd ..
+# emptyOutDir (dashboard/vite.config.ts) wipes the whole dist directory,
+# including the tracked placeholder that keeps `go:embed all:dist` matchable
+# on clean checkouts — recreate it or git status shows a pending deletion.
+touch pkg/webui/dist/.gitkeep
 """
 
 # ---- prod: production build + release (the ship path) -----------------------
