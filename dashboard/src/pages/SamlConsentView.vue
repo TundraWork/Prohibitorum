@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { isRequestCancelled } from '@/lib/cancellation'
 import { useResource } from '@/composables/useResource'
 import { consentQuery } from '@/queries/ceremonies'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, type ApiError } from '@/lib/api'
@@ -29,14 +30,17 @@ const ticket = String(route.query.ticket ?? '')
 const contextQuery = useResource({ ...consentQuery<SamlConsentContext>('saml', ticket), enabled: false })
 const ctx = computed(() => contextQuery.data.value ?? null)
 const loading = ref(true)
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
 const hasAttrs = computed(() => (ctx.value?.attributes.length ?? 0) > 0)
 
 onMounted(async () => {
   try {
     await contextQuery.refetch({ throwOnError: true })
   } catch (e) {
+    if (disposed) return
     const code = (e as ApiError | undefined)?.code
-    if (code === 'no_session') router.replace({ name: 'login', query: { return_to: route.fullPath } })
+    if (code === 'no_session' || isRequestCancelled(e)) router.replace({ name: 'login', query: { return_to: route.fullPath } })
     else router.replace({ name: 'error', query: { error: code ?? 'invalid_consent_ticket' } })
   } finally {
     loading.value = false

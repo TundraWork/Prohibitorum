@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isRequestCancelled } from '@/lib/cancellation'
 import { useResource } from '@/composables/useResource'
 import { consentQuery } from '@/queries/ceremonies'
 /**
@@ -22,7 +23,7 @@ import { consentQuery } from '@/queries/ceremonies'
  * cross-origin, so safeReturnTo would wrongly reject it. We hand off to the
  * server's value verbatim.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, type ApiError } from '@/lib/api'
@@ -64,6 +65,8 @@ const returnTo = String(route.query.return_to ?? '')
 const contextQuery = useResource({ ...consentQuery<ConsentContext>('oidc', ticket), enabled: false })
 const ctx = computed(() => contextQuery.data.value ?? null)
 const loading = ref(true)
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
 
 const isIncremental = computed(() => (ctx.value?.alreadyGranted?.length ?? 0) > 0)
 const newScopes = computed(() => {
@@ -75,8 +78,9 @@ onMounted(async () => {
   try {
     await contextQuery.refetch({ throwOnError: true })
   } catch (e) {
+    if (disposed) return
     const code = (e as ApiError | undefined)?.code
-    if (code === 'no_session') {
+    if (code === 'no_session' || isRequestCancelled(e)) {
       // Not signed in — send them to login and back here afterwards.
       router.replace({ name: 'login', query: { return_to: route.fullPath } })
     } else {

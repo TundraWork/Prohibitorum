@@ -275,7 +275,7 @@ describe('AdminAccountsView', () => {
 
     await wrapper.find('[data-test="accounts-clear"]').trigger('click')
     await flushPromises()
-    expect(accountCalls()).toEqual(['/api/prohibitorum/accounts'])
+    expect(accountCalls()).toEqual([]) // Fresh unfiltered page is restored from cache.
     expect(wrapper.text()).toContain('Alice Smith')
     expect(wrapper.find('[data-test="page-indicator"]').text()).toContain('1')
   })

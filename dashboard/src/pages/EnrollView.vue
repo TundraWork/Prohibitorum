@@ -25,7 +25,7 @@ import { enrollmentQuery } from '@/queries/ceremonies'
  * skip reportValidity — the typed name only feeds the local ceremonies.
  */
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, type ApiError } from '@/lib/api'
@@ -144,6 +144,8 @@ function continueToProvider(slug: string): void {
   hardRedirect(startFederationURL(slug))
 }
 
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
 onMounted(async () => {
   try {
     const loaded = (await contextQuery.refetch({ throwOnError: true })).data!
@@ -151,6 +153,7 @@ onMounted(async () => {
       displayName.value = loaded.suggestedDisplayName ?? ''
     }
   } catch (e) {
+    if (disposed) return
     const code = (e as ApiError | undefined)?.code
     router.replace({ name: 'error', query: { error: code ?? 'enrollment_consumed' } })
   } finally {

@@ -22,7 +22,7 @@ function setupGetMock(clientIpOverride?: object) {
     if (url === '/api/prohibitorum/admin/settings/client-ip') {
       return Promise.resolve(clientIpOverride ?? defaultClientIpCfg)
     }
-    // branding store's ensureLoaded calls /config — return undefined to leave store state as patched
+    // Keep the public configuration fixture consistent during invalidation.
     return Promise.resolve(testQueryClient.getQueryData(keys.config))
   })
 }

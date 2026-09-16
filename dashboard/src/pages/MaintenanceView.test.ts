@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
+vi.mock('@/lib/api', () => ({ api: { get: vi.fn(async () => null) } }))
 import MaintenanceView from './MaintenanceView.vue'
 
 // vue-router stubs
@@ -15,14 +16,12 @@ const brandingState = vi.hoisted(() => ({
   instanceName: 'Acme IdP',
   maintenanceMode: true,
   maintenanceMessage: '',
-  ensureLoaded: vi.fn(async () => {}),
 }))
 vi.mock('@/composables/useBranding', () => ({ useBranding: () => brandingState }))
 
 // Auth store: configurable per test
 const authState = vi.hoisted(() => ({
   me: null as null | { id: number; username: string },
-  ensureLoaded: vi.fn(async () => {}),
 }))
 vi.mock('@/composables/useSession', () => ({ useSession: () => authState }))
 
@@ -43,8 +42,6 @@ beforeEach(() => {
   brandingState.instanceName = 'Acme IdP'
   brandingState.maintenanceMessage = ''
   authState.me = null
-  authState.ensureLoaded.mockClear()
-  authState.ensureLoaded.mockResolvedValue(undefined)
 })
 
 describe('MaintenanceView', () => {

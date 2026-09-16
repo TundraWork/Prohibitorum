@@ -39,9 +39,8 @@ vi.mock('@/composables/useReturnTo', async () => {
   }
 })
 
-// Auth store: `me` is preset per test; `ensureLoaded` is a no-op (the real one
-// fetches /me). Default = unauthenticated, so the login methods render.
-const authState = vi.hoisted(() => ({ me: null as null | { id: number; username: string }, ensureLoaded: vi.fn(async () => {}) }))
+// Session projection and /me transport use the same fixture.
+const authState = vi.hoisted(() => ({ me: null as null | { id: number; username: string } }))
 vi.mock('@/composables/useSession', () => ({ useSession: () => authState }))
 
 const get = vi.mocked(api.get)
@@ -71,7 +70,6 @@ beforeEach(() => {
   goReturnTo.mockReset()
   hardRedirect.mockReset()
   authState.me = null
-  authState.ensureLoaded.mockClear()
   _routeQuery = {}
   useSessionExpiry().reset()
 })

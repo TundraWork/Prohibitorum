@@ -7,11 +7,6 @@ import DashboardLayout from './DashboardLayout.vue'
 
 // --- Mocks ----------------------------------------------------------------
 
-// Auth store — no-op ensureLoaded, never a real network call.
-vi.mock('@/composables/useSession', () => ({
-  useSession: () => ({ ensureLoaded: vi.fn() }),
-}))
-
 // Sidebar primitives — stub them so the test doesn't need the full sidebar tree.
 vi.mock('@/components/ui/sidebar', () => ({
   SidebarProvider: defineComponent({ template: '<div><slot/></div>' }),
