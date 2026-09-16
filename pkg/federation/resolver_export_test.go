@@ -25,5 +25,5 @@ func ApplyInviteOnlyForTest(
 	if err != nil {
 		return ResolveOutcome{}, err
 	}
-	return applyInviteOnly(ctx, q, w, &resolverIDP, identity, enrollmentToken, upstreamData, pool)
+	return applyInviteProvision(ctx, q, w, &resolverIDP, identity, enrollmentToken, upstreamData, pool)
 }

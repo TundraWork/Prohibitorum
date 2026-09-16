@@ -125,6 +125,9 @@ func newInviteTestServer(t *testing.T) *fedTestHarness {
 	r.Get("/api/prohibitorum/auth/federation/{slug}/login", h.s.handleFederationLoginHTTP)
 	r.Get("/api/prohibitorum/auth/federation/{slug}/callback", h.s.handleFederationCallbackHTTP)
 	r.Get("/api/prohibitorum/enrollments/{token}/start-federation", h.s.handleEnrollmentStartFederationHTTP)
+	r.Get("/api/prohibitorum/auth/federation/confirm", h.s.handleFederationConfirmGet)
+	r.Post("/api/prohibitorum/auth/federation/confirm", h.s.handleFederationConfirmPost)
+	r.Post("/api/prohibitorum/auth/federation/confirm/decline", h.s.handleFederationConfirmDecline)
 	h.srvTS.Config.Handler = r
 	return h
 }
@@ -291,11 +294,11 @@ func TestEnrollmentStartFederation_InvalidReturnTo(t *testing.T) {
 
 func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 	h := newInviteTestServer(t)
-	// Mock OP is in ModeAutoProvision per harness defaults — mode-decoupling
-	// means the EnrollmentToken on FedState is what routes through
-	// applyInviteOnly. The username/display name come from the upstream
-	// claims ("alice"/"Alice Example"); the template only carries role +
-	// attributes.
+	// Mock OP is in ModeAutoProvision per harness defaults — the
+	// EnrollmentToken on FedState is what routes the callback into the
+	// invite+provider provisioning path. The username/display name come from
+	// the upstream claims ("alice"/"Alice Example"); the template only
+	// carries role + attributes.
 	h.q.seedEnrollment(validInvite("tok-full", h.idp.Slug))
 
 	// Step 1: /start-federation → 302 to /authorize.
@@ -308,7 +311,8 @@ func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 	// Step 2: follow upstream /authorize → 302 to /callback with code+state.
 	code, state, iss := driveAuthorize(t, loc)
 
-	// Step 3: hit /callback → session cookie + 302 to /me.
+	// Step 3: hit /callback → 302 to /welcome with a fed-state confirmation
+	// grant cookie. No session yet — the identity is unconfirmed.
 	q := url.Values{}
 	q.Set("code", code)
 	q.Set("state", state)
@@ -318,18 +322,18 @@ func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 		body, _ := readAll(resp.Body)
 		t.Fatalf("callback: want 302, got %d (body=%s)", resp.StatusCode, body)
 	}
-	if got := resp.Header.Get("Location"); got != "/me" {
-		t.Errorf("Location: want /me, got %q", got)
+	if got := resp.Header.Get("Location"); got != "/welcome" {
+		t.Errorf("Location: want /welcome, got %q", got)
 	}
-	var sessCookie *http.Cookie
+	var grantCookie *http.Cookie
 	for _, c := range resp.Cookies() {
-		if c.Name == sessstore.SessionCookieName {
-			sessCookie = c
+		if c.Name == sessstore.FedStateCookieName && c.Value != "" {
+			grantCookie = c
 			break
 		}
 	}
-	if sessCookie == nil || sessCookie.Value == "" {
-		t.Fatal("session cookie not set after invite redemption")
+	if grantCookie == nil {
+		t.Fatal("confirmation grant cookie not set after invite provisioning")
 	}
 
 	// Enrollment must be consumed.
@@ -362,7 +366,7 @@ func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 		t.Error("identity UpstreamSub: want non-empty")
 	}
 
-	// Audit must show a federation_oidc register with reason=invite_only_redemption.
+	// Audit must show a federation_oidc register with reason=invite_provisioned.
 	var found bool
 	for _, ev := range h.q.events {
 		if ev.Factor != string(audit.FactorFederationOIDC) {
@@ -375,13 +379,13 @@ func TestEnrollmentStartFederation_FullFlow_RedeemsInvite(t *testing.T) {
 		if err := json.Unmarshal(ev.Detail, &detail); err != nil {
 			t.Fatalf("decode audit detail: %v", err)
 		}
-		if detail["reason"] == "invite_only_redemption" {
+		if detail["reason"] == "invite_provisioned" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("no audit register row with reason=invite_only_redemption")
+		t.Error("no audit register row with reason=invite_provisioned")
 	}
 }
 
@@ -406,16 +410,13 @@ func TestEnrollmentStartFederation_SteamFullHTTPFlow(t *testing.T) {
 		"openid.mode": {"id_res"},
 	}
 	resp = h.hitCallback(t, provider.Slug, q)
-	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/me" {
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/welcome" {
 		t.Fatalf("callback status/location = %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	if len(h.q.sessions) != 1 {
-		t.Fatalf("sessions inserted = %d, want 1", len(h.q.sessions))
-	}
-	session := h.q.sessions[0]
-	if len(session.Amr) != 1 || session.Amr[0] != "steam" ||
-		session.UpstreamIdpID == nil || *session.UpstreamIdpID != provider.ID {
-		t.Fatalf("Steam invite session = %+v", session)
+	// The identity stays unconfirmed, so no session exists yet — the
+	// confirmation grant routes the user through /welcome first.
+	if len(h.q.sessions) != 0 {
+		t.Fatalf("sessions inserted = %d, want 0 (identity unconfirmed)", len(h.q.sessions))
 	}
 	enrollment, err := h.q.GetEnrollmentByToken(context.Background(), "tok-steam")
 	if err != nil || !enrollment.ConsumedAt.Valid {
@@ -532,4 +533,89 @@ func assertAuditReason(t *testing.T, q *fakeFedQueries, reason string) {
 		}
 	}
 	t.Errorf("no audit fail row with reason=%s; events=%+v", reason, q.events)
+}
+
+// fullInviteFlow drives start-federation → authorize → callback and returns
+// the confirmation grant cookie value ("token.anti") set by the callback.
+func fullInviteFlowGrantCookie(t *testing.T, h *fedTestHarness, token string) string {
+	t.Helper()
+	loc, resp := h.driveStartFederation(t, token, "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", resp.StatusCode)
+	}
+	code, state, iss := driveAuthorize(t, loc)
+	q := url.Values{"code": {code}, "state": {state}, "iss": {iss}}
+	resp = h.hitCallback(t, h.idp.Slug, q)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302", resp.StatusCode)
+	}
+	for _, c := range resp.Cookies() {
+		if c.Name == sessstore.FedStateCookieName && c.Value != "" {
+			return c.Value
+		}
+	}
+	t.Fatal("confirmation grant cookie not set")
+	return ""
+}
+
+func TestInviteProvisionConfirmPostOffersLocalSignin(t *testing.T) {
+	h := newInviteTestServer(t)
+	h.q.seedEnrollment(validInvite("tok-offer", h.idp.Slug))
+	cookie := fullInviteFlowGrantCookie(t, h, "tok-offer")
+
+	// Confirming the grant (YES) must stamp confirmed_at and answer with
+	// offerLocalSignin=true — the invite+provider account has no local
+	// credentials yet.
+	req, err := http.NewRequest(http.MethodPost, h.srvTS.URL+"/api/prohibitorum/auth/federation/confirm", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(&http.Cookie{Name: sessstore.FedStateCookieName, Value: cookie})
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("confirm status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		Redirect         string `json:"redirect"`
+		OfferLocalSignin bool   `json:"offerLocalSignin"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode confirm response: %v", err)
+	}
+	if !out.OfferLocalSignin {
+		t.Errorf("offerLocalSignin = false, want true for invite provisioning")
+	}
+}
+
+func TestInviteProvisionDeclineThenReloginReturnsToWelcome(t *testing.T) {
+	// After provisioning (invite consumed, identity unconfirmed), hitting the
+	// provider again resolves the EXISTING identity: the invitee gets a fresh
+	// confirmation grant and lands back on /welcome instead of an error. This
+	// is the recovery path for "not me" on the confirm page.
+	h := newInviteTestServer(t)
+	h.q.seedEnrollment(validInvite("tok-recover", h.idp.Slug))
+	fullInviteFlowGrantCookie(t, h, "tok-recover")
+
+	// Second visit through the same provider, this time via the plain public
+	// login entrypoint: same (iss, sub), now bound to the unconfirmed identity
+	// → resolveExisting → fresh /welcome grant. No invite involved anymore.
+	resp0, err := h.client.Get(h.srvTS.URL + "/api/prohibitorum/auth/federation/" + h.idp.Slug + "/login?return_to=%2Fme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp0.StatusCode != http.StatusFound || !strings.HasPrefix(resp0.Header.Get("Location"), h.opTS.URL) {
+		t.Fatalf("second login status/location = %d %q", resp0.StatusCode, resp0.Header.Get("Location"))
+	}
+	loc := resp0.Header.Get("Location")
+	code, state, iss := driveAuthorize(t, loc)
+	q := url.Values{"code": {code}, "state": {state}, "iss": {iss}}
+	resp := h.hitCallback(t, h.idp.Slug, q)
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/welcome" {
+		t.Fatalf("second callback status/location = %d %q, want 302 /welcome",
+			resp.StatusCode, resp.Header.Get("Location"))
+	}
 }

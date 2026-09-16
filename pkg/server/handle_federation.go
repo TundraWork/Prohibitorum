@@ -181,7 +181,7 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	if !result.Confirmed {
 		token, antiForgery, err := s.federationService.CreateConfirmGrant(
 			r.Context(), result.AccountID, result.IdentityID, result.ProviderID,
-			result.ProviderSlug, result.ReturnTo, result.AMR,
+			result.ProviderSlug, result.ReturnTo, result.AMR, result.OfferLocalSignin,
 		)
 		if err != nil {
 			s.writeFederationCompletionError(w, r, err, mode)

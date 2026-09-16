@@ -135,7 +135,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 		Detail:    map[string]any{"via": "federation"},
 	})
 	http.SetCookie(w, sessstore.FreshSessionCookie(s.config, r, grant.AccountID, sess, s.config.SessionTTL))
-	writeJSON(w, map[string]string{"redirect": grant.ReturnTo})
+	writeJSON(w, map[string]any{"redirect": grant.ReturnTo, "offerLocalSignin": grant.OfferLocalSignin})
 }
 
 // handleFederationConfirmDecline serves
