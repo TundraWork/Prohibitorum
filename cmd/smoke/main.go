@@ -2948,7 +2948,7 @@ func main() {
 	// Reuses the saml mock SP `sp`, verifier `spProvider`, ssoURL, mockSPACSURL.
 	// c is freshly logged-in (the re-auth steps minted recent sessions).
 
-	step(fmt.Sprintf("hardening %d/%d — SAML ForceAuthn bounces (stale session), then a fresh login + reauth nonce issues an assertion", 6, nHardening))
+	step(fmt.Sprintf("hardening %d/%d — SAML ForceAuthn bounces (stale session), then a fresh login + reauth nonce issues an assertion", 7, nHardening))
 	{
 		query, reqID, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true, authnOpts{forceAuthn: true})
 		if err != nil {
@@ -3007,7 +3007,7 @@ func main() {
 		}
 		log.Printf("  fresh login + &reauth=<nonce> → assertion issued ✓")
 	}
-	step(fmt.Sprintf("hardening %d/%d — SAML ForceAuthn + IsPassive → NoPassive status Response (no assertion)", 7, nHardening))
+	step(fmt.Sprintf("hardening %d/%d — SAML ForceAuthn + IsPassive → NoPassive status Response (no assertion)", 8, nHardening))
 
 	{
 		query, _, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true,
@@ -3039,7 +3039,7 @@ func main() {
 		log.Printf("  ForceAuthn+IsPassive → Response StatusCode=NoPassive, no assertion ✓")
 	}
 
-	step(fmt.Sprintf("hardening %d/%d — SAML NameIDPolicy Format=emailAddress (≠ persistent) → InvalidNameIDPolicy", 8, nHardening))
+	step(fmt.Sprintf("hardening %d/%d — SAML NameIDPolicy Format=emailAddress (≠ persistent) → InvalidNameIDPolicy", 9, nHardening))
 	{
 		const emailFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 		query, _, err := sp.authnRequestRedirectOpts(ssoURL, mockSPACSURL, true,
@@ -3070,7 +3070,7 @@ func main() {
 		}
 		log.Printf("  NameIDPolicy Format=emailAddress → Response StatusCode=InvalidNameIDPolicy, no assertion ✓")
 	}
-	step(fmt.Sprintf("hardening %d/%d — SAML POST-binding (enveloped-signed) AuthnRequest → assertion", 9, nHardening))
+	step(fmt.Sprintf("hardening %d/%d — SAML POST-binding (enveloped-signed) AuthnRequest → assertion", 10, nHardening))
 
 	{
 		samlReq, reqID, err := sp.authnRequestPostForm(ssoURL, mockSPACSURL, authnOpts{})
@@ -3097,7 +3097,7 @@ func main() {
 		}
 		log.Printf("  POST-binding enveloped-signed AuthnRequest → assertion (NameID=%.16s…) ✓", assertion.Subject.NameID.Value)
 	}
-	step(fmt.Sprintf("hardening %d/%d — SAML /saml/metadata is SIGNED, verifies against its own cert, validUntil is future", 10, nHardening))
+	step(fmt.Sprintf("hardening %d/%d — SAML /saml/metadata is SIGNED, verifies against its own cert, validUntil is future", 11, nHardening))
 
 	{
 		metaXML, err := fetchSAMLMetadata(*baseURL)
@@ -3117,7 +3117,7 @@ func main() {
 		log.Printf("  metadata <ds:Signature> verifies against embedded cert; validUntil=%s (future) ✓", ed.ValidUntil.Format(time.RFC3339))
 	}
 
-	step(fmt.Sprintf("hardening %d/%d — SAML IdP-initiated SSO — opted-in SP gets an unsolicited Response (RelayState echoed); the non-opted-in SP without the flag → 302 /error", 11, nHardening))
+	step(fmt.Sprintf("hardening %d/%d — SAML IdP-initiated SSO — opted-in SP gets an unsolicited Response (RelayState echoed); the non-opted-in SP without the flag → 302 /error", 12, nHardening))
 	{
 		// Register a SECOND SP that opts into IdP-initiated SSO. Its mock SP
 		// carries a distinct entityID + ACS but reuses the mock signing key
@@ -3232,7 +3232,7 @@ func main() {
 			log.Printf("  /saml/sso/init for the prior SP (no opt-in) → 302 %s ✓", loc302)
 		}
 	}
-	step(fmt.Sprintf("hardening %d/%d — DB assert — credential_event covers the SAML re-auth/idp-initiated lifecycle", 12, nHardening))
+	step(fmt.Sprintf("hardening %d/%d — DB assert — credential_event covers the SAML re-auth/idp-initiated lifecycle", 13, nHardening))
 
 	if err := verifyHardeningSAMLAuditEvents(); err != nil {
 		log.Fatalf("hardening SAML audit DB assert: %v", err)
@@ -8465,7 +8465,7 @@ func verifyHardeningSAMLAuditEvents() error {
 		n, _ := strconv.Atoi(parts[2])
 		counts[parts[0]+":"+parts[1]] = n
 	}
-	// idp_initiated reason must be present (hardening 11). sso reason count grew vs
+	// idp_initiated reason must be present (hardening 12). sso reason count grew vs
 	// the saml baseline (ForceAuthn retry + POST-binding) — lower
 	// bound 5 keeps us safe (the saml arc alone already asserts >=3).
 	if counts["use:idp_initiated"] < 1 {
