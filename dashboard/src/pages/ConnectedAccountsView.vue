@@ -5,8 +5,10 @@
  * new provider checks the current sudo grant (the begin endpoint is a sudo-gated
  * 302 that withSudo's XHR-retry can't replay), then a hard redirect upstream.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResource } from '@/composables/useResource'
+import { memberQuery, federationQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo, ensureSudo } from '@/lib/sudo'
@@ -29,37 +31,28 @@ import IdentityMetadata, { type AccountIdentity } from '@/components/custom/Iden
 interface Provider { slug: string; displayName: string; iconUrl?: string | null; protocol?: string }
 
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
+const { busy: mutationBusy, run, error: mutationError, clear: clearMutation } = useApi('identities')
 
-const identities = ref<AccountIdentity[]>([])
-const providers = ref<Provider[]>([])
-const providersLoaded = ref(false)
+const identitiesQuery = useResource(memberQuery<AccountIdentity[]>('identities'))
+const providersQuery = useResource(federationQuery<Provider[]>())
+const identities = computed(() => identitiesQuery.data.value ?? [])
+const providers = computed(() => providersQuery.data.value ?? [])
+const providersLoaded = computed(() => !providersQuery.isPending.value)
+const busy = computed(() => mutationBusy.value || identitiesQuery.busy.value || providersQuery.busy.value)
+const error = computed(() => mutationError.value ?? identitiesQuery.error.value ?? providersQuery.error.value)
+function clear(): void { clearMutation(); identitiesQuery.clear(); providersQuery.clear() }
 const confirmId = ref<number | null>(null)
 
 const linkedSlugs = computed(() => new Set(identities.value.map((identity) => identity.providerSlug)))
 
-async function loadIdentities(): Promise<void> {
-  const res = await run(() => api.get<AccountIdentity[]>('/api/prohibitorum/me/identities'))
-  if (res) identities.value = res
-}
-async function loadProviders(): Promise<void> {
-  try {
-    providers.value = await api.get<Provider[]>('/api/prohibitorum/auth/federation')
-  } catch {
-    providers.value = []
-  } finally {
-    providersLoaded.value = true
-  }
-}
 async function confirmUnlink(): Promise<void> {
   const id = confirmId.value
   if (id == null) return
-  const ok = await run(() => withSudo(async () => {
+  await run(() => withSudo(async () => {
     await api.post(`/api/prohibitorum/me/identities/${id}/unlink`)
     return true as const
   }, t('sudo.reason.unlinkIdentity')))
   confirmId.value = null
-  if (ok) await loadIdentities()
 }
 async function link(slug: string): Promise<void> {
   const elevated = await run(() => ensureSudo(t('sudo.reason.linkIdentity')))
@@ -68,7 +61,6 @@ async function link(slug: string): Promise<void> {
     `/api/prohibitorum/me/identities/link/${encodeURIComponent(slug)}/begin?return_to=${encodeURIComponent('/connected')}`)
 }
 
-onMounted(async () => { await Promise.all([loadIdentities(), loadProviders()]) })
 </script>
 
 <template>

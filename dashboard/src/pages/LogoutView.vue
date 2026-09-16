@@ -17,12 +17,14 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
-import { useAuthStore } from '@/stores/auth'
+import { useQueryClient } from '@tanstack/vue-query'
+import { clearSessionQueries } from '@/queries/client'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import { Button } from '@/components/ui/button'
 
 const { t } = useI18n()
-const auth = useAuthStore()
+const client = useQueryClient()
+
 
 // True while the logout POST is in flight — disables the "Sign in again" button
 // so the user cannot navigate away before the session is cleared.
@@ -34,7 +36,7 @@ onMounted(async () => {
   } catch {
     // Already signed out / network hiccup — the landing is terminal either way.
   } finally {
-    auth.clear()
+    await clearSessionQueries(client)
     loggingOut.value = false
   }
 })

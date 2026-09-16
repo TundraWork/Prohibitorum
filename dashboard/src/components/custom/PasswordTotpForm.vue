@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * PasswordTotpForm — the password→TOTP fallback login, an explicit two-phase
  * state machine.
@@ -77,6 +78,7 @@ async function submitTotp(): Promise<void> {
   )
   if (res) emit('success', res.redirect ?? '/')
 }
+usePrivateState(() => { password.value = ''; code.value = ''; partialToken.value = '' })
 </script>
 
 <template>

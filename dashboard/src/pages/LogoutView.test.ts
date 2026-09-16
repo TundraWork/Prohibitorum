@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia } from 'pinia'
 import en from '@/locales/en'
 import LogoutView from './LogoutView.vue'
 
@@ -15,7 +14,7 @@ const RouterLink = { template: '<a><slot /></a>', props: ['to'] }
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 function mountView() {
   return mount(LogoutView, {
-    global: { plugins: [i18n(), createPinia()], stubs: { RouterLink, CenteredLayout: { template: '<div><slot name="title" /><slot /></div>' } } },
+    global: { plugins: [i18n()], stubs: { RouterLink, CenteredLayout: { template: '<div><slot name="title" /><slot /></div>' } } },
   })
 }
 

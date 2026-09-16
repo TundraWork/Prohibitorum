@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
@@ -11,7 +11,7 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => ({ p
 import AdminSamlProviderDetailView from './AdminSamlProviderDetailView.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
-enableAutoUnmount(afterEach)
+
 const integrationStubs = {
   RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' },
   AppPolicyWorkspace: {
@@ -32,7 +32,7 @@ describe('AdminSamlProviderDetailView', () => {
   it('loads the SP, shows ACS, saves flags via PUT', async () => {
     get.mockResolvedValue(SP); put.mockResolvedValue({ ...SP, displayName: 'GHES 2' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-applications/5', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('https://sp/acs')
     await w.find('input[name="displayName"]').setValue('GHES 2')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()

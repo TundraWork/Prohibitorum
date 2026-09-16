@@ -36,7 +36,7 @@ describe('AdminSamlProvidersView', () => {
   it('lists providers', async () => {
     get.mockResolvedValue({ items: SPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-applications')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-applications', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('GHES'); expect(w.text()).toContain('https://sp/meta')
   })
   it('shows the active status badge for an enabled provider', async () => {

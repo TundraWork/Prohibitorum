@@ -70,7 +70,7 @@ describe('ConnectedAccountsView', () => {
   it('lists linked identities using the exact shared wire', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/identities')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/identities', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('Okta')
     expect(w.text()).toContain('a@example.com')
     expect(w.text()).toContain('Steam')

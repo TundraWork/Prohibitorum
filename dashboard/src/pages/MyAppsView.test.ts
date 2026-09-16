@@ -13,8 +13,8 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
 // The auth store supplies the greeting name + isAdmin; stub it so MyAppsView
 // mounts without a Pinia instance.
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ me: { username: 'jesse', displayName: 'Jesse Cheng', role: 'admin' }, isAdmin: true }),
+vi.mock('@/composables/useSession', () => ({
+  useSession: () => ({ me: { username: 'jesse', displayName: 'Jesse Cheng', role: 'admin' }, isAdmin: true }),
 }))
 
 import MyAppsView from './MyAppsView.vue'

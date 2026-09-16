@@ -34,7 +34,7 @@ describe('AdminOidcClientDetailView', () => {
   it('loads the client and saves config via PUT (allowedScopes)', async () => {
     get.mockResolvedValue(CLIENT); put.mockResolvedValue({ ...CLIENT, displayName: 'Renamed' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/web')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/web', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     await w.find('input[name="displayName"]').setValue('Renamed')
     await w.find('[data-test="save"]').trigger('click'); await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/web', expect.objectContaining({

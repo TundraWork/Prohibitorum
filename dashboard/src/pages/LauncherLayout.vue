@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterView, RouterLink } from 'vue-router'
 import { ShieldCheck } from 'lucide-vue-next'
-import { useBrandingStore } from '@/stores/branding'
+import { useBranding } from '@/composables/useBranding'
 import NavUser from '@/components/custom/NavUser.vue'
 import MaintenanceBanner from '@/components/custom/MaintenanceBanner.vue'
 // Decorative top-left corner backdrop. Purely ornamental: anchored to the
@@ -17,7 +17,7 @@ import MaintenanceBanner from '@/components/custom/MaintenanceBanner.vue'
 import backdropLight from '@/assets/launcher-backdrop-light.webp'
 import backdropDark from '@/assets/launcher-backdrop-dark.webp'
 
-const branding = useBrandingStore()
+const branding = useBranding()
 </script>
 
 <template>

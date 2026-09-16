@@ -12,6 +12,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { hardRedirect } from '@/lib/navigate'
+import { useResource } from '@/composables/useResource'
+import { pairingQuery } from '@/queries/ceremonies'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
@@ -35,9 +37,11 @@ const { register, error: waError } = useWebauthn()
 
 type Phase = 'pending' | 'expired' | 'success'
 const phase = ref<Phase>('pending')
+const completionFailed = ref(false)
 const displayCode = ref('')
 const pairingId = ref('')
 const expiresAt = ref('')
+const statusQuery = useResource(computed(() => ({ ...pairingQuery<Status>(pairingId.value), enabled: false })))
 const now = ref(Date.now())
 let timer: ReturnType<typeof setInterval> | null = null
 let polling = false
@@ -54,6 +58,7 @@ function stopTimer(): void { if (timer) { clearInterval(timer); timer = null } }
 async function begin(): Promise<void> {
   stopTimer()
   phase.value = 'pending'
+  completionFailed.value = false
   const res = await run(() => api.post<Begin>('/api/prohibitorum/auth/devices/pair/begin'))
   if (!res) return
   pairingId.value = res.pairingId
@@ -68,16 +73,13 @@ async function poll(): Promise<void> {
   polling = true
   now.value = Date.now()
   try {
-    const s = await api.get<Status>(
-      `/api/prohibitorum/auth/devices/pair/status?id=${encodeURIComponent(pairingId.value)}`)
+    const s = (await statusQuery.refetch({ throwOnError: true })).data!
     if (!mounted) return
     if (s.status === 'expired') { stopTimer(); phase.value = 'expired'; return }
     if (s.status === 'approved') {
       stopTimer()
       await complete()
-      // complete() failed (still pending) and we're still mounted → resume polling
-      // so the user isn't wedged on a dead "waiting" screen.
-      if (mounted && phase.value === 'pending') timer = setInterval(poll, POLL_MS)
+
     }
   } catch {
     // Transient poll failure — keep polling; a terminal state will resolve it.
@@ -87,12 +89,13 @@ async function poll(): Promise<void> {
 }
 
 async function complete(): Promise<void> {
+  completionFailed.value = false
   const res = await run(() => {
     const qs = rawReturnTo.value ? `?return_to=${encodeURIComponent(rawReturnTo.value)}` : ''
     return api.post<{ redirect: string }>(
       `/api/prohibitorum/auth/devices/pair/complete${qs}`, { pairingId: pairingId.value })
   })
-  if (!res) return
+  if (!res) { completionFailed.value = true; return }
   redirect.value = res.redirect
   phase.value = 'success'
 }
@@ -124,7 +127,8 @@ onUnmounted(() => { mounted = false; stopTimer() })
     </template>
 
     <div class="flex flex-col gap-6">
-      <ErrorPanel :error="error || waError" @dismiss="clear" />
+      <ErrorPanel :error="error || waError || statusQuery.error.value" @dismiss="clear(); statusQuery.clear()" />
+      <Button v-if="completionFailed" :disabled="busy" data-test="retry-complete" @click="complete">{{ t('common.retry') }}</Button>
 
       <template v-if="phase === 'pending'">
         <p class="text-center text-sm text-muted">{{ t('pair.intro') }}</p>

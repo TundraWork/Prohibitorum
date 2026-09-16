@@ -640,7 +640,7 @@ describe('AdminUpstreamIdpDetailView', () => {
     await w.get('[data-test="operator-validate"]').trigger('click')
     await flushPromises()
 
-    expect(get).toHaveBeenNthCalledWith(2, '/api/prohibitorum/identity-providers/vrchat')
+    expect(get).toHaveBeenNthCalledWith(2, '/api/prohibitorum/identity-providers/vrchat', { signal: expect.any(AbortSignal) })
     expect(w.text()).toContain(en.errors.codes.vrchat_operator_credentials_invalid)
     expect(w.get('[data-test="operator-status-badge"]').text()).toBe(en.admin.upstream.operatorStatusInvalid)
     expect(w.find('input[name="operatorUsername"]').exists()).toBe(true)

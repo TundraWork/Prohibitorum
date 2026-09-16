@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
@@ -26,9 +25,9 @@ const mountView = () => mount(PairDeviceView, { global: { plugins: [i18n()] }, a
 
 const BEGIN = { pairingId: 'p1', code: 'AB12CD34', displayCode: 'AB12-CD34', expiresAt: '2999-01-01T00:00:00Z' }
 
-enableAutoUnmount(afterEach)
+
 beforeEach(() => {
-  setActivePinia(createPinia()); get.mockReset(); post.mockReset(); hardRedirect.mockReset(); vi.useFakeTimers()
+  get.mockReset(); post.mockReset(); hardRedirect.mockReset(); vi.useFakeTimers()
   for (const key of Object.keys(routeQuery)) delete routeQuery[key]
 })
 afterEach(() => { vi.useRealTimers() })
@@ -91,7 +90,7 @@ describe('PairDeviceView', () => {
     await vi.advanceTimersByTimeAsync(2600)
     await vi.advanceTimersByTimeAsync(2600)
     await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/auth/devices/pair/status?id=p1')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/auth/devices/pair/status?id=p1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/devices/pair/complete', { pairingId: 'p1' })
     expect(w.text()).toContain(en.pair.success)
   })
@@ -158,7 +157,7 @@ describe('PairDeviceView', () => {
       '/api/prohibitorum/auth/devices/pair/complete', expect.anything())
   })
 
-  it('resumes polling and retries when complete fails once', async () => {
+  it('does not replay failed completion until the user explicitly retries', async () => {
     let completeCalls = 0
     post.mockImplementation(async (p: string) => {
       if (p.endsWith('/pair/begin')) return BEGIN
@@ -173,7 +172,9 @@ describe('PairDeviceView', () => {
     const w = mountView(); await flushPromises()
     await vi.advanceTimersByTimeAsync(2600); await flushPromises() // poll1 → approved → complete fails → resume
     expect(w.text()).toContain(en.pair.waiting) // still pending, not wedged
-    await vi.advanceTimersByTimeAsync(2600); await flushPromises() // poll2 → approved → complete succeeds
+    await vi.advanceTimersByTimeAsync(10000); await flushPromises()
+    expect(completeCalls).toBe(1)
+    await w.get('[data-test=retry-complete]').trigger('click'); await flushPromises()
     expect(completeCalls).toBe(2)
     expect(w.text()).toContain(en.pair.success)
   })

@@ -44,7 +44,7 @@ describe('ManagedApplicationDetailView', () => {
       path.endsWith('/access') ? workspace : { items: [], nextCursor: '' },
     )
     const wrapper = await mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/managed-applications/oidc/client%2Fid/access')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/managed-applications/oidc/client%2Fid/access', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.find('[data-test="managed-application-detail"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="app-policy-workspace"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Grafana')

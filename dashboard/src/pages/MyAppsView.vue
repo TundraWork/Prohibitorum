@@ -3,9 +3,11 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Search, Plus, LayoutGrid } from 'lucide-vue-next'
+import { useResource } from '@/composables/useResource'
+import { memberQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
-import { useAuthStore } from '@/stores/auth'
+import { useSession } from '@/composables/useSession'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import AppTile, { type LaunchpadApp } from '@/components/custom/AppTile.vue'
 import AppIcon from '@/components/custom/AppIcon.vue'
@@ -23,12 +25,17 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 interface Consent { kind?: 'oidc' | 'saml'; clientId: string; scopes: string[] }
 
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
-const auth = useAuthStore()
+const { busy: mutationBusy, run, error: mutationError, clear: clearMutation } = useApi('consent')
+const auth = useSession()
 const router = useRouter()
 
-const apps = ref<LaunchpadApp[]>([])
-const consentList = ref<Consent[]>([])
+const appsQuery = useResource(memberQuery<LaunchpadApp[]>('apps'))
+const consentsQuery = useResource(memberQuery<Consent[]>('consent'))
+const apps = computed(() => consentsQuery.data.value === undefined ? [] : appsQuery.data.value ?? [])
+const consentList = computed(() => consentsQuery.data.value ?? [])
+const busy = computed(() => mutationBusy.value || appsQuery.busy.value || consentsQuery.busy.value)
+const error = computed(() => mutationError.value ?? appsQuery.error.value ?? consentsQuery.error.value)
+function clear(): void { clearMutation(); appsQuery.clear(); consentsQuery.clear() }
 const revokeTarget = ref<LaunchpadApp | null>(null)
 const pickerOpen = ref(false)
 const search = ref('')
@@ -97,24 +104,6 @@ function adminPathFor(app: LaunchpadApp): string {
   }
 }
 
-async function load(): Promise<void> {
-  // Both lists are required to render the connected-vs-available split correctly.
-  // Fetch them under one run() so a failure of EITHER surfaces as an error rather
-  // than silently degrading (a swallowed /me/consent would drop every "connected"
-  // mark and push connected apps back into the "Add app" picker).
-  const result = await run(async () => {
-    const [a, c] = await Promise.all([
-      api.get<LaunchpadApp[]>('/api/prohibitorum/me/apps'),
-      api.get<Consent[]>('/api/prohibitorum/me/consent'),
-    ])
-    return { a, c }
-  })
-  if (result) {
-    apps.value = result.a
-    consentList.value = result.c
-  }
-}
-
 async function copyLink(app: LaunchpadApp): Promise<void> {
   // launchUrl may be relative (SAML SSO-init) — resolve to absolute so the copied
   // link works pasted anywhere.
@@ -132,14 +121,13 @@ function manage(app: LaunchpadApp): void { void router.push(adminPathFor(app)) }
 async function confirmRevoke(): Promise<void> {
   const app = revokeTarget.value
   if (!app) return
-  const ok = await run(async () => {
+  await run(async () => {
     // Send `kind` explicitly (matches AppAccessView) so the backend targets the
     // right consent table — the SP numeric id and an OIDC client_id could collide.
     await api.post('/api/prohibitorum/me/consent/revoke', { kind: app.kind, clientId: app.id })
     return true as const
   })
   revokeTarget.value = null
-  if (ok) await load()
 }
 
 // ⌘K / Ctrl-K (or "/" when not already typing) focuses the search box.
@@ -158,7 +146,6 @@ function onKeydown(e: KeyboardEvent): void {
 }
 
 onMounted(() => {
-  void load()
   window.addEventListener('keydown', onKeydown)
 })
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))

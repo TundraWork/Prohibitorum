@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * SetupLocalSigninView — the one-time "add a local sign-in method" step
  * (/setup-signin), offered right after /welcome confirmation for accounts
@@ -115,6 +116,7 @@ async function verifyTotp(): Promise<void> {
   totpSet.value = true
   recoveryCodes.value = r.recovery_codes ?? []
 }
+usePrivateState(() => { pw.value = ''; confirm.value = ''; secret.value = ''; otpauthUri.value = ''; totpCode.value = ''; recoveryCodes.value = [] })
 </script>
 
 <template>

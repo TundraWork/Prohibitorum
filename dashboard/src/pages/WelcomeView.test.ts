@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import WelcomeView from './WelcomeView.vue'
 
@@ -22,7 +21,7 @@ function mountView(pollMs = 20, capMs?: number) {
 }
 
 beforeEach(() => {
-  setActivePinia(createPinia())
+
   get.mockReset()
   post.mockReset()
   assignSpy.mockReset()
@@ -72,7 +71,7 @@ describe('WelcomeView', () => {
     await flushPromises()
     await w.find('[data-test="welcome-continue"]').trigger('click')
     await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/federation/confirm', expect.anything())
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/federation/confirm', expect.anything(), { signal: expect.any(AbortSignal) })
     expect(assignSpy).toHaveBeenCalledWith('/')
   })
 
@@ -83,7 +82,7 @@ describe('WelcomeView', () => {
     await flushPromises()
     await w.find('[data-test="welcome-notme"]').trigger('click')
     await flushPromises()
-    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/federation/confirm/decline', expect.anything())
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/auth/federation/confirm/decline', expect.anything(), { signal: expect.any(AbortSignal) })
     expect(assignSpy).toHaveBeenCalledWith('/login')
   })
 

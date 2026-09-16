@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /** AdminOidcClientsView (/admin/oidc-applications) — table of OIDC clients; inline create with reveal-once secret. */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -7,7 +8,6 @@ import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useCursorPage } from '@/composables/useCursorPage'
-import { type Page, buildPagePath } from '@/lib/pagination'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,11 +45,9 @@ const { t } = useI18n()
 const router = useRouter()
 
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
-const { busy, run, error, clear } = useApi()
+const { busy, run, error, clear } = useApi('oidc-applications')
 
-const page = useCursorPage<OidcApplication>((cursor) =>
-  api.get<Page<OidcApplication>>(buildPagePath('/api/prohibitorum/oidc-applications', { cursor })),
-)
+const page = useCursorPage<OidcApplication>('oidc-applications')
 const rows = page.items
 const displayError = computed(() => page.error.value ?? error.value)
 function clearError(): void { page.clear(); clear() }
@@ -100,7 +98,6 @@ async function create(): Promise<void> {
     createOpen.value = false
     revealedSecret.value = res.secret ?? ''
     created.value = true
-    await page.reload()
   }
 }
 
@@ -120,6 +117,7 @@ function openCreate(): void {
   createOpen.value = true
 }
 
+usePrivateState(() => { revealedSecret.value = '' })
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">

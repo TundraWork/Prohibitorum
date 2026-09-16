@@ -35,7 +35,7 @@ describe('ManagedApplicationsView', () => {
       { kind: 'forward_auth', appId: 'wiki', displayName: 'Wiki', accessRestricted: false },
     ])
     const wrapper = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/managed-applications')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/managed-applications', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain('Grafana')
     expect(wrapper.text()).toContain('Restricted access')
     expect(wrapper.text()).toContain('Wiki')

@@ -14,10 +14,13 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Save } from 'lucide-vue-next'
+import { useQueryClient } from '@tanstack/vue-query'
+const queryClient = useQueryClient()
+import { keys } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
-import { useAuthStore } from '@/stores/auth'
-import type { SessionView } from '@/stores/auth'
+import { useSession } from '@/composables/useSession'
+import type { SessionView } from '@/composables/useSession'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
@@ -33,8 +36,8 @@ const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
 
 const { t } = useI18n()
-const auth = useAuthStore()
-const { busy, error, run, clear } = useApi()
+const auth = useSession()
+const { busy, error, run, clear } = useApi('profile')
 
 const draft = ref('')
 const inputRef = ref<{ $el?: HTMLElement }>()
@@ -80,7 +83,7 @@ async function save(): Promise<void> {
     api.put<SessionView>('/api/prohibitorum/me', { displayName: submittedName }),
   )
   if (result) {
-    auth.setDisplayName(result.displayName)
+    queryClient.setQueryData(keys.me, result)
     if (draft.value === submittedName) draft.value = result.displayName
     await nextTick()
     inputRef.value?.$el?.focus()
@@ -99,8 +102,7 @@ function loadImageSize(url: string): Promise<{ w: number; h: number } | null> {
 
 async function uploadAvatar(body: Blob): Promise<void> {
   errorZone.value = 'avatar'
-  await run(() => api.upload('/api/prohibitorum/me/avatar', body))
-  if (!error.value) await auth.reload()
+  await run(async () => { await api.upload('/api/prohibitorum/me/avatar', body); return true })
 }
 
 async function onFile(e: Event): Promise<void> {
@@ -138,8 +140,7 @@ async function onCropped(blob: Blob): Promise<void> {
 
 async function removeAvatar(): Promise<void> {
   errorZone.value = 'avatar'
-  await run(() => api.del('/api/prohibitorum/me/avatar'))
-  if (!error.value) await auth.reload()
+  await run(async () => { await api.del('/api/prohibitorum/me/avatar'); return true })
 }
 
 // source is any stored source key: 'user', 'none', or a per-upstream
@@ -147,9 +148,8 @@ async function removeAvatar(): Promise<void> {
 async function selectSource(source: string): Promise<void> {
   pendingSource.value = source
   errorZone.value = 'avatar'
-  await run(() => api.put('/api/prohibitorum/me/avatar/selection', { source }))
+  await run(async () => { await api.put('/api/prohibitorum/me/avatar/selection', { source }); return true })
   pendingSource.value = null
-  if (!error.value) await auth.reload()
 }
 
 // The set of sources that have a stored image, derived from avatarSourceUrls.

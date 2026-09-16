@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResource } from '@/composables/useResource'
+import { memberQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { relativeTime } from '@/lib/time'
@@ -16,22 +18,20 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 interface ConsentedApp { kind: 'oidc' | 'saml'; clientId: string; name: string; iconUrl?: string | null; scopes: string[]; grantedAt: string }
 
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
-const apps = ref<ConsentedApp[]>([])
+const { busy: mutationBusy, run, error: mutationError, clear: clearMutation } = useApi('consent')
+const query = useResource(memberQuery<ConsentedApp[]>('consent'))
+const apps = computed(() => query.data.value ?? [])
+const busy = computed(() => mutationBusy.value || query.busy.value)
+const error = computed(() => mutationError.value ?? query.error.value)
+function clear(): void { clearMutation(); query.clear() }
 const revokeTarget = ref<ConsentedApp | null>(null)
 
-async function load(): Promise<void> {
-  const res = await run(() => api.get<ConsentedApp[]>('/api/prohibitorum/me/consent'))
-  if (res) apps.value = res
-}
 async function confirmRevoke(): Promise<void> {
   const app = revokeTarget.value
   if (!app) return
-  const ok = await run(async () => { await api.post('/api/prohibitorum/me/consent/revoke', { kind: app.kind, clientId: app.clientId }); return true as const })
+  await run(async () => { await api.post('/api/prohibitorum/me/consent/revoke', { kind: app.kind, clientId: app.clientId }); return true as const })
   revokeTarget.value = null
-  if (ok) await load()
 }
-onMounted(load)
 </script>
 
 <template>

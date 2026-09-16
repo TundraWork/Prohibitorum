@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { installGuard } from './index'
 
@@ -22,7 +21,7 @@ function makeRouter() {
   installGuard(r)
   return r
 }
-beforeEach(() => { setActivePinia(createPinia()); get.mockReset() })
+beforeEach(() => { get.mockReset() })
 
 describe('router guard (requiresAdmin)', () => {
   it('redirects a non-admin to error?error=forbidden', async () => {
@@ -89,7 +88,7 @@ function mockApi(maintenance: boolean, me: { role: string } | null) {
     if (path === '/api/prohibitorum/me') {
       return me
         ? Promise.resolve({ id: 1, username: 'u', displayName: 'U', role: me.role })
-        : Promise.reject({ code: 'unauthorized' })
+        : Promise.reject({ code: 'no_session' })
     }
     return Promise.resolve({})
   }) as any)

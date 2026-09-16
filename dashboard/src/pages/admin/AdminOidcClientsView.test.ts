@@ -39,7 +39,7 @@ describe('AdminOidcClientsView', () => {
   it('lists clients with type badges', async () => {
     get.mockResolvedValue({ items: CLIENTS, nextCursor: '' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('Web App'); expect(w.text()).toContain(en.admin.oidc.confidential); expect(w.text()).toContain(en.admin.oidc.public)
   })
   it('row click navigates to detail', async () => {

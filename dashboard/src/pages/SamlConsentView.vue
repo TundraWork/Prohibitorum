@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { useResource } from '@/composables/useResource'
+import { consentQuery } from '@/queries/ceremonies'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, type ApiError } from '@/lib/api'
@@ -24,13 +26,14 @@ const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
 
 const ticket = String(route.query.ticket ?? '')
-const ctx = ref<SamlConsentContext | null>(null)
+const contextQuery = useResource({ ...consentQuery<SamlConsentContext>('saml', ticket), enabled: false })
+const ctx = computed(() => contextQuery.data.value ?? null)
 const loading = ref(true)
 const hasAttrs = computed(() => (ctx.value?.attributes.length ?? 0) > 0)
 
 onMounted(async () => {
   try {
-    ctx.value = await api.get<SamlConsentContext>(`/api/prohibitorum/saml-consent?ticket=${encodeURIComponent(ticket)}`)
+    await contextQuery.refetch({ throwOnError: true })
   } catch (e) {
     const code = (e as ApiError | undefined)?.code
     if (code === 'no_session') router.replace({ name: 'login', query: { return_to: route.fullPath } })

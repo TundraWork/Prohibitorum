@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /** SecurityView (/security) — stacks the factor cards + the coarse revoke action. */
-import { onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
+import { useResource } from '@/composables/useResource'
+import { memberQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -26,22 +28,12 @@ interface MeFactors {
 }
 
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
+const { busy, run, error, clear } = useApi('credentials')
 const confirmOpen = ref(false)
 const { flag: done, trigger: triggerDone } = useTransientFlag()
-const factors = ref<MeFactors | null>(null)
-const factorsError = ref(false)
-
-async function loadFactors(): Promise<void> {
-  factorsError.value = false
-  try {
-    factors.value = await api.get<MeFactors>('/api/prohibitorum/me/factors')
-  } catch {
-    factorsError.value = true
-  }
-}
-
-onMounted(loadFactors)
+const factorsQuery = useResource(memberQuery<MeFactors>('factors'))
+const factors = computed(() => factorsQuery.data.value)
+const factorsError = computed(() => !!factorsQuery.error.value)
 
 async function revoke(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
@@ -49,7 +41,7 @@ async function revoke(): Promise<void> {
     return true as const
   }, t('sudo.reason.revokeFactors')))
   confirmOpen.value = false
-  if (ok) { triggerDone(); await loadFactors() }
+  if (ok) triggerDone()
 }
 </script>
 
@@ -60,9 +52,9 @@ async function revoke(): Promise<void> {
       <AlertDescription>{{ t('security.factorsLoadError') }}</AlertDescription>
     </Alert>
     <PasskeysCard />
-    <PasswordCard :set="factors?.passwordSet" @changed="loadFactors" />
-    <TotpCard :enrolled="factors?.totpEnrolled" @changed="loadFactors" />
-    <RecoveryCodesCard :remaining="factors?.recoveryCodesRemaining" :totp-enabled="factors?.totpEnrolled" @changed="loadFactors" />
+    <PasswordCard :set="factors?.passwordSet" />
+    <TotpCard :enrolled="factors?.totpEnrolled" />
+    <RecoveryCodesCard :remaining="factors?.recoveryCodesRemaining" :totp-enabled="factors?.totpEnrolled" />
 
     <Card class="border-destructive/30 bg-destructive/[0.02]">
       <CardHeader>

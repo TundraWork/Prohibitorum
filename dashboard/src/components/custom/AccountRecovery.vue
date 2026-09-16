@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * AccountRecovery — inline recovery for password+TOTP accounts that lost their
  * authenticator. Driven from PasswordTotpForm's TOTP step with the
@@ -53,6 +54,7 @@ async function verifyReenroll(): Promise<void> {
     { recovery_session_token: recoveryToken.value, code: totpCode.value }))
   if (res) { newCodes.value = res.recovery_codes; phase.value = 'done' }
 }
+usePrivateState(() => { recoveryCode.value = ''; recoveryToken.value = ''; otpauthUri.value = ''; secret.value = ''; totpCode.value = ''; newCodes.value = [] })
 </script>
 <template>
   <div class="flex flex-col gap-4">

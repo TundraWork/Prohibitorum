@@ -26,7 +26,7 @@ describe('AdminInvitationsView', () => {
   it('lists outstanding invitations with their URL', async () => {
     get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: INVITES, nextCursor: '' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/invitations')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/invitations', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('https://x/enroll/tok1')
   })
   it('shows empty state', async () => {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * TokensView (/tokens) — list/revoke the caller's personal access tokens and
  * create one via a dialog that reveals the plaintext exactly once.
@@ -8,9 +9,11 @@
  * POST /me/tokens                  → { token: string, pat: PersonalAccessTokenView }  (sudo-gated)
  * POST /me/tokens/revoke {id}      → 204
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Copy, Check, Terminal } from 'lucide-vue-next'
+import { useResource } from '@/composables/useResource'
+import { memberQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
@@ -48,16 +51,20 @@ interface PersonalAccessTokenView {
 }
 
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
+const { busy: mutationBusy, run, error: mutationError, clear: clearMutation } = useApi('tokens')
 // Separate instance so the apps prefetch never collides with the token-list
 // busy-guard (opening the dialog mid-prefetch must not no-op the apps fetch).
-const appsApi = useApi()
+const appsApi = useResource(memberQuery<FAApp[]>('forward-auth-apps'))
+const tokensQuery = useResource(memberQuery<PersonalAccessTokenView[]>('tokens'))
+const busy = computed(() => mutationBusy.value || tokensQuery.busy.value)
+const error = computed(() => mutationError.value ?? tokensQuery.error.value)
+function clear(): void { clearMutation(); tokensQuery.clear() }
 
-const rows = ref<PersonalAccessTokenView[]>([])
+const rows = computed(() => tokensQuery.data.value ?? [])
 const confirmRevokeId = ref<number | null>(null)
 
 // Forward-auth apps (loaded on mount + on dialog open, for picker + name resolution)
-const apps = ref<FAApp[]>([])
+const apps = computed(() => appsApi.data.value ?? [])
 
 // Create dialog state
 const createOpen = ref(false)
@@ -103,25 +110,15 @@ const canSubmit = computed(
   () => newName.value.trim() && (allApps.value || Object.keys(grants.value).length > 0),
 )
 
-async function loadApps(): Promise<void> {
-  const res = await appsApi.run(() => api.get<FAApp[]>('/api/prohibitorum/me/forward-auth-apps'))
-  if (res) apps.value = res
-}
-
-async function load(): Promise<void> {
-  const res = await run(() => api.get<PersonalAccessTokenView[]>('/api/prohibitorum/me/tokens'))
-  if (res) rows.value = res
-}
-
+async function loadApps(): Promise<void> { await appsApi.refetch() }
 async function revoke(): Promise<void> {
   const id = confirmRevokeId.value
   if (id == null) return
-  const ok = await run(async () => {
+  await run(async () => {
     await api.post('/api/prohibitorum/me/tokens/revoke', { id })
     return true as const
   })
   confirmRevokeId.value = null
-  if (ok) await load()
 }
 
 async function create(): Promise<void> {
@@ -141,7 +138,7 @@ async function create(): Promise<void> {
   if (!res) return
 
   // Reload the list so the new token appears immediately in the background.
-  void load()
+
 
   // Transition to the reveal state.
   revealToken.value = res.token
@@ -181,11 +178,8 @@ function closeCreate(): void {
   revealToken.value = null
 }
 
-onMounted(async () => {
-  await load()
-  // Load apps list in the background for name resolution in the list view.
-  void loadApps()
-})
+
+usePrivateState(() => { revealToken.value = ''; createOpen.value = false })
 </script>
 
 <template>

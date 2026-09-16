@@ -1,5 +1,6 @@
 import { ref } from 'vue'
-import { api } from './api'
+import { queryClient } from '@/queries/client'
+import { memberQuery } from '@/queries/resources'
 
 /**
  * Sudo step-up gate (singleton). The SudoModal — mounted once in
@@ -18,7 +19,7 @@ export const sudoState = ref<SudoState>({ open: false, resolve: null })
 
 /** Check the server's current grant before a redirect that cannot use XHR retry. */
 export async function ensureSudo(reason?: string): Promise<boolean> {
-  const state = await api.get<{ fresh: boolean }>('/api/prohibitorum/me/sudo/methods')
+  const state = await queryClient.fetchQuery({ ...memberQuery<{ fresh: boolean }>('sudo/methods'), gcTime: 0 })
   if (state.fresh === true) return true
   return promptSudo(reason)
 }

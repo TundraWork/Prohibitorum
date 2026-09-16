@@ -59,7 +59,7 @@ describe('AdminForwardAuthAppDetailView', () => {
     put.mockResolvedValue({ ...APP, displayName: 'Renamed Edge Proxy' })
     const w = mountView(); await flushPromises()
 
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/forward-auth-apps/edge')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/forward-auth-apps/edge', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.find('[data-test="fa-client-id"]').text()).toBe('edge')
     expect(w.find<HTMLInputElement>('input[name="host"]').element.value).toBe('edge.example.test')
     await w.find('input[name="displayName"]').setValue('Renamed Edge Proxy')

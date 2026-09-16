@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useAction } from '@/composables/useAction'
+const action = useAction()
+import { useResource } from '@/composables/useResource'
+import { confirmationQuery } from '@/queries/ceremonies'
 /**
  * WelcomeView — federated identity-confirmation interstitial (/welcome).
  *
@@ -15,7 +19,7 @@
  * calls use credentials: 'include' (enforced by api.*).  A 401 means the
  * grant is missing or expired — redirect to /login.
  */
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loader2 } from 'lucide-vue-next'
 import { api } from '@/lib/api'
@@ -39,25 +43,29 @@ interface ConfirmView {
 }
 
 const { t } = useI18n()
-const view = ref<ConfirmView | null>(null)
+const contextQuery = useResource({ ...confirmationQuery<ConfirmView>(), enabled: false })
+const view = computed(() => contextQuery.data.value ?? null)
 const busy = ref(false)
 const settled = ref(false)
 const loading = ref(true)
 const confirmError = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
 let elapsed = 0
+let disposed = false
 
 async function load(): Promise<void> {
   try {
-    view.value = await api.get<ConfirmView>('/api/prohibitorum/auth/federation/confirm')
+    await contextQuery.refetch({ throwOnError: true })
+    if (disposed) return
   } catch {
+    if (disposed) return
     window.location.assign('/login')
     return
   } finally {
     // Only clear loading on the first fetch (when loading is still true).
     if (loading.value) loading.value = false
   }
-  if (!view.value.avatarPending || elapsed >= props.capMs) {
+  if (!view.value?.avatarPending || elapsed >= props.capMs) {
     settled.value = true
     return
   }
@@ -69,10 +77,9 @@ async function confirm(): Promise<void> {
   busy.value = true
   confirmError.value = ''
   try {
-    const res = await api.post<{ redirect: string; offerLocalSignin?: boolean }>(
+    const res = await action.execute(signal => api.post<{ redirect: string; offerLocalSignin?: boolean }>(
       '/api/prohibitorum/auth/federation/confirm',
-      {},
-    )
+      {}, { signal }))
     // An invite+provider account has no local credentials yet: the confirm
     // response offers the one-time "add local sign-in" step, which later
     // lands on the same redirect target. Direct navigation keeps the fresh
@@ -94,7 +101,7 @@ async function confirm(): Promise<void> {
 async function notMe(): Promise<void> {
   busy.value = true
   try {
-    await api.post('/api/prohibitorum/auth/federation/confirm/decline', {})
+    await action.execute(signal => api.post('/api/prohibitorum/auth/federation/confirm/decline', {}, { signal }))
   } catch {
     // ignore — navigate regardless
   }
@@ -102,7 +109,7 @@ async function notMe(): Promise<void> {
 }
 
 onMounted(load)
-onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
+onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
 </script>
 
 <template>

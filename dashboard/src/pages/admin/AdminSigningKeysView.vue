@@ -5,7 +5,6 @@ import { I18nT, useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useCursorPage } from '@/composables/useCursorPage'
-import { type Page, buildPagePath } from '@/lib/pagination'
 import { withSudo } from '@/lib/sudo'
 import { formatDateTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
@@ -27,11 +26,9 @@ interface SigningKey {
 type Variant = 'neutral' | 'success' | 'caution' | 'danger' | 'info'
 
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
+const { busy, run, error, clear } = useApi('signing-keys')
 
-const page = useCursorPage<SigningKey>((cursor) =>
-  api.get<Page<SigningKey>>(buildPagePath('/api/prohibitorum/signing-keys', { cursor })),
-)
+const page = useCursorPage<SigningKey>('signing-keys')
 const rows = page.items
 const viewJwkKid = ref<string | null>(null)
 const confirmGenerate = ref(false)
@@ -58,19 +55,16 @@ function statusLabel(s: string): string {
 function jwk(k: SigningKey): string { return JSON.stringify(k.publicJwk, null, 2) }
 
 async function generate(): Promise<void> {
-  const ok = await run(() => withSudo(async () => { await api.post('/api/prohibitorum/signing-keys/generate'); return true as const }))
+  await run(() => withSudo(async () => { await api.post('/api/prohibitorum/signing-keys/generate'); return true as const }))
   confirmGenerate.value = false
-  if (ok) await page.reload()
 }
 async function activate(kid: string): Promise<void> {
-  const ok = await run(() => withSudo(async () => { await api.post(`/api/prohibitorum/signing-keys/${kid}/activate`); return true as const }))
+  await run(() => withSudo(async () => { await api.post(`/api/prohibitorum/signing-keys/${kid}/activate`); return true as const }))
   confirmActivate.value = ''
-  if (ok) await page.reload()
 }
 async function retire(kid: string): Promise<void> {
-  const ok = await run(() => withSudo(async () => { await api.post(`/api/prohibitorum/signing-keys/${kid}/retire`); return true as const }))
+  await run(() => withSudo(async () => { await api.post(`/api/prohibitorum/signing-keys/${kid}/retire`); return true as const }))
   confirmRetire.value = ''
-  if (ok) await page.reload()
 }
 
 function closeGenerate(v: boolean): void { if (!v) confirmGenerate.value = false }

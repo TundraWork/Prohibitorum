@@ -1,0 +1,15 @@
+import { queryOptions } from '@tanstack/vue-query'
+import { api } from '@/lib/api'
+const base = '/api/prohibitorum/'
+const transient = { staleTime: 0, gcTime: 0, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false } as const
+export const authStatusQuery = () => queryOptions({ queryKey: ['public', 'auth-status'], queryFn: ({ signal }) => api.get<{ bootstrapped: boolean }>(base + 'auth/status', { signal }) })
+export const loginContextQuery = (returnTo: string) => queryOptions({ ...transient, queryKey: ['session', 'login-context', returnTo], queryFn: ({ signal }) => api.get<{ application: { label: string } | null }>(base + 'forward-auth/login-context?return_to=' + encodeURIComponent(returnTo), { signal }) })
+export const enrollmentQuery = <T>(token: string) => queryOptions({ ...transient, queryKey: ['session', 'enrollment', token], queryFn: ({ signal }) => api.get<T>(base + 'enrollments/' + encodeURIComponent(token), { signal }) })
+export const federationFlowQuery = <T>(id: string) => queryOptions({ ...transient, queryKey: ['session', 'federation-flow', id], queryFn: ({ signal }) => api.get<T>(base + 'auth/federation/flows/' + encodeURIComponent(id), { signal }) })
+export const confirmationQuery = <T>() => queryOptions({ ...transient, queryKey: ['session', 'federation-confirm'], queryFn: ({ signal }) => api.get<T>(base + 'auth/federation/confirm', { signal }) })
+export const consentQuery = <T>(protocol: 'oidc' | 'saml', ticket: string) => queryOptions({ ...transient, queryKey: ['session', 'consent-ticket', protocol, ticket], queryFn: ({ signal }) => api.get<T>(base + (protocol === 'saml' ? 'saml-consent' : 'consent') + '?ticket=' + encodeURIComponent(ticket), { signal }) })
+export const pairingQuery = <T>(id: string) => queryOptions({ ...transient, queryKey: ['session', 'pairing', id], queryFn: ({ signal }) => api.get<T>(base + 'auth/devices/pair/status?id=' + encodeURIComponent(id), { signal }) })
+export const deviceLookupQuery = <T>(code: string) => queryOptions({ ...transient, queryKey: ['session', 'device-lookup', code], queryFn: ({ signal }) => api.get<T>(base + 'me/devices/pair/lookup?code=' + encodeURIComponent(code), { signal }) })
+export const diagnosticQuery = <T>(requestId: string) => queryOptions({ ...transient, queryKey: ['session', 'diagnostics', requestId], queryFn: ({ signal }) => api.get<T>(base + 'diagnostics/' + encodeURIComponent(requestId), { signal }) })
+export const oidcEffectiveQuery = <T>(slug: string) => queryOptions({ ...transient, queryKey: ['session', 'identity-providers', 'detail', slug, 'effective'], queryFn: ({ signal }) => api.get<T>(base + 'identity-providers/' + encodeURIComponent(slug) + '/effective-config', { signal }) })
+export const oidcTestQuery = <T>(slug: string, id: string) => queryOptions({ ...transient, queryKey: ['session', 'identity-providers', 'detail', slug, 'test', id], queryFn: ({ signal }) => api.get<T>(base + 'identity-providers/' + encodeURIComponent(slug) + '/tests/' + encodeURIComponent(id), { signal }) })

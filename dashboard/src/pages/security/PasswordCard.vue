@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /** PasswordCard — set/replace the password (always sudo-gated server-side). */
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -19,7 +20,7 @@ const props = defineProps<{ set?: boolean }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t } = useI18n()
-const { busy, error, run, clear } = useApi()
+const { busy, error, run, clear } = useApi('credentials')
 const pw = ref('')
 const confirm = ref('')
 const localError = ref('')
@@ -37,6 +38,7 @@ async function submit(): Promise<void> {
   }, t('sudo.reason.setPassword')))
   if (ok) { triggerDone(); pw.value = ''; confirm.value = ''; emit('changed') }
 }
+usePrivateState(() => { pw.value = ''; confirm.value = '' })
 </script>
 
 <template>

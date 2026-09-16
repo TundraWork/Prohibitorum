@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useQueryClient } from '@tanstack/vue-query'
+const queryClient = useQueryClient()
+import { sessionQuery } from '@/queries/resources'
 /**
  * MaintenanceView — shown when the instance is in maintenance mode.
  *
@@ -16,19 +19,19 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import { Button } from '@/components/ui/button'
-import { useBrandingStore } from '@/stores/branding'
-import { useAuthStore } from '@/stores/auth'
+import { useBranding } from '@/composables/useBranding'
+import { useSession } from '@/composables/useSession'
 
 const { t } = useI18n()
-const branding = useBrandingStore()
-const auth = useAuthStore()
+const branding = useBranding()
+const auth = useSession()
 
 const hasSession = ref(false)
 
 onMounted(async () => {
   // Public route — a 401 here is fine; we just want to know if there is
   // already a session so we can offer "Sign out" (mirrors ErrorView).
-  try { await auth.ensureLoaded() } catch { /* ignore */ }
+  try { await queryClient.fetchQuery(sessionQuery()) } catch { /* ignore */ }
   hasSession.value = !!auth.me
 })
 

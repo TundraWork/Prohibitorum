@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import FederationFlowView from './FederationFlowView.vue'
 
@@ -59,7 +58,7 @@ async function mountView(settle = true): Promise<VueWrapper> {
 }
 
 beforeEach(() => {
-  setActivePinia(createPinia())
+
   get.mockReset()
   post.mockReset()
   hardRedirect.mockReset()
@@ -75,7 +74,7 @@ describe('FederationFlowView', () => {
     get.mockReturnValue(Promise.withResolvers<never>().promise)
     const wrapper = await mountView(false)
 
-    expect(get).toHaveBeenCalledWith(basePath)
+    expect(get).toHaveBeenCalledWith(basePath, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.get('[data-test="flow-loading"]').attributes('aria-busy')).toBe('true')
     expect(wrapper.findAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
@@ -144,7 +143,7 @@ describe('FederationFlowView', () => {
     await wrapper.get('input[name="identity"]').setValue(value)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
-    expect(post).toHaveBeenCalledWith(`${basePath}/prepare`, { identity: value })
+    expect(post).toHaveBeenCalledWith(`${basePath}/prepare`, { identity: value }, { signal: expect.any(AbortSignal) })
   })
 
   it('renders the proof profile, copyable URL, ordered instructions, expiry, and no credential fields', async () => {
@@ -163,7 +162,7 @@ describe('FederationFlowView', () => {
     expect(wrapper.find('input[name="localUsername"]').exists()).toBe(false)
     expect(wrapper.find('input[type="password"]').exists()).toBe(false)
     expect(wrapper.text()).not.toMatch(/VRChat (password|credentials|2FA|cookie)/i)
-    expect(get).toHaveBeenCalledTimes(1)
+    expect(get.mock.calls.filter(([url]) => url.includes('/auth/federation/flows/'))).toHaveLength(1)
   })
 
   it('presents profile context, proof steps, and expiry as one ordered task', async () => {
@@ -194,7 +193,7 @@ describe('FederationFlowView', () => {
     await wrapper.get('[data-test="verify-profile"]').trigger('click')
     await flushPromises()
 
-    expect(post).toHaveBeenCalledWith(`${basePath}/verify`)
+    expect(post).toHaveBeenCalledWith(`${basePath}/verify`, undefined, { signal: expect.any(AbortSignal) })
   })
 
   it('keeps proof controls available and focuses Verify profile when the bio link is missing', async () => {
@@ -284,7 +283,7 @@ describe('FederationFlowView', () => {
     await flushPromises()
     await wrapper.get('[data-test="continue"]').trigger('click')
 
-    expect(post).toHaveBeenCalledWith(`${basePath}/verify`)
+    expect(post).toHaveBeenCalledWith(`${basePath}/verify`, undefined, { signal: expect.any(AbortSignal) })
     expect(hardRedirect).toHaveBeenCalledWith('/connected')
   })
 })

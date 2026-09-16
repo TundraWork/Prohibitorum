@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useResource } from '@/composables/useResource'
+import { consentQuery } from '@/queries/ceremonies'
 /**
  * ConsentView — the OIDC consent screen (/consent?ticket=…&return_to=…).
  *
@@ -59,7 +61,8 @@ const { busy, run, error, clear } = useApi()
 const ticket = String(route.query.ticket ?? '')
 const returnTo = String(route.query.return_to ?? '')
 
-const ctx = ref<ConsentContext | null>(null)
+const contextQuery = useResource({ ...consentQuery<ConsentContext>('oidc', ticket), enabled: false })
+const ctx = computed(() => contextQuery.data.value ?? null)
 const loading = ref(true)
 
 const isIncremental = computed(() => (ctx.value?.alreadyGranted?.length ?? 0) > 0)
@@ -70,9 +73,7 @@ const newScopes = computed(() => {
 
 onMounted(async () => {
   try {
-    ctx.value = await api.get<ConsentContext>(
-      `/api/prohibitorum/consent?ticket=${encodeURIComponent(ticket)}`,
-    )
+    await contextQuery.refetch({ throwOnError: true })
   } catch (e) {
     const code = (e as ApiError | undefined)?.code
     if (code === 'no_session') {

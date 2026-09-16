@@ -75,11 +75,9 @@ describe('AdminAuditView', () => {
     // go to page 2
     await w.find('[data-test="next-page"]').trigger('click'); await flushPromises()
     expect(w.find('[data-test="prev-page"]').exists()).toBe(true)
-    // go back to page 1 — cursor is undefined (no before=)
-    get.mockResolvedValueOnce(page(100, 50))
+    // The previous page remains fresh in the query cache.
     await w.find('[data-test="prev-page"]').trigger('click'); await flushPromises()
-    const url = get.mock.calls.at(-1)![0] as string
-    expect(url).not.toContain('cursor=')
+    expect(get).toHaveBeenCalledTimes(2)
     // restored to 50 rows
     expect(w.findAll('[data-test^="expand-"]').length).toBe(50)
     expect(w.find('[data-test="page-indicator"]').text()).toContain('1')

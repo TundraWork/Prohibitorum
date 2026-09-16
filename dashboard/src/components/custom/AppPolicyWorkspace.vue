@@ -3,6 +3,8 @@ import { computed, inject, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { matchedRouteKey, onBeforeRouteLeave, onBeforeRouteUpdate, routerKey } from 'vue-router'
 import { Eye, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
+import { useResource } from '@/composables/useResource'
+import { accessQuery, groupQuery, allAccessAccountsQuery, allDecisionsQuery } from '@/queries/access'
 import { api } from '@/lib/api'
 import type {
   AccountSummary,
@@ -15,7 +17,7 @@ import type {
   ManualDecision,
   ManualEffect,
 } from '@/lib/appAccess'
-import { buildPagePath, type Page } from '@/lib/pagination'
+import { type Page } from '@/lib/pagination'
 import { useApi } from '@/composables/useApi'
 import { Button } from '@/components/ui/button'
 import {
@@ -78,12 +80,7 @@ const { t } = useI18n()
 
 const router = inject(routerKey, null)
 const activeRouteRecord = inject(matchedRouteKey, null)
-const workspaceApi = useApi()
-const accountsApi = useApi()
-const decisionsApi = useApi()
-const previewApi = useApi()
-const explanationApi = useApi()
-const policyMutationApi = useApi()
+const policyMutationApi = useApi('access')
 const workspaceIdentity = ref<WorkspaceIdentity>({
   kind: props.kind,
   appId: props.appId,
@@ -91,17 +88,16 @@ const workspaceIdentity = ref<WorkspaceIdentity>({
 })
 const deferredWorkspaceIdentity = ref<WorkspaceIdentity | null>(null)
 
-const workspace = ref<AppAccessWorkspace | null>(null)
-const notFound = ref(false)
-const loadedManualGroupId = ref<number | null>(null)
+const workspace = computed(() => workspaceApi.data.value ?? null)
+const notFound = computed(() => props.mode === 'manager' && workspaceApi.error.value?.code === 'client_not_found')
 
 const manualCreateOpen = ref(false)
 const manualDraft = reactive({ slug: '', displayName: '', description: '' })
-const accounts = ref<AccountSummary[]>([])
-const decisions = ref<ManualDecision[]>([])
-const allDecisions = ref<ManualDecision[]>([])
-const decisionIndexReady = ref(false)
-const decisionsNextCursor = ref('')
+const accounts = computed(() => accountsApi.data.value ?? [])
+const decisions = computed(() => decisionPageQuery.data.value?.items ?? [])
+const allDecisions = computed(() => allDecisionsApi.data.value ?? [])
+const decisionIndexReady = computed(() => allDecisionsApi.isSuccess.value)
+const decisionsNextCursor = computed(() => decisionPageQuery.data.value?.nextCursor ?? '')
 const decisionsPageIndex = ref(0)
 const decisionPageCursors = ref<string[]>([''])
 
@@ -117,18 +113,15 @@ const ruleSaveFinalizing = ref(false)
 const confirmEmptyRestriction = ref(false)
 
 const previewGroupId = ref<number | null>(null)
-const previewItems = ref<GroupPreview[]>([])
-const previewNextCursor = ref('')
+const previewItems = computed(() => previewApi.data.value?.items ?? [])
+const previewNextCursor = computed(() => previewApi.data.value?.nextCursor ?? '')
 const previewPageIndex = ref(0)
 const previewPageCursors = ref<string[]>([''])
 
 const explanationTarget = ref<{ groupId: number; accountId: number } | null>(null)
-const explanation = ref<GroupExplanation | null>(null)
+const explanation = computed(() => explanationTarget.value ? explanationApi.data.value ?? null : null)
 let allowRuleEditorNavigation = false
 let workspaceInitialized = false
-let workspaceIdentityVersion = 0
-let workspaceLoadActive = false
-let workspaceReloadPending = false
 
 const basePath = computed(
   () =>
@@ -136,8 +129,8 @@ const basePath = computed(
 )
 const accessEndpoint = computed(() => `${basePath.value}/access`)
 const groupsEndpoint = computed(() => `${basePath.value}/groups`)
-const accountsEndpoint = computed(() => `${basePath.value}/accounts`)
 
+const workspaceApi = useResource(computed(() => accessQuery<AppAccessWorkspace>(workspaceIdentity.value.kind, workspaceIdentity.value.appId, 'access')))
 const appName = computed(() => workspace.value?.app.displayName || workspaceIdentity.value.displayName)
 const manualGroup = computed(() => workspace.value?.manualGroup)
 const ruleGroups = computed(() => workspace.value?.ruleGroups ?? [])
@@ -160,6 +153,20 @@ const decisionsHaveMore = computed(() => decisionsNextCursor.value !== '')
 const explanationRows = computed(() =>
   explanation.value ? flattenExplanation(explanation.value.explanation) : [],
 )
+
+const accountsApi = useResource(computed(() => ({ ...allAccessAccountsQuery<AccountSummary>(workspaceIdentity.value.kind, workspaceIdentity.value.appId), enabled: !!manualGroup.value })))
+const decisionCursor = ref('')
+const decisionPageQuery = useResource(computed(() => ({ ...groupQuery<Page<ManualDecision>>(workspaceIdentity.value.kind, workspaceIdentity.value.appId, manualGroup.value?.id ?? 0, 'decisions', { cursor: decisionCursor.value }), enabled: !!manualGroup.value })))
+const allDecisionsApi = useResource(computed(() => ({ ...allDecisionsQuery<ManualDecision>(workspaceIdentity.value.kind, workspaceIdentity.value.appId, manualGroup.value?.id ?? 0), enabled: !!manualGroup.value })))
+const decisionsApi = {
+  busy: computed(() => decisionPageQuery.busy.value || allDecisionsApi.busy.value),
+  error: computed(() => decisionPageQuery.error.value ?? allDecisionsApi.error.value),
+  clear: () => { decisionPageQuery.clear(); allDecisionsApi.clear() },
+}
+const previewCursor = ref('')
+const previewApi = useResource(computed(() => ({ ...groupQuery<Page<GroupPreview>>(workspaceIdentity.value.kind, workspaceIdentity.value.appId, previewGroupId.value ?? 0, 'preview', { cursor: previewCursor.value }), enabled: previewGroupId.value !== null, gcTime: 0 })))
+const explanationApi = useResource(computed(() => ({ ...groupQuery<GroupExplanation>(workspaceIdentity.value.kind, workspaceIdentity.value.appId, explanationTarget.value?.groupId ?? 0, 'explain', { accountId: explanationTarget.value?.accountId }), enabled: explanationTarget.value !== null, gcTime: 0 })))
+watch(() => manualGroup.value?.id, () => { decisionCursor.value = ''; decisionPageCursors.value = ['']; decisionsPageIndex.value = 0 })
 
 function makeRuleDraft(group?: AppGroup): RuleEditorDraft {
   return {
@@ -204,21 +211,14 @@ function accountName(account: AccountSummary): string {
 }
 
 function clearManualData(): void {
-  loadedManualGroupId.value = null
-  accounts.value = []
-  decisions.value = []
-  allDecisions.value = []
-  decisionIndexReady.value = false
-  decisionsNextCursor.value = ''
   decisionsPageIndex.value = 0
+  decisionCursor.value = ''
   decisionPageCursors.value = ['']
   accountsApi.clear()
   decisionsApi.clear()
 }
 
 function resetWorkspaceState(): void {
-  workspace.value = null
-  notFound.value = false
   clearManualData()
   manualCreateOpen.value = false
   manualDraft.slug = ''
@@ -233,12 +233,10 @@ function resetWorkspaceState(): void {
   confirmDeleteRuleId.value = null
   confirmEmptyRestriction.value = false
   previewGroupId.value = null
-  previewItems.value = []
-  previewNextCursor.value = ''
   previewPageIndex.value = 0
+  previewCursor.value = ''
   previewPageCursors.value = ['']
   explanationTarget.value = null
-  explanation.value = null
   workspaceApi.clear()
   previewApi.clear()
   explanationApi.clear()
@@ -252,9 +250,7 @@ function sameWorkspaceIdentity(left: WorkspaceIdentity, right: WorkspaceIdentity
 function applyWorkspaceIdentity(identity: WorkspaceIdentity): void {
   workspaceIdentity.value = identity
   deferredWorkspaceIdentity.value = null
-  workspaceIdentityVersion += 1
   resetWorkspaceState()
-  void loadWorkspace(workspaceIdentityVersion)
 }
 
 function applyDeferredWorkspaceIdentity(): boolean {
@@ -264,169 +260,25 @@ function applyDeferredWorkspaceIdentity(): boolean {
   return true
 }
 
-async function loadWorkspace(version = workspaceIdentityVersion): Promise<void> {
-  if (workspaceLoadActive) {
-    workspaceReloadPending = true
-    return
-  }
-
-  workspaceLoadActive = true
-  workspaceReloadPending = false
-  notFound.value = false
-  const endpoint = accessEndpoint.value
-
-  try {
-    const result = await workspaceApi.run(() => api.get<AppAccessWorkspace>(endpoint))
-
-    if (version !== workspaceIdentityVersion || endpoint !== accessEndpoint.value) {
-      workspaceApi.clear()
-      return
-    }
-
-    if (!result) {
-      if (props.mode === 'manager' && workspaceApi.error.value?.code === 'client_not_found') {
-        workspace.value = null
-        notFound.value = true
-        clearManualData()
-      }
-      return
-    }
-
-    workspace.value = result
-    const group = result.manualGroup
-    if (!group) {
-      clearManualData()
-      return
-    }
-
-    if (loadedManualGroupId.value === group.id) return
-    loadedManualGroupId.value = group.id
-    accounts.value = []
-    decisions.value = []
-    allDecisions.value = []
-    decisionIndexReady.value = false
-    decisionsNextCursor.value = ''
-    decisionsPageIndex.value = 0
-    decisionPageCursors.value = ['']
-    await Promise.all([loadAllAccounts(), resetDecisionPage()])
-  } finally {
-    workspaceLoadActive = false
-    if (workspaceReloadPending || version !== workspaceIdentityVersion) {
-      workspaceReloadPending = false
-      void loadWorkspace(workspaceIdentityVersion)
-    }
-  }
-}
-
-async function loadAllAccounts(): Promise<void> {
-  const groupId = manualGroup.value?.id
-  if (groupId === undefined) return
-
-  const result = await accountsApi.run(async () => {
-    const items: AccountSummary[] = []
-    const visitedCursors = new Set<string>()
-    let cursor = ''
-
-    while (!visitedCursors.has(cursor)) {
-      visitedCursors.add(cursor)
-      const page = await api.get<Page<AccountSummary>>(
-        buildPagePath(accountsEndpoint.value, { cursor }),
-      )
-      items.push(...(page.items ?? []))
-      cursor = page.nextCursor ?? ''
-      if (cursor === '') break
-    }
-
-    return items
-  })
-
-  if (result && manualGroup.value?.id === groupId) accounts.value = result
-}
-
-function decisionsEndpoint(groupId: number): string {
-  return `${groupsEndpoint.value}/${groupId}/decisions`
-}
-
-async function loadDecisionPage(cursor: string): Promise<boolean> {
-  const groupId = manualGroup.value?.id
-  if (groupId === undefined) return false
-
-  const result = await decisionsApi.run(() =>
-    api.get<Page<ManualDecision>>(
-      buildPagePath(decisionsEndpoint(groupId), { cursor }),
-    ),
-  )
-  if (!result || manualGroup.value?.id !== groupId) return false
-
-  decisions.value = result.items ?? []
-  decisionsNextCursor.value = result.nextCursor ?? ''
-  return true
-}
-
-async function loadAllDecisions(): Promise<boolean> {
-  const groupId = manualGroup.value?.id
-  if (groupId === undefined) return false
-  decisionIndexReady.value = false
-
-  const result = await decisionsApi.run(async () => {
-    const byAccount = new Map<number, ManualDecision>()
-    const visitedCursors = new Set<string>()
-    let cursor = ''
-
-    while (!visitedCursors.has(cursor)) {
-      visitedCursors.add(cursor)
-      const page = await api.get<Page<ManualDecision>>(
-        buildPagePath(decisionsEndpoint(groupId), { cursor }),
-      )
-      for (const decision of page.items ?? []) {
-        byAccount.set(decision.account.id, decision)
-      }
-      cursor = page.nextCursor ?? ''
-      if (cursor === '') break
-    }
-
-    return [...byAccount.values()]
-  })
-
-  if (!result || manualGroup.value?.id !== groupId) return false
-  allDecisions.value = result
-  decisionIndexReady.value = true
-  return true
-}
-
-async function resetDecisionPage(): Promise<void> {
-  decisionPageCursors.value = ['']
-  decisionsPageIndex.value = 0
-  if (await loadDecisionPage('')) await loadAllDecisions()
-}
-
+async function loadWorkspace(): Promise<void> { await workspaceApi.refetch() }
+async function loadAllAccounts(): Promise<void> { await accountsApi.refetch() }
+function decisionsEndpoint(groupId: number): string { return groupsEndpoint.value + '/' + groupId + '/decisions' }
 async function nextDecisionPage(): Promise<void> {
-  if (decisionsApi.busy.value || decisionsNextCursor.value === '') return
-  const cursor = decisionsNextCursor.value
-  if (!(await loadDecisionPage(cursor))) return
-  decisionPageCursors.value = [
-    ...decisionPageCursors.value.slice(0, decisionsPageIndex.value + 1),
-    cursor,
-  ]
-  decisionsPageIndex.value += 1
+  if (decisionsApi.busy.value || !decisionsNextCursor.value) return
+  decisionCursor.value = decisionsNextCursor.value
+  decisionPageCursors.value = [...decisionPageCursors.value.slice(0, decisionsPageIndex.value + 1), decisionCursor.value]
+  decisionsPageIndex.value++
+  await nextTick()
 }
-
 async function previousDecisionPage(): Promise<void> {
-  if (decisionsApi.busy.value || decisionsPageIndex.value <= 0) return
-  const targetIndex = decisionsPageIndex.value - 1
-  const cursor = decisionPageCursors.value[targetIndex] ?? ''
-  if (await loadDecisionPage(cursor)) decisionsPageIndex.value = targetIndex
+  if (decisionsApi.busy.value || decisionsPageIndex.value === 0) return
+  decisionsPageIndex.value--; decisionCursor.value = decisionPageCursors.value[decisionsPageIndex.value] ?? ''
+  await nextTick()
 }
-
 async function reloadDecisionPage(): Promise<void> {
-  const cursor = decisionPageCursors.value[decisionsPageIndex.value] ?? ''
-  if (!(await loadDecisionPage(cursor))) return
-  if (decisions.value.length === 0 && decisionsPageIndex.value > 0) {
-    const targetIndex = decisionsPageIndex.value - 1
-    const previousCursor = decisionPageCursors.value[targetIndex] ?? ''
-    if (await loadDecisionPage(previousCursor)) decisionsPageIndex.value = targetIndex
-  }
-  await loadAllDecisions()
+  const result = await decisionPageQuery.refetch()
+  if (result.isSuccess && !result.data.items.length && decisionsPageIndex.value > 0) await previousDecisionPage()
+  await allDecisionsApi.refetch()
 }
 
 function openManualCreate(): void {
@@ -451,7 +303,6 @@ async function createManualGroup(): Promise<void> {
   if (created === undefined) return
 
   manualCreateOpen.value = false
-  await loadWorkspace()
 }
 
 async function setManualDecision(payload: {
@@ -464,7 +315,7 @@ async function setManualDecision(payload: {
   const result = await policyMutationApi.run(() =>
     api.post<ManualDecision>(decisionsEndpoint(groupId), payload),
   )
-  if (result !== undefined) await reloadDecisionPage()
+  if (result !== undefined && decisionPageQuery.data.value?.items.length === 0 && decisionsPageIndex.value > 0) await previousDecisionPage()
 }
 
 async function clearManualDecision(payload: { accountId: number }): Promise<void> {
@@ -474,7 +325,7 @@ async function clearManualDecision(payload: { accountId: number }): Promise<void
   const result = await policyMutationApi.run(() =>
     api.post<object>(`${decisionsEndpoint(groupId)}/clear`, payload),
   )
-  if (result !== undefined) await reloadDecisionPage()
+  if (result !== undefined && decisionPageQuery.data.value?.items.length === 0 && decisionsPageIndex.value > 0) await previousDecisionPage()
 }
 
 function openRuleCreate(): void {
@@ -592,7 +443,6 @@ async function saveRuleGroup(draft: RuleEditorDraft): Promise<void> {
     return
   }
 
-  await loadWorkspace()
   activeRuleEditor.value = null
   ruleEditorDirty.value = false
   savedRuleGroupId.value = saved.id
@@ -605,11 +455,10 @@ async function deleteRuleGroup(): Promise<void> {
   const groupId = confirmDeleteRuleId.value
   if (groupId === null || policyMutationApi.busy.value) return
 
-  const result = await policyMutationApi.run(() =>
+  await policyMutationApi.run(() =>
     api.post<object>(`${groupsEndpoint.value}/${groupId}/delete`),
   )
   confirmDeleteRuleId.value = null
-  if (result !== undefined) await loadWorkspace()
 }
 
 async function onRestrictionChange(restricted: boolean): Promise<void> {
@@ -627,27 +476,9 @@ async function confirmEnableEmptyRestriction(): Promise<void> {
 }
 
 async function setRestricted(restricted: boolean): Promise<void> {
-  const result = await policyMutationApi.run(() =>
+  await policyMutationApi.run(() =>
     api.post<object>(`${accessEndpoint.value}/set-restricted`, { restricted }),
   )
-  if (result !== undefined) await loadWorkspace()
-}
-
-function previewEndpoint(groupId: number): string {
-  return `${groupsEndpoint.value}/${groupId}/preview`
-}
-
-async function loadPreviewPage(groupId: number, cursor: string): Promise<boolean> {
-  const result = await previewApi.run(() =>
-    api.get<Page<GroupPreview>>(
-      buildPagePath(previewEndpoint(groupId), { cursor }),
-    ),
-  )
-  if (!result || previewGroupId.value !== groupId) return false
-
-  previewItems.value = result.items ?? []
-  previewNextCursor.value = result.nextCursor ?? ''
-  return true
 }
 
 async function openPreview(groupId: number): Promise<void> {
@@ -661,84 +492,46 @@ async function openPreview(groupId: number): Promise<void> {
 
 async function openSavedPreview(groupId: number): Promise<void> {
   previewGroupId.value = groupId
-  previewItems.value = []
-  previewNextCursor.value = ''
   previewPageIndex.value = 0
+  previewCursor.value = ''
   previewPageCursors.value = ['']
   closeExplanation()
-  await loadPreviewPage(groupId, '')
+  previewCursor.value = ''; await nextTick()
 }
 
 function closePreview(): void {
   previewGroupId.value = null
-  previewItems.value = []
-  previewNextCursor.value = ''
   previewPageIndex.value = 0
+  previewCursor.value = ''
   previewPageCursors.value = ['']
   previewApi.clear()
   closeExplanation()
 }
 
 async function nextPreviewPage(): Promise<void> {
-  const groupId = previewGroupId.value
-  if (groupId === null || previewApi.busy.value || previewNextCursor.value === '') return
-  const cursor = previewNextCursor.value
-  closeExplanation()
-  if (!(await loadPreviewPage(groupId, cursor))) return
-  previewPageCursors.value = [
-    ...previewPageCursors.value.slice(0, previewPageIndex.value + 1),
-    cursor,
-  ]
-  previewPageIndex.value += 1
+  if (previewApi.busy.value || !previewNextCursor.value) return
+  closeExplanation(); previewCursor.value = previewNextCursor.value
+  previewPageCursors.value = [...previewPageCursors.value.slice(0, previewPageIndex.value + 1), previewCursor.value]
+  previewPageIndex.value++; await nextTick()
 }
-
 async function previousPreviewPage(): Promise<void> {
-  const groupId = previewGroupId.value
-  if (groupId === null || previewApi.busy.value || previewPageIndex.value <= 0) return
-  const targetIndex = previewPageIndex.value - 1
-  const cursor = previewPageCursors.value[targetIndex] ?? ''
-  closeExplanation()
-  if (await loadPreviewPage(groupId, cursor)) previewPageIndex.value = targetIndex
+  if (previewApi.busy.value || previewPageIndex.value === 0) return
+  closeExplanation(); previewPageIndex.value--; previewCursor.value = previewPageCursors.value[previewPageIndex.value] ?? ''
+  await nextTick()
 }
-
-async function reloadPreview(): Promise<void> {
-  const groupId = previewGroupId.value
-  if (groupId === null) return
-  const cursor = previewPageCursors.value[previewPageIndex.value] ?? ''
-  await loadPreviewPage(groupId, cursor)
-}
-
-function explanationEndpoint(groupId: number, accountId: number): string {
-  return `${groupsEndpoint.value}/${groupId}/explain/${accountId}`
-}
+async function reloadPreview(): Promise<void> { if (previewGroupId.value !== null) await previewApi.refetch() }
 
 async function openExplanation(groupId: number, accountId: number): Promise<void> {
   if (explanationApi.busy.value) return
   explanationTarget.value = { groupId, accountId }
-  explanation.value = null
   explanationApi.clear()
-  await reloadExplanation()
+  await nextTick()
 }
 
-async function reloadExplanation(): Promise<void> {
-  const target = explanationTarget.value
-  if (!target) return
-
-  const result = await explanationApi.run(() =>
-    api.get<GroupExplanation>(explanationEndpoint(target.groupId, target.accountId)),
-  )
-  if (
-    result &&
-    explanationTarget.value?.groupId === target.groupId &&
-    explanationTarget.value.accountId === target.accountId
-  ) {
-    explanation.value = result
-  }
-}
+async function reloadExplanation(): Promise<void> { if (explanationTarget.value) await explanationApi.refetch() }
 
 function closeExplanation(): void {
   explanationTarget.value = null
-  explanation.value = null
   explanationApi.clear()
 }
 

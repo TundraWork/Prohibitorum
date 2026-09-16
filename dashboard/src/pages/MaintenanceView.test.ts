@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia } from 'pinia'
 import en from '@/locales/en'
 import MaintenanceView from './MaintenanceView.vue'
 
@@ -18,14 +17,14 @@ const brandingState = vi.hoisted(() => ({
   maintenanceMessage: '',
   ensureLoaded: vi.fn(async () => {}),
 }))
-vi.mock('@/stores/branding', () => ({ useBrandingStore: () => brandingState }))
+vi.mock('@/composables/useBranding', () => ({ useBranding: () => brandingState }))
 
 // Auth store: configurable per test
 const authState = vi.hoisted(() => ({
   me: null as null | { id: number; username: string },
   ensureLoaded: vi.fn(async () => {}),
 }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => authState }))
 
 function makeI18n() {
   return createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
@@ -34,7 +33,7 @@ function makeI18n() {
 function mountView() {
   return mount(MaintenanceView, {
     global: {
-      plugins: [makeI18n(), createPinia()],
+      plugins: [makeI18n()],
       stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } },
     },
   })

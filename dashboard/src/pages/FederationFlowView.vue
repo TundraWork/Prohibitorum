@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAction } from '@/composables/useAction'
+const action = useAction()
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -13,11 +15,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useQueryClient } from '@tanstack/vue-query'
+const queryClient = useQueryClient()
+import { useResource } from '@/composables/useResource'
+import { federationFlowQuery } from '@/queries/ceremonies'
 import { api } from '@/lib/api'
 import { isApiError } from '@/lib/errors'
 import type { ApiError } from '@/lib/errors'
 import { hardRedirect } from '@/lib/navigate'
-import { useBrandingStore } from '@/stores/branding'
+import { useBranding } from '@/composables/useBranding'
 
 interface FederationProvider {
   slug: string
@@ -40,11 +46,12 @@ interface VerifyResponse {
 
 const route = useRoute()
 const { locale, t } = useI18n()
-const branding = useBrandingStore()
+const branding = useBranding()
 const flowToken = String(route.params.flow ?? '')
 const flowPath = `/api/prohibitorum/auth/federation/flows/${encodeURIComponent(flowToken)}`
 
-const flow = ref<FederationFlow | null>(null)
+const flowQuery = useResource({ ...federationFlowQuery<FederationFlow>(flowToken), enabled: false })
+const flow = computed({ get: () => flowQuery.data.value ?? null, set: (value: FederationFlow | null) => { if (value) queryClient.setQueryData(federationFlowQuery<FederationFlow>(flowToken).queryKey, value) } })
 const loading = ref(true)
 const preparing = ref(false)
 const verifying = ref(false)
@@ -95,7 +102,7 @@ async function focusElement(id: string): Promise<void> {
 async function loadFlow(options: { preserve?: boolean } = {}): Promise<boolean> {
   if (!options.preserve) loading.value = true
   try {
-    flow.value = await api.get<FederationFlow>(flowPath)
+    await flowQuery.refetch({ throwOnError: true })
     terminal.value = false
     return true
   } catch (value) {
@@ -120,9 +127,9 @@ async function prepareProof(): Promise<void> {
   preparing.value = true
   error.value = null
   try {
-    flow.value = await api.post<FederationFlow>(`${flowPath}/prepare`, {
+    flow.value = await action.execute(signal => api.post<FederationFlow>(`${flowPath}/prepare`, {
       identity: identity.value,
-    })
+    }, { signal }))
     await focusElement('proof-heading')
   } catch (value) {
     error.value = normalizeError(value)
@@ -148,7 +155,7 @@ async function verifyProfile(): Promise<void> {
   verifying.value = true
   error.value = null
   try {
-    const result = await api.post<VerifyResponse>(`${flowPath}/verify`)
+    const result = await action.execute(signal => api.post<VerifyResponse>(`${flowPath}/verify`, undefined, { signal }))
     redirect.value = result.redirect
     await focusElement('success-heading')
   } catch (value) {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * EnrollPasswordTotp — the password+TOTP arm of the enrollment ceremony
  * (/enroll/:token). Modeled on AccountRecovery: an unauthenticated,
@@ -79,6 +80,7 @@ async function verifyTotp(): Promise<void> {
 function finish(): void {
   hardRedirect('/')
 }
+usePrivateState(() => { password.value = ''; confirm.value = ''; secret.value = ''; otpauthUri.value = ''; totpCode.value = ''; newCodes.value = [] })
 </script>
 
 <template>

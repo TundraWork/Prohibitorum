@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResource } from '@/composables/useResource'
+import { managerQuery } from '@/queries/access'
+import { collectionQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
-import { buildPagePath, type Page } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -47,12 +49,13 @@ const MANAGER_COLLECTIONS: Record<AppKind, string> = {
 }
 
 const { locale, t } = useI18n()
-const managersApi = useApi()
-const accountsApi = useApi()
-const mutationApi = useApi()
+const managersApi = useResource(computed(() => managerQuery<AppManagerView[]>(props.kind, props.appId)))
+const submittedSearch = ref('')
+const accountsApi = useResource(computed(() => ({ ...collectionQuery<AccountView>('accounts', { q: submittedSearch.value }), enabled: submittedSearch.value !== '' })))
+const mutationApi = useApi('access')
 
-const managers = ref<AppManagerView[]>([])
-const accountResults = ref<AccountView[]>([])
+const managers = computed(() => managersApi.data.value ?? [])
+const accountResults = computed(() => accountsApi.data.value?.items ?? [])
 const searchQuery = ref('')
 const hasSearched = ref(false)
 const searchInputId = `app-manager-search-${useId()}`
@@ -72,67 +75,13 @@ const initialManagersLoading = computed(() => managersApi.busy.value && managers
 
 let active = true
 let identityVersion = 0
-let accountRequestVersion = 0
-let submittedSearchQuery = ''
-let managerLoadRequested = 0
-let managerLoadCompleted = 0
-let managerLoadPromise: Promise<void> | null = null
-
 function identityName(account: Pick<AccountView, 'displayName' | 'username'>): string {
   return account.displayName || account.username
 }
 
-async function drainManagerLoads(): Promise<void> {
-  while (active && managerLoadCompleted < managerLoadRequested) {
-    const request = managerLoadRequested
-    const identity = identityVersion
-    const endpoint = managerEndpoint.value
-    const result = await managersApi.run(() => api.get<AppManagerView[]>(endpoint))
-    managerLoadCompleted = request
-
-    if (!active) return
-    if (identity !== identityVersion || request !== managerLoadRequested) {
-      if (identity !== identityVersion) managersApi.clear()
-      continue
-    }
-    if (result !== undefined) managers.value = result
-  }
-}
-
-function loadManagers(): Promise<void> {
-  managerLoadRequested += 1
-  if (managerLoadPromise === null) {
-    managerLoadPromise = drainManagerLoads().finally(() => {
-      managerLoadPromise = null
-    })
-  }
-  return managerLoadPromise
-}
-
 async function searchAccounts(): Promise<void> {
-  if (accountsApi.busy.value) return
-
-  const query = searchQuery.value.trim()
-  submittedSearchQuery = query
-  const request = ++accountRequestVersion
-  const identity = identityVersion
-  accountResults.value = []
-  hasSearched.value = query !== ''
-
-  if (!query) {
-    accountsApi.clear()
-    return
-  }
-
-  const result = await accountsApi.run(() =>
-    api.get<Page<AccountView>>(buildPagePath('/api/prohibitorum/accounts', { q: query })),
-  )
-
-  if (!active || identity !== identityVersion || request !== accountRequestVersion) {
-    if (identity !== identityVersion) accountsApi.clear()
-    return
-  }
-  if (result !== undefined) accountResults.value = result.items ?? []
+  submittedSearch.value = searchQuery.value.trim()
+  hasSearched.value = submittedSearch.value !== ''
 }
 
 async function mutateManager(path: string, accountId: number): Promise<void> {
@@ -159,7 +108,7 @@ async function mutateManager(path: string, accountId: number): Promise<void> {
   }
   if (mutationApi.error.value !== null) return
 
-  await loadManagers()
+
 }
 
 function assignManager(account: AccountView): Promise<void> | undefined {
@@ -176,36 +125,13 @@ function clearManagerError(): void {
   managersApi.clear()
 }
 
-watch(searchQuery, (query) => {
-  if (query.trim() === submittedSearchQuery) return
-  accountRequestVersion += 1
-  accountResults.value = []
-  hasSearched.value = false
+watch(searchQuery, query => { if (query.trim() !== submittedSearch.value) { submittedSearch.value = ''; hasSearched.value = false } })
+watch([() => props.kind, () => props.appId], () => {
+  identityVersion++
+  submittedSearch.value = ''; searchQuery.value = ''; hasSearched.value = false
+  managersApi.clear(); accountsApi.clear(); mutationApi.clear()
 })
-
-watch(
-  [() => props.kind, () => props.appId],
-  () => {
-    identityVersion += 1
-    accountRequestVersion += 1
-    submittedSearchQuery = ''
-    managers.value = []
-    accountResults.value = []
-    searchQuery.value = ''
-    hasSearched.value = false
-    managersApi.clear()
-    accountsApi.clear()
-    mutationApi.clear()
-    void loadManagers()
-  },
-  { immediate: true },
-)
-
-onBeforeUnmount(() => {
-  active = false
-  identityVersion += 1
-  accountRequestVersion += 1
-})
+onBeforeUnmount(() => { active = false; identityVersion++ })
 </script>
 
 <template>
@@ -292,7 +218,7 @@ onBeforeUnmount(() => {
             variant="outline"
             size="sm"
             :disabled="managersApi.busy.value"
-            @click="loadManagers"
+            @click="managersApi.refetch()"
           >
             {{ t('admin.appManagers.retry') }}
           </Button>

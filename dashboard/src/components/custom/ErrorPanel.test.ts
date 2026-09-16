@@ -345,7 +345,7 @@ describe('ErrorPanel — admin diagnostic action', () => {
     })
     await w.get('[data-test="error-diagnostic"]').trigger('click')
     await flushPromises()
-    expect(api.get).toHaveBeenCalledWith('/api/prohibitorum/diagnostics/rid-123')
+    expect(api.get).toHaveBeenCalledWith('/api/prohibitorum/diagnostics/rid-123', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     // The diagnostic record is rendered persistently
     expect(w.find('[data-test="diagnostic-record"]').exists()).toBe(true)
     expect(w.text()).toContain('admin.update_account')

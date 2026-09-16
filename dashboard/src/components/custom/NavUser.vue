@@ -11,11 +11,11 @@
  * The edit dialog is a SIBLING (not nested in the menu) and opens on nextTick
  * after select, avoiding Reka's menu->dialog focus / lingering-pointer-events bug.
  */
-import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ChevronDown, ChevronsUpDown, LogOut, Pencil, Settings, ShieldCheck } from 'lucide-vue-next'
-import { useAuthStore } from '@/stores/auth'
+import { useSession } from '@/composables/useSession'
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -31,14 +31,10 @@ import ThemeMenuSection from '@/components/custom/ThemeMenuSection.vue'
 withDefaults(defineProps<{ variant?: 'sidebar' | 'topbar' }>(), { variant: 'sidebar' })
 
 const { t } = useI18n()
-const auth = useAuthStore()
+const auth = useSession()
 const router = useRouter()
 
 const editOpen = ref(false)
-
-let cancelPoll: (() => void) | null = null
-onMounted(() => { cancelPoll = auth.pollAvatarUntilSettled() })
-onUnmounted(() => { cancelPoll?.(); cancelPoll = null })
 
 // Open the dialog on the next tick so the menu finishes closing / restoring
 // focus to the trigger first - prevents Reka's lingering pointer-events:none.
@@ -70,7 +66,7 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
             :aria-label="t('accountMenu.trigger')"
             class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" :loading="auth.me.avatarPending" />
+            <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" :loading="auth.avatarBusy" />
             <div class="grid flex-1 text-left text-sm leading-tight">
               <span class="truncate font-medium text-ink">{{ auth.me.displayName }}</span>
               <span class="truncate text-xs capitalize text-muted">{{ auth.me.role }}</span>
@@ -122,7 +118,7 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
           :aria-label="t('accountMenu.trigger')"
           class="flex cursor-pointer items-center gap-1 rounded-full p-0.5 outline-none transition hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-80"
         >
-          <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" :loading="auth.me.avatarPending" />
+          <UserAvatar :display-name="auth.me.displayName" :username="auth.me.username" :src="auth.me.avatarUrl" :loading="auth.avatarBusy" />
           <ChevronDown class="size-4 text-muted" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>

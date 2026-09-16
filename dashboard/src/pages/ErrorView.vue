@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useQueryClient } from '@tanstack/vue-query'
+const queryClient = useQueryClient()
+import { sessionQuery } from '@/queries/resources'
 /**
  * ErrorView — the plain-language error landing (/error?error=…&error_description=…).
  *
@@ -18,12 +21,12 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
 import { Button } from '@/components/ui/button'
-import { useAuthStore } from '@/stores/auth'
+import { useSession } from '@/composables/useSession'
 import { safeReturnTo } from '@/lib/returnTo'
 
 const route = useRoute()
 const { t, te } = useI18n()
-const auth = useAuthStore()
+const auth = useSession()
 
 const code = computed(() => String(route.query.error ?? ''))
 const description = computed(() => {
@@ -66,7 +69,7 @@ const backTarget = computed(() => {
 
 onMounted(async () => {
   // Public route — a 401 here is fine; the global handler no-ops on /error.
-  try { await auth.ensureLoaded() } catch { /* ignore */ }
+  try { await queryClient.fetchQuery(sessionQuery()) } catch { /* ignore */ }
   hasSession.value = !!auth.me
 })
 </script>

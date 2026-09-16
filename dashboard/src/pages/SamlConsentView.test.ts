@@ -3,7 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { defineComponent } from 'vue'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import SamlConsentView from './SamlConsentView.vue'
 
@@ -43,7 +42,7 @@ async function mountView(router: Router) {
 }
 
 beforeEach(() => {
-  setActivePinia(createPinia())
+
   get.mockReset()
   post.mockReset()
   hardRedirect.mockReset()
@@ -58,7 +57,7 @@ describe('SamlConsentView', () => {
     })
     const wrapper = await mountView(await makeRouter())
 
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-consent?ticket=tkt_saml_1')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/saml-consent?ticket=tkt_saml_1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain('Salesforce')
     expect(wrapper.text()).toContain('Jesse')
     const items = wrapper.findAll('li')

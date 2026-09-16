@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useResource } from '@/composables/useResource'
+import { enrollmentQuery } from '@/queries/ceremonies'
 /**
  * EnrollView — the enrollment ceremony (/enroll/:token).
  *
@@ -80,7 +82,8 @@ function clearError(): void {
   clearWebauthnError()
 }
 
-const preview = ref<EnrollmentPreview | null>(null)
+const contextQuery = useResource({ ...enrollmentQuery<EnrollmentPreview>(token), enabled: false })
+const preview = computed(() => contextQuery.data.value ?? null)
 const loading = ref(true)
 
 // New-account intents collect these; reset leaves them untouched.
@@ -143,10 +146,7 @@ function continueToProvider(slug: string): void {
 
 onMounted(async () => {
   try {
-    const loaded = await api.get<EnrollmentPreview>(
-      `/api/prohibitorum/enrollments/${encodeURIComponent(token)}`,
-    )
-    preview.value = loaded
+    const loaded = (await contextQuery.refetch({ throwOnError: true })).data!
     if (loaded.intent === 'federated_register') {
       displayName.value = loaded.suggestedDisplayName ?? ''
     }

@@ -8,8 +8,8 @@ import DashboardLayout from './DashboardLayout.vue'
 // --- Mocks ----------------------------------------------------------------
 
 // Auth store — no-op ensureLoaded, never a real network call.
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ ensureLoaded: vi.fn() }),
+vi.mock('@/composables/useSession', () => ({
+  useSession: () => ({ ensureLoaded: vi.fn() }),
 }))
 
 // Sidebar primitives — stub them so the test doesn't need the full sidebar tree.

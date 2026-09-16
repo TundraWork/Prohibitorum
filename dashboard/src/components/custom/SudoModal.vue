@@ -17,6 +17,10 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'
+import { usePrivateState } from '@/composables/usePrivateState'
+import { useQueryClient } from '@tanstack/vue-query'
+import { useResource } from '@/composables/useResource'
+import { memberQuery } from '@/queries/resources'
 import { api, type ApiError } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
@@ -44,7 +48,9 @@ const open = computed({
 
 type SudoMethodsResponse = { methods: string[] }
 
-const methods = ref<string[] | null>(null)
+const methodsQuery = useResource({ ...memberQuery<SudoMethodsResponse>('sudo/methods'), enabled: false, gcTime: 0, refetchOnWindowFocus: false })
+const client = useQueryClient()
+const methods = computed(() => open.value && !methodsQuery.isFetching.value ? methodsQuery.data.value?.methods ?? null : null)
 const password = ref('')
 const code = ref('')
 
@@ -54,26 +60,30 @@ const hasPasskey = computed(() => methods.value?.includes('webauthn') ?? false)
 const hasPwTotp = computed(() => methods.value?.includes('password_totp') ?? false)
 
 watch(() => sudoState.value.open, async (isOpen) => {
-  if (!isOpen) return
-  methods.value = null
+  if (!isOpen) {
+    password.value = ''; code.value = ''
+    await client.cancelQueries({ queryKey: memberQuery('sudo/methods').queryKey })
+    client.removeQueries({ queryKey: memberQuery('sudo/methods').queryKey })
+    return
+  }
   password.value = ''
   code.value = ''
   netError.value = null
   waError.value = null
   let available: string[] = []
   try {
-    const res = await api.get<SudoMethodsResponse>('/api/prohibitorum/me/sudo/methods')
+    const res = (await methodsQuery.refetch({ throwOnError: true })).data!
     available = res.methods ?? []
   } catch {
     available = []
   }
+  if (!open.value) return
   // Upstream-login-only (no local factor): bounce to the real /login, which
   // re-runs the user's auth and re-grants the recent-auth window, then returns.
   if (!available.includes('webauthn') && !available.includes('password_totp')) {
     hardRedirect(`/login?return_to=${encodeURIComponent(route.fullPath)}`)
     return
   }
-  methods.value = available
 })
 
 async function doPasskey(): Promise<void> {
@@ -105,6 +115,7 @@ async function doPasswordTotp(): Promise<void> {
   })
   if (ok) _resolveSudo(true)
 }
+usePrivateState(() => { password.value = ''; code.value = ''; _resolveSudo(false) })
 </script>
 
 <template>

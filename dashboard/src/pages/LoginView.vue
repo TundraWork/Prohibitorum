@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useQueryClient } from '@tanstack/vue-query'
+const queryClient = useQueryClient()
+import { sessionQuery } from '@/queries/resources'
 /**
  * LoginView — the method-selection login page (/login?return_to=…).
  *
@@ -11,12 +14,13 @@
  * so we replace those with the enroll-admin instruction (federation, if any
  * upstream is configured, stays available since it can bootstrap via invite).
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { api } from '@/lib/api'
-import { useAuthStore } from '@/stores/auth'
-import { useBrandingStore } from '@/stores/branding'
+import { useResource } from '@/composables/useResource'
+import { authStatusQuery, loginContextQuery } from '@/queries/ceremonies'
+import { useSession } from '@/composables/useSession'
+import { useBranding } from '@/composables/useBranding'
 import { useReturnTo } from '@/composables/useReturnTo'
 import { useSessionExpiry } from '@/composables/useSessionExpiry'
 import { hardRedirect } from '@/lib/navigate'
@@ -30,8 +34,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const { t } = useI18n()
 const route = useRoute()
-const auth = useAuthStore()
-const branding = useBrandingStore()
+const auth = useSession()
+const branding = useBranding()
 const { rawReturnTo, goReturnTo } = useReturnTo()
 const pairTo = computed(() => rawReturnTo.value
   ? { name: 'pair', query: { return_to: rawReturnTo.value } }
@@ -44,22 +48,9 @@ const bootstrapped = ref(true)
 // True while the status check is in flight — hides the auth-method section
 // until we know which methods to render, preventing a visible flash.
 const checking = ref(true)
-const application = ref<{ label: string } | null>(null)
-
-watch([rawReturnTo, checking, () => auth.me], async ([returnTo, pending, me], _, onCleanup) => {
-  application.value = null
-  if (!returnTo || pending || me) return
-  let current = true
-  onCleanup(() => { current = false })
-  try {
-    const context = await api.get<{ application: { label: string } | null }>(
-      '/api/prohibitorum/forward-auth/login-context?return_to=' + encodeURIComponent(returnTo),
-    )
-    if (current) application.value = context.application
-  } catch {
-    // This optional explanation must not block any sign-in method.
-  }
-})
+const contextQuery = useResource(computed(() => ({ ...loginContextQuery(rawReturnTo.value), enabled: !!rawReturnTo.value && !checking.value && !auth.me })))
+const application = computed(() => contextQuery.data.value?.application ?? null)
+const statusQuery = useResource({ ...authStatusQuery(), enabled: false })
 
 onMounted(async () => {
   // Clear the global session-expired banner flag now that the user is on the
@@ -71,8 +62,8 @@ onMounted(async () => {
   // on the dashboard. Leaves `checking` true so the skeleton shows during the
   // redirect rather than a flash of the sign-in methods.
   try {
-    await auth.ensureLoaded()
-    if (auth.me) {
+    const me = await queryClient.fetchQuery(sessionQuery())
+    if (me) {
       goReturnTo()
       return
     }
@@ -81,7 +72,7 @@ onMounted(async () => {
   }
 
   try {
-    const status = await api.get<{ bootstrapped: boolean }>('/api/prohibitorum/auth/status')
+    const status = (await statusQuery.refetch({ throwOnError: true })).data!
     bootstrapped.value = status.bootstrapped
   } catch {
     // If status can't be read, fail open to the sign-in methods.

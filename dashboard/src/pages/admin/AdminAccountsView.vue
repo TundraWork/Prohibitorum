@@ -1,12 +1,11 @@
 <script setup lang="ts">
 /** AdminAccountsView (/admin/accounts) — server-filtered, cursor-paginated directory. */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { api } from '@/lib/api'
-import { useApi } from '@/composables/useApi'
+import { useResource } from '@/composables/useResource'
+import { collectionQuery } from '@/queries/resources'
 import { useCursorPage } from '@/composables/useCursorPage'
-import { type Page, buildPagePath } from '@/lib/pagination'
 import { relativeTime } from '@/lib/time'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,8 +63,8 @@ const MATCH_LABEL_KEYS: Record<MatchOperator, string> = {
 
 const { t } = useI18n()
 const router = useRouter()
-const providersApi = useApi()
-const descriptors = ref<IdentityProviderDescriptor[]>([])
+const providersApi = useResource(collectionQuery<IdentityProviderDescriptor>('identity-providers', { limit: 100 }))
+const descriptors = computed(() => providersApi.data.value?.items ?? [])
 const searchDraft = ref('')
 const q = ref('')
 const providerSlug = ref(ALL_PROVIDERS)
@@ -97,7 +96,6 @@ const effectiveAdvanced = computed<Record<string, string>>(() => {
   return filters
 })
 
-const filterSignature = computed(() => JSON.stringify({ q: q.value, ...effectiveAdvanced.value }))
 const hasActiveFilters = computed(() => q.value !== '' || providerSlug.value !== ALL_PROVIDERS)
 const hasFilterDraft = computed(() =>
   searchDraft.value !== ''
@@ -107,24 +105,9 @@ const hasFilterDraft = computed(() =>
   || filterValue.value !== '',
 )
 
-const page = useCursorPage<Account>((cursor) => {
-  const params: Record<string, string> = {}
-  if (q.value) params.q = q.value
-  Object.assign(params, effectiveAdvanced.value)
-  if (cursor) params.cursor = cursor
-  return api.get<Page<Account>>(buildPagePath('/api/prohibitorum/accounts', params))
-})
+const page = useCursorPage<Account>('accounts', () => ({ q: q.value, ...effectiveAdvanced.value }))
 const rows = page.items
 const displayError = computed(() => page.error.value ?? providersApi.error.value)
-let appliedSignature = filterSignature.value
-
-function resetForFilters(): void {
-  const signature = filterSignature.value
-  if (signature === appliedSignature) return
-  appliedSignature = signature
-  void page.reset()
-}
-
 watch(searchDraft, (draft) => {
   if (searchTimer !== undefined) clearTimeout(searchTimer)
   searchTimer = undefined
@@ -133,11 +116,9 @@ watch(searchDraft, (draft) => {
   searchTimer = setTimeout(() => {
     searchTimer = undefined
     q.value = normalized
-    resetForFilters()
   }, 300)
 })
 
-watch(effectiveAdvanced, resetForFilters)
 
 function setProvider(value: unknown): void {
   if (typeof value !== 'string') return
@@ -169,7 +150,6 @@ function clearFilters(): void {
   fieldKey.value = ''
   matchOperator.value = ''
   filterValue.value = ''
-  resetForFilters()
 }
 
 function clearError(): void {
@@ -185,20 +165,10 @@ function matchLabel(operator: MatchOperator): string {
   return t(MATCH_LABEL_KEYS[operator])
 }
 
-async function loadDescriptors(): Promise<void> {
-  const result = await providersApi.run(() =>
-    api.get<Page<IdentityProviderDescriptor>>(
-      buildPagePath('/api/prohibitorum/identity-providers', { limit: 100 }),
-    ),
-  )
-  if (result) descriptors.value = result.items ?? []
-}
-
 function go(id: number): void {
   router.push(`/admin/accounts/${id}`)
 }
 
-onMounted(() => { void loadDescriptors() })
 onBeforeUnmount(() => {
   if (searchTimer !== undefined) clearTimeout(searchTimer)
 })

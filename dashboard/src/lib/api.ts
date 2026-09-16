@@ -84,105 +84,51 @@ function projectRetryAfter(err: ApiError, res: Response): void {
   if (Number.isSafeInteger(seconds)) err.retryAfterSeconds = seconds
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export interface RequestOptions { signal?: AbortSignal }
+
+async function request<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}, raw = false): Promise<T> {
   const headers: Record<string, string> = {}
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json'
-  }
-
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-
-  let res: Response
+  if (body !== undefined && !raw) headers['Content-Type'] = 'application/json'
+  const timeout = new AbortController()
+  const timeoutId = setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS)
+  const cancel = () => timeout.abort()
+  options.signal?.addEventListener('abort', cancel, { once: true })
+  const signal = timeout.signal
   try {
-    res = await fetch(path, {
-      method,
-      credentials: 'include',
-      headers: Object.keys(headers).length > 0 ? headers : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
+    options.signal?.throwIfAborted()
+    const res = await fetch(path, {
+      method, credentials: 'include',
+      headers: Object.keys(headers).length ? headers : undefined,
+      body: body === undefined ? undefined : raw ? body as Blob : JSON.stringify(body),
+      signal,
     })
-  } catch {
-    // Network failure (server down/unreachable) or AbortError (timeout). Surface
-    // a typed network_error instead of leaking an uncaught TypeError/DOMException.
-    const err: ApiError = { code: 'network_error' }
-    signalConnectionError(err)
-    throw err
-  } finally {
-    clearTimeout(timeoutId)
-  }
-
-  const text = await res.text()
-
-  // Attempt to parse the body as JSON regardless of status.
-  let data: unknown = undefined
-  if (text) {
-    try {
-      data = JSON.parse(text)
-    } catch {
-      // Non-JSON body; data stays undefined
+    // Keep timeout and cancellation active while the response body is read.
+    const text = await res.text()
+    options.signal?.throwIfAborted()
+    let data: unknown
+    if (text) { try { data = JSON.parse(text) } catch { /* non-JSON response */ } }
+    if (!res.ok) {
+      const err = parseApiError(data, res.headers.get('X-Request-ID') ?? undefined)
+      projectRetryAfter(err, res)
+      maybeSignalUnauthorized(res.status, err, method)
+      maybeSignalMaintenance(res.status, err)
+      if (res.status >= 500 && err.code !== 'maintenance_mode') signalConnectionError(err)
+      throw err
     }
-  }
-
-  if (!res.ok) {
-    const requestId = res.headers.get('X-Request-ID') ?? undefined
-    const err: ApiError = parseApiError(data, requestId)
-    projectRetryAfter(err, res)
-    maybeSignalUnauthorized(res.status, err, method)
-    maybeSignalMaintenance(res.status, err)
-    // 5xx → global connection handler, EXCEPT maintenance (503 maintenance_mode
-    // is owned by the maintenance handler, which redirects to the maintenance
-    // screen — a connection toast on top of that would be wrong).
-    if (res.status >= 500 && err.code !== 'maintenance_mode') signalConnectionError(err)
-    throw err
-  }
-
-  // A 2xx with an empty body (e.g. 204 No Content from DELETE) parses to no
-  // data; return {} rather than undefined so a void success is distinguishable
-  // from a failure (run() returns undefined only on error). Matches upload().
-  return (data ?? {}) as T
-}
-
-async function upload<T>(path: string, body: Blob): Promise<T> {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-
-  let res: Response
-  try {
-    res = await fetch(path, { method: 'PUT', credentials: 'include', body, signal: controller.signal })
-  } catch {
+    return (data ?? {}) as T
+  } catch (error) {
+    if (options.signal?.aborted) throw new DOMException('Request cancelled', 'AbortError')
+    if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') throw error
     const err: ApiError = { code: 'network_error' }
     signalConnectionError(err)
     throw err
-  } finally {
-    clearTimeout(timeoutId)
-  }
-
-  const text = await res.text()
-  let data: unknown = undefined
-  if (text) {
-    try { data = JSON.parse(text) } catch { /* non-JSON body */ }
-  }
-  if (!res.ok) {
-    const requestId = res.headers.get('X-Request-ID') ?? undefined
-    const err: ApiError = parseApiError(data, requestId)
-    projectRetryAfter(err, res)
-    maybeSignalUnauthorized(res.status, err, 'PUT')
-    maybeSignalMaintenance(res.status, err)
-    // 5xx → global connection handler, EXCEPT maintenance (503 maintenance_mode
-    // is owned by the maintenance handler, which redirects to the maintenance
-    // screen — a connection toast on top of that would be wrong).
-    if (res.status >= 500 && err.code !== 'maintenance_mode') signalConnectionError(err)
-    throw err
-  }
-  return (data ?? {}) as T
+  } finally { clearTimeout(timeoutId); options.signal?.removeEventListener('abort', cancel) }
 }
-
 
 export const api = {
-  get: <T>(path: string): Promise<T> => request<T>('GET', path),
-  post: <T>(path: string, body?: unknown): Promise<T> => request<T>('POST', path, body),
-  put: <T>(path: string, body?: unknown): Promise<T> => request<T>('PUT', path, body),
-  del: <T>(path: string): Promise<T> => request<T>('DELETE', path),
-  upload: <T>(path: string, body: Blob): Promise<T> => upload<T>(path, body),
+  get: <T>(path: string, options?: RequestOptions): Promise<T> => request<T>('GET', path, undefined, options),
+  post: <T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> => request<T>('POST', path, body, options),
+  put: <T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> => request<T>('PUT', path, body, options),
+  del: <T>(path: string, options?: RequestOptions): Promise<T> => request<T>('DELETE', path, undefined, options),
+  upload: <T>(path: string, body: Blob, options?: RequestOptions): Promise<T> => request<T>('PUT', path, body, options, true),
 }
