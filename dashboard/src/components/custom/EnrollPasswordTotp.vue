@@ -6,14 +6,10 @@
  * threshold leaves. Offered for every intent except bootstrap (EnrollView's
  * method chooser gates that). The verify response sets the session cookie, so
  * on success we hard-redirect to the app root.
- *
- * Federation-bound invites reject both local methods with
- * enrollment_federation_required; we surface that up to EnrollView (which shows
- * the "continue to your provider" interstitial), mirroring the passkey path.
  */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { api, type ApiError } from '@/lib/api'
+import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { hardRedirect } from '@/lib/navigate'
 import { Button } from '@/components/ui/button'
@@ -29,7 +25,7 @@ const props = defineProps<{
   token: string
   identity: { username: string; displayName: string } | null
 }>()
-const emit = defineEmits<{ back: []; federationRequired: [] }>()
+const emit = defineEmits<{ back: [] }>()
 
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
@@ -65,12 +61,7 @@ async function submitPassword(): Promise<void> {
   const res = await run(() =>
     api.post<{ secret_base32: string; otpauth_uri: string }>(`${basePath.value}/begin`, body),
   )
-  if (!res) {
-    if ((error.value as ApiError | null)?.code === 'enrollment_federation_required') {
-      emit('federationRequired')
-    }
-    return
-  }
+  if (!res) return
   secret.value = res.secret_base32
   otpauthUri.value = res.otpauth_uri
   phase.value = 'totp'
