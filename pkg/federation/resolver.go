@@ -172,14 +172,12 @@ func resolve(
 	switch idp.Mode {
 	case ModeAutoProvision:
 		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, false, upstreamData, pool)
-	case ModeInviteOnly:
-		// Reaching invite_only via resolve means the login flow carried no
-		// EnrollmentToken in its FlowState. Dispatch into applyInviteOnly with an
-		// empty token; the top of that function audits invite_required_no_token
-		// and rejects. Pool is nil — no DB writes happen on the rejection path.
-		return applyInviteOnly(ctx, q, w, idp, identity, "", upstreamData, nil)
-	case ModeLinkOnly:
-		return applyLinkOnly(ctx, w, idp, identity)
+	case ModeInviteOnly, ModeLinkOnly:
+		// Neither mode may create an account through the login entrypoint.
+		// The audit reason keeps the modes distinguishable for operators;
+		// the public error codes differ per mode (invite_required vs
+		// link_required).
+		return applyNoProvision(ctx, w, idp, identity)
 	default:
 		return ResolveOutcome{}, fmt.Errorf("federation/oidc: unknown idp.mode %q", idp.Mode)
 	}
@@ -487,13 +485,6 @@ func applyInviteOnly(
 	upstreamData []byte,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	if enrollmentToken == "" {
-		// Reached this branch via Resolve's mode-dispatch — i.e. an
-		// invite_only IdP was hit without an invite. Reject and audit.
-		emitFail(ctx, w, idp, identity, "invite_required_no_token", nil)
-		return ResolveOutcome{}, authn.ErrInviteRequired()
-	}
-
 	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
 		// Atomic, intent-scoped consume — the UPDATE ... WHERE intent='invite'
 		// AND consumed_at IS NULL AND expires_at > now() guarantees the row is a
@@ -706,16 +697,22 @@ func runProvisionTx(
 	return outcome, nil
 }
 
-// applyLinkOnly rejects unknown identities under link_only mode. The
-// existing-identity check happens in Resolve, so reaching this function
-// already implies "no account_identity row" — the only remaining branch
-// is reject.
-func applyLinkOnly(
+// applyNoProvision rejects unknown identities for modes that never create
+// accounts through the login entrypoint (invite_only, link_only). The
+// existing-identity check happens before this, so reaching this function
+// already implies "no account_identity row" — the only remaining branch is
+// reject. The audit reason and the public error code are per-mode so the
+// error page points the user at the right next step.
+func applyNoProvision(
 	ctx context.Context,
 	w audit.Writer,
 	idp *resolverProvider,
 	identity *VerifiedIdentity,
 ) (ResolveOutcome, error) {
+	if idp.Mode == ModeInviteOnly {
+		emitFail(ctx, w, idp, identity, "no_account_invite_only", nil)
+		return ResolveOutcome{}, authn.ErrInviteRequired()
+	}
 	emitFail(ctx, w, idp, identity, "link_required", nil)
 	return ResolveOutcome{}, authn.ErrLinkRequired()
 }

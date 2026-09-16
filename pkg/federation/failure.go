@@ -32,7 +32,6 @@ const (
 	FailureInviteConsumed         FailureReason = "invite_already_consumed"
 	FailureInviteExpired          FailureReason = "invite_expired"
 	FailureInviteNotFederated     FailureReason = "invite_not_federated"
-	FailureInviteRequiredPreAuth  FailureReason = "invite_required_pre_auth"
 	FailureVRChatIdentityInvalid  FailureReason = "vrchat_identity_invalid"
 	FailureVRChatProofMissing     FailureReason = "vrchat_proof_missing"
 	FailureVRChatProviderNotReady FailureReason = "vrchat_provider_not_ready"
@@ -83,7 +82,6 @@ var failurePolicies = map[FailureReason]failurePolicy{
 	FailureInviteConsumed:         {public: func() error { return authn.ErrInviteRequired() }},
 	FailureInviteExpired:          {public: func() error { return authn.ErrInviteRequired() }},
 	FailureInviteNotFederated:     {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteRequiredPreAuth:  {public: func() error { return authn.ErrInviteRequired() }},
 	FailureVRChatIdentityInvalid:  {public: func() error { return authn.ErrVRChatIdentityInvalid() }},
 	FailureVRChatProofMissing:     {public: func() error { return authn.ErrVRChatProofMissing() }},
 	FailureVRChatProviderNotReady: {public: func() error { return authn.ErrProviderNotReady() }},

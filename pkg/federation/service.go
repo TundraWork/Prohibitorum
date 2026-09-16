@@ -136,8 +136,6 @@ func (s *Service) BeginPublic(ctx context.Context, providerSlug, returnTo string
 			return nil, authn.ErrFederationStateInvalid()
 		}
 		intent = IntentEnroll
-	} else if provider.Mode == ModeInviteOnly {
-		return nil, s.recordFailure(ctx, nil, nil, provider.Slug, NewFailure(FailureInviteRequiredPreAuth, nil))
 	}
 	return s.begin(ctx, provider, intent, returnTo, nil, "", "")
 }
@@ -600,7 +598,6 @@ func vrchatFailureCategory(err error) string {
 			FailureInviteConsumed,
 			FailureInviteExpired,
 			FailureInviteNotFederated,
-			FailureInviteRequiredPreAuth,
 			FailureVRChatIdentityInvalid,
 			FailureVRChatProofMissing,
 			FailureVRChatProviderNotReady,

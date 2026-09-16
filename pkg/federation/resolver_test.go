@@ -595,8 +595,8 @@ func makeInviteEnrollment(slug, role string, attrs []byte) db.Enrollment {
 func TestApplyInviteOnly_NoTokenRejects(t *testing.T) {
 	// Driving via Resolve with mode=invite_only and no FedState invite token:
 	// this is what happens when someone hits /federation/{slug}/login directly
-	// on an invite_only IdP. The empty-token branch at the top of
-	// applyInviteOnly emits invite_required_no_token and rejects.
+	// on an invite_only IdP. The login rejection path emits
+	// no_account_invite_only and rejects with invite_required.
 	q := newFakeModesQueries()
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
@@ -610,11 +610,11 @@ func TestApplyInviteOnly_NoTokenRejects(t *testing.T) {
 	if len(recs) != 1 || recs[0].Event != audit.EventFail {
 		t.Fatalf("want 1 fail row, got %+v", recs)
 	}
-	if recs[0].Detail["reason"] != "invite_required_no_token" {
-		t.Fatalf("reason: want invite_required_no_token, got %v", recs[0].Detail["reason"])
+	if recs[0].Detail["reason"] != "no_account_invite_only" {
+		t.Fatalf("reason: want no_account_invite_only, got %v", recs[0].Detail["reason"])
 	}
 	if len(q.consumedTokens) != 0 {
-		t.Fatalf("ConsumeEnrollment must not be called when token is empty; got %v", q.consumedTokens)
+		t.Fatalf("ConsumeInviteEnrollment must not be called on the login path; got %v", q.consumedTokens)
 	}
 }
 
@@ -776,6 +776,80 @@ func TestApplyLinkOnly_NoExistingIdentity_Rejects(t *testing.T) {
 	}
 	if recs[0].Detail["reason"] != "link_required" {
 		t.Fatalf("reason: want link_required, got %v", recs[0].Detail["reason"])
+	}
+}
+
+func TestResolve_InviteOnlyUnknownIdentityRejectsWithAudit(t *testing.T) {
+	// A login (no invite token in play) on an invite_only IdP with no bound
+	// identity must be rejected with invite_required and audited as
+	// no_account_invite_only — never provision anything.
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required, got %v", err)
+	}
+	recs := a.snapshot()
+	if len(recs) != 1 || recs[0].Event != audit.EventFail {
+		t.Fatalf("want 1 fail row, got %+v", recs)
+	}
+	if recs[0].Detail["reason"] != "no_account_invite_only" {
+		t.Fatalf("reason: want no_account_invite_only, got %v", recs[0].Detail["reason"])
+	}
+	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
+		t.Fatalf("unknown identity was provisioned: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+	}
+}
+
+func TestResolve_InviteOnlyBoundIdentitySignsIn(t *testing.T) {
+	// Once the (iss, sub) identity is bound, an invite_only IdP must behave
+	// like any other at login: sync claims and sign the user in.
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+	q.accountByIDResults[55] = db.Account{ID: 55, Username: "alice", DisplayName: "Stale Name"}
+	q.identityErr = nil
+	q.identityResult = db.AccountIdentity{
+		ID:            300,
+		AccountID:     55,
+		UpstreamIdpID: 42,
+		UpstreamIss:   tok.Issuer,
+		UpstreamSub:   tok.Subject,
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if out.AccountID != 55 || out.IsNew || !out.Confirmed {
+		t.Fatalf("outcome = %+v, want existing confirmed sign-in", out)
+	}
+	if len(q.insertedAccounts) != 0 {
+		t.Fatalf("bound identity was reprovisioned: %+v", q.insertedAccounts)
+	}
+	if findEvent(a.snapshot(), audit.EventUse) == nil {
+		t.Fatal("missing audit Use")
+	}
+}
+
+func TestResolve_LinkOnlyUnknownIdentityStillRecordsLinkRequired(t *testing.T) {
+	// The shared login rejection path must keep the per-mode audit reason:
+	// link_only still records link_required (not the new invite reason).
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeLinkOnly)
+
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "link_required" {
+		t.Fatalf("want link_required, got %v", err)
+	}
+	recs := a.snapshot()
+	if len(recs) != 1 || recs[0].Detail["reason"] != "link_required" {
+		t.Fatalf("want single link_required fail row, got %+v", recs)
 	}
 }
 
@@ -1623,8 +1697,8 @@ func TestResolverLoginModeDriftToInviteOnlyRejectsWithAudit(t *testing.T) {
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("ResolveIdentity error = %v, want invite_required", err)
 	}
-	if !a.hasFail("invite_required_no_token") {
-		t.Fatalf("audit records = %+v, want invite_required_no_token", a.snapshot())
+	if !a.hasFail("no_account_invite_only") {
+		t.Fatalf("audit records = %+v, want no_account_invite_only", a.snapshot())
 	}
 	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
 		t.Fatalf("mode drift mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
