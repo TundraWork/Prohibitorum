@@ -22,6 +22,11 @@ env:
 
 jobs:
   build:
+    # workflow_dispatch carries no branch restriction of its own, and the demo's
+    # ImagePolicy selects the numerically highest run number — so a dispatch from
+    # any other branch would publish a higher tag and roll that code onto the
+    # public demo, with nothing in the tag to show where it came from.
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
