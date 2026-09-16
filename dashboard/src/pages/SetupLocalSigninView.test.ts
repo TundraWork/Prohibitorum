@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia } from 'pinia'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import en from '@/locales/en'
 import SetupLocalSigninView from './SetupLocalSigninView.vue'
+
+// Shared layout appearance is covered in the browser; keep these flow tests
+// independent of the layout's session/config data provider.
+vi.mock('./CenteredLayout.vue', () => ({
+  default: { template: '<div><slot /></div>' },
+}))
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 import { api } from '@/lib/api'
@@ -32,7 +37,7 @@ async function makeRouter(query: Record<string, string> = {}): Promise<Router> {
 
 async function mountView(query: Record<string, string> = {}) {
   const wrapper = mount(SetupLocalSigninView, {
-    global: { plugins: [createPinia(), await makeRouter(query), makeI18n()] },
+    global: { plugins: [await makeRouter(query), makeI18n()] },
   })
   await flushPromises()
   return wrapper
