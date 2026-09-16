@@ -87,12 +87,20 @@ func (f *fakeFedQueries) ConsumeInviteEnrollment(ctx context.Context, token stri
 // --- helpers --------------------------------------------------------------
 
 // driveStartFederation hits /enrollments/{token}/start-federation and returns
-// (authorizeURL, response). Empty location on non-302.
-func (h *fedTestHarness) driveStartFederation(t *testing.T, token, returnTo string) (string, *http.Response) {
+// (authorizeURL, response). Empty location on non-302. selectedSlug is the
+// invitee-chosen provider query parameter ("" omits it).
+func (h *fedTestHarness) driveStartFederation(t *testing.T, token, returnTo string, selectedSlug ...string) (string, *http.Response) {
 	t.Helper()
-	u := h.srvTS.URL + "/api/prohibitorum/enrollments/" + token + "/start-federation"
+	q := url.Values{}
 	if returnTo != "" {
-		u += "?return_to=" + url.QueryEscape(returnTo)
+		q.Set("return_to", returnTo)
+	}
+	if len(selectedSlug) > 0 && selectedSlug[0] != "" {
+		q.Set("provider", selectedSlug[0])
+	}
+	u := h.srvTS.URL + "/api/prohibitorum/enrollments/" + token + "/start-federation"
+	if len(q) > 0 {
+		u += "?" + q.Encode()
 	}
 	resp, err := h.client.Get(u)
 	if err != nil {
@@ -422,4 +430,106 @@ func TestEnrollmentStartFederation_SteamFullHTTPFlow(t *testing.T) {
 	if avatars.calls != 1 || avatars.provider.ID != provider.ID {
 		t.Fatalf("Steam invite avatar inheritance = %+v", avatars)
 	}
+}
+
+// seedUnboundInvite seeds a redeemable invite with no provider binding, so
+// the invitee must select one via the provider query parameter.
+func seedUnboundInvite(t *testing.T, h *fedTestHarness, token string) {
+	t.Helper()
+	enr := validInvite(token, h.idp.Slug)
+	enr.ExpectedUpstreamIdpSlug = pgtype.Text{Valid: false}
+	h.q.seedEnrollment(enr)
+}
+
+func TestEnrollmentStartFederation_UnboundInviteWithProviderStarts(t *testing.T) {
+	h := newInviteTestServer(t)
+	seedUnboundInvite(t, h, "tok-pick")
+
+	loc, resp := h.driveStartFederation(t, "tok-pick", "/me", h.idp.Slug)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", resp.StatusCode)
+	}
+	if !strings.HasPrefix(loc, "/federation/flow/") && !strings.HasPrefix(loc, h.opTS.URL) {
+		t.Fatalf("location = %q, want a federation flow or upstream redirect", loc)
+	}
+	// Invite redemption shares the federation /callback, so begin must bind
+	// the flow to this browser with the same anti-forgery cookie the login
+	// flow uses.
+	var binding bool
+	for _, cookie := range resp.Cookies() {
+		binding = binding || cookie.Name == sessstore.FedStateCookieName && cookie.Value != ""
+	}
+	if !binding {
+		t.Fatal("invite begin omitted browser-binding cookie")
+	}
+}
+
+func TestEnrollmentStartFederation_UnboundInviteWithoutProviderRejected(t *testing.T) {
+	h := newInviteTestServer(t)
+	seedUnboundInvite(t, h, "tok-noslug-arg")
+
+	_, resp := h.driveStartFederation(t, "tok-noslug-arg", "/me")
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
+		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
+	}
+}
+
+func TestEnrollmentStartFederation_BoundInviteWithDifferingProviderRejected(t *testing.T) {
+	h := newInviteTestServer(t)
+	h.q.seedEnrollment(validInvite("tok-mismatch", h.idp.Slug))
+
+	_, resp := h.driveStartFederation(t, "tok-mismatch", "/me", "some-other-idp")
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
+		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
+	}
+	assertAuditReason(t, h.q, "invite_slug_mismatch")
+}
+
+func TestEnrollmentStartFederation_BoundInviteWithoutProviderStillStarts(t *testing.T) {
+	h := newInviteTestServer(t)
+	h.q.seedEnrollment(validInvite("tok-bound", h.idp.Slug))
+
+	loc, resp := h.driveStartFederation(t, "tok-bound", "/me")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("start status = %d, want 302", resp.StatusCode)
+	}
+	if !strings.HasPrefix(loc, "/federation/flow/") && !strings.HasPrefix(loc, h.opTS.URL) {
+		t.Fatalf("location = %q, want a federation flow or upstream redirect", loc)
+	}
+}
+
+func TestEnrollmentStartFederation_LinkOnlyProviderRejected(t *testing.T) {
+	h := newInviteTestServer(t)
+	linkOnly := h.idp
+	linkOnly.Mode = fedoidc.ModeLinkOnly
+	h.q.idpBySlug["link-only-idp"] = linkOnly
+	seedUnboundInvite(t, h, "tok-linkonly")
+
+	_, resp := h.driveStartFederation(t, "tok-linkonly", "/me", "link-only-idp")
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/error?error=invite_required&ref=") {
+		t.Errorf("Location: want /error?error=invite_required&ref=…, got %q", loc)
+	}
+	assertAuditReason(t, h.q, "link_only_provision_denied")
+}
+
+// assertAuditReason asserts some federation_oidc fail row carries the given
+// reason — how BeginInvite's rejections stay distinguishable to operators.
+func assertAuditReason(t *testing.T, q *fakeFedQueries, reason string) {
+	t.Helper()
+	for _, ev := range q.events {
+		if ev.Factor != string(audit.FactorFederationOIDC) || ev.Event != audit.EventFail {
+			continue
+		}
+		var detail map[string]any
+		if err := json.Unmarshal(ev.Detail, &detail); err != nil {
+			t.Fatalf("decode audit detail: %v", err)
+		}
+		if detail["reason"] == reason {
+			return
+		}
+	}
+	t.Errorf("no audit fail row with reason=%s; events=%+v", reason, q.events)
 }

@@ -31,7 +31,7 @@ var (
 type ProviderLoader interface {
 	BySlug(context.Context, string) (Provider, error)
 	ByBinding(context.Context, int64, string, string) (Provider, error)
-	InviteProvider(context.Context, string) (Provider, error)
+	InviteProvider(context.Context, string, string) (Provider, error)
 }
 
 type ServiceConfig struct {
@@ -147,8 +147,8 @@ func (s *Service) BeginLink(ctx context.Context, providerSlug, returnTo string, 
 	return s.beginBySlug(ctx, providerSlug, IntentLink, returnTo, new(accountID), sessionID, "")
 }
 
-func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, returnTo string) (*BeginResult, error) {
-	provider, err := s.providers.InviteProvider(ctx, enrollmentToken)
+func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, selectedSlug, returnTo string) (*BeginResult, error) {
+	provider, err := s.providers.InviteProvider(ctx, enrollmentToken, selectedSlug)
 	if err != nil {
 		if _, _, _, _, ok := failureProjection(err); ok {
 			return nil, s.recordFailure(ctx, nil, nil, "", err)

@@ -44,7 +44,7 @@ func (s *Server) handleEnrollmentStartFederationHTTP(w http.ResponseWriter, r *h
 		return
 	}
 
-	req, err := s.federationService.BeginInvite(r.Context(), token, returnTo)
+	req, err := s.federationService.BeginInvite(r.Context(), token, r.URL.Query().Get("provider"), returnTo)
 	if err != nil {
 		redirectAuthErrToError(w, r, err)
 		return

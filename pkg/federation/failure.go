@@ -13,30 +13,32 @@ import (
 type FailureReason string
 
 const (
-	FailureStateInvalid           FailureReason = "state_invalid"
-	FailureBrowserBindingMismatch FailureReason = "browser_binding_mismatch"
-	FailureProviderUnavailable    FailureReason = "idp_disabled_or_deleted"
-	FailureActionInvalid          FailureReason = "action_invalid"
-	FailureLocalUsernameRequired  FailureReason = "local_username_required"
-	FailureIssuerMismatch         FailureReason = "iss_mismatch_callback"
-	FailureTokenEndpointDrift     FailureReason = "token_endpoint_drift"
-	FailureCodeExchange           FailureReason = "code_exchange_failed"
-	FailureSteamVerification      FailureReason = "steam_verify_failed"
-	FailureSessionSwap            FailureReason = "session_swap"
-	FailureEmailNotVerified       FailureReason = "email_not_verified"
-	FailureDomainNotAllowed       FailureReason = "domain_not_allowed"
-	FailureLinkConflict           FailureReason = "link_conflict"
-	FailureLinkInsert             FailureReason = "link_insert_failed"
-	FailureInviteLookup           FailureReason = "invite_lookup_failed"
-	FailureInviteWrongIntent      FailureReason = "invite_wrong_intent"
-	FailureInviteConsumed         FailureReason = "invite_already_consumed"
-	FailureInviteExpired          FailureReason = "invite_expired"
-	FailureInviteNotFederated     FailureReason = "invite_not_federated"
-	FailureVRChatIdentityInvalid  FailureReason = "vrchat_identity_invalid"
-	FailureVRChatProofMissing     FailureReason = "vrchat_proof_missing"
-	FailureVRChatProviderNotReady FailureReason = "vrchat_provider_not_ready"
-	FailureUpstreamRateLimited    FailureReason = "upstream_rate_limited"
-	FailureUpstreamUnavailable    FailureReason = "upstream_temporarily_unavailable"
+	FailureStateInvalid            FailureReason = "state_invalid"
+	FailureBrowserBindingMismatch  FailureReason = "browser_binding_mismatch"
+	FailureProviderUnavailable     FailureReason = "idp_disabled_or_deleted"
+	FailureActionInvalid           FailureReason = "action_invalid"
+	FailureLocalUsernameRequired   FailureReason = "local_username_required"
+	FailureIssuerMismatch          FailureReason = "iss_mismatch_callback"
+	FailureTokenEndpointDrift      FailureReason = "token_endpoint_drift"
+	FailureCodeExchange            FailureReason = "code_exchange_failed"
+	FailureSteamVerification       FailureReason = "steam_verify_failed"
+	FailureSessionSwap             FailureReason = "session_swap"
+	FailureEmailNotVerified        FailureReason = "email_not_verified"
+	FailureDomainNotAllowed        FailureReason = "domain_not_allowed"
+	FailureLinkConflict            FailureReason = "link_conflict"
+	FailureLinkInsert              FailureReason = "link_insert_failed"
+	FailureInviteLookup            FailureReason = "invite_lookup_failed"
+	FailureInviteWrongIntent       FailureReason = "invite_wrong_intent"
+	FailureInviteConsumed          FailureReason = "invite_already_consumed"
+	FailureInviteExpired           FailureReason = "invite_expired"
+	FailureInviteSlugMismatch      FailureReason = "invite_slug_mismatch"
+	FailureLinkOnlyProvisionDenied FailureReason = "link_only_provision_denied"
+	FailureInviteNotFederated      FailureReason = "invite_not_federated"
+	FailureVRChatIdentityInvalid   FailureReason = "vrchat_identity_invalid"
+	FailureVRChatProofMissing      FailureReason = "vrchat_proof_missing"
+	FailureVRChatProviderNotReady  FailureReason = "vrchat_provider_not_ready"
+	FailureUpstreamRateLimited     FailureReason = "upstream_rate_limited"
+	FailureUpstreamUnavailable     FailureReason = "upstream_temporarily_unavailable"
 )
 
 type failurePolicy struct {
@@ -77,11 +79,19 @@ var failurePolicies = map[FailureReason]failurePolicy{
 		public:     stateInvalid,
 		detailKeys: keys("iss", "sub"),
 	},
-	FailureInviteLookup:           {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteWrongIntent:      {public: func() error { return authn.ErrInviteRequired() }, detailKeys: keys("intent")},
-	FailureInviteConsumed:         {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteExpired:          {public: func() error { return authn.ErrInviteRequired() }},
-	FailureInviteNotFederated:     {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteLookup:       {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteWrongIntent:  {public: func() error { return authn.ErrInviteRequired() }, detailKeys: keys("intent")},
+	FailureInviteConsumed:     {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteExpired:      {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteNotFederated: {public: func() error { return authn.ErrInviteRequired() }},
+	FailureInviteSlugMismatch: {
+		public:     func() error { return authn.ErrInviteRequired() },
+		detailKeys: keys("enrollment_expected_slug"),
+	},
+	FailureLinkOnlyProvisionDenied: {
+		public:     func() error { return authn.ErrInviteRequired() },
+		detailKeys: keys("idp_slug"),
+	},
 	FailureVRChatIdentityInvalid:  {public: func() error { return authn.ErrVRChatIdentityInvalid() }},
 	FailureVRChatProofMissing:     {public: func() error { return authn.ErrVRChatProofMissing() }},
 	FailureVRChatProviderNotReady: {public: func() error { return authn.ErrProviderNotReady() }},

@@ -86,7 +86,19 @@ func (s *ProviderStore) ByBinding(ctx context.Context, id int64, slug, protocol 
 	return provider, nil
 }
 
-func (s *ProviderStore) InviteProvider(ctx context.Context, token string) (Provider, error) {
+// InviteProvider resolves the provider an invite will be redeemed through.
+// The invitee's selected slug (the provider query parameter on
+// start-federation) is judged against the invite's binding per the api
+// contract:
+//
+//   - invite bound to a slug: that slug wins; a differing selection is
+//     rejected (audit reason invite_slug_mismatch),
+//   - unbound invite: the selection is required (invite_not_federated
+//     otherwise),
+//   - either way the effective provider must not be link_only nor disabled —
+//     link_only never creates accounts, on any entrypoint
+//     (link_only_provision_denied).
+func (s *ProviderStore) InviteProvider(ctx context.Context, token, selectedSlug string) (Provider, error) {
 	enrollment, err := s.queries.GetEnrollmentByToken(ctx, token)
 	if err != nil {
 		return Provider{}, NewFailure(FailureInviteLookup, nil)
@@ -100,10 +112,33 @@ func (s *ProviderStore) InviteProvider(ctx context.Context, token string) (Provi
 	if !enrollment.ExpiresAt.Valid || !enrollment.ExpiresAt.Time.After(s.now()) {
 		return Provider{}, NewFailure(FailureInviteExpired, nil)
 	}
-	if !enrollment.ExpectedUpstreamIdpSlug.Valid || enrollment.ExpectedUpstreamIdpSlug.String == "" {
+
+	bound := ""
+	if enrollment.ExpectedUpstreamIdpSlug.Valid {
+		bound = enrollment.ExpectedUpstreamIdpSlug.String
+	}
+	effective := bound
+	if bound == "" {
+		effective = selectedSlug
+	} else if selectedSlug != "" && selectedSlug != bound {
+		return Provider{}, NewFailure(FailureInviteSlugMismatch, map[string]any{
+			"enrollment_expected_slug": bound,
+		})
+	}
+	if effective == "" {
 		return Provider{}, NewFailure(FailureInviteNotFederated, nil)
 	}
-	return s.BySlug(ctx, enrollment.ExpectedUpstreamIdpSlug.String)
+
+	provider, err := s.BySlug(ctx, effective)
+	if err != nil {
+		return Provider{}, err
+	}
+	if provider.Disabled || provider.Mode == ModeLinkOnly {
+		return Provider{}, NewFailure(FailureLinkOnlyProvisionDenied, map[string]any{
+			"idp_slug": effective,
+		})
+	}
+	return provider, nil
 }
 
 func providerFromRow(row db.UpstreamIdp) (Provider, error) {
