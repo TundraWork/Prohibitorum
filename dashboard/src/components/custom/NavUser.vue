@@ -2,12 +2,12 @@
 /**
  * NavUser — account control with two variants:
  *  - 'sidebar' (default): the dashboard sidebar footer row (SidebarMenuButton).
- *    Menu = Edit profile · Sign out. Settings/admin are reached via the sidebar
- *    nav itself, so they are NOT duplicated here.
  *  - 'topbar': a compact avatar + caret control for the launcher top bar (no
- *    sidebar primitives). Menu adds Settings (→/security) and Admin (admins →
- *    /admin/accounts) so the launcher home can reach the secondary settings/admin
- *    area.
+ *    sidebar primitives). Topbar additionally links Settings (→/security) and
+ *    Admin (admins → /admin/accounts) so the launcher home can reach the
+ *    secondary settings/admin area.
+ * Both menus carry the Language/Theme submenus (these controls lived in the
+ * launcher header and crowded the instance title on portrait screens).
  * The edit dialog is a SIBLING (not nested in the menu) and opens on nextTick
  * after select, avoiding Reka's menu->dialog focus / lingering-pointer-events bug.
  */
@@ -25,6 +25,8 @@ import {
 import StatusBadge from '@/components/custom/StatusBadge.vue'
 import UserAvatar from '@/components/custom/UserAvatar.vue'
 import EditProfileDialog from '@/components/custom/EditProfileDialog.vue'
+import LocaleMenuSection from '@/components/custom/LocaleMenuSection.vue'
+import ThemeMenuSection from '@/components/custom/ThemeMenuSection.vue'
 
 withDefaults(defineProps<{ variant?: 'sidebar' | 'topbar' }>(), { variant: 'sidebar' })
 
@@ -96,6 +98,9 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
             <span>{{ t('accountMenu.editProfile') }}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <LocaleMenuSection />
+          <ThemeMenuSection />
+          <DropdownMenuSeparator />
           <DropdownMenuItem data-test="account-signout" @select="signOut">
             <LogOut />
             <span>{{ t('nav.signOut') }}</span>
@@ -140,6 +145,9 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
           <Pencil />
           <span>{{ t('accountMenu.editProfile') }}</span>
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <LocaleMenuSection />
+        <ThemeMenuSection />
         <DropdownMenuSeparator />
         <DropdownMenuItem data-test="account-settings" @select="goSettings">
           <Settings />

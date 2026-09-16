@@ -51,6 +51,26 @@ function clickConfirm() {
 beforeEach(() => { get.mockReset(); post.mockReset() })
 
 describe('MyAppsView', () => {
+
+  it('keeps the app grid at two columns below sm and auto-fill above', async () => {
+    serve()
+    const w = mountView(); await flushPromises()
+    const grid = w.get('ul[role="list"]')
+    expect(grid.classes()).toContain('grid-cols-2')
+    expect(grid.classes().some((c) => c.startsWith('sm:grid-cols-'))).toBe(true)
+    w.unmount()
+  })
+
+  it('skeleton grid matches the real grid classes', async () => {
+    const { promise } = Promise.withResolvers<unknown>()
+    get.mockImplementation((() => promise) as typeof api.get) // never resolves → busy
+    const w = mountView(); await flushPromises()
+    const skeleton = w.get('[role="status"][aria-busy="true"]')
+    expect(skeleton.classes()).toContain('grid-cols-2')
+    expect(skeleton.classes().some((c) => c.startsWith('sm:grid-cols-'))).toBe(true)
+    w.unmount()
+  })
+
   it.each([{ consents: [] }, { consents: [{ kind: 'oidc', clientId: 'docs', scopes: ['openid'] }] }])('keeps consent-free OIDC apps visible without a revocable grant: %j', async ({ consents }) => {
     serve([{ kind: 'oidc', id: 'docs', name: 'Docs', launchUrl: 'https://docs.example', requireConsent: false }], consents)
     const w = mountView(); await flushPromises()

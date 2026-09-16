@@ -196,7 +196,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       role="status"
       aria-busy="true"
       aria-live="polite"
-      class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,11rem),1fr))]"
+      class="grid grid-cols-2 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(min(100%,9rem),1fr))]"
     >
       <div v-for="n in 6" :key="n" class="overflow-hidden rounded-2xl border border-line bg-card">
         <Skeleton class="aspect-[4/3] w-full rounded-none" />
@@ -208,7 +208,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     </div>
 
     <template v-else-if="connectedApps.length || availableApps.length">
-      <ul role="list" class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,11rem),1fr))]">
+      <ul role="list" class="grid grid-cols-2 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(min(100%,9rem),1fr))]">
         <li v-for="app in visibleConnected" :key="`${app.kind}:${app.id}`">
           <AppTile
             :app="app"

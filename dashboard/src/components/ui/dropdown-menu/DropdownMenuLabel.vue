@@ -8,14 +8,14 @@ import { cn } from "@/lib/utils"
 const props = defineProps<DropdownMenuLabelProps & { class?: HTMLAttributes["class"], inset?: boolean }>()
 
 const delegatedProps = reactiveOmit(props, "class", "inset")
-const forwarded = useForwardProps(delegatedProps)
+const forwardedProps = useForwardProps(delegatedProps)
 </script>
 
 <template>
   <DropdownMenuLabel
     data-slot="dropdown-menu-label"
     :data-inset="inset ? '' : undefined"
-    v-bind="forwarded"
+    v-bind="forwardedProps"
     :class="cn('px-2 py-1.5 text-sm font-medium data-[inset]:pl-8', props.class)"
   >
     <slot />
