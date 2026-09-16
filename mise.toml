@@ -217,7 +217,7 @@ done
 # Exercise PostgreSQL-only filtering/migration contracts in the same database.
 export PROHIBITORUM_TEST_DATABASE_URL="$PROHIBITORUM_DATABASE_URL"
 go test ./db/migrations ./pkg/server \
-  -run '^(TestOIDCClientAuthMethodMigrationPostgres|TestAccountIdentityFilteringMigrationPostgres|TestAccountFilterSchemaPostgres|TestListAccountsIdentityFiltersPostgres)$' \
+  -run '^(TestUpstreamOIDCEndpointsMigrationPostgres|TestOIDCClientAuthMethodMigrationPostgres|TestAccountIdentityFilteringMigrationPostgres|TestAccountFilterSchemaPostgres|TestListAccountsIdentityFiltersPostgres)$' \
   -count=1
 go run ./cmd/smoke \
   --base-url https://127.0.0.1:18443 \

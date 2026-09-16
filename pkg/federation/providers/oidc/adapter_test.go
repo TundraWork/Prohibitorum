@@ -47,6 +47,7 @@ func (c *adapterFakeClient) UserInfo(context.Context, string, string) (map[strin
 
 func adapterTestConfig(issuer string, allowPrivate bool) json.RawMessage {
 	raw, _ := json.Marshal(Config{
+		ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256",
 		IssuerURL: issuer, ClientID: "client", Scopes: []string{"openid"},
 		AllowedDomains: []string{}, UsernameClaim: "preferred_username",
 		DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture",
@@ -63,7 +64,10 @@ func TestAdapterBeginAndAdvanceVerifiedIdentity(t *testing.T) {
 	}
 	provider := federationcore.Provider{ID: 7, Slug: "corp", Protocol: Protocol, Config: adapterTestConfig("https://issuer.test", false), Secret: secret, SecretStatus: "valid"}
 	adapter := NewAdapter(store)
-	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub", EmailVerified: true, AMR: []string{"pwd"}, Raw: map[string]any{"preferred_username": "alice", "name": "Alice", "email": "alice@example.com", "picture": "https://cdn.test/a.png"}}}, nil
 	}
 	state, action, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback"})
@@ -105,7 +109,10 @@ func TestAdapterDefersUserInfoAvatarFallback(t *testing.T) {
 		},
 		userInfo: map[string]any{"picture": "https://cdn.test/fallback.png"},
 	}
-	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		return client, nil
 	}
 	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
@@ -150,7 +157,10 @@ func TestAdapterAdvanceAllowsOptionalAuthorizationResponseIssuer(t *testing.T) {
 		SecretStatus: "valid",
 	}
 	adapter := NewAdapter(store)
-	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub"}}, nil
 	}
 	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
@@ -186,7 +196,10 @@ func TestAdapterCachesClientAcrossBeginAndAdvance(t *testing.T) {
 	}
 	adapter := NewAdapter(store)
 	builds := 0
-	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		builds++
 		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub"}}, nil
 	}
@@ -228,7 +241,10 @@ func TestAdapterInvalidateClientCacheEvictsOnlyProviderSlug(t *testing.T) {
 	other.Slug = "other"
 	adapter := NewAdapter(store)
 	builds := 0
-	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		builds++
 		return &adapterFakeClient{}, nil
 	}
@@ -277,7 +293,10 @@ func TestAdapterClientCacheRebuildsOnKeyVersionChange(t *testing.T) {
 	}
 	adapter := NewAdapter(store)
 	builds := 0
-	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		builds++
 		return &adapterFakeClient{}, nil
 	}
@@ -318,7 +337,10 @@ func TestAdapterClientCacheExpiresAfterFifteenMinutes(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	adapter.now = func() time.Time { return now }
 	builds := 0
-	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		builds++
 		return &adapterFakeClient{}, nil
 	}
@@ -356,7 +378,10 @@ func TestAdapterClientCacheSeparatesPrivateNetworkPolicy(t *testing.T) {
 	adapter := NewAdapter(store)
 	builds := 0
 	var policies []bool
-	adapter.newClient = func(_ context.Context, config Config, _, _ string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(_ context.Context, config Config, _ ResolvedConfig, _, _ string) (clientAPI, error) {
 		builds++
 		policies = append(policies, config.AllowPrivateNetwork)
 		return &adapterFakeClient{}, nil
@@ -409,7 +434,10 @@ func TestAdapterAdvanceClassifiesIssuerAndExchangeFailures(t *testing.T) {
 				tokens:      &Tokens{Issuer: "https://issuer.test", Subject: "sub"},
 				exchangeErr: test.exchangeErr,
 			}
-			adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+			adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+				return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+			}
+			adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 				return client, nil
 			}
 			state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
@@ -445,7 +473,10 @@ func TestAdapterAdvanceRejectsTokenEndpointDriftBeforeExchange(t *testing.T) {
 	}
 	adapter := NewAdapter(store)
 	exchanges := 0
-	adapter.newClient = func(context.Context, Config, string, string) (clientAPI, error) {
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		return &adapterFakeClient{
 			tokens:        &Tokens{Issuer: "https://issuer.test", Subject: "sub"},
 			tokenEndpoint: "https://issuer.test/token",
@@ -532,7 +563,7 @@ func TestDefinitionReadiness(t *testing.T) {
 	if definition.Ready(provider) {
 		t.Fatal("invalid secret status ready")
 	}
-	if err := definition.ValidateSecret(nil); err == nil {
+	if err := definition.ValidateSecret(adapterTestConfig("https://issuer.test", false), nil); err == nil {
 		t.Fatal("empty secret accepted")
 	}
 	if err := definition.ValidateConfig(json.RawMessage(`{"issuerUrl":"http://issuer.test"}`)); err == nil {

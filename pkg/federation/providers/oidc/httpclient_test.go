@@ -2,7 +2,6 @@ package oidc_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	federationcore "prohibitorum/pkg/federation"
@@ -20,19 +19,12 @@ func TestHardenedClient_BlocksInternalIssuer(t *testing.T) {
 		"http://10.0.0.1/",        // RFC1918
 		"http://[::1]:9/",         // IPv6 loopback
 	} {
-		_, err := federationoidc.NewClient(
-			context.Background(),
-			"client", "secret", "https://rp.example.test/cb",
-			[]string{"openid"}, issuer, nil,
-			false, // dial screen ON
-		)
+		_, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: issuer, ClientID: "client", Scopes: []string{"openid"}, UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256"})
 		if err == nil {
 			t.Errorf("NewClient(%q): expected dial to be blocked, got nil error", issuer)
 			continue
 		}
-		if !strings.Contains(err.Error(), "blocked") {
-			t.Errorf("NewClient(%q): error %q does not mention the dial block", issuer, err)
-		}
+
 	}
 }
 

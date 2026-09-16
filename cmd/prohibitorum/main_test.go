@@ -53,6 +53,7 @@ func TestUpstreamCLIConfigUsesAdapterWireShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := federationoidc.Config{
+		ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256",
 		IssuerURL:            "https://issuer.example",
 		ClientID:             "client-id",
 		Scopes:               []string{"openid", "profile", "email"},

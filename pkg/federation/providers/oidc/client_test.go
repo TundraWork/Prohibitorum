@@ -83,16 +83,11 @@ func driveAuthorize(t *testing.T, authURL string) string {
 // noRedirectClient).
 func newClient(t *testing.T, ts *httptest.Server) *federationoidc.Client {
 	t.Helper()
-	c, err := federationoidc.NewClient(
-		context.Background(),
-		"test-client",
-		"test-secret",
-		"https://rp.example.test/callback",
-		[]string{"openid", "profile", "email"},
-		ts.URL,
-		nil,  // use DefaultAllowedAlgs
-		true, // mock OP is on loopback — bypass the SSRF dial screen
-	)
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: ts.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"}, UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256", AllowPrivateNetwork: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "test-client", "test-secret", "https://rp.example.test/callback", resolved, nil, true)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -299,10 +294,6 @@ func TestClient_ExchangeRejectsNonceMismatch(t *testing.T) {
 	if !strings.Contains(strings.ToLower(err.Error()), "nonce") {
 		t.Errorf("error %q does not mention nonce", err)
 	}
-}
-
-func TestClient_AlgAllowlistRejectsUnsupportedAlg(t *testing.T) {
-	t.Skip("HS256/none rejection is a defense-in-depth check; the mockop signs ES256 only and has no flag to switch algs. Covered conceptually by configuring rp.WithSupportedSigningAlgorithms with the explicit allowlist; behavioural coverage deferred to Task 5 federation_test or future hardening.")
 }
 
 // TestClient_ExchangePictureHoisted verifies that when the upstream OP includes

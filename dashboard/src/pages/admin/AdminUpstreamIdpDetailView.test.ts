@@ -16,6 +16,7 @@ vi.mock('vue-router', () => ({ useRoute: () => ({ params: routeParams }), useRou
 import AdminUpstreamIdpDetailView from './AdminUpstreamIdpDetailView.vue'
 
 const OIDC_CONFIG = {
+  configurationMode: 'discovery', endpoints: { authorization: null, token: null, userinfo: null, jwks: null }, tokenAuthMethod: 'discovery', pkceMethod: 'S256',
   issuerUrl: 'https://okta/',
   clientId: 'c1',
   scopes: ['openid', 'email'],

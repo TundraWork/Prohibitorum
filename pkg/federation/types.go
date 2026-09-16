@@ -194,7 +194,7 @@ type Definition interface {
 	Protocol() string
 	Descriptor() Descriptor
 	ValidateConfig(json.RawMessage) error
-	ValidateSecret([]byte) error
+	ValidateSecret(json.RawMessage, []byte) error
 	Ready(Provider) bool
 }
 

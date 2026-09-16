@@ -238,7 +238,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		"subject_types_supported":               []string{"public"},
 		"id_token_signing_alg_values_supported": []string{"ES256"},
 		"scopes_supported":                      []string{"openid", "profile", "email"},
-		"code_challenge_methods_supported":      []string{"S256"},
+		"code_challenge_methods_supported":      []string{"S256", "plain"},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(doc)
@@ -325,7 +325,8 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	// (this is a test fixture, not a real OP) — but missing params would
 	// produce garbage redirects, so reject them up front.
 	if clientID == "" || redirectURI == "" || state == "" || nonce == "" ||
-		codeChallenge == "" || challengeMethod != "S256" {
+		(challengeMethod != "S256" && challengeMethod != "plain" && challengeMethod != "") ||
+		(challengeMethod != "" && codeChallenge == "") || (challengeMethod == "" && codeChallenge != "") {
 		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
 		return
 	}
@@ -404,14 +405,14 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify PKCE. We only support S256.
-	if st.challengeMethod != "S256" {
-		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
-		return
+	// Match the authorization request exactly; off must omit the verifier.
+	expectedChallenge := codeVerifier
+	if st.challengeMethod == "S256" {
+		h := sha256.Sum256([]byte(codeVerifier))
+		expectedChallenge = base64.RawURLEncoding.EncodeToString(h[:])
 	}
-	h := sha256.Sum256([]byte(codeVerifier))
-	if base64.RawURLEncoding.EncodeToString(h[:]) != st.codeChallenge {
-		http.Error(w, `{"error":"invalid_grant"}`, http.StatusBadRequest)
+	if expectedChallenge != st.codeChallenge {
+		http.Error(w, "invalid_grant", http.StatusBadRequest)
 		return
 	}
 

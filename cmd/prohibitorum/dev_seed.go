@@ -172,6 +172,7 @@ func runDevSeed(_ *cobra.Command, _ []string) {
 func seedProviders(ctx context.Context, q *db.Queries) {
 	oidcConfig := func(issuerURL, clientID string, scopes, allowedDomains []string, usernameClaim string, requireVerifiedEmail bool) []byte {
 		raw, err := json.Marshal(federationoidc.Config{
+			ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256",
 			IssuerURL: issuerURL, ClientID: clientID, Scopes: scopes, AllowedDomains: allowedDomains,
 			UsernameClaim: usernameClaim, DisplayNameClaim: "name", EmailClaim: "email",
 			PictureClaim: "picture", RequireVerifiedEmail: requireVerifiedEmail,

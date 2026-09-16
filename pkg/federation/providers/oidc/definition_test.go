@@ -9,7 +9,7 @@ import (
 )
 
 const validDefinitionConfig = `{
-  "issuerUrl":"https://issuer.example",
+  "configurationMode":"discovery","tokenAuthMethod":"discovery","pkceMethod":"S256","endpoints":{"authorization":null,"token":null,"userinfo":null,"jwks":null},"issuerUrl":"https://issuer.example",
   "clientId":"client-id",
   "scopes":["openid","profile","email"],
   "allowedDomains":[],
@@ -31,7 +31,7 @@ func TestDefinitionDescriptor(t *testing.T) {
 			{Key: "subject", Operators: []federationcore.SearchOperator{federationcore.SearchExact}},
 			{Key: "email", Operators: []federationcore.SearchOperator{federationcore.SearchExact, federationcore.SearchPrefix, federationcore.SearchContains}},
 		},
-		RequiresSecret: true,
+		RequiresSecret: false,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Descriptor() = %#v, want %#v", got, want)
@@ -51,9 +51,9 @@ func TestDefinitionValidateConfig(t *testing.T) {
 		{name: "missing config", config: nil, wantErr: true},
 		{name: "non-object", config: json.RawMessage(`[]`), wantErr: true},
 		{name: "unknown field", config: json.RawMessage(validDefinitionConfig[:len(validDefinitionConfig)-2] + `,"extra":true}`), wantErr: true},
-		{name: "missing allowed domains", config: json.RawMessage(`{"issuerUrl":"https://issuer.example","clientId":"client-id","scopes":["openid"],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false}`), wantErr: true},
-		{name: "empty client id", config: json.RawMessage(`{"issuerUrl":"https://issuer.example","clientId":"","scopes":["openid"],"allowedDomains":[],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false}`), wantErr: true},
-		{name: "unsafe issuer", config: json.RawMessage(`{"issuerUrl":"http://127.0.0.1","clientId":"client-id","scopes":["openid"],"allowedDomains":[],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false}`), wantErr: true},
+		{name: "missing allowed domains", config: json.RawMessage(`{"configurationMode":"discovery","tokenAuthMethod":"discovery","pkceMethod":"S256","endpoints":{"authorization":null,"token":null,"userinfo":null,"jwks":null},"issuerUrl":"https://issuer.example","clientId":"client-id","scopes":["openid"],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false}`), wantErr: true},
+		{name: "empty client id", config: json.RawMessage(`{"configurationMode":"discovery","tokenAuthMethod":"discovery","pkceMethod":"S256","endpoints":{"authorization":null,"token":null,"userinfo":null,"jwks":null},"issuerUrl":"https://issuer.example","clientId":"","scopes":["openid"],"allowedDomains":[],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false}`), wantErr: true},
+		{name: "unsafe issuer", config: json.RawMessage(`{"configurationMode":"discovery","tokenAuthMethod":"discovery","pkceMethod":"S256","endpoints":{"authorization":null,"token":null,"userinfo":null,"jwks":null},"issuerUrl":"http://127.0.0.1","clientId":"client-id","scopes":["openid"],"allowedDomains":[],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false}`), wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

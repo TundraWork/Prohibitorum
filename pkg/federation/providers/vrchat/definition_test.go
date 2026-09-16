@@ -55,10 +55,10 @@ func TestDefinitionRejectsGenericSecret(t *testing.T) {
 	t.Parallel()
 
 	definition := Definition{}
-	if err := definition.ValidateSecret(nil); err != nil {
+	if err := definition.ValidateSecret(nil, nil); err != nil {
 		t.Fatalf("ValidateSecret(nil) = %v, want nil", err)
 	}
-	if err := definition.ValidateSecret([]byte("generic-secret")); err == nil {
+	if err := definition.ValidateSecret(nil, []byte("generic-secret")); err == nil {
 		t.Fatal("ValidateSecret(non-empty) = nil, want rejection")
 	}
 }

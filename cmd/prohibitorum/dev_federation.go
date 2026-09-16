@@ -233,6 +233,7 @@ func ensureTestRP(ctx context.Context, q *db.Queries, label string) string {
 
 func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mode, issuer, clientID, plaintext string, dek []byte, keyVer int32) {
 	configRaw, err := json.Marshal(federationoidc.Config{
+		ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256",
 		IssuerURL: issuer, ClientID: clientID, Scopes: []string{"openid", "email", "profile"},
 		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
 		EmailClaim: "email", PictureClaim: "picture", AllowPrivateNetwork: true,

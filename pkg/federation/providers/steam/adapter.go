@@ -34,7 +34,7 @@ func (Definition) ValidateConfig(raw json.RawMessage) error {
 	}
 	return nil
 }
-func (Definition) ValidateSecret(secret []byte) error {
+func (Definition) ValidateSecret(_ json.RawMessage, secret []byte) error {
 	if len(secret) == 0 {
 		return errors.New("federation/steam: API key is required")
 	}
@@ -154,7 +154,7 @@ func (a *Adapter) open(provider federationcore.Provider) (Config, string, error)
 	if err != nil {
 		return Config{}, "", err
 	}
-	if err := (Definition{}).ValidateSecret(secret); err != nil {
+	if err := (Definition{}).ValidateSecret(provider.Config, secret); err != nil {
 		return Config{}, "", err
 	}
 	return config, string(secret), nil

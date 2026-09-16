@@ -2,6 +2,8 @@
 /** AdminUpstreamIdpsView (/admin/identity-providers) — list upstream IdPs; inline create (sudo). */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import OIDCConnectionFields from '@/components/custom/OIDCConnectionFields.vue'
+import { defaultOIDCConnection, oidcConnectionError, type OIDCConnectionConfig } from '@/lib/oidcProviderConfig'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
@@ -30,7 +32,7 @@ import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PaginationControls from '@/components/custom/PaginationControls.vue'
 import { Link2 } from 'lucide-vue-next'
 
-export interface OIDCProviderConfig {
+export interface OIDCProviderConfig extends OIDCConnectionConfig {
   issuerUrl: string
   clientId: string
   scopes: string[]
@@ -81,6 +83,8 @@ function clearError(): void { page.clear(); clear() }
 const createOpen = ref(false)
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 
+const connection = ref(defaultOIDCConnection())
+const connectionValidation = ref<string | null>(null)
 const slug = ref(''); const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
 const clientSecret = ref(''); const mode = ref<ProviderMode>('auto_provision')
 const scopes = ref<string[]>(['openid', 'profile', 'email'])
@@ -104,6 +108,7 @@ function go(s: string): void { router.push(`/admin/identity-providers/${s}`) }
 
 
 function openCreate(): void {
+  connection.value = defaultOIDCConnection(); connectionValidation.value = null
   slug.value = ''; displayName.value = ''; issuerUrl.value = ''; clientId.value = ''
   clientSecret.value = ''; mode.value = 'auto_provision'
   scopes.value = ['openid', 'profile', 'email']; allowedDomains.value = []
@@ -124,6 +129,7 @@ function buildCreateRequest(selected: ProviderProtocol): CreateProviderRequest {
         ...common,
         protocol: selected,
         config: {
+          ...connection.value,
           issuerUrl: issuerUrl.value,
           clientId: clientId.value,
           scopes: scopes.value,
@@ -135,7 +141,7 @@ function buildCreateRequest(selected: ProviderProtocol): CreateProviderRequest {
           requireVerifiedEmail: requireVerifiedEmail.value,
           allowPrivateNetwork: false,
         },
-        secret: clientSecret.value,
+        secret: connection.value.tokenAuthMethod === 'none' ? '' : clientSecret.value,
       }
     case 'steam':
       return { ...common, protocol: selected, config: {}, secret: apiKey.value }
@@ -145,6 +151,9 @@ function buildCreateRequest(selected: ProviderProtocol): CreateProviderRequest {
 }
 
 async function create(): Promise<void> {
+  connectionValidation.value = protocol.value === 'oidc' ? oidcConnectionError(connection.value) : null
+  if (protocol.value === 'oidc' && connection.value.tokenAuthMethod !== 'none' && !clientSecret.value) connectionValidation.value = 'admin.upstream.secretRequired'
+  if (connectionValidation.value) return
   const body = buildCreateRequest(protocol.value)
   const res = await run(() => withSudo(() =>
     api.post<IdentityProvider>('/api/prohibitorum/identity-providers', body),
@@ -194,6 +203,7 @@ async function create(): Promise<void> {
             <AlertDescription class="max-w-[75ch]">{{ t('admin.upstream.vrchatCreateWarning') }}</AlertDescription>
           </Alert>
           <template v-if="protocol === 'oidc'">
+            <OIDCConnectionFields v-model="connection" />
             <div class="flex flex-col gap-1.5">
               <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
               <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
@@ -203,7 +213,7 @@ async function create(): Promise<void> {
               <Label for="clientId">{{ t('admin.upstream.clientId') }}</Label>
               <Input id="clientId" name="clientId" v-model="clientId" autocomplete="off" />
             </div>
-            <div class="flex flex-col gap-1.5">
+            <div v-if="connection.tokenAuthMethod !== 'none'" class="flex flex-col gap-1.5">
               <Label for="clientSecret">{{ t('admin.upstream.clientSecret') }}</Label>
               <Input id="clientSecret" name="clientSecret" type="password" v-model="clientSecret" autocomplete="off" />
             </div>
@@ -257,6 +267,7 @@ async function create(): Promise<void> {
           </div>
           <p class="text-xs text-muted">{{ t('admin.upstream.claimsHint') }}</p>
         </FormSection>
+        <p v-if="connectionValidation" role="alert" class="text-sm text-destructive">{{ t(connectionValidation) }}</p>
         <div class="flex gap-2">
           <Button type="button" :disabled="busy" data-test="create-confirm" @click="create">{{ t('admin.upstream.create') }}</Button>
           <Button type="button" variant="outline" :disabled="busy" data-test="create-cancel" @click="createOpen = false">{{ t('common.cancel') }}</Button>

@@ -100,70 +100,55 @@ func ClaimString(raw map[string]any, name string) string {
 // underlying zitadel/oidc RelyingParty is goroutine-safe for read
 // operations (CodeExchange, AuthURL).
 type Client struct {
+	pkceMethod    string
 	rp            rp.RelyingParty
 	issuer        string // snapshot at NewClient time
 	tokenEndpoint string // snapshot at NewClient time
 }
 
-// NewClient constructs a Client by running OIDC discovery against
-// discoveryIssuer and configuring an alg allowlist on the ID-token
-// verifier. If allowedAlgs is nil, DefaultAllowedAlgs is used. Passing
-// an empty (non-nil) slice is treated as "no algorithms allowed" by
-// the underlying library and is almost certainly a caller bug; we
-// surface that as an error here to fail fast.
-//
-// Discovery is performed exactly once during NewClient. Subsequent
-// calls to Exchange reuse the cached endpoints and the JWKS cache
-// managed by zitadel/oidc internally.
-// allowPrivateNetwork, when true, disables the outbound client's dial-time
-// internal-IP screen. Sourced from the per-IdP upstream_idp.allow_private_network
-// column (default false) — set true only when the upstream issuer is a trusted
-// IdP on a private/internal network.
-func NewClient(
-	ctx context.Context,
-	clientID, clientSecret, redirectURI string,
-	scopes []string,
-	discoveryIssuer string,
-	allowedAlgs []string,
-	allowPrivateNetwork bool,
-) (*Client, error) {
+// resolvedRelyingParty retains the complete library RP contract while supplying
+// explicit OIDC endpoints and a verifier. IsOAuth2Only must remain false.
+type resolvedRelyingParty struct {
+	rp.RelyingParty
+	resolved ResolvedConfig
+	verifier *rp.IDTokenVerifier
+}
+
+func (r *resolvedRelyingParty) Issuer() string                       { return r.resolved.Issuer }
+func (r *resolvedRelyingParty) IsOAuth2Only() bool                   { return false }
+func (r *resolvedRelyingParty) IsPKCE() bool                         { return r.resolved.PKCEMethod != "off" }
+func (r *resolvedRelyingParty) UserinfoEndpoint() string             { return r.resolved.UserInfoEndpoint }
+func (r *resolvedRelyingParty) IDTokenVerifier() *rp.IDTokenVerifier { return r.verifier }
+
+// NewClient consumes a resolved snapshot; it does not perform discovery.
+func NewClient(_ context.Context, clientID, clientSecret, redirectURI string, resolved ResolvedConfig, allowedAlgs []string, allowPrivateNetwork bool) (*Client, error) {
 	if allowedAlgs == nil {
 		allowedAlgs = DefaultAllowedAlgs()
 	}
 	if len(allowedAlgs) == 0 {
-		return nil, errors.New("federation/oidc: allowedAlgs is empty; pass nil for defaults")
+		return nil, errors.New("federation/oidc: allowedAlgs is empty")
 	}
-
-	rpInst, err := rp.NewRelyingPartyOIDC(
-		ctx,
-		discoveryIssuer,
-		clientID,
-		clientSecret,
-		redirectURI,
-		scopes,
-		// SSRF-hardened, size-capped outbound client for discovery / JWKS /
-		// token-exchange. Without this, zitadel/oidc uses a bare default client
-		// (no internal-IP screen, follows redirects, unbounded body) against the
-		// operator-supplied — and publicly-triggerable — issuer URL. See
-		// httpclient.go (audit follow-up N2 + N3).
-		rp.WithHTTPClient(federationcore.NewOutboundHTTPClient(allowPrivateNetwork, 2<<20)),
-		rp.WithVerifierOpts(
-			rp.WithSupportedSigningAlgorithms(allowedAlgs...),
-			// Thread the per-flow expected nonce through the
-			// verifier via context. Exchange stashes the nonce
-			// under nonceCtxKey before calling CodeExchange.
-			rp.WithNonce(nonceFromCtx),
-		),
-	)
+	style := oauth2.AuthStyleInParams
+	switch resolved.TokenAuthMethod {
+	case "client_secret_basic":
+		style = oauth2.AuthStyleInHeader
+	case "client_secret_post":
+	case "none":
+		if resolved.PKCEMethod != "S256" {
+			return nil, errors.New("federation/oidc: public clients require S256")
+		}
+		clientSecret = ""
+	default:
+		return nil, errors.New("federation/oidc: unresolved token authentication method")
+	}
+	httpClient := federationcore.NewOutboundHTTPClient(allowPrivateNetwork, 2<<20)
+	base, err := rp.NewRelyingPartyOAuth(&oauth2.Config{ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURI, Scopes: append([]string(nil), resolved.Scopes...), Endpoint: oauth2.Endpoint{AuthURL: resolved.AuthorizationEndpoint, TokenURL: resolved.TokenEndpoint}}, rp.WithHTTPClient(httpClient), rp.WithAuthStyle(style))
 	if err != nil {
-		return nil, fmt.Errorf("federation/oidc: discovery failed for %q: %w", discoveryIssuer, err)
+		return nil, err
 	}
-
-	return &Client{
-		rp:            rpInst,
-		issuer:        rpInst.Issuer(),
-		tokenEndpoint: rpInst.OAuthConfig().Endpoint.TokenURL,
-	}, nil
+	verifier := rp.NewIDTokenVerifier(resolved.Issuer, clientID, rp.NewRemoteKeySet(httpClient, resolved.JWKSEndpoint), rp.WithSupportedSigningAlgorithms(allowedAlgs...), rp.WithNonce(nonceFromCtx))
+	configured := &resolvedRelyingParty{RelyingParty: base, resolved: resolved, verifier: verifier}
+	return &Client{rp: configured, issuer: resolved.Issuer, tokenEndpoint: resolved.TokenEndpoint, pkceMethod: resolved.PKCEMethod}, nil
 }
 
 // Issuer returns the issuer URL as it was reported by discovery at
@@ -184,18 +169,13 @@ func (c *Client) TokenEndpoint() string {
 	return c.tokenEndpoint
 }
 
-// AuthURL builds the upstream /authorize URL with PKCE (S256), state,
-// and nonce parameters. The caller is responsible for generating
-// state, nonce, and codeChallenge (the SHA-256 base64url-encoded
-// transform of the verifier) and for persisting the corresponding
-// codeVerifier alongside state in the KV.
-//
-// extra accepts additional oauth2.AuthCodeOption values appended after
-// the base parameters. Callers that pass no extras get identical URLs as
-// before (backward-compatible).
+// AuthURL includes state and nonce in every mode. codeChallenge is the S256
+// digest or plain verifier supplied by the adapter; off omits all PKCE fields.
 func (c *Client) AuthURL(state, nonce, codeChallenge string, extra ...oauth2.AuthCodeOption) string {
 	opts := make([]rp.AuthURLOpt, 0, 2+len(extra))
-	opts = append(opts, rp.WithCodeChallenge(codeChallenge))
+	if c.pkceMethod != "off" {
+		opts = append(opts, authURLOpt(oauth2.SetAuthURLParam("code_challenge", codeChallenge)), authURLOpt(oauth2.SetAuthURLParam("code_challenge_method", c.pkceMethod)))
+	}
 	opts = append(opts, authURLOpt(oauth2.SetAuthURLParam("nonce", nonce)))
 	for _, o := range extra {
 		opts = append(opts, authURLOpt(o))
@@ -241,12 +221,11 @@ func (c *Client) Exchange(
 	// sees the right value for this flow.
 	ctx = context.WithValue(ctx, nonceCtxKey{}, expectedNonce)
 
-	tokens, err := rp.CodeExchange[*oidc.IDTokenClaims](
-		ctx,
-		code,
-		c.rp,
-		rp.WithCodeVerifier(codeVerifier),
-	)
+	var opts []rp.CodeExchangeOpt
+	if c.pkceMethod != "off" {
+		opts = append(opts, rp.WithCodeVerifier(codeVerifier))
+	}
+	tokens, err := rp.CodeExchange[*oidc.IDTokenClaims](ctx, code, c.rp, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("federation/oidc: code exchange: %w", err)
 	}
@@ -407,6 +386,9 @@ func UserInfoToRaw(info *oidc.UserInfo) map[string]any {
 // the library rejects a UserInfo response whose sub does not match.
 // Errors are returned for the caller to treat as non-fatal.
 func (c *Client) UserInfo(ctx context.Context, accessToken, subject string) (map[string]any, error) {
+	if c.rp.UserinfoEndpoint() == "" {
+		return nil, nil
+	}
 	info, err := rp.Userinfo[*oidc.UserInfo](ctx, accessToken, oidc.BearerToken, subject, c.rp)
 	if err != nil {
 		return nil, fmt.Errorf("federation/oidc: userinfo: %w", err)

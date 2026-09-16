@@ -71,8 +71,8 @@ type fakeFedQueries struct {
 	idpSlugErr error
 
 	// account_identity (auto-provision: ErrNoRows on first lookup)
-	identityResult db.AccountIdentity
-	identityErr    error
+	identityResult      db.AccountIdentity
+	identityErr         error
 	identityLookupCalls int
 
 	// account
@@ -313,6 +313,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		t.Fatalf("EncryptClientSecret: %v", err)
 	}
 	providerConfig, err := json.Marshal(federationoidc.Config{
+		ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256",
 		IssuerURL: opTS.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"},
 		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
 		EmailClaim: "email", PictureClaim: "picture", RequireVerifiedEmail: true,

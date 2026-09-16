@@ -21,6 +21,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 const OIDC_CONFIG = {
+  configurationMode: 'discovery', endpoints: { authorization: null, token: null, userinfo: null, jwks: null }, tokenAuthMethod: 'discovery', pkceMethod: 'S256',
   issuerUrl: 'https://okta/',
   clientId: 'c1',
   scopes: ['openid'],
@@ -41,6 +42,42 @@ beforeEach(() => {
 })
 
 describe('AdminUpstreamIdpsView', () => {
+  it('requires manual endpoints and keeps drafts when switching modes', async () => {
+    get.mockResolvedValue({ items: [], nextCursor: '' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    await w.find('[data-test="radio-card-manual"]').trigger('click')
+    await w.find('[data-test="radio-card-client_secret_post"]').trigger('click')
+    await w.find('input[name="clientSecret"]').setValue('secret')
+    await w.find('input[name="endpoint-token"]').setValue('https://idp.example/token')
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+    expect(w.text()).toContain(en.admin.upstream.manualRequired)
+    await w.findAll('[data-test="radio-card-discovery"]')[0].trigger('click')
+    expect((w.find('input[name="endpoint-token"]').element as HTMLInputElement).value).toBe('https://idp.example/token')
+    await w.find('[data-test="radio-card-manual"]').trigger('click')
+    expect((w.find('input[name="endpoint-token"]').element as HTMLInputElement).value).toBe('https://idp.example/token')
+    w.unmount()
+  })
+  it('creates a public manual provider without a secret and forces S256', async () => {
+    get.mockResolvedValue({ items: [], nextCursor: '' })
+    post.mockResolvedValue({ slug: 'public', protocol: 'oidc' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    await w.find('input[name="slug"]').setValue('public')
+    await w.find('input[name="displayName"]').setValue('Public')
+    await w.find('input[name="issuerUrl"]').setValue('https://idp.example')
+    await w.find('input[name="clientId"]').setValue('public-client')
+    await w.find('[data-test="radio-card-manual"]').trigger('click')
+    await w.find('[data-test="radio-card-plain"]').trigger('click')
+    await w.find('[data-test="radio-card-none"]').trigger('click')
+    expect(w.find('input[name="clientSecret"]').exists()).toBe(false)
+    expect(w.find('[data-test="radio-card-plain"]').exists()).toBe(false)
+    for (const endpoint of ['authorization', 'token', 'jwks']) await w.find(`input[name="endpoint-${endpoint}"]`).setValue(`https://idp.example/${endpoint}`)
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({ secret: '', config: expect.objectContaining({ configurationMode: 'manual', tokenAuthMethod: 'none', pkceMethod: 'S256', endpoints: { authorization: 'https://idp.example/authorization', token: 'https://idp.example/token', jwks: 'https://idp.example/jwks', userinfo: null } }) }))
+    w.unmount()
+  })
   it('lists providers with mode + state', async () => {
     get.mockResolvedValue({ items: IDPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
@@ -85,6 +122,7 @@ describe('AdminUpstreamIdpsView', () => {
       protocol: 'oidc',
       mode: 'link_only',
       config: {
+        configurationMode: 'discovery', endpoints: { authorization: null, token: null, userinfo: null, jwks: null }, tokenAuthMethod: 'discovery', pkceMethod: 'S256',
         issuerUrl: 'https://new/',
         clientId: 'cid',
         scopes: ['openid', 'profile', 'email'],

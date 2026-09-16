@@ -22,7 +22,7 @@ import (
 )
 
 const exactOIDCConfig = `{
-  "issuerUrl":"https://issuer.example",
+  "configurationMode":"discovery","tokenAuthMethod":"discovery","pkceMethod":"S256","endpoints":{"authorization":null,"token":null,"userinfo":null,"jwks":null},"issuerUrl":"https://issuer.example",
   "clientId":"client-id",
   "scopes":["openid","profile","email"],
   "allowedDomains":[],
@@ -33,6 +33,40 @@ const exactOIDCConfig = `{
   "requireVerifiedEmail":true,
   "allowPrivateNetwork":false
 }`
+
+func TestPublicOIDCCredentialsAndModeSwitch(t *testing.T) {
+	s := newProviderAdminTestServer(t)
+	public := json.RawMessage(strings.Replace(exactOIDCConfig, `"tokenAuthMethod":"discovery"`, `"tokenAuthMethod":"none"`, 1))
+	body := providerWriteBody{Slug: "public", DisplayName: "Public", Protocol: "oidc", Mode: federation.ModeAutoProvision, Config: public}
+	definition, err := s.validateProviderWrite(body, nil, true)
+	if err != nil {
+		t.Fatalf("public create without secret: %v", err)
+	}
+	if !definition.Ready(federation.Provider{Protocol: "oidc", Config: public}) {
+		t.Fatal("public provider without secret not ready")
+	}
+	if err := definition.ValidateSecret(public, []byte("stored for later")); err != nil {
+		t.Fatalf("public rotation: %v", err)
+	}
+	body.Config = []byte(exactOIDCConfig)
+	if _, err := s.validateProviderWrite(body, nil, true); err == nil {
+		t.Fatal("confidential create without secret accepted")
+	}
+	existing := db.UpstreamIdp{Slug: "public", Protocol: "oidc", ProviderConfig: public, SecretStatus: "unconfigured", Disabled: false}
+	if _, err := s.validateProviderWrite(body, &existing, false); err == nil {
+		t.Fatal("active public changed to confidential without secret")
+	}
+	existing = readyOIDCRow("configured")
+	existing.Disabled = false
+	existing.Slug = "public"
+	if _, err := s.validateProviderWrite(body, &existing, false); err != nil {
+		t.Fatalf("stored secret not reusable: %v", err)
+	}
+	body.Config = public
+	if _, err := s.validateProviderWrite(body, &existing, false); err != nil {
+		t.Fatalf("confidential to public: %v", err)
+	}
+}
 
 func newProviderAdminTestServer(t *testing.T) *Server {
 	t.Helper()
@@ -166,7 +200,7 @@ func TestValidateProviderWrite(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "valid OIDC", body: validOIDC},
-		{name: "invalid OIDC config", body: providerWriteBody{Slug: "corp", DisplayName: "Corporate", Protocol: "oidc", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{"issuerUrl":"http://127.0.0.1"}`), Secret: "secret"}, wantErr: true},
+		{name: "invalid OIDC config", body: providerWriteBody{Slug: "corp", DisplayName: "Corporate", Protocol: "oidc", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{"configurationMode":"discovery","tokenAuthMethod":"discovery","pkceMethod":"S256","endpoints":{"authorization":null,"token":null,"userinfo":null,"jwks":null},"issuerUrl":"http://127.0.0.1"}`), Secret: "secret"}, wantErr: true},
 		{name: "Steam exact empty config", body: providerWriteBody{Slug: "steam", DisplayName: "Steam", Protocol: "steam", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{}`), Secret: "api-key"}},
 		{name: "Steam rejects non-empty config", body: providerWriteBody{Slug: "steam", DisplayName: "Steam", Protocol: "steam", Mode: federation.ModeAutoProvision, Config: json.RawMessage(`{"unexpected":true}`), Secret: "api-key"}, wantErr: true},
 		{name: "VRChat exact empty config", body: providerWriteBody{Slug: "vrchat", DisplayName: "VRChat", Protocol: "vrchat", Mode: federation.ModeLinkOnly, Config: json.RawMessage(`{}`)}},

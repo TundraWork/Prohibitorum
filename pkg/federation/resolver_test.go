@@ -275,17 +275,22 @@ func idpConfig(allowedDomains []string, usernameClaim, displayNameClaim, emailCl
 		emailClaim = "email"
 	}
 	raw, _ := json.Marshal(struct {
-		IssuerURL            string   `json:"issuerUrl"`
-		ClientID             string   `json:"clientId"`
-		Scopes               []string `json:"scopes"`
-		AllowedDomains       []string `json:"allowedDomains"`
-		UsernameClaim        string   `json:"usernameClaim"`
-		DisplayNameClaim     string   `json:"displayNameClaim"`
-		EmailClaim           string   `json:"emailClaim"`
-		PictureClaim         string   `json:"pictureClaim"`
-		RequireVerifiedEmail bool     `json:"requireVerifiedEmail"`
-		AllowPrivateNetwork  bool     `json:"allowPrivateNetwork"`
+		ConfigurationMode    string         `json:"configurationMode"`
+		TokenAuthMethod      string         `json:"tokenAuthMethod"`
+		PKCEMethod           string         `json:"pkceMethod"`
+		Endpoints            map[string]any `json:"endpoints"`
+		IssuerURL            string         `json:"issuerUrl"`
+		ClientID             string         `json:"clientId"`
+		Scopes               []string       `json:"scopes"`
+		AllowedDomains       []string       `json:"allowedDomains"`
+		UsernameClaim        string         `json:"usernameClaim"`
+		DisplayNameClaim     string         `json:"displayNameClaim"`
+		EmailClaim           string         `json:"emailClaim"`
+		PictureClaim         string         `json:"pictureClaim"`
+		RequireVerifiedEmail bool           `json:"requireVerifiedEmail"`
+		AllowPrivateNetwork  bool           `json:"allowPrivateNetwork"`
 	}{
+		ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256", Endpoints: map[string]any{"authorization": nil, "token": nil, "userinfo": nil, "jwks": nil},
 		IssuerURL: "https://issuer.example/", ClientID: "client", Scopes: []string{"openid"},
 		AllowedDomains: allowedDomains, UsernameClaim: usernameClaim, DisplayNameClaim: displayNameClaim,
 		EmailClaim: emailClaim, PictureClaim: "picture", RequireVerifiedEmail: true,

@@ -2,6 +2,8 @@
 /** AdminUpstreamIdpDetailView (/admin/identity-providers/:slug) — edit, rotate secret, delete. */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import OIDCConnectionFields from '@/components/custom/OIDCConnectionFields.vue'
+import { defaultOIDCConnection, oidcConnectionError } from '@/lib/oidcProviderConfig'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
@@ -46,6 +48,8 @@ const slug = String(route.params.slug)
 const idp = ref<IdentityProvider | null>(null)
 const notFound = ref(false)
 
+const connection = ref(defaultOIDCConnection())
+const connectionValidation = ref<string | null>(null)
 const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
 const mode = ref<ProviderMode>('auto_provision'); const scopes = ref<string[]>([]); const allowedDomains = ref<string[]>([])
 const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClaim = ref(''); const pictureClaim = ref('')
@@ -184,6 +188,7 @@ async function load(): Promise<void> {
   operatorSetupActive.value = i.protocol === 'vrchat' && i.secretStatus !== 'valid'
   if (i.protocol === 'oidc') {
     const config = i.config as unknown as OIDCProviderConfig
+    connection.value = { configurationMode: config.configurationMode, endpoints: { ...config.endpoints }, tokenAuthMethod: config.tokenAuthMethod, pkceMethod: config.pkceMethod }
     issuerUrl.value = config.issuerUrl
     clientId.value = config.clientId
     scopes.value = [...config.scopes]
@@ -209,8 +214,12 @@ async function load(): Promise<void> {
 }
 
 async function save(): Promise<void> {
+  connectionValidation.value = isOIDC.value ? oidcConnectionError(connection.value) : null
+  if (isOIDC.value && connection.value.tokenAuthMethod !== 'none' && !idp.value?.secretConfigured) connectionValidation.value = 'admin.upstream.secretRequired'
+  if (connectionValidation.value) return
   const config: OIDCProviderConfig | Record<string, never> = isOIDC.value
     ? {
+        ...connection.value,
         issuerUrl: issuerUrl.value,
         clientId: clientId.value,
         scopes: scopes.value,
@@ -236,7 +245,10 @@ async function rotate(): Promise<void> {
     await api.post('/api/prohibitorum/identity-providers/rotate-secret', { slug, secret: newSecret.value })
     return true as const
   }, t('sudo.reason.rotateSecret')))
-  if (ok) { triggerRotated(); newSecret.value = '' }
+  if (ok) {
+    triggerRotated(); newSecret.value = ''
+    if (idp.value) idp.value = { ...idp.value, secretConfigured: true, secretStatus: 'configured' }
+  }
 }
 function clearOperatorChallenge(): void {
   operatorChallenge.value = null
@@ -433,6 +445,7 @@ onMounted(load)
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
     <BackLink to="/admin/identity-providers" :label="t('admin.upstream.back')" />
+    <p v-if="connectionValidation" role="alert" class="text-sm text-destructive">{{ t(connectionValidation) }}</p>
     <ErrorPanel v-if="error && !notFound" :error="error" @dismiss="clear" :is-admin="true" />
     <p v-if="notFound" class="text-sm text-muted" role="status">{{ t('admin.upstream.notFound') }}</p>
 
@@ -459,6 +472,7 @@ onMounted(load)
               <Input id="displayName" name="displayName" v-model="displayName" autocomplete="off" />
             </div>
             <template v-if="isOIDC">
+              <OIDCConnectionFields v-model="connection" />
               <div class="flex flex-col gap-1.5">
                 <Label for="issuerUrl">{{ t('admin.upstream.issuerUrl') }}</Label>
                 <Input id="issuerUrl" name="issuerUrl" v-model="issuerUrl" autocomplete="off" />
@@ -682,6 +696,7 @@ onMounted(load)
           </div>
 
           <template v-if="isOIDC || isSteam">
+            <p v-if="isOIDC && idp?.config.tokenAuthMethod === 'none' && idp?.secretConfigured" class="text-sm text-muted" data-test="stored-secret-unused">{{ t('admin.upstream.storedSecretUnused') }}</p>
             <Separator />
             <div class="flex flex-col gap-2">
               <SectionTitle as="h3">{{ isSteam ? t('admin.upstream.rotateTitleSteam') : t('admin.upstream.rotateTitle') }}</SectionTitle>

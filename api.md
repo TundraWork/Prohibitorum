@@ -240,7 +240,7 @@ The cutover deletes legacy global-group membership and direct application-access
 | GET | `/api/prohibitorum/identity-providers/{slug}` | 🔓 | Get one provider. Same no-secret guarantee. |
 | POST | `/api/prohibitorum/identity-providers` | 🔐 | Create a provider with `protocol` (`oidc`, `steam`, or `vrchat`), provider-specific `config`, optional sealed material, and a mode. VRChat accepts only fixed `link_only`; OIDC/Steam retain their supported modes. |
 | PUT | `/api/prohibitorum/identity-providers/{slug}` | 🔐 | Replace mutable display name, mode, and provider-specific config without replacing sealed material. A VRChat update must remain `link_only`. |
-| POST | `/api/prohibitorum/identity-providers/rotate-secret` | 🔐 | Replace and seal OIDC/Steam secret material. |
+| POST | `/api/prohibitorum/identity-providers/rotate-secret` | 🔐 | Replace and seal OIDC/Steam secret material, including a secret stored for later use by a public OIDC client. |
 | POST | `/api/prohibitorum/identity-providers/set-disabled` | 🔓 | Reversibly hide a provider from sign-in and block all new flows. |
 | POST | `/api/prohibitorum/identity-providers/delete` | 🔐 | Hard-delete a provider and its linked `account_identity` rows. |
 | POST | `/api/prohibitorum/identity-providers/{slug}/operator-session/start` | 🔐 | VRChat only. Transient Basic-auth login; returns a bounded 2FA challenge when required. Credentials are not retained. |
@@ -408,3 +408,18 @@ remain authoritative). Reading the status does not extend that window.
 uses `fresh` before redirecting to identity linking, so it skips the modal while
 a grant is still valid. Every protected endpoint continues to check the grant
 server-side; the status response is not a credential and is not cached as one.
+
+### Upstream OIDC endpoint configuration
+
+OIDC provider config requires the existing issuer/client/scopes/claim and network settings, plus:
+
+| Field | Values and behavior |
+|---|---|
+| configurationMode | discovery reads issuer metadata; manual never requests discovery. |
+| endpoints | Object with authorization, token, userinfo and jwks, each an absolute URL or null. In discovery mode null uses metadata and a URL overrides it. Manual requires authorization/token/jwks; null userinfo skips that request. Empty strings are rejected. |
+| tokenAuthMethod | discovery, client_secret_basic, client_secret_post or none. discovery is only valid with discovery mode; it selects basic before post, defaults to basic when metadata omits supported methods, and rejects unsupported-only metadata. |
+| pkceMethod | S256, plain or off. Public clients (none) require S256. Off omits the challenge, method and verifier; nonce and state remain. |
+
+Public clients can be created without a secret. A stored secret is retained when switching to none, but is neither decrypted nor sent. Rotation can store a secret before switching back to a confidential method. An enabled confidential provider requires a configured secret. Secret material is never returned by reads. Invalid, unknown or duplicate config fields are rejected with bad_request.
+
+Migration 038 fills existing OIDC configs with discovery mode, null endpoint overrides, discovery authentication and S256. **Authentication no longer retries with another method after a token endpoint failure.** Providers with inaccurate metadata must explicitly select basic or post. Login flows retain their resolved endpoint snapshot; changing provider configuration or rotating the secret rejects older flows before exchanging their codes.

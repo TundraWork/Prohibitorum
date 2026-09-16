@@ -152,10 +152,13 @@ func (s *Server) validateProviderWrite(body providerWriteBody, existing *db.Upst
 		return nil, authn.ErrBadRequest()
 	}
 	if creating {
-		if definition.Descriptor().RequiresSecret && body.Secret == "" {
+		if err := definition.ValidateSecret(body.Config, []byte(body.Secret)); err != nil {
 			return nil, authn.ErrBadRequest()
 		}
-		if err := definition.ValidateSecret([]byte(body.Secret)); err != nil {
+	} else if protocol == "oidc" && !existing.Disabled {
+		candidate := providerFromDB(*existing)
+		candidate.Config = body.Config
+		if !definition.Ready(candidate) {
 			return nil, authn.ErrBadRequest()
 		}
 	}
@@ -460,7 +463,7 @@ func (s *Server) handleRotateIdentityProviderSecretHTTP(w http.ResponseWriter, r
 		return
 	}
 	definition, err := s.federationRegistry.Definition(row.Protocol)
-	if err != nil || definition.ValidateSecret([]byte(body.Secret)) != nil {
+	if err != nil || definition.ValidateSecret(row.ProviderConfig, []byte(body.Secret)) != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}

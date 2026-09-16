@@ -15,7 +15,7 @@ type fakeDefinition struct {
 func (d fakeDefinition) Protocol() string                       { return d.protocol }
 func (d fakeDefinition) Descriptor() Descriptor                { return d.descriptor }
 func (d fakeDefinition) ValidateConfig(json.RawMessage) error  { return nil }
-func (d fakeDefinition) ValidateSecret([]byte) error            { return nil }
+func (d fakeDefinition) ValidateSecret(json.RawMessage, []byte) error            { return nil }
 func (d fakeDefinition) Ready(Provider) bool                    { return true }
 
 type fakeAdapter struct{ protocol string }

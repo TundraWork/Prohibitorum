@@ -907,6 +907,7 @@ func upstreamCLIConfig(
 			pictureClaim = "picture"
 		}
 		raw, err := json.Marshal(federationoidc.Config{
+			ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256",
 			IssuerURL: issuerURL, ClientID: clientID, Scopes: scopes, AllowedDomains: allowedDomains,
 			UsernameClaim: usernameClaim, DisplayNameClaim: displayNameClaim, EmailClaim: emailClaim,
 			PictureClaim: pictureClaim, RequireVerifiedEmail: requireVerifiedEmail,
@@ -977,7 +978,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			if err != nil {
 				log.Fatalf("upstream-idp create: config: %v", err)
 			}
-			if err := definition.ValidateSecret([]byte(uClientSecret)); err != nil {
+			if err := definition.ValidateSecret(configRaw, []byte(uClientSecret)); err != nil {
 				log.Fatalf("upstream-idp create: secret: %v", err)
 			}
 			keyVer, dek := mustCurrentDEK()
@@ -1140,7 +1141,7 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 			if err != nil {
 				log.Fatalf("upstream-idp rotate-secret: protocol: %v", err)
 			}
-			if err := definition.ValidateSecret([]byte(rSecret)); err != nil {
+			if err := definition.ValidateSecret(row.ProviderConfig, []byte(rSecret)); err != nil {
 				log.Fatalf("upstream-idp rotate-secret: secret: %v", err)
 			}
 			sealed, err := federation.SealProviderSecret(dek, []byte(rSecret), row.ID, keyVer)

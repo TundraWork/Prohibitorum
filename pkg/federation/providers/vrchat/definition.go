@@ -38,7 +38,7 @@ func (Definition) ValidateConfig(raw json.RawMessage) error {
 	return nil
 }
 
-func (Definition) ValidateSecret(secret []byte) error {
+func (Definition) ValidateSecret(_ json.RawMessage, secret []byte) error {
 	if len(secret) != 0 {
 		return errors.New("federation/vrchat: generic secret input is not supported")
 	}
