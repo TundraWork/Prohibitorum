@@ -27,3 +27,4 @@
 # Editor-local config (may contain absolute $HOME paths — keep out of history)
 /.vscode/
 /pkg/webui/dist
+!pkg/webui/dist/.gitkeep

@@ -115,6 +115,7 @@ run = "mise run ci:go && mise run ci:frontend"
 
 [tasks."ci:go"]
 hide = true
+depends = ["build:web"]
 description = "CI (internal): Go vet + build (-tags nodynamic) + full test suite."
 run = """
 set -e
@@ -133,11 +134,6 @@ npm ci
 npm test
 npm run build
 cd ..
-if ! git diff --quiet -- pkg/webui/dist; then
-  echo 'ERROR: pkg/webui/dist is stale — run `mise run prod:build` and commit the rebuilt bundle.' >&2
-  git --no-pager diff --stat -- pkg/webui/dist >&2
-  exit 1
-fi
 """
 
 [tasks."ci:smoke"]
