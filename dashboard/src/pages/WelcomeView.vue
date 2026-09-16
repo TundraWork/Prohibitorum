@@ -69,7 +69,21 @@ async function confirm(): Promise<void> {
   busy.value = true
   confirmError.value = ''
   try {
-    const res = await api.post<{ redirect: string }>('/api/prohibitorum/auth/federation/confirm', {})
+    const res = await api.post<{ redirect: string; offerLocalSignin?: boolean }>(
+      '/api/prohibitorum/auth/federation/confirm',
+      {},
+    )
+    // An invite+provider account has no local credentials yet: the confirm
+    // response offers the one-time "add local sign-in" step, which later
+    // lands on the same redirect target. Direct navigation keeps the fresh
+    // session cookie flowing to the next page.
+    if (res.offerLocalSignin) {
+      const target = res.redirect || '/'
+      window.location.assign(
+        `/setup-signin?redirect=${encodeURIComponent(target)}`,
+      )
+      return
+    }
     window.location.assign(res.redirect || '/')
   } catch {
     busy.value = false

@@ -90,6 +90,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true, titleKey: 'title.welcome' },
   },
   {
+    path: '/setup-signin',
+    name: 'setup-signin',
+    component: () => import('../pages/SetupLocalSigninView.vue'),
+    meta: { public: true, titleKey: 'title.setupSignin' },
+  },
+  {
     path: '/maintenance',
     name: 'maintenance',
     component: () => import('../pages/MaintenanceView.vue'),
