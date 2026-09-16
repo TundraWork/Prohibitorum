@@ -50,7 +50,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build SPA (go:embed bundle)
-        run: mise run build:web
+        # --force skips the sources/outputs gate: the image must ship a SPA
+        # built from this checkout, never a stale/placeholder dist/ (PHB-37).
+        run: mise run --force build:web
       - name: Build + push multi-arch image (ko)
         env:
           # run-number prefix keeps tags monotonically sortable — the demo's

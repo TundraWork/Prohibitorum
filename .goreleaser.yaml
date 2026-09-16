@@ -11,7 +11,9 @@ before:
   hooks:
     # Build the dashboard into pkg/webui/dist so the Go build embeds a fresh
     # bundle (the binary serves the SPA via go:embed).
-    - mise run build:web
+    # --force skips the sources/outputs gate: a release must rebuild the SPA
+    # from source, never trust a dist/ that happens to be present (PHB-37).
+    - mise run --force build:web
 
 builds:
   - id: prohibitorum

@@ -260,7 +260,7 @@ sources = [
   "dashboard/tsconfig.node.json",
   "dashboard/components.json",
 ]
-outputs = ["pkg/webui/dist/**/*"]
+outputs = ["pkg/webui/dist/index.html", "pkg/webui/dist/assets/**/*"]
 run = """
 set -e
 cd dashboard
