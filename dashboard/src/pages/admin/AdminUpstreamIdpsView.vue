@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import SecretInput from '@/components/custom/SecretInput.vue'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
@@ -211,7 +212,7 @@ async function create(): Promise<void> {
             </div>
             <div v-if="connection.tokenAuthMethod !== 'none'" class="flex flex-col gap-1.5">
               <Label for="clientSecret">{{ t('admin.upstream.clientSecret') }}</Label>
-              <Input id="clientSecret" name="clientSecret" type="password" v-model="clientSecret" autocomplete="off" />
+              <SecretInput id="clientSecret" name="clientSecret" v-model="clientSecret" />
             </div>
             <div class="flex flex-col gap-1.5">
               <Label for="scopes">{{ t('admin.upstream.scopes') }}</Label>
@@ -222,7 +223,7 @@ async function create(): Promise<void> {
           <template v-if="protocol === 'steam'">
             <div class="flex flex-col gap-1.5">
               <Label for="apiKey">{{ t('admin.upstream.steamApiKey') }}</Label>
-              <Input id="apiKey" name="apiKey" type="password" v-model="apiKey" autocomplete="off" />
+              <SecretInput id="apiKey" name="apiKey" v-model="apiKey" />
               <p class="text-xs text-muted">{{ t('admin.upstream.steamApiKeyDesc') }}</p>
             </div>
           </template>

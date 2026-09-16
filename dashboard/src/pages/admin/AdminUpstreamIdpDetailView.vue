@@ -21,6 +21,7 @@ import { formatDateTime } from '@/lib/time'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import SecretInput from '@/components/custom/SecretInput.vue'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
@@ -724,7 +725,7 @@ usePrivateState(() => { newSecret.value = ''; operatorUsername.value = ''; opera
               <p class="text-xs text-muted">{{ isSteam ? t('admin.upstream.rotateBodySteam') : t('admin.upstream.rotateBody') }}</p>
               <div class="flex flex-col gap-1.5">
                 <Label for="newSecret">{{ isSteam ? t('admin.upstream.steamApiKey') : t('admin.upstream.clientSecret') }}</Label>
-                <Input id="newSecret" name="newSecret" type="password" v-model="newSecret" autocomplete="off" />
+                <SecretInput id="newSecret" name="newSecret" v-model="newSecret" />
               </div>
               <StatusMessage :show="rotated">{{ t('admin.upstream.rotated') }}</StatusMessage>
               <Button type="button" variant="outline" class="w-fit" :disabled="busy || !newSecret" data-test="rotate" @click="rotate">{{ isSteam ? t('admin.upstream.rotateConfirmSteam') : t('admin.upstream.rotateConfirm') }}</Button>
