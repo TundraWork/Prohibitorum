@@ -33,7 +33,7 @@ func (s fakeProviderLoader) ByBinding(_ context.Context, id int64, slug, protoco
 	return s.provider, nil
 }
 
-func (s fakeProviderLoader) InviteProvider(context.Context, string) (Provider, error) {
+func (s fakeProviderLoader) InviteProvider(context.Context, string, string) (Provider, error) {
 	return s.provider, s.inviteErr
 }
 
@@ -639,7 +639,7 @@ func TestServiceBeginStoresExactBindings(t *testing.T) {
 		{
 			name: "invite", intent: IntentInvite, returnTo: "/welcome",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginInvite(context.Background(), "invite-token", "/welcome")
+				return service.BeginInvite(context.Background(), "invite-token", "", "/welcome")
 			},
 			enrollment: "invite-token",
 		},
@@ -822,7 +822,7 @@ func TestServiceCandidateUsernameRequirementMatrix(t *testing.T) {
 		{
 			name: "invite", known: false,
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginInvite(context.Background(), "invite-token", "/")
+				return service.BeginInvite(context.Background(), "invite-token", "", "/")
 			},
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{
@@ -1316,7 +1316,7 @@ func TestServiceAuditsAllowlistedAdapterFailuresForEveryIntent(t *testing.T) {
 		{
 			name: "invite",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginInvite(context.Background(), "invite-token", "/")
+				return service.BeginInvite(context.Background(), "invite-token", "", "/")
 			},
 			request: func(begin *BeginResult) AdvanceRequest {
 				return AdvanceRequest{FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake", CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect}}
@@ -1386,7 +1386,7 @@ func TestServiceAuditsInviteStartFailureWithoutLeakingDetails(t *testing.T) {
 	writer := &serviceRecordingAudit{}
 	service.audit = writer
 
-	_, err := service.BeginInvite(context.Background(), "secret-invite", "/")
+	_, err := service.BeginInvite(context.Background(), "secret-invite", "", "/")
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("public error = %v, want invite_required", err)
 	}
@@ -1460,7 +1460,7 @@ func TestServiceEnforcesCallbackRouteIntent(t *testing.T) {
 		{
 			name: "invite state on link route",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginInvite(context.Background(), "invite-token", "/")
+				return service.BeginInvite(context.Background(), "invite-token", "", "/")
 			},
 			route: CallbackRouteLink, accountID: new(int32(9)), sessionID: "session-1",
 			wantAccountID: new(int32(9)),
@@ -1533,7 +1533,7 @@ func TestServicePublicCallbackAcceptsLoginAndInvite(t *testing.T) {
 		{
 			name: "invite",
 			begin: func(service *Service) (*BeginResult, error) {
-				return service.BeginInvite(context.Background(), "invite-token", "/")
+				return service.BeginInvite(context.Background(), "invite-token", "", "/")
 			},
 		},
 	}

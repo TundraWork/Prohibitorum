@@ -639,68 +639,75 @@ curl -i 'http://localhost:8080/api/prohibitorum/auth/federation/google/login?ret
 # → 401 { "code": "federation_state_invalid" }
 ```
 
-### Invite redemption (`invite_only` mode)
+### Invite redemption (federated invites)
 
-`invite_only` IdPs reject the public `/auth/federation/{slug}/login` entrypoint. Instead, an admin mints a per-user invite bound to a specific IdP, and the user redeems it via a dedicated public endpoint that stashes the invite token in federation state so the callback provisions the account atomically.
+An admin mints a per-user invite, optionally bound to a specific IdP, and the invitee redeems it via a dedicated public endpoint that stashes the invite token in federation state so the callback provisions the account atomically. The username and display name come from the upstream claims (same as `auto_provision`); the invite template only carries role + attributes.
 
 ```bash
 # 1. Admin creates an invite-intent enrollment for the user (via the admin
 #    dashboard's Invitations screen or the /admin/enrollments/* API).
-#    Required fields:
+#    Fields:
 #      intent='invite'
-#      template_username='alice'
-#      template_display_name='Alice Example'
 #      template_role='user'
-#      expected_upstream_idp_slug='google'    -- binds to a specific IdP
+#      expected_upstream_idp_slug='google'    -- optional; binds to a specific IdP
 #      expires_at = now() + interval '7 days' -- short-lived bearer
 #
 # 2. Admin shares the invite URL with the prospective user. The URL is
 #    a bearer capability — anyone who holds it can redeem it, exactly
 #    once, before it expires.
-https://idp.example.com/api/prohibitorum/enrollments/<token>/start-federation
+https://idp.example.com/enroll/<token>
+#
+#    The enroll page lists the providers the invite may be redeemed with
+#    (bound slug only, or every enabled auto_provision/invite_only IdP) and
+#    also offers local credentials (passkey / password+TOTP) when the invite
+#    is not provider-bound.
 
-# 3. User clicks the URL:
-curl -i "https://idp.example.com/api/prohibitorum/enrollments/<token>/start-federation?return_to=/me"
+# 3. User picks a provider; the page redirects to
+#    /api/prohibitorum/enrollments/<token>/start-federation?provider=<slug>
+curl -i "https://idp.example.com/api/prohibitorum/enrollments/<token>/start-federation?provider=google"
 # 302 Found
 # Referrer-Policy: no-referrer
 # Location: https://accounts.google.com/o/oauth2/v2/auth?...
 #
 # The Referrer-Policy header keeps the invite token out of the
 # upstream's referrer log (defense in depth — the token is also
-# short-TTL and single-use by atomic ConsumeEnrollment).
+# short-TTL and single-use by atomic ConsumeInviteEnrollment).
 
 # 4. After Google sign-in completes, callback to:
 #    /api/prohibitorum/auth/federation/google/callback?code=...&state=...&iss=...
-#    The callback notices the EnrollmentToken on FedState and dispatches
-#    applyInviteOnly inside a single pgx transaction:
-#      ConsumeEnrollment(token)            -- atomic UPDATE ... WHERE consumed_at IS NULL
-#      InsertAccount(template username/role/etc.)
-#      InsertAccountIdentity(account_id, upstream_iss, upstream_sub)
+#    The callback notices the EnrollmentToken on FedState and provisions
+#    the account inside a single pgx transaction:
+#      ConsumeInviteEnrollment(token)      -- atomic UPDATE ... WHERE intent='invite'
+#                                            AND consumed_at IS NULL
+#      InsertAccount(username/display_name from upstream claims,
+#                    role/attributes from the template)
+#      InsertAccountIdentity(account_id, upstream_iss, upstream_sub) -- unconfirmed
 #      audit Register/Use (tx-scoped Writer)
-#    → 302 to /me + session cookie set.
+#    → 302 to /welcome (no session yet — the identity stays unconfirmed).
 #
-#    After commit: enrollment.consumed_at IS NOT NULL; account 'alice'
-#    with role 'user' exists; account_identity links it to the upstream
-#    (iss, sub).
+#    After commit: enrollment.consumed_at IS NOT NULL; a new account exists
+#    whose username matches the upstream claim; account_identity links it to
+#    the upstream (iss, sub) pending confirmation on /welcome.
 ```
 
 Failure modes (each returns `403 invite_required` with no upstream hop — the federator collapses every "invite not redeemable" branch onto one opaque code so an attacker can't enumerate state):
 
 ```bash
 # Token is unknown / consumed / expired / wrong-intent / non-federated
-# (intent=invite but no expected_upstream_idp_slug):
-curl -i "https://idp.example.com/api/prohibitorum/enrollments/already-redeemed-token/start-federation?return_to=/me"
+# (intent=invite, no provider given, and no expected_upstream_idp_slug):
+curl -i "https://idp.example.com/api/prohibitorum/enrollments/already-redeemed-token/start-federation?provider=google"
 # 403 { "code": "invite_required" }
 ```
 
-Mid-flight rejections (after the upstream round-trip) collapse onto the same code but audit with distinct `reason:` fields (`invite_consumed_or_expired`, `invite_slug_mismatch`, `username_collision`) for operators to query.
+Mid-flight rejections (after the upstream round-trip) collapse onto the same code but audit with distinct `reason:` fields (`invite_consumed_or_expired`, `invite_slug_mismatch`, `username_collision`) for operators to query. A failed redemption rolls the transaction back, so the invite stays redeemable once the underlying problem is fixed.
 
 Notes:
 
-- `applyInviteOnly` skips `RequireVerifiedEmail` + `AllowedDomains` by design — the admin minting the invite for this user IS the authorization decision.
-- The invite template overrides upstream claims for `account.username`, `display_name`, and `role`. Upstream `preferred_username` is ignored on this path; upstream `email` is still recorded on the `account_identity` row for the audit trail.
-- `expected_upstream_idp_slug` is required for federated invites. An `intent='invite'` enrollment without it belongs to the WebAuthn enrollment flow, and `/start-federation` rejects it as `invite_not_federated`.
-- Conversely, a federation-bound invite (i.e. `expected_upstream_idp_slug` set) CANNOT be redeemed via the WebAuthn enrollment path: both `/enrollments/{token}/register/begin` and `/register/complete` reject with `403 enrollment_federation_required`, forcing the invitee through `/start-federation`.
+- The provisioning path skips `RequireVerifiedEmail` + `AllowedDomains` by design — the admin minting the invite for this user IS the authorization decision.
+- `account.username` and `display_name` come from the upstream `username_claim`/display-name claims. A missing claim surfaces as a server error (provider misconfiguration); an invalid or already-taken username shows the `invalid_username`/`username_collision` error page with the invite still intact — an admin must resolve the cause.
+- A provider-bound invite must be redeemed through that provider. A provider-less invite lets the invitee choose any enabled `auto_provision` or `invite_only` IdP; `link_only` IdPs never create accounts and are rejected (`link_only_provision_denied`).
+- `expected_upstream_idp_slug` is optional. An `intent='invite'` enrollment without it can also be redeemed through the local-credential enrollment flow, and `/start-federation` without `provider` rejects it as `invite_not_federated`.
+- Conversely, a provider-bound invite (i.e. `expected_upstream_idp_slug` set) CANNOT be redeemed via the local-credential enrollment path: both `/enrollments/{token}/register/begin` and `/register/complete` reject with `403 enrollment_federation_required`, forcing the invitee through `/start-federation`.
 
 ### Listing linked identities
 

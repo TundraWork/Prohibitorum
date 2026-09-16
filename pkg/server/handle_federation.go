@@ -181,7 +181,7 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	if !result.Confirmed {
 		token, antiForgery, err := s.federationService.CreateConfirmGrant(
 			r.Context(), result.AccountID, result.IdentityID, result.ProviderID,
-			result.ProviderSlug, result.ReturnTo, result.AMR,
+			result.ProviderSlug, result.ReturnTo, result.AMR, result.OfferLocalSignin,
 		)
 		if err != nil {
 			s.writeFederationCompletionError(w, r, err, mode)
@@ -249,13 +249,9 @@ func (s *Server) handleListFederationProvidersHTTP(w http.ResponseWriter, r *htt
 	}
 	out := make([]contract.FederationProvider, 0, len(idps))
 	for _, idp := range idps {
-		// invite_only IdPs are reachable only via an invite link, never a
-		// generic "sign in with" button — a plain login on one is rejected
-		// pre-auth in begin(). Omit them so the login page never offers a
-		// doomed button.
-		if idp.Mode == federation.ModeInviteOnly {
-			continue
-		}
+		// invite_only IdPs are listed like any other: an unknown identity
+		// hitting one is rejected at resolve time (no_account_invite_only),
+		// while existing users sign in through it directly.
 		out = append(out, contract.FederationProvider{
 			Slug:        idp.Slug,
 			DisplayName: idp.DisplayName,

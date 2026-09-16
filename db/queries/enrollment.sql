@@ -4,10 +4,9 @@ SELECT * FROM enrollment WHERE token = $1;
 -- name: InsertEnrollment :one
 INSERT INTO enrollment (
   token, intent, target_account_id, expires_at,
-  template_role, template_attributes, expected_upstream_idp_slug,
-  template_username, template_display_name
+  template_role, template_attributes, expected_upstream_idp_slug
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: InsertFederatedRegistrationEnrollment :one

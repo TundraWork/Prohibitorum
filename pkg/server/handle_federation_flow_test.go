@@ -234,22 +234,15 @@ func (h *localFlowHarness) beginLogin(t *testing.T) (flow string, response *http
 	return strings.TrimPrefix(location, prefix), response
 }
 
-func TestFederationFlowInviteBeginUsesLocalDestinationAndBindingCookie(t *testing.T) {
+func TestFederationFlowInviteBeginWithLinkOnlyProviderRejected(t *testing.T) {
+	// link_only providers never create accounts, so an invite cannot be
+	// redeemed through one — the selection is refused at begin, before any
+	// upstream hop.
 	h := newLocalFlowHarness(t)
-	h.q.seedEnrollment(validInvite("local-invite", localProviderSlug, "invited-user"))
+	h.q.seedEnrollment(validInvite("local-invite", localProviderSlug))
 	response := h.request(t, http.MethodGet, "/api/prohibitorum/enrollments/local-invite/start-federation?return_to=%2Fafter", "")
-	if response.StatusCode != http.StatusFound || !strings.HasPrefix(response.Header.Get("Location"), "/federation/flow/") {
+	if response.StatusCode != http.StatusFound || !strings.HasPrefix(response.Header.Get("Location"), "/error?error=invite_required") {
 		t.Fatalf("status/location = %d %q", response.StatusCode, response.Header.Get("Location"))
-	}
-	if response.Header.Get("Referrer-Policy") != "no-referrer" {
-		t.Fatalf("referrer policy = %q", response.Header.Get("Referrer-Policy"))
-	}
-	var binding bool
-	for _, cookie := range response.Cookies() {
-		binding = binding || cookie.Name == sessstore.FedStateCookieName && cookie.Value != ""
-	}
-	if !binding {
-		t.Fatal("invite begin omitted browser-binding cookie")
 	}
 }
 

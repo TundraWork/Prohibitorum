@@ -160,6 +160,9 @@ type CompletionResult struct {
 	IsNew        bool
 	Confirmed    bool
 	AvatarURL    string
+	// OfferLocalSignin marks an invite+provider provisioning: after /welcome
+	// confirmation the SPA offers the one-time "add local sign-in" step.
+	OfferLocalSignin bool
 }
 
 func (r *CompletionResult) Validate() error {

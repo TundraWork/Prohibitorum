@@ -1193,9 +1193,11 @@ func TestListFederationProviders_TwoIDPs(t *testing.T) {
 	}
 }
 
-func TestListFederationProviders_OmitsInviteOnly(t *testing.T) {
-	// invite_only IdPs are reachable only via an invite link, so they must not
-	// appear as generic "sign in with" buttons. auto_provision + link_only do.
+func TestListFederationProviders_IncludesInviteOnly(t *testing.T) {
+	// invite_only IdPs appear as sign-in buttons like every other mode: bound
+	// users sign in through them directly, and unknown identities are rejected
+	// at resolve time (no_account_invite_only). Only disabled rows are hidden
+	// (ListUpstreamIDPs already filters those).
 	q := newFakeFedQueries()
 	q.listIDPs = []db.UpstreamIdp{
 		{Slug: "google", DisplayName: "Google", Mode: fedoidc.ModeAutoProvision},
@@ -1212,13 +1214,17 @@ func TestListFederationProviders_OmitsInviteOnly(t *testing.T) {
 	if err := json.NewDecoder(w.Result().Body).Decode(&out); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if len(out) != 2 {
-		t.Fatalf("providers: want 2 (auto_provision + link_only), got %d: %+v", len(out), out)
+	if len(out) != 3 {
+		t.Fatalf("providers: want 3 (all modes), got %d: %+v", len(out), out)
 	}
+	var inviteListed bool
 	for _, p := range out {
 		if p.Slug == "invite" {
-			t.Errorf("invite_only IdP must not appear as a sign-in button: %+v", out)
+			inviteListed = true
 		}
+	}
+	if !inviteListed {
+		t.Errorf("invite_only IdP must appear as a sign-in button: %+v", out)
 	}
 }
 

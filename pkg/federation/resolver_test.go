@@ -498,7 +498,7 @@ func TestApplyAutoProvision_MissingPreferredUsername(t *testing.T) {
 // pgUniqueViolation returns a *pgconn.PgError carrying SQLSTATE 23505 so
 // tests can simulate a lost race against a concurrent insert. Used by the
 // race-mapping tests below — exercises the isUniqueViolation branches in
-// applyAutoProvision / applyInviteOnly.
+// applyAutoProvision / applyInviteProvision.
 func pgUniqueViolation(constraint string) error {
 	return &pgconn.PgError{Code: "23505", ConstraintName: constraint}
 }
@@ -550,12 +550,12 @@ func TestApplyAutoProvision_IdentityConflictRaceMapsToInviteRequired(t *testing.
 // window; same expected mapping.
 func TestApplyInviteOnly_UsernameRaceMapsToCollisionError(t *testing.T) {
 	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice", "user", nil)
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	q.insertAccountErr = pgUniqueViolation("account_username_key")
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
+	_, err := federationoidc.ApplyInviteProvisionForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
 		t.Fatalf("want username_collision AuthError, got %v", err)
 	}
@@ -568,12 +568,12 @@ func TestApplyInviteOnly_UsernameRaceMapsToCollisionError(t *testing.T) {
 // the auto_provision identity-conflict race for the invite path.
 func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) {
 	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice", "user", nil)
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	q.insertIdentityErr = pgUniqueViolation("account_identity_upstream_iss_sub_key")
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
+	_, err := federationoidc.ApplyInviteProvisionForTest(context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("want invite_required AuthError, got %v", err)
 	}
@@ -582,15 +582,11 @@ func TestApplyInviteOnly_IdentityConflictRaceMapsToInviteRequired(t *testing.T) 
 	}
 }
 
-// makeInviteEnrollment builds a valid db.Enrollment row for happy-path
-// tests. slug should match the IdP being passed into applyInviteOnly.
-func makeInviteEnrollment(slug, username, displayName, role string, attrs []byte) db.Enrollment {
+func makeInviteEnrollment(slug, role string, attrs []byte) db.Enrollment {
 	return db.Enrollment{
 		Token:                   "invite-token-xyz",
 		Intent:                  "invite",
 		ExpectedUpstreamIdpSlug: pgtype.Text{String: slug, Valid: true},
-		TemplateUsername:        pgtype.Text{String: username, Valid: true},
-		TemplateDisplayName:     pgtype.Text{String: displayName, Valid: displayName != ""},
 		TemplateRole:            pgtype.Text{String: role, Valid: true},
 		TemplateAttributes:      attrs,
 	}
@@ -599,8 +595,8 @@ func makeInviteEnrollment(slug, username, displayName, role string, attrs []byte
 func TestApplyInviteOnly_NoTokenRejects(t *testing.T) {
 	// Driving via Resolve with mode=invite_only and no FedState invite token:
 	// this is what happens when someone hits /federation/{slug}/login directly
-	// on an invite_only IdP. The empty-token branch at the top of
-	// applyInviteOnly emits invite_required_no_token and rejects.
+	// on an invite_only IdP. The login rejection path emits
+	// no_account_invite_only and rejects with invite_required.
 	q := newFakeModesQueries()
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
@@ -614,24 +610,104 @@ func TestApplyInviteOnly_NoTokenRejects(t *testing.T) {
 	if len(recs) != 1 || recs[0].Event != audit.EventFail {
 		t.Fatalf("want 1 fail row, got %+v", recs)
 	}
-	if recs[0].Detail["reason"] != "invite_required_no_token" {
-		t.Fatalf("reason: want invite_required_no_token, got %v", recs[0].Detail["reason"])
+	if recs[0].Detail["reason"] != "no_account_invite_only" {
+		t.Fatalf("reason: want no_account_invite_only, got %v", recs[0].Detail["reason"])
 	}
 	if len(q.consumedTokens) != 0 {
-		t.Fatalf("ConsumeEnrollment must not be called when token is empty; got %v", q.consumedTokens)
+		t.Fatalf("ConsumeInviteEnrollment must not be called on the login path; got %v", q.consumedTokens)
+	}
+}
+
+func TestApplyInviteOnly_TemplateRoleAndAttributesApplied(t *testing.T) {
+	// The one extra power an invite has over free auto-provisioning: the
+	// template carries the account's role and initial attributes.
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment(
+		"test-idp", "admin", []byte(`{"team":"ops"}`),
+	)
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+
+	if _, err := federationoidc.ApplyInviteProvisionForTest(
+		context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil,
+	); err != nil {
+		t.Fatalf("applyInviteProvision: %v", err)
+	}
+	if q.insertedAccount.Role != "admin" {
+		t.Errorf("Role = %q, want admin (from template)", q.insertedAccount.Role)
+	}
+	if string(q.insertedAccount.Attributes) != `{"team":"ops"}` {
+		t.Errorf("Attributes = %q, want template JSON", string(q.insertedAccount.Attributes))
+	}
+}
+
+func TestApplyInviteOnly_MissingUsernameClaimFailsWithoutConsuming(t *testing.T) {
+	// A missing username claim is a provider misconfiguration: the tx fails,
+	// the invite stays redeemable, no account appears. The error must be the
+	// plain server error (same wording as applyAutoProvision), NOT the
+	// user-facing invalid_username AuthError page — api.md §5 / design §4.3.
+	q := newFakeModesQueries()
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+	tok.Username = ""
+
+	_, err := federationoidc.ApplyInviteProvisionForTest(
+		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
+	)
+	wantErr := `federation/oidc: upstream provided no "preferred_username" claim (idp="test-idp", sub="sub-1")`
+	if err == nil || err.Error() != wantErr {
+		t.Fatalf("missing claim error = %v, want %q", err, wantErr)
+	}
+	if authErr := authn.AsAuthError(err); authErr != nil {
+		t.Fatalf("missing claim must not surface as a user-facing AuthError page; got %v", authErr)
+	}
+	if len(q.insertedAccounts) != 0 {
+		t.Fatalf("no account should be inserted; got %+v", q.insertedAccounts)
+	}
+	if len(q.consumedTokens) != 1 {
+		t.Fatalf("consume must have been attempted inside the tx; got %v", q.consumedTokens)
+	}
+}
+
+func TestApplyInviteOnly_IdentityAlreadyBoundRejects(t *testing.T) {
+	// The authoritative in-tx lookup hits: this upstream identity is already
+	// bound, so provisioning is refused (identity_conflict). Critically NOT
+	// applyAutoProvision's sign-in branch — the template role/attributes
+	// would be dropped. The tx rolls back, so the invite is NOT consumed.
+	q := newFakeModesQueries()
+	q.identitySequence = []identityLookup{
+		{identity: db.AccountIdentity{ID: 300, AccountID: 77, UpstreamIdpID: 42}, err: nil},
+	}
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+
+	_, err := federationoidc.ApplyInviteProvisionForTest(
+		context.Background(), q, a, idp, goodTokens(), "invite-token-xyz", nil,
+	)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required, got %v", err)
+	}
+	if !a.hasFail("identity_conflict") {
+		t.Errorf("want audit fail reason=identity_conflict; got %+v", a.snapshot())
+	}
+	if len(q.consumedTokens) != 0 {
+		t.Errorf("invite must not be consumed on identity conflict; got %v", q.consumedTokens)
 	}
 }
 
 func TestApplyInviteOnly_HappyPath(t *testing.T) {
 	q := newFakeModesQueries()
 	q.consumeEnrollmentResult = makeInviteEnrollment(
-		"test-idp", "alice", "Alice Inv", "user", []byte(`{"key":"val"}`),
+		"test-idp", "user", []byte(`{"key":"val"}`),
 	)
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	out, err := federationoidc.ApplyInviteOnlyForTest(
+	out, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if err != nil {
@@ -643,24 +719,21 @@ func TestApplyInviteOnly_HappyPath(t *testing.T) {
 	if out.AccountID != 100 {
 		t.Fatalf("want accountID=100, got %d", out.AccountID)
 	}
-	// The invite IS the authorization: invite redemption auto-confirms the
-	// identity in-tx, so the HTTP layer issues a session immediately (no
-	// /welcome gate).
-	if !out.Confirmed {
-		t.Fatalf("invite redemption must yield Confirmed=true")
+	// The invite IS the authorization, but the identity stays unconfirmed:
+	// the /welcome confirmation is the invitee's "this is me" step, so the
+	// HTTP layer signs a confirmation grant instead of a session.
+	if out.Confirmed {
+		t.Fatalf("invite provisioning must leave the identity unconfirmed")
 	}
-	if out.IdentityID == 0 {
-		t.Fatalf("invite redemption must capture the inserted IdentityID, got 0")
-	}
-	if q.confirmedIdentityID != out.IdentityID {
-		t.Fatalf("ConfirmAccountIdentity called with id=%d, want the inserted identity id=%d", q.confirmedIdentityID, out.IdentityID)
+	if !out.OfferLocalSignin {
+		t.Fatalf("invite provisioning must offer the local sign-in step after /welcome")
 	}
 
 	if len(q.consumedTokens) != 1 || q.consumedTokens[0] != "invite-token-xyz" {
 		t.Fatalf("ConsumeEnrollment tokens = %v, want [invite-token-xyz]", q.consumedTokens)
 	}
 	if q.insertedAccount.Username != "alice" ||
-		q.insertedAccount.DisplayName != "Alice Inv" ||
+		q.insertedAccount.DisplayName != "Alice Example" ||
 		q.insertedAccount.Role != "user" {
 		t.Fatalf("InsertAccount args wrong: %+v", q.insertedAccount)
 	}
@@ -682,11 +755,8 @@ func TestApplyInviteOnly_HappyPath(t *testing.T) {
 	if reg == nil {
 		t.Fatal("missing audit Register")
 	}
-	if reg.Detail["reason"] != "invite_only_redemption" {
-		t.Errorf("Register reason = %v, want invite_only_redemption", reg.Detail["reason"])
-	}
-	if findEvent(recs, audit.EventUse) == nil {
-		t.Fatal("missing audit Use")
+	if reg.Detail["reason"] != "invite_provisioned" {
+		t.Errorf("Register reason = %v, want invite_provisioned", reg.Detail["reason"])
 	}
 }
 
@@ -697,7 +767,7 @@ func TestApplyInviteOnly_ConsumedOrExpired(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "stale-token", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
@@ -716,13 +786,13 @@ func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
 	q := newFakeModesQueries()
 	// Enrollment was minted for "other-idp"; we're driving against idp.Slug="test-idp".
 	q.consumeEnrollmentResult = makeInviteEnrollment(
-		"other-idp", "alice", "Alice", "user", nil,
+		"other-idp", "user", nil,
 	)
 	a := &recordingAudit{}
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
@@ -740,7 +810,7 @@ func TestApplyInviteOnly_SlugMismatch(t *testing.T) {
 func TestApplyInviteOnly_UsernameCollision(t *testing.T) {
 	q := newFakeModesQueries()
 	q.consumeEnrollmentResult = makeInviteEnrollment(
-		"test-idp", "alice", "Alice", "user", nil,
+		"test-idp", "user", nil,
 	)
 	// Existing local account already owns "alice".
 	q.accountByUsername["alice"] = db.Account{ID: 7, Username: "alice"}
@@ -748,7 +818,7 @@ func TestApplyInviteOnly_UsernameCollision(t *testing.T) {
 	idp := newIDP(federationoidc.ModeInviteOnly)
 	tok := goodTokens()
 
-	_, err := federationoidc.ApplyInviteOnlyForTest(
+	_, err := federationoidc.ApplyInviteProvisionForTest(
 		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
 	)
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "username_collision" {
@@ -760,25 +830,6 @@ func TestApplyInviteOnly_UsernameCollision(t *testing.T) {
 	}
 	if len(q.insertedAccounts) != 0 {
 		t.Errorf("no account should have been inserted (collision fired first); got %d", len(q.insertedAccounts))
-	}
-}
-
-func TestApplyInviteOnly_DisplayNameFallsBackToUsername(t *testing.T) {
-	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment(
-		"test-idp", "bob", "" /* empty display_name */, "user", nil,
-	)
-	a := &recordingAudit{}
-	idp := newIDP(federationoidc.ModeInviteOnly)
-	tok := goodTokens()
-
-	if _, err := federationoidc.ApplyInviteOnlyForTest(
-		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
-	); err != nil {
-		t.Fatalf("applyInviteOnly: %v", err)
-	}
-	if q.insertedAccount.DisplayName != "bob" {
-		t.Errorf("DisplayName = %q, want bob (fallback to username)", q.insertedAccount.DisplayName)
 	}
 }
 
@@ -799,6 +850,80 @@ func TestApplyLinkOnly_NoExistingIdentity_Rejects(t *testing.T) {
 	}
 	if recs[0].Detail["reason"] != "link_required" {
 		t.Fatalf("reason: want link_required, got %v", recs[0].Detail["reason"])
+	}
+}
+
+func TestResolve_InviteOnlyUnknownIdentityRejectsWithAudit(t *testing.T) {
+	// A login (no invite token in play) on an invite_only IdP with no bound
+	// identity must be rejected with invite_required and audited as
+	// no_account_invite_only — never provision anything.
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
+		t.Fatalf("want invite_required, got %v", err)
+	}
+	recs := a.snapshot()
+	if len(recs) != 1 || recs[0].Event != audit.EventFail {
+		t.Fatalf("want 1 fail row, got %+v", recs)
+	}
+	if recs[0].Detail["reason"] != "no_account_invite_only" {
+		t.Fatalf("reason: want no_account_invite_only, got %v", recs[0].Detail["reason"])
+	}
+	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
+		t.Fatalf("unknown identity was provisioned: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)
+	}
+}
+
+func TestResolve_InviteOnlyBoundIdentitySignsIn(t *testing.T) {
+	// Once the (iss, sub) identity is bound, an invite_only IdP must behave
+	// like any other at login: sync claims and sign the user in.
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tok := goodTokens()
+	q.accountByIDResults[55] = db.Account{ID: 55, Username: "alice", DisplayName: "Stale Name"}
+	q.identityErr = nil
+	q.identityResult = db.AccountIdentity{
+		ID:            300,
+		AccountID:     55,
+		UpstreamIdpID: 42,
+		UpstreamIss:   tok.Issuer,
+		UpstreamSub:   tok.Subject,
+		ConfirmedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+
+	out, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if out.AccountID != 55 || out.IsNew || !out.Confirmed {
+		t.Fatalf("outcome = %+v, want existing confirmed sign-in", out)
+	}
+	if len(q.insertedAccounts) != 0 {
+		t.Fatalf("bound identity was reprovisioned: %+v", q.insertedAccounts)
+	}
+	if findEvent(a.snapshot(), audit.EventUse) == nil {
+		t.Fatal("missing audit Use")
+	}
+}
+
+func TestResolve_LinkOnlyUnknownIdentityStillRecordsLinkRequired(t *testing.T) {
+	// The shared login rejection path must keep the per-mode audit reason:
+	// link_only still records link_required (not the new invite reason).
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeLinkOnly)
+
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, goodTokens(), nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "link_required" {
+		t.Fatalf("want link_required, got %v", err)
+	}
+	recs := a.snapshot()
+	if len(recs) != 1 || recs[0].Detail["reason"] != "link_required" {
+		t.Fatalf("want single link_required fail row, got %+v", recs)
 	}
 }
 
@@ -1055,58 +1180,6 @@ func TestApplyAutoProvision_NotConfirmed(t *testing.T) {
 	// Auto-provision must NOT confirm the identity (no ConfirmAccountIdentity).
 	if q.confirmedIdentityID != 0 {
 		t.Fatalf("auto-provision must NOT call ConfirmAccountIdentity; got id=%d", q.confirmedIdentityID)
-	}
-}
-
-// TestApplyInviteOnly_Confirmed asserts invite redemption auto-confirms the
-// just-inserted identity in-tx (the invite IS the authorization) → Confirmed=true,
-// and ConfirmAccountIdentity was called with the inserted identity id.
-func TestApplyInviteOnly_Confirmed(t *testing.T) {
-	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice Inv", "user", nil)
-	a := &recordingAudit{}
-	idp := newIDP(federationoidc.ModeInviteOnly)
-	tok := goodTokens()
-
-	out, err := federationoidc.ApplyInviteOnlyForTest(
-		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
-	)
-	if err != nil {
-		t.Fatalf("applyInviteOnly: %v", err)
-	}
-	if !out.Confirmed {
-		t.Fatalf("invite redemption must yield Confirmed=true")
-	}
-	if !out.IsNew {
-		t.Fatalf("invite redemption must yield IsNew=true")
-	}
-	if out.IdentityID == 0 {
-		t.Fatalf("invite redemption must capture a non-zero IdentityID")
-	}
-	if q.confirmedIdentityID != out.IdentityID {
-		t.Fatalf("ConfirmAccountIdentity id=%d, want inserted identity id=%d", q.confirmedIdentityID, out.IdentityID)
-	}
-}
-
-// TestApplyInviteOnly_ConfirmFails asserts that when the in-tx
-// ConfirmAccountIdentity fails (e.g. the DB went away mid-redemption), the whole
-// invite redemption aborts with a non-nil (wrapped) error rather than silently
-// issuing an unconfirmed identity. The invite IS the authorization, so a failed
-// confirm must roll the redemption back (the real handler runs applyInviteOnly
-// inside a tx; this exercises the error-propagation seam).
-func TestApplyInviteOnly_ConfirmFails(t *testing.T) {
-	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "alice", "Alice Inv", "user", nil)
-	q.confirmIdentityErr = errors.New("db down")
-	a := &recordingAudit{}
-	idp := newIDP(federationoidc.ModeInviteOnly)
-	tok := goodTokens()
-
-	_, err := federationoidc.ApplyInviteOnlyForTest(
-		context.Background(), q, a, idp, tok, "invite-token-xyz", nil,
-	)
-	if err == nil {
-		t.Fatal("want a non-nil error when ConfirmAccountIdentity fails")
 	}
 }
 
@@ -1612,7 +1685,7 @@ func TestResolverResolveIdentityLinkOutcome(t *testing.T) {
 
 func TestResolverResolveIdentityInviteOutcome(t *testing.T) {
 	q := newFakeModesQueries()
-	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "invited", "Invited User", "user", nil)
+	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
 	identity := *goodTokens()
 
@@ -1626,7 +1699,7 @@ func TestResolverResolveIdentityInviteOutcome(t *testing.T) {
 		t.Fatal(err)
 	}
 	if outcome.AccountID == 0 || outcome.IdentityID == 0 || outcome.ProviderID != 42 ||
-		!outcome.Confirmed || !outcome.IsNew ||
+		outcome.Confirmed || !outcome.IsNew || !outcome.OfferLocalSignin ||
 		len(outcome.AMR) != len(identity.AMR) || outcome.AMR[0] != identity.AMR[0] || outcome.AMR[1] != identity.AMR[1] {
 		t.Fatalf("outcome = %+v", outcome)
 	}
@@ -1646,8 +1719,8 @@ func TestResolverLoginModeDriftToInviteOnlyRejectsWithAudit(t *testing.T) {
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "invite_required" {
 		t.Fatalf("ResolveIdentity error = %v, want invite_required", err)
 	}
-	if !a.hasFail("invite_required_no_token") {
-		t.Fatalf("audit records = %+v, want invite_required_no_token", a.snapshot())
+	if !a.hasFail("no_account_invite_only") {
+		t.Fatalf("audit records = %+v, want no_account_invite_only", a.snapshot())
 	}
 	if len(q.insertedAccounts) != 0 || q.insertedIdentity.AccountID != 0 {
 		t.Fatalf("mode drift mutated storage: accounts=%+v identity=%+v", q.insertedAccounts, q.insertedIdentity)

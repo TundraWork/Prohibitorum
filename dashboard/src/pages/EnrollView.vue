@@ -2,34 +2,25 @@
 /**
  * EnrollView — the enrollment ceremony (/enroll/:token).
  *
- * Contract (pkg/server/handle_enrollment.go + handle_invite_federation.go,
- * verified — the old EnrollView was advisory only):
+ * Contract (pkg/server/handle_enrollment.go + handle_invite_federation.go):
  *
  *   GET  /api/prohibitorum/enrollments/{token}
- *        → { intent: 'bootstrap'|'invite'|'reset'|'federated_register',
- *            target?{username,displayName}, suggestedDisplayName?, expiresAt }
- *        invalid/expired/consumed → an AuthError → we route to /error.
+ *        → { intent, target?, suggestedDisplayName?, expiresAt, allowedMethods?,
+ *            expectedUpstreamIdpSlug?, providers? } — the last two are
+ *            invite-only. An invalid/expired/consumed token → AuthError → /error.
  *
- *   POST /api/prohibitorum/enrollments/{token}/register/begin
- *        body { username, displayName } for bootstrap/invite/federated_register; empty for reset
- *        → WebAuthn creation options
- *   POST /api/prohibitorum/enrollments/{token}/register/complete
- *        body = attestation → { session, newCredentialId } (+ session cookie)
- *        → auto-login → hardRedirect('/').
+ *   POST /api/prohibitorum/enrollments/{token}/register/begin … complete
+ *        → local passkey signup, auto-login → hardRedirect('/').
  *
- *   GET  /api/prohibitorum/enrollments/{token}/start-federation?return_to=/
- *        → 302 to the upstream OP (federation-bound invites).
+ *   GET  /api/prohibitorum/enrollments/{token}/start-federation?provider=…
+ *        → 302 to the upstream provider; provisioning happens on the callback
+ *          and lands on /welcome (identity unconfirmed).
  *
- * Federation detection — IMPORTANT: the preview carries NO federation hint
- * (EnrollmentPreview has only intent/target/expiresAt). A federation-bound
- * invite is revealed ONLY by register/begin returning the
- * `enrollment_federation_required` code; that is our signal to hand off to
- * start-federation. (The username/displayName the invitee typed is discarded —
- * federation derives identity from the upstream IdP's claims.)
- *
- * Per-intent form: bootstrap, invite, and federated_register collect username +
- * displayName; federated_register may initialize the editable display name from
- * the verified profile. Reset shows a read-only username only when previewed.
+ * Invite rendering: an invite bound to a provider shows exactly that
+ * provider's button — no local-credential buttons and no username inputs (the
+ * account is named from the upstream claims). An unbound invite offers both
+ * local methods and its redeemable providers; provider buttons intentionally
+ * skip reportValidity — the typed name only feeds the local ceremonies.
  */
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import { computed, onMounted, ref } from 'vue'
@@ -50,6 +41,12 @@ interface EnrollmentTarget {
   username: string
   displayName: string
 }
+interface FederationProvider {
+  slug: string
+  displayName: string
+  protocol: string
+  iconUrl?: string | null
+}
 interface EnrollmentPreview {
   intent: 'bootstrap' | 'invite' | 'reset' | 'federated_register'
   target?: EnrollmentTarget
@@ -58,6 +55,9 @@ interface EnrollmentPreview {
   // Which credential methods this enrollment permits: 'passkey' and/or
   // 'password_totp'. Bootstrap is passkey-only; every other intent offers both.
   allowedMethods?: string[]
+  // Invite-only: the bound provider slug and the redeemable provider list.
+  expectedUpstreamIdpSlug?: string
+  providers?: FederationProvider[]
 }
 interface EnrollCompleteResponse {
   session: { id: number; username: string; displayName: string; role: string }
@@ -82,18 +82,24 @@ function clearError(): void {
 
 const preview = ref<EnrollmentPreview | null>(null)
 const loading = ref(true)
-const federationRedirectUrl = ref('')
 
 // New-account intents collect these; reset leaves them untouched.
 const username = ref('')
 const displayName = ref('')
 
+// Whether this page collects a locally-chosen username/display name. A
+// provider-bound invite does NOT: the account is named from the upstream
+// claims, so no identity inputs (and no local credentials) are rendered.
 const collectsIdentity = computed(
   () =>
-    preview.value?.intent === 'bootstrap' ||
-    preview.value?.intent === 'invite' ||
-    preview.value?.intent === 'federated_register',
+    (preview.value?.intent === 'bootstrap' ||
+      preview.value?.intent === 'invite' ||
+      preview.value?.intent === 'federated_register') &&
+    !providerBound.value,
 )
+
+const providerBound = computed(() => !!preview.value?.expectedUpstreamIdpSlug)
+const providers = computed(() => preview.value?.providers ?? [])
 
 // Method chooser. Bootstrap is passkey-only; every other intent may also set up
 // password+TOTP. `method` toggles the identity form between the chooser and the
@@ -110,12 +116,6 @@ function choosePasswordTotp(): void {
   method.value = 'password_totp'
 }
 
-function onFederationRequired(): void {
-  // A federation-bound invite rejects local methods; hand off to the provider.
-  method.value = 'choose'
-  federationRedirectUrl.value = startFederationURL()
-}
-
 const heading = computed(() => {
   switch (preview.value?.intent) {
     case 'invite':
@@ -129,11 +129,16 @@ const heading = computed(() => {
   }
 })
 
-function startFederationURL(): string {
+function startFederationURL(slug: string): string {
   return (
     `/api/prohibitorum/enrollments/${encodeURIComponent(token)}/start-federation` +
-    `?return_to=${encodeURIComponent('/')}`
+    `?provider=${encodeURIComponent(slug)}` +
+    `&return_to=${encodeURIComponent('/')}`
   )
+}
+
+function continueToProvider(slug: string): void {
+  hardRedirect(startFederationURL(slug))
 }
 
 onMounted(async () => {
@@ -158,17 +163,11 @@ async function enroll(): Promise<void> {
     ? { username: username.value, displayName: displayName.value }
     : undefined
 
-  // 1) begin — fetch WebAuthn creation options (or discover this is federation-bound).
+  // 1) begin — fetch WebAuthn creation options.
   const options = await run(() =>
     api.post(`/api/prohibitorum/enrollments/${encodeURIComponent(token)}/register/begin`, body),
   )
-  if (!options) {
-    // Federation-bound invite → show an interstitial instead of an instant bounce.
-    if (netError.value?.code === 'enrollment_federation_required') {
-      federationRedirectUrl.value = startFederationURL()
-    }
-    return // other errors render via ErrorPanel
-  }
+  if (!options) return // errors render via ErrorPanel
 
   // 2) ceremony — navigator.credentials.create. undefined = user-cancel / error.
   const attestation = await register(options as Parameters<typeof register>[0])
@@ -184,8 +183,7 @@ async function enroll(): Promise<void> {
   if (!res) return
 
   // Authenticated. Full-page nav to the app root so the new session cookie is
-  // sent on the next request. (In Spec 1 the authenticated home is not built
-  // yet; Spec 2 adds the '/' dashboard route this lands on.)
+  // sent on the next request.
   hardRedirect('/')
 }
 </script>
@@ -197,20 +195,6 @@ async function enroll(): Promise<void> {
     </template>
 
     <p v-if="loading" class="text-center text-sm text-muted">{{ t('common.loading') }}</p>
-
-    <!-- Federation interstitial: shown when begin returns enrollment_federation_required -->
-    <div v-else-if="federationRedirectUrl" class="flex flex-col gap-4">
-      <p class="text-sm text-muted">{{ t('enroll.federationBody') }}</p>
-      <Button
-        type="button"
-        size="lg"
-        class="w-full"
-        data-test="federation-continue"
-        @click="hardRedirect(federationRedirectUrl)"
-      >
-        {{ t('enroll.federationContinue') }}
-      </Button>
-    </div>
 
     <form v-else-if="preview" ref="formRef" class="flex flex-col gap-4" @submit.prevent="enroll">
       <p
@@ -275,11 +259,11 @@ async function enroll(): Promise<void> {
         :token="token"
         :identity="collectsIdentity ? { username, displayName } : null"
         @back="method = 'choose'"
-        @federation-required="onFederationRequired"
       />
 
-      <!-- Otherwise: the method chooser (or the passkey-only bootstrap button). -->
-      <template v-else>
+      <!-- Otherwise — but only for intents that collect a local identity:
+           the method chooser (or the passkey-only bootstrap button). -->
+      <template v-else-if="collectsIdentity">
         <ErrorPanel :error="error" @dismiss="clearError" />
 
         <p class="text-xs text-muted">{{ t('enroll.passkeyForeshadow') }}</p>
@@ -301,6 +285,37 @@ async function enroll(): Promise<void> {
             {{ t('enroll.methodPasswordTotp') }}
           </Button>
         </template>
+
+      </template>
+      <!-- Providers the invite may be redeemed through — rendered for every
+           invite, bound or not, including when no local identity is collected.
+           Provider accounts are named from the upstream claims, so these
+           buttons deliberately skip form validation — the typed inputs serve
+           local signup only. -->
+      <template v-if="providers.length">
+        <OrDivider :label="t('enroll.providerDivider')" />
+        <p class="text-xs text-muted">{{ t('enroll.providerHint') }}</p>
+        <Button
+          v-for="p in providers"
+          :key="p.slug"
+          type="button"
+          variant="outline"
+          size="lg"
+          class="w-full"
+          :data-test="`provider-${p.slug}`"
+          @click="continueToProvider(p.slug)"
+        >
+          <img
+            v-if="p.iconUrl"
+            :src="p.iconUrl"
+            :alt="p.displayName"
+            class="mr-2 size-5 rounded-sm object-contain"
+          />
+          <span v-else class="mr-2 size-5 leading-5" aria-hidden="true">{{
+            p.displayName.charAt(0).toUpperCase()
+          }}</span>
+          {{ t('enroll.providerButton', { provider: p.displayName }) }}
+        </Button>
       </template>
     </form>
   </CenteredLayout>

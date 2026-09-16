@@ -166,45 +166,57 @@ describe('EnrollView', () => {
     expect(hardRedirect).toHaveBeenCalledWith('/')
   })
 
-  it('shows federation interstitial when begin returns enrollment_federation_required', async () => {
-    get.mockResolvedValue({ intent: 'invite', expiresAt: '2099-01-01T00:00:00Z' })
-    post.mockRejectedValue({ code: 'enrollment_federation_required', message: '须联合注册' })
+
+  it('a bound invite renders one provider button and no local options', async () => {
+    get.mockResolvedValue({
+      intent: 'invite',
+      expiresAt: '2099-01-01T00:00:00Z',
+      expectedUpstreamIdpSlug: 'google',
+      providers: [{ slug: 'google', displayName: 'Google', protocol: 'oidc' }],
+    })
     const wrapper = await mountView(await makeRouter())
 
-    await wrapper.find('input[name=username]').setValue('alex')
-    await wrapper.find('input[name=displayName]').setValue('Alex Smith')
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
-
-    // Must NOT redirect immediately — show the interstitial instead.
-    expect(hardRedirect).not.toHaveBeenCalled()
-    // The interstitial continue button should be present.
-    const continueBtn = wrapper.find('[data-test="federation-continue"]')
-    expect(continueBtn.exists()).toBe(true)
-    // The form should no longer be visible.
+    expect(wrapper.find('[data-test="provider-google"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="choose-password-totp"]').exists()).toBe(false)
     expect(wrapper.find('input[name=username]').exists()).toBe(false)
-    // The passkey complete must NOT have been attempted.
-    expect(post).not.toHaveBeenCalledWith(
-      expect.stringContaining('/register/complete'),
-      expect.anything(),
-    )
+    expect(wrapper.find('input[name=displayName]').exists()).toBe(false)
+    expect(wrapper.find('button[type=submit]').exists()).toBe(false)
   })
 
-  it('continues to the federation URL when the interstitial button is clicked', async () => {
-    get.mockResolvedValue({ intent: 'invite', expiresAt: '2099-01-01T00:00:00Z' })
-    post.mockRejectedValue({ code: 'enrollment_federation_required', message: '须联合注册' })
+  it('an unbound invite renders both local options and provider buttons', async () => {
+    get.mockResolvedValue({
+      intent: 'invite',
+      expiresAt: '2099-01-01T00:00:00Z',
+      allowedMethods: ['passkey', 'password_totp'],
+      providers: [
+        { slug: 'google', displayName: 'Google', protocol: 'oidc' },
+        { slug: 'entraid', displayName: 'Entra ID', protocol: 'oidc' },
+      ],
+    })
     const wrapper = await mountView(await makeRouter())
 
-    await wrapper.find('input[name=username]').setValue('alex')
-    await wrapper.find('input[name=displayName]').setValue('Alex Smith')
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
+    expect(wrapper.find('input[name=username]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="choose-password-totp"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="provider-google"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="provider-entraid"]').exists()).toBe(true)
+  })
 
-    await wrapper.find('[data-test="federation-continue"]').trigger('click')
+  it('clicking a provider button redirects with the provider param, skipping validation', async () => {
+    get.mockResolvedValue({
+      intent: 'invite',
+      expiresAt: '2099-01-01T00:00:00Z',
+      providers: [{ slug: 'google', displayName: 'Google', protocol: 'oidc' }],
+    })
+    const wrapper = await mountView(await makeRouter())
+
+    // Leave the (rendered but irrelevant) username empty — a provider signup
+    // takes its name from the upstream claims, so no reportValidity gate.
+    await wrapper.find('[data-test="provider-google"]').trigger('click')
     await flushPromises()
 
     expect(hardRedirect).toHaveBeenCalledWith(
-      `/api/prohibitorum/enrollments/${TOKEN}/start-federation?return_to=${encodeURIComponent('/')}`,
+      `/api/prohibitorum/enrollments/${TOKEN}/start-federation` +
+        `?provider=google&return_to=${encodeURIComponent('/')}`,
     )
   })
 

@@ -152,6 +152,15 @@ type EnrollmentPreview struct {
 	// is passkey-only; every other intent offers both. The enroll page renders
 	// its method chooser from this list.
 	AllowedMethods []string `json:"allowedMethods"`
+
+	// Invite-only additions (invite intent only):
+	// ExpectedUpstreamIdpSlug is the provider this invite is bound to,
+	// omitted when the invitee may choose. Providers lists the redeemable
+	// providers — the bound one only when bound, otherwise every enabled
+	// auto_provision/invite_only IdP; empty when the bound provider itself is
+	// link_only or disabled (the invite then cannot be redeemed at all).
+	ExpectedUpstreamIdpSlug string               `json:"expectedUpstreamIdpSlug,omitempty"`
+	Providers               []FederationProvider `json:"providers,omitempty"`
 }
 
 // AuthStatus is GET /auth/status — used by the dashboard LoginView to branch

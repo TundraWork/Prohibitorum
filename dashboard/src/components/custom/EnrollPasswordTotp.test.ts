@@ -107,18 +107,6 @@ describe('EnrollPasswordTotp', () => {
     expect(post).toHaveBeenCalledWith(`${base}/begin`, { password: 'supersecret' })
   })
 
-  it('emits federationRequired when begin is rejected as federation-bound', async () => {
-    post.mockRejectedValue({ code: 'enrollment_federation_required' })
-    const wrapper = mountCeremony({ username: 'alex', displayName: 'Alex' })
-
-    await wrapper.get('#enroll-password').setValue('supersecret')
-    await wrapper.get('#enroll-password-confirm').setValue('supersecret')
-    await wrapper.get('[data-test="pwtotp-continue"]').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.emitted('federationRequired')).toBeTruthy()
-  })
-
   it('emits back from the password phase', async () => {
     const wrapper = mountCeremony({ username: 'alex', displayName: 'Alex' })
     await wrapper.get('[data-test="pwtotp-back"]').trigger('click')

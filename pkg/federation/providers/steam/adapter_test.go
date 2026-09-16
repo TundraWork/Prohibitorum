@@ -148,7 +148,7 @@ func (p steamServiceProviders) ByBinding(_ context.Context, id int64, slug, prot
 	return p.provider, nil
 }
 
-func (p steamServiceProviders) InviteProvider(context.Context, string) (federationcore.Provider, error) {
+func (p steamServiceProviders) InviteProvider(context.Context, string, string) (federationcore.Provider, error) {
 	return p.provider, nil
 }
 

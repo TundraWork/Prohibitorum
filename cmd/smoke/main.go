@@ -63,7 +63,7 @@ import (
 // later arc is added, unlike a single global counter.
 const (
 	nCore       = 51
-	nFederation = 26
+	nFederation = 33
 	nOIDC       = 18
 	nSAML       = 14
 	nHardening  = 12
@@ -943,30 +943,63 @@ func main() {
 	}
 	log.Printf("  /me/identities/%d/unlink → 204, row deleted ✓", adminIdentities[0].ID)
 
-	// --- invite_only — token-bearing redemption -----------------------------
+	// --- invite + provider — the new unified registration path --------------
 	//
-	// Stage 3 of the invite_only chunk: now that stages 1 (federator) and 2
-	// (HTTP handler) have shipped, exercise the public entrypoint
-	// GET /enrollments/{token}/start-federation end-to-end. Drives the same
-	// upstream OP that the auto_provision steps used (mockop), but binds the
-	// invite to it via enrollment.expected_upstream_idp_slug — applyInviteOnly
-	// dispatches on the FedState.EnrollmentToken regardless of the IdP's
-	// configured mode.
+	// Exercises the PHB-6 semantics end to end against a dedicated
+	// invite_only provider ('mockop-invite', same mock OP issuer):
+	//
+	//   22. login on the invite_only provider with an unknown identity →
+	//       rejected (no_account_invite_only), no provisioning.
+	//   23. admin seeds an invite BOUND to it → invitee drives
+	//       start-federation (bound slug wins) → callback provisions an
+	//       UNCONFIRMED account named from the upstream claims → /welcome.
+	//   25. “not me” on /welcome → confirm decline pops the grant with no
+	//       session; a plain provider re-login then re-issues a confirmation
+	//       grant → /welcome again (the decline recovery path), then confirm
+	//       leaves the account in its provisioned state.
+	//   26. confirm → session + offerLocalSignin=true → set password+TOTP →
+	//       logout → log back in THROUGH THE PROVIDER (the core new
+	//       capability: invite_only is a sign-in method for bound users).
+	//   27. unbound invite: invitee picks the provider via ?provider=…
+	//   28. claim-username collision → username_collision, invite unconsumed.
 
-	step(fmt.Sprintf("federation %d/%d — seed invite enrollment + drive /enrollments/{token}/start-federation", 22, nFederation))
-	const inviteToken = "invite-token-smoke-001"
+	step(fmt.Sprintf("federation %d/%d — seed upstream_idp 'mockop-invite' (invite_only mode)", 22, nFederation))
+	inviteOnlyIDPID, err := seedUpstreamIDP(dek, "mockop-invite", "Mock OP (invite-only)", opTS.URL,
+		"test-client", "test-client-secret", "invite_only",
+		[]string{"example.com"}, true, true)
+	if err != nil {
+		log.Fatalf("seed mockop-invite: %v", err)
+	}
+	log.Printf("  upstream_idp id=%d slug=mockop-invite mode=invite_only", inviteOnlyIDPID)
+
+	step(fmt.Sprintf("federation %d/%d — negative: invite_only login with unknown identity → rejected", 22, nFederation))
 	const inviteSub = "invite-redeemer-sub-001"
 	const inviteUsername = "invite-redeemer"
-	const inviteDisplay = "Invite Redeemer"
-	if err := seedInviteEnrollment(inviteToken, inviteUsername, inviteDisplay, "user", "mockop", "1 hour"); err != nil {
+	opSrv.SetClaims(inviteSub, "invite-redeemer@example.com", true, inviteUsername, "Invite Redeemer")
+	{
+		c, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("invite_only login client: %v", err)
+		}
+		// The provider is listed on the login page now, but an unknown identity
+		// must be rejected at resolve time, provisioning nothing.
+		if err := expectFederationLoginError(c, *baseURL, "mockop-invite", opTS.URL, "invite_required"); err != nil {
+			log.Fatalf("negative invite_only login: %v", err)
+		}
+		if err := verifyNoAccountForSub(inviteSub); err != nil {
+			log.Fatalf("negative invite_only login DB assert: %v", err)
+		}
+		log.Printf("  unknown identity on invite_only → invite_required, nothing provisioned ✓")
+	}
+	step(fmt.Sprintf("federation %d/%d — seed bound invite + drive start-federation → /welcome", 23, nFederation))
+	const inviteToken = "invite-token-smoke-001"
+	if err := seedInviteEnrollment(inviteToken, "user", "mockop-invite", "1 hour"); err != nil {
 		log.Fatalf("seed invite enrollment: %v", err)
 	}
-	opSrv.SetClaims(inviteSub, "invite-redeemer@example.com", true, "ignored-by-template", "Ignored By Template")
 	inviteClient, err := newFederationClient(*baseURL)
 	if err != nil {
 		log.Fatalf("invite client: %v", err)
 	}
-	// GET /enrollments/{token}/start-federation?return_to=/me → 302 to upstream /authorize
 	inviteAuthorizeURL, err := inviteClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", inviteToken))
 	if err != nil {
 		log.Fatalf("/start-federation: %v", err)
@@ -978,35 +1011,172 @@ func main() {
 	if err != nil {
 		log.Fatalf("invite mock OP /authorize: %v", err)
 	}
-	if !strings.Contains(inviteCallbackURL, "/api/prohibitorum/auth/federation/mockop/callback") {
-		log.Fatalf("invite callback URL: %q", inviteCallbackURL)
-	}
 	if loc, err := inviteClient.getRedirectAbs(inviteCallbackURL); err != nil {
 		log.Fatalf("invite federation/callback: %v", err)
-	} else if loc != "/me" {
-		log.Fatalf("invite federation/callback: want /me, got %q", loc)
+	} else if loc != "/welcome" {
+		log.Fatalf("invite federation/callback: want /welcome (unconfirmed provisioning), got %q", loc)
 	}
-	inviteMe, err := inviteClient.getMe()
-	if err != nil {
-		log.Fatalf("invite /me: %v", err)
+	if _, err := inviteClient.getMe(); err == nil {
+		log.Fatalf("invite provisioning issued a session before confirmation")
 	}
-	if inviteMe.Username != inviteUsername {
-		log.Fatalf("invite /me username: got %q want %q (template wins over upstream preferred_username)",
-			inviteMe.Username, inviteUsername)
-	}
-	if inviteMe.DisplayName != inviteDisplay {
-		log.Fatalf("invite /me displayName: got %q want %q", inviteMe.DisplayName, inviteDisplay)
-	}
-	log.Printf("  invite redeemed; /me id=%d username=%s displayName=%s", inviteMe.ID, inviteMe.Username, inviteMe.DisplayName)
+	log.Printf("  invite provisioned; unconfirmed, parked on /welcome ✓")
 
-	step(fmt.Sprintf("federation %d/%d — DB assert: invite consumed + account + account_identity + register audit", 23, nFederation))
-	if err := verifyInviteOnlyRedemption(inviteToken, inviteUsername, inviteSub, mockopIDPID); err != nil {
+	step(fmt.Sprintf("federation %d/%d — DB assert: invite consumed + unconfirmed identity + register audit", 24, nFederation))
+	if err := verifyInviteOnlyRedemption(inviteToken, inviteUsername, inviteSub, inviteOnlyIDPID); err != nil {
 		log.Fatalf("invite redemption DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("federation %d/%d — negative: consumed token rejected → 302 /error?error=invite_required", 24, nFederation))
-	// Reuse the now-consumed token; the federator's BeginInviteRedemption
-	// must reject before any upstream hop. Fresh client (no cookies).
+	step(fmt.Sprintf("federation %d/%d — “not me” on /welcome → decline → grant popped, no session", 25, nFederation))
+	{
+		declineClient, err := newFederationClient(*baseURL)
+		if err != nil {
+			log.Fatalf("decline client: %v", err)
+		}
+		// Fresh invite + fresh upstream identity: provision → confirm page.
+		const declineToken = "invite-token-smoke-decline-001"
+		const declineSub = "invite-redeemer-sub-decline"
+		const declineUsername = "invite-redeemer-3"
+		if err := seedInviteEnrollment(declineToken, "user", "mockop-invite", "1 hour"); err != nil {
+			log.Fatalf("seed decline invite: %v", err)
+		}
+		opSrv.SetClaims(declineSub, "invite-redeemer-3@example.com", true, declineUsername, "Third Redeemer")
+		declineAuthorize, err := declineClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", declineToken))
+		if err != nil {
+			log.Fatalf("decline start-federation: %v", err)
+		}
+		declineCallback, err := followMockOPAuthorize(declineAuthorize)
+		if err != nil {
+			log.Fatalf("decline authorize: %v", err)
+		}
+		if loc, err := declineClient.getRedirectAbs(declineCallback); err != nil {
+			log.Fatalf("decline callback: %v", err)
+		} else if loc != "/welcome" {
+			log.Fatalf("decline callback: want /welcome (unconfirmed provisioning), got %q", loc)
+		}
+		// “Not me” on the confirm page: POST decline pops the grant (204,
+		// cookie cleared) and issues no session.
+		if resp, err := declineClient.postJSONRaw("/api/prohibitorum/auth/federation/confirm/decline", map[string]any{}); err != nil {
+			log.Fatalf("confirm decline POST: %v", err)
+		} else {
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				log.Fatalf("confirm decline: want 204, got %d", resp.StatusCode)
+			}
+		}
+		if _, err := declineClient.getMe(); err == nil {
+			log.Fatalf("decline issued a session; /me should stay 401")
+		}
+		log.Printf("  declined; grant popped, no session ✓")
+
+		step(fmt.Sprintf("federation %d/%d — after decline, provider re-login returns to /welcome (fresh confirmation grant)", 26, nFederation))
+		// Same (iss, sub) through the plain provider login entrypoint:
+		// resolveExisting re-issues a confirmation grant → /welcome again,
+		// proving the decline recovery path. Then confirm completes the
+		// provisioned account so the arc leaves no half-state behind.
+		recoveryAuthorize, err := declineClient.getRedirect("/api/prohibitorum/auth/federation/mockop-invite/login?return_to=/me")
+		if err != nil {
+			log.Fatalf("decline recovery login begin: %v", err)
+		}
+		recoveryCallback, err := followMockOPAuthorize(recoveryAuthorize)
+		if err != nil {
+			log.Fatalf("decline recovery authorize: %v", err)
+		}
+		if loc, err := declineClient.getRedirectAbs(recoveryCallback); err != nil {
+			log.Fatalf("decline recovery callback: %v", err)
+		} else if loc != "/welcome" {
+			log.Fatalf("decline recovery callback: want 302 /welcome (fresh confirmation grant), got %q", loc)
+		}
+		if _, _, err := declineClient.confirmPostFull(); err != nil {
+			log.Fatalf("decline recovery confirm: %v", err)
+		}
+		if me, err := declineClient.getMe(); err != nil || me.Username != declineUsername {
+			log.Fatalf("decline recovery /me: err=%v me=%+v", err, me)
+		}
+		if err := declineClient.logout(); err != nil {
+			log.Fatalf("decline recovery logout: %v", err)
+		}
+		log.Printf("  decline → provider re-login → /welcome again ✓")
+	}
+
+	step(fmt.Sprintf("federation %d/%d — confirm → offerLocalSignin=true + session", 27, nFederation))
+	// The confirm is driven by the SAME browser the step-23 callback handed
+	// the confirmation grant to (inviteClient's jar) — a fresh client holds
+	// no grant cookie and would fail the browser-binding check.
+	offer, redirect, err := inviteClient.confirmPostFull()
+	if err != nil {
+		log.Fatalf("invite confirm POST: %v", err)
+	}
+	if !offer {
+		log.Fatalf("invite confirm POST: want offerLocalSignin=true")
+	}
+	if redirect != "/me" {
+		log.Fatalf("invite confirm POST: want redirect /me, got %q", redirect)
+	}
+	if me, err := inviteClient.getMe(); err != nil || me.Username != inviteUsername {
+		// The confirm POST must mint a session for the provisioned account;
+		// assert whose session this is instead of assuming any 200.
+		log.Fatalf("invite confirm session: err=%v me=%+v, want %q session", err, me, inviteUsername)
+	} else {
+		log.Printf("  confirmed; /me id=%d username=%s ✓", me.ID, me.Username)
+	}
+
+	// The fresh session rides the recent-auth window (SudoTTL), so password
+	// and TOTP can be set without a step-up — the exact flow the SPA's
+	// /setup-signin step drives.
+	const invitePassword = "correct horse battery staple"
+	if err := inviteClient.postJSON("/api/prohibitorum/me/password/set",
+		map[string]string{"password": invitePassword}, nil); err != nil {
+		log.Fatalf("invite password/set: %v", err)
+	}
+	var inviteTotpBegin struct {
+		SecretBase32 string `json:"secret_base32"`
+		OtpauthURI   string `json:"otpauth_uri"`
+	}
+	if err := inviteClient.postJSON("/api/prohibitorum/me/totp/begin", map[string]any{}, &inviteTotpBegin); err != nil {
+		log.Fatalf("invite totp/begin: %v", err)
+	}
+	inviteSecret, err := base32.StdEncoding.WithPadding(base32.NoPadding).
+		DecodeString(strings.TrimRight(inviteTotpBegin.SecretBase32, "="))
+	if err != nil {
+		log.Fatalf("decode totp secret: %v", err)
+	}
+	if err := inviteClient.postJSON("/api/prohibitorum/me/totp/verify",
+		map[string]string{"code": totppkg.ComputeCodeForTesting(inviteSecret, time.Now().Unix(), 6)}, nil); err != nil {
+		log.Fatalf("invite totp/verify: %v", err)
+	}
+	log.Printf("  password + TOTP set via fresh session (recent-auth window) ✓")
+
+	step(fmt.Sprintf("federation %d/%d — logout → provider re-login succeeds (core new semantics)", 28, nFederation))
+	if err := inviteClient.logout(); err != nil {
+		log.Fatalf("invite logout: %v", err)
+	}
+	// The mock OP's claims persist across steps and step 26 left the decline
+	// identity in place — restore the invited identity before the authorize
+	// hop so this signs back in as invite-redeemer.
+	opSrv.SetClaims(inviteSub, "invite-redeemer@example.com", true, inviteUsername, "Invite Redeemer")
+	reloginClient, err := newFederationClient(*baseURL)
+	if err != nil {
+		log.Fatalf("relogin client: %v", err)
+	}
+	reloginAuthorize, err := reloginClient.getRedirect("/api/prohibitorum/auth/federation/mockop-invite/login?return_to=/me")
+	if err != nil {
+		log.Fatalf("provider re-login begin: %v", err)
+	}
+	reloginCallback, err := followMockOPAuthorize(reloginAuthorize)
+	if err != nil {
+		log.Fatalf("provider re-login authorize: %v", err)
+	}
+	if loc, err := reloginClient.getRedirectAbs(reloginCallback); err != nil {
+		log.Fatalf("provider re-login callback: %v", err)
+	} else if loc != "/me" {
+		log.Fatalf("provider re-login: want direct /me (bound identity signs in), got %q", loc)
+	}
+	if me, err := reloginClient.getMe(); err != nil || me.Username != inviteUsername {
+		log.Fatalf("provider re-login /me: err=%v me=%+v", err, me)
+	}
+	log.Printf("  invite_only provider re-login signed the bound user in ✓")
+
+	step(fmt.Sprintf("federation %d/%d — negative: consumed token rejected → 302 /error?error=invite_required", 29, nFederation))
 	negInvite1, _ := newFederationClient(*baseURL)
 	if err := expectInviteStartFederationError(negInvite1, *baseURL, inviteToken,
 		"invite_required"); err != nil {
@@ -1014,11 +1184,9 @@ func main() {
 	}
 	log.Printf("  /start-federation consumed → 302 /error?error=invite_required ✓")
 
-	step(fmt.Sprintf("federation %d/%d — negative: expired token rejected → 302 /error?error=invite_required", 25, nFederation))
+	step(fmt.Sprintf("federation %d/%d — negative: expired token rejected", 30, nFederation))
 	const expiredToken = "invite-token-smoke-expired-001"
-	// Seed a NEW enrollment that's already past expires_at (1 second in the
-	// past). BeginInviteRedemption checks enr.ExpiresAt.After(time.Now()).
-	if err := seedInviteEnrollment(expiredToken, "invite-redeemer-expired", "Expired Redeemer", "user", "mockop", "-1 second"); err != nil {
+	if err := seedInviteEnrollment(expiredToken, "user", "mockop-invite", "-1 second"); err != nil {
 		log.Fatalf("seed expired invite: %v", err)
 	}
 	negInvite2, _ := newFederationClient(*baseURL)
@@ -1028,7 +1196,67 @@ func main() {
 	}
 	log.Printf("  /start-federation expired → 302 /error?error=invite_required ✓")
 
-	step(fmt.Sprintf("federation %d/%d — DB assert: credential_event covers federation lifecycle", 26, nFederation))
+	step(fmt.Sprintf("federation %d/%d — unbound invite: invitee picks the provider via ?provider=…", 31, nFederation))
+	const unboundToken = "invite-token-smoke-unbound-001"
+	const unboundSub = "invite-redeemer-sub-unbound"
+	const unboundUsername = "invite-redeemer-2"
+	if err := seedUnboundInviteEnrollment(unboundToken, "user", "1 hour"); err != nil {
+		log.Fatalf("seed unbound invite: %v", err)
+	}
+	opSrv.SetClaims(unboundSub, "invite-redeemer-2@example.com", true, unboundUsername, "Second Redeemer")
+	unboundClient, err := newFederationClient(*baseURL)
+	if err != nil {
+		log.Fatalf("unbound client: %v", err)
+	}
+	unboundAuthorize, err := unboundClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?provider=mockop-invite&return_to=/me", unboundToken))
+	if err != nil {
+		log.Fatalf("unbound start-federation: %v", err)
+	}
+	unboundCallback, err := followMockOPAuthorize(unboundAuthorize)
+	if err != nil {
+		log.Fatalf("unbound authorize: %v", err)
+	}
+	if loc, err := unboundClient.getRedirectAbs(unboundCallback); err != nil {
+		log.Fatalf("unbound callback: %v", err)
+	} else if loc != "/welcome" {
+		log.Fatalf("unbound callback: want /welcome, got %q", loc)
+	}
+	if _, _, err := unboundClient.confirmPostFull(); err != nil {
+		log.Fatalf("unbound confirm: %v", err)
+	}
+	log.Printf("  unbound invite redeemed through the selected provider ✓")
+
+	step(fmt.Sprintf("federation %d/%d — username_collision: claim taken → error, invite stays redeemable", 32, nFederation))
+	const collToken = "invite-token-smoke-collision-001"
+	if err := seedInviteEnrollment(collToken, "user", "mockop-invite", "1 hour"); err != nil {
+		log.Fatalf("seed collision invite: %v", err)
+	}
+	// invite-redeemer already owns the username the upstream claim will produce.
+	opSrv.SetClaims("collision-sub-001", "collision@example.com", true, inviteUsername, "Collision")
+	collClient, err := newFederationClient(*baseURL)
+	if err != nil {
+		log.Fatalf("collision client: %v", err)
+	}
+	collAuthorize, err := collClient.getRedirect(fmt.Sprintf("/api/prohibitorum/enrollments/%s/start-federation?return_to=/me", collToken))
+	if err != nil {
+		log.Fatalf("collision start-federation: %v", err)
+	}
+	collCallback, err := followMockOPAuthorize(collAuthorize)
+	if err != nil {
+		log.Fatalf("collision authorize: %v", err)
+	}
+	if loc, err := collClient.getRedirectAbs(collCallback); err != nil {
+		log.Fatalf("collision callback: %v", err)
+	} else if !strings.HasPrefix(loc, "/error?error=username_collision") {
+		log.Fatalf("collision callback: want /error?error=username_collision, got %q", loc)
+	}
+	// The consume rolled back with the tx: the token must still be redeemable.
+	if consumed, err := enrollmentConsumed(collToken); err != nil || consumed {
+		log.Fatalf("collision invite consumed_at: consumed=%v err=%v", consumed, err)
+	}
+	log.Printf("  username_collision surfaced; invite left redeemable ✓")
+
+	step(fmt.Sprintf("federation %d/%d — DB assert: credential_event covers federation lifecycle", 33, nFederation))
 	if err := verifyFederationAuditEvents(); err != nil {
 		log.Fatalf("federation audit DB assert: %v", err)
 	}
@@ -6983,7 +7211,7 @@ func verifyFederationAuditEvents() error {
 // Postgres interval literal (e.g. "1 hour", "-1 second") added to now() —
 // negative offsets are used to seed pre-expired rows for the expired-token
 // negative test. Idempotent: deletes any prior row with the same token first.
-func seedInviteEnrollment(token, templateUsername, templateDisplayName, templateRole, expectedSlug, expiresOffset string) error {
+func seedInviteEnrollment(token, templateRole, expectedSlug, expiresOffset string) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
@@ -7003,13 +7231,13 @@ func seedInviteEnrollment(token, templateUsername, templateDisplayName, template
 	}
 	if _, err := conn.Exec(ctx, `INSERT INTO enrollment (
 		token, intent, expires_at,
-		template_username, template_display_name, template_role,
+		template_role,
 		expected_upstream_idp_slug
 	) VALUES (
 		$1, 'invite', now() + $2::interval,
-		$3, $4, $5,
-		$6
-	)`, token, expiresOffset, templateUsername, templateDisplayName, templateRole, expectedSlug); err != nil {
+		$3,
+		$4
+	)`, token, expiresOffset, templateRole, expectedSlug); err != nil {
 		return fmt.Errorf("insert invite enrollment: %w", err)
 	}
 	return nil
@@ -7018,7 +7246,7 @@ func seedInviteEnrollment(token, templateUsername, templateDisplayName, template
 // seedPlainInviteEnrollment inserts an intent='invite' row with NO federation
 // binding (expected_upstream_idp_slug NULL), so the local password+TOTP and
 // passkey ceremonies are both permitted. Idempotent.
-func seedPlainInviteEnrollment(token, username, display, role, expiresOffset string) error {
+func seedPlainInviteEnrollment(token, role, expiresOffset string) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 	if dburl == "" {
 		return errors.New("PROHIBITORUM_DATABASE_URL not set")
@@ -7033,9 +7261,9 @@ func seedPlainInviteEnrollment(token, username, display, role, expiresOffset str
 		return fmt.Errorf("delete prior invite: %w", err)
 	}
 	if _, err := conn.Exec(ctx, `INSERT INTO enrollment (
-		token, intent, expires_at, template_username, template_display_name, template_role
-	) VALUES ($1, 'invite', now() + $2::interval, $3, $4, $5)`,
-		token, expiresOffset, username, display, role); err != nil {
+		token, intent, expires_at, template_role
+	) VALUES ($1, 'invite', now() + $2::interval, $3)`,
+		token, expiresOffset, role); err != nil {
 		return fmt.Errorf("insert plain invite enrollment: %w", err)
 	}
 	return nil
@@ -7080,7 +7308,7 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	)
 
 	step("pwd-totp-enroll 1/6 — seed a plain (non-federation) invite enrollment")
-	if err := seedPlainInviteEnrollment(token, username, display, "user", "1 hour"); err != nil {
+	if err := seedPlainInviteEnrollment(token, "user", "1 hour"); err != nil {
 		return fmt.Errorf("seed invite: %w", err)
 	}
 	ec, err := newClient(baseURL)
@@ -7191,14 +7419,14 @@ func runPasswordTOTPEnrollmentSmoke(baseURL string) error {
 	return nil
 }
 
-// verifyInviteOnlyRedemption DB-asserts the post-redemption state of an
-// invite_only flow:
+// verifyInviteOnlyRedemption DB-asserts the post-provisioning state of an
+// invite + provider flow:
 //   - enrollment.consumed_at is NOT NULL for the redeemed token,
-//   - exactly one account exists with the template username,
+//   - exactly one account exists with the upstream-claim username,
 //   - exactly one account_identity row links that account to the upstream sub
 //     under the given IdP,
 //   - credential_event has at least one federation_oidc/register row with
-//     detail->>'reason' = 'invite_only_redemption'.
+//     detail->>'reason' = 'invite_provisioned'.
 func verifyInviteOnlyRedemption(token, username, upstreamSub string, idpID int64) error {
 	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
 
@@ -7244,18 +7472,18 @@ func verifyInviteOnlyRedemption(token, username, upstreamSub string, idpID int64
 	log.Printf("  account_identity[%s] account_id=%d upstream_idp_id=%d ✓", upstreamSub, accID, idpID)
 
 	// 4) credential_event has a federation_oidc/register row with
-	//    detail->>'reason' = 'invite_only_redemption' for this account.
+	//    detail->>'reason' = 'invite_provisioned' for this account.
 	regs, err := dbScalar(dburl, fmt.Sprintf(
 		"SELECT count(*)::text FROM credential_event "+
 			"WHERE factor='federation_oidc' AND event='register' "+
-			"AND account_id=%d AND detail->>'reason'='invite_only_redemption'", accID))
+			"AND account_id=%d AND detail->>'reason'='invite_provisioned'", accID))
 	if err != nil {
 		return err
 	}
 	if len(regs) != 1 || regs[0] == "" || regs[0] == "0" {
-		return fmt.Errorf("credential_event register with reason=invite_only_redemption: want >=1, got %v", regs)
+		return fmt.Errorf("credential_event register with reason=invite_provisioned: want >=1, got %v", regs)
 	}
-	log.Printf("  credential_event register{reason=invite_only_redemption} for account %d: %s ✓", accID, regs[0])
+	log.Printf("  credential_event register{reason=invite_provisioned} for account %d: %s ✓", accID, regs[0])
 	return nil
 }
 
@@ -7293,6 +7521,117 @@ func expectInviteStartFederationError(c *client, baseURL, token string, wantCode
 		return fmt.Errorf("/start-federation Location: want prefix %q, got %q", wantPrefix, loc)
 	}
 	return nil
+}
+
+// expectFederationLoginError drives GET /auth/federation/{slug}/login through
+// the full hop chain (begin → upstream /authorize → RP /callback) and asserts
+// the final redirect goes to /error?error=<wantCode> — the resolve-time
+// rejection path (invite_only / link_only with an unknown identity). The
+// begin itself succeeds: the provider is listed like any other now.
+func expectFederationLoginError(c *client, baseURL, slug, mockopBase, wantCode string) error {
+	path := fmt.Sprintf("/api/prohibitorum/auth/federation/%s/login?return_to=/me", slug)
+	req, err := http.NewRequest(http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return fmt.Errorf("login: build request: %w", err)
+	}
+	noFollow := &http.Client{
+		Jar:     c.jar,
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := noFollow.Do(req)
+	if err != nil {
+		return fmt.Errorf("login: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusFound {
+		return fmt.Errorf("/login status: want 302, got %d (body=%s)", resp.StatusCode, string(body))
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, mockopBase+"/authorize") {
+		return fmt.Errorf("/login Location: want upstream /authorize, got %q", loc)
+	}
+	callbackURL, err := followMockOPAuthorize(loc)
+	if err != nil {
+		return fmt.Errorf("login authorize: %w", err)
+	}
+	finalLoc, err := c.getRedirectAbs(callbackURL)
+	if err != nil {
+		return fmt.Errorf("login callback: %w", err)
+	}
+	if !strings.HasPrefix(finalLoc, "/error?error="+wantCode) {
+		return fmt.Errorf("login final Location: want prefix %q, got %q", "/error?error="+wantCode, finalLoc)
+	}
+	return nil
+}
+
+// confirmPostFull drives POST /auth/federation/confirm and returns
+// (offerLocalSignin, redirect). The flag is set only for accounts provisioned
+// through an invite + provider (the grant carries it).
+func (c *client) confirmPostFull() (bool, string, error) {
+	var out struct {
+		Redirect         string `json:"redirect"`
+		OfferLocalSignin bool   `json:"offerLocalSignin"`
+	}
+	if err := c.postJSON("/api/prohibitorum/auth/federation/confirm", map[string]any{}, &out); err != nil {
+		return false, "", err
+	}
+	return out.OfferLocalSignin, out.Redirect, nil
+}
+
+// verifyNoAccountForSub DB-asserts that no account_identity row exists for the
+// given upstream sub — the "nothing was provisioned" negative-check.
+func verifyNoAccountForSub(upstreamSub string) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	rows, err := dbScalar(dburl, fmt.Sprintf(
+		"SELECT count(*)::text FROM account_identity WHERE upstream_sub='%s'", upstreamSub))
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 || rows[0] != "0" {
+		return fmt.Errorf("account_identity[sub=%s]: want 0 rows, got %v", upstreamSub, rows)
+	}
+	return nil
+}
+
+// seedUnboundInviteEnrollment inserts a redeemable intent='invite' row with no
+// expected_upstream_idp_slug, so the invitee must select the provider via the
+// start-federation provider query parameter. Idempotent.
+func seedUnboundInviteEnrollment(token, role, expiresOffset string) error {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dburl)
+	if err != nil {
+		return fmt.Errorf("pgx connect: %w", err)
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "DELETE FROM enrollment WHERE token=$1", token); err != nil {
+		return fmt.Errorf("delete prior invite: %w", err)
+	}
+	if _, err := conn.Exec(ctx, `INSERT INTO enrollment (
+		token, intent, expires_at, template_role
+	) VALUES ($1, 'invite', now() + $2::interval, $3)`,
+		token, expiresOffset, role); err != nil {
+		return fmt.Errorf("insert unbound invite enrollment: %w", err)
+	}
+	return nil
+}
+
+// enrollmentConsumed reports whether the enrollment row's consumed_at is set.
+func enrollmentConsumed(token string) (bool, error) {
+	dburl := os.Getenv("PROHIBITORUM_DATABASE_URL")
+	rows, err := dbScalar(dburl, fmt.Sprintf(
+		"SELECT (consumed_at IS NOT NULL)::text FROM enrollment WHERE token='%s'", token))
+	if err != nil {
+		return false, err
+	}
+	if len(rows) != 1 {
+		return false, fmt.Errorf("enrollment[%s]: want 1 row, got %v", token, rows)
+	}
+	return rows[0] == "true", nil
 }
 
 // =========================================================================

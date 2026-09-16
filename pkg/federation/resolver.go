@@ -46,6 +46,10 @@ type ResolveOutcome struct {
 	AMR        []string
 	IsNew      bool
 	Confirmed  bool
+	// OfferLocalSignin is set only by the invite+provider provisioning path:
+	// the freshly minted account has no local credentials, so after the
+	// /welcome confirmation the SPA offers the one-time setup step.
+	OfferLocalSignin bool
 }
 
 // Mode constants — must match upstream_idp.mode enum in the schema.
@@ -172,14 +176,12 @@ func resolve(
 	switch idp.Mode {
 	case ModeAutoProvision:
 		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, false, upstreamData, pool)
-	case ModeInviteOnly:
-		// Reaching invite_only via resolve means the login flow carried no
-		// EnrollmentToken in its FlowState. Dispatch into applyInviteOnly with an
-		// empty token; the top of that function audits invite_required_no_token
-		// and rejects. Pool is nil — no DB writes happen on the rejection path.
-		return applyInviteOnly(ctx, q, w, idp, identity, "", upstreamData, nil)
-	case ModeLinkOnly:
-		return applyLinkOnly(ctx, w, idp, identity)
+	case ModeInviteOnly, ModeLinkOnly:
+		// Neither mode may create an account through the login entrypoint.
+		// The audit reason keeps the modes distinguishable for operators;
+		// the public error codes differ per mode (invite_required vs
+		// link_required).
+		return applyNoProvision(ctx, w, idp, identity)
 	default:
 		return ResolveOutcome{}, fmt.Errorf("federation/oidc: unknown idp.mode %q", idp.Mode)
 	}
@@ -427,7 +429,7 @@ func applyAutoProvision(
 		// outer-pool Writer would race the FK check against the
 		// uncommitted account row (different connection, MVCC snapshot
 		// doesn't yet see InsertAccount above) and fail silently. Same
-		// invariant as applyInviteOnly.
+		// invariant as applyInviteProvision.
 		audit.RecordOrLog(ctx, txAudit, audit.Record{
 			AccountID: new(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
@@ -463,21 +465,34 @@ func applyAutoProvision(
 	})
 }
 
-// applyInviteOnly implements the token-bearing invite redemption flow:
-// the upstream OIDC dance proves the user controls the IdP identity, then
-// the enrollment row is atomically consumed and a fresh local account is
-// minted from the admin-supplied template — all inside a single
-// transaction so a partial failure can never burn an invite without
-// producing the corresponding account.
+// applyInviteProvision implements the invite + provider registration flow,
+// mirroring applyAutoProvision's transaction structure with the invite
+// replacing its free-authorization checks (design.md §4.3):
+//
+//  1. an authoritative (iss, sub) lookup inside the tx — a hit means the
+//     upstream identity is already bound to some account, which is refused
+//     (identity_conflict). Deliberately NOT applyAutoProvision's
+//     sign-into-the-existing-account branch: the invite's template_role and
+//     template_attributes must not be silently dropped;
+//  2. the atomic invite consume (ConsumeInviteEnrollment) — the
+//     authorization decision itself, replacing require_verified_email and
+//     allowed_domains;
+//  3. username and display name taken from the upstream claims, exactly as
+//     auto_provision does (same validate + collision handling, word for
+//     word);
+//  4. role and attributes from the invite template — the one extra power an
+//     invite has over free auto-provisioning;
+//  5. the new identity row stays UNCONFIRMED (no in-tx ConfirmAccountIdentity,
+//     no session): the HTTP layer signs a confirmation grant and routes the
+//     user through /welcome.
+//
+// Every failure inside the tx rolls the consume back, so the invite stays
+// redeemable once the underlying problem (provider misconfiguration,
+// username collision, conflicting binding) is resolved by an admin.
 //
 // pool is nil-safe: in tests the fake querier carries through with no
-// transactional semantics (the call order is what's asserted); in
-// production the pgxpool transaction provides the real atomicity guarantee.
-//
-// Skips require_verified_email + allowed_domains by design: the admin
-// minted this invite specifically for this user, which IS the
-// authorization decision. See the federation design spec D11 for rationale.
-func applyInviteOnly(
+// transactional semantics (the call order is what's asserted).
+func applyInviteProvision(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
@@ -487,14 +502,25 @@ func applyInviteOnly(
 	upstreamData []byte,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	if enrollmentToken == "" {
-		// Reached this branch via Resolve's mode-dispatch — i.e. an
-		// invite_only IdP was hit without an invite. Reject and audit.
-		emitFail(ctx, w, idp, identity, "invite_required_no_token", nil)
-		return ResolveOutcome{}, authn.ErrInviteRequired()
-	}
-
 	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+		// One authoritative identity lookup inside the tx (same shape as
+		// applyAutoProvision). A concurrent callback may have bound this
+		// (iss, sub) since begin — refuse instead of silently logging the
+		// user into an account the invite never minted.
+		existing, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
+			UpstreamIss: identity.Issuer,
+			UpstreamSub: identity.Subject,
+		})
+		switch {
+		case err == nil:
+			emitFail(ctx, w, idp, identity, "identity_conflict", map[string]any{
+				"bound_account_id": existing.AccountID,
+			})
+			return ResolveOutcome{}, authn.ErrInviteRequired()
+		case !errors.Is(err, pgx.ErrNoRows):
+			return ResolveOutcome{}, fmt.Errorf("federation: authoritative identity lookup: %w", err)
+		}
+
 		// Atomic, intent-scoped consume — the UPDATE ... WHERE intent='invite'
 		// AND consumed_at IS NULL AND expires_at > now() guarantees the row is a
 		// redeemable INVITE at the instant we claim it. Restricting to
@@ -512,37 +538,47 @@ func applyInviteOnly(
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: ConsumeInviteEnrollment: %w", err)
 		}
 
-		// Defense in depth: the invite must have been minted for THIS IdP.
-		// Catches admin slug edits mid-flight, malformed flow state, etc.
-		if !enr.ExpectedUpstreamIdpSlug.Valid || enr.ExpectedUpstreamIdpSlug.String != idp.Slug {
+		// Defense in depth: a BINDING-carrying invite must have been minted
+		// for THIS IdP — it catches admin slug edits mid-flight, malformed flow
+		// state, etc. An UNBOUND invite (no expected slug) is redeemable
+		// through any provisioning-capable provider the invitee selected; the
+		// begin-time gate (ProviderStore.InviteProvider) already rejected
+		// link_only/disabled choices.
+		if enr.ExpectedUpstreamIdpSlug.Valid && enr.ExpectedUpstreamIdpSlug.String != idp.Slug {
 			emitFail(ctx, w, idp, identity, "invite_slug_mismatch", map[string]any{
 				"enrollment_expected_slug": enr.ExpectedUpstreamIdpSlug.String,
 			})
 			return ResolveOutcome{}, authn.ErrInviteRequired()
 		}
 
-		// Belt-and-suspenders: the schema CHECK constraint at
-		// db/migrations/001_initial.sql guarantees template_username NOT NULL
-		// when intent='invite', but a missing template here means the schema
-		// invariant was violated upstream — surface as a 500 so it gets seen.
-		if !enr.TemplateUsername.Valid || enr.TemplateUsername.String == "" {
-			return ResolveOutcome{}, fmt.Errorf("federation/oidc: invite missing template_username for token %q", enrollmentToken)
-		}
-		if !enr.TemplateRole.Valid || enr.TemplateRole.String == "" {
-			return ResolveOutcome{}, fmt.Errorf("federation/oidc: invite missing template_role")
+		username := identity.Username
+		displayName := identity.DisplayName
+		email := identityEmail(identity)
+		if displayName == "" {
+			displayName = username
 		}
 
-		// Username collision is a technical constraint that's checked at
-		// invite-create time (handle_invitations.go) but races are possible
-		// (two invites for the same name; or a local password account took
-		// the slot between mint and redemption). Detect and audit here.
-		// Failure audits use the OUTER writer (w): the error return rolls
-		// back the tx (un-doing ConsumeEnrollment so the invite stays
-		// redeemable), and a tx-scoped audit row would roll back with it —
-		// losing the forensic record. The outer writer commits independently.
-		if _, err := qtx.GetAccountByUsername(ctx, enr.TemplateUsername.String); err == nil {
+		// Failure audits below use the OUTER writer (w): the error return
+		// rolls back the tx (un-doing ConsumeInviteEnrollment so the invite
+		// stays redeemable), and a tx-scoped audit row would roll back with
+		// it — losing the forensic record. The outer writer commits
+		// independently. Identical reasoning to applyAutoProvision.
+		//
+		// Gate order matches applyAutoProvision word for word: validate the
+		// upstream-provided username before the collision lookup. In
+		// particular, a missing username_claim is a provider
+		// misconfiguration (api.md §5 / design.md §4.3: a server error, not
+		// the user-facing invalid_username page) and must surface before any
+		// collision semantics are consulted.
+		if username == "" {
+			return ResolveOutcome{}, fmt.Errorf("federation/oidc: upstream provided no %q claim (idp=%q, sub=%q)", idp.UsernameClaim, idp.Slug, identity.Subject)
+		}
+		if err := acctpkg.ValidateUsername(username); err != nil {
+			return ResolveOutcome{}, err
+		}
+		if _, err := qtx.GetAccountByUsername(ctx, username); err == nil {
 			emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
-				"username": enr.TemplateUsername.String,
+				"username": username,
 			})
 			return ResolveOutcome{}, authn.ErrUsernameCollision()
 		} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -558,19 +594,16 @@ func applyInviteOnly(
 		if len(enr.TemplateAttributes) > 0 {
 			attrs = enr.TemplateAttributes
 		}
-
-		displayName := enr.TemplateDisplayName.String
-		if displayName == "" {
-			displayName = enr.TemplateUsername.String
+		role := "user"
+		if enr.TemplateRole.Valid && enr.TemplateRole.String != "" {
+			role = enr.TemplateRole.String
 		}
 
-		email := identityEmail(identity)
-
 		acct, err := qtx.InsertAccount(ctx, db.InsertAccountParams{
-			Username:           enr.TemplateUsername.String,
+			Username:           username,
 			DisplayName:        displayName,
 			WebauthnUserHandle: handle,
-			Role:               enr.TemplateRole.String,
+			Role:               role,
 			Attributes:         attrs,
 			Disabled:           false,
 			Email:              pgtype.Text{String: email, Valid: email != ""},
@@ -579,14 +612,11 @@ func applyInviteOnly(
 		if err != nil {
 			if isUniqueViolation(err) {
 				// Lost the race against a concurrent insert for the same
-				// username (another invite redemption, or a federated
-				// auto_provision callback in flight). Map to a clean
-				// ErrUsernameCollision + audit instead of a wrapped 500.
-				// Tx rollback un-does ConsumeEnrollment, so the invite is
-				// re-redeemable — matches the previous-step collision branch.
-				// Outer writer (w) so the audit survives the rollback.
+				// username. Tx rollback un-does ConsumeInviteEnrollment, so
+				// the invite is re-redeemable; outer writer (w) so the audit
+				// survives the rollback.
 				emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
-					"username": enr.TemplateUsername.String,
+					"username": username,
 				})
 				return ResolveOutcome{}, authn.ErrUsernameCollision()
 			}
@@ -603,38 +633,24 @@ func applyInviteOnly(
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
-				// (upstream_iss, upstream_sub) already bound to another
-				// local account — same anti-enumeration treatment as
-				// LinkCallback's link_conflict and applyAutoProvision's
-				// identity_conflict. Tx rollback drops the just-inserted
-				// account row and the ConsumeEnrollment, so the invite is
-				// re-redeemable. Outer writer (w) so the audit survives.
+				// (upstream_iss, upstream_sub) bound concurrently between
+				// the authoritative lookup and this insert. Same collapse
+				// onto invite_required; the rollback re-opens the invite.
 				emitFail(ctx, w, idp, identity, "identity_conflict", nil)
 				return ResolveOutcome{}, authn.ErrInviteRequired()
 			}
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
 		}
 
-		// Auto-confirm the freshly-inserted identity IN-TX: the admin minted
-		// this invite specifically for this user, which IS the authorization
-		// decision (same rationale as skipping the D11 gates). A confirmed
-		// identity issues a durable session immediately — no /welcome gate. The
-		// confirm shares this tx so it rolls back atomically with the insert.
-		if err := qtx.ConfirmAccountIdentity(ctx, ident.ID); err != nil {
-			return ResolveOutcome{}, fmt.Errorf("federation/oidc: confirm invite identity: %w", err)
-		}
-
+		// No ConfirmAccountIdentity here, by design: the /welcome gate is the
+		// invitee's confirmation step ("is this me?"), and it is what lets a
+		// declined invitation leave no session behind.
+		//
 		// Audit MUST be emitted via the tx-scoped Writer (txAudit) so the
 		// credential_event.account_id FK to account.id resolves: the
 		// outer-pool Writer would race the FK check against the
 		// uncommitted account row (different connection, MVCC snapshot
 		// doesn't yet see the InsertAccount above) and fail silently.
-		// The original `_ = w.Record(...)` swallowed that FK error, which
-		// surfaced as missing audit rows in the federation smoke (the
-		// register-with-invite_only_redemption assertion). runInviteTx
-		// hands us txAudit bound to the same tx as InsertAccount; on
-		// rollback the audit rows revert too, which is the correct
-		// semantic — no orphan audit pointing at non-existent accounts.
 		audit.RecordOrLog(ctx, txAudit, audit.Record{
 			AccountID: new(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
@@ -643,36 +659,25 @@ func applyInviteOnly(
 				"idp_slug": idp.Slug,
 				"iss":      identity.Issuer,
 				"sub":      identity.Subject,
-				"mode":     ModeInviteOnly,
-				"reason":   "invite_only_redemption",
-				"username": enr.TemplateUsername.String,
-			},
-		})
-		audit.RecordOrLog(ctx, txAudit, audit.Record{
-			AccountID: new(acct.ID),
-			Factor:    audit.FactorFederationOIDC,
-			Event:     audit.EventUse,
-			Detail: map[string]any{
-				"idp_slug": idp.Slug,
-				"iss":      identity.Issuer,
-				"sub":      identity.Subject,
+				"mode":     idp.Mode,
+				"reason":   "invite_provisioned",
+				"username": username,
 			},
 		})
 
-		// Confirmed=true: the invite auto-confirmed above, so the HTTP layer
-		// issues a session now.
 		return ResolveOutcome{
-			AccountID:  acct.ID,
-			IdentityID: ident.ID,
-			ProviderID: idp.ID,
-			AMR:        append([]string(nil), identity.AMR...),
-			IsNew:      true,
-			Confirmed:  true,
+			AccountID:        acct.ID,
+			IdentityID:       ident.ID,
+			ProviderID:       idp.ID,
+			AMR:              append([]string(nil), identity.AMR...),
+			IsNew:            true,
+			Confirmed:        false,
+			OfferLocalSignin: true,
 		}, nil
 	})
 }
 
-// runProvisionTx is the transactional wrapper shared by applyInviteOnly
+// runProvisionTx is the transactional wrapper shared by applyInviteProvision
 // and applyAutoProvision (originally runInviteTx — both apply paths now
 // reuse the same wrapper because the shape is identical: collision
 // check + InsertAccount + InsertAccountIdentity + audit, all atomic).
@@ -685,7 +690,7 @@ func applyInviteOnly(
 // load-bearing invariant — without it the credential_event FK to
 // account.id races the uncommitted InsertAccount on a separate
 // connection and silently fails (the audit Writer swallows errors by
-// convention). See applyInviteOnly's audit-write site for the rationale.
+// convention). See applyInviteProvision's audit-write site for the rationale.
 func runProvisionTx(
 	ctx context.Context,
 	pool *pgxpool.Pool,
@@ -714,16 +719,22 @@ func runProvisionTx(
 	return outcome, nil
 }
 
-// applyLinkOnly rejects unknown identities under link_only mode. The
-// existing-identity check happens in Resolve, so reaching this function
-// already implies "no account_identity row" — the only remaining branch
-// is reject.
-func applyLinkOnly(
+// applyNoProvision rejects unknown identities for modes that never create
+// accounts through the login entrypoint (invite_only, link_only). The
+// existing-identity check happens before this, so reaching this function
+// already implies "no account_identity row" — the only remaining branch is
+// reject. The audit reason and the public error code are per-mode so the
+// error page points the user at the right next step.
+func applyNoProvision(
 	ctx context.Context,
 	w audit.Writer,
 	idp *resolverProvider,
 	identity *VerifiedIdentity,
 ) (ResolveOutcome, error) {
+	if idp.Mode == ModeInviteOnly {
+		emitFail(ctx, w, idp, identity, "no_account_invite_only", nil)
+		return ResolveOutcome{}, authn.ErrInviteRequired()
+	}
 	emitFail(ctx, w, idp, identity, "link_required", nil)
 	return ResolveOutcome{}, authn.ErrLinkRequired()
 }
@@ -841,7 +852,7 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 		}
 		return r.resolveLink(ctx, &row, &identity, *resolution.LinkAccountID, upstreamData)
 	case IntentInvite:
-		return applyInviteOnly(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, upstreamData, r.pool)
+		return applyInviteProvision(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, upstreamData, r.pool)
 	case IntentLogin:
 		username := resolution.LocalUsername
 		if username == "" && !resolution.RequireLocalUsername {

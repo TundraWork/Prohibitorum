@@ -31,7 +31,7 @@ var (
 type ProviderLoader interface {
 	BySlug(context.Context, string) (Provider, error)
 	ByBinding(context.Context, int64, string, string) (Provider, error)
-	InviteProvider(context.Context, string) (Provider, error)
+	InviteProvider(context.Context, string, string) (Provider, error)
 }
 
 type ServiceConfig struct {
@@ -136,8 +136,6 @@ func (s *Service) BeginPublic(ctx context.Context, providerSlug, returnTo string
 			return nil, authn.ErrFederationStateInvalid()
 		}
 		intent = IntentEnroll
-	} else if provider.Mode == ModeInviteOnly {
-		return nil, s.recordFailure(ctx, nil, nil, provider.Slug, NewFailure(FailureInviteRequiredPreAuth, nil))
 	}
 	return s.begin(ctx, provider, intent, returnTo, nil, "", "")
 }
@@ -149,8 +147,8 @@ func (s *Service) BeginLink(ctx context.Context, providerSlug, returnTo string, 
 	return s.beginBySlug(ctx, providerSlug, IntentLink, returnTo, new(accountID), sessionID, "")
 }
 
-func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, returnTo string) (*BeginResult, error) {
-	provider, err := s.providers.InviteProvider(ctx, enrollmentToken)
+func (s *Service) BeginInvite(ctx context.Context, enrollmentToken, selectedSlug, returnTo string) (*BeginResult, error) {
+	provider, err := s.providers.InviteProvider(ctx, enrollmentToken, selectedSlug)
 	if err != nil {
 		if _, _, _, _, ok := failureProjection(err); ok {
 			return nil, s.recordFailure(ctx, nil, nil, "", err)
@@ -383,6 +381,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		ProviderID: provider.ID, ProviderSlug: provider.Slug, ReturnTo: state.ReturnTo,
 		AMR: append([]string(nil), outcome.AMR...), IsNew: outcome.IsNew,
 		Confirmed: outcome.Confirmed, AvatarURL: result.Identity.AvatarURL,
+		OfferLocalSignin: outcome.OfferLocalSignin,
 	}
 	if s.avatar != nil && state.Intent != IntentLink {
 		delivery := AvatarDelivery{URL: result.Identity.AvatarURL}
@@ -395,7 +394,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	return completion, nil
 }
 
-func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, identityID, providerID int64, providerSlug, returnTo string, amr []string) (token, browserToken string, err error) {
+func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, identityID, providerID int64, providerSlug, returnTo string, amr []string, offerLocalSignin bool) (token, browserToken string, err error) {
 	token, err = randomToken()
 	if err != nil {
 		return "", "", err
@@ -407,7 +406,8 @@ func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, ident
 	grant := ConfirmGrant{
 		AccountID: accountID, IdentityID: identityID, ProviderID: providerID,
 		ProviderSlug: providerSlug, ReturnTo: returnTo, BrowserDigest: BrowserDigest(browserToken),
-		AMR: append([]string(nil), amr...),
+		AMR:              append([]string(nil), amr...),
+		OfferLocalSignin: offerLocalSignin,
 	}
 	raw, err := grant.Encode()
 	if err != nil {
@@ -600,7 +600,6 @@ func vrchatFailureCategory(err error) string {
 			FailureInviteConsumed,
 			FailureInviteExpired,
 			FailureInviteNotFederated,
-			FailureInviteRequiredPreAuth,
 			FailureVRChatIdentityInvalid,
 			FailureVRChatProofMissing,
 			FailureVRChatProviderNotReady,

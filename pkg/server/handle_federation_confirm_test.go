@@ -179,7 +179,7 @@ func seedConfirmGrant(t *testing.T, h *fedTestHarness) confirmFixture {
 	// h.idp is already seeded under slug "mockop" by the harness.
 
 	token, anti, err := h.s.federationService.CreateConfirmGrant(
-		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil,
+		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil, false,
 	)
 	if err != nil {
 		t.Fatalf("CreateConfirmGrant: %v", err)
@@ -301,13 +301,19 @@ func TestFederationConfirmPost_ConfirmsAndIssuesSession(t *testing.T) {
 			break
 		}
 	}
-	// Body carries the return-to redirect.
-	var out map[string]string
+	// Body carries the return-to redirect and the local sign-in offer flag.
+	var out struct {
+		Redirect         string `json:"redirect"`
+		OfferLocalSignin bool   `json:"offerLocalSignin"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		t.Fatalf("decode confirm body: %v", err)
 	}
-	if out["redirect"] != "/me" {
-		t.Errorf("redirect: want /me, got %q", out["redirect"])
+	if out.Redirect != "/me" {
+		t.Errorf("redirect: want /me, got %q", out.Redirect)
+	}
+	if out.OfferLocalSignin {
+		t.Errorf("offerLocalSignin: want false for a plain auto_provision login, got true")
 	}
 
 	// Single-use: a SECOND POST with the same (popped) grant must 401.

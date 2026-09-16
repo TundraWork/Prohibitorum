@@ -59,6 +59,45 @@ func (s *Server) enrollmentQ() db.Querier {
 	return s.queries
 }
 
+// inviteRedeemableProviders lists the providers an invite may be redeemed
+// through: the bound slug only when set (empty list when that provider is
+// link_only — it never creates accounts), otherwise every enabled
+// auto_provision/invite_only IdP. Icons are best-effort: a lookup failure
+// degrades to the initial-letter fallback, never a failed response.
+func (s *Server) inviteRedeemableProviders(ctx context.Context, boundSlug string) []contract.FederationProvider {
+	q := s.enrollmentQ()
+	idps, err := q.ListUpstreamIDPs(ctx)
+	if err != nil {
+		return nil
+	}
+	etagBySlug := map[string]string{}
+	if icons, ierr := q.ListEntityIconEtags(ctx, "upstream_idp"); ierr == nil {
+		for _, ic := range icons {
+			etagBySlug[ic.OwnerID] = ic.Etag
+		}
+	}
+	out := make([]contract.FederationProvider, 0, len(idps))
+	for _, idp := range idps {
+		if boundSlug != "" {
+			if idp.Slug != boundSlug {
+				continue
+			}
+			if idp.Mode == federation.ModeLinkOnly {
+				return nil
+			}
+		} else if idp.Mode != federation.ModeAutoProvision && idp.Mode != federation.ModeInviteOnly {
+			continue
+		}
+		out = append(out, contract.FederationProvider{
+			Slug:        idp.Slug,
+			DisplayName: idp.DisplayName,
+			Protocol:    idp.Protocol,
+			IconURL:     entityIconURLPtr("upstream_idp", idp.Slug, etagBySlug[idp.Slug]),
+		})
+	}
+	return out
+}
+
 type enrollmentWebAuthn interface {
 	BeginRegistration(webauthn.User, ...webauthn.RegistrationOption) (*protocol.CredentialCreation, *webauthn.SessionData, error)
 	CreateCredential(webauthn.User, webauthn.SessionData, *protocol.ParsedCredentialCreationData) (*webauthn.Credential, error)
@@ -143,8 +182,14 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 	case enrollment.IntentBootstrap:
 		// no target — bootstrap creates a brand-new admin
 	case enrollment.IntentInvite:
-		// No target hint — invitee picks their own username/displayName from
-		// scratch. The template only carries role + attributes.
+		// No target hint — the invitee registers through a provider (username
+		// from the upstream claims) or local credentials. Surface the provider
+		// binding and the redeemable provider list so the enroll page can
+		// render the choice without a probe round-trip.
+		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
+			out.ExpectedUpstreamIdpSlug = e.ExpectedUpstreamIdpSlug.String
+		}
+		out.Providers = s.inviteRedeemableProviders(ctx, out.ExpectedUpstreamIdpSlug)
 	case enrollment.IntentFederatedRegister:
 		if !e.FederatedUpstreamIdpID.Valid || !e.FederatedDisplayName.Valid {
 			return nil, authErrToHuma(authn.ErrProviderNotReady())

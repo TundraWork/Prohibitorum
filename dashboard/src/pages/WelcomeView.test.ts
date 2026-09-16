@@ -87,6 +87,26 @@ describe('WelcomeView', () => {
     expect(assignSpy).toHaveBeenCalledWith('/login')
   })
 
+  it('navigates to the setup-signin step when the confirm response offers it', async () => {
+    get.mockResolvedValue({ idpDisplayName: 'Google', displayName: 'Jane', username: 'jane', email: 'j@x.com', avatarPending: false })
+    post.mockResolvedValueOnce({ redirect: '/me', offerLocalSignin: true })
+    const w = mountView()
+    await flushPromises()
+    await w.find('[data-test="welcome-continue"]').trigger('click')
+    await flushPromises()
+    expect(assignSpy).toHaveBeenCalledWith('/setup-signin?redirect=%2Fme')
+  })
+
+  it('keeps the plain redirect when offerLocalSignin is absent', async () => {
+    get.mockResolvedValue({ idpDisplayName: 'Google', displayName: 'Jane', username: 'jane', email: 'j@x.com', avatarPending: false })
+    post.mockResolvedValueOnce({ redirect: '/me' })
+    const w = mountView()
+    await flushPromises()
+    await w.find('[data-test="welcome-continue"]').trigger('click')
+    await flushPromises()
+    expect(assignSpy).toHaveBeenCalledWith('/me')
+  })
+
   it('redirects to /login on 401 during initial GET', async () => {
     get.mockRejectedValueOnce({ code: 'no_session' })
     mountView()

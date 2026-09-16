@@ -8,7 +8,7 @@ import (
 	"prohibitorum/pkg/audit"
 )
 
-func ApplyInviteOnlyForTest(
+func ApplyInviteProvisionForTest(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
@@ -25,5 +25,5 @@ func ApplyInviteOnlyForTest(
 	if err != nil {
 		return ResolveOutcome{}, err
 	}
-	return applyInviteOnly(ctx, q, w, &resolverIDP, identity, enrollmentToken, upstreamData, pool)
+	return applyInviteProvision(ctx, q, w, &resolverIDP, identity, enrollmentToken, upstreamData, pool)
 }

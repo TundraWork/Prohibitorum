@@ -172,6 +172,10 @@ type ConfirmGrant struct {
 	ReturnTo       string   `json:"return_to"`
 	BrowserDigest  string   `json:"browser_digest"`
 	AMR            []string `json:"amr,omitempty"`
+	// OfferLocalSignin marks an account minted through an invite + provider:
+	// the confirm response then points /welcome at the one-time
+	// "add local sign-in" step instead of straight at return_to.
+	OfferLocalSignin bool `json:"offer_local_signin,omitempty"`
 }
 
 func (g ConfirmGrant) Encode() (string, error) {
