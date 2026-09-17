@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en'
 import SecurityView from './SecurityView.vue'
-import PasswordCard from './security/PasswordCard.vue'
+import PasswordTotpCard from './security/PasswordTotpCard.vue'
 import RecoveryCodesCard from './security/RecoveryCodesCard.vue'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(async () => null), post: vi.fn(), put: vi.fn() } }))
@@ -35,13 +35,12 @@ beforeEach(() => {
 })
 
 describe('SecurityView', () => {
-  it('renders the four cards and the revoke action; revoke opens confirm → posts', async () => {
+  it('renders the factor cards and the revoke action; revoke opens confirm → posts', async () => {
     get.mockResolvedValue(FACTORS_SET)
     const w = mount(SecurityView, { global: { plugins: [i18n()] }, attachTo: document.body })
     await flushPromises()
     expect(w.text()).toContain(en.security.passkeys.title)
-    expect(w.text()).toContain(en.security.password.title)
-    expect(w.text()).toContain(en.security.totp.title)
+    expect(w.text()).toContain(en.security.passwordTotp.title)
     expect(w.text()).toContain(en.security.recovery.title)
     await w.findAll('button').find((b) => b.text() === en.security.revoke.button)!.trigger('click')
     await flushPromises()
@@ -111,8 +110,8 @@ describe('SecurityView', () => {
     expect(recoveryCard.find('button').exists()).toBe(true)
   })
 
-  it('saving a password invalidates shared factors and updates the badge', async () => {
-    // Initial mount: password is not set
+  it('setting up password + authenticator invalidates shared factors and updates the badge', async () => {
+    // Initial mount: neither factor is set, so the card offers the combined path.
     get.mockResolvedValue(FACTORS_UNSET)
     const w = mount(SecurityView, { global: { plugins: [i18n()] }, attachTo: document.body })
     await flushPromises()
@@ -122,18 +121,25 @@ describe('SecurityView', () => {
     const factorsCallsBefore = get.mock.calls.filter((args) => args[0] === '/api/prohibitorum/me/factors').length
     expect(factorsCallsBefore).toBe(1)
 
-    // After the card emits "changed", the GET will return passwordSet: true
-    get.mockResolvedValue({ ...FACTORS_UNSET, passwordSet: true })
-    const card = w.findComponent(PasswordCard)
+    post.mockImplementation(async (path: string) =>
+      path.endsWith('/password-totp/begin') ? { secret_base32: 'S', otpauth_uri: 'otpauth://totp/x' }
+      : path.endsWith('/password-totp/verify') ? { recovery_codes: ['c1'] } : undefined)
+    // After the successful setup the refetch reports both factors set.
+    get.mockResolvedValue(FACTORS_SET)
+
+    const card = w.findComponent(PasswordTotpCard)
+    await card.find('[data-test="setup-both"]').trigger('click')
     const fields = card.findAll('input')
     await fields[0].setValue('a-new-password-123')
     await fields[1].setValue('a-new-password-123')
-    post.mockResolvedValue({})
-    await card.find('button').trigger('click')
+    await card.find('form').trigger('submit')
+    await flushPromises()
+    await card.find('input[name=code]').setValue('123456')
+    await card.find('form').trigger('submit')
     await flushPromises()
 
     const factorsCallsAfter = get.mock.calls.filter((args) => args[0] === '/api/prohibitorum/me/factors').length
-    expect(factorsCallsAfter).toBe(2)
+    expect(factorsCallsAfter).toBeGreaterThan(1)
     expect(w.text()).toContain(en.security.factors.passwordSet)
   })
 })
