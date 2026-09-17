@@ -16,8 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import ConfirmDialog from '@/components/custom/ConfirmDialog.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import PasskeysCard from '@/pages/security/PasskeysCard.vue'
-import PasswordCard from '@/pages/security/PasswordCard.vue'
-import TotpCard from '@/pages/security/TotpCard.vue'
+import PasswordTotpCard from '@/pages/security/PasswordTotpCard.vue'
 import RecoveryCodesCard from '@/pages/security/RecoveryCodesCard.vue'
 
 interface MeFactors {
@@ -52,8 +51,7 @@ async function revoke(): Promise<void> {
       <AlertDescription>{{ t('security.factorsLoadError') }}</AlertDescription>
     </Alert>
     <PasskeysCard />
-    <PasswordCard :set="factors?.passwordSet" />
-    <TotpCard :enrolled="factors?.totpEnrolled" />
+    <PasswordTotpCard :password-set="factors?.passwordSet" :totp-enrolled="factors?.totpEnrolled" />
     <RecoveryCodesCard :remaining="factors?.recoveryCodesRemaining" :totp-enabled="factors?.totpEnrolled" />
 
     <Card class="border-destructive/30 bg-destructive/[0.02]">

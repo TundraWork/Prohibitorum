@@ -59,7 +59,7 @@ function download(): void {
       <AlertDescription>{{ t('recoveryCodes.regeneratedWarning') }}</AlertDescription>
     </Alert>
 
-    <ul class="grid grid-cols-2 gap-2 rounded-md border border-border bg-sunken p-3">
+    <ul class="grid grid-cols-1 gap-2 rounded-md border border-border bg-sunken p-3 sm:grid-cols-2">
       <li v-for="c in codes" :key="c" class="whitespace-nowrap font-mono text-sm text-ink">{{ c }}</li>
     </ul>
 
