@@ -19,5 +19,6 @@ export function useSession() {
     isAppManager: computed(() => ['admin', 'app_manager'].includes(session.data.value?.role ?? '')),
     avatarBusy: computed(() => session.data.value?.avatarPending === true && !avatar.error.value),
     error: computed(() => session.error.value ?? avatar.error.value),
+    retry: () => session.refetch(),
   })
 }

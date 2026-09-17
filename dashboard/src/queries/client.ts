@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/vue-query'
 
 export function createQueryClient(): QueryClient {
   return new QueryClient({ defaultOptions: {
-    queries: { staleTime: 30_000, gcTime: 300_000, retry: false, refetchOnWindowFocus: true, refetchOnReconnect: true },
+    queries: { staleTime: 30_000, gcTime: 300_000, retry: 3, refetchOnWindowFocus: true, refetchOnReconnect: true },
     mutations: { retry: false, gcTime: 0 },
   } })
 }

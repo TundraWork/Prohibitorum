@@ -45,6 +45,23 @@ describe('NavUser', () => {
     expect(w.find('[data-test="account-trigger"]').exists()).toBe(false)
   })
 
+  it('offers a retry after session loading fails and recovers while mounted', async () => {
+    testQueryClient.setQueryDefaults(keys.me, { retry: false })
+    vi.mocked(api.get)
+      .mockRejectedValueOnce({ code: 'network_error' })
+      .mockResolvedValueOnce({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
+    const w = await mountHost(makeRouter())
+
+    const retry = w.get('[data-test="session-retry"]')
+    expect(retry.text()).toBe(en.common.tryAgain)
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(api.get).toHaveBeenCalledTimes(2)
+    expect(w.get('[data-test="account-trigger"]').exists()).toBe(true)
+    expect(w.text()).toContain('Alex Smith')
+  })
+
   it('renders displayName, role, and initials in the trigger when loaded', async () => {
 
     testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })

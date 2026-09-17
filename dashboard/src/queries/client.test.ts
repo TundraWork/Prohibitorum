@@ -21,12 +21,12 @@ describe('query lifecycle', () => {
     expect(await client.fetchQuery({ ...options, queryFn: async () => 'new account' })).toBe('new account')
     client.clear()
   })
-  it('does not retry failed reads or writes and retains data on refetch error', async () => {
+  it('retries failed reads three times, never retries writes, and retains data on refetch error', async () => {
     const client = createQueryClient()
     let calls = 0
     client.setQueryData(['session', 'test'], ['saved'])
-    await expect(client.fetchQuery({ queryKey: ['session', 'test'], staleTime: 0, queryFn: async () => { calls++; throw new Error('offline') } })).rejects.toThrow('offline')
-    expect(calls).toBe(1)
+    await expect(client.fetchQuery({ queryKey: ['session', 'test'], staleTime: 0, retryDelay: 0, queryFn: async () => { calls++; throw new Error('offline') } })).rejects.toThrow('offline')
+    expect(calls).toBe(4)
     expect(client.getQueryData(['session', 'test'])).toEqual(['saved'])
     expect(client.getDefaultOptions().mutations?.retry).toBe(false)
     expect(client.getDefaultOptions().mutations?.gcTime).toBe(0)

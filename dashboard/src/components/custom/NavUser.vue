@@ -50,7 +50,17 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
   <!-- Sidebar footer variant: Edit profile · Sign out (settings/admin live in the sidebar nav). -->
   <SidebarMenu v-if="variant === 'sidebar'">
     <SidebarMenuItem>
-      <div v-if="!auth.me" class="flex items-center gap-2 p-2">
+      <button
+        v-if="auth.error && !auth.me"
+        type="button"
+        data-test="session-retry"
+        class="w-full rounded-md px-2 py-2 text-left text-sm font-medium text-ember hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        @click="auth.retry"
+      >
+        {{ t('common.tryAgain') }}
+      </button>
+
+      <div v-else-if="!auth.me" class="flex items-center gap-2 p-2">
         <Skeleton class="size-8 rounded-md" />
         <div class="flex flex-1 flex-col gap-1">
           <Skeleton class="h-3.5 w-24" />
@@ -108,7 +118,17 @@ defineExpose({ openEdit, goSettings, goAdmin, signOut, editOpen })
 
   <!-- Top-bar variant (launcher): compact avatar + caret; adds Settings / Admin. -->
   <div v-else>
-    <Skeleton v-if="!auth.me" class="size-9 rounded-full" />
+    <button
+      v-if="auth.error && !auth.me"
+      type="button"
+      data-test="session-retry"
+      class="rounded-md px-2 py-1.5 text-sm font-medium text-ember hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      @click="auth.retry"
+    >
+      {{ t('common.tryAgain') }}
+    </button>
+
+    <Skeleton v-else-if="!auth.me" class="size-9 rounded-full" />
 
     <DropdownMenu v-else>
       <DropdownMenuTrigger as-child>
