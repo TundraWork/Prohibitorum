@@ -54,6 +54,7 @@ func init() {
 		{Code: "credential_not_found", Status: http.StatusNotFound, LocaleKey: "errors.credential_not_found", DiagnosticKind: "resource"},
 		{Code: "diagnostic_not_found", Status: http.StatusNotFound, LocaleKey: "errors.diagnostic_not_found", DiagnosticKind: "resource"},
 		{Code: "invitation_not_found", Status: http.StatusNotFound, LocaleKey: "errors.invitation_not_found", DiagnosticKind: "resource"},
+		{Code: "invitation_groups_unavailable", Status: http.StatusConflict, LocaleKey: "errors.invitation_groups_unavailable", DiagnosticKind: "enrollment", DetailKeys: map[string]struct{}{"groupIds": {}}},
 		{Code: "not_bootstrapped", Status: http.StatusServiceUnavailable, LocaleKey: "errors.not_bootstrapped", DiagnosticKind: "system"},
 		{Code: "maintenance_mode", Status: http.StatusServiceUnavailable, LocaleKey: "errors.maintenance_mode", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
 		{Code: "pairing_not_found", Status: http.StatusNotFound, LocaleKey: "errors.pairing_not_found", DiagnosticKind: "pairing"},
@@ -186,6 +187,17 @@ func ErrCannotDeleteSelf() *AuthError {
 
 func ErrUsernameTaken() *AuthError {
 	return newErr(http.StatusConflict, "username_taken", "用户名已存在")
+}
+
+// ErrInvitationGroupsUnavailable reports only the saved group IDs that can no
+// longer be applied. Group names and types are deliberately omitted.
+func ErrInvitationGroupsUnavailable(groupIDs []int32) *AuthError {
+	return &AuthError{
+		Status:  http.StatusConflict,
+		Code:    "invitation_groups_unavailable",
+		Message: "One or more invitation groups are unavailable.",
+		Details: map[string]any{"groupIds": append([]int32(nil), groupIDs...)},
+	}
 }
 
 func ErrEnrollmentExpired() *AuthError {

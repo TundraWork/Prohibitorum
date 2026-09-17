@@ -70,6 +70,9 @@ type fakeModesQueries struct {
 	consumeEnrollmentResult db.Enrollment
 	consumeEnrollmentErr    error
 	consumedTokens          []string
+	applyGroupCalls         []db.ApplyInvitationGroupsParams
+	applyGroupResult        []int32
+	applyGroupErr           error
 }
 
 func newFakeModesQueries() *fakeModesQueries {
@@ -208,6 +211,20 @@ func (f *fakeModesQueries) ConsumeEnrollment(_ context.Context, token string) (d
 // invite_only federation arc, not by this canned fake (audit OIDCFED-2).
 func (f *fakeModesQueries) ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error) {
 	return f.ConsumeEnrollment(ctx, token)
+}
+
+func (f *fakeModesQueries) ApplyInvitationGroups(_ context.Context, arg db.ApplyInvitationGroupsParams) ([]int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	arg.GroupIds = append([]int32(nil), arg.GroupIds...)
+	f.applyGroupCalls = append(f.applyGroupCalls, arg)
+	if f.applyGroupErr != nil {
+		return nil, f.applyGroupErr
+	}
+	if f.applyGroupResult != nil {
+		return append([]int32(nil), f.applyGroupResult...), nil
+	}
+	return append([]int32(nil), arg.GroupIds...), nil
 }
 
 // recordingAudit captures every audit.Record so tests can assert on
@@ -678,6 +695,69 @@ func TestApplyInviteOnly_TemplateRoleAndAttributesApplied(t *testing.T) {
 	}
 	if string(q.insertedAccount.Attributes) != `{"team":"ops"}` {
 		t.Errorf("Attributes = %q, want template JSON", string(q.insertedAccount.Attributes))
+	}
+}
+
+func TestApplyInviteOnly_FixedUsernameAndGroupsApplied(t *testing.T) {
+	q := newFakeModesQueries()
+	enrollmentRow := makeInviteEnrollment("test-idp", "user", nil)
+	enrollmentRow.TemplateUsername = pgtype.Text{String: "fixed-user", Valid: true}
+	enrollmentRow.GroupIds = []int32{12, 7}
+	enrollmentRow.CreatedByAccountID = pgtype.Int4{Int32: 42, Valid: true}
+	q.consumeEnrollmentResult = enrollmentRow
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeInviteOnly)
+	tokens := goodTokens()
+	tokens.Username = "upstream-user"
+
+	if _, err := federationoidc.ApplyInviteProvisionForTest(
+		context.Background(), q, a, idp, tokens, "invite-token-xyz", nil,
+	); err != nil {
+		t.Fatalf("applyInviteProvision: %v", err)
+	}
+	if q.insertedAccount.Username != "fixed-user" {
+		t.Fatalf("username = %q, want fixed-user", q.insertedAccount.Username)
+	}
+	if q.insertedAccount.DisplayName != tokens.DisplayName {
+		t.Fatalf("display name = %q, want upstream display name %q", q.insertedAccount.DisplayName, tokens.DisplayName)
+	}
+	if len(q.applyGroupCalls) != 1 {
+		t.Fatalf("group calls = %d, want 1", len(q.applyGroupCalls))
+	}
+	call := q.applyGroupCalls[0]
+	if call.AccountID != 100 || !call.CreatedBy.Valid || call.CreatedBy.Int32 != 42 ||
+		len(call.GroupIds) != 2 || call.GroupIds[0] != 12 || call.GroupIds[1] != 7 {
+		t.Fatalf("group call = %+v", call)
+	}
+}
+
+func TestApplyInviteOnly_FixedUsernameCollisionUsesEnrollmentError(t *testing.T) {
+	q := newFakeModesQueries()
+	enrollmentRow := makeInviteEnrollment("test-idp", "user", nil)
+	enrollmentRow.TemplateUsername = pgtype.Text{String: "fixed-user", Valid: true}
+	q.consumeEnrollmentResult = enrollmentRow
+	q.accountByUsername["fixed-user"] = db.Account{ID: 7, Username: "fixed-user"}
+
+	_, err := federationoidc.ApplyInviteProvisionForTest(
+		context.Background(), q, &recordingAudit{}, newIDP(federationoidc.ModeInviteOnly), goodTokens(), "invite-token-xyz", nil,
+	)
+	if authErr := authn.AsAuthError(err); authErr == nil || authErr.Code != "username_taken" {
+		t.Fatalf("error = %v, want username_taken", err)
+	}
+}
+
+func TestApplyInviteOnly_UnavailableGroupsRejected(t *testing.T) {
+	q := newFakeModesQueries()
+	enrollmentRow := makeInviteEnrollment("test-idp", "user", nil)
+	enrollmentRow.GroupIds = []int32{12, 404}
+	q.consumeEnrollmentResult = enrollmentRow
+	q.applyGroupResult = []int32{12}
+
+	_, err := federationoidc.ApplyInviteProvisionForTest(
+		context.Background(), q, &recordingAudit{}, newIDP(federationoidc.ModeInviteOnly), goodTokens(), "invite-token-xyz", nil,
+	)
+	if authErr := authn.AsAuthError(err); authErr == nil || authErr.Code != "invitation_groups_unavailable" {
+		t.Fatalf("error = %v, want invitation_groups_unavailable", err)
 	}
 }
 

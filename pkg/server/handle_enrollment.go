@@ -189,6 +189,9 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 		if e.ExpectedUpstreamIdpSlug.Valid && e.ExpectedUpstreamIdpSlug.String != "" {
 			out.ExpectedUpstreamIdpSlug = e.ExpectedUpstreamIdpSlug.String
 		}
+		if e.TemplateUsername.Valid {
+			out.Username = e.TemplateUsername.String
+		}
 		out.Providers = s.inviteRedeemableProviders(ctx, out.ExpectedUpstreamIdpSlug)
 	case enrollment.IntentFederatedRegister:
 		if !e.FederatedUpstreamIdpID.Valid || !e.FederatedDisplayName.Valid {
@@ -220,6 +223,17 @@ type enrollBeginBody struct {
 	Username    string `json:"username,omitempty"`
 	DisplayName string `json:"displayName,omitempty"`
 	Nickname    string `json:"nickname,omitempty"` // for the first passkey of this account
+}
+
+func applyFixedInvitationUsername(body *enrollBeginBody, enrollmentRow *db.Enrollment) error {
+	if !enrollmentRow.TemplateUsername.Valid {
+		return nil
+	}
+	if body.Username != "" && body.Username != enrollmentRow.TemplateUsername.String {
+		return authn.ErrUsernameImmutable()
+	}
+	body.Username = enrollmentRow.TemplateUsername.String
+	return nil
 }
 
 // enrollCeremonyStash combines the WebAuthn session data with the pending
@@ -318,6 +332,10 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		role := "user"
 		if e.TemplateRole.Valid {
 			role = e.TemplateRole.String
+		}
+		if err := applyFixedInvitationUsername(&body, e); err != nil {
+			writeAuthErr(w, err)
+			return
 		}
 		wu, stash.Invite, err = prepareNewEnrollmentAccount(r.Context(), q, body, role, "enrollment/begin invite")
 		if err != nil {
@@ -532,6 +550,9 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			writeAuthErr(w, authn.ErrCeremonyState())
 			return
 		}
+		if consumed.TemplateUsername.Valid {
+			stash.Invite.Username = consumed.TemplateUsername.String
+		}
 		// Build the WebAuthn user adapter — same identity the /begin step used,
 		// so the assertion verifies against the same rp.id + user.id.
 		wu := &webauthnauth.WebAuthnAccount{Account: &db.Account{
@@ -571,6 +592,10 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 		credID, err = insertCredentialForTx(qtx, r.Context(), a.ID, stash.Invite.WebauthnUserHandle, cred, acctpkg.NormalizeNickname(&stash.Invite.Nickname))
 		if err != nil {
 			writeAuthErr(w, fmt.Errorf("enrollment/complete: insert credential: %w", err))
+			return
+		}
+		if err := enrollment.ApplyInvitationGroups(r.Context(), qtx, consumed.GroupIds, a.ID, consumed.CreatedByAccountID); err != nil {
+			writeAuthErr(w, err)
 			return
 		}
 
@@ -768,6 +793,10 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	// connections so the credential_event.account_id FK resolves. Outer s.Audit is
 	// correct here — not a tx-scoped writer — because the tx has already committed.
 	auditDetail := map[string]any{"intent": string(consumed.Intent)}
+	if consumed.Intent == enrollment.IntentInvite {
+		auditDetail["fixed_username"] = consumed.TemplateUsername.Valid
+		auditDetail["group_ids"] = append([]int32(nil), consumed.GroupIds...)
+	}
 	if consumed.Intent == enrollment.IntentReset && consumed.RecoverySourceUpstreamIdpID.Valid {
 		auditDetail["source"] = "vrchat"
 	}

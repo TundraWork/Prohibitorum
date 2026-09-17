@@ -169,6 +169,74 @@ type EnrollmentTemplate struct {
 	Role                    string         // "admin" or "user"
 	Attributes              map[string]any // arbitrary claim attributes; stored as JSONB
 	ExpectedUpstreamIDPSlug *string        // optional; pre-binds invite to a specific upstream IdP
+	Username                *string        // optional fixed local username
+	GroupIDs                []int32        // manual groups applied when the invite is redeemed
+	CreatedByAccountID      *int32         // invitation creator, recorded on manual group decisions
+}
+
+// InvitationGroupApplier is the transaction-scoped storage operation used
+// while redeeming an invitation. Callers must pass the queries bound to the
+// same transaction that consumes the invitation and creates the account.
+type InvitationGroupApplier interface {
+	ApplyInvitationGroups(context.Context, db.ApplyInvitationGroupsParams) ([]int32, error)
+}
+
+// NormalizeGroupIDs removes duplicate group IDs while preserving their first
+// occurrence. Invitation creation and redemption share this normalization so
+// an invitation cannot produce duplicate manual decisions.
+func NormalizeGroupIDs(groupIDs []int32) []int32 {
+	if len(groupIDs) == 0 {
+		return []int32{}
+	}
+	normalized := make([]int32, 0, len(groupIDs))
+	seen := make(map[int32]struct{}, len(groupIDs))
+	for _, groupID := range groupIDs {
+		if _, exists := seen[groupID]; exists {
+			continue
+		}
+		seen[groupID] = struct{}{}
+		normalized = append(normalized, groupID)
+	}
+	return normalized
+}
+
+// ApplyInvitationGroups verifies that every saved group still exists as a
+// manual group, then writes allow decisions for the newly created account. A
+// missing or non-manual group returns a public conflict error. The surrounding
+// transaction must roll back that error so the invitation remains reusable.
+func ApplyInvitationGroups(
+	ctx context.Context,
+	q InvitationGroupApplier,
+	groupIDs []int32,
+	accountID int32,
+	createdByAccountID pgtype.Int4,
+) error {
+	requested := NormalizeGroupIDs(groupIDs)
+	if len(requested) == 0 {
+		return nil
+	}
+	applied, err := q.ApplyInvitationGroups(ctx, db.ApplyInvitationGroupsParams{
+		GroupIds:  requested,
+		AccountID: accountID,
+		CreatedBy: createdByAccountID,
+	})
+	if err != nil {
+		return fmt.Errorf("enrollment: apply invitation groups: %w", err)
+	}
+	appliedSet := make(map[int32]struct{}, len(applied))
+	for _, groupID := range applied {
+		appliedSet[groupID] = struct{}{}
+	}
+	invalid := make([]int32, 0, len(requested))
+	for _, groupID := range requested {
+		if _, ok := appliedSet[groupID]; !ok {
+			invalid = append(invalid, groupID)
+		}
+	}
+	if len(invalid) != 0 {
+		return authn.ErrInvitationGroupsUnavailable(invalid)
+	}
+	return nil
 }
 
 // IssueEnrollment inserts a new enrollment row and returns the token + expiry.
@@ -206,6 +274,7 @@ func IssueEnrollment(
 		Intent:          intent,
 		TargetAccountID: tgt,
 		ExpiresAt:       pgtype.Timestamptz{Time: expiresAt, Valid: true},
+		GroupIds:        []int32{},
 	}
 	if tpl != nil {
 		params.TemplateRole = pgtype.Text{String: tpl.Role, Valid: tpl.Role != ""}
@@ -222,6 +291,13 @@ func IssueEnrollment(
 		// no provider can satisfy.
 		if tpl.ExpectedUpstreamIDPSlug != nil && *tpl.ExpectedUpstreamIDPSlug != "" {
 			params.ExpectedUpstreamIdpSlug = pgtype.Text{String: *tpl.ExpectedUpstreamIDPSlug, Valid: true}
+		}
+		if tpl.Username != nil && *tpl.Username != "" {
+			params.TemplateUsername = pgtype.Text{String: *tpl.Username, Valid: true}
+		}
+		params.GroupIds = NormalizeGroupIDs(tpl.GroupIDs)
+		if tpl.CreatedByAccountID != nil {
+			params.CreatedByAccountID = pgtype.Int4{Int32: *tpl.CreatedByAccountID, Valid: true}
 		}
 	}
 	if _, err := q.InsertEnrollment(ctx, params); err != nil {

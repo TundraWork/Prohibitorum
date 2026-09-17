@@ -552,8 +552,19 @@ export default {
       role: 'Role', roleAdmin: 'Admin', roleUser: 'User',
       roleAppManager: 'App manager',
       roleDesc: 'The role the new account will have once enrolled.',
+      username: 'Username',
+      usernamePlaceholder: 'Leave blank to let the invitee choose',
+      usernameDesc: 'Optional. The format is checked now; availability is checked when the invitation is accepted.',
+      groups: 'User groups',
+      groupSearch: 'Search manual groups',
+      groupsDesc: 'Optional. Every selected group must still be available when the invitation is accepted.',
+      noGroups: 'No manual groups match this search.',
+      removeGroup: 'Remove {group}',
       requireMethodDesc: 'Once bound, the invitee must sign up through that provider; local credentials can be added after. Unbound invites let them pick any eligible provider or register a passkey directly.',
-      colRole: 'Role', colCreated: 'Created', colExpires: 'Expires', colLink: 'Enrollment link',
+      colRole: 'Role', colCreated: 'Created', colExpires: 'Expires', colLink: 'Enrollment link', colAccount: 'Account settings',
+      usernameChosenLater: 'Username chosen during enrollment',
+      noAssignedGroups: 'No preset groups',
+      groupUnavailable: 'Group #{id} unavailable',
       empty: 'No outstanding invitations.',
       created: 'Invitation created — share the link below.',
       revoke: 'Revoke',
@@ -1131,6 +1142,8 @@ export default {
     titleRecovery: 'Recover access',
     recoveryBody: 'Create a new passkey to recover access to your account.',
     usernameLabel: 'Choose a username',
+    fixedUsernameLabel: 'Username',
+    fixedUsernameDesc: 'This username was set in your invitation and cannot be changed here.',
     usernameDesc: 'Lowercase letters, numbers, underscores, and hyphens. Cannot be changed later.',
     usernamePlaceholder: 'e.g. alex',
     displayNameLabel: 'Your display name',
@@ -1412,6 +1425,8 @@ export default {
         "This invitation needs to be completed through your identity provider.",
       enrollment_method_not_allowed:
         "This enrollment can only be completed with a passkey.",
+      invitation_groups_unavailable:
+        "Some groups in this invitation are no longer available. Please ask an administrator for a new invitation.",
       invite_required: "You'll need an invitation to create an account here.",
       link_required:
         "This provider isn't linked to any account yet. Please sign in another way first, then connect it under Settings → Connected accounts.",
@@ -1510,6 +1525,7 @@ export default {
       upstreamCode: 'Upstream error code',
       location: 'Location',
       reason: 'Reason',
+      groupIds: 'Unavailable group IDs',
     },
     reasons: {
       reason: {

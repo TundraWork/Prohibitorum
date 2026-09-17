@@ -144,6 +144,7 @@ type EnrollmentTarget struct {
 // enroll page needs to render the right form before triggering the ceremony.
 type EnrollmentPreview struct {
 	Intent               string            `json:"intent"`
+	Username             string            `json:"username,omitempty"`
 	Target               *EnrollmentTarget `json:"target,omitempty"`
 	ExpiresAt            time.Time         `json:"expiresAt"`
 	SuggestedDisplayName string            `json:"suggestedDisplayName,omitempty"`
@@ -203,6 +204,8 @@ type EnrollmentURLResponse struct {
 type InvitationResponse struct {
 	URL       string    `json:"url"`
 	ExpiresAt time.Time `json:"expiresAt"`
+	Username  *string   `json:"username,omitempty"`
+	GroupIDs  []int32   `json:"groupIds"`
 }
 
 // Operations --------------------------------------------------------------------
@@ -444,13 +447,24 @@ var OperationCreateInvitation = huma.Operation{
 // InvitationView is the server-side projection of a pending enrollment row,
 // including the URL so admin clients don't have to reconstruct it.
 type InvitationView struct {
-	Token                   string         `json:"token"`
-	URL                     string         `json:"url"`
-	Role                    string         `json:"role"`
-	Attributes              map[string]any `json:"attributes,omitempty"`
-	ExpectedUpstreamIdpSlug *string        `json:"expectedUpstreamIdpSlug,omitempty"`
-	CreatedAt               time.Time      `json:"createdAt"`
-	ExpiresAt               time.Time      `json:"expiresAt"`
+	Token                   string                `json:"token"`
+	URL                     string                `json:"url"`
+	Role                    string                `json:"role"`
+	Attributes              map[string]any        `json:"attributes,omitempty"`
+	ExpectedUpstreamIdpSlug *string               `json:"expectedUpstreamIdpSlug,omitempty"`
+	Username                *string               `json:"username,omitempty"`
+	GroupIDs                []int32               `json:"groupIds"`
+	Groups                  []InvitationGroupView `json:"groups"`
+	CreatedAt               time.Time             `json:"createdAt"`
+	ExpiresAt               time.Time             `json:"expiresAt"`
+}
+
+// InvitationGroupView is the current public-safe summary of a group saved on
+// an invitation. GroupIDs remains authoritative when a saved group is gone.
+type InvitationGroupView struct {
+	ID          int32  `json:"id"`
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
 }
 
 var OperationListInvitations = huma.Operation{

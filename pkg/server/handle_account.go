@@ -926,6 +926,8 @@ type createInvitationIn struct {
 		Role                    string         `json:"role"`
 		Attributes              map[string]any `json:"attributes,omitempty"`
 		ExpectedUpstreamIdpSlug *string        `json:"expectedUpstreamIdpSlug,omitempty"`
+		Username                string         `json:"username,omitempty"`
+		GroupIDs                []int32        `json:"groupIds,omitempty"`
 	}
 }
 
@@ -936,6 +938,22 @@ type invitationOut struct {
 func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitationIn) (*invitationOut, error) {
 	if !authn.IsValidRole(in.Body.Role) {
 		return nil, authErrToHuma(authn.ErrInvalidRole())
+	}
+	username := strings.TrimSpace(in.Body.Username)
+	if username != "" {
+		if err := account.ValidateUsername(username); err != nil {
+			return nil, authErrToHuma(err)
+		}
+	}
+	groupIDs := enrollment.NormalizeGroupIDs(in.Body.GroupIDs)
+	sess := authn.SessionFromContext(ctx)
+	var creatorID *int32
+	if sess != nil && sess.Account != nil {
+		creatorID = &sess.Account.ID
+	}
+	var fixedUsername *string
+	if username != "" {
+		fixedUsername = &username
 	}
 	// A federated invite bound to a non-existent or disabled IdP slug is
 	// permanently un-redeemable. Validate it at create (GetUpstreamIDPBySlug
@@ -952,13 +970,15 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		Role:                    in.Body.Role,
 		Attributes:              in.Body.Attributes,
 		ExpectedUpstreamIDPSlug: in.Body.ExpectedUpstreamIdpSlug,
+		Username:                fixedUsername,
+		GroupIDs:                groupIDs,
+		CreatedByAccountID:      creatorID,
 	}
 	token, expiresAt, err := enrollment.IssueEnrollment(ctx, s.invitationQ(), enrollment.IntentInvite, nil, 0, tpl)
 	if err != nil {
 		return nil, fmt.Errorf("handleCreateInvitation: issue enrollment: %w", err)
 	}
 
-	sess := authn.SessionFromContext(ctx)
 	actorID := int32(0)
 	if sess != nil {
 		actorID = sess.Account.ID
@@ -980,6 +1000,8 @@ func (s *Server) handleCreateInvitation(ctx context.Context, in *createInvitatio
 		Body: contract.InvitationResponse{
 			URL:       url,
 			ExpiresAt: expiresAt,
+			Username:  fixedUsername,
+			GroupIDs:  groupIDs,
 		},
 	}, nil
 }
@@ -1018,6 +1040,23 @@ func (s *Server) handleListInvitations(ctx context.Context, in *listInvitationsI
 	if more {
 		rows = rows[:lim]
 	}
+	allGroupIDs := make([]int32, 0)
+	for _, row := range rows {
+		allGroupIDs = append(allGroupIDs, row.GroupIds...)
+	}
+	var groupRows []db.ListInvitationGroupsRow
+	if len(allGroupIDs) != 0 {
+		groupRows, err = s.invitationQ().ListInvitationGroups(ctx, enrollment.NormalizeGroupIDs(allGroupIDs))
+		if err != nil {
+			return nil, fmt.Errorf("handleListInvitations: list groups: %w", err)
+		}
+	}
+	groupsByID := make(map[int32]contract.InvitationGroupView, len(groupRows))
+	for _, group := range groupRows {
+		groupsByID[group.ID] = contract.InvitationGroupView{
+			ID: group.ID, Slug: group.Slug, DisplayName: group.DisplayName,
+		}
+	}
 	views := make([]contract.InvitationView, 0, len(rows))
 	for _, r := range rows {
 		role := "user"
@@ -1032,6 +1071,17 @@ func (s *Server) handleListInvitations(ctx context.Context, in *listInvitationsI
 			Attributes: attrs,
 			CreatedAt:  r.CreatedAt.Time,
 			ExpiresAt:  r.ExpiresAt.Time,
+			GroupIDs:   append([]int32(nil), r.GroupIds...),
+			Groups:     []contract.InvitationGroupView{},
+		}
+		if r.TemplateUsername.Valid {
+			username := r.TemplateUsername.String
+			view.Username = &username
+		}
+		for _, groupID := range r.GroupIds {
+			if group, ok := groupsByID[groupID]; ok {
+				view.Groups = append(view.Groups, group)
+			}
 		}
 		if r.ExpectedUpstreamIdpSlug.Valid {
 			slug := r.ExpectedUpstreamIdpSlug.String

@@ -16,6 +16,7 @@ import (
 	acctpkg "prohibitorum/pkg/account"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	inviteenrollment "prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/db"
 )
 
@@ -36,6 +37,7 @@ type ModesQueries interface {
 	UpdateAccountEmail(ctx context.Context, arg db.UpdateAccountEmailParams) error
 	UpdateAccountIdentityVerifiedData(ctx context.Context, arg db.UpdateAccountIdentityVerifiedDataParams) error
 	ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error)
+	ApplyInvitationGroups(ctx context.Context, arg db.ApplyInvitationGroupsParams) ([]int32, error)
 }
 
 // ResolveOutcome is the result of identity resolution.
@@ -541,10 +543,14 @@ func applyInviteProvision(
 
 		username := identity.Username
 		displayName := identity.DisplayName
-		email := identityEmail(identity)
 		if displayName == "" {
-			displayName = username
+			displayName = identity.Username
 		}
+		fixedUsername := enr.TemplateUsername.Valid
+		if fixedUsername {
+			username = enr.TemplateUsername.String
+		}
+		email := identityEmail(identity)
 
 		// Failure audits below use the OUTER writer (w): the error return
 		// rolls back the tx (un-doing ConsumeInviteEnrollment so the invite
@@ -568,6 +574,9 @@ func applyInviteProvision(
 			emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
 				"username": username,
 			})
+			if fixedUsername {
+				return ResolveOutcome{}, authn.ErrUsernameTaken()
+			}
 			return ResolveOutcome{}, authn.ErrUsernameCollision()
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: check username collision: %w", err)
@@ -606,6 +615,9 @@ func applyInviteProvision(
 				emitFail(ctx, w, idp, identity, "username_collision", map[string]any{
 					"username": username,
 				})
+				if fixedUsername {
+					return ResolveOutcome{}, authn.ErrUsernameTaken()
+				}
 				return ResolveOutcome{}, authn.ErrUsernameCollision()
 			}
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account: %w", err)
@@ -629,6 +641,9 @@ func applyInviteProvision(
 			}
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account_identity: %w", err)
 		}
+		if err := inviteenrollment.ApplyInvitationGroups(ctx, qtx, enr.GroupIds, acct.ID, enr.CreatedByAccountID); err != nil {
+			return ResolveOutcome{}, err
+		}
 
 		// No ConfirmAccountIdentity here, by design: the /welcome gate is the
 		// invitee's confirmation step ("is this me?"), and it is what lets a
@@ -644,12 +659,14 @@ func applyInviteProvision(
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventRegister,
 			Detail: map[string]any{
-				"idp_slug": idp.Slug,
-				"iss":      identity.Issuer,
-				"sub":      identity.Subject,
-				"mode":     idp.Mode,
-				"reason":   "invite_provisioned",
-				"username": username,
+				"idp_slug":       idp.Slug,
+				"iss":            identity.Issuer,
+				"sub":            identity.Subject,
+				"mode":           idp.Mode,
+				"reason":         "invite_provisioned",
+				"username":       username,
+				"fixed_username": fixedUsername,
+				"group_ids":      append([]int32(nil), enr.GroupIds...),
 			},
 		})
 

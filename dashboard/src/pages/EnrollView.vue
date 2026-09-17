@@ -51,6 +51,7 @@ interface FederationProvider {
 }
 interface EnrollmentPreview {
   intent: 'bootstrap' | 'invite' | 'reset' | 'federated_register'
+  username?: string
   target?: EnrollmentTarget
   suggestedDisplayName?: string
   expiresAt: string
@@ -102,6 +103,7 @@ const collectsIdentity = computed(
 )
 
 const providerBound = computed(() => !!preview.value?.expectedUpstreamIdpSlug)
+const usernameFixed = computed(() => !!preview.value?.username)
 const providers = computed(() => preview.value?.providers ?? [])
 
 // Method chooser. Bootstrap is passkey-only; every other intent may also set up
@@ -149,6 +151,7 @@ onBeforeUnmount(() => { disposed = true })
 onMounted(async () => {
   try {
     const loaded = (await contextQuery.refetch({ throwOnError: true })).data!
+    username.value = loaded.username ?? ''
     if (loaded.intent === 'federated_register') {
       displayName.value = loaded.suggestedDisplayName ?? ''
     }
@@ -217,9 +220,9 @@ async function enroll(): Promise<void> {
 
       <!-- New-account intents choose a local identity. Locked once the
            password+TOTP ceremony has started so the pending account is fixed. -->
-      <template v-if="collectsIdentity">
+      <template v-if="collectsIdentity || (providerBound && usernameFixed)">
         <div class="flex flex-col gap-1.5">
-          <Label for="enroll-username">{{ t('enroll.usernameLabel') }}</Label>
+          <Label for="enroll-username">{{ usernameFixed ? t('enroll.fixedUsernameLabel') : t('enroll.usernameLabel') }}</Label>
           <Input
             id="enroll-username"
             v-model="username"
@@ -228,11 +231,13 @@ async function enroll(): Promise<void> {
             autocomplete="username"
             autocapitalize="none"
             spellcheck="false"
-            :disabled="method !== 'choose'"
+            :disabled="usernameFixed || method !== 'choose'"
             required
           />
-          <p class="text-xs text-muted">{{ t('enroll.usernameDesc') }}</p>
+          <p class="text-xs text-muted">{{ usernameFixed ? t('enroll.fixedUsernameDesc') : t('enroll.usernameDesc') }}</p>
         </div>
+      </template>
+      <template v-if="collectsIdentity">
         <div class="flex flex-col gap-1.5">
           <Label for="enroll-displayname">{{ t('enroll.displayNameLabel') }}</Label>
           <Input

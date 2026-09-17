@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/enrollment"
@@ -41,7 +42,9 @@ type fakeInvitationQ struct {
 	inserted []db.InsertEnrollmentParams
 
 	// seedRows is returned by ListPendingInvitations.
-	seedRows []db.Enrollment
+	seedRows       []db.Enrollment
+	groups         []db.ListInvitationGroupsRow
+	listedGroupIDs []int32
 
 	// idpMissing makes GetUpstreamIDPBySlug return pgx.ErrNoRows (the slug is
 	// unknown or disabled), exercising the invite slug-validation reject path.
@@ -65,9 +68,17 @@ func (f *fakeInvitationQ) InsertEnrollment(_ context.Context, p db.InsertEnrollm
 		TemplateRole:            p.TemplateRole,
 		TemplateAttributes:      p.TemplateAttributes,
 		ExpectedUpstreamIdpSlug: p.ExpectedUpstreamIdpSlug,
+		TemplateUsername:        p.TemplateUsername,
+		GroupIds:                append([]int32(nil), p.GroupIds...),
+		CreatedByAccountID:      p.CreatedByAccountID,
 		CreatedAt:               pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		ExpiresAt:               p.ExpiresAt,
 	}, nil
+}
+
+func (f *fakeInvitationQ) ListInvitationGroups(_ context.Context, groupIDs []int32) ([]db.ListInvitationGroupsRow, error) {
+	f.listedGroupIDs = append([]int32(nil), groupIDs...)
+	return append([]db.ListInvitationGroupsRow(nil), f.groups...), nil
 }
 
 func (f *fakeInvitationQ) ListPendingInvitations(_ context.Context, _ db.ListPendingInvitationsParams) ([]db.Enrollment, error) {
@@ -147,6 +158,56 @@ func TestCreateInvitation_AcceptsAppManagerRole(t *testing.T) {
 	}
 	if got := q.inserted[0].TemplateRole.String; got != "app_manager" {
 		t.Fatalf("TemplateRole = %q, want app_manager", got)
+	}
+}
+
+func TestCreateInvitation_NormalizesUsernameAndGroups(t *testing.T) {
+	q := &fakeInvitationQ{}
+	s := minimalServerForInvitations(q)
+	in := &createInvitationIn{}
+	in.Body.Role = "user"
+	in.Body.Username = "  alice  "
+	in.Body.GroupIDs = []int32{12, 7, 12}
+	ctx := authn.WithSession(context.Background(), &authn.Session{Account: &db.Account{ID: 42, Role: "admin"}})
+
+	out, err := s.handleCreateInvitation(ctx, in)
+	if err != nil {
+		t.Fatalf("handleCreateInvitation: %v", err)
+	}
+	if len(q.inserted) != 1 {
+		t.Fatalf("inserts = %d, want 1", len(q.inserted))
+	}
+	p := q.inserted[0]
+	if !p.TemplateUsername.Valid || p.TemplateUsername.String != "alice" {
+		t.Fatalf("template username = %+v, want alice", p.TemplateUsername)
+	}
+	if len(p.GroupIds) != 2 || p.GroupIds[0] != 12 || p.GroupIds[1] != 7 {
+		t.Fatalf("group IDs = %v, want [12 7]", p.GroupIds)
+	}
+	if !p.CreatedByAccountID.Valid || p.CreatedByAccountID.Int32 != 42 {
+		t.Fatalf("creator = %+v, want 42", p.CreatedByAccountID)
+	}
+	if out.Body.Username == nil || *out.Body.Username != "alice" {
+		t.Fatalf("response username = %#v, want alice", out.Body.Username)
+	}
+	if len(out.Body.GroupIDs) != 2 || out.Body.GroupIDs[0] != 12 || out.Body.GroupIDs[1] != 7 {
+		t.Fatalf("response group IDs = %v, want [12 7]", out.Body.GroupIDs)
+	}
+}
+
+func TestCreateInvitation_RejectsInvalidUsernameWithoutQueryingGroups(t *testing.T) {
+	q := &fakeInvitationQ{}
+	s := minimalServerForInvitations(q)
+	in := &createInvitationIn{}
+	in.Body.Role = "user"
+	in.Body.Username = "Invalid Name"
+	in.Body.GroupIDs = []int32{999}
+
+	if _, err := s.handleCreateInvitation(context.Background(), in); err == nil {
+		t.Fatal("invalid username was accepted")
+	}
+	if len(q.inserted) != 0 || len(q.listedGroupIDs) != 0 {
+		t.Fatalf("invalid request queried or inserted: inserted=%d groups=%v", len(q.inserted), q.listedGroupIDs)
 	}
 }
 
@@ -242,11 +303,11 @@ func TestListInvitations_SlugRoundTrip(t *testing.T) {
 	q := &fakeInvitationQ{
 		seedRows: []db.Enrollment{
 			{
-				Token:     token,
-				Intent:    "invite",
-				CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-				ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
-				TemplateRole: pgtype.Text{String: "user", Valid: true},
+				Token:                   token,
+				Intent:                  "invite",
+				CreatedAt:               pgtype.Timestamptz{Time: time.Now(), Valid: true},
+				ExpiresAt:               pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
+				TemplateRole:            pgtype.Text{String: "user", Valid: true},
 				ExpectedUpstreamIdpSlug: pgtype.Text{String: slug, Valid: true},
 			},
 		},
@@ -316,6 +377,37 @@ func TestListInvitations_NoSlugOmitted(t *testing.T) {
 	wantRole := "admin"
 	if view.Role != wantRole {
 		t.Errorf("Role: want %q, got %q", wantRole, view.Role)
+	}
+}
+
+func TestListInvitations_ReturnsSavedIDsAndResolvableGroups(t *testing.T) {
+	q := &fakeInvitationQ{
+		seedRows: []db.Enrollment{{
+			Token: "tok", Intent: enrollment.IntentInvite,
+			TemplateUsername: pgtype.Text{String: "alice", Valid: true},
+			GroupIds:         []int32{12, 404, 7},
+			CreatedAt:        pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			ExpiresAt:        pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
+		}},
+		groups: []db.ListInvitationGroupsRow{
+			{ID: 7, Slug: "ops", DisplayName: "Operations"},
+			{ID: 12, Slug: "eng", DisplayName: "Engineering"},
+		},
+	}
+	s := minimalServerForInvitations(q)
+	out, err := s.handleListInvitations(context.Background(), &listInvitationsIn{pageInput: pageInput{Limit: 10}})
+	if err != nil {
+		t.Fatalf("handleListInvitations: %v", err)
+	}
+	view := out.Body.Items[0]
+	if view.Username == nil || *view.Username != "alice" {
+		t.Fatalf("username = %#v, want alice", view.Username)
+	}
+	if len(view.GroupIDs) != 3 || view.GroupIDs[1] != 404 {
+		t.Fatalf("saved group IDs = %v, want [12 404 7]", view.GroupIDs)
+	}
+	if len(view.Groups) != 2 || view.Groups[0].ID != 12 || view.Groups[1].ID != 7 {
+		t.Fatalf("resolved groups = %+v, want IDs [12 7] in saved order", view.Groups)
 	}
 }
 

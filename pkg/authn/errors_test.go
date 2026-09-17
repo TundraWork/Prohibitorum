@@ -76,3 +76,21 @@ func TestAppManagerErrorDefinitions(t *testing.T) {
 		}
 	}
 }
+
+func TestInvitationGroupsUnavailableError(t *testing.T) {
+	err := ErrInvitationGroupsUnavailable([]int32{7, 11})
+	definition, ok := weberr.DefinitionFor(err.Code)
+	if !ok {
+		t.Fatal("definition not registered")
+	}
+	if definition.Status != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", definition.Status, http.StatusConflict)
+	}
+	if _, ok := definition.DetailKeys["groupIds"]; !ok {
+		t.Fatal("groupIds is not an allowed public detail")
+	}
+	groupIDs, ok := err.Details["groupIds"].([]int32)
+	if !ok || len(groupIDs) != 2 || groupIDs[0] != 7 || groupIDs[1] != 11 {
+		t.Fatalf("groupIds = %#v, want [7 11]", err.Details["groupIds"])
+	}
+}

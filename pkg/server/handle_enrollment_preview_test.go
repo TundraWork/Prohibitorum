@@ -124,6 +124,21 @@ func TestPreviewInviteBoundReturnsOnlyBinding(t *testing.T) {
 	}
 }
 
+func TestPreviewInviteReturnsFixedUsername(t *testing.T) {
+	e := invitePreview("tok", pgtype.Text{})
+	e.TemplateUsername = pgtype.Text{String: "alice", Valid: true}
+	q := &previewQueries{enrollments: map[string]db.Enrollment{"tok": e}}
+	s := &Server{enrollmentQueriesOverride: q}
+
+	out, err := s.handlePreviewEnrollment(context.Background(), &previewIn{Token: "tok"})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	if out.Body.Username != "alice" {
+		t.Fatalf("username = %q, want alice", out.Body.Username)
+	}
+}
+
 func TestPreviewInviteBoundToLinkOnlyYieldsEmptyProviders(t *testing.T) {
 	q := &previewQueries{
 		enrollments: map[string]db.Enrollment{

@@ -100,6 +100,9 @@ type Enrollment struct {
 	FederatedUpstreamData       []byte             `json:"federatedUpstreamData"`
 	FederatedAvatarUrl          pgtype.Text        `json:"federatedAvatarUrl"`
 	RecoverySourceUpstreamIdpID pgtype.Int8        `json:"recoverySourceUpstreamIdpId"`
+	TemplateUsername            pgtype.Text        `json:"templateUsername"`
+	GroupIds                    []int32            `json:"groupIds"`
+	CreatedByAccountID          pgtype.Int4        `json:"createdByAccountId"`
 }
 
 type EntityIcon struct {

@@ -63,6 +63,7 @@ export const REGISTRY_CODES: readonly ErrorCodeDef[] = [
   { code: 'invalid_return_to', details: [], recovery: '' },
   { code: 'invalid_role', details: ['allowed'], recovery: '' },
   { code: 'invalid_username', details: [], recovery: '' },
+  { code: 'invitation_groups_unavailable', details: ['groupIds'], recovery: '' },
   { code: 'invitation_not_found', details: [], recovery: '' },
   { code: 'invite_required', details: [], recovery: '' },
   { code: 'kv_unavailable', details: [], recovery: 'retry' },
@@ -144,6 +145,7 @@ export const ALL_DETAIL_KEYS: readonly string[] = [
   'upstreamCode',
   'location',
   'reason',
+  'groupIds',
 ] as const
 
 /** Every recovery hint referenced by any code (for locale recovery-label parity). */
@@ -173,7 +175,7 @@ export function codeDefinition(code: string): ErrorCodeDef | undefined {
  *
  * Derived from: go test ./pkg/weberr → AllDefinitions() count.
  */
-export const EXPECTED_REGISTRY_CODE_COUNT = 82
+export const EXPECTED_REGISTRY_CODE_COUNT = 83
 /**
  * Error codes owned by a GLOBAL handler — a redirect (no_session →
  * sessionExpiry), a full-screen redirect (maintenance_mode), or a connection

@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	ApplyInvitationGroups(ctx context.Context, arg ApplyInvitationGroupsParams) ([]int32, error)
 	AssignOIDCClientManager(ctx context.Context, arg AssignOIDCClientManagerParams) error
 	AssignSAMLSPManager(ctx context.Context, arg AssignSAMLSPManagerParams) error
 	//
@@ -175,6 +176,7 @@ type Querier interface {
 	ListForwardAuthManagementCandidates(ctx context.Context) ([]ListForwardAuthManagementCandidatesRow, error)
 	ListGlobalGroupApplications(ctx context.Context, groupID int32) ([]ListGlobalGroupApplicationsRow, error)
 	ListGlobalGroups(ctx context.Context) ([]UserGroup, error)
+	ListInvitationGroups(ctx context.Context, groupIds []int32) ([]ListInvitationGroupsRow, error)
 	ListKnownUpstreamIDPDescriptors(ctx context.Context) ([]ListKnownUpstreamIDPDescriptorsRow, error)
 	ListKnownUpstreamIDPSlugs(ctx context.Context) ([]string, error)
 	ListManualDecisionsForOIDCApp(ctx context.Context, arg ListManualDecisionsForOIDCAppParams) ([]GroupManualDecision, error)

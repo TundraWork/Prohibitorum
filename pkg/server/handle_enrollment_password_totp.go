@@ -144,7 +144,12 @@ func (s *Server) handleEnrollmentPasswordTOTPBeginHTTP(w http.ResponseWriter, r 
 		if e.TemplateRole.Valid {
 			role = e.TemplateRole.String
 		}
-		_, proposal, perr := prepareNewEnrollmentAccount(r.Context(), q, enrollBeginBody{Username: body.Username, DisplayName: body.DisplayName}, role, "enrollment/password-totp/begin invite")
+		inviteBody := enrollBeginBody{Username: body.Username, DisplayName: body.DisplayName}
+		if perr := applyFixedInvitationUsername(&inviteBody, e); perr != nil {
+			writeAuthErr(w, perr)
+			return
+		}
+		_, proposal, perr := prepareNewEnrollmentAccount(r.Context(), q, inviteBody, role, "enrollment/password-totp/begin invite")
 		if perr != nil {
 			writeAuthErr(w, perr)
 			return
@@ -319,6 +324,9 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 			writeAuthErr(w, authn.ErrCeremonyState())
 			return
 		}
+		if consumed.TemplateUsername.Valid {
+			stash.Username = consumed.TemplateUsername.String
+		}
 		role := "user"
 		if consumed.TemplateRole.Valid {
 			role = consumed.TemplateRole.String
@@ -492,6 +500,12 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: enroll totp: %w", terr))
 		return
 	}
+	if consumed.Intent == enrollment.IntentInvite {
+		if err := enrollment.ApplyInvitationGroups(r.Context(), qtx, consumed.GroupIds, acct.ID, consumed.CreatedByAccountID); err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+	}
 
 	if cerr := tx.Commit(r.Context()); cerr != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: commit: %w", cerr))
@@ -518,6 +532,10 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorRecoveryCode, Event: audit.EventRegister})
 	}
 	auditDetail := map[string]any{"intent": string(consumed.Intent), "method": enrollMethodPasswordTOTP}
+	if consumed.Intent == enrollment.IntentInvite {
+		auditDetail["fixed_username"] = consumed.TemplateUsername.Valid
+		auditDetail["group_ids"] = append([]int32(nil), consumed.GroupIds...)
+	}
 	if consumed.Intent == enrollment.IntentReset && consumed.RecoverySourceUpstreamIdpID.Valid {
 		auditDetail["source"] = "vrchat"
 	}

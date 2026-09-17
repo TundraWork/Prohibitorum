@@ -67,6 +67,24 @@ describe('EnrollView', () => {
     expect(wrapper.find('input[name=displayName]').exists()).toBe(true)
   })
 
+  it('prefills and locks a fixed invitation username while still submitting it', async () => {
+    get.mockResolvedValue({ intent: 'invite', username: 'alice', expiresAt: '2099-01-01T00:00:00Z' })
+    post.mockResolvedValue({ challenge: 'c' })
+    const wrapper = await mountView(await makeRouter())
+
+    const username = wrapper.get('input[name=username]')
+    expect((username.element as HTMLInputElement).value).toBe('alice')
+    expect((username.element as HTMLInputElement).disabled).toBe(true)
+    expect(wrapper.text()).toContain(en.enroll.fixedUsernameDesc)
+    await wrapper.get('input[name=displayName]').setValue('Alice')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith(
+      `/api/prohibitorum/enrollments/${TOKEN}/register/begin`,
+      { username: 'alice', displayName: 'Alice' },
+    )
+  })
+
   it('uses shared local-account enrollment after VRChat verification', async () => {
     get.mockResolvedValue({
       intent: 'federated_register',
@@ -195,6 +213,20 @@ describe('EnrollView', () => {
     expect(wrapper.find('input[name=username]').exists()).toBe(false)
     expect(wrapper.find('input[name=displayName]').exists()).toBe(false)
     expect(wrapper.find('button[type=submit]').exists()).toBe(false)
+  })
+
+  it('shows a fixed username before redirecting through a bound provider', async () => {
+    get.mockResolvedValue({
+      intent: 'invite', username: 'alice', expiresAt: '2099-01-01T00:00:00Z',
+      expectedUpstreamIdpSlug: 'google',
+      providers: [{ slug: 'google', displayName: 'Google', protocol: 'oidc' }],
+    })
+    const wrapper = await mountView(await makeRouter())
+    const username = wrapper.get('input[name=username]')
+    expect((username.element as HTMLInputElement).value).toBe('alice')
+    expect((username.element as HTMLInputElement).disabled).toBe(true)
+    expect(wrapper.find('input[name=displayName]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="provider-google"]').exists()).toBe(true)
   })
 
   it('an unbound invite renders both local options and provider buttons', async () => {

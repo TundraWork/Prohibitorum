@@ -8,12 +8,13 @@ vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() })
 const get = vi.mocked(api.get); const post = vi.mocked(api.post)
 import AdminInvitationsView from './AdminInvitationsView.vue'
 import { Select } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 const mountView = () => mount(AdminInvitationsView, { global: { plugins: [i18n()] }, attachTo: document.body })
 const IDPS = [{ slug: 'okta', displayName: 'Okta', disabled: false, mode: 'auto_provision' }]
 const INVITES = [
-  { token: 'tok1', url: 'https://x/enroll/tok1', role: 'user', createdAt: '2026-06-01T00:00:00Z', expiresAt: '2026-06-09T00:00:00Z' },
+  { token: 'tok1', url: 'https://x/enroll/tok1', role: 'user', groupIds: [], groups: [], createdAt: '2026-06-01T00:00:00Z', expiresAt: '2026-06-09T00:00:00Z' },
 ]
 function clickConfirm(label: string) {
   const btns = Array.from(document.body.querySelectorAll('button'))
@@ -43,7 +44,7 @@ describe('AdminInvitationsView', () => {
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'admin' })
     expect(w.text()).toContain(en.admin.invitations.created)
-    expect(get).toHaveBeenCalledTimes(3) // initial load (invitations + upstream-idps) + reload (invitations only)
+    expect(get).toHaveBeenCalledTimes(4) // initial resources + group picker + invitation reload
   })
   it('offers app manager invitations', async () => {
     get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: [], nextCursor: '' })
@@ -82,6 +83,37 @@ describe('AdminInvitationsView', () => {
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', { role: 'user', expectedUpstreamIdpSlug: 'okta' })
   })
+  it('creates an invitation with a trimmed username and selected manual groups', async () => {
+    const groups = [{ id: 12, slug: 'engineering', displayName: 'Engineering' }]
+    get.mockImplementation(async (p: string) => {
+      if (p.includes('/identity-providers')) return { items: IDPS, nextCursor: '' }
+      if (p.includes('/groups?')) return { items: groups, nextCursor: '' }
+      return { items: [], nextCursor: '' }
+    })
+    post.mockResolvedValue({ url: 'https://x/enroll/n', expiresAt: '2026-06-10T00:00:00Z' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click'); await flushPromises()
+    await w.get('#newUsername').setValue('  alice  ')
+    const checkbox = w.getComponent(Checkbox)
+    checkbox.vm.$emit('update:modelValue', true)
+    await flushPromises()
+    await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
+    expect(post).toHaveBeenCalledWith('/api/prohibitorum/invitations', {
+      role: 'user', username: 'alice', groupIds: [12],
+    })
+  })
+  it('shows fixed usernames, resolved groups, and unavailable saved IDs', async () => {
+    const invitation = [{
+      token: 'tok2', url: 'https://x/enroll/tok2', role: 'user', username: 'alice',
+      groupIds: [12, 404], groups: [{ id: 12, slug: 'engineering', displayName: 'Engineering' }],
+      createdAt: '2026-06-01T00:00:00Z', expiresAt: '2026-06-09T00:00:00Z',
+    }]
+    get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: IDPS, nextCursor: '' } : { items: invitation, nextCursor: '' })
+    const w = mountView(); await flushPromises()
+    expect(w.text()).toContain('alice')
+    expect(w.text()).toContain('Engineering')
+    expect(w.text()).toContain('Group #404 unavailable')
+  })
   it('still loads invitations when the upstream-idps fetch fails', async () => {
     get.mockImplementation(async (p: string) => { if (p.includes('/identity-providers')) throw new Error('forbidden'); return { items: INVITES, nextCursor: '' } })
     const w = mountView(); await flushPromises()
@@ -89,7 +121,7 @@ describe('AdminInvitationsView', () => {
     expect(w.find('[data-test="create"]').exists()).toBe(true)
   })
   it('shows the bound IdP displayName in the Method column', async () => {
-    const bound = [{ token: 'tokf', url: 'https://x/enroll/tokf', role: 'user', createdAt: '2026-06-01T00:00:00Z', expiresAt: '2026-06-09T00:00:00Z', expectedUpstreamIdpSlug: 'okta' }]
+    const bound = [{ token: 'tokf', url: 'https://x/enroll/tokf', role: 'user', groupIds: [], groups: [], createdAt: '2026-06-01T00:00:00Z', expiresAt: '2026-06-09T00:00:00Z', expectedUpstreamIdpSlug: 'okta' }]
     get.mockImplementation(async (p: string) => p.includes('/identity-providers') ? { items: [{ slug: 'okta', displayName: 'Okta', disabled: false, mode: 'invite_only' }], nextCursor: '' } : { items: bound, nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain('Okta')

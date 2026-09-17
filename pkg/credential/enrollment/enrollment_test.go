@@ -21,6 +21,7 @@ import (
 type fakeEnrollQ struct {
 	db.Querier             // embedded nil — methods we don't override will panic if called.
 	enrollments            map[string]db.Enrollment
+	inserted               []db.InsertEnrollmentParams
 	federatedParams        []db.InsertFederatedRegistrationEnrollmentParams
 	providerRecoveryParams []db.InsertProviderRecoveryEnrollmentParams
 	insertErr              error
@@ -31,15 +32,31 @@ func newFakeEnrollQ() *fakeEnrollQ {
 }
 
 func (f *fakeEnrollQ) InsertEnrollment(_ context.Context, p db.InsertEnrollmentParams) (db.Enrollment, error) {
+	f.inserted = append(f.inserted, p)
 	e := db.Enrollment{
-		Token:           p.Token,
-		Intent:          p.Intent,
-		TargetAccountID: p.TargetAccountID,
-		CreatedAt:       pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		ExpiresAt:       p.ExpiresAt,
+		Token:              p.Token,
+		Intent:             p.Intent,
+		TargetAccountID:    p.TargetAccountID,
+		TemplateUsername:   p.TemplateUsername,
+		GroupIds:           append([]int32(nil), p.GroupIds...),
+		CreatedByAccountID: p.CreatedByAccountID,
+		CreatedAt:          pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		ExpiresAt:          p.ExpiresAt,
 	}
 	f.enrollments[p.Token] = e
 	return e, nil
+}
+
+type fakeInvitationGroupApplier struct {
+	calls   []db.ApplyInvitationGroupsParams
+	applied []int32
+	err     error
+}
+
+func (f *fakeInvitationGroupApplier) ApplyInvitationGroups(_ context.Context, p db.ApplyInvitationGroupsParams) ([]int32, error) {
+	p.GroupIds = append([]int32(nil), p.GroupIds...)
+	f.calls = append(f.calls, p)
+	return append([]int32(nil), f.applied...), f.err
 }
 func (f *fakeEnrollQ) InsertFederatedRegistrationEnrollment(_ context.Context, p db.InsertFederatedRegistrationEnrollmentParams) (db.Enrollment, error) {
 	if f.insertErr != nil {
@@ -96,6 +113,90 @@ func TestEnrollment_IssueAndLoad(t *testing.T) {
 	if e.TargetAccountID.Valid {
 		t.Error("bootstrap should have null target")
 	}
+	if q.inserted[0].GroupIds == nil || len(q.inserted[0].GroupIds) != 0 {
+		t.Fatalf("bootstrap group IDs = %#v, want a non-nil empty array", q.inserted[0].GroupIds)
+	}
+}
+
+func TestIssueEnrollment_PersistsInvitationTemplate(t *testing.T) {
+	q := newFakeEnrollQ()
+	username := "alice"
+	creatorID := int32(17)
+	_, _, err := IssueEnrollment(context.Background(), q, IntentInvite, nil, time.Hour, &EnrollmentTemplate{
+		Role:               "user",
+		Username:           &username,
+		GroupIDs:           []int32{9, 4, 9},
+		CreatedByAccountID: &creatorID,
+	})
+	if err != nil {
+		t.Fatalf("IssueEnrollment: %v", err)
+	}
+	if len(q.inserted) != 1 {
+		t.Fatalf("inserts = %d, want 1", len(q.inserted))
+	}
+	p := q.inserted[0]
+	if !p.TemplateUsername.Valid || p.TemplateUsername.String != username {
+		t.Fatalf("template username = %+v, want %q", p.TemplateUsername, username)
+	}
+	if len(p.GroupIds) != 2 || p.GroupIds[0] != 9 || p.GroupIds[1] != 4 {
+		t.Fatalf("group IDs = %v, want [9 4]", p.GroupIds)
+	}
+	if !p.CreatedByAccountID.Valid || p.CreatedByAccountID.Int32 != creatorID {
+		t.Fatalf("creator = %+v, want %d", p.CreatedByAccountID, creatorID)
+	}
+}
+
+func TestApplyInvitationGroups(t *testing.T) {
+	creator := pgtype.Int4{Int32: 17, Valid: true}
+
+	t.Run("empty list is a no-op", func(t *testing.T) {
+		q := &fakeInvitationGroupApplier{}
+		if err := ApplyInvitationGroups(context.Background(), q, nil, 23, creator); err != nil {
+			t.Fatalf("ApplyInvitationGroups: %v", err)
+		}
+		if len(q.calls) != 0 {
+			t.Fatalf("calls = %d, want 0", len(q.calls))
+		}
+	})
+
+	t.Run("deduplicates and applies every available group", func(t *testing.T) {
+		q := &fakeInvitationGroupApplier{applied: []int32{4, 9}}
+		if err := ApplyInvitationGroups(context.Background(), q, []int32{9, 4, 9}, 23, creator); err != nil {
+			t.Fatalf("ApplyInvitationGroups: %v", err)
+		}
+		if len(q.calls) != 1 {
+			t.Fatalf("calls = %d, want 1", len(q.calls))
+		}
+		p := q.calls[0]
+		if p.AccountID != 23 || p.CreatedBy != creator {
+			t.Fatalf("params = %+v", p)
+		}
+		if len(p.GroupIds) != 2 || p.GroupIds[0] != 9 || p.GroupIds[1] != 4 {
+			t.Fatalf("group IDs = %v, want [9 4]", p.GroupIds)
+		}
+	})
+
+	t.Run("reports only unavailable IDs", func(t *testing.T) {
+		q := &fakeInvitationGroupApplier{applied: []int32{4}}
+		err := ApplyInvitationGroups(context.Background(), q, []int32{9, 4, 12, 9}, 23, creator)
+		authErr := authn.AsAuthError(err)
+		if authErr == nil || authErr.Code != "invitation_groups_unavailable" {
+			t.Fatalf("error = %v, want invitation_groups_unavailable", err)
+		}
+		invalid, ok := authErr.Details["groupIds"].([]int32)
+		if !ok || len(invalid) != 2 || invalid[0] != 9 || invalid[1] != 12 {
+			t.Fatalf("invalid group IDs = %#v, want [9 12]", authErr.Details["groupIds"])
+		}
+	})
+
+	t.Run("wraps storage failure", func(t *testing.T) {
+		storageErr := errors.New("storage unavailable")
+		q := &fakeInvitationGroupApplier{err: storageErr}
+		err := ApplyInvitationGroups(context.Background(), q, []int32{9}, 23, creator)
+		if !errors.Is(err, storageErr) {
+			t.Fatalf("error = %v, want wrapped storage failure", err)
+		}
+	})
 }
 
 func TestEnrollment_IssueWithTarget(t *testing.T) {

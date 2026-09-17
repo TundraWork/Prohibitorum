@@ -11,11 +11,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const applyInvitationGroups = `-- name: ApplyInvitationGroups :many
+WITH requested AS (
+  SELECT DISTINCT unnest($1::integer[]) AS group_id
+), locked AS (
+  SELECT g.id
+  FROM user_group g
+  JOIN requested r ON r.group_id = g.id
+  WHERE g.kind = 'manual'
+  ORDER BY g.id
+  FOR UPDATE
+), applied AS (
+  INSERT INTO group_manual_decision (group_id, account_id, effect, created_by)
+  SELECT id, $2, 'allow', $3
+  FROM locked
+  ON CONFLICT (group_id, account_id) DO UPDATE
+  SET effect = 'allow', updated_at = now()
+  RETURNING group_id
+)
+SELECT group_id FROM applied ORDER BY group_id
+`
+
+type ApplyInvitationGroupsParams struct {
+	GroupIds  []int32     `json:"groupIds"`
+	AccountID int32       `json:"accountId"`
+	CreatedBy pgtype.Int4 `json:"createdBy"`
+}
+
+func (q *Queries) ApplyInvitationGroups(ctx context.Context, arg ApplyInvitationGroupsParams) ([]int32, error) {
+	rows, err := q.db.Query(ctx, applyInvitationGroups, arg.GroupIds, arg.AccountID, arg.CreatedBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int32
+	for rows.Next() {
+		var group_id int32
+		if err := rows.Scan(&group_id); err != nil {
+			return nil, err
+		}
+		items = append(items, group_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const consumeEnrollment = `-- name: ConsumeEnrollment :one
 UPDATE enrollment
 SET consumed_at = now()
 WHERE token = $1 AND consumed_at IS NULL AND expires_at > now()
-RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id
+RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id, template_username, group_ids, created_by_account_id
 `
 
 // Atomic single-use consume. Returns the row only if it was unconsumed and unexpired.
@@ -41,6 +88,9 @@ func (q *Queries) ConsumeEnrollment(ctx context.Context, token string) (Enrollme
 		&i.FederatedUpstreamData,
 		&i.FederatedAvatarUrl,
 		&i.RecoverySourceUpstreamIdpID,
+		&i.TemplateUsername,
+		&i.GroupIds,
+		&i.CreatedByAccountID,
 	)
 	return i, err
 }
@@ -49,7 +99,7 @@ const consumeInviteEnrollment = `-- name: ConsumeInviteEnrollment :one
 UPDATE enrollment
 SET consumed_at = now()
 WHERE token = $1 AND intent = 'invite' AND consumed_at IS NULL AND expires_at > now()
-RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id
+RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id, template_username, group_ids, created_by_account_id
 `
 
 // Atomic single-use consume, intent-restricted to 'invite' AND unexpired. Used
@@ -78,12 +128,15 @@ func (q *Queries) ConsumeInviteEnrollment(ctx context.Context, token string) (En
 		&i.FederatedUpstreamData,
 		&i.FederatedAvatarUrl,
 		&i.RecoverySourceUpstreamIdpID,
+		&i.TemplateUsername,
+		&i.GroupIds,
+		&i.CreatedByAccountID,
 	)
 	return i, err
 }
 
 const getEnrollmentByToken = `-- name: GetEnrollmentByToken :one
-SELECT token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id FROM enrollment WHERE token = $1
+SELECT token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id, template_username, group_ids, created_by_account_id FROM enrollment WHERE token = $1
 `
 
 func (q *Queries) GetEnrollmentByToken(ctx context.Context, token string) (Enrollment, error) {
@@ -107,6 +160,9 @@ func (q *Queries) GetEnrollmentByToken(ctx context.Context, token string) (Enrol
 		&i.FederatedUpstreamData,
 		&i.FederatedAvatarUrl,
 		&i.RecoverySourceUpstreamIdpID,
+		&i.TemplateUsername,
+		&i.GroupIds,
+		&i.CreatedByAccountID,
 	)
 	return i, err
 }
@@ -114,10 +170,11 @@ func (q *Queries) GetEnrollmentByToken(ctx context.Context, token string) (Enrol
 const insertEnrollment = `-- name: InsertEnrollment :one
 INSERT INTO enrollment (
   token, intent, target_account_id, expires_at,
-  template_role, template_attributes, expected_upstream_idp_slug
+  template_role, template_attributes, expected_upstream_idp_slug,
+  template_username, group_ids, created_by_account_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id, template_username, group_ids, created_by_account_id
 `
 
 type InsertEnrollmentParams struct {
@@ -128,6 +185,9 @@ type InsertEnrollmentParams struct {
 	TemplateRole            pgtype.Text        `json:"templateRole"`
 	TemplateAttributes      []byte             `json:"templateAttributes"`
 	ExpectedUpstreamIdpSlug pgtype.Text        `json:"expectedUpstreamIdpSlug"`
+	TemplateUsername        pgtype.Text        `json:"templateUsername"`
+	GroupIds                []int32            `json:"groupIds"`
+	CreatedByAccountID      pgtype.Int4        `json:"createdByAccountId"`
 }
 
 func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (Enrollment, error) {
@@ -139,6 +199,9 @@ func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentPara
 		arg.TemplateRole,
 		arg.TemplateAttributes,
 		arg.ExpectedUpstreamIdpSlug,
+		arg.TemplateUsername,
+		arg.GroupIds,
+		arg.CreatedByAccountID,
 	)
 	var i Enrollment
 	err := row.Scan(
@@ -159,6 +222,9 @@ func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentPara
 		&i.FederatedUpstreamData,
 		&i.FederatedAvatarUrl,
 		&i.RecoverySourceUpstreamIdpID,
+		&i.TemplateUsername,
+		&i.GroupIds,
+		&i.CreatedByAccountID,
 	)
 	return i, err
 }
@@ -177,7 +243,7 @@ VALUES (
   $7, $8,
   $9
 )
-RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id
+RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id, template_username, group_ids, created_by_account_id
 `
 
 type InsertFederatedRegistrationEnrollmentParams struct {
@@ -223,6 +289,9 @@ func (q *Queries) InsertFederatedRegistrationEnrollment(ctx context.Context, arg
 		&i.FederatedUpstreamData,
 		&i.FederatedAvatarUrl,
 		&i.RecoverySourceUpstreamIdpID,
+		&i.TemplateUsername,
+		&i.GroupIds,
+		&i.CreatedByAccountID,
 	)
 	return i, err
 }
@@ -235,7 +304,7 @@ VALUES (
   $1, 'reset', $2,
   $3, $4
 )
-RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id
+RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id, template_username, group_ids, created_by_account_id
 `
 
 type InsertProviderRecoveryEnrollmentParams struct {
@@ -271,12 +340,49 @@ func (q *Queries) InsertProviderRecoveryEnrollment(ctx context.Context, arg Inse
 		&i.FederatedUpstreamData,
 		&i.FederatedAvatarUrl,
 		&i.RecoverySourceUpstreamIdpID,
+		&i.TemplateUsername,
+		&i.GroupIds,
+		&i.CreatedByAccountID,
 	)
 	return i, err
 }
 
+const listInvitationGroups = `-- name: ListInvitationGroups :many
+SELECT id, slug, display_name
+FROM user_group
+WHERE id = ANY($1::integer[])
+  AND kind = 'manual'
+ORDER BY display_name ASC, id ASC
+`
+
+type ListInvitationGroupsRow struct {
+	ID          int32  `json:"id"`
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+}
+
+func (q *Queries) ListInvitationGroups(ctx context.Context, groupIds []int32) ([]ListInvitationGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listInvitationGroups, groupIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListInvitationGroupsRow
+	for rows.Next() {
+		var i ListInvitationGroupsRow
+		if err := rows.Scan(&i.ID, &i.Slug, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingInvitations = `-- name: ListPendingInvitations :many
-SELECT token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id FROM enrollment
+SELECT token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id, template_username, group_ids, created_by_account_id FROM enrollment
 WHERE intent = 'invite'
   AND consumed_at IS NULL
   AND expires_at > now()
@@ -318,6 +424,9 @@ func (q *Queries) ListPendingInvitations(ctx context.Context, arg ListPendingInv
 			&i.FederatedUpstreamData,
 			&i.FederatedAvatarUrl,
 			&i.RecoverySourceUpstreamIdpID,
+			&i.TemplateUsername,
+			&i.GroupIds,
+			&i.CreatedByAccountID,
 		); err != nil {
 			return nil, err
 		}
@@ -333,7 +442,7 @@ const revokeInvitation = `-- name: RevokeInvitation :one
 UPDATE enrollment
 SET consumed_at = now()
 WHERE token = $1 AND intent = 'invite' AND consumed_at IS NULL
-RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id
+RETURNING token, intent, target_account_id, template_role, template_attributes, expected_upstream_idp_slug, created_at, expires_at, consumed_at, federated_upstream_idp_id, federated_upstream_idp_slug, federated_upstream_iss, federated_upstream_sub, federated_display_name, federated_upstream_data, federated_avatar_url, recovery_source_upstream_idp_id, template_username, group_ids, created_by_account_id
 `
 
 // Same DB effect as ConsumeEnrollment but intent-restricted to 'invite' so an
@@ -361,6 +470,9 @@ func (q *Queries) RevokeInvitation(ctx context.Context, token string) (Enrollmen
 		&i.FederatedUpstreamData,
 		&i.FederatedAvatarUrl,
 		&i.RecoverySourceUpstreamIdpID,
+		&i.TemplateUsername,
+		&i.GroupIds,
+		&i.CreatedByAccountID,
 	)
 	return i, err
 }

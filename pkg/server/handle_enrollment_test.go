@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 )
 
@@ -60,5 +62,28 @@ func TestPrepareNewEnrollmentAccountPreservesSharedNewAccountPolicy(t *testing.T
 	existing := db.Account{ID: 9, Username: body.Username}
 	if _, _, err := prepareNewEnrollmentAccount(context.Background(), newAccountPrepQueries{existing: &existing}, body, "user", "test"); err == nil {
 		t.Fatal("shared new-account preparation accepted a duplicate username")
+	}
+}
+
+func TestApplyFixedInvitationUsername(t *testing.T) {
+	enrollmentRow := &db.Enrollment{TemplateUsername: pgtype.Text{String: "alice", Valid: true}}
+
+	omitted := enrollBeginBody{}
+	if err := applyFixedInvitationUsername(&omitted, enrollmentRow); err != nil {
+		t.Fatalf("omitted username: %v", err)
+	}
+	if omitted.Username != "alice" {
+		t.Fatalf("omitted username became %q, want alice", omitted.Username)
+	}
+
+	matching := enrollBeginBody{Username: "alice"}
+	if err := applyFixedInvitationUsername(&matching, enrollmentRow); err != nil {
+		t.Fatalf("matching username: %v", err)
+	}
+
+	mismatch := enrollBeginBody{Username: "bob"}
+	err := applyFixedInvitationUsername(&mismatch, enrollmentRow)
+	if authErr := authn.AsAuthError(err); authErr == nil || authErr.Code != "username_immutable" {
+		t.Fatalf("mismatched username error = %v, want username_immutable", err)
 	}
 }
