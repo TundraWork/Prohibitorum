@@ -7,6 +7,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -281,6 +282,24 @@ func TestXMLSecUniqueIDsOK(t *testing.T) {
 	raw := []byte(`<Root xmlns="urn:test"><A ID="x"/><B ID="y"/></Root>`)
 	if _, err := parseXMLSecure(raw); err != nil {
 		t.Fatalf("unique IDs: got %v, want nil", err)
+	}
+}
+
+func TestXMLSecTrailingWhitespace(t *testing.T) {
+	for _, suffix := range []string{" ", "\t", "\r", "\n", " \t\r\n"} {
+		t.Run(fmt.Sprintf("%q", suffix), func(t *testing.T) {
+			raw := []byte(`<Root xmlns="urn:test"/>` + suffix)
+			if _, err := parseXMLSecure(raw); err != nil {
+				t.Fatalf("trailing XML whitespace %q: got %v, want nil", suffix, err)
+			}
+		})
+	}
+}
+
+func TestXMLSecTrailingContentRejected(t *testing.T) {
+	raw := []byte(`<Root xmlns="urn:test"/>unexpected`)
+	if _, err := parseXMLSecure(raw); err == nil {
+		t.Fatal("trailing non-whitespace content: got nil, want parse error")
 	}
 }
 

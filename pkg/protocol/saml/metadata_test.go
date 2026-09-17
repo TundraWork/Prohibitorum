@@ -281,7 +281,7 @@ func TestMetadataParseSP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal SP metadata: %v", err)
 	}
-	fixture := append([]byte(xml.Header), body...)
+	fixture := append(append([]byte(xml.Header), body...), '\n')
 
 	entityID, acs, certs, err := parseSPMetadata(fixture)
 	if err != nil {

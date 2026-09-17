@@ -50,6 +50,12 @@ func parseXMLSecure(raw []byte) (*etree.Document, error) {
 		return nil, errXMLDTD
 	}
 
+	// XML permits space, tab, carriage return, and line feed after the
+	// document element. etree's ValidateInput mode rejects that trailing
+	// whitespace because it expects EOF immediately after the root token, so
+	// remove only XML whitespace before applying its strict validation.
+	parseInput := bytes.TrimRight(raw, " \t\r\n")
+
 	doc := etree.NewDocument()
 	// Strict (non-permissive) parsing; no custom entity table, no auto-close.
 	doc.ReadSettings = etree.ReadSettings{
@@ -57,7 +63,7 @@ func parseXMLSecure(raw []byte) (*etree.Document, error) {
 		ValidateInput: true,
 		Entity:        nil,
 	}
-	if err := doc.ReadFromBytes(raw); err != nil {
+	if err := doc.ReadFromBytes(parseInput); err != nil {
 		return nil, err
 	}
 
