@@ -62,6 +62,7 @@ func TestUpstreamCLIConfigUsesAdapterWireShape(t *testing.T) {
 		DisplayNameClaim:     "name",
 		EmailClaim:           "email",
 		PictureClaim:         "picture",
+		SubjectClaim:         "sub",
 		RequireVerifiedEmail: true,
 		AllowPrivateNetwork:  false,
 	}

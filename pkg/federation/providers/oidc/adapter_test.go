@@ -6,12 +6,12 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-	"time"
-
 	"prohibitorum/cmd/smoke/mockop"
 	"prohibitorum/pkg/authn"
 	federationcore "prohibitorum/pkg/federation"
+	"strings"
+	"testing"
+	"time"
 )
 
 type adapterFakeClient struct {
@@ -21,6 +21,8 @@ type adapterFakeClient struct {
 	userInfo      map[string]any
 	userInfoCalls int
 	userInfoErr   error
+	rawUserInfo   map[string]any
+	rawUserErr    error
 	exchangeErr   error
 }
 
@@ -44,6 +46,9 @@ func (c *adapterFakeClient) UserInfo(context.Context, string, string) (map[strin
 	c.userInfoCalls++
 	return c.userInfo, c.userInfoErr
 }
+func (c *adapterFakeClient) UserInfoRaw(_ context.Context, _, _ string) (map[string]any, error) {
+	return c.rawUserInfo, c.rawUserErr
+}
 
 func adapterTestConfig(issuer string, allowPrivate bool) json.RawMessage {
 	raw, _ := json.Marshal(Config{
@@ -51,6 +56,7 @@ func adapterTestConfig(issuer string, allowPrivate bool) json.RawMessage {
 		IssuerURL: issuer, ClientID: "client", Scopes: []string{"openid"},
 		AllowedDomains: []string{}, UsernameClaim: "preferred_username",
 		DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture",
+		SubjectClaim:         "sub",
 		RequireVerifiedEmail: true, AllowPrivateNetwork: allowPrivate,
 	})
 	return raw
@@ -68,7 +74,7 @@ func TestAdapterBeginAndAdvanceVerifiedIdentity(t *testing.T) {
 		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
 	}
 	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
-		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub", EmailVerified: true, AMR: []string{"pwd"}, Raw: map[string]any{"preferred_username": "alice", "name": "Alice", "email": "alice@example.com", "picture": "https://cdn.test/a.png"}}}, nil
+		return &adapterFakeClient{tokens: &Tokens{IDToken: "fake-jwt", Issuer: "https://issuer.test", Subject: "sub", EmailVerified: true, AMR: []string{"pwd"}, Raw: map[string]any{"preferred_username": "alice", "name": "Alice", "email": "alice@example.com", "picture": "https://cdn.test/a.png"}}}, nil
 	}
 	state, action, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback"})
 	if err != nil {
@@ -104,7 +110,7 @@ func TestAdapterDefersUserInfoAvatarFallback(t *testing.T) {
 	adapter := NewAdapter(store)
 	client := &adapterFakeClient{
 		tokens: &Tokens{
-			Issuer: "https://issuer.test", Subject: "sub", AccessToken: "access-token",
+			IDToken: "fake-jwt", Issuer: "https://issuer.test", Subject: "sub", AccessToken: "access-token",
 			Raw: map[string]any{},
 		},
 		userInfo: map[string]any{"picture": "https://cdn.test/fallback.png"},
@@ -161,7 +167,7 @@ func TestAdapterAdvanceAllowsOptionalAuthorizationResponseIssuer(t *testing.T) {
 		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
 	}
 	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
-		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub"}}, nil
+		return &adapterFakeClient{tokens: &Tokens{IDToken: "fake-jwt", Issuer: "https://issuer.test", Subject: "sub"}}, nil
 	}
 	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
 		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
@@ -201,7 +207,7 @@ func TestAdapterCachesClientAcrossBeginAndAdvance(t *testing.T) {
 	}
 	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
 		builds++
-		return &adapterFakeClient{tokens: &Tokens{Issuer: "https://issuer.test", Subject: "sub"}}, nil
+		return &adapterFakeClient{tokens: &Tokens{IDToken: "fake-jwt", Issuer: "https://issuer.test", Subject: "sub"}}, nil
 	}
 
 	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
@@ -454,6 +460,162 @@ func TestAdapterAdvanceClassifiesIssuerAndExchangeFailures(t *testing.T) {
 			}
 			if reason, ok := federationcore.FailureReasonOf(err); !ok || reason != test.wantReason {
 				t.Fatalf("failure reason = %q, want %q", reason, test.wantReason)
+			}
+		})
+	}
+}
+
+// TestAdapterAdvanceUserinfoFallback drives the no-id_token path end to end on
+// the fake client: identity fields come from userinfo claims, the subject from
+// subjectClaim, the issuer from the flow state, and the picture is delivered
+// directly instead of as a deferred reference.
+func TestAdapterAdvanceUserinfoFallback(t *testing.T) {
+	store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+	secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := federationcore.Provider{
+		ID: 7, Slug: "corp", Protocol: Protocol,
+		Config: json.RawMessage(strings.Replace(strings.Replace(string(adapterTestConfig("https://issuer.test", false)), `"subjectClaim":"sub"`, `"subjectClaim":"id"`, 1), `"usernameClaim":"preferred_username"`, `"usernameClaim":"login"`, 1)),
+		Secret: secret, SecretStatus: "valid",
+	}
+	adapter := NewAdapter(store)
+	client := &adapterFakeClient{
+		tokens: &Tokens{AccessToken: "at_fallback", TokenType: "Bearer"},
+		rawUserInfo: map[string]any{
+			"id": json.Number("67890"), "login": "octocat", "name": "Octo Cat",
+			"email": "octo@example.test", "email_verified": false,
+			"picture": "https://cdn.test/octo.png",
+		},
+	}
+	adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+		return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+	}
+	adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
+		return client, nil
+	}
+	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+		Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+		Kind: federationcore.ActionRedirect, Code: "code",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := result.Identity
+	if identity == nil {
+		t.Fatal("Advance returned no identity")
+	}
+	if identity.Subject != "67890" {
+		t.Errorf("Subject = %q, want numeric subjectClaim value 67890", identity.Subject)
+	}
+	if identity.Issuer != "https://issuer.test" {
+		t.Errorf("Issuer = %q, want flow state ExpectedIss", identity.Issuer)
+	}
+	if identity.Username != "octocat" || identity.DisplayName != "Octo Cat" {
+		t.Errorf("Username/DisplayName = %q/%q, want octocat/Octo Cat", identity.Username, identity.DisplayName)
+	}
+	if identity.Email == nil || *identity.Email != "octo@example.test" {
+		t.Errorf("Email = %v, want octo@example.test", identity.Email)
+	}
+	if identity.EmailVerified {
+		t.Error("EmailVerified = true, want false (email_verified false in claims)")
+	}
+	if !identity.EmailVerificationSupported {
+		t.Error("EmailVerificationSupported = false, want true so requireVerifiedEmail keeps gating")
+	}
+	if identity.AMR != nil {
+		t.Errorf("AMR = %v, want nil on the userinfo path", identity.AMR)
+	}
+	if result.Avatar == nil || result.Avatar.URL != "https://cdn.test/octo.png" {
+		t.Errorf("Avatar = %+v, want direct picture URL", result.Avatar)
+	}
+	if result.Avatar != nil && result.Avatar.Opaque != nil {
+		t.Errorf("Avatar.Opaque = %v, want nil (no deferred fetch on userinfo path)", result.Avatar.Opaque)
+	}
+}
+
+// TestAdapterAdvanceClassifiesUserinfoFallbackFailures pins the failure
+// mapping: a missing/unusable subjectClaim value and a userinfo fetch failure
+// both surface as upstream_identity_unavailable while the public error stays
+// federation_state_invalid; the raw upstream text rides the cause.
+func TestAdapterAdvanceClassifiesUserinfoFallbackFailures(t *testing.T) {
+	tests := []struct {
+		name       string
+		client     *adapterFakeClient
+		wantSubstr string
+	}{
+		{
+			name: "subject claim absent",
+			client: &adapterFakeClient{
+				tokens:      &Tokens{AccessToken: "at", TokenType: "Bearer"},
+				rawUserInfo: map[string]any{"login": "octocat"},
+			},
+			wantSubstr: `"sub"`,
+		},
+		{
+			name: "userinfo request failed",
+			client: &adapterFakeClient{
+				tokens:     &Tokens{AccessToken: "at", TokenType: "Bearer"},
+				rawUserErr: errors.New("userinfo: status 401"),
+			},
+			wantSubstr: "status 401",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+			secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider := federationcore.Provider{
+				ID: 7, Slug: "corp", Protocol: Protocol,
+				Config: adapterTestConfig("https://issuer.test", false),
+				Secret: secret, SecretStatus: "valid",
+			}
+			adapter := NewAdapter(store)
+			adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+				return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+			}
+			adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
+				return test.client, nil
+			}
+			state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+				Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+				Kind: federationcore.ActionRedirect, Code: "code",
+			})
+			if ae := authn.AsAuthError(err); ae == nil || ae.Code != "federation_state_invalid" {
+				t.Fatalf("public error = %v, want federation_state_invalid", err)
+			}
+			if reason, ok := federationcore.FailureReasonOf(err); !ok || reason != federationcore.FailureUpstreamNoIdentity {
+				t.Fatalf("failure reason = %q, want upstream_identity_unavailable", reason)
+			}
+			// The raw upstream text rides the cause, not Error() (which stays
+			// "federation flow failed"): recover it through the multi-error
+			// Unwrap and match the cause text.
+			multi, isMulti := err.(interface{ Unwrap() []error })
+			if !isMulti {
+				t.Fatal("flow failure lost its Unwrap() []error")
+			}
+			found := false
+			for _, unwrapped := range multi.Unwrap() {
+				if unwrapped != nil && strings.Contains(unwrapped.Error(), test.wantSubstr) {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("unwrapped causes do not carry upstream text %q", test.wantSubstr)
 			}
 		})
 	}

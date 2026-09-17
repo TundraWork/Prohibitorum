@@ -175,7 +175,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 			ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256",
 			IssuerURL: issuerURL, ClientID: clientID, Scopes: scopes, AllowedDomains: allowedDomains,
 			UsernameClaim: usernameClaim, DisplayNameClaim: "name", EmailClaim: "email",
-			PictureClaim: "picture", RequireVerifiedEmail: requireVerifiedEmail,
+			PictureClaim: "picture", RequireVerifiedEmail: requireVerifiedEmail, SubjectClaim: "sub",
 		})
 		if err != nil {
 			log.Fatalf("encode provider config: %v", err)
@@ -195,7 +195,7 @@ func seedProviders(ctx context.Context, q *db.Queries) {
 			Slug: "github", DisplayName: "GitHub", Protocol: federationoidc.Protocol,
 			Mode: "link_only", SecretStatus: "unconfigured", Disabled: true,
 			ProviderConfig: oidcConfig(
-				"https://github.com", "dev-github", []string{"openid", "email"},
+				"https://github.com/login/oauth", "dev-github", []string{"openid", "email"},
 				[]string{"example.com"}, "preferred_username", false,
 			),
 		},

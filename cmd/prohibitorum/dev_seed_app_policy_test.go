@@ -94,15 +94,16 @@ func appPolicyDemoTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 	q := db.New(pool)
 
 	providerConfig, err := json.Marshal(federationoidc.Config{
-		IssuerURL:             "https://downstream.example.test",
-		ClientID:              "upstream-policy-demo-federation",
-		Scopes:                []string{"openid", "email", "profile"},
-		AllowedDomains:        []string{},
-		UsernameClaim:         "preferred_username",
-		DisplayNameClaim:      "name",
-		EmailClaim:            "email",
-		PictureClaim:          "picture",
-		RequireVerifiedEmail:  true,
+		IssuerURL:            "https://downstream.example.test",
+		ClientID:             "upstream-policy-demo-federation",
+		Scopes:               []string{"openid", "email", "profile"},
+		AllowedDomains:       []string{},
+		UsernameClaim:        "preferred_username",
+		DisplayNameClaim:     "name",
+		EmailClaim:           "email",
+		PictureClaim:         "picture",
+		SubjectClaim:         "sub",
+		RequireVerifiedEmail: true,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -775,6 +775,8 @@ export default {
       displayNameClaim: 'Display name',
       emailClaim: 'Email',
       pictureClaim: 'Avatar',
+      subjectClaim: 'Subject claim (userinfo fallback)',
+      subjectClaimHint: 'Only used when the upstream returns no id_token and authentication falls back to userinfo. Changing it re-identifies already-linked accounts as new identities.',
       claimsHint: 'Map each account field to the upstream claim it comes from. Leave a field blank to use its default (shown as the placeholder).',
       requireVerifiedEmail: 'Require verified email',
       requireVerifiedEmailDesc: 'When creating or linking an account, require the provider to report a verified email. Invitations skip this check.',

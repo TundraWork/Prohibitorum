@@ -236,7 +236,7 @@ func upsertUpstreamIDP(ctx context.Context, q *db.Queries, slug, displayName, mo
 		ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256",
 		IssuerURL: issuer, ClientID: clientID, Scopes: []string{"openid", "email", "profile"},
 		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
-		EmailClaim: "email", PictureClaim: "picture", AllowPrivateNetwork: true,
+		EmailClaim: "email", PictureClaim: "picture", AllowPrivateNetwork: true, SubjectClaim: "sub",
 	})
 	if err != nil {
 		log.Fatalf("dev-federation: encode idp %q config: %v", slug, err)

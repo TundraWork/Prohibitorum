@@ -427,6 +427,28 @@ func TestApplyAutoProvision_EmailNotVerifiedRejected(t *testing.T) {
 	}
 }
 
+// TestApplyAutoProvision_UserinfoFallbackEmailGate pins the gate behind the
+// userinfo fallback: the adapter reports EmailVerificationSupported=true with
+// EmailVerified=false when the upstream claims no email_verified, so a
+// requireVerifiedEmail provider still refuses the login instead of the gate
+// being skipped just because no id_token was involved.
+func TestApplyAutoProvision_UserinfoFallbackEmailGate(t *testing.T) {
+	q := newFakeModesQueries()
+	a := &recordingAudit{}
+	idp := newIDP(federationoidc.ModeAutoProvision)
+	tok := goodTokens()
+	tok.EmailVerified = false
+	tok.EmailVerificationSupported = true
+
+	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
+	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
+		t.Fatalf("want email_not_verified, got %v", err)
+	}
+	if len(q.insertedAccounts) != 0 {
+		t.Fatalf("no account should have been inserted")
+	}
+}
+
 func TestApplyAutoProvision_DomainNotAllowedRejected(t *testing.T) {
 	q := newFakeModesQueries()
 	a := &recordingAudit{}

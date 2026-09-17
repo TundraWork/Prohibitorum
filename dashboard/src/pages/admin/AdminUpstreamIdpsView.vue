@@ -41,6 +41,7 @@ export interface OIDCProviderConfig extends OIDCConnectionConfig {
   displayNameClaim: string
   emailClaim: string
   pictureClaim: string
+  subjectClaim: string
   requireVerifiedEmail: boolean
   allowPrivateNetwork: boolean
 }
@@ -88,6 +89,7 @@ const clientSecret = ref(''); const mode = ref<ProviderMode>('auto_provision')
 const scopes = ref<string[]>(['openid', 'profile', 'email'])
 const allowedDomains = ref<string[]>([])
 const usernameClaim = ref('preferred_username'); const displayNameClaim = ref('name'); const emailClaim = ref('email'); const pictureClaim = ref('picture')
+const subjectClaimCreate = ref('sub')
 const requireVerifiedEmail = ref(false)
 const protocol = ref<ProviderProtocol>('oidc'); const apiKey = ref('')
 const effectiveMode = computed<ProviderMode>(() => protocol.value === 'vrchat' ? 'link_only' : mode.value)
@@ -136,6 +138,7 @@ function buildCreateRequest(selected: ProviderProtocol): CreateProviderRequest {
           displayNameClaim: displayNameClaim.value,
           emailClaim: emailClaim.value,
           pictureClaim: pictureClaim.value,
+          subjectClaim: subjectClaimCreate.value,
           requireVerifiedEmail: requireVerifiedEmail.value,
           allowPrivateNetwork: false,
         },

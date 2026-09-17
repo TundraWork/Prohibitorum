@@ -911,7 +911,7 @@ func upstreamCLIConfig(
 			IssuerURL: issuerURL, ClientID: clientID, Scopes: scopes, AllowedDomains: allowedDomains,
 			UsernameClaim: usernameClaim, DisplayNameClaim: displayNameClaim, EmailClaim: emailClaim,
 			PictureClaim: pictureClaim, RequireVerifiedEmail: requireVerifiedEmail,
-			AllowPrivateNetwork: allowPrivateNetwork,
+			AllowPrivateNetwork: allowPrivateNetwork, SubjectClaim: "sub",
 		})
 		if err != nil {
 			return nil, nil, err

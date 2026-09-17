@@ -7232,6 +7232,7 @@ func oidcSeedProviderConfig(issuer, clientID string, allowedDomains []string, re
 		"displayNameClaim":     "name",
 		"emailClaim":           "email",
 		"pictureClaim":         "picture",
+		"subjectClaim":         "sub",
 		"requireVerifiedEmail": requireVerifiedEmail,
 		"allowPrivateNetwork":  allowPrivateNetwork,
 	})

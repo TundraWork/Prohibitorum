@@ -83,6 +83,13 @@ func TestExplicitOIDCClientPreservesTokenVerification(t *testing.T) {
 				if err != nil || tokens.Subject != "subject" {
 					t.Fatalf("valid token: %v", err)
 				}
+			} else if scenario == "missing id token" {
+				// No id_token is a fallback result, not an Exchange failure:
+				// the access token survives and IDToken stays empty. The
+				// adapter layer decides whether a fallback is possible.
+				if err != nil || tokens.IDToken != "" || tokens.AccessToken == "" {
+					t.Fatalf("missing id token: err=%v tokens=%+v", err, tokens)
+				}
 			} else if err == nil {
 				t.Fatal("invalid token accepted")
 			}
