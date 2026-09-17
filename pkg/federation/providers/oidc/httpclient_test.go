@@ -19,7 +19,7 @@ func TestHardenedClient_BlocksInternalIssuer(t *testing.T) {
 		"http://10.0.0.1/",        // RFC1918
 		"http://[::1]:9/",         // IPv6 loopback
 	} {
-		_, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: issuer, ClientID: "client", Scopes: []string{"openid"}, UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256"})
+		_, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: issuer, ClientID: "client", Scopes: []string{"openid"}, UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", SubjectClaim: "sub", ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256"})
 		if err == nil {
 			t.Errorf("NewClient(%q): expected dial to be blocked, got nil error", issuer)
 			continue

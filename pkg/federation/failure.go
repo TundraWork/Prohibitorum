@@ -39,6 +39,7 @@ const (
 	FailureVRChatProviderNotReady  FailureReason = "vrchat_provider_not_ready"
 	FailureUpstreamRateLimited     FailureReason = "upstream_rate_limited"
 	FailureUpstreamUnavailable     FailureReason = "upstream_temporarily_unavailable"
+	FailureUpstreamNoIdentity      FailureReason = "upstream_identity_unavailable"
 )
 
 type failurePolicy struct {
@@ -97,6 +98,7 @@ var failurePolicies = map[FailureReason]failurePolicy{
 	FailureVRChatProviderNotReady: {public: func() error { return authn.ErrProviderNotReady() }},
 	FailureUpstreamRateLimited:    {public: func() error { return authn.ErrUpstreamRateLimited(0) }},
 	FailureUpstreamUnavailable:    {public: func() error { return authn.ErrUpstreamTemporarilyUnavailable() }},
+	FailureUpstreamNoIdentity:     {public: stateInvalid},
 }
 
 func stateInvalid() error { return authn.ErrFederationStateInvalid() }

@@ -771,6 +771,8 @@ export default {
       displayNameClaim: '显示名称',
       emailClaim: '邮箱',
       pictureClaim: '头像',
+      subjectClaim: 'Subject 声明（userinfo 回退）',
+      subjectClaimHint: '仅当上游不返回 id_token、需要回退到 userinfo 认证时使用。修改该字段会使已绑定的账户被认成新的身份。',
       claimsHint: '将每个账户字段映射到上游对应的声明（claim）。留空则使用默认值（即占位符所示）。',
       requireVerifiedEmail: '要求已验证的邮箱',
       requireVerifiedEmailDesc: '创建或关联账户时，要求提供商报告已验证的邮箱。邀请链接跳过此检查。',

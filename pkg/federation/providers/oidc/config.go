@@ -31,6 +31,7 @@ type Config struct {
 	DisplayNameClaim     string    `json:"displayNameClaim"`
 	EmailClaim           string    `json:"emailClaim"`
 	PictureClaim         string    `json:"pictureClaim"`
+	SubjectClaim         string    `json:"subjectClaim"`
 	RequireVerifiedEmail bool      `json:"requireVerifiedEmail"`
 	AllowPrivateNetwork  bool      `json:"allowPrivateNetwork"`
 	ConfigurationMode    string    `json:"configurationMode"`
@@ -100,7 +101,7 @@ func exactObject(raw []byte, keys []string, nullable bool) (map[string]json.RawM
 }
 
 func decodeConfig(raw json.RawMessage) (Config, error) {
-	fields, err := exactObject(raw, []string{"issuerUrl", "clientId", "scopes", "allowedDomains", "usernameClaim", "displayNameClaim", "emailClaim", "pictureClaim", "requireVerifiedEmail", "allowPrivateNetwork", "configurationMode", "endpoints", "tokenAuthMethod", "pkceMethod"}, false)
+	fields, err := exactObject(raw, []string{"issuerUrl", "clientId", "scopes", "allowedDomains", "usernameClaim", "displayNameClaim", "emailClaim", "pictureClaim", "subjectClaim", "requireVerifiedEmail", "allowPrivateNetwork", "configurationMode", "endpoints", "tokenAuthMethod", "pkceMethod"}, false)
 	if err != nil {
 		return Config{}, err
 	}
@@ -129,7 +130,7 @@ func validateEndpoint(raw string, private bool) error {
 }
 
 func validateConfig(c Config) error {
-	if c.ClientID == "" || len(c.Scopes) == 0 || c.UsernameClaim == "" || c.DisplayNameClaim == "" || c.EmailClaim == "" || c.PictureClaim == "" {
+	if c.ClientID == "" || len(c.Scopes) == 0 || c.UsernameClaim == "" || c.DisplayNameClaim == "" || c.EmailClaim == "" || c.PictureClaim == "" || c.SubjectClaim == "" {
 		return errors.New("federation/oidc: client id, scopes and claim names are required")
 	}
 	if err := validateEndpoint(c.IssuerURL, c.AllowPrivateNetwork); err != nil {
