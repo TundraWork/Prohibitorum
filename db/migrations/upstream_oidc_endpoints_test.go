@@ -69,7 +69,7 @@ func TestUpstreamOIDCEndpointsMigrationPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := goose.UpTo(conn, ".", 38); err != nil {
+	if err := goose.UpTo(conn, ".", 39); err != nil {
 		t.Fatal(err)
 	}
 	var raw []byte
@@ -83,7 +83,7 @@ func TestUpstreamOIDCEndpointsMigrationPostgres(t *testing.T) {
 	if err := json.Unmarshal(raw, &config); err != nil {
 		t.Fatal(err)
 	}
-	if config.ConfigurationMode != "discovery" || config.TokenAuthMethod != "discovery" || config.PKCEMethod != "S256" || config.Endpoints.Authorization != nil || config.Endpoints.Token != nil || config.Endpoints.UserInfo != nil || config.Endpoints.JWKS != nil || !config.RequireVerifiedEmail {
+	if config.ConfigurationMode != "discovery" || config.TokenAuthMethod != "discovery" || config.PKCEMethod != "S256" || config.Endpoints.Authorization != nil || config.Endpoints.Token != nil || config.Endpoints.UserInfo != nil || config.Endpoints.JWKS != nil || config.SubjectClaim != "sub" || !config.RequireVerifiedEmail {
 		t.Fatalf("config=%+v", config)
 	}
 	for _, protocol := range []string{"steam", "vrchat"} {

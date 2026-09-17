@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"prohibitorum/cmd/smoke/mockop"
-	"prohibitorum/pkg/authn"
-	federationcore "prohibitorum/pkg/federation"
 	"strings"
 	"testing"
 	"time"
+
+	oidclib "github.com/zitadel/oidc/v3/pkg/oidc"
+
+	"prohibitorum/cmd/smoke/mockop"
+	"prohibitorum/pkg/authn"
+	federationcore "prohibitorum/pkg/federation"
 )
 
 type adapterFakeClient struct {
@@ -540,6 +544,67 @@ func TestAdapterAdvanceUserinfoFallback(t *testing.T) {
 	}
 }
 
+// TestAdapterAdvanceUserinfoFallbackEmailVerifiedFromClaims pins the read of
+// email_verified out of userinfo claims: a true claim flows into EmailVerified
+// (which a requireVerifiedEmail resolver turns into a pass), a false claim and
+// a missing claim both read as false — and are then refused by that resolver.
+func TestAdapterAdvanceUserinfoFallbackEmailVerifiedFromClaims(t *testing.T) {
+	for name, verified := range map[string]any{"true": true, "false": false, "absent": nil} {
+		t.Run(name, func(t *testing.T) {
+			store := federationcore.NewSecretStore(map[int][]byte{1: make([]byte, 32)})
+			secret, err := store.SealProviderSecret([]byte("client-secret"), 7, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider := federationcore.Provider{
+				ID: 7, Slug: "corp", Protocol: Protocol,
+				Config: json.RawMessage(strings.Replace(string(adapterTestConfig("https://issuer.test", false)), `"subjectClaim":"sub"`, `"subjectClaim":"id"`, 1)),
+				Secret: secret, SecretStatus: "valid",
+			}
+			adapter := NewAdapter(store)
+			claims := map[string]any{
+				"id": json.Number("67890"), "login": "octocat",
+				"email": "octo@example.test", "picture": "https://cdn.test/octo.png",
+			}
+			if verified != nil {
+				claims["email_verified"] = verified
+			}
+			client := &adapterFakeClient{
+				tokens:      &Tokens{AccessToken: "at_fallback", TokenType: "Bearer"},
+				rawUserInfo: claims,
+			}
+			adapter.resolveConfig = func(_ context.Context, c Config) (ResolvedConfig, error) {
+				return ResolvedConfig{Issuer: c.IssuerURL, AuthorizationEndpoint: c.IssuerURL + "/auth", TokenEndpoint: c.IssuerURL + "/token", JWKSEndpoint: c.IssuerURL + "/keys", PKCEMethod: c.PKCEMethod, TokenAuthMethod: "client_secret_basic", Scopes: c.Scopes}, nil
+			}
+			adapter.newClient = func(context.Context, Config, ResolvedConfig, string, string) (clientAPI, error) {
+				return client, nil
+			}
+			state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{
+				Intent: federationcore.IntentLogin, FlowID: "flow", CallbackURL: "https://idp.test/callback",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := adapter.Advance(context.Background(), provider, state, federationcore.ActionInput{
+				Kind: federationcore.ActionRedirect, Code: "code",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Identity == nil {
+				t.Fatal("Advance returned no identity")
+			}
+			want := verified == true
+			if result.Identity.EmailVerified != want {
+				t.Errorf("EmailVerified = %v, want %v", result.Identity.EmailVerified, want)
+			}
+			if !result.Identity.EmailVerificationSupported {
+				t.Error("EmailVerificationSupported = false, want true")
+			}
+		})
+	}
+}
+
 // TestAdapterAdvanceClassifiesUserinfoFallbackFailures pins the failure
 // mapping: a missing/unusable subjectClaim value and a userinfo fetch failure
 // both surface as upstream_identity_unavailable while the public error stays
@@ -565,6 +630,18 @@ func TestAdapterAdvanceClassifiesUserinfoFallbackFailures(t *testing.T) {
 				rawUserErr: errors.New("userinfo: status 401"),
 			},
 			wantSubstr: "status 401",
+		},
+		{
+			// Unparseable id_token (form-encoded response, malformed JWT):
+			// Exchange wraps it in errUpstreamIdentityParse, and the adapter
+			// must classify it as upstream_identity_unavailable rather than
+			// code_exchange_failed, so the operator log says "no usable
+			// identity" instead of "the code was bad".
+			name: "unparseable id_token",
+			client: &adapterFakeClient{
+				exchangeErr: fmt.Errorf("%w: federation/oidc: code exchange: %w", errUpstreamIdentityParse, oidclib.ErrParse),
+			},
+			wantSubstr: errUpstreamIdentityParse.Error(),
 		},
 	}
 	for _, test := range tests {

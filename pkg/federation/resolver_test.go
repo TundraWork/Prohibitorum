@@ -427,25 +427,38 @@ func TestApplyAutoProvision_EmailNotVerifiedRejected(t *testing.T) {
 	}
 }
 
-// TestApplyAutoProvision_UserinfoFallbackEmailGate pins the gate behind the
-// userinfo fallback: the adapter reports EmailVerificationSupported=true with
-// EmailVerified=false when the upstream claims no email_verified, so a
-// requireVerifiedEmail provider still refuses the login instead of the gate
-// being skipped just because no id_token was involved.
-func TestApplyAutoProvision_UserinfoFallbackEmailGate(t *testing.T) {
-	q := newFakeModesQueries()
-	a := &recordingAudit{}
-	idp := newIDP(federationoidc.ModeAutoProvision)
-	tok := goodTokens()
-	tok.EmailVerified = false
-	tok.EmailVerificationSupported = true
+// TestResolverLink_UserinfoFallbackEmailGate pins the gate behind the
+// userinfo fallback on the link path, where EmailVerificationSupported
+// actually gates (resolveLink): the adapter reports supported=true with
+// verified=false when the upstream claims no email_verified, so requireVerifiedEmail
+// refuses the link; flipping supported to false must let it through, which is
+// the behavior this test protects.
+func TestResolverLink_UserinfoFallbackEmailGate(t *testing.T) {
+	for name, supported := range map[string]bool{"supported true": true, "supported false": false} {
+		t.Run(name, func(t *testing.T) {
+			q := newFakeModesQueries()
+			q.accountByIDResults[9] = db.Account{ID: 9, Username: "alice"}
+			resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+			provider := genericProvider(federationoidc.ModeAutoProvision)
+			identity := *goodTokens()
+			identity.EmailVerified = false
+			identity.EmailVerificationSupported = supported
+			accountID := int32(9)
 
-	_, err := federationoidc.Resolve(context.Background(), q, a, idp, tok, nil)
-	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
-		t.Fatalf("want email_not_verified, got %v", err)
-	}
-	if len(q.insertedAccounts) != 0 {
-		t.Fatalf("no account should have been inserted")
+			_, err := resolver.ResolveIdentity(context.Background(), provider, identity, federationoidc.ResolveContext{
+				Intent: federationoidc.IntentLink, LinkAccountID: &accountID,
+			})
+			if supported {
+				if ae := authn.AsAuthError(err); ae == nil || ae.Code != "email_not_verified" {
+					t.Fatalf("want email_not_verified, got %v", err)
+				}
+				if len(q.insertedAccounts) != 0 {
+					t.Fatalf("no account should have been inserted")
+				}
+			} else if err != nil {
+				t.Fatalf("unsupported verification must skip the gate, got %v", err)
+			}
+		})
 	}
 }
 

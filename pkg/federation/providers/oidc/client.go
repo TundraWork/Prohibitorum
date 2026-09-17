@@ -129,6 +129,15 @@ func ClaimIdentifier(raw map[string]any, name string) string {
 	}
 }
 
+// ClaimBool returns the boolean value of the named claim, or false when the
+// claim is absent or not a bool. ClaimString cannot serve this role: it
+// type-asserts to string and "" (falsey) for JSON booleans, which would make
+// email_verified unreadable on the userinfo path.
+func ClaimBool(raw map[string]any, name string) bool {
+	v, _ := raw[name].(bool)
+	return v
+}
+
 // acceptHeaderTransport sets Accept: application/json on requests that carry
 // no Accept header, leaving an explicit one untouched.
 //
@@ -205,8 +214,15 @@ func NewClient(_ context.Context, clientID, clientSecret, redirectURI string, re
 	default:
 		return nil, errors.New("federation/oidc: unresolved token authentication method")
 	}
-	httpClient := federationcore.NewOutboundHTTPClient(allowPrivateNetwork, 2<<20)
-	httpClient = &http.Client{Transport: &acceptHeaderTransport{base: httpClient.Transport}, Timeout: httpClient.Timeout}
+	// Copy the client struct instead of building a fresh one: CheckRedirect
+	// (max 5 hops, no https→http downgrade, re-validation of redirect targets)
+	// is the outbound policy against following a token-endpoint redirect that
+	// would replay the Authorization header in plaintext. Only the Transport
+	// changes here.
+	hardened := federationcore.NewOutboundHTTPClient(allowPrivateNetwork, 2<<20)
+	wrapped := *hardened
+	wrapped.Transport = &acceptHeaderTransport{base: hardened.Transport}
+	httpClient := &wrapped
 	base, err := rp.NewRelyingPartyOAuth(&oauth2.Config{ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURI, Scopes: append([]string(nil), resolved.Scopes...), Endpoint: oauth2.Endpoint{AuthURL: resolved.AuthorizationEndpoint, TokenURL: resolved.TokenEndpoint}}, rp.WithHTTPClient(httpClient), rp.WithAuthStyle(style))
 	if err != nil {
 		return nil, err
