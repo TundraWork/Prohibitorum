@@ -1386,7 +1386,7 @@ export default {
       partial_session_invalid: '登录会话已超时，请重新开始。',
       recovery_session_invalid: '恢复会话已超时，请重新开始。',
       ceremony_missing: '此次登录尝试已超时，请重试。',
-      ceremony_expired: '此次登录尝试已超时，请重试。',
+      ceremony_expired: '此次操作已超时，请重试。',
       ceremony_state_invalid: '我们无法验证此次登录尝试，请重试。',
       ceremony_internal_error: '验证过程中出现了问题，请重试。',
       login_account_not_found: '我们找不到与该通行密钥匹配的账户。',

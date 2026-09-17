@@ -373,6 +373,115 @@ func main() {
 		log.Fatalf("totp DB assert: %v", err)
 	}
 
+	// PHB-58: beginning a reset must not change the active TOTP or recovery
+	// codes. Prove the old TOTP still completes a real password login before
+	// replacing it in a second ceremony.
+	oldSecret := append([]byte(nil), secret...)
+	oldRecoveryCodes := append([]string(nil), recoveryCodes...)
+	var abandonedReset struct {
+		SecretBase32 string `json:"secret_base32"`
+	}
+	if err := c.postJSON("/api/prohibitorum/me/totp/begin", map[string]any{}, &abandonedReset); err != nil {
+		log.Fatalf("totp reset begin (abandoned): %v", err)
+	}
+	if err := verifyTOTPConfirmed(me2.ID); err != nil {
+		log.Fatalf("abandoned totp reset changed credentials: %v", err)
+	}
+	abandonClient, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("abandoned-reset login client: %v", err)
+	}
+	abandonPartial, err := abandonClient.passwordBegin(*username, password)
+	if err != nil {
+		log.Fatalf("password/begin after abandoned reset: %v", err)
+	}
+	totpStep = waitForNextTOTPStep(totpStep)
+	if err := abandonClient.totpStepTwoVerify(
+		abandonPartial, totppkg.ComputeCodeForTesting(oldSecret, time.Now().Unix(), 6),
+	); err != nil {
+		log.Fatalf("old TOTP failed after abandoned reset: %v", err)
+	}
+	log.Printf("  abandoned reset preserved the confirmed TOTP and recovery-code set ✓")
+
+	// Refresh sudo because waiting for the next TOTP period may exhaust the
+	// earlier grant, then complete a new reset and carry its material forward.
+	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
+		log.Fatalf("sudo webauthn (pre totp reset): %v", err)
+	}
+	var resetBegin struct {
+		SecretBase32 string `json:"secret_base32"`
+		OtpauthURI   string `json:"otpauth_uri"`
+	}
+	if err := c.postJSON("/api/prohibitorum/me/totp/begin", map[string]any{}, &resetBegin); err != nil {
+		log.Fatalf("totp reset begin: %v", err)
+	}
+	resetSecret, err := base32.StdEncoding.WithPadding(base32.NoPadding).
+		DecodeString(strings.TrimRight(resetBegin.SecretBase32, "="))
+	if err != nil {
+		log.Fatalf("decode reset totp secret: %v", err)
+	}
+	resetCode := totppkg.ComputeCodeForTesting(resetSecret, time.Now().Unix(), 6)
+	var resetVerify struct {
+		RecoveryCodes []string `json:"recovery_codes"`
+	}
+	if err := c.postJSON("/api/prohibitorum/me/totp/verify",
+		map[string]string{"code": resetCode}, &resetVerify); err != nil {
+		log.Fatalf("totp reset verify: %v", err)
+	}
+	if len(resetVerify.RecoveryCodes) != 10 {
+		log.Fatalf("totp reset: expected 10 recovery codes, got %d", len(resetVerify.RecoveryCodes))
+	}
+	if err := verifyTOTPConfirmed(me2.ID); err != nil {
+		log.Fatalf("completed totp reset DB assert: %v", err)
+	}
+
+	oldTOTPClient, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("old-totp rejection client: %v", err)
+	}
+	oldTOTPPartial, err := oldTOTPClient.passwordBegin(*username, password)
+	if err != nil {
+		log.Fatalf("password/begin for old-totp rejection: %v", err)
+	}
+	oldCode := totppkg.ComputeCodeForTesting(oldSecret, time.Now().Unix(), 6)
+	if oldCode == resetCode {
+		totpStep = waitForNextTOTPStep(time.Now().Unix() / 30)
+		oldCode = totppkg.ComputeCodeForTesting(oldSecret, time.Now().Unix(), 6)
+	}
+	resp, err := oldTOTPClient.postJSONRaw("/api/prohibitorum/auth/totp/verify",
+		map[string]string{"partial_session_token": oldTOTPPartial, "code": oldCode})
+	if err != nil {
+		log.Fatalf("old-totp rejection request: %v", err)
+	}
+	oldTOTPBody, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		log.Fatalf("old TOTP after reset: want 401, got %d — %s", resp.StatusCode, firstN(string(oldTOTPBody), 300))
+	}
+
+	oldRecoveryClient, err := newClient(*baseURL)
+	if err != nil {
+		log.Fatalf("old-recovery rejection client: %v", err)
+	}
+	oldRecoveryPartial, err := oldRecoveryClient.passwordBegin(*username, password)
+	if err != nil {
+		log.Fatalf("password/begin for old-recovery rejection: %v", err)
+	}
+	resp, err = oldRecoveryClient.postJSONRaw("/api/prohibitorum/auth/recovery-code/verify",
+		map[string]string{"partial_session_token": oldRecoveryPartial, "code": oldRecoveryCodes[0]})
+	if err != nil {
+		log.Fatalf("old-recovery rejection request: %v", err)
+	}
+	oldRecoveryBody, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		log.Fatalf("old recovery code after reset: want 401, got %d — %s", resp.StatusCode, firstN(string(oldRecoveryBody), 300))
+	}
+	secret = resetSecret
+	recoveryCodes = resetVerify.RecoveryCodes
+	totpStep = time.Now().Unix() / 30
+	log.Printf("  completed reset activated the new TOTP and recovery codes; old material is rejected ✓")
+
 	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop A's webauthn session)", 25, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout pre-password-login: %v", err)
@@ -6931,26 +7040,25 @@ func verifyCoreAuditEvents(accountID int32) error {
 		{"password:register", 1},
 		{"password:use", 1},
 		{"password:revoke", 1},
-		// totp:register fires on first-confirm twice — initial enrollment +
-		// recovery-ceremony commit. totp:revoke fires at recovery-begin
-		// (reason=recovery) AND at the destructive revoke-password-totp.
-		{"totp:register", 2},
+		// totp:register fires for initial enrollment, PHB-58 reset, and the
+		// recovery-ceremony commit. Revoke includes the reset, recovery begin,
+		// and the final destructive revoke-password-totp.
+		{"totp:register", 3},
 		{"totp:use", 1},
-		{"totp:revoke", 2},
-		// recovery_code:register: initial 10 + post-recovery 10 + regen 10 = 30
-		// in this smoke run; lower bound 10 is safe.
+		{"totp:revoke", 3},
+		// recovery_code:register includes initial enrollment, PHB-58 reset,
+		// recovery completion, and regeneration.
 		{"recovery_code:register", 10},
 		// recovery_code:use: just the one redeem at /auth/recovery-code/verify
 		// (sudo via recovery_code is gone post-2026-05-28 hardening).
 		{"recovery_code:use", 1},
 		// recovery_code:revoke: the recovery ceremony's
-		// recovery_complete-revoke (9 events) + regenerate revoke (10 events)
-		// + final destructive revoke. Lower bound 9 keeps us safe against
-		// minor reordering.
-		{"recovery_code:revoke", 9},
+		// PHB-58 reset (10 events), recovery completion (9 events),
+		// regeneration, and the final destructive revoke.
+		{"recovery_code:revoke", 19},
 		// sudo_granted is now filed under the factor of the verified credential
-		// (Task 7 reshape). The smoke drives webauthn sudo 3× (pre-pwd-set,
-		// pre-add-passkey, pre-revoke) and password_totp sudo 1× (core 43).
+		// (Task 7 reshape). The smoke also uses WebAuthn sudo before the TOTP
+		// reset and password_totp sudo in core 43.
 		// password_totp → FactorTOTP; webauthn → FactorWebAuthn.
 		{"webauthn:sudo_granted", 3},
 		{"totp:sudo_granted", 1},

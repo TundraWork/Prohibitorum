@@ -199,9 +199,11 @@ func TestRecoveryTOTPVerify_HappyPath(t *testing.T) {
 	tok := mustToken(t)
 	stashRecoverySession(t, s, tok, accountID)
 
-	// codeShift = 31s puts us past whatever step the seed Verify consumed
-	// and past the freshly-inserted (last_step=0) row's range.
-	w := runRecoveryCeremony(t, s, f, dek, tok, accountID, 31*time.Second)
+	// Target exactly the next TOTP step. A fixed 31-second shift can cross
+	// two boundaries when the test starts near the end of the current step.
+	now := time.Now()
+	nextStep := time.Unix(((now.Unix()/30)+1)*30, 0).Add(time.Second)
+	w := runRecoveryCeremony(t, s, f, dek, tok, accountID, nextStep.Sub(now))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("/verify status: want 200, got %d (body=%s)", w.Code, w.Body.String())
@@ -400,7 +402,7 @@ func TestRecoveryTOTPVerify_ParallelAtomic(t *testing.T) {
 	verifyBody := fmt.Sprintf(`{"recovery_session_token":%q,"code":%q}`, tok, code)
 
 	var (
-		wg            sync.WaitGroup
+		wg              sync.WaitGroup
 		recoveryInvalid int32
 	)
 	const parallel = 8

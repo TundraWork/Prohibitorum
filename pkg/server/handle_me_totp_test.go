@@ -13,15 +13,18 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"prohibitorum/pkg/credential/totp"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 )
 
@@ -29,6 +32,32 @@ import (
 // s.meTOTPFlowOverride so /me/totp/* handlers read from it.
 func withMeTOTPOverride(s *Server, f *fakeSudoQueries) {
 	s.meTOTPFlowOverride = f
+	s.enrollmentTxRunnerOverride = &fakePwdTOTPTxRunner{q: f}
+}
+
+func meTOTPBegin(t *testing.T, s *Server, sess *authn.Session) string {
+	t.Helper()
+	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/totp/begin", "")
+	w := httptest.NewRecorder()
+	s.handleMeTOTPBeginHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("begin status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	body := decodeJSON(t, w.Body.Bytes())
+	secret, _ := body["secret_base32"].(string)
+	if secret == "" {
+		t.Fatalf("begin response missing secret_base32: %v", body)
+	}
+	return secret
+}
+
+func meTOTPVerify(t *testing.T, s *Server, sess *authn.Session, code string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := fmt.Sprintf(`{"code":%q}`, code)
+	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/totp/verify", body)
+	w := httptest.NewRecorder()
+	s.handleMeTOTPVerifyHTTP(w, r)
+	return w
 }
 
 func TestMeTOTPBegin_FirstTimeNoSudoRequired(t *testing.T) {
@@ -52,11 +81,11 @@ func TestMeTOTPBegin_FirstTimeNoSudoRequired(t *testing.T) {
 	if uri, _ := body["otpauth_uri"].(string); uri == "" {
 		t.Errorf("response missing otpauth_uri")
 	}
-	if f.totpRow == nil {
-		t.Errorf("totp row not inserted")
+	if f.totpRow != nil {
+		t.Errorf("begin must not insert a totp row, got %+v", f.totpRow)
 	}
-	if f.totpRow != nil && f.totpRow.ConfirmedAt.Valid {
-		t.Errorf("totp row should be unconfirmed after Begin")
+	if _, err := s.kvStore.Get(context.Background(), meTOTPCeremonyKey(sess)); err != nil {
+		t.Errorf("begin did not store the candidate: %v", err)
 	}
 }
 
@@ -113,28 +142,24 @@ func TestMeTOTPBegin_ConfirmedWithSudo(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
 	}
-	// The Begin call wiped the prior confirmed row and inserted a fresh
-	// unconfirmed one.
-	if f.totpRow == nil || f.totpRow.ConfirmedAt.Valid {
-		t.Errorf("re-enroll should produce an unconfirmed row, got %+v", f.totpRow)
+	oldSecret := append([]byte(nil), f.totpRow.SecretEnc...)
+	oldRecovery := append([]db.RecoveryCode(nil), f.recoveryRows...)
+	meTOTPBegin(t, s, sess)
+	if f.totpRow == nil || !f.totpRow.ConfirmedAt.Valid || !slices.Equal(f.totpRow.SecretEnc, oldSecret) {
+		t.Errorf("begin changed the confirmed totp credential: %+v", f.totpRow)
+	}
+	if !slices.Equal(f.recoveryRows, oldRecovery) {
+		t.Errorf("begin changed recovery codes")
 	}
 }
 
 func TestMeTOTPVerify_FirstSuccessReturnsRecoveryCodes(t *testing.T) {
-	s, f, dek := newSudoTestServer(t)
+	s, f, _ := newSudoTestServer(t)
 	withMeTOTPOverride(s, f)
 	const accountID int32 = 42
-	// Begin an enrollment so a row exists but is unconfirmed.
-	if _, err := s.totpStore.Begin(context.Background(), accountID, "alice"); err != nil {
-		t.Fatalf("Begin: %v", err)
-	}
 	_, sess := issueSudoTestSession(t, s, accountID)
-
-	code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, *f.totpRow, accountID), time.Now().Unix(), 6)
-	body := fmt.Sprintf(`{"code":%q}`, code)
-	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/totp/verify", body)
-	w := httptest.NewRecorder()
-	s.handleMeTOTPVerifyHTTP(w, r)
+	secret := meTOTPBegin(t, s, sess)
+	w := meTOTPVerify(t, s, sess, codeForSecret(t, secret))
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
 	}
@@ -151,29 +176,31 @@ func TestMeTOTPVerify_FirstSuccessReturnsRecoveryCodes(t *testing.T) {
 	}
 }
 
-func TestMeTOTPVerify_SubsequentReturns204(t *testing.T) {
+func TestMeTOTPVerify_ReplacesExistingFactors(t *testing.T) {
 	s, f, dek := newSudoTestServer(t)
 	withMeTOTPOverride(s, f)
 	const accountID int32 = 42
 	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
-	// Confirmed row now exists, so verify requires sudo.
+	oldSecret := append([]byte(nil), decryptTOTPSecret(t, dek, *f.totpRow, accountID)...)
+	oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
 	token, sess := issueSudoTestSession(t, s, accountID)
 	grantFreshSudo(t, s, accountID, token)
 	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
 
-	// The seed Verify consumed LastStep = stepFor(now). A second Verify at
-	// the same wall-clock step would replay. Reset LastStep so a fresh
-	// current-step code is accepted; the row is already confirmed, so
-	// Verify returns (nil, nil) — handler writes 204.
-	f.totpRow.LastStep = 0
-	code := totp.ComputeCodeForTesting(decryptTOTPSecret(t, dek, *f.totpRow, accountID), time.Now().Unix(), 6)
-
-	body := fmt.Sprintf(`{"code":%q}`, code)
-	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/totp/verify", body)
-	w := httptest.NewRecorder()
-	s.handleMeTOTPVerifyHTTP(w, r)
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("status: want 204, got %d (body=%s)", w.Code, w.Body.String())
+	secret := meTOTPBegin(t, s, sess)
+	w := meTOTPVerify(t, s, sess, codeForSecret(t, secret))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	codes, ok := decodeJSON(t, w.Body.Bytes())["recovery_codes"].([]any)
+	if !ok || len(codes) != 10 {
+		t.Fatalf("recovery_codes: want 10 entries, got %v", codes)
+	}
+	if got := decryptTOTPSecret(t, dek, *f.totpRow, accountID); slices.Equal(got, oldSecret) {
+		t.Error("successful verify did not replace the totp secret")
+	}
+	if slices.Equal(f.recoveryRows, oldCodes) {
+		t.Error("successful verify did not replace recovery codes")
 	}
 }
 
@@ -185,16 +212,27 @@ func TestMeTOTPVerify_WrongCode(t *testing.T) {
 	token, sess := issueSudoTestSession(t, s, accountID)
 	grantFreshSudo(t, s, accountID, token)
 	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+	oldSecret := append([]byte(nil), f.totpRow.SecretEnc...)
+	oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
+	secret := meTOTPBegin(t, s, sess)
 
-	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/totp/verify", `{"code":"000000"}`)
-	w := httptest.NewRecorder()
-	s.handleMeTOTPVerifyHTTP(w, r)
+	w := meTOTPVerify(t, s, sess, "000000")
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status: want 401, got %d (body=%s)", w.Code, w.Body.String())
 	}
 	body := decodeJSON(t, w.Body.Bytes())
 	if body["code"] != "bad_credentials" {
 		t.Errorf("code: want bad_credentials, got %v", body["code"])
+	}
+	if !slices.Equal(f.totpRow.SecretEnc, oldSecret) || !slices.Equal(f.recoveryRows, oldCodes) {
+		t.Error("wrong code changed existing credentials")
+	}
+	if _, err := s.kvStore.Get(context.Background(), meTOTPCeremonyKey(sess)); err != nil {
+		t.Fatalf("wrong code consumed the candidate: %v", err)
+	}
+	w = meTOTPVerify(t, s, sess, codeForSecret(t, secret))
+	if w.Code != http.StatusOK {
+		t.Fatalf("retry with correct code: want 200, got %d (body=%s)", w.Code, w.Body.String())
 	}
 }
 
@@ -213,7 +251,7 @@ func TestMeTOTPVerify_EmptyCode(t *testing.T) {
 	}
 }
 
-func TestMeTOTPVerify_FactorLocked(t *testing.T) {
+func TestMeTOTPVerify_MissingCandidate(t *testing.T) {
 	s, f, dek := newSudoTestServer(t)
 	withMeTOTPOverride(s, f)
 	const accountID int32 = 42
@@ -222,26 +260,121 @@ func TestMeTOTPVerify_FactorLocked(t *testing.T) {
 	grantFreshSudo(t, s, accountID, token)
 	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
 
-	// Pin the throttle row into a locked state.
-	f.throttle["42:totp"] = db.AuthThrottle{
-		AccountID:      accountID,
-		Factor:         "totp",
-		FailedAttempts: 99,
-		LockedUntil:    pgtype.Timestamptz{Time: time.Now().Add(2 * time.Minute), Valid: true},
-	}
-
-	r := sudoReq(t, sess, http.MethodPost, "/api/prohibitorum/me/totp/verify", `{"code":"000000"}`)
-	w := httptest.NewRecorder()
-	s.handleMeTOTPVerifyHTTP(w, r)
-	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("status: want 429, got %d (body=%s)", w.Code, w.Body.String())
-	}
-	if w.Header().Get("Retry-After") == "" {
-		t.Errorf("Retry-After header missing on factor_locked response")
+	w := meTOTPVerify(t, s, sess, "000000")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
 	}
 	body := decodeJSON(t, w.Body.Bytes())
-	if body["code"] != "factor_locked" {
-		t.Errorf("code: want factor_locked, got %v", body["code"])
+	if body["code"] != "ceremony_expired" {
+		t.Errorf("code: want ceremony_expired, got %v", body["code"])
+	}
+}
+
+func TestMeTOTPVerify_CandidateIsBoundToSession(t *testing.T) {
+	s, f, _ := newSudoTestServer(t)
+	withMeTOTPOverride(s, f)
+	const accountID int32 = 42
+	_, ownerSession := issueSudoTestSession(t, s, accountID)
+	secret := meTOTPBegin(t, s, ownerSession)
+	_, otherSession := issueSudoTestSession(t, s, accountID)
+
+	w := meTOTPVerify(t, s, otherSession, codeForSecret(t, secret))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	if got := decodeJSON(t, w.Body.Bytes())["code"]; got != "ceremony_expired" {
+		t.Errorf("code: want ceremony_expired, got %v", got)
+	}
+	if _, err := s.kvStore.Get(context.Background(), meTOTPCeremonyKey(ownerSession)); err != nil {
+		t.Fatalf("other session consumed the candidate: %v", err)
+	}
+}
+
+func TestMeTOTPVerify_CommitFailurePreservesExistingFactorsAndCandidate(t *testing.T) {
+	s, f, dek := newSudoTestServer(t)
+	withMeTOTPOverride(s, f)
+	const accountID int32 = 42
+	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
+	oldTOTP := *f.totpRow
+	oldTOTP.SecretEnc = append([]byte(nil), oldTOTP.SecretEnc...)
+	oldTOTP.SecretNonce = append([]byte(nil), oldTOTP.SecretNonce...)
+	oldCodes := append([]db.RecoveryCode(nil), f.recoveryRows...)
+	oldEventCount := len(f.events)
+
+	token, sess := issueSudoTestSession(t, s, accountID)
+	grantFreshSudo(t, s, accountID, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+	secret := meTOTPBegin(t, s, sess)
+	runner := s.enrollmentTxRunnerOverride.(*fakePwdTOTPTxRunner)
+	runner.commitErr = errors.New("commit failed")
+
+	w := meTOTPVerify(t, s, sess, codeForSecret(t, secret))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status: want 500, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	if f.totpRow == nil || !slices.Equal(f.totpRow.SecretEnc, oldTOTP.SecretEnc) ||
+		!slices.Equal(f.totpRow.SecretNonce, oldTOTP.SecretNonce) || !f.totpRow.ConfirmedAt.Valid {
+		t.Errorf("commit failure did not restore totp credential: %+v", f.totpRow)
+	}
+	if !slices.Equal(f.recoveryRows, oldCodes) {
+		t.Error("commit failure did not restore recovery codes")
+	}
+	if len(f.events) != oldEventCount {
+		t.Errorf("commit failure emitted audit events: before=%d after=%d", oldEventCount, len(f.events))
+	}
+	if _, err := s.kvStore.Get(context.Background(), meTOTPCeremonyKey(sess)); err != nil {
+		t.Fatalf("commit failure consumed the candidate: %v", err)
+	}
+}
+
+type blockingEnrollmentTxRunner struct {
+	inner   enrollmentTxRunner
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (r *blockingEnrollmentTxRunner) BeginEnrollmentTx(ctx context.Context) (enrollmentTx, error) {
+	r.once.Do(func() { close(r.started) })
+	select {
+	case <-r.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return r.inner.BeginEnrollmentTx(ctx)
+}
+
+func TestMeTOTPVerify_ConcurrentRequestCannotReuseCandidate(t *testing.T) {
+	s, f, dek := newSudoTestServer(t)
+	withMeTOTPOverride(s, f)
+	const accountID int32 = 42
+	_ = seedConfirmedTOTPSudo(t, s, f, dek, accountID)
+	token, sess := issueSudoTestSession(t, s, accountID)
+	grantFreshSudo(t, s, accountID, token)
+	sess.Data.SudoUntil = time.Now().Add(5 * time.Minute)
+	secret := meTOTPBegin(t, s, sess)
+	code := codeForSecret(t, secret)
+
+	blocking := &blockingEnrollmentTxRunner{
+		inner: s.enrollmentTxRunnerOverride, started: make(chan struct{}), release: make(chan struct{}),
+	}
+	s.enrollmentTxRunnerOverride = blocking
+	firstDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() { firstDone <- meTOTPVerify(t, s, sess, code) }()
+	<-blocking.started
+
+	second := meTOTPVerify(t, s, sess, code)
+	if second.Code != http.StatusBadRequest {
+		t.Fatalf("second status: want 400, got %d (body=%s)", second.Code, second.Body.String())
+	}
+	if got := decodeJSON(t, second.Body.Bytes())["code"]; got != "ceremony_expired" {
+		t.Errorf("second code: want ceremony_expired, got %v", got)
+	}
+
+	close(blocking.release)
+	first := <-firstDone
+	if first.Code != http.StatusOK {
+		t.Fatalf("first status: want 200, got %d (body=%s)", first.Code, first.Body.String())
 	}
 }
 

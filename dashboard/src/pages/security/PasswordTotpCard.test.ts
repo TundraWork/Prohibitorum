@@ -95,4 +95,20 @@ describe('PasswordTotpCard', () => {
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/me/totp/verify', { code: '123456' })
     expect(w.text()).toContain(en.recoveryCodes.heading)
   })
+
+  it('expired authenticator reset exits the QR step so it can be restarted', async () => {
+    post.mockImplementation(async (path: string) => {
+      if (path.endsWith('/totp/begin')) return { secret_base32: 'SECRET', otpauth_uri: 'otpauth://totp/x' }
+      if (path.endsWith('/totp/verify')) throw { code: 'ceremony_expired' }
+      throw new Error(`unexpected POST ${path}`)
+    })
+    const w = mountCard({ passwordSet: true, totpEnrolled: true })
+    await w.find('[data-test="reset-totp"]').trigger('click'); await flushPromises()
+    await w.find('input[name=code]').setValue('123456')
+    await w.find('form').trigger('submit'); await flushPromises()
+
+    expect(w.text()).toContain(en.errors.codes.ceremony_expired)
+    expect(w.find('input[name=code]').exists()).toBe(false)
+    expect(w.find('[data-test="reset-totp"]').exists()).toBe(true)
+  })
 })

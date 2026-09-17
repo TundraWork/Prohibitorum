@@ -137,9 +137,11 @@ func NewStore(q TOTPQueries, tx TxRunner, deks map[int][]byte, cfg configx.TOTPC
 	}
 }
 
-// Begin starts a fresh TOTP enrollment. Wipes any prior TOTP credential row
-// AND all recovery codes for the account, then inserts a new unconfirmed row.
-// This is the normal /me/totp/begin path: starting over from scratch.
+// Begin starts the legacy destructive TOTP enrollment flow. It wipes any prior
+// TOTP credential row and all recovery codes, then inserts an unconfirmed row.
+// Session-facing enrollment uses GenerateEnrollment plus a transactional
+// EnrollConfirmedForTx commit so an abandoned ceremony cannot remove active
+// credentials.
 //
 // Use BeginPreservingRecovery for the recovery-ceremony path
 // (/auth/recovery/totp/begin), which must keep the remaining recovery codes

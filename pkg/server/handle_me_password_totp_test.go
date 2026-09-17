@@ -24,20 +24,61 @@ import (
 	"prohibitorum/pkg/db"
 )
 
-// fakePwdTOTPTxRunner is the enrollmentTx seam over fakeSudoQueries. Commit /
-// Rollback are no-ops: the fake has no journal, and every failure path in the
-// handler stops before commit anyway.
-type fakePwdTOTPTxRunner struct{ q db.Querier }
-
-func (r *fakePwdTOTPTxRunner) BeginEnrollmentTx(context.Context) (enrollmentTx, error) {
-	return &fakePwdTOTPTx{q: r.q}, nil
+// fakePwdTOTPTxRunner is the enrollmentTx seam over fakeSudoQueries. It keeps
+// a snapshot so handler tests can assert that failed transactions restore the
+// existing credentials.
+type fakePwdTOTPTxRunner struct {
+	q         *fakeSudoQueries
+	commitErr error
 }
 
-type fakePwdTOTPTx struct{ q db.Querier }
+func (r *fakePwdTOTPTxRunner) BeginEnrollmentTx(context.Context) (enrollmentTx, error) {
+	var passwordRow *db.PasswordCredential
+	if r.q.passwordRow != nil {
+		row := *r.q.passwordRow
+		passwordRow = &row
+	}
+	var totpRow *db.TotpCredential
+	if r.q.totpRow != nil {
+		row := *r.q.totpRow
+		row.SecretEnc = append([]byte(nil), row.SecretEnc...)
+		row.SecretNonce = append([]byte(nil), row.SecretNonce...)
+		totpRow = &row
+	}
+	return &fakePwdTOTPTx{
+		q: r.q, commitErr: r.commitErr, passwordRow: passwordRow, totpRow: totpRow,
+		recoveryRows: append([]db.RecoveryCode(nil), r.q.recoveryRows...), nextRecID: r.q.nextRecID,
+	}, nil
+}
 
-func (tx *fakePwdTOTPTx) Queries() db.Querier            { return tx.q }
-func (tx *fakePwdTOTPTx) Commit(context.Context) error   { return nil }
-func (tx *fakePwdTOTPTx) Rollback(context.Context) error { return nil }
+type fakePwdTOTPTx struct {
+	q            *fakeSudoQueries
+	commitErr    error
+	committed    bool
+	passwordRow  *db.PasswordCredential
+	totpRow      *db.TotpCredential
+	recoveryRows []db.RecoveryCode
+	nextRecID    int32
+}
+
+func (tx *fakePwdTOTPTx) Queries() db.Querier { return tx.q }
+func (tx *fakePwdTOTPTx) Commit(context.Context) error {
+	if tx.commitErr != nil {
+		return tx.commitErr
+	}
+	tx.committed = true
+	return nil
+}
+func (tx *fakePwdTOTPTx) Rollback(context.Context) error {
+	if tx.committed {
+		return nil
+	}
+	tx.q.passwordRow = tx.passwordRow
+	tx.q.totpRow = tx.totpRow
+	tx.q.recoveryRows = append([]db.RecoveryCode(nil), tx.recoveryRows...)
+	tx.q.nextRecID = tx.nextRecID
+	return nil
+}
 
 func newPwdTOTPTestServer(t *testing.T) (*Server, *fakeSudoQueries, []byte) {
 	t.Helper()

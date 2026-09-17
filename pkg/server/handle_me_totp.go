@@ -16,14 +16,30 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/sirupsen/logrus"
 
+	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/credential/totp"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/logx"
 )
+
+const meTOTPCeremonyTTL = 10 * time.Minute
+
+func meTOTPCeremonyKey(sess *authn.Session) string {
+	return "me_totp:" + sess.Data.SessionID
+}
+
+type meTOTPStash struct {
+	TOTPSecretBase32 string `json:"totp_secret_base32"`
+	ExpiresAtUnixMS  int64  `json:"expires_at_unix_ms"`
+	Claimed          bool   `json:"claimed,omitempty"`
+}
 
 // meTOTPFlowQueries is the narrow read surface the /me/totp/* handlers need
 // to decide whether sudo gating applies. Declared separately from
@@ -63,12 +79,28 @@ func (s *Server) totpRequiresSudo(ctx context.Context, w http.ResponseWriter, se
 // POST /api/prohibitorum/me/totp/begin
 func (s *Server) handleMeTOTPBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
+	if sess == nil || sess.Data == nil {
+		writeAuthErr(w, authn.ErrNoSession())
+		return
+	}
 	if s.totpRequiresSudo(r.Context(), w, sess) {
 		return
 	}
-	enr, err := s.totpStore.Begin(r.Context(), sess.Account.ID, sess.Account.Username)
+	enr, err := s.totpStore.GenerateEnrollment(sess.Account.Username)
 	if err != nil {
-		writeAuthErr(w, err)
+		writeAuthErr(w, fmt.Errorf("me/totp/begin: generate: %w", err))
+		return
+	}
+	raw, err := json.Marshal(meTOTPStash{
+		TOTPSecretBase32: enr.SecretBase32,
+		ExpiresAtUnixMS:  time.Now().Add(meTOTPCeremonyTTL).UnixMilli(),
+	})
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("me/totp/begin: marshal: %w", err))
+		return
+	}
+	if err := s.kvStore.SetEx(r.Context(), meTOTPCeremonyKey(sess), string(raw), meTOTPCeremonyTTL); err != nil {
+		writeAuthErr(w, fmt.Errorf("me/totp/begin: setex: %w", err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -81,6 +113,10 @@ func (s *Server) handleMeTOTPBeginHTTP(w http.ResponseWriter, r *http.Request) {
 // POST /api/prohibitorum/me/totp/verify
 func (s *Server) handleMeTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
+	if sess == nil || sess.Data == nil {
+		writeAuthErr(w, authn.ErrNoSession())
+		return
+	}
 	if s.totpRequiresSudo(r.Context(), w, sess) {
 		return
 	}
@@ -91,32 +127,126 @@ func (s *Server) handleMeTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) 
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
-	codes, err := s.totpStore.Verify(r.Context(), sess.Account.ID, body.Code)
+	raw, err := s.kvStore.Get(r.Context(), meTOTPCeremonyKey(sess))
 	if err != nil {
-		// factor_locked (and any other *AuthError) passes through with its
-		// own status + Retry-After. Sentinels (invalid/replay/not-set/
-		// corrupt-ciphertext) collapse to bad_credentials so the response
-		// doesn't distinguish "no row yet" from "wrong code" — and in
-		// particular does not leak AES-GCM authentication-failure detail
-		// for tampered ciphertexts (Bundle-3 Crypto-6). The audit row
-		// emitted inside totp.Store.Verify retains the reason.
-		if errors.Is(err, totp.ErrTOTPCorrupt) {
-			writeAuthErr(w, authn.ErrBadCredentials())
-			return
-		}
-		if ae := authn.AsAuthError(err); ae != nil {
-			writeAuthErr(w, ae)
-			return
-		}
+		writeAuthErr(w, authn.ErrCeremonyExpired())
+		return
+	}
+	var stash meTOTPStash
+	if err := json.Unmarshal([]byte(raw), &stash); err != nil {
+		writeAuthErr(w, authn.ErrCeremonyState())
+		return
+	}
+	if stash.Claimed {
+		writeAuthErr(w, authn.ErrCeremonyExpired())
+		return
+	}
+	remainingTTL := time.Until(time.UnixMilli(stash.ExpiresAtUnixMS))
+	if remainingTTL <= 0 {
+		_, _ = s.kvStore.CompareAndDelete(r.Context(), meTOTPCeremonyKey(sess), raw)
+		writeAuthErr(w, authn.ErrCeremonyExpired())
+		return
+	}
+	matchedStep, ok := s.totpStore.VerifyCandidateSecret(stash.TOTPSecretBase32, body.Code)
+	if !ok {
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
-	if codes != nil {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"recovery_codes": codes})
+
+	claimed := stash
+	claimed.Claimed = true
+	claimedBytes, err := json.Marshal(claimed)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("me/totp/verify: marshal claim: %w", err))
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	claimedRaw := string(claimedBytes)
+	claimedOK, err := s.kvStore.CompareAndSwap(
+		r.Context(), meTOTPCeremonyKey(sess), raw, claimedRaw, remainingTTL,
+	)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("me/totp/verify: claim candidate: %w", err))
+		return
+	}
+	if !claimedOK {
+		writeAuthErr(w, authn.ErrCeremonyExpired())
+		return
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			restoreTTL := time.Until(time.UnixMilli(stash.ExpiresAtUnixMS))
+			if restoreTTL <= 0 {
+				_, _ = s.kvStore.CompareAndDelete(r.Context(), meTOTPCeremonyKey(sess), claimedRaw)
+				return
+			}
+			_, _ = s.kvStore.CompareAndSwap(
+				r.Context(), meTOTPCeremonyKey(sess), claimedRaw, raw, restoreTTL,
+			)
+		}
+	}()
+
+	hadConfirmedTOTP := false
+	tx, err := s.beginEnrollmentTx(r.Context())
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("me/totp/verify: begin tx: %w", err))
+		return
+	}
+	defer tx.Rollback(r.Context()) //nolint:errcheck
+	qtx := tx.Queries()
+	if old, getErr := qtx.GetTOTPCredential(r.Context(), sess.Account.ID); getErr == nil {
+		hadConfirmedTOTP = old.ConfirmedAt.Valid
+	} else if !errors.Is(getErr, pgx.ErrNoRows) {
+		writeAuthErr(w, fmt.Errorf("me/totp/verify: get current totp: %w", getErr))
+		return
+	}
+	oldRecovery, err := qtx.ListRecoveryCodesByAccount(r.Context(), sess.Account.ID)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("me/totp/verify: list recovery codes: %w", err))
+		return
+	}
+	oldRecoveryCount := len(oldRecovery)
+	recoveryCodes, err := s.totpStore.EnrollConfirmedForTx(
+		r.Context(), qtx, sess.Account.ID, stash.TOTPSecretBase32, matchedStep,
+	)
+	if err != nil {
+		writeAuthErr(w, fmt.Errorf("me/totp/verify: enroll totp: %w", err))
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeAuthErr(w, fmt.Errorf("me/totp/verify: commit: %w", err))
+		return
+	}
+	committed = true
+
+	acctID := sess.Account.ID
+	if hadConfirmedTOTP {
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
+			AccountID: &acctID, Factor: audit.FactorTOTP, Event: audit.EventRevoke,
+			Detail: map[string]any{"reason": "reenroll"},
+		})
+	}
+	for range oldRecoveryCount {
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
+			AccountID: &acctID, Factor: audit.FactorRecoveryCode, Event: audit.EventRevoke,
+			Detail: map[string]any{"reason": "reenroll"},
+		})
+	}
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acctID, Factor: audit.FactorTOTP, Event: audit.EventRegister})
+	for range recoveryCodes {
+		audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acctID, Factor: audit.FactorRecoveryCode, Event: audit.EventRegister})
+	}
+	logEvent := "auth.totp_enrolled"
+	if hadConfirmedTOTP {
+		logEvent = "auth.totp_reenrolled"
+	}
+	logx.WithContext(r.Context()).WithFields(logrus.Fields{
+		"event": logEvent, "account_id": acctID, "client_ip": s.clientIP.IP(r),
+	}).Info("auth")
+
+	_, _ = s.kvStore.CompareAndDelete(r.Context(), meTOTPCeremonyKey(sess), claimedRaw)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"recovery_codes": recoveryCodes})
 }
 
 // POST /api/prohibitorum/me/recovery-codes/regenerate

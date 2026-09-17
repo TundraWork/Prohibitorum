@@ -1392,7 +1392,7 @@ export default {
       partial_session_invalid: "Your sign-in session timed out. Please start again.",
       recovery_session_invalid: "Your recovery session timed out. Please start again.",
       ceremony_missing: "That sign-in attempt timed out. Please try again.",
-      ceremony_expired: "That sign-in attempt timed out. Please try again.",
+      ceremony_expired: "That operation timed out. Please try again.",
       ceremony_state_invalid: "We couldn't verify that sign-in attempt. Please try again.",
       ceremony_internal_error: "Something went wrong while verifying. Please try again.",
       login_account_not_found: "We couldn't find an account for that passkey.",

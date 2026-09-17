@@ -159,13 +159,18 @@ async function verifyTotp(): Promise<void> {
     ? '/api/prohibitorum/me/password-totp/verify'
     : '/api/prohibitorum/me/totp/verify'
   const r = await run(() => api.post<{ recovery_codes?: string[] } | undefined>(path, { code: code.value }))
-  // 204 (a re-enroll that kept its recovery codes) resolves to undefined with no error.
-  if (error.value) return
+  if (error.value) {
+    if (error.value.code === 'ceremony_expired') {
+      resetForms()
+      flow.value = null
+    }
+    return
+  }
   secret.value = ''
   otpauth.value = ''
   code.value = ''
   flow.value = null
-  if (r && r.recovery_codes) {
+  if (r?.recovery_codes) {
     recovery.value = r.recovery_codes
   } else {
     markDone(t('security.totp.enabled'))
