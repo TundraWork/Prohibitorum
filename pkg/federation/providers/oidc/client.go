@@ -20,16 +20,24 @@ package oidc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
+	oidclib "github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/oauth2"
 
 	federationcore "prohibitorum/pkg/federation"
 )
+
+// errUpstreamIdentityParse marks a token response whose id_token could not be
+// parsed (form-encoded response, malformed JWT): the identity is unrecoverable
+// even though the exchange itself may have succeeded. The adapter maps it to
+// the upstream_identity_unavailable failure with the original error text.
+var errUpstreamIdentityParse = errors.New("upstream identity parse")
 
 // DefaultAllowedAlgs returns the JWT signing-alg allowlist used when NewClient
 // is called with nil allowedAlgs. RS256, ES256, EdDSA only. HS256 and "none"
@@ -56,7 +64,13 @@ func DefaultAllowedAlgs() []string {
 // convenience — they remain the
 // right place to read fields with no override knob (Subject, Issuer,
 // EmailVerified, AMR, Nonce).
+//
+// TokenType is the token_type from the token response ("Bearer", …). Empty
+// means the upstream omitted it; userinfo requests treat that as
+// oidc.BearerToken. It is set even when IDToken is empty (the userinfo
+// fallback path).
 type Tokens struct {
+	TokenType         string
 	IDToken           string
 	AccessToken       string
 	Subject           string
@@ -89,6 +103,56 @@ func ClaimString(raw map[string]any, name string) string {
 	}
 	s, _ := v.(string)
 	return s
+}
+
+// ClaimIdentifier returns the value of the named claim as an upstream subject
+// identifier: strings pass through, integers decoded as json.Number return as
+// their exact original text. Floats, booleans, objects, arrays and absent
+// claims all yield "" — the caller treats that as "no usable subject".
+//
+// Only meaningful on claims decoded with json.Decoder.UseNumber (UserInfoRaw);
+// ClaimString stays the reader for id_token-derived claims.
+func ClaimIdentifier(raw map[string]any, name string) string {
+	if name == "" {
+		return ""
+	}
+	switch v := raw[name].(type) {
+	case string:
+		return v
+	case json.Number:
+		if _, err := v.Int64(); err != nil {
+			return ""
+		}
+		return v.String()
+	default:
+		return ""
+	}
+}
+
+// acceptHeaderTransport sets Accept: application/json on requests that carry
+// no Accept header, leaving an explicit one untouched.
+//
+// golang.org/x/oauth2 never sends Accept, so a GitHub-style token endpoint
+// answers with application/x-www-form-urlencoded; there Token.Extra("id_token")
+// returns "" rather than nil and zitadel parses the empty string as a JWT,
+// losing the access token it could have returned. JSON keeps the missing
+// id_token observable (rp.ErrMissingIDToken) with the access token intact,
+// which is what the userinfo fallback needs. Every request through this client
+// targets a JSON endpoint (discovery, JWKS, token exchange, userinfo).
+type acceptHeaderTransport struct {
+	base http.RoundTripper
+}
+
+func (t *acceptHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("Accept") == "" {
+		req = req.Clone(req.Context())
+		req.Header.Set("Accept", "application/json")
+	}
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(req)
 }
 
 // Client wraps a single configured upstream OIDC IdP.
@@ -142,6 +206,7 @@ func NewClient(_ context.Context, clientID, clientSecret, redirectURI string, re
 		return nil, errors.New("federation/oidc: unresolved token authentication method")
 	}
 	httpClient := federationcore.NewOutboundHTTPClient(allowPrivateNetwork, 2<<20)
+	httpClient = &http.Client{Transport: &acceptHeaderTransport{base: httpClient.Transport}, Timeout: httpClient.Timeout}
 	base, err := rp.NewRelyingPartyOAuth(&oauth2.Config{ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURI, Scopes: append([]string(nil), resolved.Scopes...), Endpoint: oauth2.Endpoint{AuthURL: resolved.AuthorizationEndpoint, TokenURL: resolved.TokenEndpoint}}, rp.WithHTTPClient(httpClient), rp.WithAuthStyle(style))
 	if err != nil {
 		return nil, err
@@ -225,8 +290,29 @@ func (c *Client) Exchange(
 	if c.pkceMethod != "off" {
 		opts = append(opts, rp.WithCodeVerifier(codeVerifier))
 	}
-	tokens, err := rp.CodeExchange[*oidc.IDTokenClaims](ctx, code, c.rp, opts...)
+	tokens, err := rp.CodeExchange[*oidclib.IDTokenClaims](ctx, code, c.rp, opts...)
 	if err != nil {
+		// Upstream returned no id_token but kept the access token usable:
+		// that is a result, not an error. Hand it back with IDToken empty and
+		// let the caller decide (the adapter falls back to userinfo). No
+		// signature/issuer/nonce/alg checks run — there is nothing to check.
+		// tokens is never nil with ErrMissingIDToken (zitadel returns
+		// &oidc.Tokens{Token: token}), but the AccessToken guard keeps us
+		// honest if the library ever changes shape.
+		if errors.Is(err, rp.ErrMissingIDToken) && tokens != nil && tokens.AccessToken != "" {
+			tokenType := tokens.TokenType
+			if tokenType == "" {
+				tokenType = oidclib.BearerToken
+			}
+			return &Tokens{AccessToken: tokens.AccessToken, TokenType: tokenType}, nil
+		}
+		// The remaining failure that loses the token entirely: a form-encoded
+		// response (upstream ignored Accept) or a malformed id_token. Both
+		// mean "no usable identity came back"; the adapter maps the wrapped
+		// sentinel to upstream_identity_unavailable with the original text.
+		if errors.Is(err, oidclib.ErrParse) {
+			return nil, fmt.Errorf("%w: federation/oidc: code exchange: %w", errUpstreamIdentityParse, err)
+		}
 		return nil, fmt.Errorf("federation/oidc: code exchange: %w", err)
 	}
 	if tokens == nil || tokens.IDTokenClaims == nil {
@@ -301,6 +387,7 @@ func (c *Client) Exchange(
 	}
 
 	return &Tokens{
+		TokenType:         tokens.TokenType,
 		IDToken:           tokens.IDToken,
 		AccessToken:       tokens.AccessToken,
 		Subject:           claims.Subject,
@@ -358,7 +445,7 @@ func algInAllowlist(alg string, allowed []string) bool {
 // Exported so the package test can exercise the transform without a live HTTP
 // server. Callers inside this package should prefer Client.UserInfo, which
 // fetches the endpoint and then calls this helper.
-func UserInfoToRaw(info *oidc.UserInfo) map[string]any {
+func UserInfoToRaw(info *oidclib.UserInfo) map[string]any {
 	raw := make(map[string]any, len(info.Claims)+4)
 	for k, v := range info.Claims {
 		raw[k] = v
@@ -389,9 +476,49 @@ func (c *Client) UserInfo(ctx context.Context, accessToken, subject string) (map
 	if c.rp.UserinfoEndpoint() == "" {
 		return nil, nil
 	}
-	info, err := rp.Userinfo[*oidc.UserInfo](ctx, accessToken, oidc.BearerToken, subject, c.rp)
+	info, err := rp.Userinfo[*oidclib.UserInfo](ctx, accessToken, oidclib.BearerToken, subject, c.rp)
 	if err != nil {
 		return nil, fmt.Errorf("federation/oidc: userinfo: %w", err)
 	}
 	return UserInfoToRaw(info), nil
+}
+
+// UserInfoRaw fetches the resolved userinfo endpoint without comparing any
+// subject: it serves the no-id_token fallback path, where there is no id_token
+// sub to check, and upstreams like GitHub whose userinfo carries no sub at
+// all. Claims decode with json.Number so large integer identifiers keep their
+// exact text — read the subject through ClaimIdentifier, not ClaimString.
+//
+// The resolved endpoint may legitimately be empty (discovery omitted
+// userinfo_endpoint, or manual mode left userinfo null = do not call userinfo);
+// that is an error here, not a silent skip. Errors go back raw for the caller
+// to fold into its failure vocabulary.
+func (c *Client) UserInfoRaw(ctx context.Context, accessToken, tokenType string) (map[string]any, error) {
+	endpoint := c.rp.UserinfoEndpoint()
+	if endpoint == "" {
+		return nil, errors.New("federation/oidc: no userinfo endpoint resolved")
+	}
+	if tokenType == "" {
+		tokenType = oidclib.BearerToken
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("federation/oidc: userinfo request: %w", err)
+	}
+	req.Header.Set("Authorization", tokenType+" "+accessToken)
+	resp, err := c.rp.HttpClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("federation/oidc: userinfo request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("federation/oidc: userinfo: status %d", resp.StatusCode)
+	}
+	var claims map[string]any
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	if err := decoder.Decode(&claims); err != nil {
+		return nil, fmt.Errorf("federation/oidc: userinfo decode: %w", err)
+	}
+	return claims, nil
 }

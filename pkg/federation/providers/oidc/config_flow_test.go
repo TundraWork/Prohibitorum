@@ -222,7 +222,7 @@ func TestAdapterCallbackUsesSnapshotAcrossProcesses(t *testing.T) {
 		if r.TokenEndpoint != resolved.TokenEndpoint {
 			t.Fatal("endpoint changed")
 		}
-		return &adapterFakeClient{tokens: &Tokens{Issuer: resolved.Issuer, Subject: "subject"}}, nil
+		return &adapterFakeClient{tokens: &Tokens{IDToken: "fake-jwt", Issuer: resolved.Issuer, Subject: "subject"}}, nil
 	}
 	state, _, err := adapter.Begin(context.Background(), provider, federationcore.BeginContext{FlowID: "flow", CallbackURL: "https://rp.example/cb"})
 	if err != nil {

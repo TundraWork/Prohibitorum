@@ -30,6 +30,7 @@ const exactOIDCConfig = `{
   "displayNameClaim":"name",
   "emailClaim":"email",
   "pictureClaim":"picture",
+  "subjectClaim":"sub",
   "requireVerifiedEmail":true,
   "allowPrivateNetwork":false
 }`

@@ -601,6 +601,18 @@ Modes:
 | `link_only`       | Reject with `403 link_required` — the user must link from a session they already hold |
 | `invite_only`     | Reject `/auth/federation/{slug}/login` directly. Accept the user only when they arrive bearing an admin-minted invite token via `/enrollments/{token}/start-federation`. See "Invite redemption". |
 
+`return_to` MUST be a relative path starting with `/` (and not `//`); anything else returns `400 invalid_return_to`.
+
+### When the upstream returns no id_token (userinfo fallback)
+
+Some upstreams (GitHub OAuth Apps, most plain OAuth 2.0 servers) return no `id_token` in the token response. In that case Prohibitorum authenticates through the userinfo endpoint instead of the signed ID token:
+
+- The address of the userinfo endpoint comes from discovery (`userinfo_endpoint`) or manual configuration (`endpoints.userinfo`); if neither resolves a userinfo URL, the login fails.
+- The upstream subject is read from the `subjectClaim` provider config field (default `sub`). GitHub, whose userinfo carries a numeric `id` instead of a `sub`, works with `"subjectClaim": "id"` — integer values are converted to their exact decimal text.
+- `usernameClaim`, `displayNameClaim`, `emailClaim` and `pictureClaim` apply as usual. The avatar is taken directly from the userinfo response, not deferred.
+- No ID token means no upstream signature/nonce/audience binding for this login. What remains is PKCE S256, single-use state, and mix-up-resistance checks — the guarantee of a correctly implemented plain OAuth 2.0 client.
+- If the provider requires verified email (`requireVerifiedEmail=true`) and the upstream does not supply `email_verified`, the upstream's address counts as unverified and sign-in is rejected with `email_not_verified`. Providers like GitHub therefore need `requireVerifiedEmail=false` (or an adapter that always provides `email_verified`).
+- GitHub discovery at `https://github.com/login/oauth` publishes no `userinfo_endpoint` and its `claims_supported` lists neither username nor email: a GitHub provider additionally needs the manual `endpoints.userinfo` override pointing at `https://api.github.com/user` to be usable.
 ### Login flow
 
 ```bash
@@ -782,7 +794,8 @@ Refuses (`400 last_sign_in_method`) when the identity being removed is the accou
 |---|---|---|
 | `federation_oidc:register` | first-time provisioning | per fresh `(iss, sub)`. `detail->>'reason'` distinguishes `auto_provision` (implicit; no reason field) from `invite_only_redemption` |
 | `federation_oidc:use`      | every successful federated login | re-login claim sync is a `use` event |
-| `federation_oidc:fail`     | every structured rejection | `email_not_verified` / `username_collision` / `domain_not_allowed` / `identity_conflict` / `link_required` / `invite_lookup_failed` / `invite_wrong_intent` / `invite_already_consumed` / `invite_expired` / `invite_not_federated` / `invite_required_no_token` / `invite_consumed_or_expired` / `invite_slug_mismatch` / `upstream_error` / `session_swap` / `iss_mismatch_callback` / `token_endpoint_drift` / `code_exchange_failed` / `link_conflict` / `account_disabled` |
+| `federation_oidc:fail`     | every structured rejection | `email_not_verified` / `username_collision` / `domain_not_allowed` / `identity_conflict` / `link_required` / `invite_lookup_failed` / `invite_wrong_intent` / `invite_already_consumed` / `invite_expired` / `invite_not_federated` / `invite_required_no_token` / `invite_consumed_or_expired` / `invite_slug_mismatch` / `upstream_error` / `session_swap` / `iss_mismatch_callback` / `token_endpoint_drift` / `code_exchange_failed` / `upstream_identity_unavailable` / `link_conflict` / `account_disabled` |
+| `upstream_identity_unavailable` note | when the upstream token response has no usable `id_token` and no fallback is possible | the public error still reads `federation_state_invalid`; the raw upstream error text lands in the `federation_flow_failure` operator log's `upstream_error` |
 | `federation_oidc:link`     | self-service link callback success | written by the federator, not the HTTP handler — do not double-audit |
 | `federation_oidc:unlink`   | `POST /me/identities/{id}/unlink` 204 | written by the HTTP handler |
 

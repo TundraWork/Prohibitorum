@@ -66,7 +66,7 @@ const connection = ref(defaultOIDCConnection())
 const connectionValidation = ref<string | null>(null)
 const displayName = ref(''); const issuerUrl = ref(''); const clientId = ref('')
 const mode = ref<ProviderMode>('auto_provision'); const scopes = ref<string[]>([]); const allowedDomains = ref<string[]>([])
-const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClaim = ref(''); const pictureClaim = ref('')
+const usernameClaim = ref(''); const displayNameClaim = ref(''); const emailClaim = ref(''); const pictureClaim = ref(''); const subjectClaim = ref('sub')
 const requireVerifiedEmail = ref(false); const disabled = ref(false); const allowPrivateNetwork = ref(false)
 const { flag: saved, trigger: triggerSaved } = useTransientFlag()
 
@@ -208,6 +208,7 @@ function seedForm(i: IdentityProvider): void {
     displayNameClaim.value = config.displayNameClaim
     emailClaim.value = config.emailClaim
     pictureClaim.value = config.pictureClaim
+    subjectClaim.value = config.subjectClaim
     requireVerifiedEmail.value = config.requireVerifiedEmail
     allowPrivateNetwork.value = config.allowPrivateNetwork
   } else {
@@ -219,6 +220,7 @@ function seedForm(i: IdentityProvider): void {
     displayNameClaim.value = ''
     emailClaim.value = ''
     pictureClaim.value = ''
+    subjectClaim.value = 'sub'
     requireVerifiedEmail.value = false
     allowPrivateNetwork.value = false
   }
@@ -235,6 +237,7 @@ const draftConfig = computed<OIDCProviderConfig | Record<string, never>>(() => i
         displayNameClaim: displayNameClaim.value,
         emailClaim: emailClaim.value,
         pictureClaim: pictureClaim.value,
+        subjectClaim: subjectClaim.value,
         requireVerifiedEmail: requireVerifiedEmail.value,
         allowPrivateNetwork: allowPrivateNetwork.value,
       }
@@ -552,6 +555,10 @@ usePrivateState(() => { newSecret.value = ''; operatorUsername.value = ''; opera
               <Input id="emailClaim" name="emailClaim" class="h-8" v-model="emailClaim" placeholder="email" autocomplete="off" data-test="claim-email" />
               <Label class="text-sm" for="pictureClaim">{{ t('admin.upstream.pictureClaim') }}</Label>
               <Input id="pictureClaim" name="pictureClaim" class="h-8" v-model="pictureClaim" placeholder="picture" autocomplete="off" data-test="claim-avatar" />
+              <Label class="text-sm" for="subjectClaim">{{ t('admin.upstream.subjectClaim') }}</Label>
+              <Input id="subjectClaim" name="subjectClaim" class="h-8" v-model="subjectClaim" placeholder="sub" autocomplete="off" data-test="claim-subject" />
+              <span></span>
+              <p class="text-xs text-muted">{{ t('admin.upstream.subjectClaimHint') }}</p>
             </div>
             <p class="text-xs text-muted">{{ t('admin.upstream.claimsHint') }}</p>
           </FormSection>

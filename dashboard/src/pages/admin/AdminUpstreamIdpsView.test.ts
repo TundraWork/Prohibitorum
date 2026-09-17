@@ -131,6 +131,7 @@ describe('AdminUpstreamIdpsView', () => {
         displayNameClaim: 'name',
         emailClaim: 'email',
         pictureClaim: 'picture',
+        subjectClaim: 'sub',
         requireVerifiedEmail: false,
         allowPrivateNetwork: false,
       },

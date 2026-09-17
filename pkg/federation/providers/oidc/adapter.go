@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -58,6 +59,7 @@ type clientAPI interface {
 	AuthURL(string, string, string) string
 	Exchange(context.Context, string, string, string, string) (*Tokens, error)
 	UserInfo(context.Context, string, string) (map[string]any, error)
+	UserInfoRaw(ctx context.Context, accessToken, tokenType string) (map[string]any, error)
 }
 
 type clientWrapper struct{ client *Client }
@@ -72,6 +74,9 @@ func (c clientWrapper) Exchange(ctx context.Context, code, verifier, issuer, non
 }
 func (c clientWrapper) UserInfo(ctx context.Context, accessToken, subject string) (map[string]any, error) {
 	return c.client.UserInfo(ctx, accessToken, subject)
+}
+func (c clientWrapper) UserInfoRaw(ctx context.Context, accessToken, tokenType string) (map[string]any, error) {
+	return c.client.UserInfoRaw(ctx, accessToken, tokenType)
 }
 
 type clientCacheKey struct {
@@ -195,6 +200,12 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 	}
 	tokens, err := client.Exchange(ctx, input.Code, state.CodeVerifier, state.ExpectedIss, state.Nonce)
 	if err != nil {
+		// A form-encoded or unparseable token response means the upstream
+		// gave back no usable identity at all; the raw text stays in the
+		// operator log via the cause.
+		if errors.Is(err, errUpstreamIdentityParse) {
+			return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureUpstreamNoIdentity, nil, err)
+		}
 		return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureCodeExchange, nil, err)
 	}
 	usernameClaim := config.UsernameClaim
@@ -219,6 +230,42 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 		email = new(emailValue)
 	}
 	avatarURL := ClaimString(tokens.Raw, pictureClaim)
+
+	// No id_token (GitHub OAuth App shape): authenticate through userinfo
+	// instead. Issuer comes from the flow state snapshot — there is no iss
+	// claim — and the subject comes from the configured subjectClaim, which
+	// may point at a numeric claim like GitHub's id. Email verification stays
+	// supported with email_verified defaulting to false, so
+	// requireVerifiedEmail keeps enforcing its gate instead of being skipped.
+	if tokens.IDToken == "" {
+		claims, err := client.UserInfoRaw(ctx, tokens.AccessToken, tokens.TokenType)
+		if err != nil {
+			return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureUpstreamNoIdentity, nil, err)
+		}
+		subject := ClaimIdentifier(claims, config.SubjectClaim)
+		if subject == "" {
+			err := fmt.Errorf("federation/oidc: userinfo carries no usable %q claim", config.SubjectClaim)
+			return federationcore.AdvanceResult{}, federationcore.NewFailureWithCause(federationcore.FailureUpstreamNoIdentity, nil, err)
+		}
+		emailValue := ClaimString(claims, emailClaim)
+		var email *string
+		if emailValue != "" {
+			email = new(emailValue)
+		}
+		avatarURL := ClaimString(claims, pictureClaim)
+		identity := &federationcore.VerifiedIdentity{
+			Issuer: state.ExpectedIss, Subject: subject, Email: email,
+			EmailVerified: false, EmailVerificationSupported: true,
+			Username: ClaimString(claims, usernameClaim), DisplayName: ClaimString(claims, displayClaim),
+			AvatarURL: avatarURL,
+		}
+		// Userinfo already returned the picture; no deferred avatar fetch.
+		return federationcore.AdvanceResult{
+			Identity: identity,
+			Avatar:   &federationcore.AvatarDelivery{URL: avatarURL, AllowPrivateNetwork: config.AllowPrivateNetwork},
+		}, nil
+	}
+
 	identity := &federationcore.VerifiedIdentity{
 		Issuer: tokens.Issuer, Subject: tokens.Subject, Email: email,
 		EmailVerified: tokens.EmailVerified, EmailVerificationSupported: true,

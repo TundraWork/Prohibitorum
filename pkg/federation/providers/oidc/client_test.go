@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
@@ -83,7 +85,7 @@ func driveAuthorize(t *testing.T, authURL string) string {
 // noRedirectClient).
 func newClient(t *testing.T, ts *httptest.Server) *federationoidc.Client {
 	t.Helper()
-	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: ts.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"}, UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256", AllowPrivateNetwork: true})
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: ts.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"}, UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", SubjectClaim: "sub", ConfigurationMode: "discovery", TokenAuthMethod: "discovery", PKCEMethod: "S256", AllowPrivateNetwork: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,5 +391,250 @@ func TestUserInfoToRaw(t *testing.T) {
 	}
 	if got, want := raw["custom_claim"], "cval"; got != want {
 		t.Errorf("raw[custom_claim] = %v, want %q", got, want)
+	}
+}
+
+// --- no-id_token upstream (userinfo fallback) -------------------------------
+
+// fallbackOP is a self-built upstream for the no-id_token scenarios: its token
+// endpoint answers without an id_token (the GitHub OAuth App shape). The token
+// response content type and userinfo endpoint presence are configurable so one
+// fixture serves every fallback scenario, and every request is recorded.
+type fallbackOP struct {
+	base string
+
+	userinfoEnabled bool
+	tokenBody       string
+	tokenType       string
+	userinfoBody    string
+
+	mu               sync.Mutex
+	tokenAccept      string
+	tokenRequests    int
+	userinfoRequests int
+	userinfoAuth     string
+}
+
+func newFallbackOP(t *testing.T) (*httptest.Server, *fallbackOP) {
+	t.Helper()
+	op := &fallbackOP{
+		userinfoEnabled: true,
+		tokenType:       "application/json",
+		tokenBody:       `{"access_token":"at_fallback","token_type":"Bearer","scope":"openid"}`,
+		userinfoBody:    `{"id":67890,"login":"octocat","name":"Octo Cat","email":"octo@example.test","email_verified":false,"picture":"https://cdn.example.test/octo.png"}`,
+	}
+	ts := httptest.NewServer(http.HandlerFunc(op.serve))
+	op.base = ts.URL
+	t.Cleanup(ts.Close)
+	return ts, op
+}
+
+func (op *fallbackOP) serve(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/.well-known/openid-configuration":
+		doc := map[string]any{
+			"issuer":                                op.base,
+			"authorization_endpoint":                op.base + "/authorize",
+			"token_endpoint":                        op.base + "/token",
+			"jwks_uri":                              op.base + "/jwks",
+			"token_endpoint_auth_methods_supported": []string{"client_secret_basic", "client_secret_post"},
+		}
+		if op.userinfoEnabled {
+			doc["userinfo_endpoint"] = op.base + "/userinfo"
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(doc)
+	case "/token":
+		op.mu.Lock()
+		op.tokenRequests++
+		op.tokenAccept = r.Header.Get("Accept")
+		op.mu.Unlock()
+		w.Header().Set("Content-Type", op.tokenType)
+		w.Write([]byte(op.tokenBody))
+	case "/userinfo":
+		op.mu.Lock()
+		op.userinfoRequests++
+		op.userinfoAuth = r.Header.Get("Authorization")
+		op.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(op.userinfoBody))
+	case "/jwks":
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"keys":[]}`))
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (op *fallbackOP) tokenStats() (accept string, requests int) {
+	op.mu.Lock()
+	defer op.mu.Unlock()
+	return op.tokenAccept, op.tokenRequests
+}
+
+func (op *fallbackOP) userinfoStats() (auth string, requests int) {
+	op.mu.Lock()
+	defer op.mu.Unlock()
+	return op.userinfoAuth, op.userinfoRequests
+}
+
+// newFallbackClient builds a Client against a fallbackOP using
+// client_secret_post so the mock token endpoint needs no Authorization header.
+func newFallbackClient(t *testing.T, ts *httptest.Server) *federationoidc.Client {
+	t.Helper()
+	resolved, err := federationoidc.ResolveConfig(context.Background(), federationoidc.Config{IssuerURL: ts.URL, ClientID: "fallback-client", Scopes: []string{"openid"}, UsernameClaim: "preferred_username", DisplayNameClaim: "name", EmailClaim: "email", PictureClaim: "picture", SubjectClaim: "sub", ConfigurationMode: "discovery", TokenAuthMethod: "client_secret_post", PKCEMethod: "S256", AllowPrivateNetwork: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := federationoidc.NewClient(context.Background(), "fallback-client", "secret", "https://rp.example.test/callback", resolved, nil, true)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return c
+}
+
+// TestClient_ExchangeFormEncodedWithoutIDTokenFails pins the form-encoded
+// failure: without Accept: application/json a GitHub-style token response comes
+// back urlencoded, the missing id_token surfaces as "" instead of nil, and
+// zitadel tries to parse it as a JWT.
+func TestClient_ExchangeFormEncodedWithoutIDTokenFails(t *testing.T) {
+	ts, op := newFallbackOP(t)
+	op.tokenType = "application/x-www-form-urlencoded"
+	op.tokenBody = "access_token=at_form&token_type=bearer&scope=openid"
+	c := newFallbackClient(t, ts)
+
+	_, err := c.Exchange(context.Background(), "code", "verifier", ts.URL, "nonce")
+	if err == nil {
+		t.Fatal("Exchange succeeded; want failure for form-encoded response without id_token")
+	}
+	if !strings.Contains(err.Error(), "parsing of request failed: token contains an invalid number of segments") {
+		t.Fatalf("err = %v, want invalid-segments parse failure", err)
+	}
+}
+
+// TestClient_ExchangeJSONWithoutIDTokenReturnsFallback verifies the GitHub
+// OAuth App shape: a JSON token response with no id_token yields a usable
+// fallback result — access token and token type preserved, IDToken empty — and
+// the token request went out asking for JSON.
+func TestClient_ExchangeJSONWithoutIDTokenReturnsFallback(t *testing.T) {
+	ts, op := newFallbackOP(t)
+	c := newFallbackClient(t, ts)
+
+	toks, err := c.Exchange(context.Background(), "code", "verifier", ts.URL, "nonce")
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if toks.IDToken != "" {
+		t.Errorf("IDToken = %q, want empty", toks.IDToken)
+	}
+	if toks.AccessToken == "" {
+		t.Error("AccessToken is empty; fallback needs it for userinfo")
+	}
+	if toks.TokenType != "Bearer" {
+		t.Errorf("TokenType = %q, want Bearer", toks.TokenType)
+	}
+	accept, _ := op.tokenStats()
+	if accept != "application/json" {
+		t.Errorf("token request Accept = %q, want application/json", accept)
+	}
+}
+
+// TestClient_UserInfoRawFetchesClaims verifies the raw fallback fetch: claims
+// come back verbatim, numeric identifiers stay json.Number with their exact
+// text, and the request carries the access token's Authorization header.
+func TestClient_UserInfoRawFetchesClaims(t *testing.T) {
+	ts, op := newFallbackOP(t)
+	c := newFallbackClient(t, ts)
+
+	claims, err := c.UserInfoRaw(context.Background(), "at_fallback", "Bearer")
+	if err != nil {
+		t.Fatalf("UserInfoRaw: %v", err)
+	}
+	if got := claims["login"]; got != "octocat" {
+		t.Errorf("login = %v, want octocat", got)
+	}
+	id, ok := claims["id"].(json.Number)
+	if !ok {
+		t.Fatalf("id = %T(%v), want json.Number", claims["id"], claims["id"])
+	}
+	if id.String() != "67890" {
+		t.Errorf("id = %s, want exact text 67890", id)
+	}
+	auth, requests := op.userinfoStats()
+	if requests != 1 {
+		t.Fatalf("userinfo requests = %d, want 1", requests)
+	}
+	if auth != "Bearer at_fallback" {
+		t.Errorf("Authorization = %q, want %q", auth, "Bearer at_fallback")
+	}
+}
+
+// TestClient_UserInfoRawEmptyTokenTypeDefaultsToBearer verifies the token type
+// default for upstreams whose token response omits token_type.
+func TestClient_UserInfoRawEmptyTokenTypeDefaultsToBearer(t *testing.T) {
+	ts, op := newFallbackOP(t)
+	c := newFallbackClient(t, ts)
+
+	if _, err := c.UserInfoRaw(context.Background(), "at_fallback", ""); err != nil {
+		t.Fatalf("UserInfoRaw: %v", err)
+	}
+	auth, _ := op.userinfoStats()
+	if auth != "Bearer at_fallback" {
+		t.Errorf("Authorization = %q, want Bearer prefix", auth)
+	}
+}
+
+// TestClient_UserInfoRawWithoutEndpoint verifies the guard: with no resolved
+// userinfo endpoint (GitHub discovery, or manual mode leaving userinfo null)
+// the call fails without any network request.
+func TestClient_UserInfoRawWithoutEndpoint(t *testing.T) {
+	ts, op := newFallbackOP(t)
+	op.userinfoEnabled = false
+	c := newFallbackClient(t, ts)
+
+	_, err := c.UserInfoRaw(context.Background(), "at_fallback", "Bearer")
+	if err == nil {
+		t.Fatal("UserInfoRaw succeeded; want error without a resolved endpoint")
+	}
+	if !strings.Contains(err.Error(), "no userinfo endpoint resolved") {
+		t.Fatalf("err = %v, want missing-endpoint error", err)
+	}
+	if _, requests := op.userinfoStats(); requests != 0 {
+		t.Errorf("userinfo requests = %d, want 0", requests)
+	}
+}
+
+// TestClaimIdentifier covers the subject-extraction contract: strings pass
+// through, integer json.Number keeps exact text, everything else yields "".
+func TestClaimIdentifier(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{"string", "sub-1", "sub-1"},
+		{"integer number", json.Number("67890"), "67890"},
+		{"integer number leading zeros", json.Number("0042"), "0042"},
+		{"float number", json.Number("6.78"), ""},
+		{"exponent number", json.Number("1e6"), ""},
+		{"bool", true, ""},
+		{"object", map[string]any{"a": 1}, ""},
+		{"array", []any{1, 2}, ""},
+		{"nil", nil, ""},
+		{"missing", nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := map[string]any{}
+			if tc.name != "missing" {
+				raw["claim"] = tc.value
+			}
+			if got := federationoidc.ClaimIdentifier(raw, "claim"); got != tc.want {
+				t.Errorf("ClaimIdentifier = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	if got := federationoidc.ClaimIdentifier(map[string]any{"claim": "x"}, ""); got != "" {
+		t.Errorf("empty name = %q, want empty", got)
 	}
 }

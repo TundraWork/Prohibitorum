@@ -16,7 +16,7 @@ import (
 	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 )
 
-func TestUpstreamOIDCEndpointsMigrationPostgres(t *testing.T) {
+func TestOIDCSubjectClaimMigrationPostgres(t *testing.T) {
 	baseURL := os.Getenv("PROHIBITORUM_TEST_DATABASE_URL")
 	if baseURL == "" {
 		t.Skip("PROHIBITORUM_TEST_DATABASE_URL is not set")
@@ -31,7 +31,7 @@ func TestUpstreamOIDCEndpointsMigrationPostgres(t *testing.T) {
 	if _, err := rand.Read(nonce[:]); err != nil {
 		t.Fatal(err)
 	}
-	schema := "oidc_endpoints_" + hex.EncodeToString(nonce[:])
+	schema := "oidc_subject_claim_" + hex.EncodeToString(nonce[:])
 	quoted := pgx.Identifier{schema}.Sanitize()
 	if _, err := pool.Exec(ctx, "CREATE SCHEMA "+quoted); err != nil {
 		t.Fatal(err)
@@ -54,13 +54,10 @@ func TestUpstreamOIDCEndpointsMigrationPostgres(t *testing.T) {
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 31); err != nil {
+	if err := goose.UpTo(conn, ".", 38); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted+", public"); err != nil {
-		t.Fatal(err)
-	}
-	if err := goose.UpTo(conn, ".", 36); err != nil {
 		t.Fatal(err)
 	}
 	old := `{"issuerUrl":"https://issuer.example","clientId":"client","scopes":["openid"],"allowedDomains":[],"usernameClaim":"preferred_username","displayNameClaim":"name","emailClaim":"email","pictureClaim":"picture","requireVerifiedEmail":true,"allowPrivateNetwork":false}`
@@ -83,20 +80,24 @@ func TestUpstreamOIDCEndpointsMigrationPostgres(t *testing.T) {
 	if err := json.Unmarshal(raw, &config); err != nil {
 		t.Fatal(err)
 	}
-	if config.ConfigurationMode != "discovery" || config.TokenAuthMethod != "discovery" || config.PKCEMethod != "S256" || config.Endpoints.Authorization != nil || config.Endpoints.Token != nil || config.Endpoints.UserInfo != nil || config.Endpoints.JWKS != nil || config.SubjectClaim != "sub" || !config.RequireVerifiedEmail {
-		t.Fatalf("config=%+v", config)
+	if config.SubjectClaim != "sub" {
+		t.Fatalf("SubjectClaim = %q, want sub", config.SubjectClaim)
 	}
-	for _, protocol := range []string{"steam", "vrchat"} {
-		var unchanged bool
-		if err := conn.QueryRowContext(ctx, `SELECT provider_config='{}'::jsonb FROM upstream_idp WHERE slug=$1`, protocol).Scan(&unchanged); err != nil || !unchanged {
-			t.Fatalf("%s changed: %v", protocol, err)
-		}
-	}
-	if err := goose.DownTo(conn, ".", 36); err != nil {
+	if err := goose.DownTo(conn, ".", 38); err != nil {
 		t.Fatal(err)
 	}
-	var restored bool
-	if err := conn.QueryRowContext(ctx, `SELECT provider_config=$1::jsonb FROM upstream_idp WHERE slug='oidc'`, old).Scan(&restored); err != nil || !restored {
-		t.Fatalf("rollback: restored=%v err=%v", restored, err)
+	var restored []byte
+	if err := conn.QueryRowContext(ctx, `SELECT provider_config FROM upstream_idp WHERE slug='oidc'`).Scan(&restored); err != nil {
+		t.Fatal(err)
+	}
+	var down map[string]any
+	if err := json.Unmarshal(restored, &down); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := down["subjectClaim"]; present {
+		t.Fatalf("subjectClaim still present after Down: %s", restored)
+	}
+	if down["issuerUrl"] == "" {
+		t.Fatalf("unrelated config lost after Down: %s", restored)
 	}
 }

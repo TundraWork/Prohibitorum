@@ -17,7 +17,7 @@ func TestOIDCSeedProviderConfigUsesCurrentPluginSchema(t *testing.T) {
 	if err := json.Unmarshal(raw, &config); err != nil {
 		t.Fatal(err)
 	}
-	if len(config) != 14 || config["issuerUrl"] != "https://issuer.example" || config["clientId"] != "client" || config["pictureClaim"] != "picture" || config["requireVerifiedEmail"] != true || config["allowPrivateNetwork"] != true {
+	if len(config) != 15 || config["issuerUrl"] != "https://issuer.example" || config["clientId"] != "client" || config["pictureClaim"] != "picture" || config["subjectClaim"] != "sub" || config["requireVerifiedEmail"] != true || config["allowPrivateNetwork"] != true {
 		t.Fatalf("config = %#v", config)
 	}
 }
