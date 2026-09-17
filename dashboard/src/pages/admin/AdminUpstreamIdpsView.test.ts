@@ -247,7 +247,7 @@ describe('AdminUpstreamIdpsView', () => {
 
     expect(push).toHaveBeenCalledWith('/admin/identity-providers/returned-vrchat')
   })
-  it('includes pictureClaim in create payload and renders the input', async () => {
+  it('includes picture and subject claims in the create payload', async () => {
     get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockResolvedValue({ slug: 'new', displayName: 'New', mode: 'auto_provision', config: { ...OIDC_CONFIG, pictureClaim: 'avatar' } })
     const w = mountView(); await flushPromises()
@@ -259,9 +259,10 @@ describe('AdminUpstreamIdpsView', () => {
     await w.find('input[name="clientId"]').setValue('cid')
     await w.find('input[name="clientSecret"]').setValue('sek')
     await w.find('input[name="pictureClaim"]').setValue('avatar')
+    await w.find('input[name="subjectClaim"]').setValue('id')
     await w.find('[data-test="create-confirm"]').trigger('click'); await flushPromises()
     expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({
-      config: expect.objectContaining({ pictureClaim: 'avatar' }),
+      config: expect.objectContaining({ pictureClaim: 'avatar', subjectClaim: 'id' }),
     }))
   })
   it('renders claim inputs as a compact grid with default-value placeholders and pre-filled defaults', async () => {
@@ -272,11 +273,23 @@ describe('AdminUpstreamIdpsView', () => {
     expect(w.find('[data-test="claim-displayName"]').attributes('placeholder')).toBe('name')
     expect(w.find('[data-test="claim-email"]').attributes('placeholder')).toBe('email')
     expect(w.find('[data-test="claim-avatar"]').attributes('placeholder')).toBe('picture')
+    expect(w.find('[data-test="claim-subject"]').attributes('placeholder')).toBe('sub')
     // Create form pre-fills the schema defaults
     expect((w.find('input[name="usernameClaim"]').element as HTMLInputElement).value).toBe('preferred_username')
     expect((w.find('input[name="displayNameClaim"]').element as HTMLInputElement).value).toBe('name')
     expect((w.find('input[name="emailClaim"]').element as HTMLInputElement).value).toBe('email')
     expect((w.find('input[name="pictureClaim"]').element as HTMLInputElement).value).toBe('picture')
+    expect((w.find('input[name="subjectClaim"]').element as HTMLInputElement).value).toBe('sub')
+    expect(w.text()).toContain(en.admin.upstream.subjectClaimHint)
+  })
+  it('resets the subject claim when reopening the create form', async () => {
+    get.mockResolvedValue({ items: [], nextCursor: '' })
+    const w = mountView(); await flushPromises()
+    await w.find('[data-test="create"]').trigger('click')
+    await w.find('input[name="subjectClaim"]').setValue('id')
+    await w.find('[data-test="create-cancel"]').trigger('click')
+    await w.find('[data-test="create"]').trigger('click')
+    expect((w.find('input[name="subjectClaim"]').element as HTMLInputElement).value).toBe('sub')
   })
   it('surfaces upstream_idp_already_exists', async () => {
     get.mockResolvedValue({ items: [], nextCursor: '' })

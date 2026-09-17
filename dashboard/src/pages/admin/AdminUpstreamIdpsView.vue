@@ -113,6 +113,7 @@ function openCreate(): void {
   clientSecret.value = ''; mode.value = 'auto_provision'
   scopes.value = ['openid', 'profile', 'email']; allowedDomains.value = []
   usernameClaim.value = 'preferred_username'; displayNameClaim.value = 'name'; emailClaim.value = 'email'; pictureClaim.value = 'picture'
+  subjectClaimCreate.value = 'sub'
   requireVerifiedEmail.value = false; protocol.value = 'oidc'; apiKey.value = ''; createOpen.value = true
 }
 
@@ -264,7 +265,10 @@ async function create(): Promise<void> {
             <Input id="emailClaim" name="emailClaim" class="h-8" v-model="emailClaim" placeholder="email" autocomplete="off" data-test="claim-email" />
             <Label class="text-sm" for="pictureClaim">{{ t('admin.upstream.pictureClaim') }}</Label>
             <Input id="pictureClaim" name="pictureClaim" class="h-8" v-model="pictureClaim" placeholder="picture" autocomplete="off" data-test="claim-avatar" />
+            <Label class="text-sm" for="subjectClaim">{{ t('admin.upstream.subjectClaim') }}</Label>
+            <Input id="subjectClaim" name="subjectClaim" class="h-8" v-model="subjectClaimCreate" placeholder="sub" autocomplete="off" data-test="claim-subject" />
           </div>
+          <p class="text-xs text-muted">{{ t('admin.upstream.subjectClaimHint') }}</p>
           <p class="text-xs text-muted">{{ t('admin.upstream.claimsHint') }}</p>
         </FormSection>
         <p v-if="connectionValidation" role="alert" class="text-sm text-destructive">{{ t(connectionValidation) }}</p>
