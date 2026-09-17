@@ -2,19 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import VRChatProofView from './VRChatProofView.vue'
-import { useBrandingStore } from '@/stores/branding'
+import { testQueryClient } from '@/testSetup'
+import { keys } from '@/queries/resources'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 import { api } from '@/lib/api'
 
 const mounted: VueWrapper[] = []
 async function mountProof(proof: string, instanceName = 'Prohibitorum'): Promise<VueWrapper> {
-  const pinia = createPinia()
-  setActivePinia(pinia)
-  useBrandingStore().instanceName = instanceName
+  testQueryClient.setQueryData(keys.config, { instanceName })
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [{ path: '/verify/vrchat/:proof', component: VRChatProofView }],
@@ -22,7 +20,7 @@ async function mountProof(proof: string, instanceName = 'Prohibitorum'): Promise
   await router.push(`/verify/vrchat/${proof}`)
   await router.isReady()
   const i18n = createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
-  const wrapper = mount(VRChatProofView, { global: { plugins: [pinia, router, i18n] } })
+  const wrapper = mount(VRChatProofView, { global: { plugins: [router, i18n] } })
   mounted.push(wrapper)
   return wrapper
 }

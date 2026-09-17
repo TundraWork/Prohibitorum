@@ -108,6 +108,7 @@ describe('useApi', () => {
     const fn = vi.fn(() => new Promise<void>((r) => { resolveFn = r }))
     const first = w.vm.run(fn)
     const second = w.vm.run(fn) // should be a no-op
+    await flushPromises()
     expect(fn).toHaveBeenCalledTimes(1)
     resolveFn()
     await Promise.all([first, second])

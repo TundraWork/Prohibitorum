@@ -460,7 +460,7 @@ describe('AppPolicyWorkspace', () => {
 
     clickDestructiveConfirm('Discard changes')
     await flushPromises()
-    expect(get).toHaveBeenCalledWith(secondAccessEndpoint)
+    expect(get).toHaveBeenCalledWith(secondAccessEndpoint, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain('Knowledge base')
   })
 
@@ -522,7 +522,7 @@ describe('AppPolicyWorkspace', () => {
     clickDestructiveConfirm('Discard changes')
     await flushPromises()
     expect(router.currentRoute.value.params.id).toBe('44')
-    expect(get).toHaveBeenCalledWith(secondAccessEndpoint)
+    expect(get).toHaveBeenCalledWith(secondAccessEndpoint, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain('Knowledge base')
   })
 
@@ -559,7 +559,7 @@ describe('AppPolicyWorkspace', () => {
     })
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(secondAccessEndpoint)
+    expect(get).toHaveBeenCalledWith(secondAccessEndpoint, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain('Knowledge base')
     expect(wrapper.text()).not.toContain('Atlas')
 
@@ -601,7 +601,7 @@ describe('AppPolicyWorkspace', () => {
     firstAccess.resolve(OPEN_RULE_WORKSPACE)
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(secondAccessEndpoint)
+    expect(get).toHaveBeenCalledWith(secondAccessEndpoint, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain('Protected proxy')
     expect(wrapper.text()).not.toContain('Atlas')
   })
@@ -878,14 +878,14 @@ describe('AppPolicyWorkspace', () => {
     await wrapper.get('[data-test="rule-group-preview-21"]').trigger('click')
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(PREVIEW_ENDPOINT)
+    expect(get).toHaveBeenCalledWith(PREVIEW_ENDPOINT, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.get('[data-test="preview-row-7"]').text()).toContain('Alice Ng')
 
     const panel = wrapper.get('[data-test="preview-panel-21"]')
     await panel.get('[data-test="next-page"]').trigger('click')
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(PREVIEW_NEXT_ENDPOINT)
+    expect(get).toHaveBeenCalledWith(PREVIEW_NEXT_ENDPOINT, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.find('[data-test="preview-row-7"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="preview-row-42"]').text()).toContain('Bob Ruiz')
   })
@@ -903,7 +903,7 @@ describe('AppPolicyWorkspace', () => {
     await wrapper.get('[data-test="preview-explain-21-7"]').trigger('click')
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(EXPLAIN_ENDPOINT)
+    expect(get).toHaveBeenCalledWith(EXPLAIN_ENDPOINT, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.get('[data-test="explanation-panel-21-7"]').text()).toContain('Alice Ng')
 
     const root = wrapper.get('[data-test="explanation-node-root"]')
@@ -936,8 +936,8 @@ describe('AppPolicyWorkspace', () => {
     const wrapper = mountWorkspace()
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(expect.stringContaining(ACCOUNTS_ENDPOINT))
-    expect(get).toHaveBeenCalledWith(expect.stringContaining(MANUAL_DECISIONS_ENDPOINT))
+    expect(get).toHaveBeenCalledWith(expect.stringContaining(ACCOUNTS_ENDPOINT), expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    expect(get).toHaveBeenCalledWith(expect.stringContaining(MANUAL_DECISIONS_ENDPOINT), expect.objectContaining({ signal: expect.any(AbortSignal) }))
 
     const search = wrapper.get('[data-test="manual-account-search"]')
     await search.setValue('bob')
@@ -983,7 +983,7 @@ describe('AppPolicyWorkspace', () => {
     const wrapper = mountWorkspace()
     await flushPromises()
 
-    expect(get).toHaveBeenCalledWith(nextDecisionsEndpoint)
+    expect(get).toHaveBeenCalledWith(nextDecisionsEndpoint, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     await wrapper.get('[data-test="manual-account-search"]').setValue('bob')
     await flushPromises()
 

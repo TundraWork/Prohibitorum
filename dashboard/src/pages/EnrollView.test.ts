@@ -3,7 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { defineComponent } from 'vue'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import EnrollView from './EnrollView.vue'
 
@@ -51,7 +50,7 @@ async function mountView(router: Router) {
 }
 
 beforeEach(() => {
-  setActivePinia(createPinia())
+
   get.mockReset()
   post.mockReset()
   registerPasskey.mockClear()
@@ -63,7 +62,7 @@ describe('EnrollView', () => {
     get.mockResolvedValue({ intent: 'invite', expiresAt: '2099-01-01T00:00:00Z' })
     const wrapper = await mountView(await makeRouter())
 
-    expect(get).toHaveBeenCalledWith(`/api/prohibitorum/enrollments/${TOKEN}`)
+    expect(get).toHaveBeenCalledWith(`/api/prohibitorum/enrollments/${TOKEN}`, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.find('input[name=username]').exists()).toBe(true)
     expect(wrapper.find('input[name=displayName]').exists()).toBe(true)
   })

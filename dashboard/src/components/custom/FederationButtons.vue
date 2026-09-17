@@ -15,9 +15,10 @@
  * Renders nothing when no providers are configured (or if the list fails to
  * load — federation is an optional path, never a hard error on the login page).
  */
-import { onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { api } from '@/lib/api'
+import { useResource } from '@/composables/useResource'
+import { federationQuery } from '@/queries/resources'
 import { useReturnTo } from '@/composables/useReturnTo'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -35,19 +36,9 @@ interface FederationProvider {
 const { t } = useI18n()
 const { returnTo } = useReturnTo()
 
-const providers = ref<FederationProvider[]>([])
-const loading = ref(true)
-
-onMounted(async () => {
-  try {
-    providers.value = await api.get<FederationProvider[]>('/api/prohibitorum/auth/federation')
-  } catch {
-    // Optional path — leave the list empty and render nothing.
-    providers.value = []
-  } finally {
-    loading.value = false
-  }
-})
+const query = useResource(federationQuery<FederationProvider[]>())
+const providers = computed(() => query.data.value ?? [])
+const loading = query.busy
 
 function startFederation(slug: string): void {
   // Forward the client-sanitized returnTo (safeReturnTo): the federation login

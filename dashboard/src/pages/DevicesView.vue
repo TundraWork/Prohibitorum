@@ -5,9 +5,11 @@
  * drops the pairing. The lookup → confirm → approve sequence IS the
  * confirmation, so there is no extra ConfirmDialog here.
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
+import { useResource } from '@/composables/useResource'
+import { deviceLookupQuery } from '@/queries/ceremonies'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
@@ -35,16 +37,17 @@ const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
 
 const code = ref('')
-const found = ref<Lookup | null>(null)
+const submittedCode = ref('')
+const lookupQuery = useResource(computed(() => ({ ...deviceLookupQuery<Lookup>(submittedCode.value), enabled: false })))
+const found = computed(() => submittedCode.value ? lookupQuery.data.value ?? null : null)
 const approved = ref(false)
 
 async function lookup(): Promise<void> {
   approved.value = false
   const c = code.value.trim()
   if (!c) return
-  const res = await run(() => api.get<Lookup>(
-    `/api/prohibitorum/me/devices/pair/lookup?code=${encodeURIComponent(c)}`))
-  if (res) found.value = res
+  submittedCode.value = c
+  await run(async () => (await lookupQuery.refetch({ throwOnError: true })).data)
 }
 async function approve(): Promise<void> {
   const c = code.value.trim()
@@ -52,7 +55,7 @@ async function approve(): Promise<void> {
     await api.post('/api/prohibitorum/me/devices/pair/approve', { code: c })
     return true as const
   }, t('sudo.reason.approveDevice')))
-  if (ok) { approved.value = true; found.value = null; code.value = '' }
+  if (ok) { approved.value = true; submittedCode.value = ''; code.value = '' }
 }
 async function cancel(): Promise<void> {
   const c = code.value.trim()
@@ -60,7 +63,7 @@ async function cancel(): Promise<void> {
     await api.post('/api/prohibitorum/me/devices/pair/cancel', { code: c })
     return true as const
   })
-  if (ok) { found.value = null; code.value = '' }
+  if (ok) { submittedCode.value = ''; code.value = '' }
 }
 </script>
 
@@ -110,7 +113,7 @@ async function cancel(): Promise<void> {
             {{ t('devices.approve') }}
           </Button>
           <Button v-if="found.alreadyBound" type="button" variant="outline" :disabled="busy" data-test="done"
-                  @click="found = null; code = ''">
+                  @click="submittedCode = ''; code = ''">
             {{ t('devices.done') }}
           </Button>
           <Button v-if="!found.alreadyBound" type="button" variant="outline" :disabled="busy" data-test="cancel" @click="cancel">

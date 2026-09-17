@@ -17,28 +17,33 @@
  */
 
 import { computed, ref } from 'vue'
+import { useAction } from './useAction'
+import { type MutationResource } from '@/queries/invalidation'
+import { isRequestCancelled } from '@/lib/cancellation'
 import { useI18n } from 'vue-i18n'
 import type { ApiError } from '@/lib/api'
 import { errorTranslationKey } from '@/lib/errors'
 import { GLOBAL_ERROR_CODES } from '@/lib/errorCodes'
 
-export function useApi() {
+export function useApi(resource?: MutationResource) {
   const { t, te } = useI18n()
+  const action = useAction(resource)
   const busy = ref(false)
   const error = ref<ApiError | null>(null)
 
-  async function run<T>(fn: () => Promise<T>): Promise<T | undefined> {
+  async function run<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T | undefined> {
     if (busy.value) return undefined
     busy.value = true
     // Do NOT clear error on entry — the error persists until the run succeeds
     // or clear() is called. This matches the contract: errors persist until
     // explicit dismissal or successful retry.
     try {
-      const result = await fn()
+      const result = await action.execute(fn)
       // Success → clear any prior error (successful retry dismisses).
       error.value = null
       return result
     } catch (err: unknown) {
+      if (isRequestCancelled(err)) return undefined
       const apiErr = err as ApiError
       if (apiErr && typeof apiErr.code === 'string') {
         error.value = apiErr

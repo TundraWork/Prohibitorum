@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia, setActivePinia } from 'pinia'
 import { reactive } from 'vue'
 import en from '@/locales/en'
 import LoginView from './LoginView.vue'
@@ -40,10 +39,9 @@ vi.mock('@/composables/useReturnTo', async () => {
   }
 })
 
-// Auth store: `me` is preset per test; `ensureLoaded` is a no-op (the real one
-// fetches /me). Default = unauthenticated, so the login methods render.
-const authState = vi.hoisted(() => ({ me: null as null | { id: number; username: string }, ensureLoaded: vi.fn(async () => {}) }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
+// Session projection and /me transport use the same fixture.
+const authState = vi.hoisted(() => ({ me: null as null | { id: number; username: string } }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => authState }))
 
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
@@ -53,6 +51,10 @@ function makeI18n() {
 }
 
 function mountView() {
+  const previous = get.getMockImplementation()
+  get.mockImplementation((path, options) => path === '/api/prohibitorum/me'
+    ? Promise.resolve(authState.me)
+    : previous ? previous(path, options) : Promise.resolve(undefined))
   return mount(LoginView, {
     global: {
       plugins: [makeI18n()],
@@ -62,13 +64,12 @@ function mountView() {
 }
 
 beforeEach(() => {
-  setActivePinia(createPinia())
+
   get.mockReset()
   post.mockReset()
   goReturnTo.mockReset()
   hardRedirect.mockReset()
   authState.me = null
-  authState.ensureLoaded.mockClear()
   _routeQuery = {}
   useSessionExpiry().reset()
 })
@@ -262,7 +263,7 @@ describe('LoginView — forward-auth explanation', () => {
       expect(w.get('[data-test="forward-auth-context"]').text()).toContain(label)
       expect(w.get('[data-test="forward-auth-context"]').text()).toContain('Prohibitorum provides sign-in')
       expect(w.find('[data-test="forward-auth-context"] script').exists()).toBe(false)
-      expect(get).toHaveBeenCalledWith(contextPath + encodeURIComponent(_routeQuery.return_to!))
+      expect(get).toHaveBeenCalledWith(contextPath + encodeURIComponent(_routeQuery.return_to!), expect.objectContaining({ signal: expect.any(AbortSignal) }))
       expect(w.findComponent({ name: 'RouterLink' }).props('to').query.return_to).toBe(_routeQuery.return_to)
       w.unmount()
     },

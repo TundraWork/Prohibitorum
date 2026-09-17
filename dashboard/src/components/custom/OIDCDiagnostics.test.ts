@@ -34,7 +34,7 @@ describe('OIDCDiagnostics', () => {
     window.history.replaceState({}, '', '/admin/identity-providers/corp?test=' + id)
     get.mockResolvedValueOnce({ ...result, status: 'ready' }); post.mockResolvedValue(result)
     const first = view(); await flushPromises()
-    expect(post).toHaveBeenCalledTimes(1); expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/corp/tests/' + id + '/complete')
+    expect(post).toHaveBeenCalledTimes(1); expect(post).toHaveBeenCalledWith('/api/prohibitorum/identity-providers/corp/tests/' + id + '/complete', undefined, { signal: expect.any(AbortSignal) })
     expect(first.text()).toContain('upstream-user'); first.unmount()
     get.mockResolvedValue(result)
     const second = view(); await flushPromises(); expect(post).toHaveBeenCalledTimes(1)

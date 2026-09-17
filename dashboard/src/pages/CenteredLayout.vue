@@ -22,11 +22,11 @@ import { ShieldCheck } from 'lucide-vue-next'
 import AuthBackdrop from '@/components/custom/AuthBackdrop.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import { Card } from '@/components/ui/card'
-import { useBrandingStore } from '@/stores/branding'
+import { useBranding } from '@/composables/useBranding'
 const props = withDefaults(defineProps<{ largeInteractiveTargets?: boolean }>(), {
   largeInteractiveTargets: false,
 })
-const branding = useBrandingStore()
+const branding = useBranding()
 </script>
 
 <template>

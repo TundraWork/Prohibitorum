@@ -7,6 +7,8 @@ import { api } from '@/lib/api'
 vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
 const upload = vi.mocked(api.upload)
 const del = vi.mocked(api.del)
+import { testQueryClient } from '@/testSetup'
+import { keys } from '@/queries/resources'
 import EntityIconUpload from './EntityIconUpload.vue'
 
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
@@ -18,10 +20,10 @@ const mountComp = (iconUrl?: string | null) =>
     attachTo: document.body,
   })
 
-beforeEach(() => { upload.mockReset(); del.mockReset() })
+beforeEach(() => { upload.mockReset(); del.mockReset(); testQueryClient.setQueryData(keys.detail('oidc-applications', 'my-app'), {}) })
 
 describe('EntityIconUpload', () => {
-  it('calls api.upload with the correct path and file, then emits changed', async () => {
+  it('calls api.upload with the correct path and file, then invalidates shared application data', async () => {
     upload.mockResolvedValue(undefined)
     const w = mountComp()
     const file = new File(['img'], 'icon.png', { type: 'image/png' })
@@ -31,7 +33,7 @@ describe('EntityIconUpload', () => {
     await input.trigger('change')
     await flushPromises()
     expect(upload).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/my-app/icon', file)
-    expect(w.emitted('changed')).toBeTruthy()
+    expect(testQueryClient.getQueryState(keys.detail('oidc-applications', 'my-app'))?.isInvalidated).toBe(true)
   })
 
   it('does not render the Remove button when iconUrl is not set', () => {
@@ -44,16 +46,16 @@ describe('EntityIconUpload', () => {
     expect(w.find('[data-test="icon-remove"]').exists()).toBe(true)
   })
 
-  it('calls api.del with the correct path and emits changed on remove', async () => {
+  it('calls api.del with the correct path and invalidates shared application data on remove', async () => {
     del.mockResolvedValue(undefined)
     const w = mountComp('/icon/oidc_client/my-app?v=1')
     await w.find('[data-test="icon-remove"]').trigger('click')
     await flushPromises()
     expect(del).toHaveBeenCalledWith('/api/prohibitorum/oidc-applications/my-app/icon')
-    expect(w.emitted('changed')).toBeTruthy()
+    expect(testQueryClient.getQueryState(keys.detail('oidc-applications', 'my-app'))?.isInvalidated).toBe(true)
   })
 
-  it('shows an error alert and does not emit changed when upload fails', async () => {
+  it('shows an error alert and keeps shared application data fresh when upload fails', async () => {
     // An app 4xx (e.g. a rejected image) still renders inline; connectivity/5xx
     // and unexpected non-ApiError throws (mapped to server_error) are now
     // surfaced via the global toast instead.
@@ -65,6 +67,6 @@ describe('EntityIconUpload', () => {
     await input.trigger('change')
     await flushPromises()
     expect(w.find('[role="alert"]').exists()).toBe(true)
-    expect(w.emitted('changed')).toBeFalsy()
+    expect(testQueryClient.getQueryState(keys.detail('oidc-applications', 'my-app'))?.isInvalidated).toBe(false)
   })
 })

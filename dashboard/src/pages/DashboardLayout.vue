@@ -5,20 +5,17 @@
  * routed page. SudoModal is mounted ONCE here so any page's withSudo() can
  * drive it.
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuthStore } from '@/stores/auth'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import AppSidebar from '@/components/custom/AppSidebar.vue'
 import SudoModal from '@/components/custom/SudoModal.vue'
 import MaintenanceBanner from '@/components/custom/MaintenanceBanner.vue'
 
-const auth = useAuthStore()
 const route = useRoute()
 const { t } = useI18n()
 
-onMounted(() => { void auth.ensureLoaded() })
 
 // Map route names to i18n keys for the sticky header orientation title.
 // Detail routes fall back to their parent section key.

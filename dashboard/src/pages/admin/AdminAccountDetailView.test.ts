@@ -76,8 +76,8 @@ describe('AdminAccountDetailView', () => {
   it('loads the account and its credentials', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7')
-    expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/accounts/7/credentials'))
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7', expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/prohibitorum/accounts/7/credentials'), expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('Carol Ng')
     expect(w.text()).toContain(ACCOUNT.oidcSubject)
     expect(w.text()).toContain(en.admin.account.oidcSubject)
@@ -413,7 +413,7 @@ describe('AdminAccountDetailView', () => {
   it('loads all linked identities from the bare-array endpoint and renders only known semantic metadata', async () => {
     mockGets()
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7/identities')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts/7/identities', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain(en.identity.linkedIdentities)
     expect(w.text()).toContain('Work SSO')
     expect(w.text()).toContain(en.identity.subject)

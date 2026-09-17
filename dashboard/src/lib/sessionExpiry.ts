@@ -7,7 +7,7 @@ const PUBLIC_ROUTE_NAMES = new Set(['login', 'error', 'welcome', 'consent', 'enr
 
 export interface SessionExpiryDeps {
   router: Router
-  clearAuth: () => void
+  clearAuth: () => void | Promise<void>
   setExpiredFlag: () => void
 }
 
@@ -16,26 +16,28 @@ let handling = false
 export function __resetHandlingForTest(): void { handling = false }
 
 /**
- * Build the 401-no_session handler. Route-aware (no-op on public routes),
+ * Build the 401-no_session handler. Route-aware (no navigation on public routes),
  * idempotent (one redirect per expiry), and read-vs-mutation aware: GET
  * navigations redirect to /login; mutations flag a non-destructive banner so
  * unsaved form input is not silently discarded.
  */
 export function createUnauthorizedHandler(deps: SessionExpiryDeps) {
-  return ({ method }: { method: string }): void => {
-    const cur = deps.router.currentRoute.value
-    const name = String(cur.name ?? '')
-    if (cur.meta?.public === true || PUBLIC_ROUTE_NAMES.has(name)) return
+  return async ({ method }: { method: string }): Promise<void> => {
     if (handling) return
-    if (method === 'GET') {
-      handling = true
-      deps.clearAuth()
-      void deps.router
-        .replace({ name: 'login', query: { return_to: cur.fullPath, reason: 'session_expired' } })
-        .finally(() => { handling = false })
-    } else {
-      deps.clearAuth()
-      deps.setExpiredFlag()
+    handling = true
+    const cur = deps.router.currentRoute.value
+    const isPublic = cur.meta?.public === true || PUBLIC_ROUTE_NAMES.has(String(cur.name ?? ''))
+    try {
+      // Public routes suppress navigation, but must never retain a previous account.
+      await deps.clearAuth()
+      if (isPublic) return
+      if (method === 'GET') {
+        await deps.router.replace({ name: 'login', query: { return_to: cur.fullPath, reason: 'session_expired' } })
+      } else {
+        deps.setExpiredFlag()
+      }
+    } finally {
+      handling = false
     }
   }
 }

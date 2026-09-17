@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 import en from '@/locales/en'
 import EditProfileDialog from './EditProfileDialog.vue'
-import { useAuthStore } from '@/stores/auth'
+import { testQueryClient } from '@/testSetup'
+import { keys, type SessionView } from '@/queries/resources'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), upload: vi.fn(), del: vi.fn() } }))
 import { api } from '@/lib/api'
@@ -58,14 +58,14 @@ const AvatarCropperStub = defineComponent({
 const i18n = () => createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
 
 function seedUser(displayName = 'Alex Smith', avatarUrl?: string) {
-  const auth = useAuthStore()
-  auth.me = { id: 1, username: 'alex', displayName, role: 'user', avatarUrl }
-  return auth
+
+  testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName, role: 'user', avatarUrl })
+  return { get me() { return testQueryClient.getQueryData<SessionView>(keys.me) } }
 }
 
 function seedUserWithSources(displayName = 'Alex Smith') {
-  const auth = useAuthStore()
-  auth.me = {
+
+  testQueryClient.setQueryData<SessionView>(keys.me, {
     id: 1,
     username: 'alex',
     displayName,
@@ -76,8 +76,8 @@ function seedUserWithSources(displayName = 'Alex Smith') {
       upstream: '/avatar/x?source=upstream&v=ab',
       user: '/avatar/x?source=user&v=cd',
     },
-  }
-  return auth
+  })
+  return { get me() { return testQueryClient.getQueryData<SessionView>(keys.me) } }
 }
 
 function mountOpen() {
@@ -98,7 +98,7 @@ function saveBtn() {
   return document.body.querySelector('[data-test="edit-save"]') as HTMLButtonElement
 }
 
-beforeEach(() => { setActivePinia(createPinia()); put.mockReset(); upload.mockReset(); del.mockReset(); vi.mocked(api.get).mockReset(); document.body.innerHTML = ''; setImageSize(200, 100) })
+beforeEach(() => { put.mockReset(); upload.mockReset(); del.mockReset(); vi.mocked(api.get).mockReset().mockImplementation(async () => testQueryClient.getQueryData(keys.me)); document.body.innerHTML = ''; setImageSize(200, 100) })
 
 describe('EditProfileDialog — layout and zone division', () => {
   it('renders a Separator between the avatar zone and the display name zone', async () => {
@@ -246,7 +246,7 @@ describe('EditProfileDialog — avatar', () => {
     expect(document.body.querySelector('[data-test="cropper-stub"]')).toBeNull()
     // The original file is uploaded as-is (server normalizes to 512 WebP), then /me reloads.
     expect(upload).toHaveBeenCalledWith('/api/prohibitorum/me/avatar', square)
-    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me', { signal: expect.any(AbortSignal) })
   })
 
   it('confirming crop calls api.upload with the Blob then reloads the store', async () => {
@@ -261,7 +261,7 @@ describe('EditProfileDialog — avatar', () => {
     ;(document.body.querySelector('[data-test="stub-crop"]') as HTMLButtonElement).click()
     await flushPromises()
     expect(upload).toHaveBeenCalledWith('/api/prohibitorum/me/avatar', expect.any(Blob))
-    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me', { signal: expect.any(AbortSignal) })
     // Cropper dismissed after upload
     expect(document.body.querySelector('[data-test="cropper-stub"]')).toBeNull()
   })
@@ -284,12 +284,12 @@ describe('EditProfileDialog — avatar', () => {
   it('calls api.del on remove and reloads the store', async () => {
     seedUserWithSources()
     del.mockResolvedValue({})
-    vi.mocked(api.get).mockResolvedValue({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
     mountOpen(); await flushPromises()
+    vi.mocked(api.get).mockResolvedValue({ id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
     removeBtn().click()
     await flushPromises()
     expect(del).toHaveBeenCalledWith('/api/prohibitorum/me/avatar')
-    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me', { signal: expect.any(AbortSignal) })
   })
 })
 
@@ -326,7 +326,7 @@ describe('EditProfileDialog — avatar source picker', () => {
     upstreamOption().click()
     await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'upstream' })
-    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me', { signal: expect.any(AbortSignal) })
   })
 
   it('clicking None calls PUT /me/avatar/selection with {source: none} then reloads', async () => {
@@ -337,7 +337,7 @@ describe('EditProfileDialog — avatar source picker', () => {
     noneOption().click()
     await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'none' })
-    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me')
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/prohibitorum/me', { signal: expect.any(AbortSignal) })
   })
 
   it('renders only None option (no source cards) when no source URLs exist', async () => {
@@ -360,7 +360,7 @@ describe('EditProfileDialog — avatar source picker', () => {
     await flushPromises()
     expect(put).toHaveBeenCalledWith('/api/prohibitorum/me/avatar/selection', { source: 'upstream' })
     expect(document.body.textContent).toContain(en.errors.codes.avatar_source_unavailable)
-    expect(vi.mocked(api.get)).not.toHaveBeenCalled()
+    expect(vi.mocked(api.get)).toHaveBeenCalledTimes(1) // Only the initial session read; failed writes do not refetch.
     // Error must appear in the avatar zone (data-test="avatar-error"), not only in some shared area
     const avatarError = document.body.querySelector('[data-test="avatar-error"]')
     expect(avatarError).not.toBeNull()
@@ -391,8 +391,8 @@ describe('EditProfileDialog — avatar source picker', () => {
   })
 
   it('labels a per-upstream source with its IdP display name and selects the slugged source', async () => {
-    const auth = useAuthStore()
-    auth.me = {
+
+    testQueryClient.setQueryData<SessionView>(keys.me, {
       id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user',
       avatarSource: 'user',
       avatarSourceUrls: {
@@ -400,9 +400,9 @@ describe('EditProfileDialog — avatar source picker', () => {
         user: '/avatar/x?source=user&v=cd',
       },
       avatarSourceLabels: { 'upstream:mockop': 'Mock OP' },
-    }
+    })
     put.mockResolvedValue({})
-    vi.mocked(api.get).mockResolvedValue(auth.me)
+    vi.mocked(api.get).mockResolvedValue(testQueryClient.getQueryData(keys.me))
     mountOpen(); await flushPromises()
 
     const opt = document.body.querySelector('[data-test="avatar-source-upstream:mockop"]') as HTMLButtonElement

@@ -1,13 +1,19 @@
 <script setup lang="ts">
+import { removeDetail } from '@/queries/invalidation'
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * AdminOidcClientDetailView (/admin/oidc-applications/:clientId) — per-client admin actions.
  * Edit config (PUT with allowedScopes); rotate secret (reveal-once CodeField);
  * delete. All mutations go through withSudo.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useResource } from '@/composables/useResource'
+import { useDraftSync } from '@/composables/useDraftSync'
+import { useQueryClient } from '@tanstack/vue-query'
+import { detailQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -53,11 +59,17 @@ const route = useRoute()
 const router = useRouter()
 
 const oidcScopesDescribed = computed(() => OIDC_SCOPES.map((s) => ({ value: s.value, description: t(s.descKey), required: s.required })))
-const { busy, error, run, clear } = useApi()
+const { busy: mutationBusy, error: mutationError, run, clear: clearMutation } = useApi('oidc-applications')
 
 const clientId = String(route.params.clientId)
-const client = ref<OidcApplication | null>(null)
-const notFound = ref(false)
+const queryClient = useQueryClient()
+const options = detailQuery<OidcApplication>('oidc-applications', clientId)
+const query = useResource(options)
+const client = computed({ get: () => query.data.value ?? null, set: (value: OidcApplication | null) => { if (value) queryClient.setQueryData(options.queryKey, value) } })
+const busy = computed(() => mutationBusy.value || query.busy.value)
+const error = computed(() => mutationError.value ?? query.error.value)
+const notFound = computed(() => query.error.value?.code === 'client_not_found')
+function clear(): void { clearMutation(); query.clear() }
 
 const displayName = ref('')
 const launchUrl = ref('')
@@ -82,10 +94,7 @@ function validateUri(s: string): string | null {
   }
 }
 
-async function load(): Promise<void> {
-  const c = await run(() => api.get<OidcApplication>(`/api/prohibitorum/oidc-applications/${clientId}`))
-  if (!c) { if (error.value?.code === 'client_not_found') notFound.value = true; return }
-  client.value = c
+function seedForm(c: OidcApplication): void {
   displayName.value = c.displayName
   launchUrl.value = c.launchUrl ?? ''
   redirectUris.value = [...c.redirectUris]
@@ -97,6 +106,7 @@ async function load(): Promise<void> {
   requirePkce.value = c.requirePkce
   disabled.value = c.disabled
 }
+const draft = useDraftSync(client, () => [displayName.value, launchUrl.value, redirectUris.value, postLogoutUris.value, scopes.value, requireConsent.value, requirePkce.value, disabled.value], seedForm)
 
 async function save(): Promise<void> {
   rotatedSecret.value = ''
@@ -110,7 +120,7 @@ async function save(): Promise<void> {
     requirePkce: requirePkce.value,
     disabled: disabled.value,
   }), t('sudo.reason.saveChanges')))
-  if (updated) { client.value = updated; triggerSaved() }
+  if (updated) { client.value = updated; draft.accept(updated); triggerSaved() }
 }
 
 async function rotateSecret(): Promise<void> {
@@ -136,13 +146,14 @@ async function destroy(): Promise<void> {
   rotatedSecret.value = ''
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/oidc-applications/delete', { clientId })
+    await removeDetail(queryClient, 'oidc-applications', clientId)
     return true as const
   }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
   if (ok) router.push('/admin/oidc-applications')
 }
 
-onMounted(load)
+usePrivateState(() => { rotatedSecret.value = '' })
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -205,7 +216,6 @@ onMounted(load)
         :base-path="`/api/prohibitorum/oidc-applications/${clientId}`"
         :name="client?.displayName ?? clientId"
         :icon-url="client?.iconUrl"
-        @changed="load"
       />
 
       <AppManagerCard kind="oidc" :app-id="clientId" />

@@ -4,13 +4,14 @@
  * invitations. Create is an inline form (not a ConfirmDialog — creating isn't
  * destructive). The list returns the full URL, so it stays copyable per row.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
+import { useResource } from '@/composables/useResource'
+import { collectionQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useCursorPage } from '@/composables/useCursorPage'
-import { type Page, buildPagePath, unwrap } from '@/lib/pagination'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
 import { relativeTime, formatDateTime } from '@/lib/time'
@@ -32,37 +33,23 @@ import { Mail } from 'lucide-vue-next'
 interface Invitation { token: string; url: string; role: string; attributes?: Record<string, unknown>; createdAt: string; expiresAt: string; expectedUpstreamIdpSlug?: string }
 interface Idp { slug: string; displayName: string; disabled: boolean; mode: string }
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
+const { busy, run, error, clear } = useApi('invitations')
 const IDP_NONE = '__none__'
-const page = useCursorPage<Invitation>((cursor) =>
-  api.get<Page<Invitation>>(buildPagePath('/api/prohibitorum/invitations', { cursor })),
-)
+const page = useCursorPage<Invitation>('invitations')
 const rows = page.items
-const idps = ref<Idp[]>([])
+const providersQuery = useResource(collectionQuery<Idp>('identity-providers', { limit: 100 }))
+const idps = computed(() => (providersQuery.data.value?.items ?? []).filter(i => !i.disabled && (i.mode === 'auto_provision' || i.mode === 'invite_only')))
 const createOpen = ref(false)
 const newRole = ref<'admin' | 'app_manager' | 'user'>('user')
 const newIdp = ref(IDP_NONE)
 const { flag: created, trigger: triggerCreated } = useTransientFlag()
 const revokeToken = ref<string | null>(null)
-const displayError = computed(() => page.error.value ?? error.value)
-function clearError(): void { page.clear(); clear() }
+const displayError = computed(() => page.error.value ?? error.value ?? providersQuery.error.value)
+function clearError(): void { page.clear(); clear(); providersQuery.clear() }
 function idpDisplayName(slug: string | undefined): string {
   if (!slug) return '—'
   const found = idps.value.find((i) => i.slug === slug)
   return found ? found.displayName : slug
-}
-async function loadIdps(): Promise<void> {
-  try {
-    const res = await api.get<Page<Idp>>(buildPagePath('/api/prohibitorum/identity-providers', { limit: 100 }))
-    // The dropdown must mirror the invite page's rule: only providers that
-    // can create an account (auto_provision, invite_only). link_only never
-    // provisions, so binding an invite to one would brick it.
-    idps.value = unwrap(res).items.filter(
-      (i) => !i.disabled && (i.mode === 'auto_provision' || i.mode === 'invite_only'),
-    )
-  } catch {
-    idps.value = []
-  }
 }
 async function create(): Promise<void> {
   const body: Record<string, unknown> = { role: newRole.value }
@@ -72,20 +59,18 @@ async function create(): Promise<void> {
     await api.post('/api/prohibitorum/invitations', body)
     return true as const
   }))
-  if (ok) { createOpen.value = false; triggerCreated(); newIdp.value = IDP_NONE; await page.reload() }
+  if (ok) { createOpen.value = false; triggerCreated(); newIdp.value = IDP_NONE }
 }
 async function revoke(): Promise<void> {
   const token = revokeToken.value
   if (token == null) return
-  const ok = await run(() => withSudo(async () => {
+  await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/invitations/revoke', { token })
     return true as const
   }))
   revokeToken.value = null
-  if (ok) await page.reload()
 }
 
-onMounted(loadIdps)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">

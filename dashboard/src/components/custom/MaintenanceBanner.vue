@@ -8,12 +8,12 @@
 import { RouterLink } from 'vue-router'
 import { TriangleAlert } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import { useBrandingStore } from '@/stores/branding'
-import { useAuthStore } from '@/stores/auth'
+import { useBranding } from '@/composables/useBranding'
+import { useSession } from '@/composables/useSession'
 
 const { t } = useI18n()
-const branding = useBrandingStore()
-const auth = useAuthStore()
+const branding = useBranding()
+const auth = useSession()
 </script>
 
 <template>

@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAction } from '@/composables/useAction'
+import { useResource } from '@/composables/useResource'
+import { useQueryClient } from '@tanstack/vue-query'
+import { oidcEffectiveQuery, oidcTestQuery } from '@/queries/ceremonies'
 import { api, type ApiError } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,13 +15,17 @@ const { t } = useI18n()
 interface EffectiveConfig { mode: string; fetchedAt: string; callbackUrl: string; fields: Record<string, { value: unknown; source: string }> }
 interface Stage { name: string; status: string; durationMs?: number; endpoint?: string; httpStatus?: number; errorCode?: string; requestId?: string }
 interface TestResult { status: string; expiresAt: string; stages: Stage[]; claims?: Record<string, unknown> }
-const effective = ref<EffectiveConfig | null>(null)
+const queryClient = useQueryClient()
+const effectiveQuery = useResource({ ...oidcEffectiveQuery<EffectiveConfig>(props.slug), enabled: false })
+const effective = computed(() => effectiveQuery.data.value ?? null)
 const stale = ref(false)
 const busy = ref(false)
 const error = ref<ApiError | null>(null)
-const result = ref<TestResult | null>(null)
 const testId = ref('')
+const testQuery = useResource(computed(() => ({ ...oidcTestQuery<TestResult>(props.slug, testId.value), enabled: false })))
+const result = computed(() => testId.value ? testQuery.data.value ?? null : null)
 const base = '/api/prohibitorum/identity-providers/' + encodeURIComponent(props.slug)
+const action = useAction()
 let disposed = false
 let timer: ReturnType<typeof setTimeout> | undefined
 let polls = 0
@@ -25,7 +33,7 @@ function text(value: unknown): string { return Array.isArray(value) ? value.join
 function diagnosticLabel(group: string, value: string): string { const key = 'admin.upstream.diagnostics.' + group + '.' + value; return t(key) }
 async function refresh(): Promise<void> {
   busy.value = true; error.value = null
-  try { const value = await api.get<EffectiveConfig>(base + '/effective-config'); if (!disposed) { effective.value = value; stale.value = false } }
+  try { await effectiveQuery.refetch({ throwOnError: true }); if (!disposed) stale.value = false }
   catch (e) { if (!disposed) { stale.value = effective.value !== null; error.value = e as ApiError } }
   finally { if (!disposed) busy.value = false }
 }
@@ -33,7 +41,7 @@ async function start(): Promise<void> {
   if (props.dirty) return
   busy.value = true; error.value = null
   try {
-    const value = await api.post<{ id: string; authorizationUrl: string }>(base + '/tests')
+    const value = await action.execute(signal => api.post<{ id: string; authorizationUrl: string }>(base + '/tests', undefined, { signal }))
     if (!disposed) window.location.assign(value.authorizationUrl)
   } catch (e) { if (!disposed) error.value = e as ApiError }
   finally { if (!disposed) busy.value = false }
@@ -50,10 +58,10 @@ async function readResult(completeIfReady: boolean): Promise<void> {
   busy.value = true
   try {
     const path = base + '/tests/' + encodeURIComponent(id)
-    let value = await api.get<TestResult>(path)
+    let value = (await testQuery.refetch({ throwOnError: true })).data!
     if (!current()) return
-    if (completeIfReady && value.status === 'ready') value = await api.post<TestResult>(path + '/complete')
-    if (current()) { result.value = value; error.value = null; schedule() }
+    if (completeIfReady && value.status === 'ready') value = await action.execute(signal => api.post<TestResult>(path + '/complete', undefined, { signal }))
+    if (current()) { queryClient.setQueryData(oidcTestQuery<TestResult>(props.slug, id).queryKey, value); error.value = null; schedule() }
   } catch (e) {
     if (current()) {
       error.value = e as ApiError
@@ -64,7 +72,7 @@ async function readResult(completeIfReady: boolean): Promise<void> {
 }
 function close(): void {
   if (timer) clearTimeout(timer)
-  result.value = null; testId.value = ''; error.value = null; busy.value = false
+  queryClient.removeQueries({ queryKey: oidcTestQuery(props.slug, testId.value).queryKey }); testId.value = ''; error.value = null; busy.value = false
   const url = new URL(window.location.href); url.searchParams.delete('test'); window.history.replaceState(window.history.state, '', url)
 }
 onMounted(() => {

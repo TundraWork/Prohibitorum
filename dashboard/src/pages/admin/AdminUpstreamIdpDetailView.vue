@@ -1,12 +1,18 @@
 <script setup lang="ts">
+import { removeDetail } from '@/queries/invalidation'
+import { usePrivateState } from '@/composables/usePrivateState'
 /** AdminUpstreamIdpDetailView (/admin/identity-providers/:slug) — edit, rotate secret, delete. */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OIDCDiagnostics from '@/components/custom/OIDCDiagnostics.vue'
 import OIDCConnectionFields from '@/components/custom/OIDCConnectionFields.vue'
 import { defaultOIDCConnection, oidcConnectionError } from '@/lib/oidcProviderConfig'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useResource } from '@/composables/useResource'
+import { useDraftSync } from '@/composables/useDraftSync'
+import { useQueryClient } from '@tanstack/vue-query'
+import { detailQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -37,17 +43,23 @@ import type { IdentityProvider, OIDCProviderConfig, ProviderMode, ProviderProtoc
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, clear } = useApi()
+const { busy: mutationBusy, error: mutationError, run, clear: clearMutation } = useApi('identity-providers')
 const {
   busy: operatorBusy,
   error: operatorError,
   run: runOperator,
   clear: clearOperator,
-} = useApi()
+} = useApi('identity-providers')
 
 const slug = String(route.params.slug)
-const idp = ref<IdentityProvider | null>(null)
-const notFound = ref(false)
+const queryClient = useQueryClient()
+const options = detailQuery<IdentityProvider>('identity-providers', slug)
+const query = useResource(options)
+const idp = computed({ get: () => query.data.value ?? null, set: (value: IdentityProvider | null) => { if (value) queryClient.setQueryData(options.queryKey, value) } })
+const busy = computed(() => mutationBusy.value || query.busy.value)
+const error = computed(() => mutationError.value ?? query.error.value)
+function clear(): void { clearMutation(); query.clear() }
+const notFound = computed(() => query.error.value?.code === 'upstream_idp_not_found')
 
 const connection = ref(defaultOIDCConnection())
 const connectionValidation = ref<string | null>(null)
@@ -179,10 +191,7 @@ function validateDomain(s: string): string | null { return /^[a-z0-9.-]+\.[a-z]{
 
 const upstreamScopesKnown = computed(() => UPSTREAM_SCOPE_SUGGESTIONS.map((s) => ({ value: s.value, description: t(s.descKey) })))
 
-async function load(): Promise<void> {
-  const i = await run(() => api.get<IdentityProvider>(`/api/prohibitorum/identity-providers/${slug}`))
-  if (!i) { if (error.value?.code === 'upstream_idp_not_found') notFound.value = true; return }
-  idp.value = i
+function seedForm(i: IdentityProvider): void {
   displayName.value = i.displayName
   mode.value = i.mode
   disabled.value = i.disabled
@@ -238,6 +247,8 @@ const diagnosticDirty = computed(() => {
     : JSON.stringify(value) !== JSON.stringify(saved[key]))
 })
 
+const draft = useDraftSync(idp, () => [displayName.value, mode.value, disabled.value, draftConfig.value], seedForm)
+
 async function save(): Promise<void> {
   connectionValidation.value = isOIDC.value ? oidcConnectionError(connection.value) : null
   if (isOIDC.value && connection.value.tokenAuthMethod !== 'none' && !idp.value?.secretConfigured) connectionValidation.value = 'admin.upstream.secretRequired'
@@ -248,7 +259,7 @@ async function save(): Promise<void> {
     mode: effectiveMode.value,
     config,
   }), t('sudo.reason.saveChanges')))
-  if (updated) { idp.value = updated; triggerSaved() }
+  if (updated) { idp.value = updated; draft.accept(updated); triggerSaved() }
 }
 
 async function rotate(): Promise<void> {
@@ -393,9 +404,7 @@ async function validateOperatorSession(): Promise<void> {
         && hasErrorCode(validationError, 'vrchat_operator_credentials_invalid')) {
         projectInvalidOperatorSession(generation)
         try {
-          const provider = await api.get<IdentityProvider>(
-            `/api/prohibitorum/identity-providers/${slug}`,
-          )
+          const provider = await queryClient.fetchQuery({ ...options, staleTime: 0 })
           if (isOperatorOperationCurrent(generation)) {
             idp.value = provider
             disabled.value = provider.disabled
@@ -436,6 +445,7 @@ async function toggleDisabled(): Promise<void> {
 async function destroy(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/identity-providers/delete', { slug })
+    await removeDetail(queryClient, 'identity-providers', slug)
     return true as const
   }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
@@ -451,7 +461,7 @@ onBeforeUnmount(() => {
   clearOperatorChallenge()
 })
 
-onMounted(load)
+usePrivateState(() => { newSecret.value = ''; operatorUsername.value = ''; operatorPassword.value = ''; operatorCode.value = ''; clearOperatorChallenge() })
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">
@@ -556,7 +566,6 @@ onMounted(load)
         :base-path="`/api/prohibitorum/identity-providers/${slug}`"
         :name="idp?.displayName ?? slug"
         :icon-url="idp?.iconUrl"
-        @changed="load"
       />
 
       <Card v-if="isVRChat" data-test="operator-session-card">

@@ -21,9 +21,9 @@
  */
 
 import { computed } from 'vue'
-import { useBrandingStore } from '@/stores/branding'
+import { useBranding } from '@/composables/useBranding'
 
-const branding = useBrandingStore()
+const branding = useBranding()
 
 // Optional real scene asset resolved at build time (empty object → no match).
 const sceneModules = import.meta.glob(

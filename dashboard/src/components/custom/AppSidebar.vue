@@ -13,8 +13,8 @@ import { ShieldCheck, MonitorSmartphone, KeyRound, Link2, TabletSmartphone, User
 import NavUser from '@/components/custom/NavUser.vue'
 import LocaleSwitcher from '@/components/custom/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/custom/ThemeToggle.vue'
-import { useAuthStore } from '@/stores/auth'
-import { useBrandingStore } from '@/stores/branding'
+import { useSession } from '@/composables/useSession'
+import { useBranding } from '@/composables/useBranding'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
   SidebarGroup, SidebarGroupLabel, SidebarGroupContent,
@@ -22,8 +22,8 @@ import {
 } from '@/components/ui/sidebar'
 
 const { t } = useI18n()
-const auth = useAuthStore()
-const branding = useBrandingStore()
+const auth = useSession()
+const branding = useBranding()
 const route = useRoute()
 
 const isActive = (to: string) =>

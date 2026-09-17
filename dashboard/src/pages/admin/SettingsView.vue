@@ -1,13 +1,17 @@
 <script setup lang="ts">
+import { configQuery } from '@/queries/resources'
 /** SettingsView (/admin/settings) — edit instance name + icon + maintenance mode (admin + sudo). */
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useResource } from '@/composables/useResource'
+import { useDraftSync } from '@/composables/useDraftSync'
+import { settingsQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { withSudo } from '@/lib/sudo'
 import { useTransientFlag } from '@/composables/useTransientFlag'
-import { useBrandingStore } from '@/stores/branding'
+import { useBranding } from '@/composables/useBranding'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,8 +21,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 
 const { t } = useI18n()
-const { busy, run, error, clear } = useApi()
-const branding = useBrandingStore()
+const { busy, run, error, clear } = useApi('settings')
+const branding = useBranding()
 const name = ref(branding.instanceName)
 const { flag: savedFlag, trigger: triggerSaved } = useTransientFlag(2000)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -37,12 +41,11 @@ const clientIpHeader = ref('CF-Connecting-IP')
 const clientIpTrusted = ref('') // textarea, one CIDR per line
 const { flag: clientIpSavedFlag, trigger: triggerClientIpSaved } = useTransientFlag(2000)
 
-onMounted(async () => {
-  name.value = branding.instanceName
-  await branding.ensureLoaded()
-  maintenanceMode.value = branding.maintenanceMode
-  maintenanceMessage.value = branding.maintenanceMessage
-  await loadClientIp()
+const config = useResource(configQuery())
+const nameDraft = useDraftSync(config.data, () => name.value, value => { name.value = value.instanceName })
+const maintenanceDraft = useDraftSync(config.data, () => [maintenanceMode.value, maintenanceMessage.value], value => {
+  maintenanceMode.value = value.maintenanceMode
+  maintenanceMessage.value = value.maintenanceMessage
 })
 
 async function saveName(): Promise<void> {
@@ -51,7 +54,7 @@ async function saveName(): Promise<void> {
     return true as const
   }))
   if (ok) {
-    await branding.load()
+    if (config.data.value) nameDraft.accept(config.data.value)
     triggerSaved()
   }
 }
@@ -65,22 +68,18 @@ async function saveMaintenance(): Promise<void> {
     return true as const
   }))
   if (ok) {
-    await branding.load()
+    if (config.data.value) maintenanceDraft.accept(config.data.value)
     triggerMaintenanceSaved()
   }
 }
 
-async function loadClientIp(): Promise<void> {
-  const cfg = await run(() =>
-    api.get<{ strategy: string; header: string; trustedProxies: string[] }>(
-      '/api/prohibitorum/admin/settings/client-ip',
-    ),
-  )
-  if (!cfg) return
-  clientIpStrategy.value = (cfg.strategy as 'direct' | 'forwarded' | 'header') || 'direct'
-  if (cfg.header) clientIpHeader.value = cfg.header
-  clientIpTrusted.value = (cfg.trustedProxies || []).join('\n')
-}
+interface ClientIpConfig { strategy: string; header: string; trustedProxies: string[] }
+const clientIpQuery = useResource(settingsQuery<ClientIpConfig>('client-ip'))
+const clientIpDraft = useDraftSync(clientIpQuery.data, () => [clientIpStrategy.value, clientIpHeader.value, clientIpTrusted.value], cfg => {
+  clientIpStrategy.value = cfg.strategy as 'direct' | 'forwarded' | 'header'
+  clientIpHeader.value = cfg.header || 'CF-Connecting-IP'
+  clientIpTrusted.value = cfg.trustedProxies.join('\n')
+})
 
 async function saveClientIp(): Promise<void> {
   const trustedProxies = clientIpTrusted.value
@@ -97,7 +96,7 @@ async function saveClientIp(): Promise<void> {
       return true as const
     }),
   )
-  if (ok) triggerClientIpSaved()
+  if (ok) { if (clientIpQuery.data.value) clientIpDraft.accept(clientIpQuery.data.value); triggerClientIpSaved() }
 }
 
 async function onPickFile(e: Event): Promise<void> {
@@ -108,20 +107,17 @@ async function onPickFile(e: Event): Promise<void> {
     await api.upload('/api/prohibitorum/admin/settings/icon', file)
     return true as const
   }))
-  if (ok) {
-    await branding.load()
-  } else {
+  if (!ok) {
     uploadError.value = t('admin.settings.uploadError')
   }
   if (fileInput.value) fileInput.value.value = ''
 }
 
 async function removeIcon(): Promise<void> {
-  const ok = await run(() => withSudo(async () => {
+  await run(() => withSudo(async () => {
     await api.del('/api/prohibitorum/admin/settings/icon')
     return true as const
   }))
-  if (ok) await branding.load()
 }
 
 async function onPickBackground(e: Event): Promise<void> {
@@ -132,20 +128,17 @@ async function onPickBackground(e: Event): Promise<void> {
     await api.upload('/api/prohibitorum/admin/settings/background', file)
     return true as const
   }))
-  if (ok) {
-    await branding.load()
-  } else {
+  if (!ok) {
     bgError.value = t('admin.settings.backgroundError')
   }
   if (bgInput.value) bgInput.value.value = ''
 }
 
 async function removeBackground(): Promise<void> {
-  const ok = await run(() => withSudo(async () => {
+  await run(() => withSudo(async () => {
     await api.del('/api/prohibitorum/admin/settings/background')
     return true as const
   }))
-  if (ok) await branding.load()
 }
 </script>
 
@@ -156,6 +149,8 @@ async function removeBackground(): Promise<void> {
       <p class="text-sm text-muted">{{ t('admin.settings.help') }}</p>
     </div>
 
+    <ErrorPanel :error="config.error.value" @dismiss="config.clear" :is-admin="true" />
+    <ErrorPanel :error="clientIpQuery.error.value" @dismiss="clientIpQuery.clear" :is-admin="true" />
     <ErrorPanel :error="error" @dismiss="clear" :is-admin="true" />
 
     <Card>

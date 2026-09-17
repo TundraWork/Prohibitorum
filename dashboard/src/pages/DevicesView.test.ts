@@ -33,7 +33,7 @@ describe('DevicesView', () => {
     get.mockResolvedValue(LOOKUP)
     const w = mountView()
     await enterCodeAndLookup(w)
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/devices/pair/lookup?code=AB12-CD34')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/devices/pair/lookup?code=AB12-CD34', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('Chrome on macOS')
     expect(w.text()).toContain('10.0.0.9')
     expect(w.text()).toContain('AB12-CD34')

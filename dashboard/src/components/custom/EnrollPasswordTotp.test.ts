@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import EnrollPasswordTotp from './EnrollPasswordTotp.vue'
 
@@ -38,7 +37,7 @@ function mountCeremony(identity: { username: string; displayName: string } | nul
 }
 
 beforeEach(() => {
-  setActivePinia(createPinia())
+
   post.mockReset()
   hardRedirect.mockReset()
 })

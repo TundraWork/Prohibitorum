@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useResource } from '@/composables/useResource'
+import { enrollmentQuery } from '@/queries/ceremonies'
 /**
  * EnrollView — the enrollment ceremony (/enroll/:token).
  *
@@ -23,7 +25,7 @@
  * skip reportValidity — the typed name only feeds the local ceremonies.
  */
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, type ApiError } from '@/lib/api'
@@ -80,7 +82,8 @@ function clearError(): void {
   clearWebauthnError()
 }
 
-const preview = ref<EnrollmentPreview | null>(null)
+const contextQuery = useResource({ ...enrollmentQuery<EnrollmentPreview>(token), enabled: false })
+const preview = computed(() => contextQuery.data.value ?? null)
 const loading = ref(true)
 
 // New-account intents collect these; reset leaves them untouched.
@@ -141,16 +144,16 @@ function continueToProvider(slug: string): void {
   hardRedirect(startFederationURL(slug))
 }
 
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
 onMounted(async () => {
   try {
-    const loaded = await api.get<EnrollmentPreview>(
-      `/api/prohibitorum/enrollments/${encodeURIComponent(token)}`,
-    )
-    preview.value = loaded
+    const loaded = (await contextQuery.refetch({ throwOnError: true })).data!
     if (loaded.intent === 'federated_register') {
       displayName.value = loaded.suggestedDisplayName ?? ''
     }
   } catch (e) {
+    if (disposed) return
     const code = (e as ApiError | undefined)?.code
     router.replace({ name: 'error', query: { error: code ?? 'enrollment_consumed' } })
   } finally {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * RecoveryCodesCard — regenerate recovery codes (sudo-gated; needs confirmed TOTP).
  * When totpEnabled is false the Regenerate button is replaced with a hint so the
@@ -31,7 +32,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t } = useI18n()
-const { busy, error, run, clear } = useApi()
+const { busy, error, run, clear } = useApi('credentials')
 const codes = ref<string[]>([])
 
 // Contextual hint: this endpoint's bad_request means "no TOTP enrolled".
@@ -45,6 +46,7 @@ async function regenerate(): Promise<void> {
     t('sudo.reason.regenerateCodes')))
   if (r) { codes.value = r.recovery_codes ?? []; emit('changed') }
 }
+usePrivateState(() => { codes.value = [] })
 </script>
 
 <template>

@@ -11,8 +11,9 @@
 
 import { createRouter, createWebHistory, type Router, type RouteRecordRaw } from 'vue-router'
 import { buildTitle } from '@/lib/pageTitle'
-import { getActivePinia } from 'pinia'
-import { useAuthStore } from '@/stores/auth'
+import { isCancelledError } from '@tanstack/vue-query'
+import { queryClient } from '@/queries/client'
+import { configQuery, sessionQuery } from '@/queries/resources'
 import ManagedApplicationsView from '../pages/ManagedApplicationsView.vue'
 import ManagedApplicationDetailView from '../pages/ManagedApplicationDetailView.vue'
 
@@ -170,84 +171,25 @@ const routes: RouteRecordRaw[] = [
 // ---------------------------------------------------------------------------
 export function installGuard(router: Router): void {
   router.beforeEach(async (to) => {
-    // ---------------------------------------------------------------------------
-    // Maintenance gate — evaluated before auth so non-admin users are redirected
-    // even on routes they would otherwise be allowed to visit.
-    // ---------------------------------------------------------------------------
-    {
-      const { useBrandingStore: useBranding } = await import('@/stores/branding')
-      const { getActivePinia } = await import('pinia')
-      const pinia = getActivePinia()
-      if (pinia) {
-        const branding = useBranding(pinia)
-        await branding.ensureLoaded()
-
-        if (branding.maintenanceMode) {
-          // Admins bypass maintenance entirely; everyone else — unauthenticated
-          // visitors AND authenticated non-admins — is confined to the notice
-          // page, sign-out, and the deliberate admin-login entry (/login?admin=1).
-          const { useAuthStore: useAuth } = await import('@/stores/auth')
-          const auth = useAuth(pinia)
-          // GET /me is allowlisted by the backend during maintenance.
-          try { await auth.ensureLoaded() } catch { /* treat as unauthenticated */ }
-
-          if (!(auth.me && auth.isAdmin)) {
-            const allowed =
-              to.name === 'maintenance' ||
-              to.name === 'logout' ||
-              (to.name === 'login' && to.query.admin !== undefined)
-            if (!allowed) return { name: 'maintenance' }
-            return true
-          }
-          // Admin: fall through to the normal flow below.
-        } else {
-          // Maintenance is off — don't strand anyone on the maintenance page.
-          if (to.name === 'maintenance') return { name: 'login' }
-        }
+    const config = await queryClient.fetchQuery(configQuery()).catch(() => null)
+    let me = null
+    if (config?.maintenanceMode || !to.meta.public) {
+      try { me = await queryClient.fetchQuery(sessionQuery()) }
+      catch (error) {
+        if (!isCancelledError(error)) return { name: 'error', query: { error: 'server_error' } }
+        // A no_session response cancels the same /me request while clearing the
+        // previous account. Continue with the anonymous navigation rules.
       }
     }
-
-    // All threshold routes and any route marked public: skip guard.
+    if (config?.maintenanceMode && me?.role !== 'admin') {
+      const allowed = to.name === 'maintenance' || to.name === 'logout' || (to.name === 'login' && to.query.admin !== undefined)
+      return allowed ? true : { name: 'maintenance' }
+    }
+    if (!config?.maintenanceMode && to.name === 'maintenance') return { name: 'login' }
     if (to.meta.public) return true
-
-    // requiresAuth: ensure the user is logged in.
-    if (to.meta.requiresAuth) {
-      // Lazy import to avoid circular dependency at module init time.
-      const { useAuthStore } = await import('@/stores/auth')
-      const { getActivePinia } = await import('pinia')
-      const pinia = getActivePinia()
-      if (!pinia) return { name: 'login', query: { return_to: to.fullPath } }
-      const auth = useAuthStore()
-      await auth.ensureLoaded()
-      if (!auth.me) {
-        return { name: 'login', query: { return_to: to.fullPath } }
-      }
-    }
-
-    // requiresAppManager: delegated managers and admins share this surface.
-    if (to.meta.requiresAppManager) {
-      const pinia = getActivePinia()
-      if (!pinia) return { name: 'error', query: { error: 'forbidden' } }
-      const auth = useAuthStore()
-      await auth.ensureLoaded()
-      if (!auth.isAppManager) {
-        return { name: 'error', query: { error: 'forbidden' } }
-      }
-    }
-
-    // requiresAdmin: ensure the user has admin role.
-    if (to.meta.requiresAdmin) {
-      const { useAuthStore } = await import('@/stores/auth')
-      const { getActivePinia } = await import('pinia')
-      const pinia = getActivePinia()
-      if (!pinia) return { name: 'error', query: { error: 'forbidden' } }
-      const auth = useAuthStore()
-      await auth.ensureLoaded()
-      if (!auth.isAdmin) {
-        return { name: 'error', query: { error: 'forbidden' } }
-      }
-    }
-
+    if (to.meta.requiresAuth && !me) return { name: 'login', query: { return_to: to.fullPath } }
+    if (to.meta.requiresAdmin && me?.role !== 'admin') return { name: 'error', query: { error: 'forbidden' } }
+    if (to.meta.requiresAppManager && !['admin', 'app_manager'].includes(me?.role ?? '')) return { name: 'error', query: { error: 'forbidden' } }
     return true
   })
 }
@@ -261,14 +203,9 @@ installGuard(router)
 
 router.afterEach((to) => {
   void (async () => {
-    const { useBrandingStore } = await import('@/stores/branding')
     const { i18n } = await import('@/i18n')
-    const { getActivePinia } = await import('pinia')
-    const pinia = getActivePinia()
-    const name = pinia ? useBrandingStore(pinia).instanceName : 'Prohibitorum'
-    const key = to.meta.titleKey
-    const page = key ? i18n.global.t(key as string) : ''
-    document.title = buildTitle(page, name)
+    const name = queryClient.getQueryData(configQuery().queryKey)?.instanceName || 'Prohibitorum'
+    document.title = buildTitle(to.meta.titleKey ? i18n.global.t(to.meta.titleKey) : '', name)
   })()
 })
 

@@ -3,7 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { defineComponent } from 'vue'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 import ConsentView from './ConsentView.vue'
 
@@ -44,7 +43,7 @@ async function mountView(router: Router) {
 }
 
 beforeEach(() => {
-  setActivePinia(createPinia())
+
   get.mockReset()
   post.mockReset()
   hardRedirect.mockReset()
@@ -59,7 +58,7 @@ describe('ConsentView', () => {
     })
     const wrapper = await mountView(await makeRouter())
 
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/consent?ticket=tkt_1')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/consent?ticket=tkt_1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain('Demo App')
     expect(wrapper.text()).toContain('Alex Smith')
     // known scope → described; unknown scope → raw in <code> with custom-scope sub-label.

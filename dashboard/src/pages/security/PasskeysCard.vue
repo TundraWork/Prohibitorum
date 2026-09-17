@@ -6,9 +6,11 @@
  * session-only. The backend sends excludeCredentials on begin (no duplicate
  * passkeys) and rejects deleting the last passkey.
  */
-import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser'
+import { useResource } from '@/composables/useResource'
+import { memberQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useWebauthn } from '@/composables/useWebauthn'
@@ -35,14 +37,15 @@ interface CredentialView {
 }
 
 const { t } = useI18n()
-const { busy: netBusy, error: netError, run, clear: clearNet } = useApi()
+const { busy: netBusy, error: netError, run, clear: clearNet } = useApi('credentials')
 const { busy: waBusy, error: waError, register } = useWebauthn()
 
-const busy = computed(() => netBusy.value || waBusy.value)
-const error = computed(() => netError.value ?? waError.value)
-function clear(): void { clearNet(); waError.value = null }
-const rows = ref<CredentialView[]>([])
-const loaded = ref(false)
+const query = useResource(memberQuery<CredentialView[]>('credentials'))
+const busy = computed(() => netBusy.value || waBusy.value || query.busy.value)
+const error = computed(() => netError.value ?? waError.value ?? query.error.value)
+function clear(): void { clearNet(); waError.value = null; query.clear() }
+const rows = computed(() => query.data.value ?? [])
+const loaded = computed(() => query.isSuccess.value)
 const editingId = ref<number | null>(null)
 const draftName = ref('')
 const confirmId = ref<number | null>(null)
@@ -50,23 +53,16 @@ const nameInput = useTemplateRef<{ $el?: HTMLElement }>('nameInput')
 
 const displayName = (c: CredentialView) => c.nickname || `${t('security.passkeys.defaultName')} ····${c.credentialIdSuffix}`
 
-async function load(): Promise<void> {
-  const res = await run(() => api.get<CredentialView[]>('/api/prohibitorum/me/credentials'))
-  if (res) { rows.value = res; loaded.value = true }
-}
 
 async function add(): Promise<void> {
-  const options = await run(() => withSudo(() =>
-    api.post<PublicKeyCredentialCreationOptionsJSON>('/api/prohibitorum/me/credentials/register/begin'),
-    t('sudo.reason.addPasskey')))
-  if (!options) return
-  const attestation = await register(options)
-  if (!attestation) return
-  const ok = await run(async () => {
+  await run(async () => {
+    const options = await withSudo(() => api.post<PublicKeyCredentialCreationOptionsJSON>('/api/prohibitorum/me/credentials/register/begin'), t('sudo.reason.addPasskey'))
+    if (!options) return
+    const attestation = await register(options)
+    if (!attestation) return
     await api.post('/api/prohibitorum/me/credentials/register/complete', attestation)
     return true as const
   })
-  if (ok) await load()
 }
 
 async function startRename(c: CredentialView): Promise<void> { editingId.value = c.id; draftName.value = c.nickname ?? ''; await nextTick(); nameInput.value?.$el?.focus() }
@@ -75,21 +71,19 @@ async function saveRename(id: number): Promise<void> {
     await api.post('/api/prohibitorum/me/credentials/rename', { id, nickname: draftName.value || null })
     return true as const
   })
-  if (ok) { editingId.value = null; await load() }
+  if (ok) { editingId.value = null }
 }
 
 async function confirmDelete(): Promise<void> {
   const id = confirmId.value
   if (id == null) return
-  const ok = await run(() => withSudo(async () => {
+  await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/me/credentials/delete', { id })
     return true as const
   }, t('sudo.reason.removePasskey')))
   confirmId.value = null
-  if (ok) await load()
 }
 
-onMounted(load)
 </script>
 
 <template>

@@ -2,12 +2,14 @@
 /**
  * EntityIconUpload — admin icon upload/remove for an app or provider, modeled on
  * the instance-icon block in SettingsView. Shows the current icon (AppIcon) and
- * Upload / Remove buttons; both mutations go through withSudo. Emits `changed`
- * so the parent refetches (which re-supplies iconUrl).
+ * Upload / Remove buttons; both mutations go through withSudo and invalidate the shared application resource.
  *
  * basePath: /api/prohibitorum/oidc-applications/<clientId> (etc.)
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useQueryClient } from '@tanstack/vue-query'
+import { invalidateResource } from '@/queries/invalidation'
+import type { Collection } from '@/queries/resources'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
@@ -18,7 +20,8 @@ import AppIcon from '@/components/custom/AppIcon.vue'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 
 const props = defineProps<{ basePath: string; name: string; iconUrl?: string | null }>()
-const emit = defineEmits<{ changed: [] }>()
+const client = useQueryClient()
+const resource = computed(() => props.basePath.split('/')[3] as Collection)
 
 const { t } = useI18n()
 const { busy, run, error, clear } = useApi()
@@ -32,7 +35,7 @@ async function onPick(e: Event): Promise<void> {
     return true as const
   }, t('sudo.reason.saveChanges')))
   if (fileInput.value) fileInput.value.value = ''
-  if (ok) emit('changed')
+  if (ok) await invalidateResource(client, resource.value)
 }
 
 async function remove(): Promise<void> {
@@ -40,7 +43,7 @@ async function remove(): Promise<void> {
     await api.del(`${props.basePath}/icon`)
     return true as const
   }, t('sudo.reason.saveChanges')))
-  if (ok) emit('changed')
+  if (ok) await invalidateResource(client, resource.value)
 }
 </script>
 

@@ -2,9 +2,7 @@
 /** AdminAuditView (/admin/audit) — filterable, cursor-paginated audit log. */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { api } from '@/lib/api'
 import { useCursorPage } from '@/composables/useCursorPage'
-import { type Page, buildPagePath } from '@/lib/pagination'
 import { AUDIT_FACTORS, AUDIT_EVENTS } from '@/lib/audit'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,29 +53,18 @@ function presetSince(): string {
   return new Date(now - delta).toISOString()
 }
 
-function buildAuditPath(cursor: string): string {
-  let base = '/api/prohibitorum/audit-events'
-  const p = new URLSearchParams()
-  if (factor.value) p.set('factor', factor.value)
-  if (event.value) p.set('event', event.value)
-  if (accountId.value.trim()) p.set('accountId', accountId.value.trim())
-  const s = presetSince()
-  if (s) p.set('since', s)
-  if (preset.value === 'custom' && until.value) p.set('until', new Date(until.value).toISOString())
-  const qs = p.toString()
-  if (qs) base += `?${qs}`
-  return buildPagePath(base, { cursor, limit: 50 })
+const appliedFilters = ref({})
+function auditFilters() {
+  return { factor: factor.value, event: event.value, accountId: accountId.value.trim(), since: presetSince(), until: preset.value === 'custom' && until.value ? new Date(until.value).toISOString() : '', limit: 50 }
 }
-
-const page = useCursorPage<AuditEvent>((cursor) =>
-  api.get<Page<AuditEvent>>(buildAuditPath(cursor)),
-)
+appliedFilters.value = auditFilters()
+const page = useCursorPage<AuditEvent>('audit-events', appliedFilters)
 const rows = page.items
 const displayError = page.error
 const displayBusy = page.busy
 function clearError(): void { page.clear() }
 
-function reload(): Promise<void> { return page.reset() }
+function reload(): Promise<void> { appliedFilters.value = auditFilters(); return page.reset() }
 
 function applyPreset(p: Preset): void {
   preset.value = p

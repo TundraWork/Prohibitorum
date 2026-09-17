@@ -7,7 +7,6 @@ import { Waypoints } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useCursorPage } from '@/composables/useCursorPage'
-import { type Page, buildPagePath } from '@/lib/pagination'
 import { withSudo } from '@/lib/sudo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,11 +35,9 @@ interface ForwardAuthApp {
 
 const { t } = useI18n()
 const router = useRouter()
-const { busy, run, error, clear } = useApi()
+const { busy, run, error, clear } = useApi('forward-auth-apps')
 
-const page = useCursorPage<ForwardAuthApp>((cursor) =>
-  api.get<Page<ForwardAuthApp>>(buildPagePath('/api/prohibitorum/forward-auth-apps', { cursor })),
-)
+const page = useCursorPage<ForwardAuthApp>('forward-auth-apps')
 const rows = page.items
 const displayError = computed(() => page.error.value ?? error.value)
 function clearError(): void { page.clear(); clear() }
@@ -79,7 +76,6 @@ async function create(): Promise<void> {
   if (res) {
     createOpen.value = false
     created.value = true
-    await page.reload()
   }
 }
 

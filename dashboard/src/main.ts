@@ -1,5 +1,7 @@
 import { createApp } from 'vue'
-import { createPinia } from 'pinia'
+import { VueQueryPlugin } from '@tanstack/vue-query'
+import { queryClient, clearSessionQueries } from './queries/client'
+import { keys, type PublicConfig } from './queries/resources'
 import App from './App.vue'
 import router from './router'
 import { i18n } from './i18n'
@@ -9,19 +11,16 @@ import {
   registerConnectionErrorHandler,
 } from './lib/api'
 import { createUnauthorizedHandler } from './lib/sessionExpiry'
-import { useAuthStore } from './stores/auth'
-import { useBrandingStore } from './stores/branding'
 import { useSessionExpiry } from './composables/useSessionExpiry'
 import './assets/main.css'
 
 const app = createApp(App)
-const pinia = createPinia()
-app.use(pinia).use(router).use(i18n)
+app.use(VueQueryPlugin, { queryClient }).use(router).use(i18n)
 
 registerUnauthorizedHandler(
   createUnauthorizedHandler({
     router,
-    clearAuth: () => useAuthStore(pinia).clear(),
+    clearAuth: () => clearSessionQueries(),
     setExpiredFlag: () => useSessionExpiry().trigger(),
   }),
 )
@@ -29,7 +28,7 @@ registerUnauthorizedHandler(
 registerMaintenanceHandler(() => {
   // A 503 maintenance_mode only ever reaches a non-admin (admins are exempt).
   // Set the flag so the banner and guard reflect the new state, then redirect.
-  useBrandingStore(pinia).maintenanceMode = true
+  queryClient.setQueryData<PublicConfig>(keys.config, current => ({ ...current, maintenanceMode: true } as PublicConfig))
   void router.push({ name: 'maintenance' })
 })
 

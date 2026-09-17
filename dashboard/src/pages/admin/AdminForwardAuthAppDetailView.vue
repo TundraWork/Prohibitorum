@@ -1,14 +1,19 @@
 <script setup lang="ts">
+import { removeDetail } from '@/queries/invalidation'
 /**
  * AdminForwardAuthAppDetailView (/admin/forward-auth-apps/:clientId) —
  * edit display-name + host, show the host-substituted Traefik snippet, assign
  * application managers, manage its access policy, and use a danger zone
  * (disable/enable + delete). No rotate-secret — forward-auth clients are public.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { TriangleAlert } from 'lucide-vue-next'
+import { useResource } from '@/composables/useResource'
+import { useDraftSync } from '@/composables/useDraftSync'
+import { useQueryClient } from '@tanstack/vue-query'
+import { detailQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -47,11 +52,17 @@ interface ForwardAuthApp {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, clear } = useApi()
+const { busy: mutationBusy, error: mutationError, run, clear: clearMutation } = useApi('forward-auth-apps')
 
 const clientId = String(route.params.clientId)
-const app = ref<ForwardAuthApp | null>(null)
-const notFound = ref(false)
+const queryClient = useQueryClient()
+const options = detailQuery<ForwardAuthApp>('forward-auth-apps', clientId)
+const query = useResource(options)
+const app = computed({ get: () => query.data.value ?? null, set: (value: ForwardAuthApp | null) => { if (value) queryClient.setQueryData(options.queryKey, value) } })
+const busy = computed(() => mutationBusy.value || query.busy.value)
+const error = computed(() => mutationError.value ?? query.error.value)
+const notFound = computed(() => query.error.value?.code === 'client_not_found')
+function clear(): void { clearMutation(); query.clear() }
 
 const displayName = ref('')
 const host = ref('')
@@ -93,15 +104,13 @@ const traefikSnippet = computed(() => {
       service: prohibitorum-svc`
 })
 
-async function load(): Promise<void> {
-  const c = await run(() => api.get<ForwardAuthApp>(`/api/prohibitorum/forward-auth-apps/${clientId}`))
-  if (!c) { if (error.value?.code === 'client_not_found') notFound.value = true; return }
-  app.value = c
+function seedForm(c: ForwardAuthApp): void {
   displayName.value = c.displayName
   host.value = c.forwardAuthHost
   disabled.value = c.disabled
   scopes.value = c.scopes ?? []
 }
+const draft = useDraftSync(app, () => [displayName.value, host.value, disabled.value, scopes.value], seedForm)
 
 async function save(): Promise<void> {
   const updated = await run(() => withSudo(() => api.put<ForwardAuthApp>(`/api/prohibitorum/forward-auth-apps/${clientId}`, {
@@ -109,7 +118,7 @@ async function save(): Promise<void> {
     host: host.value,
     scopes: scopes.value,
   }), t('sudo.reason.saveChanges')))
-  if (updated) { app.value = updated; triggerSaved() }
+  if (updated) { app.value = updated; draft.accept(updated); triggerSaved() }
 }
 
 async function toggleDisabled(): Promise<void> {
@@ -123,13 +132,13 @@ async function toggleDisabled(): Promise<void> {
 async function destroy(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/forward-auth-apps/delete', { clientId })
+    await removeDetail(queryClient, 'forward-auth-apps', clientId)
     return true as const
   }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
   if (ok) router.push('/admin/forward-auth-apps')
 }
 
-onMounted(load)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -194,7 +203,6 @@ onMounted(load)
         :base-path="`/api/prohibitorum/oidc-applications/${clientId}`"
         :name="app?.displayName ?? clientId"
         :icon-url="app?.iconUrl"
-        @changed="load"
       />
 
       <AppManagerCard kind="forward_auth" :app-id="clientId" />

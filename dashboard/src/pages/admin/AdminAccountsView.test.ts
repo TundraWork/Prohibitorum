@@ -83,8 +83,8 @@ describe('AdminAccountsView', () => {
     mockGets()
     const wrapper = mountView()
     await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts')
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/identity-providers?limit=100')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/accounts', expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/identity-providers?limit=100', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text()).toContain('Alice Smith')
     expect(wrapper.text()).toContain('@bob')
     expect(wrapper.text()).toContain(en.admin.accounts.disabled)
@@ -275,7 +275,7 @@ describe('AdminAccountsView', () => {
 
     await wrapper.find('[data-test="accounts-clear"]').trigger('click')
     await flushPromises()
-    expect(accountCalls()).toEqual(['/api/prohibitorum/accounts'])
+    expect(accountCalls()).toEqual([]) // Fresh unfiltered page is restored from cache.
     expect(wrapper.text()).toContain('Alice Smith')
     expect(wrapper.find('[data-test="page-indicator"]').text()).toContain('1')
   })

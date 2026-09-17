@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia, setActivePinia } from 'pinia'
 import en from '@/locales/en'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), put: vi.fn(), del: vi.fn(), upload: vi.fn() } }))
 import { api } from '@/lib/api'
 vi.mock('@/lib/sudo', () => ({ withSudo: (fn: () => Promise<unknown>) => fn() }))
-import { useBrandingStore } from '@/stores/branding'
+import { testQueryClient } from '@/testSetup'
+import { keys } from '@/queries/resources'
 import SettingsView from './SettingsView.vue'
 
 const get = vi.mocked(api.get)
@@ -22,18 +22,15 @@ function setupGetMock(clientIpOverride?: object) {
     if (url === '/api/prohibitorum/admin/settings/client-ip') {
       return Promise.resolve(clientIpOverride ?? defaultClientIpCfg)
     }
-    // branding store's ensureLoaded calls /config — return undefined to leave store state as patched
-    return Promise.resolve(undefined)
+    // Keep the public configuration fixture consistent during invalidation.
+    return Promise.resolve(testQueryClient.getQueryData(keys.config))
   })
 }
 
 function mountView(hasCustomIcon = false, clientIpOverride?: object) {
-  const pinia = createPinia()
-  setActivePinia(pinia)
-  const branding = useBrandingStore()
-  branding.$patch({ instanceName: 'TestInstance', hasCustomIcon, iconSrc: '/api/prohibitorum/icon', hasCustomBackground: hasCustomIcon, backgroundSrc: '/branding/background' })
+  testQueryClient.setQueryData(keys.config, { instanceName: 'TestInstance', hasCustomIcon, iconSrc: '/api/prohibitorum/icon', hasCustomBackground: hasCustomIcon, backgroundSrc: '/branding/background' })
   setupGetMock(clientIpOverride)
-  return mount(SettingsView, { global: { plugins: [i18n(), pinia] }, attachTo: document.body })
+  return mount(SettingsView, { global: { plugins: [i18n()] }, attachTo: document.body })
 }
 
 beforeEach(() => {

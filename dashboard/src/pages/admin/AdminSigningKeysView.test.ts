@@ -26,7 +26,7 @@ describe('AdminSigningKeysView', () => {
   it('lists keys with status badges', async () => {
     get.mockResolvedValue({ items: KEYS, nextCursor: '' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/signing-keys')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/signing-keys', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('k-active'); expect(w.text()).toContain(en.admin.signingKeys.statusActive)
     expect(w.text()).toContain(en.admin.signingKeys.statusPending); expect(w.text()).toContain(en.admin.signingKeys.statusDecommissioning)
   })

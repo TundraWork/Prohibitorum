@@ -1,13 +1,15 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { createI18n } from 'vue-i18n'
-import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import en from '@/locales/en'
 import AppSidebar from './AppSidebar.vue'
+import { api } from '@/lib/api'
+vi.mock('@/lib/api', () => ({ api: { get: vi.fn() } }))
 import { SidebarProvider } from '@/components/ui/sidebar'
-import { useAuthStore } from '@/stores/auth'
+import { testQueryClient } from '@/testSetup'
+import { keys, type SessionView } from '@/queries/resources'
 
 if (!window.matchMedia) {
   // @ts-expect-error jsdom lacks matchMedia
@@ -48,12 +50,12 @@ function makeI18n() {
 const Host = defineComponent({ components: { SidebarProvider, AppSidebar },
   template: '<SidebarProvider><AppSidebar /></SidebarProvider>' })
 
-beforeEach(() => setActivePinia(createPinia()))
+beforeEach(() => { vi.mocked(api.get).mockImplementation(async (url) => url.endsWith('/me') ? testQueryClient.getQueryData(keys.me) : {}) })
 
 describe('AppSidebar', () => {
   it('renders the built Account links, the Apps return link, and the account control (no footer sign-out link)', async () => {
-    const auth = useAuthStore()
-    auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
+
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
     const router = makeRouter(); router.push('/security'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
@@ -68,8 +70,8 @@ describe('AppSidebar', () => {
   })
 
   it('marks only the current route link as active', async () => {
-    const auth = useAuthStore()
-    auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
+
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
     const router = makeRouter(); router.push('/security'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     // Exactly one element should carry data-active="true" - the Security nav item
@@ -78,8 +80,8 @@ describe('AppSidebar', () => {
   })
 
   it('renders strict-admin navigation without obsolete global group links', async () => {
-    const auth = useAuthStore()
-    auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'admin' }
+
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'admin' })
     const router = makeRouter(); router.push('/'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
@@ -93,8 +95,8 @@ describe('AppSidebar', () => {
   })
 
   it('hides the admin group for non-admins', async () => {
-    const auth = useAuthStore()
-    auth.me = { id: 2, username: 'bob', displayName: 'Bob Lee', role: 'user' }
+
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 2, username: 'bob', displayName: 'Bob Lee', role: 'user' })
     const router = makeRouter(); router.push('/'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
@@ -102,8 +104,8 @@ describe('AppSidebar', () => {
   })
 
   it('shows only managed-application management navigation to app managers', async () => {
-    const auth = useAuthStore()
-    auth.me = { id: 3, username: 'manager', displayName: 'App Manager', role: 'app_manager' }
+
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 3, username: 'manager', displayName: 'App Manager', role: 'app_manager' })
     const router = makeRouter(); router.push('/manage/applications'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     const links = wrapper.findAll('a').map((a) => a.attributes('href'))
@@ -112,8 +114,8 @@ describe('AppSidebar', () => {
   })
 
   it('renders the language switcher and theme toggle as standalone footer controls', async () => {
-    const auth = useAuthStore()
-    auth.me = { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' }
+
+    testQueryClient.setQueryData<SessionView>(keys.me, { id: 1, username: 'alex', displayName: 'Alex Smith', role: 'user' })
     const router = makeRouter(); router.push('/security'); await router.isReady()
     const wrapper = mount(Host, { global: { plugins: [router, makeI18n()], components: { AppSidebar } } })
     // LocaleSwitcher renders the vendored Select trigger; ThemeToggle a role="radiogroup".

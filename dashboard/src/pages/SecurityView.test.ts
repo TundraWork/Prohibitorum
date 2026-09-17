@@ -75,7 +75,7 @@ describe('SecurityView', () => {
     get.mockResolvedValue(FACTORS_SET)
     mount(SecurityView, { global: { plugins: [i18n()] }, attachTo: document.body })
     await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/factors')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/me/factors', expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
 
   it('shows a non-destructive alert when /me/factors fails', async () => {
@@ -111,7 +111,7 @@ describe('SecurityView', () => {
     expect(recoveryCard.find('button').exists()).toBe(true)
   })
 
-  it('@changed from PasswordCard triggers re-fetch and updates badge', async () => {
+  it('saving a password invalidates shared factors and updates the badge', async () => {
     // Initial mount: password is not set
     get.mockResolvedValue(FACTORS_UNSET)
     const w = mount(SecurityView, { global: { plugins: [i18n()] }, attachTo: document.body })
@@ -124,7 +124,12 @@ describe('SecurityView', () => {
 
     // After the card emits "changed", the GET will return passwordSet: true
     get.mockResolvedValue({ ...FACTORS_UNSET, passwordSet: true })
-    await w.findComponent(PasswordCard).vm.$emit('changed')
+    const card = w.findComponent(PasswordCard)
+    const fields = card.findAll('input')
+    await fields[0].setValue('a-new-password-123')
+    await fields[1].setValue('a-new-password-123')
+    post.mockResolvedValue({})
+    await card.find('button').trigger('click')
     await flushPromises()
 
     const factorsCallsAfter = get.mock.calls.filter((args) => args[0] === '/api/prohibitorum/me/factors').length

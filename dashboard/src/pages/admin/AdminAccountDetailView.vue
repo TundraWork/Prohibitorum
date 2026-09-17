@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { removeDetail } from '@/queries/invalidation'
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * AdminAccountDetailView (/admin/accounts/:id) — per-account admin actions.
  * Edit identity/role/disabled (PUT round-trips attributes — the backend REPLACES
@@ -8,12 +10,16 @@
  * All mutations go through withSudo (no-op unless the server demands sudo —
  * only credential force-revoke does today).
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useResource } from '@/composables/useResource'
+import { useDraftSync } from '@/composables/useDraftSync'
+import { useQueryClient } from '@tanstack/vue-query'
+import { detailQuery, accountSectionQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
-import { type Page, buildPagePath, unwrap } from '@/lib/pagination'
+import { type Page } from '@/lib/pagination'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
 import { withSudo } from '@/lib/sudo'
@@ -61,18 +67,27 @@ interface PersonalAccessTokenView {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, clear } = useApi()
+const { busy: mutationBusy, error: mutationError, run, clear: clearMutation } = useApi('accounts')
 // Linked identities load independently so their failure cannot be erased by
 // successful account mutations or hide errors from other account sections.
-const identitiesApi = useApi()
 
 const id = Number(route.params.id)
-const account = ref<Account | null>(null)
-const credentials = ref<Credential[]>([])
-const sessions = ref<SessionListItem[]>([])
-const identities = ref<AccountIdentity[]>([])
-const identitiesLoaded = ref(false)
-const notFound = ref(false)
+const queryClient = useQueryClient()
+const options = detailQuery<Account>('accounts', id)
+const query = useResource(options)
+const account = computed({ get: () => query.data.value ?? null, set: (value: Account | null) => { if (value) queryClient.setQueryData(options.queryKey, value) } })
+const credentialsQuery = useResource(accountSectionQuery<Page<Credential>>(id, 'credentials'))
+const sessionsQuery = useResource(accountSectionQuery<Page<SessionListItem>>(id, 'sessions'))
+const tokensQuery = useResource(accountSectionQuery<Page<PersonalAccessTokenView>>(id, 'tokens'))
+const identitiesApi = useResource(accountSectionQuery<AccountIdentity[]>(id, 'identities'))
+const credentials = computed(() => credentialsQuery.data.value?.items ?? [])
+const sessions = computed(() => sessionsQuery.data.value?.items ?? [])
+const identities = computed(() => identitiesApi.data.value ?? [])
+const identitiesLoaded = identitiesApi.isSuccess
+const busy = computed(() => mutationBusy.value || query.busy.value)
+const error = computed(() => mutationError.value ?? query.error.value ?? credentialsQuery.error.value ?? sessionsQuery.error.value ?? tokensQuery.error.value)
+const notFound = computed(() => query.error.value?.code === 'account_not_found')
+function clear(): void { clearMutation(); query.clear(); credentialsQuery.clear(); sessionsQuery.clear(); tokensQuery.clear() }
 
 const displayName = ref('')
 const email = ref('')
@@ -110,7 +125,7 @@ function buildAttrs(): Record<string, unknown> {
 function addAttrRow(): void { attrRows.value.push({ uid: attrUid++, key: '', value: '' }) }
 function removeAttrRow(i: number): void { attrRows.value.splice(i, 1) }
 
-const tokens = ref<PersonalAccessTokenView[]>([])
+const tokens = computed(() => tokensQuery.data.value?.items ?? [])
 const confirmRevokeTokenId = ref<number | null>(null)
 
 const revokeCredId = ref<number | null>(null)
@@ -123,41 +138,14 @@ const reissueExpires = ref('')
 
 const hasComplexAttrs = computed(() => Object.keys(attrComplex.value).length > 0)
 
-async function loadCredentials(): Promise<void> {
-  const creds = await run(() => api.get<Page<Credential>>(buildPagePath(`/api/prohibitorum/accounts/${id}/credentials`, { limit: 100 })))
-  if (creds) credentials.value = unwrap(creds).items
-}
-async function loadIdentities(): Promise<void> {
-  const result = await identitiesApi.run(() =>
-    api.get<AccountIdentity[]>(`/api/prohibitorum/accounts/${id}/identities`),
-  )
-  if (result !== undefined) {
-    identities.value = result
-    identitiesLoaded.value = true
-  }
-}
-async function loadSessions(): Promise<void> {
-  const res = await run(() => api.get<Page<SessionListItem>>(buildPagePath(`/api/prohibitorum/accounts/${id}/sessions`, { limit: 100 })))
-  if (res) sessions.value = unwrap(res).items
-}
-async function loadTokens(): Promise<void> {
-  const res = await run(() => api.get<Page<PersonalAccessTokenView>>(buildPagePath(`/api/prohibitorum/accounts/${id}/tokens`, { limit: 100 })))
-  if (res) tokens.value = unwrap(res).items
-}
-async function load(): Promise<void> {
-  const acc = await run(() => api.get<Account>(`/api/prohibitorum/accounts/${id}`))
-  if (!acc) { if (error.value?.code === 'account_not_found') notFound.value = true; return }
-  account.value = acc
+function seedForm(acc: Account): void {
   displayName.value = acc.displayName
   email.value = acc.email ?? ''
   role.value = acc.role === 'admin' || acc.role === 'app_manager' ? acc.role : 'user'
   disabled.value = acc.disabled
   seedAttrs(acc.attributes)
-  await loadCredentials()
-  await loadSessions()
-  await loadTokens()
-  await loadIdentities()
 }
+const draft = useDraftSync(account, () => [displayName.value, email.value, role.value, disabled.value, buildAttrs()], seedForm)
 
 async function save(): Promise<void> {
   // Send email ONLY when it changed: any explicit email value resets
@@ -173,39 +161,36 @@ async function save(): Promise<void> {
     attributes: buildAttrs(),
     ...(emailChanged ? { email: trimmedEmail } : {}),
   }), t('sudo.reason.saveChanges')))
-  if (updated) { account.value = updated; displayName.value = updated.displayName; email.value = updated.email ?? ''; seedAttrs(updated.attributes); triggerSaved() }
+  if (updated) { account.value = updated; draft.accept(updated); triggerSaved() }
 }
 async function forceRevoke(): Promise<void> {
   const credentialId = revokeCredId.value
   if (credentialId == null) return
-  const ok = await run(() => withSudo(async () => {
+  await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/accounts/credentials/delete', { accountId: id, credentialId })
     return true as const
   }, t('sudo.reason.forceRevokePasskey')))
   revokeCredId.value = null
-  if (ok) await loadCredentials()
 }
 async function revokeSession(sessionId: string): Promise<void> {
-  const ok = await run(() => withSudo(async () => {
+  await run(() => withSudo(async () => {
     await api.post(`/api/prohibitorum/accounts/${id}/sessions/revoke`, { sessionId })
     return true as const
   }, t('sudo.reason.revokeSession')))
-  if (ok) await loadSessions()
 }
 async function revokeToken(tokenId: number): Promise<void> {
-  const ok = await run(() => withSudo(async () => {
+  await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/accounts/tokens/revoke', { id: tokenId })
     return true as const
   }, t('sudo.reason.revokeToken')))
   confirmRevokeTokenId.value = null
-  if (ok) await loadTokens()
 }
 async function revokeAllSessions(): Promise<void> {
   const res = await run(() => withSudo(() =>
     api.post<{ revoked: number }>('/api/prohibitorum/accounts/revoke-sessions', { id }),
     t('sudo.reason.revokeSession')))
   confirmRevokeAll.value = false
-  if (res) { revokedCount.value = res.revoked; await loadSessions() }
+  if (res) { revokedCount.value = res.revoked }
 }
 async function reissue(): Promise<void> {
   const res = await run(() => withSudo(() =>
@@ -231,14 +216,13 @@ const isPersistedAdmin = computed(() => account.value?.role === 'admin')
 async function destroy(): Promise<void> {
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/accounts/delete', { id })
+    await removeDetail(queryClient, 'accounts', id)
     return true as const
   }, t('sudo.reason.deleteAccount')))
   confirmDelete.value = false
   if (ok) router.push('/admin/accounts')
 }
-onMounted(async () => {
-  await load()
-})
+usePrivateState(() => { reissueUrl.value = ''; reissueExpires.value = '' })
 </script>
 <template>
   <div class="flex max-w-2xl flex-col gap-6">

@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { createPinia } from 'pinia'
 import en from '@/locales/en'
+import { api } from '@/lib/api'
+vi.mock('@/lib/api', () => ({ api: { get: vi.fn(async () => null) } }))
 import ErrorView from './ErrorView.vue'
 
 // vue-router — expose a mutable query so tests can inject route params.
@@ -11,12 +12,11 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({ query: _routeQuery }),
 }))
 
-// Auth store: `me` is preset per test; `ensureLoaded` is controllable.
+// Session projection is preset per test.
 const authState = vi.hoisted(() => ({
   me: null as null | { id: number; username: string },
-  ensureLoaded: vi.fn(async () => {}),
 }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
+vi.mock('@/composables/useSession', () => ({ useSession: () => authState }))
 
 function makeI18n() {
   return createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en } })
@@ -25,7 +25,7 @@ function makeI18n() {
 function mountView() {
   return mount(ErrorView, {
     global: {
-      plugins: [makeI18n(), createPinia()],
+      plugins: [makeI18n()],
       stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot/></a>' } },
     },
   })
@@ -34,8 +34,6 @@ function mountView() {
 beforeEach(() => {
   _routeQuery = {}
   authState.me = null
-  authState.ensureLoaded.mockClear()
-  authState.ensureLoaded.mockResolvedValue(undefined)
 })
 
 describe('ErrorView', () => {
@@ -133,8 +131,8 @@ describe('ErrorView', () => {
     expect(link.text()).toBe(en.error.backToDashboard)
   })
 
-  it('ignores ensureLoaded errors and treats user as unauthenticated', async () => {
-    authState.ensureLoaded.mockRejectedValue(new Error('network error'))
+  it('ignores session query errors and treats user as unauthenticated', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('network error'))
     authState.me = null
     _routeQuery = { error: 'server_error' }
 

@@ -1,13 +1,18 @@
 <script setup lang="ts">
+import { removeDetail } from '@/queries/invalidation'
 /**
  * AdminSamlProviderDetailView (/admin/saml-applications/:id) — per-SP admin actions.
  * Edit flags (PUT); re-ingest metadata; view ACS endpoints and signing certificates
  * (read-only); delete. All mutations go through withSudo.
  */
-import { onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusMessage from '@/components/custom/StatusMessage.vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useResource } from '@/composables/useResource'
+import { useDraftSync } from '@/composables/useDraftSync'
+import { useQueryClient } from '@tanstack/vue-query'
+import { detailQuery } from '@/queries/resources'
 import { api } from '@/lib/api'
 import { useApi } from '@/composables/useApi'
 import { useTransientFlag } from '@/composables/useTransientFlag'
@@ -65,11 +70,17 @@ interface SamlApplication {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { busy, error, run, clear } = useApi()
+const { busy: mutationBusy, error: mutationError, run, clear: clearMutation } = useApi('saml-applications')
 
 const id = Number(route.params.id)
-const sp = ref<SamlApplication | null>(null)
-const notFound = ref(false)
+const queryClient = useQueryClient()
+const options = detailQuery<SamlApplication>('saml-applications', id)
+const query = useResource(options)
+const sp = computed({ get: () => query.data.value ?? null, set: (value: SamlApplication | null) => { if (value) queryClient.setQueryData(options.queryKey, value) } })
+const busy = computed(() => mutationBusy.value || query.busy.value)
+const error = computed(() => mutationError.value ?? query.error.value)
+const notFound = computed(() => query.error.value?.code === 'credential_not_found')
+function clear(): void { clearMutation(); query.clear() }
 const localError = ref('')
 
 const displayName = ref('')
@@ -96,12 +107,7 @@ function seedForm(data: SamlApplication): void {
   sessionLifetimeSecs.value = data.sessionLifetimeSecs != null ? String(data.sessionLifetimeSecs) : ''
 }
 
-async function load(): Promise<void> {
-  const data = await run(() => api.get<SamlApplication>(`/api/prohibitorum/saml-applications/${id}`))
-  if (!data) { if (error.value?.code === 'credential_not_found') notFound.value = true; return }
-  sp.value = data
-  seedForm(data)
-}
+const draft = useDraftSync(sp, () => [displayName.value, nameIdFormat.value, attributeMap.value, requireSignedAuthnRequest.value, allowIdpInitiated.value, disabled.value, sessionLifetimeSecs.value], seedForm)
 
 async function save(): Promise<void> {
   localError.value = ''
@@ -116,7 +122,7 @@ async function save(): Promise<void> {
     allowIdpInitiated: allowIdpInitiated.value,
     ...(secs !== '' ? { sessionLifetimeSecs: Number(secs) } : {}),
   }), t('sudo.reason.saveChanges')))
-  if (updated) { sp.value = updated; seedForm(updated); triggerSaved() }
+  if (updated) { sp.value = updated; seedForm(updated); draft.accept(updated); triggerSaved() }
 }
 
 async function reingest(): Promise<void> {
@@ -125,7 +131,7 @@ async function reingest(): Promise<void> {
   const res = await run(() => withSudo(() =>
     api.post<SamlApplication>(`/api/prohibitorum/saml-applications/${id}/reingest-metadata`, { metadataXml: reingestXml.value }),
     t('sudo.reason.saveChanges')))
-  if (res) { sp.value = res; seedForm(res); reingestDone.value = true }
+  if (res) { sp.value = res; draft.accept(res); reingestDone.value = true }
 }
 
 // Flip the disabled flag on its own (independent of the config Save), via the
@@ -145,6 +151,7 @@ async function destroy(): Promise<void> {
   reingestDone.value = false
   const ok = await run(() => withSudo(async () => {
     await api.post('/api/prohibitorum/saml-applications/delete', { id })
+    await removeDetail(queryClient, 'saml-applications', id)
     return true as const
   }, t('sudo.reason.deleteApp')))
   confirmDelete.value = false
@@ -157,7 +164,6 @@ function bindingLabel(b: string): string {
   return b
 }
 
-onMounted(load)
 </script>
 <template>
   <div class="flex max-w-4xl flex-col gap-6">
@@ -255,7 +261,6 @@ onMounted(load)
         :base-path="`/api/prohibitorum/saml-applications/${id}`"
         :name="sp?.displayName ?? String(id)"
         :icon-url="sp?.iconUrl"
-        @changed="load"
       />
 
       <AppManagerCard kind="saml" :app-id="String(id)" />

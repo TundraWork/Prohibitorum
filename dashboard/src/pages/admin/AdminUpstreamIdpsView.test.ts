@@ -81,7 +81,7 @@ describe('AdminUpstreamIdpsView', () => {
   it('lists providers with mode + state', async () => {
     get.mockResolvedValue({ items: IDPS, nextCursor: '' })
     const w = mountView(); await flushPromises()
-    expect(get).toHaveBeenCalledWith('/api/prohibitorum/identity-providers')
+    expect(get).toHaveBeenCalledWith('/api/prohibitorum/identity-providers', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(w.text()).toContain('Okta'); expect(w.text()).toContain(en.admin.upstream.modeInviteOnly)
   })
   it('shows name + slug stacked in the first cell, with both named in its header', async () => {
@@ -105,7 +105,7 @@ describe('AdminUpstreamIdpsView', () => {
     expect(push).toHaveBeenCalledWith('/admin/identity-providers/okta')
   })
   it('creates an OIDC provider with adapter config and a generic secret', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockResolvedValue({ slug: 'new', displayName: 'New', mode: 'link_only' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
@@ -139,7 +139,7 @@ describe('AdminUpstreamIdpsView', () => {
     expect(w.text()).toContain(en.admin.upstream.created)
   })
   it('creates a Steam provider with empty adapter config and a generic secret', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockResolvedValue({ slug: 'steam', displayName: 'Steam', protocol: 'steam', mode: 'auto_provision', config: {} })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
@@ -158,7 +158,7 @@ describe('AdminUpstreamIdpsView', () => {
     })
   })
   it('locks VRChat creation to link only and explains the local credential flow', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockResolvedValue({
       slug: 'vrchat',
       displayName: 'VRChat moderation',
@@ -209,7 +209,7 @@ describe('AdminUpstreamIdpsView', () => {
   })
 
   it('restores the selected provisioning mode after switching back from VRChat', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     await w.find('[data-test="radio-card-invite_only"]').trigger('click')
@@ -222,7 +222,7 @@ describe('AdminUpstreamIdpsView', () => {
     expect(w.get('[data-test="radio-card-invite_only"]').attributes('data-state')).toBe('checked')
   })
   it('routes from the authoritative create response after the form changes', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     const response = deferred<unknown>()
     post.mockReturnValue(response.promise)
     const w = mountView()
@@ -247,7 +247,7 @@ describe('AdminUpstreamIdpsView', () => {
     expect(push).toHaveBeenCalledWith('/admin/identity-providers/returned-vrchat')
   })
   it('includes pictureClaim in create payload and renders the input', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockResolvedValue({ slug: 'new', displayName: 'New', mode: 'auto_provision', config: { ...OIDC_CONFIG, pictureClaim: 'avatar' } })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
@@ -264,7 +264,7 @@ describe('AdminUpstreamIdpsView', () => {
     }))
   })
   it('renders claim inputs as a compact grid with default-value placeholders and pre-filled defaults', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
     expect(w.find('[data-test="claim-username"]').attributes('placeholder')).toBe('preferred_username')
@@ -278,7 +278,7 @@ describe('AdminUpstreamIdpsView', () => {
     expect((w.find('input[name="pictureClaim"]').element as HTMLInputElement).value).toBe('picture')
   })
   it('surfaces upstream_idp_already_exists', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     post.mockRejectedValue({ code: 'upstream_idp_already_exists', message: 'zh' })
     const w = mountView(); await flushPromises()
     await w.find('[data-test="create"]').trigger('click')
@@ -291,7 +291,7 @@ describe('AdminUpstreamIdpsView', () => {
     expect(w.text()).toContain(en.errors.codes.upstream_idp_already_exists)
   })
   it('hides the empty-state while the create form is open', async () => {
-    get.mockResolvedValue([])
+    get.mockResolvedValue({ items: [], nextCursor: '' })
     const w = mountView(); await flushPromises()
     expect(w.text()).toContain(en.admin.upstream.empty)
     await w.find('[data-test="create"]').trigger('click'); await flushPromises()

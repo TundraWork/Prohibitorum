@@ -224,3 +224,26 @@ describe('connection-error seam', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 })
+
+describe('query cancellation', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); registerConnectionErrorHandler(null); registerUnauthorizedHandler(null) })
+  it('cancels a pending response body without reporting a connection error or late 401', async () => {
+    let finish!: (text: string) => void
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, headers: new Headers(), text: () => new Promise<string>(resolve => { finish = resolve }) }))
+    const connection = vi.fn(), unauthorized = vi.fn()
+    registerConnectionErrorHandler(connection); registerUnauthorizedHandler(unauthorized)
+    const controller = new AbortController()
+    const request = api.get('/api/test', { signal: controller.signal })
+    await Promise.resolve(); await Promise.resolve()
+    controller.abort(); finish('{"code":"no_session"}')
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+    expect(connection).not.toHaveBeenCalled(); expect(unauthorized).not.toHaveBeenCalled()
+  })
+  it('still reports a timeout as a network error', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn((_path, options: RequestInit) => new Promise((_resolve, reject) => options.signal?.addEventListener('abort', () => reject(new DOMException('timeout', 'AbortError'))))))
+    const request = api.get('/api/test').catch(error => error)
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(await request).toEqual({ code: 'network_error' })
+  })
+})

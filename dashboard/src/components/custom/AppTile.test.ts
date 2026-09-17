@@ -99,9 +99,9 @@ describe('AppTile', () => {
   })
 
   it('does NOT expose revoke for forward-auth (always-on) or an unconsented app', async () => {
-    await mountOpen({ app: FWD_APP, consent: null })
+    const first = await mountOpen({ app: FWD_APP, consent: null })
     expect(document.body.querySelector(`[data-test="revoke-${FWD_APP.id}"]`)).toBeNull()
-    document.body.innerHTML = ''
+    first.unmount()
     await mountOpen({ app: APP, consent: null })
     expect(document.body.querySelector(`[data-test="revoke-${APP.id}"]`)).toBeNull()
   })

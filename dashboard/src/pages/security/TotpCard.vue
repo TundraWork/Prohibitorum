@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateState } from '@/composables/usePrivateState'
 /**
  * TotpCard — enroll a TOTP authenticator. begin (sudo-gated when re-enrolling)
  * returns secret+otpauth; the backend persists only on verify. First
@@ -33,7 +34,7 @@ const props = defineProps<{ enrolled?: boolean }>()
 const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t } = useI18n()
-const { busy, error, run, clear } = useApi()
+const { busy, error, run, clear } = useApi('credentials')
 const secret = ref('')
 const otpauth = ref('')
 const code = ref('')
@@ -71,6 +72,7 @@ function cancelSetup(): void {
   secret.value = ''; otpauth.value = ''; code.value = ''
   error.value = null
 }
+usePrivateState(() => { secret.value = ''; otpauth.value = ''; code.value = ''; recovery.value = []; enabled.value = false })
 </script>
 
 <template>

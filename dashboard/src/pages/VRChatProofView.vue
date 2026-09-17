@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import CenteredLayout from '@/pages/CenteredLayout.vue'
-import { useBrandingStore } from '@/stores/branding'
+import { useBranding } from '@/composables/useBranding'
 
 const { t } = useI18n()
-const branding = useBrandingStore()
+const branding = useBranding()
 </script>
 
 <template>

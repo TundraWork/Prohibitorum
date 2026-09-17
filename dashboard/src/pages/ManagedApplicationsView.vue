@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { api } from '@/lib/api'
 import type { ManagedApplication } from '@/lib/appAccess'
-import { useApi } from '@/composables/useApi'
+import { useResource } from '@/composables/useResource'
+import { managedApplicationsQuery } from '@/queries/resources'
 import ErrorPanel from '@/components/custom/ErrorPanel.vue'
 import EmptyState from '@/components/custom/EmptyState.vue'
 import ProtocolBadge from '@/components/custom/ProtocolBadge.vue'
@@ -13,8 +13,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 
 const { t } = useI18n()
-const { busy, error, run, clear } = useApi()
-const applications = ref<ManagedApplication[]>([])
+const query = useResource(managedApplicationsQuery<ManagedApplication[]>())
+const { busy, error, clear } = query
+const applications = computed(() => query.data.value ?? [])
 
 const sortedApplications = computed(() => [...applications.value].sort((a, b) => a.displayName.localeCompare(b.displayName)))
 
@@ -22,11 +23,6 @@ function applicationPath(app: ManagedApplication): string {
   return `/manage/applications/${encodeURIComponent(app.kind)}/${encodeURIComponent(app.appId)}`
 }
 
-onMounted(() => {
-  void run(async () => {
-    applications.value = await api.get<ManagedApplication[]>('/api/prohibitorum/managed-applications')
-  })
-})
 </script>
 
 <template>
