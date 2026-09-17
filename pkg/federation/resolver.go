@@ -220,11 +220,7 @@ func resolveExisting(
 				AccountID: new(stored.AccountID),
 				Factor:    audit.FactorFederationOIDC,
 				Event:     audit.EventUse,
-				Detail: map[string]any{
-					"idp_slug": idp.Slug,
-					"iss":      identity.Issuer,
-					"sub":      identity.Subject,
-				},
+				Detail:    useAuditDetail(idp, identity),
 			})
 		}
 		return ResolveOutcome{
@@ -314,11 +310,7 @@ func applyAutoProvision(
 					AccountID: new(finalIdentity.AccountID),
 					Factor:    audit.FactorFederationOIDC,
 					Event:     audit.EventUse,
-					Detail: map[string]any{
-						"idp_slug": idp.Slug,
-						"iss":      identity.Issuer,
-						"sub":      identity.Subject,
-					},
+					Detail:    useAuditDetail(idp, identity),
 				})
 			}
 			return ResolveOutcome{
@@ -445,11 +437,7 @@ func applyAutoProvision(
 			AccountID: new(acct.ID),
 			Factor:    audit.FactorFederationOIDC,
 			Event:     audit.EventUse,
-			Detail: map[string]any{
-				"idp_slug": idp.Slug,
-				"iss":      identity.Issuer,
-				"sub":      identity.Subject,
-			},
+			Detail:    useAuditDetail(idp, identity),
 		})
 		// PENDING by design: the inserted identity has confirmed_at=NULL, so the
 		// HTTP layer routes to /welcome and issues no session until the user
@@ -990,6 +978,18 @@ func emitFail(
 		Event:  audit.EventFail,
 		Detail: detail,
 	})
+}
+
+func useAuditDetail(idp *resolverProvider, identity *VerifiedIdentity) map[string]any {
+	detail := map[string]any{
+		"idp_slug": idp.Slug,
+		"iss":      identity.Issuer,
+		"sub":      identity.Subject,
+	}
+	if identity.UserInfoFallback {
+		detail["fallback"] = "userinfo"
+	}
+	return detail
 }
 
 // ValidateUpstreamData enforces the storage boundary for adapter-approved

@@ -257,7 +257,7 @@ func (a *Adapter) Advance(ctx context.Context, provider federationcore.Provider,
 			Issuer: state.ExpectedIss, Subject: subject, Email: email,
 			EmailVerified: ClaimBool(claims, "email_verified"), EmailVerificationSupported: true,
 			Username: ClaimString(claims, usernameClaim), DisplayName: ClaimString(claims, displayClaim),
-			AvatarURL: avatarURL,
+			AvatarURL: avatarURL, UserInfoFallback: true,
 		}
 		// Userinfo already returned the picture; no deferred avatar fetch.
 		return federationcore.AdvanceResult{

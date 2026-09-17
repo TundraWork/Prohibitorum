@@ -144,6 +144,50 @@ func TestVerifyFlowLogsUpstreamCause(t *testing.T) {
 	}
 }
 
+func TestVerifyFlowLogsOnlyUserInfoFallbackSuccess(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		fallback bool
+	}{
+		{name: "ID token"},
+		{name: "userinfo fallback", fallback: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			buf, restore := captureLogrus(t)
+			defer restore()
+
+			service, adapter, _, _ := newServiceHarness(t)
+			adapter.advance = func(json.RawMessage, ActionInput) (AdvanceResult, error) {
+				return AdvanceResult{Identity: &VerifiedIdentity{
+					Issuer: "iss", Subject: "sub", UserInfoFallback: test.fallback,
+				}}, nil
+			}
+			begin, err := service.BeginPublic(context.Background(), "corp", "/")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = service.VerifyFlow(context.Background(), AdvanceRequest{
+				FlowID: begin.FlowID, BrowserToken: begin.BrowserToken, ProviderSlug: "corp", Protocol: "fake",
+				CallbackRoute: CallbackRoutePublic, Input: ActionInput{Kind: ActionRedirect},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+			if test.fallback {
+				for _, field := range []string{"event=federation_flow_success", "fallback=userinfo", "idp_slug=corp", "flow_id=" + begin.FlowID} {
+					if !strings.Contains(out, field) {
+						t.Fatalf("success log missing %q:\n%s", field, out)
+					}
+				}
+			} else if strings.Contains(out, "federation_flow_success") || strings.Contains(out, "fallback=userinfo") {
+				t.Fatalf("ID-token flow emitted fallback success marker:\n%s", out)
+			}
+		})
+	}
+}
+
 func TestVerifyFlowLocalStateFailureOmitsUpstreamError(t *testing.T) {
 	buf, restore := captureLogrus(t)
 	defer restore()

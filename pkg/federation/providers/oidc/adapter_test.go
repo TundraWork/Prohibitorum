@@ -190,6 +190,9 @@ func TestAdapterAdvanceAllowsOptionalAuthorizationResponseIssuer(t *testing.T) {
 	if result.Identity == nil || result.Identity.Issuer != "https://issuer.test" {
 		t.Fatalf("identity = %+v", result.Identity)
 	}
+	if result.Identity.UserInfoFallback {
+		t.Error("ID-token identity marked as userinfo fallback")
+	}
 }
 
 func TestAdapterCachesClientAcrossBeginAndAdvance(t *testing.T) {
@@ -535,6 +538,9 @@ func TestAdapterAdvanceUserinfoFallback(t *testing.T) {
 	}
 	if identity.AMR != nil {
 		t.Errorf("AMR = %v, want nil on the userinfo path", identity.AMR)
+	}
+	if !identity.UserInfoFallback {
+		t.Error("UserInfoFallback = false, want true")
 	}
 	if result.Avatar == nil || result.Avatar.URL != "https://cdn.test/octo.png" {
 		t.Errorf("Avatar = %+v, want direct picture URL", result.Avatar)

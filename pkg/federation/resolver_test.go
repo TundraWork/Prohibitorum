@@ -1912,6 +1912,43 @@ func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
 	}
 }
 
+func TestResolverUseAuditMarksOnlyUserInfoFallback(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		fallback     bool
+		wantFallback bool
+	}{
+		{name: "ID token"},
+		{name: "userinfo fallback", fallback: true, wantFallback: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			q := newFakeModesQueries()
+			q.identityErr = nil
+			q.identityResult = db.AccountIdentity{
+				ID: 300, AccountID: 50, UpstreamIdpID: 42,
+				ConfirmedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			}
+			q.accountByIDResults[50] = db.Account{ID: 50, Username: "existing"}
+			a := &recordingAudit{}
+			resolver := federationoidc.NewResolver(q, a, nil)
+			identity := *goodTokens()
+			identity.UserInfoFallback = test.fallback
+
+			if _, err := resolver.ResolveIdentity(context.Background(), genericProvider(federationoidc.ModeAutoProvision), identity, federationoidc.ResolveContext{Intent: federationoidc.IntentLogin}); err != nil {
+				t.Fatal(err)
+			}
+			record := findEvent(a.snapshot(), audit.EventUse)
+			if record == nil {
+				t.Fatal("missing federation use audit")
+			}
+			fallback, present := record.Detail["fallback"]
+			if present != test.wantFallback || present && fallback != "userinfo" {
+				t.Fatalf("fallback detail = %v, present=%v", fallback, present)
+			}
+		})
+	}
+}
+
 func TestResolverLinkInfrastructureFailuresAreOpaqueAndClassified(t *testing.T) {
 
 	tests := []struct {

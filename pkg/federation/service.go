@@ -376,6 +376,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	if state.Protocol == "vrchat" {
 		s.recordVRChatTransition(operationCtx, "vrchat_proof_verified", state, provider.Slug, "")
 	}
+	logFlowSuccess(operationCtx, state, &request, provider.Slug, result.Identity.UserInfoFallback)
 	completion := &CompletionResult{
 		Intent: state.Intent, AccountID: outcome.AccountID, IdentityID: outcome.IdentityID,
 		ProviderID: provider.ID, ProviderSlug: provider.Slug, ReturnTo: state.ReturnTo,
@@ -570,6 +571,28 @@ func logFlowFailure(ctx context.Context, reason FailureReason, cause error, prov
 		fields["upstream_error"] = cause.Error()
 	}
 	logx.WithContext(ctx).WithFields(fields).Warn("federation flow failed")
+}
+
+func logFlowSuccess(ctx context.Context, state *FlowState, request *AdvanceRequest, providerSlug string, userInfoFallback bool) {
+	if !userInfoFallback {
+		return
+	}
+	fields := logrus.Fields{"event": "federation_flow_success"}
+	if providerSlug != "" {
+		fields["idp_slug"] = providerSlug
+	}
+	if state != nil {
+		fields["intent"] = string(state.Intent)
+		fields["protocol"] = state.Protocol
+	}
+	if request != nil {
+		fields["flow_id"] = request.FlowID
+	}
+	if id := weberr.RequestIDFromContext(ctx); id != "" {
+		fields["request_id"] = id
+	}
+	fields["fallback"] = "userinfo"
+	logx.WithContext(ctx).WithFields(fields).Info("federation flow succeeded")
 }
 
 func vrchatFailureCategory(err error) string {

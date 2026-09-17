@@ -136,6 +136,10 @@ type VerifiedIdentity struct {
 	AMR                        []string
 	AvatarURL                  string
 	UpstreamData               map[string]string
+	// UserInfoFallback records that OIDC authentication succeeded without an
+	// ID token and used the userinfo endpoint as the identity source. It is
+	// transient flow metadata and is not persisted with upstream identity data.
+	UserInfoFallback bool
 }
 
 type EnrollmentGrant struct {
