@@ -578,6 +578,8 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationRenameMyCredential, s.handleRenameMyCredential, sessionReq)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/begin", sessionReq, s.handleAddCredentialBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/credentials/register/complete", sessionReq, s.handleAddCredentialCompleteHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/password-totp/begin", sessionReq, s.handleMePasswordTOTPBeginHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/password-totp/verify", sessionReq, s.handleMePasswordTOTPVerifyHTTP)
 	registerOp(mgmt, contract.OperationListMySessions, s.handleListMySessions, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeMySession, s.handleRevokeMySession, sessionReq)
 	registerOp(mgmt, contract.OperationListMyTokens, s.handleListMyTokens, sessionReq)
