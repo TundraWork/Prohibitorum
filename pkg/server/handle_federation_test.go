@@ -317,7 +317,7 @@ func newFederationTestServer(t *testing.T) *fedTestHarness {
 		IssuerURL: opTS.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"},
 		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
 		EmailClaim: "email", PictureClaim: "picture", RequireVerifiedEmail: true,
-		AllowPrivateNetwork: true,
+		AllowPrivateNetwork: true, SubjectClaim: "sub",
 	})
 	if err != nil {
 		t.Fatal(err)
